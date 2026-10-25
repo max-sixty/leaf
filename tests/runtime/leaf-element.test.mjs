@@ -322,7 +322,7 @@ test("a render that throws shows its failure and draws again for the next move",
   unrelated.element.remove();
 });
 
-test("an element that reads its bound data draws each accepted reading", async () => {
+test("an element gates its draws on the delivered bound value", async () => {
   const tag = `lf-probe-data-${++tags}`;
   adoptRegistry({
     [tag]: {
@@ -349,7 +349,11 @@ test("an element that reads its bound data draws each accepted reading", async (
   customElements.define(
     tag,
     class extends LeafElement {
+      shouldUpdate(changed) {
+        return super.shouldUpdate(changed) && this.value !== this.drawn;
+      }
       render() {
+        this.drawn = this.value;
         revisions.push(this.value?.[0].revision ?? null);
         return html`${this.value?.[0].key}`;
       }
@@ -360,6 +364,9 @@ test("an element that reads its bound data draws each accepted reading", async (
   element.setAttribute("source", "deployments");
   document.body.append(element);
   await settled(element);
+  element.requestUpdate();
+  await settled(element);
+  assert.deepEqual(revisions, ["r1"], "an unchanged value skips the draw");
   accept("second", "r2");
   await notifyDataSubscribers();
   assert.deepEqual(revisions, ["r1", "r2"]);

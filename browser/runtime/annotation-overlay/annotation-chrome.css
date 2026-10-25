@@ -659,7 +659,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     inset-block-start: 0;
     z-index: 1;
     background-color: var(--lf-msg-ground);
-    padding-inline-end: 0;
   }
   /* A short name keeps its whole width even where the shared cap
      (components/surfaces.css) would cut it in a narrowed head; it shortens only once

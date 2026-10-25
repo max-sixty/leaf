@@ -110,6 +110,42 @@ def test_a_new_sent_message_does_not_hide_work_on_an_earlier_message(browser, se
     expect(thread_row(page, root).locator(".lf-fp-value")).to_have_text("Working")
 
 
+@pytest.mark.parametrize("scheme", ["light", "dark"])
+def test_a_user_message_head_keeps_its_receipt_clear_of_the_edit_control(
+    browser, serve, scheme
+):
+    """Under a finger the edit pencil stands on the message for good, so the head
+    reserves its room and the delivery receipt ends before the control begins."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Check the capacity.", {"section": "how-cap"})
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844},
+        is_mobile=True,
+        has_touch=True,
+        color_scheme=scheme,
+    )
+    page = open_page(browser, url, context=context, color_scheme=scheme)
+    page.locator('[data-lf-margin-for="how-cap"] .lf-margin-marker').tap()
+    message = page.locator(f'.lf-margin-preview .lf-msg[data-event="{root}"]')
+    receipt = message.locator(".lf-msg-head .lf-msg-sending")
+    control = message.locator(".lf-msg-control")
+    expect(receipt).to_be_visible()
+    expect(control).to_be_visible()
+    control_box = control.bounding_box()
+    # The head's room, not this short receipt's width, keeps the control clear of any
+    # label the head holds, such as "Waiting for delivery".
+    content_end = message.locator(".lf-msg-head").evaluate(
+        "head => head.getBoundingClientRect().right"
+        " - parseFloat(getComputedStyle(head).paddingInlineEnd)"
+    )
+    assert content_end <= control_box["x"] + 0.5, (content_end, control_box)
+    receipt_box = receipt.bounding_box()
+    assert receipt_box["x"] + receipt_box["width"] <= control_box["x"] + 0.5, (
+        receipt_box,
+        control_box,
+    )
+
+
 # Paragraphs that give a page length before the thread it is about.
 LEAD = "".join(
     f"<p>Paragraph {n}, there to give the page length.</p>" for n in range(30)

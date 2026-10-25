@@ -223,7 +223,8 @@ def test_the_resources_a_fixture_owns_are_taken_from_that_fixture():
         "launch": ("browser, iphone", {"conftest.py"}),
     }
     bypassed = []
-    for path in sorted((ROOT / "tests").glob("*.py")):
+    for path in sorted((ROOT / "tests").rglob("*.py")):
+        named = path.relative_to(ROOT / "tests").as_posix()
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
             called = (
@@ -231,9 +232,9 @@ def test_the_resources_a_fixture_owns_are_taken_from_that_fixture():
                 if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
                 else None
             )
-            if called in owners and path.name not in owners[called][1]:
+            if called in owners and named not in owners[called][1]:
                 owner = owners[called][0]
-                bypassed.append(f"{path.name}:{node.lineno} {called} — {owner} owns it")
+                bypassed.append(f"{named}:{node.lineno} {called} — {owner} owns it")
         for function in (n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)):
             if function.name in closes_to_stop_a_repeating_fault:
                 continue
@@ -300,7 +301,7 @@ def test_the_resources_a_fixture_owns_are_taken_from_that_fixture():
                 ending = ast.unparse(node)
                 if ending.endswith(".close()") and ending[: -len(".close()")] in lent:
                     bypassed.append(
-                        f"{path.name}:{node.lineno} {ending} — the browser fixture does"
+                        f"{named}:{node.lineno} {ending} — the browser fixture does"
                     )
     assert not bypassed, bypassed
 
@@ -404,7 +405,7 @@ def test_no_test_ends_a_process_with_sigkill():
     or KILL in a command a test runs."""
     shell_kill = re.compile(r"\bkill\s+-(?:9|KILL|SIGKILL)\b")
     killed = []
-    for path in sorted((ROOT / "tests").glob("*.py")):
+    for path in sorted((ROOT / "tests").rglob("*.py")):
         for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
             if (
                 (isinstance(node, ast.Attribute) and node.attr == "SIGKILL")
@@ -428,7 +429,10 @@ def test_no_test_ends_a_process_with_sigkill():
                     and shell_kill.search(node.value)
                 )
             ):
-                killed.append(f"{path.name}:{node.lineno} {ast.unparse(node)[:80]}")
+                killed.append(
+                    f"{path.relative_to(ROOT / 'tests')}:{node.lineno} "
+                    + ast.unparse(node)[:80]
+                )
     assert not killed, killed
 
 

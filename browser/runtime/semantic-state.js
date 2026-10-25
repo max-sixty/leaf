@@ -110,9 +110,11 @@ export const queueWidgetUpdate = (widget, update, committed) => {
 // and annotations measure those targets. Imperative Lit render commits in its call;
 // what the thread pass decides later, where it places and seats each thread, reaches
 // the margin as readings its paint follows (anchor-placement.js `placedAt`,
-// thread/surfaces.js `claimed`), not as DOM it waits for. Reply continuity waits for
-// the margin's commit alone (`annotations`), since the card it lands in is the
-// margin's.
+// thread/surfaces.js `claimed`), not as DOM it waits for. An obligation's control is a
+// widget, so one a seat mounts after this commit presents the whole document as it
+// connects (widget-controller.js, `widgetMounted`), and obligations locate it on the
+// pass that follows. Reply continuity waits for the margin's commit alone
+// (`annotations`), since the card it lands in is the margin's.
 export const PRESENTATION_DOM = Object.freeze({
   widgets: () => [...widgetCommits.values()],
   projection: () => documentCommits.get("projection:chrome")?.() ?? [],

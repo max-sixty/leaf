@@ -1,7 +1,7 @@
 import { PENDING, Z, bindQueuedWork, editable, html, isElementName, isReaction, keyed, lastMovedAt, messageKey, moved, nothing, pendingForParent, render as render$1, repeat, sameAnchor, seatRoot, share, threadKey, threadNames, turns } from "./bundle-browser-runtime.js";
 import { CARET_KEYS, TEXT_FIELD, afterScript, atLayoutPrecision, cancelRender, caretAtKey, carriedFrom, currentLocationIn, currentLocationNodes, currentLocationTouches, deepFocus, drawn as drawn$1, focusDestination, focused, holdCurrentLocation, holdFocus, inputCount, keeps, keepsHidden, layoutPx, move, nextFrame, nextRender, onCurrentLocation, onPress, onPressAway, readCaret, recentPlaceInput, renderedOrder, renderedParent, renderedUnder, ringBox, selectsAll, sizeObserver, takesLetters, under, upFrom } from "./bundle-dom-move.js";
 import { PAGE_PAINT_ATTRIBUTE, PRESS, admitResponse, adoptRegistry, announce, bindings, checked, clampedRow, clippedContents, clippingAxes, commandScope, cycledRow, declarationFor, declareCommandReadiness, descriptionOf, el, elementDeclarations, elementsDeclaring, exhibits, generatedElement, growthAfterIsSeen, growthIsSeen, headerInset, holdStatus, iconElement, iconTemplate, inUi, inWindowChrome, keys, landingBand, loadShadowRules, measure, nearestScrollBy, notice, offer, offered, pagePresented, paintKeys, passErrorsAt, placeBox, placeHolder, plainPress, pointerAt, pressIsKeyboardActivation, projectCommandScope, raiseError, randomId, registry as registry$1, repaint, reportPageError, revealLayer, sameLayer, seenRect, shownBox, shownRect, shownWindow, skipped, stuckBox, tagsDeclaring, titleOf, tokenEntry, touchPresses as touchPresses$1, union, userScrollport, visibleBand, watchArrivals, watchCommandScopes, watchOwner, whenNone } from "./bundle-layer-client.js";
-import { applicationState, attachApplicationPresentation, offlineInteractive, pageClaimed, readApplication, readPart, runtime, runtimeModule, runtimeResource, whenApplicationPresented, whenDocumentPresented, whenWidgetsPresented } from "./bundle-context.js";
+import { applicationState, attachApplicationPresentation, offlineInteractive, pageClaimed, readApplication, readPart, runtime, runtimeModule, runtimeResource, tick, whenApplicationPresented, whenDocumentPresented, whenWidgetsPresented } from "./bundle-context.js";
 import { ago, aimedTop, atScrollEnd, claimReachStop, containingReadingRegionFor, effectiveScroller, moveScrollerBy, pageReadingRegion, pageScroller, placeKept, reachScrollers, reachable, readingRegionFor, readingRegions, releaseReachStop, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, shortAgo, shownRegionBounds, startScroll } from "./bundle-reading-regions.js";
 import { chromeForeground, chromeRoot } from "./bundle-chrome.js";
 import { COLLAPSE, alignText, closestAcross, elementById, fencePassageParts, inChrome, labelWords, pageBlocks, pageDocument, pageQueryAll, pageRange, pageText, pageWords, pointAt, quoteFrom, rangeOf, readingFrom, segmentBlock, segmentsIn, selectEnds, selectionBackward, spanIn, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity } from "./bundle-passages.js";
@@ -4363,6 +4363,15 @@ const threadIdNamed = (name) => threadNamed(name)?.id ?? name;
 //#region runtime/thread/replies.js
 const REPLY_COMPOSITION = Symbol("reply composition");
 const compositions = /* @__PURE__ */ new Map();
+const sessions = Z(0);
+function openSession(context, session) {
+	compositions.set(context, session);
+	tick(sessions);
+	return session;
+}
+function closeSession(context) {
+	if (compositions.delete(context)) tick(sessions);
+}
 const views = /* @__PURE__ */ new Map();
 const available = (composition) => Boolean(composition) && views.get(composition.context)?.has(composition) && composition.controls.input.isConnected;
 function adopt(context, composition) {
@@ -4370,7 +4379,7 @@ function adopt(context, composition) {
 	if (session?.owner !== composition) session?.owner?.sync.cancelDictation();
 	const caret = readCaret(session?.owner?.controls.input);
 	if (session) session.owner = composition;
-	else compositions.set(context, { owner: composition });
+	else openSession(context, { owner: composition });
 	if (caret) composition.controls.input.setSelectionRange(...caret);
 	remember(composition);
 }
@@ -4427,7 +4436,7 @@ const threadHoldsDraft = (key, ids) => draftHasContent(replyContext(key)) || ids
 const replyDraftsHold = (retains) => [...compositions].some(([context, session]) => loadDraft(context) !== null && !retains(session.owner?.controls.input));
 function endSession(context) {
 	const session = compositions.get(context);
-	compositions.delete(context);
+	closeSession(context);
 	if (session?.owner && !session.owner.binding) session.owner.row.remove();
 	return session;
 }
@@ -4578,17 +4587,20 @@ const replyCompositionHasDraft = (node) => {
 	const ctx = replyDraftContext(node);
 	return ctx ? loadDraft(ctx) !== null : null;
 };
-const replyIsEditing = (key) => compositions.has(replyContext(key));
+const replyIsEditing = (key) => {
+	sessions.value;
+	return compositions.has(replyContext(key));
+};
 const replyAvailable = (thread) => !thread.resolved || replyIsEditing(threadKey(thread));
 async function restoreReplyEditing(editing, land) {
 	if (!editing?.mirrored || !draftEditingStands(editing)) return null;
 	const context = editing.context;
 	let session = compositions.get(context);
-	if (!session) compositions.set(context, session = { owner: null });
+	if (!session) session = openSession(context, { owner: null });
 	try {
 		return await land();
 	} finally {
-		if (compositions.get(context) === session && !available(session.owner)) compositions.delete(context);
+		if (compositions.get(context) === session && !available(session.owner)) closeSession(context);
 	}
 }
 function createReplyView(key, commands, redraw, { onChange = () => {}, editLast = null, hint = "Reply", hintAside = () => "", accessibleName = "Reply", busy = () => false, sent = null } = {}) {
@@ -6327,7 +6339,6 @@ var ThreadView = class {
 				this.#draftFrame = 0;
 				if (!this.#reply) return;
 				if (this.#model.resolved) this.repaint();
-				if (this.#model.resolved) this.#commands.reply.changed();
 			});
 		};
 		const commands = this.#commands.reply;
@@ -6647,6 +6658,9 @@ function retainThreadSeats(batch) {
 const registrations = /* @__PURE__ */ new Map();
 let claimedIds = /* @__PURE__ */ new Set();
 let renderGeneration = 0;
+const ownership = Z(0);
+const sameSet = (a, b) => a.size === b.size && [...a].every((item) => b.has(item));
+const holdsOut = (id) => [...registrations.values()].some(({ held }) => held?.holds(id));
 function update(registration) {
 	if (registration.reconcileQueued) return;
 	registration.reconcileQueued = true;
@@ -6693,6 +6707,7 @@ function register(owner, render, { invalidate, composition, reveal }, kind) {
 		placements: null,
 		drawn: /* @__PURE__ */ new Set(),
 		held: kind === "widget" ? new HeldArrivals(() => update(registration)) : null,
+		heldKeys: /* @__PURE__ */ new Set(),
 		reconcileQueued: false,
 		cancelRender: () => {}
 	};
@@ -6802,7 +6817,7 @@ function renderSurfaces(collection, placements, commands) {
 				const byKey = new Map(collection.threads.map((thread) => [thread.key, thread]));
 				const targets = /* @__PURE__ */ new Map();
 				for (const thread of collection.threads) {
-					if (registration.kind === "page" ? heldOut(thread.id) : thread.anchor?.section !== owner.id) continue;
+					if (registration.kind === "page" ? holdsOut(thread.id) : thread.anchor?.section !== owner.id) continue;
 					const placement = placements.placedAt(thread.id);
 					if (exactTarget(registration, thread.anchor, placement)) targets.set(thread.key, {
 						anchor: thread.anchor,
@@ -6817,6 +6832,10 @@ function renderSurfaces(collection, placements, commands) {
 					drawn: registration.drawn,
 					all: collection.threads
 				});
+				if (held && !sameSet(held, registration.heldKeys)) {
+					registration.heldKeys = held;
+					tick(ownership);
+				}
 				const anchor = activeComposition?.anchor;
 				const placement = anchor && (registration.kind === "page" || anchor.datum && anchor.section === owner.id) ? placements.pendingAt() : null;
 				const batch = [...targets].filter(([key]) => !held?.has(key)).map(([key, target]) => Object.freeze({
@@ -6914,7 +6933,10 @@ function renderSurfaces(collection, placements, commands) {
 				registration.outlets = new Set(byOutlet.keys());
 				registration.drawn = new Set([...byOutlet.values()].flat().map((thread) => thread.anchor.datum));
 			}
-			claimedIds = nextClaimed;
+			if (!sameSet(claimedIds, nextClaimed)) {
+				claimedIds = nextClaimed;
+				tick(ownership);
+			}
 			prepared = null;
 		} catch (error) {
 			if (movedComposition) {
@@ -6929,8 +6951,14 @@ function renderSurfaces(collection, placements, commands) {
 		}
 	}
 }
-const claimed = (id) => claimedIds.has(id);
-const heldOut = (id) => [...registrations.values()].some(({ held }) => held?.holds(id));
+const claimed = (id) => {
+	ownership.value;
+	return claimedIds.has(id);
+};
+const heldOut = (id) => {
+	ownership.value;
+	return holdsOut(id);
+};
 function revealHeld(ids) {
 	for (const registration of registrations.values()) {
 		const [id] = registration.held?.show(ids) ?? [];

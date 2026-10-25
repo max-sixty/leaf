@@ -1,7 +1,7 @@
 import { J, LitElement, PENDING, W, Z, actionForWidget, anchorKey, bindQueuedWork, d, discussed, editable, foldWidgetStates, isMessageEvent, isThreadEvent, moved, obligationValue, projectionOrigins, q, reactionsAt, render, stateCoordinate, threadKey, tokenChoices, turns, x } from "./bundle-browser-runtime.js";
 import { PRESSES, TEXT_BOX, TEXT_FIELD, afterScript, byRenderedOrder, canPlaceFocus, closeLayer, deepFocus, drawn, focusDestination, focused, frameVisibility, handBack, holdFocus, holdRendering, inputCount, isNativeLayer, keeps, keepsHidden, move, nextAnimation, nextRender, onCurrentLocation, onFrameVisibility, onUserInput, openLayer, openerOf, readCaret, readSampleVisibility, renderedOrder, renderedParent, renderedUnder, renderingState, shadowHost, sizeObserver, takesLetters, typesText, under, upFrom, whenLeft } from "./bundle-dom-move.js";
 import { LayerRefused, PAGE_PAINT_ATTRIBUTE, PRESS, PRESSABLE, TEXT_ENTRY, admitReading, admitResponse, announce, ariaShortcuts, bindings, buttonCommand, claimsEsc, clamp, clippedContents, clippedPlace, clipsPastSurfaces, closeNativeLayer, commandAvailable, commandRoutes, completeData, countTraffic, cycledRow, dataHeaders, el, frameFor, generatedElement, growthIsSeen, hasArea, holdingError, intersect, keys, labelOf, landingBand, landingInsets, layerHeaders, layoutChanged, layoutWindow, live, matchesWhen, notice, offer, paintKeys, paintKeysWithin, placeBox, placeHolder, pointerAt, postEvent, presented, pruneScopedElements, raiseError, randomId, recordInteraction, registry, repaint, reportCarried, reportPageError, requestJson, responseAction, restorePointer, reveal as reveal$1, rowArrows, runtimeRootState, sameLayer, savedReadingSettled, saying, seenRect, sessionIsActive, setRuntimeRootAttribute, shadowRootsIn, showNativeLayer, shownBox, shownWindow, skipped, spell, tagsDeclaring, union, watchOwner, watchPendingTraffic, watchRoom, whenNone, whileConnected, word } from "./bundle-layer-client.js";
-import { LIVE_ROOT, PRESENTATION_DOM, agentLabel, annotationMode, applicationPresenter, applicationState, attachApplicationPresentation, attachWidgetPresentation, documentChanged, layerRoot, offlineData, offlineInteractive, offlineState, pageUrl, presentDocument, projectView, queueWidgetUpdate, readApplication, readPart, revisionLabel, runtime, setPresentationFailureReporter, watchPresentation, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented } from "./bundle-context.js";
+import { LIVE_ROOT, PRESENTATION_DOM, agentLabel, annotationMode, applicationPresenter, applicationState, attachApplicationPresentation, attachWidgetPresentation, documentChanged, layerRoot, offlineData, offlineInteractive, offlineState, pageUrl, presentDocument, projectView, queueWidgetUpdate, readApplication, readPart, revisionLabel, runtime, setPresentationFailureReporter, tick, watchPresentation, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented } from "./bundle-context.js";
 import { activityTransitionDue, ago, chosenSince, containingReadingRegionFor, effectiveScroller, markStateApplied, moveScrollerBy, observeServerNow, observeWorkingGrace, onReadingInput, pageScroller, placeKept, reachScrollers, readingRegionFor, readingRegions, recentReadingRegion, regionScrollBehavior, regionsSettled, saidNow, scrollChainOf, scrollChoices, scrollLimit, scrollersOf, settlePageInterface, shownRegionBounds, stopScroll, tickClock, unconcealedReadingRegions, watchReadingRegionTransitions } from "./bundle-reading-regions.js";
 import { DATUM, TEXT_BLOCK, alignInlineText, authored, authoredScope, closestAcross, elementById, excerptWords, inChrome, labelWords, leafSurface, pageDocument, pageParts, pageRange, pageReadingVersion, quoteFrom, rangeOf, readingFrom, selectEnds, selectionBackward, textNodesUnder, wrote } from "./bundle-passages.js";
 import { ADDRESSABLE, addressableLabel, addressableWord, addressedElements, anchorForRange, anchoringIsReady, fragmentTarget, resolveAnchor, revealAddressed, sectionOf, targetElement, targetPlace, targetSegments, visualPartLabel, widgetWord } from "./bundle-css-anchors.js";
@@ -3061,7 +3061,7 @@ const inlineComparison = (target) => diffOn.value && diffBefore.has(target) && (
 function toggleInlineComparison(target) {
 	if (!inlineComparison(target)) return null;
 	const said = inlineOpen.has(target) ? closeInlineComparison(target) : openInlineComparison(target);
-	comparisonGeneration.value += 1;
+	tick(comparisonGeneration);
 	return said;
 }
 const comparable = (version) => {
@@ -3080,7 +3080,7 @@ function setDiff(on, base, pendingBase = null) {
 			for (const b of diffMarked) b.classList.remove("lf-ins-block");
 			diffMarked.clear();
 		}
-		comparisonGeneration.value += 1;
+		tick(comparisonGeneration);
 	});
 }
 async function showComparison(base) {
@@ -5002,7 +5002,7 @@ function renderHolds(threads) {
 	for (const node of document.querySelectorAll("[data-lf-held]")) if (!held.has(node)) node.removeAttribute("data-lf-held");
 	for (const [target, id] of held) keeps(target, "data-lf-held", id);
 }
-function createThreadPresentation({ available = true, inlineView, surfaceView, anchorPlacement, anchorPaint, anchorControls, drawingPaint, pageGeometry, readDraft, activeActionAnchor, renderAnnotations, renderSurfaces, openThread, continueThread, threadAt, read }) {
+function createThreadPresentation({ available = true, inlineView, surfaceView, anchorPlacement, anchorPaint, anchorControls, drawingPaint, pageGeometry, readDraft, activeActionAnchor, renderSurfaces, openThread, continueThread, threadAt, read }) {
 	let primary = null;
 	const presenter = applicationPresenter({
 		region: "thread",
@@ -5063,10 +5063,9 @@ function createThreadPresentation({ available = true, inlineView, surfaceView, a
 					surfaces.commit();
 					commitThreadSeats(batch);
 					surfaceView.composition.finishPlacement();
-					d(renderAnnotations);
 					pageGeometry.pageShifted();
 					read.present();
-					continueReplies(restorePlace).catch((error) => reportPageError(error, `Reply continuation failed`));
+					Promise.resolve().then(() => Promise.allSettled(PRESENTATION_DOM.annotations())).then(() => continueReplies(restorePlace)).catch((error) => reportPageError(error, `Reply continuation failed`));
 				}));
 			};
 			await (primaryPreparation?.then ? primaryPreparation.then(resume(paintPrepared)) : paintPrepared(primaryPreparation));
@@ -6978,8 +6977,7 @@ function mountApplication(dependencies) {
 		actions: threadActions,
 		wireInput: dependencies.wireInput,
 		landSent: dependencies.landSent,
-		landInThread: dependencies.landInThread,
-		changed: refreshThread
+		landInThread: dependencies.landInThread
 	};
 	const settlementView = {
 		pendingEntries: ledger.snapshot,
@@ -7081,7 +7079,6 @@ function mountApplication(dependencies) {
 		pageGeometry: dependencies.pageGeometry,
 		readDraft: dependencies.readThreadDraft,
 		activeActionAnchor: dependencies.activeActionAnchor,
-		renderAnnotations,
 		renderSurfaces,
 		openThread: (id, options) => threadDestinations.openPageThread(id, {
 			...options,
@@ -7629,7 +7626,7 @@ function acceptData(candidate, taken) {
 const joined = /* @__PURE__ */ new Set();
 async function notifyDataSubscribers() {
 	const version = runtime.data.version;
-	deliveries.value += 1;
+	tick(deliveries);
 	await whenApplicationRegionsPresented([...joined], () => runtime.data.version === version);
 	if (version !== null && runtime.data.version === version) setRuntimeRootAttribute(document.body, PAGE_PAINT_ATTRIBUTE.dataVersion, version);
 }

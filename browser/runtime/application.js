@@ -219,7 +219,6 @@ export function mountApplication(dependencies) {
     wireInput: dependencies.wireInput,
     landSent: dependencies.landSent,
     landInThread: dependencies.landInThread,
-    changed: refreshThread,
   };
   const settlementView = {
     pendingEntries: ledger.snapshot,

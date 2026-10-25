@@ -86,14 +86,21 @@ extend beside it. Compose the page from these:
   read, operate and comment on. Embedded documents can isolate a demonstration, but
   also separate its navigation and interaction from the surrounding Leaf page
   (`live-samples.md`).
-- **A screen the reader works in rather than scrolls**, like a mail client, a queue
-  worked one item at a time, a log beside its chart, or a desktop interface the reader
-  tunes, is a workspace (`page-layout.md`, "A workspace"). Its surface fills the
-  window from the title's left edge. Let that surface lead when it is the main task;
-  supporting reading, such as the review behind a design the reader tunes, goes in
-  later parts on a page of parts (below). A document read top to bottom beside a
-  panel kept in view, such as a postmortem beside its timeline, is a `layout-sidebar` page
-  (`page-layout.md`, "A sidebar page").
+- **A surface the reader works at or keeps open rather than reads down**, like a mail
+  client, a queue worked one item at a time, a log beside its chart, settings tuned
+  against their evidence, a desktop interface the reader tunes, or a rollout dashboard
+  glanced at between other work, keeps its working state in the reader's window, since a tuning pass or a glance
+  doesn't scroll: each setting or status beside the evidence that judges it, and the
+  decision or submission waiting on the reader. Keep the title and premise to a line
+  or two, and give `main` `density-working` (`page-layout.md`, "A workspace"). A screen
+  the reader works in is a workspace, whose surface fills the window from the title's
+  left edge; a dashboard whose detail the reader may read on down is a
+  `layout-sidebar` page with its regions side by side. Let that surface lead when it
+  is the main task; supporting reading, such as the review behind a design the reader
+  tunes or the full history behind a status, goes below it or in later parts on a page
+  of parts (below). A document read top to bottom beside a panel kept in view, such as
+  a postmortem beside its timeline, is a `layout-sidebar` page (`page-layout.md`, "A
+  sidebar page").
 - **Several views of one artifact** are one `lf-tabs` set. Page tabs hold project-scale
   views; a tabbed section holds local alternatives within a view. The `lf-tabs` entry says which placement makes
   which.

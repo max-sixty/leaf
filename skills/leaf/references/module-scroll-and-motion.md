@@ -32,7 +32,7 @@ gate expects to find in the page's file.
 A box the module generates to stand beside what it serves, such as a playground's rail
 of controls beside its stage, is a track: mark it `data-lf-track`, and the Layout keeps
 it in view while the window scrolls a taller neighbour past, as it does a sidebar page's
-track block. Where the module stacks the track with what it serves, as on a phone, it
+track. Where the module stacks the track with what it serves, as on a phone, it
 declares `--lf-track-scroll-behavior: flow` on the track's parent, and the track flows
 with the page. Register the track as a reading region, since it may scroll.
 

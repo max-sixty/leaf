@@ -294,13 +294,6 @@ and its chrome coordinate.
 - **Layout values that wait for a task:** a selection-and-detail widget whose phone
   form shows one side at a time; canvas regions, whose reading position is
   two-dimensional; slides as a presentation of `lf-tabs`.
-- **Make a sidebar built from several blocks stick.** A sidebar's track sticks only
-  when it holds one block (`:only-child` in `layouts.css`), so multi-block asides
-  flow. The user decided (2026-10-21) to drop the condition: a multi-block aside
-  sticks as a whole, scrolling within the window like a one-block track. Sticking the
-  aside itself lets it cover a footer at the page's end (browsers bound a sticky flex
-  item by its container, not its row; #2636), so the build waits on the user's pick
-  between the runtime wrapping the blocks in one sticky box and keeping the rule.
 - **Decide whether a too-narrow table fails a page at the fixed widths.** It is
   advice at every width, the two fixed viewports included, where it once refused
   the page.

@@ -354,7 +354,7 @@ def test_ephemeral_progress_hides_when_its_held_completion_is_revealed(
         ).to_be_visible()
 
 
-@pytest.mark.parametrize(("width", "touch"), [(390, False), (311, True)])
+@pytest.mark.parametrize(("width", "touch"), [(390, False), (311, True), (390, True)])
 def test_progress_disclosure_keeps_its_words_visible_beside_margin_paging(
     browser, serve, width, touch
 ):

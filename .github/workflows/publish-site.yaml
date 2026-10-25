@@ -134,3 +134,16 @@ jobs:
           release=$(jq --raw-output .release .tmp/site/_leaf/site.json)
           uv run leaf-dev verify-site --release "$release" --wait 900
           uv run leaf-dev journey https://leaf.page --release "$release"
+        env:
+          # The sample lands where the upload step below reads it.
+          XDG_STATE_HOME: ${{ runner.temp }}/state
+
+      # The journey's timed sample is the only record of how the deployed release
+      # responded; `leaf-dev journey-chart --from-ci` charts these across releases.
+      - name: Keep the journey's sample
+        if: success()
+        uses: actions/upload-artifact@v7
+        with:
+          name: journey-sample
+          path: ${{ runner.temp }}/state/leaf-dev/journey.jsonl
+          if-no-files-found: error

@@ -61,4 +61,5 @@ pnpm run test:evals
 - `leaf-dev journey` appends each sample to `$XDG_STATE_HOME/leaf-dev/journey.jsonl`. On
   a harness target it spends the host's logins, as `leaf-dev eval` does, so CI runs
   neither; `publish-site` runs the journey against each deployed release
+  and uploads its sample as an artifact that `journey-chart --from-ci` reads
   (`/developing-leaf`, "Run the agent journey" and "Score an instruction change").

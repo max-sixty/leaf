@@ -81,7 +81,8 @@ A failure receipt ends the journey on the first ask
 Each sample is also kept on the machine that ran it (`samples_path`), and
 `leaf-dev journey-chart` draws when each milestone came, from the kept samples of
 the latest version each target ran at each end, as an `lf-chart` element for a
-page.
+page. `publish-site` uploads its run's sample as an artifact, which
+`journey-chart --from-ci` reads alongside the local file.
 """
 
 from __future__ import annotations
@@ -172,8 +173,8 @@ CASES = ("waiting", "working")
 
 def samples_path() -> Path:
     """Where this machine keeps every sample, one JSON line each, outside any
-    checkout so runs from every worktree accumulate. A stopgap until a store CI can
-    write to too (`TODO.md`, "Keep the agent journey's samples")."""
+    checkout so runs from every worktree accumulate. CI's copy is uploaded by
+    `publish-site` and read back by `journey-chart --from-ci`."""
     state = os.environ.get("XDG_STATE_HOME") or Path.home() / ".local" / "state"
     return Path(state) / "leaf-dev" / "journey.jsonl"
 

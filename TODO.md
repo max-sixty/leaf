@@ -459,14 +459,14 @@ claude-code` run (its `boundary` step), the transcript held the comment in both
   Mac matches CI only on an arm64 runner); or a hosted visual-review service that
   renders both sides itself.
 - **Keep the agent journey's samples.** `leaf-dev journey` prints one timed sample
-  per run, and `publish-site` runs it on every release, but only the machine that
-  ran it keeps the sample (`$XDG_STATE_HOME/leaf-dev/journey.jsonl`), so CI's
-  samples are lost and a slower title or reply shows only to whoever is watching.
-  Find a durable store that CI and local runs can both write to, with the Worker's
-  credential proxy in mind, and chart each step across releases against the targets
-  in `notes/user-feedback-responsiveness.md`. Uploading a CI artifact needs no extra
-  token but keeps 90 days; a file in `max-sixty/leaf-assets` keeps history but needs
-  a token that can push there.
+  per run, and `publish-site` runs it on every release. The workflow now uploads
+  each sample as a `journey-sample` artifact (90 days, no extra token), and
+  `leaf-dev journey-chart --from-ci` reads recent runs' artifacts beside the local
+  file, drawing the proposed budgets from `notes/user-feedback-responsiveness.md`.
+  Waiting: the workflow change needs the control-plane owner's approval, and the
+  chart has not yet read a real artifact. Left open: history past 90 days, which
+  needs a file in `max-sixty/leaf-assets` and a token that can push there, and
+  harness-target samples, which CI does not run.
 
 ## Etc
 

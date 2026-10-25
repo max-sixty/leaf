@@ -1,5 +1,9 @@
 """Chart the latest journey samples kept on this machine, or tabulate their replies.
 
+`--from-ci` adds the samples `publish-site` uploads, one `journey-sample` artifact
+per release, which it downloads into a cache beside the local file. GitHub keeps an
+artifact for 90 days, so `--since` over that cache charts a step across releases.
+
 The chart draws when each sign of the release ask came. The table (`--replies`)
 gives, for each target and case (`journey.CASES`, the harness waiting or working
 when the release ask reaches it), the time of the whole reply and the parts it went
@@ -12,7 +16,9 @@ the model calls and their output tokens only say where it went.
 import json
 import re
 import statistics
+import subprocess
 from datetime import datetime
+from pathlib import Path
 
 import click
 
@@ -32,9 +38,48 @@ TARGET_NAMES = {
     "codex-queue": "Codex queue",
     "pi": "Pi",
 }
+# The proposed budgets in seconds after the comment
+# (`notes/user-feedback-responsiveness.md`, "Latency targets and readings"), drawn as
+# a line in the sign's colour.
+BUDGETS = {"title": 2, "picked up": 1, "work started": 2}
+ARTIFACT = "journey-sample"
 TICKS = (0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500)
 # Plot sizes no margin to its labels: about this many px a character at its font.
 LABEL_PX = 5.5
+
+
+def ci_samples(runs: int) -> list[dict]:
+    """The samples of the last `runs` successful `publish-site` runs, downloading
+    each run's artifact once into a cache beside the local samples. A run without
+    one (before the workflow uploaded it) adds none."""
+    listing = subprocess.run(
+        [
+            *("gh", "run", "list", "--workflow", "publish-site.yaml"),
+            *("--status", "success", "--limit", str(runs), "--json", "databaseId"),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    cache = samples_path().parent / "ci"
+    samples = []
+    for run in json.loads(listing.stdout):
+        folder = cache / str(run["databaseId"])
+        if not folder.exists():
+            # An empty folder records that the run has no artifact.
+            folder.mkdir(parents=True)
+            subprocess.run(
+                ["gh", "run", "download", str(run["databaseId"])]
+                + ["--name", ARTIFACT, "--dir", str(folder)],
+                capture_output=True,
+            )
+        for kept in folder.glob("*.jsonl"):
+            samples += json_lines(kept)
+    return samples
+
+
+def json_lines(path: Path) -> list[dict]:
+    return [json.loads(line) for line in path.read_text().splitlines()]
 
 
 def chart_target(sample: dict) -> str:
@@ -189,6 +234,11 @@ def chart_markup(rows: list[dict]) -> str:
     seconds = [r["s"] for r in rows]
     domain = [min(seconds) / 1.5, max(seconds) * 1.5]
     shown = [entry for entry in SIGNS if any(r["sign"] == entry[0] for r in rows)]
+    budgets = [
+        {"sign": sign, "s": BUDGETS[sign]}
+        for sign, *_ in shown
+        if sign in BUDGETS and domain[0] <= BUDGETS[sign] <= domain[1]
+    ]
     described = "; ".join(
         f"{row}: "
         + ", ".join(f"{r['sign']} {r['s']} s" for r in rows if r["row"] == row)
@@ -215,6 +265,7 @@ def chart_markup(rows: list[dict]) -> str:
   symbol: {{domain: {json.dumps([sign for sign, *_ in shown])}}},
   marginLeft: {LABEL_PX * max(len(r["row"]) for r in rows) + 16},
   marks: [
+    Plot.ruleX({json.dumps(budgets)}, {{x: "s", stroke: "sign", strokeDasharray: "4 3"}}),
     Plot.dot({json.dumps(rows)}, {{x: "s", y: "row", fill: "sign", symbol: "sign", r: 6}}),
   ],
 }}"""
@@ -223,6 +274,18 @@ def chart_markup(rows: list[dict]) -> str:
 
 
 @click.command()
+@click.option(
+    "--from-ci",
+    is_flag=True,
+    help="Also read the samples of recent successful `publish-site` runs, "
+    "downloaded with `gh` into a cache beside the local samples.",
+)
+@click.option(
+    "--ci-runs",
+    default=30,
+    show_default=True,
+    help="How many recent successful `publish-site` runs `--from-ci` reads.",
+)
 @click.option(
     "--replies",
     is_flag=True,
@@ -235,15 +298,19 @@ def chart_markup(rows: list[dict]) -> str:
     help="Read every sample kept since this ISO time, with its zone, rather than "
     "the latest version's.",
 )
-def journey_chart(replies: bool, since: datetime | None) -> None:
+def journey_chart(
+    replies: bool, since: datetime | None, from_ci: bool, ci_runs: int
+) -> None:
     """Print an `lf-chart` of recorded delivery and work milestones, for
     the latest code version each target ran in this machine's kept samples."""
     path = samples_path()
-    if not path.exists():
-        raise click.ClickException(f"no samples kept in {path}; run `leaf-dev journey`")
     if since is not None and since.tzinfo is None:
         raise click.BadParameter("give a time zone, as in 2026-10-20T18:10-07:00")
-    samples = [json.loads(line) for line in path.read_text().splitlines()]
+    samples = json_lines(path) if path.exists() else []
+    if from_ci:
+        samples += ci_samples(ci_runs)
+    if not samples:
+        raise click.ClickException(f"no samples kept in {path}; run `leaf-dev journey`")
     print(
         reply_table(samples, since)
         if replies

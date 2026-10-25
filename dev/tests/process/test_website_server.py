@@ -631,6 +631,26 @@ def test_the_journey_chart_draws_each_targets_latest_version_from_kept_samples()
     assert json.dumps(rows) in markup
 
 
+def test_the_journey_chart_reads_ci_samples_through_a_cache(monkeypatch, tmp_path):
+    """`--from-ci` downloads each `publish-site` run's sample once, so a later chart
+    adds CI's releases to the local file without another download."""
+    calls = []
+
+    def gh(command, **_):
+        calls.append(command)
+        if command[:3] == ["gh", "run", "list"]:
+            return subprocess.CompletedProcess(command, 0, '[{"databaseId": 7}]', "")
+        folder = Path(command[command.index("--dir") + 1])
+        (folder / "journey.jsonl").write_text('{"target": "https://leaf.page"}\n')
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path))
+    monkeypatch.setattr(journey_chart.subprocess, "run", gh)
+    assert journey_chart.ci_samples(5) == [{"target": "https://leaf.page"}]
+    assert journey_chart.ci_samples(5) == [{"target": "https://leaf.page"}]
+    assert sum(c[:3] == ["gh", "run", "download"] for c in calls) == 1
+
+
 def test_a_turn_that_never_answered_is_reported_before_the_threads_panel():
     """The deployment gate names the turn it read, not the panel it looked at.
 

@@ -707,7 +707,7 @@ function padded(image, width, height) {
 
 /* Which of four readings a difference is: "identical", "throughout", "slight" (it
  * changed, but nowhere far enough to point at), or "areas", the one with regions. */
-export function differenceKind({ changed, throughout, regions }) {
+function differenceKind({ changed, throughout, regions }) {
   if (!changed) return "identical";
   if (throughout) return "throughout";
   return regions.length ? "areas" : "slight";
@@ -734,7 +734,7 @@ export function describeDifference(reading) {
  * where the two outlines overlap, is one change seen twice and counts once. Each frame
  * leaves out its own moves inside a change, so a move can be drawn in one frame alone;
  * the frame that draws more moves gives their count. */
-export function countAreas(regions) {
+function countAreas(regions) {
   const changes = regions.filter((region) => region.kind === "changed");
   const before = changes.filter((region) => region.side === "before");
   const after = changes.filter((region) => region.side === "after");

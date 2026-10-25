@@ -18,7 +18,8 @@ CONTEXT_PAGE = leaf_page(
 )
 
 
-def test_releasing_a_drawing_does_not_read_every_card_before_preview(browser, serve):
+def test_releasing_a_drawing_and_its_preview_read_only_the_drawn_card(browser, serve):
+    """Neither the release nor the preview's capture walks the rest of a long page."""
     lines = "\n".join(
         f"{number:02d} alpha bravo charlie delta echo" for number in range(40)
     )
@@ -41,7 +42,13 @@ def test_releasing_a_drawing_does_not_read_every_card_before_preview(browser, se
             "title": "Review the drawing",
         },
     )
-    page = open_page(browser, url)
+    # The optional user-view audit walks the whole page. Hold its module until
+    # both drawing measurements are over, so its timer cannot enter the counter.
+    context = browser.new_context(viewport={"width": 1200, "height": 900})
+    audits = []
+    context.route("**/checks/view.js", lambda route: audits.append(route))
+    page = open_page(browser, url, context=context)
+    holding(page, audits, 1, "the optional user-view audit")
     assert (
         page.evaluate("""async () => {
       const {readQueues} = await window.__lfWidgetApi();
@@ -80,6 +87,11 @@ def test_releasing_a_drawing_does_not_read_every_card_before_preview(browser, se
     )
     assert "card-20" in before_renderer
     assert len(before_renderer) <= 2, before_renderer
+    after_capture = page.evaluate("[...window.drawingStyleCards]")
+    assert len(after_capture) <= 2, after_capture
+    for route in audits:
+        route.continue_()
+    context.unroute("**/checks/view.js")
 
 
 @pytest.mark.parametrize("scheme,touch", [("light", False), ("dark", True)])

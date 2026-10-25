@@ -353,6 +353,7 @@ def test_a_margin_entry_carries_a_suggestion_through_its_whole_lifecycle(
             "start",
             str(serve.page_dir),
             newest_move(serve.page_dir, "s-replace"),
+            "--text",
             "applying the selected route",
         ],
     )

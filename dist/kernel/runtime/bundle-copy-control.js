@@ -1,5 +1,5 @@
 import { focusDestination, focused } from "./bundle-dom-move.js";
-import { notice, offer, raiseError } from "./bundle-layer-client.js";
+import { notice, offer, raiseError } from "./bundle-errors.js";
 
 //#region runtime/copy-control.js
 function copyThroughSelection(value) {

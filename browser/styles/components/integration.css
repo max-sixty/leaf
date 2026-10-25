@@ -28,26 +28,46 @@ html[data-lf-draw-mode] main {
     cursor: auto !important;
   }
 }
-/* Copy floats over the code's corner without changing its box or scrolling text.
+/* A block's marks (Copy, a draft's editing controls) stand on one small toolbar whose
+   middle lies on the block's border at its right, so it covers the border and padding
+   rather than a word and takes no room: a patch of the card ground with a ring and a
+   lift, its marks quiet (controls.css, `.lf-quiet-action`) and 1px inside it. A code
+   block's Copy is such a toolbar of one mark, on the block's top border; a draft's
+   toolbar (draft.css) wears the same face in the same seat. `--lf-mark-bar-end` is how
+   far in from the block's outer right edge the toolbar stands. */
+:root {
+  --lf-mark-bar-end: 8px;
+}
+.lf-mark-bar,
+.lf-code-copy {
+  box-sizing: border-box;
+  display: flex;
+  gap: 2px;
+  padding: 1px;
+  border: 1px solid var(--border-2);
+  border-radius: var(--r);
+  background: var(--card);
+  box-shadow: var(--raise-1);
+}
+/* Copy stands over its code without changing the block's box or scrolling its text.
    Hover, keyboard focus, or a tap that stands the user on the source reveals it
    (code-copy.js). Hidden, it takes no presses, so a finger selecting the words beneath
-   it reaches them. */
-:root {
-  --lf-code-copy-inset: 4px;
-}
+   it reaches them. Its face is the block's line (code-copy.js), and its toolbar that
+   face, its padding and its ring. */
 .lf-code-copy {
   --lf-code-copy-size: var(--lf-line);
   position: absolute;
   /* Hidden sources have no anchor; their chrome controls stay outside the window. */
   top: calc(
-    anchor(top, -9999px) + var(--lf-code-copy-inset) + var(--lf-block-control-dy, 0px)
+    anchor(top, -9999px) - (var(--lf-code-copy-size) + 4px) / 2 +
+      var(--lf-block-control-dy, 0px)
   );
   left: calc(
-    anchor(right, -9999px) - var(--lf-code-copy-size) - var(--lf-code-copy-inset) +
+    anchor(right, -9999px) - var(--lf-mark-bar-end) - var(--lf-code-copy-size) - 4px +
       var(--lf-block-control-dx, 0px)
   );
-  width: var(--lf-code-copy-size);
-  height: var(--lf-code-copy-size);
+  width: calc(var(--lf-code-copy-size) + 4px);
+  height: calc(var(--lf-code-copy-size) + 4px);
   z-index: 1;
   white-space: normal;
   font-size: 0;
@@ -86,20 +106,32 @@ html[data-lf-draw-mode] main {
   opacity: 1;
   pointer-events: auto;
 }
+/* In a toolbar of more marks, Copy is one of them, shown with its toolbar. */
+.lf-mark-bar > .lf-code-copy {
+  position: static;
+  width: auto;
+  height: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  opacity: 1;
+  pointer-events: auto;
+}
+/* The ring is the shadow button's, and so is the focus a Tab reveals: it stands half
+   above its block, where a scroller's edge can meet it, so it keeps the ring's room as a
+   focused control in the page does (shadow.css, `:focus`). */
 .lf-code-copy::part(button) {
+  scroll-margin: var(--focus-ring-landing);
   position: relative;
+  box-sizing: border-box;
   width: var(--lf-code-copy-size);
   height: var(--lf-code-copy-size);
   padding: min(6px, max(1px, (var(--lf-code-copy-size) - var(--t-5) - 2px) / 2));
-  border: 1px solid var(--code-border);
-  border-radius: var(--r);
-  background: var(--pre-bg);
-  color: var(--muted);
   display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: min(var(--t-5), calc(var(--lf-code-copy-size) - 4px));
-}
-.lf-code-copy::part(button):hover {
-  color: var(--ink);
 }
 /* Copy runs on its shadow button's press, so the reach (surfaces.css) is the button's:
    one on the host would take the press from the button and copy nothing. Its own rule,
@@ -115,17 +147,19 @@ html[data-lf-draw-mode] main {
 :root {
   --lf-heading-link-size: var(--lf-line);
 }
-/* The gutter's room is the box between the containing block's start and the heading,
-   which only a `right` inset bounds, so the browser tries the far end once the control
-   overflows it. */
-@position-try --lf-heading-link-end {
-  right: auto;
-  left: calc(
-    anchor(right, -9999px) - var(--lf-heading-link-size) +
-      var(--lf-block-control-dx, 0px)
-  );
-}
+/* The gutter's room is the box between the containing block's start and the heading.
+   `--lf-heading-link-room` is what that box holds beyond the control, and where it is
+   negative the control stands one heading's width further on. The width alone decides,
+   so arithmetic chooses rather than `position-try-fallbacks`: a browser keeps the
+   fallback it last took until that overflows too (CSS Anchor Positioning, "last
+   successful position option"), so a window narrowed and widened again would leave
+   the control at the far end. The `right` inset carries it, since Firefox 155 left a
+   `left`-inset control where its heading had stood before the window widened. */
 .lf-heading-link {
+  --lf-heading-link-room: calc(
+    100% - anchor(left, 9999px) + var(--lf-block-control-dx, 0px) -
+      var(--lf-heading-link-size)
+  );
   position: absolute;
   top: calc(
     anchor(top, -9999px) + var(--lf-heading-link-top, 0px) +
@@ -135,8 +169,11 @@ html[data-lf-draw-mode] main {
       ) /
       2 + var(--lf-block-control-dy, 0px)
   );
-  right: calc(anchor(left, 9999px) - var(--lf-block-control-dx, 0px));
-  position-try-fallbacks: --lf-heading-link-end;
+  right: calc(
+    anchor(left, 9999px) - var(--lf-block-control-dx, 0px) +
+      (1 - clamp(0, sign(var(--lf-heading-link-room)) + 1, 1)) *
+      (anchor(right, 9999px) - anchor(left, 9999px))
+  );
   width: var(--lf-heading-link-size);
   height: var(--lf-heading-link-size);
   z-index: 1;

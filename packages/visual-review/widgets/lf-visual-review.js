@@ -33,7 +33,6 @@ import {
   releaseOutlets,
   threadSurface,
   scopedMediaUrl,
-  describeDifference,
   whileConnected,
   registerReadingRegion,
   compoundReadingRegionId,
@@ -101,6 +100,7 @@ customElements.define(
         {
           id: "visual.next-case",
           title: "Next case",
+          travels: true,
           keys: ["n"],
           when: () => this.#entries.size > 1,
           run: () => this.#step(1),
@@ -108,6 +108,7 @@ customElements.define(
         {
           id: "visual.previous-case",
           title: "Previous case",
+          travels: true,
           keys: ["Shift+n"],
           when: () => this.#entries.size > 1,
           run: () => this.#step(-1),
@@ -540,10 +541,7 @@ customElements.define(
                 }
                 ${
                   entry.difference
-                    ? fact(
-                        "Full-frame difference",
-                        describeDifference(entry.difference),
-                      )
+                    ? fact("Full-frame difference", entry.difference.description)
                     : nothing
                 }
               </dl>

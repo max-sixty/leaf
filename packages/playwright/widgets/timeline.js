@@ -599,21 +599,17 @@ export class RecordingTimeline {
     this.#drawRuler();
   }
 
-  // The overview shows the visible window within the whole recording.
+  // The overview shows the visible window within the whole recording. Its geometry is
+  // read whole before either edge is written: reading the scroller between the two
+  // writes laid out a window with the new start and the old size, which ran past the
+  // overview's end and scrolled the page under the user's press.
   #drawOverview() {
     const scroller = this.scroller;
     const overview = this.#host.querySelector(".lf-trace-overview");
     if (!scroller?.scrollWidth || !overview) return;
-    keepVar(
-      overview,
-      "--lf-trace-window-start",
-      String(scroller.scrollLeft / scroller.scrollWidth),
-    );
-    keepVar(
-      overview,
-      "--lf-trace-window-size",
-      String(scroller.clientWidth / scroller.scrollWidth),
-    );
+    const { scrollLeft, scrollWidth, clientWidth } = scroller;
+    keepVar(overview, "--lf-trace-window-start", String(scrollLeft / scrollWidth));
+    keepVar(overview, "--lf-trace-window-size", String(clientWidth / scrollWidth));
     keeps(overview, "data-zoomed", this.#zoom > 1 ? "" : null);
   }
 

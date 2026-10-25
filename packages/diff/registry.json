@@ -223,10 +223,10 @@
     "x-upgrade": true,
     "x-initial": "/vendor/lf-worktree-diffs-initial.js",
     "x-patch": "members",
-    "x-example": "<lf-worktree-diffs id=\"review-worktrees\"><lf-worktree id=\"draft-worktree\" label=\"retain-drafts\" path=\"/workspace/leaf.retain-drafts\" branch=\"fix/retain-drafts\" head=\"c8ebd603f87d4c9db1ce17bf134b76567d8a409c\" status=\"changed\" files=\"1\" additions=\"1\" deletions=\"1\"><details id=\"draft-worktree-body\" open><p>Preserve a composer draft while switching threads.</p><lf-diff id=\"draft-patch\" data-height=\"151\"><pre>\ndiff --git a/draft.js b/draft.js\n--- a/draft.js\n+++ b/draft.js\n@@ -1 +1 @@\n-clearDraft();\n+saveDraft();\n</pre></lf-diff></details></lf-worktree></lf-worktree-diffs>"
+    "x-example": "<lf-worktree-diffs id=\"review-worktrees\"><lf-worktree id=\"draft-worktree\" label=\"retain-drafts\" path=\"/workspace/leaf.retain-drafts\" branch=\"fix/retain-drafts\" head=\"c8ebd603f87d4c9db1ce17bf134b76567d8a409c\" status=\"changed\" files=\"1\" additions=\"1\" deletions=\"1\" open><p>Preserve a composer draft while switching threads.</p><lf-diff id=\"draft-patch\" data-height=\"151\"><pre>\ndiff --git a/draft.js b/draft.js\n--- a/draft.js\n+++ b/draft.js\n@@ -1 +1 @@\n-clearDraft();\n+saveDraft();\n</pre></lf-diff></lf-worktree></lf-worktree-diffs>"
   },
   "lf-worktree": {
-    "description": "One worktree snapshot and its authored evidence inside lf-worktree-diffs.",
+    "description": "One worktree snapshot inside lf-worktree-diffs, an expandable row whose summary Leaf writes from its attributes and whose body holds the evidence authored directly inside it.",
     "type": "object",
     "properties": {
       "id": {
@@ -267,6 +267,9 @@
       "binary-files": {
         "type": "string",
         "pattern": "^(0|[1-9][0-9]*)$"
+      },
+      "open": {
+        "type": "boolean"
       }
     },
     "required": ["id", "label", "path", "status"],

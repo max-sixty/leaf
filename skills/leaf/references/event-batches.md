@@ -58,7 +58,7 @@ The batch's `threads` give each thread's title (null until named), anchor, wheth
 it is resolved, earlier messages, and the gestures in force on widgets sent in it. A
 thread's history leaves out messages that are events in the batch, and a long thread
 shows only its opening and latest messages, with `elided` counting the rest; read
-the whole thread with `leaf page state <page> <thread-id>`, paginated with
+the whole thread with `leaf page state <page> <message>`, paginated with
 `--after`. A long
 thread may also carry `summary_hint`
 ([threads, "Summarize a long discussion"](threads.md#summarize-a-long-discussion)).

@@ -170,7 +170,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
 
     def start(item, line):
         started = CliRunner().invoke(
-            cli_model.cli, ["task", "start", str(d), item, line]
+            cli_model.cli, ["task", "start", str(d), item, "--text", line]
         )
         assert started.exit_code == 0, started.output
         told(page)
@@ -385,6 +385,7 @@ def test_a_message_workflow_changes_phase_in_place_and_then_stands_still(
             "start",
             str(d),
             comment["id"],
+            "--text",
             "comparing the replacement against every narrow thread surface",
         ],
     )

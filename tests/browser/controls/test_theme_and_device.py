@@ -291,7 +291,9 @@ ELEVATION_SHADOWS = """() => {
     try { list = sheet.cssRules; } catch { return; }  // a sheet from another origin
     const walk = (from) => {
       for (const rule of from) {
-        const named = rule.style ? [...rule.style] : [];
+        // Position-try descriptors expose item(i), but not indexed properties.
+        const named = rule.style
+          ? Array.from({length: rule.style.length}, (_, i) => rule.style.item(i)) : [];
         const lifted = (name) => ['box-shadow', 'filter'].includes(name) || name.startsWith('--');
         for (const property of named.filter(lifted)) {
           const value = parts(rule.style.getPropertyValue(property).trim());

@@ -114,6 +114,7 @@ import {
 import { TEXT_BLOCK } from "./passage-facts.js";
 import { registry, tagsDeclaring } from "./registry.js";
 import {
+  inlineMarkdownFragment,
   paintMarkdown,
   prepareDeclaredMarkdown,
   formatDeclaredMarkdown,
@@ -141,7 +142,12 @@ import {
   watchReadingRegionTransitions,
 } from "./reading-regions.js";
 import { PAGE_SCOPE, tabStore } from "./storage.js";
-import { initialOrigin, restoreInitialSource, unmarkedCopy } from "./initial-render.js";
+import {
+  authoredBody,
+  initialOrigin,
+  restoreInitialSource,
+  unmarkedCopy,
+} from "./initial-render.js";
 import { alignInlineText } from "./text-alignment.js";
 import { el, layoutChanged, reveal } from "./widget-elements.js";
 import { settleMarginContentLayout } from "./content-layout.js";
@@ -613,6 +619,97 @@ function inOrder(before, after) {
     else j++;
   return kept;
 }
+// The before surface holds the same accepted body projection as its version would
+// show: the event's exact source, never a collapsed comparison value.
+function paintBodies(doc, widgets) {
+  for (const [id, { state, specs }] of widgets)
+    for (const [verb, spec] of specs) {
+      // A body record's state is an action's value.
+      if (
+        spec.record?.kind !== "body" ||
+        !(/** @type {{action: string | null}} */ (state[verb]).action)
+      )
+        continue;
+      const body = doc.getElementById(id)?.querySelector(":scope > .lf-markdown-body");
+      if (body) paintMarkdown(body, state[verb].value);
+    }
+}
+// A child an action in force created (`creates`) stood on the page that version
+// showed, so the base holds it too, as passages.py adds it to the file's reading: at
+// its owner's end, marked `data-lf-added`, its words formatted as its entry says.
+// Without it, an option the user added before the base reads as changed since.
+function placeCreated(doc, widgets) {
+  for (const [id, { state, specs }] of widgets)
+    for (const [verb, spec] of specs) {
+      const owner = spec.creates && doc.getElementById(id);
+      if (!owner) continue;
+      const { child, words } = spec.creates;
+      const markdown = registry[child]?.["x-text-format"] === "inline-markdown";
+      for (const [unit, { detail }] of Object.entries(state[verb].units ?? {})) {
+        if (doc.getElementById(unit)) continue;
+        const created = doc.createElement(child);
+        created.id = unit;
+        created.toggleAttribute("data-lf-added", true);
+        const text = detail[words];
+        created.append(
+          markdown ? doc.importNode(inlineMarkdownFragment(text), true) : text,
+        );
+        owner.append(created);
+      }
+    }
+}
+// The content half: the blocks under `live` whose words `doc`, a base version's
+// unupgraded document, doesn't hold, each with the words the comparison read in it.
+// Multiset membership rather than an alignment: an unchanged block that merely moved
+// stays unmarked; a changed or new one has no twin.
+/** @param {Document} doc @param {Element} [live] */
+function blocksWithoutTwin(doc, live = document.body) {
+  const base = new Map();
+  for (const [, key] of diffBlocks(doc)) base.set(key, (base.get(key) ?? 0) + 1);
+  const without = [];
+  for (const [b, key] of diffBlocks(live)) {
+    const left = base.get(key) ?? 0;
+    if (left > 0) base.set(key, left - 1);
+    else without.push([b, key]);
+  }
+  return without;
+}
+// This version's source and the live node each of its nodes stands for, as the
+// controller holds them.
+/** @type {() => {source: Element | null, pairs: WeakMap<Node, Node>} | null} */
+let versionSource = () => null;
+// The version being read compared with its own source, which should mark nothing: the
+// state half has the same fold on both sides, so only words the live page shows and
+// its source doesn't, such as a widget's that it wrote without `generatedElement`,
+// can mark a block. The render gate reads it (`render-checks/words.js`,
+// `wordsReadAsChanged`). It reads the controller's source of this version rather than
+// fetching it, because a candidate `page check` serves has no stamped address yet.
+// Formatting is synchronous here: a source holding Markdown formatted the live page
+// with the same loaded renderer.
+export function selfComparison() {
+  const source = versionSource()?.source;
+  if (!source) return [];
+  const doc = document.implementation.createHTMLDocument("");
+  doc.body.replaceChildren(doc.importNode(source, true));
+  formatDeclaredMarkdown(doc);
+  const { widgets } = readApplication().effective;
+  paintBodies(doc, widgets);
+  placeCreated(doc, widgets);
+  // The source is the page's `main`, so the live side is too.
+  return blocksWithoutTwin(doc, pageDocument());
+}
+// The live elements this version's source wrote: whether the page or Leaf put an
+// element there is this, not whether a module marked the words it fills it with.
+export function servedElements() {
+  const { source, pairs } = versionSource() ?? { source: null, pairs: new WeakMap() };
+  const served = new Set();
+  if (!source) return served;
+  for (const node of [source, ...source.querySelectorAll("*")]) {
+    const live = pairs.get(node);
+    if (live) served.add(live);
+  }
+  return served;
+}
 function applyDiff(doc, baseAuthored, baseVersion, baseReading) {
   const baseView = baseReading.views[String(stamped(baseVersion).revision)];
   // The base version's widget state, folded as the publisher folds the current one:
@@ -636,30 +733,11 @@ function applyDiff(doc, baseAuthored, baseVersion, baseReading) {
       [...baseProjection.desired].filter(([, entry]) => declaredAlike(entry)),
     ),
   });
-  // The before surface holds the same accepted body projection as its version
-  // would show: the event's exact source, never a collapsed comparison value.
-  for (const [id, { state, specs }] of baseWidgets)
-    for (const [verb, spec] of specs) {
-      // A body record's state is an action's value.
-      if (
-        spec.record?.kind !== "body" ||
-        !(/** @type {{action: string | null}} */ (state[verb]).action)
-      )
-        continue;
-      const body = doc.getElementById(id)?.querySelector(":scope > .lf-markdown-body");
-      if (body) paintMarkdown(body, state[verb].value);
-    }
-  // Multiset membership rather than an alignment: an unchanged block that
-  // merely moved stays unmarked; a changed or new one has no base twin.
-  const base = new Map();
-  for (const [, key] of diffBlocks(doc)) base.set(key, (base.get(key) ?? 0) + 1);
-  for (const [b, key] of diffBlocks(document.body)) {
-    const left = base.get(key) ?? 0;
-    if (left > 0) base.set(key, left - 1);
-    else {
-      b.classList.add("lf-ins-block");
-      diffMarked.add(b);
-    }
+  paintBodies(doc, baseWidgets);
+  placeCreated(doc, baseWidgets);
+  for (const [b] of blocksWithoutTwin(doc)) {
+    b.classList.add("lf-ins-block");
+    diffMarked.add(b);
   }
   // The state half: block keys catch words, and a pure state change — a card
   // in a different column, a pick on a different option — has no text of its
@@ -1047,6 +1125,7 @@ export function createVersionController({
   // Every revision pairs its own source here; a superseded source's pairs leave with it.
   const sourcePairs = initialDocument.pairs;
   initialDocument = null;
+  versionSource = () => ({ source: authoredSource, pairs: sourcePairs });
   // What this document's widgets were written as, and the source each live node stands
   // for. Both are replaced by every revision this document takes on.
   let authoredWidgets = servedWidgets;
@@ -1234,14 +1313,23 @@ export function createVersionController({
   // reads nothing of them but their attributes. So what it built stands for its own
   // attributes and each member's tag and attributes, in order, and while two revisions
   // agree on that much, the rest of the difference is inside members the author owns.
-  const shell = (element) => {
+  // One that moved them all into an authored body reads none of them, so there its own
+  // attributes stand for everything it built.
+  const shell = (element, members) => {
     const copy = element.cloneNode(false);
-    for (const child of element.childNodes) copy.append(child.cloneNode(false));
+    if (members)
+      for (const child of element.childNodes) copy.append(child.cloneNode(false));
     return copy;
   };
-  const reachesMembers = (before, after, arrivingRoot) =>
-    registry[before.localName]?.["x-patch"] === "members" &&
-    sameAuthoredMarkup(shell(before), shell(after), arrivingRoot);
+  const reachesMembers = (before, after, arrivingRoot) => {
+    if (registry[before.localName]?.["x-patch"] !== "members") return false;
+    const members = !authoredBody(sourcePairs.get(before));
+    return sameAuthoredMarkup(
+      shell(before, members),
+      shell(after, members),
+      arrivingRoot,
+    );
+  };
 
   // Preparation and installation use the same matching, widget ownership, and resource
   // equality. A retained subject is proved through every containing owner, not by an
@@ -1256,6 +1344,7 @@ export function createVersionController({
       pairs: sourcePairs,
       contains: under,
       declared: upgraded,
+      body: authoredBody,
       reaches: (before, after) => reachesMembers(before, after, arrivingRoot),
       unchanged: (before, after) => {
         const digest = authoredWidgets[heldKeys.get(before)];
@@ -1902,7 +1991,10 @@ export function createVersionController({
   // box's own end, or its raw offset where its width and revision are those it was read
   // at (reading-place.js, `rawOffsetFits`). `before` names the scrollers that carried the
   // box's words before the shift; with none, as for a region returning from
-  // concealment, only the box's own place speaks for it.
+  // concealment, only the box's own place speaks for it. Places the reader made rank
+  // by when they made them; among places none of them made, such as those the page
+  // arrived with, the box's own speaks for it, so a region the reader never read in
+  // doesn't move the page to itself as a resize carries it into the page.
   function placeFor(box, recorded, before) {
     const own = box === pageScroller ? PAGE : regionForBox(box).id;
     let found = null;
@@ -1912,7 +2004,9 @@ export function createVersionController({
       const carried = node
         ? boxOf(node) === box
         : id === own && (entry.reading.end || rawOffsetFits(entry.reading, box));
-      if ((carried || id === own || before?.has(id)) && !(found?.at > entry.at))
+      const ranks =
+        !found || entry.at > found.at || (entry.at === found.at && id === own);
+      if ((carried || id === own || before?.has(id)) && ranks)
         found = { ...entry, lands: carried || (node && under(box, node)) };
     }
     return found?.lands ? found : null;

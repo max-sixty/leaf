@@ -28,7 +28,9 @@ test("an eyebrow and title share the address of what they open", () => {
     "s",
   );
   assert.equal(
-    addressOf('<div><hgroup id="g"><h2 data-heading>Title</h2></hgroup><p>Words</p></div>'),
+    addressOf(
+      '<div><hgroup id="g"><h2 data-heading>Title</h2></hgroup><p>Words</p></div>',
+    ),
     "g",
   );
 });

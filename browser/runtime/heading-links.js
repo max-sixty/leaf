@@ -52,7 +52,7 @@ const owners = new WeakMap(); // control → its heading
 /** The element `heading`'s link names, or null where it has no address (header). */
 export function headingAddress(heading) {
   let address = isAddressable(heading) ? heading : null;
-  for (let at = heading.parentElement; at && leadingTitle(at) === heading; ) {
+  for (let at = heading.parentElement; at && leadingTitle(at) === heading;) {
     if (isAddressable(at)) address = at;
     at = at.parentElement;
   }

@@ -67,7 +67,9 @@ def test_a_heading_copies_the_link_to_the_section_it_opens(browser, serve):
     # On the words inside the section, and on a link in its heading, Enter is theirs.
     page.keyboard.press("Escape")
     page.evaluate("navigator.clipboard.writeText('')")
-    page.evaluate("const p = document.getElementById('words'); p.tabIndex = -1; p.focus()")
+    page.evaluate(
+        "const p = document.getElementById('words'); p.tabIndex = -1; p.focus()"
+    )
     page.keyboard.press("Enter")
     page.locator("#plans").focus()
     page.keyboard.press("Enter")
@@ -75,7 +77,9 @@ def test_a_heading_copies_the_link_to_the_section_it_opens(browser, serve):
     assert copied(page) == ""
 
     # A revision that takes the section's address away takes its link with it.
-    (serve.page_dir / "index.html").write_text(SOURCE.replace(' id="rates%2Flimits"', ""))
+    (serve.page_dir / "index.html").write_text(
+        SOURCE.replace(' id="rates%2Flimits"', "")
+    )
     told(page)
     page.mouse.move(2, 2)
     page.locator("h2").first.hover()

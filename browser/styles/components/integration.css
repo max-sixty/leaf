@@ -129,8 +129,11 @@ html[data-lf-draw-mode] main {
   position: absolute;
   top: calc(
     anchor(top, -9999px) + var(--lf-heading-link-top, 0px) +
-      (var(--lf-heading-link-line, var(--lf-heading-link-size)) -
-        var(--lf-heading-link-size)) / 2 + var(--lf-block-control-dy, 0px)
+      (
+        var(--lf-heading-link-line, var(--lf-heading-link-size)) -
+          var(--lf-heading-link-size)
+      ) /
+      2 + var(--lf-block-control-dy, 0px)
   );
   right: calc(anchor(left, 9999px) - var(--lf-block-control-dx, 0px));
   position-try-fallbacks: --lf-heading-link-end;

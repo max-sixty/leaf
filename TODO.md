@@ -202,8 +202,7 @@ has tried; settle that before building it.
   and On me's Approve version, whose title alone says why it is refused until a press
   does, and "Press z" once approved. Outside the panel, a finger
   holds a control to read its word (`held-word.js`). A finger also lacks exits a
-  key has: a mode's or search's steps take the counts off the panel's row until it ends, Android's back
-  gesture closes nothing (the Escape ladder could answer it), Draw mode blocks scrolling
+  key has: a mode's or search's steps take the counts off the panel's row until it ends, Draw mode blocks scrolling
   and zoom, and an `lf-draft` has no close that keeps the edit.
 - **Reconsider thread navigation.** Decide how Threads should change before
   refining it (`browser/AGENTS.md`, "Space and scrolling"). The

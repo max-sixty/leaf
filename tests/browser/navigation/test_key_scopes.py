@@ -34,6 +34,7 @@ from render_harness import (
     panel_settled,
     panel_view,
     resized,
+    select_words,
     told,
     write,
 )
@@ -1305,6 +1306,73 @@ def test_escape_backs_out_from_a_control_nothing_is_typed_into(browser, serve):
         assert page.evaluate("() => document.activeElement === document.body")
         page.keyboard.press("Escape")
         panel_settled(page, open=False)
+
+
+# The browser's own back: a close watcher standing before any of the page's, which
+# hears a close request only where the page holds none of its own.
+BROWSER_BACK = """() => {
+  window.browserBack = 0;
+  new CloseWatcher().onclose = () => (window.browserBack += 1);
+}"""
+
+
+def back_gesture(page):
+    """Make the close request Android's back gesture makes. An Escape keydown nothing
+    cancels is the same request, so the page's listeners are kept from hearing it."""
+    page.evaluate(
+        """() => addEventListener('keydown', (event) => {
+          if (event.key === 'Escape') event.stopImmediatePropagation();
+        }, {capture: true, once: true})"""
+    )
+    page.keyboard.press("Escape")
+
+
+def test_a_back_gesture_takes_the_step_escape_would(browser, serve):
+    """Android's back gesture is a close request, so a finger that opened the page's
+    menu or a view leaves it the way Escape does, one step a gesture. With nothing left
+    to take, the page holds no watcher and the gesture is the browser's, which goes
+    back in history. Before, the gesture closed nothing Leaf opened."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True
+    )
+    page = open_page(browser, serve(INLINE_PAGE), context=context)
+    page.evaluate(BROWSER_BACK)
+    menu = page.locator(".lf-floating-panel[data-menu]")
+
+    page.locator(".lf-fp-leaf").tap()
+    expect(menu).to_be_attached()
+    back_gesture(page)
+    expect(menu).not_to_be_attached()
+
+    page.locator(".lf-fp-threads").tap()
+    panel_settled(page, view="threads")
+    back_gesture(page)
+    panel_settled(page, open=False)
+    assert page.evaluate("window.browserBack") == 0
+
+    back_gesture(page)
+    page.wait_for_function("window.browserBack === 1")
+
+
+def test_escape_takes_one_step_where_a_back_gesture_would_take_it(browser, serve):
+    """The page's watcher stands while Escape has a step to take, and a press the
+    dispatcher answers is spent before it reaches the watcher, so the key still takes
+    one step: the view goes, the selection beside it stays for the next."""
+    page = open_page(browser, serve(INLINE_PAGE))
+    page.evaluate(BROWSER_BACK)
+    select_words(page, "#p")
+    page.locator(".lf-fp-threads").click()
+    panel_settled(page, view="threads")
+
+    page.keyboard.press("Escape")
+    panel_settled(page, open=False)
+    assert page.evaluate("getSelection().toString()")
+
+    back_gesture(page)
+    page.wait_for_function("!getSelection().toString() || window.browserBack")
+    assert page.evaluate("window.browserBack") == 0
+    back_gesture(page)
+    page.wait_for_function("window.browserBack === 1")
 
 
 def test_a_margin_marker_backs_out_onto_the_page_like_the_toggle(browser, serve):

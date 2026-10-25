@@ -450,6 +450,14 @@ function resolveKey(ev) {
   return null;
 }
 export const keyReady = (ev) => resolveKey(ev) !== INPUT_PENDING;
+// Escape with no key behind it, as the platform's close request asks for it
+// (close-requests.js): whether a press would take a step now, and taking it.
+const escapePress = () => new window.KeyboardEvent("keydown", { key: "Escape" });
+export const escapeTakesAStep = () => {
+  const matched = resolveKey(escapePress());
+  return Boolean(matched) && matched !== INPUT_PENDING;
+};
+export const pressEscape = () => dispatchKey(escapePress());
 
 // Scoping is the DOM's, but the resolver's stack, rather than listener order, says
 // which command wins. The controller leaves composing input to the IME.

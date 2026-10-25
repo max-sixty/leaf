@@ -114,6 +114,7 @@ import { declareCurrentLocation } from "./runtime/keyboard/page.js";
 import { mountKeyboard } from "./runtime/keyboard/controller.js";
 import { paintCoreControls } from "./runtime/keyboard/control-keys.js";
 import { paintTouchControls } from "./runtime/keyboard/touch-controls.js";
+import { paintCloseRequests } from "./runtime/keyboard/close-requests.js";
 import {
   commandReferenceDialog,
   mountCommandReference,
@@ -642,6 +643,7 @@ const currentLocationPainters = {
       },
     ]),
   paintTouchControls,
+  paintCloseRequests,
   paintStatusContext: () => paintStatusContext(goToSequence.goToStatus),
   paintGoToHints: goToSequence.paintGoToHints,
   paintTargetPickerHints: targets.paintTargetPickerHints,
@@ -720,7 +722,12 @@ if (!offlineInteractive) {
   document.body.append(chromeRoot);
   // Exports retain image inspection, but no page controls. Their other current location is
   // what a widget's own box shows, such as an options group's addition field.
-  mountRepaint({ paintInputs: inputs.paintInputs, reflectFirstScopes, reflectKeys });
+  mountRepaint({
+    paintInputs: inputs.paintInputs,
+    paintCloseRequests,
+    reflectFirstScopes,
+    reflectKeys,
+  });
 }
 
 // Widget commands belong to interactive documents, including offline exports.

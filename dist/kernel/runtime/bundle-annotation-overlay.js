@@ -239,6 +239,11 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 	previewNext.setAttribute("aria-label", "Next thread");
 	previewNext.title = "Next thread";
 	previewNav.append(previewPrevious, previewPosition, previewNext);
+	const previewOpenInPanel = offer("button", "lf-btn lf-icon-action lf-quiet-action lf-margin-preview-expand");
+	previewOpenInPanel.type = "button";
+	previewOpenInPanel.append(iconElement("expand", "lf-action-icon"));
+	previewOpenInPanel.setAttribute("aria-label", "Open in panel");
+	previewOpenInPanel.title = "Open in panel";
 	const previewList = el("div", "lf-margin-preview-list");
 	const carry = surfaceGrip({
 		surface: preview,
@@ -662,8 +667,15 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 			const body = el("div", "lf-margin-thread-body");
 			node.append(body);
 		}
-		renderMarginThread(node.querySelector(":scope > .lf-margin-thread-body"), sourceItem(item).thread, {
+		const shownThread = sourceItem(item).thread;
+		previewOpenInPanel.onclick = () => {
+			previewClose.click();
+			document.dispatchEvent(new CustomEvent("lf-open-in-panel", { detail: { thread: shownThread.id } }));
+		};
+		const candidate = document.documentElement.dataset.playgroundFormat;
+		renderMarginThread(node.querySelector(":scope > .lf-margin-thread-body"), shownThread, {
 			nav: previewNav.hidden ? null : previewNav,
+			expand: candidate === "today" ? null : previewOpenInPanel,
 			close: previewClose,
 			anchor: previewSession.anchor,
 			prepareLanding: () => {

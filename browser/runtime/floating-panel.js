@@ -3488,6 +3488,7 @@ export function createFloatingPanel({
     fieldRests = resting || Boolean(search);
     markRoom();
     keeps(host, "data-expanded", expanded ? "" : null);
+    keeps(host, "data-reading", trail.value.at(-1)?.reading ? "" : null);
     keeps(expand, "aria-pressed", String(expanded));
     keeps(expand, "aria-label", expanded ? "Less room to write" : "More room to write");
     keeps(expand, "title", expanded ? "Less room to write" : "More room to write");
@@ -4084,6 +4085,19 @@ export function createFloatingPanel({
         open({ view: "thread", thread: thread.key }, { reopen: true, focus: false });
         return present({ release: true });
       },
+    });
+    // PROTOTYPE (thread-expanded-panel): a card's Open in panel moves its thread here,
+    // at the reading size where the candidate asks for it.
+    document.addEventListener("lf-open-in-panel", (event) => {
+      const thread = threadByKey(/** @type {CustomEvent} */ (event).detail.thread);
+      if (!thread) return;
+      const reading = document.documentElement.dataset.playgroundFormat !== "panel";
+      if (prefs().rest === "mark") prefs().setRest("row");
+      open({ view: "thread", thread: thread.key, reading }, { reopen: true });
+      void present({ release: true }).then(() => {
+        const view = openView();
+        if (view) focusDestination(view, "move");
+      });
     });
     // Upgrade turns the status to its loading words without a publication.
     document.addEventListener(UPGRADE, () => paint(), { once: true });

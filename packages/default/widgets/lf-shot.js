@@ -13,9 +13,11 @@
  * A stacked pair labels each frame instead of the header, since left/right
  * bookends cannot identify vertically arranged images. Other views label the header.
  *
- * A bounded pair chooses the orientation that gives the images the larger scale;
- * in ordinary flow, wide frames stack instead of shrinking below half scale.
- * Fit recalculates for that layout; 100% retains the captured CSS
+ * Pair chooses the orientation that gives both images the larger scale. A bounded
+ * host supplies the height; stacked frames in flow fit the screen below the toolbar.
+ * In ordinary flow it takes only the height its windows need; the toolbar stays
+ * in place while content below follows the images. Fit recalculates for that
+ * layout; 100% retains the captured CSS
  * scale, or bitmap pixels when no capture ratio is supplied. Inspection choices
  * belong to this element's lifetime, not the document's application state.
  *
@@ -113,7 +115,7 @@ customElements.define(
     #reading;
     #pixelsView;
     #pixelsPainted;
-    #pixelUrls = [];
+    #pixelUrl = null;
     #capture;
     #error;
     static observedAttributes = ["alt", "before", "after"];
@@ -326,7 +328,7 @@ customElements.define(
       this.#error?.remove();
       this.#error = null;
       if (changed) {
-        this.#paintPixels(pixels ?? []);
+        this.#paintPixels(pixels);
         this.#pixelsPainted = pixels ? Promise.resolve() : null;
       }
       this.#fit();
@@ -364,9 +366,7 @@ customElements.define(
 
     #fit() {
       if (!this.#stage || !this.#frames.length) return;
-      // The mode sets the stage's overflow and classic-scrollbar gutter. Apply it
-      // before measuring; fitting the previous mode would resize this observed
-      // stage again, and fit it a second time a frame later.
+      // Show the selected presentation before reading its shared allocation.
       keeps(this, "data-lf-shot-mode", this.#view);
       const allocation = shotAllocation(this, this.#stage);
       if (allocation.available <= 0) return; // Hidden cases retain their last inspection until shown.
@@ -551,10 +551,10 @@ customElements.define(
       const reading = await compareImages(...capture.images);
       const pixels =
         this.#view === "pixels" && this.#shots !== capture.images
-          ? await this.#pixelMasks(capture.images)
+          ? await this.#pixelMask(capture.images)
           : null;
       if (capture !== this.#capture) {
-        for (const url of pixels ?? []) URL.revokeObjectURL(url);
+        if (pixels) URL.revokeObjectURL(pixels);
         return null;
       }
       this.#commitImages(capture, pixels);
@@ -597,12 +597,9 @@ customElements.define(
         const ground = document.createElement("img");
         ground.alt = "";
         ground.src = this.#shots[1].src;
-        const paints = ["both", "before", "after"].map((side) => {
-          const paint = document.createElement("span");
-          paint.dataset.lfShotSide = side;
-          return paint;
-        });
-        plane.append(ground, ...paints);
+        const paint = document.createElement("span");
+        paint.className = "lf-shot-pixel-mask";
+        plane.append(ground, paint);
         view.append(plane);
         this.#canvas.append(view);
         this.#pixelsView = view;
@@ -610,12 +607,12 @@ customElements.define(
       if (!this.#pixelsPainted) {
         const images = this.#shots;
         this.#pixelsPainted = inTurn(async () => {
-          const urls = await this.#pixelMasks(images);
+          const url = await this.#pixelMask(images);
           if (images !== this.#shots) {
-            for (const url of urls) URL.revokeObjectURL(url);
+            URL.revokeObjectURL(url);
             return;
           }
-          this.#paintPixels(urls);
+          this.#paintPixels(url);
         });
         void this.#pixelsPainted.catch((reason) => {
           if (images === this.#shots) failSoft(this, reason);
@@ -627,46 +624,33 @@ customElements.define(
       return this.#pixelsPainted;
     }
 
-    async #pixelMasks(images) {
-      const { width, height, ...masks } = compareImagePixels(...images);
-      const blobs = await Promise.all(
-        ["both", "before", "after"].map(async (side) => {
-          const canvas = new OffscreenCanvas(width, height);
-          canvas
-            .getContext("2d")
-            .putImageData(new ImageData(masks[side], width, height), 0, 0);
-          return canvas.convertToBlob({ type: "image/png" });
-        }),
+    async #pixelMask(images) {
+      const { width, height, data } = await compareImagePixels(...images);
+      const canvas = new OffscreenCanvas(width, height);
+      canvas.getContext("2d").putImageData(new ImageData(data, width, height), 0, 0);
+      const url = URL.createObjectURL(
+        await canvas.convertToBlob({ type: "image/png" }),
       );
-      const urls = blobs.map((blob) => URL.createObjectURL(blob));
       try {
-        await Promise.all(
-          urls.map((url) => {
-            const image = document.createElement("img");
-            image.src = url;
-            return image.decode();
-          }),
-        );
-        return urls;
+        const image = document.createElement("img");
+        image.src = url;
+        await image.decode();
+        return url;
       } catch (reason) {
-        for (const url of urls) URL.revokeObjectURL(url);
+        URL.revokeObjectURL(url);
         throw reason;
       }
     }
 
-    #paintPixels(urls) {
+    #paintPixels(url) {
       if (this.#pixelsView) {
         keeps(this.#pixelsView.querySelector("img"), "src", this.#shots[1].src);
-        for (const [index, paint] of [
-          ...this.#pixelsView.querySelectorAll("[data-lf-shot-side]"),
-        ].entries()) {
-          if (urls[index])
-            paint.style.setProperty("--lf-shot-pixels", `url("${urls[index]}")`);
-          else paint.style.removeProperty("--lf-shot-pixels");
-        }
+        const paint = this.#pixelsView.querySelector(".lf-shot-pixel-mask");
+        if (url) paint.style.setProperty("--lf-shot-pixels", `url("${url}")`);
+        else paint.style.removeProperty("--lf-shot-pixels");
       }
-      for (const url of this.#pixelUrls) URL.revokeObjectURL(url);
-      this.#pixelUrls = urls;
+      if (this.#pixelUrl) URL.revokeObjectURL(this.#pixelUrl);
+      this.#pixelUrl = url;
     }
 
     #validImages(images, { focus = undefined, pixelRatio = 1 }) {

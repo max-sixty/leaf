@@ -193,19 +193,9 @@ export function drawShot(host, { offer, generatedElement, keeps }) {
   const full = checkbox("Full frame");
   full.label.hidden = true;
   const key = offer("div", "lf-shot-pixel-key");
-  key.append(offer("div", "lf-shot-key-label", "Pixel colors"));
-  for (const [side, text] of [
-    ["before", "Before only"],
-    ["after", "After only"],
-    ["both", "Recolored"],
-  ]) {
-    const item = offer("div", "lf-shot-key-item");
-    const swatch = offer("span", "lf-shot-key-swatch");
-    swatch.dataset.lfShotSide = side;
-    swatch.ariaHidden = "true";
-    item.append(swatch, offer("span", "", text));
-    key.append(item);
-  }
+  const swatch = offer("span", "lf-shot-key-swatch");
+  swatch.ariaHidden = "true";
+  key.append(swatch, offer("span", "", "Changed pixels"));
   options.append(scale.group, full.label, key);
   tools.append(scaleTrigger, outlines, options);
   actions.append(views.group, tools);

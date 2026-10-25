@@ -303,7 +303,7 @@ def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
     mark = receipt_item.get_by_role(
         "button", name="shorten reaction actions", exact=True
     )
-    remove = page.locator('[aria-label="Remove shorten reaction"]:visible')
+    remove = page.locator('[aria-label="Undo shorten reaction"]:visible')
     face = """button => {
       const style = getComputedStyle(button);
       return [style.color, style.backgroundColor, style.borderTopColor, style.boxShadow];

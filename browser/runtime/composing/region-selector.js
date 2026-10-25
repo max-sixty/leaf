@@ -12,9 +12,14 @@
  * gestures; the cost is that neither a finger nor a mouse can adjust the area before it
  * attaches, only drag it again. A press that travels less than `MIN_SIZE` along both
  * axes is a tap, not a drag. A tap, or a pointer the browser cancels, attaches nothing
- * and puts back the rectangle that stood before the press, with capture still standing
- * so the user can drag again or leave by its ✕. Arrows move the rectangle,
- * Shift+arrows resize it and Enter attaches it, so capturing never requires a drag.
+ * and puts back whatever rectangle stood before the press, with capture still standing
+ * so the user can drag again or leave by its ✕.
+ *
+ * Capture opens on the dimmed page with no rectangle, and the field says "Drag an area
+ * to capture". The first arrow key draws a preset rectangle in the middle of the
+ * window; then arrows move it, Shift+arrows resize it and Enter attaches it, so
+ * capturing never requires a drag. The user chose this over drawing the preset at open,
+ * which read as a selection waiting for a press inside it, where a press did nothing.
  *
  * The selected pixels stay in viewport coordinates until confirmation, when
  * `pageImage` draws that document-coordinate crop, excluding the selector and the
@@ -30,7 +35,7 @@
 import { el } from "../widget-elements.js";
 import { paintKeys } from "../keyboard/scopes.js";
 import { focusDestination, focused, handBack, closeLayer } from "../focus.js";
-import { keeps, keepsText } from "../keeps.js";
+import { keeps, keepsHidden, keepsText } from "../keeps.js";
 import { runtime } from "../context.js";
 import { nextRender } from "../rendering.js";
 import { clamp } from "../rect.js";
@@ -61,19 +66,20 @@ export function createRegionSelector({
   const status = el("p", "lf-live lf-region-status");
   status.setAttribute("role", "status");
   overlay.append(selection, status);
-  const { right: width, bottom: height } = layoutWindow();
-  let box = {
-    x: Math.round(width * 0.2),
-    y: Math.round(height * 0.2),
-    width: Math.round(width * 0.6),
-    height: Math.round(height * 0.5),
-  };
+  // No area until a drag draws one or an arrow key asks for the preset.
+  let box = null;
   let drag = null;
   let busy = false;
   let attempt = 0;
   let ended = false;
 
   function paint() {
+    keepsHidden(selection, !box);
+    if (!box) {
+      keepsText(status, "");
+      paintKeys();
+      return;
+    }
     selection.style.left = `${box.x}px`;
     selection.style.top = `${box.y}px`;
     selection.style.width = `${box.width}px`;
@@ -84,6 +90,7 @@ export function createRegionSelector({
 
   function fit() {
     if (ended) return;
+    if (!box) return paint();
     const { right, bottom } = layoutWindow();
     box.width = clamp(box.width, MIN_SIZE, right);
     box.height = clamp(box.height, MIN_SIZE, bottom);
@@ -111,6 +118,16 @@ export function createRegionSelector({
   }
 
   function move(binding) {
+    if (!box) {
+      const { right: width, bottom: height } = layoutWindow();
+      box = {
+        x: Math.round(width * 0.2),
+        y: Math.round(height * 0.2),
+        width: Math.round(width * 0.6),
+        height: Math.round(height * 0.5),
+      };
+      return fit();
+    }
     const resizing = binding.startsWith("Shift+");
     const key = binding.split("+").at(-1);
     const dx = key === "ArrowLeft" ? -STEP : key === "ArrowRight" ? STEP : 0;
@@ -230,7 +247,7 @@ export function createRegionSelector({
       title: "Attach capture",
       // Lifting a pointer's drag attaches the area it drew.
       touch: false,
-      when: () => !ended && !busy && !drag,
+      when: () => !ended && !busy && !drag && Boolean(box),
       run: capture,
     },
     // A pointer drags the area it wants instead.

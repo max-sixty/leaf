@@ -14,7 +14,7 @@ Commands:
   connection  Grant pages authenticated HTTPS reads.
   data        Set or clear page-bound external data.
   delivery    Read a delivery by its id, and confirm you received it.
-  file        Bind existing local files for editing on a page.
+  file        Manage a page's access to local files.
   package     Create, check, install, and run packages.
   page        Create, check, stamp, and read pages.
   server      Start, run, or stop the local server.

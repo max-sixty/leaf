@@ -31,9 +31,9 @@
    scrolled back even before its event arrives.
 
    The box that scrolls is the bounded element, unless its widget's theme moves the
-   bound to a box inside it and says so there with `--lf-bound-box: 1` — a captured
-   document scrolls its listing under a caption that stays put. The outermost box
-   declaring it is the scroller, and it is the region's body.
+   bound to a box inside it and names that box with a `--lf-bound-box` selector on
+   the bounded element — a captured document scrolls its listing under a caption
+   that stays put. The first matching box outside nested bounds is the region's body.
 
    A block is held while it stands in the page, whoever painted its bound: delivery
    paints a page's, and a revision patched in arrives painted the same way, while
@@ -46,7 +46,7 @@
 
    A block in content the browser skips, a hidden tab's panel or a shut disclosure, is
    left as it stands until it is drawn (geometry.js, `skipped`). Finding its scroller
-   reads the style of every box it holds, and finding its end reads layout, and either
+   reads the bounded element's style, and finding its end reads layout, and either
    question makes the browser style and lay out the hidden subtree first; Chromium has
    left style elsewhere on the page stale after that forced pass. A block first seen
    hidden stands as its own scroller meanwhile. Each skipped sync renews the block's
@@ -77,13 +77,12 @@ const byBox = new WeakMap();
 const THIS_DOCUMENT = `lf-region:bound:${performance.timeOrigin}`;
 let unnamed = 0;
 
-const declaresBound = (box) =>
-  getComputedStyle(box).getPropertyValue("--lf-bound-box").trim() === "1";
-
 function scrollerOf(bounded) {
+  const selector = getComputedStyle(bounded).getPropertyValue("--lf-bound-box").trim();
+  if (!selector) return bounded;
   // A bound nested inside this one owns its own scroller, so the search stops at it.
-  for (const box of bounded.querySelectorAll("*"))
-    if (declaresBound(box) && box.closest(BOUNDED) === bounded) return box;
+  for (const box of bounded.querySelectorAll(selector))
+    if (box.closest(BOUNDED) === bounded) return box;
   return bounded;
 }
 

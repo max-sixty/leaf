@@ -89,8 +89,8 @@ def test_a_sent_margin_reply_shows_its_words_while_delivery_is_pending(
     page.locator('[data-lf-margin-for="how-store"] .lf-margin-marker').click()
     card = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
     rendered(page)
-    # The card opens on its latest message.
-    expect(card.locator(".lf-msg").last).to_be_in_viewport()
+    # The card opens on its first unread message, the first of the agent's turns.
+    expect(card.locator(".lf-msg", has_text="Turn 0.")).to_be_in_viewport()
     page.keyboard.press("c")
     reply = card.locator("leaf-text")
     expect(reply).to_be_focused()

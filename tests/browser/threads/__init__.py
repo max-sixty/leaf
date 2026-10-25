@@ -662,7 +662,8 @@ customElements.define('lf-capture-art', class extends HTMLElement {
 
 def open_capture_area(page, *, touch=False):
     """Enter the screenshot tool through its ordinary page-control route: the leaf's
-    menu, Annotations, Capture area, and wait for its first area to paint."""
+    menu, Annotations, Capture area, and wait for it to dim the page. It opens with no
+    area drawn, inviting a drag."""
     menu = page.locator(".lf-fp-menu")
     for press in (
         page.locator(".lf-fp-leaf"),
@@ -675,5 +676,5 @@ def open_capture_area(page, *, touch=False):
             press.click()
     surface = page.get_by_role("region", name="Capture area", exact=True)
     expect(surface).to_be_visible()
-    expect(surface.locator(".lf-region-selection")).to_be_visible()
+    expect(surface.locator(".lf-region-selection")).to_be_hidden()
     return surface

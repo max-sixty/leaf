@@ -1,5 +1,5 @@
-"""A page server's lifetime: `server start`, `stop` and `run`, persistent, session and
-background-job lifetimes, the reaper that retires a server, and restarts across a
+"""A page server's lifetime: `server start`, `stop` and `run`, persistent, session,
+background-job and desktop-app lifetimes, the reaper that retires a server, and restarts across a
 re-vendor."""
 
 import http.client
@@ -309,6 +309,76 @@ def test_a_claim_takes_the_job_lifetime_only_for_the_jobs_own_session(
     (job / "state.json").unlink()
     with pytest.raises(Refused, match="names no job record"):
         service_model.claim_page(page_dir)
+
+
+def test_a_desktop_app_sessions_server_lives_as_long_as_the_app_session(
+    page_dir, tmp_path, monkeypatch, dead_pid
+):
+    """The Claude desktop app stops a session's process to update, and resumes it
+    only when the user opens the session, so a claim naming the process takes the
+    page down while the user reads it in another window. The app's record of the
+    session is the lifetime instead: the page stays served through the SessionEnd
+    of the process's stop, comes back to the same generation when the session
+    resumes, and retires once the record names another session or the user
+    archives it."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    record = (
+        tmp_path
+        / "Library/Application Support/Claude/claude-code-sessions/acct/org"
+        / "local_one.json"
+    )
+    record.parent.mkdir(parents=True)
+    app = {"cliSessionId": "app-session", "isArchived": False}
+    cleanup_model.write_json(record, app)
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "app-session")
+    monkeypatch.setenv("CLAUDE_CODE_HOST_SESSION_ID", "local_one")
+    monkeypatch.setenv("CLAUDE_PID", str(dead_pid))
+    assert service_model.claim_page(page_dir)
+    assert hosting_model.start_server(page_dir, harness=harness_model.session_harness())
+    generation = service_model.page_claim(page_dir)["generation"]
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "SessionEnd", "session_id": "app-session"}
+    )
+    assert not reaper_retires(page_dir, monkeypatch)
+    assert server_model.running_server(page_dir)
+    assert (
+        cleanup_model.ensure_session(
+            "app-session", harness_model.session_harness().lifetime()
+        )["generation"]
+        == generation
+    )
+    assert service_model.claim_is_active(service_model.page_claim(page_dir))
+
+    cleanup_model.write_json(record, {**app, "cliSessionId": "after-clear"})
+    assert not service_model.claim_is_active(service_model.page_claim(page_dir))
+    cleanup_model.write_json(record, {**app, "isArchived": True})
+    assert reaper_retires(page_dir, monkeypatch)
+    wait_for(
+        lambda: server_model.running_server(page_dir),
+        lambda running: not running,
+        failure="the app session's server stayed up after it was archived",
+    )
+
+
+def test_a_claim_takes_the_app_lifetime_only_for_the_apps_own_session(
+    page_dir, tmp_path, monkeypatch
+):
+    """CLAUDE_CODE_HOST_SESSION_ID is inherited, so a session started under an app
+    session's shell tool names the app's record while being a process of its own;
+    so does a session whose app keeps no record."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    record = (
+        tmp_path
+        / "Library/Application Support/Claude/claude-code-sessions/acct/org"
+        / "local_one.json"
+    )
+    record.parent.mkdir(parents=True)
+    cleanup_model.write_json(record, {"cliSessionId": "the-app", "isArchived": False})
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "nested")
+    monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
+    for host in ("local_one", "local_unrecorded"):
+        monkeypatch.setenv("CLAUDE_CODE_HOST_SESSION_ID", host)
+        assert harness_model.session_harness().lifetime() == {"pid": os.getpid()}
 
 
 def test_a_server_exits_when_its_session_is_hard_killed(

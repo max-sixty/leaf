@@ -205,6 +205,8 @@ function renderedLines(file, content) {
     );
   return records.map((record, index) => {
     const node = nodes[index];
+    // Pierre represents an empty source row with a newline placeholder.
+    if (node.textContent === "\n") node.replaceChildren();
     const key = diffDatumKey(record);
     node.setAttribute(LINE_KEY, key);
     const row = document.createElement("div");

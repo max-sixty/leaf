@@ -583,6 +583,28 @@ def test_a_pane_inside_a_plain_section_of_a_workspace_flows(browser, serve):
     assert foot_reserve(page) > 0
 
 
+def test_a_full_height_workspace_keeps_the_panel_room_below_its_footer(browser, serve):
+    """A footer reaches the window's foot in place of the body, so the room the panel's
+    row needs stands below it. Kept inside the body instead, it left a band of the
+    body's frame empty above a footer the row then stood over."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "a workspace with a footer",
+                LONG_PANE + '<footer><p id="foot">What the queue is for.</p></footer>',
+                layout="workspace",
+            )
+        ),
+    )
+    resized(page, 1280, 720)
+    pane_scroll_behavior(page, page.locator("#workspace-pane"), "bounded")
+    fills_the_window(page, page.locator("main"), True)
+    assert foot_reserve(page) == 0
+    assert clear_of_the_bottom_chrome(page, "#foot")["clear"]
+    assert clear_of_the_bottom_chrome(page, "#pane-end")["clear"]
+
+
 def foot_reserve(page):
     """How far #workspace-pane's reader pads its end beyond the pane inset."""
     return page.locator("#workspace-pane > div").evaluate(

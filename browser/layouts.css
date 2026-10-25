@@ -859,8 +859,11 @@
    * since CSS cannot tell a grid's last row from the others. A pane a body widget
    * places deeper stands inside that body's own end room (below), so it keeps only its
    * inset: a visual review's stacked case strip, at the top of the window, had given
-   * 72px of a 720px window to a panel it never reaches. Flowing workspaces still use
-   * the document's end room. */
+   * 72px of a 720px window to a panel it never reaches. A footer reaches the foot
+   * instead, so the workspace keeps the room below it and nothing above it does:
+   * alert-review's footer stood under the panel at the window's edge, below a band of
+   * the body's frame left empty for a panel it no longer met. Flowing workspaces still
+   * use the document's end room. */
   @media screen and (min-width: 720px) and (min-height: 480px) {
     html[data-lf-live][data-lf-layout~="workspace"] body {
       padding-block-end: 0;
@@ -870,12 +873,17 @@
     }
     html[data-lf-live][data-lf-layout~="workspace"]
       body
-      > main.layout-workspace
+      > main.layout-workspace:has(> footer) {
+      padding-block-end: var(--lf-foot-room);
+    }
+    html[data-lf-live][data-lf-layout~="workspace"]
+      body
+      > main.layout-workspace:not(:has(> footer))
       > [data-lf-reading-role="pane"]
       > :not(header, footer),
     html[data-lf-live][data-lf-layout~="workspace"]
       body
-      > main.layout-workspace
+      > main.layout-workspace:not(:has(> footer))
       > :not(header, footer)
       > [data-lf-reading-role="pane"]
       > :not(header, footer) {
@@ -885,7 +893,7 @@
        grouping panes more deeply scrolls as one box and needs its own end room. */
     html[data-lf-live][data-lf-layout~="workspace"]
       body
-      > main.layout-workspace
+      > main.layout-workspace:not(:has(> footer))
       > :not(header, footer, [data-lf-reading-role="pane"]):not(
         :has(> [data-lf-reading-role="pane"])
       ) {

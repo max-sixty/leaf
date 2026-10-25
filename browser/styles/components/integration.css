@@ -118,7 +118,11 @@ html[data-lf-draw-mode] main {
   opacity: 1;
   pointer-events: auto;
 }
+/* The ring is the shadow button's, and so is the focus a Tab reveals: it stands half
+   above its block, where a scroller's edge can meet it, so it keeps the ring's room as a
+   focused control in the page does (shadow.css, `:focus`). */
 .lf-code-copy::part(button) {
+  scroll-margin: var(--focus-ring-landing);
   position: relative;
   box-sizing: border-box;
   width: var(--lf-code-copy-size);

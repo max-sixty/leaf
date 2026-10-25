@@ -2,8 +2,8 @@
 """Claude Code's background-watch transport, separate from Leaf's application.
 
 The synchronous Stop and prompt registrations call `bin/leaf hook` directly, and
-SessionEnd's calls `bin/leaf session-end`. That shell launcher owns uv; no Leaf Python process starts an
-environment manager.
+SessionEnd's calls `bin/leaf session-end`. That shell launcher owns uv; no Leaf
+Python process starts an environment manager.
 
 This supervisor calls `bin/leaf` with its own arguments, which the registration
 states (`hook --harness claude-code --if-claimed --watch`). Claude's asyncRewake registration

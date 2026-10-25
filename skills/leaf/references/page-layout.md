@@ -88,7 +88,10 @@ verdict and file list stay beside the code. The region kept in view is the `asid
 
 The body and `aside` sit side by side, two thirds and one third, while the page has
 room for both, and stack in source order when it hasn't or when the body's content needs
-the whole width.
+the whole width. To give the `aside` another width, set `--aside` on the `main` to a
+length or a share of the row, such as `main { --aside: 20rem; }`: the `aside` stands
+that wide beside the body, the body takes the rest, and the two stack where the body
+no longer fits beside it.
 Write the `aside` first when the reader of the stacked page reads it first, such as a
 verdict; it then sits on the left. Write it after the body when it follows the work,
 such as a dashboard's log; it then sits on the right. Stack the regions inside the body
@@ -198,9 +201,11 @@ that box, and a table there scrolls sideways.
 
 A widget whose entry declares `x-height`, such as `lf-chart`, reserves that height
 before it draws; `data-height` on the element overrides it. A widget whose drawing sets
-its own height, such as `lf-diagram` or `lf-diff`, reserves nothing, so content below it
-moves when it draws unless you set `data-height`. `page check --render` suggests the
-height wherever a drawing differs from what was reserved.
+its own height, such as `lf-diagram` or an `lf-diff` bound with `source`, reserves
+nothing, so content below it moves when it draws unless you set `data-height`. An
+`lf-diff` with its patch inline sizes itself from the patch, so leave `data-height` off
+it. `page check --render` suggests the height wherever a drawing differs from what was
+reserved.
 
 ## The rail and the margin
 

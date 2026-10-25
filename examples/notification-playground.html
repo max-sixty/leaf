@@ -172,13 +172,12 @@
     </style>
     <script type="module">
       import {
-        PAGE_INTERFACE,
         generatedElement,
         keeps,
         keepsText,
         layoutChanged,
         once,
-        whileConnected,
+        whileInterfaceConnected,
       } from "/runtime/widget-api.js";
 
       const EVENTS = [
@@ -289,13 +288,17 @@
         class extends HTMLElement {
           #banner = null;
           #strip = null;
-          #initialized = false;
           #cards = "";
 
           connectedCallback() {
             if (!once(this)) return;
             this.#build();
-            whileConnected(this, (signal) => this.#connect(signal));
+            whileInterfaceConnected(this, {
+              connect: () =>
+                this.closest("lf-playground").subscribe((values) =>
+                  this.#render(values),
+                ),
+            });
           }
 
           #build() {
@@ -306,23 +309,6 @@
             // The simulated notifications are this module's words, not the page's source.
             generatedElement(candidates, { says: true });
             this.append(candidates);
-          }
-
-          #connect(signal) {
-            const playground = this.closest("lf-playground");
-            let unsubscribe;
-            const initialize = () => {
-              if (signal.aborted || unsubscribe) return;
-              unsubscribe = playground.subscribe((values) => this.#render(values));
-              this.#initialized = true;
-            };
-            document.addEventListener(
-              PAGE_INTERFACE,
-              (event) => event.detail.present(Promise.resolve().then(initialize)),
-              { signal },
-            );
-            if (this.#initialized) initialize();
-            return () => unsubscribe?.();
           }
 
           #render(values) {

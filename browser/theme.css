@@ -1299,12 +1299,13 @@
   --sp-2: 8px;
   --sp-3: 16px;
   --sp-4: 24px;
+  --sp-5: 32px;
   --aim-floor: 24px;
   --lf-line: 32px;
   --lf-reach-room: max(0px, (var(--aim-floor) - var(--lf-line)) / 2);
   --entry-floor: 0px;
   --margin-entry: max(32px, var(--aim-floor));
-  --corner-mark: 20px;
+  --mark-size: 20px;
   --pin-inset: 4px;
   --margin-gap: 4px;
   --rail-hang: 22px;
@@ -1751,6 +1752,7 @@ p {
   --sp-2: 6px;
   --sp-3: 10px;
   --sp-4: 14px;
+  --sp-5: 18px;
   --code-size: 12px;
   --code-line: 17px;
   --pane-bar-pad: 6px 12px;

@@ -174,7 +174,8 @@
     "x-data": {
       "document": {
         "contract": "text-document",
-        "source": "source"
+        "source": "source",
+        "property": "value"
       }
     },
     "x-language": "language",

@@ -1,8 +1,8 @@
 import { PENDING, Z, bindQueuedWork, editable, html, isElementName, isReaction, keyed, lastMovedAt, messageKey, moved, nothing, pendingForParent, render as render$1, repeat, sameAnchor, seatRoot, share, threadKey, threadNames, turns } from "./bundle-browser-runtime.js";
 import { CARET_KEYS, TEXT_FIELD, afterScript, atLayoutPrecision, cancelRender, caretAtKey, carriedFrom, currentLocationIn, currentLocationNodes, currentLocationTouches, deepFocus, drawn as drawn$2, focusDestination, focused, holdCurrentLocation, holdFocus, inputCount, keeps, keepsHidden, layoutPx, move, nextFrame, nextRender, onCurrentLocation, onPress, onPressAway, readCaret, recentPlaceInput, renderedOrder, renderedParent, renderedUnder, ringBox, selectsAll, sizeObserver, takesLetters, under, upFrom } from "./bundle-dom-move.js";
 import { PAGE_PAINT_ATTRIBUTE, admitResponse, pagePresented, randomId, reportPageError, revealLayer, sameLayer } from "./bundle-layer-client.js";
-import { applicationState, attachApplicationPresentation, offlineInteractive, pageClaimed, readApplication, readPart, runtime, runtimeModule, runtimeResource, whenApplicationPresented, whenDocumentPresented, whenWidgetsPresented } from "./bundle-context.js";
 import { PRESS, adoptRegistry, announce, bindings, checked, clampedRow, clippedContents, clippingAxes, commandScope, cycledRow, declarationFor, declareCommandReadiness, descriptionOf, el, elementDeclarations, elementsDeclaring, exhibits, generatedElement, growthAfterIsSeen, growthIsSeen, headerInset, holdStatus, iconElement, iconTemplate, inUi, inWindowChrome, keys, landingBand, loadShadowRules, measure, nearestScrollBy, notice, offer, offered, paintKeys, passErrorsAt, placeBox, placeHolder, plainPress, pointerAt, pressIsKeyboardActivation, projectCommandScope, raiseError, registry as registry$1, repaint, seenRect, shownBox, shownRect, shownWindow, skipped, stuckBox, tagsDeclaring, titleOf, tokenEntry, touchPresses as touchPresses$1, union, userScrollport, visibleBand, watchArrivals, watchCommandScopes, watchOwner, whenNone } from "./bundle-errors.js";
+import { applicationState, attachApplicationPresentation, offlineInteractive, pageClaimed, readApplication, readPart, runtime, runtimeModule, runtimeResource, whenApplicationPresented, whenDocumentPresented, whenWidgetsPresented } from "./bundle-context.js";
 import { ago, aimedTop, atScrollEnd, claimReachStop, containingReadingRegionFor, effectiveScroller, moveScrollerBy, pageReadingRegion, pageScroller, placeKept, reachScrollers, reachable, readingRegionFor, readingRegions, releaseReachStop, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, shortAgo, shownRegionBounds, startScroll } from "./bundle-reading-regions.js";
 import { chromeForeground, chromeRoot } from "./bundle-chrome.js";
 import { COLLAPSE, alignText, closestAcross, elementById, fencePassageParts, inChrome, labelWords, pageBlocks, pageDocument, pageQueryAll, pageRange, pageText, pageWords, pointAt, quoteFrom, rangeOf, readingFrom, segmentBlock, segmentsIn, selectEnds, selectionBackward, spanIn, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity } from "./bundle-passages.js";
@@ -1297,15 +1297,6 @@ function releaseControl(control) {
 const controls = /* @__PURE__ */ new WeakMap();
 const wired = /* @__PURE__ */ new WeakMap();
 const COPY_SCOPE = Symbol("code copy");
-function copySize(block) {
-	const style = getComputedStyle(block);
-	const chosen = style.getPropertyValue("--lf-code-copy-size").trim() || (block.localName === "pre" ? style.lineHeight : "");
-	return CSS.supports("width", chosen) ? chosen : "";
-}
-function setCopySize(copy, size) {
-	if (size) copy.style.setProperty("--lf-code-copy-size", size);
-	else copy.style.removeProperty("--lf-code-copy-size");
-}
 onCurrentLocation((node) => {
 	for (let at = node; at; at = upFrom(at)) {
 		const copy = controls.get(at);
@@ -1315,7 +1306,7 @@ onCurrentLocation((node) => {
 function prepareCodeBlock(pre, source, noun) {
 	let copy = controls.get(pre);
 	if (!copy) {
-		copy = copyControl("lf-code-copy lf-quiet-action", {
+		copy = copyControl("lf-code-copy lf-mark", {
 			label: `Copy ${noun}`,
 			success: `${noun[0].toUpperCase()}${noun.slice(1)} copied`,
 			error: `Unable to copy ${noun}`
@@ -1343,9 +1334,7 @@ function declareCopy(pre, copy, noun) {
 	}]));
 }
 function copyBlock(block, source, noun) {
-	const size = copySize(block);
 	const copy = aimControl(prepareCodeBlock(block, source, noun));
-	setCopySize(copy, size);
 	declareCopy(block, copy, noun);
 	return copy;
 }
@@ -1359,12 +1348,10 @@ function watchCodeBlocks() {
 			const prepared = blocks.filter((pre) => pre.getRootNode() === document).map((pre) => [
 				pre,
 				prepareCodeBlock(pre, () => pre.querySelector(":scope > code").textContent, "code"),
-				headerLevels(pre),
-				copySize(pre)
+				headerLevels(pre)
 			]);
-			for (const [pre, pending, levels, size] of prepared) {
+			for (const [pre, pending, levels] of prepared) {
 				const copy = aimControl(pending);
-				setCopySize(copy, size);
 				standInChrome(copy, pre, levels);
 				copy.tabIndex = -1;
 				claimReachStop(pre);
@@ -1609,9 +1596,9 @@ function makeLink(heading) {
 	const control = copyControl("lf-heading-link", {
 		label: "Copy link to section",
 		success: "Link copied",
-		error: "Unable to copy link"
+		error: "Unable to copy link",
+		icon: "link"
 	});
-	control.append(Object.assign(iconElement("link", "lf-heading-link-icon"), { slot: "copy-icon" }));
 	control.tabIndex = -1;
 	const link = {
 		heading,

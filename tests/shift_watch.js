@@ -107,7 +107,8 @@
 // the ancestor's whole box: independent movement of it or its children still fails.
 // This proof supports unique replace effects with pure transform translation, a
 // `translate` in pixels or percentages of the border box (including a directly bound
-// inline custom property), or pixel
+// inline custom property), a pixel-only stylesheet consumer of an inherited custom
+// property, or pixel
 // left/top/marginLeft/marginTop. Scale, rotation and
 // composed effects receive no inferred translation credit.
 //
@@ -245,7 +246,8 @@
   // An animation that can move a box: one of its keyframes sets a geometric property.
   const moves = (animation) =>
     animationProperties(animation).length > 0 ||
-    GEOMETRY.test(animation.transitionProperty ?? "");
+    GEOMETRY.test(animation.transitionProperty ?? "") ||
+    inheritedBindings(animation).length > 0;
   // Every animation in the composed tree: the document's own list leaves out those
   // whose targets are in shadow trees, so each connected shadow root adds its own.
   const allAnimations = () => [
@@ -282,17 +284,13 @@
       `^(?:${anchor}|calc\\((?:${anchor}\\s*[+-]\\s*-?[\\d.]+px|-?[\\d.]+px\\s*\\+\\s*${anchor}|${anchor})\\))$`,
     ).test(value);
   };
-  // What decides a positioned box's inset on an axis, as the declarations that can win
-  // it: an important inline one alone, else the important rules of the box's own tree
-  // that match it now, else its inline style, else every matching rule. Within a tier
-  // the cascade weighs specificity, layers and order, which no API reports, so the
-  // inset counts as anchored only where every candidate there is a direct anchor
-  // inset: rules that disagree are ambiguous, like a name that is. Rules are read only
-  // for a box naming an anchor, since every frame samples it, and only those that
-  // state an inset at all, gathered once per sheet.
-  const INSETS = ["top", "right", "bottom", "left"];
-  const insetRules = new WeakMap();
-  const rulesStatingInsets = (sheet) => {
+  // Declarations that can win a property: an important inline one alone, else
+  // important matching rules, else inline style, else every matching rule. No API
+  // reports the cascade's specificity/layer/order result, so consumers require all
+  // candidates in that tier to prove the same relationship. Gather only rules
+  // stating the requested property, once per sheet and property.
+  const declarationRules = new WeakMap();
+  const rulesStating = (sheet, property) => {
     if (
       sheet.href &&
       new URL(sheet.href).origin !== window.origin &&
@@ -300,14 +298,14 @@
     )
       return [];
     const length = sheet.cssRules.length;
-    const known = insetRules.get(sheet);
+    const cached = declarationRules.get(sheet) ?? new Map();
+    const known = cached.get(property);
     if (known?.length === length) return known.rules;
     const rules = [];
     const visit = (list, conditions) => {
       for (const rule of list) {
         if (rule instanceof CSSStyleRule) {
-          if (INSETS.some((side) => rule.style.getPropertyValue(side)))
-            rules.push({ rule, conditions });
+          if (rule.style.getPropertyValue(property)) rules.push({ rule, conditions });
         } else if (rule.cssRules)
           visit(
             rule.cssRules,
@@ -318,7 +316,8 @@
       }
     };
     visit(sheet.cssRules, []);
-    insetRules.set(sheet, { length, rules });
+    cached.set(property, { length, rules });
+    declarationRules.set(sheet, cached);
     return rules;
   };
   const holds = (condition) =>
@@ -334,7 +333,7 @@
       ...(root.styleSheets ?? []),
       ...(root.adoptedStyleSheets ?? []),
     ])
-      for (const { rule, conditions } of rulesStatingInsets(sheet)) {
+      for (const { rule, conditions } of rulesStating(sheet, property)) {
         const value = rule.style.getPropertyValue(property);
         if (!value || (importantOnly && !rule.style.getPropertyPriority(property)))
           continue;
@@ -352,18 +351,146 @@
       }
     return found;
   };
+  // A direct translation consumer is proved from declarations, not a coincidental
+  // equality of computed values. Keep the existing conservative cascade tiers:
+  // every candidate in the winning tier must name the same animated variable.
+  const declaredValues = (node, property) => {
+    const inline = node.style.getPropertyValue(property);
+    if (inline && node.style.getPropertyPriority(property)) return [inline];
+    const rules = declaredRules(node, property, Boolean(inline));
+    return rules.important.length ? rules.important : inline ? [inline] : rules.normal;
+  };
+  const inheritedConsumers = new WeakMap();
+  const findConsumers = (target, keys) => {
+    keys = keys.filter((key) => key.startsWith("--"));
+    const consumers = [];
+    if (target && keys.length) {
+      const trees = [
+        target,
+        ...[...roots].filter((root) => {
+          for (let at = root.host; at; at = up(at)) if (at === target) return true;
+          return false;
+        }),
+      ];
+      for (const node of new Set(
+        trees.flatMap((tree) => [
+          ...(tree instanceof Element ? [tree] : []),
+          ...tree.querySelectorAll("*"),
+        ]),
+      )) {
+        const values = declaredValues(node, "translate");
+        const key = keys.find(
+          (key) =>
+            values.length && values.every((value) => value.trim() === `var(${key})`),
+        );
+        if (key) consumers.push({ node, key });
+      }
+    }
+    return consumers;
+  };
+  const inheritedBindings = (animation) => {
+    if (!inheritedConsumers.has(animation))
+      inheritedConsumers.set(
+        animation,
+        translationBindings.get(animation)
+          ? []
+          : findConsumers(animation.effect?.target, [
+              ...new Set((animation.effect?.getKeyframes() ?? []).flatMap(Object.keys)),
+            ]),
+      );
+    return inheritedConsumers.get(animation);
+  };
+  const consumerOrigins = (bindings) =>
+    new Map(
+      bindings.map(({ node }) => [
+        node,
+        animatedValue(node, getComputedStyle(node), "translate"),
+      ]),
+    );
+  const inheritedReading = (animation, binding, returning) => {
+    const { node, key } = binding,
+      target = animation.effect.target;
+    if (
+      animation.effect.composite !== "replace" ||
+      animation.effect
+        .getKeyframes()
+        .some(
+          (frame) => frame.composite && !["auto", "replace"].includes(frame.composite),
+        ) ||
+      scrollBinding(animation) ||
+      target
+        .getAnimations()
+        .some(
+          (other) =>
+            other !== animation &&
+            other.effect?.getKeyframes().some((frame) => key in frame),
+        )
+    )
+      return null;
+    const values = declaredValues(node, "translate");
+    if (
+      !node.isConnected ||
+      !values.length ||
+      !values.every((value) => value.trim() === `var(${key})`)
+    )
+      return null;
+    let reached = false;
+    for (let at = node; at; at = up(at)) {
+      if (at === target) {
+        reached = true;
+        break;
+      }
+      // An override, including an independent animation, breaks inherited source
+      // ownership even when its numeric trajectory happens to match.
+      if (
+        declaredValues(at, key).length ||
+        at
+          .getAnimations()
+          .some(
+            (other) =>
+              other !== animation &&
+              other.effect?.getKeyframes().some((frame) => key in frame),
+          )
+      )
+        return null;
+    }
+    if (
+      !reached ||
+      node
+        .getAnimations()
+        .some(
+          (other) =>
+            other !== animation && animationProperties(other).includes("translate"),
+        )
+    )
+      return null;
+    const style = getComputedStyle(node);
+    if (style.getPropertyValue(key) !== getComputedStyle(target).getPropertyValue(key))
+      return null;
+    const value = animatedValue(node, style, "translate");
+    const expected = animationTranslation(
+      "translate",
+      style.getPropertyValue(key).trim(),
+    );
+    const actual = animationTranslation("translate", value);
+    if (
+      !expected ||
+      !actual ||
+      expected.left !== actual.left ||
+      expected.top !== actual.top
+    )
+      return null;
+    if (returning && origins.get(animation)?.consumers?.get(node) !== value)
+      return null;
+    return { node, key, value, axes: translationAxes(node) };
+  };
   const anchoredInset = (node, style, property, axis) => {
     const inline = node.style.getPropertyValue(property);
     if (inline && node.style.getPropertyPriority(property))
       return anchorInset(inline, axis);
     if (!style.positionAnchor.startsWith("--"))
       return inline ? anchorInset(inline, axis) : false;
-    const rules = declaredRules(node, property, Boolean(inline));
-    const candidates = rules.important.length
-      ? rules.important
-      : inline
-        ? [inline]
-        : rules.normal;
+    const candidates = declaredValues(node, property);
     return (
       candidates.length > 0 && candidates.every((value) => anchorInset(value, axis))
     );
@@ -825,17 +952,25 @@
   Element.prototype.animate = function (...args) {
     announce();
     const values = underlying(this);
+    const frames = Array.isArray(args[0]) ? args[0] : [args[0] ?? {}];
+    const bindings = findConsumers(this, [...new Set(frames.flatMap(Object.keys))]);
+    const consumers = consumerOrigins(bindings);
     const at = nativePerformance.now();
     const animation = animate.apply(this, args);
     beganAt.set(animation, { at });
-    origins.set(
+    animationProperties(animation);
+    inheritedConsumers.set(
       animation,
-      Object.fromEntries(
+      translationBindings.get(animation) ? [] : bindings,
+    );
+    origins.set(animation, {
+      ...Object.fromEntries(
         animationProperties(animation)
           .filter((property) => property in values)
           .map((property) => [property, values[property]]),
       ),
-    );
+      consumers,
+    });
     return animation;
   };
   // Reusing a native effect is a new operation when play resumes or reverse changes
@@ -850,6 +985,7 @@
         this.effect.getComputedTiming().progress === null
           ? underlying(this.effect.target, this)
           : null;
+      if (origin) origin.consumers = consumerOrigins(inheritedBindings(this));
       const at = nativePerformance.now();
       const result = original.apply(this, args);
       if (beginning) {
@@ -936,6 +1072,9 @@
         axes: translationAxes(effect.target),
         scroll: scrollBinding(animation),
         keyframes: effect.getKeyframes(),
+        consumers: inheritedBindings(animation).map((binding) =>
+          inheritedReading(animation, binding, returning),
+        ),
       });
       pruneSamples(readings);
       animated.set(animation, readings);
@@ -1559,6 +1698,9 @@
     const next = presentationState();
     if (next.every((value, index) => value === presentation[index])) return;
     presentation = next;
+    // Layout can precede the native event, so this observation also makes the
+    // next reading complete, including clipping changes with no shift record.
+    announce();
     // What the new presentation moves is its own, not the open gesture's.
     if (open) open.aim = null;
     const before = frames.at(-1)?.at ?? nativePerformance.now();
@@ -2761,6 +2903,37 @@
     for (const animation of new Set(animations)) {
       const target = animation.effect.target;
       if (!target) continue;
+      const samples = animated.get(animation);
+      const earlier = samples?.findLast((reading) => reading.at <= from);
+      const later = samples?.findLast((reading) => reading.at <= to);
+      for (let index = 0; index < (earlier?.consumers?.length ?? 0); index++) {
+        const first = earlier.consumers[index],
+          last = later?.consumers?.[index];
+        if (
+          !first ||
+          !last ||
+          first.node !== last.node ||
+          !ancestryAt(element, from).includes(first.node) ||
+          !ancestryAt(element, to).includes(first.node)
+        )
+          continue;
+        const prior = animationTranslation("translate", first.value);
+        const next = animationTranslation("translate", last.value);
+        if (!prior || !next) continue;
+        const by = viewportTranslation(
+          "translate",
+          { axes: first.axes },
+          { axes: last.axes },
+          { left: next.left - prior.left, top: next.top - prior.top },
+        );
+        if (!by) continue;
+        for (const axis of ["left", "top"])
+          credit(motion, "inherited_translation", first.node, axis, by[axis], {
+            property: first.key,
+            before: first.value,
+            after: last.value,
+          });
+      }
       if (!ancestryAt(element, to).includes(target)) {
         // A size animation can move boxes later in its flow. The size change
         // must propagate through its ancestors to a following in-flow branch.

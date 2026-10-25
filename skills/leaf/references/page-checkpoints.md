@@ -2,7 +2,7 @@
 
 ## Pre-handover review
 
-The main skill's "Review and stamp a record" step says when a page takes this review.
+The main skill's "Review an important page in the browser" step says when a page takes this review.
 It adds the browser render check, in both colour schemes, to the markup check every
 activation runs:
 
@@ -61,8 +61,8 @@ It is optional and adds no handoff gate.
 
 Stamp a record at each checkpoint the user would name, such as an approved plan or the end of
 the conversation, and wherever a reference requires a stamped version, as taking in an
-answer to a page's obligation does (`authoring-revisions.md`). Answering a message is not a
-checkpoint.
+answer to a page's obligation does (`authoring-revisions.md`). Answering a message is not by
+itself a checkpoint.
 
 ```bash
 leaf page stamp <page> --text "<what changed>"
@@ -77,7 +77,7 @@ version.
 To finish, handle every event in the delivered batch and write the answer each
 acknowledged update's `answer` names (`event-batches.md`). A finished record ends on a
 stamped final version that honours open obligations and the reports still in force; an
-unstamped quick page can close directly. Then run:
+unstamped page can close directly. Then run:
 
 ```bash
 leaf page close <page>

@@ -2246,7 +2246,7 @@ def differences(browser, out: Path):
         if path == "/image-difference.js":
             route.fulfill(path=DIFFERENCE, content_type="text/javascript")
         elif path.startswith("/vendor/"):
-            route.fulfill(path=ROOT / "browser" / path.lstrip("/"))
+            route.fulfill(path=ROOT / "packages" / "default" / path.lstrip("/"))
         elif path.endswith(".png"):
             route.fulfill(path=out / path.lstrip("/"))
         else:

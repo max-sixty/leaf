@@ -2290,8 +2290,8 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
         f"Pierre separator chrome entered the page reading: {reading}"
     )
     assert reading["font"] == reading["leafFont"], reading
-    assert reading["fontSize"] == reading["leafFontSize"] == "12.5px", reading
-    assert reading["lineHeight"] == reading["leafLineHeight"] == "19px", reading
+    assert reading["fontSize"] == reading["leafFontSize"] == "13.5px", reading
+    assert reading["lineHeight"] == reading["leafLineHeight"] == "20px", reading
     assert reading["background"] == reading["leafBackground"], reading
     assert reading["backgroundIsWhite"], reading
     assert reading["backgroundIsSeparateFromPage"], reading
@@ -4913,7 +4913,7 @@ def test_a_deferred_load_keeps_the_manifest_source_revision(browser, serve):
     data_model.cmd_data_set(serve.page_dir, "review-patch", manifest)
     prior = source_revision(serve.page_dir, "review-patch")
     page = open_page(browser, url)
-    page.evaluate("window.priorManifest = document.querySelector('#patch').snapshot")
+    page.evaluate("window.priorManifest = document.querySelector('#patch').value")
     replacement = original.replace('return "first"', 'return "replacement"')
     manifest["files"][0]["patch"] = replacement
     data_model.cmd_data_set(serve.page_dir, "review-patch", manifest)
@@ -4928,7 +4928,7 @@ def test_a_deferred_load_keeps_the_manifest_source_revision(browser, serve):
             stale = error.message;
           }
           const current = await loadDeferred(
-            document.querySelector('#patch').snapshot, 'app.py'
+            document.querySelector('#patch').value, 'app.py'
           );
           return {stale, current};
         }"""

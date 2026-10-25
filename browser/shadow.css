@@ -1763,6 +1763,9 @@ button.lf-media-open {
 .lf-msg-edit-actions > .lf-msg-edit-save:not([aria-disabled=true]) {
   color: var(--accent);
 }
+:is(.lf-page-thread, .lf-fp-opened):has(.lf-msg-editor) :is(.lf-resolve, .lf-reopen) {
+  visibility: hidden;
+}
 :is(.lf-fab-bar, .lf-margin-preview) {
   --lf-response-height: var(--lf-line);
 }

@@ -862,8 +862,9 @@ def test_a_cards_message_controls_cover_its_head(browser, serve):
     receipt, the words and the controls reading through each other. The head keeps its
     Edit's room as every other surface's does, and the rewrite's pair, two glyphs,
     stands in that room and covers the head beyond it: nothing under the pair shows
-    while the rewrite is open, and opening it moves none of the head's words."""
-    page, _, message = _rewrite_surface(browser, serve, "card")
+    while the rewrite is open, and opening it moves none of the head's words. Save's
+    check stands beside no other: the card's Resolve hides while the rewrite is open."""
+    page, card, message = _rewrite_surface(browser, serve, "card")
     # A saved rewrite marks the message edited, and the agent owes it an answer, so
     # the head carries its labels out to its end.
     message.locator(".lf-msg-text").dblclick()
@@ -879,6 +880,8 @@ def test_a_cards_message_controls_cover_its_head(browser, serve):
     page.mouse.move(0, 0)
     rendered(page)
     assert head.evaluate(FIRST_LINE) == pytest.approx(words, abs=0.5)
+    resolve = card.get_by_role("button", name="Resolve thread", exact=True)
+    expect(resolve).to_be_hidden()
     pair = message.evaluate(UNDER_EDIT_ACTIONS)
     assert pair["under"], f"no words of the head reach under the pair: {pair}"
     shown = page.screenshot(clip=pair["box"])
@@ -889,6 +892,8 @@ def test_a_cards_message_controls_cover_its_head(browser, serve):
     )
     one_frame(page)
     assert page.screenshot(clip=pair["box"]) == shown, "the head shows under the pair"
+    page.keyboard.press("Escape")
+    expect(resolve).to_be_visible()
 
 
 @pytest.mark.parametrize("previous", ["reply", "reply-after-empty-composer", "drawing"])

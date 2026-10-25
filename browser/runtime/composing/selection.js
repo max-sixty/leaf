@@ -135,7 +135,7 @@ const composerInput = fabInput;
 // announced on focus — which is more than the visible quote ever said, since nothing
 // pointed a user at it.
 composerInput.setAttribute("aria-describedby", composerQuote.id);
-const composerSend = el("button", "lf-btn", "Comment");
+const composerSend = el("button", "", "Comment");
 // The field, and the shelf and controls `wireInput` gathers around it, wait outside the
 // page until the composer first opens (`showComposer`), since a connected field builds
 // its editor: a page whose composer never opens builds none. Everything that reads the

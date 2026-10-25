@@ -89,6 +89,7 @@ import {
   classMap,
   styleMap,
   offered,
+  offeredAction,
   pressIsKeyboardActivation,
   createRef,
   ref,
@@ -225,10 +226,8 @@ const playbackLayer = () =>
 // A command row owns each transport button's activation and availability.
 const transport = (target, label, icon, disabled, title = label) =>
   html`<button
-    ${offered("lf-btn lf-quiet-action lf-trace-transport-button")}
+    ${offeredAction("symbol", "lf-trace-transport-button", label, { title })}
     ${ref(target)}
-    aria-label=${label}
-    title=${title}
     ?disabled=${disabled}
   >
     ${iconTemplate(icon, "lf-action-icon")}
@@ -1946,7 +1945,7 @@ customElements.define(
                   ? this.#time(moment.time, moment.stream)
                   : "Unavailable";
                 return html`<button
-                  ${offered("lf-btn lf-quiet-action lf-trace-bookmark")}
+                  ${offeredAction("item", "lf-trace-bookmark")}
                   ?hidden=${!(available.includes(moment) || !moment.scope)}
                   ?disabled=${!moment.scope || q}
                   aria-label=${`Moment ${moment.number} · ${moment.label} · ${time}`}
@@ -1980,12 +1979,12 @@ customElements.define(
                   <div class="lf-trace-transport">
                     ${transport(this.#first, "Start", "start", q)}
                     <button
-                      ${offered(
-                        "lf-btn lf-quiet-action lf-trace-transport-button lf-trace-play",
+                      ${offeredAction(
+                        "symbol",
+                        "lf-trace-transport-button lf-trace-play",
+                        playLabel,
                       )}
                       ${ref(this.#play)}
-                      aria-label=${playLabel}
-                      title=${playLabel}
                       data-playing=${this.#playing ? "" : nothing}
                       ?disabled=${q}
                       @pointerdown=${(event) => {
@@ -2093,8 +2092,7 @@ customElements.define(
                 ].map(
                   ([text, label, run]) =>
                     html`<button
-                      ${offered("lf-btn lf-quiet-action")}
-                      aria-label=${label ?? nothing}
+                      ${offeredAction("symbol", "", label)}
                       ?disabled=${!this.#picture?.viewed || q}
                       @click=${run}
                     >
@@ -2102,7 +2100,7 @@ customElements.define(
                     </button>`,
                 )}
                 <button
-                  ${offered("lf-btn lf-quiet-action lf-trace-image-scale")}
+                  ${offeredAction("word", "lf-trace-image-scale")}
                   ${ref(this.#imageScale)}
                   aria-label="Image scale"
                   aria-controls=${`${this.id}-image-scale-options`}
@@ -2161,7 +2159,7 @@ customElements.define(
                   ].map(
                     ({ scale, text, label, run }) =>
                       html`<button
-                        ${offered("lf-btn lf-quiet-action")}
+                        ${offeredAction("word", "")}
                         data-scale=${scale}
                         aria-label=${label}
                         @click=${() => {

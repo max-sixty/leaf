@@ -330,7 +330,7 @@ customElements.define('lf-shadow-focus', class extends HTMLElement {
 
 
 def _button_pairs(serve):
-    """A page holding two quiet actions and two ordinary buttons, side by side."""
+    """A page holding two symbols and two worded buttons, side by side."""
     return serve(
         leaf_page(
             "Button pairs",
@@ -341,19 +341,18 @@ def _button_pairs(serve):
         },
         layer_widgets={
             "lf-button-pairs.js": """
-import {offer, once} from '/runtime/widget-api.js';
+import {offerAction, once} from '/runtime/widget-api.js';
 customElements.define('lf-button-pairs', class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
-    for (const [id, cls] of [
-      ['quiet-back', 'lf-btn lf-icon-action lf-quiet-action'],
-      ['quiet-next', 'lf-btn lf-icon-action lf-quiet-action'],
-      ['plain-back', 'lf-btn'],
-      ['plain-next', 'lf-btn'],
+    for (const [id, role, icon] of [
+      ['quiet-back', 'symbol', 'previous'],
+      ['quiet-next', 'symbol', 'next'],
+      ['plain-back', 'word'],
+      ['plain-next', 'word'],
     ]) {
-      const button = offer('button', cls, id);
+      const button = offerAction(role, '', id, {icon});
       button.id = id;
-      button.type = 'button';
       this.append(button);
     }
   }

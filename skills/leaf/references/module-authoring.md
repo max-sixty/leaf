@@ -43,7 +43,8 @@ Preact Signals it exports `signal`, for private state a command's `when` reads
 - Check `quoted()` before wiring anything that sends input back ("Upgrade").
 - Read the page's words with `says()` or `wrote()`, never `textContent`
   (`module-reading.md`, "Reading the page").
-- Build injected controls with `offer()`, `offered` or `selectableOffer()`, label
+- Build injected controls with `offer()`, `offered` or `selectableOffer()`, a press
+  that looks like Leaf's controls with `offerAction()` or `offeredAction` by its role, label
   them with `relabel()`, and mark other words the widget writes with
   `generatedElement()` or `generated` ("Generated controls").
 - Keep the box the widget has at first paint ("First paint").
@@ -159,7 +160,7 @@ moving anything. `leaf package check --render` reports a widget that moves as
   values (`module-state.md`, "Tab-local working state") goes in `x-initial`: the path of
   a committed classic script that calls
   `document.documentElement.lfInitial.register(tag, render)`. Delivery calls
-  `render(host, {tabStore, offer, offerElement, generatedElement, keeps, authoredBody})`
+  `render(host, {tabStore, offer, offerElement, offerAction, generatedElement, keeps, authoredBody})`
   as soon as each host's markup arrives, so the widget first appears whole. `render` is
   synchronous, fetches nothing and reads nothing from the log; it may move authored
   nodes within the host. To put every authored child inside a box it builds, as
@@ -278,10 +279,29 @@ layout's 1/64px; `atLayoutPrecision(length)` returns the rounded number.
 `offer(tag, className, label, inputType, pressable)` makes a native control, or a box of
 controls, marked as Leaf-generated; the browser keeps its activation, focus and
 accessibility. `inputType` is for an `input`. Pass `pressable: true` for a custom element
-whose host implements `focus()` and `click()`. In a template, `<button
-${offered("lf-btn")}>` does the same, with an input's `type` binding placed before
-`offered`. Shared control styles (`page-layout.md`, "Page CSS and Leaf's controls")
-apply to generated controls too.
+whose host implements `focus()` and `click()`. In a template, `<div
+${offered("my-tools")}>` does the same, with an input's `type` binding placed before
+`offered`.
+
+A button that looks like Leaf's own controls is built by its role, so every control of
+one kind wears one face: `offerAction(role, className, label, {title, icon})`, or
+`<button ${offeredAction(role, className, label)}>` in a template. The roles are:
+
+- `"symbol"`, a press drawn as one of Leaf's icons (`icon`; `module-reading.md`,
+  "Icons").
+  `label` is its tooltip and accessible name, and `title` replaces the tooltip where
+  it says more, such as the key that does the same. In a template, put
+  `${iconTemplate(name, "lf-action-icon")}` inside the button.
+- `"word"`, a press that says what it does; `label` is its words. A toggle is a word
+  with `aria-pressed`, which draws as selected.
+- `"commit"`, the one press on a surface that commits the user's work.
+- `"item"`, a row of a list or menu the user picks from.
+- `"mark"`, a small symbol seated on the thing it acts on, at its corner.
+
+`className` places the control; don't restyle its face. Prefer a symbol where a familiar
+icon says what the press does, and words where it would leave the reader guessing.
+Shared control styles (`page-layout.md`, "Page CSS and Leaf's controls") apply to
+generated controls too.
 
 A control whose label is the page's own words, such as a tab's name, must stay
 selectable, so build it with `selectableOffer(role, className, label)`, a focusable span

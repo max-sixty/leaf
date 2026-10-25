@@ -28,6 +28,9 @@ interface LeafReading {
   changed: boolean;
 }
 
+/** The closed set of control roles, each with one face (`prepaint.js`, `ACTION_FACES`). */
+type LeafActionRole = "symbol" | "word" | "commit" | "item" | "mark";
+
 /** A package's synchronous initial drawing of one host (`initial/<tag>.js`). */
 type LeafInitialRenderer = (
   host: HTMLElement,
@@ -35,6 +38,7 @@ type LeafInitialRenderer = (
     tabStore: LeafStore;
     offer: LeafInitial["offer"];
     offerElement: LeafInitial["offerElement"];
+    offerAction: LeafInitial["offerAction"];
     generatedElement: LeafInitial["generatedElement"];
     keeps: LeafInitial["keepsAttribute"];
     /** Moves every child of the host into `node`, the box that holds its authored body. */
@@ -87,6 +91,19 @@ interface LeafInitial {
     pressable?: boolean,
   ): K extends keyof HTMLElementTagNameMap ? HTMLElementTagNameMap[K] : HTMLElement;
   offerElement<T extends Element>(node: T, cls?: string, pressable?: boolean): T;
+  offerAction(
+    role: LeafActionRole,
+    cls?: string,
+    label?: string,
+    options?: { title?: string },
+  ): HTMLButtonElement;
+  offerActionElement<T extends Element>(
+    node: T,
+    role: LeafActionRole,
+    cls?: string,
+    label?: string,
+    options?: { title?: string },
+  ): T;
   generatedElement<T extends Element>(node: T, options: { says: boolean | "echo" }): T;
   origin(node: Node): Node | undefined;
   parent(node: Node): Element | null;

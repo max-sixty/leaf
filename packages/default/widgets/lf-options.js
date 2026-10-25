@@ -115,6 +115,7 @@ import {
   landInThread,
   markdownWords,
   offer,
+  offerAction,
   pressIsKeyboardActivation,
   quoted,
   reachedForWords,
@@ -312,7 +313,7 @@ customElements.define(
     // press on Done; the seat is out of flow, so it moves neither label nor edges.
     #doneRow() {
       this.#done = offer(DONE_TAG, "lf-options-done");
-      const button = offer("button", "lf-btn lf-done", "Done");
+      const button = offerAction("word", "lf-done", "Done");
       const bindingBadge = offer("span", "lf-key-badge");
       bindingBadge.setAttribute("aria-hidden", "true");
       button.append(bindingBadge);

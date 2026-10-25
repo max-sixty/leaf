@@ -14,6 +14,7 @@ import {
   live,
   generated,
   offered,
+  offeredAction,
   commands,
   cycledRow,
   beginWalk,
@@ -43,12 +44,9 @@ import {
 // cross, named for what it closes (runtime/widget-elements.js, `closeControl`).
 const closeButton = (popover, name) =>
   html`<button
-    type="button"
-    ${offered("lf-btn lf-icon-action lf-quiet-action")}
+    ${offeredAction("symbol", "", name, { title: `${name} (Esc)` })}
     popovertarget=${popover}
     popovertargetaction="hide"
-    aria-label=${name}
-    title=${`${name} (Esc)`}
   >
     ${iconTemplate("cross", "lf-action-icon")}
   </button>`;
@@ -442,14 +440,11 @@ customElements.define(
                 @change=${(event) => this.#review(record, event.currentTarget.checked)}
               />Looks right</label
             >
-            <button type="button" ${offered("lf-btn lf-quiet-action lf-vr-feedback")}>
-              Add feedback
-            </button>
+            <button ${offeredAction("word", "lf-vr-feedback")}>Add feedback</button>
             ${
               threads.length
                 ? html`<button
-                      type="button"
-                      ${offered("lf-btn lf-quiet-action lf-vr-open-threads")}
+                      ${offeredAction("word", "lf-vr-open-threads")}
                       popovertarget=${`${this.id}-${record.id}-threads`}
                     >
                       ${threads.length} ${threads.length === 1 ? "thread" : "threads"}
@@ -471,8 +466,7 @@ customElements.define(
                         (thread) => thread.key,
                         (thread) =>
                           html`<button
-                            type="button"
-                            ${offered("lf-btn lf-quiet-action lf-vr-thread-link")}
+                            ${offeredAction("item", "lf-vr-thread-link")}
                             @click=${(event) => {
                               closeNativeLayer(
                                 event.currentTarget.closest("[popover]"),
@@ -492,7 +486,7 @@ customElements.define(
                 : nothing
             }
           </div>
-          <button type="button" ${offered("lf-btn lf-quiet-action lf-vr-next")}>
+          <button ${offeredAction("word", "lf-vr-next")}>
             Next unchecked <span aria-hidden="true">→</span>
           </button>
         </div>
@@ -504,8 +498,7 @@ customElements.define(
               inside these images are not interactive.
             </p>
             <button
-              type="button"
-              ${offered("lf-btn lf-quiet-action lf-vr-inspect")}
+              ${offeredAction("word", "lf-vr-inspect")}
               aria-controls=${`${this.id}-${record.id}-inspection`}
             >
               Capture details

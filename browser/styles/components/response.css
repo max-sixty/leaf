@@ -1,7 +1,8 @@
 /* Response composition owns the shared field, actions and attachment shelf.
  * Presentation owners allocate and position this control, in the document or a
  * declared shadow tree; they do not restate its typography, focus or face. */
-/* An icon action's face; its hit box, the face or the aim floor where that is larger
+/* A symbol's face (controls.css, `.lf-icon-action`), which the composer's own Send
+   and Dictate share; its hit box, the face or the aim floor where that is larger
    (the box is that wide, and its reach stands out to it above and below, surfaces.css);
    and the height of an empty composer field, which stands the face inside its action
    inset on either side. Stated at the root, where a widget holds a composer's room
@@ -22,7 +23,9 @@
 }
 :root,
 .lf-compose-field,
-.lf-icon-action {
+.lf-icon-action,
+.lf-compose-submit,
+.lf-compose-dictate {
   --lf-icon-action-hit: max(var(--lf-icon-action-face), var(--aim-floor));
 }
 :root,
@@ -117,7 +120,20 @@
     var(--lf-compose-send-end) - var(--lf-compose-pad-inline-start)
   );
 }
-.lf-icon-action {
+.lf-action-icon {
+  position: relative;
+  z-index: 1;
+  pointer-events: none;
+}
+/* Send and resolve are the two glyph actions: a bare glyph in the action's own ink,
+   whose ::before is the action's disc that stays clear at rest and takes its tint
+   on hover. The hit box around the disc is a symbol's (controls.css). Resolve is a
+   symbol drawn in its own ink; the composer's Send and Dictate are the composer's own
+   controls, which wireInput dresses whatever its caller made them, so they state the
+   symbol's box here. The glyph's ink outranks the .lf-ui face by coming later. Reopen
+   standing in Resolve's place is the same glyph drawn done, on every surface that
+   seats a thread. */
+:is(.lf-compose-submit, .lf-compose-dictate) {
   box-sizing: border-box;
   width: var(--lf-icon-action-hit);
   height: var(--lf-icon-action-face);
@@ -127,17 +143,12 @@
   display: grid;
   place-items: center;
   border-radius: var(--r);
+  cursor: pointer;
 }
-.lf-action-icon {
-  position: relative;
-  z-index: 1;
-  pointer-events: none;
+:where(.lf-compose-submit, .lf-compose-dictate)[data-lf-focus-visible] {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
 }
-/* Send and resolve are the two glyph actions: a bare glyph in the action's own ink,
-   whose ::before is the action's disc that stays clear at rest and takes its tint
-   on hover. The hit box around the disc is the icon action's above. The glyph's
-   ink outranks the .lf-ui face by coming later. Reopen standing in Resolve's place
-   is the same glyph drawn done, on every surface that seats a thread. */
 :is(.lf-compose-submit, .lf-compose-dictate),
 :is(.lf-resolve, .lf-reopen).lf-icon-action {
   border: 0;
@@ -183,6 +194,7 @@
 :is(.lf-compose-submit, .lf-compose-dictate):is(:disabled, [aria-disabled="true"]) {
   opacity: 1;
   color: var(--muted);
+  cursor: default;
 }
 .lf-compose-dictate {
   color: var(--muted);

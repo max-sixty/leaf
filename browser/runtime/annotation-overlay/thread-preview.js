@@ -50,7 +50,7 @@ import {
   tabStops,
 } from "../focus.js";
 import { TEXT_FIELD } from "../control-selectors.js";
-import { closeControl, el, offer } from "../widget-elements.js";
+import { closeControl, el, offerAction } from "../widget-elements.js";
 import { keeps, keepsHidden, keepsText, layoutPx } from "../keeps.js";
 import { setChildren } from "../dom-children.js";
 import { move } from "../dom-move.js";
@@ -62,7 +62,6 @@ import { closestAcross } from "../passages.js";
 import { threadIdNamed } from "../thread/state.js";
 import { turns } from "../thread/model.js";
 import { whenDocumentPresented } from "../semantic-state.js";
-import { iconElement } from "../icons.js";
 import { anchorLabel, releaseAuthoredUnder } from "../thread/messages.js";
 import { coarsePointer } from "../pointer.js";
 import {
@@ -123,17 +122,15 @@ export function createThreadPreview({
   });
   const previewNav = el("span", "lf-margin-preview-nav");
   const previewPosition = el("span", "lf-margin-preview-position");
-  const previewPrevious = offer(
-    "button",
-    "lf-btn lf-icon-action lf-margin-preview-step",
+  const previewPrevious = offerAction(
+    "symbol",
+    "lf-margin-preview-step",
+    "Previous thread",
+    { icon: "previous" },
   );
-  previewPrevious.append(iconElement("previous", "lf-action-icon"));
-  previewPrevious.setAttribute("aria-label", "Previous thread");
-  previewPrevious.title = "Previous thread";
-  const previewNext = offer("button", "lf-btn lf-icon-action lf-margin-preview-step");
-  previewNext.append(iconElement("next", "lf-action-icon"));
-  previewNext.setAttribute("aria-label", "Next thread");
-  previewNext.title = "Next thread";
+  const previewNext = offerAction("symbol", "lf-margin-preview-step", "Next thread", {
+    icon: "next",
+  });
   previewNav.append(previewPrevious, previewPosition, previewNext);
   const previewList = el("div", "lf-margin-preview-list");
   // Carried by its grip, the card stands where the user drops it, relative to what it is

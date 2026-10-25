@@ -1675,6 +1675,53 @@ def test_layout_style_and_widgets_never_read_each_other():
     assert not typed, "layouts.css sets type:\n" + "\n".join(typed)
 
 
+def test_controls_are_built_by_role_and_never_by_face():
+    """Leaf's controls come from a closed set of roles, each with one face, so a widget
+    cannot draw two controls of one kind two ways. The classes of a role's face are
+    spelled only in prepaint.js's `ACTION_FACES`, which `offerAction` reads; any other
+    bundled module that spells one, in a string or a comment, has chosen a face itself.
+    `primary` and the authored `button` face are ordinary words too, so they count
+    where a string lists classes or a template's `class` attribute names them."""
+    owner = schema_model.ASSETS / "runtime" / "prepaint.js"
+    table = re.search(r"const ACTION_FACES = \{(.*?)\};", owner.read_text(), re.DOTALL)
+    roles = dict(re.findall(r"(\w+): \"([^\"]+)\"", table[1]))
+    assert {"symbol", "word", "commit"} <= roles.keys(), roles
+    faces = {name for classes in roles.values() for name in classes.split()}
+    named = re.compile(
+        r"(?<![\w-])("
+        + "|".join(sorted(name for name in faces if name.startswith("lf-")))
+        + r")(?![\w-])"
+    )
+    words = {name for name in faces if not name.startswith("lf-")} | {"button"}
+    assert words == {"primary", "button"}, words
+    spelled = []
+    for root in (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES):
+        for source in sorted(root.rglob("*.js")):
+            if "vendor" in source.parts or source == owner:
+                continue
+            text = source.read_text()
+            where = source.relative_to(ROOT)
+            spelled += [f"{where}: {match[1]}" for match in named.finditer(text)]
+            code = re.sub(r"/\*.*?\*/|(?<![:\w\"'])//[^\n]*", "", text, flags=re.DOTALL)
+            for literal in re.findall(r"([\"'`])((?:(?!\1).)*)\1", code):
+                classes = literal[1].split()
+                if (
+                    len(classes) > 1
+                    and all(re.fullmatch(r"[a-z][\w-]*", name) for name in classes)
+                    and words & set(classes)
+                ):
+                    spelled.append(f"{where}: {literal[1]}")
+            spelled += [
+                f"{where}: class={value[1]}"
+                for value in re.findall(r"class=([\"'])(.*?)\1", code)
+                if words & set(value[1].split())
+            ]
+    assert not spelled, (
+        "build these controls with offerAction or offeredAction by role:\n"
+        + "\n".join(spelled)
+    )
+
+
 def test_no_rule_rounds_a_box_edged_on_one_side(tmp_path):
     """A box marked by a thick edge on one side is not also rounded (assets/AGENTS.md,
     "Visual grammar"): a stripe bent around a corner reads as decoration rather than a

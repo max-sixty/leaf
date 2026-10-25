@@ -2,7 +2,7 @@ import { html, nothing, render } from "./bundle-browser-runtime.js";
 import { closeLayer, currentLocationIn, focusDestination, handBack, openLayer, openerOf } from "./bundle-dom-move.js";
 import { requestJson, sessionIsActive } from "./bundle-layer-client.js";
 import { offlineInteractive, pageUrl } from "./bundle-context.js";
-import { closeControl, closeNativeLayer, el, showNativeLayer } from "./bundle-errors.js";
+import { closeControl, closeNativeLayer, el, offerAction, offeredAction, showNativeLayer } from "./bundle-errors.js";
 import { chromeForeground } from "./bundle-chrome.js";
 import { copyControl } from "./bundle-copy-control.js";
 import { readCurrentUserView } from "./bundle-user-view2.js";
@@ -17,8 +17,7 @@ const copy = copyControl("", {
 	success: "Diagnostics copied",
 	error: "Diagnostics not copied · open Structured report to select the text"
 });
-const copyLabel = el("button", "lf-btn", "Copy diagnostics");
-copyLabel.type = "button";
+const copyLabel = offerAction("word", "", "Copy diagnostics");
 copy.append(copyLabel);
 const close = closeControl({
 	name: "Close page diagnostics",
@@ -107,7 +106,7 @@ function present() {
         <h2>Authored CSS</h2>
         ${loading ? html`<p role="status">Reading source…</p>` : nothing}
         ${sourceError ? html`<p role="status">${sourceError}</p>
-                ${report.basis ? html`<button class="lf-btn" @click=${loadSource}>
+                ${report.basis ? html`<button ${offeredAction("word")} @click=${loadSource}>
                         Retry source inspection
                       </button>` : nothing}` : nothing}
         ${report.css ? html`

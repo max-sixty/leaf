@@ -469,8 +469,8 @@ def test_a_body_the_module_cannot_draw_says_why_over_its_source(browser, serve):
     refusal says what is wrong and keeps the source under it: code that does not parse,
     in the parser's own words, a chart with no name for a user who cannot see it, a call
     to something Plot does not export, a drawing Plot already made, which is how Plot's
-    own examples end, and a height the page could not have laid out before the chart
-    drew. The author hears the same words as the page's
+    own examples end, a height the page could not have laid out before the chart
+    drew, and an offset given per datum where Plot takes one number. The author hears the same words as the page's
     `error` event, naming the chart, since the user seeing the box is not the author
     seeing it."""
     said = {
@@ -479,6 +479,7 @@ def test_a_body_the_module_cannot_draw_says_why_over_its_source(browser, serve):
         "bad-mark": "Plot.barz is not a function",
         "bad-drawn": "rather than Plot.plot(...)",
         "bad-height": "as data-height on the element",
+        "bad-offset": "marks[0] (text) has a dy that is not a number",
     }
     # Each refusal is the chart's own, so every bad body stands on one page.
     source = leaf_page(

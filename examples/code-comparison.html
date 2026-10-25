@@ -22,7 +22,9 @@
       code-reader-comparison :is(.code-comparison-toolbar, .code-candidate-controls) {
         display: flex;
         flex-wrap: wrap;
-        gap: var(--sp-2);
+        /* Wrapped rows keep each button's reach, which stands past its face
+           under a finger, clear of the row above it. */
+        gap: max(var(--sp-2), 2 * var(--lf-reach-room)) var(--sp-2);
         align-items: center;
       }
 

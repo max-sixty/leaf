@@ -357,7 +357,8 @@ makes Leaf harder to develop than it is worth:
   contract costs every nearby change, so it must clear a much higher bar. Signs it
   doesn't: a hold, carry or special case for one widget or gesture spread across
   several owners; a public API whose only callers are tests or a single example; a
-  mechanism `git log` shows patched again and again. Code in its own module, such as a
+  mechanism `git log --follow` shows patched again and again (without `--follow`, a file's
+  history stops at its last move). Code in its own module, such as a
   package, a widget or a `leaf-dev` command, costs little beyond its own files; remove
   it only when it is large and unused. Keep anything users would notice losing,
   including Leaf's interface guarantees. Taking a feature away is the maintainer's

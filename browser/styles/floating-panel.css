@@ -351,7 +351,12 @@
   /* More room for a long draft (floating-panel.js, `expand`): past three lines the
      mark stands over the leaf, beside the field's first line, or at the end of an open
      view's head, so it takes no room the panel had not already given it. Pressed, the
-     panel widens and the field may take most of the window. */
+     panel widens to 1100px, where the window holds it (`--lf-fp-width`), and the field
+     stands half the window tall, up to three quarters as the words grow, so a long
+     draft has room to be read and written whatever its length. The user asked on 25
+     October for much more than the 760px it widened to before; the window's whole
+     width ran lines past 200 characters and left a long draft fewer, longer lines in a
+     shorter box. */
   .lf-fp-expand {
     flex: none;
     display: none;
@@ -370,9 +375,10 @@
     display: grid;
   }
   .lf-floating-panel[data-expanded] {
-    --lf-fp-max: 760px;
+    --lf-fp-max: 1100px;
   }
   .lf-floating-panel[data-expanded] .lf-fp-field .lf-compose-field > leaf-text {
+    min-height: 50dvh;
     max-height: 75dvh;
   }
   /* The field holds the page's editor, or the open thread's reply box, which Leaf's

@@ -4366,7 +4366,12 @@ leaf task end ./review &lt;todo-id&gt; done --text "The load check is recorded o
                 <code>leaf wait</code>, or Codex's adapter registers with Leaf while
                 watching for updates. Leaf treats the agent as available for updates
                 while a watcher runs. A running Claude Code turn can also receive
-                updates through its hooks.
+                updates through its hooks. With no watcher after a turn ends, Leaf
+                messages a Claude Code session when the next update arrives, so the
+                agent is available too where that message starts a turn: a background
+                job whose worker has retired is resumed with it, and a running session
+                takes it at once where Claude Code's
+                <code>crossSessionInbound</code> setting is <code>accept</code>.
               </li>
               <li id="updates-fact-status">
                 <strong>The start.</strong> A start stops counting as active once it is
@@ -4471,8 +4476,9 @@ leaf task end ./review &lt;todo-id&gt; done --text "The load check is recorded o
                   <td>Claude away</td>
                   <td>
                     No integration is currently receiving updates. Comments remain saved
-                    for the next agent turn. Leaf sends a wake message to Claude Code
-                    when a comment arrives after its turn ends.
+                    for the next agent turn. The message Leaf sends a Claude Code
+                    session as a comment arrives may wait there behind a prompt to
+                    accept it.
                   </td>
                 </tr>
                 <tr id="updates-reading-nudge">

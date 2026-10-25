@@ -94,6 +94,10 @@ Run `leaf page media <page> <file>…`, naming each file as its own argument as 
 such as `shots/*.png` does, and use each printed `/media/…` `path` for images, video
 and audio; never inline media bytes. To let the reader zoom into an image, link it
 to its own media URL: `<a href="/media/…"><img src="/media/…" alt="…"></a>`.
+The theme edges every image with a hairline ring and a slight lift, so a capture
+whose edge is the page's colour still shows where it ends. For an image meant to sit
+on the page without one, such as a badge or a transparent logo, give it
+`box-shadow: none; border-radius: 0` in the page's CSS.
 
 Keep each capture in its own image file; never join captures into one. Where captures
 vary along named axes, such as the moment in an interaction, the case, the window width

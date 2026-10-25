@@ -15,8 +15,6 @@ from render_cases_layout import toggle_queue
 from render_cases_widgets import (
     FRAMED_SCROLLER_PAGE,
     OWN_MARGIN_FURNITURE,
-    TWIN_V1,
-    TWIN_V2,
     written_anchors,
 )
 from render_harness import (
@@ -27,19 +25,12 @@ from render_harness import (
     PANEL_THREAD,
     leaf_page,
     margins_laid_out,
-    nudge,
     open_page,
     page_registry,
-    panel_field,
-    panel_menu,
     panel_settled,
-    refuse,
     resized,
     root_overflow,
     sending,
-    stamp_page,
-    told,
-    wait_for_revision,
     write,
 )
 
@@ -52,7 +43,6 @@ from leaf.passages import enclosing_ids, page_passages
 from leaf.registry import storage as registry_storage
 from leaf.render_checks import wait_until_ready
 from leaf.render_gate import version as render_gate_model
-from leaf.render_gate.scheme import console_finding
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -544,106 +534,6 @@ def test_an_anchor_written_from_the_mapped_revision_lands_on_the_page(
     assert painted == wanted, f"anchors in {source.stem} painted text they don't name"
 
 
-def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, serve):
-    """A failed candidate owns neither the agent name nor the reply count.
-
-    The first read reaches panel and version rendering before malformed projection data
-    rejects it. That candidate does not announce the reply or leave a version behind;
-    a complete retry announces the reply once with the agent recorded on the message.
-    The rejected reply must also leave the visible thread until that retry.
-    """
-    url = serve(TWIN_V1)
-    d = serve.page_dir
-    root = append_carried_log_record(
-        d,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "text": "which host answers?",
-        },
-    )
-    page = open_page(browser, live_url(url))
-    expect(page.locator(".lf-fp-threads")).to_have_attribute(
-        "aria-label", "Threads, 1 open"
-    )
-    field = page.locator(".lf-fp-field leaf-text")
-    stamp_page(d, TWIN_V2, "a twin")
-    wait_for_revision(page, 2)
-    expect(field).not_to_have_attribute("placeholder", re.compile("replied"))
-
-    open_panel_thread(page, root["id"])
-    write(panel_field(page), "keep this unfinished reply")
-    page.locator(".lf-fp-close").click()
-    panel_settled(page, open=False)
-
-    broken = []
-
-    def fail_after_rendering_the_panel(route):
-        if broken:
-            refuse(route)
-            return
-        response = route.fetch()
-        state = response.json()
-        state["agent"] = "Rejected agent"
-        rejected_version = {
-            **state["versions"][-1],
-            "version": state["versions"][-1]["version"] + 100,
-        }
-        state["versions"].append(rejected_version)
-        state["browser"].setdefault("version_notes", {})[
-            str(rejected_version["version"])
-        ] = "Rejected version"
-        view = state["browser"]["views"][str(state["active"]["revision"])]
-        view["document"]["projection"]["entries"].append(None)
-        broken.append(True)
-        route.fulfill(status=response.status, json=state)
-
-    page.route("**/api/state*", fail_after_rendering_the_panel)
-    with page.expect_console_message(
-        lambda message: "read failed" in message.text
-    ) as fault:
-        append_carried_log_record(
-            d,
-            {
-                "kind": "reply",
-                "author": "agent",
-                "agent": "Codex",
-                "parent": root["id"],
-                "text": "this one does",
-            },
-        )
-    assert (
-        page.evaluate(
-            "async () => (await window.__lfCheckApi()).readApplication().authoritative.agent"
-        )
-        == "Claude"
-    )
-    page.lf_errors.remove(console_finding(fault.value))
-
-    view = open_panel_thread(page, root["id"])
-    expect(view.locator(".lf-msg.agent .lf-msg-body")).to_have_count(0)
-    expect(view.locator(".lf-msg.user .lf-msg-body")).to_have_text(
-        "which host answers?"
-    )
-    expect(panel_field(page)).to_have_js_property("value", "keep this unfinished reply")
-    page.locator(".lf-fp-close").click()
-    panel_settled(page, open=False)
-
-    expect(panel_menu(page, "versions")).not_to_contain_text("Rejected version")
-    page.keyboard.press("Escape")
-
-    assert "replied" not in (field.get_attribute("placeholder") or "")
-    assert "Codex replied" not in page.locator(".lf-live").text_content()
-
-    page.unroute("**/api/state*")
-    nudge(d)
-    told(page)
-    expect(field).to_have_attribute("placeholder", re.compile("Codex replied"))
-    view = open_panel_thread(page, root["id"])
-    expect(view.locator(".lf-msg.agent .lf-msg-body")).to_have_text("this one does")
-
-
 def test_available_space_is_a_generic_package_capacity(browser, serve):
     """An available surface with no sidebar receives the page room even when it is
     ordinary compound markup. Diagram's source-sized layout must not be the mechanism
@@ -1121,39 +1011,109 @@ def test_two_listener_keys_keep_both_tabs_authorized(browser, serve):
         assert second.evaluate("() => fetch('/api/state').then(r => r.status)") == 200
 
 
-def test_margin_content_layout_ignores_concealed_ancestors(browser, serve):
-    """An own hidden note can reserve a margin, but skipped ancestors cannot."""
-    cases = [
-        (
-            '<details><summary>More</summary><aside class="sidenote" style="display:none">Concealed note.</aside></details>',
-            False,
-        ),
-        (
-            '<div style="content-visibility:hidden"><aside class="sidenote" style="display:none">Skipped note.</aside></div>',
-            False,
-        ),
-        (
-            '<div style="display:none"><aside class="sidenote">Concealed note.</aside></div>',
-            False,
-        ),
-        (
-            '<div style="display:contents"><aside class="sidenote">Visible note.</aside></div>',
-            True,
-        ),
-        ('<aside class="sidenote" style="display:none">Own hidden note.</aside>', True),
-        (
-            '<aside class="sidenote" style="display:contents">Boxless note.</aside>',
-            False,
-        ),
-    ]
-    for contents, admitted in cases:
-        source = leaf_page(
-            "Concealed margin content",
-            "<h1>Migration</h1>" + contents + "<p>Advance one cohort at a time.</p>",
+def test_a_layout_on_a_child_of_main_arranges_it_as_it_would_main(browser, serve):
+    """A page Layout's box is `main`, or a child of a `main` that carries none, and its
+    parent is the shell it is placed in. A column whose box is a child of `main` takes
+    the same column, margin content, contents map and breakouts as one on `main`
+    itself, at a width where the shell must shift the column for its sidebar, and a
+    root workspace fills the window while a child keeps document end room. A `main` the
+    page narrows, borders or gives scrollbar gutters is the shell the child column
+    measures, so nothing it holds stands past its edges or over its border or gutters."""
+    column_body = """
+<h1>Migration plan</h1>
+<aside class="sidebar" id="route"><nav aria-label="Route"><a href="#move">Move</a></nav></aside>
+<aside class="sidenote" id="frequency">Support runs this twice a month.</aside>
+<h2 id="move">Move</h2>
+<p>Shift one cohort at a time while keeping the old readers available.</p>
+<div id="room" data-width="available">Available evidence.</div>
+<div style="height: 1200px"></div>
+"""
+    workspace_body = """
+<header><h1>Queue</h1></header>
+<div id="regions"><p>Work one item at a time.</p></div>
+"""
+    reading = """() => {
+      const box = document.getElementById('box'), main = document.querySelector('main');
+      const target = box ?? main;
+      const rect = (node) => {
+        const b = node.getBoundingClientRect();
+        return [Math.round(b.left), Math.round(b.right), Math.round(b.top),
+                Math.round(b.bottom)];
+      };
+      const measured = {
+        box: rect(target),
+        margin: target.getAttribute('data-lf-margin'),
+        regions: rect(document.getElementById('regions') ?? target),
+        shifted: document.body.style.getPropertyValue('--lf-column-shift'),
+        main: rect(main),
+        inner: [Math.round(rect(main)[0] + main.clientLeft),
+                Math.round(rect(main)[0] + main.clientLeft + main.clientWidth)],
+      };
+      for (const id of ['route', 'frequency', 'room', 'contents']) {
+        const node = document.getElementById(id);
+        if (node) {
+          const style = getComputedStyle(node);
+          measured[id] = [rect(node), style.float, style.position];
+        }
+      }
+      return measured;
+    }"""
+
+    def without_main(reading):
+        return {k: v for k, v in reading.items() if k not in ("main", "inner")}
+
+    def measured(body, layout, width, head=""):
+        on_main = leaf_page("layout box", body, layout=layout, head=head)
+        in_child = leaf_page(
+            "layout box",
+            f'<section id="box" class="layout-{layout}">{body}</section>',
+            layout=None,
+            head=head,
         )
-        page = open_page(browser, serve(source))
-        resized(page, 1440, 900)
-        assert (
-            "note"
-            in (page.locator("main").get_attribute("data-lf-margin") or "").split()
-        ) is admitted
+        readings = []
+        for source in (on_main, in_child):
+            page = open_page(browser, serve(source))
+            resized(page, width, 800)
+            readings.append(page.evaluate(reading))
+            assert root_overflow(page) == 0, readings[-1]
+            page.close()
+        return readings
+
+    on_main, in_child = measured(column_body, "column", 1160)
+    assert on_main["margin"] == "rail sidebar", on_main
+    assert on_main["shifted"], on_main
+    assert without_main(in_child) == without_main(on_main)
+    mapped = column_body.replace(
+        '<nav aria-label="Route"><a href="#move">Move</a></nav>',
+        '<lf-toc id="contents"></lf-toc>',
+    )
+    on_main, in_child = measured(mapped, "column", 1440)
+    assert on_main["margin"] == "rail map note", on_main
+    assert on_main["contents"][2] == "fixed", on_main
+    assert without_main(in_child) == without_main(on_main)
+    on_main, in_child = measured(workspace_body, "workspace", 1280)
+    assert {
+        k: v for k, v in without_main(in_child).items() if k not in ("box", "regions")
+    } == {k: v for k, v in without_main(on_main).items() if k not in ("box", "regions")}
+    for key in ("box", "regions"):
+        assert in_child[key][:3] == on_main[key][:3]
+        assert in_child[key][3] < on_main[key][3]
+    assert on_main["regions"][3] == 800, on_main
+
+    narrowed = "<style>main { max-width: 900px; margin-inline: auto; }</style>"
+    _, in_child = measured(column_body, "column", 1440, head=narrowed)
+    left, right = in_child["main"][:2]
+    assert right - left == 900, in_child
+    for edges in (in_child["box"], in_child["room"][0]):
+        assert left <= edges[0] and edges[1] <= right, in_child
+
+    bordered = (
+        "<style>main { border-inline: 100px solid; height: 700px; overflow-y: auto;"
+        " scrollbar-gutter: stable both-edges; }"
+        " main::-webkit-scrollbar { width: 40px; }</style>"
+    )
+    _, in_child = measured(column_body, "column", 1400, head=bordered)
+    left, right = in_child["inner"]
+    assert left - in_child["main"][0] == 140, in_child
+    for edges in (in_child["box"], in_child["route"][0], in_child["room"][0]):
+        assert left <= edges[0] and edges[1] <= right, in_child

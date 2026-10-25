@@ -288,6 +288,7 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
 
     ran = subprocess.run(
         [*LEAF_COMMAND, "page", "check", str(serve.page_dir), "--render"],
+        check=False,
         capture_output=True,
         text=True,
         env=unnamed_browser() | {"LEAF_BROWSER_EXECUTABLE": headless_shell},

@@ -18,8 +18,12 @@
  * they take greedy rows by their measured extent, so no two overlap, and a label that
  * would run past the axis end reads back from its mark instead. Labels stand in
  * front of the playhead on the chart's ground, so at any step the line passes behind
- * words, never through them, and stays whole across the ruler and every bar row. Labels depend on the track's width, so a resize lays
- * them out again; the lane count and the label rows that width allows set the height.
+ * words, never through them, and stays whole across the ruler and every bar row.
+ *
+ * Every position along the track is a fraction of its width, so marks, ticks and the
+ * playhead hold at any width. Label rows depend on the measured width, so a resize,
+ * or the paper's width when printing, lays them out again; the lane count and the
+ * label rows that width allows set the height.
  */
 import { html, nothing, render, repeat } from "/vendor/lit.js";
 import {

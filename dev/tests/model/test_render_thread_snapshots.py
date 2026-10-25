@@ -8,6 +8,7 @@ reviewed PNG images pinned in leaf-assets; run evidence stays in .tmp.
 
 import json
 import shutil
+import subprocess
 
 import pytest
 from click.testing import CliRunner
@@ -44,7 +45,17 @@ def test_accept_publishes_only_a_run_with_a_complete_capture(tmp_path, monkeypat
         "stage",
         lambda *args, **kwargs: published.append((args, kwargs)) or tmp_path,
     )
-    monkeypatch.setattr(leaf_assets, "publish", lambda *args: "assets-revision")
+    publications = []
+    monkeypatch.setattr(
+        leaf_assets,
+        "publish",
+        lambda checkout, message: publications.append(message) or "assets-revision",
+    )
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True
+    ).stdout.strip()
+    source = {"event": "workflow_dispatch", "headSha": head}
+    monkeypatch.setattr(thread_snapshots, "run_source", lambda run: source)
     runner = CliRunner()
 
     failed = runner.invoke(accept, ["7"])
@@ -59,10 +70,21 @@ def test_accept_publishes_only_a_run_with_a_complete_capture(tmp_path, monkeypat
         "replace_tree": True,
         "revision_key": "thread_snapshots_revision",
     }
+    assert head in publications.pop()
+    # A run of another commit, or one another event started, may have captured code
+    # other than what the pin moves with.
+    for other in ({"headSha": "0" * 40}, {"event": "pull_request"}):
+        monkeypatch.setattr(
+            thread_snapshots, "run_source", lambda run, other=other: source | other
+        )
+        refused = runner.invoke(accept, ["7"])
+        assert refused.exit_code != 0
+        assert "workflow_dispatch run of HEAD" in refused.output
+    monkeypatch.setattr(thread_snapshots, "run_source", lambda run: source)
     next(images.glob("*.png")).unlink()
     partial = runner.invoke(accept, ["7"])
     assert partial.exit_code != 0 and "missing capture" in partial.output
-    assert published == []
+    assert published == publications == []
 
 
 def test_snapshot_comparison_saves_evidence_without_opening_a_viewer(

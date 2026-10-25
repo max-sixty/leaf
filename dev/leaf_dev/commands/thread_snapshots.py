@@ -6,8 +6,9 @@ against that immutable set; no historical runtime, source patch or baseline buil
 involved. Fonts and antialiasing differ by OS and machine, so CI's Linux runner both
 compares the images and captures the approved ones, and no developer machine has to
 reproduce its rendering. A profile names the runner's OS release, architecture and
-locked Chromium version, and a missing profile fails: a browser or runner upgrade
-requires a deliberately reviewed capture. Elsewhere, macOS included, the journey and
+locked Chromium version, and a missing profile fails: an Ubuntu release or Chromium
+upgrade requires a deliberately reviewed capture, while a font package update within
+the release shows as an appearance mismatch. Elsewhere, macOS included, the journey and
 its delivery assertions still run and keep their images as evidence, except in the
 dark cases, whose colour scheme changes only pixels. Existing fetch-assets warms the
 same cache as every other asset reader.
@@ -188,7 +189,7 @@ class SnapshotRun:
     def __init__(
         self, browser_version, case, compare, *, output, store: Path, updating=False
     ):
-        self.profile = render_profile(browser_version) if COMPARED else None
+        self.browser_version = browser_version
         self.case = case
         self.compare = compare
         self.output = Path(output) / case.name
@@ -232,7 +233,8 @@ class SnapshotRun:
         }
         if not COMPARED:
             return
-        baseline = self.store / self.profile / f"{self.case.name}-{stage}.png"
+        profile = render_profile(self.browser_version)
+        baseline = self.store / profile / f"{self.case.name}-{stage}.png"
         geometry = baseline.with_suffix(".json")
         if self.updating:
             geometry.parent.mkdir(parents=True, exist_ok=True)
@@ -302,8 +304,9 @@ def thread_snapshots():
     """Capture, review and publish current Leaf's thread appearance.
 
     \b
-    CI's Linux runner captures it, for a pushed branch:
+    CI's Linux runner captures it, for a pushed branch checked out here:
       gh workflow run thread-snapshots.yaml --ref <branch>
+      gh run list --workflow thread-snapshots.yaml --branch <branch>
       gh run download <run> --name thread-snapshots --dir .tmp/thread-snapshots/<run>
       uv run leaf-dev thread-snapshots accept <run>
     """
@@ -356,9 +359,23 @@ def capture_files(directory: Path, profile: str) -> dict[str, bytes]:
                 name = f"{case.name}-{stage}.{suffix}"
                 path = directory / profile / name
                 if not path.is_file():
-                    raise click.ClickException(f"missing capture: {path}")
+                    raise click.ClickException(f"missing capture: {profile}/{name}")
                 files[name] = path.read_bytes()
     return files
+
+
+def run_source(run: str) -> dict:
+    """The event that started workflow run `run` and the commit it checked out."""
+    result = subprocess.run(
+        ["gh", "run", "view", run, "--json", "event,headSha"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode:
+        raise click.ClickException(f"could not read run {run}: {result.stderr.strip()}")
+    return json.loads(result.stdout)
 
 
 def download_artifact(run: str, into: Path) -> None:
@@ -373,7 +390,24 @@ def download_artifact(run: str, into: Path) -> None:
 @thread_snapshots.command("accept")
 @click.argument("run")
 def accept(run: str):
-    """Publish the reviewed capture of thread-snapshots workflow RUN and pin it."""
+    """Publish the reviewed capture of thread-snapshots workflow RUN and pin it.
+
+    The run must be a dispatch on this checkout's HEAD, so the pin moves with the
+    code whose appearance it holds.
+    """
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    source = run_source(run)
+    if (source["event"], source["headSha"]) != ("workflow_dispatch", head):
+        raise click.ClickException(
+            f"run {run} is a {source['event']} run of {source['headSha']}; accept a "
+            f"workflow_dispatch run of HEAD ({head})"
+        )
     with tempfile.TemporaryDirectory(prefix="leaf-thread-capture-") as download:
         download_artifact(run, Path(download))
         directory = Path(download) / CAPTURE.name
@@ -393,6 +427,7 @@ def accept(run: str):
             revision_key="thread_snapshots_revision",
         )
         revision = leaf_assets.publish(
-            checkout, f"Accept reviewed thread appearance for {profile} (run {run})"
+            checkout,
+            f"Accept reviewed thread appearance for {profile} (run {run}, {head})",
         )
     click.echo(f"Accepted {len(files) // 2} thread images: {revision}")

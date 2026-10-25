@@ -3,17 +3,10 @@ name: thread-snapshots
 # Captures the thread appearance gate's images on the runner `ci`'s `test` job uses,
 # the only place the gate compares them (`dev/leaf_dev/commands/thread_snapshots.py`).
 # Dispatch it on the branch whose appearance to approve, review the artifact, then
-# accept the run with `leaf-dev thread-snapshots accept`. A pull request that changes
-# the capture itself runs it too.
+# accept the run with `leaf-dev thread-snapshots accept`. A dispatch runs the branch's
+# own copy of this file, so a branch that changes the capture tests it the same way.
 on:
   workflow_dispatch:
-  pull_request:
-    paths:
-      - .github/workflows/thread-snapshots.yaml
-      - dev/leaf_dev/commands/thread_snapshots.py
-      - dev/leaf_dev/thread_journey.py
-      - dev/leaf_dev/thread_snapshot_plugin.py
-      - tests/journeys/test_render_thread_snapshots.py
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

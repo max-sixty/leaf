@@ -36,6 +36,7 @@ from render_harness import (
     held_frames,
     holding,
     leaf_page,
+    margins_laid_out,
     open_page,
     page_comment,
     panel_settled,
@@ -50,6 +51,7 @@ from render_harness import (
     write,
 )
 
+from browser.margin.test_pins import FOLDING_PAGE
 from browser.test_render_outbox import undo_offered
 from browser.threads import open_panel_thread
 from leaf import data as data_model
@@ -301,7 +303,7 @@ def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
     mark = receipt_item.get_by_role(
         "button", name="shorten reaction actions", exact=True
     )
-    remove = page.locator('[aria-label="Remove shorten reaction"]:visible')
+    remove = page.locator('[aria-label="Undo shorten reaction"]:visible')
     face = """button => {
       const style = getComputedStyle(button);
       return [style.color, style.backgroundColor, style.borderTopColor, style.boxShadow];
@@ -583,7 +585,16 @@ def test_reactions_keep_all_six_buttons_on_an_occupied_target(
     page = open_page(browser, serve(SUGGESTION_PAGE))
     resized(page, width, 900)
     item = page.locator('[data-lf-margin-for="sug-refill"]')
-    item.locator('[data-lf-margin-entry-key="accept"]').focus()
+    accept = item.locator('[data-lf-margin-entry-key="accept"]')
+    # At 390px the pin stands whole or folds to its toggle for want of room, as the
+    # host's serif face ends the target's last line (macOS folds it, Linux's DejaVu
+    # doesn't). Tab reaches Accept either way: arriving on a folded toggle unfolds it
+    # onto Accept, where a programmatic focus on the hidden Accept would do nothing.
+    for _ in range(12):
+        page.keyboard.press("Tab")
+        if accept.evaluate("node => node === document.activeElement"):
+            break
+    expect(accept).to_be_focused()
     page.keyboard.press("e")
     choices = item.locator(f"{MARGIN_RESPONSES}:visible")
     expect(choices).to_have_count(6)
@@ -609,6 +620,33 @@ def test_reactions_keep_all_six_buttons_on_an_occupied_target(
         {"section": "sug-refill"},
     )
     expect(item.locator(MARGIN_RESPONSES)).to_have_count(0)
+
+
+def test_reactions_raised_from_a_folded_pin_s_toggle_take_the_focus(browser, serve):
+    """The reactions unfold a folded pin, whose face then hides the toggle the user
+    pressed `e` on. They land on the first choice and the choices stay up, rather than
+    the hidden toggle reading as the user leaving the pin, which put the choices away
+    in the same frame and dropped focus to the page."""
+    page = open_page(browser, serve(FOLDING_PAGE))
+    resized(page, 390, 844)
+    margins_laid_out(page)
+    row = page.locator('.lf-margin-cluster[data-lf-margin-for="s"]')
+    expect(row).to_have_attribute("data-lf-folded", "")
+    toggle = row.locator(".lf-margin-more")
+    # Tab arrives on the toggle and unfolds it onto Accept; Escape folds it back and
+    # hands the user to the toggle.
+    for _ in range(12):
+        page.keyboard.press("Tab")
+        if row.evaluate("row => row.contains(document.activeElement)"):
+            break
+    expect(row.locator(".lf-sug-accept")).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(toggle).to_be_focused()
+    page.keyboard.press("e")
+    choices = row.locator(f"{MARGIN_RESPONSES}:visible")
+    expect(choices.first).to_be_focused()
+    expect(choices).to_have_count(6)
+    expect(toggle).to_be_hidden()
 
 
 def test_deciding_a_reaction_target_releases_its_temporary_choices(browser, serve):
@@ -767,7 +805,11 @@ def test_suggestion_picker_preserves_the_comment_draft(browser, serve, width):
     original = field.element_handle()
     for label in ["Suggest", "Comment"]:
         field.press("Tab")
-        choice = bar.get_by_role("button", name=label, exact=True)
+        # The picker's choice, not the field's submit: the submit takes the mode's
+        # name in the frame after the switch, so until then both may say "Comment".
+        choice = bar.locator(".lf-response-options").get_by_role(
+            "button", name=label, exact=True
+        )
         expect(choice).to_be_focused()
         choice.click()
         expect(bar.locator(".lf-response-options")).to_be_hidden()

@@ -19,16 +19,20 @@ import test from "node:test";
 
 import { registry } from "/runtime/registry.js";
 import {
+  blockAt,
   closestAcross,
   contextAround,
   elementReading,
   fencePassageParts,
+  findQuote,
   inChrome,
   neighbourhood,
   pageText,
+  pageBlocks,
   pageWords,
   pointAt,
   programmaticSelection,
+  quoteFrom,
   selectEnds,
   says,
 } from "/runtime/passages.js";
@@ -116,6 +120,40 @@ test("a word the page changes is in the next reading", () => {
   pageText();
   document.querySelector("p").firstChild.data = "Alpha gamma";
   assert.equal(pageText().raw, "Alpha gamma");
+});
+
+test("projected rows have separate passages inside one text block", () => {
+  document.body.innerHTML =
+    '<main><pre><span id="first">First <b>row</b></span>' +
+    '<span id="second">Second row</span></pre></main>';
+  const pre = document.querySelector("pre");
+  const first = document.querySelector("#first");
+  const second = document.querySelector("#second");
+  assert.deepEqual(pageBlocks(), [pre]);
+  for (const row of [first, second]) {
+    row.dataset.lfProjection = "source";
+    row.dataset.lfDatum = row.id;
+  }
+  assert.deepEqual(pageBlocks(), [first, second]);
+  assert.equal(blockAt(first.querySelector("b").firstChild), first);
+  assert.equal(says(pre), "First rowSecond row");
+  first.removeAttribute("data-lf-datum");
+  assert.deepEqual(pageBlocks(), [pre, second]);
+  second.removeAttribute("data-lf-projection");
+  assert.deepEqual(pageBlocks(), [pre]);
+});
+
+test("projecting an inline value preserves its typography and resolved quote", () => {
+  document.body.innerHTML = "<main><p>The rate is <span><b>42</b>%</span>.</p></main>";
+  const paragraph = document.querySelector("p");
+  const value = document.querySelector("span");
+  assert.equal(says(paragraph), "The rate is 42%.");
+  value.dataset.lfGen = "1";
+  value.dataset.lfProjection = "source";
+  value.dataset.lfDatum = "rate";
+  assert.deepEqual(pageBlocks(), [paragraph, value]);
+  assert.equal(says(paragraph), "The rate is 42%.");
+  assert.equal(quoteFrom(findQuote(pageText(), "42%", {}, value)), "42%");
 });
 
 test("words the page gains or loses are in the next reading", () => {

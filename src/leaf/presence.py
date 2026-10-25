@@ -27,6 +27,7 @@ from .service import (
     PageTransaction,
     acknowledged,
     claim_is_active,
+    claim_records,
     page_claim,
     read_stream,
     unacknowledged,
@@ -195,12 +196,58 @@ def live_leaves(among: set[Path] | None = None) -> list:
     return sorted(leaves, key=lambda leaf: leaf[1]["title"].lower())
 
 
+def page_list() -> list[dict]:
+    """The machine's pages and the sessions holding them, in title order, for `leaf
+    page list`: each live page (`live_leaves`), and each page a claim names
+    (`claim_records`), whether or not it is served, since which session holds a
+    page matters most when its server is down. A page nothing claimed is found
+    only while it serves.
+
+    The counts a row carries (`on_user`, `threads`) are a serving page's; a page
+    with no live row, stopped or closed, has none here, and `page state` reads it
+    whole. Its title is its latest revision's."""
+    from .revision_artifact import latest_title
+
+    rows = {page.resolve(): row for page, row in live_leaves()}
+    claims = {Path(claim["page"]).resolve(): claim for claim in claim_records()}
+    listed = []
+    for page in rows.keys() | claims.keys():
+        row, claim = rows.get(page), claims.get(page)
+        if row is None:
+            server = running_server(page)
+            row = {
+                "title": latest_title(page)[1] or page.name,
+                "url": server["url"] if server else None,
+                "on_user": None,
+                "threads": None,
+            }
+        listed.append(
+            {
+                "page": str(page),
+                "title": row["title"],
+                "url": row["url"],
+                "on_user": row["on_user"],
+                "threads": row["threads"],
+                "harness": claim["harness"] if claim else None,
+                "claim_session": claim["id"] if claim else None,
+                "session_name": (
+                    claim_harness(claim).session_name() if claim else None
+                ),
+                "session_cwd": claim["cwd"] if claim else None,
+                "session_alive": claim_is_active(claim) if claim else None,
+            }
+        )
+    return sorted(listed, key=lambda entry: entry["title"].lower())
+
+
 def live_facts(page_dir: Path, claim: dict | None, *, process: bool = True) -> dict:
     """The presence facts no page file records, read from processes and the harness
     at this moment: whether the claimant's wait lease is held, whether its
-    lifetime stands, and what its harness says of its turn (`Harness.live_turn`).
-    File stamps cannot say when these move, so every cache of a presence reading
-    keys on them, and the freshness token carries them."""
+    lifetime stands, what its harness says of its turn (`Harness.live_turn`), and
+    what the harness calls the session (`Harness.session_name`), which a harness
+    may still know after the session ends. File stamps cannot say when these move,
+    so every cache of a presence reading keys on them, and the freshness token
+    carries them."""
     active = claim if claim_is_active(claim) else None
     return {
         "listening": process
@@ -208,6 +255,7 @@ def live_facts(page_dir: Path, claim: dict | None, *, process: bool = True) -> d
         # None when nothing claimed the page — leaf run outside an agent harness.
         "session_alive": active is not None if claim else None,
         "live_turn": claim_harness(active).live_turn() if active else None,
+        "session_name": claim_harness(claim).session_name() if claim else None,
     }
 
 
@@ -327,7 +375,10 @@ def presence_fingerprint(present: dict, others: list) -> str:
     """The half of a reading that file stamps cannot supply, from the facts a state
     already carries: its `live_facts`, and the neighbours as All pages shows them."""
     facts = (
-        [present[key] for key in ("listening", "session_alive", "live_turn")],
+        [
+            present[key]
+            for key in ("listening", "session_alive", "live_turn", "session_name")
+        ],
         others,
     )
     return hashlib.sha256(
@@ -371,7 +422,7 @@ def presence_reading(page_dir: Path, files: str) -> str:
 
 def nudge_unwatched(page: PageTransaction) -> None:
     """Message the claimant of a page holding input nothing will carry, once per
-    ending of its turn (`session-lifetime.md`, Watchers).
+    ending of its turn.
 
     Nothing carries it when no wait lease is held and the claimant takes no input
     by the activity fold's own reading (`activity.takes_input`), because its turn

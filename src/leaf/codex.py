@@ -1065,7 +1065,6 @@ class AppServerReplyStream:
                 self.target["ref"],
                 " ".join(text.split()),
                 reservation=self.attempt,
-                attempt=f"{self.attempt}-opening",
                 ephemeral=True,
                 identity={"session": self.session_id},
                 claimed_session=self.session_id,
@@ -1197,7 +1196,6 @@ class AppServerReplyStream:
                 self.target["ref"],
                 text,
                 reservation=self.attempt,
-                attempt=self.attempt,
                 identity={"session": self.session_id},
                 claimed_session=self.session_id,
             )

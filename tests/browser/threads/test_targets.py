@@ -230,8 +230,8 @@ def test_a_control_in_a_reply_holds_the_page_s_control_shape(browser, serve):
         "return [s.width, s.height, s.borderRadius]; })"
     )
     in_reply = page.evaluate(geometries)
-    assert in_reply and all(shape == ["32px", "32px", "50%"] for shape in in_reply), (
-        f"a control in a reply lost the canonical circle: {in_reply}"
+    assert in_reply and all(shape == ["32px", "32px", "6px"] for shape in in_reply), (
+        f"a control in a reply lost the margin entry face: {in_reply}"
     )
     page.close()
 

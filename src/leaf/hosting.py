@@ -376,8 +376,11 @@ class TemporaryPageServer:
         self.close()
 
 
-def cmd_serve_temporary(page_dir: Path) -> None:
-    """Run the process-owned page server used by browser automation."""
+def cmd_serve_temporary(page_dir: Path, host: str | None = None) -> None:
+    """Run the process-owned page server used by browser automation, which binds
+    loopback only and so refuses a `host`."""
+    if host:
+        raise Refused("a temporary server is loopback-only; omit --host")
     server = TemporaryPageServer(page_dir)
     print(json.dumps({"url": server.url, "lifetime": "temporary"}), flush=True)
     server.run()
@@ -475,7 +478,7 @@ def _reuse_server(page_dir: Path, host: str | None, persistent: bool) -> str | N
     if persistent and existing["lifetime"] != "persistent":
         raise Refused(
             f"already serving as a session server at {existing['url']}; "
-            "leaf server stop first, then re-run with --persistent"
+            "leaf server stop first, then re-run with --lifetime persistent"
         )
     return existing["url"]
 
@@ -676,7 +679,8 @@ def _starting_server(
             "_serve",
             str(page_dir),
             *(["--host", host] if host else []),
-            *(["--persistent"] if persistent else []),
+            "--lifetime",
+            "persistent" if persistent else "session",
             *(["--revive"] if revive else []),
             *(["--acquire"] if acquire else []),
             *(["--claim", json.dumps(claim)] if claim is not None else []),

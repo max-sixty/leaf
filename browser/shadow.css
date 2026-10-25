@@ -79,7 +79,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   height: var(--lf-key-badge-size);
   padding: 0 4px;
   border: 1px solid var(--border-2);
-  border-radius: 4px;
+  border-radius: var(--r-s);
   background: var(--chip);
   color: var(--ink-2);
   font-family: var(--mono);
@@ -351,7 +351,7 @@ summary {
   inset-inline-start: calc(anchor(var(--lf-fold-head) start) - 12px);
   inset-inline-end: calc(anchor(var(--lf-fold-head) end) - var(--lf-group-ring-end));
   border: 1px solid var(--rule);
-  border-radius: 5px;
+  border-radius: var(--r);
   pointer-events: none;
 }
 .lf-summary-checkpoint {
@@ -619,6 +619,28 @@ button.lf-primary-news {
   color: var(--ink-2);
   font-weight: 600;
 }
+.lf-thread-todos {
+  margin: 0 0 var(--sp-2);
+  padding: 0 0 0 var(--lf-thread-text-inset);
+  list-style: none;
+}
+.lf-thread-todo {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--t-6);
+}
+.lf-thread-todo-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--ink-2);
+  font-weight: 600;
+}
+.lf-thread-todo > .lf-thread-action {
+  flex: none;
+  white-space: nowrap;
+}
 
 /* browser/styles/components/reading.css */
 :root {
@@ -783,7 +805,7 @@ leaf-text.lf-fab-input,
   --lf-measure: var(--col);
 }
 .lf-msg:where(.user) {
-  --lf-msg-text-end: var(--lf-thread-text-inset, 0px);
+  --lf-msg-text-end: calc(var(--lf-compose-send-end) + 1px);
 }
 .lf-msg-text {
   display: block;
@@ -806,7 +828,7 @@ leaf-text.lf-fab-input,
 }
 .lf-msg-text > p {
   font: inherit;
-  white-space: break-spaces;
+  white-space: pre-wrap;
   margin-block: 1lh;
 }
 .lf-msg-body :is(th, td) {
@@ -1137,6 +1159,16 @@ svg[data-lf-icon] {
 .lf-msg-meta > time {
   flex: none;
 }
+.lf-msg-new {
+  flex: none;
+  align-self: center;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font: 600 10.5px/1.3 var(--sans);
+  letter-spacing: 0.02em;
+  color: var(--paper);
+  background: var(--accent);
+}
 :where(.scroll) {
   position: relative;
 }
@@ -1301,7 +1333,7 @@ svg[data-lf-icon] {
   min-block-size: 0;
   padding: 0;
   border: 0;
-  border-radius: 50%;
+  border-radius: var(--r-s);
   font: inherit;
   background: var(--lf-ground);
   color: color-mix(in srgb, var(--ink) 72%, transparent);
@@ -1329,6 +1361,10 @@ svg[data-lf-icon] {
 :root {
   --lf-icon-action-face: 28px;
   --lf-compose-action-inset: 6px;
+}
+:root,
+.lf-compose-field {
+  --lf-compose-send-end: calc( var(--lf-icon-action-hit) + 2 * var(--lf-compose-action-inset) );
 }
 :root,
 .lf-compose-field,
@@ -1409,7 +1445,7 @@ svg[data-lf-icon] {
   padding-inline-end: var(--lf-compose-pad-inline-start);
 }
 .lf-compose-field:where(:has(> .lf-compose-submit)) > leaf-text:not(.lf-fab-input) {
-  --lf-field-end-room: calc( var(--lf-icon-action-hit) + 2 * var(--lf-compose-action-inset) - var(--lf-compose-pad-inline-start) );
+  --lf-field-end-room: calc( var(--lf-compose-send-end) - var(--lf-compose-pad-inline-start) );
 }
 .lf-icon-action {
   box-sizing: border-box;
@@ -1552,7 +1588,7 @@ button.lf-media-open {
 }
 .lf-media-frame,
 .lf-composer-media-item > .lf-composer-media-open {
-  border-radius: 8px;
+  border-radius: var(--r);
   box-shadow: 0 0 0 1px var(--lf-ring, var(--border-2)), var(--raise-1);
 }
 .lf-composer-media-item:not(.lf-composer-drawing) > .lf-composer-media-open {
@@ -1800,11 +1836,9 @@ leaf-text.lf-fab-input {
   max-width: calc(100vw - 16px);
   margin: 4px 8px;
   padding: 4px;
-  border: 1px solid var(--border-2);
-  border-radius: var(--r);
-  background: var(--card);
+  border: 0;
+  background: transparent;
   color: var(--ink);
-  box-shadow: var(--raise-2);
 }
 .lf-response-options:popover-open {
   display: flex;
@@ -1897,10 +1931,10 @@ html[data-lf-draw-mode] main {
   }
 }
 :root {
-  --lf-code-copy-size: var(--lf-line);
   --lf-code-copy-inset: 4px;
 }
 .lf-code-copy {
+  --lf-code-copy-size: var(--lf-line);
   position: absolute;
   top: calc(anchor(top, -9999px) + var(--lf-code-copy-inset) + var(--lf-block-control-dy, 0px));
   left: calc(anchor(right, -9999px) - var(--lf-code-copy-size) - var(--lf-code-copy-inset) + var(--lf-block-control-dx, 0px));
@@ -1937,18 +1971,63 @@ html[data-lf-draw-mode] main {
   position: relative;
   width: var(--lf-code-copy-size);
   height: var(--lf-code-copy-size);
-  padding: 6px;
+  padding: min(6px, max(1px, (var(--lf-code-copy-size) - var(--t-5) - 2px) / 2));
   border: 1px solid var(--code-border);
   border-radius: var(--r);
   background: var(--pre-bg);
   color: var(--muted);
   display: flex;
-  font-size: var(--t-5);
+  font-size: min(var(--t-5), calc(var(--lf-code-copy-size) - 4px));
 }
 .lf-code-copy::part(button):hover {
   color: var(--ink);
 }
 .lf-code-copy::part(button)::after {
+  content: "";
+  position: absolute;
+  inset: min(0px, (100% - var(--aim-floor)) / 2);
+}
+:root {
+  --lf-heading-link-size: var(--lf-line);
+}
+@position-try --lf-heading-link-end {
+  right: auto;
+  left: calc(anchor(right, -9999px) - var(--lf-heading-link-size) + var(--lf-block-control-dx, 0px));
+}
+.lf-heading-link {
+  position: absolute;
+  top: calc(anchor(top, -9999px) + var(--lf-heading-link-top, 0px) + (var(--lf-heading-link-line, var(--lf-heading-link-size)) - var(--lf-heading-link-size)) / 2 + var(--lf-block-control-dy, 0px));
+  right: calc(anchor(left, 9999px) - var(--lf-block-control-dx, 0px));
+  position-try-fallbacks: --lf-heading-link-end;
+  width: var(--lf-heading-link-size);
+  height: var(--lf-heading-link-size);
+  z-index: 1;
+  font-size: 0;
+  line-height: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+.lf-heading-link:is(.lf-heading-link-shown, :hover, [data-lf-focus-within]) {
+  opacity: 1;
+  pointer-events: auto;
+}
+.lf-heading-link::part(button) {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: var(--lf-heading-link-size);
+  height: var(--lf-heading-link-size);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r);
+  background: none;
+  color: var(--muted);
+  font-size: var(--t-5);
+}
+.lf-heading-link::part(button):hover {
+  color: var(--ink);
+}
+.lf-heading-link::part(button)::after {
   content: "";
   position: absolute;
   inset: min(0px, (100% - var(--aim-floor)) / 2);
@@ -2079,6 +2158,9 @@ html[data-lf-draw-mode] main {
   --wa-color-brand-fill-loud: var(--accent);
   --wa-color-brand-on-loud: light-dark(var(--card), var(--paper));
   --wa-color-focus: var(--accent);
+  --wa-border-radius-s: var(--r-s);
+  --wa-border-radius-m: var(--r);
+  --wa-border-radius-l: var(--r-l);
   --wa-focus-ring-style: none;
   --wa-form-control-background-color: var(--field);
   --wa-form-control-border-color: var(--border-2);

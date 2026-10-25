@@ -76,14 +76,14 @@ from journeys import expect_showing
 
 def go_to_passage(page, page_dir, words):
     """Open the thread quoting `words` in the panel and go to the passage with its
-    view's On the page."""
+    view's Show on page."""
     thread = next(
         event["id"]
         for event in events_model.read_events(page_dir)
         if event["kind"] == "comment" and event["anchor"].get("quote") == words
     )
     open_panel_thread(page, thread)
-    page.locator(".lf-fp-controls").get_by_role("button", name="On the page").click()
+    page.locator(".lf-fp-controls").get_by_role("button", name="Show on page").click()
 
 
 # An obligation's digits beside a page-scoped command with a context key of its own,
@@ -1631,7 +1631,7 @@ def test_quick_shortcuts_can_be_disabled_without_withdrawing_commands(browser, s
     expect(page.locator("body")).not_to_have_attribute("data-lf-go-to-active", "")
     expect(button).not_to_have_attribute("title", re.compile(r"\(1\)"))
     settings()
-    page.get_by_role("combobox", name="Search commands").fill("Select element")
+    page.get_by_role("combobox", name="Search commands").fill("Comment on an element")
     reference.locator('tr[data-lf-command="target.picker.open"]').get_by_role(
         "button"
     ).click()
@@ -1696,7 +1696,7 @@ def test_quick_shortcuts_can_be_disabled_without_withdrawing_commands(browser, s
 
     page.locator("body").focus()
     settings()
-    page.get_by_role("combobox", name="Search commands").fill("Select element")
+    page.get_by_role("combobox", name="Search commands").fill("Comment on an element")
     reference.locator('tr[data-lf-command="target.picker.open"]').get_by_role(
         "button"
     ).click()

@@ -254,7 +254,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     margin: 0;
     padding: var(--lf-comment-inset);
     border: 1px solid var(--border-2);
-    border-radius: 10px;
+    border-radius: var(--r-l);
     background: var(--paper);
     color: var(--ink);
     box-shadow: var(--raise-3);
@@ -358,7 +358,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     touch-action: none;
     user-select: none;
     pointer-events: auto;
-    border-radius: 9px;
+    border-radius: calc(var(--r-l) - 1px);
   }
   /* The transcript's focus-ring room reaches into this top band. The grip still
      takes presses there; its clipped centre leaves the messages and controls free. */
@@ -383,7 +383,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     inset: calc(var(--lf-comment-frame-top) - var(--lf-grip-out))
       calc(var(--lf-comment-frame-inline) - var(--lf-grip-out))
       calc(var(--lf-comment-frame-bottom) - var(--lf-grip-out));
-    border-radius: calc(6px + var(--lf-grip-out));
+    border-radius: calc(var(--r) + var(--lf-grip-out));
   }
   @media (pointer: coarse) {
     .lf-fab-bar > .lf-surface-grip {
@@ -479,6 +479,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     .lf-thread-transcript
     > :is(.lf-thread-checkpoint, .lf-msg[data-lf-summary]) {
     margin-block-end: 0;
+  }
+  /* A to-do on the user heads the card, over its transcript (thread-card.js). */
+  .lf-margin-thread .lf-thread-todos {
+    grid-row: 1;
   }
   .lf-margin-thread .lf-reply-space {
     grid-row: 3;
@@ -611,8 +615,16 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     min-width: min-content;
     overflow: hidden;
   }
+  /* An unread reply's New stands with the time: never cut, so its track keeps its
+     whole width, and with a gap of its own. */
+  .lf-margin-thread .lf-thread-transcript .lf-msg-meta:has(> .lf-msg-new) {
+    grid-template-columns: max-content max-content;
+  }
+  .lf-margin-thread .lf-thread-transcript .lf-msg-meta > .lf-msg-new {
+    margin-inline-start: var(--sp-2);
+  }
   /* Each annotation carries its own gap, so one cut to nothing takes its gap too. */
-  .lf-margin-thread .lf-thread-transcript .lf-msg-meta > :not(time) {
+  .lf-margin-thread .lf-thread-transcript .lf-msg-meta > :not(time, .lf-msg-new) {
     padding-inline-start: var(--sp-2);
     min-width: 0;
     overflow: hidden;
@@ -695,7 +707,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     }
     :is(
       .lf-margin-thread .lf-thread-transcript .lf-msg-head > :not(b, .lf-msg-meta),
-      .lf-margin-thread .lf-thread-transcript .lf-msg-meta > :not(time)
+      .lf-margin-thread .lf-thread-transcript .lf-msg-meta > :not(time, .lf-msg-new)
     ):not([data-lf-focus]) {
       animation: lf-msg-annotation-exit linear both;
       animation-timeline: --lf-msg-exit;

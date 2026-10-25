@@ -243,8 +243,9 @@ def test_a_live_page_leaves_no_empty_thread_column_and_keeps_its_reading_positio
     # The rail is 95px, so the page's axis stands at most half of it off the shell's.
     initial = position()
     assert abs(initial["offset"]) <= 48, initial
+    # The wide measure is 840px plus the page's 48px of inline padding.
     assert (
-        initial["width"] >= min(1128 if wide else 768, initial["shellWidth"] - 95) - 1
+        initial["width"] >= min(888 if wide else 768, initial["shellWidth"] - 95) - 1
     ), initial
 
     comment = append_carried_log_record(

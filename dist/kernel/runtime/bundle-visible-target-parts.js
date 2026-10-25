@@ -1,16 +1,11 @@
-import {
-  shownParts
-} from "./bundle-page-paint.js";
-import {
-  drawn
-} from "./bundle-frame-visibility.js";
+import { drawn } from "./bundle-dom-move.js";
+import { shownParts } from "./bundle-layer-client.js";
 
-// runtime/visible-target-parts.js
+//#region runtime/visible-target-parts.js
 function visibleTargetParts(target) {
-  const parts = shownParts(target).filter(drawn);
-  return drawn(target) ? [target, ...parts.filter((part) => part !== target)] : parts;
+	const parts = shownParts(target).filter(drawn);
+	return drawn(target) ? [target, ...parts.filter((part) => part !== target)] : parts;
 }
 
-export {
-  visibleTargetParts
-};
+//#endregion
+export { visibleTargetParts };

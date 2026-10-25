@@ -142,7 +142,12 @@ import {
   watchReadingRegionTransitions,
 } from "./reading-regions.js";
 import { PAGE_SCOPE, tabStore } from "./storage.js";
-import { initialOrigin, restoreInitialSource, unmarkedCopy } from "./initial-render.js";
+import {
+  authoredBody,
+  initialOrigin,
+  restoreInitialSource,
+  unmarkedCopy,
+} from "./initial-render.js";
 import { alignInlineText } from "./text-alignment.js";
 import { el, layoutChanged, reveal } from "./widget-elements.js";
 import { settleMarginContentLayout } from "./content-layout.js";
@@ -1308,14 +1313,23 @@ export function createVersionController({
   // reads nothing of them but their attributes. So what it built stands for its own
   // attributes and each member's tag and attributes, in order, and while two revisions
   // agree on that much, the rest of the difference is inside members the author owns.
-  const shell = (element) => {
+  // One that moved them all into an authored body reads none of them, so there its own
+  // attributes stand for everything it built.
+  const shell = (element, members) => {
     const copy = element.cloneNode(false);
-    for (const child of element.childNodes) copy.append(child.cloneNode(false));
+    if (members)
+      for (const child of element.childNodes) copy.append(child.cloneNode(false));
     return copy;
   };
-  const reachesMembers = (before, after, arrivingRoot) =>
-    registry[before.localName]?.["x-patch"] === "members" &&
-    sameAuthoredMarkup(shell(before), shell(after), arrivingRoot);
+  const reachesMembers = (before, after, arrivingRoot) => {
+    if (registry[before.localName]?.["x-patch"] !== "members") return false;
+    const members = !authoredBody(sourcePairs.get(before));
+    return sameAuthoredMarkup(
+      shell(before, members),
+      shell(after, members),
+      arrivingRoot,
+    );
+  };
 
   // Preparation and installation use the same matching, widget ownership, and resource
   // equality. A retained subject is proved through every containing owner, not by an
@@ -1330,6 +1344,7 @@ export function createVersionController({
       pairs: sourcePairs,
       contains: under,
       declared: upgraded,
+      body: authoredBody,
       reaches: (before, after) => reachesMembers(before, after, arrivingRoot),
       unchanged: (before, after) => {
         const digest = authoredWidgets[heldKeys.get(before)];

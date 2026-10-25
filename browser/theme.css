@@ -1,5 +1,5 @@
 /* @noformat Generated from browser/styles/theme.css by build/styles.mjs. */
-/* node_modules/.pnpm/@awesome.me+webawesome@3.14.0_@floating-ui+utils@0.2.12_@types+node@26.6.4_@types+react@19.3.0/node_modules/@awesome.me/webawesome/dist/styles/layers.css */
+/* node_modules/.pnpm/@awesome.me+webawesome@3.14.0_@floating-ui+utils@0.2.12_@types+node@26.6.5_@types+react@19.3.0/node_modules/@awesome.me/webawesome/dist/styles/layers.css */
 @layer lf-vendor {
   @layer wa-native, wa-base, wa-utilities, wa-color-palette, wa-color-variant, wa-theme, wa-theme-dimension, wa-theme-overrides;
   @layer wa-base {
@@ -16,7 +16,7 @@
   }
 }
 
-/* node_modules/.pnpm/@awesome.me+webawesome@3.14.0_@floating-ui+utils@0.2.12_@types+node@26.6.4_@types+react@19.3.0/node_modules/@awesome.me/webawesome/dist/styles/color/variants/brand.css */
+/* node_modules/.pnpm/@awesome.me+webawesome@3.14.0_@floating-ui+utils@0.2.12_@types+node@26.6.5_@types+react@19.3.0/node_modules/@awesome.me/webawesome/dist/styles/color/variants/brand.css */
 @layer lf-vendor {
   @layer wa-color-variant {
     :where(:root),
@@ -173,7 +173,7 @@
   }
 }
 
-/* node_modules/.pnpm/@awesome.me+webawesome@3.14.0_@floating-ui+utils@0.2.12_@types+node@26.6.4_@types+react@19.3.0/node_modules/@awesome.me/webawesome/dist/styles/color/variants/neutral.css */
+/* node_modules/.pnpm/@awesome.me+webawesome@3.14.0_@floating-ui+utils@0.2.12_@types+node@26.6.5_@types+react@19.3.0/node_modules/@awesome.me/webawesome/dist/styles/color/variants/neutral.css */
 @layer lf-vendor {
   @layer wa-color-variant {
     :where(:root),
@@ -330,7 +330,7 @@
   }
 }
 
-/* node_modules/.pnpm/@awesome.me+webawesome@3.14.0_@floating-ui+utils@0.2.12_@types+node@26.6.4_@types+react@19.3.0/node_modules/@awesome.me/webawesome/dist/styles/color/variants/success.css */
+/* node_modules/.pnpm/@awesome.me+webawesome@3.14.0_@floating-ui+utils@0.2.12_@types+node@26.6.5_@types+react@19.3.0/node_modules/@awesome.me/webawesome/dist/styles/color/variants/success.css */
 @layer lf-vendor {
   @layer wa-color-variant {
     :where(:root),
@@ -487,7 +487,7 @@
   }
 }
 
-/* node_modules/.pnpm/@awesome.me+webawesome@3.14.0_@floating-ui+utils@0.2.12_@types+node@26.6.4_@types+react@19.3.0/node_modules/@awesome.me/webawesome/dist/styles/color/variants/warning.css */
+/* node_modules/.pnpm/@awesome.me+webawesome@3.14.0_@floating-ui+utils@0.2.12_@types+node@26.6.5_@types+react@19.3.0/node_modules/@awesome.me/webawesome/dist/styles/color/variants/warning.css */
 @layer lf-vendor {
   @layer wa-color-variant {
     :where(:root),
@@ -644,7 +644,7 @@
   }
 }
 
-/* node_modules/.pnpm/@awesome.me+webawesome@3.14.0_@floating-ui+utils@0.2.12_@types+node@26.6.4_@types+react@19.3.0/node_modules/@awesome.me/webawesome/dist/styles/color/variants/danger.css */
+/* node_modules/.pnpm/@awesome.me+webawesome@3.14.0_@floating-ui+utils@0.2.12_@types+node@26.6.5_@types+react@19.3.0/node_modules/@awesome.me/webawesome/dist/styles/color/variants/danger.css */
 @layer lf-vendor {
   @layer wa-color-variant {
     :where(:root),
@@ -801,10 +801,10 @@
   }
 }
 
-/* node_modules/.pnpm/@awesome.me+webawesome@3.14.0_@floating-ui+utils@0.2.12_@types+node@26.6.4_@types+react@19.3.0/node_modules/@awesome.me/webawesome/dist/styles/color/variants.css */
+/* node_modules/.pnpm/@awesome.me+webawesome@3.14.0_@floating-ui+utils@0.2.12_@types+node@26.6.5_@types+react@19.3.0/node_modules/@awesome.me/webawesome/dist/styles/color/variants.css */
 @layer lf-vendor;
 
-/* node_modules/.pnpm/@awesome.me+webawesome@3.14.0_@floating-ui+utils@0.2.12_@types+node@26.6.4_@types+react@19.3.0/node_modules/@awesome.me/webawesome/dist/styles/color/palettes/base.css */
+/* node_modules/.pnpm/@awesome.me+webawesome@3.14.0_@floating-ui+utils@0.2.12_@types+node@26.6.5_@types+react@19.3.0/node_modules/@awesome.me/webawesome/dist/styles/color/palettes/base.css */
 @layer lf-vendor {
   :where(:root),
   :host {
@@ -831,7 +831,7 @@
   }
 }
 
-/* node_modules/.pnpm/@awesome.me+webawesome@3.14.0_@floating-ui+utils@0.2.12_@types+node@26.6.4_@types+react@19.3.0/node_modules/@awesome.me/webawesome/dist/styles/color/palettes/default.css */
+/* node_modules/.pnpm/@awesome.me+webawesome@3.14.0_@floating-ui+utils@0.2.12_@types+node@26.6.5_@types+react@19.3.0/node_modules/@awesome.me/webawesome/dist/styles/color/palettes/default.css */
 @layer lf-vendor {
   @layer wa-color-palette {
     :where(:root),
@@ -970,7 +970,7 @@
   }
 }
 
-/* node_modules/.pnpm/@awesome.me+webawesome@3.14.0_@floating-ui+utils@0.2.12_@types+node@26.6.4_@types+react@19.3.0/node_modules/@awesome.me/webawesome/dist/styles/themes/default.css */
+/* node_modules/.pnpm/@awesome.me+webawesome@3.14.0_@floating-ui+utils@0.2.12_@types+node@26.6.5_@types+react@19.3.0/node_modules/@awesome.me/webawesome/dist/styles/themes/default.css */
 @layer lf-vendor {
   @layer wa-theme {
     :where(:root),
@@ -1289,8 +1289,10 @@
   --danger: light-dark(#b4402f, #d98b7a);
   --pin-fill: light-dark(var(--accent), #4d74a8);
   --pin-on-user: light-dark(#2f7d45, #2d8047);
+  --r-s: 3px;
   --r: 6px;
-  --chip-r: 3px;
+  --r-l: 12px;
+  --chip-r: var(--r-s);
   --chip-pad: 0 8px;
   --chip-lh: 1.6;
   --sp-1: 4px;
@@ -1319,7 +1321,7 @@
   --page-pad-end: 96px;
   --pane-bar-pad: 10px 14px;
   --pane-inset: 14px;
-  --wide: 1080px;
+  --wide: 840px;
   --wide-page-max: 1600px;
   --lf-ui-lh: 1.45;
   --details-margin-block: 18px;
@@ -1340,7 +1342,7 @@
   --msg-font: max(var(--entry-floor), var(--t-5)) / 1.5 var(--sans);
   --code-inline-size: 82%;
   --code-inline-pad: 1px 5px;
-  --code-inline-r: 4px;
+  --code-inline-r: var(--r-s);
   --quote-rule: 2px solid var(--rule);
   --quote-style: italic;
   --quote-inset: 18px;
@@ -1380,7 +1382,7 @@
   --tip-bg: var(--ink);
   --tip-ink: var(--paper);
   --tip-pad: 4px 7px;
-  --tip-r: 4px;
+  --tip-r: var(--r-s);
   --code-bg: light-dark(#ecebe5, #2b2b29);
   --pre-bg: light-dark(#fff, #1b1b1a);
   --code-chrome: light-dark(#f6f8fa, #222220);
@@ -1457,6 +1459,7 @@ html:not([data-lf-live]) {
 @property --lf-frame-end { syntax: "<integer>"; inherits: false; initial-value: 0; }
 @property --lf-holds-edge { syntax: "<integer>"; inherits: false; initial-value: 0; }
 @property --lf-holds-height { syntax: "<integer>"; inherits: false; initial-value: 0; }
+@property --lf-bound-box { syntax: "*"; inherits: false; }
 @property --lf-wears-ring { syntax: "<integer>"; inherits: false; initial-value: 0; }
 @container style(--lf-block-frame: 1) or style(--lf-block-frame: trim) {
   * {
@@ -2079,7 +2082,7 @@ lf-suggestion {
 }
 lf-old,
 lf-new {
-  border-radius: 3px;
+  border-radius: var(--r-s);
   padding: 0 3px;
 }
 lf-old {
@@ -2124,7 +2127,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   min-height: var(--margin-entry);
   padding: 0;
   border: 1px solid var(--border-2);
-  border-radius: 50%;
+  border-radius: var(--r);
   background: var(--lf-entry-tint, var(--paper));
   color: var(--lf-entry-ink, var(--ink-2));
   flex: 0 0 auto;
@@ -2228,6 +2231,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   height: 6px;
   border-radius: 50%;
   background: var(--accent);
+  box-shadow: 0 0 0 2px var(--paper);
 }
 .lf-margin-entry-glyph {
   line-height: 1;

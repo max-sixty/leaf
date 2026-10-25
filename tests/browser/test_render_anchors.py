@@ -116,10 +116,10 @@ def thread_quote(page, thread_id):
     return page.locator(".lf-fp-quote")
 
 
-def on_the_page(page, *, key=False):
-    """Take the open thread's way back to its words, On the page, by pointer or key."""
+def show_on_page(page, *, key=False):
+    """Take the open thread's way back to its words, Show on page, by pointer or key."""
     door = page.locator(".lf-fp-aux").get_by_role(
-        "button", name="On the page", exact=True
+        "button", name="Show on page", exact=True
     )
     if key:
         door.focus()
@@ -390,7 +390,7 @@ def test_a_revision_preserves_every_open_quoted_thread(browser, serve):
             cli_model.cli,
             [
                 "thread",
-                "open",
+                "create",
                 str(serve.page_dir),
                 "--section",
                 "revised-quotes",
@@ -514,7 +514,7 @@ def test_monitoring_regions_share_one_collaboration_layer(browser, serve):
         if e["kind"] == "comment" and (e.get("anchor") or {}).get("quote") == quote
     ]
     expect(thread_quote(page, thread_id)).to_contain_text(quote)
-    on_the_page(page)
+    show_on_page(page)
     expect(page.locator("#lp-check-finance")).to_be_in_viewport()
     # The panel stood over the region the comment is about, so the trip cleared it.
     panel_settled(page, open=False)
@@ -1167,9 +1167,8 @@ def test_a_quote_finds_its_passage_whatever_its_whitespace(browser, serve):
 
 def test_the_captured_quote_is_prose_a_file_can_hold(browser, serve):
     """A quote is read back as prose — seeded into the suggestion box, printed in the
-    panel, emitted into a Markdown blockquote by `leaf page transcript` — and written to a
-    UTF-8 file on the way. Source text is neither: it carries the author's line wraps,
-    which break a blockquote open, and cutting it to length by UTF-16 unit can halve a
+    panel — and written to a UTF-8 file on the way. Source text is neither: it carries
+    the author's line wraps, which break the prose, and cutting it to length by UTF-16 unit can halve a
     character, which no UTF-8 file can hold. The server refuses that write and the
     user is told it is offline, with no way to ever send the comment."""
     url = serve(INLINE_PAGE)
@@ -1381,6 +1380,98 @@ def test_code_copy_enter_leaves_nested_links_usable(browser, serve):
     # A link inside the block keeps its Enter from the block's Copy.
     page.keyboard.press("Enter")
     expect(page).to_have_url(re.compile(r"#destination$"))
+
+
+def test_code_copy_keeps_its_source_container_active(browser, serve):
+    source = leaf_page(
+        "Copy in card",
+        '<div id="card"><p id="actions">Actions</p>'
+        '<pre id="source"><code>echo hello</code></pre></div>'
+        '<button id="outside">Outside</button>',
+    ).replace(
+        "</head>",
+        "<style>#card:not(:hover, :focus-within, :has([data-lf-control-active])) "
+        "#actions { visibility: hidden; }</style></head>",
+    )
+    page = open_page(browser, live_url(serve(source)))
+    card = page.locator("#card")
+    actions = page.locator("#actions")
+    pre = page.locator("#source")
+    copy = page.locator(".lf-chrome .lf-code-copy").get_by_role("button")
+
+    expect(actions).to_be_hidden()
+    pre.hover()
+    expect(actions).to_be_visible()
+    copy.hover()
+    expect(pre).to_have_attribute("data-lf-control-active", "")
+    expect(actions).to_be_visible()
+    assert not card.evaluate("node => node.matches(':hover')")
+
+    page.mouse.move(2, 300)
+    expect(pre).not_to_have_attribute("data-lf-control-active", "")
+    expect(actions).to_be_hidden()
+    pre.hover()
+    copy.focus()
+    page.mouse.move(2, 300)
+    expect(pre).to_have_attribute("data-lf-control-active", "")
+    expect(actions).to_be_visible()
+    page.locator("#outside").focus()
+    expect(pre).not_to_have_attribute("data-lf-control-active", "")
+    expect(actions).to_be_hidden()
+
+
+def test_tapping_code_copy_keeps_its_source_container_active(browser, serve):
+    source = leaf_page(
+        "Touch copy in card",
+        '<div id="card"><p id="actions">Actions</p>'
+        '<pre id="source"><code>echo hello</code></pre></div>'
+        '<button id="outside">Outside</button>',
+    ).replace(
+        "</head>",
+        "<style>#card:not(:focus-within, :has([data-lf-control-active])) "
+        "#actions { visibility: hidden; }</style></head>",
+    )
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, live_url(serve(source)), context=context)
+    pre = page.locator("#source")
+    actions = page.locator("#actions")
+    pre.tap(position={"x": 30, "y": 20})
+    expect(actions).to_be_visible()
+    page.locator(".lf-chrome .lf-code-copy").get_by_role("button").tap()
+    expect(pre).to_have_attribute("data-lf-control-active", "")
+    expect(actions).to_be_visible()
+    page.locator("#outside").tap()
+    expect(pre).not_to_have_attribute("data-lf-control-active", "")
+    expect(actions).to_be_hidden()
+
+
+def test_code_copy_face_follows_a_compact_source_line(browser, serve):
+    url = live_url(
+        serve(
+            leaf_page(
+                "Compact code copy",
+                '<pre id="source" style="font-size:12.5px;line-height:19px;'
+                'padding:7px 10px"><code>echo hello</code></pre>'
+                '<div style="--lf-code-copy-size:27px"><pre id="custom">'
+                "<code>echo custom</code></pre></div>",
+            )
+        )
+    )
+    page = open_page(browser, url)
+    page.locator("#source").hover()
+    face = page.locator(".lf-chrome .lf-code-copy").first.get_by_role("button")
+    expect(face).to_be_visible()
+    assert face.evaluate("el => el.getBoundingClientRect().height") == 19
+    assert face.evaluate(
+        "el => parseFloat(getComputedStyle(el, '::after').height)"
+    ) >= page.evaluate(
+        "parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--aim-floor'))"
+    )
+    page.locator("#custom").hover()
+    custom = page.locator(".lf-chrome .lf-code-copy").last.get_by_role("button")
+    assert custom.evaluate("el => el.getBoundingClientRect().height") == 27
 
 
 def test_code_copy_reads_sources_before_positioning_many_controls(browser, serve):
@@ -1664,12 +1755,12 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
     """Colouring is spans, and the anchor pass is what spans break: the revision holds
     one run of characters where the DOM now holds a dozen nodes. A <span> is no text block,
     so both readings collapse to the same string — which is what lets the runtime color a
-    block the file knows nothing about, and what keeps `leaf thread open` able to quote
+    block the file knows nothing about, and what keeps `leaf thread create` able to quote
     into one.
 
     One pass serves both shapes a page has for code, lf-code's `language` and a plain
     <pre><code class="language-*">, and neither guesses: a lf-code with no `language` stays
-    the color of its own ink. The quote below is written the way `leaf thread open`
+    the color of its own ink. The quote below is written the way `leaf thread create`
     writes one — against the file — and spans a token boundary on its way back."""
     url = serve(CODE_PAGE)
     page = open_page(browser, url)
@@ -3416,7 +3507,7 @@ def test_a_removed_subject_keeps_its_thread_open_and_detached(browser, serve):
     expect(quote).to_have_attribute("title", re.compile("no longer"))
     # With nowhere on the page to go, the view offers no way there.
     expect(
-        page.locator(".lf-fp-aux button:enabled", has_text="On the page")
+        page.locator(".lf-fp-aux button:enabled", has_text="Show on page")
     ).to_have_count(0)
 
 
@@ -4615,7 +4706,7 @@ def test_a_datum_comment_reveals_its_shadow_host_and_outer_tab(browser, serve):
     quote = thread_quote(page, comment_ids(serve.page_dir)[0])
     expect(quote).not_to_have_class(re.compile(r"\bdetached\b"))
 
-    on_the_page(page)
+    show_on_page(page)
 
     expect(patch_tab).not_to_have_attribute("hidden", re.compile(".*"))
     added = page.locator(
@@ -4688,7 +4779,7 @@ def test_a_deferred_diff_renders_only_opened_files_and_hydrates_comment_travel(
     All file evidence is checked first; opening one file renders only that file. An existing line thread on a
     different unopened file remains attached at its disclosure; pressing its quote
     renders that file before ordinary exact-line navigation resumes. The press is the
-    thread's On the page, in the panel.
+    thread's Show on page, in the panel.
     """
     authored = leaf_page(
         "deferred diff",
@@ -4737,7 +4828,7 @@ def test_a_deferred_diff_renders_only_opened_files_and_hydrates_comment_travel(
     [thread] = comment_ids(serve.page_dir)
     quote = thread_quote(page, thread)
     expect(quote).not_to_have_class(re.compile(r"\bdetached\b"))
-    on_the_page(page, key=activation == "keyboard")
+    show_on_page(page, key=activation == "keyboard")
     page.wait_for_function("typeof window.__leafReleaseDeferred === 'function'")
     search = page.locator("lf-diff .lf-diff-search input")
     if superseded:
@@ -4764,7 +4855,7 @@ def test_a_deferred_diff_renders_only_opened_files_and_hydrates_comment_travel(
     if superseded:
         expect(search).to_be_focused()
         thread_quote(page, thread)
-        on_the_page(page)
+        show_on_page(page)
     landed()
     expect(second).to_have_class(re.compile(r"\blf-mark-here\b"))
     expect(page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')).to_have_count(0)
@@ -4775,7 +4866,7 @@ def test_a_deferred_diff_renders_only_opened_files_and_hydrates_comment_travel(
     details.evaluate("element => { element.open = false; }")
     expect(reply).to_have_count(0)
     thread_quote(page, thread)
-    on_the_page(page, key=True)
+    show_on_page(page, key=True)
     landed()
     assert page.evaluate("window.__leafDeferredRequests") == ["first.py", "second.py"]
 
@@ -4988,7 +5079,7 @@ def test_a_failed_deferred_hydration_waits_for_a_user_retry(browser, serve):
     context.route("**/api/deferred*", refuse)
     page = open_page(browser, url, context=context)
     thread_quote(page, comment_ids(serve.page_dir)[0])
-    on_the_page(page)
+    show_on_page(page)
     expect(page.locator("lf-diff .lf-error")).to_contain_text(
         "the patch is unavailable"
     )

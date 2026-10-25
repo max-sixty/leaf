@@ -5,9 +5,12 @@
  * this module adopts that drawing and owns the live mechanics: working state,
  * tab-local persistence, CSS reflection, instruction copying, commands, and
  * the final recordless action. Intermediate changes never enter Leaf's event log.
- * The instruction stays folded under its actions until the user unfolds it, a browser
- * disclosure the log never records. Unfolded, it brings a code block's copy control
- * (`copyBlock`) into the bar.
+ * The instruction opens from its actions in a popover over the page, so reading it
+ * moves nothing the user set or pressed, in any Layout; the log never records it. The
+ * popover's head holds a code block's copy control (`copyBlock`). Rejected: unfolding
+ * the instruction in the pane, which had to grow below the bar in a flowing page and
+ * above it at the foot of a held workspace, and still moved the bar wherever a stage
+ * at its floor, a resize or a short window left it no room (2026-10-25).
  *
  * The playground owns the complete working configuration. Contributors declare a
  * named default and get an immutable slice handle; set replaces that slice. Required
@@ -38,20 +41,22 @@
 import {
   commands,
   compoundReadingRegionId,
+  closeNativeLayer,
   copyBlock,
   dressSamples,
   focusDestination,
   layoutChanged,
   initialRender,
+  isNativeLayer,
+  keeps,
   keepsText,
   LeafElement,
   nothing,
   paintKeys,
-  placeKeeper,
   registerReadingRegion,
   reachedForWords,
   says,
-  scrollerFor,
+  showNativeLayer,
   sizeObserver,
   tabStore,
   wear,
@@ -270,13 +275,31 @@ customElements.define(
             });
             this.#draw();
           });
-        const body = initial.instructionBody;
-        initial.reveal.addEventListener("click", () => this.#unfold(body.hidden));
-        // The copy is a quiet action at the bar's start, shown while the instruction is
-        // (theme.css); appearing there, it moves none of the bar's other controls.
-        const copy = copyBlock(body, () => this.#instruction(), "instruction");
+        const { reveal, instruction } = initial;
+        const copy = copyBlock(
+          instruction.lastElementChild,
+          () => this.#instruction(),
+          "instruction",
+        );
         copy.classList.add("lf-quiet-action");
-        initial.reveal.parentElement.prepend(copy);
+        instruction.firstElementChild.append(copy);
+        // A press on the reveal while the instruction is open lands outside it, and
+        // the popover's light dismiss closes it before the click: the press closes it.
+        let openAtPress = false;
+        reveal.addEventListener("pointerdown", () => {
+          openAtPress = isNativeLayer(instruction);
+        });
+        reveal.addEventListener("click", () => {
+          const open = openAtPress || isNativeLayer(instruction);
+          openAtPress = false;
+          if (open) closeNativeLayer(instruction);
+          // Tab goes on from the reveal into the instruction it opened, to its copy.
+          else showNativeLayer(instruction, { source: reveal });
+        });
+        instruction.addEventListener("toggle", (event) => {
+          keeps(reveal, "aria-expanded", event.newState === "open");
+          paintKeys();
+        });
         this.addEventListener("mousedown", (event) => {
           const target = /** @type {Element} */ (event.target);
           if (target.closest(".lf-playground-control-label")) return;
@@ -314,43 +337,6 @@ customElements.define(
         this.#commands();
       }
       this.#paintPresets();
-    }
-
-    // The instruction unfolds where it leaves the bar where the user pressed it: below
-    // in a flowing page, which grows down, and above where the pane stands at the foot
-    // of a box the window holds, whose stage or controls give up the room. Which applies
-    // depends on the page's whole layout, the stage's floor among it, so the bar is
-    // measured rather than the layout named: CSS that keyed the side on a held
-    // workspace moved the bar wherever the stage was already at its floor (2026-10-25).
-    // Where the floor leaves less room than the instruction needs, it takes the room
-    // there is above the bar and scrolls in it. Only a window too short for a few of its
-    // lines leaves the bar moving, on whichever side moves it less, and the scroller
-    // holding the pane keeps the bar's place as far as it can scroll (`placeKeeper`);
-    // the pane's own body is a scroller the bar never scrolls in. The bar is measured
-    // once, with the instruction below it, so the side is written once; everything
-    // lays out in this task, before the browser paints.
-    #unfold(open) {
-      const { reveal, instructionBody: body, paintReveal } = this.#initial;
-      const bar = body.parentElement;
-      placeKeeper(scrollerFor(bar.parentElement), {
-        items: ".lf-playground-reveal",
-        identity: (node) => node.getAttribute("aria-controls"),
-      }).around(() => {
-        const pressed = reveal.getBoundingClientRect().top;
-        if (bar.dataset.unfolds) delete bar.dataset.unfolds;
-        if (body.style.maxBlockSize) body.style.removeProperty("max-block-size");
-        paintReveal(open);
-        const below = reveal.getBoundingClientRect().top - pressed;
-        if (!open || Math.abs(below) < 0.5) return;
-        // Above the bar, the same pane draws the bar an instruction's height lower.
-        const height = body.getBoundingClientRect().height;
-        const above = below + height;
-        const lines = 4 * parseFloat(getComputedStyle(body).lineHeight);
-        const bounded = above >= 0.5 && height - above >= lines;
-        if (Math.abs(above) < 0.5 || bounded || Math.abs(above) < Math.abs(below))
-          bar.dataset.unfolds = "above";
-        if (bounded) body.style.maxBlockSize = `${height - above}px`;
-      });
     }
 
     #parse(control, raw) {

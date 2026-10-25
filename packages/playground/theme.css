@@ -195,14 +195,6 @@
   padding: var(--lf-pane-top) 18px 16px;
 }
 
-/* The instruction pane's body is a bar of its actions and, unfolded, the instruction
- * across a rule from them. */
-.lf-playground-instruction-region > .lf-playground-instruction {
-  display: flex;
-  flex-direction: column;
-  padding: 0;
-}
-
 .lf-playground-controls-region > header.lf-playground-presets {
   padding-bottom: 14px;
   border-bottom: 1px solid var(--rule);
@@ -409,29 +401,52 @@
   text-align: end;
 }
 
-/* The instruction's copy is a code block's (lf-playground.js), standing in the bar as a
- * quiet action, as a mark bar's copy does (integration.css, `.lf-mark-bar`), while the
- * instruction is unfolded. It keeps its room while hidden, so its arrival neither moves
- * nor wraps the controls the bar packs at its end. Seated on the rule between the bar
- * and the instruction, as a code block's stands on its block's border, it showed only
- * under a hovering pointer, stood far from the fold control that revealed it and read
- * after the submit button it stood above (a fresh user's test, 2026-10-25). */
-.lf-playground-instruction-body {
+/* The instruction opens from the bar as a popover (lf-playground.js), at the middle of
+ * the window as a popover stands by default, so no anchor ties it to a bar that may be
+ * stuck in a sticky rail, where Firefox draws an anchored box at the target's unstuck
+ * place (notes/browser-support.md). It is a card in the panel's voice: its title in
+ * small capitals over the instruction, which scrolls in the room the window leaves. The
+ * bar's child selector outweighs a framed box's trim of its last child's margin. */
+.lf-playground-actions > .lf-playground-instruction {
+  position: fixed;
+  inset: 0;
+  margin: auto;
   box-sizing: border-box;
-  padding: 12px 18px 16px;
-  border-top: 1px solid var(--rule);
-  overflow-y: auto;
+  inline-size: min(36rem, calc(100vw - 32px));
+  max-block-size: min(32rem, calc(100dvh - 64px));
+  padding: 0;
+  border: 1px solid var(--border-2);
+  border-radius: var(--r);
+  background: var(--card);
+  color: var(--ink);
+  box-shadow: var(--raise-2);
 }
-/* Where the pane stands at the foot of a held box, the instruction unfolds above the bar
- * (lf-playground.js says how it chooses). Only then is the drawn order the reverse of
- * the DOM's. */
-.lf-playground-instruction[data-unfolds="above"] > .lf-playground-instruction-body {
-  order: -1;
-  border-top: 0;
+.lf-playground-instruction:popover-open {
+  display: flex;
+  flex-direction: column;
+}
+.lf-playground-instruction::backdrop {
+  background: transparent;
+}
+.lf-playground-instruction-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  padding: 8px 10px 8px 18px;
   border-bottom: 1px solid var(--rule);
 }
-.lf-playground-actions > .lf-code-copy {
-  align-self: center;
+.lf-playground-instruction-title {
+  margin: 0;
+}
+.lf-playground-instruction-body {
+  min-block-size: 0;
+  padding: 12px 18px 16px;
+  overflow-y: auto;
+}
+/* The copy is a code block's (integration.css), standing in the head as a quiet action,
+ * as a mark bar's copy does (`.lf-mark-bar`), with a finger's floor. */
+.lf-playground-instruction-head > .lf-code-copy {
   position: static;
   width: auto;
   height: auto;
@@ -442,17 +457,12 @@
   opacity: 1;
   pointer-events: auto;
 }
-/* Standing among the bar's buttons, it takes a finger's floor as they do. */
-.lf-playground-actions > .lf-code-copy::part(button) {
+.lf-playground-instruction-head > .lf-code-copy::part(button) {
   box-sizing: border-box;
   min-inline-size: var(--aim-floor);
   min-block-size: var(--aim-floor);
   align-items: center;
   justify-content: center;
-}
-.lf-playground-instruction:has(> .lf-playground-instruction-body[hidden])
-  .lf-code-copy {
-  visibility: hidden;
 }
 
 /* A quoted playground is its preview and instruction as authored, without the controls

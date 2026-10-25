@@ -206,18 +206,7 @@ function render(host, { tabStore, offer, generatedElement, keeps }) {
   let submit = null,
     reset = null,
     reveal = null,
-    instructionBody = null;
-  // The disclosure's symbol follows its state, as a diff's fold control's does.
-  const paintReveal = (open) => {
-    instructionBody.hidden = !open;
-    keeps(reveal, "aria-expanded", open);
-    const label = open ? "Hide instruction" : "Show instruction";
-    keeps(reveal, "aria-label", label);
-    keeps(reveal, "title", label);
-    const icon = open ? "fold" : "unfold";
-    if (reveal.firstElementChild?.dataset.lfIcon !== icon)
-      reveal.replaceChildren(iconElement(icon, "lf-action-icon"));
-  };
+    instruction = null;
   if (interactive) {
     const railed = controls.filter((control) => control.parentElement === host);
     const panel = node("div", "lf-playground-controls");
@@ -298,30 +287,40 @@ function render(host, { tabStore, offer, generatedElement, keeps }) {
       presetButtons.set(preset, button);
     }
     // The instruction pane is a bar of its actions: Reset and the instruction's
-    // disclosure as symbols, and the one worded action, the submission. The
-    // instruction stays folded until the user asks to read it; its words also reach
-    // the agent's thread once sent. Shown at rest, a long instruction took
-    // more of the playground's room than the controls that wrote it (2026-10-25).
+    // reveal as symbols, and the one worded action, the submission. The instruction
+    // opens over the page in a popover (lf-playground.js); its words also reach the
+    // agent's thread once sent. Shown at rest, a long instruction took more of the
+    // playground's room than the controls that wrote it (2026-10-25).
     const actions = node("div", "lf-playground-actions");
     reset = offer("button", "lf-btn lf-playground-reset");
     reset.ariaLabel = reset.title = "Reset";
     reset.append(iconElement("retry", "lf-action-icon"));
-    instructionBody = node("div", "lf-playground-instruction-body");
-    instructionBody.id = `${host.id}-instruction`;
-    instructionBody.hidden = true;
+    instruction = node("div", "lf-playground-instruction");
+    instruction.id = `${host.id}-instruction`;
+    instruction.popover = "auto";
+    instruction.setAttribute("role", "dialog");
+    const instructionTitle = node(
+      "p",
+      "lf-playground-instruction-title lf-label",
+      "Instruction to agent",
+    );
+    instructionTitle.id = `${host.id}-instruction-title`;
+    instruction.setAttribute("aria-labelledby", instructionTitle.id);
+    const instructionHead = node("div", "lf-playground-instruction-head");
+    instructionHead.append(instructionTitle);
+    const instructionBody = node("div", "lf-playground-instruction-body");
     instructionBody.append(output);
+    instruction.append(instructionHead, instructionBody);
     reveal = offer("button", "lf-btn lf-playground-reveal");
-    reveal.setAttribute("aria-controls", instructionBody.id);
-    paintReveal(false);
+    reveal.ariaLabel = reveal.title = "Show instruction";
+    reveal.setAttribute("aria-controls", instruction.id);
+    reveal.setAttribute("aria-expanded", "false");
+    reveal.append(iconElement("more", "lf-action-icon"));
     submit = offer("button", "lf-btn primary lf-playground-submit");
     const submitLabel = host.getAttribute("submit-label") ?? "Use these settings";
     submit.dataset.room = `${submitLabel}\nUndo choice`;
     submit.append(node("span", "", submitLabel));
-    actions.append(reset, reveal, submit);
-    // The bar and the instruction share one body, which orders them by where the pane
-    // stands (theme.css).
-    const instruction = node("div", "lf-playground-instruction");
-    instruction.append(actions, instructionBody);
+    actions.append(reset, reveal, submit, instruction);
     if (document.querySelector("script[data-lf-offline]"))
       actions.append(
         node(
@@ -354,7 +353,7 @@ function render(host, { tabStore, offer, generatedElement, keeps }) {
     rail.dataset.lfTrack = "";
     rail.append(
       ...(railed.length ? [pane("controls", "Controls", presetBar, panel)] : []),
-      pane("instruction", "Instruction to agent", null, instruction),
+      pane("instruction", "Instruction to agent", null, actions),
     );
     regions.push({ name: "rail", host: rail, body: rail });
     split.append(pane("preview", "Preview", null, previewBody), rail);
@@ -439,8 +438,7 @@ function render(host, { tabStore, offer, generatedElement, keeps }) {
     submit,
     reset,
     reveal,
-    instructionBody,
-    paintReveal,
+    instruction,
     regions,
     presetButtons,
     inputs,

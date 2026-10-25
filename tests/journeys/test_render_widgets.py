@@ -1070,7 +1070,6 @@ def test_structured_data_explorer_keeps_one_aggregate_query_configuration(
     instruction = page.locator("#release-query-instruction")
     expect(instruction).to_contain_text("risk above 80 and region is europe")
     playground.get_by_role("button", name="Show instruction").click()
-    playground.locator(".lf-playground-instruction-body").hover()
     playground.get_by_role("button", name="Copy instruction").click()
     copied = page.evaluate("navigator.clipboard.readText()")
     assert copied == instruction.inner_text()
@@ -1236,7 +1235,6 @@ def test_built_code_comparison_drives_both_candidates(browser, serve):
     expect(instruction).to_contain_text("comfortable reading density")
     expect(instruction).to_contain_text("wrap long lines")
     playground.get_by_role("button", name="Show instruction").click()
-    playground.locator(".lf-playground-instruction-body").hover()
     playground.get_by_role("button", name="Copy instruction").click()
     assert page.evaluate("navigator.clipboard.readText()") == instruction.inner_text()
     with sending(page, "the code reader treatment"):
@@ -1534,8 +1532,8 @@ def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
         "aria-pressed", "false"
     )
     playground.get_by_role("button", name="Dense").click()
-    # Copy is the code block's control, standing at the bar's start while the
-    # instruction is unfolded.
+    # Copy is the code block's control, in the head of the popover the instruction
+    # opens in.
     pane = playground.locator(".lf-playground-instruction-region")
     copy = pane.get_by_role("button", name="Copy instruction")
     pane.scroll_into_view_if_needed()
@@ -1549,7 +1547,8 @@ def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
 
     playground.get_by_role("button", name="Reset").click()
     assert playground.evaluate("root => root.values")["radius"] == 12
-    playground.get_by_role("button", name="Reset").press("Shift+Tab")
+    pane.get_by_role("button", name="Show instruction").press("Enter")
+    page.keyboard.press("Tab")
     expect(copy).to_be_focused()
     copy.press("Enter")
     assert "12px radius" in page.evaluate("navigator.clipboard.readText()")

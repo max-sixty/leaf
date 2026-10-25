@@ -218,7 +218,7 @@ def test_a_resize_notice_is_pardoned_only_by_a_complete_clean_confirmation(monke
     first = Finding(
         "unreserved-height",
         "<lf-x id=a>",
-        {"drawn": 20, "reserved": None},
+        {"first": 0, "drawn": 20, "reserved": None},
         severity="advice",
     )
 

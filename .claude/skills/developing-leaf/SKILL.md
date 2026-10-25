@@ -144,6 +144,11 @@ Prefer outputs the user can review quickly. Do the reviews you can do as well as
 user, and report the results. Choose the decisions the page puts to the user from
 their request, and show visible and interaction changes with the proof below.
 
+A choice about how something looks or moves can't be judged from a description, so
+every UI option you leave to the user carries a picture of its result: a still pair, a
+sketch, a diagram or a live sample. That includes the calls a PR body leaves to the
+user, and the decisions a page relays from it.
+
 ## Prove and hand off a visible change
 
 Define the user's task and each step's expected visible outcome before choosing
@@ -364,7 +369,8 @@ makes Leaf harder to develop than it is worth:
   contract costs every nearby change, so it must clear a much higher bar. Signs it
   doesn't: a hold, carry or special case for one widget or gesture spread across
   several owners; a public API whose only callers are tests or a single example; a
-  mechanism `git log` shows patched again and again. Code in its own module, such as a
+  mechanism `git log --follow` shows patched again and again (without `--follow`, a file's
+  history stops at its last move). Code in its own module, such as a
   package, a widget or a `leaf-dev` command, costs little beyond its own files; remove
   it only when it is large and unused. Keep anything users would notice losing,
   including Leaf's interface guarantees. Taking a feature away is the maintainer's

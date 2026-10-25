@@ -319,6 +319,7 @@ export function mountApplication(dependencies) {
     placedAt: dependencies.anchorPlacement.placedAt,
     marksFor: (id) => dependencies.anchorPaint?.marksFor(id) ?? [],
     scrollToElement: dependencies.anchorTravel.scrollToElement,
+    openInPanel: dependencies.annotationCommands.openInPanel,
   });
   const threadDestinations = createThreadDestinations({
     threadIdsAt: annotations.threadIdsAt,

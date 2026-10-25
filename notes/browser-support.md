@@ -10,7 +10,10 @@ that every other feature has been tested across those browsers.
 
 Keep the current user-visible effect, code owner, dated browser evidence,
 disposition, and a regression test or minimal reproduction that can settle a
-recheck. Distinguish an installed test engine from a current stable browser,
+recheck. A recheck settles nothing unless it fails on the engine the gap was
+recorded in, so confirm that before citing a pass as the gap closing, and name
+Playwright engines by build as well as version, since two builds can report one
+version. Distinguish an installed test engine from a current stable browser,
 and observed behavior from published compatibility data. A successful API
 adoption needs no entry. Resolved failures leave this list; reasons the current
 implementation still needs belong beside its code. Rewrite an entry when its
@@ -158,7 +161,8 @@ The local page server sends `no-cache`; leaf.page keeps `no-store`. On
 2026-10-20, Chromium 153.0.8010.12 and installed Firefox 158.0.1 restored a local
 `release-notes` page on Back and applied state changes made while away.
 Firefox loaded a page containing samples afresh. Safari remains unverified.
-The leaf.page cache-policy decision is tracked in `TODO.md`.
+The leaf.page cache-policy decision is tracked in
+[issue #4024](https://github.com/max-sixty/leaf/issues/4024).
 
 Playwright disables back/forward caching in its normal test browsers.
 `test_a_page_cache_round_trip_keeps_the_sample_connected` in

@@ -151,6 +151,7 @@ export function createMarginProjection({
   placedAt,
   marksFor,
   scrollToElement,
+  openInPanel,
 }) {
   const {
     targetFor,
@@ -182,6 +183,7 @@ export function createMarginProjection({
     openPageThread,
     scrollThreadIntoView,
     scrollToElement,
+    openInPanel,
     onClose: closedPreview,
   });
   const preview = card.element;

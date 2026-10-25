@@ -375,10 +375,11 @@ function scrollIntoView(where, { alignment = where, behavior = "auto", block = "
 			const destination = destinationBox(where);
 			const byX = nearestScrollBy(destination.left - scrollMargin(where, "Left"), destination.right + scrollMargin(where, "Right"), left, right);
 			const byY = inside ? placementBy(where, "nearest", box, topMargin(where, box, start)) : 0;
-			if (byX || byY) land(box, localScrollBy(box, {
+			const by = localScrollBy(box, {
 				x: byX,
 				y: byY
-			}), "instant");
+			});
+			if (by.left || by.top) land(box, by, "instant");
 		}
 		if (box === within || box === pageScroller || getComputedStyle(box).position === "fixed") break;
 	}

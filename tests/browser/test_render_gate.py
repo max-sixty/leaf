@@ -175,17 +175,17 @@ html[data-lf-interactive] #counted:not(.lf-rendered) { block-size: 60px; }
         (
             "unreserved-height",
             "<lf-test-drawn id=unreserved>",
-            {"drawn": 120, "reserved": None},
+            {"first": 0, "drawn": 120, "reserved": None},
         ),
         (
             "unreserved-height",
             "<lf-test-drawn id=misreserved>",
-            {"drawn": 120, "reserved": "40"},
+            {"first": 40, "drawn": 120, "reserved": "40"},
         ),
     ]
     assert str(reading.advice[1]) == (
-        "<lf-test-drawn id=misreserved> draws 120px tall where its first paint "
-        "reserves 40px, so what follows it moves when it is drawn: state "
+        "<lf-test-drawn id=misreserved> first paints 40px tall, reserving 40px, and "
+        "draws 120px tall, so what follows it moves 80px when it is drawn: state "
         'data-height="120"'
     )
 
@@ -2296,6 +2296,42 @@ def resize_findings(page, path):
                 + "\n".join(changes[:12])
             ]
     return []
+
+
+def untouched_resize_findings(page):
+    """A page opened at its widest and scrolled by no one still shows its place, the
+    words at its landing edge (reading-place.js), once the window narrows to a phone's:
+    continuity keeps the page's own place, and a region the narrowing carries into the
+    page, as a sidebar's track or a pane stacking under the one before, holds no place
+    of the reader's to take the page to (version.js, `placeFor`). Read on a page of its
+    own, since every other journey scrolls the page it reads."""
+    assert page.viewport_size["width"] == RESIZE_PATH[0]
+    rendered(page)
+    landmark = page.evaluate_handle(
+        "async () => { const api = await window.__lfCheckApi();"
+        " return api.placeNode(api.capturePlace()); }"
+    )
+    if not landmark.evaluate("node => Boolean(node)"):
+        return []
+    resized(page, RESIZE_PATH[-1], 900)
+    rendered(page)
+    shown = landmark.evaluate(
+        """node => {
+        const range = document.createRange();
+        range.selectNode(node);
+        const {top, bottom} = range.getBoundingClientRect();
+        return bottom > 0 && top < innerHeight;
+    }"""
+    )
+    if shown:
+        return []
+    said = landmark.evaluate("node => node.textContent.trim().slice(0, 60)")
+    scrolled = page.evaluate("() => document.scrollingElement.scrollTop")
+    return [
+        f"opened at {RESIZE_PATH[0]}px and scrolled by no one, narrowed to "
+        f"{RESIZE_PATH[-1]}px: the page scrolled to {scrolled}px, away from its "
+        f"place ({said})"
+    ]
 
 
 # The words in the field holding the focus, found through the shadow trees on the way

@@ -258,9 +258,10 @@
     display: grid;
   }
   .lf-floating-panel[data-expanded] {
-    --lf-fp-max: 760px;
+    --lf-fp-max: 1100px;
   }
   .lf-floating-panel[data-expanded] .lf-fp-field .lf-compose-field > leaf-text {
+    min-height: 50dvh;
     max-height: 75dvh;
   }
   .lf-fp-editors,

@@ -650,6 +650,7 @@ function capturePlace(region = null, blocks = textBlocks()) {
 		revision: runtime.currentRevision,
 		[READ_BOX]: new WeakRef(box)
 	};
+	if (box.scrollTop === 0) view.start = true;
 	const currentLocation = focusedInView();
 	const body = region?.body ?? pageDocument();
 	const currentLocationBody = readingRegionFor(currentLocation)?.body ?? body;
@@ -786,6 +787,10 @@ function restorePlace(view, region = null, currentIntent = retainUserIntent()) {
 	const currentLocation = destination && under(destination, body) ? destination : null;
 	if (!currentLocation || !sameScroller(view, box)) {
 		if (view.end) scrollToEnd(box);
+		else if (view.start && sameScroller(view, box)) box.scrollTo({
+			top: 0,
+			behavior: "instant"
+		});
 		else {
 			const boxTop = landingBand(box).top;
 			const drawn = drawnPlace(view);
@@ -4516,8 +4521,7 @@ function replyControlDestination(node) {
 	};
 }
 function sendReply(draftCtx, key, text, owns, actions) {
-	let flight = null;
-	return sendMessage(draftCtx, owns, (attempt) => flight = actions.reply(key, text, { attempt })) && { flight };
+	return sendMessage(draftCtx, owns, (attempt) => actions.reply(key, text, { attempt }));
 }
 function wireReply(key, row, input, send, wireInput, { hint, hintAside, accessibleName, busy }) {
 	row.classList.add("lf-comment-box");
@@ -4551,9 +4555,8 @@ function wireReply(key, row, input, send, wireInput, { hint, hintAside, accessib
 			const { actions, landSent, sending, sent } = composition.binding;
 			const land = sendLanding(input);
 			sending?.();
-			const reply = sendReply(draftCtx, key, raw, owns, actions);
-			if (!reply) return;
-			if (sent) return sent(reply.flight);
+			if (!sendReply(draftCtx, key, raw, owns, actions)) return;
+			if (sent) return sent();
 			landSent(closestAcross(input, THREAD));
 			land(focused());
 		},
@@ -6274,6 +6277,7 @@ var ThreadView = class {
 		const actions = marginControls ? [
 			model.news ? notice.node : null,
 			marginControls.nav,
+			marginControls.expand,
 			settlement,
 			marginControls.close
 		].filter(Boolean) : [settlement].filter(Boolean);

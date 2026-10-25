@@ -338,6 +338,7 @@ export function unreservedHeights(declarations) {
             {
               code: "unreserved-height",
               at: locate(element),
+              first: Math.round(height),
               drawn: Math.round(now),
               reserved: element.getAttribute("data-lf-height") || null,
             },

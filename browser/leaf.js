@@ -169,13 +169,7 @@ if (validationEntry) {
 
 // Automatic recovery belongs to this arrival. A press made while its presentation
 // waits owns the page; recovery must not capture a fresh focus intent after that wait.
-// A page framed in another holds no user until they enter it: its body reads as where
-// they stand only because the focus is elsewhere in the tab, and focusing anything in
-// it would take them from the page they are working in.
-const recoverComposer = retainUserIntent({
-  since: 0,
-  available: () => window === window.top || document.hasFocus(),
-});
+const recoverComposer = retainUserIntent({ since: 0 });
 
 // This declaration belongs to the executable document lifetime. The revision capture
 // includes it in executable identity, so selecting another presentation retires this
@@ -392,6 +386,7 @@ app = mountApplication({
     pageMapDialogContains: (...args) => pageMapDialog.pageMapDialogContains(...args),
     renderPageMapDialog: (...args) => pageMapDialog.renderPageMapDialog(...args),
     scrollThreadIntoView,
+    openInPanel: (id) => floatingPanel?.openThread(id),
     goToObligation: (...args) => items.goToObligation(...args),
   },
   state: {

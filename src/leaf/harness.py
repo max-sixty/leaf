@@ -302,7 +302,9 @@ class Harness:
 
         `{"state": "busy" | "waiting" | "idle", "since": <iso>}`, dated by the
         harness's own last change: `idle` once no turn runs, `waiting` while a turn
-        holds a dialog open in the session's own window. `activity.claimant_turn`
+        holds a dialog open in the session's own window, `busy` while the session or
+        work it delegated runs. A harness may know only some of these, as Codex knows
+        only its delegated threads' `busy`. `activity.claimant_turn`
         weighs it by that date against the claim's turn stamps, which the hooks
         write and so cannot see a turn end that runs no hook."""
         return None
@@ -606,6 +608,15 @@ class CodexHarness(EnvironmentHarness):
         if event == "Stop":
             return {"decision": "block", "reason": message}
         return super().hook_context(event, message)
+
+    def live_turn(self) -> dict | None:
+        """Codex publishes no status of the session a reader can take, but it records
+        the threads a task spawns, so this is `busy` while one of them still runs a
+        turn (`codex_state.delegated_work`), and otherwise nothing."""
+        from .activity import WORKING_GRACE
+        from .codex_state import delegated_work
+
+        return delegated_work(self.session, WORKING_GRACE)
 
     def reconcile_turn(self, payload: dict, expected: dict | None) -> dict | None:
         """Codex's native transcript also records turns resumed without input,

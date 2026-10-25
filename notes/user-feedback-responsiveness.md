@@ -258,13 +258,19 @@ process: an earlier batch at a load average near 27 read 1.0–3.7 s.
 
 ## Proposed improvements
 
-- **Delegated work in the panel's status on Codex and Pi:** on Claude Code, a
-  session record still `busy` after the turn ends keeps the status reading Working,
-  "in the background" (#3370, `activity.claimant_turn`). Codex and Pi publish no
-  such record, so there the status stops reading Working while the coordinator's
-  workers still run. The
-  [Thread plan](threads.md#independent-jobs-delegation-and-continuation) owns the
-  broader model of delegated jobs.
+- **Delegated work in the panel's status on Pi:** after the coordinator's turn
+  ends, the status reads Working, "in the background", while Claude Code's session
+  record stays `busy` (#3370) or one of the threads a Codex task spawned still has
+  a turn open (`codex_state.delegated_work`). On this Mac, 7 of 3,035 Codex
+  coordinator turn endings had a worker running a minute or more past them, the
+  longest two hours. Pi 1.0.4 has nothing to read: its README says it "skips
+  features like sub-agents", its extension events end a run at `agent_settled`
+  with nothing for work that outlasts it, and its example `subagent` extension
+  awaits its worker processes inside the tool call, so the run stays open while
+  they run. A package that leaves workers running after the run settles would need
+  Pi, or a convention on `pi.events` that Leaf's extension listens to, to say so.
+  The [Thread plan](threads.md#independent-jobs-delegation-and-continuation) owns
+  the broader model of delegated jobs.
 - **A shorter reply:** the parts of "A small page change's reply" Leaf decides are
   its hooks, about 0.2 s at each tool boundary on Claude Code and Codex; a refused
   reply's extra call where the agent guessed a word the layer lists; and the 8 s of

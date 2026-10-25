@@ -4,8 +4,10 @@ live App Server streams, and the served state that dates it."""
 
 import json
 import os
+import sqlite3
 import time
 from datetime import datetime, timedelta
+from pathlib import Path
 
 from click.testing import CliRunner
 from interact_support import (
@@ -35,6 +37,7 @@ from interact_support import declare as declare_status
 
 from leaf import activity as activity_model
 from leaf import cli as cli_model
+from leaf import codex_state as codex_state_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import harness as harness_model
@@ -371,6 +374,80 @@ def test_a_coordinators_workers_keep_its_page_working(claimed, capsys):
             True,
             "",
         )
+
+
+def test_a_codex_tasks_spawned_threads_keep_its_page_working(
+    page_dir, native_codex_chat
+):
+    """Codex records each thread a task spawns, at any depth, in its state database,
+    and each thread's turns in its own transcript. After the task's turn ends, a
+    spawned thread's open turn keeps the page working, observed in the background,
+    until that turn ends or its transcript goes unwritten for the working grace."""
+    native_codex_chat("s1")
+    record_claim(page_dir, harness="codex", chat=True, ts=cleanup_model.now_iso())
+    serving(page_dir, 1)
+    declare(page_dir, "waiting", "Pick a layout")
+    cleanup_model.close_session_turn("s1")
+    assert activity_reading(page_dir)["kind"] == "away"
+
+    home = Path(os.environ["CODEX_HOME"])
+    database = sqlite3.connect(home / codex_state_model.STATE_DATABASE)
+    database.executescript(
+        "CREATE TABLE threads (id TEXT PRIMARY KEY, rollout_path TEXT NOT NULL,"
+        " updated_at_ms INTEGER);"
+        "CREATE TABLE thread_spawn_edges (parent_thread_id TEXT NOT NULL,"
+        " child_thread_id TEXT NOT NULL PRIMARY KEY, status TEXT NOT NULL);"
+    )
+
+    def lifecycle(transcript, kind):
+        with transcript.open("a") as stream:
+            stream.write(
+                json.dumps(
+                    {
+                        "timestamp": cleanup_model.now_iso(),
+                        "type": "event_msg",
+                        "payload": {"type": kind, "turn_id": "worker-turn"},
+                    }
+                )
+                + "\n"
+            )
+
+    def spawned(thread, parent, *, written=0):
+        """`parent` spawned `thread`, whose turn opened and whose transcript was
+        last written `written` minutes ago."""
+        transcript = home / "sessions" / f"{thread}.jsonl"
+        transcript.parent.mkdir(exist_ok=True)
+        meta = {"type": "session_meta", "payload": {"id": thread}}
+        transcript.write_text(json.dumps(meta) + "\n")
+        lifecycle(transcript, "task_started")
+        updated = time.time() - written * 60
+        with database:
+            database.execute(
+                "INSERT OR REPLACE INTO threads VALUES (?, ?, ?)",
+                (thread, str(transcript), int(updated * 1000)),
+            )
+            database.execute(
+                "INSERT OR REPLACE INTO thread_spawn_edges VALUES (?, ?, 'open')",
+                (parent, thread),
+            )
+        return transcript
+
+    # A worker the task spawned spawned one of its own, which still runs.
+    spawned("worker", "s1")
+    lifecycle(home / "sessions" / "worker.jsonl", "task_complete")
+    nested = spawned("nested", "worker")
+    background = activity_reading(page_dir)
+    assert (background["kind"], background["observed"]) == (
+        "working",
+        activity_model.BACKGROUND_DETAIL,
+    )
+
+    lifecycle(nested, "task_complete")
+    assert activity_reading(page_dir)["kind"] == "away"
+
+    # A turn its transcript stopped renewing, as an app that quit mid-turn leaves.
+    spawned("nested", "worker", written=16)
+    assert activity_reading(page_dir)["kind"] == "away"
 
 
 def test_away_asks_for_a_nudge_only_once_input_is_overdue(claimed, capsys):

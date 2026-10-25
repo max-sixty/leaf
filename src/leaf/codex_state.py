@@ -27,12 +27,19 @@ confirms complete receipt and records the opened pickup, through
 closes the observed turn, including for a page acquired before its first tool hook.
 Stale provider callbacks are refused before planning or printing context, and a newer
 prompt protects its generation and turn.
+
+The threads a task spawns run turns of their own, each in its own native transcript,
+and can run on after the task's turn ends. `delegated_work` reads them as Codex's word
+that the task's delegated work still runs (`Harness.live_turn`).
 """
 
 import json
 import os
+import sqlite3
+import time
+from contextlib import closing
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import lru_cache
 from pathlib import Path
 from threading import RLock
@@ -197,10 +204,68 @@ class TranscriptTurns:
         return self.session is not None
 
 
-@lru_cache(maxsize=8)
+@lru_cache(maxsize=32)
 def transcript_turns(path: Path) -> TranscriptTurns:
-    """Keep native source cursors only for this process's recent transcripts."""
+    """Keep native source cursors only for this process's recent transcripts: the
+    sessions' own, and the threads they delegated to (`delegated_work`)."""
     return TranscriptTurns()
+
+
+# Codex's state database, under CODEX_HOME: its `threads` table holds each thread's
+# transcript path and when that transcript was last written, and `thread_spawn_edges`
+# each spawned thread's parent, at every depth (measured at Codex 0.163.0). The file's
+# name carries the database's version, so a migration that renames it leaves this
+# reading absent rather than wrong. App Server's `thread/list` reads the same edges
+# (`ancestorThreadId`), but Leaf reaches no App Server for most tasks, a desktop chat
+# among them, and a server that doesn't host the threads reports them unloaded.
+STATE_DATABASE = "state_5.sqlite"
+_RECENT_DESCENDANTS = """
+WITH RECURSIVE delegated(id) AS (
+    SELECT child_thread_id FROM thread_spawn_edges WHERE parent_thread_id = ?
+    UNION
+    SELECT edge.child_thread_id
+    FROM thread_spawn_edges AS edge JOIN delegated ON edge.parent_thread_id = delegated.id
+)
+SELECT threads.rollout_path
+FROM delegated JOIN threads ON threads.id = delegated.id
+WHERE threads.updated_at_ms >= ?
+"""
+
+
+def delegated_work(session_id: str, grace: timedelta) -> dict | None:
+    """Codex's word that work this task delegated still runs, as `Harness.live_turn`
+    takes it: `busy`, since the newest delegated turn's start, while a thread the
+    task spawned, at any depth, has a turn open in its transcript, or None.
+
+    A delegated turn is believed only while its transcript was written within
+    `grace`, the rule an open turn of the task's own lives by
+    (`activity.claimant_turn`), since an app that quits mid-turn leaves that turn
+    open in its transcript. A database Codex has not written, or whose shape has
+    changed, is no reading."""
+    home = Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex")
+    database = home / STATE_DATABASE
+    if not database.is_file():
+        return None
+    recent = (time.time() - grace.total_seconds()) * 1000
+    try:
+        with closing(
+            sqlite3.connect(f"{database.as_uri()}?mode=ro", uri=True, timeout=0.25)
+        ) as connection:
+            paths = connection.execute(
+                _RECENT_DESCENDANTS, (session_id, recent)
+            ).fetchall()
+    except sqlite3.Error:
+        return None
+    opened = []
+    for (source,) in paths:
+        path = Path(source)
+        reading = transcript_turns(path)
+        with reading.lock:
+            if reading.read(path) and reading.opened and reading.closed is None:
+                opened.append(datetime.fromisoformat(reading.opened))
+    if not opened:
+        return None
+    return {"state": "busy", "since": max(opened).astimezone().isoformat()}
 
 
 def sync_transcript_turn(

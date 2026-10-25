@@ -124,10 +124,11 @@ has tried; settle that before building it.
   instructions. Keep widget-specific advice in `x-instructions`, cross-widget
   compositions in package instructions, and general selection principles in the
   authoring reference.
-- **Keep delegated work in the panel's status on Codex and Pi.** Claude Code's
-  `busy` session record keeps the status reading Working in the background after
-  the coordinator's turn ends (#3370); Codex and Pi publish no such record, so their
-  status stops reading Working while workers still run
+- **Keep a Pi package's delegated work in the panel's status.** On Claude Code and
+  Codex the status reads Working in the background while workers outlast the
+  coordinator's turn (`Harness.live_turn`). Pi has no delegation of its own and
+  gives an extension no way to say that work outlasts a run, so a package whose
+  workers run on after the run settles reads as away
   ([the note](notes/user-feedback-responsiveness.md#proposed-improvements)).
 - **#24 — Measure time to an initial reviewable page and the value of review.**
   Retrospective replay now proves one usable Leaf candidate and one usable HTML

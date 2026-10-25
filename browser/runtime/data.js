@@ -135,6 +135,23 @@ function inputBinding(element, declaration) {
   return { source, widget, selected, snapshot };
 }
 
+// Whether `element` binds a page data source while the page has read no data yet.
+// Until the first state answer is accepted, a source has no reading because none has
+// been read, not because it holds none, so an element drawing it then would draw "no
+// data" and move its contents when the data came (leaf-element.js, `shouldUpdate`). An
+// input bound to another widget's output, or a declared source the element doesn't
+// name, waits for nothing. The acceptance draws the element with the accepted reading,
+// as any element's first read takes it.
+const dataRead = applicationState.select((root) => root.data.version !== null);
+/** @param {Element} element */
+export function awaitsData(element) {
+  return (
+    Object.values(registry[element.localName]?.["x-data"] ?? {}).some(
+      (declaration) => declaration.source && element.getAttribute(declaration.source),
+    ) && !dataRead.read()
+  );
+}
+
 // A `LeafElement`'s reader of one bound input (leaf-element.js): the delivered source
 // reading, read through a selection of that source, so a render that reads it is drawn
 // again when the source moves. Markup owns the binding, captured at the first read, so

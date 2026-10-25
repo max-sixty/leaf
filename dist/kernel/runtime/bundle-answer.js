@@ -5742,6 +5742,10 @@ function inputBinding(element, declaration) {
 		snapshot
 	};
 }
+const dataRead = applicationState.select((root) => root.data.version !== null);
+function awaitsData(element) {
+	return Object.values(registry[element.localName]?.["x-data"] ?? {}).some((declaration) => declaration.source && element.getAttribute(declaration.source)) && !dataRead.read();
+}
 function dataReader(element, input, accepted) {
 	const declaration = declaredInput(element, input);
 	const { source, widget, selected, snapshot } = inputBinding(element, declaration);
@@ -5953,6 +5957,7 @@ var LeafElement = class extends q(UpdateBoundary) {
 		this.#ticket = null;
 		if (this.#broken) return false;
 		if (!this.#complete()) return false;
+		if (awaitsData(this)) return false;
 		return super.shouldUpdate(changed);
 	}
 	update(changed) {

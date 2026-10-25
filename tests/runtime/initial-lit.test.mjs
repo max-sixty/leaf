@@ -76,13 +76,38 @@ test("classic Lit and the mapped module facade are the same instance", () => {
   );
 });
 
+test("removing repeated chrome rows does not leave accumulating markers", () => {
+  const host = document.createElement("div");
+  document.body.append(host);
+  try {
+    const draw = (items) =>
+      live.render(
+        live.html`${live.repeat(
+          items,
+          (item) => item,
+          (item) => live.html`<span>${item}</span>`,
+        )}`,
+        host,
+      );
+    draw(["first", "second"]);
+    draw([]);
+    const emptySize = host.childNodes.length;
+    for (let index = 0; index < 20; index += 1) {
+      draw(["first", "second"]);
+      draw([]);
+    }
+    assert.equal(host.childNodes.length, emptySize);
+  } finally {
+    host.remove();
+  }
+});
+
 test("the initial dependency graph follows producer imports", async () => {
   const outputs = await initialOutputs();
   const dependencies = JSON.parse(
     outputs.get("browser/vendor/initial-dependencies.json"),
   );
   assert.deepEqual(dependencies, {
-    "/vendor/lf-approval-initial.js": ["/vendor/lit-initial.js"],
     "/vendor/lf-toc-initial.js": ["/vendor/lit-initial.js"],
     "/vendor/lf-activity-initial.js": ["/vendor/lit-initial.js"],
   });

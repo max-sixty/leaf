@@ -7,6 +7,7 @@ const coordinator = (node) =>
 export const initialRender = (host) => coordinator(host).paint(host);
 export const initialOrigin = (node) => coordinator(node).origin(node) ?? node;
 export const initialParent = (node) => coordinator(node).parent(node);
+export const authoredBody = (host) => coordinator(host).authoredBody(host);
 export const initialSource = (node) => coordinator(node).reading(node);
 export const restoreInitialSource = (root) => coordinator(root).restoreSource(root);
 // What the author wrote: the early coordinator restores original widget sources

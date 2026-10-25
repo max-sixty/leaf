@@ -977,26 +977,50 @@ def test_a_repaint_unsettles_the_rendering_until_it_lands(browser, serve):
     expect(page.locator(panel_view("threads"))).to_be_visible()
 
 
-@pytest.mark.parametrize("engine", ["browser", "webkit_browser"])
-def test_send_room_moves_to_every_line_only_while_the_field_scrolls(
-    engine, request, serve
-):
-    """The field holds Send's room after its last words until its words scroll, and on
-    every line while they do, in an engine without CSS scroll-state queries as in
-    Chromium. Keyed on the query alone, WebKit and Firefox held it on every line
-    always, so the change never reached them."""
-    page = open_page(request.getfixturevalue(engine), serve(LONG_PAGE))
-    field = page_comment(page)
-    scrolls = "el => el.scrollHeight > el.clientHeight"
+# The words of the field's draft, row by row as the field draws them.
+WORD_ROWS = """box => {
+  const content = window.__lfRoots.get(box).querySelector('.cm-content');
+  const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT);
+  const rows = [];
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    for (const word of node.data.matchAll(/\\S+/g)) {
+      const range = document.createRange();
+      range.setStart(node, word.index);
+      range.setEnd(node, word.index + word[0].length);
+      const top = range.getClientRects()[0].top;
+      const row = rows.find((r) => Math.abs(r.top - top) < 4);
+      if (row) row.words.push(word[0]);
+      else rows.push({top, words: [word[0]]});
+    }
+  }
+  return rows.map((r) => r.words.join(" "));
+}"""
 
-    write(field, "First line.\nSecond line.")
-    assert not field.evaluate(scrolls)
-    expect(field).to_have_js_property("endRoom", "last-line")
-    write(field, "A long draft scrolls inside its field. " * 120)
-    assert field.evaluate(scrolls)
-    expect(field).to_have_js_property("endRoom", "every-line")
-    # Let its scroll and size observers land before replacing the draft; a second
-    # edit during that layout pass tests the editor's transition, not Send's room.
+
+# The comment whose words moved as it was typed in the panel's field.
+REPORTED_DRAFT = (
+    "great, let's go with the more square form. I don't have a strong view of which"
+    " one is better, and the other parts of this thread can wait until later"
+)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_space_after_the_last_word_moves_no_word(engine, request, serve):
+    """Where a draft's words wrap turns on the words alone, so a space typed after the
+    last word leaves every word on its row, as in a textarea. With Send's room kept
+    after the last word only, a word that fit only without the room rose to the row
+    above when a space followed it; under CodeMirror's `break-spaces`, a word ending
+    at the row's edge fell to the next row with the space."""
+    page = open_page(
+        request.getfixturevalue(engine), serve(LONG_PAGE), init_script=KEEP_ROOTS
+    )
+    field = page_comment(page)
+    words = REPORTED_DRAFT.split()
+    write(field, words[0])
     rendered(page)
-    write(field, "Short again.")
-    expect(field).to_have_js_property("endRoom", "last-line")
+    for end in range(2, len(words) + 1):
+        draft = " ".join(words[:end])
+        write(field, draft)
+        rows = field.evaluate(WORD_ROWS)
+        page.keyboard.press("Space")
+        assert field.evaluate(WORD_ROWS) == rows, draft

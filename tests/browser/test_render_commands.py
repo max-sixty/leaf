@@ -179,8 +179,12 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
     captions = toolbar.locator(".lf-shotcap")
     expect(captions).to_have_text(["Before", "After"])
     label_colors = captions.evaluate_all(
+        "nodes => nodes.map(n => getComputedStyle(n).color)"
+    )
+    label_fills = captions.evaluate_all(
         "nodes => nodes.map(n => getComputedStyle(n).backgroundColor)"
     )
+    assert all(fill != "rgba(0, 0, 0, 0)" for fill in label_fills)
     for caption in captions.all():
         caption.tap() if touch else caption.click()
         expect(shot.locator("wa-comparison")).to_have_attribute("position", "50")
@@ -226,8 +230,10 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
         hidden = 1 if endpoint == "100" else 0
         expect(captions.nth(hidden)).to_have_css("background-color", "rgba(0, 0, 0, 0)")
         expect(captions.nth(1 - hidden)).to_have_css(
-            "background-color", label_colors[1 - hidden]
+            "background-color", label_fills[1 - hidden]
         )
+        expect(captions.nth(hidden)).not_to_have_css("color", label_colors[hidden])
+        expect(captions.nth(1 - hidden)).to_have_css("color", label_colors[1 - hidden])
         expect(shot.get_by_role("button", name="Slider", exact=True)).to_have_attribute(
             "aria-pressed", "true"
         )
@@ -240,32 +246,57 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
             hidden = (index == 0 and position == "0") or (
                 index == 1 and position == "100"
             )
-            expect(captions.nth(index)).to_have_css(
-                "background-color",
-                "rgba(0, 0, 0, 0)" if hidden else label_colors[index],
-            )
+            if hidden:
+                expect(captions.nth(index)).not_to_have_css(
+                    "color", label_colors[index]
+                )
+            else:
+                expect(captions.nth(index)).to_have_css("color", label_colors[index])
     shot.get_by_role("button", name="Pair", exact=True).click()
     for index in (0, 1):
-        expect(captions.nth(index)).to_have_css("background-color", label_colors[index])
-    for view in ("Slider", "Pixels", "Pair"):
-        geometry = shot.evaluate(
-            """async (node, view) => {
-              const boxes = () => [...node.querySelectorAll(
-                '.lf-shot-toolbar, .lf-shotstage, .lf-shotcanvas'
-              )].map(box => box.getBoundingClientRect().toJSON());
-              [...node.querySelectorAll('.lf-shot-views button')]
-                .find(button => button.textContent === view).click();
-              const immediate = boxes();
-              await new Promise(requestAnimationFrame);
-              await new Promise(requestAnimationFrame);
-              return {immediate, painted: boxes()};
-            }""",
-            view,
-        )
-        assert geometry["painted"] == geometry["immediate"], (view, geometry)
-        assert_source_words()
-    for width, layout in ((1000, "side"), (390, "stack")):
+        expect(captions.nth(index)).to_have_css("color", label_colors[index])
+    # Controls and the image area's top stay put; Pair may shrink the content
+    # below them instead of reserving unused space for the other views.
+    # This fixture ends at the widget: a shorter document may clamp scrollY.
+    # Compare document coordinates rather than requiring empty space below it.
+    boxes = """node => {
+      const box = element => {
+        const r = element.getBoundingClientRect();
+        return {x: r.x, y: r.y + scrollY, width: r.width, height: r.height};
+      };
+      return {toolbar: box(node.querySelector('.lf-shot-toolbar')),
+        controls: [...node.querySelectorAll(
+          '.lf-shot-views button, .lf-shot-tools > button'
+        )].map(box), stageTop: box(node.querySelector('.lf-shotstage')).y};
+    }"""
+    for width in (390, 500, 1000):
         page.set_viewport_size({"width": width, "height": 844})
+        shot.get_by_role("button", name="Slider", exact=True).click()
+        toolbar.scroll_into_view_if_needed()
+        allocation = shot.evaluate(boxes)
+        for view in ("Pair", "Pixels", "Slider"):
+            shot.get_by_role("button", name=view, exact=True).click()
+            assert shot.evaluate(boxes) == allocation, view
+            page.evaluate("() => new Promise(requestAnimationFrame)")
+            assert shot.evaluate(boxes) == allocation, view
+            assert_source_words()
+            if view == "Pair":
+                unused_height = shot.evaluate("""node => {
+                  const stage = node.querySelector('.lf-shotstage');
+                  const style = getComputedStyle(stage);
+                  return stage.clientHeight - parseFloat(style.paddingTop)
+                    - parseFloat(style.paddingBottom)
+                    - node.querySelector('.lf-shotcanvas').getBoundingClientRect().height;
+                }""")
+                assert abs(unused_height) <= 1
+    # Pair takes the arrangement that draws the 2:1 captures larger on screen.
+    shot.get_by_role("button", name="Pair", exact=True).click()
+    for width, height, layout in (
+        (1000, 844, "stack"),
+        (1000, 360, "side"),
+        (390, 844, "stack"),
+    ):
+        page.set_viewport_size({"width": width, "height": height})
         expect(shot).to_have_attribute("data-lf-shot-layout", layout)
         assert_source_words()
 
@@ -638,8 +669,8 @@ def test_a_shot_keeps_its_default_slider_stable_while_the_divider_loads(browser,
     reserved = shot.bounding_box()
     views.get_by_role("button", name="Pair", exact=True).click()
     expect(shot).to_have_attribute("data-lf-shot-mode", "compare")
-    paired_width = images.first.bounding_box()["width"]
-    assert paired_width < pending[0]["width"]
+    paired = [image.bounding_box() for image in images.all()]
+    assert paired[1]["y"] >= paired[0]["y"] + paired[0]["height"], paired
     views.get_by_role("button", name="Slider", exact=True).click()
     for route in held:
         route.continue_()
@@ -711,8 +742,12 @@ def test_a_shot_owns_cropped_inspection_and_preserves_choices_when_metadata_chan
                 shot.get_by_role("button", name="100%", exact=True, include_hidden=True)
             ).to_have_attribute("aria-pressed", "true")
             viewport = shot.locator(".lf-shotpixels") if view == "Pixels" else image
-            assert viewport.bounding_box()["width"] == pytest.approx(100, abs=1)
-            assert viewport.bounding_box()["height"] == pytest.approx(50, abs=1)
+            assert viewport.evaluate(
+                "node => [node.clientWidth, node.clientHeight]"
+            ) == [
+                100,
+                50,
+            ]
             source_box = viewport.locator(".lf-shotplane").bounding_box()
             assert source_box["x"] == pytest.approx(
                 viewport.bounding_box()["x"] - 5, abs=1
@@ -935,20 +970,14 @@ def test_a_shot_outlines_and_explains_its_pixel_difference(browser, serve):
     colors = patch.locator(".lf-shotpixels .lf-shotplane > span").evaluate_all(
         "nodes => nodes.map(node => getComputedStyle(node).backgroundColor)"
     )
-    assert len(set(colors)) == 3
+    assert len(colors) == 1
     options = patch.get_by_role("group", name="Image options", exact=True)
     expect(options).not_to_be_visible()
     patch.get_by_role("button", name="Image options").click()
-    expect(options.locator(".lf-shot-key-item")).to_have_text(
-        ["Before only", "After only", "Recolored"]
+    expect(options.locator(".lf-shot-pixel-key")).to_have_text("Changed pixels")
+    expect(options.locator(".lf-shot-key-swatch")).to_have_css(
+        "background-color", colors[0]
     )
-    key_colors = options.locator(".lf-shot-key-swatch").evaluate_all(
-        "nodes => Object.fromEntries(nodes.map(node => [node.dataset.lfShotSide, getComputedStyle(node).backgroundColor]))"
-    )
-    mask_colors = patch.locator(".lf-shotpixels .lf-shotplane > span").evaluate_all(
-        "nodes => Object.fromEntries(nodes.map(node => [node.dataset.lfShotSide, getComputedStyle(node).backgroundColor]))"
-    )
-    assert key_colors == mask_colors
     expect(options.get_by_role("link")).to_have_count(0)
     page.keyboard.press("Escape")
     expect(options).not_to_be_visible()
@@ -1231,7 +1260,7 @@ def test_a_widget_that_fails_in_a_message_reports_when_its_thread_draws(
     url = serve(LONG_PAGE)
     d = serve.page_dir
     posted = subprocess.run(
-        [*LEAF_COMMAND, "thread", "open", str(d), "--text", "See this."]
+        [*LEAF_COMMAND, "thread", "create", str(d), "--text", "See this."]
         + ["--markup", '<lf-chart id="t-bad"><pre>\n{ marks: [ }\n</pre></lf-chart>'],
         capture_output=True,
         text=True,

@@ -775,7 +775,7 @@ finally:
         assert codex_adapter.adapter_is_live("preview-thread")
         if initially_idle:
             assert declared(page_dir)["state"] == "idle"
-            session.cmd_waiting(page_dir, "Review this page")
+            session.cmd_waiting(page_dir)
         endpoint = urlsplit(url)._replace(path="/api/event").geturl()
         status, body = fetch(
             endpoint,

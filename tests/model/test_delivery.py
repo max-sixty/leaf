@@ -66,7 +66,7 @@ def test_each_delivered_event_says_only_what_its_own_case_asks(page_dir, capsys)
     """Shared clauses travel once, and each event names only its applicable rules:
     its kind's, then the answer it owes, and no answer's where it owes none."""
     serving(page_dir, 1)
-    session_model.cmd_waiting(page_dir, "")
+    session_model.cmd_waiting(page_dir)
     page_pick = {
         "kind": "action",
         "author": "user",
@@ -125,8 +125,8 @@ def test_each_delivered_event_says_only_what_its_own_case_asks(page_dir, capsys)
     replying = [c["text"] for c in declared["answering"]["reply"] if "when" not in c]
     # The envelope says once how this explicit wait is acknowledged; individual
     # events carry only their own handling and reply clauses.
-    assert f"leaf wait --ack {envelope['id']}" in envelope["acknowledge"]
-    assert not any("--ack" in text for text in handling.values())
+    assert f"leaf delivery ack {envelope['id']} && leaf wait" in envelope["acknowledge"]
+    assert not any("delivery ack" in text for text in handling.values())
     assert plain[-len(replying) :] == replying
     # A drawn comment is told everything a plain one is, and how to read its drawing.
     assert reading_a_drawing in drawn
@@ -166,7 +166,7 @@ def test_active_handling_survives_a_mutable_layer_edit(page_dir, capsys):
     registry_path.write_text(json.dumps(registry))
 
     serving(page_dir, 1)
-    session_model.cmd_waiting(page_dir, "")
+    session_model.cmd_waiting(page_dir)
     append_carried_log_record(page_dir, comment)
 
     assert service_model.claim_page(page_dir)
@@ -300,7 +300,7 @@ def test_delivery_distinguishes_thread_obligations_from_closing_answered_work(pa
     assert not write("unresolve", parent=question["id"])["attention"]
     assert owed_answers(page_dir) == []
     with service_model.PageTransaction(page_dir) as page:
-        page.set_status("idle", "")
+        page.set_status("idle")
     assert withdrawal in service_model.unacknowledged(
         events_model.read_events(page_dir), newest["seq"]
     )
@@ -343,7 +343,8 @@ def test_delivery_distinguishes_composing_an_obligation_from_changing_input_in_h
     assert (
         CliRunner()
         .invoke(
-            cli_model.cli, ["task", "open", str(page_dir), "choice", "Build the choice"]
+            cli_model.cli,
+            ["task", "create", str(page_dir), "choice", "--title", "Build the choice"],
         )
         .exit_code
         == 0
@@ -367,7 +368,8 @@ def test_delivery_distinguishes_composing_an_obligation_from_changing_input_in_h
     assert (
         CliRunner()
         .invoke(
-            cli_model.cli, ["task", "open", str(page_dir), "draft", "Edit the draft"]
+            cli_model.cli,
+            ["task", "create", str(page_dir), "draft", "--title", "Edit the draft"],
         )
         .exit_code
         == 0
@@ -380,10 +382,11 @@ def test_delivery_distinguishes_composing_an_obligation_from_changing_input_in_h
     assert undone in selected and changed in selected
 
 
-def test_approval_actions_withdrawals_reports_and_errors_remain_deliverable(page_dir):
+def test_widget_actions_withdrawals_reports_and_errors_remain_deliverable(page_dir):
     source = PAGE.replace(
         "</section>",
-        '<lf-approval id="permit">Publish this report?</lf-approval></section>',
+        '<lf-options id="permit" choose><lf-option id="publish">Publish</lf-option>'
+        '<lf-option id="hold">Keep it private</lf-option></lf-options></section>',
     )
     source = source.replace(
         "</section>",
@@ -398,8 +401,8 @@ def test_approval_actions_withdrawals_reports_and_errors_remain_deliverable(page
             "author": "user",
             "revision": 1,
             "widget": "permit",
-            "action": "approve",
-            "detail": {},
+            "action": "choose",
+            "detail": {"value": ["publish"]},
         },
     )
     undo = append_command(
@@ -1025,7 +1028,7 @@ def test_a_settling_reaction_wakes_only_when_it_answers_the_agent(
 ):
     serving(page_dir, 1)
     publish(page_dir)
-    session_model.cmd_waiting(page_dir, "")
+    session_model.cmd_waiting(page_dir)
     question = thread_model.cmd_comment(
         page_dir, "", "", "", "One question:", '<lf-ask id="forty">Forty?</lf-ask>'
     )

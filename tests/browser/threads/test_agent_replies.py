@@ -25,6 +25,7 @@ from render_harness import (
     open_page,
     panel_settled,
     resized,
+    round_trip,
     sending,
     stamp_page,
     told,
@@ -79,7 +80,7 @@ def test_a_plain_agent_question_can_be_opened_and_answered(browser, serve, secti
         cli_model.cli,
         [
             "thread",
-            "open",
+            "create",
             str(serve.page_dir),
             "--title",
             "Meeting details",
@@ -140,7 +141,7 @@ def test_a_message_obligation_opens_its_question_and_accepts_an_answer(
         cli_model.cli,
         [
             "thread",
-            "open",
+            "create",
             str(serve.page_dir),
             "--text",
             "The rehearsal is complete.",
@@ -207,7 +208,7 @@ def test_a_thread_task_stays_on_me_until_done(browser, serve):
     """Discussion of outside work is not completion; Done and Undo are explicit."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Can you check the mobile build?")
-    todo = todos_model.cmd_open(
+    todo = todos_model.cmd_create(
         serve.page_dir, root, "Try the build on your phone", "user"
     )
     assert todo["subject"] == {"kind": "thread", "id": root}
@@ -232,6 +233,36 @@ def test_a_thread_task_stays_on_me_until_done(browser, serve):
         row.get_by_role("button", name="Undo", exact=True).click()
     expect(mark).to_have_attribute("aria-label", "On me: 1")
     expect(row.get_by_role("button", name="Done", exact=True)).to_be_visible()
+
+
+def test_a_thread_heads_with_the_task_it_holds_on_me(browser, serve):
+    """A to-do on the user that sits on a thread heads the thread with its title and a
+    Done, so a reader discussing it ends it there, and the line goes as they press."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Can you check the mobile build?")
+    todo = todos_model.cmd_open(
+        serve.page_dir, root, "Try the build on your phone", "user"
+    )
+    page = open_page(browser, url)
+    mark = page.locator(".lf-fp-on-user")
+    mark.click()
+    page.locator(f'.lf-fp-on-item[data-obligation="{todo["id"]}"]').get_by_role(
+        "button", name="Discuss", exact=True
+    ).click()
+    line = page.locator(".lf-thread-todo:visible")
+    expect(line).to_have_count(1)
+    expect(line).to_contain_text("To-do · Try the build on your phone")
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    line.get_by_role("button", name="Done", exact=True).click()
+    holding(page, held, 1, "the thread's Done")
+    expect(line).to_have_count(0)
+    expect(mark).to_have_attribute("aria-label", "On me")
+    page.unroute("**/api/event")
+    for route in held:
+        route.continue_()
+    round_trip(page)
+    assert events_model.read_events(serve.page_dir)[-1]["todo"] == todo["id"]
 
 
 def test_a_durable_answer_retires_the_placeholder_its_attempt_reserved(

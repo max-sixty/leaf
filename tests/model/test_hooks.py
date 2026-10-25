@@ -314,7 +314,7 @@ def test_a_stop_leaves_input_arriving_at_the_end_to_a_turn_of_its_own(
     place of the answer the turn had written. The turn ends on its answer, and the
     watch, which wakes once the turn closes, gives the input a turn whose prompt
     hook hands it over."""
-    session_model.cmd_waiting(claimed, "")
+    session_model.cmd_waiting(claimed)
     turn = service_model.page_claim(claimed)["turn"]
     comment = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "and this?"}
@@ -345,7 +345,7 @@ def test_a_stop_that_hands_over_input_keeps_the_turn_open(claimed, printing, cap
     and the turn it hands the input to is the one still running, not closed, and
     not closed and reopened as another. The repeated Stop that follows with
     nothing new is the turn really ending."""
-    session_model.cmd_waiting(claimed, "")
+    session_model.cmd_waiting(claimed)
     session = service_model.page_claim(claimed)
     lease = leases_model.take_lease(
         leases_model.waiter_lease_path(claimed, session["id"])
@@ -641,7 +641,7 @@ def test_pi_takes_input_of_any_size_inline(page_dir, monkeypatch, capsys):
 
 def test_hook_drops_a_page_transferred_after_ownership_discovery(claimed, monkeypatch):
     """Ownership transfer before the planner's page lock belongs to the new owner."""
-    session_model.cmd_waiting(claimed, "")
+    session_model.cmd_waiting(claimed)
     discover = hook_transport_model.owned_pages
 
     def transfer(session_id):
@@ -802,7 +802,7 @@ def test_a_turn_ends_on_its_answer_and_a_turn_of_its_own_names_what_it_owes(
     owed answer. That prompt is the reminder on record, so a turn that ends owing
     the same answer again wakes nothing more."""
     serving(claimed, 1)
-    session_model.cmd_waiting(claimed, "")
+    session_model.cmd_waiting(claimed)
     asked = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "which ships first?"}
     )
@@ -877,7 +877,7 @@ def test_agent_sees_the_complete_interaction_recovery(claimed, capsys, snapshot)
     source = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
     (page / "index.html").write_text(source)
     publish(page)
-    session_model.cmd_waiting(page, "")
+    session_model.cmd_waiting(page)
     observations = {}
 
     def hook(name):

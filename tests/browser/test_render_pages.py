@@ -256,7 +256,7 @@ def test_a_written_anchor_keeps_its_copy_when_the_page_grows_another(browser, se
         cli_model.cli,
         [
             "thread",
-            "open",
+            "create",
             str(d),
             "--quote",
             "The version stamp never lands",
@@ -286,7 +286,7 @@ def stand_on_thread(page, thread_id):
     stands selected."""
     open_panel_thread(page, thread_id)
     page.locator(".lf-fp-aux").get_by_role(
-        "button", name="On the page", exact=True
+        "button", name="Show on page", exact=True
     ).click()
     panel_settled(page, open=False)
 
@@ -306,7 +306,7 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
             cli_model.cli,
             [
                 "thread",
-                "open",
+                "create",
                 str(d),
                 "--quote",
                 "Retries are capped at three",
@@ -962,8 +962,9 @@ def test_a_diagram_takes_the_room_and_scrolls_only_past_it(browser, serve):
     about it: held to that number, this 1147px flowchart was cut off at 1080 on a window
     with 470px to spare. The board on the
     same page is the half that says the declaration is doing this rather than the tag —
-    it lays its columns out into whatever it is given, so it takes that shared number and
-    stops there on the same window that hands the diagram half as much again.
+    it declares `wide` with its `data-width` and lays its columns out into whatever it is
+    given, so it takes that shared number and stops there on the same window that hands
+    the diagram all of the room.
 
     Past the room there is nothing left to give, and the answer is the theme's for any
     wide content: the widget's own box scrolls sideways and the document does not."""
@@ -1283,60 +1284,63 @@ graph LR
 def test_a_widget_that_declares_width_takes_the_room_and_the_column_stays_put(
     browser, serve
 ):
-    """A board's columns are as wide as what they hold and prose is set to a measure, so
-    a page carrying both used to be a cramped board or a page widened past its own
-    measure for one exhibit. x-space declares the capacity a widget needs, and the theme spends
-    the room the layout measured — so the exhibit grows, the prose does not move, and the
-    axis they share is what keeps a page that mixes widths reading as one design.
+    """A board's columns are as wide as what they hold, a diff's lines are as long as its
+    files', and prose is set to a measure, so a page carrying all three used to be a
+    cramped board or a page widened past its own measure for one exhibit. x-space
+    declares the capacity a widget needs, and the theme spends the room the layout
+    measured, so each exhibit grows and the prose does not move. The board, a surface,
+    takes all the room; the diff, slightly wider than the column, starts at the prose's
+    edge and stops at the shared cap.
 
-    The diff is the half that says the declaration is doing this. It is a widget too, and
-    its lines are written to a width source already fits, so it stays in the column: a
-    rule that reached every widget, or one naming lf-board, would pass every other
-    assertion here and fail this one."""
+    The code block is the half that says the declaration is doing this. It is a widget
+    too, and declares nothing, so it stays in the column: a rule that reached every
+    widget, or one naming lf-board, would pass every other assertion here and fail this
+    one."""
     page = open_page(browser, serve(WIDE_AND_NARROW_PAGE))
 
     wide = page.evaluate(ROOM_GEOMETRY)
-    assert wide["board"]["width"] > wide["column"]["width"], (
-        "a widget declaring width must take more than the column: board "
-        f"{wide['board']['width']:.0f}px, column {wide['column']['width']:.0f}px"
+    board, patch, column = wide["board"], wide["widePatch"], wide["column"]
+    # The room is the body's box; a breakout stops at the shell's 24px gutter.
+    for edge, inset in (("left", 24), ("right", -24)):
+        assert board[edge] == pytest.approx(wide["room"][edge] + inset, abs=1), (
+            f"an available board fills the room: its {edge} edge is at "
+            f"{board[edge]:.0f}px, the room's at {wide['room'][edge]:.0f}px"
+        )
+    assert patch["left"] == pytest.approx(column["left"], abs=1), (
+        "a wide exhibit starts where the prose starts, or it reads as one that slipped: "
+        f"diff at {patch['left']:.0f}, column at {column['left']:.0f}"
     )
-    # Room to spare at this viewport, so a board stopping short of it is the shared cap
-    # binding rather than the window — one width for the vocabulary, not each widget's own.
-    assert wide["board"]["width"] < wide["room"]["width"], (
-        "the breakout must stop at one stated width, not fill whatever is there"
+    # Room to spare at this viewport, so a diff stopping short of it is the shared cap
+    # binding rather than the window: one width for the vocabulary, not each widget's own.
+    assert column["width"] < patch["width"] < wide["room"]["width"], (
+        "the wide breakout must stop at one stated width, not fill whatever is there: "
+        f"diff {patch['width']:.0f}px, room {wide['room']['width']:.0f}px"
     )
-    assert wide["board"]["left"] >= wide["room"]["left"] - 1, (
-        "past the page on the left"
+    assert abs(wide["diff"]["width"] - column["width"]) <= 1, (
+        "a widget that declares nothing keeps the column: code block "
+        f"{wide['diff']['width']:.0f}px against {column['width']:.0f}px"
     )
-    assert wide["board"]["right"] <= wide["room"]["right"] + 1, "past the page, right"
-    assert abs(wide["board"]["centre"] - wide["column"]["centre"]) <= 1, (
-        "an exhibit that grows off the column's axis reads as one that slipped: "
-        f"board centre {wide['board']['centre']:.0f}, column {wide['column']['centre']:.0f}"
-    )
-    assert abs(wide["diff"]["width"] - wide["column"]["width"]) <= 1, (
-        "a widget that declares nothing keeps the column: diff "
-        f"{wide['diff']['width']:.0f}px against {wide['column']['width']:.0f}px"
-    )
-    assert abs(wide["prose"]["width"] - wide["column"]["width"]) <= 1, (
+    assert abs(wide["prose"]["width"] - column["width"]) <= 1, (
         "prose keeps its measure whatever the exhibits beside it do"
     )
     assert root_overflow(page) == 0, "the page must not scroll sideways"
 
     # Under the column's own width there is no room to take, and the rule has to come out
-    # as the layout the page already had — the same edge, not an inset approximation of it.
+    # as the layout the page already had: the same edge, not an inset approximation of it.
     resized(page, 700, 900)
     narrow = page.evaluate(ROOM_GEOMETRY)
     assert narrow["column"]["width"] < 720, (
         "the narrow half proves nothing unless the window is under the column"
     )
-    assert abs(narrow["board"]["left"] - narrow["column"]["left"]) <= 1, (
-        "a board on a narrow window must start where the prose starts: board at "
-        f"{narrow['board']['left']:.0f}, column at {narrow['column']['left']:.0f}"
-    )
-    assert abs(narrow["board"]["width"] - narrow["column"]["width"]) <= 1, (
-        "and be the column exactly: board "
-        f"{narrow['board']['width']:.0f}px, column {narrow['column']['width']:.0f}px"
-    )
+    for name in ("board", "widePatch"):
+        assert abs(narrow[name]["left"] - narrow["column"]["left"]) <= 1, (
+            f"the {name} on a narrow window must start where the prose starts: at "
+            f"{narrow[name]['left']:.0f}, column at {narrow['column']['left']:.0f}"
+        )
+        assert abs(narrow[name]["width"] - narrow["column"]["width"]) <= 1, (
+            f"and be the column exactly: {name} "
+            f"{narrow[name]['width']:.0f}px, column {narrow['column']['width']:.0f}px"
+        )
     assert root_overflow(page) == 0, "nor scroll sideways on a narrow window"
 
 
@@ -1375,7 +1379,7 @@ def test_authored_blocks_choose_wide_or_available_space(browser, serve):
     assert at["wide"]["width"] > at["prose"]["width"]
     assert at["table"]["width"] == pytest.approx(at["wide"]["width"], abs=1)
     assert at["options"]["space"] is None
-    assert at["wide"]["left"] < at["prose"]["left"]
+    assert at["wide"]["left"] == pytest.approx(at["prose"]["left"], abs=1)
     for column in ("nested-prose", "options"):
         assert at[column]["width"] == pytest.approx(at["prose"]["width"], abs=1)
         assert at[column]["left"] == pytest.approx(at["wide"]["left"], abs=1)
@@ -1442,7 +1446,7 @@ def test_a_boards_minimum_keeps_the_room_the_column_can_grant(browser, serve):
                 assert at["board-4"]["scrolls"] > 0, at
                 assert at["board-5"]["scrolls"] > 0, at
             elif width == 1440:
-                assert at["wide"]["width"] == pytest.approx(1080, abs=1), at
+                assert at["wide"]["width"] == pytest.approx(840, abs=1), at
                 assert at["room"]["width"] > at["wide"]["width"], at
 
 
@@ -1494,7 +1498,7 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
         assert at[boxed] == {"width": 720, "left": edge}, (boxed, at)
     # A granted callout's padding and border fall inside the wide measure.
     for wide in ("granted", "granted-c", "holds"):
-        assert at[wide] == {"width": 1080, "left": edge}, (wide, at)
+        assert at[wide] == {"width": 840, "left": edge}, (wide, at)
     # The widened obligation frames its table, which stands wider than the measure.
     assert at["holds-t"]["width"] > 720, at
 
@@ -1539,17 +1543,15 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
             " 'wrapped']",
         )
     )
-    assert at["holds-t"]["width"] == 1080, at
-    assert at["holds-t"]["left"] < at["prose"]["left"], at
+    assert at["holds-t"]["width"] == 840, at
+    assert at["holds-t"]["left"] == at["prose"]["left"], at
     assert at["holds"] == at["holds-t"], at
     heading = column.locator("#holds h3").bounding_box()
     assert round(heading["x"]) == at["prose"]["left"], (heading, at)
     assert at["ask"] == at["prose"], at
     assert at["listed"] == at["listed-t"], at
     assert at["listed"]["width"] < at["prose"]["width"], at
-    assert at["both"] == at["both-t"] == {"width": 1080, "left": at["holds"]["left"]}, (
-        at
-    )
+    assert at["both"] == at["both-t"] == {"width": 840, "left": at["holds"]["left"]}, at
     assert at["tracked"]["width"] == 350, at
     # An obligation inside a breakout takes its holder's room, as any block
     # there does, however much room its own block asks for.
@@ -1630,7 +1632,8 @@ def test_a_table_granted_room_stands_on_the_prose_axis(
     request, serve, margin_content, placement, engine, direction
 ):
     """A table given `data-width` keeps its columns' natural width and stands where any
-    breakout of that width stands: centred on the prose axis while both margins have
+    breakout of that width stands. A `wide` one starts at the prose's start edge and
+    grows toward the end. An `available` one is centred on the prose axis while both margins have
     room for it, the freer side taking what the narrower lacks, as where a contents
     map's spine or a column moved over for a sidenote leaves one side narrower. One that
     fits the column keeps its natural width and starts where the prose starts. Where a
@@ -1656,6 +1659,7 @@ def test_a_table_granted_room_stands_on_the_prose_axis(
         '<p id="prose">A paragraph at the measure, long enough to fill the column it '
         "stands in from one edge to the other.</p>"
         f'<table id="wide" data-width="available">{grid}</table>'
+        f'<table id="edge" data-width="wide">{grid}</table>'
         '<div id="room" data-width="available">The room.</div>'
         '<table id="narrow" data-width="available"><tr><th>Plan</th><td>60</td></tr>'
         "</table>"
@@ -1686,6 +1690,7 @@ def test_a_table_granted_room_stands_on_the_prose_axis(
         prose: edges(document.getElementById('prose')),
         room: edges(document.getElementById('room')),
         wide: grid('wide'),
+        edge: grid('edge'),
         narrow: grid('narrow'),
         turned: grid('turned'),
         celled: edges(document.getElementById('celled')),
@@ -1710,6 +1715,12 @@ def test_a_table_granted_room_stands_on_the_prose_axis(
         assert at["wide"]["left"] == pytest.approx(prose["left"], abs=1), at
     elif placement == "even":
         assert at["wide"]["centre"] == pytest.approx(prose["centre"], abs=1), at
+    # A `wide` table grows only from the prose's start edge, toward the end side.
+    assert at["edge"][start] == pytest.approx(prose[start], abs=1), at
+    free_end = free_right if direction == "ltr" else free_left
+    if width(prose) + free_end >= 840:
+        expected = min(840, width(at["wide"]))
+        assert width(at["edge"]) == pytest.approx(expected, abs=1), at
     for edge in ("left", "right"):
         assert at["turned"][edge] == pytest.approx(at["wide"][edge], abs=1), at
         for kept in ("celled", "itemed"):
@@ -1974,7 +1985,7 @@ def test_a_breakout_grows_only_from_a_holder_that_spans_the_column(
     keeps to any other: its holder's axis is not the prose's, and the room beside it is
     not the page's to give. A list whose items stand at the column's edges, as one the
     page resets to no indent does, lets a wide or available block grow as one in the
-    page's flow does, on the prose axis, beside a contents map and with a sidebar in the
+    page's flow does, beside a contents map and with a sidebar in the
     margin as on a plain column, and on a phone. Three nested list items, a step list and
     a page's own indented block stand in from the column, so each block in them, a table
     granted room included, takes its holder's width, and a narrow table starts where the
@@ -2083,10 +2094,7 @@ def test_a_breakout_grows_only_from_a_holder_that_spans_the_column(
                 assert control["available"]["right"] - control["available"]["left"] > (
                     prose["right"] - prose["left"] + 100
                 ), at
-            if placement in ("even", "map"):
-                assert control["wide"]["centre"] == pytest.approx(
-                    prose["centre"], abs=1
-                ), at
+            assert control["wide"][start] == pytest.approx(prose[start], abs=1), at
             arranged = at["arranged"]
             for block in ("gridded-wide", "gridded-available"):
                 for edge in ("left", "right"):
@@ -2666,7 +2674,7 @@ def test_a_wide_widget_in_a_reply_takes_the_panels_room(browser, serve):
     """The room a wide widget spends is the document's, and a thread's message is the one
     place a widget of the page's vocabulary renders outside the document. The skill offers
     a diagram in a reply as the way to explain a fix in the margin, and a diagram is
-    declared wide — so marked as one it would lay itself out to a 1080px page inside a
+    declared wide — so marked as one it would lay itself out to a wide page inside a
     420px panel, and the explanation would be the half of it the panel could show.
 
     The mark that would do that is the one deliberately left out of the message render

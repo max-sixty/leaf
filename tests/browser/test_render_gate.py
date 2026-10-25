@@ -333,9 +333,13 @@ def test_the_render_gate_fails_a_page_that_scrolls_sideways_only_between_viewpor
         ("<div id=dusk>", (1280, 1280)),
         ("<div id=dusk>", (540, 540)),
     }, clipped
+    # Each card that loses its controls loses the prose above them too, at the same
+    # widths: the content reading names the card, with what would show the rest.
+    cut = {(f.at, f.widths) for f in reading.failures if f.code == "clipped-content"}
+    assert cut == {(f.values["by"], f.widths) for f in clipped}, reading.failures
     assert {(f.code, f.at, f.widths) for f in reading.failures} - {
         (f.code, f.at, f.widths) for f in clipped
-    } == {
+    } - {("clipped-content", *box) for box in cut} == {
         ("page-scrolls", "", (600, 880)),
         ("scrollbar-clearance", "<div id=strip>", (600, 880)),
     }, reading.failures
@@ -3257,7 +3261,8 @@ AIM_BOXES = browser_function("aims.js", "flooredAims")
 # `cursor` first, the hand being the plainest promise a page makes; the rest is the dress
 # a control wears — a chip ground, a pill's corner, a border, a link's underline, a
 # summary's marker. Colour is not read: a chip that is red is saying something, and what a
-# control says is the other half of this bargain rather than this half.
+# control says is the other half of this bargain rather than this half. Every box
+# inherits a list style, but only a list item, as a summary is, draws its marker.
 PRINTED_OFFERS = """() => [...document.querySelectorAll('[data-lf-offer]')]
   .filter(n => n.checkVisibility() && n.getBoundingClientRect().width > 0)
   .map(n => {
@@ -3271,7 +3276,7 @@ PRINTED_OFFERS = """() => [...document.querySelectorAll('[data-lf-offer]')]
         parseFloat(s.borderTopLeftRadius) > 0 && 'a rounded corner',
         parseFloat(s.borderTopWidth) > 0 && 'a border',
         s.textDecorationLine.includes('underline') && 'an underline',
-        s.listStyleType !== 'none' && 'a marker',
+        s.display === 'list-item' && s.listStyleType !== 'none' && 'a marker',
       ].filter(Boolean),
     };
   })"""
@@ -4226,8 +4231,8 @@ def test_misplaced_boxes_checks_page_overflow_but_not_an_authored_scroller(
 
 def test_a_breakout_takes_the_rooms_width_unless_the_page_sizes_it(browser, serve):
     """A breakout's margins move it out past its holder and its width is the room's,
-    so an iframe granted `wide` covers the prose evenly where it had collapsed to its
-    borders at the room's left edge. A page rule sizing it keeps the margins and
+    so an iframe granted `wide` covers the prose and the room past its end where it had
+    collapsed to its borders at the room's left edge. A page rule sizing it keeps the margins and
     replaces the width: the frame stood out in the left margin and stopped short of
     the prose's right edge, and the gate read it as clean. A width past the prose's
     edge but short of the room is off the axis too, and a room inside a scroller is
@@ -4243,7 +4248,7 @@ def test_a_breakout_takes_the_rooms_width_unless_the_page_sizes_it(browser, serv
 <p id="prose">Prose sets the column the frames break out of.</p>
 <iframe id="granted" title="Granted" data-width="wide" style="display: block"></iframe>
 <iframe id="sized" class="sized" title="Sized" data-width="wide" style="display: block"></iframe>
-<iframe id="wider" title="Wider" data-width="wide" style="display: block; width: 130%"></iframe>
+<iframe id="wider" title="Wider" data-width="wide" style="display: block; width: 110%"></iframe>
 <a href="#prose"><iframe id="linked" title="Linked" data-width="wide" style="display: block"></iframe></a>
 <style>#gutter::-webkit-scrollbar { width: 15px; height: 15px; }</style>
 <div id="gutter" style="overflow: scroll; scrollbar-gutter: stable">
@@ -4266,9 +4271,9 @@ def test_a_breakout_takes_the_rooms_width_unless_the_page_sizes_it(browser, serv
     misplaced = render_checks_model.evaluate_probe(page, "misplacedBoxes")
     page.close()
 
-    grown = at["prose"]["left"] - at["granted"]["left"]
+    grown = at["granted"]["right"] - at["prose"]["right"]
     assert grown > 100, at
-    assert at["granted"]["right"] - at["prose"]["right"] == pytest.approx(grown, abs=1)
+    assert at["granted"]["left"] == pytest.approx(at["prose"]["left"], abs=1), at
     off = [m["at"] for m in misplaced if m["code"] == "off-axis"]
     assert off == ["<iframe id=sized>", "<iframe id=wider>"], misplaced
 
@@ -4305,7 +4310,7 @@ def test_an_obligation_spanning_its_block_is_a_breakout(browser, serve):
     grown = page.evaluate("""() => {
       const ask = document.getElementById('ask').getBoundingClientRect();
       const prose = document.querySelector('main > p').getBoundingClientRect();
-      return prose.left - ask.left;
+      return ask.right - prose.right;
     }""")
     misplaced = render_checks_model.evaluate_probe(page, "misplacedBoxes")
     page.close()

@@ -56,6 +56,7 @@ from render_harness import (
     pane_scroll_behavior,
     panel_control,
     panel_settled,
+    primed,
     refuse,
     reported_browser_errors,
     resized,
@@ -655,12 +656,11 @@ def test_the_undo_rows_age_follows_the_clock_while_the_page_stays_open(browser, 
             "ts": datetime.now(UTC).isoformat(),
         },
     )
-    page = open_page(browser, url)
+    page = open_page(primed(browser, lambda page: page.clock.install()), url)
     row = panel_control(page, "command:history.undo")
     expect(row.locator(".lf-fp-value")).to_have_text("just now")
-    # The page's clock ticks on the interval it set before the clock was installed, and
-    # a paused clock fires no later timer, so only that tick can move the age.
-    page.clock.install()
+    # Install before navigation so the page's interval belongs to the controlled clock.
+    # A paused clock fires no later timer, so only that tick can move the age.
     page.clock.pause_at(datetime.now(UTC) + timedelta(minutes=5))
     expect(row.locator(".lf-fp-value")).to_have_text("5m ago")
     expect(row).to_have_attribute("title", re.compile(r" · 5m ago$"))

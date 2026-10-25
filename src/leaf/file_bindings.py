@@ -10,7 +10,8 @@ Symlinks introduced after binding are refused rather than followed to another fi
 
 A binding the page lacks, as in a copied page or the unbound worked example, is a
 designed state rather than a fault: a read answers it as no file, so the browser's
-console stays clean, and only a save against it refuses.
+console stays clean, and only a save against it refuses. Unbinding withdraws one
+grant under the same page lock as reads and saves, leaving the file itself intact.
 
 The page's reading stamps each bound file (`bound_paths`), so the news token moves
 and the page's watchers wake when a bound file does, and a state answer carries each
@@ -86,9 +87,15 @@ def _bindings(page_dir: Path) -> dict:
     return record["bindings"] if record else {}
 
 
-def _target(page_dir: Path, binding: str) -> Path | None:
+def _validate_binding(binding: str) -> None:
     if not isinstance(binding, str) or not BINDING_ID.fullmatch(binding):
-        raise FileBindingError("Invalid file binding id.")
+        raise FileBindingError(
+            "Binding id must start with a lowercase letter and use lowercase letters, digits or -."
+        )
+
+
+def _target(page_dir: Path, binding: str) -> Path | None:
+    _validate_binding(binding)
     bindings = _bindings(page_dir)
     if binding not in bindings:
         return None
@@ -150,15 +157,13 @@ def _snapshot(path: Path, raw: bytes) -> dict:
 def bind_file(page_dir: Path, binding: str, file: Path) -> dict:
     """Grant this page read/write access to one existing text file, recorded by its
     canonical path (`locations.canonical_path`), the one its watchers hear about and
-    every page's save of it locks, whichever spelling named it.
+    every page's save of it locks, whichever spelling named it. Returns the grant:
+    the binding, the path and the file's size in bytes as bound.
 
     The author named the path, so a path the system cannot reach or read is refused
     in the system's own words, path included. The page's own storage failing is a
     fault."""
-    if not BINDING_ID.fullmatch(binding):
-        raise FileBindingError(
-            "Binding id must start with a lowercase letter and use lowercase letters, digits or -."
-        )
+    _validate_binding(binding)
     try:
         path = canonical_path(file.expanduser(), strict=True)
     except OSError as error:
@@ -167,13 +172,25 @@ def bind_file(page_dir: Path, binding: str, file: Path) -> dict:
         raise FileBindingError("A page cannot edit its own file access grants.")
     with page_locked(page_dir):
         try:
-            snapshot = _snapshot(path, _read(path))
+            raw = _read(path)
         except OSError as error:
             raise FileBindingError(str(error)) from error
+        # Refuse a file the editor could not hold before granting it.
+        _snapshot(path, raw)
         bindings = _bindings(page_dir)
         bindings[binding] = str(path)
         BINDINGS.write(page_dir / FILE_BINDINGS_FILE, {"bindings": bindings})
-    return snapshot
+    return {"binding": binding, "path": str(path), "bytes": len(raw)}
+
+
+def unbind_file(page_dir: Path, binding: str) -> dict:
+    """Withdraw one grant, including for browser buffers read before this call."""
+    _validate_binding(binding)
+    with page_locked(page_dir):
+        bindings = _bindings(page_dir)
+        bindings.pop(binding, None)
+        BINDINGS.write(page_dir / FILE_BINDINGS_FILE, {"bindings": bindings})
+    return {"binding": binding, "bound": False}
 
 
 def read_file(page_dir: Path, binding: str) -> dict | None:

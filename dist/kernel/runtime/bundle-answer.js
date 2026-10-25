@@ -6041,7 +6041,7 @@ var LeafElement = class extends q(UpdateBoundary) {
 	shouldUpdate(changed) {
 		if (!this.#connected || !this.isConnected) return false;
 		if (this.#held) return false;
-		this.#drawing = this.#ticket;
+		this.#drawing = this.#ticket ?? this.#claim();
 		this.#ticket = null;
 		if (!this.#draws()) return false;
 		this.#deliverInputs();

@@ -8,7 +8,7 @@ import {
   changedPixels,
   describeDifference,
   differingRegions,
-} from "/runtime/image-difference.js";
+} from "../../packages/default/widgets/image-difference.js";
 
 // A blank opaque image, and a copy with the given rectangles repainted.
 const blank = (width, height) => ({

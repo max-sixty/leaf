@@ -663,6 +663,7 @@ export function createTargetPicker({
     ],
     title: "search matches",
     repeat: true,
+    travels: true,
     when: () => Boolean(repeatedSearch),
     run: (binding) => repeatSearch(binding === "n" ? 1 : -1),
   };
@@ -694,6 +695,7 @@ export function createTargetPicker({
     keys: HINT_KEYS,
     label: "a–z",
     title: "type hint",
+    travels: true,
     when: () => hints.candidates().length > 0,
     run: hints.type,
   };
@@ -728,6 +730,7 @@ export function createTargetPicker({
         id: "page.search.match.select",
         keys: ["Enter"],
         title: "select match",
+        travels: true,
         // A finger presses the marked match itself (`pressMatch`).
         touch: false,
         when: () => matches.value.length > 0,
@@ -753,6 +756,7 @@ export function createTargetPicker({
         ],
         title: "matches",
         repeat: true,
+        travels: true,
         when: () => matches.value.length > 0,
         run: (binding) => moveMatch(binding === "Tab" ? 1 : -1),
       },

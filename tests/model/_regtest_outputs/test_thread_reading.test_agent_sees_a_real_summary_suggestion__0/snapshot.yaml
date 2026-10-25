@@ -6,10 +6,10 @@ delivery:
   created_at: <time>
   acknowledge: >-
     If the output was cut off, reread it with `leaf delivery read <delivery>` and
-    follow any `next` commands. Then, before any other work, start `leaf wait --ack
-    <delivery>` as the next background task, which confirms this delivery and waits
-    for the next. If you forward the delivery instead of handling it, acknowledge
-    once it arrives where you sent it.
+    follow any `next` commands. Then, before any other work, start `leaf delivery
+    ack <delivery> && leaf wait` as the next background task, which confirms this
+    delivery and waits for the next. If you forward the delivery instead of handling
+    it, acknowledge once it arrives where you sent it.
   batches:
     - page: <page>
       claim: <claim-session>
@@ -57,7 +57,7 @@ delivery:
       handling:
         h1: >-
           The batch's `threads` holds the thread's context; `leaf page state <page>
-          <thread-id>` reads its full history.
+          <message>` reads its full history.
         h2: >-
           The thread has no title yet. Name its subject with `--title "<a few words>"`
           on your reply.

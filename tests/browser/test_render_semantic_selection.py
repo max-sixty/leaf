@@ -23,6 +23,7 @@ from render_harness import (
     panel_control,
     panel_field,
     resized,
+    scroll_settled,
     selection_field,
     sending,
     write,
@@ -642,8 +643,8 @@ def test_slash_finds_page_text_without_a_target_kind(browser, serve):
     # Selection and whole-page search are named in the reference.
     page.keyboard.press("?")
     help_el = page.locator(".lf-command-reference")
-    search_command = help_el.locator('tr[data-lf-command="page.search.open"]')
-    select_command = help_el.locator('tr[data-lf-command="target.picker.open"]')
+    search_command = help_el.locator('[role=row][data-lf-command="page.search.open"]')
+    select_command = help_el.locator('[role=row][data-lf-command="target.picker.open"]')
     expect(search_command.locator("kbd")).to_have_text("/")
     expect(search_command.get_by_role("button")).to_have_text("Search page")
     expect(search_command.locator(".lf-command-reference-description")).to_have_count(0)
@@ -790,11 +791,11 @@ def test_n_repeats_the_last_page_search_in_either_direction(browser, serve):
 
     page.keyboard.press("?")
     help_el = page.locator(".lf-command-reference")
-    expect(help_el.locator('tr[data-lf-command="page.search.next"] kbd')).to_have_text(
-        "n"
-    )
     expect(
-        help_el.locator('tr[data-lf-command="page.search.previous"] kbd')
+        help_el.locator('[role=row][data-lf-command="page.search.next"] kbd')
+    ).to_have_text("n")
+    expect(
+        help_el.locator('[role=row][data-lf-command="page.search.previous"] kbd')
     ).to_have_text("N")
     page.keyboard.press("Escape")
 
@@ -1306,21 +1307,26 @@ def test_scrolling_target_hints_does_not_measure_hidden_targets(browser, serve):
     page.evaluate(
         """() => {
           const originalRect = Element.prototype.getBoundingClientRect;
-          let hiddenRectReads = 0;
+          window.lfHintScrollReads = {hiddenRectReads: 0};
           Element.prototype.getBoundingClientRect = function (...args) {
             if (this.id.startsWith('hidden-'))
-              hiddenRectReads += 1;
+              window.lfHintScrollReads.hiddenRectReads += 1;
             return originalRect.apply(this, args);
           };
-          addEventListener('scrollend', () => requestAnimationFrame(() => {
-            window.lfHintScrollReads = {hiddenRectReads};
+          window.lfStopCounting = () => {
             Element.prototype.getBoundingClientRect = originalRect;
-          }), {capture: true, once: true});
+          };
           document.scrollingElement.scrollTo({top: 600, behavior: 'smooth'});
         }"""
     )
-    page.wait_for_function("() => window.lfHintScrollReads")
-    reads = page.evaluate("() => window.lfHintScrollReads")
+    # The membership refresh runs in the passes after the scroll rests, so the count is
+    # read once those have run, not at the scroll's end.
+    page.wait_for_function("() => scrollY > 0")
+    scroll_settled(page)
+    rendered(page)
+    reads = page.evaluate(
+        "() => { lfStopCounting(); return window.lfHintScrollReads; }"
+    )
 
     assert reads["hiddenRectReads"] == 0, reads
 

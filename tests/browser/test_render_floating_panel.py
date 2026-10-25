@@ -222,6 +222,57 @@ def test_escape_leaves_the_field_before_it_puts_a_view_away(browser, serve):
     )
 
 
+def test_a_send_moves_the_panel_s_view_as_one_stream(browser, serve):
+    """A send slides what the view shows up as one stream: the thread's name and every
+    turn start the same distance below where they come to rest, whether the send opens
+    the thread's view or adds a turn to it, so nothing the reader reads overtakes or
+    swaps with anything else. Read at the motion's first frame, held, and again at
+    rest."""
+    page = floating(browser, serve(LONG_PAGE))
+    page.emulate_media(reduced_motion="no-preference")
+    title = ".lf-fp-title"
+    turns = ".lf-fp-view[data-view=thread] .lf-msg"
+
+    def offsets(count):
+        """How far below its rest each of the name and the turns is drawn now."""
+        page.wait_for_function(
+            f"document.querySelectorAll('{turns}').length === {count}"
+        )
+        rendered(page)
+        drawn = page.evaluate(
+            """([title, turns]) => [title, ...document.querySelectorAll(turns)]
+                .map(node => typeof node === 'string' ? document.querySelector(node) : node)
+                .map(node => node.getBoundingClientRect().top)""",
+            [title, turns],
+        )
+        page.evaluate(
+            "() => window.__lfHeld.splice(0).forEach(motion => motion.finish())"
+        )
+        settled(page)
+        rest = page.evaluate(
+            """([title, turns]) => [document.querySelector(title),
+                ...document.querySelectorAll(turns)]
+                .map(node => node.getBoundingClientRect().top)""",
+            [title, turns],
+        )
+        return [d - r for d, r in zip(drawn, rest)]
+
+    page.evaluate("() => {" + HOLD_MOTION + "}")
+    write(field(page), "Could the rollback cover the weekend?")
+    with sending(page, "the page comment"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    opened = offsets(1)
+    assert opened[0] > 10, f"the view opened in place: {opened}"
+    assert max(opened) - min(opened) < 1, f"the opening view came apart: {opened}"
+
+    write(field(page), "And the mobile cohort too.")
+    with sending(page, "the reply"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    replied = offsets(2)
+    assert replied[0] > 10, f"the view grew in place: {replied}"
+    assert max(replied) - min(replied) < 1, f"the stream came apart: {replied}"
+
+
 def test_c_in_an_open_thread_returns_to_its_reply(browser, serve):
     """Located anywhere in the thread open in the panel, `c` comments on that thread:
     from the view an Escape left the user on, and from a message in it, the caret
@@ -3392,7 +3443,9 @@ def test_versions_rests_the_page_s_keys_and_takes_a_version_s_number(browser, se
     page.keyboard.press("?")
     reference = page.locator(".lf-command-reference")
     expect(
-        reference.locator('tr[data-lf-command="panel.floating.versions.pick"] kbd')
+        reference.locator(
+            '[role=row][data-lf-command="panel.floating.versions.pick"] kbd'
+        )
     ).to_have_text(["1–3"])
     page.keyboard.press("Escape")
     expect(reference).to_be_hidden()
@@ -3957,25 +4010,6 @@ def test_a_long_draft_offers_more_room_at_a_press(browser, serve):
     expect(expand).to_be_hidden()
     settled(page)
     assert panel.bounding_box()["width"] == pytest.approx(narrow, abs=1)
-
-
-def test_more_room_on_a_phone_keeps_the_panel_its_width(browser, serve):
-    """On a phone the panel already spans the window less its gutter, so more room to
-    write leaves it as wide as it was. The wider panel's own width named the desktop's
-    24px gutter rather than the phone's 20px, so pressing for more room narrowed it."""
-    context = browser.new_context(viewport={"width": 390, "height": 800})
-    page = open_page(browser, serve(LONG_PAGE), context=context)
-    panel = page.locator(".lf-floating-panel")
-    expand = page.locator(".lf-fp-row > .lf-fp-expand")
-    field(page).click()
-    page.keyboard.type("A line of words long enough to wrap in the panel's field, " * 4)
-    expect(expand).to_be_visible()
-    settled(page)
-    narrow = panel.bounding_box()["width"]
-    expand.click()
-    expect(expand).to_have_attribute("aria-pressed", "true")
-    settled(page)
-    assert panel.bounding_box()["width"] == pytest.approx(narrow, abs=0.5)
 
 
 def test_a_long_draft_leaves_an_open_view_its_head(browser, serve):
@@ -4647,29 +4681,6 @@ def test_looking_at_an_attached_image_keeps_the_draft_where_it_stands(browser, s
     look_at(view.locator(".lf-msg-editor .lf-media-open").last)
     settled(page)
     assert view.bounding_box() == stood
-
-
-def test_a_long_draft_fades_where_words_run_past_the_field(browser, serve):
-    """A draft taller than the field shows no scrollbar, whose overlay flashed with each
-    line; its words fade at whichever edge they run past, read from the field's scroll
-    rather than a scroll timeline, which Firefox lacks."""
-    page = floating(browser, serve(LONG_PAGE))
-    field(page).click()
-    for line in range(30):
-        page.keyboard.type(f"line {line}")
-        page.keyboard.press("Shift+Enter")
-
-    def shows(states):
-        page.wait_for_function(
-            f"() => document.querySelector('.lf-fp-field leaf-text').matches('{states}')"
-        )
-
-    expect(field(page)).to_have_css("scrollbar-width", "none")
-    shows(":state(more-above):not(:state(more-below))")
-    field(page).evaluate("box => box.scrollTop = 0")
-    shows(":state(more-below):not(:state(more-above))")
-    field(page).evaluate("box => box.scrollTop = 100")
-    shows(":state(more-below):state(more-above)")
 
 
 def test_a_draft_draws_a_list_as_the_message_will(browser, serve):

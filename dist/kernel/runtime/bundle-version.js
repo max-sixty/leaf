@@ -9,7 +9,7 @@ import { ADDRESSABLE, PAGE_CONTROL_RANK, addressedElements, anchoringIsReady, fr
 import { authoredBody, initialOrigin, restoreInitialSource, unmarkedCopy } from "./bundle-initial-render.js";
 import { PAGE_SCOPE, blocksOnScreen, captureDraftEditing, capturePlace, draftEditingDestination, draftEditingStands, focusedInView, formatDeclaredMarkdown, hasLandmark, heldThreadId, inlineMarkdownFragment, isPagePaint, openingPassage, pageReadingBlock, pageScopes, paintMarkdown, passageBlock, patchDocument, placeNode, placeOf, placeOffset, preloadWidgets, prepareDeclaredMarkdown, rawOffsetFits, reindexPassageOwners, rememberPassageParts, renderQuiet, replyDestination, restoreDraftEditing, restorePlace, restoreReplyEditing, restrictUserIntent, retainUserIntent, scrollIntoView, tabStore, textBlocks, threadNamed } from "./bundle-surfaces.js";
 import { authoredStates, commitWidgetDescriptors, patchRetains, patchTree, quoted, rememberAuthoredParents, stageAuthoredStates, stageWidgetDescriptors, widgetElement } from "./bundle-abort.js";
-import { scrollBehavior } from "./bundle-motion.js";
+import { backgroundFlash, flashDuration, scrollBehavior } from "./bundle-motion.js";
 
 //#region runtime/document-identity.js
 const servedRevision = document.querySelector("meta[name=\"lf-revision\"][data-lf-runtime]")?.content;
@@ -1130,7 +1130,9 @@ function blocksWithoutTwin(doc, live = document.body) {
 let versionSource = () => null;
 function selfComparison() {
 	const source = versionSource()?.source;
-	if (!source) return [];
+	return source ? blocksNewSince(source) : [];
+}
+function blocksNewSince(source) {
 	const doc = document.implementation.createHTMLDocument("");
 	doc.body.replaceChildren(doc.importNode(source, true));
 	formatDeclaredMarkdown(doc);
@@ -1579,6 +1581,7 @@ function createVersionController({ compositionInput, openThread, refreshThread, 
 		const comparedFrom = selectedBase();
 		if (comparedFrom !== null) setDiff(false);
 		const live = pageDocument();
+		const outgoing = authoredSource;
 		const carry = captureCarry(live, authoredSource);
 		const source = pageDocument(doc);
 		const arrivingWidgets = documentWidgetDigests(doc);
@@ -1667,6 +1670,7 @@ function createVersionController({ compositionInput, openThread, refreshThread, 
 					await restoreEditingContinuity(editingContinuity, currentIntent);
 				}
 				if (comparedFrom !== null) showComparison(comparedFrom);
+				for (const [block] of blocksNewSince(outgoing)) backgroundFlash(block, flashDuration());
 				notice(`Updated to ${target.label}`, { background: true });
 			})
 		};

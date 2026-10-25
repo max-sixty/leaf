@@ -181,7 +181,10 @@ result may scroll away the control pressed; `replaceEntry` only renames the entr
 user is on. To
 restore the page itself when the user goes Back or Forward to one of its entries, call
 `claimTraversals(claim, {signal})`, where `claim(url)` returns a function that restores
-the page for an entry of the widget's, or nothing.
+the page for an entry of the widget's, or nothing. The handler may be asynchronous.
+When it only reveals the destination view, it resolves to `false`, and Leaf restores
+the entry's saved viewport after the view is shown. Otherwise the handler owns
+viewport placement.
 
 ## Motion
 

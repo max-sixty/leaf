@@ -27,6 +27,7 @@ from render_cases_navigation import (
     actions,
     composer_quote,
     mark_shows_beside_composer,
+    pending_text,
 )
 from render_harness import (
     AVAILABLE_COMMANDS,
@@ -45,11 +46,13 @@ from render_harness import (
     consume_browser_errors,
     draft_control,
     expect_obligations_answered,
+    expect_panel_offers,
     expect_panel_says,
     holding,
     http_error_console,
     is_problem,
     leaf_page,
+    navigate,
     nudge,
     open_page,
     page_comment,
@@ -3069,3 +3072,58 @@ def test_an_optimistic_presentation_fault_does_not_change_delivery_result(
     assert [said(error) for error in errors] == [
         'leaf: <lf-suggestion id="sug-refill"> failed: injected optimistic presentation fault'
     ], errors
+
+
+def test_a_draft_that_outlives_its_passage_returns_with_that_passage(browser, serve):
+    """A draft survives the version it was written against even when that version's
+    replacement removes its passage. The editor stays available without attaching to
+    the rewritten words, and the draft returns to its passage when that version does."""
+    url = serve(INLINE_PAGE)
+    page = open_page(browser, url)
+
+    page.locator("#p").click(click_count=3)
+    page.locator(".lf-fab-input").click()
+    write(
+        page.locator(".lf-composer leaf-text"),
+        "half-written when the version turned over",
+    )
+    passage = " ".join(page.locator("#p").inner_text().split())
+    assert not composer_quote(page)["shown"], "the passage is right here, and marked"
+
+    # Claude ships a version that rewrites the passage out. The page holds still — a
+    # draft is mid-composition — and offers the new version in the leaf's menu, which
+    # the user takes.
+    d = serve.page_dir
+    rewritten = INLINE_PAGE.replace(
+        "A paragraph carrying <strong>bold text</strong> and <em>emphasis</em> inside it,\n"
+        "so that a selection across the middle of it lands in more than one text node.",
+        "Rewritten, with nothing left of the sentence the draft was about.",
+    )
+    stamp_page(d, rewritten, "two")
+    told(page)
+    expect_panel_offers(page, "latest")
+    panel_control(page, "latest").click()
+    wait_for_revision(page, 2)
+    expect(page).not_to_have_url(re.compile("/versions/"))
+    expect(page.locator(".lf-composer")).to_be_visible()
+    expect(page.locator(".lf-fab-input")).to_have_js_property(
+        "value", "half-written when the version turned over"
+    )
+    expect(page.locator("#lf-composer-quote")).to_have_text(f"“{passage}”")
+    assert pending_text(page) == "", (
+        "v2 rewrote the passage and the page marked it anyway"
+    )
+
+    # Through the page's own readiness rather than the paragraph's arrival in markup:
+    # the restore of an open draft is part of presenting the page, and a gesture made
+    # before that is a gesture the user could not have made.
+    navigate(page, url)
+    page.locator("#p").click(click_count=3)
+    expect(page.locator("#lf-composer-quote")).to_have_text(f"“{passage}”")
+    expect(page.locator(".lf-fab-input")).to_have_js_property(
+        "value", "half-written when the version turned over"
+    )
+    # The words come back; the user's keyboard does not go with them.
+    expect(page.locator(".lf-fab-input")).not_to_be_focused()
+    quote = composer_quote(page)
+    assert quote["text"] == f"“{passage}”", f"the quote says {quote['text']!r}"

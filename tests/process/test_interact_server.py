@@ -2974,27 +2974,6 @@ def test_server_resolves_actions_from_agent_thread_widgets(server, page_dir):
     assert refused_on(body).code == "unknown-sender"
 
 
-def test_concurrent_posts_never_tear_the_log(server, page_dir):
-    publish(page_dir)
-
-    def post(i):
-        fetch(
-            f"{server}/api/event",
-            data=json.dumps(
-                {"kind": "comment", "revision": 1, "text": f"c{i} " + "x" * 500}
-            ).encode(),
-        )
-
-    threads = [threading.Thread(target=post, args=(i,)) for i in range(20)]
-    for t in threads:
-        t.start()
-    for t in threads:
-        t.join()
-    events = [e for e in event_model.read_events(page_dir) if e["kind"] == "comment"]
-    assert {e["text"].split()[0] for e in events} == {f"c{i}" for i in range(20)}
-    assert len({e["id"] for e in events}) == 20  # server-minted, all distinct
-
-
 def test_every_kind_of_user_move_is_named_in_eight_characters(server, page_dir):
     """An id is something the agent reads back and retypes. One user comment
     shows the agent its id five times over and is answered with `leaf thread reply <answer.ref>

@@ -1084,7 +1084,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
         """rows => rows.flatMap(row => {
           const key = row.querySelector('.lf-command-reference-key')
             .firstElementChild.getBoundingClientRect();
-          const action = row.querySelector('.lf-command-reference-command')
+          const action = row.querySelector('.lf-command-reference-action')
             .getBoundingClientRect();
           const across = Math.min(key.right, action.right) - Math.max(key.left, action.left);
           const down = Math.min(key.bottom, action.bottom) - Math.max(key.top, action.top);

@@ -24,7 +24,8 @@ always preserve the full viewport and its geometry.
 Use repeated `--state` options to compare only the states a change touches.
 
 Whether a state changed, and where, is `lf-shot`'s reading of its two stills, from the
-module that owns the rule (`runtime/image-difference.js`), loaded into the browser.
+module that owns the rule (the default package's `widgets/image-difference.js`),
+loaded into the browser.
 Each invocation allocates a run directory under `.tmp/stills/`. Each state's
 directory within it holds `base.png` and `head.png`, and for a
 change `base-crop.png` and `head-crop.png` cropped to the union of its regions (or
@@ -69,7 +70,7 @@ from leaf_dev.browser import (
 
 OUT = ROOT / ".tmp" / "stills"
 CROP_MARGIN = 32
-DIFFERENCE = ROOT / "browser" / "runtime" / "image-difference.js"
+DIFFERENCE = ROOT / "packages" / "default" / "widgets" / "image-difference.js"
 # Where `differences` serves the stills and the module that compares them.
 ORIGIN = "http://stills.invalid"
 OPEN_CARD = "() => document.querySelector('.lf-margin-preview:not([hidden])')"
@@ -818,6 +819,13 @@ def into_the_body(page: Page) -> None:
     """Two windows down the page, where a sidebar page's track stands beside the body
     it scrolls past."""
     page.evaluate("() => scrollTo(0, 2 * innerHeight)")
+
+
+def plan_disclosure(page: Page) -> None:
+    """The plan's first disclosure, between the prose of two steps."""
+    page.locator("#plan-network").evaluate(
+        "details => details.scrollIntoView({block: 'center'})"
+    )
 
 
 def code_note(page: Page) -> None:
@@ -1800,6 +1808,7 @@ STATES = (
     ),
     State("gallery-multiline-passage", "developer/feature-gallery", multiline_passage),
     State("plan", "review-a-plan", at_rest),
+    State("plan-disclosure", "review-a-plan", plan_disclosure, region="#plan-network"),
     State("page-search", "review-a-plan", page_search, region=".lf-floating-panel"),
     State(
         "accepted-page-search",
@@ -2246,7 +2255,7 @@ def differences(browser, out: Path):
         if path == "/image-difference.js":
             route.fulfill(path=DIFFERENCE, content_type="text/javascript")
         elif path.startswith("/vendor/"):
-            route.fulfill(path=ROOT / "browser" / path.lstrip("/"))
+            route.fulfill(path=ROOT / "packages" / "default" / path.lstrip("/"))
         elif path.endswith(".png"):
             route.fulfill(path=out / path.lstrip("/"))
         else:

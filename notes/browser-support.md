@@ -39,6 +39,21 @@ other tables keep the `inline-size` container from
 `test_a_table_of_prose_wraps_inside_its_box_in_every_engine` in
 `tests/browser/test_render_pages.py` before removing the fallback.
 
+### Baseline content-alignment
+
+Option cards laid across align their titles with `align-content: first baseline`
+(`packages/default/styles/options.css`). Playwright Chromium 153.0.8010.12 parsed
+the value but left grid items' contents at their start on 2026-10-25, while
+Playwright Firefox 155.0 shifted each item's contents onto the row's shared
+baseline. In Chromium a card whose chips wrap past the state seat's line, such as
+the canary card in `examples/alert-review.html`, still sets its title a chip line
+lower than its neighbours' (22px there); chips that fit beside the seat stay
+aligned in both engines. Table cells' `vertical-align: baseline` aligns them in
+Chromium, but Firefox 155.0 then leaves the row short of the shifted contents and
+clips them, so it can't stand in. Recheck with the `browser` case of
+`test_cards_laid_across_align_their_titles_whatever_chips_open_them` in
+`tests/browser/widgets/test_obligations.py`, extended to its `all` row.
+
 ### Contents spine lens
 
 `packages/default/widgets/lf-toc.js` uses a paused animation updated on scroll

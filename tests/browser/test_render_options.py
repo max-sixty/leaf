@@ -2680,9 +2680,10 @@ def test_option_words_render_markdown_without_losing_the_user_draft(browser, ser
 def test_an_option_set_as_a_paragraph_starts_under_its_title_as_a_sentence_does(
     browser, serve
 ):
-    """Authors write a card's consequence after its title either as a sentence or as a
-    paragraph, and both read as one card: the paragraph's own margin had set it three
-    times as far under the title."""
+    """Authors write a card's consequence after its title as a plain sentence, as one
+    holding an inline element or Markdown, or as a paragraph, and each reads as one
+    card: the paragraph's own margin had set it three times as far under the title, and
+    the title's margin set the sentence with an element 4px lower than a plain one."""
     page = open_page(
         browser,
         serve(
@@ -2691,6 +2692,10 @@ def test_an_option_set_as_a_paragraph_starts_under_its_title_as_a_sentence_does(
                 '<lf-options id="shapes" choose>'
                 '<lf-option id="sentence"><strong>Ship it</strong> The cohort gets it now.'
                 "</lf-option>"
+                '<lf-option id="element"><strong>Stage it</strong> The cohort gets '
+                "<em>half</em> now.</lf-option>"
+                '<lf-option id="markdown"><strong>Pause it</strong> The cohort '
+                "waits *a day*.</lf-option>"
                 '<lf-option id="paragraph"><strong>Hold it</strong>'
                 "<p>The cohort waits for the fix.</p></lf-option>"
                 "</lf-options>",
@@ -2698,18 +2703,17 @@ def test_an_option_set_as_a_paragraph_starts_under_its_title_as_a_sentence_does(
         ),
     )
     gaps = page.evaluate(
-        """() => {
-          const below = (id) => {
-            const option = document.getElementById(id);
-            const title = option.querySelector(':scope > strong').getBoundingClientRect();
-            const range = document.createRange();
-            const body = id === 'sentence'
-              ? option.querySelector(':scope > strong').nextSibling
-              : option.querySelector(':scope > p').firstChild;
-            range.selectNodeContents(body);
-            return range.getClientRects()[0].top - title.bottom;
-          };
-          return { sentence: below('sentence'), paragraph: below('paragraph') };
-        }"""
+        """() => Object.fromEntries(['sentence', 'element', 'markdown', 'paragraph'].map((id) => {
+          const option = document.getElementById(id);
+          const title = option.querySelector(':scope > strong');
+          const walk = document.createTreeWalker(option, NodeFilter.SHOW_TEXT);
+          walk.currentNode = title.lastChild;
+          let text = walk.nextNode();
+          while (!text.data.trim()) text = walk.nextNode();
+          const range = document.createRange();
+          range.selectNodeContents(text);
+          return [id, range.getClientRects()[0].top - title.getBoundingClientRect().bottom];
+        }))"""
     )
-    assert gaps["paragraph"] == pytest.approx(gaps["sentence"], abs=1), gaps
+    for shape in ("element", "markdown", "paragraph"):
+        assert gaps[shape] == pytest.approx(gaps["sentence"], abs=1), gaps

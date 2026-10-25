@@ -606,10 +606,7 @@
 @container not (style(--lf-density: working) and (width >= 30rem)) {
   :scope:is(lf-option) > strong {
     display: block;
-    margin: 0 0 4px;
-  }
-  :scope:is(lf-option) > strong:has(+ p) {
-    margin-block-end: 0;
+    margin: 0;
   }
   :scope:is(lf-option) > strong + p {
     margin-block-start: 0;

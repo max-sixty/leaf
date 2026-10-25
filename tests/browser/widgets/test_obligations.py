@@ -4,6 +4,7 @@ digit bindings and badges an obligation projects, and the ring around a decision
 import re
 
 import pytest
+from interact_support import append_carried_log_record
 from playwright.sync_api import expect
 from render_cases_interaction import (
     CURRENT_OBLIGATION,
@@ -12,12 +13,14 @@ from render_cases_interaction import (
     OBLIGATIONS_IN_A_ROW_PAGE,
     OBLIGATIONS_IN_ORDER,
     OBLIGATIONS_PAGE,
+    SEATED_OBLIGATION_LAYER,
+    SEATED_OBLIGATION_WIDGETS,
     SHORT_SUGGESTION,
     SUGGESTION_IN_CONTEXT_PAGE,
     answered_comment,
     live_url,
 )
-from render_cases_navigation import BINDING_BADGE_PAGE
+from render_cases_navigation import BINDING_BADGE_PAGE, actions
 from render_harness import (
     ROOT,
     active_digit_bindings,
@@ -635,7 +638,7 @@ def test_obligation_contextual_bindings_are_independent_of_widget_bindings(
     page.keyboard.press("?")
     page.keyboard.press("?")
     inspect_reference = page.locator(
-        '.lf-command-reference tr[data-lf-command="test.inspect"]'
+        '.lf-command-reference [role=row][data-lf-command="test.inspect"]'
     )
     expect(inspect_reference.locator("kbd")).to_have_text("I")
     expect(inspect_reference.locator(".lf-binding-sequence")).to_have_attribute(
@@ -707,7 +710,7 @@ def test_obligation_contextual_bindings_are_independent_of_widget_bindings(
     page.keyboard.press("?")
     page.keyboard.press("?")
     focused_inspect = page.locator(
-        '.lf-command-reference tr[data-lf-command="test.inspect"]'
+        '.lf-command-reference [role=row][data-lf-command="test.inspect"]'
     )
     expect(focused_inspect.locator("kbd")).to_have_text("I")
 
@@ -1542,3 +1545,54 @@ def test_a_commented_obligation_does_not_wear_its_ring_on_the_runtime_s_own_note
         "LF-OLD",
         "LF-NEW",
     ], f"the ring reached past the page's own boxes: {marks}"
+
+
+def test_a_seat_thread_leaves_the_pick_it_is_about_live(browser, serve):
+    """The user's own remark must not lock the control it is a remark about.
+
+    A thread standing in the widget's seat takes the decision off the user's
+    list — On me stops counting it — but answers nothing, so the press that would
+    answer it is still live. This is the browser half of the split, and the half the
+    user meets first: the POST door only sees a hand-posted event, while here
+    the controller reading paints the control and its dispatcher guards the press, and
+    the module has already painted the answer by the time either runs. Reading the
+    user's list at this door therefore does not refuse the press so much as swallow
+    it — the widget flips, nothing is logged, no notice fires, and the next poll puts it
+    back with nothing anywhere saying why.
+
+    The subject is the project widget SEATED_OBLIGATION_ENTRY declares, whose seat is where a
+    user most often starts such a thread; any thread anchored on an obligation splits it the
+    same way, and the reading under test never asks which widget it is."""
+    url = serve(
+        leaf_page(
+            "seated eligibility",
+            '<h1 id="heading">Choose</h1><lf-ask id="pick-decision">'
+            "<h2>Cap the retries?</h2>"
+            '<lf-verdict id="pick" asks>Three attempts, then stop.</lf-verdict>'
+            "</lf-ask>",
+        ),
+        layer_registry=SEATED_OBLIGATION_LAYER,
+        layer_widgets=SEATED_OBLIGATION_WIDGETS,
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "anchor": {"section": "pick"},
+            "text": "neither — cap the retries instead",
+        },
+    )
+    page = open_page(browser, url)
+    # Off the user's list, which is the whole reason the two readings differ here.
+    expect_obligations_answered(page, "0/1")
+
+    page.get_by_role("button", name="Accept").click()
+    round_trip(page)
+
+    expect(page.get_by_role("button", name="Accepted")).to_have_count(1)
+    # The log is what holds this, and the control above cannot: the module paints the
+    # answer before either guard runs, so with the wrong reading at this door the press
+    # reads exactly as it does here and the log stays empty.
+    assert [event["action"] for event in actions(serve.page_dir)] == ["settle"]

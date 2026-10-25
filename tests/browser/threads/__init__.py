@@ -155,7 +155,7 @@ def claim_for_codex(page_dir, request):
     assert lease
     request.addfinalizer(lease.close)
     with service_model.PageTransaction(page_dir) as transaction:
-        transaction.set_status("waiting", "User feedback")
+        transaction.set_status("waiting")
 
 
 STREAM_ATTEMPT = service_model.delivery_reply_attempt("delivery-1")

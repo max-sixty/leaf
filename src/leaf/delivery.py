@@ -841,8 +841,8 @@ def cmd_delivery_read(delivery_id: str, *, part: int = 1) -> dict:
 
 
 def cmd_delivery_ack(delivery_id: str) -> None:
-    """Accept the reader's attestation that every part reached its context. A page
-    the delivery names that has gone refuses it in the system's own words. A
+    """Accept the reader's attestation that every part reached its context. A
+    page the delivery names that has gone refuses it in the system's own words. A
     delivery an earlier turn already picked up is noted as a repeat
     (`earlier_pickup`)."""
     try:
@@ -1280,8 +1280,8 @@ def record_receipt(page: PageTransaction, through: int) -> None:
 def receive_delivery(delivery_id: str) -> list[Path]:
     """Confirm a reader's complete input and record its entry into that turn.
 
-    Both explicit acknowledgement commands prove the consumer is running even
-    if its prompt hook failed. The canonical opener preserves known provider
+    The explicit acknowledgement command, `leaf delivery ack`, proves the
+    consumer is running even if its prompt hook failed. The canonical opener preserves known provider
     lifecycle authority. Pointer receipt also retains its origin's reservation,
     including the exact turn a Codex hook offered it to. Automatic hook and
     provider receipts observe an already-open turn through `receive` instead.
@@ -1315,19 +1315,18 @@ def receive_held(
     *,
     deadline: float | None = None,
     confirm: bool = True,
-) -> bool:
+) -> list[dict]:
     """Record each batch of a delivery its hook is handing to `session_id`'s open
-    turn, the lifecycle `expected` it planned under, as opened in it, and whether
-    every batch was. `confirm` also records the receipt, where the harness has the
-    context once the hook returns (`Harness.commits_hook_context`).
+    turn, the lifecycle `expected` it planned under, as opened in it, and return
+    the batches it recorded. `confirm` also records the receipt, where the harness
+    has the context once the hook returns (`Harness.commits_hook_context`).
 
     A refusal is the batch's own: a page that changed hands or went, a turn that
     ended or was replaced, a log this Leaf may not write
     (`layer.incompatible_layer`), or locks still held at `deadline`, for a hook
     that must exit by then for its handover to stand. The other batches are still
-    confirmed, and the hook hands the whole delivery to its reader to confirm
-    (`hook_transport.render`)."""
-    confirmed = True
+    recorded, and the hook hands only those over (`hook_transport.render`)."""
+    recorded = []
     for batch in payload["batches"]:
         try:
             receive_one(
@@ -1338,8 +1337,9 @@ def receive_held(
                 confirm=confirm,
             )
         except (FileNotFoundError, Refused, TimeoutError):
-            confirmed = False
-    return confirmed
+            continue
+        recorded.append(batch)
+    return recorded
 
 
 def receive_one(

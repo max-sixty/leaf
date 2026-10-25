@@ -478,6 +478,11 @@ const bundles = {
       'export { diffArrays } from "diff/lib/diff/array.js";\n',
   }),
 
+  blazediff: () => ({
+    out: `${assets}/vendor/blazediff.js`,
+    entry: 'export { default } from "@blazediff/core";\n',
+  }),
+
   // DBSCAN groups screenshot fragments by their original neighborhoods.
   "density-clustering": () => ({
     out: `${assets}/vendor/density-clustering.esm.js`,
@@ -659,6 +664,25 @@ const bundles = {
       {
         file: /webawesome\/dist\/chunks\/chunk\.ZAVDMBWV\.js$/,
         edit: patchTransitions,
+      },
+      // A radio group's arrow moves focus to the next radio in its row, which the user
+      // already sees. Leaf places focus without scrolling (focus.js, `focusDestination`),
+      // and the focused-control landing margin made the native scroll move the chooser
+      // under the arrow wherever a landing had left it at the window's top edge.
+      {
+        file: /webawesome\/dist\/chunks\/chunk\.7YHRZ7G7\.js$/,
+        edit: (source) =>
+          seam(
+            seam(
+              source,
+              "radios[index].focus();",
+              "radios[index].focus({ preventScroll: true });",
+              "Web Awesome radio group arrow focus",
+            ),
+            'radios[index].shadowRoot.querySelector("button").focus();',
+            'radios[index].shadowRoot.querySelector("button").focus({ preventScroll: true });',
+            "Web Awesome radio button arrow focus",
+          ),
       },
     ],
     platform: "browser",

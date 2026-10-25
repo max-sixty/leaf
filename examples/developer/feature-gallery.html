@@ -391,7 +391,8 @@
         const frame = document.querySelector("#bg-durable-frame");
         frame.src = new URL("versions/v2.html?pin", pageRoot).href;
         frame.hidden = false;
-        frame.scrollIntoView({ block: "center" });
+        // Only as far as the frame needs, so the press leaves its button where it was.
+        frame.scrollIntoView({ block: "nearest" });
         frameOpener.disabled = true;
       });
 
@@ -500,8 +501,9 @@
                 goes where <kbd>m</kbd> would.
               </li>
               <li>
-                Find the sample picnic approval among the obligations. Its row takes you
-                to the request, where Approve answers it and Undo approval reopens it.
+                Find the sample picnic booking among the obligations. Its row takes you
+                to the request, where a pick answers it and pressing it again reopens
+                it.
               </li>
               <li>
                 Comment on the map question, then press <kbd>m</kbd> until it lands
@@ -535,9 +537,9 @@
               <h3>A to-do on you</h3>
               <p>
                 The agent put a to-do on you about this section with
-                <code>leaf task open … --on user</code>: check that the trail map marks
-                the shelter. Nothing on the page answers it, so it ends only when you
-                press Done.
+                <code>leaf task create … --on user</code>: check that the trail map
+                marks the shelter. Nothing on the page answers it, so it ends only when
+                you press Done.
               </p>
               <ul>
                 <li>
@@ -773,7 +775,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             <p id="bg-readings-guide">
               The meeting point is decided. Open <strong>Settled: At reception</strong>
               to inspect the alternatives, then close it. The spacious cards return to
-              one disclosure line, leaving no empty card space before Approval.
+              one disclosure line, leaving no empty card space before Permission.
             </p>
             <lf-ask id="bg-outcome-ask">
               <h3>Where should the sample group meet?</h3>
@@ -791,24 +793,34 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
           <section id="bg-user-workflows">
             <h2>
               <strong>User workflows</strong
-              ><span class="bg-feature-detail">: approval and interface comments</span>
+              ><span class="bg-feature-detail"
+                >: permission and interface comments</span
+              >
             </h2>
 
             <section id="bg-signoff">
-              <p class="eyebrow bg-feature-elements">lf-approval</p>
-              <h3>Approval of a stated action</h3>
+              <p class="eyebrow bg-feature-elements">lf-ask · lf-options</p>
+              <h3>Permission for a stated action</h3>
               <p id="bg-signoff-guide">
-                Press Approve on the sample request, then Undo approval to reopen it.
-                Other questions can stay unanswered. The request keeps its approval
-                through unrelated page edits until its author explicitly restates it.
+                Choose Book the shelter, then press it again to reopen the request.
+                Other questions can stay unanswered. The pick stays through unrelated
+                page edits until its author explicitly restates the request.
               </p>
-              <lf-approval id="bg-picnic-approval">
+              <lf-ask id="bg-picnic-decision">
                 <h4>Book the covered picnic shelter?</h4>
                 <p>
                   Reserve the park's covered shelter for the sample group's Saturday
                   lunch.
                 </p>
-              </lf-approval>
+                <lf-options id="bg-picnic" choose>
+                  <lf-option id="bg-picnic-skip"
+                    ><strong>Leave it unbooked</strong></lf-option
+                  >
+                  <lf-option id="bg-picnic-book"
+                    ><strong>Book the shelter</strong></lf-option
+                  >
+                </lf-options>
+              </lf-ask>
             </section>
 
             <section id="bg-page-comment-card">

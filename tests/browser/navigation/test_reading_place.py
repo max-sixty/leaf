@@ -831,7 +831,7 @@ def test_align_current_item_keeps_obligation_control_heading_selection_and_histo
     reference = page.locator(".lf-command-reference")
     expect(reference).to_be_visible()
     page.get_by_role("combobox", name="Search commands").fill("g z")
-    alignment = reference.locator('tr[data-lf-command="reading.align.top"]')
+    alignment = reference.locator('[role=row][data-lf-command="reading.align.top"]')
     expect(alignment.locator(".lf-binding-sequence > kbd")).to_have_text(["g", "z"])
     alignment.get_by_role("button").click()
     expect(reference).to_be_hidden()

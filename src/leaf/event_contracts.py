@@ -568,7 +568,7 @@ def _anchored_comment_error(view, event: dict, registry: dict):
     answered: the page holds words no file reading can produce — a widget's label,
     a module's own rendering — and an earlier runtime may spell the same words in
     whitespace this reading collapses away. Reading it back off the file would
-    refuse both. `leaf thread open` captures its anchor against the file reading
+    refuse both. `leaf thread create` captures its anchor against the file reading
     before it writes.
     """
     if event["kind"] != "comment":

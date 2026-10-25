@@ -136,16 +136,12 @@
               "description": "`waiting` on the user or `idle`, done with the page; `waiting` before the agent declares anything.",
               "type": "string"
             },
-            "detail": {
-              "description": "The declaration's words; empty before the first declaration and where a start reopened an idle page.",
-              "type": "string"
-            },
             "ts": {
               "description": "When the agent declared it, or when a start reopened an idle page; absent before the first declaration.",
               "type": "string"
             }
           },
-          "required": ["state", "detail"],
+          "required": ["state"],
           "additionalProperties": false
         },
         "listening": {
@@ -185,6 +181,10 @@
         },
         "claim_session": {
           "description": "The claimant session, or null.",
+          "type": ["string", "null"]
+        },
+        "session_name": {
+          "description": "What the claimant's harness calls its session now (`Harness.session_name`), or null where it names none.",
           "type": ["string", "null"]
         },
         "claim_turn": {
@@ -293,6 +293,7 @@
         "pending",
         "agent",
         "claim_session",
+        "session_name",
         "claim_turn",
         "turn_closed",
         "turn_opened",

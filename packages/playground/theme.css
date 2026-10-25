@@ -387,27 +387,26 @@
   text-align: end;
 }
 
-/* All feedback words occupy the same grid cell, so CSS reserves their real
- * wrapped extent rather than measuring and fixing a width after startup. */
-.lf-playground-copy-trigger {
-  display: inline-grid;
+/* The instruction's copy is a code block's (lf-playground.js), a toolbar of one mark on
+ * its pane's top border at the right, as a code block's stands on its block's
+ * (integration.css, `.lf-mark-bar`), and shows as a code block's does, while the
+ * pointer is over the pane or the user is in it. It stands inside the pane, so the pane
+ * places it rather than the anchor `copyBlock` names: Playwright Firefox drew the
+ * anchored copy 20 to 365 px above the pane in three of the four bundled playgrounds on
+ * 2026-10-24, where Chromium placed it on the corner. The insets are the padding box's,
+ * inside the pane's 1px border. */
+.lf-playground-instruction-region {
+  position: relative;
 }
-.lf-playground-copy-label {
-  grid-area: 1 / 1;
-  visibility: hidden;
+.lf-playground-instruction-region .lf-code-copy {
+  top: 0;
+  right: calc(var(--lf-mark-bar-end) - 1px);
+  left: auto;
+  translate: 0 calc(-50% - 0.5px);
 }
-.lf-playground-copy-trigger[data-copy-state="rest"] .rest,
-.lf-playground-copy-trigger[data-copy-state="success"] .success,
-.lf-playground-copy-trigger[data-copy-state="error"] .error {
-  visibility: visible;
-}
-.lf-playground-copy-trigger[data-copy-state="success"] {
-  border-color: var(--ok);
-  background: var(--ok-tint);
-  color: var(--ok-ink);
-}
-.lf-playground-copy-trigger[data-copy-state="error"] {
-  color: var(--danger-ink);
+.lf-playground-instruction-region:is(:hover, [data-lf-focus-within]) .lf-code-copy {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 /* A quoted playground is its preview and instruction as authored, without the controls

@@ -402,9 +402,12 @@ export function createMarginProjection({
     const face = markerFace(entry).face;
     const count = choice?.items.length ?? 0;
     const userContext = spokenContext(choice);
-    const reading = `${face.label}${count > 1 ? `s (${count})` : ""}${userContext ? `, ${userContext}` : ""}`;
     const subject =
       count === 1 && choice.items[0].workflowFace ? choice.text : entry.title;
+    // A lone item's own words, such as a to-do's title, which its subject does not say.
+    const own = count === 1 ? choice.items[0].label : null;
+    const said = own && !subject?.includes(own) ? `, ${own}` : "";
+    const reading = `${face.label}${count > 1 ? `s (${count})` : ""}${said}${userContext ? `, ${userContext}` : ""}`;
     return `${reading}, ${index + 1} of ${anchored}${position == null ? "" : `, ${Math.max(0, Math.min(100, position))} percent down`}, ${spokenSubject(subject)}`;
   }
 
@@ -628,21 +631,28 @@ export function createMarginProjection({
     }
     const currentLocation = available.find((row) => row === focused());
     const candidates = visible.length ? visible : available;
-    // A stop in view stays where it is. With none in view the stop is the row nearest
-    // the window, whatever held it before, so the way in follows from the page as it
-    // stands rather than from the widths and scrolls it passed through.
-    const held = visible.find((row) => row.tabIndex === 0);
+    // The stop is the highest row in view, or with none in view the row nearest the
+    // window, whatever held it before, so the way in follows from the page as it
+    // stands rather than from the widths and scrolls it passed through. A stop kept
+    // where it stood while in view moved for good once a narrower width had shown
+    // another row first.
     const room = shownWindow();
-    const distance = (row) => {
+    const place = (row) => {
       const box = row.getBoundingClientRect();
-      if (box.bottom < room.top) return room.top - box.bottom;
-      if (box.top > room.bottom) return box.top - room.bottom;
-      return 0;
+      const away =
+        box.bottom < room.top
+          ? room.top - box.bottom
+          : box.top > room.bottom
+            ? box.top - room.bottom
+            : 0;
+      return [away, box.top, box.left];
     };
-    const next =
-      currentLocation ??
-      held ??
-      candidates.reduce((best, row) => (distance(row) < distance(best) ? row : best));
+    const before = (a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
+    const nearest = () =>
+      candidates
+        .map((row) => ({ row, at: place(row) }))
+        .reduce((best, next) => (before(next.at, best.at) < 0 ? next : best)).row;
+    const next = currentLocation ?? nearest();
     holdTabStop(next);
   }
 
@@ -934,6 +944,15 @@ export function createMarginProjection({
       const destination = primary ?? (primaryReading(entry) ? marker : null);
       if (destination === marker && marker.hidden) marker.lfTakeFocus = true;
       else if (destination) focusDestination(destination, "return");
+    } else if (focus.focusedToggle && more.hidden) {
+      // An unfolded face shows its options inline and hides the toggle that opened
+      // them, as a folded pin does when `e` stands reactions in it: the user goes on to
+      // the first of them, as a press on the toggle would land them.
+      focus.restore?.(
+        clusterMarginEntries(options)[0],
+        primary,
+        clusterMarginEntries(host)[0],
+      );
     } else if (lostOptionFocus || lostPrimaryFocus) {
       // A changed contribution can replace either the focused primary or an option.
       // Return to the corresponding control in the new projection.
@@ -1065,6 +1084,7 @@ export function createMarginProjection({
       const focus = {
         focusedPrimary: Boolean(host.primary && currentLocationIn(host.primary)),
         focusedOption: Boolean(host.options && currentLocationIn(host.options)),
+        focusedToggle: focused() === more,
         // The entry the user is on, by its contribution's key, across the projection
         // that may replace its control (focus.js, keyed `holdFocus`).
         restore: holdFocus(host, { key: "data-lf-margin-entry-identity" }),

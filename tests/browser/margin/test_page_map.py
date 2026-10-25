@@ -162,7 +162,7 @@ def test_the_current_obligation_marks_its_selected_margin_reading(browser, serve
     expect(first_marker).to_have_attribute("data-lf-target-selected", "")
     assert first_marker.evaluate(
         "marker => getComputedStyle(marker).borderTopColor"
-    ) == first.evaluate("ask => getComputedStyle(ask).outlineColor")
+    ) == first.evaluate("ask => getComputedStyle(ask, '::after').outlineColor")
     page.keyboard.press("m")
     expect(page.locator("#bracket-decision")).to_be_focused()
     expect(first_marker).not_to_have_attribute(

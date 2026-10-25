@@ -295,10 +295,9 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
     return this.#controller;
   }
 
-  // Set each bound property to the value its input delivers, before the update that
-  // reads it. Reading the input here follows it as `render()` reading it would.
-  willUpdate(changed) {
-    super.willUpdate(changed);
+  // Deliver before the widget decides whether to draw. Reading the input here
+  // follows it even when shouldUpdate skips an unchanged value.
+  #deliverInputs() {
     for (const entry of this.#inputs) {
       if (!entry.bound) continue;
       entry.read ??= dataReader(this, entry.input, () => this.#stage());
@@ -390,6 +389,7 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
     if (this.#broken) return false;
     if (!this.#complete()) return false;
     if (awaitsData(this)) return false;
+    this.#deliverInputs();
     return super.shouldUpdate(changed);
   }
 

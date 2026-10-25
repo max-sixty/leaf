@@ -5987,8 +5987,7 @@ var LeafElement = class extends q(UpdateBoundary) {
 	get controller() {
 		return this.#controller;
 	}
-	willUpdate(changed) {
-		super.willUpdate(changed);
+	#deliverInputs() {
 		for (const entry of this.#inputs) {
 			if (!entry.bound) continue;
 			entry.read ??= dataReader(this, entry.input, () => this.#stage());
@@ -6050,6 +6049,7 @@ var LeafElement = class extends q(UpdateBoundary) {
 		if (this.#broken) return false;
 		if (!this.#complete()) return false;
 		if (awaitsData(this)) return false;
+		this.#deliverInputs();
 		return super.shouldUpdate(changed);
 	}
 	update(changed) {

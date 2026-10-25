@@ -877,9 +877,11 @@ customElements.define(
 
     shouldUpdate(changed) {
       const ready = super.shouldUpdate(changed);
-      // An inline patch is authored once. Only interrupted preparation needs another
-      // draw; an unchanged return must keep its finished rows or visible refusal.
-      return ready && (this.hasAttribute("source") || this.#shown === undefined);
+      if (!ready) return false;
+      // Only new evidence or preparation interrupted by departure needs a draw;
+      // a no-op update would clear a completed refusal.
+      const source = this.hasAttribute("source") ? this.value : this.inlineSource;
+      return this.#shown === undefined || source !== this.#shown;
     }
 
     setup() {

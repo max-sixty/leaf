@@ -654,6 +654,9 @@ def test_atlas_send_and_pause_is_one_thread_fold(browser, serve):
     inline_link = seat.locator('a[href="https://example.com/run"]')
     expect(inline_link).to_have_attribute("target", "_blank")
     expect(inline_link.locator(":scope > svg.lf-external-mark")).to_be_visible()
+    # The record stands in the hub's track, which stays in view beside the goal, so
+    # the reply waits behind its news as the pause did.
+    page.locator("#atlas-record .lf-activity-news").click()
     replied = page.locator("#atlas-record .lf-activity-row").first
     expect(replied.locator(".lf-activity-line")).to_contain_text("Relay replied")
     expect(replied.locator(".lf-activity-excerpt")).to_have_text(
@@ -664,13 +667,16 @@ def test_atlas_send_and_pause_is_one_thread_fold(browser, serve):
     with sending(page, "the resolution"):
         page.locator(".lf-fp-settle").click()
     expect(goal).not_to_have_attribute("data-lf-held")
+    page.locator("#atlas-record .lf-activity-news").click()
     released = page.locator("#atlas-record .lf-activity-row").first
     expect(released).to_contain_text(
         "Me resolved “Finish the current hunk, then park here.”"
     )
 
     undo(page)
-    # Taking the resolution back leaves its row where it stood, marked undone.
+    # Taking the resolution back leaves its row where it stood, marked undone, once
+    # the record shows the change it holds.
+    page.locator("#atlas-record .lf-activity-news").click()
     expect(released).to_have_attribute("data-lf-undone", "")
     expect(released).to_contain_text("undone")
     expect(goal).to_have_attribute("data-lf-held", root["id"])

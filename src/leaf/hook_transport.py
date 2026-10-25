@@ -52,9 +52,9 @@ pointer; the agent's `leaf delivery ack` then confirms it or shows the refusal. 
 delivery whose context the harness wouldn't show the model whole goes as a pointer
 too (`Harness.fits_hook_context`).
 
-Pi has the context once the hook returns, and so does Claude Code at a tool
+Pi keeps a hook's context once the hook exits, and so does Claude Code at a tool
 boundary, where Escape leaves Leaf's context in the conversation, so those hooks
-record the receipt with the pickup. Claude Code reads a prompt hook's output only
+record the receipt after printing the context, just before they exit. Claude Code reads a prompt hook's output only
 once every hook of the event has exited, and Escape before then drops it with the
 prompt (`Harness.drops_hook_context`). So its prompt hook leaves the receipt to the
 turn's next hook, PreToolUse before a `leaf` command, PostToolBatch or Stop, which
@@ -89,6 +89,7 @@ from pathlib import Path
 from .activity import acknowledged_obligations, turn_obligations, unanswered
 from .delivery import (
     batch_data,
+    confirm_turn,
     deliverable,
     delivery_pointer_prompt,
     freeze_delivery,
@@ -491,21 +492,22 @@ def carry_turn(
     context = notices(reconnect_harness, sid, expected)
     if context is None:
         return
-    output = render(
-        harness,
-        event,
-        delivery,
-        [*context, *attention],
-        confirm=lambda: (
+    handed = []
+
+    def hand_over() -> bool:
+        handed.append(
             time.monotonic() < deadline
-            and receive_held(
-                delivery,
-                sid,
-                expected,
-                deadline=deadline,
-                confirm=event not in harness.drops_hook_context,
-            )
-        ),
-    )
+            and receive_held(delivery, sid, expected, deadline=deadline)
+        )
+        return handed[-1]
+
+    output = render(harness, event, delivery, [*context, *attention], confirm=hand_over)
     if output:
         print(json.dumps(output), flush=True)
+    # A harness that keeps this event's context has it once the hook exits, which
+    # follows at once (`hooks.main`). Recorded after the print, the receipt leaves
+    # only that exit, 5-8 ms on a loaded host, in which an update reads received
+    # while the harness could still drop its context; a hook stopped before the
+    # receipt leaves its handover to be offered again.
+    if any(handed) and event not in harness.drops_hook_context:
+        confirm_turn(sid, deadline=deadline)

@@ -490,8 +490,9 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
 
     def drop(update: str) -> int:
         """Slow the session's other prompt and tool-batch hooks, and press Escape
-        once Leaf's hook has handed `update` over and while the other still runs, so
-        Claude Code drops what Leaf's hook returned. Returns how many records the
+        once Leaf's hook has handed `update` over and while the other still runs.
+        At a prompt Claude Code then drops what Leaf's hook returned, with the
+        prompt; at a tool boundary it keeps it. Returns how many records the
         conversation held as Escape was pressed."""
         slow_prompt(place).touch()
         try:

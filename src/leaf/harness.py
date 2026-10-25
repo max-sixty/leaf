@@ -105,8 +105,9 @@ class Harness:
     # The hook events whose context the harness may still drop after Leaf's hook
     # returns. A handover at one of them waits for a later hook of the same turn to
     # confirm it, and is offered again if the turn ends first
-    # (`delivery.confirm_turn`). At any other event the context is in the session
-    # once the hook returns, so the hook records the receipt as it hands over.
+    # (`delivery.confirm_turn`). At any other event the harness keeps the context
+    # once the hook exits, so the hook records the receipt after printing it, and
+    # exits at once (`hooks.main`).
     drops_hook_context: ClassVar[frozenset[str]] = frozenset()
     # The most UTF-8 bytes of hook context the harness shows the model whole, or
     # None where it shows any size.

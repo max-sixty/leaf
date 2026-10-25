@@ -18,9 +18,9 @@ pickup a Claude Code hook handed over is not yet a receipt. The envelope's
 `acknowledge` says who confirms receipt: the hooks confirm their inline input, while
 the agent confirms Codex hook input and a pointer it read with `leaf delivery ack`.
 
-A hook whose context is in the session once it returns, as every Pi hook's and
-Claude Code's tool-boundary hook's is, records the receipt as it hands the delivery
-over. Escape during Claude Code's prompt hooks drops the prompt with Leaf's context
+A hook whose context the harness keeps once the hook exits, as it keeps every Pi
+hook's and Claude Code's tool-boundary hook's, records the receipt after printing
+that context, as it exits (`confirm_turn`). Escape during Claude Code's prompt hooks drops the prompt with Leaf's context
 (`Harness.drops_hook_context`), so a prompt hook records only the opened pickup,
 which the page shows as Delivered at once, and the turn's next hook confirms it
 (`confirm_turn`): a tool call or the turn's end means the model read the context.
@@ -1078,7 +1078,7 @@ def deliverable(
     A handover the turn never confirmed is input again once the turn reads ended:
     Escape while Claude Code still ran a prompt hook dropped the prompt, Leaf's
     context with it, so the update reached no model. A tool boundary's handover is
-    confirmed as it is handed over, since Escape leaves it in the conversation.
+    confirmed as its hook exits, since Escape leaves it in the conversation.
 
     The second kind is how a page that changed hands reaches its new owner: an
     update the previous owner received but did not answer advanced the cursor, and
@@ -1162,18 +1162,22 @@ def awaiting_receipt(page: PageTransaction) -> set[str]:
     return handed if turn.ended is None else set()
 
 
-def confirm_turn(session_id: str) -> None:
+def confirm_turn(session_id: str, *, deadline: float | None = None) -> None:
     """Confirm what this session's hooks handed into its open turn, on every page it
-    holds, as a later hook of that turn runs: the receipt through the newest such
-    update (`record_receipt`). The model has read the context a prompt handed over
-    once it calls a tool or ends its turn, which is when Claude Code runs this
-    session's PreToolUse, PostToolBatch and Stop hooks."""
+    holds: the receipt through the newest such update (`record_receipt`). A later
+    hook of that turn calls this, since the model has read the context a prompt
+    handed over once it calls a tool or ends its turn, which is when Claude Code
+    runs this session's PreToolUse, PostToolBatch and Stop hooks. A hook whose
+    harness keeps its context calls it after printing that context
+    (`hook_transport.carry_turn`), with the hook's `deadline`: a page whose locks
+    are still held then keeps its handover for the turn's next hook, or for a
+    re-offer if the turn ends first."""
     from .service import owned_pages
 
     for page_dir in owned_pages(session_id):
         try:
             with (
-                PageTransaction(page_dir) as page,
+                PageTransaction(page_dir, deadline=deadline) as page,
                 flocked(session_lock_path(session_id), deadline=page.deadline),
             ):
                 record = session_record(session_id)
@@ -1185,7 +1189,7 @@ def confirm_turn(session_id: str) -> None:
                 )
                 if handed:
                     record_receipt(page, max(seqs[event_id] for event_id in handed))
-        except FileNotFoundError:
+        except (FileNotFoundError, TimeoutError):
             continue
 
 
@@ -1229,8 +1233,8 @@ def receive_batch(
     Every transport confirms here once its durable consumer accepts input.
     The body records pickup and turn entry before this records the receipt, so
     interruption leaves input available for retry. Work remains separate. A hook
-    whose harness may still drop its output hands the batch over without the
-    receipt (`confirm`), which the turn's next hook records (`confirm_turn`).
+    hands the batch over without the receipt (`confirm`), which follows once the
+    harness has its context (`confirm_turn`).
     Current ownership authorizes the write, not capture-time ownership: the
     page is still the receiver's (`service.claim_names_session`), even between a
     restart's new generation and its claim, and an old envelope can be confirmed
@@ -1317,12 +1321,11 @@ def receive_held(
     expected: dict,
     *,
     deadline: float | None = None,
-    confirm: bool = True,
 ) -> bool:
     """Record each batch of a delivery its hook is handing to `session_id`'s open
     turn, the lifecycle `expected` it planned under, as opened in it, and whether
-    every batch was. `confirm` also records the receipt, where the harness has the
-    context once the hook returns (`Harness.drops_hook_context`).
+    every batch was. The receipt follows once the harness has the context
+    (`confirm_turn`).
 
     A refusal is the batch's own: a page that changed hands or went, a turn that
     ended or was replaced, a log this Leaf may not write
@@ -1338,7 +1341,7 @@ def receive_held(
                 session_id,
                 deadline=deadline,
                 expected=expected,
-                confirm=confirm,
+                confirm=False,
             )
         except (FileNotFoundError, Refused, TimeoutError):
             confirmed = False

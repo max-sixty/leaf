@@ -311,12 +311,20 @@ def main(harness: str, *, watch: bool = False, pages: bool = False) -> None:
         )
     if pages:
         cmd_pages(payload)
-        return
-    if watch:
+    elif watch:
         from .leases import release_on_termination
 
         release_on_termination()
         if woke := cmd_watch(harness, payload):
             print(woke, flush=True)
-        return
-    cmd_hook(harness, payload)
+    else:
+        cmd_hook(harness, payload)
+    # The harness reads a hook's output once its process exits, and drops it if the
+    # hook is stopped first, while a hook that hands context over has already
+    # recorded the handover (`hook_transport.carry_turn`). So the process ends as
+    # its output is flushed, skipping the interpreter's teardown, which took 24-41
+    # ms after the hook's last print on a loaded host. Every resource a hook holds
+    # is released by the context managers it has already left.
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(0)

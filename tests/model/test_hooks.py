@@ -690,18 +690,31 @@ def test_a_handover_its_turn_never_confirmed_is_offered_again(
     assert acknowledged_through(claimed) == resolve["seq"]
 
 
-def test_a_tool_boundaries_handover_survives_escape_and_is_not_delivered_again(
-    claimed, interactive, monkeypatch, capsys
-):
-    """Escape while another plugin's PostToolBatch hook still runs keeps Leaf's
-    context from that tool boundary in the conversation, so the comment it handed
-    over is received there and then. The interrupted turn leaves nothing to offer
-    again and the page's server nudges nobody; the user's next prompt names the
-    owed comment, and no hook delivers it a second time."""
+def interrupted_later(monkeypatch) -> dict:
+    """Claude Code's record of the running turn, which a test moves to idle as
+    Escape does."""
     live = {"state": "busy", "since": datetime.now().astimezone().isoformat()}
     monkeypatch.setattr(
         harness_model.ClaudeCodeHarness, "live_turn", lambda harness: dict(live)
     )
+    return live
+
+
+def interrupt(live: dict) -> None:
+    time.sleep(0.01)
+    live.update(state="idle", since=datetime.now().astimezone().isoformat())
+
+
+def test_escape_keeps_a_tool_boundary_handover_and_nothing_delivers_it_again(
+    claimed, interactive, monkeypatch, capsys
+):
+    """Escape while another plugin's PostToolBatch hook still runs keeps Leaf's
+    context from that tool boundary in the conversation, so what it handed over,
+    an owed comment and a resolve that owes nothing, is received as the hook exits.
+    The interrupted turn leaves nothing to offer again and the page's server nudges
+    nobody; the user's next prompt names the owed comment, and no hook delivers it
+    a second time."""
+    live = interrupted_later(monkeypatch)
     nudged = []
     monkeypatch.setattr(
         harness_model.ClaudeCodeHarness,
@@ -714,6 +727,12 @@ def test_a_tool_boundaries_handover_survives_escape_and_is_not_delivered_again(
     asked = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "which ships first?"}
     )
+    withdrawn = append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "never mind"}
+    )
+    resolve = append_carried_log_record(
+        claimed, {"kind": "resolve", "author": "user", "parent": withdrawn["id"]}
+    )
     hooks_model.cmd_hook(
         "claude-code", {"hook_event_name": "PostToolBatch", "session_id": "s1"}
     )
@@ -721,10 +740,9 @@ def test_a_tool_boundaries_handover_survives_escape_and_is_not_delivered_again(
         "additionalContext"
     ]
     assert context.startswith(hook_transport_model.INLINE_OPENING)
-    assert acknowledged_through(claimed) == asked["seq"]
+    assert acknowledged_through(claimed) == resolve["seq"]
 
-    time.sleep(0.01)
-    live.update(state="idle", since=datetime.now().astimezone().isoformat())
+    interrupt(live)
     with service_model.PageTransaction(claimed) as page:
         assert delivery_model.deliverable(page) == []
     server = server_rows_model.RowPublisher(claimed, "fixture-server")
@@ -739,6 +757,43 @@ def test_a_tool_boundaries_handover_survives_escape_and_is_not_delivered_again(
     assert not reminder.startswith(hook_transport_model.INLINE_OPENING)
     assert hook_transport_model.ATTENTION_OPENING in reminder
     assert asked["id"] in reminder
+
+
+def test_a_tool_boundary_hook_stopped_before_its_receipt_offers_its_handover_again(
+    claimed, interactive, monkeypatch, capsys
+):
+    """The tool-boundary hook records its receipt only after printing its context,
+    so a hook stopped between its pickup and its exit, whose context Claude Code
+    then never reads, leaves its handover to be offered again once the turn reads
+    ended, an update that owes nothing included."""
+    live = interrupted_later(monkeypatch)
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
+    )
+    capsys.readouterr()
+    withdrawn = append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "never mind"}
+    )
+    resolve = append_carried_log_record(
+        claimed, {"kind": "resolve", "author": "user", "parent": withdrawn["id"]}
+    )
+    received = acknowledged_through(claimed)
+    monkeypatch.setattr(
+        hook_transport_model, "confirm_turn", lambda *args, **kwargs: None
+    )
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "PostToolBatch", "session_id": "s1"}
+    )
+    capsys.readouterr()
+    assert handed(claimed, resolve["id"])
+    assert acknowledged_through(claimed) == received
+
+    interrupt(live)
+    with service_model.PageTransaction(claimed) as page:
+        assert [event["id"] for event in delivery_model.deliverable(page)] == [
+            withdrawn["id"],
+            resolve["id"],
+        ]
 
 
 def test_a_turn_ends_on_its_answer_and_a_turn_of_its_own_names_what_it_owes(

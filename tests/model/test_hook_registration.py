@@ -614,8 +614,10 @@ def test_a_hook_in_a_session_holding_no_page_imports_no_page_reading_or_server(
     anchor capture. Run in a fresh interpreter, whose `sys.modules` is the hook's."""
     record_claim(page_dir, id="another-session")
     probe = """\
-import io, json, runpy, sys
+import io, json, os, runpy, sys
 imported = [sorted(sys.modules)]
+# A hook ends its process as it finishes (`hooks.main`); this one runs several.
+os._exit = lambda status: None
 HOOK = ["hook", "--harness", "codex"]
 cases = (
     ("UserPromptSubmit", HOOK, None),

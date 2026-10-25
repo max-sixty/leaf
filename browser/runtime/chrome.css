@@ -1281,8 +1281,11 @@
     background: var(--lf-fp-surface);
     box-shadow: 0 0 0 1px var(--lf-fp-ring), var(--raise-2);
   }
-  .lf-floating-panel:not([data-menu]) .lf-fp-menu {
+  .lf-floating-panel:not([data-menu]) .lf-fp-menu:not([data-leaving]) {
     display: none;
+  }
+  .lf-fp-menu[data-leaving] {
+    pointer-events: none;
   }
   .lf-floating-panel[data-menu] .lf-fp-menu {
     @starting-style {
@@ -1815,13 +1818,31 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     border-radius: var(--r-l);
     box-shadow: var(--raise-3);
     padding: 14px 18px;
+    flex-direction: column;
   }
   .lf-command-reference.open {
     display: flex;
-    flex-direction: column;
   }
   .lf-command-reference::backdrop {
     background: color-mix(in srgb, var(--ink) 24%, transparent);
+  }
+  :is(.lf-command-reference, .lf-page-map-dialog),
+  :is(.lf-command-reference, .lf-page-map-dialog)::backdrop {
+    opacity: 0;
+    transition:
+      opacity var(--lf-motion-disclosure) linear,
+      display var(--lf-motion-disclosure) allow-discrete,
+      overlay var(--lf-motion-disclosure) allow-discrete;
+  }
+  :is(.lf-command-reference:not(.open), .lf-page-map-dialog:not([open])) {
+    pointer-events: none;
+  }
+  :is(.lf-command-reference.open, .lf-page-map-dialog[open]),
+  :is(.lf-command-reference.open, .lf-page-map-dialog[open])::backdrop {
+    opacity: 1;
+    @starting-style {
+      opacity: 0;
+    }
   }
   .lf-media-viewer {
     position: fixed;
@@ -2174,11 +2195,11 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     background: var(--paper);
     color: var(--ink);
     box-shadow: var(--raise-3);
+    flex-direction: column;
   }
   .lf-page-map-dialog[open],
   .lf-inspection-dialog[open] {
     display: flex;
-    flex-direction: column;
   }
   .lf-page-map-dialog::backdrop,
   .lf-inspection-dialog::backdrop {

@@ -557,6 +557,12 @@ export function createFloatingPanel({
   // the list moves none of the menu's rows.
   const menuAt = signal(null);
   let menuRoom = null;
+  // A closing menu's fade, which holds its last rows, inert, until it ends, so the menu
+  // goes out in a disclosure's time as it came in; null while it stands or is gone.
+  // Whether the menu was drawn open at the last paint tells a close from a menu that
+  // was never shown.
+  let menuFade = null;
+  let menuDrawn = false;
   let filter = "open";
   let query = "";
   let searching = false;
@@ -3318,17 +3324,43 @@ export function createFloatingPanel({
     );
     keeps(errorDot, "data-shown", unseen ? "" : null);
 
-    render(menuOpen.value ? menuTemplate() : nothing, menu);
+    if (menuOpen.value) {
+      // A menu reopened while it fades draws afresh, as one opened after it had gone.
+      if (menuFade) {
+        menuFade.cancel();
+        menuFade = null;
+        render(nothing, menu);
+      }
+    } else if (menuDrawn && !menuFade) {
+      menu.setAttribute("data-leaving", "");
+      menuFade = playMotion(menu, [{ opacity: 1 }, { opacity: 0 }], {
+        duration: motionTime("--lf-motion-disclosure", menu),
+        easing: "linear",
+      });
+      menuFade?.finished.then(
+        () => {
+          menuFade = null;
+          paint();
+        },
+        () => {},
+      );
+    }
+    menuDrawn = menuOpen.value;
+    keeps(menu, "data-leaving", menuFade ? "" : null);
+    keeps(menu, "inert", menuFade ? "" : null);
+    if (!menuFade) render(menuOpen.value ? menuTemplate() : nothing, menu);
     // A copy control the menu keeps for its next showing leaves the list the render just
     // took down, which it would otherwise hold whole, rows and all, as its parent.
     for (const copy of [...copyItems.values(), ...copies.values()])
       if (!copy.isConnected) copy.remove();
-    keeps(
-      menu,
-      "data-level",
-      menuOpen.value && menuAt.value ? menuAt.value.view : null,
-    );
-    keeps(menu, "style", menuOpen.value && menuRoom ? `height: ${menuRoom}px` : null);
+    if (!menuFade) {
+      keeps(
+        menu,
+        "data-level",
+        menuOpen.value && menuAt.value ? menuAt.value.view : null,
+      );
+      keeps(menu, "style", menuOpen.value && menuRoom ? `height: ${menuRoom}px` : null);
+    }
     // A text to select, which About holds where no clipboard copies it, is no menu's row.
     keeps(menu, "role", menu.querySelector("textarea") ? "dialog" : "menu");
     if (menuOpen.value) {

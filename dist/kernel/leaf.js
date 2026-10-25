@@ -5378,6 +5378,8 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	const menuOpen = Z(false);
 	const menuAt = Z(null);
 	let menuRoom = null;
+	let menuFade = null;
+	let menuDrawn = false;
 	let filter = "open";
 	let query = "";
 	let searching = false;
@@ -7155,10 +7157,32 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const sayingNow = new Set(sayable().map((error) => error.id));
 		const unseen = errorsReading().some((error) => !error.seen && !sayingNow.has(error.id) && !standsAtItsBox(error));
 		keeps(errorDot, "data-shown", unseen ? "" : null);
-		render(menuOpen.value ? menuTemplate() : nothing, menu);
+		if (menuOpen.value) {
+			if (menuFade) {
+				menuFade.cancel();
+				menuFade = null;
+				render(nothing, menu);
+			}
+		} else if (menuDrawn && !menuFade) {
+			menu.setAttribute("data-leaving", "");
+			menuFade = playMotion(menu, [{ opacity: 1 }, { opacity: 0 }], {
+				duration: motionTime("--lf-motion-disclosure", menu),
+				easing: "linear"
+			});
+			menuFade?.finished.then(() => {
+				menuFade = null;
+				paint();
+			}, () => {});
+		}
+		menuDrawn = menuOpen.value;
+		keeps(menu, "data-leaving", menuFade ? "" : null);
+		keeps(menu, "inert", menuFade ? "" : null);
+		if (!menuFade) render(menuOpen.value ? menuTemplate() : nothing, menu);
 		for (const copy of [...copyItems.values(), ...copies.values()]) if (!copy.isConnected) copy.remove();
-		keeps(menu, "data-level", menuOpen.value && menuAt.value ? menuAt.value.view : null);
-		keeps(menu, "style", menuOpen.value && menuRoom ? `height: ${menuRoom}px` : null);
+		if (!menuFade) {
+			keeps(menu, "data-level", menuOpen.value && menuAt.value ? menuAt.value.view : null);
+			keeps(menu, "style", menuOpen.value && menuRoom ? `height: ${menuRoom}px` : null);
+		}
 		keeps(menu, "role", menu.querySelector("textarea") ? "dialog" : "menu");
 		if (menuOpen.value) {
 			const rows = menuRows();

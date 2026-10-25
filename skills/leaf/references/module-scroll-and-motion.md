@@ -175,7 +175,10 @@ since it turns false once the user moves on. A widget that switches view to show
 target, as `lf-tabs` does, calls `replacedView()` during the event. A listener passes
 later layout work to `present(promise)`, which Leaf waits for before placing the target.
 
-A widget that adds history entries uses `pushEntry(url)` and `replaceEntry(url)`. To
+A widget that adds history entries uses `pushEntry(url)` and `replaceEntry(url)`. An
+entry a press adds says the press takes the user somewhere, as a link's does, so its
+result may scroll away the control pressed; `replaceEntry` only renames the entry the
+user is on. To
 restore the page itself when the user goes Back or Forward to one of its entries, call
 `claimTraversals(claim, {signal})`, where `claim(url)` returns a function that restores
 the page for an entry of the widget's, or nothing.

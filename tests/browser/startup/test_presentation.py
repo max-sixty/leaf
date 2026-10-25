@@ -188,7 +188,6 @@ def test_a_sample_starts_without_its_host_s_saved_chrome(browser, serve):
     expect(host.locator(PANEL)).to_have_attribute("data-rest", "mark")
     child = host.frame_locator("#practice iframe")
     expect(child.locator(PANEL)).to_have_attribute("data-rest", "row")
-    context.close()
 
 
 def test_a_projected_external_link_gets_the_pages_link_treatment(browser, serve):

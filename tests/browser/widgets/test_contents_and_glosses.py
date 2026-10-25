@@ -876,7 +876,6 @@ def test_the_reading_map_first_paints_its_spine_where_it_keeps_it(browser, serve
         for route in boot:
             route.continue_()
         page.unroute_all(behavior="wait")
-        page.close()
 
 
 def test_the_reading_map_returns_when_a_hidden_sidebar_comes_back(browser, serve):

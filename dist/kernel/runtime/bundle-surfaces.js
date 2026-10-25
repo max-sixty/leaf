@@ -375,10 +375,11 @@ function scrollIntoView(where, { alignment = where, behavior = "auto", block = "
 			const destination = destinationBox(where);
 			const byX = nearestScrollBy(destination.left - scrollMargin(where, "Left"), destination.right + scrollMargin(where, "Right"), left, right);
 			const byY = inside ? placementBy(where, "nearest", box, topMargin(where, box, start)) : 0;
-			if (byX || byY) land(box, localScrollBy(box, {
+			const by = localScrollBy(box, {
 				x: byX,
 				y: byY
-			}), "instant");
+			});
+			if (by.left || by.top) land(box, by, "instant");
 		}
 		if (box === within || box === pageScroller || getComputedStyle(box).position === "fixed") break;
 	}
@@ -1694,13 +1695,13 @@ function watchHeadingLinks() {
 		if (heading && headingAddress(heading)) focusDestination(heading, "move");
 	}, { capture: true });
 	let current = null;
-	onCurrentLocation((node) => {
-		const heading = (node?.nodeType === Node.ELEMENT_NODE ? headingAt(node) : null) ?? headingOn(node);
-		if (heading === current) return;
+	const stand = (heading) => {
+		if (heading === current) return links.get(heading);
 		if (current) show(current, "current", false);
 		current = heading;
-		if (heading) show(heading, "current", true);
-	});
+		return heading && show(heading, "current", true);
+	};
+	onCurrentLocation((node) => stand(node?.nodeType === Node.ELEMENT_NODE ? headingAt(node) : null));
 	pageScope("heading", {
 		title: "On a section heading",
 		root: focused,
@@ -1712,8 +1713,7 @@ function watchHeadingLinks() {
 			title: "copy link to section",
 			touch: false,
 			run: () => {
-				const heading = headingOn(focused());
-				(heading && show(heading, "current", true))?.control.shadowRoot.querySelector("button").click();
+				stand(headingOn(focused()))?.control.shadowRoot.querySelector("button").click();
 			}
 		}]
 	});
@@ -3414,6 +3414,7 @@ var MessageEditor = class {
 			accessibleName: () => `Edit message: ${said().slice(0, 60)}`,
 			sends: "save",
 			sendBtn: save,
+			icon: "save",
 			submitIn: actions,
 			sentMedia: true,
 			save: (value) => {

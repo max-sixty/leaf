@@ -730,7 +730,6 @@ customElements.define('lf-probe',class extends HTMLElement {connectedCallback(){
     page.keyboard.press("c")
     write(page_comment(page), "Still usable.")
     expect(page_comment(page)).to_have_js_property("value", "Still usable.")
-    page.close()
 
 
 @pytest.mark.parametrize("answer", ["ready", "offline"])
@@ -780,4 +779,3 @@ def test_first_history_answer_keeps_an_open_quote_draft(browser, serve, answer, 
     expect(page.get_by_role("status").filter(has_text="Draft kept")).to_have_count(0)
     if answer == "offline":
         consume_browser_errors(page, "net::ERR_INTERNET_DISCONNECTED")
-    page.close()

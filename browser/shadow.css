@@ -1295,9 +1295,9 @@ svg[data-lf-icon] {
   color: var(--muted);
   box-shadow: none;
 }
-:is(button, .lf-btn, .button).lf-quiet-action:where(:not(:disabled, [aria-disabled=true]):is(:hover, [data-lf-focus])),
+:is(button, .lf-btn, .button).lf-quiet-action:where(:not(:disabled, [aria-disabled=true]):is(:hover, [data-lf-focus-visible])),
 .lf-quiet-action.lf-ui:not(:disabled, [aria-disabled=true])::part(button):hover,
-.lf-quiet-action.lf-ui::part(lf-focus) {
+.lf-quiet-action.lf-ui::part(lf-focus-visible) {
   background: var(--chip);
   color: var(--ink);
 }

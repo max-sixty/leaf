@@ -329,6 +329,52 @@ customElements.define('lf-shadow-focus', class extends HTMLElement {
     ), "the field retained its public focus part after focus left"
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_pressed_quiet_action_looks_like_its_neighbour(request, serve, engine):
+    """A press leaves focus on a quiet action, as on any button, and leaves its face
+    alone: once the pointer goes, it matches the action beside it until a key moves
+    focus there, which wears the chip."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "Quiet actions",
+                '<h1 id="quiet-heading">Quiet actions</h1>\n<lf-quiet-pair id="quiet-pair"></lf-quiet-pair>',
+            ),
+            layer_registry={
+                "lf-quiet-pair": element_declaration("lf-quiet-pair", upgrade=True)
+            },
+            layer_widgets={
+                "lf-quiet-pair.js": """
+import {offer, once} from '/runtime/widget-api.js';
+customElements.define('lf-quiet-pair', class extends HTMLElement {
+  connectedCallback() {
+    if (!once(this)) return;
+    for (const [id, word] of [['quiet-back', 'Back'], ['quiet-next', 'Next']]) {
+      const button = offer('button', 'lf-btn lf-icon-action lf-quiet-action', word);
+      button.id = id;
+      button.type = 'button';
+      this.append(button);
+    }
+  }
+});
+"""
+            },
+        ),
+    )
+    back, forward = page.locator("#quiet-back"), page.locator("#quiet-next")
+    face = "el => getComputedStyle(el).backgroundColor"
+    forward.click()
+    page.mouse.move(0, 0)
+    expect(forward).to_be_focused()
+    rendered(page)
+    assert forward.evaluate(face) == back.evaluate(face)
+    page.keyboard.press("Shift+Tab")
+    expect(back).to_be_focused()
+    rendered(page)
+    assert back.evaluate(face) != forward.evaluate(face)
+
+
 def test_choice_rings_fit_clipped_edges_and_follow_native_visibility(browser, serve):
     """A whole-label cue survives clipping without turning every click into a cue."""
     page = open_page(

@@ -571,7 +571,9 @@ svg[data-lf-icon] {
 /* Secondary actions wear one quiet face, independent of their toolbar's geometry.
  * The vendor part and native button share this rule; the host keeps no second face.
  * lf-ui identifies offered vendor controls, and gives this modifier precedence over
- * the ordinary copy-button face in integration.css. */
+ * the ordinary copy-button face in integration.css. The chip follows the pointer and
+ * visible focus, as an ordinary button's does: a press leaves focus on the control,
+ * and a chip that stayed would set it apart from its unpressed neighbours. */
 :is(button, .lf-btn, .button).lf-quiet-action,
 .lf-quiet-action.lf-ui::part(button) {
   border: 1px solid transparent;
@@ -581,10 +583,10 @@ svg[data-lf-icon] {
   box-shadow: none;
 }
 :is(button, .lf-btn, .button).lf-quiet-action:where(
-    :not(:disabled, [aria-disabled="true"]):is(:hover, [data-lf-focus])
+    :not(:disabled, [aria-disabled="true"]):is(:hover, [data-lf-focus-visible])
   ),
 .lf-quiet-action.lf-ui:not(:disabled, [aria-disabled="true"])::part(button):hover,
-.lf-quiet-action.lf-ui::part(lf-focus) {
+.lf-quiet-action.lf-ui::part(lf-focus-visible) {
   background: var(--chip);
   color: var(--ink);
 }

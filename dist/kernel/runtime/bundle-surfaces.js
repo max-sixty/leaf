@@ -1296,15 +1296,6 @@ function releaseControl(control) {
 const controls = /* @__PURE__ */ new WeakMap();
 const wired = /* @__PURE__ */ new WeakMap();
 const COPY_SCOPE = Symbol("code copy");
-function copySize(block) {
-	const style = getComputedStyle(block);
-	const chosen = style.getPropertyValue("--lf-code-copy-size").trim() || (block.localName === "pre" ? style.lineHeight : "");
-	return CSS.supports("width", chosen) ? chosen : "";
-}
-function setCopySize(copy, size) {
-	if (size) copy.style.setProperty("--lf-code-copy-size", size);
-	else copy.style.removeProperty("--lf-code-copy-size");
-}
 onCurrentLocation((node) => {
 	for (let at = node; at; at = upFrom(at)) {
 		const copy = controls.get(at);
@@ -1314,7 +1305,7 @@ onCurrentLocation((node) => {
 function prepareCodeBlock(pre, source, noun) {
 	let copy = controls.get(pre);
 	if (!copy) {
-		copy = copyControl("lf-code-copy lf-quiet-action", {
+		copy = copyControl("lf-code-copy lf-mark", {
 			label: `Copy ${noun}`,
 			success: `${noun[0].toUpperCase()}${noun.slice(1)} copied`,
 			error: `Unable to copy ${noun}`
@@ -1342,9 +1333,7 @@ function declareCopy(pre, copy, noun) {
 	}]));
 }
 function copyBlock(block, source, noun) {
-	const size = copySize(block);
 	const copy = aimControl(prepareCodeBlock(block, source, noun));
-	setCopySize(copy, size);
 	declareCopy(block, copy, noun);
 	return copy;
 }
@@ -1358,12 +1347,10 @@ function watchCodeBlocks() {
 			const prepared = blocks.filter((pre) => pre.getRootNode() === document).map((pre) => [
 				pre,
 				prepareCodeBlock(pre, () => pre.querySelector(":scope > code").textContent, "code"),
-				headerLevels(pre),
-				copySize(pre)
+				headerLevels(pre)
 			]);
-			for (const [pre, pending, levels, size] of prepared) {
+			for (const [pre, pending, levels] of prepared) {
 				const copy = aimControl(pending);
-				setCopySize(copy, size);
 				standInChrome(copy, pre, levels);
 				copy.tabIndex = -1;
 				claimReachStop(pre);

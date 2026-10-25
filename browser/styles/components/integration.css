@@ -31,10 +31,12 @@ html[data-lf-draw-mode] main {
 /* A block's marks (Copy, a draft's editing controls) stand on one small toolbar whose
    middle lies on the block's border at its right, so it covers the border and padding
    rather than a word and takes no room: a patch of the card ground with a ring and a
-   lift, its marks quiet (controls.css, `.lf-quiet-action`) and 1px inside it. A code
-   block's Copy is such a toolbar of one mark, on the block's top border; a draft's
-   toolbar (draft.css) wears the same face in the same seat. `--lf-mark-bar-end` is how
-   far in from the block's outer right edge the toolbar stands. */
+   lift, its marks (controls.css, `.lf-mark`) 1px inside it. Its marks stand a reach
+   apart, so neighbouring reaches meet rather than overlap and the finger's wider
+   reach widens only the toolbar. A code block's Copy is such a toolbar of one mark, on
+   the block's top border; a draft's toolbar (draft.css) wears the same face in the
+   same seat. `--lf-mark-bar-end` is how far in from the block's outer right edge the
+   toolbar stands. */
 :root {
   --lf-mark-bar-end: 8px;
 }
@@ -42,7 +44,7 @@ html[data-lf-draw-mode] main {
 .lf-code-copy {
   box-sizing: border-box;
   display: flex;
-  gap: 2px;
+  gap: max(2px, var(--aim-floor) - var(--mark-size));
   padding: 1px;
   border: 1px solid var(--border-2);
   border-radius: var(--r);
@@ -52,22 +54,21 @@ html[data-lf-draw-mode] main {
 /* Copy stands over its code without changing the block's box or scrolling its text.
    Hover, keyboard focus, or a tap that stands the user on the source reveals it
    (code-copy.js). Hidden, it takes no presses, so a finger selecting the words beneath
-   it reaches them. Its face is the block's line (code-copy.js), and its toolbar that
-   face, its padding and its ring. */
+   it reaches them. Its toolbar is its mark, its padding and its ring. */
 .lf-code-copy {
-  --lf-code-copy-size: var(--lf-line);
+  --lf-code-copy-box: calc(var(--mark-size) + 4px);
   position: absolute;
   /* Hidden sources have no anchor; their chrome controls stay outside the window. */
   top: calc(
-    anchor(top, -9999px) - (var(--lf-code-copy-size) + 4px) / 2 +
+    anchor(top, -9999px) - var(--lf-code-copy-box) / 2 +
       var(--lf-block-control-dy, 0px)
   );
   left: calc(
-    anchor(right, -9999px) - var(--lf-mark-bar-end) - var(--lf-code-copy-size) - 4px +
+    anchor(right, -9999px) - var(--lf-mark-bar-end) - var(--lf-code-copy-box) +
       var(--lf-block-control-dx, 0px)
   );
-  width: calc(var(--lf-code-copy-size) + 4px);
-  height: calc(var(--lf-code-copy-size) + 4px);
+  width: var(--lf-code-copy-box);
+  height: var(--lf-code-copy-box);
   z-index: 1;
   white-space: normal;
   font-size: 0;
@@ -123,23 +124,6 @@ html[data-lf-draw-mode] main {
    focused control in the page does (shadow.css, `:focus`). */
 .lf-code-copy::part(button) {
   scroll-margin: var(--focus-ring-landing);
-  position: relative;
-  box-sizing: border-box;
-  width: var(--lf-code-copy-size);
-  height: var(--lf-code-copy-size);
-  padding: min(6px, max(1px, (var(--lf-code-copy-size) - var(--t-5) - 2px) / 2));
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: min(var(--t-5), calc(var(--lf-code-copy-size) - 4px));
-}
-/* Copy runs on its shadow button's press, so the reach (surfaces.css) is the button's:
-   one on the host would take the press from the button and copy nothing. Its own rule,
-   so an engine refusing a pseudo-element after a part keeps the rest. */
-.lf-code-copy::part(button)::after {
-  content: "";
-  position: absolute;
-  inset: min(0px, (100% - var(--aim-floor)) / 2);
 }
 /* A heading's link stands in the gutter before its first line, centered on that line
    (heading-links.js writes where the line stands in the heading's box), and at the

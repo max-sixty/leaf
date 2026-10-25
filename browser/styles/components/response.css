@@ -260,7 +260,7 @@
 .lf-composer-media {
   --lf-media-room: max(
     calc(var(--raise-1-drop) + var(--raise-1-blur)),
-    calc(var(--lf-media-mark-overhang) + (var(--aim-floor) - var(--corner-mark)) / 2)
+    calc(var(--lf-media-mark-overhang) + (var(--aim-floor) - var(--mark-size)) / 2)
   );
   --lf-media-h: 120px;
   display: flex;

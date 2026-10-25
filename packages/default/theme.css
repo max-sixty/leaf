@@ -3188,7 +3188,6 @@ html[data-lf-interactive] :scope:is(lf-text-document):not(:has(> *))::before {
     display: none;
   }
   .lf-draft-tools {
-    --lf-draft-mark: 26px;
     position: absolute;
     z-index: 1;
     inset-block-start: 0;
@@ -3216,23 +3215,6 @@ html[data-lf-interactive] :scope:is(lf-text-document):not(:has(> *))::before {
       translate: 0 calc(50% + 0.5px);
       opacity: 1;
     }
-  }
-  .lf-draft-action,
-  .lf-draft-tools > .lf-code-copy::part(button) {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    box-sizing: border-box;
-    inline-size: max(var(--lf-draft-mark), var(--aim-floor));
-    min-inline-size: 0;
-    block-size: var(--lf-draft-mark);
-    min-block-size: 0;
-    padding: 0;
-  }
-  .lf-draft-action[data-lf-focus-visible],
-  .lf-draft-tools > .lf-code-copy::part(lf-focus-visible) {
-    outline-offset: calc(-1 * var(--focus-ring-w));
   }
 }
 

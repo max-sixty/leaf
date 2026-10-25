@@ -81,8 +81,9 @@ extend beside it. Compose the page from these:
 
 - **Prose read in order**, such as a plan, review or decision, is plain semantic HTML.
 - **Independent status tiles** are a block with `class="layout-tiles"`, whose children
-  sit in equal cells. Each cell holds a metric, chart, table, list or log, with at most
-  a caption; tiles of paragraphs read worse than the column.
+  sit in equal cells. Each cell holds a metric (the theme's `.metric` entry), chart,
+  table, list or log, with at most a caption; tiles of paragraphs read worse than the
+  column.
 - **A comparison** is a table, or native sections arranged by the page's CSS.
 - **Controls beside evidence** is a playground. Aim for one coherent experience to
   read, operate and comment on. Embedded documents can isolate a demonstration, but

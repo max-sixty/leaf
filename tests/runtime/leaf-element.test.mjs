@@ -500,7 +500,7 @@ test("a failed preparation stands beside the render root, which the next draw st
   element.remove();
 });
 
-test("a setup that throws shows its failure and the element draws nothing", async () => {
+test("a setup that throws shows its failure and the element draws nothing, a check's redraw included", async () => {
   applicationState.setPhase("waiting");
   const errors = [];
   const original = console.error;
@@ -525,6 +525,7 @@ test("a setup that throws shows its failure and the element draws nothing", asyn
   await settled(element);
   applicationState.setPhase("offline");
   await settled(element);
+  element.redraw();
   console.error = original;
   assert.deepEqual(draws, []);
   assert.match(element.textContent, /failed: cannot build/);

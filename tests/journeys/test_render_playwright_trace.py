@@ -188,13 +188,13 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
     # the widget's display helper.
     origin = stream["monotonicTime"]
     assert origin is not None
+    # The checkpoint stands at its image's capture time, which only the toolbar says;
+    # the image's caption and the point's details don't repeat it.
     elapsed = f"{(image['timestamp'] - origin) / 1000:.3f} s"
-    expect(widget.locator(".lf-trace-caption")).to_contain_text(
-        f"After checkpoint · {elapsed}"
-    )
-    expect(widget.locator(".lf-trace-phase")).to_have_text(
-        f"After checkpoint · {(stop_time(record, phase) - origin) / 1000:.3f} s"
-    )
+    assert stop_time(record, phase) == image["timestamp"]
+    expect(widget.locator(".lf-trace-position")).to_have_text(elapsed)
+    expect(widget.locator(".lf-trace-caption")).not_to_contain_text(elapsed)
+    expect(widget.locator(".lf-trace-phase")).to_have_text("After checkpoint")
     # The basis every reader assumes goes unsaid; only a departure from it is.
     expect(widget.locator(".lf-trace-clock")).to_be_hidden()
     widget.locator(".lf-trace-tree summary").click()
@@ -222,9 +222,8 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
     user.keyboard.press("t")
     expect(page_source).to_have_attribute("aria-checked", "true")
     expect(widget.locator(f'[data-lf-datum="{target}"]')).to_be_visible()
-    expect(widget.locator(".lf-trace-phase")).to_have_text(
-        f"After checkpoint · {(stop_time(record, phase) - origin) / 1000:.3f} s"
-    )
+    expect(widget.locator(".lf-trace-phase")).to_have_text("After checkpoint")
+    expect(widget.locator(".lf-trace-position")).to_have_text(elapsed)
     user.keyboard.press("Escape")
 
     points = [
@@ -456,7 +455,7 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
         ".lf-trace-image:not(.lf-trace-image-pending) .viewer-canvas img"
     )
 
-    expect(widget.locator(".lf-trace-selection")).to_contain_text("Captured frame")
+    expect(widget.locator(".lf-trace-caption")).to_contain_text("Captured frame")
     first_frame = min(frames, key=lambda frame: frame["timestamp"])
     expect(raster).to_have_attribute(
         "data-lf-datum", f"trace-{archive_id}-image-{first_frame['id']}"
@@ -482,7 +481,7 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
     expect(widget.locator(".lf-trace-position")).to_have_text(
         f"{((late_frame['timestamp']) - record['streams'][0]['monotonicTime']) / 1000:.3f} s"
     )
-    expect(widget.locator(".lf-trace-selection")).to_contain_text("Captured frame")
+    expect(widget.locator(".lf-trace-caption")).to_contain_text("Captured frame")
     widget.get_by_role("button", name="Previous", exact=True).click()
     expect(widget.locator(".lf-trace-position")).to_have_text(
         f"{((early_call['endTime']) - record['streams'][0]['monotonicTime']) / 1000:.3f} s"

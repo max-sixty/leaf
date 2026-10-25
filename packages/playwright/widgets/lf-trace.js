@@ -20,6 +20,15 @@
  * (2026-10-19): a muted line saying each of these at rest, and the default basis as
  * the heading's hover title, which neither a key nor a finger reaches.
  *
+ * Each fact about where the playhead stands has one label at rest: its time in the
+ * toolbar, the moment it stands on as the selected Moments row, and the call and its
+ * checkpoint in the selected point's details. The toolbar adds the shown image's own
+ * time only where it differs from the playhead's; the image's badge names the input
+ * and its relation alone, and its caption only what nothing else says, the page where
+ * the recording has several, a frame, and a preview. Rejected (2026-10-25): the same
+ * time on five labels around one image, and the moment's name in the toolbar beside
+ * its selected row.
+ *
  * The playhead is a time. The shown evidence is the latest capture at or before
  * it. A checkpoint with an image stands at that image's capture time, which ends
  * the snapshot its DOM time begins; one without stands at its DOM time. Stepping,
@@ -1652,17 +1661,17 @@ customElements.define(
       const span = action
         ? `${this.#time(action.startTime, action.stream)}–${this.#time(action.endTime ?? action.startTime, action.stream)}`
         : "";
-      // At rest the badge says when the image was captured and whether the input
-      // was next, under way or done. Playing, the readout names the time and those
-      // words would change within a few hundred milliseconds of each input, so the
-      // badge names the input alone.
+      // At rest the badge says whether the input was next, under way or done; the
+      // toolbar says when (the header's labels at rest). Playing, those words would
+      // change within a few hundred milliseconds of each input, so the badge names
+      // the input alone.
       keepsText(
         this.#inputBadge,
         !relation
           ? ""
           : this.#playing
             ? this.#inputLabel(action)
-            : `${this.#time(image.timestamp, image.stream)} · ${relation === "next" ? "next:" : relation} ${this.#inputLabel(action)}`,
+            : `${relation === "next" ? "next:" : relation} ${this.#inputLabel(action)}`,
       );
       keeps(
         this.#inputBadge,
@@ -1785,7 +1794,6 @@ customElements.define(
     // parts, is too heavy to run per frame, so they are written directly; so is
     // the image zoom status, which changes on each pinch step.
     #drawTime() {
-      const point = this.#point();
       const playhead = this.#playheadTime();
       if (this.#trace && playhead !== null)
         this.#timeline.setTime(playhead - this.#bounds().start);
@@ -1807,30 +1815,17 @@ customElements.define(
           "--lf-trace-position-chars",
           longest,
         );
-      const selectedMoments = this.#moments.filter(
-        (moment) =>
-          this.#selected && this.#destination(moment.target) === this.#selected,
-      );
-      const selectedMoment =
-        selectedMoments.find((moment) => moment.index === this.#chosenBookmark) ??
-        selectedMoments[0];
-      const description = selectedMoment
-        ? `Moment ${selectedMoment.number} · ${selectedMoment.label}`
-        : point?.action
-          ? `${PHASES[point.phase]}${["before", "action", "after"].includes(point.phase) ? " checkpoint" : ""} · ${point.action.title}`
-          : point
-            ? "Captured frame"
-            : "";
       // When the image on screen was taken at another time than the playhead,
       // say so: between captures, at a checkpoint without its own image, or
-      // while the next image prepares.
+      // while the next image prepares. What the playhead stands on is said by the
+      // selected moment's row and the point's details (the header's labels at rest).
       const shown = this.#shownImage();
       const selection =
         shown && playhead !== null && Math.abs(playhead - shown.timestamp) >= 0.5
-          ? `Image from ${this.#time(shown.timestamp, shown.stream)} · ${description}`
-          : description;
+          ? `Image from ${this.#time(shown.timestamp, shown.stream)}`
+          : "";
       keepsText(this.#selectionLabel.value, selection);
-      keeps(this.#selectionLabel.value, "title", selection);
+      keeps(this.#selectionLabel.value, "title", selection || null);
       this.#drawInput();
     }
 
@@ -1872,8 +1867,17 @@ customElements.define(
       const metadataPoint = this.#metadataPoint;
       const metadataAction = metadataPoint?.action;
       const committed = this.#shownImage();
+      // What the image is, where nothing else says it (the header's labels at rest).
       const caption = committed
-        ? `${this.#targets.get(this.#id("image", committed.id)).label}${this.#picturePreview ? " · First capture after this point" : ""}`
+        ? [
+            trace.pages.length > 1 || trace.streams.length > 1
+              ? this.#pageLabel(committed.pageId)
+              : "",
+            committed.kind === "frame" ? "Captured frame" : "",
+            this.#picturePreview ? "First capture after this point" : "",
+          ]
+            .filter(Boolean)
+            .join(" · ")
         : this.#pendingPicture
           ? "Loading captured image…"
           : "No captured image at this point.";
@@ -2176,7 +2180,11 @@ customElements.define(
               </div>
             </div>
             <div class="lf-trace-capture-footer" ?hidden=${!trace}>
-              <p class="lf-trace-caption" title=${caption} ?hidden=${!extent}>
+              <p
+                class="lf-trace-caption"
+                title=${caption || nothing}
+                ?hidden=${!extent}
+              >
                 ${caption}
               </p>
               <a
@@ -2244,7 +2252,7 @@ customElements.define(
               <h3 class="lf-trace-phase" ${ref(this.#phaseHeading)}>
                 ${
                   metadataAction
-                    ? `${PHASES[metadataPoint.phase]}${metadataAction.phases[metadataPoint.phase] ? " checkpoint" : ""} · ${this.#time(metadataPoint.timestamp, metadataAction.stream)}`
+                    ? `${PHASES[metadataPoint.phase]}${metadataAction.phases[metadataPoint.phase] ? " checkpoint" : ""}`
                     : ""
                 }
               </h3>

@@ -2,6 +2,7 @@
  * shadow trees. A widget's own source or controls keep its own sheet. */
 :root {
   --lf-text-scroll-clearance: 8px;
+  --lf-text-scroll-track: 15px;
 }
 :where(:root, .lf-thread-transcript) a {
   color: var(--accent);
@@ -103,7 +104,7 @@
     content: "";
     float: inline-start;
     inline-size: 100%;
-    block-size: 15px;
+    block-size: var(--lf-text-scroll-track);
     grid-column: 1 / -1;
   }
   :where(:root, .lf-thread-transcript) :is(pre, table)::after {

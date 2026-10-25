@@ -704,7 +704,13 @@
    * Layout's `aside`: written before the body it stands left, after it right, so source
    * order is reading order at every width. Body and track take 2:1 of the room from
    * bases of 30rem and 18rem, and stack where they no longer fit or where the body would
-   * lose its content's minimum. A header or footer takes the whole row. Flex margins do
+   * lose its content's minimum. A page sizes the track by setting `--aside` on the
+   * Layout's box to a length or a share of the row, such as `20rem` or `25%`: the track
+   * then stands that wide beside the body and the body takes the rest, and the two
+   * stack where the body's base or its content's minimum no longer fits beside it. The
+   * body's grow factor dwarfs the track's, so beside the body the track keeps its width,
+   * and alone on a line each fills it. `auto`, the default, keeps the 2:1 shares. A
+   * header or footer takes the whole row. Flex margins do
    * not collapse, so the items' block margins go. The row holds its edge
    * (`--lf-holds-edge`, theme.css): each item beside another stands at both of its
    * edges, so the trim follows into each alike, a header only from the top and a footer
@@ -722,6 +728,7 @@
     align-items: flex-start;
     gap: var(--sp-4);
     --lf-holds-edge: 1;
+    --aside: auto;
   }
   :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-sidebar
     > :not(footer) {
@@ -756,6 +763,15 @@
     flex: 1 1 18rem;
     --lf-margin-content: track;
     align-self: stretch;
+  }
+  @container not style(--aside: auto) {
+    :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-sidebar
+      > :not(header, footer) {
+      flex: 1000000 1 30rem;
+    }
+    :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-sidebar > aside {
+      flex: 1 1 var(--aside);
+    }
   }
   /* The track beside the body says so to what it holds, as a column's margin sidebar
    * says `margin`: a contents outline there stands open (toc.css). */

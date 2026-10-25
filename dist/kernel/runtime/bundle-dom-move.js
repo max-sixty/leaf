@@ -544,7 +544,7 @@ function paintFocus(node) {
 	for (const owner of paintedWithin) if (!within.has(owner)) markFocus(owner, "focus-within", false);
 	for (const owner of within) if (!paintedWithin.has(owner)) markFocus(owner, "focus-within", true);
 	paintedWithin = within;
-	const visible = next && (next.matches(":focus-visible") || next.matches(TEXT_BOX)) ? next : null;
+	const visible = next && (next.matches(":focus-visible") || next.matches(TEXT_BOX) || next.localName === "iframe" && !pressLed()) ? next : null;
 	if (visible !== paintedVisible) {
 		if (paintedVisible) markFocus(paintedVisible, "focus-visible", false);
 		if (visible) markFocus(visible, "focus-visible", true);
@@ -693,7 +693,9 @@ function reconcile(step, pressed) {
 	}
 }
 function inputInFrame(frame) {
-	if (deepFocus() === frame) reconcile(null, [new WeakRef(frame)]);
+	if (deepFocus() !== frame || published?.deref() === frame) return;
+	pressedPath = [new WeakRef(frame)];
+	reconcile(null, pressedPath);
 }
 addEventListener("click", () => {
 	const pressed = pressedPath;

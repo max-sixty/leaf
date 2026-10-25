@@ -511,9 +511,16 @@ function paintFocus(node) {
   // keyboard destination without advertising a keyboard cue. The browser owns
   // focus-visible (including text entry and modality changes on the same node).
   // Closed text-field roots expose their host, not the focused editor; text
-  // entry always needs a cue, as it does for native editors.
+  // entry always needs a cue, as it does for native editors. A frame never matches
+  // :focus-visible on its host, so it takes the platform's rule from the inputs: visible
+  // unless a press put the user there (`inputInFrame`).
   const visible =
-    next && (next.matches(":focus-visible") || next.matches(TEXT_BOX)) ? next : null;
+    next &&
+    (next.matches(":focus-visible") ||
+      next.matches(TEXT_BOX) ||
+      (next.localName === "iframe" && !pressLed()))
+      ? next
+      : null;
   if (visible !== paintedVisible) {
     if (paintedVisible) markFocus(paintedVisible, "focus-visible", false);
     if (visible) markFocus(visible, "focus-visible", true);
@@ -746,10 +753,13 @@ function reconcile(step, pressed) {
 // A press inside a frame goes to the frame's document, and focus follows it there with
 // no event here: Firefox fires none at all, and Chromium only the window's `blur`. The
 // frame's owner hears of each input from the frame's document and reports it here. One
-// that left focus in the frame, which only a press there does without an event here,
-// puts the user on the frame, as a Tab into it would have.
+// that left focus in a frame the user was not yet on, which only a press there does
+// without an event here, is the user's latest press, and puts them on the frame as a
+// Tab into it would have.
 export function inputInFrame(frame) {
-  if (deepFocus() === frame) reconcile(null, [new WeakRef(frame)]);
+  if (deepFocus() !== frame || published?.deref() === frame) return;
+  pressedPath = [new WeakRef(frame)];
+  reconcile(null, pressedPath);
 }
 addEventListener(
   "click",

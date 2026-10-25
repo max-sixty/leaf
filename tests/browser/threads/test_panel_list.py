@@ -122,8 +122,9 @@ def test_a_title_on_its_way_reads_as_one(browser, serve, request):
     """While an agent holds the page and owes an untitled thread its work, a title is
     on its way (thread_titles.py), so every surface drawing the thread's name says so
     rather than naming the thread with its opening words, until the title lands:
-    Threads' row, Page Map's row, the agent's card in On and the thread's view. A page
-    nobody holds is sent no title, so there the thread reads its opening words."""
+    Threads' row, Page Map's row, the agent's card in On and the name the thread's view
+    gives assistive tech, which draws no heading over an untitled thread. A page nobody
+    holds is sent no title, so there the thread reads its opening words."""
     url = serve(PANEL_PAGE)
     opening = "Is the workshop room accessible?"
     pending = "Generating thread name…"

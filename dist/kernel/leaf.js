@@ -5623,6 +5623,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 				const thread = threadOf(route);
 				return thread ? threadHeading(thread) : threadTitle(route.thread);
 			},
+			quiet: (route) => threadOf(route)?.title == null,
 			draw: (route) => threadView(route.thread),
 			controls: (route) => threadControls(route),
 			nominate: (route, collection, parts) => nominateThread(route, collection, parts),
@@ -5631,7 +5632,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		},
 		queue: {
 			title: () => tabLabel(queueTab),
-			quiet: true,
+			quiet: () => true,
 			draw: () => onView(),
 			controls: () => queueControls(),
 			nominate: (_route, collection, parts) => nominateAsked(collection, parts),
@@ -6948,7 +6949,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	}
 	const headTemplate = (top) => {
 		const view = viewOf(top);
-		return html`<h2 class=${view.quiet ? "lf-fp-title lf-quiet" : "lf-fp-title"}>
+		return html`<h2 class=${view.quiet?.(top) ? "lf-fp-title lf-quiet" : "lf-fp-title"}>
       ${(view.head ?? view.title)(top)}
     </h2>`;
 	};

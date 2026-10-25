@@ -132,8 +132,8 @@ const titlePending = (thread) =>
   thread.attention.reason === "workflow" &&
   pageClaimed();
 
-// A thread's name wherever a surface draws it, as Threads, the thread's view, Page Map
-// and On cards do: while a title is on its way, a placeholder in the face of a step
+// A thread's name wherever a surface draws it, as Threads, Page Map, On cards and the
+// thread's view (to assistive tech alone while untitled) do: while a title is on its way, a placeholder in the face of a step
 // under way (`.lf-thread-working-words`) rather than opening words that would read as
 // its title.
 // The opening words stay in its accessible name, after the placeholder, so a screen

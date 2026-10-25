@@ -936,8 +936,9 @@ export function createFloatingPanel({
   // user chose it to show and holds that (`refit`, `holdRoom`).
   // - `key`: what tells two routes of the view apart, where its name alone does not.
   // - `title`: its name, over it, on the way back to it and in the Escape that closes it;
-  //   `head` in its heading where that says more, and `quiet` where its tabs already
-  //   say it, so the heading names it to assistive tech alone.
+  //   `head` in its heading where that says more, and `quiet` where something in view
+  //   already says it, so the heading names it to assistive tech alone: On's tabs, or an
+  //   untitled thread's opening message, whose words its name would repeat.
   // - `draw` and `controls`: what it holds, and what stands at its foot after the way
   //   back (`controlsTemplate`): `crumb`, in its row, and `aux`, the view's presses.
   // - `nominate`: the outlets in it Leaf's reader draws messages into.
@@ -964,6 +965,7 @@ export function createFloatingPanel({
         const thread = threadOf(route);
         return thread ? threadHeading(thread) : threadTitle(route.thread);
       },
+      quiet: (route) => threadOf(route)?.title == null,
       draw: (route) => threadView(route.thread),
       controls: (route) => threadControls(route),
       nominate: (route, collection, parts) => nominateThread(route, collection, parts),
@@ -972,7 +974,7 @@ export function createFloatingPanel({
     },
     queue: {
       title: () => tabLabel(queueTab),
-      quiet: true,
+      quiet: () => true,
       draw: () => onView(),
       controls: () => queueControls(),
       nominate: (_route, collection, parts) => nominateAsked(collection, parts),
@@ -3032,7 +3034,7 @@ export function createFloatingPanel({
   // when its title is still on its way (`threadHeading`).
   const headTemplate = (top) => {
     const view = viewOf(top);
-    return html`<h2 class=${view.quiet ? "lf-fp-title lf-quiet" : "lf-fp-title"}>
+    return html`<h2 class=${view.quiet?.(top) ? "lf-fp-title lf-quiet" : "lf-fp-title"}>
       ${(view.head ?? view.title)(top)}
     </h2>`;
   };

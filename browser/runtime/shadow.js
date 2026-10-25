@@ -138,10 +138,11 @@ export const inUi = (node) =>
 export let shadowRules = "";
 // Every legitimate page shadow tree is built here, so repeat the theme's leading layer
 // inside it: `hidden` hiding whatever display a rule states (theme.css), the
-// upgrade boundary for what a widget builds to be worked, and transition suppression. The
-// shadow's contents paint immediately and its controls after upgrade, on the same
-// boundaries as authored and generated light DOM. A selector in the tree cannot see body's stamps,
-// so the theme states each boundary as an inherited property these rules query with
+// upgrade boundary for what a widget builds to be worked, and transition suppression.
+// The shadow's contents paint immediately and its controls after upgrade, on the same
+// boundaries as authored and generated light DOM. A selector in the tree cannot see
+// body's stamps, so the theme states each boundary as an inherited property these rules
+// query with
 // `@container style()`, which Chrome, Firefox and Safari support; `:host-context()`,
 // which reads the stamps directly, has no Firefox or Safari support. The anonymous
 // layer leads the tree's sheets, so these important declarations outrank every later

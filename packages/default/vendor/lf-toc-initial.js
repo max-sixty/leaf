@@ -5,7 +5,7 @@
   // packages/default/widgets/toc-view.js
   var HEADING_SELECTOR = "h1, h2, h3, h4, h5, h6";
   var outlineDocument = (host) => host.closest("[data-lf-views] > *, main");
-  function drawToc(host, { generatedElement, keeps }) {
+  function drawToc(host, generatedElement) {
     const open = host.hasAttribute("open");
     const href = (destination) => destination?.id ? `#${destination.id}` : nothing;
     const paint = (start, items) => render(
@@ -47,18 +47,81 @@
     const list = track.querySelector("ol");
     const disclosure = nav.querySelector("details");
     const summary = disclosure.querySelector("summary");
-    let sections = [];
     let flowOpen;
     return {
       scope: () => outlineDocument(host),
       nav,
       track,
       lens: track.querySelector(".lf-toc-window"),
+      // CSS owns the posture. A hidden summary means the links are an always-exposed
+      // outline, which needs the disclosure natively open in every engine, so it opens
+      // and holds the in-flow choice; returning to flow restores that choice, or keeps
+      // it open where `inRows()` says the user stands in a link.
+      posture(inRows = () => false) {
+        if (getComputedStyle(summary).display === "none") {
+          flowOpen ??= disclosure.open;
+          if (!disclosure.open) disclosure.open = true;
+        } else if (flowOpen !== void 0) {
+          const open2 = flowOpen || inRows();
+          if (disclosure.open !== open2) disclosure.open = open2;
+          flowOpen = void 0;
+        }
+      },
+      // Lays the margin map out for `sections` (`update`'s rows): each shown row takes the
+      // length of the section it leads as its flex share (`--lf-toc-span`), and crowded
+      // labels are fitted around their markers (`fitLabels`). Returns where each section
+      // starts in the coordinates of a scroller scrolled `scrollTop`, which of them the
+      // document shows, where its content starts and ends, each marker's fitted place on
+      // the map and the map's height, and whether the labels overflow it (`outline`).
+      // The initial renderer lays the map out once the document has parsed, so the
+      // spine first paints with its markers in place; the module lays it out again
+      // whenever the document moves (`lf-toc.js`).
+      measure(sections, scrollTop) {
+        const main = outlineDocument(host);
+        const top = (element) => viewportTop(element, main) + scrollTop;
+        let previous = top(sections[0].destination);
+        const shown = sections.map(
+          ({ destination }) => destination === main || destination.checkVisibility()
+        );
+        const positions = sections.map(({ destination }, index) => {
+          const position = shown[index] ? Math.max(previous, top(destination)) : previous;
+          previous = position;
+          return position;
+        });
+        const contentEnd = Math.max(
+          top(main) + main.clientTop + main.scrollHeight - parseFloat(getComputedStyle(main).paddingBottom),
+          positions.at(-1) + 1
+        );
+        sections.forEach(({ row }, index) => {
+          row.toggleAttribute("data-lf-toc-hidden", !shown[index]);
+          const nextVisible = shown.findIndex((seen, at) => at > index && seen);
+          const next = nextVisible < 0 ? contentEnd : positions[nextVisible];
+          row.style.setProperty(
+            "--lf-toc-span",
+            shown[index] ? String(Math.max(1, next - positions[index])) : "0"
+          );
+        });
+        const fitted = fitLabels(host, track, nav, sections, shown);
+        sections.forEach(({ row }, index) => {
+          if (fitted.shifts.has(index))
+            row.style.setProperty("--lf-toc-row-shift", `${fitted.shifts.get(index)}px`);
+          else row.style.removeProperty("--lf-toc-row-shift");
+        });
+        return {
+          shown,
+          positions,
+          contentStart: positions[0],
+          contentEnd,
+          mapPositions: fitted.mapPositions,
+          mapHeight: fitted.mapHeight,
+          outline: fitted.outline
+        };
+      },
       update(reading2) {
         const { start, items } = readOutline(host, reading2);
         paint(start, items);
         const rows = [...list.children];
-        sections = items.length ? [
+        return items.length ? [
           { ...start, row: startRow, link: startRow.firstElementChild },
           ...items.map((item, index) => ({
             ...item,
@@ -66,83 +129,39 @@
             link: rows[index].firstElementChild
           }))
         ] : [];
-        return sections;
-      },
-      // Measure the document the last update outlined and lay the map out from it.
-      // Returns which destinations are displayed, where each starts and where the
-      // document ends, in viewport coordinates at this moment, with each marker's fitted
-      // place on the track. `keepsOpen` says whether a return to flow must leave the
-      // outline open for a focused link.
-      measure(keepsOpen = () => false) {
-        if (getComputedStyle(summary).display === "none") {
-          flowOpen ??= disclosure.open;
-          if (!disclosure.open) disclosure.open = true;
-        } else if (flowOpen !== void 0) {
-          const open2 = flowOpen || keepsOpen();
-          if (disclosure.open !== open2) disclosure.open = open2;
-          flowOpen = void 0;
-        }
-        const main = outlineDocument(host);
-        if (!main || !sections.length)
-          return { shown: [], positions: [], end: 0, map: [], height: 1, outline: false };
-        const top = (element) => {
-          for (let candidate = element; candidate; candidate = candidate.parentElement) {
-            const box = candidate.getBoundingClientRect();
-            if (box.width || box.height) return box.top;
-            if (candidate === main) break;
-          }
-          return main.getBoundingClientRect().top;
-        };
-        const shown = sections.map(
-          ({ destination }) => destination === main || destination.checkVisibility()
-        );
-        let previous = top(sections[0].destination);
-        const positions = sections.map(({ destination }, index) => {
-          const position = shown[index] ? Math.max(previous, top(destination)) : previous;
-          previous = position;
-          return position;
-        });
-        const end = Math.max(
-          top(main) + main.clientTop + main.scrollHeight - parseFloat(getComputedStyle(main).paddingBottom),
-          positions.at(-1) + 1
-        );
-        sections.forEach(({ row }, index) => {
-          row.toggleAttribute("data-lf-toc-hidden", !shown[index]);
-          const nextVisible = shown.findIndex((visible, at) => at > index && visible);
-          const next = nextVisible < 0 ? end : positions[nextVisible];
-          row.style.setProperty(
-            "--lf-toc-span",
-            shown[index] ? String(Math.max(1, next - positions[index])) : "0"
-          );
-        });
-        return {
-          shown,
-          positions,
-          end,
-          ...fitRows(host, nav, track, sections, shown, keeps)
-        };
       }
     };
   }
-  function fitRows(host, nav, track, sections, shown, keeps) {
-    const map2 = [];
-    const shifts = /* @__PURE__ */ new Map();
-    const { height, outline } = fitLabels(host, nav, track, sections, shown, keeps, {
-      map: map2,
-      shifts
-    });
-    sections.forEach(({ row }, index) => {
-      if (shifts.has(index))
-        row.style.setProperty("--lf-toc-row-shift", `${shifts.get(index)}px`);
-      else row.style.removeProperty("--lf-toc-row-shift");
-    });
-    return { map: map2, height, outline };
+  function destinationFor(host, heading, position, lends) {
+    const section = heading.closest("section[id]");
+    if (section?.querySelector(HEADING_SELECTOR) === heading) return section;
+    const destination = heading.closest("hgroup") ?? heading;
+    return lend(host, destination, position, lends);
   }
-  function fitLabels(host, nav, track, sections, shown, keeps, { map: map2, shifts }) {
-    keeps(host, "data-lf-compact", null);
-    keeps(host, "data-lf-outline", null);
-    if (getComputedStyle(track).display !== "flex") return { height: 1, outline: false };
+  function lend(host, destination, position, lends) {
+    if (destination.id || !lends) return destination;
+    const doc = host.ownerDocument;
+    const stem = `lf-${host.id}-section-${position}`;
+    let id = stem;
+    let suffix = 2;
+    while (doc.getElementById(id)) id = `${stem}-${suffix++}`;
+    destination.id = id;
+    return destination;
+  }
+  function fitLabels(host, track, nav, sections, shown) {
+    const shifts = /* @__PURE__ */ new Map();
+    const mapPositions = [];
+    host.removeAttribute("data-lf-compact");
+    host.removeAttribute("data-lf-outline");
+    if (getComputedStyle(track).display !== "flex")
+      return { shifts, mapPositions, mapHeight: 1, outline: false };
     const box = track.getBoundingClientRect();
+    const fitted = (outline = false) => ({
+      shifts,
+      mapPositions,
+      mapHeight: box.height,
+      outline
+    });
     const readLabels = () => {
       const labels = sections.flatMap(
         ({ row, link }, index) => shown[index] ? [
@@ -170,15 +189,15 @@
       };
     };
     let layout = readLabels();
-    if (!layout.labels.length) return { height: box.height, outline: false };
+    if (!layout.labels.length) return fitted();
     if (layout.labelHeight + layout.preferredGap * Math.max(0, layout.labels.length - 1) > layout.availableHeight + 1) {
-      keeps(host, "data-lf-compact", "");
+      host.setAttribute("data-lf-compact", "");
       layout = readLabels();
     }
     if (layout.labelHeight > layout.availableHeight + 1) {
-      keeps(host, "data-lf-compact", null);
-      keeps(host, "data-lf-outline", "");
-      return { height: box.height, outline: true };
+      host.removeAttribute("data-lf-compact");
+      host.setAttribute("data-lf-outline", "");
+      return fitted(true);
     }
     let prefix = 0;
     for (const label of layout.labels) {
@@ -212,28 +231,20 @@
       const top = Math.max(floor, Math.min(ceiling, block.top));
       for (let at = block.start; at <= block.end; at += 1) {
         const label = layout.labels[at];
-        const fitted = top + label.prefix + label.center;
-        map2[label.index] = fitted;
-        shifts.set(label.index, fitted - label.ideal);
+        const center = top + label.prefix + label.center;
+        mapPositions[label.index] = center;
+        shifts.set(label.index, center - label.ideal);
       }
     }
-    return { height: box.height, outline: false };
+    return fitted();
   }
-  function destinationFor(host, heading, position, lends) {
-    const section = heading.closest("section[id]");
-    if (section?.querySelector(HEADING_SELECTOR) === heading) return section;
-    const destination = heading.closest("hgroup") ?? heading;
-    return lend(host, destination, position, lends);
-  }
-  function lend(host, destination, position, lends) {
-    if (destination.id || !lends) return destination;
-    const doc = host.ownerDocument;
-    const stem = `lf-${host.id}-section-${position}`;
-    let id = stem;
-    let suffix = 2;
-    while (doc.getElementById(id)) id = `${stem}-${suffix++}`;
-    destination.id = id;
-    return destination;
+  function viewportTop(element, main) {
+    for (let candidate = element; candidate; candidate = candidate.parentElement) {
+      const box = candidate.getBoundingClientRect();
+      if (box.width || box.height) return box.top;
+      if (candidate === main) break;
+    }
+    return main.getBoundingClientRect().top;
   }
   var level = (heading) => Number(heading.localName.slice(1));
   function readOutline(host, { label, chrome, lends }) {
@@ -267,10 +278,12 @@
     lends: false
   };
   document.documentElement.lfInitial.register("lf-toc", (host, tools) => {
-    const drawing = drawToc(host, tools);
+    const drawing = drawToc(host, tools.generatedElement);
     const outline = () => {
-      tools.keeps(host, "data-lf-toc-empty", drawing.update(reading).length ? null : "");
-      drawing.measure();
+      const sections = drawing.update(reading);
+      tools.keeps(host, "data-lf-toc-empty", sections.length ? null : "");
+      drawing.posture();
+      if (sections.length) drawing.measure(sections, 0);
     };
     const doc = host.ownerDocument;
     if (doc.readyState === "loading") {

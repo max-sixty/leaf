@@ -1322,8 +1322,11 @@ h3 {
 }
 /* A page as wide as the window (`--lf-wide-page`, set by the sidebar Layout)
  * sets its title a size up and tighter, to hold its line above panels as wide as the
- * window. The Layout says how wide the page is; the size is answered here. */
-@container style(--lf-wide-page: 1) {
+ * window. The Layout says how wide the page is; the size is answered here. A page at
+ * working density keeps the working title, since it is a surface the reader operates
+ * or glances at, such as a rollout dashboard, whose first window the panels need: a
+ * 46px title and its air took a tenth of a 1000px window above them. */
+@container style(--lf-wide-page: 1) and (not style(--lf-density: working)) {
   h1 {
     font-size: clamp(36px, 3.2cqi, 46px);
     font-weight: 700;
@@ -1352,13 +1355,16 @@ p {
  * properties cross into them. The tokens derived from the ladder are declared for this
  * scope as for the root (above), since each resolves where it is declared. The flow's
  * larger gaps are tokens restated here; its small margins are numbers, restated in the
- * rules below.
+ * rules below. A column or sidebar page whose `main` takes the class, such as a
+ * dashboard the reader glances at, starts at a phone's head room rather than a
+ * document's 72px, as its title is set at working size too.
  *
  * `--lf-density` names the setting for what a size alone cannot carry: a widget whose
  * form changes, such as an option card becoming a row, reads it with a style query, as
  * it reads any other token, and never asks what holds it. */
 .density-working {
   --lf-density: working;
+  --page-pad-start: 28px;
   --t-1: 22px;
   --t-2: 18px;
   --t-3: 15.5px;
@@ -1467,9 +1473,10 @@ dd {
   margin: 0 0 8px 0;
 }
 
-/* The apparatus voice, said once per layer. Every label, caption, chip, badge and
- * column heading on the page is the page pointing at its own content rather than
- * saying something — so it takes the UI sans at a small size, usually tracked, and
+/* The apparatus voice, said once per layer. Every label, caption, chip, badge,
+ * disclosure summary and column heading on the page is the page pointing at its own
+ * content rather than saying something — so it takes the UI sans at a small size,
+ * usually tracked, and
  * the serif is left to carry what there is to read. Listing them in one rule is the
  * point: what counts as apparatus is a judgement, and a judgement made in twenty
  * places is twenty chances to answer it differently. This rule is the layer's own
@@ -1510,7 +1517,8 @@ dd {
 figcaption,
 caption,
 th:not([scope="row"]),
-.facts dt {
+.facts dt,
+summary {
   font-family: var(--sans);
   font-variant-numeric: tabular-nums;
 }

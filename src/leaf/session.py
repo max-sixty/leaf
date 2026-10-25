@@ -671,7 +671,9 @@ def left_owed(page: PageTransaction) -> list[dict]:
     ]
 
 
-def watch_between_turns(harness: Harness, *, interrupted: bool = False) -> str | None:
+def watch_between_turns(
+    harness: Harness, *, interrupted: bool = False, at_prompt: bool = False
+) -> str | None:
     """Wake for meaningful unreceived input, without treating a log look as pickup.
 
     Input already present at startup waits for the concurrent Stop hook to close
@@ -681,7 +683,7 @@ def watch_between_turns(harness: Harness, *, interrupted: bool = False) -> str |
     unless it arrives in a later turn than the one the watch follows
     (`later_turn_wakes`), which takes it itself. A watch after Escape
     wakes for what the stopped turn left deliverable: input that never entered its
-    context, and input its hooks handed over that no later hook of it confirmed
+    context, and input its hooks handed over that its transcript does not show
     (`delivery.deliverable`); input the turn confirmed waits for a prompt.
     Settled thread input alone never wakes; it remains in the next receipt batch.
     The session lease and each page transaction retain ownership of delivery,
@@ -697,9 +699,12 @@ def watch_between_turns(harness: Harness, *, interrupted: bool = False) -> str |
     settled = time.monotonic() + HOOK_TIMEOUT_S
     watch = Watch(harness)
     watch.acquire(supersede=True)
-    # The turn this watch follows, and when it saw a later turn closed.
-    followed = (session_record(harness.session) or {}).get("turn")
-    later_closed: list[float] = []
+    # The turn this watch follows, none for a prompt's watch, and when it saw each
+    # later turn closed.
+    followed = (
+        None if at_prompt else (session_record(harness.session) or {}).get("turn")
+    )
+    later_closed: dict[str, float] = {}
 
     def later_turn_wakes(claim: dict) -> bool:
         """Whether input wakes the session in a turn opened after the one this
@@ -710,13 +715,16 @@ def watch_between_turns(harness: Harness, *, interrupted: bool = False) -> str |
         no successor has come within the Stop hooks' time. Escape ends a turn
         with no Stop hook, leaving its record open, and the harness's own `idle`
         is the reading that moves then; a harness that gives none keeps the
-        immediate wake."""
+        immediate wake, except for a prompt's watch."""
         if claim["turn_closed"] is not None:
-            if not later_closed:
-                later_closed.append(time.monotonic())
-            return time.monotonic() > later_closed[0] + HOOK_TIMEOUT_S
+            closed = later_closed.setdefault(claim["turn"], time.monotonic())
+            return time.monotonic() > closed + HOOK_TIMEOUT_S
         live = harness.live_turn()
-        return live is None or live["state"] == "idle"
+        if live is None:
+            # A prompt's watch follows the running turn itself, which its Stop hook
+            # hands over to the next watch.
+            return not at_prompt
+        return live["state"] == "idle"
 
     # What `left_owed` found on each page, by the log and turn it read, so a pass
     # that finds nothing changed folds no page.
@@ -791,8 +799,8 @@ def watch_between_turns(harness: Harness, *, interrupted: bool = False) -> str |
 
 def woke_after(session: str) -> None:
     """Mark each page the session holds as messaged for the ending of its turn, as a
-    watch exits to wake the session, so the page's server does not nudge it too
-    in the moment before the woken turn starts (`presence.nudge_interrupted`)."""
+    watch exits to wake the session, so admission does not nudge it too in the
+    moment before the woken turn starts (`presence.nudge_unwatched`)."""
     for page_dir in owned_pages(session):
         with contextlib.suppress(FileNotFoundError), PageTransaction(page_dir) as page:
             if claim := page.active_claim:

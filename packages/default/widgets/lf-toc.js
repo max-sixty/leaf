@@ -2,10 +2,8 @@
  *
  * The outline, the destination of each of its links and the frame that holds them are
  * `toc-view.js`'s, which the initial renderer draws before first paint, so the widget
- * first shows at the box it keeps, and so are the map's measurement of the document
- * and the rows laid out from it, which the initial renderer takes once the document has
- * parsed. The module redraws the outline and remeasures the map in those same nodes
- * whenever the document changes, and moves the lens and the current entry over them.
+ * first shows at the box it keeps. The module redraws the outline in those same nodes
+ * whenever the document's headings change, and measures and moves the map.
  *
  * In the roomy margin the outline becomes a reading map. Each row receives the length
  * of the section it leads as its flex share, so the quiet spine describes the document
@@ -218,17 +216,24 @@ customElements.define(
 
     #measure() {
       if (!this.#main || !this.#scroller || !this.#rows) return;
-      const map = this.#drawing.measure(() => currentLocationIn(this.#rows));
-      // The drawing reads the viewport; the lens and current entry read the scroller.
-      const scrolled = this.#scroller.scrollTop;
-      this.#shown = map.shown;
-      this.#positions = map.positions.map((position) => position + scrolled);
-      this.#contentStart = this.#positions[0];
-      this.#contentEnd = map.end + scrolled;
-      this.#mapPositions = map.map;
-      this.#mapHeight = map.height;
+      this.#drawing.posture(() => currentLocationIn(this.#rows));
+      if (!this.#sections.length) {
+        this.#positions = [];
+        this.#shown = [];
+        this.#paint();
+        return;
+      }
+      const laid = this.#drawing.measure(this.#sections, this.#scroller.scrollTop);
+      this.#shown = laid.shown;
+      this.#positions = laid.positions;
+      this.#contentStart = laid.contentStart;
+      this.#contentEnd = laid.contentEnd;
+      this.#mapPositions = laid.mapPositions;
+      this.#mapHeight = laid.mapHeight;
+      // Labels taller than the map open it as an outline that scrolls; a link the user
+      // could see before the outline shortened stays in sight.
       if (
-        map.outline &&
+        laid.outline &&
         currentLocationIn(this.#nav) &&
         this.#focusedLink === focused(document) &&
         this.#focusedVisible &&

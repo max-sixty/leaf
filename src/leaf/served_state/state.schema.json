@@ -203,6 +203,10 @@
           "description": "Whether an open turn of the claimant's takes new input before it ends (`Harness.turn_takes_input`).",
           "type": "boolean"
         },
+        "input_wakes": {
+          "description": "Whether the nudge the claimant's next input gets would start a turn of its session's (`Harness.input_wakes`).",
+          "type": "boolean"
+        },
         "session_cwd": {
           "description": "Where the claimant was working when it claimed the page, or null for a page nothing claimed.",
           "type": ["string", "null"]
@@ -298,6 +302,7 @@
         "turn_closed",
         "turn_opened",
         "turn_takes_input",
+        "input_wakes",
         "session_cwd",
         "activity",
         "workflows",

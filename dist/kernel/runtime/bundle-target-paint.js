@@ -1,5 +1,5 @@
 import { atLayoutPrecision, cancelRender, keeps, layoutPx, move, nextRender } from "./bundle-dom-move.js";
-import { el, hasArea, headerCuts, intersect, nearObserver, nearWindow, paintClips, scrollsContent, shownBox } from "./bundle-layer-client.js";
+import { el, hasArea, headerCuts, intersect, nearObserver, nearWindow, paintClips, scrollsContent, shownBox } from "./bundle-errors.js";
 import { inChrome } from "./bundle-passages.js";
 import { anchorAt, anchorBox, anchorElement, anchorReaches, anchorReading, cutFrames, nameAnchor, scrollsWith } from "./bundle-content-layout.js";
 

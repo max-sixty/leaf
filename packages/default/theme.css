@@ -2142,6 +2142,19 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
     display: none;
   }
 }
+@media screen {
+  @container style(--lf-sidebar-slot: beside) {
+    :scope:is(lf-toc) .lf-toc-heading {
+      display: block;
+    }
+    :scope:is(lf-toc) .lf-toc-toggle {
+      display: none;
+    }
+    :scope:is(lf-toc) a[aria-current=location] {
+      color: var(--ink);
+    }
+  }
+}
 :scope:is(lf-toc) .lf-toc-start,
 :scope:is(lf-toc) .lf-toc-window {
   display: none;

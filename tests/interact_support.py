@@ -1979,8 +1979,41 @@ def comment_once_served():
         thread.join(timeout=STATED_TIMEOUT)
 
 
+class ContextRecord:
+    """Claude Code's transcript, as tests stand it in (`Harness.entered_context`):
+    every inline handover a hook printed reached the model's context, except those
+    into the turns a test has `dropped`, as Escape during a prompt hook drops them."""
+
+    def __init__(self):
+        self.dropped: set[str] = set()
+
+    def entered(self, harness) -> set[str]:
+        from leaf.delivery import pickup_receipts
+        from leaf.event_log import read_events
+
+        return {
+            event_id
+            for page in service_model.owned_pages(harness.session)
+            for pickup in pickup_receipts(read_events(page), phase="opened")
+            if pickup["session"] == harness.session
+            for event_id in pickup["events"]
+            if pickup["turn"] not in self.dropped
+        }
+
+
 @pytest.fixture
-def claimed(page_dir, monkeypatch):
+def context_record(monkeypatch):
+    record = ContextRecord()
+    monkeypatch.setattr(
+        harness_model.ClaudeCodeHarness,
+        "entered_context",
+        lambda harness, payload: record.entered(harness),
+    )
+    return record
+
+
+@pytest.fixture
+def claimed(page_dir, monkeypatch, context_record):
     """A page claimed by session s1, the way Claude Code's environment claims one:
     it puts the session id and its pid into every Bash tool call."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s1")

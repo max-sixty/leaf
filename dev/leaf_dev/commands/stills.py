@@ -2087,6 +2087,7 @@ STATES = (
         touch=True,
     ),
     State("triage-grabbed", "triage-board", card_grabbed),
+    State("walkthrough-wide", "pr-walkthrough", into_the_body),
     State(
         "walkthrough-body-short",
         "pr-walkthrough",

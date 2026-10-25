@@ -1419,12 +1419,28 @@ def watched(page, *, java_script_enabled=True):
     page.expose_binding(
         "__leafWatchFinding", lambda _source, found: errors.append(Finding.read(found))
     )
-    page.add_init_script(path=WRITE_WATCH_SOURCE)
-    # One init script keeps cause tracking installed before its words and swap
-    # subscribers; Playwright does not promise an order between separately registered
-    # scripts.
-    page.add_init_script(
-        script="\n".join(
+    # The watch reads the Layout Instability API, which only Chromium implements.
+    shifts = page.context.browser.browser_type.name == "chromium" and (
+        _TEST is None or watches_shifts(_TEST)
+    )
+    page.add_init_script(script=watch_sources(shifts))
+    return errors
+
+
+@cache
+def watch_sources(shifts: bool) -> str:
+    """Every sensor `watched` installs, as the one init script it registers.
+
+    One script keeps them in the order they rely on: write tracking first, then cause
+    tracking before the words and swap subscribers, then the shift watch, which
+    installs after write_watch.js. Playwright does not promise an order between
+    separately registered scripts, and each registration is a round trip to the
+    browser for every page a test makes. Each sensor runs in a block of its own, so
+    one that throws still reaches the page's error collector and the rest install,
+    as they did as separate scripts."""
+    sensors = [
+        WRITE_WATCH_SOURCE.read_text(),
+        *(
             source.read_text()
             for source in (
                 WATCH_PLATFORM_SOURCE,
@@ -1432,21 +1448,14 @@ def watched(page, *, java_script_enabled=True):
                 WORDS_WATCH_SOURCE,
                 SWAP_WATCH_SOURCE,
             )
-        )
-        + "\n"
-        + rendering_job_binding_source()
-        + "\n"
-        + document_port_binding_source()
-    )
-    # The watch reads the Layout Instability API, which only Chromium implements.
-    if page.context.browser.browser_type.name == "chromium" and (
-        _TEST is None or watches_shifts(_TEST)
-    ):
-        page.add_init_script(script=shift_watch_source())
-    # Diagnostics join the captured graph through its compiled public entries. Tests
-    # cannot name a private source path or load a second runtime from the mutable layer.
-    page.add_init_script(
-        script="""(() => {
+        ),
+        rendering_job_binding_source(),
+        document_port_binding_source(),
+        *([shift_watch_source()] if shifts else []),
+        # Diagnostics join the captured graph through its compiled public entries.
+        # Tests cannot name a private source path or load a second runtime from the
+        # mutable layer.
+        """(() => {
           const entry = path => {
             const boot = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
             return import(new URL(path, new URL(boot, location.href)).href);
@@ -1456,9 +1465,12 @@ def watched(page, *, java_script_enabled=True):
           window.__lfOverlayApi = () => entry('runtime/annotation-overlay/check-api.js');
           window.__lfClientApi = () => entry('runtime/layer-client.js');
           window.__lfVendorImport = name => entry(`vendor/${name}`);
-        })();"""
+        })();""",
+    ]
+    return "\n".join(
+        f"try {{\n{sensor}\n}} catch (error) {{ queueMicrotask(() => {{ throw error; }}); }}"
+        for sensor in sensors
     )
-    return errors
 
 
 @contextmanager

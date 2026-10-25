@@ -30,6 +30,7 @@ from browser.threads import (
     bounded_seat_page,
     clear_of_the_panel,
     long_diff_thread,
+    open_panel_thread,
     paste,
     pressed_send_surface,
     seated_page,
@@ -38,6 +39,7 @@ from browser.threads import (
 )
 from leaf import cli as cli_model
 from leaf import event_log as events_model
+from leaf import thread as thread_model
 from leaf.render_checks import one_frame, rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -114,10 +116,10 @@ def test_a_new_sent_message_does_not_hide_work_on_an_earlier_message(browser, se
 def test_a_user_message_head_keeps_its_receipt_clear_of_the_edit_control(
     browser, serve, scheme
 ):
-    """Under a finger the edit pencil stands on the message for good, so the head
-    reserves its room and the delivery receipt ends before the control begins."""
+    """Under a finger the edit pencil stands on the user's message for good, so its head
+    reserves the control's room and the delivery receipt ends before it."""
     url = serve(PANEL_PAGE)
-    root = panel_comment(serve.page_dir, "Check the capacity.", {"section": "how-cap"})
+    panel_comment(serve.page_dir, "Check the capacity.", {"section": "how-cap"})
     context = browser.new_context(
         viewport={"width": 390, "height": 844},
         is_mobile=True,
@@ -126,7 +128,8 @@ def test_a_user_message_head_keeps_its_receipt_clear_of_the_edit_control(
     )
     page = open_page(browser, url, context=context, color_scheme=scheme)
     page.locator('[data-lf-margin-for="how-cap"] .lf-margin-marker').tap()
-    message = page.locator(f'.lf-margin-preview .lf-msg[data-event="{root}"]')
+    card = page.locator(".lf-margin-preview")
+    message = card.locator(".lf-msg.user")
     receipt = message.locator(".lf-msg-head .lf-msg-sending")
     control = message.locator(".lf-msg-control")
     expect(receipt).to_be_visible()
@@ -144,6 +147,37 @@ def test_a_user_message_head_keeps_its_receipt_clear_of_the_edit_control(
         receipt_box,
         control_box,
     )
+
+
+def test_an_agent_head_reserves_room_only_where_its_reaction_control_is_drawn(
+    browser, serve
+):
+    """The margin card draws no reaction button on an agent's reply, so under a finger
+    its head reserves nothing; the panel draws one, and its head holds the room beside
+    it from the first paint."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Check the capacity.", {"section": "how-cap"})
+    thread_model.post_reply(
+        serve.page_dir,
+        {"responds": root},
+        "Capacity is fine.",
+        identity={"agent": "Codex", "session": "codex-thread"},
+    )
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True
+    )
+    page = open_page(browser, url, context=context)
+    page.locator('[data-lf-margin-for="how-cap"] .lf-margin-marker').tap()
+    agent = page.locator(".lf-margin-preview .lf-msg.agent")
+    expect(agent).to_have_count(1)
+    expect(agent.locator(".lf-msg-control")).to_have_count(0)
+    expect(agent.locator(".lf-msg-head")).to_have_css("padding-inline-end", "0px")
+    panel_agent = open_panel_thread(page, root).locator(".lf-msg.agent")
+    expect(panel_agent.locator(".lf-msg-control")).to_be_visible()
+    room = panel_agent.locator(".lf-msg-head").evaluate(
+        "head => parseFloat(getComputedStyle(head).paddingInlineEnd)"
+    )
+    assert room >= panel_agent.locator(".lf-msg-control").bounding_box()["width"]
 
 
 # Paragraphs that give a page length before the thread it is about.

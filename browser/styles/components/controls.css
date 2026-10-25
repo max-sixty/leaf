@@ -315,16 +315,9 @@ svg[data-lf-icon] {
   }
 }
 /* Under a finger a message's control reaches the aim floor around its face
-   (surfaces.css), and with no hover to reveal it, it stands on every message for good.
-   The common header row already holds its height; reserve its inline room here too. */
-@media (pointer: coarse), (hover: none) {
-  .lf-msg:is(.agent, .user) > .lf-msg-head {
-    --lf-msg-control: var(--lf-msg-control-width);
-    padding-inline-end: calc(
-      var(--lf-msg-control-room, var(--lf-msg-control)) + var(--lf-msg-head-room, 0px)
-    );
-  }
-}
+   (`--lf-msg-control-width`, surfaces.css), and with no hover to reveal it, it stands on
+   every message that has one. The head's room follows the control's presence (the
+   `:has` rule above), so a message with no control reserves nothing. */
 .lf-msg-meta {
   display: flex;
   align-items: baseline;

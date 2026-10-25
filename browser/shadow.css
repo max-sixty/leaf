@@ -1113,12 +1113,6 @@ svg[data-lf-icon] {
     opacity: 1;
   }
 }
-@media (pointer: coarse), (hover: none) {
-  .lf-msg:is(.agent, .user) > .lf-msg-head {
-    --lf-msg-control: var(--lf-msg-control-width);
-    padding-inline-end: calc(var(--lf-msg-control-room, var(--lf-msg-control)) + var(--lf-msg-head-room, 0px));
-  }
-}
 .lf-msg-meta {
   display: flex;
   align-items: baseline;

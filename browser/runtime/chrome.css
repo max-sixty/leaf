@@ -1157,12 +1157,6 @@
     --lf-thread-text-inset: var(--lf-fp-inset);
     padding-inline-start: 0;
   }
-  .lf-fp-messages .lf-msg.user {
-    --lf-msg-text-end: calc( 2 * (var(--lf-fp-row-pad) + var(--lf-fp-aim) + 8px) + var(--lf-fp-send-room) - 32px );
-  }
-  .lf-fp-messages .lf-msg.user .lf-msg-text {
-    box-sizing: border-box;
-  }
   .lf-fp-messages .lf-msg-editor > .lf-compose-field {
     --lf-response-height: var(--lf-line);
   }

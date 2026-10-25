@@ -749,11 +749,16 @@
     text-underline-offset: 2px;
     text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
   }
-  /* The way out of the stance the user is in, after the counts. */
+  /* The way out of the stance the user is in, after the counts. The seat keeps its
+     room while the counts stand, so a view closing on its own leaves them where they
+     were; once a draft steps them aside, an empty seat gives the field its room. */
   .lf-fp-exit-seat {
     flex: none;
     display: flex;
     width: var(--lf-fp-aim);
+  }
+  .lf-floating-panel[data-drafted] .lf-fp-exit-seat {
+    width: auto;
   }
 
   /* ---------- folded to the leaf, in the window's corner ---------- */

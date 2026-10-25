@@ -1124,30 +1124,31 @@ def test_a_prompt_reopens_the_acknowledged_move_it_carries_into_the_new_turn(
     assert activity["obligations"][0]["condition"] is None
 
 
-def test_every_prompt_names_what_is_on_me_and_the_rule_that_fills_it(claimed, capsys):
+def test_a_compaction_gets_back_the_on_me_rule_and_count(claimed, capsys):
     """An empty On me tells the user nothing waits on them, so a question asked only
-    in the agent's reply passes silently. Every turn's prompt hook names each live
-    page's On me count beside the skill's "Must remember", whether or not anything
-    else is owed, so the rule stays in context after the skill has left it."""
+    in the agent's reply passes silently. A compaction can drop the skill that says
+    so; the SessionStart that follows it names each live page's On me count beside
+    the skill's "Must remember". No other start or prompt repeats it."""
 
-    def prompt_context() -> str:
+    def start_context(source: str) -> str:
         hooks_model.cmd_hook(
-            "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
+            "claude-code",
+            {"hook_event_name": "SessionStart", "session_id": "s1", "source": source},
         )
         out = capsys.readouterr().out
         return json.loads(out)["hookSpecificOutput"]["additionalContext"] if out else ""
 
     # A page nobody serves shows the user no On me.
-    assert "On me" not in prompt_context()
+    assert "On me" not in start_context("compact")
 
     publish(claimed)
     serving(claimed, 1)
     rows = server_rows_model.RowPublisher(claimed, "fixture-server")
     rows.refresh()
-    context = prompt_context()
+    context = start_context("compact")
     assert f"({claimed.resolve()}) has 0 on On me." in context
-    assert hook_transport_model.must_remember() in context
     assert "Everything waiting on the user is an obligation" in context
+    assert "On me" not in start_context("resume")
 
     result = CliRunner().invoke(
         cli_model.cli,
@@ -1155,7 +1156,11 @@ def test_every_prompt_names_what_is_on_me_and_the_rule_that_fills_it(claimed, ca
     )
     assert result.exit_code == 0, result.output
     rows.refresh()
-    assert "has 1 on On me." in prompt_context()
+    assert "has 1 on On me." in start_context("compact")
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
+    )
+    assert "On me" not in capsys.readouterr().out
 
 
 def test_agent_sees_the_complete_interaction_recovery(claimed, capsys, snapshot):

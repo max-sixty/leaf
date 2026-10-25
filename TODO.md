@@ -295,15 +295,12 @@ Boxes that still move without input, which the "Stability" rule in
 `browser/AGENTS.md` forbids. `tests/known_widget_findings.py` lists each widget
 that changes size after first paint, with its cause.
 
-- **Let a press say it takes the user somewhere.** The shift watch lets a key move
-  the control it was pressed on only where its command declares `travels`, and a
-  press only on a link (`shift_watch.js`, "Scrolls a gesture makes"); a press on any
-  other control has no command to declare it. Forced onto the unsurveyed tab tests,
-  the watch reports `lf-tabs` presses: a root set's switch, which adds a history entry
-  and opens the view at its place, carries the pressed tab up to 295px; an embedded
-  set's, 24px; and `#showTab` scrolls a partly hidden tab 51px into the strip.
-  Decide whether a view switch takes the user somewhere, which the history entry it
-  adds could declare as a link's does, and whether `#showTab`'s reveal is wanted.
+- **Keep what a live revision adds above the reader from moving it.** A revision
+  that puts a tab set above the gallery's page tabs, read from the page's top, moves
+  their strip 430px down the window as it arrives
+  (`test_the_gallery_tab_set_uses_the_boundary_of_its_composition[among-blocks]`,
+  marked `shifts_unsurveyed` for it). Scroll anchoring absorbs growth above the
+  window; this one grows inside it, above what the reader sees.
 - **Keep the merge film's controls still as it steps.** In `examples/wt-merge.page`'s
   `lf-merge-film`, pressing Next inspection scrolls that button 83px and `i` on Play
   7px (`test_merge_film_inspection_has_touch_and_keyboard_routes`, unsurveyed).
@@ -357,27 +354,21 @@ on 2026-10-07.
   advice. Run the render readings on the server when a version goes live and
   deliver the findings through `leaf wait`: the agent hands the page over at once
   and refines it if a reading warrants, while a failure still blocks a record's
-  stamp. **Unconfirmed:** measure how long the pass takes on a typical page, and
-  whether agents act on findings that arrive after handover, before building it.
+  stamp. Measured 2026-10-24
+  ([notes](notes/agent-usability-evals.md#render-findings-after-handover-2026-10-24)):
+  the pass takes a median 7–8 s on catalog and eval pages; 8 of 20 agents handed a
+  quick edit over without it, and 20 of 21 agents that got its findings after
+  handover, delivered as the page's `error` event, fixed the page in the same wake.
+  Give the findings a handling clause of their own: under the `error` event's, which
+  says to fix a failure the user saw, agents changed the page for advice every time;
+  a clause that tells failures from advice kept every failure fixed and had Claude
+  Code leave the advice in 4 of 5.
 - **Consider loading a page once per render check.** `page check --render` loads
   the page afresh for each of its four passes, including dark mode and the narrow
   viewport. Switching those in place would save at most about 1.4 s on
   `triage-board` and 12.6 s on the corpus, measured by tracing the check's passes.
   The price is that dark mode and the narrow width would no longer be checked from
   a fresh start. Decide whether that coverage is worth the time before building it.
-- **Decide what plain `page check` runs in a browser from the mistakes agents make.**
-  It runs a page once in the host's browser, about 1.3 s, where the page has a script
-  or places a page widget, a data widget or a widget naming page media (`needs_browser`,
-  `render_gate/page_code.py`); any other page checks in about 0.15 s. Widgets that fail on their attribute values
-  (`lf-playground`, `lf-visual-review`, `lf-text-document`)
-  and every widget in thread markup report through `leaf wait` once a browser draws
-  them, but nothing runs them first. Write `evals/` cases in which agents author each
-  kind and measure how often what they write fails to draw, then run the kinds agents
-  get wrong and stop running those they reliably get right. `page-reads-at-every-width`
-  covers documents, dashboards, queues and playgrounds: none of its 40 final pages had
-  a widget that failed to draw, and every plain-check finding during authoring was
-  markup ([notes](notes/agent-usability-evals.md#bad-pages-and-the-checks-2026-10-20)).
-  Thread markup and the other widgets above are still unmeasured.
 - **Derive the waiting status from the page's open obligation.** Consider using the obligation's
   words when no explicit waiting detail is needed. **Unconfirmed:** try pages with
   several open obligations and an informational page before choosing how the panel's

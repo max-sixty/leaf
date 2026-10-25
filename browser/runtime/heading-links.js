@@ -11,14 +11,17 @@
    The control follows Copy at a code block's corner (code-copy.js): it stands in chrome
    (block-controls.js), hidden at rest, so it covers no words and takes no presses, and
    shows while a pointer is over the heading or the control, or while the user is on the
-   heading or its address. A finger has no hover, so a tap on the heading stands the
-   user on it, and only a later press on the shown control copies. Enter on the heading
-   or its address copies the link, through a scope that asks what the user is on, so
-   the words inside a section keep their Enter. The control stands in the gutter before
-   the heading's first line; where the gutter has no room for it, as on a phone, it
-   stands at the heading's far end instead. It takes no room, since room made for it
-   would move the page's content. Its height is the first line's, which the script
-   reads (`firstLine`), since an anchor offers only the heading's box.
+   heading itself. A finger has no hover, so a tap on the heading stands the user on it,
+   and only a later press on the shown control copies. Enter on the heading or its
+   address copies the link, through a scope that asks what the user is on, so the words
+   inside a section keep their Enter, and shows the mark with its result until the user
+   moves. Rejected: showing the mark while the user is on the address, which put one
+   beside every decision `m` landed on, where the user had come to answer. The control
+   stands in the gutter before the heading's first line; where the gutter has no room
+   for it, as on a phone, it stands at the heading's far end instead. It takes no room,
+   since room made for it would move the page's content. Its height is the first
+   line's, which the script reads (`firstLine`), since an anchor offers only the
+   heading's box.
 
    A control is made when its heading first shows it and released when the heading
    leaves, so a long page pays nothing for the headings nobody reaches. */
@@ -216,14 +219,15 @@ export function watchHeadingLinks() {
     { capture: true },
   );
   let current = null;
-  onCurrentLocation((node) => {
-    const at = node?.nodeType === Node.ELEMENT_NODE ? headingAt(node) : null;
-    const heading = at ?? headingOn(node);
-    if (heading === current) return;
+  const stand = (heading) => {
+    if (heading === current) return links.get(heading);
     if (current) show(current, "current", false);
     current = heading;
-    if (heading) show(heading, "current", true);
-  });
+    return heading && show(heading, "current", true);
+  };
+  onCurrentLocation((node) =>
+    stand(node?.nodeType === Node.ELEMENT_NODE ? headingAt(node) : null),
+  );
   pageScope("heading", {
     title: "On a section heading",
     root: focused,
@@ -237,8 +241,7 @@ export function watchHeadingLinks() {
         // The link's own control beside the heading takes a finger.
         touch: false,
         run: () => {
-          const heading = headingOn(focused());
-          const link = heading && show(heading, "current", true);
+          const link = stand(headingOn(focused()));
           link?.control.shadowRoot.querySelector("button").click();
         },
       },

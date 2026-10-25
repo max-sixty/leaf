@@ -544,7 +544,7 @@ function paintFocus(node) {
 	for (const owner of paintedWithin) if (!within.has(owner)) markFocus(owner, "focus-within", false);
 	for (const owner of within) if (!paintedWithin.has(owner)) markFocus(owner, "focus-within", true);
 	paintedWithin = within;
-	const visible = next && (next.matches(":focus-visible") || next.matches(TEXT_BOX)) ? next : null;
+	const visible = next && (next.matches(":focus-visible") || next.matches(TEXT_BOX) || next.localName === "iframe" && !pressLed()) ? next : null;
 	if (visible !== paintedVisible) {
 		if (paintedVisible) markFocus(paintedVisible, "focus-visible", false);
 		if (visible) markFocus(visible, "focus-visible", true);
@@ -678,17 +678,26 @@ document.addEventListener("focusout", (event) => {
 const sequential = (event) => event.key === "Tab" && !event.altKey && !event.ctrlKey && !event.metaKey;
 function reconcile(step, pressed) {
 	if (heldByLabel()) return;
-	const at = deepFocus();
-	if (!at || at === document.body || at === published?.deref()) return;
+	const deep = deepFocus();
+	const at = deep === document.body ? null : deep;
+	const was = published?.deref() ?? null;
+	if (at === was || !at && was?.localName !== "iframe") return;
 	placements += 1;
-	lastLocation = new WeakRef(at);
-	const was = [stepping, pressedPath];
+	lastLocation = at && new WeakRef(at);
+	const input = [stepping, pressedPath];
 	[stepping, pressedPath] = [step, pressed];
 	try {
 		publish(at, cause(at));
 	} finally {
-		[stepping, pressedPath] = was;
+		[stepping, pressedPath] = input;
 	}
+}
+function inputInFrame(frame, type) {
+	if (deepFocus() !== frame) return;
+	if (type === "keydown") pressedPath = null;
+	else if (type === "pointerdown" || type === "touchstart") pressedPath = [new WeakRef(frame)];
+	if (published?.deref() === frame) queueFocusPaint();
+	else reconcile(null, pressedPath);
 }
 addEventListener("click", () => {
 	const pressed = pressedPath;
@@ -1112,4 +1121,4 @@ function move(parent, node, before) {
 document.documentElement.lfInitial.move = move;
 
 //#endregion
-export { CARET_KEYS, LENT_REACH_STOP, MODIFIER_KEYS, PRESSES, TAB_STOP, TEXT_BOX, TEXT_FIELD, WORKS, afterScript, afterSettling, atLayoutPrecision, byRenderedOrder, canPlaceFocus, cancelAnimation, cancelRender, caretAtKey, carriedFrom, closeLayer, composedParentNode, controlNavigationKeys, currentLocationIn, currentLocationNodes, currentLocationTouches, declareReading, declareRelease, deepFocus, drawn, focusDestination, focusRevision, focused, frameVisibility, handBack, holdCurrentLocation, holdFocus, holdRendering, inputCount, isNativeLayer, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, nativeLayerHolding, nativeLayerKind, nextAnimation, nextFrame, nextRender, observePreparations, onCurrentLocation, onFrameVisibility, onPress, onPressAway, onUserInput, openLayer, openerOf, pressLed, pressing, readCaret, readSampleVisibility, recentPlaceInput, recoveredLabelFocus, release, releaseFocus, renderedOrder, renderedParent, renderedUnder, renderingState, ringBox, roomPx, rove, selectsAll, shadowHost, sizeObserver, tabStops, takesLetters, typesText, under, upFrom, watchCurrentLocationIn, watchFrame, wearsLentStop, whenLeft };
+export { CARET_KEYS, LENT_REACH_STOP, MODIFIER_KEYS, PRESSES, TAB_STOP, TEXT_BOX, TEXT_FIELD, WORKS, afterScript, afterSettling, atLayoutPrecision, byRenderedOrder, canPlaceFocus, cancelAnimation, cancelRender, caretAtKey, carriedFrom, closeLayer, composedParentNode, controlNavigationKeys, currentLocationIn, currentLocationNodes, currentLocationTouches, declareReading, declareRelease, deepFocus, drawn, focusDestination, focusRevision, focused, frameVisibility, handBack, holdCurrentLocation, holdFocus, holdRendering, inputCount, inputInFrame, isNativeLayer, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, nativeLayerHolding, nativeLayerKind, nextAnimation, nextFrame, nextRender, observePreparations, onCurrentLocation, onFrameVisibility, onPress, onPressAway, onUserInput, openLayer, openerOf, pressLed, pressing, readCaret, readSampleVisibility, recentPlaceInput, recoveredLabelFocus, release, releaseFocus, renderedOrder, renderedParent, renderedUnder, renderingState, ringBox, roomPx, rove, selectsAll, shadowHost, sizeObserver, tabStops, takesLetters, typesText, under, upFrom, watchCurrentLocationIn, watchFrame, wearsLentStop, whenLeft };

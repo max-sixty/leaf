@@ -1,4 +1,7 @@
 (() => {
+  // packages/diff/widgets/overflow.js
+  var overflowFor = (path, authored) => authored ?? (/\.(?:md|markdown|txt)$/i.test(path) ? "wrap" : "scroll");
+
   // packages/diff/initial/lf-diff.js
   document.documentElement.lfInitial.register("lf-diff", (host) => {
     const pre = host.querySelector(":scope > pre");
@@ -14,7 +17,8 @@
       const hunk = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/.exec(line);
       if (hunk && old <= 0 && added <= 0) {
         const [, a, b = "1", c, d = "1"] = hunk;
-        if (!file) files.push(file = { path: "", hunks: 0, rows: 0, largest: 0, texts: [] });
+        if (!file)
+          files.push(file = { path: "", hunks: 0, rows: 0, largest: 0, texts: [] });
         old = Number(b);
         added = Number(d);
         file.rows += file.hunks++ || Number(a) > 1 || Number(c) > 1 ? 1 : 0;
@@ -39,8 +43,7 @@
     let ch = 0;
     for (const each of open ? files : []) {
       rows += each.rows;
-      if ((authored ?? (/\.(md|markdown|txt)$/i.test(each.path) ? "wrap" : "scroll")) !== "wrap")
-        continue;
+      if (overflowFor(each.path, authored) !== "wrap") continue;
       if (!style) {
         style = getComputedStyle(pre);
         const context = document.createElement("canvas").getContext("2d");

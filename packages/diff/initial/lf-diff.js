@@ -3,11 +3,14 @@
  * the host, where the theme turns them into its reserved height ("First paint",
  * theme.css): each file's frame, and a row per source line and hunk separator, but
  * none for header lines or for a first hunk that starts the file. Prose files wrap
- * their rows (`overflowFor`, lf-diff.js), which only the width can say, so for those
- * rows the count is the greedy wrap of each row's text at the column the drawing will
- * give it. It draws nothing. A patch it can't count the same way the drawing will (a
- * file with no hunk, a whole-file view) gets no counts, and its box is its source's
- * until the drawing lands. */
+ * their rows (`overflowFor`), which only the width can say, so for those rows the
+ * count is the greedy wrap of each row's text at the column the drawing will give
+ * it. It draws nothing. A diff it can't count the way the drawing will (a `source`
+ * diff, whose patch arrives later, a whole-file view, a file with no hunk) gets no
+ * counts, and its box is its source's until the drawing lands; an authored
+ * `data-height` holds the box instead, so it is left alone. */
+import { overflowFor } from "../widgets/overflow.js";
+
 document.documentElement.lfInitial.register("lf-diff", (host) => {
   const pre = host.querySelector(":scope > pre");
   if (
@@ -27,7 +30,8 @@ document.documentElement.lfInitial.register("lf-diff", (host) => {
     const hunk = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/.exec(line);
     if (hunk && old <= 0 && added <= 0) {
       const [, a, b = "1", c, d = "1"] = hunk;
-      if (!file) files.push((file = { path: "", hunks: 0, rows: 0, largest: 0, texts: [] }));
+      if (!file)
+        files.push((file = { path: "", hunks: 0, rows: 0, largest: 0, texts: [] }));
       old = Number(b);
       added = Number(d);
       file.rows += file.hunks++ || Number(a) > 1 || Number(c) > 1 ? 1 : 0;
@@ -55,8 +59,7 @@ document.documentElement.lfInitial.register("lf-diff", (host) => {
   let ch = 0;
   for (const each of open ? files : []) {
     rows += each.rows;
-    if ((authored ?? (/\.(md|markdown|txt)$/i.test(each.path) ? "wrap" : "scroll")) !== "wrap")
-      continue;
+    if (overflowFor(each.path, authored) !== "wrap") continue;
     if (!style) {
       style = getComputedStyle(pre);
       const context = document.createElement("canvas").getContext("2d");
@@ -64,8 +67,11 @@ document.documentElement.lfInitial.register("lf-diff", (host) => {
       ch = context.measureText("0").width;
       width = host.getBoundingClientRect().width;
     }
-    // The row's text column: the frame's two hairlines, the gutter of line numbers
-    // and marker, and the row's end padding (shadow.css, lf-diff.js `renderFile`).
+    // The row's text column, from the drawing's geometry: the file frame's two 1px
+    // borders, the gutter of `digits + 3` ch (`renderFile`, lf-diff.js), and the 2ch
+    // before the text and 8px after it (`.lf-diff-line > [data-line]`,
+    // styles/shadow.css). `test_an_inline_patch_first_paints_at_the_height_it_draws_at`
+    // holds these numbers to the drawing.
     const digits = String(each.largest).length;
     const cols = Math.floor((width - 2 - 8 - (digits + 5) * ch) / ch);
     if (cols > 0) for (const text of each.texts) rows += wraps(text, cols);

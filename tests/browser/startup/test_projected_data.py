@@ -415,6 +415,91 @@ customElements.define('lf-derived', class extends HTMLElement {
     expect(quote.locator(".lf-anchor-status")).to_have_text("Changed")
 
 
+# A widget that reads its text from `.value` and draws each value when the test
+# releases it, so an older draw can finish after a newer one.
+HELD_TEXT_MODULE = """
+import {LeafElement, nothing} from '/runtime/widget-api.js';
+customElements.define('lf-held-text', class extends LeafElement {
+  static properties = {value: {attribute: false}};
+  render() { return nothing; }
+  updated(changed) {
+    super.updated(changed);
+    const value = this.value;
+    const release = Promise.withResolvers();
+    (window.heldDraws ??= {})[value] = release.resolve;
+    if (!value?.startsWith('Held')) release.resolve();
+    this.drawing = release.promise.then(() => {
+      const p = this.querySelector('p') ?? this.appendChild(document.createElement('p'));
+      p.textContent = value;
+      if (p.dataset.lfDatum !== 'text') p.dataset.lfDatum = 'text';
+      this.dispatchEvent(new CustomEvent('drawn', {detail: {value}}));
+    });
+  }
+  async getUpdateComplete() {
+    const result = await super.getUpdateComplete();
+    await this.drawing;
+    return result;
+  }
+});
+"""
+
+
+def test_a_draw_that_lands_after_a_newer_value_keeps_the_revision_it_drew(
+    browser, serve
+):
+    """A widget reports the value it drew; Leaf stamps that value's own revision.
+
+    Stamping the revision current when the draw lands would let a comment on the
+    older words claim the newer source revision.
+    """
+    held = {
+        "description": "Text drawn from a bound value.",
+        "type": "object",
+        "properties": {
+            "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
+            "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+        },
+        "required": ["id", "source"],
+        "additionalProperties": False,
+        "x-content": "empty",
+        "x-data": {
+            "text": {
+                "contract": "text-document",
+                "source": "source",
+                "property": "value",
+            }
+        },
+        "x-upgrade": True,
+        "x-example": '<lf-held-text id="held-example" source="note"></lf-held-text>',
+    }
+    url = serve(
+        leaf_page(
+            "Held text",
+            '<h1 id="title">Note</h1><lf-held-text id="note" source="note"></lf-held-text>',
+        ),
+        layer_registry={"lf-held-text": held},
+        layer_widgets={"lf-held-text.js": HELD_TEXT_MODULE},
+    )
+    data_model.cmd_data_set(serve.page_dir, "note", "First words")
+    page = open_page(browser, live_url(url))
+    datum = page.locator('#note [data-lf-datum="text"]')
+    expect(datum).to_have_attribute(
+        "data-lf-source-revision", source_revision(serve.page_dir, "note")
+    )
+
+    data_model.cmd_data_set(serve.page_dir, "note", "Held older words")
+    older = source_revision(serve.page_dir, "note")
+    page.wait_for_function("() => window.heldDraws?.['Held older words']")
+    data_model.cmd_data_set(serve.page_dir, "note", "Newer words")
+    newer = source_revision(serve.page_dir, "note")
+    expect(datum).to_have_text("Newer words")
+    expect(datum).to_have_attribute("data-lf-source-revision", newer)
+
+    page.evaluate("() => window.heldDraws['Held older words']()")
+    expect(datum).to_have_text("Held older words")
+    expect(datum).to_have_attribute("data-lf-source-revision", older)
+
+
 def test_a_captured_source_stays_pointable_and_pinned(browser, serve):
     """A captured file reads under its authored label and follows its source. A
     revision that binds a source id nothing rewrites keeps the reviewed words through

@@ -1,9 +1,9 @@
 import { J, LitElement, PENDING, W, Z, actionForWidget, anchorKey, bindQueuedWork, d, discussed, editable, foldWidgetStates, isMessageEvent, isThreadEvent, moved, obligationValue, projectionOrigins, q, reactionsAt, render, stateCoordinate, threadKey, tokenChoices, turns, x } from "./bundle-browser-runtime.js";
-import { PRESSES, TEXT_BOX, TEXT_FIELD, afterScript, byRenderedOrder, canPlaceFocus, closeLayer, deepFocus, drawn, focusDestination, focused, frameVisibility, handBack, holdFocus, holdRendering, inputCount, isNativeLayer, keeps, keepsHidden, move, nextAnimation, nextRender, onCurrentLocation, onFrameVisibility, onUserInput, openLayer, openerOf, readCaret, readSampleVisibility, renderedOrder, renderedParent, renderedUnder, renderingState, shadowHost, sizeObserver, takesLetters, typesText, under, upFrom, whenLeft } from "./bundle-dom-move.js";
+import { PRESSES, TEXT_BOX, TEXT_FIELD, afterScript, byRenderedOrder, canPlaceFocus, closeLayer, composedParentNode, deepFocus, drawn, focusDestination, focused, frameVisibility, handBack, holdFocus, holdRendering, inputCount, isNativeLayer, keeps, keepsHidden, move, nextAnimation, nextRender, onCurrentLocation, onFrameVisibility, onUserInput, openLayer, openerOf, readCaret, readSampleVisibility, renderedOrder, renderedParent, renderedUnder, renderingState, shadowHost, sizeObserver, takesLetters, typesText, under, upFrom, whenLeft } from "./bundle-dom-move.js";
 import { LayerRefused, PAGE_PAINT_ATTRIBUTE, PRESS, PRESSABLE, TEXT_ENTRY, admitReading, admitResponse, announce, ariaShortcuts, bindings, buttonCommand, claimsEsc, clamp, clippedContents, clippedPlace, clipsPastSurfaces, closeNativeLayer, commandAvailable, commandRoutes, completeData, countTraffic, cycledRow, dataHeaders, el, frameFor, generatedElement, growthIsSeen, hasArea, holdingError, intersect, keys, labelOf, landingBand, landingInsets, layerHeaders, layoutChanged, layoutWindow, live, matchesWhen, notice, offer, paintKeys, paintKeysWithin, placeBox, placeHolder, pointerAt, postEvent, presented, pruneScopedElements, raiseError, randomId, recordInteraction, registry, repaint, reportCarried, reportPageError, requestJson, responseAction, restorePointer, reveal as reveal$1, rowArrows, runtimeRootState, sameLayer, savedReadingSettled, saying, seenRect, sessionIsActive, setRuntimeRootAttribute, shadowRootsIn, showNativeLayer, shownBox, shownWindow, skipped, spell, tagsDeclaring, union, watchOwner, watchPendingTraffic, watchRoom, whenNone, whileConnected, word } from "./bundle-layer-client.js";
 import { LIVE_ROOT, PRESENTATION_DOM, agentLabel, annotationMode, applicationPresenter, applicationState, attachApplicationPresentation, attachWidgetPresentation, documentChanged, layerRoot, offlineData, offlineInteractive, offlineState, pageUrl, presentDocument, projectView, queueWidgetUpdate, readApplication, readPart, revisionLabel, runtime, setPresentationFailureReporter, watchPresentation, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented } from "./bundle-context.js";
 import { activityTransitionDue, ago, chosenSince, containingReadingRegionFor, effectiveScroller, markStateApplied, moveScrollerBy, observeServerNow, observeWorkingGrace, onReadingInput, pageScroller, placeKept, reachScrollers, readingRegionFor, readingRegions, recentReadingRegion, regionScrollBehavior, regionsSettled, saidNow, scrollChainOf, scrollChoices, scrollLimit, scrollersOf, settlePageInterface, shownRegionBounds, stopScroll, tickClock, unconcealedReadingRegions, watchReadingRegionTransitions } from "./bundle-reading-regions.js";
-import { DATUM, TEXT_BLOCK, alignInlineText, authored, authoredScope, closestAcross, elementById, excerptWords, inChrome, labelWords, leafSurface, pageDocument, pageParts, pageRange, pageReadingVersion, quoteFrom, rangeOf, readingFrom, selectEnds, selectionBackward, textNodesUnder, wrote } from "./bundle-passages.js";
+import { TEXT_BLOCK, alignInlineText, authored, authoredScope, closestAcross, elementById, excerptWords, inChrome, labelWords, leafSurface, pageDocument, pageParts, pageRange, pageReadingVersion, quoteFrom, rangeOf, readingFrom, selectEnds, selectionBackward, textNodesUnder, wrote } from "./bundle-passages.js";
 import { ADDRESSABLE, addressableLabel, addressableWord, addressedElements, anchorForRange, anchoringIsReady, fragmentTarget, resolveAnchor, revealAddressed, sectionOf, targetElement, targetPlace, targetSegments, visualPartLabel, widgetWord } from "./bundle-css-anchors.js";
 import { initialOrigin, restoreInitialSource, unmarkedCopy } from "./bundle-initial-render.js";
 import { HOLDS_WORD, HeldNews, MessageView, PAGE_SCOPE, SAYS_IN, THREAD, ThreadView, Transcript, allButCommandReference, allThreads, alreadyShown, anchorLabel, answeredInWords, authoredHolder, beginThreadSeats, beginWalk, blocksOnScreen, bringBackSurfaceOf, captureDraftEditing, capturePlace, claimed as claimed$1, clearDraft, commitThreadSeats, completeReadingReturn, createReplyView, declareSide, dismissReplyAt, draftContexts, draftEditingDestination, draftEditingStands, drawnThreadId, fitsWhole, focusThread, focusedInView, focusedThreadTarget, formatDeclaredMarkdown, hasLandmark, heldOut, heldThread, heldThreadId, holdReplyCompositions, holdThreadPlace, importWidgets, isPageWidgetWorkflow, isWorkflowProgress, keepRefusedWords, listWalkPosition, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, messageHolding, messageReading, messageText, mountFirstMessage, newsNotice, obligationHolding, obligationPlace, openMessageEditIn, openingPassage, pageCommand, pageReadingBlock, pageScope, pageScopes, pageSelection, paintMarkdown, passageBlock, patchDocument, placeNode, placeOf as placeOf$1, placeOffset, placePageThreads as placePageThreads$1, placedMarkdownTokens, preloadWidgets, prepareAuthoredMessage, prepareDeclaredMarkdown, rawOffsetFits, readObligations, readThreads, readingReturn, registerWritingDestination, reindexPassageOwners, rememberPassageParts, rememberWriting, renderMarginThread, renderSeats, renderSurfaces, replyAvailable, replyDestination, replyDraftContext, restoreDraftEditing, restorePlace, restoreReplyEditing, restrictUserIntent, retainThreadSeats, retainUserIntent, revealHeld, saveDraft, scrollIntoReadingBand, scrollIntoView, sendLanding, sendMessage, settleAcceptedDrafts, showHeld, showHeldThread, strongestWorkflow, surfaceFocusTarget, tabStore, textBlocks, threadDraft, threadIdNamed, threadList, threadName, threadNamed, threadPart, threadReading, threadReplyInput, threadRewrites, threadState, todoLabel, transferDraft, watchDraft, watchDrafts, watchThreadSurfaces, wholeThread, workflowLabel } from "./bundle-surfaces.js";
@@ -4916,10 +4916,26 @@ function createUndo({ post, stateApplying, unaccountedGesture, openThread, threa
 
 //#endregion
 //#region runtime/projection/data.js
-const projectedDescendants = (root) => [root, ...shadowRootsIn(root)].flatMap((scope) => [...scope.querySelectorAll(DATUM)]).filter((element) => element.dataset.lfProjection === root.id);
+const projectedDescendants = (root) => [root, ...shadowRootsIn(root)].flatMap((scope) => [...scope.querySelectorAll("[data-lf-projection]")]).filter((element) => element.dataset.lfProjection === root.id);
+const markOwner = (node) => {
+	for (let at = composedParentNode(node); at; at = composedParentNode(at)) if (at.nodeType === Node.ELEMENT_NODE && registry[at.localName]?.["x-data"]) return at;
+	return null;
+};
+const markedDatums = (root) => [root, ...shadowRootsIn(root)].flatMap((scope) => [...scope.querySelectorAll("[data-lf-datum]")]).filter((node) => markOwner(node) === root).map((node) => ({
+	node,
+	key: node.dataset.lfDatum,
+	label: node.dataset.lfDatumLabel,
+	identity: node.dataset.lfIdentity
+}));
+let constructed = null;
+function projectMarked(root, snapshot) {
+	if (!constructed) throw new Error("Leaf's data projection has not been constructed");
+	constructed.projectMarked(root, snapshot);
+}
 function createDataProjection({ invalidateDom }) {
 	let dataPaintQueued = false;
 	const changedRoots = /* @__PURE__ */ new Set();
+	const mirrored = /* @__PURE__ */ new WeakMap();
 	function applyProjection(root) {
 		changedRoots.add(root);
 		if (dataPaintQueued) return;
@@ -4935,6 +4951,13 @@ function createDataProjection({ invalidateDom }) {
 		if (!root.id) throw new TypeError("projectData root needs an id to name its projection");
 		const declaredInputs = registry[root.localName]?.["x-data"] ?? {};
 		if (snapshot === void 0 && Object.values(declaredInputs).some(({ source, reference }) => source && root.hasAttribute(source) || reference && root.hasAttribute(reference))) throw new Error(`projectData(${root.id}) must receive the snapshot that supplied its records`);
+		stamp(root, datums, snapshot, `projectData(${root.id})`);
+	}
+	function stampMarked(root, snapshot) {
+		if (!root.id) throw new TypeError(`<${root.localName}> needs an id to name its drawn data`);
+		stamp(root, markedDatums(root), snapshot, `<${root.localName} id=${root.id}>`);
+	}
+	function stamp(root, datums, snapshot, who) {
 		const stampBasis = (node) => {
 			keeps(node, "data-lf-source", snapshot?.source ?? null);
 			keeps(node, "data-lf-source-revision", snapshot?.revision ?? null);
@@ -4945,23 +4968,26 @@ function createDataProjection({ invalidateDom }) {
 		const identities = /* @__PURE__ */ new Set();
 		const nodes = /* @__PURE__ */ new Set();
 		for (const { node, key, label, identity, origin = snapshot?.origin ?? null } of datums) {
-			if (typeof key !== "string" || !key) throw new TypeError(`projectData(${root.id}) keys must be non-empty strings`);
-			if (keys.has(key)) throw new Error(`projectData(${root.id}) received duplicate key ${key}`);
+			if (typeof key !== "string" || !key) throw new TypeError(`${who} keys must be non-empty strings`);
+			if (keys.has(key)) throw new Error(`${who} received duplicate key ${key}`);
 			keys.add(key);
 			if (identity !== void 0) {
-				if (typeof identity !== "string" || !identity) throw new TypeError(`projectData(${root.id}) identity for ${key} must be a non-empty string`);
-				if (identities.has(identity)) throw new Error(`projectData(${root.id}) received duplicate identity ${identity}`);
+				if (typeof identity !== "string" || !identity) throw new TypeError(`${who} identity for ${key} must be a non-empty string`);
+				if (identities.has(identity)) throw new Error(`${who} received duplicate identity ${identity}`);
 				identities.add(identity);
 			}
-			if (node === root || nodes.has(node)) throw new Error(`projectData(${root.id}) reused the node for key ${key}`);
-			if (!under(node, root)) throw new Error(`projectData(${root.id}) datum ${key} is outside its root`);
+			if (node === root || nodes.has(node)) throw new Error(`${who} reused the node for key ${key}`);
+			if (!under(node, root)) throw new Error(`${who} datum ${key} is outside its root`);
 			nodes.add(node);
-			const priorLabel = node.dataset.lfDatumLabel;
 			if (label !== void 0) {
 				keeps(node, "data-lf-datum-label", label);
-				if (!node.hasAttribute("aria-label") && (!node.hasAttribute("aria-description") || node.getAttribute("aria-description") === priorLabel)) keeps(node, "aria-description", label);
-			} else if (priorLabel !== void 0) {
-				if (node.getAttribute("aria-description") === priorLabel) node.removeAttribute("aria-description");
+				const prior = mirrored.get(node);
+				if (!node.hasAttribute("aria-label") && (!node.hasAttribute("aria-description") || node.getAttribute("aria-description") === prior)) {
+					keeps(node, "aria-description", label);
+					mirrored.set(node, label);
+				}
+			} else {
+				unmirror(node);
 				delete node.dataset.lfDatumLabel;
 			}
 			keeps(node, "data-lf-gen", "1");
@@ -4979,15 +5005,22 @@ function createDataProjection({ invalidateDom }) {
 			delete node.dataset.lfSource;
 			delete node.dataset.lfSourceRevision;
 			delete node.dataset.lfOrigin;
-			const label = node.dataset.lfDatumLabel;
-			if (label !== void 0) {
-				if (node.getAttribute("aria-description") === label) node.removeAttribute("aria-description");
-				delete node.dataset.lfDatumLabel;
-			}
+			unmirror(node);
+			delete node.dataset.lfDatumLabel;
 		}
 		applyProjection(root);
 	}
-	return { projectData };
+	function unmirror(node) {
+		const label = mirrored.get(node);
+		if (label === void 0) return;
+		if (node.getAttribute("aria-description") === label) node.removeAttribute("aria-description");
+		mirrored.delete(node);
+	}
+	constructed = {
+		projectData,
+		projectMarked: stampMarked
+	};
+	return constructed;
 }
 
 //#endregion
@@ -7780,6 +7813,7 @@ async function loadDeferred(manifest, key) {
 
 //#endregion
 //#region runtime/leaf-element.js
+const DRAWABLE = 8;
 let regions = 0;
 var UpdateBoundary = class extends LitElement {
 	signalUpdateFailed(error) {
@@ -7834,11 +7868,16 @@ var LeafElement = class extends q(UpdateBoundary) {
 	#data = /* @__PURE__ */ new Map();
 	#leaveData = null;
 	#scheduled = null;
+	#bound = [];
+	#sent = /* @__PURE__ */ new Map();
 	createRenderRoot() {
 		return this;
 	}
 	scheduleUpdate() {
 		return this.#scheduled ?? this.#queueUpdate();
+	}
+	#committed() {
+		return super.getUpdateComplete();
 	}
 	#queueUpdate() {
 		if (!this.#descriptor) return super.scheduleUpdate();
@@ -7846,7 +7885,7 @@ var LeafElement = class extends q(UpdateBoundary) {
 			if (this.#scheduled !== scheduled) return;
 			this.#scheduled = null;
 			return super.scheduleUpdate();
-		}, () => this.updateComplete);
+		}, () => this.#committed());
 		this.#scheduled = scheduled;
 		return scheduled;
 	}
@@ -7865,6 +7904,13 @@ var LeafElement = class extends q(UpdateBoundary) {
 			this.#verbs = Object.keys(this.#descriptor.declaration["x-state"] ?? {});
 		}
 		this.#regionName = this.#descriptor ? null : `element:${this.localName}#${this.id}:${++regions}`;
+		this.#bound = Object.entries(registry[this.localName]?.["x-data"] ?? {}).flatMap(([input, { property }]) => property ? [{
+			input,
+			property
+		}] : []);
+		if (this.#bound.length) this.addEventListener("drawn", (event) => {
+			if (event.target === this) this.#drawn(event.detail);
+		});
 		placesFailure(this, (box) => {
 			const root = this.renderRoot ?? this;
 			if (root === this && this.shadowRoot) return false;
@@ -7899,6 +7945,33 @@ var LeafElement = class extends q(UpdateBoundary) {
 		let read = this.#data.get(input);
 		if (!read) this.#data.set(input, read = dataReader(this, input, () => this.#stage()));
 		return read();
+	}
+	willUpdate(changed) {
+		super.willUpdate(changed);
+		for (const { input, property } of this.#bound) {
+			const snapshot = this.data(input);
+			const sent = this.#sent.get(property) ?? [];
+			if (sent.length && sent.at(-1).snapshot === snapshot) continue;
+			const value = snapshot ? snapshot.value : null;
+			sent.push({
+				value,
+				snapshot
+			});
+			if (sent.length > DRAWABLE) sent.shift();
+			this.#sent.set(property, sent);
+			this[property] = value;
+		}
+	}
+	#drawn(detail) {
+		try {
+			const [{ property }] = this.#bound;
+			if (!detail || !Object.hasOwn(detail, property)) throw new Error(`<${this.localName}> drawn must carry the ${property} it drew in its detail`);
+			const entry = (this.#sent.get(property) ?? []).findLast((entry) => entry.value === detail[property]);
+			if (!entry) throw new Error(`<${this.localName} id=${this.id}> drew a ${property} Leaf did not set`);
+			projectMarked(this, entry.snapshot);
+		} catch (error) {
+			failSoft(this, error);
+		}
 	}
 	#hold() {
 		this.#held = true;
@@ -7942,7 +8015,10 @@ var LeafElement = class extends q(UpdateBoundary) {
 				if (outer) outerWork = outerWork ? Promise.all([outerWork, work]) : work;
 				else if (this.#region) this.#drawing = this.#claim();
 			}
-			this.#drawing?.resolve(work ?? void 0);
+			if (this.#drawing) {
+				const complete = this.updateComplete.then(() => void 0);
+				this.#drawing.resolve(work ? Promise.all([work, complete]) : complete);
+			}
 		} catch (error) {
 			if (outer && !this.#drawing) throw error;
 			this.#failed(error, this.#drawing);

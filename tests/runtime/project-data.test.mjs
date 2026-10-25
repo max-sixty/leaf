@@ -194,3 +194,137 @@ test("an async projection retains its captured source provenance after acceptanc
   );
   document.body.replaceChildren();
 });
+
+test("a widget's marks become its datums, and a nested widget keeps its own", () => {
+  adoptRegistry({
+    "lf-marked": { "x-data": { rows: { contract: "rows", source: "source" } } },
+    "lf-marked-inner": { "x-data": { rows: { contract: "rows", source: "source" } } },
+  });
+  const { projectMarked } = createDataProjection({ invalidateDom() {} });
+  document.body.innerHTML = `<main><lf-marked id="outer" source="rows">
+      <p data-lf-datum="api" data-lf-identity="api" data-lf-datum-label="API">Ready</p>
+      <lf-marked-inner id="inner" source="rows"><p data-lf-datum="api">Inner</p></lf-marked-inner>
+    </lf-marked></main>`;
+  const outer = document.querySelector("#outer");
+  const [row, inner] = document.querySelectorAll("p");
+  const snapshot = { source: "rows", revision: "r1", origin: { input: "rows" } };
+  projectMarked(outer, snapshot);
+  const stamp = (node) => ({
+    ...node.dataset,
+    description: node.getAttribute("aria-description"),
+  });
+  assert.deepEqual(stamp(row), {
+    lfDatum: "api",
+    lfIdentity: "api",
+    lfDatumLabel: "API",
+    lfGen: "1",
+    lfProjection: "outer",
+    lfSource: "rows",
+    lfSourceRevision: "r1",
+    lfOrigin: '{"input":"rows"}',
+    description: "API",
+  });
+  // The inner widget's mark is its own: the outer stamp leaves it unprojected.
+  assert.equal(inner.dataset.lfProjection, undefined);
+
+  // A new label replaces the one Leaf mirrored, and a dropped mark retires the datum.
+  row.dataset.lfDatumLabel = "API service";
+  projectMarked(outer, { ...snapshot, revision: "r2" });
+  assert.equal(row.getAttribute("aria-description"), "API service");
+  assert.equal(row.dataset.lfSourceRevision, "r2");
+  delete row.dataset.lfDatum;
+  projectMarked(outer, { ...snapshot, revision: "r3" });
+  assert.deepEqual(stamp(row), { description: null });
+
+  // Marks are refused as `projectData` refuses its datums.
+  row.dataset.lfDatum = "";
+  assert.throws(() => projectMarked(outer, snapshot), /keys must be non-empty strings/);
+  row.dataset.lfDatum = "api";
+  const twin = row.cloneNode(true);
+  delete twin.dataset.lfIdentity;
+  row.after(twin);
+  assert.throws(() => projectMarked(outer, snapshot), /duplicate key api/);
+  document.body.replaceChildren();
+});
+
+test("a draw reported after a newer value arrived keeps the revision it drew", async () => {
+  const { notifyDataSubscribers } = await import("/runtime/data.js");
+  const { LeafElement, nothing } = await import("/runtime/widget-api.js");
+  adoptRegistry({
+    "lf-valued": {
+      "x-data": {
+        text: { contract: "text-document", source: "source", property: "value" },
+      },
+    },
+  });
+  createDataProjection({ invalidateDom() {} });
+  const reading = (revision, value) => ({
+    version: revision,
+    sources: { note: { contract: "text-document", revision, value } },
+  });
+  acceptData(reading("first", "First"), 1);
+  // A widget that reads `.value` and draws each value when the test releases it, so
+  // an older draw can finish after a newer one.
+  const releases = new Map();
+  customElements.define(
+    "lf-valued",
+    class extends LeafElement {
+      static properties = { value: { attribute: false } };
+      render() {
+        return nothing;
+      }
+      updated(changed) {
+        super.updated(changed);
+        const value = this.value;
+        const release = Promise.withResolvers();
+        releases.set(value, release.resolve);
+        if (value === "First") release.resolve();
+        this.shown = release.promise.then(() => {
+          const p =
+            this.querySelector("p") ?? this.appendChild(document.createElement("p"));
+          p.textContent = value;
+          p.dataset.lfDatum = "text";
+          this.dispatchEvent(new CustomEvent("drawn", { detail: { value } }));
+        });
+      }
+      async getUpdateComplete() {
+        const result = await super.getUpdateComplete();
+        await this.shown;
+        return result;
+      }
+    },
+  );
+  document.body.innerHTML =
+    '<main><lf-valued id="note" source="note"></lf-valued></main>';
+  const widget = document.querySelector("#note");
+  await notifyDataSubscribers();
+  const read = () => {
+    const p = widget.querySelector("p");
+    return [p.textContent, p.dataset.lfSourceRevision];
+  };
+  const first = read();
+
+  acceptData(reading("older", "Older"), 1);
+  const older = notifyDataSubscribers();
+  while (!releases.has("Older")) await new Promise((resolve) => setTimeout(resolve, 0));
+  acceptData(reading("newer", "Newer"), 1);
+  const newer = notifyDataSubscribers();
+  while (!releases.has("Newer")) await new Promise((resolve) => setTimeout(resolve, 0));
+  // The data version waits on the widget's `updateComplete`, which its drawing extends.
+  const held = document.body.dataset.lfDataVersion;
+  releases.get("Newer")();
+  await newer;
+  const afterNewer = read();
+  releases.get("Older")();
+  await older;
+  assert.deepEqual(
+    { first, held, afterNewer, afterOlder: read() },
+    {
+      first: ["First", "first"],
+      held: "first",
+      afterNewer: ["Newer", "newer"],
+      afterOlder: ["Older", "older"],
+    },
+  );
+  document.body.replaceChildren();
+});

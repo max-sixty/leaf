@@ -205,7 +205,9 @@ to it: the unit stays in the move's container, after the nearest unit both revis
 list before it, unless the revision marks it `restated`. An absorbed move still stands,
 as a written-back pick does, but the markup now decides the order an undo would have
 restored, so it can no longer be undone. The door refuses a move made on an older
-revision whose container the newest one authors differently.
+revision whose container the newest one authors differently, and any move of a unit
+that shows another widget's answer (`x-shows`): that widget's own action places it,
+and is the one record of the answer whichever view sent it (`shown_answers.py`).
 
 ## Following the log
 

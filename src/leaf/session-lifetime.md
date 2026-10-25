@@ -193,17 +193,21 @@ the exclusions). The Stop hook never continues a turn to deliver one.
 
 ### Nudging a session with no watcher
 
-A watcher the session's own turns start can stop while the session lives on: a turn
-interrupted without its Stop hooks starts no watch, a watch fails or reaches its
-hook's timeout, or a model-run wait is stopped after the turn ends. Input that reaches
-the page after that has no watcher, and the claimant's harness may offer a nudge, the
-one way to reach such a session.
+A watcher the session's own turns start can stop while the session lives on: a watch
+fails or reaches its hook's timeout, or a model-run wait is stopped after the turn
+ends. Claude Code's prompt hook starts a watch as each turn starts, so a turn an
+interrupt ends still has one, except a turn whose prompt came before the session
+held any page: its watch ended at once, so nothing watches once that turn claims a
+page and is interrupted. Input that reaches the page after that has no watcher, and
+the claimant's harness may offer a nudge, the one way to reach such a session.
 
 Admission sends a nudge when an event is appended to a page whose claimant takes no
 input, once per ending of its turn (`presence.nudge_unwatched`). An interrupted turn
-runs no hook, so the page's server sends for the input it left once its presence look
-reads the turn ended by the harness's record (`presence.nudge_interrupted`). Claude
-Code's nudge is a user message through the session's messaging socket
+runs no hook, so Claude Code also starts the watch as each prompt starts, which waits
+while that turn runs and wakes for what an interrupt leaves (`hooks.cmd_watch`). Where
+no watch holds the lease, the page's server sends for the input an interrupted turn
+left once its presence look reads the turn ended by the harness's record
+(`presence.nudge_interrupted`). Claude Code's nudge is a user message through the session's messaging socket
 (`harness.message_claude_code_session`), whose docstring says when the recipient holds
 it; a background job whose worker has retired is resumed with the message as its next
 prompt instead (`harness.resume_claude_code_job`). The adapter and the host declare no

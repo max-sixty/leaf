@@ -12,7 +12,7 @@
    then writes. Each fold answers from its arguments alone, so `tests/runtime/` runs them
    without a browser. */
 
-import { clamp, overlaps, overlapsAcross } from "../rect.js";
+import { clamp, overlaps, overlapsAcross, union } from "../rect.js";
 
 // A row stands in the rail when the page has one, the rail stands beside the box that
 // scrolls its target (the document, or a bounded block in its flow; never a pane), and
@@ -101,6 +101,61 @@ export const inSeatingOrder = (rows) =>
       (a.came ?? 0) - (b.came ?? 0) ||
       a.rect.top - b.rect.top,
   );
+
+// The seats by one subject, in the order a pin takes them, `size` wide and as tall as
+// `home`, the pin's seat inside the subject's top-right corner, `gap` from the subject
+// where they stand off it; `parts` are the subject's boxes, `inline` whether it is a
+// run of words, which adds the seat after its last word, and `passage` whether the
+// above seat hangs off quoted words. `cover` is what a pin keeps off, and `beside` says
+// whether another block stands across a rect (margin-layout.js, `coverIn`).
+//
+// A seat outside the subject, beside its corner or its last word, is offered only where
+// no other block stands level with the part it stands by: a pin in a neighbour's box
+// reads as the neighbour's, as a card's pin in the gap between board columns reads as
+// the next column's card. Only the seat's span level with that part is asked, since a
+// pin is taller than a line and its foot overhangs the block below, where it reads as
+// the line's still. One not offered is null, so each seat keeps its index and `corner`
+// still names the inside one.
+export function seatsBy(parts, home, inline, passage, { cover, beside }, size, gap) {
+  const height = home.bottom - home.top;
+  const box = union(parts) ?? home;
+  const end = parts.at(-1);
+  const outside = (part) => {
+    const seat = {
+      left: part.right + gap,
+      right: part.right + gap + size,
+      top: part.top,
+      bottom: part.top + height,
+    };
+    const level = { ...seat, bottom: Math.min(seat.bottom, part.bottom) };
+    return beside(level) ? null : seat;
+  };
+  // Below the corner only where the row under the subject is empty from its left edge
+  // to the corner: beside the next block's words, a pin reads as that block's.
+  // Measured from the subject's own foot, not its home's: a subject shorter than a pin
+  // would otherwise skip the block below it.
+  const under = {
+    left: Math.min(home.left, box.left),
+    right: home.right,
+    top: box.bottom + gap,
+    bottom: box.bottom + gap + height,
+  };
+  const belowClear = !cover.some((box) => overlaps(box, under));
+  return [
+    outside(box),
+    ...(inline && end ? [outside(end)] : []),
+    { ...home, left: home.right - size },
+    // Above the corner: a quoted passage hangs off its words so the pin's pointed
+    // foot meets them. Other inline targets keep the inset seat inside their corner.
+    {
+      left: passage ? box.right : home.right - size,
+      right: passage ? box.right + size : home.right,
+      top: box.top - gap - height,
+      bottom: box.top - gap,
+    },
+    ...(belowClear ? [{ ...under, left: home.right - size }] : []),
+  ];
+}
 
 // Where every pin stands, in seating order, so a pin seated first is one the next keeps
 // off. Each pin offers its seats in the order it prefers them (`seats`, margin-layout.js

@@ -19,22 +19,25 @@
   font: var(--t-6) / 1.4 var(--sans);
   color: var(--muted);
 }
+/* The marks stand over the count, so a count that grows, as with "· 1 on Claude",
+   neither moves them nor squeezes them away on a phone. */
 .lf-deck-status {
   display: flex;
   flex: 1;
-  align-items: center;
-  gap: var(--sp-2);
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
   min-inline-size: 0;
 }
 .lf-deck-count {
+  overflow: hidden;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  text-overflow: ellipsis;
 }
 .lf-deck-pips {
   display: flex;
-  flex: 1;
   gap: 3px;
-  min-inline-size: 0;
 }
 .lf-deck-pip {
   flex: 1;

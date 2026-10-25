@@ -5,6 +5,6 @@ or decision widget with the evidence it needs, since the user sees one card at a
 Put context that answers nothing before the deck; a card holding no question is passed
 over, reached only by Back.
 
-The deck moves on by itself once a card no longer waits on the user, and offers Back and
-Later, so don't add navigation of your own. Later leaves a card waiting and records
-nothing; the deck comes back to it at the end of the pass.
+The deck moves on by itself once the user answers a card, and offers Back and Later, so
+don't add navigation of your own. Later leaves a card waiting and records nothing; the
+deck comes back to it at the end of the pass.

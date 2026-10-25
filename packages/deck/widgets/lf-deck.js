@@ -6,18 +6,20 @@
  * card no longer waits, after the user answered it on the card or on a control standing
  * for it, such as a suggestion's margin entry, the card flies right and the next waiting
  * card after it comes up. A wait that ends anywhere else, as when
- * the user comments on the card and leaves it with the agent, or the agent ends the
- * question, leaves the card where it is with Next, since news never moves what the user
- * is reading. Later sends a card left and leaves its obligation open, which is Leaf's
- * keep unread: nothing is recorded, the pass ends with the cards kept for later still
- * waiting, and Go through starts again from the first of them. Back returns to the card
- * before, where the widget's own controls change an answer. Until the page's first
- * reading is in, as offline, Later and Next step to the next card in order.
+ * the user comments on the card and leaves it with the agent, the agent ends the
+ * question, or the user answers it in another window, leaves the card where it is with
+ * Next, since news never moves what the user is reading. Later sends a card left and
+ * leaves its obligation open, which is Leaf's keep unread: nothing is recorded, the
+ * pass ends with the cards kept for later still waiting, and Go through starts again
+ * from the first of them. Back returns to the card before, where the widget's own
+ * controls change an answer. Where nothing waits, as in Review, and until the page's
+ * first reading is in, as offline, Later and Next step to the next card in order.
  *
  * Which card is open is view state for this user, as a tab set's open panel is
  * (`x-views`): the runtime names the opening card (`openingView`), the module records
  * each card it shows (`keepView`), so a reload comes back to it, and no event carries
- * it. Inactive cards are `hidden="until-found"`, so find-in-page, a fragment and the On
+ * it. Where neither the address nor the tab names a card, the deck opens on the first
+ * that waits once the first reading is in. Inactive cards are `hidden="until-found"`, so find-in-page, a fragment and the On
  * walk (`m`, `obligationActions.next`) open the card holding what they reach
  * (`beforematch`, `lf-reveal`); `m` is therefore the keyboard's Later, and a card the
  * walk leaves behind stays waiting for the end of the pass. Leaf's Undo travels to the
@@ -37,8 +39,9 @@
  * the card says so otherwise. The bar stands above the card, so cards of different
  * heights never move a control under the pointer; for the same reason a card that comes
  * up takes no press until it has settled. A touch
- * drag across the card sends it either way: left is Later, right is Next once the card
- * no longer waits, and a short or early drag settles back. A mouse or pen drag stays
+ * drag across the card sends it either way, flying on from where the finger let go:
+ * left is Later, right is Next once the card no longer waits, and a short or early drag
+ * settles back. A mouse or pen drag stays
  * text selection, which comments start from. Unupgraded, and on paper, the cards stand
  * one after another. */
 import {
@@ -108,6 +111,9 @@ customElements.define(
     #pressed = null;
     #leaving = null;
     #drag = null;
+    // Whether the deck opened on its first card only because this tab kept no card
+    // and the address named none, so the first reading may open the first that waits.
+    #defaulted = false;
 
     createRenderRoot() {
       return this.#status ?? this;
@@ -125,6 +131,7 @@ customElements.define(
           `lf-btn lf-quiet-action lf-deck-action lf-deck-${name}`,
         );
         button.append(iconElement(icon, "lf-action-icon"));
+        button.dataset.icon = icon;
         // A press never takes focus, so no control keeps a frame the others lack.
         button.addEventListener("mousedown", (event) => event.preventDefault());
         return button;
@@ -173,7 +180,9 @@ customElements.define(
       }
       this.prepend(this.#bar);
       this.classList.add("lf-rendered");
-      this.#show(openingView(this, this.#cards));
+      const opening = openingView(this, this.#cards, null);
+      this.#show(opening ?? this.#cards[0]);
+      this.#defaulted = !opening;
       if (quoted(this)) return;
       whileConnected(this, (signal) => {
         const options = { signal };
@@ -201,6 +210,7 @@ customElements.define(
       }
       if (card === this.#open.value) return Promise.resolve();
       this.#open.value = card;
+      this.#defaulted = false;
       this.#waited = null;
       this.#pressed = null;
       if (card) keepView(this, card);
@@ -210,7 +220,7 @@ customElements.define(
     // Leave the open card toward `side` and bring up `next` (null ends the pass). The
     // leaving card keeps its box over the deck while it flies, so the next card is
     // already in place beneath it.
-    #go(next, side) {
+    #go(next, side, from = "none") {
       this.#leaving?.finish();
       const card = this.#open.value;
       if (!card || next === card) return this.#show(next);
@@ -221,7 +231,7 @@ customElements.define(
       const flight = motion(
         card,
         [
-          { transform: "none", opacity: 1 },
+          { transform: from, opacity: 1 },
           {
             transform: `translateX(${side === "left" ? -110 : 110}%) rotate(${side === "left" ? -6 : 6}deg)`,
             opacity: 0,
@@ -231,17 +241,17 @@ customElements.define(
       );
       if (flight) {
         card.style.setProperty("--lf-deck-leave-top", `${top}px`);
-        card.setAttribute("data-lf-deck-leaving", side);
-        this.setAttribute("data-lf-deck-flying", "");
+        keeps(card, "data-lf-deck-leaving", side);
+        keeps(this, "data-lf-deck-flying", "");
         this.#leaving = flight;
         const land = () => {
           if (this.#leaving === flight) {
             this.#leaving = null;
-            this.removeAttribute("data-lf-deck-flying");
+            keeps(this, "data-lf-deck-flying", null);
           }
-          card.removeAttribute("data-lf-deck-leaving");
+          keeps(card, "data-lf-deck-leaving", null);
           card.style.removeProperty("--lf-deck-leave-top");
-          if (this.#open.value !== card) card.setAttribute("hidden", "until-found");
+          if (this.#open.value !== card) keeps(card, "hidden", "until-found");
         };
         flight.finished.then(land, land);
       }
@@ -252,6 +262,7 @@ customElements.define(
           keeps(each, "hidden", each === next ? null : "until-found");
       }
       this.#open.value = next;
+      this.#defaulted = false;
       this.#waited = null;
       this.#pressed = null;
       if (next) {
@@ -264,8 +275,8 @@ customElements.define(
           ],
           RISE_MS,
         );
-        next.setAttribute("data-lf-deck-settling", "");
-        setTimeout(() => next.removeAttribute("data-lf-deck-settling"), SETTLE_MS);
+        keeps(next, "data-lf-deck-settling", "");
+        setTimeout(() => keeps(next, "data-lf-deck-settling", null), SETTLE_MS);
       }
       layoutChanged(this);
       carry(next);
@@ -273,17 +284,20 @@ customElements.define(
         scrollIntoView(this, { block: "start", behavior: scrollBehavior() });
     }
 
-    // The next waiting card after `card`, or, with no reading, the next card; null at
-    // the end of the pass.
-    #after(card, readings) {
+    // The next waiting card after `card`, or the next card where there is no reading or
+    // the user steps through a deck where nothing waits, as Review does; null at the
+    // end of the pass.
+    #after(card, readings, stepping) {
       const rest = this.#cards.slice(this.#cards.indexOf(card) + 1);
-      if (!readings) return rest[0] ?? null;
-      return rest.find((each) => waitsOn(readings.get(each))) ?? null;
+      const waiting = (each) => waitsOn(readings.get(each));
+      if (!readings || (stepping && !this.#cards.some(waiting))) return rest[0] ?? null;
+      return rest.find(waiting) ?? null;
     }
 
-    #onward(side) {
+    // The user sends the open card toward `side`, from where a drag left it.
+    #onward(side, from) {
       const card = this.#open.value;
-      if (card) this.#go(this.#after(card, this.#readings()), side);
+      if (card) this.#go(this.#after(card, this.#readings(), true), side, from);
     }
 
     #index() {
@@ -400,18 +414,20 @@ customElements.define(
       if (!drag.moving) return (this.#drag = null);
       const readings = this.#readings();
       const card = this.#open.value;
+      const from = `translateX(${drag.dx}px) rotate(${drag.dx / 30}deg)`;
       this.#settle();
-      if (drag.dx <= -SWIPE) this.#onward("left");
+      if (drag.dx <= -SWIPE) this.#onward("left", from);
       else if (drag.dx >= SWIPE && !(readings && waitsOn(readings.get(card))))
-        this.#onward("right");
+        this.#onward("right", from);
     }
 
     #settle() {
       const card = this.#open.value;
       if (this.#drag?.moving) dragging(this, false);
       this.#drag = null;
-      card?.style.removeProperty("translate");
-      card?.style.removeProperty("rotate");
+      if (!card?.style.translate) return;
+      card.style.removeProperty("translate");
+      card.style.removeProperty("rotate");
     }
 
     render() {
@@ -432,12 +448,12 @@ customElements.define(
         return held.some((item) => item.status === "open") ? "agent" : "done";
       };
       return html`
-        <span class="lf-deck-count" role="status">${count}</span>
         <span class="lf-deck-pips" aria-hidden="true"
           >${this.#cards.map(
             (each) => html`<span class="lf-deck-pip" data-state=${mark(each)}></span>`,
           )}</span
         >
+        <span class="lf-deck-count" role="status">${count}</span>
       `;
     }
 
@@ -473,13 +489,18 @@ customElements.define(
         : [];
       keeps(this, "data-lf-deck-behind", String(Math.min(2, behind.length)));
       if (!card) return;
+      if (this.#defaulted) {
+        this.#defaulted = false;
+        if (waiting.length && !waiting.includes(card)) return void this.#show(waiting[0]);
+      }
       const waits = waiting.includes(card);
       // The reading that ends the open card's wait sends it on when the user answered
       // it from the card: every obligation it holds is closed, at least one by an
-      // answer, and the user is on the card, on a control standing for it such as a
-      // suggestion's margin entry (`placeOf`), or pressed in it and is on nothing else.
-      // A comment leaves an obligation open with the agent, and the agent ending one
-      // closes it without an answer, so neither moves the card.
+      // answer, and the user is in this window and on the card, on a control standing
+      // for it such as a suggestion's margin entry (`placeOf`), or pressed in it and is
+      // on nothing else. A comment leaves an obligation open with the agent, the agent
+      // ending one closes it without an answer, and an answer from another window
+      // arrives here while this one lacks focus, so none of them moves the card.
       const held = readings.get(card);
       const closed =
         held.some((item) => item.status === "answered") &&
@@ -487,8 +508,9 @@ customElements.define(
       const here = focused();
       const place = here && placeOf(here);
       const onCard =
-        Boolean(place && under(place, card)) ||
-        (this.#pressed === card && [null, document.body].includes(here));
+        document.hasFocus() &&
+        (Boolean(place && under(place, card)) ||
+          (this.#pressed === card && [null, document.body].includes(here)));
       if (this.#waited && !waits && closed && onCard) {
         this.#go(this.#after(card, readings), "right");
       } else this.#waited = waits;

@@ -443,7 +443,10 @@ class ClaudeCodeHarness(EnvironmentHarness):
         """Claude Code names the turn by its prompt, `prompt_id`, in every hook but
         SessionStart, and a prompt Escape dropped is submitted again under a new one
         (measured at 2.1.310), so a handover into a dropped prompt belongs to a turn
-        that never ran."""
+        that never ran. Releases before 2.1.196 send no `prompt_id` (found in each
+        npm release's hook input), so their turns are Leaf's, and a resubmitted
+        prompt renews the dropped one's; receipt then stops short of its handover
+        (`delivery.confirm_entered`), which is input again once the turn ends."""
         prompt = payload.get("prompt_id")
         return {**payload, "turn_id": prompt} if prompt else payload
 

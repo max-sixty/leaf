@@ -808,6 +808,50 @@ def test_claude_codes_transcript_says_which_handovers_reached_the_model(tmp_path
     )
 
 
+def test_receipt_never_passes_a_handover_the_transcript_does_not_show(
+    claimed, interactive, monkeypatch, capsys
+):
+    """A Claude Code before 2.1.196 names no turn in its hooks, so the prompt it
+    submits again after Escape dropped one renews Leaf's turn rather than opening
+    another, and the comment handed into the dropped prompt still reads as awaiting
+    its receipt. A comment the next tool boundary hands over then reaches the
+    transcript alone. The cursor passes an input only with every one before it, so
+    the receipt stops short of the dropped comment, and once the turn ends that
+    comment is input again rather than received unseen."""
+    shown: set[str] = set()
+    monkeypatch.setattr(
+        harness_model.ClaudeCodeHarness,
+        "entered_context",
+        lambda harness, payload: set(shown),
+    )
+
+    def hook(event: str) -> str:
+        hooks_model.cmd_hook(
+            "claude-code", {"hook_event_name": event, "session_id": "s1"}
+        )
+        return capsys.readouterr().out
+
+    dropped = append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "which ships first?"}
+    )
+    assert dropped["id"] in hook("UserPromptSubmit")
+    # Escape drops that prompt, and Claude Code submits it again.
+    hook("UserPromptSubmit")
+    later = append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "one more"}
+    )
+    assert later["id"] in hook("PostToolBatch")
+    shown.add(later["id"])
+    hook("PostToolBatch")
+    assert acknowledged_through(claimed) < dropped["seq"]
+
+    hook("Stop")
+    with service_model.PageTransaction(claimed) as page:
+        assert dropped["id"] in [
+            event["id"] for event in delivery_model.deliverable(page)
+        ]
+
+
 def test_a_step_opens_a_claude_code_turn_no_prompt_hook_named(claimed, capsys):
     """A claim's new lifetime mints a turn before any hook names one, and a prompt
     the user types while a turn runs gets its prompt hook at once under that turn's

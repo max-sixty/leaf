@@ -1137,10 +1137,15 @@ def confirm_entered(harness, payload: dict) -> None:
     """Record the receipt of what this session's hooks handed over inline and its
     harness's record, named in hook `payload`, shows in the model's context
     (`Harness.entered_context`), on every page the session holds: the receipt
-    through the newest such update (`record_receipt`). Every hook of a harness whose
-    hooks don't commit their context runs this before it reads the page, so the
-    prompt a nudge wakes after an interrupt confirms what the interrupted turn read
-    before it hands anything over."""
+    through the last of the page's pending input that record shows along with every
+    update before it (`record_receipt`). The cursor passes everything before where
+    it moves to, so it stops at the first update the record lacks. One handed into
+    a prompt Escape dropped can still be awaited while a later boundary's handover
+    reaches the model, where a Claude Code that names no turn renews the turn for
+    the prompt it submits again (`ClaudeCodeHarness.hook_payload`). Every hook of a
+    harness whose hooks don't commit their context runs this before it reads the
+    page, so the prompt a nudge wakes after an interrupt confirms what the
+    interrupted turn read before it hands anything over."""
     from .service import owned_pages
 
     entered = harness.entered_context(payload)
@@ -1154,16 +1159,19 @@ def confirm_entered(harness, payload: dict) -> None:
             ):
                 if page.claim_of(harness.session) is None:
                     continue
-                seqs = {event["id"]: event["seq"] for event in page.events}
-                handed = [
-                    seqs[event_id]
+                shown = {
+                    event_id
                     for pickup in pickup_receipts(page.events, phase="opened")
                     if pickup["session"] == harness.session
                     for event_id in pickup["events"]
-                    if event_id in entered and seqs[event_id] > page.cursor
-                ]
-                if handed:
-                    record_receipt(page, max(handed))
+                    if event_id in entered
+                }
+                through = page.cursor
+                for event in unacknowledged(page.events, page.cursor):
+                    if event["id"] not in shown:
+                        break
+                    through = event["seq"]
+                record_receipt(page, through)
         except FileNotFoundError:
             continue
 

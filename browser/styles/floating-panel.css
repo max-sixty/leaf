@@ -126,8 +126,12 @@
   }
   /* The card wears the surface's colour over the ground's own fill, which it matches
      at rest and inside every move, so what stands under the panel is under a box that
-     paints for a contrast checker too, which reads no clipped layer. */
+     paints for a contrast checker too, which reads no clipped layer.
+     The card is one layer of the panel, under the leaf's menu and the peek that follow
+     it: it isolates the z-indexes of what it holds, such as a glyph raised over its
+     press's disc, which otherwise stacked beside the menu and drew over it. */
   .lf-fp-card {
+    isolation: isolate;
     anchor-name: --lf-fp-panel;
     display: flex;
     flex-direction: column;

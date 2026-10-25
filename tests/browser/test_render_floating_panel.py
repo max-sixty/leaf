@@ -4695,9 +4695,11 @@ def test_a_draft_draws_a_list_as_the_message_will(browser, serve):
     # already holding words; load it first, so the list is drawn as it is typed.
     page.evaluate("async () => (await window.__lfWidgetApi()).loadMarkdown()")
     field(page).click()
+    # The first item wraps to two lines both in the field and in the sent message's
+    # wider column, so the two hold the same lines.
     page.keyboard.insert_text(
         "Notes:\n- "
-        + "an item long enough to wrap in the field " * 3
+        + "an item long enough to wrap in the field " * 2
         + "\n- parent\n      deeper\n    - child\n\n1. one\n\n       indented"
         + "\n\n```\ncode\n```\nend"
     )

@@ -244,7 +244,7 @@
     "runtime/widget-api.js": "815b7ad9664933d1facfb6db7407f1a054e0744b59246c6628cdfc0951b125fd",
     "runtime/widget-controller.js": "00501aa17eed6fc02ed20d6f44a63646f6b2daad786891035e914f4f5da976a8",
     "runtime/widget-descriptors.js": "e6ac3d8999443e1d219477d027ebac5371507e89071d1624f9c5338e631bc652",
-    "runtime/widget-elements.js": "8dca1a502f4de63eba5026dd01fb7928f636f414aff01b32e8d5665b5cd70d4d",
+    "runtime/widget-elements.js": "28c8c65d137ce1717ed3d194476565c513b901a671534c2400697c2b2f770483",
     "runtime/widget-imports.js": "856744777f95c8cf638c8866903fa76956bc36dccead555eafbc0228241cc2e6",
     "runtime/widget-loader.js": "ad01ae0fa3519d7f3f206c8f4ab8947348802627e71280a93b574d40994ff9b7",
     "runtime/widget-upgrade.js": "73ec10ed8d29009406a71d974f64be38fa8a5b7c58797a97165ae0192790d3e7",

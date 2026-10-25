@@ -24,17 +24,18 @@ def test_code_copy_on_plain_http_machine_name(browser, serve, gesture):
         "Code copy over HTTP",
         "<h1>Code copy over HTTP</h1><pre><code>echo hello</code></pre>",
     )
+    # The browser lower-cases a URL's host, so the route rewrites that spelling to
+    # loopback; the machine's name needn't resolve there, as on CI's macOS runner.
+    host = gethostname().lower()
     local_url = live_url(serve(source))
-    remote_url = local_url.replace("127.0.0.1", gethostname())
+    remote_url = local_url.replace("127.0.0.1", host)
     context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
 
     def fetch_from_loopback(route):
-        response = route.fetch(
-            url=route.request.url.replace(gethostname(), "127.0.0.1")
-        )
+        response = route.fetch(url=route.request.url.replace(host, "127.0.0.1"))
         route.fulfill(response=response)
 
-    context.route(f"http://{gethostname()}:**/*", fetch_from_loopback)
+    context.route(f"http://{host}:**/*", fetch_from_loopback)
     page = open_page(browser, remote_url, context=context)
     assert page.evaluate("!isSecureContext && navigator.clipboard === undefined")
     if gesture == "click":

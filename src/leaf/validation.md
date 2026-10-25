@@ -113,7 +113,7 @@ it.
 
 ## Passages
 
-The browser resolves an anchor and records it in the log, so `leaf thread open` reads
+The browser resolves an anchor and records it in the log, so `leaf thread create` reads
 the active revision's file the way the anchor pass reads the DOM. `passages.py`'s
 header comment owns that reading: what the registry's `x-says`, `x-verbatim` and
 `x-retired-when` contribute, and where a fence stops a quote. Both runtimes take

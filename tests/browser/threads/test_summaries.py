@@ -21,6 +21,7 @@ from browser.threads import (
     summarize_thread,
 )
 from leaf import thread as thread_model
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -538,11 +539,18 @@ def test_a_summary_folds_its_messages_where_they_stand(request, serve, engine):
     owned = checkpoint.evaluate("node => node.getAttribute('aria-owns').split(' ')")
     assert owned == [message.evaluate("node => node.id") for message in covered]
 
+    # Show and Hide leave their toggle under the user's aim: the thread landing it
+    # brought the thread's head back into view and lifted the toggle 20px.
+    stood = toggle.evaluate("node => node.getBoundingClientRect().top")
     toggle.press("Enter")
     for message in covered:
         expect(message).to_be_hidden()
+    rendered(page)
+    assert toggle.evaluate("node => node.getBoundingClientRect().top") == stood
     toggle.press("Enter")
     expect(covered[0]).to_be_visible()
+    rendered(page)
+    assert toggle.evaluate("node => node.getBoundingClientRect().top") == stood
     kept()
 
     append_carried_log_record(

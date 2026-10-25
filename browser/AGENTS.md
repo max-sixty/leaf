@@ -62,7 +62,10 @@ representative desktop viewport.
 ### Stability
 
 - **The page holds still under the user's aim.** A state change may repaint any box,
-  but must not move the controls next to the gesture that caused it. Without a gesture,
+  but must not move the controls next to the gesture that caused it. A scroll the
+  gesture makes may not carry the control it was made on either, except where the
+  command takes the user somewhere, as a walk or Go-to does, and declares so
+  (`travels`, `runtime/keyboard/bindings.js`). Without a gesture,
   a box may grow or shrink into free room, but reading content and controls stay put. A
   change the user asked for may reflow the content it replaces, with motion the eye can
   follow. A reveal on hover, focus or a key never changes the size or position of its
@@ -165,6 +168,15 @@ representative desktop viewport.
   edged on one side is never rounded: mark a state with a whole contour, or a stripe on
   a square box. Avoid reflexive cards, tints, gradients and soft shadows. Check:
   `test_no_rule_rounds_a_box_edged_on_one_side`.
+- **Leaf's controls are few, and each shows a symbol rather than a word where a
+  familiar symbol says what it does.** The words on Leaf's controls compete with the
+  page's own words for the reader's attention, and a symbol is smaller and quieter.
+  Draw it from `runtime/icons.js` and give the control its name as tooltip and
+  accessible name, without the word beside the symbol. One control whose symbol follows
+  its state, such as play turning to pause, replaces a button for each state. A word
+  stays where a symbol would leave the reader guessing, as in the rows of the leaf's
+  menu, which the user opened to read. Symbols don't license more controls: a surface
+  at rest shows only what its task needs, and the leaf's menu holds the rest.
 - **A face used twice is a token or a shared rule.** A lift names one of the theme's
   heights, `--raise-1` to `--raise-3` (`styles/theme.css`). Check:
   `test_every_lift_names_one_of_the_theme_s_heights_cast_in_the_scheme_s_ink`.
@@ -227,7 +239,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Pins, marks and floating placement (loaded only when `body` keeps the default `data-annotations="overlay"`) | `annotation-overlay/`                                                                                                                                                     |
 | Passages and target identity                                                                                | `passages.js`, `passage-facts.js`, `text-alignment.js`, `anchor-coordinate.js`, `resolved-target.js`, `anchor-resolution.js`, `addressable-names.js`                      |
 | Anchor placement, decoration and travel                                                                     | `anchor-placement.js`, `anchor-note-view.js`, `anchor-controls.js`, `anchor-travel.js`, `target-paint.js`, `target-paint-geometry.js`, `visual-parts.js`, `indication.js` |
-| Page status and what a user copies about the page                                                           | `page-status.js`, `page-about.js`                                                                                                                                         |
+| Page status and what a user copies about the page                                                           | `page-status.js`, `page-about.js`, `heading-links.js`                                                                                                                     |
 | Neighboring pages                                                                                           | `live-leaves.js`                                                                                                                                                          |
 | Activity and reports                                                                                        | `presence.js`, `activity-words.js`, `reports.js`                                                                                                                          |
 | Notices, errors and announcements                                                                           | `semantic-news.js`, `notifications.js`, `errors.js`, `keyboard/status-context.js`                                                                                         |
@@ -394,6 +406,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Whether a node is, or is inside, an open native layer, and of which kind                              | `shadow-tree.js` `nativeLayerKind`, `isNativeLayer`, `nativeLayerHolding` (_lint_) |
 | Which native layers are open, in opening order, and whether a modal admits a node                     | `keyboard/layer-stack.js` `nativeLayers`, `nativeModalAdmits`                      |
 | The element a URL fragment names                                                                      | `anchor-resolution.js` `fragmentTarget`                                            |
+| The address a heading's link names                                                                    | `heading-links.js` `headingAddress`                                                |
 | The language a file path means                                                                        | `syntax.js` `langForPath`, from the registry's `$languages`                        |
 | Paint on the next frame, or watch a size                                                              | `rendering.js` `nextRender`, `nextFrame`, `sizeObserver` (_lint_)                  |
 | Write a DOM value only when it changed                                                                | `keeps.js` `keeps`                                                                 |

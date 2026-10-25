@@ -1,7 +1,12 @@
-/* Where two images differ: the one rule every reader of a before/after pair shares.
+/* Pixel highlights and experimental region outlines for a before/after pair.
  *
- * Experimental. Block detection and movement matching are our own; final changed
- * outlines use density-clustering's DBSCAN. Pixelmatch, odiff,
+ * Pixel highlights use BlazeDiff without a threshold or anti-alias suppression.
+ * They ignore colour hidden by complete transparency; alpha and image extent
+ * changes still count. Highlight opacity follows channel distance, retaining slight
+ * changes without making their edges as prominent as large changes.
+ *
+ * Region outlines are experimental. Block detection and movement matching are our
+ * own; final changed outlines use density-clustering's DBSCAN. Pixelmatch, odiff,
  * BlazeDiff core and looks-same compare pixels in place. BlazeDiff's separate
  * interpret-wasm package now classifies regions and detects shifts; it returns
  * heuristic region labels, not per-pixel ownership or paired before/after regions.
@@ -13,9 +18,9 @@
  * layout modes, compare the DOM rather than the pixels, which an arbitrary pair of
  * images does not carry.
  *
- * A pixel differs when any of its channels differs, alpha included, so two captures of
- * one runtime at one viewport compare equal and a redrawn pixel never does. Where the
- * sizes differ, a pixel only one image has differs.
+ * For region outlines, a pixel differs when any channel differs, alpha included, so
+ * two captures of one runtime at one viewport compare equal and a redrawn pixel never
+ * does. Where the sizes differ, a pixel only one image has differs.
  *
  * Not every differing pixel is a place to look. A redrawn shadow edge, a contrast shift,
  * or a re-encoded file moves many pixels a little, while content that appears, moves or
@@ -79,11 +84,9 @@
  *
  * A before/after widget states the reading and, when asked, draws each frame's outlines,
  * and `leaf-dev stills` loads this module into its browser on its own and crops a
- * changed state to them. Where a change is a few pixels, a shift or a recolour inside
- * one block, an outline says where to look but not what moved, so `changedPixels`
- * also gives every pixel's own reading under the same rule, split by which image
- * draws it, for a view that paints them. The clustering dependency loads only when a comparison
- * needs regions, after page presentation; this module touches no document. */
+ * changed state to them. `changedPixels` supplies the soft mask for closer inspection.
+ * Each dependency loads only when its comparison needs it, after page presentation;
+ * this module touches no document. */
 
 const SLIGHT = 48;
 const STEP = 4;
@@ -642,125 +645,69 @@ function pixelChange(a, one, b, other, x, y) {
 const FAINT = 40;
 const FAR = 2 * SLIGHT;
 
-/* Every changed pixel of `a` and `b`, in the pair's size, as the alpha of three black
- * RGBA masks beside its `width` and `height`, clear where a pixel did not move. A
- * changed pixel's alpha rises with how far it moved, from faint for one level to opaque
- * at twice SLIGHT, so the soft edge of a moved mark fades as the image's own edge does
- * rather than stepping, which an enlarged view would draw as blocks. Which mask holds a
- * changed pixel estimates which image draws something there. This assumes a locally
- * uniform background: gradients, textures and opacity changes can contradict these
- * categories, and pixels alone cannot distinguish an added occluder from a removal.
- * Each run of touching changed
- * pixels stands on a ground, the commonest colour among the unchanged pixels around it:
- * those touching it that an unchanged path joins to the frame's edge. An unchanged
- * pixel the changes enclose, such as a mark that kept its colour inside a recoloured
- * background, is not around the run but inside it, so it is no ground. A pixel only `a`
- * draws, unlike that ground while `b` shows it, is in `before`; one only `b` draws is in
- * `after`; one both draw, as a recolour, or neither, as a redrawn shadow, is in `both`,
- * as is every pixel of a run with no ground, which nothing tells which image draws. So
- * a mark that moved is in `before` where it was and in `after` where it went, whatever
- * the theme. A pixel only one image has is
- * that image's. Takes what `differingRegions` takes. A reader paints its own colours
- * through the masks, so the picture follows the theme. */
-export function changedPixels(a, b) {
+/* One black RGBA alpha mask at the pair's size. BlazeDiff detects colour changes;
+ * alpha and extent changes count independently. Threshold and anti-alias suppression
+ * are off: subtle deliberate edits still show, with alpha rising from FAINT to
+ * opaque at FAR levels
+ * of channel distance. Pixels inside only one image's extent are opaque changes,
+ * even if the image's edge is transparent. The reader supplies the highlight colour. */
+export async function changedPixels(a, b) {
+  const { default: diff } = await import("/vendor/blazediff.js");
   const width = Math.max(a.width, b.width);
   const height = Math.max(a.height, b.height);
+  const data = new Uint8ClampedArray(width * height * 4);
+  const options = {
+    threshold: 0,
+    includeAA: true,
+    diffMask: true,
+    diffColor: [0, 0, 0],
+  };
+  diff(
+    padded(a, width, height),
+    padded(b, width, height),
+    data,
+    width,
+    height,
+    options,
+  );
   const one = words(a);
   const other = words(b);
-  const change = new Uint8Array(width * height);
-  for (let y = 0; y < height; y += 1)
-    for (let x = 0; x < width; x += 1)
-      change[y * width + x] = pixelChange(a, one, b, other, x, y);
-  const masks = {
-    before: new Uint8ClampedArray(width * height * 4),
-    after: new Uint8ClampedArray(width * height * 4),
-    both: new Uint8ClampedArray(width * height * 4),
-  };
-  // The unchanged pixels an unchanged path joins to the frame's edge.
-  const around = new Uint8Array(width * height);
-  const reached = [];
-  for (let i = 0; i < change.length; i += 1) {
-    const x = i % width;
-    const y = (i - x) / width;
-    const edge = x === 0 || y === 0 || x === width - 1 || y === height - 1;
-    if (edge && !change[i]) {
-      around[i] = 1;
-      reached.push(i);
-    }
-  }
-  for (let n = 0; n < reached.length; n += 1) {
-    const i = reached[n];
-    const x = i % width;
-    for (const j of [
-      x > 0 ? i - 1 : -1,
-      x < width - 1 ? i + 1 : -1,
-      i - width,
-      i + width,
-    ]) {
-      if (j < 0 || j >= change.length || change[j] || around[j]) continue;
-      around[j] = 1;
-      reached.push(j);
-    }
-  }
-  const seen = new Uint8Array(width * height);
-  for (let start = 0; start < change.length; start += 1) {
-    if (!change[start] || seen[start]) continue;
-    // The run's ground is the commonest colour among the unchanged pixels around it,
-    // so a rule along one side of it does not outvote the fill around the rest.
-    const run = [start];
-    seen[start] = 1;
-    const counts = new Map();
-    let ground;
-    for (let n = 0; n < run.length; n += 1) {
-      const i = run[n];
-      const x = i % width;
-      const y = (i - x) / width;
-      for (const [nx, ny] of [
-        [x - 1, y],
-        [x + 1, y],
-        [x, y - 1],
-        [x, y + 1],
-      ]) {
-        if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
-        const j = ny * width + nx;
-        if (change[j]) {
-          if (!seen[j]) {
-            seen[j] = 1;
-            run.push(j);
-          }
-          continue;
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const alpha = (y * width + x) * 4 + 3;
+      const inA = x < a.width && y < a.height;
+      const inB = x < b.width && y < b.height;
+      if (inA !== inB) data[alpha] = 255;
+      else if (inA) {
+        const p = one[y * a.width + x];
+        const q = other[y * b.width + x];
+        // BlazeDiff composites transparency over a checkerboard. An alpha change
+        // can match that background exactly while changing on the reader's page.
+        if (data[alpha] || p >>> 24 !== q >>> 24) {
+          const far = Math.min(distance(p, q), FAR);
+          data[alpha] = FAINT + ((255 - FAINT) * far) / FAR;
         }
-        if (!around[j]) continue;
-        // Unchanged, so both images have this pixel and agree on it.
-        const q = other[ny * b.width + nx];
-        const count = (counts.get(q) ?? 0) + 1;
-        counts.set(q, count);
-        if (ground === undefined || count > counts.get(ground)) ground = q;
       }
     }
-    for (const i of run) {
-      const x = i % width;
-      const y = (i - x) / width;
-      const p = x < a.width && y < a.height ? one[y * a.width + x] : undefined;
-      const q = x < b.width && y < b.height ? other[y * b.width + x] : undefined;
-      const drawsA =
-        q === undefined ||
-        (p !== undefined && (ground === undefined || distance(p, ground) >= SLIGHT));
-      const drawsB =
-        p === undefined ||
-        (q !== undefined && (ground === undefined || distance(q, ground) >= SLIGHT));
-      const mask = drawsA === drawsB ? masks.both : drawsA ? masks.before : masks.after;
-      const far =
-        p === undefined || q === undefined ? FAR : Math.min(distance(p, q), FAR);
-      mask[i * 4 + 3] = FAINT + ((255 - FAINT) * far) / FAR;
-    }
   }
-  return { width, height, ...masks };
+  return { width, height, data };
+}
+
+// BlazeDiff compares equal-size buffers; transparent padding keeps image coordinates.
+function padded(image, width, height) {
+  if (image.width === width && image.height === height) return image.data;
+  const data = new Uint8ClampedArray(width * height * 4);
+  for (let y = 0; y < image.height; y += 1)
+    data.set(
+      image.data.subarray(y * image.width * 4, (y + 1) * image.width * 4),
+      y * width * 4,
+    );
+  return data;
 }
 
 /* Which of four readings a difference is: "identical", "throughout", "slight" (it
  * changed, but nowhere far enough to point at), or "areas", the one with regions. */
-export function differenceKind({ changed, throughout, regions }) {
+function differenceKind({ changed, throughout, regions }) {
   if (!changed) return "identical";
   if (throughout) return "throughout";
   return regions.length ? "areas" : "slight";
@@ -787,7 +734,7 @@ export function describeDifference(reading) {
  * where the two outlines overlap, is one change seen twice and counts once. Each frame
  * leaves out its own moves inside a change, so a move can be drawn in one frame alone;
  * the frame that draws more moves gives their count. */
-export function countAreas(regions) {
+function countAreas(regions) {
   const changes = regions.filter((region) => region.kind === "changed");
   const before = changes.filter((region) => region.side === "before");
   const after = changes.filter((region) => region.side === "after");

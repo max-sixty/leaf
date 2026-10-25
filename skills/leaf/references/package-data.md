@@ -122,6 +122,39 @@ state"](module-state.md#declared-widget-state)), and reads obligations with `rea
 ([module-reading.md, "Reading obligations and the
 On lists"](module-reading.md#reading-obligations-and-the-on-lists)).
 
+### Views of an answer
+
+An answer has one owner, the widget whose `x-awaits.value` verb records it, but the
+user may want to see and change it from another view, as a board gathers the picks of
+proposals answered in their own sections. The view's element declares `x-shows`, as
+`lf-card` does:
+
+```json
+{
+  "x-refers": { "shows": {} },
+  "x-shows": { "attr": "shows", "value": "value" }
+}
+```
+
+`attr` names the attribute holding the widget's id, which must be in the view's own
+page or message, and `value` the attribute on the view's compound owner (its
+`x-owners` tag, here `lf-column`) naming the answer that owner holds. The view stands
+in the owner holding the value the answer names, or in one without `value` while the
+answer names none, or one no owner holds. A `value` record's answer names its attribute's value. An
+`attribute` record's answer names a value when every member it picks carries the same
+value in the attribute `x-awaits.key` names, as `lf-options` declares `"key":
+"value"` and each `lf-option` a `value` unique within its group (`x-unique`); an empty
+pick, an option the user added, or picks of different values name none.
+
+The view keeps no state of its own about the answer. It reads and changes the answer
+through `shownAnswer` ([module-reading.md, "Reading obligations and the On
+lists"](module-reading.md#reading-obligations-and-the-on-lists)), which sends the
+widget's own command, so the log holds one answer whichever view the user changed it
+in. The append door refuses a position move of a view, and `page check` refuses
+markup that puts a view apart from its widget's authored answer, owners that all
+hold a value, leaving nowhere for an answer that names none, or an owner value the
+widget can't answer.
+
 ## References between widgets
 
 When an attribute names another element, declare it in `x-refers`, mapping the

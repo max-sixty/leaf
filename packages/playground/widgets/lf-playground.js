@@ -5,6 +5,8 @@
  * this module adopts that drawing and owns the live mechanics: working state,
  * tab-local persistence, CSS reflection, instruction copying, commands, and
  * the final recordless action. Intermediate changes never enter Leaf's event log.
+ * The instruction's copy control is the one a code block floats at its corner
+ * (`copyBlock`), standing at the instruction pane's.
  *
  * The playground owns the complete working configuration. Contributors declare a
  * named default and get an immutable slice handle; set replaces that slice. Required
@@ -33,14 +35,13 @@
  * makes it submit a replacement. Its face derives from that comparison, never from
  * delivery timing or a separate saved flag. */
 import {
-  announce,
   commands,
   compoundReadingRegionId,
+  copyBlock,
   dressSamples,
   focusDestination,
   layoutChanged,
   initialRender,
-  keeps,
   keepsText,
   LeafElement,
   nothing,
@@ -57,7 +58,7 @@ import {
 } from "/runtime/widget-api.js";
 import "./lf-playground-output.js";
 
-const NAME = /^[a-z][a-z0-9-]*$/;
+const NAME = /^[a-z0-9][a-z0-9-]*$/;
 // What one pointer press operates: a preset, Reset, and the controls whose press or
 // drag is the whole gesture. Their readable labels remain ordinary selection targets.
 const ONE_PRESS = [
@@ -129,8 +130,6 @@ customElements.define(
     #output = null;
     #preview = null;
     #submit = null;
-    #copy = null;
-    #copyTimer = null;
     #reset = null;
     #choosing = false;
     #projected = undefined;
@@ -161,7 +160,6 @@ customElements.define(
         this.#paintAvailability();
         return () => {
           observer.disconnect();
-          clearTimeout(this.#copyTimer);
           for (const stop of stops) stop();
         };
       });
@@ -224,7 +222,6 @@ customElements.define(
       this.#preview = initial.preview;
       this.#interactive = Boolean(initial.submit);
       this.#submit = initial.submit;
-      this.#copy = initial.copy;
       this.#reset = initial.reset;
       this.#presetButtons = initial.presetButtons;
       this.#regions = initial.regions.map((region) => ({
@@ -235,7 +232,6 @@ customElements.define(
       this.#initial.renderValues(this.#values);
       const reflection = this.#reflection();
       wear(this, reflection);
-      this.#syncCopy();
       dressSamples(this, reflection);
       if (this.#interactive) {
         this.addEventListener("click", (event) => {
@@ -271,7 +267,12 @@ customElements.define(
             });
             this.#draw();
           });
-        this.#copy.addEventListener("click", () => this.#copyInstruction());
+        // The pane's header holds the copy, since a pane holds one body between its
+        // header and footer; it floats at the pane's corner, beside the title.
+        const pane = this.#regions.find(({ name }) => name === "instruction").host;
+        pane
+          .querySelector(":scope > header")
+          .append(copyBlock(pane, () => this.#instruction(), "instruction"));
         this.addEventListener("mousedown", (event) => {
           const target = /** @type {Element} */ (event.target);
           if (target.closest(".lf-playground-control-label")) return;
@@ -424,7 +425,6 @@ customElements.define(
       wear(this, reflection);
       dressSamples(this, reflection);
       this.#renderOutput();
-      this.#syncCopy();
       this.#paintPresets();
       // Keep not-yet-declared tab values without another copy of known working slices.
       tabStore.set(
@@ -456,41 +456,6 @@ customElements.define(
         .replace(/\s+/g, " ")
         .replace(/\s+([,.;:!?])/g, "$1")
         .trim();
-    }
-
-    #syncCopy() {
-      if (!this.#copy) return;
-      const instruction = this.#instruction();
-      if (this.#copy.dataset.instruction === instruction) return;
-      clearTimeout(this.#copyTimer);
-      this.#copy.dataset.instruction = instruction;
-      keeps(this.#copy, "data-copy-state", "rest");
-    }
-
-    // The copy control is a native button rather than a `wa-copy-button`, because the
-    // initial producer draws it before any module loads and the theme reserves its
-    // feedback words' width in place. Its label shows the result where the press was;
-    // the page's live region says it, as Web Awesome's copy button says its own.
-    async #copyInstruction() {
-      const instruction = this.#instruction();
-      let feedback;
-      try {
-        await navigator.clipboard.writeText(instruction);
-        feedback = "success";
-      } catch {
-        feedback = "error";
-      }
-      if (this.#instruction() !== instruction || !this.isConnected) return;
-      clearTimeout(this.#copyTimer);
-      keeps(this.#copy, "data-copy-state", feedback);
-      announce(
-        feedback === "success"
-          ? "Instruction copied"
-          : "Could not copy the instruction",
-      );
-      this.#copyTimer = setTimeout(() => {
-        keeps(this.#copy, "data-copy-state", "rest");
-      }, 2000);
     }
 
     async #choose() {

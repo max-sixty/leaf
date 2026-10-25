@@ -84,8 +84,9 @@ and every thread that quotes it. To keep evidence exactly as it was reviewed, gi
 its own source id, such as `pr-patch-8f61c2a` for one commit's patch, and never write to
 that id again. Evidence that should follow later `data set` calls shares one id.
 
-Run `leaf page media <page> <file>…` and use each printed `/media/…` `path` for images,
-video and audio; never inline media bytes. To let the reader zoom into an image, link it
+Run `leaf page media <page> <file>…`, naming each file as its own argument as a glob
+such as `shots/*.png` does, and use each printed `/media/…` `path` for images, video
+and audio; never inline media bytes. To let the reader zoom into an image, link it
 to its own media URL: `<a href="/media/…"><img src="/media/…" alt="…"></a>`.
 
 Keep each capture in its own image file; never join captures into one. Where captures
@@ -131,7 +132,7 @@ them, whichever draws them larger, so short wide captures stack and tall narrow 
 side by side; stacked frames fit together on screen, or in a bounded comparison's room. At 100%, both panes stay visible and scrolling either image moves
 the other to the same location. This scale uses CSS pixels when capture metadata
 supplies the pixel ratio, or bitmap pixels otherwise. The **…** menu offers Fit,
-100%, the Pixels color key and, for a pair with focus metadata, Full frame to inspect
+100%, the Changed pixels color key and, for a pair with focus metadata, Full frame to inspect
 beyond that region. Outline changes stays beside the menu.
 
 In Slider, click or tap the image to alternate between the complete Before and After
@@ -139,9 +140,9 @@ frames. Drag the divider for an intermediate comparison, or focus it and use the
 arrow keys; Home and End show the complete frames.
 
 **Outline changes** marks changed regions in Pair and Slider, using the accent color
-for content that only moved. **Pixels** paints removed pixels red, added pixels
-green and recoloured pixels amber over the greyed after image, so build no difference
-image of your own. These controls belong to the reader; author the pair with `before`,
+for content that only moved. **Pixels** paints changed pixels amber over the greyed after image, softly for
+small changes and more strongly for large ones, so build no difference image of your
+own. It locates differences without inferring what was added or removed. These controls belong to the reader; author the pair with `before`,
 `after` and `alt`.
 
 The comparison reports identical images, slight changes or changes throughout the

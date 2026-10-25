@@ -55,6 +55,7 @@ from leaf.registry.kernel import (
 from leaf.registry.reactions import reaction_tokens
 from leaf.registry.schema import schema_complaint
 from leaf.registry.storage import IncompatibleLayer, load_registry
+from leaf.shown_answers import shown_widget
 from leaf.todos import todo_error
 from leaf.validation.instances import attribute_slot_errors
 from leaf.work import widget_seat_error
@@ -204,6 +205,10 @@ def position_record_error(
     unit = by_id.get(unit_id)
     if unit is None:
         return Finding("unknown-unit", values=named)
+    # A view's place is its widget's answer (`shown_answers.py`), so a move of it
+    # would be a second record of that answer.
+    if shows := shown_widget(unit, registry):
+        return Finding("shown-unit", values={**named, "shows": shows})
 
     target = by_id.get(target_id)
     if target is None:
@@ -568,7 +573,7 @@ def _anchored_comment_error(view, event: dict, registry: dict):
     answered: the page holds words no file reading can produce — a widget's label,
     a module's own rendering — and an earlier runtime may spell the same words in
     whitespace this reading collapses away. Reading it back off the file would
-    refuse both. `leaf thread open` captures its anchor against the file reading
+    refuse both. `leaf thread create` captures its anchor against the file reading
     before it writes.
     """
     if event["kind"] != "comment":

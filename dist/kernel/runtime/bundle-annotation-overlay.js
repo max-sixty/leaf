@@ -1,17 +1,17 @@
 import { SVG_NS, dropStand, paintGeometry, paintShape, paintStand, paintTrace, placement, standOver } from "./bundle-target-paint.js";
 import { Z, bareReaction, html, render, sameAnchor, turns } from "./bundle-browser-runtime.js";
 import { TEXT_FIELD, afterScript, cancelAnimation, cancelRender, closeLayer, currentLocationIn, declareRelease, drawn, focusDestination, focused, handBack, holdFocus, inputCount, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, nativeLayerHolding, nextAnimation, nextRender, onCurrentLocation, onPressAway, onUserInput, pressLed, renderedOrder, renderedUnder, roomPx, rove, tabStops, under } from "./bundle-dom-move.js";
-import { LAYOUT, PRESS, clamp, closeControl, coarsePointer, cycledRow, el, generatedElement, hostIn, iconElement, keys, notice, offer, paintKeys, repaint, rightCover, rowArrows, seenRect, setRuntimeRootAttribute, shownBox, shownWindow, skipped, union, watchRoom } from "./bundle-layer-client.js";
+import { setRuntimeRootAttribute } from "./bundle-layer-client.js";
 import { whenDocumentPresented } from "./bundle-context.js";
+import { LAYOUT, PRESS, clamp, closeControl, coarsePointer, cycledRow, el, generatedElement, hostIn, iconElement, keys, notice, offer, paintKeys, repaint, rightCover, rowArrows, seenRect, shownBox, shownWindow, skipped, union, watchRoom } from "./bundle-errors.js";
 import { atScrollEnd, effectiveScroller, moveScrollerBy, readingRegionFor, registerReadingRegion, scrollToEnd } from "./bundle-reading-regions.js";
 import { chromeForeground, chromeRoot } from "./bundle-chrome.js";
 import { blockAt, closestAcross, elementFromPointAcross, inChrome, labelWords, pageRange, pageWords, quoteFrom, rangeOf, segmentsIn } from "./bundle-passages.js";
-import { exactTarget, passageGeometry, rangeGeometry, targetElement, targetParts, targetRange, targetSegments, targetSurface, visualAt } from "./bundle-css-anchors.js";
+import { exactTarget, passageGeometry, pointBand, rangeGeometry, targetElement, targetParts, targetRange, targetSegments, targetSurface, visualAt } from "./bundle-content-layout.js";
 import { anchorLabel, arrivalOf, beginWalk, carryingThreadPlace, claimSeatReplies, claimed, currentLocationThreadId, declareOffFlowSurface, declareSide, keepThreadLanding, listWalkPosition, pageCommand, pageRung, pageScope, pageSelection, placeKeeper, releaseAuthoredUnder, releaseReplies, retainUserIntent, revealHeld, rowWalk, selectionAnchor, showReturnTurn, tabStore, threadFocusDestination, threadIdNamed, threadNamed } from "./bundle-surfaces.js";
 import { setChildLists, setChildren } from "./bundle-abort.js";
 import { reducedMotion } from "./bundle-motion.js";
 import { activateContributionControl, awaitingUser, canFold, choosePrimary, clearContributionControls, clusterProjection, contributionEntry, contributionEntryRecord, contributionEntrySource, contributionSource, entryEngaged, entryHasMarginHost, focusedOfferOf, markerFace, materializeContributionControls, optionsOffered, presentContributionEntry, presentContributionReceipts, primaryReading, readingBehavior, readingChoices, readingContext, readingFace, readingKey, readingLabel, readingState, spokenContext, spokenSubject, syncContributionSelection, syncContributionUnread, threadReading, unreadIn } from "./bundle-margin-model.js";
-import { pointBand } from "./bundle-visible-target-parts.js";
 import { ANNOTATIONS_KEY } from "./bundle-restore-state.js";
 import { THREAD_CARD, cardMeasure, cardMinimum, commentAttachment, commentBoundary, commentPlacement, commentReference, floatingPlacement, floatingSelections, floatingUi, layoutMarginRows, makeRoom, marginColumn, mountMarginLayer, registerMarginRow, scheduleMarginEntryLabels, scheduleMarginLayout, standsFolded, syncMarginContentLayout, unregisterMarginRow } from "./bundle-comment-placement.js";
 
@@ -187,9 +187,11 @@ var CardAnchor = class {
 			}
 		}
 		const attachment = seat.side === "top" ? "foot" : "top";
-		const ordinary = this.#sent || (writing ? seat.floored && seat.side !== "top" && seat.side !== "bottom" : seat.side === "top") ? "foot" : "top";
+		const ordinary = this.#sent || !writing && seat.side === "top" ? "foot" : "top";
+		const beside = seat.side === "left" || seat.side === "right";
 		return {
 			edge: seat.adopted ? attachment : press?.edge ?? ordinary,
+			rises: !seat.adopted && !press?.edge && writing && !this.#sent && beside,
 			commit: () => {
 				if (this.#press === captured) this.#press = press;
 			}
@@ -480,7 +482,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 			scroller,
 			coarse: coarsePointer.matches
 		});
-		const { side, fresh } = seat;
+		const { side, fresh, opening } = seat;
 		let anchored;
 		floatingUi().then((ui) => {
 			if (!stillCurrent()) return null;
@@ -502,12 +504,13 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 					const room = Math.min(cardMeasure(), width, (session.width ?? Infinity) / scale.x);
 					preview.style.setProperty("--lf-thread-min-width", layoutPx(session.width === null ? Math.min(cardMinimum(), room) : room));
 					const fitted = measureThreadCard(room, Math.max(stood, height), reading);
-					if (fresh && (side === "top" || side === "bottom") && makeRoom(side, place.clear, place.extent, fitted, boundary, scroller)) {
+					if (opening && (side === "top" || side === "bottom") && makeRoom(side, place.clear, place.extent, fitted, boundary, scroller)) {
 						session.side.scrolled();
 						placeThreadPreview();
 					}
 				},
-				edge: anchored.edge
+				edge: anchored.edge,
+				rises: anchored.rises
 			});
 			watch(ui);
 			return placementDriver.position(ui.computePosition, commentReference(place, reference), {
@@ -1204,9 +1207,10 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 		const face = markerFace(entry).face;
 		const count = choice?.items.length ?? 0;
 		const userContext = spokenContext(choice);
-		const reading = `${face.label}${count > 1 ? `s (${count})` : ""}${userContext ? `, ${userContext}` : ""}`;
 		const subject = count === 1 && choice.items[0].workflowFace ? choice.text : entry.title;
-		return `${reading}, ${index + 1} of ${anchored}${position == null ? "" : `, ${Math.max(0, Math.min(100, position))} percent down`}, ${spokenSubject(subject)}`;
+		const own = count === 1 ? choice.items[0].label : null;
+		const said = own && !subject?.includes(own) ? `, ${own}` : "";
+		return `${`${face.label}${count > 1 ? `s (${count})` : ""}${said}${userContext ? `, ${userContext}` : ""}`}, ${index + 1} of ${anchored}${position == null ? "" : `, ${Math.max(0, Math.min(100, position))} percent down`}, ${spokenSubject(subject)}`;
 	}
 	function availableRows() {
 		return [...markerRows()].filter((row) => !row.hidden && !row.closest(".lf-withheld") && row.checkVisibility({ visibilityProperty: true }));
@@ -1336,15 +1340,21 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 		}
 		const currentLocation = available.find((row) => row === focused());
 		const candidates = visible.length ? visible : available;
-		const held = visible.find((row) => row.tabIndex === 0);
 		const room = shownWindow();
-		const distance = (row) => {
+		const place = (row) => {
 			const box = row.getBoundingClientRect();
-			if (box.bottom < room.top) return room.top - box.bottom;
-			if (box.top > room.bottom) return box.top - room.bottom;
-			return 0;
+			return [
+				box.bottom < room.top ? room.top - box.bottom : box.top > room.bottom ? box.top - room.bottom : 0,
+				box.top,
+				box.left
+			];
 		};
-		holdTabStop(currentLocation ?? held ?? candidates.reduce((best, row) => distance(row) < distance(best) ? row : best));
+		const before = (a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
+		const nearest = () => candidates.map((row) => ({
+			row,
+			at: place(row)
+		})).reduce((best, next) => before(next.at, best.at) < 0 ? next : best).row;
+		holdTabStop(currentLocation ?? nearest());
 	}
 	function scheduleRoving() {
 		cancelRender(rovingFrame);
@@ -1547,7 +1557,8 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 			const destination = primary ?? (primaryReading(entry) ? marker : null);
 			if (destination === marker && marker.hidden) marker.lfTakeFocus = true;
 			else if (destination) focusDestination(destination, "return");
-		} else if (lostOptionFocus || lostPrimaryFocus) focus.restore?.(primary, clusterMarginEntries(options)[0], clusterMarginEntries(host)[0]);
+		} else if (focus.focusedToggle && more.hidden) focus.restore?.(clusterMarginEntries(options)[0], primary, clusterMarginEntries(host)[0]);
+		else if (lostOptionFocus || lostPrimaryFocus) focus.restore?.(primary, clusterMarginEntries(options)[0], clusterMarginEntries(host)[0]);
 	}
 	function unfoldOpenThreadOwner(entry) {
 		const previousOwner = expandedOptionsOwner;
@@ -1629,6 +1640,7 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 			const focus = {
 				focusedPrimary: Boolean(host.primary && currentLocationIn(host.primary)),
 				focusedOption: Boolean(host.options && currentLocationIn(host.options)),
+				focusedToggle: focused() === more,
 				restore: holdFocus(host, { key: "data-lf-margin-entry-identity" })
 			};
 			const projection = clusterProjection(entry, {

@@ -191,18 +191,13 @@
    control's room from the first disclosure paint so its arrival moves no label. */
 .lf-msg:has(.lf-msg-control, > .lf-msg-head > .lf-progress-expand) > .lf-msg-head {
   --lf-msg-control: var(--lf-msg-control-width);
-  padding-inline-end: calc(
-    var(--lf-msg-control-room, var(--lf-msg-control)) + var(--lf-msg-head-room, 0px)
-  );
+  padding-inline-end: calc(var(--lf-msg-control) + var(--lf-msg-head-room, 0px));
 }
-/* An open rewrite's Discard and Save take the room its Edit control took, and more; the
-   head keeps its author, time and labels as the message showed them, its labels
-   rewrapping in the room left (`data-lf-reflow`). */
+/* An open rewrite's Discard and Save stand in its Edit control's room and cover the
+   head beyond it (response.css, `.lf-msg-edit-actions`), so the head keeps its author,
+   time and labels where the message showed them. */
 .lf-msg:has(> .lf-msg-body > .lf-msg-editor) {
   scroll-margin-block-end: var(--sp-2);
-}
-.lf-msg:has(> .lf-msg-body > .lf-msg-editor) > .lf-msg-head {
-  --lf-msg-control-room: var(--lf-msg-edit-room);
 }
 .lf-msg-control {
   appearance: none;
@@ -320,9 +315,7 @@ svg[data-lf-icon] {
 @media (pointer: coarse), (hover: none) {
   .lf-msg:is(.agent, .user) > .lf-msg-head {
     --lf-msg-control: var(--lf-msg-control-width);
-    padding-inline-end: calc(
-      var(--lf-msg-control-room, var(--lf-msg-control)) + var(--lf-msg-head-room, 0px)
-    );
+    padding-inline-end: calc(var(--lf-msg-control) + var(--lf-msg-head-room, 0px));
   }
 }
 .lf-msg-meta {

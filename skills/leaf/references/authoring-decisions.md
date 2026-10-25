@@ -5,12 +5,18 @@ structured answer; a thread message with `--obligation` requests an answer in wo
 "The On lists", covers everything the user is asked for, including questions in the
 conversation and actions outside the page.
 
-For decisions on the document, make each understandable and answerable where On me takes the user, without
-reading earlier content. Pressing `m` brings that decision to the top of the window,
-leaving preceding prose out of view. So the decision opens with a heading that asks
-its question, and holds the current state, the evidence that bears on the answer and
-the answering control, inside the answering widget or an enclosing `lf-ask`. Compose
-the explanation there first; backing detail goes after it.
+A decision lets the user make a choice as well as you could. Say why the choice
+arises, what each option leads to in a case the user can picture, and what each costs,
+including the one you recommend, so they could reach your recommendation or turn it
+down for reasons the decision gives. Where you can't yet say what an option does,
+find out before you ask.
+
+For decisions on the document, make each answerable where On me takes the user,
+without reading earlier content. Pressing `m` brings that decision to the top of the
+window, leaving preceding prose out of view. So the decision opens with a heading that
+asks its question, and holds that explanation, its evidence, the current state and the
+answering control, inside the answering widget or an enclosing `lf-ask`. Compose the
+explanation there first; backing detail goes after it.
 
 On a quick-answer page, open with the decision and put its backing in a disclosure after
 it; the first screen shows the goal, the current state and what the user can do next. On
@@ -73,7 +79,7 @@ picks depend on each other, such as a limit on how many.
 
 When the page exists to choose among approaches, its title and headings ask the
 question without answering it. Give each alternative the same depth on the same
-example, with its own costs and open questions, and mark your recommendation as advice.
+example, with its own open questions, and mark your recommendation as advice.
 How to build an alternative waits for the user's pick.
 
 The `lf-ask`, `lf-options` and `lf-option` entries give their markup and presentation.

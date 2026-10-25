@@ -1330,7 +1330,7 @@ def test_a_card_follows_the_margin_entry_it_hangs_from_in_the_tab_order(browser,
     expect(preview).to_be_visible()
     assert page.evaluate("scrollY") == scrolled
     page.keyboard.press("Tab")
-    first = preview.get_by_role("button", name="Resolve thread", exact=True)
+    first = preview.get_by_role("button", name="Open in panel", exact=True)
     expect(first).to_be_focused()
     page.keyboard.press("Shift+Tab")
     expect(marker).to_be_focused()

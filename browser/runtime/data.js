@@ -141,8 +141,12 @@ function inputBinding(element, declaration) {
 // data" and move its contents when the data came (leaf-element.js, `shouldUpdate`). An
 // input bound to another widget's output, or a declared source the element doesn't
 // name, waits for nothing. The acceptance draws the element with the accepted reading,
-// as any element's first read takes it.
-const dataRead = applicationState.select((root) => root.data.version !== null);
+// as any element's first read takes it. A page whose first read brought no state
+// settles offline, and its elements draw then, saying their sources hold nothing,
+// since no answer is coming to fill them.
+const dataRead = applicationState.select(
+  (root) => root.data.version !== null || root.phase === "offline",
+);
 /** @param {Element} element */
 export function awaitsData(element) {
   return (

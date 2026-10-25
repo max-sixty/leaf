@@ -66,7 +66,7 @@
     "runtime/copy-control.js": "7acb130e10ea1221d90f908df7ac03783a57ad5699b3d4d8b98dd7bc8e66fd3d",
     "runtime/css-anchors.js": "79d563353a3dd52dfe0c9470d998c77becc5a673c70aab39c3ca3537c5ee2640",
     "runtime/current-target.js": "c97e86e71e8795e32aec36b6fe8531a1955dc5e77360c398a5f17dc25e4ce9fa",
-    "runtime/data.js": "ab6c6c3abfd7f7e48a1831ea2ffb4341071600cbc37a50313f638ed50a7ff0af",
+    "runtime/data.js": "0ca14a4fad3d8410be2da8d26251290587e62c870893e5ca93457b312b5f47ff",
     "runtime/declared-words.js": "c49b088ce3407b30dd5c00bb2f24417c7d0db26c28a5a563f265c2f8b54b2085",
     "runtime/delivery.js": "5444f1908a99f55fec315c7c58c220a1f7ff5a09c848684d6d344017a09a3cfb",
     "runtime/design-readings.js": "1c89c89c064d554f74c6b47d70cf9b2a1633aa008801d80c62b196c2f5b78e25",

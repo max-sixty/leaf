@@ -1,11 +1,12 @@
 /* An element bound to a page data source draws nothing until the page has read its
-   data. Its own file, since the page reads its data once per document: every other
+   data, or settled offline without it. Its own file, since the page reads its data once per document: every other
    runtime test accepts data in the same process. */
 import assert from "node:assert/strict";
 import test from "node:test";
 import { html, LeafElement } from "/runtime/widget-api.js";
 import { adoptRegistry } from "/runtime/registry.js";
 import { acceptData, notifyDataSubscribers } from "/runtime/data.js";
+import { applicationState } from "/runtime/semantic-state.js";
 
 const settled = async (element) => {
   await new Promise((resolve) => setTimeout(resolve, 0));
@@ -44,6 +45,12 @@ test("a bound element draws its source only once the page has read it", async ()
   assert.deepEqual(draws, [["lf-unbound", null]]);
   assert.equal(bound.textContent, "");
 
+  // A first read that brought no state settles the page offline: no answer is coming,
+  // so the source holds nothing, and the element says so.
+  applicationState.setPhase("offline");
+  await settled(bound);
+  assert.equal(bound.textContent, "no data");
+
   acceptData(
     {
       version: "first",
@@ -57,6 +64,7 @@ test("a bound element draws its source only once the page has read it", async ()
   await settled(bound);
   assert.deepEqual(draws, [
     ["lf-unbound", null],
+    ["lf-listing", null],
     ["lf-listing", "r1"],
   ]);
   assert.equal(bound.textContent, "r1");

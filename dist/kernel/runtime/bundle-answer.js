@@ -5742,7 +5742,7 @@ function inputBinding(element, declaration) {
 		snapshot
 	};
 }
-const dataRead = applicationState.select((root) => root.data.version !== null);
+const dataRead = applicationState.select((root) => root.data.version !== null || root.phase === "offline");
 function awaitsData(element) {
 	return Object.values(registry[element.localName]?.["x-data"] ?? {}).some((declaration) => declaration.source && element.getAttribute(declaration.source)) && !dataRead.read();
 }

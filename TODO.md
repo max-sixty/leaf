@@ -405,8 +405,13 @@ claude-code` run (its `boundary` step), the transcript held the comment in both
   advice. Run the render readings on the server when a version goes live and
   deliver the findings through `leaf wait`: the agent hands the page over at once
   and refines it if a reading warrants, while a failure still blocks a record's
-  stamp. **Unconfirmed:** measure how long the pass takes on a typical page, and
-  whether agents act on findings that arrive after handover, before building it.
+  stamp. Measured 2026-10-24
+  ([notes](notes/agent-usability-evals.md#render-findings-after-handover-2026-10-24)):
+  the pass takes a median 8 s on catalog and eval pages; 8 of 20 agents handed a
+  quick edit over without it, and 20 of 21 agents that got its findings after
+  handover, delivered as the page's `error` event, fixed the page in the same wake.
+  Decide how the findings arrive before building it: the `error` event's handling
+  says to fix a failure the user saw, which agents also applied to advice.
 - **Consider loading a page once per render check.** `page check --render` loads
   the page afresh for each of its four passes, including dark mode and the narrow
   viewport. Switching those in place would save at most about 1.4 s on

@@ -376,6 +376,88 @@ Decision, made on this evidence:
 - `lf-chart` reports a mark it drew at NaN, keeping the drawing (`79c1a185e`), so
   plain check's chart run, `--render` and `leaf wait` all hear the dashboard mistake.
 
+## Render findings after handover, 2026-10-24
+
+TODO.md's "Read the full render gate after handover" would run the render readings on
+the server when a version goes live and deliver them through `leaf wait`. Two
+measurements decide whether to build it: how long the readings take, and whether an
+agent that has handed a page over acts on findings that arrive afterwards.
+
+**How long `page check --render` takes.** `.tmp/overnight/time_checks.py` (kept with
+the run evidence, not in the tree) built each catalog example and the render corpus
+with this checkout and timed the command, launcher included, plain and with
+`--render`, under `LEAF_RENDER_VIEWPORT=fixed`, on a shared Mac at a 1-minute load of
+10–39.
+
+| Pages                                         | `--render`, median (p10–p90) | Plain, no browser run | Plain with the page-code run |
+| --------------------------------------------- | ---------------------------- | --------------------- | ---------------------------- |
+| 17 catalog examples, 2 runs each              | 8.1 s (6.0–12.5)             | 0.23 s (12 runs)      | 1.21 s (22 runs)             |
+| 70 final pages from `widgets-draw-as-written` | 7.7 s (6.2–11.1)             | 0.29 s (42)           | 1.28 s (28)                  |
+| The render corpus                             | 384 s (2 runs)               | —                     | 15.6 s                       |
+
+By context, eval pages took 6.5 s (text documents, thread pages) to 11.1 s (visual
+reviews). Plain check with its page-code run took the 1.3 s that #1691 measured for a
+page with a chart, so the load seems to have stretched these little; `--render` was
+not timed on an idle machine.
+
+**Whether agents act on findings delivered after handover.**
+`document/render-after-handover` hands the agent `evals/usability/fixtures/cutover.html`,
+a drafted status page whose four consumer cards run out of any window up to 920px
+wide (`page-scrolls`, `past-column` and `clipped-out` failures) and whose SVG chart's
+labels shrink below 10px (`shrunk-labels` advice). The user asks for a one-line date
+change and a handover. Once the agent's turn ends, the driver's `render` move runs
+`page check --render` on the page as served and posts what plain check doesn't report
+as the page's `error` event, the channel a failure the user's browser saw takes; a
+page with nothing to report gets no delivery. The `-quick` context drops the closing
+line other live cases share, "Use headless browser tooling for your own inspection",
+and says only that the user will open the page.
+
+```sh
+uv run leaf-dev eval document/render-after-handover document/render-after-handover-quick --harness claude-code --repeat 10 -j 2
+uv run leaf-dev eval document/render-after-handover document/render-after-handover-quick --harness codex --repeat 10 -j 2
+```
+
+| Context, harness           | Ran `--render` before handing over | Got a delivery: failures / advice only | Edited and checked again after it | Final page fails `--render` |
+| -------------------------- | ---------------------------------- | -------------------------------------- | --------------------------------- | --------------------------- |
+| with the line, Claude Code | 10 of 10                           | 0 / 2                                  | 2 of 2                            | 0 of 10                     |
+| with the line, Codex       | 10 of 10                           | 0 / 1                                  | 1 of 1                            | 0 of 10                     |
+| quick, Claude Code         | 7 of 10                            | 5 / 5                                  | 9 of 10                           | 1 of 10                     |
+| quick, Codex               | 5 of 10                            | 5 / 3                                  | 8 of 8                            | 0 of 10                     |
+
+Measured (40 sessions, Opus 5.5 and Sol 6.1, on runtimes that differ from
+`73222dc97` only outside this fixture's path):
+
+- Every agent told to inspect ran `--render` before handing over a one-line edit,
+  though the skill says a quick page takes plain `page check` alone. Without that
+  line, 8 of 20 skipped it (40%, 22–61%).
+- Of the 21 sessions that got a delivery, 20 edited the page and ran
+  `--render` again in the same wake (95%, 77–99%), finishing a median 34 s (Claude
+  Code) and 39 s (Codex) after the delivery in the quick runs. All 11 advice-only
+  deliveries (the shrunk labels) were acted on too (74–100%).
+- The one that didn't act had run `--render` itself, judged the overflowing cards the
+  user's own drafting choice, and asked the user about them in a thread before
+  handing over; it read the delivery as a repeat of that question. One other agent
+  asked the same question before handing over and then fixed the cards when the
+  delivery arrived, saying Leaf had marked them as errors.
+- Handing over without `--render` took a median 37 s (Claude Code, 3) and 36 s
+  (Codex, 5); with it, 78 s and 67 s.
+- All 8 agents who skipped `--render` and got the failures fixed them, so every
+  final page in the quick runs is clean of failures but one, the agent above.
+
+Inferred, not measured: the delivery came as an `error` event, whose handling clause
+says "The page's runtime reported a failure the user saw. Fix the page or widget and
+save the fix." A server-side pass would likely deliver advice through a gentler
+clause, so the 11 of 11 advice fixes are an upper bound, and one agent cited the
+error framing as the reason to change a layout it had judged the user's. One
+fixture and one request; a page an agent wrote itself may get a different response
+than a draft the user handed over.
+
+What this says about the TODO item: the readings take about 8 s on typical pages, the
+time an agent saves by not waiting on them (about 40 s per handover including the
+reading and fixing it prompts) is real, and agents that skip them do act when the
+findings arrive afterwards. The measurements support building the pass, with a
+handling clause per severity rather than the `error` channel's.
+
 ## Remaining evaluation gaps
 
 - Recovering a long thread's middle after the agent has lost it. `elided` now

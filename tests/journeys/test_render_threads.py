@@ -518,8 +518,9 @@ def test_a_region_capture_keeps_scrolled_shadow_pixels_and_its_comment_anchor(
 def test_a_region_capture_draws_live_samples_and_survives_removed_links(browser, serve):
     """The parent cannot read a sample's opaque frame, so a capture without the child's
     own image showed a placeholder box where the user saw the practice page. An image
-    SnapDOM cannot read attaches the capture anyway, with a notice: SnapDOM reads a
-    margin beyond the crop and cannot say whether the image fell inside it. A capture
+    SnapDOM cannot read attaches the capture anyway, with a notice: SnapDOM draws the
+    whole element that holds the crop and cannot say whether the image fell inside
+    it. A capture
     also leaves SnapDOM watching mutations, and a removed link's subtree once threw from
     that observer as an uncaught page error."""
     context = browser.new_context(
@@ -534,15 +535,18 @@ def test_a_region_capture_draws_live_samples_and_survives_removed_links(browser,
     # Another origin without CORS: visible to the reader, unreadable to SnapDOM.
     page.evaluate("""() => new Promise(resolve => {
         const image = document.createElement('img');
+        image.id = 'unreadable';
         image.src = new URL('icon.svg', location.href).href
             .replace('127.0.0.1', 'localhost');
         image.onload = image.onerror = resolve;
         document.querySelector('#capture-sample').before(image);
     })""")
-    sample = page.locator("#capture-sample").bounding_box()
     frame = page.locator("#capture-sample iframe").bounding_box()
+    # The area takes in the unreadable image above the sample, so the element the
+    # capture draws holds it (`captureRoot`, composing/page-image.js).
+    unreadable = page.locator("#unreadable").bounding_box()
     surface = open_capture_area(page)
-    left, top = int(sample["x"]) + 1, int(sample["y"]) + 1
+    left, top = int(unreadable["x"]) + 1, int(unreadable["y"]) + 1
     page.mouse.move(left, top)
     page.mouse.down()
     page.mouse.move(

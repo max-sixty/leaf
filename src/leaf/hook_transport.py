@@ -51,7 +51,8 @@ as new. A batch can still be refused, as when the page changed hands after
 delivery whose context the harness wouldn't show the model whole goes as a pointer
 (`Harness.fits_hook_context`), as does one the hook recorded none of; the agent's
 `leaf delivery ack` confirms it. A pointer never follows a recorded batch, whose
-opened pickup the turn's next hook would confirm though the model read none of it.
+opened pickup would read as handed into the turn, and under Pi as received, though
+the model read none of it.
 
 A pointer's input stays unconfirmed until its reader runs `leaf delivery ack`, so a
 later tool boundary of the same turn would freeze it again and point at it under a
@@ -475,12 +476,12 @@ def render(
 ) -> dict | None:
     """The hook's output, or None where it puts nothing in the turn. Where the
     harness shows the whole message to the model (`Harness.fits_hook_context`), it
-    hands over inline the batches `confirm` records as opened in the turn, which the
-    turn's next hook may confirm, and leaves a refused batch's input pending for a
-    later handover. Otherwise, or where `confirm` records none, it calls `point` and
-    hands over the delivery's pointer, which its reader's `leaf delivery ack`
-    confirms after complete reading: a pointer must leave no opened pickup a later
-    hook would confirm unread."""
+    hands over inline the batches `confirm` records as opened in the turn, and
+    leaves a refused batch's input pending for a later handover. Otherwise, or
+    where `confirm` records none, it calls `point` and hands over the delivery's
+    pointer, which its reader's `leaf delivery ack` confirms after complete
+    reading: a pointer must leave no opened pickup, which would read as handed
+    over inline though the model read none of it."""
     if delivery is None:
         return harness.hook_context(event, "\n".join(attention)) if attention else None
 

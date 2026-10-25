@@ -36,7 +36,7 @@ on:
 
 jobs:
   triage:
-    if: github.repository_owner == 'max-sixty' && vars.TEND_ENABLED != 'false' && contains(github.event.issue.labels.*.name, 'tend-outage') == false && contains(github.event.issue.labels.*.name, 'tend-rate-limit') == false && contains(github.event.issue.labels.*.name, 'backlog') == false
+    if: github.repository_owner == 'max-sixty' && vars.TEND_ENABLED != 'false' && contains(github.event.issue.labels.*.name, 'tend-outage') == false && contains(github.event.issue.labels.*.name, 'tend-rate-limit') == false
     # Reports share one group, so no two report sessions file the same cause
     # at once. Each finished failure dispatches one, and the newest pending one
     # replaces an older: it reads every run its report holds since the bot's

@@ -1853,9 +1853,6 @@ button.lf-media-open {
   line-height: inherit;
   padding-block: var(--lf-compose-pad-block);
 }
-leaf-text.lf-response-control {
-  scroll-padding-block: var(--lf-compose-pad-block);
-}
 leaf-text.lf-fab-input {
   display: none;
   width: 100%;

@@ -38,7 +38,7 @@
    admits runs that reversal once the page presents it, under the intent of the press
    that asked for it. A widget's gesture leaves the words the widget named it by
    (`says`, pending/dispatch.js), and while this page holds them its undo is said in
-   them, the name its own acknowledgement used: "Chose “Fast” — sent", then "Undid:
+   them, the name its own announcement used: "Chose “Fast” — sent", then "Undid:
    Chose “Fast” · just now — sent". Both live with the page that made the gesture, so
    after a reload or from another tab the undo changes the thread and moves nobody. */
 import { notice } from "./notifications.js";

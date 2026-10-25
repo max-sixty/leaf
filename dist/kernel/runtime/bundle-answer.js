@@ -4997,7 +4997,7 @@ function mountApplication(dependencies) {
 		named: (entry, says) => {
 			undo.retainGesture(entry.event.attempt, { says });
 			entry.answer.then((admitted) => {
-				if (admitted) notice(`${says} — sent`);
+				if (admitted) announce(`${says} — sent`);
 			});
 		},
 		withdraw: (candidate) => undo.withdraw(candidate),

@@ -650,6 +650,7 @@ function capturePlace(region = null, blocks = textBlocks()) {
 		revision: runtime.currentRevision,
 		[READ_BOX]: new WeakRef(box)
 	};
+	if (box.scrollTop === 0) view.start = true;
 	const currentLocation = focusedInView();
 	const body = region?.body ?? pageDocument();
 	const currentLocationBody = readingRegionFor(currentLocation)?.body ?? body;
@@ -786,6 +787,10 @@ function restorePlace(view, region = null, currentIntent = retainUserIntent()) {
 	const currentLocation = destination && under(destination, body) ? destination : null;
 	if (!currentLocation || !sameScroller(view, box)) {
 		if (view.end) scrollToEnd(box);
+		else if (view.start && sameScroller(view, box)) box.scrollTo({
+			top: 0,
+			behavior: "instant"
+		});
 		else {
 			const boxTop = landingBand(box).top;
 			const drawn = drawnPlace(view);

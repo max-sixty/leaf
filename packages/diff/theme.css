@@ -5,6 +5,15 @@
   --lf-code-del-fill: color-mix(in srgb, var(--danger) 16%, var(--pre-bg));
 }
 
+/* packages/diff/styles/geometry.css */
+:where(:scope, :scope:host) {
+  --lf-diff-gap: 8px;
+  --lf-diff-action-h: 26px;
+  --lf-diff-action-top: max(6px, (var(--aim-floor) - var(--lf-diff-action-h)) / 2);
+  --lf-diff-head-line: 35px;
+  --lf-diff-head-pressed: max( var(--lf-diff-head-line), calc(var(--lf-diff-action-top) + var(--lf-diff-action-h)), var(--aim-floor) );
+}
+
 /* packages/diff/styles/disclosure.css */
 @media screen and (prefers-reduced-motion: no-preference) {
   @supports (block-size: calc-size(auto, size)) and (interactivity: inert) {
@@ -250,6 +259,11 @@
   font-size: var(--code-size);
   line-height: var(--code-line);
   font-variant-ligatures: none;
+}
+html[data-lf-interactive] :scope:is(lf-diff):not(.lf-rendered, :has(> .lf-error)) {
+  box-sizing: border-box;
+  block-size: calc(var(--lf-line) + var(--lf-diff-gap) + 1px + var(--lf-diff-files) * (var(--lf-diff-head-pressed) + 1px + var(--lf-diff-open) * (var(--lf-text-scroll-track) + 1px)) + var(--lf-diff-rows) * var(--code-line));
+  overflow: clip;
 }
 :scope:is(lf-call-diff) {
   --lf-block-frame: 1;

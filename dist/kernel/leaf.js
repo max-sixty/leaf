@@ -6893,7 +6893,8 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		if (seated === null) carrying.clear();
 		for (const item of lists[queueTab]) {
 			const key = queueItemKey(item);
-			carrying.set(key, [.../* @__PURE__ */ new Set([...carrying.get(key) ?? [], ...item.also ?? []])]);
+			const elsewhere = new Set([...carrying].flatMap(([other, ids]) => other === key ? [] : ids));
+			carrying.set(key, [.../* @__PURE__ */ new Set([...carrying.get(key) ?? [], ...(item.also ?? []).filter((id) => !elsewhere.has(id))])]);
 		}
 		const carried = new Set((seated ?? []).flatMap((key) => carrying.get(key) ?? []));
 		seated = [...(seated ?? []).filter((key) => byKey.has(key)), ...current.filter((key) => !(seated ?? []).includes(key) && !carried.has(byKey.get(key).id))];

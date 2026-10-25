@@ -2929,11 +2929,20 @@ export function createFloatingPanel({
     // until the view closes, so where answering a decision leaves a thread's answer
     // about it on a row of its own, the answer stays on the card the user pressed,
     // which offers its reply, rather than moving to a card of its own.
+    // A record stays on the card that first carried it, though a later reading moves it
+    // to another, as a thread about two decisions moves to the second once the first is
+    // answered.
     if (seated === null) carrying.clear();
     for (const item of lists[queueTab]) {
       const key = queueItemKey(item);
+      const elsewhere = new Set(
+        [...carrying].flatMap(([other, ids]) => (other === key ? [] : ids)),
+      );
       carrying.set(key, [
-        ...new Set([...(carrying.get(key) ?? []), ...(item.also ?? [])]),
+        ...new Set([
+          ...(carrying.get(key) ?? []),
+          ...(item.also ?? []).filter((id) => !elsewhere.has(id)),
+        ]),
       ]);
     }
     const carried = new Set((seated ?? []).flatMap((key) => carrying.get(key) ?? []));

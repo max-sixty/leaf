@@ -14,6 +14,7 @@ from render_cases_interaction import (
 from render_harness import (
     PANEL,
     expect_obligations_answered,
+    holding,
     leaf_page,
     open_page,
     panel_settled,
@@ -649,3 +650,77 @@ def test_m_steps_off_a_decision_its_threads_card_stands_beside(browser, serve):
         "2 of 3 waiting on me · Options",
         "3 of 3 waiting on me · Options",
     ], reached
+
+
+def test_a_decision_answered_on_the_page_keeps_the_answer_it_carries_listed(
+    browser, serve
+):
+    """Answered on the page, a decision keeps its row, and the agent's answer it
+    carries, until the server's reading of the choice moves them: the browser keeps a
+    widget record's status as the server last read it, so nothing it carried drops off
+    On me in between."""
+    url = serve(TWO_DECISIONS_PAGE)
+    _, reply = thread_about_the_timeline(serve.page_dir)
+    page = open_page(browser, url)
+    expect(page.locator(".lf-fp-on-user")).to_have_text("2")
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    page.locator("#tl-land").click()
+    holding(page, held, 1, "the held choice")
+    on_me = """async () => (await window.__lfWidgetApi()).readQueues().on_user
+      .map((row) => [row.id, row.also])"""
+    assert sorted(page.evaluate(on_me)) == [
+        ["widget:ship", []],
+        ["widget:timeline", [f"message:{reply}"]],
+    ]
+    expect(page.locator(".lf-fp-on-user")).to_have_text("2")
+    held[0].continue_()
+    page.unroute("**/api/event")
+
+
+def test_an_answer_about_two_decisions_stays_on_the_card_that_carried_it(
+    browser, serve
+):
+    """A thread about a section holding two decisions rides on the first; once that one
+    is answered the server moves it to the second, but the open view keeps it on the
+    card the user answered, drawn once."""
+    source = TWO_DECISIONS_PAGE.replace(
+        '<lf-ask id="ship-ask">', '<section id="both-asks"><lf-ask id="ship-ask">'
+    ).replace("</lf-ask>", "</lf-ask></section>")
+    source = source.replace(
+        '<section id="timeline-ask">',
+        '<section id="both-outer"><section id="timeline-ask">',
+    ).replace('</section>\n<section id="both-asks">', "</section>\n")
+    url = serve(source)
+    root = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Both need previews.",
+            "anchor": {"section": "both-outer"},
+        },
+    )["id"]
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "revision": 1,
+            "parent": root,
+            "responds": root,
+            "text": "Previews added for both.",
+            "obligation": True,
+        },
+    )
+    page = open_page(browser, url)
+    view = open_on_me(page)
+    carrier = on_card(page, "widget:timeline")
+    expect(carrier.locator(".lf-fp-asked")).to_contain_text("Previews added")
+    carrier.get_by_role("button", name="Land it").click()
+    told(page)
+    expect(on_card(page, "widget:ship").locator(".lf-fp-asked")).to_have_count(0)
+    expect(view.locator(".lf-fp-asked")).to_have_count(1)
+    expect(carrier.locator(".lf-fp-asked")).to_contain_text("Previews added")

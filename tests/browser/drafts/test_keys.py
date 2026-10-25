@@ -4,6 +4,7 @@ alone, the reading keys' steps, and the comparison's one door."""
 import re
 
 import pytest
+from leaf_dev.browser import slow_cpu
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_navigation import KEYS_PAGE, SMOOTH_LONG_PAGE, _publish
@@ -331,9 +332,7 @@ def test_the_reading_page_step_never_paints_behind_where_it_started(browser, ser
     floored clock flicks on none of either. The injection buys the record, not the wait,
     which is still the destination's."""
     page = open_page(browser, serve(SMOOTH_LONG_PAGE))
-    page.context.new_cdp_session(page).send(
-        "Emulation.setCPUThrottlingRate", {"rate": 20}
-    )
+    slow_cpu(page, 20)
     step = page.evaluate(
         "() => { const s = getComputedStyle(document.scrollingElement); return ("
         " document.scrollingElement.clientHeight - parseFloat(s.scrollPaddingTop)"

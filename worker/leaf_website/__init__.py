@@ -960,7 +960,7 @@ class WebsiteCodexHarness:
                     and claim["id"] == thread_id
                     and claim["turn"] == turn["id"]
                 ):
-                    page.set_status("waiting", "")
+                    page.set_status("waiting")
                     advance_turn(thread_id, turn["id"], running=False)
         if activation.error:
             raise ValueError(activation.error)
@@ -1039,7 +1039,7 @@ class WebsiteCodexHarness:
         started = time.monotonic()
         with PageTransaction(page_dir) as page:
             if page.status["state"] == "idle":
-                page.set_status("waiting", "")
+                page.set_status("waiting")
         self._hold_waiter(page_dir, thread_id)
         prepared = prepare_codex_delivery(
             page_dir, website_harness(thread_id, process.pid)

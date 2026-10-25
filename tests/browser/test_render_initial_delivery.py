@@ -75,7 +75,6 @@ def test_initial_lit_drawings_keep_the_readers_nodes_through_upgrade(browser, se
         for route in boot:
             route.continue_()
         page.unroute_all(behavior="wait")
-        context.close()
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])

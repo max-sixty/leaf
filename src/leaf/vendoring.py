@@ -30,7 +30,7 @@ from .layer import (
     payload_server_fingerprint,
 )
 from .leases import lock_is_held, page_locked
-from .locations import located, locations_overlap, path_is_within, path_location
+from .locations import first_overlap, located, path_is_within, path_location
 from .refusals import Refused
 from .registry.storage import RegistryError, layer_metadata, layer_packages
 from .schema import (
@@ -346,16 +346,7 @@ def _refuse_input_destination_overlap(roots: list[Path], page_target: Path) -> N
         *(page_target / name for name in PAGE_OWNED_FILES),
         *(page_target / sub for sub in PAGE_OWNED_DIRS),
     ]
-    located_destinations = located(destinations)
-    if overlap := next(
-        (
-            (package, destination)
-            for package, package_at in located(input_paths(roots))
-            for destination, destination_at in located_destinations
-            if locations_overlap(package_at, destination_at)
-        ),
-        None,
-    ):
+    if overlap := first_overlap(located(input_paths(roots)), located(destinations)):
         package, destination = overlap
         raise Refused(
             f"package {package} overlaps page destination "

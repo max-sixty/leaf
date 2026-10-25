@@ -59,6 +59,7 @@ export function createThreadPresentation({
   renderSurfaces,
   openThread,
   continueThread,
+  returnToPage,
   threadAt,
   read,
 }) {
@@ -178,9 +179,12 @@ export function createThreadPresentation({
             read.present();
             // Continuity may reveal a route needing this very presenter. Its work starts
             // after the cohort commits, and never joins the ticket it is completing.
-            void continueReplies(restorePlace).catch((error) =>
-              reportPageError(error, `Reply continuation failed`),
-            );
+            // Once the user is placed, a thread the primary held as the last resort goes
+            // back to the page where the page now draws its place (thread/destination.js,
+            // `returnToPage`).
+            void continueReplies(restorePlace)
+              .then(returnToPage)
+              .catch((error) => reportPageError(error, `Reply continuation failed`));
           }),
         );
       };

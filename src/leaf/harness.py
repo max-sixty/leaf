@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import itertools
 import json
+import mmap
 import os
 import time
 from collections.abc import Callable
@@ -75,12 +76,15 @@ class Harness:
       session's pages in the background and wakes the session when input arrives
       (`watches_between_turns`), and the prompt hook, which runs as the turn the
       wake opens begins, and the tool-batch hook within a turn put the input in
-      the turn's context (`hook_delivers`), which the turn's next hook confirms
+      the turn's context (`hook_delivers`), which its transcript confirms
       (`commits_hook_context`); the other Stop hook does only under plain
-      `--print`, where no watch follows the turn (`hook_transport`). A turn that
-      ends without its Stop hooks, as an interrupt does, starts no watch, so
-      where no watch from before it runs, nothing watches while the session lives
-      on, which is why this is the harness with a `nudge`.
+      `--print`, where no watch follows the turn (`hook_transport`). The prompt
+      hook starts a watch too, which waits while its turn runs, so a turn an
+      interrupt ends without its Stop hooks still has one, unless the session
+      held no page when that turn's prompt came. Then nothing watches, as when a
+      watch fails, reaches its hook's timeout or loses a background job's retired
+      worker, while the session lives on, which is why this is the harness with a
+      `nudge` (`presence.nudge_interrupted`).
     - Pi runs Leaf's extension in its own process, which calls the same hooks at
       the same points of a run and starts the same watch as each run settles, and
       starts the turn the watch wakes itself.
@@ -103,8 +107,9 @@ class Harness:
     hook_delivers: ClassVar[bool] = False
     # Whether the context a hook hands over is in the session once the hook
     # returns, so the hook confirms what it hands over. Where it is not, the hand-
-    # over waits for a later hook of the same turn to confirm it, and is offered
-    # again if the turn ends first (`delivery.confirm_turn`).
+    # over waits for the harness's record of the model's context to show it
+    # (`entered_context`, `delivery.confirm_entered`), and is offered again if its
+    # turn ends without it.
     commits_hook_context: ClassVar[bool] = True
     # The most UTF-8 bytes of hook context the harness shows the model whole, or
     # None where it shows any size.
@@ -232,12 +237,12 @@ class Harness:
         return True
 
     @classmethod
-    def run_ack(cls, delivery_id: str) -> str:
-        """How the reader of this session's printed delivery runs the `leaf wait
-        --ack` that confirms it and goes on waiting: the verb phrase the
-        delivery's `acknowledge` ends with. A wait held in a background task is
-        the default."""
-        return f"start `leaf wait --ack {delivery_id}` as the next background task"
+    def run_ack(cls, command: str) -> str:
+        """How the reader of this session's printed delivery runs `command`, which
+        confirms it and goes on waiting: the verb phrase the delivery's
+        `acknowledge` ends with. A wait held in a background task is the
+        default."""
+        return f"start `{command}` as the next background task"
 
     @classmethod
     def hook_context(cls, event: str, message: str) -> dict:
@@ -256,12 +261,25 @@ class Harness:
             "hookSpecificOutput": {"hookEventName": event, "additionalContext": message}
         }
 
+    @classmethod
+    def hook_payload(cls, payload: dict) -> dict:
+        """A hook's payload as `hooks` reads it, with the harness's own name for the
+        turn under `turn_id`, where it names one."""
+        return payload
+
     def reconcile_turn(self, payload: dict, expected: dict | None) -> dict | None:
         """The session's lifecycle as a hook goes on to read it, from `expected`, the
         record as the hook found it. A harness that records turns its hooks never
         see applies them here. A prompt hook reconciles after recording its own
         turn, every other hook before checking the turn its payload names."""
         return expected
+
+    def entered_context(self, payload: dict) -> set[str]:
+        """The ids of the inputs this session's hooks handed over inline that the
+        harness's own record, named in hook `payload`, shows in the model's context.
+        Only a harness whose hooks don't commit their context
+        (`commits_hook_context`) is asked (`delivery.confirm_entered`)."""
+        return set()
 
     def offer_at_step(
         self, event: str, payload: dict, expected: dict | None
@@ -361,8 +379,7 @@ class ClaudeCodeHarness(EnvironmentHarness):
     # It reads a hook's output only once every hook of that event has exited, and
     # Escape before then drops the whole prompt, Leaf's context with it (measured
     # at 2.1.304 with a second prompt hook sleeping 6 s). No hook says the output
-    # was taken, so the turn's next hook confirms it: a tool call or the turn's
-    # end means the model read the context.
+    # was taken; the transcript does (`entered_context`).
     commits_hook_context = False
     # It writes a larger hook context to a file and hands the turn a 2 KB preview
     # and the path instead: measured at 2.1.283 with ASCII, 9,990 characters
@@ -420,6 +437,48 @@ class ClaudeCodeHarness(EnvironmentHarness):
     @classmethod
     def process_pid(cls) -> int | None:
         return int(pid) if (pid := os.environ.get("CLAUDE_PID")) else None
+
+    @classmethod
+    def hook_payload(cls, payload: dict) -> dict:
+        """Claude Code names the turn by its prompt, `prompt_id`, in every hook but
+        SessionStart, and a prompt Escape dropped is submitted again under a new one
+        (measured at 2.1.310), so a handover into a dropped prompt belongs to a turn
+        that never ran. Releases before 2.1.196 send no `prompt_id` (found in each
+        npm release's hook input), so their turns are Leaf's, and a resubmitted
+        prompt renews the dropped one's; receipt then stops short of its handover
+        (`delivery.confirm_entered`), which is input again once the turn ends."""
+        prompt = payload.get("prompt_id")
+        return {**payload, "turn_id": prompt} if prompt else payload
+
+    def reconcile_turn(self, payload: dict, expected: dict | None) -> dict | None:
+        """Claude Code runs some turns under a prompt no prompt hook named: a prompt
+        the user types while a turn runs gets its prompt hook at once, under the
+        running turn's `prompt_id`, and when Escape then ends that turn Claude Code
+        submits the typed prompt as a turn of its own under a new one (measured at
+        2.1.310). Nor does a claim's new lifetime know Claude Code's turn. Claude
+        Code runs a session's hooks in order, so a step naming a prompt the record
+        does not hold is that turn starting, never a late callback, and it opens
+        it."""
+        turn = payload.get("turn_id")
+        if (
+            not turn
+            or payload.get("hook_event_name") == "UserPromptSubmit"
+            or (expected is not None and expected["turn"] == turn)
+        ):
+            return expected
+        from .state import advance_turn, flocked, session_lock_path, session_record
+
+        with flocked(session_lock_path(self.session)):
+            record = session_record(self.session)
+            if record is None or record["ended"] is not None or record["turn"] == turn:
+                return record
+            return advance_turn(self.session, turn, running=True)
+
+    def entered_context(self, payload: dict) -> set[str]:
+        """What the session's transcript, which every hook's payload names, shows
+        entered the model's context (`claude_code_entered`)."""
+        path = payload.get("transcript_path")
+        return claude_code_entered(Path(path)) if path else set()
 
     def escape_sandbox(self) -> None:
         """Leaf's bridge (`bridge.py`), which Claude Code's network proxy reaches."""
@@ -488,8 +547,8 @@ class ClaudeCodeHarness(EnvironmentHarness):
 # wait` already running in the task's shell tool, which the model reads by
 # writing to that session rather than by starting a second watcher.
 _POLL_UNIFIED_EXEC = (
-    "the existing shell session — `leaf wait` before the first batch or "
-    "the rearmed `leaf wait --ack` afterward — with `write_stdin`"
+    "the existing shell session running `leaf wait`, alone or after "
+    "`leaf delivery ack`, with `write_stdin`"
 )
 
 
@@ -670,13 +729,10 @@ class CodexHarness(EnvironmentHarness):
         return offer_hook_delivery(self.session, expected, received=event == "Stop")
 
     @classmethod
-    def run_ack(cls, delivery_id: str) -> str:
+    def run_ack(cls, command: str) -> str:
         """A Codex task's own wait lives in unified exec, the same session a
         watcher task or a direct loop polls."""
-        return (
-            f"run `leaf wait --ack {delivery_id}` in unified exec and poll it with "
-            "`write_stdin`"
-        )
+        return f"run `{command}` in unified exec and poll it with `write_stdin`"
 
     def nothing_listening(self, page_dir: Path, *, listening: bool) -> str:
         if listening:
@@ -919,6 +975,63 @@ def message_identity() -> dict:
     if harness is None:
         return {}
     return {"agent": harness.agent, "session": harness.session}
+
+
+def claude_code_entered(transcript: Path) -> set[str]:
+    """The ids of the inputs Leaf's hooks handed inline into a Claude Code session,
+    read from the session's transcript at `transcript`.
+
+    Claude Code writes a `hook_additional_context` record once a hook's output joins
+    the conversation, and none for a prompt Escape dropped with its hooks' output;
+    Escape during a tool boundary's hooks keeps that boundary's context and its
+    record (measured at 2.1.310). So the record, not a later hook running, says the
+    model read a handover. A missing or unreadable transcript shows nothing.
+
+    Every hook of a session holding a page reads it, and a long session's
+    transcript runs to hundreds of MB, so this maps the file and parses only the
+    lines holding Leaf's opening: 34 ms on a 200 MB transcript, where reading and
+    splitting it took 105 ms and 500 MB of memory."""
+    from .hook_transport import INLINE_OPENING
+
+    marker = INLINE_OPENING.encode()
+    lines = []
+    try:
+        with (
+            transcript.open("rb") as file,
+            mmap.mmap(file.fileno(), 0, access=mmap.ACCESS_READ) as mapped,
+        ):
+            at = 0
+            while (hit := mapped.find(marker, at)) != -1:
+                start = mapped.rfind(b"\n", 0, hit) + 1
+                end = mapped.find(b"\n", hit)
+                end = len(mapped) if end == -1 else end
+                lines.append(mapped[start:end])
+                at = end
+    except (OSError, ValueError):
+        # mmap refuses an empty file with ValueError.
+        return set()
+    entered = set()
+    for line in lines:
+        if b'"hook_additional_context"' not in line:
+            continue
+        try:
+            attachment = json.loads(line).get("attachment") or {}
+        except ValueError:
+            continue
+        for content in attachment.get("content") or []:
+            opening, _, rest = content.partition("\n")
+            if opening != INLINE_OPENING:
+                continue
+            try:
+                delivery = json.loads(rest.partition("\n")[0])
+            except ValueError:
+                continue
+            entered.update(
+                event["id"]
+                for batch in delivery["batches"]
+                for event in batch["events"]
+            )
+    return entered
 
 
 def claude_code_sessions() -> Path:

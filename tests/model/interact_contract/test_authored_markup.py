@@ -331,7 +331,7 @@ def sample_holder_findings(page_dir, holder, source) -> list[Finding]:
         return findings
     published(page_dir)
     return command_findings(
-        "thread", "open", str(page_dir), "--text", "Try it:", "--markup", source
+        "thread", "create", str(page_dir), "--text", "Try it:", "--markup", source
     )
 
 

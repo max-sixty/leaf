@@ -75,9 +75,10 @@ class Harness:
       session's pages in the background and wakes the session when input arrives
       (`watches_between_turns`), and the prompt hook, which runs as the turn the
       wake opens begins, and the tool-batch hook within a turn put the input in
-      the turn's context (`hook_delivers`), which the turn's next hook confirms
-      (`commits_hook_context`); the other Stop hook does only under plain
-      `--print`, where no watch follows the turn (`hook_transport`). A turn that
+      the turn's context (`hook_delivers`), as the other Stop hook does only
+      under plain `--print`, where no watch follows the turn (`hook_transport`).
+      The turn's next hook confirms what the prompt hook handed over
+      (`drops_hook_context`). A turn that
       ends without its Stop hooks, as an interrupt does, starts no watch, so
       where no watch from before it runs, nothing watches while the session lives
       on, which is why this is the harness with a `nudge`.
@@ -101,11 +102,12 @@ class Harness:
     # hand over the whole delivery. Explicit waits carry their own envelope.
     # `hooks_carry` says whether they do for this session.
     hook_delivers: ClassVar[bool] = False
-    # Whether the context a hook hands over is in the session once the hook
-    # returns, so the hook confirms what it hands over. Where it is not, the hand-
-    # over waits for a later hook of the same turn to confirm it, and is offered
-    # again if the turn ends first (`delivery.confirm_turn`).
-    commits_hook_context: ClassVar[bool] = True
+    # The hook events whose context the harness may still drop after Leaf's hook
+    # returns. A handover at one of them waits for a later hook of the same turn to
+    # confirm it, and is offered again if the turn ends first
+    # (`delivery.confirm_turn`). At any other event the context is in the session
+    # once the hook returns, so the hook records the receipt as it hands over.
+    drops_hook_context: ClassVar[frozenset[str]] = frozenset()
     # The most UTF-8 bytes of hook context the harness shows the model whole, or
     # None where it shows any size.
     hook_context_bytes: ClassVar[int | None] = None
@@ -351,12 +353,17 @@ class ClaudeCodeHarness(EnvironmentHarness):
     # Claude Code runs the prompt hook on every turn a background task's end
     # opens, idle or mid-turn, and adds what it returns to that turn's context.
     hook_delivers = True
-    # It reads a hook's output only once every hook of that event has exited, and
-    # Escape before then drops the whole prompt, Leaf's context with it (measured
-    # at 2.1.304 with a second prompt hook sleeping 6 s). No hook says the output
-    # was taken, so the turn's next hook confirms it: a tool call or the turn's
-    # end means the model read the context.
-    commits_hook_context = False
+    # It reads a prompt hook's output only once every hook of that event has
+    # exited, and Escape before then drops the whole prompt, Leaf's context with it
+    # (measured at 2.1.304 with a second prompt hook sleeping 6 s). No hook says
+    # the output was taken, so the turn's next hook confirms it: a tool call or the
+    # turn's end means the model read the context. Escape while another
+    # PostToolBatch hook still runs keeps Leaf's context from that tool boundary in
+    # the conversation (measured at 2.1.308 and 2.1.310, the `boundary` step of
+    # `leaf-dev journey claude-code`), so offering it again would deliver it twice.
+    # Whether Escape drops a Stop hook's, which hands input over only under plain
+    # `--print`, is unmeasured.
+    drops_hook_context = frozenset({"UserPromptSubmit", "Stop"})
     # It writes a larger hook context to a file and hands the turn a 2 KB preview
     # and the path instead: measured at 2.1.283 with ASCII, 9,990 characters
     # arrived whole and 10,010 did not. Which unit it counts is unmeasured, so the

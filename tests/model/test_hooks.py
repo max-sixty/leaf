@@ -556,9 +556,10 @@ def test_claude_codes_turn_confirms_what_its_hooks_hand_over(claimed, capsys):
     background wait's ending opens, and its PostToolBatch hook between steps; each hands
     the turn the whole pending delivery inline, so the move reads Delivered as the
     hook hands it over, the envelope names no acknowledgement, and the model runs
-    none. Claude Code reads that output only once the hook exits and may still drop
-    it, so the turn's next hook, which runs only once the model has read it,
-    records the receipt; until then nothing offers the move again."""
+    none. Escape during the prompt hooks drops the prompt with Leaf's output, so the
+    turn's next hook, which runs only once the model has read it, records the
+    prompt's receipt; until then nothing offers the move again. A tool boundary's
+    context stays in the conversation, so that hook records its own receipt."""
     working(claimed, "revising")
     comment = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "hi"}
@@ -611,8 +612,8 @@ def test_claude_codes_turn_confirms_what_its_hooks_hand_over(claimed, capsys):
     assert later_delivery["acknowledge"] is None
     [batch] = later_delivery["batches"]
     assert [event["id"] for event in batch["events"]] == [later["id"]]
-    # The boundary confirmed the prompt's handover and left its own to the next hook.
-    assert acknowledged_through(claimed) == comment["seq"]
+    # The boundary confirmed the prompt's handover and its own.
+    assert acknowledged_through(claimed) == later["seq"]
     *_, pickup = (e for e in events_model.read_events(claimed) if e["kind"] == "pickup")
     assert (pickup["kind"], pickup["events"], pickup["turn"]) == (
         "pickup",
@@ -687,6 +688,57 @@ def test_a_handover_its_turn_never_confirmed_is_offered_again(
         "claude-code", {"hook_event_name": "PreToolUse", "session_id": "s1"}
     )
     assert acknowledged_through(claimed) == resolve["seq"]
+
+
+def test_a_tool_boundaries_handover_survives_escape_and_is_not_delivered_again(
+    claimed, interactive, monkeypatch, capsys
+):
+    """Escape while another plugin's PostToolBatch hook still runs keeps Leaf's
+    context from that tool boundary in the conversation, so the comment it handed
+    over is received there and then. The interrupted turn leaves nothing to offer
+    again and the page's server nudges nobody; the user's next prompt names the
+    owed comment, and no hook delivers it a second time."""
+    live = {"state": "busy", "since": datetime.now().astimezone().isoformat()}
+    monkeypatch.setattr(
+        harness_model.ClaudeCodeHarness, "live_turn", lambda harness: dict(live)
+    )
+    nudged = []
+    monkeypatch.setattr(
+        harness_model.ClaudeCodeHarness,
+        "nudge",
+        lambda harness, page: nudged.append(page) or True,
+    )
+    prompt = {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
+    hooks_model.cmd_hook("claude-code", prompt)
+    capsys.readouterr()
+    asked = append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "which ships first?"}
+    )
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "PostToolBatch", "session_id": "s1"}
+    )
+    context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
+        "additionalContext"
+    ]
+    assert context.startswith(hook_transport_model.INLINE_OPENING)
+    assert acknowledged_through(claimed) == asked["seq"]
+
+    time.sleep(0.01)
+    live.update(state="idle", since=datetime.now().astimezone().isoformat())
+    with service_model.PageTransaction(claimed) as page:
+        assert delivery_model.deliverable(page) == []
+    server = server_rows_model.RowPublisher(claimed, "fixture-server")
+    server.live_until = 0
+    server.refresh()
+    assert nudged == []
+
+    hooks_model.cmd_hook("claude-code", prompt)
+    reminder = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
+        "additionalContext"
+    ]
+    assert not reminder.startswith(hook_transport_model.INLINE_OPENING)
+    assert hook_transport_model.ATTENTION_OPENING in reminder
+    assert asked["id"] in reminder
 
 
 def test_a_turn_ends_on_its_answer_and_a_turn_of_its_own_names_what_it_owes(

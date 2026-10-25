@@ -18,15 +18,17 @@ pickup a Claude Code hook handed over is not yet a receipt. The envelope's
 `acknowledge` says who confirms receipt: the hooks confirm their inline input, while
 the agent confirms Codex hook input and a pointer it read with `leaf delivery ack`.
 
-A Pi hook's context is in the session once the hook returns, so the hook records
-the receipt as it hands the delivery over. Claude Code reads a hook's output only
-once the hook exits, and drops it if Escape lands first, so its hook records only
-the opened pickup, which the page shows as Delivered at once, and the turn's next
-hook confirms it (`confirm_turn`): a tool call or the turn's end means the model
-read the context (`Harness.commits_hook_context`). Until then the input is not
-deliverable; once the turn reads ended without that hook, or a prompt opens it
-again (`handed_into_turn`), it is again (`deliverable`), and that prompt, a waking
-watch or the server's nudge brings it back.
+A hook whose context is in the session once it returns, as every Pi hook's and
+Claude Code's tool-boundary hook's is, records the receipt as it hands the delivery
+over. Escape during Claude Code's prompt hooks drops the prompt with Leaf's context
+(`Harness.drops_hook_context`), so a prompt hook records only the opened pickup,
+which the page shows as Delivered at once, and the turn's next hook confirms it
+(`confirm_turn`): a tool call or the turn's end means the model read the context.
+Until then the input is not deliverable; once the turn reads ended without that
+hook, or a prompt opens it again (`handed_into_turn`), it is again (`deliverable`),
+and that prompt, a waking watch or the server's nudge brings it back. A receipted
+update that still owes an answer is named again by a later turn's prompt, not
+delivered again.
 
 A reply reservation lets a Codex App Server turn's final message become the reply
 to one delivered update. Freezing with `turn_replies` marks each reply answer
@@ -1075,7 +1077,8 @@ def deliverable(
 
     A handover the turn never confirmed is input again once the turn reads ended:
     Escape while Claude Code still ran a prompt hook dropped the prompt, Leaf's
-    context with it, so the update reached no model.
+    context with it, so the update reached no model. A tool boundary's handover is
+    confirmed as it is handed over, since Escape leaves it in the conversation.
 
     The second kind is how a page that changed hands reaches its new owner: an
     update the previous owner received but did not answer advanced the cursor, and
@@ -1162,9 +1165,9 @@ def awaiting_receipt(page: PageTransaction) -> set[str]:
 def confirm_turn(session_id: str) -> None:
     """Confirm what this session's hooks handed into its open turn, on every page it
     holds, as a later hook of that turn runs: the receipt through the newest such
-    update (`record_receipt`). The model has read the context a prompt or tool
-    boundary handed over once it calls a tool or ends its turn, which is when
-    Claude Code runs this session's PreToolUse, PostToolBatch and Stop hooks."""
+    update (`record_receipt`). The model has read the context a prompt handed over
+    once it calls a tool or ends its turn, which is when Claude Code runs this
+    session's PreToolUse, PostToolBatch and Stop hooks."""
     from .service import owned_pages
 
     for page_dir in owned_pages(session_id):
@@ -1319,7 +1322,7 @@ def receive_held(
     """Record each batch of a delivery its hook is handing to `session_id`'s open
     turn, the lifecycle `expected` it planned under, as opened in it, and whether
     every batch was. `confirm` also records the receipt, where the harness has the
-    context once the hook returns (`Harness.commits_hook_context`).
+    context once the hook returns (`Harness.drops_hook_context`).
 
     A refusal is the batch's own: a page that changed hands or went, a turn that
     ended or was replaced, a log this Leaf may not write

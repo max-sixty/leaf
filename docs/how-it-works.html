@@ -4192,10 +4192,11 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                       <strong>Claude Code and Pi.</strong> The prompt hook, or a hook
                       between the agent's steps, put the delivery in the agent's turn,
                       or the agent confirmed the complete pointer reading with
-                      <code>leaf delivery ack</code>. Claude Code reads a hook's output
-                      only once the hook exits, and Escape before then drops it, so the
-                      turn's next hook confirms the delivery; if the turn ends first,
-                      Leaf delivers the update again.
+                      <code>leaf delivery ack</code>. Escape while Claude Code runs its
+                      prompt hooks drops the prompt with Leaf's delivery, so the turn's
+                      next hook confirms what the prompt hook delivered; if the turn
+                      ends first, Leaf delivers the update again. A delivery between
+                      steps stays in the conversation through Escape.
                     </p>
                     <p>
                       <strong>A <code>leaf wait</code> loop.</strong> The agent's next

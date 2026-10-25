@@ -46,9 +46,10 @@ The steps, in order:
 - `withdrawn`: the same for an update that owes nothing, a resolve of a thread whose
   comment had no answer yet, which must still reach a hook's context after Escape;
 - `boundary`: a comment that arrives while a wake's turn runs, handed over at a tool
-  boundary whose other hook sleeps, and Escape then ends that turn. No watch runs
-  after a turn a wake opened, so the page's server nudges the session, and a turn
-  answers both comments;
+  boundary whose other hook sleeps, and Escape then ends that turn. Claude Code keeps
+  that boundary's context in the conversation, so the comment was received: nothing
+  wakes the session for it, the user's next prompt names both owed comments, a turn
+  answers them, and no hook delivered the comment a second time;
 - `deferred`: the user's own turn, told to leave Leaf's comments for later, is
   handed a comment at a tool boundary and ends on its answer with the comment
   unanswered, and no Stop hook continues it over the comment. The watch wakes a
@@ -546,6 +547,14 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
     )
     step("withdrawn", started)
 
+    def hook_contexts(event: str, held: int = 0) -> list[str]:
+        return [
+            content
+            for record in since(held)
+            if (attachment := record.get("attachment", {})).get("hookEvent") == event
+            for content in attachment.get("content") or []
+        ]
+
     started = time.monotonic()
     first = user.comment("first-wake")
     cc.until(
@@ -554,11 +563,35 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
         ),
         "boundary: the wake was not handed its comment",
     )
-    drop(user.comment("boundary"))
+    boundary = user.comment("boundary")
+    held = drop(boundary)
+    cc.until(cc.idle, "boundary: the turn went on after Escape", 30)
+    # The page's server reads Claude Code's record every presence interval, so a
+    # nudge for the comment would have come well within this.
+    time.sleep(10)
+    require(
+        cc.idle()
+        and not user.answered("boundary")
+        and "nudge" not in leaf_rows(since(held)),
+        "boundary: a turn opened for a comment the interrupted turn had received",
+    )
+    cc.say("Carry on.")
     cc.until(
         answered("first-wake", "boundary"),
-        "boundary: the comment Escape dropped was not answered",
+        "boundary: the next prompt's turn did not answer the comments",
         150,
+    )
+    delivered = len(deliveries(since(0), boundary))
+    require(
+        delivered == 1,
+        f"boundary: the conversation holds {delivered} deliveries of the comment",
+    )
+    require(
+        any(
+            ATTENTION_OPENING in content and boundary in content
+            for content in hook_contexts("UserPromptSubmit", held)
+        ),
+        "boundary: the next prompt did not name the owed comment",
     )
     step("boundary", started, "first-wake", "boundary")
 
@@ -574,14 +607,6 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
     cc.until(
         answered("deferred"), "deferred: the comment the turn left was not answered"
     )
-
-    def hook_contexts(event: str) -> list[str]:
-        return [
-            content
-            for record in native_records(cc.home, cc.session)
-            if (attachment := record.get("attachment", {})).get("hookEvent") == event
-            for content in attachment.get("content") or []
-        ]
 
     require(
         not any(ATTENTION_OPENING in content for content in hook_contexts("Stop")),

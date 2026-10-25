@@ -108,7 +108,7 @@ def cmd_hook(harness: str, payload: dict) -> None:
             # The launcher skipped this turn's prompt hook (`bin/leaf`),
             # so the turn a claim joins opens here, before the command.
             prompt_turn(sid)
-        elif not hooked.commits_hook_context:
+        elif hooked.drops_hook_context:
             from .delivery import confirm_turn
 
             confirm_turn(sid)
@@ -156,7 +156,7 @@ def cmd_hook(harness: str, payload: dict) -> None:
             sid, turn_id, expected=expected, ended_at=payload.get("ended_at")
         )
         return
-    if event in {"PostToolBatch", "Stop"} and not hooked.commits_hook_context:
+    if event in {"PostToolBatch", "Stop"} and hooked.drops_hook_context:
         from .delivery import confirm_turn
 
         confirm_turn(sid)

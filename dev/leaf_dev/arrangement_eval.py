@@ -476,12 +476,17 @@ def judge_pages(
                         Path(saved["payload"]), Path(temporary) / "state", copied
                     )
                 )
-            # Leaf's regions; a plain HTML page has none to read.
-            panes = {
-                label: pane_readings.read(address, widths)
-                for label, address in addresses.items()
-                if pages[label]["condition"] == "leaf"
-            }
+            # Leaf's regions, read only where every page is Leaf's: a plain HTML page
+            # has none, and a pair judge given measurements of one side only would
+            # find measured defects on that side alone.
+            panes = (
+                {
+                    label: pane_readings.read(address, widths)
+                    for label, address in addresses.items()
+                }
+                if all(page["condition"] == "leaf" for page in pages.values())
+                else {}
+            )
             (evidence / "panes.json").write_text(json.dumps(panes, indent=2))
             instructions = f"""Judge the live pages below against the task and criterion.
 Use this browser CLI: {shlex.join(command)}

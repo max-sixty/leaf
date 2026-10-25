@@ -337,8 +337,10 @@ The last sample finished every phase, but the run's scratch cleanup failed with
 
 Adding a document to a working surface was the revision that broke composition.
 `page-authoring.md`, "Composing a page", already says parts of one subject that
-each want their own Layout are a page of parts, but only 1 of 7 judged dashboard and
-queue authors built one. The others put the document where it reads in a slot
+each want their own Layout are a page of parts, but only 1 of these 7 judged
+dashboard and queue authors built one. (A later run on main, below, built one 3 of 4
+times on Claude Code, so this first rate was partly sampling.) The others put the
+document where it reads in a slot
 sized for the work: a 475px pane, a 618×484 pane at 900×600 holding 4.5 screens,
 or a grid of prose tiles. One Claude Code author gave each root page tab a Layout.
 `layouts.css` arranges a Layout only on `main`, a child of `main` or a part's
@@ -388,45 +390,77 @@ inside the misplaced workspace. On arrival at 1600×1000 the queue's selected ti
 pane was 73–79% empty, and dashboard panes 38–69%. The readings cover only the
 part shown on arrival, so a workspace in a later part goes unmeasured.
 
-### The fix: a revision composes like a new page
+### A guidance sentence, tried and dropped
 
-One sentence on the parts bullet in `page-authoring.md`, "Composing a page", says a
-revision that adds such a part composes the same way, naming a write-up added to a
-dashboard and a hand-off added to a queue. It sits in the reference every author
-reads before its first version, since few authors reopen a reference for the
-revision turn (authoring-revisions.md was opened in phase 5 by none of the
-eight authors above).
+Two wordings in `page-authoring.md`, "Composing a page", were scored and neither
+ships. The first, on the parts bullet, said a revision adding a part that wants its
+own Layout composes the same way, and named a write-up added to a dashboard and a
+hand-off added to a queue. Scored against the first run on main, it built pages of
+parts in every revision:
 
-| Arm       | Harness     | Dashboard and queue revisions built as parts | Judge passes |
-| --------- | ----------- | -------------------------------------------- | ------------ |
-| main      | Claude Code | 1 of 4                                       | 1 of 4       |
-| candidate | Claude Code | 4 of 4                                       | 2 of 4       |
-| main      | Codex       | 0 of 3 (and the unjudged second page)        | 1 of 3       |
-| candidate | Codex       | 4 of 4                                       | 3 of 4       |
+| Arm           | Harness     | Dashboard and queue revisions built as parts | Judge passes |
+| ------------- | ----------- | -------------------------------------------- | ------------ |
+| main          | Claude Code | 1 of 4                                       | 1 of 4       |
+| first wording | Claude Code | 4 of 4                                       | 2 of 4       |
+| main          | Codex       | 0 of 3 (and the unjudged second page)        | 1 of 3       |
+| first wording | Codex       | 4 of 4                                       | 3 of 4       |
 
-Codex's candidate defect was inside the queue's own workspace: at 900×600 a
-ticket's evidence got 423px beside a 239px decision column the pane readings
-measured as 70% empty. The candidate's two Claude Code defects had nothing to do
-with composition: an arrival summary at 900×600 left out the 17:30 stage, and a
-ticket record said an incident "was opened". All four candidate dashboards also stayed sidebar pages
-through the width preference, which the sentence does not touch, so part of the
-pass difference is that variance. On Claude Code the candidate also made both
-`document/live-status` revisions pages of parts, a status part beside the review,
-where main made 1 of 2;
-their judges' defects were again content (logout lag below the fold at 900×600, the
-deleted ask). The read-only layout probes `parts-take-their-own-layouts`,
+That wording restated the parts bullet for the two cases the evals use, and on Claude
+Code it also turned both `document/live-status` revisions into pages of parts, where
+a sidebar page fits the status. It was replaced by a goal for the whole list: choose
+the arrangement from what the page holds now, on each revision as on the first
+version, so content a revision adds takes the form the list gives its kind even when
+that changes the page's Layout. That wording was scored with `--base` paired arms:
+
+```sh
+uv run leaf-dev eval dashboard/write-up queue/hand-off document/live-status exhibit-playground-stays-in-the-column --harness claude-code --viewport desktop --viewport short --base --repeat 2 -j 2
+uv run leaf-dev eval dashboard/write-up queue/hand-off --harness codex --viewport desktop --viewport short --base --repeat 1 -j 1
+```
+
+| Arm          | Harness     | Dashboard and queue built as parts | Live status built as parts | Judge passes, all three tasks |
+| ------------ | ----------- | ---------------------------------- | -------------------------- | ----------------------------- |
+| main         | Claude Code | 3 of 4                             | 1 of 2                     | 3 of 6                        |
+| goal wording | Claude Code | 4 of 4                             | 1 of 2                     | 4 of 6                        |
+| main         | Codex       | 0 of 1 (the queue sample errored)  | not run                    | 0 of 1                        |
+| goal wording | Codex       | 0 of 2                             | not run                    | 1 of 2                        |
+
+Main on Claude Code built parts 3 of 4 times this run, against 1 of 4 in the first,
+so the first wording's Claude Code gain was mostly sampling. The goal wording
+changes nothing measurable there, and on Codex its authors appended the write-up as
+a section of the sidebar page's body and put the hand-off in a workspace tab, as
+main does. Only the first wording moved Codex (4 of 4 against 0 of 4 judged on main
+across both runs). That suggests, from these few samples, that Codex authors keep
+the existing Layout when a revision adds a document unless an instruction names
+that case, which is the lead for a later change. The guardrail `exhibit-playground-stays-in-the-column` passed 2 of 2 on both
+arms, and the read-only layout probes `parts-take-their-own-layouts`,
 `page-arrangement-uses-layouts` and `surface-page-takes-the-window` passed 12 of 12
-on both arms. Two samples a cell show direction, not a rate.
+on both arms with the first wording.
+
+The judges' defects in these runs were mostly not about composition: an arrival
+view at 900×600 missing a status line or covered by the floating comment bar, a
+hand-off leaving one ticket without a next owner, a write-up omitting Dana's
+confirmation, and, on Codex, a queue's ticket pane that would not scroll at 900×600
+beside a mostly empty decision column.
 
 ### Harness fixes from the runs
 
 The browser user's passage selection picked the contents outline's copy of a
-heading, which Leaf generates and offers no comment route for, and the sample
-failed. `eval_user.py` now skips generated words (`.lf-ui, [data-lf-gen]`,
-passages.js). The dashboard comment fell back to a whole-page comment on all four
-dashboards on main, because their follow-ups sat in a tab or a closed disclosure
-the page didn't show on arrival, and the scenario's `reveal` names nothing to open.
-The candidate dashboards showed them, so their comments anchored to the passage.
+heading, which Leaf echoes from the heading and offers no comment route for, and
+the sample failed. `eval_user.py` now selects only words in the page's own reading
+(`pageText`, passages.js), the words a comment can anchor to: tab labels and board
+column headings stay selectable, and Leaf's chrome and echoed copies don't.
+
+The dashboard comment fell back to a whole-page comment wherever the follow-ups
+sat in a tab or a closed disclosure the page didn't show on arrival, since the
+scenario's `reveal` names nothing to open. That was 4 of 4 dashboards in the first
+run on main and both Codex dashboards with the first wording, while both Claude Code
+dashboards with it showed the follow-ups and anchored, so the first wording's Claude
+Code cell also differs from main in how the comment arrived. In the paired run all
+four Claude Code dashboards anchored, and both Codex dashboards fell back.
+
+Two Codex queue samples, one in each run on main, finished or nearly finished their
+phases and then failed in the scratch cleanup with "Directory not empty", so they
+were never judged.
 
 ## Remaining evaluation gaps
 

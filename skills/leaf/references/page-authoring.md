@@ -101,11 +101,7 @@ extend beside it. Compose the page from these:
   beside the proposal it argues for and the reasoning behind it, are a page of parts
   (`page-layout.md`, "A page of parts"). Where the views share the page's Layout and
   a header across the top, such as one shared with a site's other pages, they are page
-  tabs instead. A revision that adds such a part composes the same way: a write-up
-  added to a live dashboard, or a hand-off added to a worked queue, is read in order,
-  so it becomes a column part beside a part holding the existing Layout, rather than a
-  tab, pane or grid inside that Layout, where it would read in a slot sized for the
-  work.
+  tabs instead.
 
 Leaf's panel takes its own room at the window's foot, and comment markers go in the
 margin or over their targets, so leave room for neither. The reader hides markers with

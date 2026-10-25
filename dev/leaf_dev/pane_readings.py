@@ -9,7 +9,15 @@ directly at each viewport the judge is given: every region Leaf scrolls inside a
 own screens it holds, the share of its visible box farther than 16px from any text
 or drawn element, at its top and at its end, and the Tab press that first puts
 focus in it. A page with no workspace shown on arrival, such as one whose
-workspace is a later part, reads as `workspace: false` and adds nothing.
+workspace is a later part, reads as `workspace: false` and adds nothing, and so
+does a screen an author built from its own grid CSS, whose scroll boxes are no
+reading regions. `judge_pages` reads them only when every page it judges is a Leaf
+page, so a Leaf/HTML pair judge never sees measurements of one side alone.
+
+The render check's `readViewChecks` (`render-checks/view.js`) also reads a
+full-height workspace's overflowing regions, but only the panes the page wrote and
+the Layout's body. A widget's own regions, such as a queue's list and its selected
+ticket, are outside it, and they are most of what a workspace's reader scrolls.
 
 The readings are evidence beside the judge's own observation, never a verdict:
 an empty share counts gaps a design may want, and a pane Tab never reaches may

@@ -61,10 +61,12 @@ supplies the existing browser CLI; the judge opens and operates its own browser.
 The native agent stream and its screenshots retain the evidence. Report
 screenshots show arrival only. Unvisited required content remains
 insufficient evidence, while supported defects still fail when other parts remain
-unobserved. The judge follows the requested output's scope. On a Leaf page with
-a workspace shown on arrival, its task also carries what
-`dev/leaf_dev/pane_readings.py` measured of each region: how far it scrolls, how much of it is empty and which
-Tab press reaches it. The judgment's `metadata.judge.metadata.panes` keeps them.
+unobserved. The judge follows the requested output's scope. Where every page judged
+is a Leaf page and one shows a workspace on arrival, the judge's task also carries
+what `dev/leaf_dev/pane_readings.py` measured of each of its regions: how far it
+scrolls, how much of it is empty and which Tab press reaches it. A pair judge
+comparing Leaf with HTML gets none, so neither side alone carries measured defects.
+The judgment's `metadata.judge.metadata.panes` keeps them.
 
 ## Viewports, saved comparisons and discovery
 

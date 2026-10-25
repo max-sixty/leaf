@@ -295,17 +295,6 @@ Boxes that still move without input, which the "Stability" rule in
 `browser/AGENTS.md` forbids. `tests/known_widget_findings.py` lists each widget
 that changes size after first paint, with its cause.
 
-- **Draw a text document's listing once its text has arrived.** Every
-  `lf-text-document` now keeps its final box from first paint, but its module draws
-  the listing as soon as it upgrades, before the state answer brings the text: one
-  empty row under a caption reading “· no data”. When the text arrives, the gutter
-  widens for two-digit line numbers and the code column moves right inside the box.
-  `leaf-dev probe` on a page with a 20-line, a 3-line and a preview document scores
-  that move 0.12 of layout shift at 1440px and 0.44 at 390px, though nothing outside
-  the boxes moves, except where the “· no data” suffix wraps a long label onto
-  another line and its removal shortens the box. Drawing nothing until the first
-  state answer has been read would leave the theme's stand-in frame and caption until
-  then.
 - **Keep what a live revision adds above the reader from moving it.** A revision
   that puts a tab set above the gallery's page tabs, read from the page's top, moves
   their strip 430px down the window as it arrives

@@ -14,7 +14,12 @@ from leaf.files import stamped_version
 from leaf.leases import contract_writer
 from leaf.projection import folded_value, markup_value, page_reading
 from leaf.refusals import Refused
-from leaf.revisioning import planned_activation, publish_checked_event
+from leaf.revisioning import (
+    hold_published,
+    planned_activation,
+    publish_checked_event,
+)
+from leaf.served_state.reading import source_readings
 from leaf.service import PageTransaction
 from leaf.todos import TodoReading
 from leaf.validation.admission import checked_text
@@ -162,6 +167,7 @@ def _stamp_event(
 
 def _stamp_locked(page_dir: Path, page, body: str, completes: tuple[str, ...]) -> dict:
     events = page.events
+    source, _history = source_readings(page_dir)
     checked, activation = _stamp_candidate(page_dir, events)
     revision = activation.revision
     registry, projection, parser, spk = _stamp_reading(events, checked, revision)
@@ -172,7 +178,9 @@ def _stamp_locked(page_dir: Path, page, body: str, completes: tuple[str, ...]) -
     event = _stamp_event(body, version, revision, parser, settled_reports, completed)
     # Stamp-specific refusals precede publication. The publisher admits this
     # note and every anchor move it requires before the revision marker.
-    return publish_checked_event(page, checked, event)
+    accepted = publish_checked_event(page, checked, event)
+    hold_published(page_dir, source, activation)
+    return accepted
 
 
 @contract_writer

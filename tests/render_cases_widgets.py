@@ -536,6 +536,9 @@ BAD_CHARTS = {
     "bad-mark": '{ariaLabel: "merged", marks: [Plot.barz([{n: 1}], {y: "n"})]}',
     "bad-drawn": 'Plot.plot({ariaLabel: "merged", marks: [Plot.ruleY([0])]})',
     "bad-height": '{ariaLabel: "merged", height: 200, marks: [Plot.ruleY([0])]}',
+    "bad-offset": (
+        '{ariaLabel: "merged", marks: [Plot.text([{n: 1}], {y: "n", text: "n", dy: (d) => d.n})]}'
+    ),
 }
 # A chart an agent sent in a reply, which upgrades inside a panel nobody has opened yet.
 MESSAGE_CHART = """{

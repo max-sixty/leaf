@@ -332,7 +332,8 @@
   // seats inside boxes of its own, as a disclosure's body sits under the summary the
   // module writes. The box is the module's and its interior is the page's: render
   // checks read the boxes around it as the module's layout, and a revision that
-  // reaches the host's members edits inside it (dom-children.js, `patchTree`).
+  // reaches the host's members edits inside it (dom-children.js, `patchTree`). A sidebar
+  // page's track has one too, which the Layout's own reading builds (`holdTrack`).
   const authoredBodies = new WeakMap();
   // Initial geometry writes root attributes and styles before modules exist. Later
   // root writers adopt these registries, so revisions replace only the authored share.
@@ -620,7 +621,12 @@
       rememberExternalLinkChanges(source, linkState);
       writeLinkAttributes(copy, linkState.baseline);
     }
-    const held = source.localName === "template" ? source.content : source;
+    // A track's children stand in the body the runtime built (`holdTrack`); the page
+    // wrote them in the track.
+    const held =
+      source.localName === "template"
+        ? source.content
+        : (authoredBodies.get(source) ?? source);
     const into = copy.localName === "template" ? copy.content : copy;
     if (source.localName === "template") origins.set(into, origins.get(held) ?? held);
     for (const child of held.childNodes) {
@@ -1033,20 +1039,68 @@
     return { changed };
   };
   // Whether each track (`--lf-margin-content: track`, a sidebar page's `aside`, layouts.css)
-  // stands beside the body, which it says as `data-lf-beside` so the Layout keeps the
-  // block it holds in view only there. Flex wrapping places it, from the window's width,
+  // stands beside the body, which it says as `data-lf-beside` so the Layout keeps what
+  // it holds in view only there. Flex wrapping places it, from the window's width,
   // the shares the page gives the track and the body, and the minimum the body's content
   // declares, and no query reads that. A track stands beside the body when one of the
   // other boxes the Layout's box lays out in its flex lines shares its line and stands wholly to
   // one side of it: a box it lays out is a child that draws a box and is not taken
   // out of the flow, or one inside a child that draws none (`display: contents`), and
-  // another track does not count. A track holding one block runs its line's height
-  // (layouts.css), and a line holds its items' margin boxes whatever margins a page gives
-  // them, so a box on the line is level with the track and one on another line, such as
-  // the header, the footer or a stacked body, is above or below it or spans it. Sticking
-  // moves only the block inside the track, so the track's own box is where the flex line
-  // put it. Every box is read before any track is written.
+  // another track does not count. A track runs its line's height (layouts.css), and a
+  // line holds its items' margin boxes whatever margins a page gives them, so a box on
+  // the line is level with the track and one on another line, such as the header, the
+  // footer or a stacked body, is above or below it or spans it. Sticking moves only the
+  // box inside the track, so the track's own box is where the flex line put it. Every
+  // box is read before any track is written.
   const BESIDE = "data-lf-beside";
+  // What a track holds stands in one box the runtime builds inside it, its body
+  // (`data-lf-track-body`), which is what sticks (layouts.css), so one block and several
+  // stick alike. A sticky box stays inside its containing block, and only a box inside
+  // the track has the track, as tall as its flex line, for that block. Rejected
+  // (2026-10): sticking the track itself, a flex item, which the whole flex container
+  // bounds, so at the page's end it stood 40px over a one-line footer at 900×600.
+  //
+  // The body is the track's authored body, as a widget's module builds one
+  // (`authoredBody`): the source copies read through it (`authoredCopy`), and a revision
+  // writes the track's children inside it (dom-children.js, `patchTree`). It draws no
+  // box of its own and says no words, so a passage, a page check and a version
+  // comparison read the blocks as the page wrote them; a page rule naming the track's
+  // children, such as `aside > p`, no longer reaches them (page-layout.md). It is built
+  // as the parser inserts the track, before the first paint, and kept whatever width
+  // the page stands at; on an unscrolled page it stands where its blocks would. Each
+  // reading gathers into it what has arrived in the track since: the parser's later
+  // children, a page module's insertions.
+  const TRACK_BODY = "data-lf-track-body";
+  const holdTrack = (track) => {
+    let body = authoredBodies.get(track);
+    if (!body) {
+      body = document.createElement("div");
+      body.setAttribute(TRACK_BODY, "");
+      authoredBodies.set(track, body);
+    }
+    const seated = body.parentNode === track;
+    // What stands before the body goes to its start, and what follows it to its end, so
+    // the blocks keep the order the track had them in.
+    const lead = [];
+    const rest = [];
+    let past = false;
+    for (const node of track.childNodes)
+      if (node === body) past = true;
+      else (past ? rest : lead).push(node);
+    if (seated && !lead.length && !rest.length) return false;
+    const { move } = root.lfInitial;
+    const first = seated ? body.firstChild : null;
+    if (!seated) move(track, body, null);
+    for (const [node, before] of [
+      ...lead.map((node) => [node, first]),
+      ...rest.map((node) => [node, null]),
+    ]) {
+      // The parent the page wrote it under, as for a widget's children (`parent`).
+      if (!parents.has(node)) parents.set(node, track);
+      move(body, node, before);
+    }
+    return true;
+  };
   const items = (element) => {
     const style = getComputedStyle(element);
     if (style.display === "contents")
@@ -1075,6 +1129,8 @@
         "track",
     );
     if (!tracks.length) return false;
+    let changed = false;
+    for (const track of tracks) changed = holdTrack(track) || changed;
     const laid = [...box.children].flatMap((child) => items(child));
     const own = laid.filter((item) => !item.track);
     const readings = tracks.map((track) => {
@@ -1091,7 +1147,6 @@
           ),
       ]);
     });
-    let changed = false;
     for (const [track, beside] of readings) {
       if (track.hasAttribute(BESIDE) === beside) continue;
       if (!sourceShells.has(track)) sourceShells.set(track, track.cloneNode(false));

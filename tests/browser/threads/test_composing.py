@@ -170,6 +170,7 @@ def send_reply(page, thread, box, words):
     return before, box.evaluate(ROW_FOOT)
 
 
+@pytest.mark.watch_shifts
 @pytest.mark.parametrize("engine", ["browser", "webkit_browser"])
 @pytest.mark.parametrize(("seat", "lines"), [("widget", 1), ("diff", 1), ("diff", 4)])
 def test_sends_from_a_page_threads_box_hold_its_foot_at_the_bands(
@@ -207,6 +208,33 @@ def test_sends_from_a_page_threads_box_hold_its_foot_at_the_bands(
         sends.append(send_reply(page, thread, box, words))
     for before, after in sends:
         assert abs(after["foot"] - before["foot"]) < 1, sends
+
+
+@pytest.mark.watch_shifts
+def test_escape_from_a_box_leaves_it_where_it_stood(browser, serve):
+    """Escape from a page thread's box, onto a thread that fits the window but whose
+    head the user has scrolled above it, lands on the thread without scrolling: the box
+    they left stays under their aim. Landing the thread nearest brought its head back
+    into view and carried the box down with it."""
+    url, root = long_seated_thread(serve)
+    page = open_page(browser, url)
+    resized(page, 1200, 560)
+    thread = page.locator(f'.lf-page-thread[data-thread="{root}"]')
+    box = thread.locator("leaf-text")
+    expect(box).to_be_visible()
+    box.click()
+    page.keyboard.type("draft")
+    thread.evaluate(
+        "thread => scrollBy({top: thread.getBoundingClientRect().top + 30,"
+        " behavior: 'instant'})"
+    )
+    scroll_settled(page)
+    assert thread.evaluate("thread => thread.getBoundingClientRect().top") < 0
+    before = box.evaluate("box => box.getBoundingClientRect().top")
+    page.keyboard.press("Escape")
+    expect(thread).to_be_focused()
+    rendered(page)
+    assert box.evaluate("box => box.getBoundingClientRect().top") == before
 
 
 @pytest.mark.parametrize("touch", [False, True], ids=["desktop", "touch"])

@@ -1,7 +1,8 @@
 import { PENDING, Z, bindQueuedWork, editable, html, isElementName, isReaction, keyed, lastMovedAt, messageKey, moved, nothing, pendingForParent, render as render$1, repeat, sameAnchor, seatRoot, share, threadKey, threadNames, turns } from "./bundle-browser-runtime.js";
-import { CARET_KEYS, TEXT_FIELD, afterScript, atLayoutPrecision, cancelRender, caretAtKey, carriedFrom, currentLocationIn, currentLocationNodes, currentLocationTouches, deepFocus, drawn as drawn$1, focusDestination, focused, holdCurrentLocation, holdFocus, inputCount, keeps, keepsHidden, layoutPx, move, nextFrame, nextRender, onCurrentLocation, onPress, onPressAway, readCaret, recentPlaceInput, renderedOrder, renderedParent, renderedUnder, ringBox, selectsAll, sizeObserver, takesLetters, under, upFrom } from "./bundle-dom-move.js";
-import { PAGE_PAINT_ATTRIBUTE, PRESS, admitResponse, adoptRegistry, announce, bindings, checked, clampedRow, clippedContents, clippingAxes, commandScope, cycledRow, declarationFor, declareCommandReadiness, descriptionOf, el, elementDeclarations, elementsDeclaring, exhibits, generatedElement, growthAfterIsSeen, growthIsSeen, headerInset, holdStatus, iconElement, iconTemplate, inUi, inWindowChrome, keys, landingBand, loadShadowRules, measure, nearestScrollBy, notice, offer, offered, pagePresented, paintKeys, passErrorsAt, placeBox, placeHolder, plainPress, pointerAt, pressIsKeyboardActivation, projectCommandScope, raiseError, randomId, registry as registry$1, repaint, reportPageError, revealLayer, sameLayer, seenRect, shownBox, shownRect, shownWindow, skipped, stuckBox, tagsDeclaring, titleOf, tokenEntry, touchPresses as touchPresses$1, union, userScrollport, visibleBand, watchArrivals, watchCommandScopes, watchOwner, whenNone } from "./bundle-layer-client.js";
+import { CARET_KEYS, TEXT_FIELD, afterScript, atLayoutPrecision, cancelRender, caretAtKey, carriedFrom, currentLocationIn, currentLocationNodes, currentLocationTouches, deepFocus, drawn as drawn$2, focusDestination, focused, holdCurrentLocation, holdFocus, inputCount, keeps, keepsHidden, layoutPx, move, nextFrame, nextRender, onCurrentLocation, onPress, onPressAway, readCaret, recentPlaceInput, renderedOrder, renderedParent, renderedUnder, ringBox, selectsAll, sizeObserver, takesLetters, under, upFrom } from "./bundle-dom-move.js";
+import { PAGE_PAINT_ATTRIBUTE, admitResponse, pagePresented, randomId, reportPageError, revealLayer, sameLayer } from "./bundle-layer-client.js";
 import { applicationState, attachApplicationPresentation, offlineInteractive, pageClaimed, readApplication, readPart, runtime, runtimeModule, runtimeResource, whenApplicationPresented, whenDocumentPresented, whenWidgetsPresented } from "./bundle-context.js";
+import { PRESS, adoptRegistry, announce, bindings, checked, clampedRow, clippedContents, clippingAxes, commandScope, cycledRow, declarationFor, declareCommandReadiness, descriptionOf, el, elementDeclarations, elementsDeclaring, exhibits, generatedElement, growthAfterIsSeen, growthIsSeen, headerInset, holdStatus, iconElement, iconTemplate, inUi, inWindowChrome, keys, landingBand, loadShadowRules, measure, nearestScrollBy, notice, offer, offered, paintKeys, passErrorsAt, placeBox, placeHolder, plainPress, pointerAt, pressIsKeyboardActivation, projectCommandScope, raiseError, registry as registry$1, repaint, seenRect, shownBox, shownRect, shownWindow, skipped, stuckBox, tagsDeclaring, titleOf, tokenEntry, touchPresses as touchPresses$1, union, userScrollport, visibleBand, watchArrivals, watchCommandScopes, watchOwner, whenNone } from "./bundle-errors.js";
 import { ago, aimedTop, atScrollEnd, claimReachStop, containingReadingRegionFor, effectiveScroller, moveScrollerBy, pageReadingRegion, pageScroller, placeKept, reachScrollers, reachable, readingRegionFor, readingRegions, releaseReachStop, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, shortAgo, shownRegionBounds, startScroll } from "./bundle-reading-regions.js";
 import { chromeForeground, chromeRoot } from "./bundle-chrome.js";
 import { COLLAPSE, alignText, closestAcross, elementById, fencePassageParts, inChrome, labelWords, pageBlocks, pageDocument, pageQueryAll, pageRange, pageText, pageWords, pointAt, quoteFrom, rangeOf, readingFrom, segmentBlock, segmentsIn, selectEnds, selectionBackward, spanIn, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity } from "./bundle-passages.js";
@@ -1313,7 +1314,7 @@ onCurrentLocation((node) => {
 function prepareCodeBlock(pre, source, noun) {
 	let copy = controls.get(pre);
 	if (!copy) {
-		copy = copyControl("lf-code-copy", {
+		copy = copyControl("lf-code-copy lf-quiet-action", {
 			label: `Copy ${noun}`,
 			success: `${noun[0].toUpperCase()}${noun.slice(1)} copied`,
 			error: `Unable to copy ${noun}`
@@ -2965,6 +2966,7 @@ function createWritingResume({ revealInThread, arriveEditor, holdsThreadDraft })
 		title: "Resume writing",
 		touch: "Resume writing",
 		menu: "keys",
+		travels: true,
 		when: () => writingPlace !== null,
 		run: resume
 	};
@@ -3108,8 +3110,9 @@ const separateTranscript = (held) => {
 	return transcript && userScrollport(getComputedStyle(transcript).overflowY) ? transcript : null;
 };
 const landingTarget = (held, control) => {
-	if (fitsWhole(held)) return { node: held };
 	const reply = replyRowOf(held, control);
+	if (control !== held && !replyPinned(reply) && alreadyShown(control)) return { node: null };
+	if (fitsWhole(held)) return { node: held };
 	if (replyPinned(reply)) return control === held ? { node: null } : {
 		node: held,
 		block: "end"
@@ -3280,6 +3283,10 @@ function holdBox(control) {
 const OPEN_MESSAGE_EDIT = "lf-open-message-edit";
 const open = /* @__PURE__ */ new Map();
 const sending = /* @__PURE__ */ new Set();
+const drawn$1 = Z(0);
+const messageDrawn = () => {
+	drawn$1.value = drawn$1.peek() + 1;
+};
 function holdsMessageEdit(id, view) {
 	const holder = open.get(id);
 	if (!holder) return false;
@@ -3344,7 +3351,10 @@ function threadRewrites({ thread, views, send, paint, box, home, opening = () =>
 			reveal: (message, caretLine) => revealEditor(message, caretLine)
 		},
 		editLast: {
-			available: () => Boolean(lastEditable()),
+			available: () => {
+				drawn$1.value;
+				return Boolean(lastEditable());
+			},
 			open: () => lastEditable()?.openEdit()
 		}
 	};
@@ -3376,7 +3386,9 @@ var MessageEditor = class {
 		const save = offer("button", "lf-msg-control lf-msg-edit-save");
 		const cancel = offer("button", "lf-msg-control lf-msg-edit-cancel");
 		cancel.type = "button";
-		cancel.textContent = "Discard";
+		cancel.setAttribute("aria-label", "Discard");
+		cancel.title = "Discard";
+		cancel.append(iconElement("undo", "lf-msg-control-icon"));
 		actions.append(cancel);
 		this.foot = document.createElement("span");
 		this.foot.className = "lf-msg-edit-foot";
@@ -3414,7 +3426,6 @@ var MessageEditor = class {
 			hint: "Edit message",
 			accessibleName: () => `Edit message: ${said().slice(0, 60)}`,
 			sends: "save",
-			icon: null,
 			sendBtn: save,
 			submitIn: actions,
 			sentMedia: true,
@@ -3601,6 +3612,10 @@ function holdToRead() {
 		hold = null;
 		if (!holder) return;
 		released = holder;
+		holder.focus({
+			preventScroll: true,
+			focusVisible: false
+		});
 		holder.dispatchEvent(new MouseEvent("click", {
 			bubbles: true,
 			cancelable: true,
@@ -4011,6 +4026,7 @@ var MessageView = class {
 			"--lf-msg-arrival": 1,
 			offset: 0
 		}], flashDuration());
+		messageDrawn();
 		return this.node;
 	}
 	openEdit() {
@@ -4334,12 +4350,14 @@ function rowWalk({ id, noun, plural, rows, position = () => listWalkPosition(row
 		routes: [route("ArrowUp", up), route("ArrowDown", down)],
 		title: `walk the ${plural}`,
 		repeat: true,
+		travels: scroll,
 		run: (binding) => land((list) => clampedRow(list, focused(), binding === "ArrowDown" ? 1 : -1, 0))
 	}, {
 		id: `${id}.edge`,
 		keys: ["Home", "End"],
 		routes: [route("Home", home), route("End", end)],
 		title: `${home} / ${end}`,
+		travels: scroll,
 		run: (binding) => land((list) => binding === "Home" ? list[0] : list.at(-1))
 	}];
 }
@@ -4779,7 +4797,7 @@ async function replyDestination(id, open, intent, { destination = (thread) => th
 }
 async function threadDestination(id, open, may) {
 	const at = focused();
-	if (at && at !== document.body && drawn$1(at)) return null;
+	if (at && at !== document.body && drawn$2(at)) return null;
 	const shown = await open(id, {
 		part: "thread",
 		intent: may

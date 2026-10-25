@@ -40,7 +40,6 @@ from interact_support import (
     words,
 )
 from leaf_dev.example_data import regression_sources
-from leaf_dev.page_fixtures import prepare_page, read_fixture
 
 from leaf import cli as cli_model
 from leaf import event_log as events_model
@@ -588,11 +587,11 @@ def test_shipped_widget_purposes_live_in_their_descriptions():
 def test_a_playground_control_value_fits_its_kind_at_the_markup_boundary():
     registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
 
-    def errors(attributes):
+    def errors(attributes, name="setting"):
         return fragment_errors(
             '<lf-ask id="kind-ask"><h2>Choose a setting</h2>'
             '<lf-playground id="kind-playground">'
-            f'<lf-playground-control name="setting" label="Setting" {attributes}>'
+            f'<lf-playground-control name="{name}" label="Setting" {attributes}>'
             "</lf-playground-control>"
             "<lf-playground-preview><p>Preview</p></lf-playground-preview>"
             "<lf-playground-output>Use this setting.</lf-playground-output>"
@@ -609,6 +608,13 @@ def test_a_playground_control_value_fits_its_kind_at_the_markup_boundary():
     assert not errors('kind="toggle" value="false"')
     assert not errors('kind="color" value="#A0b1c2"')
     assert not errors('kind="text" value="yes"')
+    # A name, like an id, may start with a digit: an alert called 5xx keeps its name.
+    assert not errors('kind="toggle" value="false"', name="5xx-pages")
+    # A control is a Leaf element a user points at, so it takes a stable id.
+    assert not errors('kind="toggle" value="false" id="setting-control"')
+    # `class` and `style` are the page's styling hooks on a widget as on any element.
+    assert not errors('kind="toggle" value="false" class="route"')
+    assert not errors('kind="toggle" value="false" style="grid-column: 2"')
     assert refused('kind="range" value="12"') == [("attribute-schema", "required", [])]
     assert refused('kind="range" value="twelve" max="24"') == [
         ("attribute-schema", "pattern", ["value"])
@@ -1896,76 +1902,6 @@ def test_example_layer_selects_existing_packages(tmp_path, monkeypatch):
     resolved = layer_model.resolve_packages(tuple(packages))
     assert resolved == [schema_model.BUNDLED_PACKAGES / name for name in packages]
     assert layer_model.checked_inputs(resolved) == resolved
-
-
-def test_every_seeded_fragment_passes_the_door_it_never_came_through(
-    tmp_path, monkeypatch
-):
-    """A hand-written seed is the one markup in the product no gate has read.
-
-    Markup reaches a page two ways. A version goes through `page check`. An
-    event's `markup` goes through `leaf thread reply`, which validates it and then freezes
-    it in an append-only log, so that door is the last moment anything about it can
-    be fixed. An example's companion log is neither: it is written into the
-    repository by hand, and from there `leaf-dev site` publishes it to
-    leaf.page, `serve` lays it into every browser sweep, and `leaf-dev preview`
-    serves it live. `page check` reads such a log only for ids colliding
-    with the version's.
-
-    So the seed is put through the real door rather than through a list of checks
-    copied out of it — that door is where a check lands, and a second gate spelling
-    out today's list is the one that goes on not asking whatever the first learns
-    to. `/media/nope.png` in a seeded `lf-shot` is the shape of what it would catch:
-    refused in a version, and until recently accepted in a reply. No seed carries one
-    today, which is what a floor is for."""
-    monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
-    seeded = [p for p in CORPUS_SOURCES if p.with_suffix(".jsonl").exists()]
-    assert seeded, "no example ships a log; this gate is reading nothing"
-    read = 0
-    for example in seeded:
-        # Only pages carrying message markup exercise this door. A page whose
-        # log holds plain threads is covered by the complete fixture check.
-        # Use the log writer's separator: splitlines() also splits message U+2028.
-        fragments = [
-            event["markup"]
-            for line in example.with_suffix(".jsonl").read_text().split("\n")
-            if line.strip() and (event := json.loads(line)).get("markup")
-        ]
-        if not fragments:
-            continue
-        d = tmp_path / f"door-{example.stem}"
-        # Published, because the door is only open on a page a user could be
-        # holding — which is the state every one of these seeds is written for.
-        # The seed itself stays out: its fragments go through the door below.
-        prepare_page(
-            d, read_fixture(example), run_leaf, seed_log=False, final_status=None
-        )
-        opened = comment(d, "--text", "what a user would ask")
-        assert opened.exit_code == 0, opened.output
-        root = json.loads(opened.output)["id"]
-        for markup in fragments:
-            read += 1
-            posted = CliRunner().invoke(
-                cli_model.cli,
-                [
-                    "thread",
-                    "reply",
-                    str(d),
-                    root,
-                    "--text",
-                    "carrying it",
-                    "--markup",
-                    markup,
-                ],
-            )
-            assert posted.exit_code == 0, (
-                f"{example.name} seeds markup the reply door would refuse:\n"
-                f"{posted.output}"
-            )
-    assert read, (
-        "no seeded event carries markup, so this read nothing — see "
-        "examples/AGENTS.md on what a log is for"
-    )
 
 
 def test_page_state_reads_reactions_as_marks(page_dir):

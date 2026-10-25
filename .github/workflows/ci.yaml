@@ -222,9 +222,11 @@ jobs:
       - uses: ./.github/actions/setup
 
       # A step that overruns fails the job before the six-hour job deadline, which
-      # would cancel the run and never summon tend.
+      # would cancel the run and never summon tend. An explicit `bash` adds
+      # `pipefail`, so pytest's status survives `tee`.
       - name: 🧪 Python tests
         timeout-minutes: 300
+        shell: bash
         run: |
           mkdir -p .tmp/test-results
           uv run pytest tests -n 2 -v --run-nightly --junitxml=.tmp/test-results/results.xml \

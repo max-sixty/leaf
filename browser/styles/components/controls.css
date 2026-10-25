@@ -485,28 +485,40 @@ svg[data-lf-icon] {
 )::before {
   content: counter(lf-disclosure, disclosure-open) " " / "";
 }
-/* The faces of Leaf's control roles, one face each: `symbol`, `word`, `commit`,
- * `item` and `mark`. A widget builds a control by its role (`offerAction`), and
+/* The faces of Leaf's control roles, one face each: `symbol`, `word`, `commit` and
+ * `mark`. A widget builds a control by its role (`offerAction`), and
  * prepaint.js (`ACTION_FACES`) is the one place a role's classes are spelled and says
  * what each role is for. Each face holds across document and shadow trees; a package
  * places a control and may set its density, but restates none of its face. Margin
  * entries, reaction chips, the response bar and the floating panel keep their own
  * families, each drawn by its one owner.
  *
- * The word face. Authored .button controls wear it too, and `.button.primary` the
- * commit face, so a page's own controls match Leaf's (page-layout.md). Labels wrap
- * within their available width; controls that require one line declare it locally.
- * The block padding stands one line of words a line tall (`--lf-line`), less the 1px
- * border, and a finger's floor is the button's reach (surfaces.css), so a rule
- * restating the padding restates the line with it. */
+ * The word face: words in the muted ink with no frame, until a hovering pointer or
+ * visible focus lays the chip under them and inks them. A press leaves focus on the
+ * control, and a chip that stayed would set it apart from its unpressed neighbours. A
+ * word once also came framed on the card ground, a second look for the same press,
+ * until the user chose the quiet one on 25 October. A toggle's `aria-pressed` keeps
+ * its own selected face (integration.css), so the chosen mode still shows. Authored
+ * .button controls wear the word face too, and `.button.primary` the commit face, so
+ * a page's own controls match Leaf's (page-layout.md). Labels wrap within their
+ * available width; controls that require one line declare it locally. The block
+ * padding stands one line of words a line tall (`--lf-line`), less the 1px border,
+ * and a finger's floor is the button's reach (surfaces.css), so a rule restating the
+ * padding restates the line with it. */
 :is(.lf-btn, .button) {
   padding: max(4px, (var(--lf-line) - 1lh) / 2 - 1px) 10px;
-  border: 1px solid var(--border-2);
+  border: 1px solid transparent;
   border-radius: var(--r);
-  background: var(--card);
+  background: transparent;
   cursor: pointer;
-  color: var(--ink);
+  color: var(--muted);
   display: inline-block;
+}
+:is(.lf-btn, .button):where(
+  :not(:disabled, [aria-disabled="true"])[data-lf-focus-visible]
+) {
+  background: var(--chip);
+  color: var(--ink);
 }
 /* A native radio or checkbox and its label form one compact target. The native
  * mark carries selection; the label supplies the aim floor and focus ring without
@@ -576,35 +588,15 @@ svg[data-lf-icon] {
    elsewhere, so a button's hover face waits for a pointer that hovers; under a finger
    the press shows its result instead. */
 @media (hover: hover) {
-  :is(.lf-btn, .button):where(:not(:disabled, [aria-disabled="true"]):hover) {
-    background: var(--chip);
-  }
-}
-/* The item face: a row of a list or menu, the word face's metrics with no frame and
- * the muted ink until a hovering pointer or visible focus stands on it and lays the
- * chip under it. A press leaves focus on the row, and a chip that stayed would set it
- * apart from the rows beside it. The row's own owner lays its words out. */
-.lf-btn.lf-quiet-action {
-  border-color: transparent;
-  background: transparent;
-  color: var(--muted);
-  box-shadow: none;
-}
-.lf-btn.lf-quiet-action:where(
-    :not(:disabled, [aria-disabled="true"])[data-lf-focus-visible]
-  ) {
-  background: var(--chip);
-  color: var(--ink);
-}
-@media (hover: hover) {
-  .lf-btn.lf-quiet-action:where(:not(:disabled, [aria-disabled="true"]):hover) {
+  :is(.lf-btn, .button):where(:not(:disabled, [aria-disabled="true"])):hover {
     background: var(--chip);
     color: var(--ink);
+    box-shadow: none;
   }
 }
 /* The symbol face: one of Leaf's icons on a square face, `--lf-icon-action-face` tall
  * and as wide as its hit box (response.css), quiet until a hovering pointer or visible
- * focus lays the chip under it, as an item's does. A symbol once also came on the
+ * focus lays the chip under it, as a word's does. A symbol once also came on the
  * word face's bordered card in some widgets, a second look for the same press, until
  * the two merged here. A control that draws its state in its own ink, such as Send
  * or Resolve (response.css), states that ink after this rule, at least as heavily. */
@@ -633,13 +625,14 @@ svg[data-lf-icon] {
     box-shadow: none;
   }
 }
-/* The committing action carries the accent as ink on the ordinary card, under a
-   softened accent hairline, with the tint rising on hover. The selected face below is its
-   neighbour — a full accent border on the chip ground — so a toggle and a commitment
-   never read as one. */
+/* The committing action carries the accent as ink on the card ground, under a
+   softened accent hairline, with the tint rising on hover: the one framed word on a
+   surface. The selected face (integration.css) is its neighbour — a full accent border
+   on the chip ground — so a toggle and a commitment never read as one. */
 :is(.lf-btn, .button).primary {
   color: var(--accent);
   border-color: color-mix(in srgb, var(--accent) 45%, var(--card));
+  background: var(--card);
 }
 @media (hover: hover) {
   :is(.lf-btn, .button).primary:not(:disabled, [aria-disabled="true"]):hover {

@@ -341,7 +341,7 @@ customElements.define(
             })}
           >
             <button
-              ${offeredAction("item")}
+              ${offeredAction("word")}
               role="menuitemcheckbox"
               aria-checked=${String(comparing)}
               aria-controls="lf-file-editor-compared"
@@ -355,7 +355,7 @@ customElements.define(
             ].map(
               ([label, run]) => html`
                 <button
-                  ${offeredAction("item")}
+                  ${offeredAction("word")}
                   role="menuitem"
                   aria-disabled=${busy ? "true" : nothing}
                   @click=${run}

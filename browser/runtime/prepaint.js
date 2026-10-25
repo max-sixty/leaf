@@ -458,22 +458,21 @@
   // - `symbol`: a press drawn as one of Leaf's icons, named by its tooltip and
   //   accessible name (browser/AGENTS.md, "Visual grammar"): quiet at rest, the chip
   //   under a hovering pointer or visible focus.
-  // - `word`: a press that says what it does in words, on the card ground inside a
-  //   hairline. A toggle is a word whose `aria-pressed` the theme draws as selected.
-  // - `commit`: the one press on a surface that commits the user's work, in the accent.
-  // - `item`: a row of a list or menu the user picks from, whose words are the row: no
-  //   frame until the pointer or focus stands on it, since a frame around every row
-  //   of a list draws a stack of buttons where the reader looks for a list.
+  // - `word`: a press that says what it does in words, quiet as a symbol is, a row of
+  //   a list or menu included. A toggle is a word whose `aria-pressed` the theme draws
+  //   as selected.
+  // - `commit`: the one press on a surface that commits the user's work, framed in the
+  //   accent.
   // - `mark`: a small symbol seated on the thing it acts on, at a corner or on a
   //   block's border toolbar, where a larger face would cover the thing.
   //
   // A difference that was only a past choice is not a role: a symbol once came bordered
-  // in some widgets and quiet in others, and a word quiet in some, before both merged.
+  // in some widgets and quiet in others, and a word framed in some, quiet in others and
+  // a list's row in a third, before each merged.
   const ACTION_FACES = {
     symbol: "lf-icon-action",
     word: "lf-btn",
     commit: "lf-btn primary",
-    item: "lf-btn lf-quiet-action",
     mark: "lf-mark-action",
   };
   // `label` names the press. A worded role shows it, and `offerAction` writes it as the

@@ -1945,7 +1945,7 @@ customElements.define(
                   ? this.#time(moment.time, moment.stream)
                   : "Unavailable";
                 return html`<button
-                  ${offeredAction("item", "lf-trace-bookmark")}
+                  ${offeredAction("word", "lf-trace-bookmark")}
                   ?hidden=${!(available.includes(moment) || !moment.scope)}
                   ?disabled=${!moment.scope || q}
                   aria-label=${`Moment ${moment.number} · ${moment.label} · ${time}`}

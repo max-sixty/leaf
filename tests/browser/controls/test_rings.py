@@ -330,7 +330,7 @@ customElements.define('lf-shadow-focus', class extends HTMLElement {
 
 
 def _button_pairs(serve):
-    """A page holding two symbols and two worded buttons, side by side."""
+    """A page holding two symbols, two worded buttons and a two-mode toggle."""
     return serve(
         leaf_page(
             "Button pairs",
@@ -350,9 +350,12 @@ customElements.define('lf-button-pairs', class extends HTMLElement {
       ['quiet-next', 'symbol', 'next'],
       ['plain-back', 'word'],
       ['plain-next', 'word'],
+      ['mode-on', 'word'],
+      ['mode-off', 'word'],
     ]) {
       const button = offerAction(role, '', id, {icon});
       button.id = id;
+      if (id.startsWith('mode-')) button.setAttribute('aria-pressed', String(id === 'mode-on'));
       this.append(button);
     }
   }
@@ -1185,3 +1188,16 @@ def test_the_ring_reading_measures_a_displaced_pseudo_element(browser, serve):
         width: 120px; height: 2px;`;
     }""")
     assert any("top edge is under" in c for c in current_location_ring(page)["covers"])
+
+
+def test_a_quiet_toggle_still_shows_its_chosen_mode(browser, serve):
+    """Words are quiet, with no frame at rest, so a mode toggle's chosen mode draws its
+    own selected face: a frame and ground the unchosen word beside it lacks."""
+    page = open_page(browser, _button_pairs(serve))
+    page.mouse.move(0, 0)
+    rendered(page)
+    face = "el => [getComputedStyle(el).borderTopColor, getComputedStyle(el).backgroundColor]"
+    chosen = page.locator("#mode-on").evaluate(face)
+    other = page.locator("#mode-off").evaluate(face)
+    assert other == page.locator("#plain-back").evaluate(face)
+    assert chosen[0] != other[0] and chosen[1] != other[1], (chosen, other)

@@ -291,10 +291,9 @@ one kind wears one face: `offerAction(role, className, label, {title, icon})`, o
   "Icons"). `label` is its tooltip and accessible name, and `title` replaces the
   tooltip where it says more, such as the key that does the same. In a template, put
   `${iconTemplate(name, "lf-action-icon")}` inside the button.
-- `"word"`, a press that says what it does; `label` is its words. A toggle is a word
-  with `aria-pressed`, which draws as selected.
+- `"word"`, a press that says what it does, a row of a list or menu included; `label`
+  is its words. A toggle is a word with `aria-pressed`, which draws as selected.
 - `"commit"`, the one press on a surface that commits the user's work.
-- `"item"`, a row of a list or menu the user picks from.
 - `"mark"`, a small symbol seated on the thing it acts on, at its corner.
 
 `className` places the control; don't restyle its face. Prefer a symbol where a familiar

@@ -466,7 +466,7 @@ customElements.define(
                         (thread) => thread.key,
                         (thread) =>
                           html`<button
-                            ${offeredAction("item", "lf-vr-thread-link")}
+                            ${offeredAction("word", "lf-vr-thread-link")}
                             @click=${(event) => {
                               closeNativeLayer(
                                 event.currentTarget.closest("[popover]"),

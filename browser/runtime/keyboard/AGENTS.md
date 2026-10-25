@@ -63,7 +63,10 @@ reopens it.
 Page scope holds commands about the page; a surface's scope holds commands about its
 contents. A page-level letter must be useful on every page; any other control is
 reachable by Tab, native activation, obligation digits or Go-to hints. A lowercase
-letter steps a walk forward and Shift steps it back, wrapping at either end. A surface
+letter steps a walk forward and Shift steps it back, wrapping at either end. A walk, a
+scroll, Go-to and any other command that takes the user somewhere declares `travels`
+on its row; every other command leaves the control it was pressed on where it stood on
+screen (`bindings.js`). A surface
 may reuse a page key for the same intent with a nearer destination. While the user is
 on an obligation, or its margin or thread representative, core forwards only the
 widget's declared `contextKeys`, and widgets assign their own `1`–`9`.

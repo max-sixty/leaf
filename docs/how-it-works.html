@@ -2693,9 +2693,9 @@ leaf task end ./review &lt;todo-id&gt; done --text "The load check is recorded o
               </li>
               <li id="width-wide">
                 <code>wide</code> starts at the edge the text starts from (the left, in
-                a left-to-right page) and extends toward its end, up to 840px, enough
-                for 100 columns of code. Wide blocks share this width so they align with
-                one another.
+                a left-to-right page) and extends toward its end, up to about 910px,
+                enough for 100 columns of code. Wide blocks share this width so they
+                align with one another.
               </li>
               <li id="width-available">
                 <code>available</code> uses the window's width after subtracting the
@@ -4126,8 +4126,8 @@ leaf task end ./review &lt;todo-id&gt; done --text "The load check is recorded o
               <li id="progress-picked">
                 <time>1s</time> <small>observation</small>
                 <strong>Delivered</strong> The hook puts the comment into the agent’s
-                turn, and the turn's next hook confirms the agent read it. Until the
-                agent names its work, the page reads
+                turn, and Claude Code's transcript then confirms it reached the agent.
+                Until the agent names its work, the page reads
                 <em>Claude working — has the comment</em>.
               </li>
               <li id="progress-reply">
@@ -4192,9 +4192,9 @@ leaf task end ./review &lt;todo-id&gt; done --text "The load check is recorded o
                       between the agent's steps, put the delivery in the agent's turn,
                       or the agent confirmed the complete pointer reading with
                       <code>leaf delivery ack</code>. Claude Code reads a hook's output
-                      only once the hook exits, and Escape before then drops it, so the
-                      turn's next hook confirms the delivery; if the turn ends first,
-                      Leaf delivers the update again.
+                      only once the hook exits, and Escape before then can drop it, so
+                      Leaf confirms the delivery once Claude Code's transcript shows it;
+                      if the turn ends without that, Leaf delivers the update again.
                     </p>
                     <p>
                       <strong>A <code>leaf wait</code> loop.</strong> The agent's

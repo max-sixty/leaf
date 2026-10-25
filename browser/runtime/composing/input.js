@@ -104,8 +104,8 @@ class AttachedMediaShelf extends LitElement {
     this.actions = null;
     // Whether the pictures are a sent message's, drawn in its face (`sentMedia`).
     this.sent = false;
-    this.undoIcon = iconElement("undo", "lf-corner-mark-icon");
-    this.removeIcon = iconElement("cross", "lf-corner-mark-icon");
+    this.undoIcon = iconElement("undo", "lf-mark-icon");
+    this.removeIcon = iconElement("cross", "lf-mark-icon");
     // The picture is rebuilt only when the drawing changes, so a repaint that changes
     // nothing about it leaves its node in place.
     this.pictured = { drawing: null, target: null, node: null };
@@ -180,7 +180,7 @@ class AttachedMediaShelf extends LitElement {
               </button>
               <button
                 type="button"
-                class="lf-corner-mark lf-composer-drawing-undo"
+                class="lf-mark lf-corner-mark lf-composer-drawing-undo"
                 aria-label="Undo last stroke"
                 title="Undo last stroke"
                 @mousedown=${(event) => event.preventDefault()}
@@ -190,7 +190,7 @@ class AttachedMediaShelf extends LitElement {
               </button>
               <button
                 type="button"
-                class="lf-corner-mark"
+                class="lf-mark lf-corner-mark"
                 aria-label="Remove drawing"
                 title="Remove drawing"
                 @mousedown=${(event) => event.preventDefault()}
@@ -204,11 +204,11 @@ class AttachedMediaShelf extends LitElement {
       media.map(({ index, url }) => {
         const remove = html`<button
           type="button"
-          class="lf-corner-mark lf-composer-media-remove"
+          class="lf-mark lf-corner-mark lf-composer-media-remove"
           aria-label=${`Remove attached image ${index + 1}`}
           @click=${() => this.actions.removeMedia(index)}
         >
-          ${iconTemplate("cross", "lf-corner-mark-icon")}
+          ${iconTemplate("cross", "lf-mark-icon")}
         </button>`;
         // A sent message's picture is the one its message draws (markdown.js, the image
         // rule), in a paragraph of its own as the message sets it, with the removal mark
@@ -420,14 +420,9 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     // pair, so a box cannot be handed a send button dressed as something else. `primary`
     // is a different face: it dresses the press's own box, which is the hit target and
     // stands larger than the disc wherever the pointer is coarse. A send press never
-    // wears it. A press standing among words rather than in the field, as a rewrite's
-    // Save at its message's head, takes no glyph (`icon: null`) and wears its word.
+    // wears it.
     sendBtn.classList.add("lf-icon-action", "lf-compose-submit");
-    if (icon) sendBtn.replaceChildren(iconElement(icon, "lf-action-icon"));
-    else {
-      const word = typeof sends === "function" ? sends() : sends;
-      sendBtn.replaceChildren(word.charAt(0).toUpperCase() + word.slice(1));
-    }
+    sendBtn.replaceChildren(iconElement(icon, "lf-action-icon"));
     const mediaShelf = document.createElement(MEDIA_SHELF_TAG);
     mediaShelf.className = sentMedia ? "lf-msg-media" : "lf-composer-media scroll";
     mediaShelf.sent = sentMedia;

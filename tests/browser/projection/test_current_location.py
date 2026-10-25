@@ -847,7 +847,9 @@ def test_escape_lets_go_of_the_obligation_the_users_current_location_names(
     # page at all.
     page.keyboard.press("?")
     expect(
-        page.locator('.lf-command-reference tr[data-lf-command="navigation.release"]')
+        page.locator(
+            '.lf-command-reference [role=row][data-lf-command="navigation.release"]'
+        )
     ).to_contain_text("Let go")
     page.keyboard.press("Escape")  # the reference's own rung, which hands focus back
     expect(page.locator(".lf-command-reference")).not_to_have_class(re.compile("open"))

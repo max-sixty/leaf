@@ -1163,9 +1163,8 @@
     width: 100cqi;
     font: 13px / 1.45 var(--sans);
   }
-  .lf-fp-copy-item wa-icon {
+  .lf-fp-copy-icon {
     color: var(--lf-fp-muted);
-    font-size: 13px;
   }
   .lf-fp-chevron {
     width: 12px;
@@ -1633,8 +1632,13 @@
       0 0 0 1px var(--lf-fp-ring),
       var(--raise-2);
   }
-  .lf-floating-panel:not([data-menu]) .lf-fp-menu {
+  .lf-floating-panel:not([data-menu]) .lf-fp-menu:not([data-leaving]) {
     display: none;
+  }
+  /* A closing menu keeps its last rows while it fades out (floating-panel.js,
+     `menuFade`), inert and passing presses to the page beneath. */
+  .lf-fp-menu[data-leaving] {
+    pointer-events: none;
   }
   .lf-floating-panel[data-menu] .lf-fp-menu {
     @starting-style {

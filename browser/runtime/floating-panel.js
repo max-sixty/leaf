@@ -381,12 +381,12 @@ export function createFloatingPanel({
   // corner mark on the box's top-right corner, chosen over one at the row's end on 15
   // October. It presses the fold command's own row, as the menu's row does; that row and
   // `.` are the keyboard's and a finger's ways, so it takes no Tab stop of its own.
-  const minimize = el("button", "lf-corner-mark lf-fp-minimize");
+  const minimize = el("button", "lf-mark lf-corner-mark lf-fp-minimize");
   minimize.type = "button";
   minimize.tabIndex = -1;
   minimize.title = "Fold to the leaf";
   minimize.setAttribute("aria-label", "Fold to the leaf");
-  minimize.append(iconElement("subtract", "lf-corner-mark-icon"));
+  minimize.append(iconElement("subtract", "lf-mark-icon"));
   minimize.addEventListener("click", () =>
     rows()
       .find((entry) => entry.key === `command:${FOLD}`)
@@ -557,6 +557,12 @@ export function createFloatingPanel({
   // the list moves none of the menu's rows.
   const menuAt = signal(null);
   let menuRoom = null;
+  // A closing menu's fade, which holds its last rows, inert, until it ends, so the menu
+  // goes out in a disclosure's time as it came in; null while it stands or is gone.
+  // Whether the menu was drawn open at the last paint tells a close from a menu that
+  // was never shown.
+  let menuFade = null;
+  let menuDrawn = false;
   let filter = "open";
   let query = "";
   let searching = false;
@@ -609,7 +615,8 @@ export function createFloatingPanel({
   // messages: on opening, the whole of it, at the turn the user comes back for
   // (`showReturnTurn`); after the user's turn, past it, at its end (`end`).
   let landing = null;
-  const drawnTurns = () => outletOf()?.querySelectorAll(".lf-msg").length ?? 0;
+  const drawnTurns = () =>
+    outletOf()?.querySelectorAll(".lf-msg[data-message]").length ?? 0;
 
   // ---------- one native editor per destination ----------
   // The errors the field can say now, newest first (errors.js): about nothing, not yet
@@ -746,6 +753,7 @@ export function createFloatingPanel({
       },
       send: (_text, raw, owns) => {
         let flight = null;
+        streamSend();
         const handle = sendMessage(
           PAGE_DRAFT,
           owns,
@@ -800,14 +808,17 @@ export function createFloatingPanel({
         hint: () => saying(key, replyInput()),
         hintAside: () => passingAside(key, replyInput()),
         accessibleName: () => `Reply to ${threadTitle(key)}`,
-        sent: () => {
+        sending: streamSend,
+        sent: (flight) => {
           // The user's turn lets go of the height a press held (`pressAt`).
           room = null;
           rewriting = false;
+          releaseField();
           landing = { key, after: drawnTurns(), end: true };
           // The user's turn grows the view to show it and takes New reply away.
           waiting = null;
           queueMicrotask(paint);
+          holdRefused(flight);
         },
       });
     return replyOptions.get(key);
@@ -1231,6 +1242,7 @@ export function createFloatingPanel({
     landReader();
     fitAnswer();
     stood = openView()?.offsetHeight ?? null;
+    stoodAt = openView()?.getBoundingClientRect().top ?? null;
     followBox();
   });
   const follow = sizeObserver(() => {
@@ -1281,6 +1293,15 @@ export function createFloatingPanel({
     });
   };
   onUserInput(beginGesture);
+  // A send is the user's change joining the stream the box shows (box-motion.js,
+  // "send"): the box reads where that stream stands before the send draws, and the
+  // readings until the send's rendering settles carry it from there on the box's own
+  // tween.
+  function streamSend() {
+    if (gesture === null) return;
+    gesture = "send";
+    following.stream();
+  }
   window.addEventListener("click", beginGesture, { capture: true, passive: true });
   function followBox() {
     // How far the box reaches up from the window's foot, which the root's
@@ -1297,7 +1318,7 @@ export function createFloatingPanel({
     const compact = host.dataset.rest === "mark";
     const duration = compact
       ? foldMs()
-      : performance.now() < viewMovingUntil
+      : performance.now() < viewMovingUntil && gesture !== "send"
         ? viewResizeMs()
         : resizeMs();
     following.follow({ duration, easing: compact ? foldEase() : ease() }, compact);
@@ -1383,8 +1404,9 @@ export function createFloatingPanel({
   // The view last drawn open, by its route's key.
   let drawnTop = null;
   // The open thread's view's height as last drawn, which the caret entering a rewrite
-  // holds.
+  // holds, and its top.
   let stood = null;
+  let stoodAt = null;
   let rewriting = false;
   const holdThread = (height) => {
     if (!trail.value.at(-1)?.thread || room !== null || height === null) return false;
@@ -1463,6 +1485,50 @@ export function createFloatingPanel({
     }
     paint();
   });
+  // A turn the log refuses leaves the view as news, while the user may be aiming at
+  // the view's head or at the controls over the field, so neither moves. The view keeps
+  // its head where it stood with the turn (`stoodAt`), the turn's room standing empty,
+  // until the user's next turn, as a press's hold does. The field keeps the height the
+  // send left it at, the words it hands back scrolling inside it under the refusal's
+  // cover, until the user next writes or presses there, which grows it as typing does.
+  // The refusal has drawn the thread without the turn, and the field with the words, by
+  // the time it settles the send, so both hold before the frame shows either. #3400
+  // dropped the view's hold, as its controls no longer stood at its head; the words
+  // given back then carried the controls up from under the user's aim.
+  function holdRefused(flight) {
+    const route = trail.value.at(-1);
+    let cleared = null;
+    nextRender(() => {
+      cleared = replyInput()?.getBoundingClientRect().height ?? null;
+    });
+    void Promise.resolve(flight).then((sent) => {
+      const view = openView();
+      if (sent || trail.value.at(-1) !== route || !view || stoodAt === null) return;
+      holdField(replyInput(), cleared);
+      const height = view.offsetHeight + view.getBoundingClientRect().top - stoodAt;
+      if (holdThread(height)) paint();
+    });
+  }
+  let fieldHold = null;
+  function holdField(input, height) {
+    releaseField();
+    if (!input || height === null) return;
+    if (input.getBoundingClientRect().height <= height + 0.5) return;
+    const release = new AbortController();
+    fieldHold = { input, release };
+    input.style.setProperty("max-height", layoutPx(height));
+    for (const type of ["pointerdown", "beforeinput"])
+      input.addEventListener(type, releaseField, {
+        capture: true,
+        signal: release.signal,
+      });
+  }
+  function releaseField() {
+    if (!fieldHold) return;
+    fieldHold.release.abort();
+    fieldHold.input.style.removeProperty("max-height");
+    fieldHold = null;
+  }
   // A list takes its room as it stands before the paint that would change it, once
   // drawn: what it holds then is what it fits, so taking it writes only the height the
   // list already stands at.
@@ -1668,6 +1734,7 @@ export function createFloatingPanel({
       (before ? routeKey(before) : null) !== (after ? routeKey(after) : null);
     if (changed) {
       room = null;
+      releaseField();
       rewriting = false;
       pressed = null;
       quoteExpanded = false;
@@ -1698,8 +1765,9 @@ export function createFloatingPanel({
       if (focus) focusView(after, drawn, stoodIn);
       return;
     }
+    // A view a send opens rises with the box as the stream does (`streamSend`).
     const arriving = stage.querySelector(".lf-fp-view:not([data-leaving])");
-    if (arriving)
+    if (arriving && gesture !== "send")
       playMotion(arriving, [{ opacity: 0 }, { opacity: 1 }], {
         duration: fadeMs(),
         delay: leaving ? outMs() : 0,
@@ -1842,7 +1910,7 @@ export function createFloatingPanel({
     render(
       menuItem(
         `Copy ${entry.label}`,
-        html`<wa-icon library="system" name="copy" variant="regular"></wa-icon>`,
+        iconTemplate("copy", "lf-fp-copy-icon"),
         () => {},
         {
           disabled: entry.disabled,
@@ -3256,17 +3324,43 @@ export function createFloatingPanel({
     );
     keeps(errorDot, "data-shown", unseen ? "" : null);
 
-    render(menuOpen.value ? menuTemplate() : nothing, menu);
+    if (menuOpen.value) {
+      // A menu reopened while it fades draws afresh, as one opened after it had gone.
+      if (menuFade) {
+        menuFade.cancel();
+        menuFade = null;
+        render(nothing, menu);
+      }
+    } else if (menuDrawn && !menuFade) {
+      menu.setAttribute("data-leaving", "");
+      menuFade = playMotion(menu, [{ opacity: 1 }, { opacity: 0 }], {
+        duration: motionTime("--lf-motion-disclosure", menu),
+        easing: "linear",
+      });
+      menuFade?.finished.then(
+        () => {
+          menuFade = null;
+          paint();
+        },
+        () => {},
+      );
+    }
+    menuDrawn = menuOpen.value;
+    keeps(menu, "data-leaving", menuFade ? "" : null);
+    keeps(menu, "inert", menuFade ? "" : null);
+    if (!menuFade) render(menuOpen.value ? menuTemplate() : nothing, menu);
     // A copy control the menu keeps for its next showing leaves the list the render just
     // took down, which it would otherwise hold whole, rows and all, as its parent.
     for (const copy of [...copyItems.values(), ...copies.values()])
       if (!copy.isConnected) copy.remove();
-    keeps(
-      menu,
-      "data-level",
-      menuOpen.value && menuAt.value ? menuAt.value.view : null,
-    );
-    keeps(menu, "style", menuOpen.value && menuRoom ? `height: ${menuRoom}px` : null);
+    if (!menuFade) {
+      keeps(
+        menu,
+        "data-level",
+        menuOpen.value && menuAt.value ? menuAt.value.view : null,
+      );
+      keeps(menu, "style", menuOpen.value && menuRoom ? `height: ${menuRoom}px` : null);
+    }
     // A text to select, which About holds where no clipboard copies it, is no menu's row.
     keeps(menu, "role", menu.querySelector("textarea") ? "dialog" : "menu");
     if (menuOpen.value) {

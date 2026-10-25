@@ -267,7 +267,7 @@ customElements.define(
 
     #offerControls() {
       if (quoted(this) || this.#tools) return;
-      this.#tools = offer("div", "lf-draft-tools");
+      this.#tools = offer("div", "lf-draft-tools lf-mark-bar");
       this.#tools.dataset.lfRuntime = "";
       this.append(this.#tools);
       // Copy is the toolbar's last mark, so Tab from the editor reaches Save first.
@@ -276,7 +276,6 @@ customElements.define(
         () => this.#editor?.value ?? this.controller.read().state.edit.value,
         "Markdown",
       );
-      this.#copy.classList.add("lf-quiet-action");
       this.#paintTools();
       this.#ensureCommands();
     }
@@ -336,14 +335,14 @@ customElements.define(
             const retry = key === "save" && this.#failed;
             const name = retry ? "Retry" : title;
             return html`<button
-              ${offered("lf-btn lf-quiet-action lf-draft-action")}
+              ${offered("lf-mark")}
               data-lf-draft-action=${key}
               ?hidden=${key === "edit" ? editing : !editing}
               aria-expanded=${key === "edit" ? String(editing) : nothing}
               aria-label=${name}
               title=${name}
             >
-              ${iconTemplate(retry ? "retry" : icon, "lf-draft-icon")}
+              ${iconTemplate(retry ? "retry" : icon, "lf-mark-icon")}
             </button>`;
           })}
           ${this.#copy}`,

@@ -158,11 +158,6 @@ def test_an_agent_reply_can_move_a_thread_to_its_revised_visual(page_dir):
             "attention": None,
         }
     ]
-    transcript = CliRunner().invoke(
-        cli_model.cli, ["page", "transcript", str(page_dir)]
-    )
-    assert transcript.exit_code == 0, transcript.output
-    assert "> § flow · node:A" in transcript.output
 
     checked = CliRunner().invoke(cli_model.cli, ["page", "check", str(page_dir)])
     assert checked.exit_code == 0, checked.output

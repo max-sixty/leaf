@@ -1082,6 +1082,15 @@ def read_revision(page_dir: Path, revision: int) -> RevisionReading:
     return readings.hold(marker, stamp, reading)
 
 
+def latest_title(page_dir: Path) -> tuple[int | None, str]:
+    """The page's latest revision and its authored title, empty where the page has
+    no revision or the revision no title."""
+    revision = latest_revision(page_dir)
+    if revision is None:
+        return None, ""
+    return revision, read_revision(page_dir, revision).document.authoring.title.strip()
+
+
 class _Readings:
     """A page's held revision readings, least recently read first, within a budget.
 

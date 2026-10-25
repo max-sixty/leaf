@@ -702,7 +702,7 @@ def test_a_new_codex_adapter_observes_ordinary_turns_without_a_prior_hook(
     assert cleanup_model.session_record("codex-thread") is None
     endpoint = app_server(handle)
     program, _log = fake_codex_cli(tmp_path)
-    session_model.cmd_waiting(page_dir, "Reviewing the page")
+    session_model.cmd_waiting(page_dir)
     finished = tmp_path / "codex-start-finished"
     started = under_codex(
         shlex.join(claim_command(page_dir, program, endpoint=endpoint)),
@@ -776,7 +776,7 @@ def test_codex_receipt_leaves_input_for_the_new_page_owner(page_dir):
         {"kind": "comment", "id": "accepted", "author": "user", "text": "hi"},
     )
     delivered = events_model.read_events(page_dir)[-1]
-    session_model.cmd_waiting(page_dir, "successor is listening")
+    session_model.cmd_waiting(page_dir)
     successor = record_claim(page_dir, id="successor", harness="codex", agent="Codex")
     with service_model.PageTransaction(page_dir) as page:
         reading = session_model.PageTick(
@@ -808,11 +808,7 @@ def test_codex_receipt_leaves_input_for_the_new_page_owner(page_dir):
 
     assert acknowledged_through(page_dir) == 0
     assert service_model.page_claim(page_dir) == successor
-    status = declared(page_dir)
-    assert (status["state"], status["detail"]) == (
-        "waiting",
-        "successor is listening",
-    )
+    assert declared(page_dir)["state"] == "waiting"
     pickups = [
         event
         for event in events_model.read_events(page_dir)
@@ -2864,7 +2860,7 @@ def test_codex_restart_finishes_an_accepted_batch_without_queueing_again(
         {"kind": "comment", "id": "accepted", "author": "user", "text": "hi"},
     )
     delivered = events_model.read_events(page)[-1]
-    session_model.cmd_waiting(page, "comment on the prototype")
+    session_model.cmd_waiting(page)
     with service_model.PageTransaction(page) as transaction:
         reading = session_model.PageTick(
             page,
@@ -2928,7 +2924,7 @@ def test_a_later_claim_preserves_the_running_transport(
     this adapter is not on is refused rather than ignored."""
     page = codex_claimed_page
     program, log = fake_codex_cli(tmp_path)
-    session_model.cmd_waiting(page, "comment on the prototype")
+    session_model.cmd_waiting(page)
     environment = codex_env | {
         "CODEX_THREAD_ID": "codex-thread",
         "FAKE_CODEX_LOG": str(log),
@@ -2989,7 +2985,7 @@ def test_codex_adapter_follows_ownership_across_idle_and_server_stop(
     """Status and server changes do not end a route still owned by the task."""
     page = codex_claimed_page
     program, log = fake_codex_cli(tmp_path)
-    session_model.cmd_waiting(page, "comment on the prototype")
+    session_model.cmd_waiting(page)
     assert hosting_model.cmd_stop(page) is True
     checks = tmp_path / "adapter-checks.json"
     adapter = spawn_probe(
@@ -3051,7 +3047,7 @@ raise SystemExit(adapter.run_adapter(os.environ["CODEX_PATH"]))
             failure="the adapter never completed its idle-page reads",
         )
         assert codex_adapter_model.adapter_is_live("codex-thread")
-        session_model.cmd_waiting(page, "resumed review")
+        session_model.cmd_waiting(page)
         asked = append_carried_log_record(
             page, {"kind": "comment", "author": "user", "text": "Continue this review"}
         )
@@ -3097,7 +3093,7 @@ def test_an_offline_sibling_does_not_stop_browser_comments_reaching_codex(
     assert stamped.exit_code == 0, stamped.output
     offline = tmp_path / "a-offline-page"
     vendoring_model.cmd_init(offline)
-    session_model.cmd_waiting(offline, "earlier review")
+    session_model.cmd_waiting(offline)
     write_record(
         offline / "service.json",
         {
@@ -3110,7 +3106,7 @@ def test_an_offline_sibling_does_not_stop_browser_comments_reaching_codex(
     )
 
     program, log = fake_codex_cli(tmp_path)
-    session_model.cmd_waiting(live, "current review")
+    session_model.cmd_waiting(live)
     finished = tmp_path / "codex-start-finished"
     # Both page claims and the adapter belong to the same actual task harness.
     # A second fake Codex process would declare a replacement session lifetime.
@@ -3267,7 +3263,7 @@ def test_codex_adapter_exits_when_delivery_retries_outlive_its_claim(
 ):
     page = codex_claimed_page
     program, log = fake_codex_cli(tmp_path)
-    session_model.cmd_waiting(page, "comment on the prototype")
+    session_model.cmd_waiting(page)
     adapter = spawn_codex_adapter(
         spawn,
         program,
@@ -3325,7 +3321,7 @@ def test_codex_adapter_keeps_transferred_input_unreceived(
 ):
     page = codex_claimed_page
     program, log = fake_codex_cli(tmp_path)
-    session_model.cmd_waiting(page, "comment on the prototype")
+    session_model.cmd_waiting(page)
     queue_wait = tmp_path / "held-queue"
     adapter = spawn_codex_adapter(
         spawn,

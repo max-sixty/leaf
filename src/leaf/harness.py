@@ -232,12 +232,12 @@ class Harness:
         return True
 
     @classmethod
-    def run_ack(cls, delivery_id: str) -> str:
-        """How the reader of this session's printed delivery runs the `leaf wait
-        --ack` that confirms it and goes on waiting: the verb phrase the
-        delivery's `acknowledge` ends with. A wait held in a background task is
-        the default."""
-        return f"start `leaf wait --ack {delivery_id}` as the next background task"
+    def run_ack(cls, command: str) -> str:
+        """How the reader of this session's printed delivery runs `command`, which
+        confirms it and goes on waiting: the verb phrase the delivery's
+        `acknowledge` ends with. A wait held in a background task is the
+        default."""
+        return f"start `{command}` as the next background task"
 
     @classmethod
     def hook_context(cls, event: str, message: str) -> dict:
@@ -305,6 +305,13 @@ class Harness:
         holds a dialog open in the session's own window. `activity.claimant_turn`
         weighs it by that date against the claim's turn stamps, which the hooks
         write and so cannot see a turn end that runs no hook."""
+        return None
+
+    def session_name(self) -> str | None:
+        """The name the harness shows for this session now, such as one the user gave
+        it, or None where it shows none. Read live rather than kept in the claim,
+        since a harness names a session after its first prompt and renames it when
+        the user asks."""
         return None
 
 
@@ -454,6 +461,15 @@ class ClaudeCodeHarness(EnvironmentHarness):
         listing (`claude_code_session_records`)."""
         return claude_code_live_turn(claude_code_session_records(self.session))
 
+    def session_name(self) -> str | None:
+        """The `name` of the session's current registry record
+        (`claude_code_current_record`): Claude Code's own after the first prompt,
+        or the user's after `/rename`."""
+        name = claude_code_current_record(
+            claude_code_session_records(self.session)
+        ).get("name")
+        return name if isinstance(name, str) and name else None
+
     def inference_generator(self) -> Callable[..., dict]:
         from leaf.inference import claude_code_generate
 
@@ -472,8 +488,8 @@ class ClaudeCodeHarness(EnvironmentHarness):
 # wait` already running in the task's shell tool, which the model reads by
 # writing to that session rather than by starting a second watcher.
 _POLL_UNIFIED_EXEC = (
-    "the existing shell session — `leaf wait` before the first batch or "
-    "the rearmed `leaf wait --ack` afterward — with `write_stdin`"
+    "the existing shell session running `leaf wait`, alone or after "
+    "`leaf delivery ack`, with `write_stdin`"
 )
 
 
@@ -505,6 +521,10 @@ class CodexHarness(EnvironmentHarness):
         from leaf.inference import codex_generate
 
         return codex_generate
+
+    def session_name(self) -> str | None:
+        """The thread's name in Codex's session index (`codex_thread_names`)."""
+        return codex_thread_names().get(self.session)
 
     def ensure_delivery(self) -> None:
         with self.preparing_delivery():
@@ -650,13 +670,10 @@ class CodexHarness(EnvironmentHarness):
         return offer_hook_delivery(self.session, expected, received=event == "Stop")
 
     @classmethod
-    def run_ack(cls, delivery_id: str) -> str:
+    def run_ack(cls, command: str) -> str:
         """A Codex task's own wait lives in unified exec, the same session a
         watcher task or a direct loop polls."""
-        return (
-            f"run `leaf wait --ack {delivery_id}` in unified exec and poll it with "
-            "`write_stdin`"
-        )
+        return f"run `{command}` in unified exec and poll it with `write_stdin`"
 
     def nothing_listening(self, page_dir: Path, *, listening: bool) -> str:
         if listening:
@@ -907,9 +924,23 @@ def claude_code_sessions() -> Path:
     return config / "sessions"
 
 
+def claude_code_current_record(records: list[dict]) -> dict:
+    """The newest of a session's registry `records` whose process still runs, or
+    `{}` where none does: a worker that died without removing its record leaves a
+    second one beside the live worker's."""
+    stamped = [
+        record
+        for record in records
+        if isinstance(record.get("statusUpdatedAt"), int | float)
+        and isinstance(record.get("pid"), int)
+        and pid_alive(record["pid"])
+    ]
+    return max(stamped, key=lambda item: item["statusUpdatedAt"], default={})
+
+
 def claude_code_live_turn(records: list[dict]) -> dict | None:
-    """A session's live status from its registry `records`, taken from the newest
-    record whose process still runs: `waiting` while a turn holds a dialog open (a
+    """A session's live status from its current registry record
+    (`claude_code_current_record`): `waiting` while a turn holds a dialog open (a
     permission prompt, a question), `idle` once no turn runs (`shell` too, which
     is idle with a background command running), and `busy` otherwise.
 
@@ -921,14 +952,7 @@ def claude_code_live_turn(records: list[dict]) -> dict | None:
     (`activity.Turn.background`). The record belongs to the worker hosting the
     session's current sitting, so a background job whose worker has retired has
     none."""
-    stamped = [
-        record
-        for record in records
-        if isinstance(record.get("statusUpdatedAt"), int | float)
-        and isinstance(record.get("pid"), int)
-        and pid_alive(record["pid"])
-    ]
-    record = max(stamped, key=lambda item: item["statusUpdatedAt"], default={})
+    record = claude_code_current_record(records)
     state = {"busy": "busy", "waiting": "waiting", "idle": "idle", "shell": "idle"}
     if record.get("status") not in state:
         return None
@@ -991,6 +1015,52 @@ def claude_code_registry() -> list[dict]:
         if isinstance(record, dict):
             records.append(record)
     return records
+
+
+def codex_thread_names() -> dict[str, str]:
+    """Each thread's latest name in Codex's session index,
+    `$CODEX_HOME/session_index.jsonl`, by thread id.
+
+    Codex appends a line `{"id", "thread_name", "updated_at"}` each time it names
+    or renames a thread, so the last line for an id holds its current name. The
+    index is the machine's and every state read of a Codex page asks it, so the
+    process keeps the last reading until the file's stamp moves."""
+    home = Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex")
+    index = home / "session_index.jsonl"
+    try:
+        stat = index.stat()
+    except OSError:
+        return {}
+    return _codex_names.get(
+        (index, stat.st_mtime_ns, stat.st_size), lambda: _read_thread_names(index)
+    )
+
+
+# The machine's Codex thread names, keyed by the index's path and stamp.
+_codex_names = Slot()
+
+
+def _read_thread_names(index: Path) -> dict[str, str]:
+    """The index's names, later lines replacing earlier ones; a line caught
+    mid-append, or one of another shape, is passed over."""
+    names = {}
+    try:
+        lines = index.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return names
+    for line in lines:
+        try:
+            entry = json.loads(line)
+        except ValueError:
+            continue
+        if (
+            isinstance(entry, dict)
+            and isinstance(entry.get("id"), str)
+            and isinstance(name := entry.get("thread_name"), str)
+            and name
+        ):
+            names[entry["id"]] = name
+    return names
 
 
 def desktop_session_record(host_session: str) -> Path | None:

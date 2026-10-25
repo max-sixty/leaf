@@ -275,6 +275,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
             "start",
             str(serve.page_dir),
             roots[0]["id"],
+            "--text",
             detail,
         ],
     )
@@ -467,7 +468,14 @@ def test_each_seat_agrees_with_the_page_map_on_a_controls_receipt(
         delivery_model.record_pickup(transaction, roots)
     claimed = CliRunner().invoke(
         cli_model.cli,
-        ["task", "start", str(serve.page_dir), roots[0]["id"], "Checking the visit."],
+        [
+            "task",
+            "start",
+            str(serve.page_dir),
+            roots[0]["id"],
+            "--text",
+            "Checking the visit.",
+        ],
     )
     assert claimed.exit_code == 0, claimed.output
     told(page)
@@ -684,6 +692,7 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
             "start",
             str(serve.page_dir),
             roots[0]["id"],
+            "--text",
             "Checking the user comment.",
         ],
     )
@@ -849,7 +858,7 @@ def test_unit_claim_arrivals_share_one_window_with_the_open_page_map(browser, se
     record_claim(serve.page_dir)
     claimed = CliRunner().invoke(
         cli_model.cli,
-        ["task", "open", str(serve.page_dir), "sprint", "Check the board"],
+        ["task", "create", str(serve.page_dir), "sprint", "--title", "Check the board"],
     )
     assert claimed.exit_code == 0, claimed.output
     told(page)
@@ -903,6 +912,7 @@ def test_unit_claim_arrivals_share_one_window_with_the_open_page_map(browser, se
                 "start",
                 str(serve.page_dir),
                 move["id"],
+                "--text",
                 "Checking both moved cards",
             ],
         )
@@ -1237,7 +1247,14 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
 
     claimed = CliRunner().invoke(
         cli_model.cli,
-        ["task", "start", str(page_dir), logged_action["id"], "checking the mounts"],
+        [
+            "task",
+            "start",
+            str(page_dir),
+            logged_action["id"],
+            "--text",
+            "checking the mounts",
+        ],
     )
     assert claimed.exit_code == 0, claimed.output
     told(page)

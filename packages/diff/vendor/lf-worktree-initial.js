@@ -7,8 +7,18 @@
       if (text !== void 0) result.textContent = text;
       return result;
     };
-    const details = host.querySelector(":scope > details");
-    details.classList.add("lf-worktree-disclosure");
+    const body = tools.authoredBody(node("div", "lf-worktree-body"));
+    const details = node("details", "lf-worktree-disclosure");
+    const key = `worktree:${host.id}`;
+    const kept = tools.tabStore.get(key);
+    details.open = kept === null ? host.hasAttribute("open") : kept === "open";
+    details.addEventListener(
+      "toggle",
+      () => tools.tabStore.set(
+        key,
+        details.open === host.hasAttribute("open") ? null : details.open ? "open" : "closed"
+      )
+    );
     const summary = node("summary", "lf-worktree-summary lf-disclosure-marker");
     tools.generatedElement(summary, { says: true });
     const identity = node("span", "lf-worktree-identity");
@@ -47,7 +57,8 @@
       node("span", "", "Worktree"),
       node("code", "", host.getAttribute("path"))
     );
-    details.prepend(summary, path);
+    details.append(summary, path, body);
+    host.append(details);
     return { details };
   });
 })();

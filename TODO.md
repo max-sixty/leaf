@@ -323,12 +323,21 @@ that changes size after first paint, with its cause.
   state answer has been read would leave the theme's stand-in frame and caption until
   then.
 - **Draw the contents map's spine in its first frame.** `lf-toc`'s initial drawing
-  (`initial/lf-toc.js`) gives it its final box and rows, but in the margin its
-  disclosure stays closed until the module opens it, so the spine and its markers
-  first show at upgrade. Opening it earlier would show the markers evenly spaced and
-  then move them, since each row's share is the module's measurement of the document
-  (`#measure` in `lf-toc.js`); taking that measurement once the document has parsed
-  would put them in place.
+  (`initial/lf-toc.js`) gives it its final box and rows, but in the margin two things
+  hold the spine and its markers back until upgrade. The core theme hides every
+  `.lf-ui` node in `main` until `data-lf-upgraded`, the map's `nav` included
+  (`browser/styles/theme.css`, the startup boundary), and the map's disclosure stays
+  closed until the module opens it. A `leaf-dev probe` journey on `docs/threads.html`
+  at 1600x900 that holds `lf-toc.js` with `page.route` shows it: opening the
+  disclosure alone leaves the spine unpainted, and lifting the gate too shows it. The
+  theme makes that gate impossible to override on purpose, and other initial
+  drawings rely on it (`lf-shot`'s toolbar would show controls nothing answers yet),
+  so letting a drawing whose interface is already settled past it needs the user's
+  go-ahead.
+  Then the drawing would open the disclosure and take the module's measurement once
+  the document has parsed (`#measure` in `lf-toc.js`: each row's share and the label
+  fit that shifts crowded markers); opening it without that shows the markers evenly
+  spaced, then moves them.
 - **Let the shift watch see the runtime's own scrolls.** `tests/shift_watch.js`
   measures in layout coordinates, which remove scrolling, so a scroll the runtime
   makes during a gesture can move the control under the user's aim and fail

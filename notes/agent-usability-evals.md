@@ -291,6 +291,54 @@ and the follow-on brief from Codex session `01a13358-0141-70f0-8bb4-a8defb75b07e
 `~/.tmp/leaf.authoring-vs-plain-html/eval/`; those are distinct from the recovered
 twelve-author Codex comparison above. The continuing brief is TODO #20.
 
+## Authoring effort, 2026-10-24
+
+An overnight campaign read Claude Code (Opus 5.5) and Codex (Sol 6.1) authors' tool
+timelines for where a Leaf author spends time an HTML author doesn't. On the full
+configuration workflow at main `73222dc97`, Opus Leaf authors took 9.6 native minutes
+(n=5) against HTML's 6.3 (n=2), and the gap sat in the first authoring turn (4.2 against
+2.05 minutes); the width, comment and decision phases were alike. So most measurement
+ran only that first turn, with arrangement_eval's real first prompt and no browser
+user or judge, several authors per arm, arms interleaved. Minutes vary by about a
+quarter between authors on one arm and with host load (10–58 tonight), so three per
+arm separate a mechanism (a refusal fires or not, a grep happens or not) but rarely
+minutes.
+
+What a first turn spent, at main: reading the skill and references (~50 s against
+HTML's ~10), render checks (13 s each; 3–11 per dashboard, 41–133 s of tool time,
+where an HTML author's tools total 1–13 s), the author's own revisions after reading
+the saved screens, and avoidable rounds:
+
+| Sink at main | Seen in | Repair | After |
+| --- | --- | --- | --- |
+| Grepping Leaf's source for how a page script reaches the playground (6–9 calls) | 3/3 configuration authors, 3/3 on a retry-policy playground | The playground's author instructions show the whole page script (de65d626c) | 0/3 and 0/3; configuration first turn 4.4 → 3.5 min (3+3) |
+| `name="5xx-threshold"` refused by a leading-letter pattern | 2/3 | Names take ids' pattern (22930f891) | gone |
+| `class` on a playground control refused | 2/3 | `class` is outside every widget schema (a5f9a7865) | gone |
+| `id` on a playground control refused, though page-authoring.md asks for ids | 4/4 Codex authors | Controls, choices and presets declare `id` (77f90772f) | can't fire |
+| Per-datum `dy` in lf-chart → NaN, reported only as a console error from Plot's bundle | 14/17 dashboards | The chart names the mark and option (4c0cc3fa9); its instructions say offsets are one per mark (51624ea6a) | 0/3 |
+| squeezed-table advice chased over many render checks, ending in a column hidden at phone width | 7/8 dashboards hid data | The advice says every column stays in reach (9550eecf2) | 1/15 |
+| `stamp --completes <playground>` refused with no fix | 4/4 Codex decision phases | The refusal lists open to-dos and says an answer needs no flag (1696e4877); conversation-loop.md says how a start on the user's update ends (9098577d8) | 2/3 with the message alone, 0/3 with both |
+| Sticky boxes painted with guessed tokens (`var(--bg)`) | 9/37 pages used an undefined token | page-authoring.md states the `--lf-ground` rule (5b39487f6) | 3/3 use it |
+
+Validation on the full configuration workflow, main against `51624ea6a`, Opus, 3 per
+arm: totals 9.0, 9.2, 13.2 against 7.6, 8.5, 9.7 minutes, first turns 4.4, 4.8, 4.4
+against 2.8, 3.3, 5.6, cost $3.14 against $2.49 a sample; every final judge passed.
+Codex, two runs pooled: first turns 2.7 against 2.5 minutes (n=5 each), all completed
+judgments passed. In three Codex runs, 3 of 8 base samples and none of 8 candidates
+errored in the harness's comment journey (a 15 s wait for the selection field or a
+response); the cause wasn't traced. Dashboard and document first turns didn't get faster; their time
+is the record review: render checks, up to 23 screenshot reads, the fresh-eyes subagent
+page-checkpoints.md asks for, and the author's own rounds after clean checks.
+
+Removing that subagent on the document task (`page-reads-at-every-width`, 3 per arm)
+cut 4.1 to 3.2 minutes and $1.40 to $0.90 with the same page_defects findings, most
+of them Leaf's thread chrome. That judge reads layout, not whether a reader can follow
+the page, so the result prices the review rather than showing it adds nothing.
+
+The driver, analysis scripts and per-cycle log are in the campaign worktree's
+`.tmp/overnight/` (`firstturn.py`, `timing.py`, `rounds.py`, `buckets.py`,
+`toolsplit.py`, `friction.py`, `authoring-effort.md`).
+
 ## Remaining evaluation gaps
 
 - Recovering a long thread's middle after the agent has lost it. `elided` now

@@ -531,7 +531,21 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
     )
     round_trip(page)
     rendered(page)
-    consume_browser_errors(page, http_error_console(400))
+    if place == "panel":
+        # The panel's view gives the refused turn's room back, and its field grows to
+        # show the words handed back whole, as typing grows it: the view's head and the
+        # row over the field move, and nothing outside the panel does (browser/AGENTS.md,
+        # "Stability is owed to the common path").
+        def carried_in_panel(problem):
+            return problem.code == "moved-without-input" and any(
+                path and "lf-fp-" in path[-1]
+                for path in problem.values["beside"]
+            )
+
+        consume_browser_errors(page, http_error_console(400), carried_in_panel)
+        assert draft.evaluate("node => node.scrollHeight <= node.clientHeight + 0.5")
+    else:
+        consume_browser_errors(page, http_error_console(400))
     restored = pose()
     for node in pending:
         for edge in pending[node]:

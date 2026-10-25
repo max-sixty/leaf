@@ -2844,60 +2844,63 @@ def scroll_writes(page, steps, scroller="document.scrollingElement"):
     )
 
 
-_GESTURE = """async ([scroller, by, sample]) => {
+# How many frames a gesture takes, whatever the host's frame rate.
+GESTURE_FRAMES = 24
+
+_GESTURE = """async ([scroller, by, sample, frames]) => {
   const box = eval(scroller);
   const read = sample ? eval(sample) : () => null;
-  let frame = 0;
-  let ended = false;
+  const start = box.scrollTop;
   const samples = [];
-  const end = () => { ended = true; };
-  document.addEventListener('scrollend', end, {capture: true, once: true});
-  window.lfWrites = [];
-  window.lfWriteStep = frame;
-  // A task posted from a frame callback runs once that frame has rendered, before the
-  // next frame's scroll step.
-  const rendered = (then) => {
+  let frame = 0;
+  const {scrollGlides, watchScrollEnds} = await window.__lfCheckApi();
+  scrollGlides(true);
+  // A task posted from a frame callback runs once that frame has rendered.
+  const rendered = () => new Promise((then) => {
     const {port1, port2} = new MessageChannel();
     port1.onmessage = then;
     port2.postMessage(null);
-  };
-  const take = () => {
-    const scrolled = box.scrollTop;
-    if (!samples.length || scrolled !== samples.at(-1).scrolled)
-      samples.push({scrolled, read: read()});
-  };
-  const tick = () => {
+  });
+  window.lfWrites = [];
+  window.lfWriteStep = frame;
+  while (frame < frames) {
+    await new Promise(requestAnimationFrame);
     window.lfWriteStep = ++frame;
-    if (!ended) {
-      rendered(take);
-      requestAnimationFrame(tick);
-    }
-  };
-  box.scrollBy({top: by, behavior: 'smooth'});
-  requestAnimationFrame(tick);
-  while (!ended) await new Promise(requestAnimationFrame);
-  await new Promise(rendered);
-  return {frames: frame, samples};
+    box.scrollTo({top: start + Math.round(by * frame / frames), behavior: 'instant'});
+    await rendered();
+    samples.push({scrolled: box.scrollTop, read: read()});
+  }
+  const settled = new Promise((then) => {
+    const stop = watchScrollEnds(() => { stop(); then(); });
+  });
+  scrollGlides(false);
+  await settled;
+  await new Promise(requestAnimationFrame);
+  await rendered();
+  return samples;
 }"""
 
 
 def gesture_writes(page, by, scroller="document.scrollingElement", sample=None):
-    """Scroll `scroller` (a page expression) by `by` in one smooth gesture, as a wheel
-    or a key does, and return each DOM write it caused, numbered by the frame it came
-    in, with what its settle wrote under its last, and how many frames it took. The
-    pointer is moved off the page's controls first, so the scroll brings nothing new
-    under it. With `sample`, a page function, it also returns that function's reading
-    beside how far the scroller had gone, on the first frame and each frame that moves
-    the scroller. Both are read once the frame has rendered: a box anchored to scrolled
-    content takes the frame's scroll at the frame's anchor recalculation, after its
-    frame callbacks, so read in one it stands where the frame before drew it. A frame
-    that moves nothing is left out, since the runtime settles once the scroll has been
-    still a while (arrivals.js, `SETTLE_MS`), which on slow frames comes before
-    `scrollend`, so such a frame can show what the scroll held laid out again at rest."""
+    """Scroll `scroller` (a page expression) by `by` in one gesture of
+    `GESTURE_FRAMES` frames, each moving it an equal share, and return each DOM write it
+    caused, numbered by the frame it came in, with what its settle wrote under its last,
+    and how many frames it took. The pointer is moved off the page's controls first, so
+    the scroll brings nothing new under it. With `sample`, a page function, it also
+    returns that function's reading beside how far the scroller had gone, on each frame.
+    Both are read once the frame has rendered: a box anchored to scrolled content takes
+    the frame's scroll at the frame's anchor recalculation, after its frame callbacks,
+    so read in one it stands where the frame before drew it.
+
+    The test drives the frames, rather than a smooth `scrollBy`, so a slow host draws
+    as many as a fast one. The runtime settles on each write's own `scrollend`, and
+    between frames further apart than `SETTLE_MS`, so the gesture holds it as the
+    runtime's own frame-by-frame scrolls do (arrivals.js, `scrollGlides`) and lets it
+    settle once, after the last frame."""
     page.mouse.move(2, 300)
     rendered(page)
     start = page.evaluate(f"() => {scroller}.scrollTop")
-    gesture = page.evaluate(_GESTURE, [scroller, by, sample])
+    samples = page.evaluate(_GESTURE, [scroller, by, sample, GESTURE_FRAMES])
     rendered(page)
     assert page.evaluate(f"() => {scroller}.scrollTop") == pytest.approx(
         start + by, abs=1
@@ -2906,8 +2909,8 @@ def gesture_writes(page, by, scroller="document.scrollingElement", sample=None):
         "() => { const w = window.lfWrites; window.lfWrites = null; return w; }"
     )
     if sample:
-        return writes, gesture["frames"], gesture["samples"]
-    return writes, gesture["frames"]
+        return writes, GESTURE_FRAMES, samples
+    return writes, GESTURE_FRAMES
 
 
 def scroll_followers(writes, frames=None):

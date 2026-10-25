@@ -13,7 +13,7 @@ import { setChildLists, setChildren } from "./bundle-abort.js";
 import { reducedMotion } from "./bundle-motion.js";
 import { activateContributionControl, awaitingUser, canFold, choosePrimary, clearContributionControls, clusterProjection, contributionEntry, contributionEntryRecord, contributionEntrySource, contributionSource, entryEngaged, entryHasMarginHost, focusedOfferOf, markerFace, materializeContributionControls, optionsOffered, presentContributionEntry, presentContributionReceipts, primaryReading, readingBehavior, readingChoices, readingContext, readingFace, readingKey, readingLabel, readingState, spokenContext, spokenSubject, syncContributionSelection, syncContributionUnread, threadReading, unreadIn } from "./bundle-margin-model.js";
 import { ANNOTATIONS_KEY } from "./bundle-restore-state.js";
-import { THREAD_CARD, cardMeasure, cardMinimum, commentAttachment, commentBoundary, commentPlacement, commentReference, floatingPlacement, floatingSelections, floatingUi, layoutMarginRows, makeRoom, marginColumn, mountMarginLayer, registerMarginRow, scheduleMarginEntryLabels, scheduleMarginLayout, standsFolded, syncMarginContentLayout, unregisterMarginRow } from "./bundle-comment-placement.js";
+import { THREAD_CARD, cardMeasure, cardMinimum, commentAttachment, commentBoundary, commentPlacement, commentReference, floatingPlacement, floatingSelections, floatingUi, layoutMarginRows, makeRoom, marginColumn, mountMarginLayer, paintedBox, registerMarginRow, scheduleMarginEntryLabels, scheduleMarginLayout, standsFolded, syncMarginContentLayout, unregisterMarginRow } from "./bundle-comment-placement.js";
 
 //#region runtime/annotation-overlay/surface-grip.js
 const SLOP = 3;
@@ -1240,9 +1240,10 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 	function availableRows() {
 		return [...markerRows()].filter((row) => !row.hidden && !row.closest(".lf-withheld") && row.checkVisibility({ visibilityProperty: true }));
 	}
+	const markerBox = (row) => paintedBox(row, closestAcross(row, "[data-lf-margin-for]"));
 	function visibleRows() {
 		const clips = /* @__PURE__ */ new Map();
-		return availableRows().filter((row) => seenRect(row, clips));
+		return availableRows().filter((row) => seenRect(row, clips, markerBox(row)));
 	}
 	function clusterMarginEntries(host) {
 		if (!host) return [];
@@ -1367,7 +1368,7 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 		const candidates = visible.length ? visible : available;
 		const room = shownWindow();
 		const place = (row) => {
-			const box = row.getBoundingClientRect();
+			const box = markerBox(row);
 			return [
 				box.bottom < room.top ? room.top - box.bottom : box.top > room.bottom ? box.top - room.bottom : 0,
 				box.top,

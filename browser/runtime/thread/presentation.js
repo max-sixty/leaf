@@ -62,6 +62,7 @@ export function createThreadPresentation({
   renderSurfaces,
   openThread,
   continueThread,
+  returnToPage,
   threadAt,
   read,
 }) {
@@ -180,10 +181,13 @@ export function createThreadPresentation({
             // The margin's claim for what this commit moved lands when this stretch's
             // batch ends, so its commit is read a microtask later; a margin owing no
             // repaint has already committed. It may reveal a route needing this very
-            // presenter, and never joins the ticket it is completing.
+            // presenter, and never joins the ticket it is completing. Once the user is
+            // placed, a thread the primary held as the last resort goes back to the page
+            // where the page now draws its place (thread/destination.js, `returnToPage`).
             void Promise.resolve()
               .then(() => Promise.allSettled(PRESENTATION_DOM.annotations()))
               .then(() => continueReplies(restorePlace))
+              .then(returnToPage)
               .catch((error) => reportPageError(error, `Reply continuation failed`));
           }),
         );

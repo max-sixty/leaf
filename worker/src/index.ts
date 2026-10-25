@@ -773,8 +773,8 @@ export default {
         });
         // Accepted page events are already durable; active Codex turn identity
         // belongs to the running process.
-        // TODO: a dispatch does not yet survive its container (TODO.md, "Make a
-        // leaf.page dispatch survive its container").
+        // TODO: a dispatch does not yet survive its container (issue #4080,
+        // "Make a leaf.page dispatch survive its container").
         ctx.waitUntil(dispatchAgentTask(env, params));
       }
     }

@@ -108,10 +108,11 @@ widget, the old element's cleanup runs before the new one's `start`, so a regist
 only one element may hold, such as `registerReadingRegion`, passes to the replacement.
 
 A `LeafElement` draws nothing while it is away and draws the current reading once on
-return, keeping unchanged template nodes. Put asynchronous rendering in `updated()` and
-pass its promise to `this.drawing(work)` so presentation waits for it and reports a
-rejection. Have `start` restore what its cleanup removed, and when the element leaves,
-drop unfinished work but keep finished nodes.
+return, keeping unchanged template nodes. Start asynchronous rendering in `updated()`
+and extend `updateComplete` to wait for it, so presentation waits for it and reports a
+rejection (module-state.md, "The widget controller"). Have `start` restore what its
+cleanup removed, and when the element leaves, drop unfinished work but keep finished
+nodes.
 
 `Promise.race([work, aborted(signal)])` ends work when its signal aborts.
 
@@ -134,6 +135,14 @@ when the page's complete layout is first in place; UI drawn from element geometr
 its first measurements there. `PAGE_INTERFACE` fires at startup and again when a new
 revision is applied in place; UI built from the authored structure rebuilds there and
 passes any asynchronous preparation to `detail.present(promise)`.
+
+A page script reaches a widget's methods only once the widget has upgraded.
+`whileInterfaceConnected(element, {declare, connect})` runs `declare()` once, for what
+the widget accepts once per lifetime, then `connect(signal)` at the first
+`PAGE_INTERFACE`, holding presentation until it returns, and again at once on each
+reconnection; the cleanup `connect` returns runs as the element leaves. A playground's
+page script is the worked example (the playground package's author instructions,
+"Stateful previews").
 
 Run a heavy renderer that can wait until the user has the page through
 `afterPresentation(() => …)`. Pass work that starts now but need not delay
@@ -158,10 +167,14 @@ moving anything. `leaf package check --render` reports a widget that moves as
   values (`module-state.md`, "Tab-local working state") goes in `x-initial`: the path of
   a committed classic script that calls
   `document.documentElement.lfInitial.register(tag, render)`. Delivery calls
-  `render(host, {tabStore, offer, offerElement, generatedElement, keeps})` as soon as
-  each host's markup arrives, so the widget first appears whole. `render` is
+  `render(host, {tabStore, offer, offerElement, generatedElement, keeps, authoredBody})`
+  as soon as each host's markup arrives, so the widget first appears whole. `render` is
   synchronous, fetches nothing and reads nothing from the log; it may move authored
-  nodes within the host. It returns the node references the module needs, with an
+  nodes within the host. To put every authored child inside a box it builds, as
+  `lf-worktree` puts its evidence under its disclosure's summary, pass that box to
+  `authoredBody(box)`, which moves the children into it. Leaf treats the boxes around
+  it as the widget's own and its contents as the page's, and an `x-patch: members`
+  revision edits inside it. It returns the node references the module needs, with an
   update function where the drawing changes later. The module gets that result with
   `initialRender(host)`, which draws on demand for a host that arrived later, adds
   behavior to those nodes, and calls the same update function rather than drawing them
@@ -204,13 +217,14 @@ authored children. One-time building goes in `setup()`, which runs on the first
 connection, before the first render; a `setup()` that throws shows its failure and the
 widget draws nothing after it.
 
-`render()` reads through Leaf's readers: `this.reading` and `this.state`,
-`this.data(input)` for a bound source, and page readings such as `readObligations`,
+`render()` reads through Leaf's readers: `this.reading` and `this.state`, the
+property a bound source sets (module-state.md, "Bound data and projections"), and page
+readings such as `readObligations`,
 `reportSequence` or `ago`. The element redraws whenever anything it read synchronously
 changes, parents before children; DOM reads and reads after an `await` are not
 tracked. Return a template, `nothing` when the render places retained nodes itself, or
 `noChange`. Work that reads what the render drew goes in `updated()`, and drawing that
-finishes later in `this.drawing(promise)` from there. `this.controller` is the widget
+finishes later starts there and extends `getUpdateComplete`. `this.controller` is the widget
 controller. Call `requestUpdate()` after a change Leaf can't see, such as revealing held
 news, and `performUpdate()` to draw at once.
 

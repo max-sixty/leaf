@@ -51,7 +51,9 @@ Order the options by the subject, such as from today's behavior to the largest
 change, and keep that one order wherever the decision lists them, including a
 comparison table and lettered names, so the user matches each option to its row by
 position. The recommended option stays where that order puts it; its `recommended`
-label marks your advice.
+label marks your advice. Prose that recommends or discusses an option names it by
+its title, as in “I'd keep handwritten types”, never by its position or by a letter
+from an earlier list, since the options' order can change after you write it.
 
 Let the user judge each option by its result rather than a description of it, on plans
 and work-item lists too: an interaction they can try, a drawing of an arrangement or
@@ -75,6 +77,37 @@ example, with its own costs and open questions, and mark your recommendation as 
 How to build an alternative waits for the user's pick.
 
 The `lf-ask`, `lf-options` and `lf-option` entries give their markup and presentation.
+
+## One decision in its section and on a board
+
+When the user answers proposals beside their cases and also needs every answer in one
+view to compare or rearrange, keep each answer in its section's `lf-options` and add a
+board whose cards show those answers, rather than asking twice. Give each option a
+`value` naming the answer it gives, in words every section shares, and the board one
+column per value with that `value`, plus one column without a value for proposals not
+yet answered or answered in the user's own words. Each card's `shows` names its
+section's group, and the card stands in the column of that group's pick:
+
+```html
+<lf-options id="rail-choice" choose>
+  <lf-option id="rail-next" value="next">Next</lf-option>
+  <lf-option id="rail-later" value="later">Later</lf-option>
+</lf-options>
+<!-- … the other proposals' sections … -->
+<lf-board id="plan">
+  <lf-column id="plan-open" label="Undecided">
+    <lf-card id="plan-rail" shows="rail-choice"><strong>Keep the rail</strong></lf-card>
+  </lf-column>
+  <lf-column id="plan-next" label="Next" value="next"></lf-column>
+  <lf-column id="plan-later" label="Later" value="later"></lf-column>
+</lf-board>
+```
+
+A drop on the board answers through the group, so the page holds one answer, which
+Undo and `restated` take back in both views. When a revision writes the user's pick
+into the group, move the card to that pick's column too. A card that shows an answer
+keeps the order you wrote it in; where the order within a column is itself the user's
+call, ask for it as its own decision.
 
 ## Permission
 

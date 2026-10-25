@@ -13,12 +13,14 @@
    takes the status line.
    A document block's control stands in chrome and passes under the page's sticky
    headers as block-controls.js says.
-   The control follows the common pattern for code copy: hidden at rest, so it covers no
-   words, and shown while a pointer is over the block or the user is on it. A finger
-   has no hover, so a tap on the block stands the user on it and shows the control in
-   its corner, the touch form of the same reveal. The control takes no room, since room
-   made for it would move the page's content (`../AGENTS.md`, "Nothing Leaf draws moves
-   the page's content"). */
+   The control follows the common pattern for code copy: hidden at rest, and shown while
+   a pointer is over the block or the user is on it. A finger has no hover, so a tap on
+   the block stands the user on it and shows the control, the touch form of the same
+   reveal. Shown, it is a toolbar of one mark whose middle lies on the block's top
+   border at its right (integration.css, `.lf-mark-bar`), the face and seat a draft's
+   toolbar wears, so it covers the border and padding rather than the first line's last
+   words. The control takes no room, since room made for it would move the page's
+   content (`../AGENTS.md`, "Nothing Leaf draws moves the page's content"). */
 import { copyControl } from "./copy-control.js";
 import { watchArrivals } from "./arrivals.js";
 import {
@@ -41,20 +43,6 @@ const wired = new WeakMap();
 // The key this module projects its Copy scope under, beside the block's other owners.
 const COPY_SCOPE = Symbol("code copy");
 
-// Document controls stand outside their source's cascade. Read its face before
-// moving the control into chrome; a block or ancestor may choose its own size.
-function copySize(block) {
-  const style = getComputedStyle(block);
-  const size = style.getPropertyValue("--lf-code-copy-size").trim();
-  const chosen = size || (block.localName === "pre" ? style.lineHeight : "");
-  return CSS.supports("width", chosen) ? chosen : "";
-}
-
-function setCopySize(copy, size) {
-  if (size) copy.style.setProperty("--lf-code-copy-size", size);
-  else copy.style.removeProperty("--lf-code-copy-size");
-}
-
 // Focus can reveal and scroll a source before the observer's next task. Its keyboard
 // route must see the control in that same gesture, widgets included.
 onCurrentLocation((node) => {
@@ -68,7 +56,7 @@ onCurrentLocation((node) => {
 function prepareCodeBlock(pre, source, noun) {
   let copy = controls.get(pre);
   if (!copy) {
-    copy = copyControl("lf-code-copy", {
+    copy = copyControl("lf-code-copy lf-mark", {
       label: `Copy ${noun}`,
       success: `${noun[0].toUpperCase()}${noun.slice(1)} copied`,
       error: `Unable to copy ${noun}`,
@@ -112,9 +100,7 @@ function declareCopy(pre, copy, noun) {
 }
 
 export function copyBlock(block, source, noun) {
-  const size = copySize(block);
   const copy = aimControl(prepareCodeBlock(block, source, noun));
-  setCopySize(copy, size);
   declareCopy(block, copy, noun);
   return copy;
 }
@@ -138,7 +124,7 @@ export function watchCodeBlocks() {
         .filter((pre) => pre.getRootNode() === document)
         .map(
           (pre) =>
-            /** @type {[HTMLElement, ReturnType<typeof prepareCodeBlock>, any[], string]} */ ([
+            /** @type {[HTMLElement, ReturnType<typeof prepareCodeBlock>, any[]]} */ ([
               pre,
               prepareCodeBlock(
                 pre,
@@ -146,12 +132,10 @@ export function watchCodeBlocks() {
                 "code",
               ),
               headerLevels(pre),
-              copySize(pre),
             ]),
         );
-      for (const [pre, pending, levels, size] of prepared) {
+      for (const [pre, pending, levels] of prepared) {
         const copy = aimControl(pending);
-        setCopySize(copy, size);
         standInChrome(copy, pre, levels);
         copy.tabIndex = -1;
         claimReachStop(pre);

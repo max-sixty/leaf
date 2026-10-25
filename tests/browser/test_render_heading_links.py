@@ -52,11 +52,15 @@ def test_a_heading_copies_the_link_to_the_section_it_opens(browser, serve):
     page.locator("section:not([id]) > h2").hover()
     expect(page.locator(LINK)).to_have_count(1)
 
-    # On the section, Enter copies its link, and the command reference names it.
+    # Being on the section shows no mark, since a route such as `m` lands there to act
+    # on it. Enter copies its link and shows the mark with its result, and the command
+    # reference names it.
     page.evaluate("navigator.clipboard.writeText('')")
     page.locator("section[id]").focus()
+    assert shown(page) == 0
     page.keyboard.press("Enter")
     until_copied(page, link)
+    assert shown(page) == 1
     page.evaluate("navigator.clipboard.writeText('')")
     page.keyboard.press("?")
     page.locator(".lf-command-reference").get_by_role(

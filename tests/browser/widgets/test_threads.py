@@ -137,7 +137,7 @@ def test_a_drag_across_an_obligation_in_a_reply_is_not_a_passage_of_the_page(
 ):
     """A selection made in the panel is not the page's words, whatever it looks like.
 
-    `leaf thread open --section` refuses to anchor on a widget an agent sent, and it is the
+    `leaf thread create --section` refuses to anchor on a widget an agent sent, and it is the
     reading that is supposed to promise less than the browser's. The browser offered
     the 💬 over a question in a reply and wrote an anchor onto that widget's own id into
     an append-only log — naming a section no version holds, so it could never paint and

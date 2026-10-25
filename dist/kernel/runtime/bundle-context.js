@@ -1,5 +1,11 @@
 import { J, W, Z, bindQueuedWork, createPresentationCoordinator, createPresentationSchedule, createSemanticApplication, d, x } from "./bundle-browser-runtime.js";
 
+//#region runtime/version-signal.js
+const tick = (version) => {
+	version.value = version.peek() + 1;
+};
+
+//#endregion
 //#region runtime/semantic-state.js
 const documentToken = Object.freeze({});
 let reportPresentationFailure = (reason) => console.error("leaf: presentation failed", reason);
@@ -48,7 +54,8 @@ const PRESENTATION_DOM = Object.freeze({
 	widgets: () => [...widgetCommits.values()],
 	projection: () => documentCommits.get("projection:chrome")?.() ?? [],
 	thread: () => documentCommits.get("thread")?.() ?? [],
-	obligations: () => documentCommits.get("obligations")?.() ?? []
+	obligations: () => documentCommits.get("obligations")?.() ?? [],
+	annotations: () => documentCommits.get("annotations")?.() ?? []
 });
 const documentPresenters = [];
 const applicationPresenter = ({ region, renderer = document, after, reading, paint, failSoft }) => {
@@ -110,7 +117,7 @@ const applicationPresenter = ({ region, renderer = document, after, reading, pai
 		return presenter.sync(value);
 	};
 	const present = () => d(() => W(() => {
-		revision.value += 1;
+		tick(revision);
 		return claim(selected.value);
 	}));
 	documentPresenters.push(present);
@@ -134,7 +141,7 @@ const applicationPresenter = ({ region, renderer = document, after, reading, pai
 const documentChanges = Z(0);
 const documentChanged = () => documentChanges.value;
 const presentDocument = () => W(() => {
-	documentChanges.value += 1;
+	tick(documentChanges);
 	for (const present of documentPresenters) present();
 	return schedule.passed();
 });
@@ -282,4 +289,4 @@ const runtime = {
 const revisionLabel = (revision) => part.revisionLabels()[revision];
 
 //#endregion
-export { DELIVERY, LIVE_ROOT, PAGE_ROOT, PRESENTATION_DOM, SHARE_ROOT, WEBSITE_DELIVERY, agentLabel, agentName, annotationMode, applicationPresented, applicationPresenter, applicationRegionsPresented, applicationState, attachApplicationPresentation, attachWidgetPresentation, documentChanged, layerRoot, offlineData, offlineInteractive, offlineState, pageClaimed, pageUrl, presentDocument, projectView, projectionRegionsPresented, queueWidgetUpdate, readApplication, readApplicationPresentation, readPart, revisionLabel, runtime, runtimeModule, runtimeResource, selectWidgets, setPresentationFailureReporter, shareUrl, watchPresentation, watchSemantic, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented };
+export { DELIVERY, LIVE_ROOT, PAGE_ROOT, PRESENTATION_DOM, SHARE_ROOT, WEBSITE_DELIVERY, agentLabel, agentName, annotationMode, applicationPresented, applicationPresenter, applicationRegionsPresented, applicationState, attachApplicationPresentation, attachWidgetPresentation, documentChanged, layerRoot, offlineData, offlineInteractive, offlineState, pageClaimed, pageUrl, presentDocument, projectView, projectionRegionsPresented, queueWidgetUpdate, readApplication, readApplicationPresentation, readPart, revisionLabel, runtime, runtimeModule, runtimeResource, selectWidgets, setPresentationFailureReporter, shareUrl, tick, watchPresentation, watchSemantic, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented };

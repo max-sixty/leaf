@@ -232,7 +232,8 @@ export function scrollAxes(source) {
     : elementAxes(source);
 }
 
-// Convert a viewport reveal movement into the scrollport's own layout offsets. A
+// Convert a viewport reveal movement into the scrollport's own layout offsets, as far
+// as the scrollport can still travel, so a reveal past its edge asks for nothing. A
 // one-axis scroller uses that axis's projected displacement; a two-axis scroller uses
 // the inverse basis. At an edge the browser clamps one offset, so the other axis must
 // take the remaining projected movement or a rotated scroller leaves words clipped.
@@ -250,11 +251,6 @@ export function localScrollBy(source, { x, y }) {
       0,
     );
   };
-  if (!horizontal) return { left: 0, top: vertical ? along(axes.y) : 0 };
-  if (!vertical) return { left: along(axes.x), top: 0 };
-  const determinant = axes.x.x * axes.y.y - axes.x.y * axes.y.x;
-  const left = (x * axes.y.y - y * axes.y.x) / determinant;
-  const top = (y * axes.x.x - x * axes.x.y) / determinant;
   const reach = (offset, current, minimum, maximum) =>
     Math.max(minimum - current, Math.min(maximum - current, offset));
   const horizontalLimit = source.scrollWidth - source.clientWidth;
@@ -268,6 +264,11 @@ export function localScrollBy(source, { x, y }) {
     );
   const reachTop = (offset) =>
     reach(offset, source.scrollTop, 0, source.scrollHeight - source.clientHeight);
+  if (!horizontal) return { left: 0, top: vertical ? reachTop(along(axes.y)) : 0 };
+  if (!vertical) return { left: reachLeft(along(axes.x)), top: 0 };
+  const determinant = axes.x.x * axes.y.y - axes.x.y * axes.y.x;
+  const left = (x * axes.y.y - y * axes.y.x) / determinant;
+  const top = (y * axes.x.x - x * axes.x.y) / determinant;
   const reachableLeft = reachLeft(left);
   const reachableTop = reachTop(top);
   if (reachableLeft !== left && axes.y.y)

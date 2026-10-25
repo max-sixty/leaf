@@ -29,6 +29,7 @@ import {
   OPEN_MESSAGE_EDIT,
   holdsMessageEdit,
   keptRewrite,
+  messageDrawn,
   releaseMessageEdit,
   watchRewrite,
 } from "./message-edit.js";
@@ -545,6 +546,9 @@ export class MessageView {
         flashDuration(),
       );
     }
+    // Whether this message can be rewritten may have moved, which the reply box's ↑
+    // reads (`threadRewrites`).
+    messageDrawn();
     return this.node;
   }
 

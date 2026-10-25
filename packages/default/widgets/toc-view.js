@@ -192,9 +192,9 @@ function lend(host, destination, position, lends) {
 
 // Each fitted row's shift, by section index, and each shown label's fitted center on
 // the map. Crowded destinations are fitted together just enough for their labels to
-// stay distinct; a label too many for the map's height turns it into an ordinary open
-// outline (`data-lf-outline`), and one that fits only tighter compacts it
-// (`data-lf-compact`).
+// stay distinct. Labels that fit the map's height only at one line each compact it
+// (`data-lf-compact`), and labels taller than the map even then turn it into an
+// ordinary open outline (`data-lf-outline`).
 function fitLabels(host, track, nav, sections, shown) {
   const shifts = new Map();
   const mapPositions = [];

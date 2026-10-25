@@ -2887,10 +2887,11 @@ DISCLOSURES = """() => [...document.querySelectorAll('details')]
     open: d.open,
     displayed: d.checkVisibility(),
     summary: (d.querySelector('summary')?.textContent || '').trim().slice(0, 40),
-    // An authored output placeholder that is explicitly hidden has no paper reading.
+    // What a disclosure holds is its content, a widget's generated words included,
+    // and not the runtime's apparatus, which paper drops. An authored output
+    // placeholder that is explicitly hidden has no paper reading.
     shown: [...d.children].filter(c =>
-      !c.matches('summary, script, style, template') &&
-      !c.hasAttribute('data-lf-gen') && !c.hidden)
+      !c.matches('summary, script, style, template, .lf-ui') && !c.hidden)
       .every(c => c.checkVisibility()),
   }))"""
 

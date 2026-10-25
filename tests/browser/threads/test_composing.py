@@ -150,7 +150,9 @@ def test_a_refused_reply_folds_away_while_its_card_holds_still(browser, serve, s
     folding = card.locator(".lf-msg[inert]")
     expect(folding).to_have_count(1)
     expect(sent).to_have_count(0)
-    assert folding.evaluate("node => node.matches(':not([data-event], [data-message])')")
+    assert folding.evaluate(
+        "node => node.matches(':not([data-event], [data-message])')"
+    )
     page.evaluate(
         "() => window.retirement.currentTime ="
         " window.retirement.effect.getTiming().duration / 2"

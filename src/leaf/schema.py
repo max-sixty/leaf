@@ -9,6 +9,7 @@ import re
 from .state import EVENTS_FILE, PLUGIN_ROOT
 
 ASSETS = PLUGIN_ROOT / "browser"
+SKILL_FILE = PLUGIN_ROOT / "skills" / "leaf" / "SKILL.md"
 
 # A session-managed server gives a replacement session one short poll window to
 # claim the page before it closes. The external claim record is the ownership

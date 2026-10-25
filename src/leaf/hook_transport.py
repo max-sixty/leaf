@@ -12,7 +12,9 @@ reconnect notice about a page it served before.
 Claude Code runs the prompt hook as every turn begins, including a turn opened by a
 background task's end, and adds its output to the turn's context; the Stop hook's
 output continues the turn (`Harness.hook_context`). Leaf's Pi extension
-(`hooks/pi.ts`) calls both hooks and commits their output to the session.
+(`hooks/pi.ts`) calls both hooks and commits their output to the session. Every
+prompt hook also names each live page's On me count beside the skill's "Must
+remember" (`on_me`), even with nothing else to say.
 
 The Stop hook continues the turn for a page with no running watcher that has
 input pending or a status other than idle, and for each owed answer the turn has
@@ -113,6 +115,7 @@ from .harness import Harness, claim_harness
 from .schema import (
     ANSWER_INSTRUCTION,
     PREVIEW_FILE,
+    SKILL_FILE,
 )
 from .served_state.context import read_page
 from .service import (
@@ -403,6 +406,40 @@ INLINE_OPENING = (
 # The words that open what a turn owes, as a reminder of its own or after a delivery.
 ATTENTION_OPENING = "Leaf needs attention:"
 
+
+def on_me(session_id: str) -> list[str]:
+    """What each turn's prompt hook tells the agent about the live pages it holds: each
+    page's On me count, and that anything waiting on the user belongs there.
+
+    An empty On me tells the user nothing waits on them, so a question the agent
+    asks only in its reply passes that silently. Agents asked in chat hours or
+    compactions after loading the skill, whose rule had left their context, while
+    the harness's own instructions for asking the user stayed in it. The rule's
+    home is the skill's "Must remember"; this puts it, and the count that shows
+    a chat-only question, beside every turn's start, where the reply is written."""
+    from .presence import live_leaves
+
+    held = {page.resolve() for page in owned_pages(session_id)}
+    leaves = live_leaves(held) if held else []
+    if not leaves:
+        return []
+    return [
+        *(
+            f"Leaf: “{leaf['title']}” ({page}) has {leaf['on_user']} on On me."
+            for page, leaf in leaves
+        ),
+        f"From the leaf skill ({SKILL_FILE}): {must_remember()}",
+    ]
+
+
+def must_remember() -> str:
+    """The text of the skill's "Must remember" section, its one statement of the rules
+    an agent must hold for as long as it holds a page."""
+    text = SKILL_FILE.read_text()
+    section = text.split("\n## Must remember\n", 1)[1].split("\n## ", 1)[0]
+    return " ".join(section.split())
+
+
 POINTED = Record(
     "pointed",
     described(
@@ -593,11 +630,12 @@ def carry_turn(
     context = notices(reconnect_harness, sid, expected)
     if context is None:
         return
+    standing = on_me(sid) if event == "UserPromptSubmit" else []
     output = render(
         harness,
         event,
         delivery,
-        [*context, *attention],
+        [*context, *attention, *standing],
         confirm=lambda: (
             receive_held(
                 delivery,

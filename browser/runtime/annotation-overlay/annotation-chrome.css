@@ -588,8 +588,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
      the words under it take its height as their `--lf-top` and `scroll-margin`
      (theme.css, at `--lf-top`): a reveal lands them below it and the runtime's reading
      counts what it covers as hidden, while a whole message lands flush with its own
-     head. The card draws no reactions, so an agent's head keeps no room for their
-     trigger under a finger. */
+     head. The card draws no reactions, so a head keeps a control's room only where it
+     draws one, the user's Edit; an agent's keeps none for a trigger under a finger. */
   .lf-margin-thread .lf-thread-transcript .lf-msg-body {
     --lf-top: var(--lf-msg-head-height);
   }
@@ -663,6 +663,11 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     inset-block-start: 0;
     z-index: 1;
     background-color: var(--lf-msg-ground);
+  }
+  .lf-margin-thread
+    .lf-thread-transcript
+    .lf-msg:not(:has(.lf-msg-control))
+    > .lf-msg-head {
     padding-inline-end: 0;
   }
   /* A short name keeps its whole width even where the shared cap

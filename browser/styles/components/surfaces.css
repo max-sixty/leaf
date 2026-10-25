@@ -96,7 +96,9 @@
    the same fact to the eye (renderQuiet, lf-code's highlighted lines). Worn with
    .lf-ui, since an invisible word is apparatus the anchor pass must not offer — a
    quote resolved into a clipped box would paint a mark nobody can see. Out of flow,
-   so it holds no room; the covered-words gate skips this class.
+   so it holds no room, and unpadded, since a holder that pads every child, as a
+   `choose` group pads its cells, would make it a box that cuts off its own words;
+   the covered-words gate skips this class.
 
    And out of the selection, which the clip does not do on its own: a word standing
    among the page's own words is inside any selection drawn across them, so the
@@ -120,6 +122,7 @@
   position: absolute;
   width: 1px;
   height: 1px;
+  padding: 0;
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
@@ -602,16 +605,16 @@ summary {
   --lf-group-ring-end: 6px;
   --lf-msg-head-height: 28px;
   --lf-msg-body-gap: 4px;
-  /* A message's control, and the Discard and Save an open rewrite stands in its place:
-     the head keeps their room (controls.css), and so does the thread's own controls'
-     row beside a first message (below). */
+  /* A message's control: the head keeps its room (controls.css), and so does the
+     thread's own controls' row beside a first message (below). An open rewrite's
+     Discard and Save stand in that room, covering the head's labels beyond it
+     (response.css), but never a notice of news, a press of its own, which the head
+     keeps clear of the pair's whole width. */
   --lf-msg-control-size: 26px;
   --lf-msg-control-width: max(var(--lf-msg-control-size), var(--aim-floor));
-  --lf-msg-edit-cancel: max(52px, var(--aim-floor));
-  --lf-msg-edit-save: max(40px, var(--aim-floor));
   --lf-msg-edit-gap: 4px;
-  --lf-msg-edit-room: calc(
-    var(--lf-msg-edit-cancel) + var(--lf-msg-edit-gap) + var(--lf-msg-edit-save)
+  --lf-msg-edit-width: calc(
+    2 * var(--lf-msg-control-width) + var(--lf-msg-edit-gap) + var(--sp-2)
   );
   /* The room a held-news notice keeps at its end for the count of facts it drops
      (`.lf-thread-news > span[data-lf-more]`, below). */
@@ -691,6 +694,9 @@ summary {
   --lf-msg-head-room: var(--lf-primary-news-width);
   padding-inline-end: var(--lf-msg-head-room);
 }
+.lf-msg:has(> .lf-msg-body > .lf-msg-editor) > .lf-msg-head:has(> .lf-primary-news) {
+  --lf-msg-control: var(--lf-msg-edit-width);
+}
 .lf-primary-part {
   position: relative;
   border-radius: var(--r);
@@ -702,7 +708,7 @@ summary {
   position: absolute;
   box-sizing: border-box;
   inset-block-start: 0;
-  inset-inline-end: var(--lf-msg-control-room, var(--lf-msg-control, 0px));
+  inset-inline-end: var(--lf-msg-control, 0px);
   max-inline-size: var(--lf-primary-news-width);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -960,7 +966,7 @@ summary {
       > .lf-msg-body
       > .lf-msg-editor
   ) {
-  --lf-thread-message-control-room: calc(var(--lf-msg-edit-room) + var(--sp-2));
+  --lf-thread-message-control-room: calc(var(--lf-msg-edit-width) + var(--sp-2));
 }
 .lf-thread-content:has(> .lf-thread-controls)
   > .lf-thread-transcript

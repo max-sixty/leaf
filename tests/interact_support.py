@@ -2054,11 +2054,18 @@ def codex_program(tmp_path_factory):
     `CodexHarness.lifetime` looks for above a leaf: a copy of this interpreter wearing that
     name. The name has to be the executable's own, because what a process reports
     is what the kernel loaded — a `#!` script and a symlink both wear the
-    interpreter's, and a copy of /bin/sh is killed on sight on macOS, where that
-    binary's signature is the system's. A framework Python's sys.executable is
-    a launcher that re-execs Python.app, so copy the running binary itself."""
+    interpreter's. A framework Python's sys.executable is a launcher that re-execs
+    Python.app, so copy the running binary itself.
+
+    macOS kills a copy on exec, silently and with SIGKILL, when its signature no
+    longer holds at the new path. A framework build's Python.app binary is signed
+    as part of its bundle, so a copy without the bundle's Info.plist fails that
+    check. Signing the copy ad hoc makes it valid wherever it lies, whichever
+    Python runs the suite."""
     program = tmp_path_factory.mktemp("codex-program") / "codex"
     shutil.copy(psutil.Process().exe(), program)
+    if sys.platform == "darwin":
+        subprocess.run(["codesign", "--force", "--sign", "-", program], check=True)
     return program
 
 
@@ -2111,9 +2118,13 @@ def under_codex(spawn, codex_program):
     pid by accident. It also keeps the command's own status, where the `| cat`
     that produced the shape in the wild would report the pipeline's last exit.
     PYTHONHOME because a copied interpreter has no prefix beside it to find its
-    own standard library in."""
+    own standard library in. It is the copy's alone: the runner drops it before
+    the shell, so the command gets the environment the test gave it, and a
+    Python below it on another base, such as a prepared installation's, still
+    finds its own."""
     runner = (
-        "import subprocess, sys; "
+        "import os, subprocess, sys; "
+        "os.environ.pop('PYTHONHOME'); "
         "sys.exit(subprocess.run(['/bin/sh', '-c', sys.argv[-1]]).returncode)"
     )
 

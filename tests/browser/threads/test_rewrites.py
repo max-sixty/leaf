@@ -832,6 +832,65 @@ def test_a_rewrite_under_a_finger_keeps_its_message_head(browser, serve):
         )
 
 
+# Where an open rewrite's Discard and Save stand on their message's head, from the
+# first's left to the last's right across the head's height, and the head's words
+# under them.
+UNDER_EDIT_ACTIONS = """message => {
+  const head = message.querySelector(':scope > .lf-msg-head');
+  const h = head.getBoundingClientRect();
+  const controls = [...message.querySelectorAll('.lf-msg-edit-actions > button')]
+    .map((b) => b.getBoundingClientRect());
+  const words = [];
+  const walk = document.createTreeWalker(head, NodeFilter.SHOW_TEXT);
+  for (let t = walk.nextNode(); t; t = walk.nextNode()) {
+    const range = document.createRange();
+    range.selectNodeContents(t);
+    for (const r of range.getClientRects())
+      if (r.width) words.push({left: r.left, right: r.right, says: t.data.trim()});
+  }
+  const left = controls[0].left, right = controls.at(-1).right;
+  return {
+    box: {x: left, y: h.top, width: right - left, height: h.height},
+    under: words.filter((w) => w.right > left && w.left < right),
+  };
+}"""
+
+
+def test_a_cards_message_controls_cover_its_head(browser, serve):
+    """The margin card kept no room in a head for a message's control, since it draws no
+    reactions, so an open rewrite's Discard and Save stood over the head's time and
+    receipt, the words and the controls reading through each other. The head keeps its
+    Edit's room as every other surface's does, and the rewrite's pair, two glyphs,
+    stands in that room and covers the head beyond it: nothing under the pair shows
+    while the rewrite is open, and opening it moves none of the head's words."""
+    page, _, message = _rewrite_surface(browser, serve, "card")
+    # A saved rewrite marks the message edited, and the agent owes it an answer, so
+    # the head carries its labels out to its end.
+    message.locator(".lf-msg-text").dblclick()
+    page.keyboard.type(" Then the south one.")
+    with sending(page, "the first rewrite"):
+        page.keyboard.press("Enter")
+    expect(message.locator(".lf-edited")).to_be_visible()
+    head = message.locator(".lf-msg-head")
+    rendered(page)
+    words = head.evaluate(FIRST_LINE)
+    message.locator(".lf-msg-text").dblclick()
+    expect(message.locator(".lf-msg-editor leaf-text")).to_be_focused()
+    page.mouse.move(0, 0)
+    rendered(page)
+    assert head.evaluate(FIRST_LINE) == pytest.approx(words, abs=0.5)
+    pair = message.evaluate(UNDER_EDIT_ACTIONS)
+    assert pair["under"], f"no words of the head reach under the pair: {pair}"
+    shown = page.screenshot(clip=pair["box"])
+    # The head's words go clear; hiding the head would hide the pair anchored to it.
+    head.evaluate(
+        "head => [head, ...head.querySelectorAll('*')]"
+        ".forEach((e) => e.style.setProperty('color', 'transparent', 'important'))"
+    )
+    one_frame(page)
+    assert page.screenshot(clip=pair["box"]) == shown, "the head shows under the pair"
+
+
 @pytest.mark.parametrize("previous", ["reply", "reply-after-empty-composer", "drawing"])
 def test_a_discarded_rewrite_hands_resume_writing_back(browser, serve, previous):
     """Resume writing returned to a rewrite Escape had just discarded, reopening it on

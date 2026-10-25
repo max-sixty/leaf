@@ -532,6 +532,9 @@
     display: flex;
     width: var(--lf-fp-aim);
   }
+  .lf-floating-panel[data-drafted] .lf-fp-exit-seat {
+    width: auto;
+  }
   .lf-floating-panel[data-rest=mark] {
     --lf-fp-fold-pad-inline: calc((var(--lf-fp-folded) - var(--lf-fp-aim)) / 2);
     --lf-fp-fold-pad-block: calc((var(--lf-fp-folded) - var(--lf-line)) / 2);

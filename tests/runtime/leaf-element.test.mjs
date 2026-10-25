@@ -5,6 +5,7 @@
    holds, are the browser suite's. */
 import assert from "node:assert/strict";
 import test from "node:test";
+import { signal } from "/vendor/browser-runtime.js";
 import { html, LeafElement, nothing, noChange } from "/runtime/widget-api.js";
 import { focused, focusDestination } from "/runtime/focus.js";
 import { failSoftUnreported } from "/runtime/widget-upgrade.js";
@@ -731,6 +732,47 @@ test("a draw's claim waits for the drawing it holds it for", async () => {
   await settled(element);
   assert.ok(!pending(element));
   element.remove();
+});
+
+test("the first drawing after a skipped update holds presentation until it finishes", async () => {
+  const value = signal(false);
+  let finish;
+  const tag = `lf-probe-signal-drawing-${++tags}`;
+  customElements.define(
+    tag,
+    class extends LeafElement {
+      shouldUpdate(changed) {
+        return super.shouldUpdate(changed) && value.value;
+      }
+      render() {
+        return html`${value.value}`;
+      }
+      updated(changed) {
+        super.updated(changed);
+        this.work = value.peek() ? new Promise((done) => (finish = done)) : undefined;
+      }
+      async getUpdateComplete() {
+        const result = await super.getUpdateComplete();
+        await this.work;
+        return result;
+      }
+    },
+  );
+  const element = document.createElement(tag);
+  element.id = tag;
+  document.body.append(element);
+  try {
+    await settled(element);
+    value.value = true;
+    await committed(element);
+    assert.ok(pending(element), "the signal's drawing holds the region");
+    finish();
+    await settled(element);
+    assert.ok(!pending(element));
+  } finally {
+    finish?.();
+    element.remove();
+  }
 });
 
 test("accepted data claims the element's region until its delivery draws", async () => {

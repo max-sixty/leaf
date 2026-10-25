@@ -2931,8 +2931,19 @@ const markedDatums = (root) => [root, ...shadowRootsIn(root)].flatMap((scope) =>
 	node,
 	key: node.dataset.lfDatum,
 	label: node.dataset.lfDatumLabel,
-	identity: node.dataset.lfIdentity
+	identity: node.dataset.lfIdentity,
+	path: node.dataset.lfOriginPath
 }));
+const originPath = (who, key, text) => {
+	let path;
+	try {
+		path = JSON.parse(text);
+	} catch {
+		path = null;
+	}
+	if (!Array.isArray(path) || !path.every((step) => typeof step === "string" || Number.isInteger(step) && step >= 0)) throw new TypeError(`${who} datum ${key} data-lf-origin-path must be a JSON array of field names and indices`);
+	return path;
+};
 let constructed = null;
 function projectMarked(root, snapshot) {
 	if (!constructed) throw new Error("Leaf's data projection has not been constructed");
@@ -2953,17 +2964,9 @@ function createDataProjection({ invalidateDom }) {
 			invalidateDom();
 		});
 	}
-	function projectData(root, datums, { snapshot } = {}) {
-		if (!root.id) throw new TypeError("projectData root needs an id to name its projection");
-		const declaredInputs = registry[root.localName]?.["x-data"] ?? {};
-		if (snapshot === void 0 && Object.values(declaredInputs).some(({ source, reference }) => source && root.hasAttribute(source) || reference && root.hasAttribute(reference))) throw new Error(`projectData(${root.id}) must receive the snapshot that supplied its records`);
-		stamp(root, datums, snapshot, `projectData(${root.id})`);
-	}
-	function stampMarked(root, snapshot) {
+	function projectMarked(root, snapshot) {
 		if (!root.id) throw new TypeError(`<${root.localName}> needs an id to name its drawn data`);
-		stamp(root, markedDatums(root), snapshot, `<${root.localName} id=${root.id}>`);
-	}
-	function stamp(root, datums, snapshot, who) {
+		const who = `<${root.localName} id=${root.id}>`;
 		const stampBasis = (node) => {
 			keeps(node, "data-lf-source", snapshot?.source ?? null);
 			keeps(node, "data-lf-source-revision", snapshot?.revision ?? null);
@@ -2973,46 +2976,39 @@ function createDataProjection({ invalidateDom }) {
 		const keys = /* @__PURE__ */ new Set();
 		const identities = /* @__PURE__ */ new Set();
 		const nodes = /* @__PURE__ */ new Set();
-		for (const { node, key, label, identity, origin = snapshot?.origin ?? null } of datums) {
-			if (typeof key !== "string" || !key) throw new TypeError(`${who} keys must be non-empty strings`);
+		for (const { node, key, label, identity, path } of markedDatums(root)) {
+			if (!key) throw new TypeError(`${who} keys must be non-empty strings`);
 			if (keys.has(key)) throw new Error(`${who} received duplicate key ${key}`);
 			keys.add(key);
 			if (identity !== void 0) {
-				if (typeof identity !== "string" || !identity) throw new TypeError(`${who} identity for ${key} must be a non-empty string`);
+				if (!identity) throw new TypeError(`${who} identity for ${key} must be a non-empty string`);
 				if (identities.has(identity)) throw new Error(`${who} received duplicate identity ${identity}`);
 				identities.add(identity);
 			}
-			if (node === root || nodes.has(node)) throw new Error(`${who} reused the node for key ${key}`);
-			if (!under(node, root)) throw new Error(`${who} datum ${key} is outside its root`);
 			nodes.add(node);
 			if (label !== void 0) {
-				keeps(node, "data-lf-datum-label", label);
 				const prior = mirrored.get(node);
 				if (!node.hasAttribute("aria-label") && (!node.hasAttribute("aria-description") || node.getAttribute("aria-description") === prior)) {
 					keeps(node, "aria-description", label);
 					mirrored.set(node, label);
 				}
-			} else {
-				unmirror(node);
-				delete node.dataset.lfDatumLabel;
-			}
+			} else unmirror(node);
 			keeps(node, "data-lf-gen", "1");
 			keeps(node, "data-lf-projection", root.id);
-			keeps(node, "data-lf-datum", key);
 			stampBasis(node);
-			keeps(node, "data-lf-identity", identity ?? null);
+			const origin = snapshot?.origin ? {
+				...snapshot.origin,
+				...path === void 0 ? {} : { path: originPath(who, key, path) }
+			} : null;
 			keeps(node, "data-lf-origin", origin === null ? null : JSON.stringify(origin));
 		}
 		for (const node of projected) if (!nodes.has(node)) {
 			delete node.dataset.lfGen;
 			delete node.dataset.lfProjection;
-			delete node.dataset.lfDatum;
-			delete node.dataset.lfIdentity;
 			delete node.dataset.lfSource;
 			delete node.dataset.lfSourceRevision;
 			delete node.dataset.lfOrigin;
 			unmirror(node);
-			delete node.dataset.lfDatumLabel;
 		}
 		applyProjection(root);
 	}
@@ -3022,10 +3018,7 @@ function createDataProjection({ invalidateDom }) {
 		if (node.getAttribute("aria-description") === label) node.removeAttribute("aria-description");
 		mirrored.delete(node);
 	}
-	constructed = {
-		projectData,
-		projectMarked: stampMarked
-	};
+	constructed = { projectMarked };
 	return constructed;
 }
 
@@ -4985,7 +4978,7 @@ function mountApplication(dependencies) {
 		return presentDocument();
 	};
 	createProjectionPresentation();
-	const dataProjection = createDataProjection({ invalidateDom });
+	createDataProjection({ invalidateDom });
 	let delivery;
 	const presentThread = () => threadPresenter.present();
 	const refreshThread = () => presentThread().catch(() => void 0);
@@ -5353,7 +5346,6 @@ function mountApplication(dependencies) {
 		registerChromeThreadPresentation: (owner, spec) => presentThreads(owner, spec, true),
 		navigateToDatum: dependencies.anchorTravel.navigateToDatum,
 		post,
-		projectData: dataProjection.projectData,
 		readAndApply: feed.readAndApply,
 		refreshThread,
 		presentThread,
@@ -5385,7 +5377,6 @@ const invalidateDom = (...args) => app().invalidateDom(...args);
 const landInThread = (...args) => app().landInThread(...args);
 const navigateToDatum = (...args) => app().navigateToDatum(...args);
 const post = commandDispatch.post;
-const projectData = (...args) => app().projectData(...args);
 const placePageThreads = (...args) => app().placePageThreads(...args);
 const consumeAnnotations = (...args) => app().consumeAnnotations(...args);
 const registerThreadPresentation = (...args) => app().registerThreadPresentation(...args);
@@ -5784,6 +5775,9 @@ function inputBinding(element, declaration) {
 		snapshot
 	};
 }
+const supplied = /* @__PURE__ */ new WeakMap();
+const suppliedSnapshot = (value) => supplied.get(value);
+const bindsInput = (element, { source, reference }) => Boolean(source && element.getAttribute(source) || reference && element.getAttribute(reference));
 function dataReader(element, input, accepted) {
 	const declaration = declaredInput(element, input);
 	const { source, widget, selected, snapshot } = inputBinding(element, declaration);
@@ -5818,10 +5812,14 @@ function dataReader(element, input, accepted) {
 			reportPageError(`${source ? `data source ${source}` : `widget output ${widget}.${declaration.output}`} carries contract ${sourceStore.contract}; <${element.localName}> input ${input} requires ${declaration.contract}`);
 		}
 		if (incompatible || !sourceStore || !Object.hasOwn(sourceStore, "value")) return null;
-		if (sourceStore !== copied.store) copied = {
-			store: sourceStore,
-			value: structuredClone(snapshot(sourceStore, input))
-		};
+		if (sourceStore !== copied.store) {
+			copied = {
+				store: sourceStore,
+				value: structuredClone(snapshot(sourceStore, input))
+			};
+			const { value } = copied.value;
+			if (value !== null && typeof value === "object") supplied.set(value, copied.value);
+		}
 		return copied.value;
 	};
 }
@@ -5830,7 +5828,9 @@ function joinDataDelivery(region) {
 	joined.add(region);
 	return () => joined.delete(region);
 }
-async function loadDeferred(manifest, key) {
+async function loadDeferred(value, key) {
+	const manifest = supplied.get(value);
+	if (!manifest?.source) throw new Error(`loadDeferred(${key}) needs a source value Leaf delivered`);
 	const { source, revision } = manifest;
 	const current = () => {
 		const reading = runtime.data.sources[source];
@@ -5907,11 +5907,9 @@ var LeafElement = class extends q(UpdateBoundary) {
 	#broken = false;
 	#drawing = null;
 	#updating = false;
-	#work = null;
-	#data = /* @__PURE__ */ new Map();
 	#leaveData = null;
 	#scheduled = null;
-	#bound = [];
+	#inputs = [];
 	#sent = /* @__PURE__ */ new Map();
 	createRenderRoot() {
 		return this;
@@ -5947,11 +5945,13 @@ var LeafElement = class extends q(UpdateBoundary) {
 			this.#verbs = Object.keys(this.#descriptor.declaration["x-state"] ?? {});
 		}
 		this.#regionName = this.#descriptor ? null : `element:${this.localName}#${this.id}:${++regions}`;
-		this.#bound = Object.entries(registry[this.localName]?.["x-data"] ?? {}).flatMap(([input, { property }]) => property ? [{
+		this.#inputs = Object.entries(registry[this.localName]?.["x-data"] ?? {}).flatMap(([input, declaration]) => declaration.property ? [{
 			input,
-			property
+			property: declaration.property,
+			bound: bindsInput(this, declaration),
+			read: null
 		}] : []);
-		if (this.#bound.length) this.addEventListener("drawn", (event) => {
+		if (this.#inputs.length) this.addEventListener("drawn", (event) => {
 			if (event.target === this) this.#drawn(event.detail);
 		});
 		placesFailure(this, (box) => {
@@ -5984,34 +5984,37 @@ var LeafElement = class extends q(UpdateBoundary) {
 	get controller() {
 		return this.#controller;
 	}
-	data(input) {
-		let read = this.#data.get(input);
-		if (!read) this.#data.set(input, read = dataReader(this, input, () => this.#stage()));
-		return read();
-	}
 	willUpdate(changed) {
 		super.willUpdate(changed);
-		for (const { input, property } of this.#bound) {
-			const snapshot = this.data(input);
-			const sent = this.#sent.get(property) ?? [];
-			if (sent.length && sent.at(-1).snapshot === snapshot) continue;
+		for (const entry of this.#inputs) {
+			if (!entry.bound) continue;
+			entry.read ??= dataReader(this, entry.input, () => this.#stage());
+			const snapshot = entry.read();
+			const sent = this.#sent.get(entry.property);
+			if (sent && sent.snapshot === snapshot) continue;
 			const value = snapshot ? snapshot.value : null;
-			sent.push({
-				value,
-				snapshot
+			const primitives = sent?.primitives ?? /* @__PURE__ */ new Map();
+			if (value !== null && typeof value !== "object") {
+				primitives.delete(value);
+				primitives.set(value, snapshot);
+				if (primitives.size > DRAWABLE) primitives.delete(primitives.keys().next().value);
+			}
+			this.#sent.set(entry.property, {
+				snapshot,
+				primitives
 			});
-			if (sent.length > DRAWABLE) sent.shift();
-			this.#sent.set(property, sent);
-			this[property] = value;
+			this[entry.property] = value;
 		}
 	}
 	#drawn(detail) {
 		try {
-			const [{ property }] = this.#bound;
-			if (!detail || !Object.hasOwn(detail, property)) throw new Error(`<${this.localName}> drawn must carry the ${property} it drew in its detail`);
-			const entry = (this.#sent.get(property) ?? []).findLast((entry) => entry.value === detail[property]);
-			if (!entry) throw new Error(`<${this.localName} id=${this.id}> drew a ${property} Leaf did not set`);
-			projectMarked(this, entry.snapshot);
+			const named = this.#inputs.filter(({ property }) => detail && Object.hasOwn(detail, property));
+			if (named.length !== 1 || Object.keys(detail).length !== 1) throw new Error(`<${this.localName}> drawn must name one bound property (${this.#inputs.map(({ property }) => property).join(", ")}) with the value it drew`);
+			const [{ property, bound }] = named;
+			const value = detail[property];
+			const snapshot = !bound || value === null ? null : typeof value === "object" ? suppliedSnapshot(value) : this.#sent.get(property)?.primitives.get(value);
+			if (snapshot === void 0) throw new Error(`<${this.localName} id=${this.id}> drew a ${property} Leaf did not set`);
+			projectMarked(this, snapshot);
 		} catch (error) {
 			failSoft(this, error);
 		}
@@ -6045,38 +6048,23 @@ var LeafElement = class extends q(UpdateBoundary) {
 	performUpdate() {
 		const outer = this.#drawing;
 		const updating = this.#updating;
-		let outerWork = this.#work;
 		this.#drawing = null;
-		this.#work = null;
 		this.#updating = true;
 		try {
 			this.#signalError = null;
 			super.performUpdate();
 			if (this.#signalError) throw this.#signalError.error;
-			const work = this.#work;
-			if (work && !this.#drawing) {
-				if (outer) outerWork = outerWork ? Promise.all([outerWork, work]) : work;
-				else if (this.#region) this.#drawing = this.#claim();
-			}
-			if (this.#drawing) {
-				const complete = this.updateComplete.then(() => void 0);
-				this.#drawing.resolve(work ? Promise.all([work, complete]) : complete);
-			}
+			if (this.#drawing) this.#drawing.resolve(this.updateComplete.then(() => void 0, (error) => {
+				reportFailure(this, error);
+				throw error;
+			}));
 		} catch (error) {
 			if (outer && !this.#drawing) throw error;
 			this.#failed(error, this.#drawing);
 		} finally {
 			this.#drawing = outer;
-			this.#work = outerWork;
 			this.#updating = updating;
 		}
-	}
-	drawing(work) {
-		const named = Promise.resolve(work).catch((error) => {
-			reportFailure(this, error);
-			throw error;
-		});
-		this.#work = this.#work ? Promise.all([this.#work, named]) : named;
 	}
 	redraw() {
 		render(this.render(), this.renderRoot, this.renderOptions);
@@ -6177,4 +6165,4 @@ function obligationEnding(item) {
 }
 
 //#endregion
-export { DRAWING_COORDINATE_LIMIT, LeafEditorView, LeafElement, MAX_DRAWING_FRAME_DEPTH, MAX_DRAWING_POINTS, MAX_DRAWING_SAYS_LENGTH, MAX_DRAWING_STROKES, acceptData, answerWords, beginRead, composerOpen, composerQuote, consumeAnnotations, createReactionController, createSelectionComposer, createThreadLanding, currentLocationThread, currentProjection, declareThreadKeys, fabBar, fabInput, fabOptionsTrigger, inPageOrder, landInThread, leavesBox, loadDeferred, mountApplication, navigateToDatum, notifyDataSubscribers, obligationActions, obligationEnding, obligationWord, ownedObligationControl, paintBarReactions, pendingAbout, pendingAnchor, pendingDrawing, placePageThreads, projectData, publishOutput, queueActions, queueItemKey, queueTitle, reactionAvailable, reactionTokens, readPlan, readQueues, registerThreadPresentation, sendReaction, textField, threadActions, threadBox, threadInput, widgetController, wireInput };
+export { DRAWING_COORDINATE_LIMIT, LeafEditorView, LeafElement, MAX_DRAWING_FRAME_DEPTH, MAX_DRAWING_POINTS, MAX_DRAWING_SAYS_LENGTH, MAX_DRAWING_STROKES, acceptData, answerWords, beginRead, composerOpen, composerQuote, consumeAnnotations, createReactionController, createSelectionComposer, createThreadLanding, currentLocationThread, currentProjection, declareThreadKeys, fabBar, fabInput, fabOptionsTrigger, inPageOrder, landInThread, leavesBox, loadDeferred, mountApplication, navigateToDatum, notifyDataSubscribers, obligationActions, obligationEnding, obligationWord, ownedObligationControl, paintBarReactions, pendingAbout, pendingAnchor, pendingDrawing, placePageThreads, publishOutput, queueActions, queueItemKey, queueTitle, reactionAvailable, reactionTokens, readPlan, readQueues, registerThreadPresentation, sendReaction, textField, threadActions, threadBox, threadInput, widgetController, wireInput };

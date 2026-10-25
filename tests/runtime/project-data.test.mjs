@@ -21,9 +21,11 @@ const reading = {
 const data = { version: "v1", sources: { files: reading } };
 exported.textContent = JSON.stringify({ data });
 document.head.append(exported);
-const { loadDeferred, acceptData } = await import("/runtime/data.js");
+const { loadDeferred, acceptData, notifyDataSubscribers } =
+  await import("/runtime/data.js");
 const { adoptRegistry } = await import("/runtime/registry.js");
 const { createDataProjection } = await import("/runtime/projection/data.js");
+const { LeafElement, nothing } = await import("/runtime/widget-api.js");
 exported.remove();
 adoptRegistry({
   $data: {
@@ -33,34 +35,33 @@ adoptRegistry({
       },
     },
   },
+  "lf-files": {
+    "x-data": {
+      files: { contract: "optional-payload", source: "source", property: "value" },
+    },
+  },
 });
+createDataProjection({ invalidateDom() {} });
+customElements.define(
+  "lf-files",
+  class extends LeafElement {
+    render() {
+      return nothing;
+    }
+  },
+);
 
-test("a datum's key and identity must be words, since a comment's anchor keeps them", () => {
-  // An object stringifies to the same "[object Object]" as the next one, so a comment
-  // anchored on it would follow whichever datum replaced it.
-  const { projectData } = createDataProjection({ invalidateDom() {} });
-  const root = document.createElement("section");
-  root.id = "rows";
-  const row = document.createElement("p");
-  root.append(row);
-  document.body.append(root);
-  const row1 = { id: "row-1" };
-  assert.throws(
-    () => projectData(root, [{ node: row, key: row1 }]),
-    /keys must be non-empty strings/,
-  );
-  assert.throws(
-    () => projectData(root, [{ node: row, key: "row-1", identity: row1 }]),
-    /identity for row-1 must be a non-empty string/,
-  );
-  projectData(root, [{ node: row, key: "row-1", identity: "row-1" }]);
-  assert.equal(row.dataset.lfIdentity, "row-1");
-  root.remove();
-});
+// The manifest a widget bound to the files source is handed.
+async function deliveredManifest() {
+  acceptData(data, 1);
+  document.body.innerHTML =
+    '<main><lf-files id="files" source="files"></lf-files></main>';
+  await notifyDataSubscribers();
+  return document.querySelector("#files").value;
+}
 
 test("offline deferred reads refuse absent payloads while retaining valid null", async () => {
-  acceptData(data, 1);
-  const manifest = { source: "files", ...reading };
+  const manifest = await deliveredManifest();
   assert.equal(await loadDeferred(manifest, "empty"), null);
   const evidence = await loadDeferred(manifest, "text");
   assert.deepEqual(evidence, { contents: "evidence" });
@@ -71,10 +72,15 @@ test("offline deferred reads refuse absent payloads while retaining valid null",
     loadDeferred(manifest, "unknown"),
     /unknown record key 'unknown'/,
   );
+  // Only a value Leaf delivered names the revision its records belong to.
+  await assert.rejects(
+    loadDeferred(structuredClone(manifest), "text"),
+    /needs a source value Leaf delivered/,
+  );
 });
 
 test("a deferred manifest refuses a rebound contract or invalid source at the same revision", async () => {
-  const manifest = { source: "files", ...reading };
+  const manifest = await deliveredManifest();
   for (const change of ["contract", "validity"]) {
     const candidate = structuredClone(data);
     candidate.version = change;
@@ -93,108 +99,6 @@ test("a deferred manifest refuses a rebound contract or invalid source at the sa
   assert.deepEqual(await loadDeferred(manifest, "text"), { contents: "evidence" });
 });
 
-test("an async projection retains its captured source provenance after acceptance advances", async () => {
-  const { notifyDataSubscribers } = await import("/runtime/data.js");
-  const { whenApplicationPresented } = await import("/runtime/semantic-state.js");
-  const { LeafElement, nothing } = await import("/runtime/widget-api.js");
-  adoptRegistry({
-    "lf-source": {
-      "x-data": { document: { contract: "text-document", source: "source" } },
-    },
-  });
-  const initial = {
-    version: "projection-original",
-    sources: Object.fromEntries(
-      ["document", "pinned"].map((source) => [
-        source,
-        { contract: "text-document", revision: "old-revision", value: 'route = "old"' },
-      ]),
-    ),
-  };
-  acceptData(initial, 1);
-  // A widget drawing each delivery asynchronously, as an author's renderer may.
-  customElements.define(
-    "lf-source",
-    class extends LeafElement {
-      render() {
-        this.snapshot = this.data("document");
-        return nothing;
-      }
-      updated(changed) {
-        super.updated(changed);
-        this.drawing(paint(this)(this.snapshot));
-      }
-    },
-  );
-  document.body.innerHTML =
-    '<main><lf-source id="live" source="document"></lf-source><lf-source id="pinned" source="pinned"></lf-source></main>';
-  const { projectData } = createDataProjection({ invalidateDom() {} });
-  const held = Promise.withResolvers();
-  const firstProjection = Promise.withResolvers();
-  let first = true;
-  const paint = (node) => async (snapshot) => {
-    // This is an author's async renderer, with its captured reading held explicitly.
-    // Its production projection owner, rather than the latest accepted data, stamps
-    // the origin that its rendered words actually came from.
-    const mounting = node.id === "mounted-source" && first;
-    if (mounting) {
-      first = false;
-      await held.promise;
-    }
-    const code = document.createElement("code");
-    code.textContent = snapshot.value;
-    node.replaceChildren(code);
-    projectData(node, [{ key: "document", node: code }], { snapshot });
-    if (mounting) firstProjection.resolve();
-  };
-  const live = document.querySelector("#live");
-  const pinned = document.querySelector("#pinned");
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  await whenApplicationPresented();
-  const mounted = live.cloneNode(false);
-  mounted.id = "mounted-source";
-  live.after(mounted);
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  const newer = structuredClone(initial);
-  newer.version = "projection-newer";
-  newer.sources.document.revision = "newer-revision";
-  newer.sources.document.value = 'route = "new"';
-  acceptData(newer, 1);
-  held.resolve();
-  await firstProjection.promise;
-  const read = (node) => {
-    const code = node.querySelector("code");
-    return {
-      text: code.textContent,
-      source: code.dataset.lfSource,
-      revision: code.dataset.lfSourceRevision,
-    };
-  };
-  const beforeNotification = read(mounted);
-  await notifyDataSubscribers();
-  const old = { text: 'route = "old"', source: "document", revision: "old-revision" };
-  const next = {
-    text: 'route = "new"',
-    source: "document",
-    revision: "newer-revision",
-  };
-  assert.deepEqual(
-    {
-      beforeNotification,
-      mounted: read(mounted),
-      live: read(live),
-      pinned: read(pinned),
-    },
-    {
-      beforeNotification: old,
-      mounted: next,
-      live: next,
-      pinned: { ...old, source: "pinned" },
-    },
-  );
-  document.body.replaceChildren();
-});
-
 test("a widget's marks become its datums, and a nested widget keeps its own", () => {
   adoptRegistry({
     "lf-marked": { "x-data": { rows: { contract: "rows", source: "source" } } },
@@ -202,7 +106,8 @@ test("a widget's marks become its datums, and a nested widget keeps its own", ()
   });
   const { projectMarked } = createDataProjection({ invalidateDom() {} });
   document.body.innerHTML = `<main><lf-marked id="outer" source="rows">
-      <p data-lf-datum="api" data-lf-identity="api" data-lf-datum-label="API">Ready</p>
+      <p data-lf-datum="api" data-lf-identity="api" data-lf-datum-label="API"
+        data-lf-origin-path='["rows",0]'>Ready</p>
       <lf-marked-inner id="inner" source="rows"><p data-lf-datum="api">Inner</p></lf-marked-inner>
     </lf-marked></main>`;
   const outer = document.querySelector("#outer");
@@ -217,29 +122,43 @@ test("a widget's marks become its datums, and a nested widget keeps its own", ()
     lfDatum: "api",
     lfIdentity: "api",
     lfDatumLabel: "API",
+    lfOriginPath: '["rows",0]',
     lfGen: "1",
     lfProjection: "outer",
     lfSource: "rows",
     lfSourceRevision: "r1",
-    lfOrigin: '{"input":"rows"}',
+    lfOrigin: '{"input":"rows","path":["rows",0]}',
     description: "API",
   });
   // The inner widget's mark is its own: the outer stamp leaves it unprojected.
   assert.equal(inner.dataset.lfProjection, undefined);
 
-  // A new label replaces the one Leaf mirrored, and a dropped mark retires the datum.
+  // A new label replaces the one Leaf mirrored, and words no bound value supplied
+  // carry no source or origin.
   row.dataset.lfDatumLabel = "API service";
-  projectMarked(outer, { ...snapshot, revision: "r2" });
+  projectMarked(outer, null);
   assert.equal(row.getAttribute("aria-description"), "API service");
-  assert.equal(row.dataset.lfSourceRevision, "r2");
+  assert.deepEqual(
+    [row.dataset.lfProjection, row.dataset.lfSourceRevision, row.dataset.lfOrigin],
+    ["outer", undefined, undefined],
+  );
+  // A dropped mark retires the datum, leaving the widget's other marks to it.
   delete row.dataset.lfDatum;
-  projectMarked(outer, { ...snapshot, revision: "r3" });
-  assert.deepEqual(stamp(row), { description: null });
+  projectMarked(outer, snapshot);
+  assert.deepEqual(stamp(row), {
+    lfIdentity: "api",
+    lfDatumLabel: "API service",
+    lfOriginPath: '["rows",0]',
+    description: null,
+  });
 
-  // Marks are refused as `projectData` refuses its datums.
+  // A mark that couldn't anchor a comment to one datum is refused.
   row.dataset.lfDatum = "";
   assert.throws(() => projectMarked(outer, snapshot), /keys must be non-empty strings/);
   row.dataset.lfDatum = "api";
+  row.dataset.lfOriginPath = "rows.0";
+  assert.throws(() => projectMarked(outer, snapshot), /must be a JSON array/);
+  row.dataset.lfOriginPath = '["rows",0]';
   const twin = row.cloneNode(true);
   delete twin.dataset.lfIdentity;
   row.after(twin);
@@ -248,8 +167,6 @@ test("a widget's marks become its datums, and a nested widget keeps its own", ()
 });
 
 test("a draw reported after a newer value arrived keeps the revision it drew", async () => {
-  const { notifyDataSubscribers } = await import("/runtime/data.js");
-  const { LeafElement, nothing } = await import("/runtime/widget-api.js");
   adoptRegistry({
     "lf-valued": {
       "x-data": {
@@ -257,7 +174,6 @@ test("a draw reported after a newer value arrived keeps the revision it drew", a
       },
     },
   });
-  createDataProjection({ invalidateDom() {} });
   const reading = (revision, value) => ({
     version: revision,
     sources: { note: { contract: "text-document", revision, value } },
@@ -326,5 +242,71 @@ test("a draw reported after a newer value arrived keeps the revision it drew", a
       afterOlder: ["Older", "older"],
     },
   );
+  document.body.replaceChildren();
+});
+
+test("a value the widget holds keeps its revision however many newer ones arrive", async () => {
+  adoptRegistry({
+    "lf-held": {
+      "x-data": {
+        rows: { contract: "rows", source: "source", property: "value" },
+        notes: { contract: "rows", source: "notes", property: "notes" },
+      },
+    },
+  });
+  // A widget that keeps drawing the first rows it was handed, as a held reading does,
+  // and reports what `report` says it drew.
+  let report = (widget) => ({ value: widget.held });
+  customElements.define(
+    "lf-held",
+    class extends LeafElement {
+      render() {
+        this.held ??= this.value;
+        return nothing;
+      }
+      updated(changed) {
+        super.updated(changed);
+        const p =
+          this.querySelector("p") ?? this.appendChild(document.createElement("p"));
+        if (p.dataset.lfDatum !== "row") p.dataset.lfDatum = "row";
+        this.dispatchEvent(new CustomEvent("drawn", { detail: report(this) }));
+      }
+    },
+  );
+  const reading = (revision) => ({
+    version: revision,
+    sources: { rows: { contract: "rows", revision, value: { revision } } },
+  });
+  acceptData(reading("r0"), 1);
+  document.body.innerHTML = '<main><lf-held id="held" source="rows"></lf-held></main>';
+  const widget = document.querySelector("#held");
+  await notifyDataSubscribers();
+  for (let n = 1; n <= 12; n += 1) {
+    acceptData(reading(`r${n}`), 1);
+    await notifyDataSubscribers();
+  }
+  const row = widget.querySelector("p");
+  assert.deepEqual(
+    [widget.value.revision, row.dataset.lfSourceRevision],
+    ["r12", "r0"],
+  );
+
+  // The unbound input's words carry no source; Leaf leaves its property to the widget.
+  report = () => ({ notes: "authored" });
+  widget.requestUpdate();
+  await widget.updateComplete;
+  assert.deepEqual(
+    [widget.notes, row.dataset.lfProjection, row.dataset.lfSource],
+    [undefined, "held", undefined],
+  );
+
+  // A seat carries one source, so a report naming two properties is refused, and so is
+  // a value Leaf never set.
+  for (const detail of [{ value: widget.held, notes: "authored" }, { value: {} }]) {
+    report = () => detail;
+    widget.requestUpdate();
+    await widget.updateComplete;
+    assert.match(widget.querySelector(".lf-error").textContent, /<lf-held/);
+  }
   document.body.replaceChildren();
 });

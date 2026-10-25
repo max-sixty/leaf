@@ -146,7 +146,8 @@
     "x-data": {
       "document": {
         "contract": "unified-diff",
-        "source": "source"
+        "source": "source",
+        "property": "value"
       }
     },
     "x-output": {
@@ -191,7 +192,8 @@
     "x-data": {
       "document": {
         "contract": "calldiff",
-        "source": "source"
+        "source": "source",
+        "property": "value"
       }
     },
     "x-refers": {

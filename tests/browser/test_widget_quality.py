@@ -32,11 +32,9 @@ def test_package_render_check_refuses_a_failed_async_paint(tmp_path, browser):
 import { LeafElement, html } from "/runtime/widget-api.js";
 customElements.define("lf-async-panel", class extends LeafElement {
   render() { return html`Instrument`; }
-  updated(changed) {
-    super.updated(changed);
-    this.drawing(Promise.resolve().then(() => {
-      throw new Error("The instrument paint failed");
-    }));
+  async getUpdateComplete() {
+    await super.getUpdateComplete();
+    throw new Error("The instrument paint failed");
   }
 });
 """)

@@ -3,8 +3,9 @@
    A module subclasses `LeafElement` and draws in `render()`, as any `LitElement` does,
    into the element itself unless `createRenderRoot()` names a part it generated.
    `render()` reads whatever it shows through readers: the widget's own reading
-   (`this.reading`, `this.state`), a bound data source (`this.data(input)`), obligations,
-   reports, work, the time (`ago`, `clockValue`). Every reader it calls synchronously is
+   (`this.reading`, `this.state`), obligations, reports, work, the time (`ago`,
+   `clockValue`), and a bound data source through the property Leaf sets ("Bound
+   values"). Every reader it calls synchronously is
    tracked by Lit's Preact SignalWatcher. Lit's reactive properties update it too,
    for state the widget keeps itself. Presentation readiness (`reportsReady`) instead
    waits once for prerequisites to finish, then requests an unclaimed update: claiming
@@ -36,26 +37,34 @@
    (before the first state read, the authored state supplies every verb); its claim
    settles with nothing drawn. While its controller's `defer()` holds it, its claim stays
    open; the release draws the newest reading at once, changed or not, since the gesture
-   may have rewritten its nodes. An element whose tag declares `x-data` holds the page's data
-   version while it stands, until it has drawn what was delivered, and any drawing that
-   draw held it for, such as highlighting or a loading frame, has landed: what
-   `updateComplete` waits for, which a widget extends by overriding
-   `getUpdateComplete`, as any Lit element does (the prototype keeps `drawing()` for
-   the widgets not yet moved). Lit's own completion, without that extension, is what
-   dependent DOM readers wait for (`#committed`).
+   may have rewritten its nodes. An update's claim settles once `updateComplete` does,
+   which a widget whose drawing finishes after the render, such as highlighting or a
+   loading frame, extends by overriding `getUpdateComplete`, as any Lit element does;
+   a rejection there is the update's failure. So an element whose tag declares `x-data`
+   holds the page's data version while it stands, until it has drawn what was
+   delivered and finished that drawing. Lit's own completion, without the extension, is
+   what dependent DOM readers wait for (`#committed`).
    `setup()` runs once, on the first connection, before the first render.
 
-   Bound values. An x-data input that names a `property` reaches the widget as a
-   plain property: before each render that the input's delivery moves, this element
-   sets `this[property]` to the delivered value, or null while the source has none,
-   so the widget reads `this.value` as it would anywhere else a host sets it. The
-   widget marks the items it drew with plain attributes (projection/data.js) and
-   dispatches a `drawn` event whose detail maps the property to the value it drew.
-   This element keeps the last few values it set with the snapshot that supplied
-   each, so a draw that finishes after a newer value arrived is still stamped with
-   the revision it drew, and validates the marks there. Off a Leaf page no one
-   listens, and the marks mean nothing. The prototype binds one property per widget,
-   since a seat's stamp carries one source and revision. */
+   Bound values. A module reads each x-data input through the plain property its
+   declaration names (`property`): before each update that the input's delivery
+   moves, this element sets `this[property]` to the delivered value, or null while the
+   source has none, so the widget reads `this.value` as it would anywhere else a host
+   sets it. An input the markup doesn't bind, to a source or to another widget's
+   output, is left to the widget and whoever else hosts it.
+
+   The widget marks the items it drew with plain attributes (projection/data.js) and
+   dispatches a non-bubbling `drawn` event whose detail names one bound property and
+   the value it drew from it, `{value}`. A seat's stamp carries one source and revision,
+   so a widget with several bound inputs marks the items of one of them and names that
+   one. This element finds the snapshot that supplied the value and stamps the marks
+   with it, so a draw that finishes after a newer value arrived keeps the revision it
+   drew. An object value is one delivery's copy, which names its snapshot for as long
+   as the widget holds it (`suppliedSnapshot`, data.js); an equal primitive value has
+   an equal revision, a digest of the value, so the newest of the last few set
+   supplies it. A null value, or an input the markup leaves unbound, names words no
+   bound value supplied, stamped without a source. Off a Leaf page no one listens, and
+   the marks mean nothing. */
 import {
   LitElement,
   SignalWatcher,
@@ -79,13 +88,13 @@ import {
 } from "./widget-upgrade.js";
 import { watchOwner } from "./arrivals.js";
 import { paintKeysWithin } from "./keyboard/scopes.js";
-import { dataReader, joinDataDelivery } from "./data.js";
+import { bindsInput, dataReader, joinDataDelivery, suppliedSnapshot } from "./data.js";
 import { registry } from "./registry.js";
 import { projectMarked } from "./projection/data.js";
 
-// How many values set on one bound property a `drawn` can still name. A draw names
-// the value it started from, which a widget abandons once a newer one arrives, so
-// only the last few can still finish.
+// How many primitive values set on one bound property a `drawn` can still name. A draw
+// names the value it started from, which a widget abandons once a newer one arrives,
+// so only the last few can still finish.
 const DRAWABLE = 8;
 
 let regions = 0;
@@ -158,15 +167,13 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
   // The claim the update under way draws, settled once `updated` has run too.
   #drawing = null;
   #updating = false;
-  // The drawing that follows the update under way, which its claim waits for.
-  #work = null;
-  #data = new Map();
   #leaveData = null;
   #scheduled = null;
-  // The x-data inputs the registry binds to a property, `{input, property}`.
-  #bound = [];
-  // Each bound property's values as set, newest last, with the snapshot that supplied
-  // each, so a `drawn` naming a value finds the revision it came from.
+  // The x-data inputs that name a property, `{input, property, bound, read}`, with
+  // `read` the delivery reader of one the markup binds.
+  #inputs = [];
+  // Each bound property's last snapshot set, and its last few primitive values with the
+  // snapshot that supplied each, newest last.
   #sent = new Map();
 
   createRenderRoot() {
@@ -217,10 +224,20 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
     this.#regionName = this.#descriptor
       ? null
       : `element:${this.localName}#${this.id}:${++regions}`;
-    this.#bound = Object.entries(registry[this.localName]?.["x-data"] ?? {}).flatMap(
-      ([input, { property }]) => (property ? [{ input, property }] : []),
+    this.#inputs = Object.entries(registry[this.localName]?.["x-data"] ?? {}).flatMap(
+      ([input, declaration]) =>
+        declaration.property
+          ? [
+              {
+                input,
+                property: declaration.property,
+                bound: bindsInput(this, declaration),
+                read: null,
+              },
+            ]
+          : [],
     );
-    if (this.#bound.length)
+    if (this.#inputs.length)
       this.addEventListener("drawn", (event) => {
         if (event.target === this)
           this.#drawn(/** @type {CustomEvent} */ (event).detail);
@@ -272,51 +289,55 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
     return this.#controller;
   }
 
-  /** The bound reading of a declared `x-data` input, one copy a delivery (data.js). */
-  data(input) {
-    let read = this.#data.get(input);
-    if (!read)
-      this.#data.set(input, (read = dataReader(this, input, () => this.#stage())));
-    return read();
-  }
-
-  // Set each bound property to the value its input delivers, before the render that
+  // Set each bound property to the value its input delivers, before the update that
   // reads it. Reading the input here follows it as `render()` reading it would.
   willUpdate(changed) {
     super.willUpdate(changed);
-    for (const { input, property } of this.#bound) {
-      const snapshot = this.data(input);
-      const sent = this.#sent.get(property) ?? [];
-      if (sent.length && sent.at(-1).snapshot === snapshot) continue;
+    for (const entry of this.#inputs) {
+      if (!entry.bound) continue;
+      entry.read ??= dataReader(this, entry.input, () => this.#stage());
+      const snapshot = entry.read();
+      const sent = this.#sent.get(entry.property);
+      if (sent && sent.snapshot === snapshot) continue;
       const value = snapshot ? snapshot.value : null;
-      sent.push({ value, snapshot });
-      if (sent.length > DRAWABLE) sent.shift();
-      this.#sent.set(property, sent);
-      this[property] = value;
+      const primitives = sent?.primitives ?? new Map();
+      if (value !== null && typeof value !== "object") {
+        primitives.delete(value);
+        primitives.set(value, snapshot);
+        if (primitives.size > DRAWABLE)
+          primitives.delete(primitives.keys().next().value);
+      }
+      this.#sent.set(entry.property, { snapshot, primitives });
+      this[entry.property] = value;
     }
   }
 
   // The widget reports the value it drew, by the property it read it from, once its
-  // marks for that drawing stand. A seat carries one source and revision, so one bound
-  // property supplies them.
+  // marks for that drawing stand.
   #drawn(detail) {
     try {
-      const [{ property }] = this.#bound;
-      if (!detail || !Object.hasOwn(detail, property))
-        throw new Error(
-          `<${this.localName}> drawn must carry the ${property} it drew in its detail`,
-        );
-      // The newest snapshot carrying that value: a draw that finishes after a newer
-      // value arrived is stamped with the revision it drew. Equal values share a
-      // revision, which digests the value.
-      const entry = (this.#sent.get(property) ?? []).findLast(
-        (entry) => entry.value === detail[property],
+      const named = this.#inputs.filter(
+        ({ property }) => detail && Object.hasOwn(detail, property),
       );
-      if (!entry)
+      if (named.length !== 1 || Object.keys(detail).length !== 1)
+        throw new Error(
+          `<${this.localName}> drawn must name one bound property (${this.#inputs
+            .map(({ property }) => property)
+            .join(", ")}) with the value it drew`,
+        );
+      const [{ property, bound }] = named;
+      const value = detail[property];
+      const snapshot =
+        !bound || value === null
+          ? null
+          : typeof value === "object"
+            ? suppliedSnapshot(value)
+            : this.#sent.get(property)?.primitives.get(value);
+      if (snapshot === undefined)
         throw new Error(
           `<${this.localName} id=${this.id}> drew a ${property} Leaf did not set`,
         );
-      projectMarked(this, entry.snapshot);
+      projectMarked(this, snapshot);
     } catch (error) {
       failSoft(this, error);
     }
@@ -361,57 +382,39 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
     this.#box = null;
   }
 
-  // An update settles its claim once all of it has run, `updated` included, and one
-  // that failed anywhere, its gate too, reports once and shows its failure; Lit has
-  // marked it done, so the next move draws again. A draw that `updated` asks for at
-  // once, as a module's own paint may, settles its own claim inside this one; with no
-  // claim of its own, its failure is the enclosing claimed update's.
+  // An update settles its claim once all of it has run, `updated` included, and its
+  // `updateComplete` has resolved; one that failed anywhere, its gate and that
+  // completion too, reports once and shows its failure. Lit has marked it done, so the
+  // next move draws again. A draw that `updated` asks for at once, as a module's own
+  // paint may, settles its own claim inside this one; with no claim of its own, its
+  // failure is the enclosing claimed update's.
   performUpdate() {
     const outer = this.#drawing;
     const updating = this.#updating;
-    let outerWork = this.#work;
     this.#drawing = null;
-    this.#work = null;
     this.#updating = true;
     try {
       this.#signalError = null;
       super.performUpdate();
       if (this.#signalError) throw this.#signalError.error;
-      const work = this.#work;
-      // Drawing an update with no claim of its own holds goes to the claim enclosing
-      // it, or else claims the region, as a retry's or a follow-up draw's does.
-      if (work && !this.#drawing) {
-        if (outer) outerWork = outerWork ? Promise.all([outerWork, work]) : work;
-        else if (this.#region) this.#drawing = this.#claim();
-      }
-      // The claim settles once the update completes as the element tells it: Lit's
-      // `updateComplete`, which a widget whose drawing finishes later extends by
-      // overriding `getUpdateComplete`.
-      if (this.#drawing) {
-        const complete = this.updateComplete.then(() => undefined);
-        this.#drawing.resolve(work ? Promise.all([work, complete]) : complete);
-      }
+      if (this.#drawing)
+        // A failure names the widget; the claim it rejects reports nothing again.
+        this.#drawing.resolve(
+          this.updateComplete.then(
+            () => undefined,
+            (error) => {
+              reportFailure(this, error);
+              throw error;
+            },
+          ),
+        );
     } catch (error) {
       if (outer && !this.#drawing) throw error;
       this.#failed(error, this.#drawing);
     } finally {
       this.#drawing = outer;
-      this.#work = outerWork;
       this.#updating = updating;
     }
-  }
-
-  /** Hold the update under way's claim until `work`, drawing that follows the render
-   *  asynchronously, lands: highlighting a document, say. An update no move claimed
-   *  claims the region for it. The widget's presentation, and the data version a
-   *  delivery it draws holds, wait for it. Call it from `render()` or `updated()`. */
-  drawing(work) {
-    // A failure names the widget; the claim it rejects reports nothing again.
-    const named = Promise.resolve(work).catch((error) => {
-      reportFailure(this, error);
-      throw error;
-    });
-    this.#work = this.#work ? Promise.all([this.#work, named]) : named;
   }
 
   /** The render drawn again at once, outside any claim and Lit's own schedule, with a

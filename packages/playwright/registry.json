@@ -406,7 +406,8 @@
     "x-data": {
       "trace": {
         "contract": "playwright-trace",
-        "source": "source"
+        "source": "source",
+        "property": "value"
       }
     },
     "x-upgrade": true,

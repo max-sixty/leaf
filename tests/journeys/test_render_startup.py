@@ -455,12 +455,14 @@ def test_failed_clock_paints_do_not_starve_other_widgets_or_restart_polling(
                     throw new Error('read broke');
                   return window.clockVersion;
                 });
-                if (!version) return noChange;
-                if (stage === 'async') {
-                  this.drawing(Promise.reject(new Error('async broke')));
-                  return noChange;
-                }
+                this.failing = version && stage === 'async';
+                if (!version || this.failing) return noChange;
                 throw new Error('paint broke');
+              }
+              async getUpdateComplete() {
+                const result = await super.getUpdateComplete();
+                if (this.failing) throw new Error('async broke');
+                return result;
               }
             });
             const probe = document.createElement(tag);

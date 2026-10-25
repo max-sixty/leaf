@@ -104,6 +104,8 @@ customElements.define(
       this.showing = this.show(this.value);
     }
 
+    // Also waits for the drawing the latest update started: a newer update's drawing
+    // replaces one still pending.
     async getUpdateComplete() {
       const result = await super.getUpdateComplete();
       await this.showing;

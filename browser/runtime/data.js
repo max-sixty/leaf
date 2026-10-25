@@ -2,16 +2,18 @@
 
    The browser orders data readings by when the server took them, independently of
    the log sequence, because overlapping poll and POST responses can order the authorities
-   differently. A `LeafElement` reads a bound input through `dataReader` (`this.data`),
-   which yields one copy a delivery of `{source, contract, revision, run, updated, value,
-   origin}`, or `null` while the bound source has no readable value. A widget-output
-   binding yields `{contract, value, origin}` with derived-widget provenance, without
-   a fabricated source revision or run. Outputs join the immutable application
-   publication and the same presentation barrier as sources. What a source shows moves
-   only as state application delivers, and each element that draws data holds the data
-   version until its region has drawn the delivery (`joinDataDelivery`). Modules project
-   the result into the authored seat; they do not fetch it, mutate the accepted copy, or
-   keep a hidden current-value map of their own.*/
+   differently. A `LeafElement` reads a bound input through `dataReader`, which yields
+   one copy a delivery of `{source, contract, revision, run, updated, value, origin}`,
+   or `null` while the bound source has no readable value, and hands the widget only its
+   `value` (leaf-element.js, "Bound values"). A widget-output binding yields
+   `{contract, value, origin}` with derived-widget provenance, without a fabricated
+   source revision or run. Each object value names the snapshot that supplied it
+   (`suppliedSnapshot`), so whoever holds the value can name its revision. Outputs join
+   the immutable application publication and the same presentation barrier as sources.
+   What a source shows moves only as state application delivers, and each element that
+   draws data holds the data version until its region has drawn the delivery
+   (`joinDataDelivery`). Modules draw the value into the authored seat; they do not
+   fetch it, mutate the accepted copy, or keep a hidden current-value map of their own.*/
 
 import { computed, signal, untracked } from "/vendor/browser-runtime.js";
 import { offlineData, offlineInteractive, pageUrl, runtime } from "./context.js";
@@ -135,6 +137,19 @@ function inputBinding(element, declaration) {
   return { source, widget, selected, snapshot };
 }
 
+// The snapshot each delivered object value came from. An object is one delivery's copy,
+// so the lookup is exact, and it lasts as long as something holds the value.
+const supplied = new WeakMap();
+/** The snapshot that supplied a delivered object `value`, or undefined. */
+export const suppliedSnapshot = (value) => supplied.get(value);
+
+// Whether the markup binds a declared input, to a source or to a widget's output.
+export const bindsInput = (element, { source, reference }) =>
+  Boolean(
+    (source && element.getAttribute(source)) ||
+    (reference && element.getAttribute(reference)),
+  );
+
 // A `LeafElement`'s reader of one bound input (leaf-element.js): the delivered source
 // reading, read through a selection of that source, so a render that reads it is drawn
 // again when the source moves. Markup owns the binding, captured at the first read, so
@@ -187,11 +202,15 @@ export function dataReader(element, input, accepted) {
       return null;
     // One copy a delivery: a render that reads it again gets the same value, so a widget
     // tells a new delivery by identity, and none can mutate the accepted snapshot.
-    if (sourceStore !== copied.store)
+    if (sourceStore !== copied.store) {
       copied = {
         store: sourceStore,
         value: structuredClone(snapshot(sourceStore, input)),
       };
+      const { value } = copied.value;
+      if (value !== null && typeof value === "object")
+        supplied.set(value, copied.value);
+    }
     return copied.value;
   };
 }
@@ -204,10 +223,14 @@ export function joinDataDelivery(region) {
   return () => joined.delete(region);
 }
 
-// A deferred value's identity belongs to the delivered manifest. A replacement can be
-// accepted before its subscriber renders; loading through that older manifest must not
-// fetch a same-key deferred value from the replacement.
-export async function loadDeferred(manifest, key) {
+// A deferred value's identity belongs to the delivered manifest, which the widget names
+// by the value it drew. A replacement can be accepted before its subscriber renders;
+// loading through that older manifest must not fetch a same-key deferred value from the
+// replacement.
+export async function loadDeferred(value, key) {
+  const manifest = supplied.get(value);
+  if (!manifest?.source)
+    throw new Error(`loadDeferred(${key}) needs a source value Leaf delivered`);
   const { source, revision } = manifest;
   const current = () => {
     const reading = /** @type {{revision?: string, contract?: unknown} | undefined} */ (

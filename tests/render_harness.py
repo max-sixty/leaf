@@ -2759,16 +2759,17 @@ def gesture_writes(page, by, scroller="document.scrollingElement", sample=None):
 
 
 def scroll_followers(writes, frames=None):
-    """The places a scroll writes on more than two of its steps, or on more than a
-    third of a gesture's `frames`, as findings.
+    """The places a scroll writes on more than two of its `frames`, a gesture's frames
+    or a pass's steps, and on more than a third of them, as findings.
 
-    A state the scroll changes crosses a small pass at most once each way, while a
-    position written from scroll events is written on every step, a frame behind the
+    A position written from scroll events is written on every step, a frame behind the
     browser, which carries a box that CSS lays out (an anchor, a sticky offset, a scroll
-    timeline) with the scroll itself. A gesture takes as many frames as its speed gives
-    it, and crosses more as it goes further, as a tag steps clear of each neighbour
-    crossing beside it, so it is allowed a share of them. A write that changes nothing needs no reading here: the browser fixture
-    fails it wherever it happens (`write_watch.js`)."""
+    timeline) with the scroll itself. A state the scroll changes is written only where
+    the scroll crosses it, and a scroll crosses more as it goes further, as a section
+    shorter than a pass is current once each way for each of its two edges, or a tag
+    steps clear of each neighbour crossing beside it, so the scroll is allowed a share
+    of its frames. A write that changes nothing needs no reading here: the browser
+    fixture fails it wherever it happens (`write_watch.js`)."""
     places = {}
     for w in writes:
         places.setdefault(w["key"], []).append(w)

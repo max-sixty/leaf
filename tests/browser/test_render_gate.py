@@ -2186,7 +2186,9 @@ def scroll_findings(page):
     )
     rendered(page)
     scroll_writes(page, SCROLL_PASS, READING_SCROLLER)
-    return scroll_followers(scroll_writes(page, SCROLL_PASS, READING_SCROLLER))
+    return scroll_followers(
+        scroll_writes(page, SCROLL_PASS, READING_SCROLLER), len(SCROLL_PASS)
+    )
 
 
 def rest_findings(page):

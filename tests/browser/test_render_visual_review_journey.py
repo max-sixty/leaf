@@ -22,6 +22,7 @@ from render_harness import (
     sending,
     stamp_page,
     told,
+    undo,
 )
 
 from leaf import data as data_model
@@ -641,3 +642,28 @@ def test_visual_review_returns_to_case_feedback_on_phone(browser, serve):
     selected = case.locator(f'.lf-page-thread[data-thread="{first_thread}"]')
     expect(selected).to_be_focused()
     expect(selected).to_be_in_viewport(ratio=1)
+
+
+def test_visual_review_approvals_survive_reload_and_undo(browser, serve):
+    """Approval is reversible and independent of case navigation."""
+    page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
+    resized(page, 702, 898)
+    widget = page.locator("#visual-review-run")
+    case = widget.locator('.lf-vr-case[aria-hidden="false"]')
+    ids = []
+    for _ in range(3):
+        ids.append(case.get_attribute("data-lf-datum"))
+        with sending(page, "approve selected case"):
+            case.get_by_role("checkbox", name="Looks right").check()
+        expect(case).to_have_attribute("data-lf-datum", ids[-1])
+        if len(ids) < 3:
+            case.get_by_role("button", name="Next unchecked").click()
+    assert len(set(ids)) == 3
+    expect(case.get_by_role("button", name="Next unchecked")).to_be_disabled()
+    page.reload()
+    expect(widget.locator(".lf-vr-progress")).to_contain_text("3 of 3")
+    undo(page)
+    expect(widget.locator(".lf-vr-progress")).to_contain_text("2 of 3")
+    case.get_by_role("button", name="Next unchecked").click()
+    expect(case).to_have_attribute("data-lf-datum", ids[-1])
+    expect(case.get_by_role("checkbox", name="Looks right")).not_to_be_checked()

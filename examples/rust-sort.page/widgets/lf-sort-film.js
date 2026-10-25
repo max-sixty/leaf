@@ -8,6 +8,7 @@
 
 import {
   frameFor,
+  generatedElement,
   indicate,
   inlineMarkdownFragment,
   keeps,
@@ -309,6 +310,11 @@ customElements.define(
       this.stats.className = "sort-stats";
 
       this.addEventListener("keydown", (e) => this.#key(e));
+      // The drawing, the narration and the count are the film's words, which a reader
+      // can point at; the timeline is a press with none.
+      for (const words of [stage, this.narration, this.stats])
+        generatedElement(words, { says: true });
+      generatedElement(this.timeline, { says: false });
       this.append(stage, this.narration, this.timeline, bar, inputs, this.stats);
       this.#layout();
       this.#load();

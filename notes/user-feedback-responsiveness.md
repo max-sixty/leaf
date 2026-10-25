@@ -21,6 +21,7 @@ None of these is a gate. Read the outputs as well as the pass counts.
 # --case working sends the release ask while the user's own turn runs.
 uv run leaf-dev journey claude-code [--case working]
 uv run leaf-dev journey codex-app-server [--case working]
+uv run leaf-dev journey codex-queue [--case working]
 uv run leaf-dev journey pi [--case working]
 uv run leaf-dev journey website-adapter
 uv run leaf-dev journey-chart
@@ -117,7 +118,7 @@ reaches the tab by one of two routes, depending on which comes first:
   the save, once its process has started. The tab's read waits for the stamp's
   whole check under the lock. The state read that follows checks the same source
   again, since the server's record that a source passed its check lives in that
-  process only. A stamp right after a save, or one `--from-directory`, can take
+  process only. A stamp right after a save, or one with `--replace`, can take
   this route.
 
 `uv run leaf-dev bench-latency --page corpus --transition revision` reads both;
@@ -192,6 +193,8 @@ the batch: three journeys per harness and case on this Mac between 13:43 and 14:
 on 2026-10-22, at `cef6a5bc2` with this note's change, the comments posted over HTTP
 and the load average between 21 and 29 on 18 cores. Each column's parts add up to its
 whole reply: seconds, mean over the runs, with each part's share of the whole.
+The batch has no `codex-queue` runs, so its Codex columns time only the experimental
+App Server route, not the queue route the desktop app and IDE use.
 
 | Seconds, mean (share)      | Claude Code, waiting | Claude Code, working | Codex App Server, waiting | Codex App Server, working |          Pi, waiting |          Pi, working |
 | -------------------------- | -------------------: | -------------------: | ------------------------: | ------------------------: | -------------------: | -------------------: |
@@ -237,9 +240,11 @@ Leaf's own share was 1.2–4.9 s on average:
 Codex's other cost Leaf decides is a refused reply. In one of its three waiting
 replies here, and at some step of 16 of 58 Codex journeys kept on this Mac since
 2026-10-20, the agent wrote `tone="success"` on a board column. It had read
-`page instructions` and the registry entry for the column, and neither listed the
-layer's tones. The reply was refused, and the agent edited and replied again, one
-more call.
+`page instructions` and the registry entry for the column, and neither then listed
+the layer's tones. The reply was refused, and the agent edited and replied again, one
+more call. Since #3690 and #3718, `page instructions` names the words each declared
+attribute takes ("`tone` takes one of: `ok`, `warn`, `danger`"), and the vendored
+schema gives them as its `enum`.
 
 Proposed budgets for a small page change, in seconds:
 
@@ -266,8 +271,7 @@ process: an earlier batch at a load average near 27 read 1.0–3.7 s.
   [Thread plan](threads.md#independent-jobs-delegation-and-continuation) owns the
   broader model of delegated jobs.
 - **A shorter reply:** the parts of "A small page change's reply" Leaf decides are
-  its hooks, about 0.2 s at each tool boundary on Claude Code and Codex; a refused
-  reply's extra call where the agent guessed a word the layer lists; and the 8 s of
+  its hooks, about 0.2 s at each tool boundary on Claude Code and Codex; and the 8 s of
   `page check --render` where an agent runs it before replying. Measure each change
   by the part it moves and by the whole reply over enough journeys.
 - **The hosted opening's cost:** whether the hosted agent's opening line delays its

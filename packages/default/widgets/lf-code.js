@@ -19,11 +19,10 @@
  *
  * Every number from the first shown line to the last addresses a row: its own line,
  * or the elided row standing in for the stretch it falls in. So a left-out line is
- * referenced like any other — `hi` tints the elided row, an indication lights it, and
+ * referenced like any other — `hi` tints the elided row, and
  * a note whose `at` falls there becomes that row's caption, saying what was left out.
  *
- * `lfElementsFor(key)` answers another widget's indication (runtime/indication.js,
- * experimental) in that same grammar. A number outside the block addresses nothing,
+ * `lfElementsFor(key)` answers navigation to a line range in that same grammar. A number outside the block addresses nothing,
  * so a driver can offer one key to several excerpts of the same file.
  * The reader can switch wrapping through the code block’s command scope without rebuilding source rows. This
  * is tab-local reading state, retained by widget id across revisions, not a decision.
@@ -96,7 +95,7 @@ customElements.define(
   "lf-code",
   class extends HTMLElement {
     // The rendered lines a range addresses, none before the lines are in; the render
-    // states their arrival through layoutChanged, and an indication resolves again then.
+    // states their arrival through layoutChanged.
     lfElementsFor(key) {
       const addressed = within(key);
       return [

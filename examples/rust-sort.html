@@ -133,39 +133,6 @@
         font-size: var(--t-5);
       }
     </style>
-    <script type="module">
-      // A step may precede the code's rendered lines. Follow the indicated line when
-      // either the film advances or the source materializes its current indication.
-      const film = document.getElementById("sort-film");
-      const source = document.getElementById("sort-source");
-      const followLine = () => {
-        const first = source.querySelector("[data-lf-indicated]");
-        if (!first) return;
-        let box = first.parentElement;
-        while (box && box !== document.body) {
-          const style = getComputedStyle(box);
-          if (
-            /(auto|scroll)/.test(style.overflowY) &&
-            box.scrollHeight > box.clientHeight
-          )
-            break;
-          box = box.parentElement;
-        }
-        if (!box || box === document.body || box === document.documentElement) return;
-        const b = box.getBoundingClientRect();
-        const r = first.getBoundingClientRect();
-        if (r.top < b.top + 40 || r.bottom > b.bottom - 40)
-          box.scrollTop += r.top - b.top - b.height / 3;
-      };
-      film.addEventListener("sort-step", followLine);
-      new MutationObserver(followLine).observe(source, {
-        childList: true,
-        subtree: true,
-        attributes: true,
-        attributeFilter: ["data-lf-indicated"],
-      });
-      followLine();
-    </script>
   </head>
   <body>
     <main class="layout-workspace density-working" id="sort-workspace">

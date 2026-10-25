@@ -1,6 +1,6 @@
 {
   "lf-sort-film": {
-    "description": "An animated, scrubbable trace of the merge sort Rust shipped in 1.15, drawn as one SVG in the page's palette: the slice, the scratch buffer, and the run stack with its collapse() checks. It indicates the source line each step executes in the lf-code excerpts its sort-code, head-code and merge-code attributes name, by the line's number in slice.rs. The current step, each slot of the slice, the scratch lane, the run stack and each collapse() clause are commentable visual parts.",
+    "description": "An animated, scrubbable trace of the merge sort Rust shipped in 1.15, drawn as one SVG in the page's palette: the slice, the scratch buffer, and the run stack with its collapse() checks. The current step, each slot of the slice, the scratch lane, the run stack and each collapse() clause are commentable visual parts.",
     "type": "object",
     "properties": {
       "id": {

@@ -30,7 +30,6 @@ export const PAGE_PAINT_ATTRIBUTE = Object.freeze({
   moreBelow: "data-lf-more-below",
   goto: "data-lf-go-to-active",
   traffic: "data-lf-traffic",
-  indicated: "data-lf-indicated",
   // A recording playing through the runtime's controls (video-controls.js).
   player: "data-lf-player",
   // A breakout that keeps to its holder (prepaint.js, `breakouts`).

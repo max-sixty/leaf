@@ -4260,6 +4260,7 @@ def test_page_owned_pr_brief_composes_its_data_contract(tmp_path, monkeypatch):
         "request": {
             "contract": "pull-request",
             "source": "source",
+            "property": "value",
         }
     }
     assert "pull-request" in registry["$data"]["contracts"]
@@ -4342,6 +4343,7 @@ def test_visual_review_package_composes_its_run_contract(tmp_path, monkeypatch):
         "run": {
             "contract": "visual-run",
             "source": "source",
+            "property": "value",
         }
     }
     assert widget["x-state"]["review"]["unit"] == "case"

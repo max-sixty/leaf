@@ -198,9 +198,11 @@ that box, and a table there scrolls sideways.
 
 A widget whose entry declares `x-height`, such as `lf-chart`, reserves that height
 before it draws; `data-height` on the element overrides it. A widget whose drawing sets
-its own height, such as `lf-diagram` or `lf-diff`, reserves nothing, so content below it
-moves when it draws unless you set `data-height`. `page check --render` suggests the
-height wherever a drawing differs from what was reserved.
+its own height, such as `lf-diagram` or an `lf-diff` bound with `source`, reserves
+nothing, so content below it moves when it draws unless you set `data-height`. An
+`lf-diff` with its patch inline sizes itself from the patch, so leave `data-height` off
+it. `page check --render` suggests the height wherever a drawing differs from what was
+reserved.
 
 ## The rail and the margin
 

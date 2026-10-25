@@ -188,7 +188,7 @@
         </table>
         <p id="anchors-agent">
           An agent opens threads with the same anchors, using
-          <code>leaf thread open</code> with <code>--quote</code>,
+          <code>leaf thread create</code> with <code>--quote</code>,
           <code>--section</code>, <code>--part</code>, or none of them.
         </p>
       </section>
@@ -219,7 +219,7 @@
           words a widget draws do not appear as edits.
         </p>
         <p id="passage-sides">
-          The browser makes an anchor from a selection. <code>leaf thread open</code>
+          The browser makes an anchor from a selection. <code>leaf thread create</code>
           makes one in Python, from the HTML file. Both apply the same rules: the same
           whitespace characters collapse to one space, the same elements count as
           separate blocks, the context is the same 24 characters, and the search is the
@@ -229,7 +229,7 @@
           The file holds the author's HTML, not the words a widget's script draws
           between its parts, such as a board column's heading or a diagram drawn from
           its source. A quote may not cross such words on either side.
-          <code>leaf thread open</code> refuses a quote that crosses them, that occurs
+          <code>leaf thread create</code> refuses a quote that crosses them, that occurs
           more than once in the section, or that sits in content the user's decision
           removed, and says what to quote instead. An agent's anchor is therefore one
           the user's page can find.

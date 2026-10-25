@@ -82,7 +82,7 @@ def test_a_new_sent_message_does_not_hide_work_on_an_earlier_message(browser, se
     root = panel_comment(serve.page_dir, "Check the capacity.", {"section": "how-cap"})
     active = CliRunner().invoke(
         cli_model.cli,
-        ["task", "start", str(serve.page_dir), root, "checking capacity"],
+        ["task", "start", str(serve.page_dir), root, "--text", "checking capacity"],
     )
     assert active.exit_code == 0, active.output
     page = open_page(browser, url)

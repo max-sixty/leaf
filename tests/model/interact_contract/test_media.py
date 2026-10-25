@@ -130,7 +130,7 @@ def test_the_text_door_refuses_a_picture_the_page_directory_has_not_got(page_dir
         cli_model.cli,
         [
             "thread",
-            "open",
+            "create",
             str(page_dir),
             "--text",
             f"the panel now:\n\n![shot]({missing})",
@@ -147,7 +147,7 @@ def test_the_text_door_refuses_a_picture_the_page_directory_has_not_got(page_dir
         cli_model.cli,
         [
             "thread",
-            "open",
+            "create",
             str(page_dir),
             "--text",
             f"write it as `{missing}` in the message",
@@ -162,7 +162,7 @@ def test_the_text_door_refuses_a_picture_the_page_directory_has_not_got(page_dir
         cli_model.cli,
         [
             "thread",
-            "open",
+            "create",
             str(page_dir),
             "--text",
             f"Here is the source:\n\n```md\n![shot]({missing})\n```\n\n[unused]: {missing}",
@@ -175,7 +175,13 @@ def test_the_text_door_refuses_a_picture_the_page_directory_has_not_got(page_dir
 
     linked = CliRunner().invoke(
         cli_model.cli,
-        ["thread", "open", str(page_dir), "--text", f'[the panel](<{missing}> "shot")'],
+        [
+            "thread",
+            "create",
+            str(page_dir),
+            "--text",
+            f'[the panel](<{missing}> "shot")',
+        ],
     )
     assert linked.exit_code == 1, (
         f"a link destination points at the same file an image does, angle brackets "
@@ -186,7 +192,7 @@ def test_the_text_door_refuses_a_picture_the_page_directory_has_not_got(page_dir
         cli_model.cli,
         [
             "thread",
-            "open",
+            "create",
             str(page_dir),
             "--text",
             f"![shot][ref]\n\n[ref]: {missing}",
@@ -207,7 +213,7 @@ def test_the_text_door_refuses_a_picture_the_page_directory_has_not_got(page_dir
             cli_model.cli,
             [
                 "thread",
-                "open",
+                "create",
                 str(page_dir),
                 "--text",
                 f"look:\n\n![shot](/media/{unserved})",
@@ -228,7 +234,7 @@ def test_the_text_door_refuses_a_picture_the_page_directory_has_not_got(page_dir
         cli_model.cli,
         [
             "thread",
-            "open",
+            "create",
             str(page_dir),
             "--text",
             f"the panel now:\n\n![shot]({missing})",

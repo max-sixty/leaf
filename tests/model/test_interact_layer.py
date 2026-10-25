@@ -152,7 +152,7 @@ def test_agent_interaction_command_help(regtest):
         "thread summarize",
         "page open",
         "page close",
-        "thread open",
+        "thread create",
         "thread reply",
         "thread edit",
         "thread resolve",
@@ -778,7 +778,7 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
     [opened] = written(
         [
             "thread",
-            "open",
+            "create",
             str(page_dir),
             "--text",
             "which store?",
@@ -793,7 +793,7 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
     # A refused title refuses the whole command, so no message goes up unnamed.
     before = events_model.read_events(page_dir)
     [unnamed] = command_findings(
-        "thread", "open", page_dir, "--text", "and the cache?", "--title", ""
+        "thread", "create", page_dir, "--text", "and the cache?", "--title", ""
     )
     assert (unnamed.code, unnamed.values["kind"]) == ("invalid-event", "comment")
     assert events_model.read_events(page_dir) == before

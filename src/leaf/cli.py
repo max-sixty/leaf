@@ -819,9 +819,9 @@ def delivery_ack(delivery_id: str) -> None:
     cmd_delivery_ack(delivery_id)
 
 
-@cli.group(short_help="Open, answer, edit, summarize, or resolve a thread.")
+@cli.group(short_help="Create, answer, edit, summarize, or resolve a thread.")
 def thread() -> None:
-    """Open and answer threads as the agent, and maintain them.
+    """Create and answer threads as the agent, and maintain them.
 
     Every write prints the records it appended, one JSON line each, as `page
     events` prints them. `page state PAGE ID` reads one thread."""
@@ -1218,7 +1218,7 @@ def _title_option(command):
 
 
 @thread.command(
-    "open", short_help="Open an agent thread — on a passage, or on the page whole."
+    "create", short_help="Create an agent thread — on a passage, or on the page whole."
 )
 @page_argument(renew=True)
 @click.option("--quote", help="passage text from the active revision")
@@ -1228,7 +1228,7 @@ def _title_option(command):
 @click.option("--markup", help="HTML fragment after the text, validated here")
 @_title_option
 @_obligation_option
-def thread_open(
+def thread_create(
     page_dir: Path,
     quote: str,
     section: str,
@@ -1239,7 +1239,7 @@ def thread_open(
     title: str | None,
     obligation: bool,
 ) -> dict:
-    """Open a thread as the agent: anchored where --quote or
+    """Create a thread as the agent: anchored where --quote or
     --section points at a passage, general where neither does — a question about
     the work as a whole.
 
@@ -1405,9 +1405,9 @@ def thread_resolve(page_dir: Path, thread: str) -> dict:
     return cmd_resolve(page_dir, thread)
 
 
-@cli.group(short_help="Open or end to-dos, start work on your list, and plan.")
+@cli.group(short_help="Create or end to-dos, start work on your list, and plan.")
 def task() -> None:
-    """Open and end to-dos, say which item on your list you are working on, and
+    """Create and end to-dos, say which item on your list you are working on, and
     lay out your plan.
 
     Your list, which the user sees as On <your name>, holds each user update you owe
@@ -1416,17 +1416,17 @@ def task() -> None:
     the item reads Working with that line, beside it and in Leaf's panel. A to-do
     stays on your list through replies, resolutions, versions and the end of the
     session that opened it, until `leaf task end` or a stamp that `--completes` its
-    widget ends it. A to-do you open `--on user` goes on the user's On me list
+    widget ends it. A to-do you create `--on user` goes on the user's On me list
     instead, until they press its Done or you end it. `leaf task plan` arranges
     to-dos, obligations and plain steps into one outline of the work. Every write prints
     the record it appended, one JSON line, as `page events` prints it.
     """
 
 
-@task.command("open", short_help="Open a to-do, yours or the user's.")
+@task.command("create", short_help="Create a to-do, yours or the user's.")
 @page_argument(renew=True)
 @click.argument("subject", metavar="SUBJECT")
-@click.argument("title", metavar="TITLE")
+@click.option("--title", required=True, help="the to-do, in a few words")
 @click.option(
     "--on",
     "owner",
@@ -1435,8 +1435,8 @@ def task() -> None:
     show_default=True,
     help="whose list the to-do is on: yours, or the user's On me",
 )
-def task_open(page_dir: Path, subject: str, title: str, owner: str) -> dict:
-    """Open a to-do titled TITLE on SUBJECT and print it; its `id` names it later.
+def task_create(page_dir: Path, subject: str, title: str, owner: str) -> dict:
+    """Create a to-do titled --title on SUBJECT and print it; its `id` names it later.
 
     SUBJECT is a thread id, an element's id, or `page` for the whole page.
     Your own to-do on a widget needs a widget that declares x-work or holds an
@@ -1444,9 +1444,9 @@ def task_open(page_dir: Path, subject: str, title: str, owner: str) -> dict:
     and you can end it too. A thread attachment provides discussion context;
     replying does not complete the task. For a conversational request instead,
     send the message with --obligation."""
-    from leaf.todos import cmd_open
+    from leaf.todos import cmd_create
 
-    return cmd_open(page_dir, subject, title, owner)
+    return cmd_create(page_dir, subject, title, owner)
 
 
 @task.command(
@@ -1454,33 +1454,35 @@ def task_open(page_dir: Path, subject: str, title: str, owner: str) -> dict:
 )
 @page_argument(renew=True)
 @click.argument("item", metavar="ID")
-@click.argument("text", metavar="LINE")
-def task_start(page_dir: Path, item: str, text: str) -> dict:
-    """Mark ID Working for this turn, with LINE saying what you are doing.
+@click.option(
+    "--text", "line", required=True, help="what you are doing, in one sentence"
+)
+def task_start(page_dir: Path, item: str, line: str) -> dict:
+    """Mark ID Working for this turn, with --text saying what you are doing.
 
     ID is the event id of a user update you owe, as its delivery names it, or an
-    open to-do's id. LINE names the work and its subject in one sentence; it shows
+    open to-do's id. --text names the work and its subject in one sentence; it shows
     beside the update or to-do and in Leaf's panel. Your answer to the update, or the
     to-do's end, ends the start. If your turn ends first, the update or to-do reads stalled
     until you answer it or start it again."""
     from leaf.todos import cmd_start
 
-    return cmd_start(page_dir, item, text)
+    return cmd_start(page_dir, item, line)
 
 
 @task.command("end", short_help="End a to-do or settle a conversational obligation.")
 @page_argument(renew=True)
 @click.argument("task_id", metavar="ID")
 @click.argument("outcome", type=click.Choice(["done", "failed", "dropped"]))
-@click.argument("detail", metavar="[DETAIL]", required=False)
+@click.option("--text", "detail", help="where the result is, or why there is none")
 def task_end(page_dir: Path, task_id: str, outcome: str, detail: str | None) -> dict:
     """End the to-do or conversational obligation named by ID in `page state`.
 
-    A to-do, yours or the user's, ends done, failed or dropped. DETAIL says where
+    A to-do, yours or the user's, ends done, failed or dropped. --text says where
     the result is, such as the version or reply holding it, or why there is none.
 
     For a message obligation (`message:<id>`) or a question widget answered in
-    words (`widget:<id>`), done records that the user answered elsewhere, DETAIL
+    words (`widget:<id>`), done records that the user answered elsewhere, --text
     saying where; dropped withdraws the question. These outcomes record no answer
     from the user. A widget answered through its controls ends through its state
     or an authored withdrawal.

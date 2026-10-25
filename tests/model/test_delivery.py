@@ -343,7 +343,8 @@ def test_delivery_distinguishes_composing_an_obligation_from_changing_input_in_h
     assert (
         CliRunner()
         .invoke(
-            cli_model.cli, ["task", "open", str(page_dir), "choice", "Build the choice"]
+            cli_model.cli,
+            ["task", "create", str(page_dir), "choice", "--title", "Build the choice"],
         )
         .exit_code
         == 0
@@ -367,7 +368,8 @@ def test_delivery_distinguishes_composing_an_obligation_from_changing_input_in_h
     assert (
         CliRunner()
         .invoke(
-            cli_model.cli, ["task", "open", str(page_dir), "draft", "Edit the draft"]
+            cli_model.cli,
+            ["task", "create", str(page_dir), "draft", "--title", "Edit the draft"],
         )
         .exit_code
         == 0

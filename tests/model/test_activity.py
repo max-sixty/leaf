@@ -1344,7 +1344,7 @@ def test_newer_page_work_takes_the_activity_from_an_older_thread_start(page_dir)
         delivery_model.record_pickup(transaction, [comment])
     started = CliRunner().invoke(
         cli_model.cli,
-        ["task", "start", str(page_dir), comment["id"], "reading the traces"],
+        ["task", "start", str(page_dir), comment["id"], "--text", "reading the traces"],
     )
     assert started.exit_code == 0, started.output
     activity = activity_reading(page_dir)

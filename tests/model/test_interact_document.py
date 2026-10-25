@@ -669,7 +669,7 @@ def test_an_anchorless_comment_uses_the_last_good_revision_during_an_edit(page_d
     assert "anchor" not in event
 
     [anchored] = command_findings(
-        "thread", "open", page_dir, "--quote", "Plan", "--text", "Change this"
+        "thread", "create", page_dir, "--quote", "Plan", "--text", "Change this"
     )
     assert (anchored.code, anchored.values["operation"]) == ("invalid-source", "anchor")
 
@@ -2299,7 +2299,7 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
         json.loads(line)
         for line in run(
             "thread",
-            "open",
+            "create",
             "--text",
             "Which store?",
             "--markup",

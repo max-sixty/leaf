@@ -1060,7 +1060,7 @@ def test_the_runtimes_lf_id_namespace_is_off_limits(page_dir):
 def test_agent_messages_preserve_a_single_space(page_dir):
     """Only the zero-length string is empty; every typed character reaches the log."""
     empty = CliRunner().invoke(
-        cli_model.cli, ["thread", "open", str(page_dir), "--text", ""]
+        cli_model.cli, ["thread", "create", str(page_dir), "--text", ""]
     )
     assert empty.exit_code != 0
     assert json.loads(empty.stderr)["error"] == (

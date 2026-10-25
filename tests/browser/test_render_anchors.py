@@ -390,7 +390,7 @@ def test_a_revision_preserves_every_open_quoted_thread(browser, serve):
             cli_model.cli,
             [
                 "thread",
-                "open",
+                "create",
                 str(serve.page_dir),
                 "--section",
                 "revised-quotes",
@@ -1663,12 +1663,12 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
     """Colouring is spans, and the anchor pass is what spans break: the revision holds
     one run of characters where the DOM now holds a dozen nodes. A <span> is no text block,
     so both readings collapse to the same string — which is what lets the runtime color a
-    block the file knows nothing about, and what keeps `leaf thread open` able to quote
+    block the file knows nothing about, and what keeps `leaf thread create` able to quote
     into one.
 
     One pass serves both shapes a page has for code, lf-code's `language` and a plain
     <pre><code class="language-*">, and neither guesses: a lf-code with no `language` stays
-    the color of its own ink. The quote below is written the way `leaf thread open`
+    the color of its own ink. The quote below is written the way `leaf thread create`
     writes one — against the file — and spans a token boundary on its way back."""
     url = serve(CODE_PAGE)
     page = open_page(browser, url)

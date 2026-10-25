@@ -145,7 +145,7 @@
     "x-awaits": { "paint": "data-lf-awaits", "presence": true, "message": true }
   },
   "$passages": {
-    "description": "How Python (`leaf/passages.py`, `leaf/anchor_capture.py`) and the browser (`runtime/passage-facts.js`, generated from this entry by build/registry.mjs) turn a page into text, so `leaf thread open` can confirm any quote the browser captures. Python reads the running Leaf's copy and a page's runtime keeps the one it was vendored with, so a change here bumps `$events.protocol`.",
+    "description": "How Python (`leaf/passages.py`, `leaf/anchor_capture.py`) and the browser (`runtime/passage-facts.js`, generated from this entry by build/registry.mjs) turn a page into text, so `leaf thread create` can confirm any quote the browser captures. Python reads the running Leaf's copy and a page's runtime keeps the one it was vendored with, so a change here bumps `$events.protocol`.",
     "collapse": "\t\n\u000b\f\r \u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff",
     "why-collapse-is-spelled-out": "`collapse` lists the characters both readings fold to one space. JavaScript's \\s and Python's str.isspace() disagree on a few: U+FEFF is whitespace only to JavaScript, U+0085 only to Python. The browser captures every quote, so the list is JavaScript's set.",
     "blocks": [
@@ -566,7 +566,7 @@
       ],
       "markup": [
         {
-          "text": "It answers the page's obligation, which waits on you until the markup records the answer. Before starting the work it selects or unblocks, name it with `leaf task start <page> <event-id> \"<the work, in a line>\"`; then do it, write the answer into the markup, and stamp a version. An option the user added needs no writing in; the page keeps it where the user put it."
+          "text": "It answers the page's obligation, which waits on you until the markup records the answer. Before starting the work it selects or unblocks, name it with `leaf task start <page> <event-id> --text \"<the work, in a line>\"`; then do it, write the answer into the markup, and stamp a version. An option the user added needs no writing in; the page keeps it where the user put it."
         }
       ]
     },
@@ -1764,7 +1764,7 @@
     "x-within": "The regions (element declarations) inside which a member may sit at any depth instead of as its owner's direct child. It belongs to the nearest owner x-owners names around that region, and `page check` refuses it anywhere else. A playground control written inside `lf-playground-preview` stays where it is written, beside the item it changes, instead of in the rail.",
     "x-name": "The attribute that holds the element's title, which the page uses to name the element elsewhere, as the activity feed does. Declare it only where an attribute is the title, as a column's or a tab's `label` is; a section is already titled by its heading, a disclosure by its summary, and a titled member by its leading <strong>. An attribute the element merely shows first, such as a metric's value, is not its title.",
     "x-word": "The widget's word for its kind, which Leaf uses when naming the widget in a panel row, a walk or a comment anchor: a fixed word, as `lf-ask` says \"question\", or `module`, where the module gives one through `lfWord()`, as `lf-suggestion` returns \"insertion\", \"deletion\" or \"rewrite\" depending on its children. Without one, Leaf calls the widget by its tag name without the prefix. With `module`, the module may also describe the widget through `lfSays()`, where its text alone doesn't convey its structure, such as a rewrite's old and new text; otherwise Leaf reads the element's text.",
-    "x-work": "`true`: the agent may open its own to-do on this widget with `leaf task open` even when no update on it is open, and the to-do shows beside the widget. Only a block widget whose x-content is markup may declare it, and markup content does not imply it: markup can itself be a control, or sit in a hidden panel."
+    "x-work": "`true`: the agent may open its own to-do on this widget with `leaf task create` even when no update on it is open, and the to-do shows beside the widget. Only a block widget whose x-content is markup may declare it, and markup content does not imply it: markup can itself be a control, or sit in a hidden panel."
   },
   "$state": {
     "description": "The meaning of each field an x-state verb may declare, one member per field. The registry lint holds these members to the fields it admits, as it holds `$keys` to the x- keys.",

@@ -745,9 +745,10 @@ pick on the page:
     - text: >-
         It answers the page's obligation, which waits on you until the markup records
         the answer. Before starting the work it selects or unblocks, name it with
-        `leaf task start <page> <event-id> "<the work, in a line>"`; then do it,
-        write the answer into the markup, and stamp a version. An option the user
-        added needs no writing in; the page keeps it where the user put it.
+        `leaf task start <page> <event-id> --text "<the work, in a line>"`; then
+        do it, write the answer into the markup, and stamp a version. An option
+        the user added needs no writing in; the page keeps it where the user put
+        it.
 
 option the user added:
   event:
@@ -818,9 +819,10 @@ decided suggestion:
     - text: >-
         It answers the page's obligation, which waits on you until the markup records
         the answer. Before starting the work it selects or unblocks, name it with
-        `leaf task start <page> <event-id> "<the work, in a line>"`; then do it,
-        write the answer into the markup, and stamp a version. An option the user
-        added needs no writing in; the page keeps it where the user put it.
+        `leaf task start <page> <event-id> --text "<the work, in a line>"`; then
+        do it, write the answer into the markup, and stamp a version. An option
+        the user added needs no writing in; the page keeps it where the user put
+        it.
 
 pick inside a thread:
   event:

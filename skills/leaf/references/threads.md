@@ -7,16 +7,16 @@ for a diagram or image, a declared part for one box within a visual, or nothing 
 the page as a whole:
 
 ```bash
-leaf thread open <page> --quote "<passage in the current page>" --obligation --text "…?"
-leaf thread open <page> --section <element-id> --text "…"
-leaf thread open <page> --section <diagram-id> --part node:<source-id> --text "…"
-leaf thread open <page> --obligation --text "…?"
+leaf thread create <page> --quote "<passage in the current page>" --obligation --text "…?"
+leaf thread create <page> --section <element-id> --text "…"
+leaf thread create <page> --section <diagram-id> --part node:<source-id> --text "…"
+leaf thread create <page> --obligation --text "…?"
 ```
 
 For a diagram, percent-encode the entire source id in the part token:
 `node:Line%20Item` names `Line Item`.
 
-`leaf thread open` anchors in the active revision as the user sees it. Quote exact
+`leaf thread create` anchors in the active revision as the user sees it. Quote exact
 words from the page's HTML that the user can see, within one widget part. The
 command refuses a quote that matches more than one place, or is retired, replaced,
 or crosses a boundary, rather than open a thread with no anchor. The thread's id is
@@ -34,7 +34,7 @@ if it is still untitled when you answer, the event's `handling` asks you to add
 `--title`.
 
 ```bash
-leaf thread open <page> --section <element-id> --title "Afternoon workshop" --text "…"
+leaf thread create <page> --section <element-id> --title "Afternoon workshop" --text "…"
 leaf thread reply <answer.ref> --done --title "Afternoon workshop" --text "…"
 ```
 

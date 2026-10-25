@@ -1125,7 +1125,7 @@ def test_a_verbatim_body_is_quotable_where_a_source_body_is_not(page_dir):
 def test_an_edited_draft_reads_as_the_users_words(page_dir, formatted):
     """An `edit` is absolute — the log carries the whole new body, and replay writes
     exactly that into the DOM the anchor pass searches — so the reading
-    `leaf thread open` captures against holds the user's words in the authored
+    `leaf thread create` captures against holds the user's words in the authored
     body's place: quotable, collapsed like any passage, genuinely adjacent to the
     prose around them (no fence — the screen shows that adjacency too)."""
     drafted(page_dir)

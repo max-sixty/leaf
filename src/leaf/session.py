@@ -118,8 +118,8 @@ def cmd_idle(page_dir: Path, detail: str) -> dict:
             raise Refused(
                 f"{len(todos)} open to-do{'s' if len(todos) != 1 else ''}: {named}. "
                 "End each before closing with "
-                '`leaf task end <page> <id> done "<where the result is>"`, or '
-                '`dropped "<why>"`.'
+                '`leaf task end <page> <id> done --text "<where the result is>"`, or '
+                '`dropped --text "<why>"`.'
             )
         return page.set_status("idle", detail)
 

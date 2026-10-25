@@ -76,14 +76,25 @@ def test_page_state_tracks_both_lists_until_they_are_settled(page_dir):
     sources, and keeps agent work after On me reaches zero."""
     asking(page_dir)
     [item] = state_json(page_dir)["queues"]["on_user"]
-    mine = written(leaf("task", "open", page_dir, "page", "Finish the plan"))
+    mine = written(
+        leaf("task", "create", page_dir, "page", "--title", "Finish the plan")
+    )
     theirs = written(
-        leaf("task", "open", page_dir, "plan", "Check the plan", "--on", "user")
+        leaf(
+            "task",
+            "create",
+            page_dir,
+            "plan",
+            "--title",
+            "Check the plan",
+            "--on",
+            "user",
+        )
     )
     question = written(
         leaf(
             "thread",
-            "open",
+            "create",
             page_dir,
             "--text",
             "One decision:",
@@ -201,7 +212,9 @@ def test_a_todo_holds_its_thread_on_the_agent_past_reply_and_resolve(page_dir):
     assert thread.exit_code == 0, thread.output
     assert [item["id"] for item in json.loads(thread.output)["todos"]] == [todo["id"]]
 
-    end = written(leaf("task", "end", page_dir, todo["id"], "done", "version 2"))
+    end = written(
+        leaf("task", "end", page_dir, todo["id"], "done", "--text", "version 2")
+    )
     assert (end["todo"], end["outcome"], end["detail"]) == (
         todo["id"],
         "done",
@@ -261,8 +274,12 @@ def test_a_plan_arranges_todos_obligations_and_plain_steps_without_owning_them(
 
     asking(page_dir)
     [item] = state_json(page_dir)["obligations"]
-    todo = written(leaf("task", "open", page_dir, "page", "Cut to two lines"))
-    written(leaf("task", "start", page_dir, todo["id"], "Cutting the example"))
+    todo = written(
+        leaf("task", "create", page_dir, "page", "--title", "Cut to two lines")
+    )
+    written(
+        leaf("task", "start", page_dir, todo["id"], "--text", "Cutting the example")
+    )
     written(
         plan(
             [
@@ -316,7 +333,7 @@ def test_a_plan_arranges_todos_obligations_and_plain_steps_without_owning_them(
     written(
         leaf(
             "thread",
-            "open",
+            "create",
             page_dir,
             "--text",
             "One:",
@@ -324,7 +341,7 @@ def test_a_plan_arranges_todos_obligations_and_plain_steps_without_owning_them(
         )
     )
     asked = "widget:merge"
-    written(leaf("task", "end", page_dir, asked, "done", "In chat"))
+    written(leaf("task", "end", page_dir, asked, "done", "--text", "In chat"))
     written(
         plan(
             [
@@ -367,15 +384,21 @@ def test_the_door_refuses_a_todo_off_the_page_and_an_outcome_twice(page_dir):
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "Hm."},
     )
-    [missing] = command_findings("task", "open", page_dir, "no-such-thing", "Anything")
+    [missing] = command_findings(
+        "task", "create", page_dir, "no-such-thing", "--title", "Anything"
+    )
     assert missing.code == "unknown-subject"
     [unknown] = command_findings("task", "end", page_dir, "no-such-task", "done")
     assert unknown.code == "unknown-todo"
-    threaded = written(leaf("task", "open", page_dir, comment["id"], "Look into it"))
+    threaded = written(
+        leaf("task", "create", page_dir, comment["id"], "--title", "Look into it")
+    )
     assert threaded["subject"] == {"kind": "thread", "id": comment["id"]}
 
-    todo = written(leaf("task", "open", page_dir, "page", "Look into it"))
-    written(leaf("task", "end", page_dir, todo["id"], "dropped", "not needed"))
+    todo = written(leaf("task", "create", page_dir, "page", "--title", "Look into it"))
+    written(
+        leaf("task", "end", page_dir, todo["id"], "dropped", "--text", "not needed")
+    )
     again = leaf("task", "end", page_dir, todo["id"], "done")
     assert again.exit_code != 0
     assert "already ended (dropped)" in again.output
@@ -658,12 +681,19 @@ def test_working_names_a_move_until_its_answer_and_a_todo_until_its_end(page_dir
         {"kind": "comment", "author": "user", "revision": 1, "text": "Tighten it."},
     )
     [refused] = command_findings(
-        "task", "start", page_dir, "no-such-move", "Reading it"
+        "task", "start", page_dir, "no-such-move", "--text", "Reading it"
     )
     assert refused.code == "unowed-start"
 
     start = written(
-        leaf("task", "start", page_dir, comment["id"], "Tightening the plan section")
+        leaf(
+            "task",
+            "start",
+            page_dir,
+            comment["id"],
+            "--text",
+            "Tightening the plan section",
+        )
     )
     assert (start["kind"], start["item"]) == ("start", comment["id"])
     state = state_json(page_dir)
@@ -689,21 +719,35 @@ def test_working_names_a_move_until_its_answer_and_a_todo_until_its_end(page_dir
     state = state_json(page_dir)
     assert state["workflows"] == []
     assert state["activity"]["kind"] != "working"
-    again = leaf("task", "start", page_dir, comment["id"], "More")
+    again = leaf("task", "start", page_dir, comment["id"], "--text", "More")
     assert again.exit_code != 0
 
     # A to-do the agent opens on the page, for work no move asked for, runs under its
     # start's line until the to-do ends; the panel's status shows that line.
-    todo = written(leaf("task", "open", page_dir, "page", "Add a glossary"))
+    todo = written(
+        leaf("task", "create", page_dir, "page", "--title", "Add a glossary")
+    )
     assert todo["subject"] == {"kind": "page"}
-    written(leaf("task", "start", page_dir, todo["id"], "Drafting the glossary"))
+    written(
+        leaf("task", "start", page_dir, todo["id"], "--text", "Drafting the glossary")
+    )
     state = state_json(page_dir)
     [served] = state["todos"]
     assert served["running"]["text"] == "Drafting the glossary"
     assert state["activity"]["detail"] == "Drafting the glossary"
     [item] = state["queues"]["on_agent"]
     assert (item["kind"], item["subject"]) == ("todo", {"kind": "page"})
-    written(leaf("task", "end", page_dir, todo["id"], "done", "the glossary section"))
+    written(
+        leaf(
+            "task",
+            "end",
+            page_dir,
+            todo["id"],
+            "done",
+            "--text",
+            "the glossary section",
+        )
+    )
     state = state_json(page_dir)
     assert state["todos"] == []
     assert state["activity"]["kind"] != "working"
@@ -788,7 +832,9 @@ def test_a_thread_todo_runs_under_its_start_line(page_dir):
             "Rebuild the chart",
         )
     )
-    written(leaf("task", "start", page_dir, todo["id"], "Waiting on the build"))
+    written(
+        leaf("task", "start", page_dir, todo["id"], "--text", "Waiting on the build")
+    )
     state = state_json(page_dir)
     [thread] = state["threads"]
     assert thread["attention"]["todo"] == todo["id"]
@@ -802,7 +848,9 @@ def test_a_thread_todo_runs_under_its_start_line(page_dir):
 def test_an_older_session_cannot_end_a_todo_a_newer_session_started(page_dir):
     """A continuation transfers completion authority before the old result arrives."""
     publish(page_dir)
-    todo = written(leaf("task", "open", page_dir, "page", "Draft the plan"))
+    todo = written(
+        leaf("task", "create", page_dir, "page", "--title", "Draft the plan")
+    )
     starts = [
         append_command(
             page_dir,
@@ -943,14 +991,18 @@ def test_delayed_completion_keeps_its_session_authority_after_claim_and_turn_cha
 ):
     """A later turn and a different watcher do not make a posting session obsolete."""
     publish(page_dir)
-    todo = written(leaf("task", "open", page_dir, "page", "Draft the plan"))
+    todo = written(
+        leaf("task", "create", page_dir, "page", "--title", "Draft the plan")
+    )
     record_claim(page_dir, id=todo["session"], turn="earlier-turn")
-    start = written(leaf("task", "start", page_dir, todo["id"], "Drafting the plan"))
+    start = written(
+        leaf("task", "start", page_dir, todo["id"], "--text", "Drafting the plan")
+    )
     assert start["turn"] == "earlier-turn"
 
     record_claim(page_dir, id=todo["session"], turn="later-turn")
     continued = written(
-        leaf("task", "start", page_dir, todo["id"], "Continuing the plan")
+        leaf("task", "start", page_dir, todo["id"], "--text", "Continuing the plan")
     )
     assert continued["turn"] == "later-turn"
     # Claims govern who watches the page; completion comes from the poster's voice.
@@ -975,13 +1027,19 @@ def test_a_widget_todo_needs_a_seat_and_a_completing_stamp_ends_it(page_dir):
     ends it done, citing that version."""
     (page_dir / "index.html").write_text(WORK_PAGE)
     publish(page_dir)
-    [no_seat] = command_findings("task", "open", page_dir, "flow", "Redraw the graph")
+    [no_seat] = command_findings(
+        "task", "create", page_dir, "flow", "--title", "Redraw the graph"
+    )
     assert no_seat.code == "no-work-seat"
 
-    todo = written(leaf("task", "open", page_dir, "rollout-card", "Check the rollout"))
+    todo = written(
+        leaf("task", "create", page_dir, "rollout-card", "--title", "Check the rollout")
+    )
     assert todo["subject"] == {"kind": "widget", "id": "rollout-card"}
     assert todo["revision"] == 1
-    written(leaf("task", "start", page_dir, todo["id"], "Checking the fallback"))
+    written(
+        leaf("task", "start", page_dir, todo["id"], "--text", "Checking the fallback")
+    )
     [served] = state_json(page_dir)["todos"]
     assert served["running"]["text"] == "Checking the fallback"
 
@@ -1019,11 +1077,13 @@ def test_a_stale_completing_stamp_refuses_before_publishing_or_settling_work(pag
     source.write_text(WORK_PAGE)
     publish(page_dir)
     todos = [
-        written(leaf("task", "open", page_dir, "rollout-card", title))
+        written(leaf("task", "create", page_dir, "rollout-card", "--title", title))
         for title in ("Check fallback", "Check rollout")
     ]
     for todo in todos:
-        written(leaf("task", "start", page_dir, todo["id"], "Checking rollout"))
+        written(
+            leaf("task", "start", page_dir, todo["id"], "--text", "Checking rollout")
+        )
     continued = append_command(
         page_dir,
         {
@@ -1082,9 +1142,11 @@ def test_a_start_reopens_a_page_its_agent_closed(page_dir):
     publish(page_dir)
     written(leaf("page", "close", page_dir))
     assert state_json(page_dir)["activity"]["kind"] == "closed"
-    todo = written(leaf("task", "open", page_dir, "page", "Add a glossary"))
+    todo = written(
+        leaf("task", "create", page_dir, "page", "--title", "Add a glossary")
+    )
     start = written(
-        leaf("task", "start", page_dir, todo["id"], "Drafting the glossary")
+        leaf("task", "start", page_dir, todo["id"], "--text", "Drafting the glossary")
     )
     assert events_model.read_events(page_dir)[-1] == start
     state = state_json(page_dir)
@@ -1106,9 +1168,11 @@ def test_a_waiting_declaration_puts_down_every_start_before_it(page_dir):
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "Tighten it."},
     )
-    todo = written(leaf("task", "open", page_dir, "page", "Draft the plan"))
-    written(leaf("task", "start", page_dir, todo["id"], "Drafting the plan"))
-    written(leaf("task", "start", page_dir, comment["id"], "Tightening it"))
+    todo = written(
+        leaf("task", "create", page_dir, "page", "--title", "Draft the plan")
+    )
+    written(leaf("task", "start", page_dir, todo["id"], "--text", "Drafting the plan"))
+    written(leaf("task", "start", page_dir, comment["id"], "--text", "Tightening it"))
     assert state_json(page_dir)["activity"]["kind"] == "working"
 
     written(leaf("page", "open", page_dir))
@@ -1123,7 +1187,11 @@ def test_a_waiting_declaration_puts_down_every_start_before_it(page_dir):
     [served] = state["todos"]
     assert (served["id"], served["running"]) == (todo["id"], None)
 
-    written(leaf("task", "start", page_dir, todo["id"], "Drafting the second plan"))
+    written(
+        leaf(
+            "task", "start", page_dir, todo["id"], "--text", "Drafting the second plan"
+        )
+    )
     state = state_json(page_dir)
     assert state["activity"]["detail"] == "Drafting the second plan"
 
@@ -1140,7 +1208,9 @@ def test_work_taken_in_hand_reopens_an_idle_page(page_dir):
         {"kind": "comment", "author": "user", "revision": 1, "text": "One more."},
     )
 
-    start = written(leaf("task", "start", page_dir, comment["id"], "Looking again"))
+    start = written(
+        leaf("task", "start", page_dir, comment["id"], "--text", "Looking again")
+    )
     assert events_model.read_events(page_dir)[-1]["id"] == start["id"]
     state = state_json(page_dir)
     assert (state["status"]["state"], state["status"]["ts"]) == ("waiting", start["ts"])
@@ -1151,12 +1221,16 @@ def test_idle_refuses_over_an_open_todo(page_dir):
     """Closing the page discharges no to-do: idle names each open one and how to end
     it, and goes through once they have ended."""
     publish(page_dir)
-    todo = written(leaf("task", "open", page_dir, "page", "Add a glossary"))
+    todo = written(
+        leaf("task", "create", page_dir, "page", "--title", "Add a glossary")
+    )
     refused = leaf("page", "close", page_dir)
     assert refused.exit_code != 0
     assert f"1 open to-do: {todo['id']} (Add a glossary)" in refused.output
     assert "leaf task end <page> <id> done" in refused.output
-    written(leaf("task", "end", page_dir, todo["id"], "dropped", "not needed"))
+    written(
+        leaf("task", "end", page_dir, todo["id"], "dropped", "--text", "not needed")
+    )
     written(leaf("page", "close", page_dir))
 
 
@@ -1179,8 +1253,12 @@ def test_a_start_on_a_widget_todo_holds_the_moves_delivered_before_it(page_dir):
             "detail": {"value": ["flag-first"]},
         },
     )
-    todo = written(leaf("task", "open", page_dir, "choice", "Build the chosen plan"))
-    start = written(leaf("task", "start", page_dir, todo["id"], "Building flag first"))
+    todo = written(
+        leaf("task", "create", page_dir, "choice", "--title", "Build the chosen plan")
+    )
+    start = written(
+        leaf("task", "start", page_dir, todo["id"], "--text", "Building flag first")
+    )
     [workflow] = state_json(page_dir)["workflows"]
     assert (workflow["input"], workflow["stage"], workflow["detail"]) == (
         pick["id"],
@@ -1211,9 +1289,11 @@ def test_a_start_on_a_widget_todo_holds_the_moves_delivered_before_it(page_dir):
 
 def test_a_start_line_is_one_sentence(page_dir):
     publish(page_dir)
-    todo = written(leaf("task", "open", page_dir, "page", "Add a glossary"))
+    todo = written(
+        leaf("task", "create", page_dir, "page", "--title", "Add a glossary")
+    )
     for line in ("", "   ", "two\nlines"):
-        refused = leaf("task", "start", page_dir, todo["id"], line)
+        refused = leaf("task", "start", page_dir, todo["id"], "--text", line)
         assert refused.exit_code != 0
         assert "start event is invalid" in refused.output
 
@@ -1238,7 +1318,16 @@ def test_a_todo_on_the_user_stands_on_any_element_until_their_done(page_dir):
     its id, and their Done ends it: an event the agent hears of, on the one door."""
     publish(page_dir)
     todo = written(
-        leaf("task", "open", page_dir, "plan", "Is the plan enough?", "--on", "user")
+        leaf(
+            "task",
+            "create",
+            page_dir,
+            "plan",
+            "--title",
+            "Is the plan enough?",
+            "--on",
+            "user",
+        )
     )
     assert (todo["owner"], todo["subject"]) == (
         "user",
@@ -1299,7 +1388,14 @@ def test_a_thread_obligation_remains_distinct_from_explicit_user_work(page_dir):
     )
     task = written(
         leaf(
-            "task", "open", page_dir, comment["id"], "Try the rollback", "--on", "user"
+            "task",
+            "create",
+            page_dir,
+            comment["id"],
+            "--title",
+            "Try the rollback",
+            "--on",
+            "user",
         )
     )
     [task_obligation] = [
@@ -1345,12 +1441,16 @@ def test_a_thread_obligation_remains_distinct_from_explicit_user_work(page_dir):
 def test_the_user_ends_only_explicit_user_work_and_not_an_obligation(page_dir):
     """Done ends explicit user work; widget obligations retain their source lifecycle."""
     asking(page_dir)
-    mine = written(leaf("task", "open", page_dir, "page", "Add a glossary"))
+    mine = written(
+        leaf("task", "create", page_dir, "page", "--title", "Add a glossary")
+    )
     [item] = obligations_on_user(state_json(page_dir))
     for todo in (mine["id"], item["id"]):
         status, answer = done(page_dir, todo)
         assert status == 400, answer
-    refused = leaf("task", "start", page_dir, item["id"], "Answering it myself")
+    refused = leaf(
+        "task", "start", page_dir, item["id"], "--text", "Answering it myself"
+    )
     assert refused.exit_code != 0
     assert state_json(page_dir)["todos"][-1]["id"] == mine["id"]
 
@@ -1380,11 +1480,11 @@ def test_a_decision_ends_through_its_state_and_the_agent_ends_a_question(page_di
         asked.append(f"widget:{name}")
     answered_elsewhere, dropped = asked
     [refused] = command_findings(
-        "task", "end", page_dir, item["id"], "dropped", "Decided in chat"
+        "task", "end", page_dir, item["id"], "dropped", "--text", "Decided in chat"
     )
     assert refused.code == "widget-obligation"
     [refused] = command_findings(
-        "task", "end", page_dir, answered_elsewhere, "failed", "No reply"
+        "task", "end", page_dir, answered_elsewhere, "failed", "--text", "No reply"
     )
     assert refused.code == "failed-question"
     assert [item["id"] for item in state_json(page_dir)["queues"]["on_user"]] == [
@@ -1392,12 +1492,24 @@ def test_a_decision_ends_through_its_state_and_the_agent_ends_a_question(page_di
         *asked,
     ]
 
-    written(leaf("task", "end", page_dir, answered_elsewhere, "done", "Warm, in chat"))
-    written(leaf("task", "end", page_dir, dropped, "dropped", "Font is fixed"))
+    written(
+        leaf(
+            "task",
+            "end",
+            page_dir,
+            answered_elsewhere,
+            "done",
+            "--text",
+            "Warm, in chat",
+        )
+    )
+    written(
+        leaf("task", "end", page_dir, dropped, "dropped", "--text", "Font is fixed")
+    )
     state = state_json(page_dir)
     assert [item["id"] for item in state["queues"]["on_user"]] == [item["id"]]
     assert [thread["attention"] for thread in state["threads"]] == [None, None]
-    refused = leaf("task", "end", page_dir, dropped, "done", "Asked again")
+    refused = leaf("task", "end", page_dir, dropped, "done", "--text", "Asked again")
     assert refused.exit_code != 0
     assert f"obligation {dropped!r} is already withdrawn" in refused.output
 
@@ -1447,7 +1559,14 @@ def test_user_work_cannot_duplicate_a_widget_obligation(page_dir):
     asking(page_dir)
     [item] = obligations_on_user(state_json(page_dir))
     [result] = command_findings(
-        "task", "open", page_dir, "choice", "Check evidence", "--on", "user"
+        "task",
+        "create",
+        page_dir,
+        "choice",
+        "--title",
+        "Check evidence",
+        "--on",
+        "user",
     )
     assert (result.code, result.values["obligation"]) == (
         "duplicate-obligation",
@@ -1461,9 +1580,20 @@ def test_a_version_can_remove_a_target_while_its_todos_stay_open(page_dir):
     """Removing a page subject does not silently settle either side's to-dos."""
     (page_dir / "index.html").write_text(WORK_PAGE)
     publish(page_dir)
-    mine = written(leaf("task", "open", page_dir, "plan", "Rewrite the plan"))
+    mine = written(
+        leaf("task", "create", page_dir, "plan", "--title", "Rewrite the plan")
+    )
     theirs = written(
-        leaf("task", "open", page_dir, "plan", "Is the plan enough?", "--on", "user")
+        leaf(
+            "task",
+            "create",
+            page_dir,
+            "plan",
+            "--title",
+            "Is the plan enough?",
+            "--on",
+            "user",
+        )
     )
     (page_dir / "index.html").write_text(
         WORK_PAGE.replace('<section id="plan">', '<section id="scheme">')
@@ -1475,7 +1605,9 @@ def test_a_version_can_remove_a_target_while_its_todos_stay_open(page_dir):
         theirs["id"],
     }
     for todo in (theirs, mine):
-        written(leaf("task", "end", page_dir, todo["id"], "dropped", "Renamed"))
+        written(
+            leaf("task", "end", page_dir, todo["id"], "dropped", "--text", "Renamed")
+        )
     assert state_json(page_dir)["todos"] == []
 
 
@@ -1597,7 +1729,9 @@ def test_a_start_is_one_log_record_read_at_the_status_and_the_move(
     append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "why?"}
     )
-    [unowed] = command_findings("task", "start", page_dir, "nope", "reading the traces")
+    [unowed] = command_findings(
+        "task", "start", page_dir, "nope", "--text", "reading the traces"
+    )
     assert unowed.code == "unowed-start"
     assert _start(page_dir, "c1", "").exit_code != 0
 
@@ -1691,7 +1825,14 @@ def test_a_widget_todo_outlives_its_seat_and_its_widget(page_dir):
     publish(page_dir)
     opened = CliRunner().invoke(
         cli_model.cli,
-        ["task", "open", str(page_dir), "rollout-card", "Check the rollout"],
+        [
+            "task",
+            "create",
+            str(page_dir),
+            "rollout-card",
+            "--title",
+            "Check the rollout",
+        ],
     )
     assert opened.exit_code == 0, opened.output
     todo = json.loads(opened.output.splitlines()[-1])
@@ -1750,7 +1891,14 @@ def test_revendoring_can_change_x_work_while_the_target_holds_a_todo(page_dir):
     publish(page_dir)
     opened = CliRunner().invoke(
         cli_model.cli,
-        ["task", "open", str(page_dir), "rollout-card", "Check the rollout"],
+        [
+            "task",
+            "create",
+            str(page_dir),
+            "rollout-card",
+            "--title",
+            "Check the rollout",
+        ],
     )
     assert opened.exit_code == 0, opened.output
     card = json.loads((schema_model.DEFAULT_PACKAGE / "registry.json").read_text())[
@@ -1860,7 +2008,9 @@ def test_only_a_declared_widget_work_seat_is_admitted(page_dir, target):
     )
     publish(page_dir)
 
-    [claimed] = command_findings("task", "open", page_dir, target, "Check the estimate")
+    [claimed] = command_findings(
+        "task", "create", page_dir, target, "--title", "Check the estimate"
+    )
     assert claimed.code == "no-work-seat"
 
 
@@ -2000,7 +2150,7 @@ def test_explicit_message_obligations_need_no_markup(page_dir, route):
     """Every author route atomically sends the question and registers On me."""
     publish(page_dir)
     if route == "open":
-        command = ["thread", "open", page_dir]
+        command = ["thread", "create", page_dir]
         thread = None
     else:
         root = append_carried_log_record(
@@ -2095,7 +2245,7 @@ def test_explicit_obligation_reactions_and_agent_end(page_dir):
     """Reaction undo restores the request; an outside answer or withdrawal retires it."""
     publish(page_dir)
     message = written(
-        leaf("thread", "open", page_dir, "--obligation", "--text", "Ready?")
+        leaf("thread", "create", page_dir, "--obligation", "--text", "Ready?")
     )
     identity = f"message:{message['id']}"
     reaction = append_carried_log_record(
@@ -2115,7 +2265,9 @@ def test_explicit_obligation_reactions_and_agent_end(page_dir):
     assert ("message", identity) in kinds(state_json(page_dir)["queues"]["on_user"])
     [failed] = command_findings("task", "end", page_dir, identity, "failed")
     assert failed.code == "failed-question"
-    written(leaf("task", "end", page_dir, identity, "done", "Answered in chat"))
+    written(
+        leaf("task", "end", page_dir, identity, "done", "--text", "Answered in chat")
+    )
     [item] = [
         item for item in state_json(page_dir)["obligations"] if item["id"] == identity
     ]
@@ -2139,6 +2291,7 @@ def test_explicit_obligation_reactions_and_agent_end(page_dir):
             page_dir,
             f"message:{question['id']}",
             "dropped",
+            "--text",
             "No longer needed",
         )
     )
@@ -2152,7 +2305,7 @@ def test_explicit_obligation_reactions_and_agent_end(page_dir):
 def test_obligations_are_not_progress_or_user_authored(page_dir):
     """The admission boundary prevents unanswerable requests on non-agent messages."""
     publish(page_dir)
-    root = written(leaf("thread", "open", page_dir, "--text", "Status"))
+    root = written(leaf("thread", "create", page_dir, "--text", "Status"))
     before = events_model.read_events(page_dir)
     for extra in (
         {"author": "user"},

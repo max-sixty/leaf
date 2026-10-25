@@ -1905,7 +1905,7 @@ def newest_move(page_dir, widget):
 def _start(page_dir, item, line):
     """`leaf task start`: take a move or task in hand with the status's line."""
     return CliRunner().invoke(
-        cli_model.cli, ["task", "start", str(page_dir), str(item), line]
+        cli_model.cli, ["task", "start", str(page_dir), str(item), "--text", line]
     )
 
 
@@ -1933,7 +1933,8 @@ def working(page_dir, line, subject="page"):
     )
     if task is None:
         opened = CliRunner().invoke(
-            cli_model.cli, ["task", "open", str(page_dir), subject, line[:80]]
+            cli_model.cli,
+            ["task", "create", str(page_dir), subject, "--title", line[:80]],
         )
         assert opened.exit_code == 0, opened.output
         task = json.loads(opened.output.splitlines()[-1])
@@ -2269,7 +2270,7 @@ def published(page_dir):
 
 def comment(page_dir, *args):
     """Open a thread, with the posted event on stdout for the caller to read."""
-    return CliRunner().invoke(cli_model.cli, ["thread", "open", str(page_dir), *args])
+    return CliRunner().invoke(cli_model.cli, ["thread", "create", str(page_dir), *args])
 
 
 DRAFTED = PAGE.replace(

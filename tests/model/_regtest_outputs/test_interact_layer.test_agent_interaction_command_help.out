@@ -113,10 +113,10 @@ Usage: leaf page close [OPTIONS] PAGE
 Options:
   --help  Show this message and exit.
 
-## leaf thread open --help
-Usage: leaf thread open [OPTIONS] PAGE
+## leaf thread create --help
+Usage: leaf thread create [OPTIONS] PAGE
 
-  Open a thread as the agent: anchored where --quote or --section points at a
+  Create a thread as the agent: anchored where --quote or --section points at a
   passage, general where neither does \u2014 a question about the work as a whole.
 
   Use --obligation when the next move is the user's: the message waits on On me
@@ -210,21 +210,22 @@ Options:
   --help  Show this message and exit.
 
 ## leaf task end --help
-Usage: leaf task end [OPTIONS] PAGE ID {done|failed|dropped} [DETAIL]
+Usage: leaf task end [OPTIONS] PAGE ID {done|failed|dropped}
 
   End the to-do or conversational obligation named by ID in `page state`.
 
-  A to-do, yours or the user's, ends done, failed or dropped. DETAIL says where
+  A to-do, yours or the user's, ends done, failed or dropped. --text says where
   the result is, such as the version or reply holding it, or why there is none.
 
   For a message obligation (`message:<id>`) or a question widget answered in
-  words (`widget:<id>`), done records that the user answered elsewhere, DETAIL
+  words (`widget:<id>`), done records that the user answered elsewhere, --text
   saying where; dropped withdraws the question. These outcomes record no answer
   from the user. A widget answered through its controls ends through its state
   or an authored withdrawal.
 
 Options:
-  --help  Show this message and exit.
+  --text TEXT  where the result is, or why there is none
+  --help       Show this message and exit.
 
 ## leaf page report --help
 Usage: leaf page report [OPTIONS] PAGE WIDGET VERB [NAME=VALUE]...

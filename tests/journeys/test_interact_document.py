@@ -643,7 +643,14 @@ def test_publishing_records_typed_settlements_for_provisional_agent_facts(page_d
     report_id = json.loads(sent.output)["id"]
     opened = CliRunner().invoke(
         cli_model.cli,
-        ["task", "open", str(page_dir), "rollout-card", "Check the rollout"],
+        [
+            "task",
+            "create",
+            str(page_dir),
+            "rollout-card",
+            "--title",
+            "Check the rollout",
+        ],
     )
     assert opened.exit_code == 0, opened.output
     task = json.loads(opened.output)

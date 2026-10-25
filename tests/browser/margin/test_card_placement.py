@@ -703,9 +703,9 @@ def test_the_rail_tab_stop_follows_a_carried_row_back_into_view(browser, serve):
     rendered(page)
     first = page.locator('[data-lf-margin-for="off-t-resync"] .lf-margin-marker')
     second = page.locator('[data-lf-margin-for="off-t-vendor"] .lf-margin-marker')
-    assert first.evaluate(
-        "row => row.closest('.lf-margin-carrier') !== null"
-    ), "the fixture's first row no longer stands in a carrier"
+    assert first.evaluate("row => row.closest('.lf-margin-carrier') !== null"), (
+        "the fixture's first row no longer stands in a carrier"
+    )
     expect(first).to_have_attribute("tabindex", "0")
 
     page.mouse.move(300, 300)

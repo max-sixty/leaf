@@ -941,7 +941,10 @@ def test_the_response_field_grows_under_its_picker_trigger(browser, serve):
         "button", name="Other responses", exact=True
     ).bounding_box()
     # The field takes the bar's whole measure; the trigger stands over its end.
-    assert trigger["y"] + trigger["height"] <= narrow_field["y"], (narrow_field, trigger)
+    assert trigger["y"] + trigger["height"] <= narrow_field["y"], (
+        narrow_field,
+        trigger,
+    )
     for box in (narrow_field, trigger):
         assert box["x"] + box["width"] == pytest.approx(content_right, abs=1), box
     page.keyboard.press("Enter")

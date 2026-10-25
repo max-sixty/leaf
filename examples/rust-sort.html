@@ -4,10 +4,10 @@
     <title>Explain Rust's 2016 merge sort</title>
     <meta
       name="description"
-      content="An animated trace of the merge sort Rust shipped in 1.15: natural runs, insertion-sort extension, the run stack's invariants, and merges through a half-size buffer, beside excerpts of the real source that follow each step."
+      content="An animated trace of the merge sort Rust shipped in 1.15: natural runs, insertion-sort extension, the run stack's invariants, and merges through a half-size buffer, beside excerpts of the real source."
     />
     <style data-controls>
-      /* The sort beside the source it follows, stacked where the workspace flows. */
+      /* The sort beside its source, stacked where the workspace flows. */
       #sort-regions {
         display: grid;
         grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
@@ -133,39 +133,6 @@
         font-size: var(--t-5);
       }
     </style>
-    <script type="module">
-      // A step may precede the code's rendered lines. Follow the indicated line when
-      // either the film advances or the source materializes its current indication.
-      const film = document.getElementById("sort-film");
-      const source = document.getElementById("sort-source");
-      const followLine = () => {
-        const first = source.querySelector("[data-lf-indicated]");
-        if (!first) return;
-        let box = first.parentElement;
-        while (box && box !== document.body) {
-          const style = getComputedStyle(box);
-          if (
-            /(auto|scroll)/.test(style.overflowY) &&
-            box.scrollHeight > box.clientHeight
-          )
-            break;
-          box = box.parentElement;
-        }
-        if (!box || box === document.body || box === document.documentElement) return;
-        const b = box.getBoundingClientRect();
-        const r = first.getBoundingClientRect();
-        if (r.top < b.top + 40 || r.bottom > b.bottom - 40)
-          box.scrollTop += r.top - b.top - b.height / 3;
-      };
-      film.addEventListener("sort-step", followLine);
-      new MutationObserver(followLine).observe(source, {
-        childList: true,
-        subtree: true,
-        attributes: true,
-        attributeFilter: ["data-lf-indicated"],
-      });
-      followLine();
-    </script>
   </head>
   <body>
     <main class="layout-workspace density-working" id="sort-workspace">
@@ -177,12 +144,7 @@
           <header>
             <h2>The slice, its scratch buffer, and the stack of runs</h2>
           </header>
-          <lf-sort-film
-            id="sort-film"
-            sort-code="code-merge-sort"
-            head-code="code-insert-head"
-            merge-code="code-merge"
-          ></lf-sort-film>
+          <lf-sort-film id="sort-film"></lf-sort-film>
         </lf-pane>
         <lf-pane id="sort-source-pane" label="Source">
           <header><h2>The code as it shipped in Rust 1.15</h2></header>
@@ -196,7 +158,7 @@
               TimSort: it cuts the slice into runs that are already in order, and merges
               them under two stack invariants. On the PR's benchmarks, sorting an
               already ascending slice got 89% faster, a descending one 95%, and a random
-              one 4%. Play it on each input; this source follows along.
+              one 4%. Play it on each input.
             </p>
             <p id="sort-source-note">
               Quoted from

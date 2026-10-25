@@ -1,11 +1,11 @@
 /* Resolve registry-declared element relations in the owner's authored scope.
-   Navigation, indication and typed widget inputs share this one reading. */
+   Navigation and typed widget inputs share this one reading. */
 import { registry } from "./registry.js";
 import { authoredScope, elementById, pageDocument } from "./passages.js";
 
-// The verbs that follow an `x-refers` attribute (`navigateToDatum`, `indicate`) are
-// handed it by package code, so an undeclared one is that code's error, thrown at the
-// call rather than read as a reference to nothing.
+// The verbs that follow an `x-refers` attribute (`navigateToDatum`, `data`) are handed
+// it by package code, so an undeclared one is that code's error, thrown at the call
+// rather than read as a reference to nothing.
 export function requireReference(verb, owner, attribute) {
   if (
     typeof attribute !== "string" ||

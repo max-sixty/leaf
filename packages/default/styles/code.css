@@ -102,21 +102,6 @@
 :scope:is(lf-code) :is(.lf-code-line, .lf-code-elided).hi::before {
   border-right-color: var(--warn);
 }
-/* The line another widget is indicating (indication.js): an accent bar at the gutter's
-   outer edge and an accent number, so it reads apart from an hi line by shape as well as
-   hue, and an accent wash that an hi line's own tint keeps. The bar is the gutter's, not
-   the line's, because the gutter's own background paints over an inset on the line. */
-:scope:is(lf-code) :is(.lf-code-line, .lf-code-elided)[data-lf-indicated] {
-  outline: none;
-}
-:scope:is(lf-code) :is(.lf-code-line, .lf-code-elided)[data-lf-indicated]:not(.hi) {
-  background: var(--accent-tint);
-}
-:scope:is(lf-code) :is(.lf-code-line, .lf-code-elided)[data-lf-indicated]::before {
-  box-shadow: inset 3px 0 0 var(--accent);
-  color: var(--accent);
-  font-weight: 600;
-}
 /* A note is prose about a source line, not another source line. It follows the
    code-review convention: a sans-serif row spanning the source frame, with its text
    aligned to the code after the gutter. Horizontal rules mark the insertion

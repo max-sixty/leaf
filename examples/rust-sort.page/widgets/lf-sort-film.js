@@ -1,15 +1,10 @@
 // <lf-sort-film>: the player around sort.js. It owns playback, the input choice and the
 // narration, and paints in the page's own palette: every colour is a theme token resolved
 // through a probe element, re-read when the page switches between light and dark.
-//
-// Each time the step changes it indicates the Rust source line that step executes, by
-// its source line numbers, in the excerpts its three code attributes name, and dispatches `sort-step` (bubbling)
-// so the page can keep that line in view.
 
 import {
   frameFor,
   generatedElement,
-  indicate,
   inlineMarkdownFragment,
   keeps,
   keepsText,
@@ -24,7 +19,6 @@ import {
 } from "/runtime/widget-api.js";
 import {
   INPUTS,
-  LINES,
   N,
   Painter,
   PHASE,
@@ -150,20 +144,12 @@ customElements.define(
         // The theme may have changed while the film was away.
         repaint();
         return () => {
-          this.#indicate(null);
           stopMotionWatch();
           observer.disconnect();
           sized.disconnect();
           this.#pause();
         };
       });
-    }
-
-    // One key to every excerpt: each quotes its own stretch of slice.rs, so a line
-    // number lights in the one block that shows it and addresses nothing in the rest.
-    #indicate(key) {
-      for (const attr of ["sort-code", "head-code", "merge-code"])
-        if (this.hasAttribute(attr)) indicate(this, attr, key);
     }
 
     #resolvePalette() {
@@ -398,13 +384,6 @@ customElements.define(
             (final
               ? `. A plain top-down merge sort needs ${this.#plain} comparisons on this input.`
               : `, of ${this.#film.comparisons} in all.`),
-        );
-        this.#indicate(s.line ? LINES[s.line] : null);
-        this.dispatchEvent(
-          new CustomEvent("sort-step", {
-            bubbles: true,
-            detail: { line: s.line, kind: s.kind, phase: s.phase },
-          }),
         );
         // The stack and the clauses move as runs push and merge; re-read their geometry.
         this.parts?.update();

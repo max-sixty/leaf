@@ -462,7 +462,8 @@ is a lead for host testing, not proof of a working Leaf journey. Rendering,
 CSP, assets, tool calls, reopening and idle-session delivery need separate
 checks in the actual host. A tool exposed to this account or a panel entry does
 not establish general availability or complete delivery. Leaf's host experiment
-and acceptance criteria belong to [TODO.md](../TODO.md), not a second plan in
+and acceptance criteria belong to
+[issue #4086](https://github.com/max-sixty/leaf/issues/4086), not a second plan in
 this note; work in another checkout is not evidence of a landed integration.
 The page directory/event record and the host transport have separate lifetimes.
 

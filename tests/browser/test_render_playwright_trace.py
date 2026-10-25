@@ -8,6 +8,7 @@ import pytest
 from leaf_dev.page_fixtures import example_media
 from playwright.sync_api import expect
 from render_cases_layout import current_location_ring, ring_faults
+from render_cases_navigation import source_revision
 from render_harness import (
     at_rest,
     holding,
@@ -15,6 +16,7 @@ from render_harness import (
     open_page,
     resized,
     still_page,
+    told,
 )
 
 from leaf import data as data_model
@@ -116,6 +118,58 @@ def test_trace_bookmarks_leave_the_image_allocation(browser, serve):
     expect(user.locator("#before")).to_be_visible()
     rendered(user)
     assert geometry() == pytest.approx(before, abs=1)
+
+
+def test_trace_parts_carry_the_recording_and_place_they_were_drawn_from(browser, serve):
+    """Each drawn part is a datum of the recording that supplied it, at its place in the
+    archive, and a replacement recording restamps the same parts."""
+    source = ROOT / "examples/developer/playwright-trace-gallery.data.json"
+    record = json.loads(source.read_text())["release-journey"]
+    media = {
+        image["url"]: (example_media() / Path(image["url"]).name).read_bytes()
+        for image in record["images"]
+    }
+    url = serve(
+        leaf_page(
+            "Recorded evidence",
+            '<h1 id="title">The journey</h1>'
+            '<lf-trace id="journey" label="Journey" source="trace"></lf-trace>',
+        ),
+        packages=("playwright",),
+        media=media,
+    )
+    data_model.cmd_data_set(serve.page_dir, "trace", record)
+    page = open_page(browser, url)
+    parts = page.locator("#journey [data-lf-projection]")
+
+    def stamps():
+        return parts.evaluate_all("""nodes => nodes.map(node => ({
+          key: node.dataset.lfDatum, identity: node.dataset.lfIdentity,
+          revision: node.dataset.lfSourceRevision,
+          path: JSON.parse(node.dataset.lfOrigin).path,
+        }))""")
+
+    first = stamps()
+    assert first, "the recording drew no datum"
+    revision = source_revision(serve.page_dir, "trace")
+    assert all(
+        part["identity"] == part["key"]
+        and part["revision"] == revision
+        and part["path"][0] in {"actions", "images"}
+        for part in first
+    ), first
+
+    record["actions"][0]["title"] += " (rerun)"
+    data_model.cmd_data_set(serve.page_dir, "trace", record)
+    told(page)
+    rerun = source_revision(serve.page_dir, "trace")
+    assert rerun != revision
+    page.wait_for_function(
+        "revision => [...document.querySelectorAll('#journey [data-lf-projection]')]"
+        ".every(node => node.dataset.lfSourceRevision === revision)",
+        arg=rerun,
+    )
+    assert [{**part, "revision": rerun} for part in first] == stamps()
 
 
 @pytest.mark.shifts_unsurveyed

@@ -293,6 +293,9 @@ DATA_INPUTS_SCHEMA = {
             "source": {"type": "string", "pattern": f"^{HTML_NAME}$"},
             "reference": {"type": "string", "pattern": f"^{HTML_NAME}$"},
             "output": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+            # The element property the runtime sets to the delivered value
+            # (leaf-element.js, "Bound values").
+            "property": {"type": "string", "pattern": "^[a-z][A-Za-z0-9]*$"},
         },
         "dependentRequired": {"reference": ["output"], "output": ["reference"]},
         "required": ["contract"],
@@ -343,6 +346,10 @@ EXTENSION_SCHEMA = {
             },
         },
         "x-example": {"type": "string"},
+        "x-example-data": {
+            "type": "object",
+            "propertyNames": {"pattern": f"^{DATA_SOURCE_NAME}$"},
+        },
         "x-exhibit": {
             "oneOf": [
                 {"type": "boolean"},

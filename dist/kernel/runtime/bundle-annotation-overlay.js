@@ -2,8 +2,8 @@ import { SVG_NS, dropStand, paintGeometry, paintShape, paintStand, paintTrace, p
 import { Z, bareReaction, html, render, sameAnchor, turns } from "./bundle-browser-runtime.js";
 import { TEXT_FIELD, afterScript, cancelAnimation, cancelRender, closeLayer, currentLocationIn, declareRelease, drawn, focusDestination, focused, handBack, holdFocus, inputCount, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, nativeLayerHolding, nextAnimation, nextRender, onCurrentLocation, onPressAway, onUserInput, pressLed, renderedOrder, renderedUnder, roomPx, rove, tabStops, under } from "./bundle-dom-move.js";
 import { setRuntimeRootAttribute } from "./bundle-layer-client.js";
-import { whenDocumentPresented } from "./bundle-context.js";
 import { LAYOUT, PRESS, clamp, closeControl, coarsePointer, cycledRow, el, generatedElement, hostIn, iconElement, keys, notice, offer, paintKeys, repaint, rightCover, rowArrows, seenRect, shownBox, shownWindow, skipped, union, watchRoom } from "./bundle-errors.js";
+import { whenDocumentPresented } from "./bundle-context.js";
 import { atScrollEnd, effectiveScroller, moveScrollerBy, readingRegionFor, registerReadingRegion, scrollToEnd } from "./bundle-reading-regions.js";
 import { chromeForeground, chromeRoot } from "./bundle-chrome.js";
 import { blockAt, closestAcross, elementFromPointAcross, inChrome, labelWords, pageRange, pageWords, quoteFrom, rangeOf, segmentsIn } from "./bundle-passages.js";
@@ -739,6 +739,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 			return null;
 		}
 		keepsHidden(preview, false);
+		keeps(preview, "inert", null);
 		buildThreadCard(entry, selected.id);
 		const positioned = placedThreadPreview();
 		return session.sent ? growOut(session, positioned) : positioned;
@@ -762,10 +763,20 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 		if (!previewSession) return;
 		const closed = selection();
 		retirePreviewSession();
-		placementDriver.stop();
+		placementDriver.supersede();
 		delete preview.dataset.lfThreadPlacement;
-		for (const edge of CUT_EDGES) preview.style.removeProperty(edge);
-		keepsHidden(preview, true);
+		const hide = () => {
+			if (previewSession) return;
+			placementDriver.stop();
+			for (const edge of CUT_EDGES) preview.style.removeProperty(edge);
+			keepsHidden(preview, true);
+			keeps(preview, "inert", null);
+		};
+		const fade = preview.hidden ? null : preview.getAnimations().find((played) => played.transitionProperty === "opacity");
+		if (fade) {
+			keeps(preview, "inert", "");
+			fade.finished.then(hide, hide);
+		} else hide();
 		releaseAuthoredUnder(preview);
 		onClose(closed);
 	}

@@ -222,6 +222,57 @@ def test_escape_leaves_the_field_before_it_puts_a_view_away(browser, serve):
     )
 
 
+def test_a_send_moves_the_panel_s_view_as_one_stream(browser, serve):
+    """A send slides what the view shows up as one stream: the thread's name and every
+    turn start the same distance below where they come to rest, whether the send opens
+    the thread's view or adds a turn to it, so nothing the reader reads overtakes or
+    swaps with anything else. Read at the motion's first frame, held, and again at
+    rest."""
+    page = floating(browser, serve(LONG_PAGE))
+    page.emulate_media(reduced_motion="no-preference")
+    title = ".lf-fp-title"
+    turns = ".lf-fp-view[data-view=thread] .lf-msg"
+
+    def offsets(count):
+        """How far below its rest each of the name and the turns is drawn now."""
+        page.wait_for_function(
+            f"document.querySelectorAll('{turns}').length === {count}"
+        )
+        rendered(page)
+        drawn = page.evaluate(
+            """([title, turns]) => [title, ...document.querySelectorAll(turns)]
+                .map(node => typeof node === 'string' ? document.querySelector(node) : node)
+                .map(node => node.getBoundingClientRect().top)""",
+            [title, turns],
+        )
+        page.evaluate(
+            "() => window.__lfHeld.splice(0).forEach(motion => motion.finish())"
+        )
+        settled(page)
+        rest = page.evaluate(
+            """([title, turns]) => [document.querySelector(title),
+                ...document.querySelectorAll(turns)]
+                .map(node => node.getBoundingClientRect().top)""",
+            [title, turns],
+        )
+        return [d - r for d, r in zip(drawn, rest)]
+
+    page.evaluate("() => {" + HOLD_MOTION + "}")
+    write(field(page), "Could the rollback cover the weekend?")
+    with sending(page, "the page comment"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    opened = offsets(1)
+    assert opened[0] > 10, f"the view opened in place: {opened}"
+    assert max(opened) - min(opened) < 1, f"the opening view came apart: {opened}"
+
+    write(field(page), "And the mobile cohort too.")
+    with sending(page, "the reply"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    replied = offsets(2)
+    assert replied[0] > 10, f"the view grew in place: {replied}"
+    assert max(replied) - min(replied) < 1, f"the stream came apart: {replied}"
+
+
 def test_c_in_an_open_thread_returns_to_its_reply(browser, serve):
     """Located anywhere in the thread open in the panel, `c` comments on that thread:
     from the view an Escape left the user on, and from a message in it, the caret

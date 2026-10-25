@@ -5,8 +5,9 @@
  * this module adopts that drawing and owns the live mechanics: working state,
  * tab-local persistence, CSS reflection, instruction copying, commands, and
  * the final recordless action. Intermediate changes never enter Leaf's event log.
- * The instruction's copy control is the one a code block floats at its corner
- * (`copyBlock`), standing at the instruction pane's.
+ * The instruction stays folded under its actions until the user unfolds it, a browser
+ * disclosure the log never records. Unfolded, it wears a code block's copy control at
+ * its corner (`copyBlock`).
  *
  * The playground owns the complete working configuration. Contributors declare a
  * named default and get an immutable slice handle; set replaces that slice. Required
@@ -267,12 +268,11 @@ customElements.define(
             });
             this.#draw();
           });
-        // The pane's header holds the copy, since a pane holds one body between its
-        // header and footer; it floats at the pane's corner, beside the title.
-        const pane = this.#regions.find(({ name }) => name === "instruction").host;
-        pane
-          .querySelector(":scope > header")
-          .append(copyBlock(pane, () => this.#instruction(), "instruction"));
+        const body = initial.instructionBody;
+        initial.reveal.addEventListener("click", () =>
+          initial.paintReveal(body.hidden),
+        );
+        body.append(copyBlock(body, () => this.#instruction(), "instruction"));
         this.addEventListener("mousedown", (event) => {
           const target = /** @type {Element} */ (event.target);
           if (target.closest(".lf-playground-control-label")) return;

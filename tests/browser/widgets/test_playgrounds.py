@@ -531,6 +531,7 @@ def test_inline_playground_keeps_half_a_short_workspace_for_its_stage(browser, s
     assert preview.bounding_box()["width"] == pytest.approx(split["width"], abs=1)
     stage = playground.locator(".lf-playground-preview-region").bounding_box()
     assert stage["height"] >= 500 / 2 - 0.5
+    playground.get_by_role("button", name="Show instruction").click()
     assert instruction.evaluate("node => node.scrollHeight <= node.clientHeight + 1")
     workspace = page.locator("#short-ask")
     assert workspace.evaluate("node => node.scrollHeight > node.clientHeight + 1")
@@ -580,6 +581,11 @@ def test_a_short_workspace_shows_more_below_its_playground_regions(browser, serv
         return sum(1 for pixel in delta if max(pixel) > 24)
 
     for name, body in bodies.items():
+        if name == "controls":
+            # The folded instruction leaves the controls their room in this window;
+            # unfolded in a shorter one, it takes enough to scroll them.
+            resized(page, 1280, 500)
+            playground.get_by_role("button", name="Show instruction").click()
         assert body.evaluate("el => el.scrollHeight > el.clientHeight + 1"), name
         expect(body).to_have_attribute("data-lf-more-below", "")
         assert cue(body) > 100, name
@@ -662,7 +668,7 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
     """A playground is a workspace with its relationship declared: the preview is the
     stage, with the controls and the instruction they write in a rail beside it. While
     the root workspace fills the window each region scrolls on its own, the controls
-    under their fixed presets and the instruction above its fixed actions; where it
+    under their fixed presets and the instruction with its actions; where it
     doesn't, the page scrolls all three, and a narrow one stacks the regions. A window
     shorter than 480px keeps the rail beside the stage but doesn't hold it in view,
     since the rail would show a few lines and its actions only by scrolling inside it.
@@ -680,7 +686,7 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
       const playground = document.querySelector('#notification-playground');
       const controls = playground.querySelector('.lf-playground-controls');
       const preview = playground.querySelector('.lf-playground-preview-body');
-      const instruction = playground.querySelector('lf-playground-output');
+      const instruction = playground.querySelector('.lf-playground-instruction');
       const region = (body) => readingRegionFor(body);
       const controlsBox = region(controls).host.getBoundingClientRect();
       const previewBox = region(preview).host.getBoundingClientRect();
@@ -729,15 +735,6 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
         "spokenWords": True,
     }
     assert bounded["controlsSize"][1] > bounded["controlsSize"][0], bounded
-    # The rail's two titles are one voice: the package draws its generated panes, and
-    # the kernel's default pane header must not outrank the class that says so.
-    voice = """node => {
-      const style = getComputedStyle(node);
-      return [style.fontFamily, style.fontSize, style.fontWeight];
-    }"""
-    assert playground.locator(".lf-playground-instruction-title").evaluate(
-        voice
-    ) == playground.locator(".lf-playground-presets-title").evaluate(voice)
     # The presets band heading the controls is ruled off from them, over the generic
     # region header's unruled box.
     assert playground.locator(".lf-playground-presets").evaluate(
@@ -837,6 +834,53 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
             "pageScrolls": True,
             "obligationDisplay": "block",
         }, (width, height)
+
+
+@pytest.mark.parametrize("layout", ["workspace", "column"])
+def test_a_playground_unfolds_its_instruction_without_moving_its_actions(
+    browser, serve, layout
+):
+    """The instruction pane is a bar of Reset, the instruction's fold control and the
+    submission, with the instruction folded until the user asks to read it. Unfolding
+    it leaves the bar where the user pressed it: above the bar where the pane stands at
+    the bottom of a held workspace, below it in a flowing page. The instruction brings
+    its copy control, and a key folds it again."""
+    source = leaf_page(
+        "Folded instruction",
+        '<lf-ask id="fold-ask"><h1>Choose a density</h1>'
+        '<lf-playground id="fold-playground" data-width="available">'
+        '<lf-playground-control name="rows" label="Rows" kind="range" value="4" '
+        'min="1" max="8"></lf-playground-control>'
+        "<lf-playground-preview><p>Rows of the report.</p></lf-playground-preview>"
+        '<lf-playground-output>Use <lf-playground-value for="rows">'
+        "</lf-playground-value> rows in the weekly report and show me its "
+        "rendered page.</lf-playground-output>"
+        "</lf-playground></lf-ask>",
+        layout=layout,
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1280, 800)
+    playground = page.locator("#fold-playground")
+    instruction = playground.locator("lf-playground-output")
+    fold = playground.get_by_role("button", name="Show instruction")
+    expect(playground.get_by_role("button", name="Reset")).to_be_visible()
+    expect(instruction).to_be_hidden()
+    before = fold.bounding_box()
+
+    fold.click()
+    unfold = playground.get_by_role("button", name="Hide instruction")
+    expect(unfold).to_have_attribute("aria-expanded", "true")
+    expect(instruction).to_be_visible()
+    assert unfold.bounding_box() == pytest.approx(before, abs=0.5)
+    body = instruction.bounding_box()
+    above = body["y"] + body["height"] <= before["y"]
+    assert above is (layout == "workspace"), (layout, body, before)
+    instruction.hover()
+    expect(playground.locator(".lf-code-copy")).to_be_visible()
+
+    unfold.press("Enter")
+    expect(instruction).to_be_hidden()
+    expect(fold).to_be_focused()
 
 
 def test_notification_playground_admits_only_its_exact_page_configuration(

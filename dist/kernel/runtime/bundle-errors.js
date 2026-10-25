@@ -2164,12 +2164,7 @@ function uncovered(rect, box) {
 }
 
 //#endregion
-//#region runtime/motion-icon-paths.js
-const PLAY = "<path d=\"m5 3 7 5-7 5z\"/>";
-const PAUSE = "<path d=\"M5 3v10M11 3v10\"/>";
-
-//#endregion
-//#region runtime/icons.js
+//#region runtime/icon-paths.js
 const SEND = "<path d=\"M8 13V3M4 7l4-4 4 4\"/>";
 const ICONS = {
 	activity: "<circle cx=\"8\" cy=\"8\" r=\"3\" fill=\"currentColor\" stroke=\"none\"/>",
@@ -2191,8 +2186,8 @@ const ICONS = {
 	link: "<path d=\"M6.67 8.67a3.33 3.33 0 0 0 5.03.36l2-2a3.33 3.33 0 0 0-4.71-4.71l-1.15 1.14M9.33 7.33a3.33 3.33 0 0 0-5.03-.36l-2 2a3.33 3.33 0 0 0 4.71 4.71l1.14-1.14\"/>",
 	microphone: "<rect x=\"6\" y=\"2\" width=\"4\" height=\"7\" rx=\"2\"/><path d=\"M4 7.5v.75a4 4 0 0 0 8 0V7.5M8 12.25V14M6 14h4\"/><path class=\"lf-mic-slash\" d=\"M2.5 2.5l11 11\"/>",
 	next: "<path d=\"m6 3.5 4.5 4.5L6 12.5\"/>",
-	pause: PAUSE,
-	play: PLAY,
+	pause: "<path d=\"M5 3v10M11 3v10\"/>",
+	play: "<path d=\"m5 3 7 5-7 5z\"/>",
 	previous: "<path d=\"m10 3.5-4.5 4.5 4.5 4.5\"/>",
 	all: "<path d=\"M3 4h6M3 8h6M3 12h6M12 8v4M10 10h4\"/>",
 	pickup: "<path d=\"M8 2.75v6.5M5.5 6.75 8 9.25l2.5-2.5M3 10.5v2h10v-2\"/>",
@@ -2210,11 +2205,25 @@ const ICONS = {
 	up: "<path d=\"m4 9.75 4-4 4 4\"/>",
 	waiting: "<circle cx=\"8\" cy=\"8\" r=\"5\"/><path d=\"M8 5v3.25l2 1.25\"/>"
 };
+const SVG = "http://www.w3.org/2000/svg";
 const iconMarkup = (icon) => {
 	const markup = ICONS[icon];
 	if (!markup) throw new TypeError(`Unknown Leaf icon: ${icon}`);
 	return markup;
 };
+function iconElement(icon, className = "lf-margin-entry-icon") {
+	const svg = document.createElementNS(SVG, "svg");
+	svg.setAttribute("viewBox", "0 0 16 16");
+	svg.setAttribute("focusable", "false");
+	svg.setAttribute("aria-hidden", "true");
+	svg.setAttribute("class", className);
+	svg.dataset.lfIcon = icon;
+	svg.innerHTML = iconMarkup(icon);
+	return svg;
+}
+
+//#endregion
+//#region runtime/icons.js
 function iconTemplate(icon, className = "lf-margin-entry-icon") {
 	return html`<svg
     viewBox="0 0 16 16"
@@ -2224,11 +2233,6 @@ function iconTemplate(icon, className = "lf-margin-entry-icon") {
     data-lf-icon=${icon}
     .innerHTML=${iconMarkup(icon)}
   ></svg>`;
-}
-function iconElement(icon, className = "lf-margin-entry-icon") {
-	const holder = document.createDocumentFragment();
-	render(iconTemplate(icon, className), holder);
-	return holder.querySelector("svg");
 }
 
 //#endregion

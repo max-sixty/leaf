@@ -11,7 +11,7 @@ package (`references/packages.md`, "Package reach").
 
 Place each control next to the part of the preview it changes. A control that changes
 the whole preview, as most do, is a direct child of `lf-playground` and appears in the
-rail beside the preview, above the instruction. When the preview holds several items
+rail beside the preview, above the playground's actions. When the preview holds several items
 that each take their own settings, such as alerts that each need a threshold, write each
 item's controls inside `lf-playground-preview` beside that item, and leave only the
 settings every item shares in the rail. A control in the preview still belongs to the
@@ -184,7 +184,9 @@ CSS in a `<style>` inside its template, keyed on the child's root, such as
 playground's properties and attributes from its first paint, including after Reset.
 
 The output is the instruction the agent receives. Write a complete task that names the
-object, where the change goes, and the evidence you want back. Use `lf-playground-value`
+object, where the change goes, and the evidence you want back. The playground keeps it
+folded beside its Reset and submit buttons until the user unfolds it, so show in the
+preview or the controls whatever the user needs to see before submitting. Use `lf-playground-value`
 only where a selected value makes the task more precise; the action sends every control
 in `detail.values` anyway. After submission, the button reads **Undo choice** while the
 working values and instruction match the saved choice. Editing either restores the

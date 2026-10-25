@@ -1069,7 +1069,8 @@ def test_structured_data_explorer_keeps_one_aggregate_query_configuration(
     ).to_have_value("4")
     instruction = page.locator("#release-query-instruction")
     expect(instruction).to_contain_text("risk above 80 and region is europe")
-    playground.locator(".lf-playground-instruction-region").hover()
+    playground.get_by_role("button", name="Show instruction").click()
+    playground.locator(".lf-playground-instruction-body").hover()
     playground.get_by_role("button", name="Copy instruction").click()
     copied = page.evaluate("navigator.clipboard.readText()")
     assert copied == instruction.inner_text()
@@ -1234,7 +1235,8 @@ def test_built_code_comparison_drives_both_candidates(browser, serve):
     instruction = page.locator("#code-comparison-instruction")
     expect(instruction).to_contain_text("comfortable reading density")
     expect(instruction).to_contain_text("wrap long lines")
-    playground.locator(".lf-playground-instruction-region").hover()
+    playground.get_by_role("button", name="Show instruction").click()
+    playground.locator(".lf-playground-instruction-body").hover()
     playground.get_by_role("button", name="Copy instruction").click()
     assert page.evaluate("navigator.clipboard.readText()") == instruction.inner_text()
     with sending(page, "the code reader treatment"):
@@ -1532,11 +1534,12 @@ def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
         "aria-pressed", "false"
     )
     playground.get_by_role("button", name="Dense").click()
-    # Copy is the code block's control, a toolbar on the instruction pane's top border,
-    # while the pointer is over the pane or the user is in it.
+    # Copy is the code block's control, a toolbar on the unfolded instruction's top
+    # rule, while the pointer is over the pane or the user is in it.
     pane = playground.locator(".lf-playground-instruction-region")
     copy = pane.get_by_role("button", name="Copy instruction")
     pane.scroll_into_view_if_needed()
+    pane.get_by_role("button", name="Show instruction").click()
     pane.hover()
     copy.click()
     assert page.evaluate("navigator.clipboard.readText()") == (
@@ -1546,7 +1549,7 @@ def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
 
     playground.get_by_role("button", name="Reset").click()
     assert playground.evaluate("root => root.values")["radius"] == 12
-    playground.get_by_role("button", name="Reset").press("Shift+Tab")
+    playground.locator(".lf-playground-submit").press("Tab")
     expect(copy).to_be_focused()
     copy.press("Enter")
     assert "12px radius" in page.evaluate("navigator.clipboard.readText()")

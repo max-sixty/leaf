@@ -1,8 +1,9 @@
 # Added with a sidebar's track as its aside (#1363). Base at ec9572b46 put the summary
 # in a last `div` (0 of 3); the change put it in an `aside` before the body (2 of 3).
 # Rewritten to a code review's verdict and file list, it also fails a stuck `aside`:
-# base at eee4a2d6d 0 of 3, the change 3 of 3. Since the Layout sticks the one block
-# a track holds, it fails a page that writes its own sticking instead.
+# base at eee4a2d6d 0 of 3, the change 3 of 3. Since the Layout sticks what a track
+# holds, it fails a page that writes its own sticking instead; since it sticks several
+# blocks as well as one, it no longer asks for one block.
 description: sidebar-track-is-its-aside
 metadata:
   purpose:
@@ -35,8 +36,7 @@ assert:
       child of `main`, and that `aside` comes before the element holding the six areas in
       the document's order, so a phone, which stacks the two, shows the verdict and the
       list first. The page's own CSS does not rebuild the arrangement: fail if it declares
-      a grid or flex layout for `main`, or moves the verdict with `order`. The verdict and
-      the list are in one block, the `aside`'s only child element, which the Layout keeps in
-      view beside the areas; fail if the page's CSS makes the `aside` or a block inside it
-      `position: sticky`, or sets the `top`, `height`, `max-height` or `overflow` of the
-      `aside` or its block.
+      a grid or flex layout for `main`, or moves the verdict with `order`. The Layout keeps
+      what the `aside` holds in view beside the areas; fail if the page's CSS makes the
+      `aside` or a block inside it `position: sticky`, or sets the `top`, `height`,
+      `max-height` or `overflow` of the `aside` or its blocks.

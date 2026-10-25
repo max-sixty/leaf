@@ -476,7 +476,7 @@ export function createThreadPreview({
       scroller,
       coarse: coarsePointer.matches,
     });
-    const { side, fresh } = seat;
+    const { side, fresh, opening } = seat;
     let anchored;
     void floatingUi()
       .then((ui) => {
@@ -513,13 +513,14 @@ export function createThreadPreview({
             // Choosing its spot, the card is capped by the boundary alone, and slides
             // inside it rather than shrinking. Held, it has the room from its held edge
             // to the boundary's far edge, or the tallest it has stood since its line
-            // last moved where that is more. This cap holds for reading and writing alike:
-            // a growing editor uses the room below its top, then scrolls internally.
+            // last moved where that is more. Written beside its subject, it has the
+            // boundary's whole height (`rises`): a growing editor lifts it from the
+            // window's foot, then scrolls internally.
             const fitted = measureThreadCard(room, Math.max(stood, height), reading);
             // Fitting the width settles wrapping before opening the card spends
             // scroll travel. A scroll supersedes this answer's attachment geometry.
             if (
-              fresh &&
+              opening &&
               (side === "top" || side === "bottom") &&
               makeRoom(side, place.clear, place.extent, fitted, boundary, scroller)
             ) {
@@ -528,6 +529,7 @@ export function createThreadPreview({
             }
           },
           edge: anchored.edge,
+          rises: anchored.rises,
         });
         watch(ui);
         return placementDriver.position(
@@ -860,6 +862,7 @@ export function createThreadPreview({
       return null;
     }
     keepsHidden(preview, false);
+    keeps(preview, "inert", null);
     buildThreadCard(entry, selected.id);
     const positioned = placedThreadPreview();
     return session.sent ? growOut(session, positioned) : positioned;
@@ -889,10 +892,27 @@ export function createThreadPreview({
     if (!previewSession) return;
     const closed = selection();
     retirePreviewSession();
-    placementDriver.stop();
+    // Unplaced, the card fades out where it stood (annotation-chrome.css), inert, and
+    // hides once the fade ends, unless a card opened meanwhile. Its placement holds it
+    // there until then.
+    placementDriver.supersede();
     delete preview.dataset.lfThreadPlacement;
-    for (const edge of CUT_EDGES) preview.style.removeProperty(edge);
-    keepsHidden(preview, true);
+    const hide = () => {
+      if (previewSession) return;
+      placementDriver.stop();
+      for (const edge of CUT_EDGES) preview.style.removeProperty(edge);
+      keepsHidden(preview, true);
+      keeps(preview, "inert", null);
+    };
+    const fade = preview.hidden
+      ? null
+      : preview
+          .getAnimations()
+          .find((played) => played.transitionProperty === "opacity");
+    if (fade) {
+      keeps(preview, "inert", "");
+      fade.finished.then(hide, hide);
+    } else hide();
     // The widgets of a reply the card held go back to another drawing of it.
     releaseAuthoredUnder(preview);
     onClose(closed);

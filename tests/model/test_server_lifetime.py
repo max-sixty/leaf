@@ -79,9 +79,9 @@ def reaper_retires(page: Path, monkeypatch) -> bool:
         controlled.setattr(
             server_model,
             "page_changes",
-            lambda _page: SimpleNamespace(
-                mark=lambda: None,
-                wait=lambda _mark, seconds: next_check(seconds),
+            lambda _page: (
+                SimpleNamespace(wait=lambda _mark, seconds: next_check(seconds)),
+                None,
             ),
         )
         controlled.setattr(server_model, "os", SimpleNamespace(_exit=retire))
@@ -453,7 +453,7 @@ def test_server_start_forwards_flags_and_returns_service_output(page_dir):
     to the service it spawns and the account comes back from there, so the
     lifetime a flag declared and the refusal a running server earns are both that
     process's own words, carried out with its exit status."""
-    persistent = start_server_command(page_dir, "--persistent")
+    persistent = start_server_command(page_dir, "--lifetime", "persistent")
     assert persistent.returncode == 0, persistent.stderr
     assert json.loads(persistent.stdout)["lifetime"] == "persistent"
     assert read_record(page_dir / "service.json")["lifetime"] == "persistent"
@@ -596,7 +596,7 @@ def test_a_sessionless_server_ignores_a_stale_claim_and_requires_explicit_stop(
 def test_server_run_persistent_declines_the_claim_a_harness_session_offers(
     page_dir, spawn
 ):
-    """`--persistent` from inside a harness is the bare-shell statement made
+    """`--lifetime persistent` from inside a harness is the bare-shell statement made
     explicit: the launch declines the claim it could have made, so the server
     records the persistent lifetime and the page stays nobody's — no watcher
     thread to stop it when the harness pid goes, no SessionEnd reaper. The harness is
@@ -608,7 +608,8 @@ def test_server_run_persistent_declines_the_claim_a_harness_session_offers(
             *LEAF_COMMAND,
             "server",
             "run",
-            "--persistent",
+            "--lifetime",
+            "persistent",
             str(page_dir),
         ],
         stdout=subprocess.PIPE,
@@ -633,7 +634,7 @@ def test_server_run_temporary_uses_the_browser_harness_boundary(page_dir, spawn)
     and no claim for this test's harness session to watch.
     """
     process = spawn(
-        [*LEAF_COMMAND, "server", "run", "--temporary", str(page_dir)],
+        [*LEAF_COMMAND, "server", "run", "--lifetime", "temporary", str(page_dir)],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
@@ -658,7 +659,7 @@ def test_server_run_persistent_refuses_to_adopt_a_session_server(page_dir):
     way out named, exactly as a stated `--host` is — not silently ignored."""
     serving(page_dir, 1, "session")
     result = CliRunner().invoke(
-        cli_model.cli, ["server", "run", "--persistent", str(page_dir)]
+        cli_model.cli, ["server", "run", "--lifetime", "persistent", str(page_dir)]
     )
     assert result.exit_code != 0
     assert "server stop" in result.output
@@ -747,7 +748,7 @@ def test_a_persistent_server_outlives_a_session_that_picks_the_page_up(
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "later")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     assert service_model.claim_page(page_dir)
-    session_model.cmd_waiting(page_dir, "")
+    session_model.cmd_waiting(page_dir)
     # Without this the hook would skip the page for the wrong reason and the test
     # would pass with the bug in: the persistent check has to be what spares it.
     assert page_dir in service_model.owned_pages("later")

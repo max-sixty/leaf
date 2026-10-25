@@ -668,7 +668,7 @@ def test_a_handover_its_turn_never_confirmed_is_offered_again(
         claimed, {"kind": "resolve", "author": "user", "parent": withdrawn["id"]}
     )
     serving(claimed, 1)
-    session_model.cmd_waiting(claimed, "")
+    session_model.cmd_waiting(claimed)
     leases_model.mark_hooks("s1")
     live = {"state": "busy", "since": datetime.now().astimezone().isoformat()}
     monkeypatch.setattr(
@@ -791,7 +791,7 @@ def test_a_boundary_handover_escape_kept_is_never_handed_over_twice(
         harness_model.ClaudeCodeHarness, "escape_sandbox", lambda harness: None
     )
     serving(claimed, 1)
-    session_model.cmd_waiting(claimed, "")
+    session_model.cmd_waiting(claimed)
     leases_model.mark_hooks("s1")
     live = {"state": "busy", "since": datetime.now().astimezone().isoformat()}
     monkeypatch.setattr(

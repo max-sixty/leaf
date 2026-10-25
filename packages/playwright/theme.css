@@ -602,7 +602,12 @@
 .lf-trace-error {
   color: var(--danger);
 }
+/* The image takes up whatever room the timeline above it leaves, so it grows by as much
+ * as another scope's lanes shrink the timeline. Anchored on it, the browser would pay for
+ * the shrink above by moving everything below the image, the scope chooser under the
+ * user's arrow or press included; out of the running, the controls below anchor instead. */
 .lf-trace-images {
+  overflow-anchor: none;
   min-inline-size: 0;
   position: relative;
 }

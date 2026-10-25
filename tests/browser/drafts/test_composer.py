@@ -423,7 +423,10 @@ def test_resume_writing_is_a_touch_action_and_does_not_steal_hint_addresses(
 def test_resume_writing_reveals_page_editor_from_a_covering_panel_and_keeps_back(
     browser, serve, hidden_tab
 ):
-    """Resume exposes a hidden editor's place immediately and keeps the outgoing reading."""
+    """Resume exposes a hidden editor's place immediately and keeps the outgoing reading.
+
+    The user leaves the open draft by the keyboard and by scrolling: a press away from
+    it would save it, leaving nothing to resume."""
     writing = (
         '<details id="fold" open><summary>Editable content</summary>'
         '<lf-draft id="editable"><pre>Initial words</pre></lf-draft></details>'
@@ -451,10 +454,12 @@ def test_resume_writing_reveals_page_editor_from_a_covering_panel_and_keeps_back
     write(edit, "Last edit")
     page.keyboard.press("Home")
     page.keyboard.press("ArrowRight")
-    page.locator("#fold > summary").click()
+    page.locator("#fold > summary").focus()
+    page.keyboard.press("Enter")
     if hidden_tab:
-        page.get_by_role("tab", name="Reading", exact=True).click()
-    page.locator("#elsewhere").click()
+        page.get_by_role("tab", name="Reading", exact=True).focus()
+        page.keyboard.press("Enter")
+    page.locator("#elsewhere").scroll_into_view_if_needed()
     resized(page, 390, 844)
     scroll_settled(page)
     source_entry = page.evaluate("navigation.currentEntry.key")
@@ -503,9 +508,11 @@ def test_resume_writing_reveals_page_editor_from_a_covering_panel_and_keeps_back
     expect(edit).to_be_focused()
     edit.press("ControlOrMeta+a")
     edit.press("Backspace")
+    edit.blur()
     if hidden_tab:
-        page.get_by_role("tab", name="Reading", exact=True).click()
-    page.locator("#elsewhere").click()
+        page.get_by_role("tab", name="Reading", exact=True).focus()
+        page.keyboard.press("Enter")
+    page.locator("#elsewhere").scroll_into_view_if_needed()
     page.keyboard.press("g")
     page.keyboard.press("i")
     expect(edit).to_be_focused()

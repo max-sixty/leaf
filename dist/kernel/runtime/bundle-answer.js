@@ -1304,6 +1304,10 @@ var LeafText = class extends HTMLElement {
 				}))),
 				keymap.of([
 					{
+						key: "Shift-Enter",
+						run: () => this.#oneLine
+					},
+					{
 						key: "Enter",
 						run: (view) => this.dispatchEvent(new Event("lf-edit-return", { cancelable: true })) && insertNewline(view)
 					},
@@ -1355,7 +1359,6 @@ var LeafText = class extends HTMLElement {
 		const wanted = {
 			...this.#contentAttributes(),
 			role: "textbox",
-			"aria-multiline": "true",
 			contenteditable: "plaintext-only",
 			...this.#readOnly && { "aria-readonly": "true" }
 		};
@@ -1459,11 +1462,15 @@ var LeafText = class extends HTMLElement {
 		if (this.#view) this.#view.dispatch(spec);
 		else this.#model = this.#model.update(spec).state;
 	}
+	get #oneLine() {
+		return this.getAttribute("aria-multiline") === "false";
+	}
 	#contentAttributes() {
 		const attributes = {
 			spellcheck: "true",
 			autocorrect: "on",
-			autocapitalize: "sentences"
+			autocapitalize: "sentences",
+			"aria-multiline": String(!this.#oneLine)
 		};
 		if (this.placeholder) attributes["aria-placeholder"] = this.placeholder;
 		const label = this.getAttribute("aria-label");

@@ -1,7 +1,7 @@
 import { aimLayer, mountTargetPaint, paintSet, targetTraceLayer, target_paint_exports } from "./runtime/bundle-target-paint.js";
 import { LitElement, Z, bareReaction, bindQueuedWork, carriesObligation, d, hasUnread, html, itemNoun, itemOutcome, keyed, noChange, nothing, observeQueuedWork, ref, render, repeat, sameAnchor, threadCounts, threadKey, threadNames, x } from "./runtime/bundle-browser-runtime.js";
 import { CARET_KEYS, MODIFIER_KEYS, PRESSES, TEXT_BOX, TEXT_FIELD, WORKS, afterScript, afterSettling, byRenderedOrder, cancelRender, closeLayer, currentLocationIn, declareReading, deepFocus, drawn, focusDestination, focused, handBack, holdFocus, holdRendering, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, nextFrame, nextRender, observePreparations, onCurrentLocation, onPressAway, onUserInput, openLayer, openerOf, release, releaseFocus, renderedOrder, renderedUnder, renderingState, rove, selectsAll, shadowHost, sizeObserver, takesLetters, typesText, under, upFrom } from "./runtime/bundle-dom-move.js";
-import { EVERYTHING, LAYOUT, LINK, PAGE_PAINT_ATTRIBUTE, PRESS, PRESSABLE, advertisesKeys, allBindings, annotationSheets, announce, bindingEnabled, bindings, buttonCommand, chromeSheet, claimsEsc, clamp, clampedRow, clippedContents, closeControl, closeNativeLayer, coarsePointer, commandDeclarationsWithin, commandPresentations, commandRoutes, commandScope, commandsWithin, contextBindings, contextScopes, cycledRow, decisionControls, decisionFor, declareOccluder, declareWindowChrome, declaredBindings, descriptionOf, dismissError, dismissErrors, dismissPopoversOutside, dragHeld, el, errorsReading, holdingError, hostIn, iconElement, iconTemplate, inUi, intersect, keys, labelOf, landingBand, layoutWindow, live, liveEl, marksSheet, merge, mountRepaint, nativeLayers, nativeModalAdmits, notice, noticeReading, offer, offered, overlaps, overlapsAcross, pagePresented, pageUpgraded, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, pointerAt, pressIsKeyboardActivation, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, reflectFirstScopes, reflectKeys, registry, repaint, repaintPage, reportPageError, reveal, routedCommand, rowArrows, savedReadingSettled, saying, scopeRefs, scopesAt, scopesFor, scrollGlides, scrolling, searchField, seeErrors, seenRect, setNoticeContext, setQuickShortcuts, setRuntimeRootStyle, showNativeLayer, shownBox, shownParts, shownRect, spell, spokenBinding, stackLevel, startsAt, submitBindings, submitLabel, tagsDeclaring, titleOf, underOccluder, union, uploadMedia, watchCommandAvailability, watchScrollEnds, watchScrolls, whileConnected, windowChromeBoxes, word } from "./runtime/bundle-layer-client.js";
+import { EVERYTHING, LAYOUT, LINK, PAGE_PAINT_ATTRIBUTE, PRESS, PRESSABLE, advertisesKeys, allBindings, annotationSheets, announce, bindingEnabled, bindings, buttonCommand, chromeSheet, claimsEsc, clamp, clampedRow, clippedContents, closeControl, closeNativeLayer, coarsePointer, commandDeclarationsWithin, commandPresentations, commandRoutes, commandScope, commandsWithin, contextBindings, contextScopes, cycledRow, decisionControls, decisionFor, declareOccluder, declareWindowChrome, declaredBindings, descriptionOf, dismissError, dismissErrors, dismissPopoversOutside, dragHeld, el, errorsReading, holdingError, hostIn, iconElement, iconTemplate, inUi, intersect, keys, labelOf, landingBand, layoutWindow, live, liveEl, marksSheet, merge, mountRepaint, nativeLayers, nativeModalAdmits, notice, noticeReading, offer, offered, overlaps, overlapsAcross, pagePresented, pageUpgraded, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, pointerAt, pressIsKeyboardActivation, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, reflectFirstScopes, reflectKeys, registry, repaint, repaintPage, reportPageError, reveal, routedCommand, rowArrows, savedReadingSettled, saying, scopeRefs, scopesAt, scopesFor, scrollGlides, scrolling, searchField, seeErrors, seenRect, setNoticeContext, setQuickShortcuts, setRuntimeRootStyle, showNativeLayer, shownBox, shownParts, shownRect, spell, spokenBinding, stackLevel, startsAt, submitBindings, tagsDeclaring, titleOf, underOccluder, union, uploadMedia, watchCommandAvailability, watchScrollEnds, watchScrolls, whileConnected, windowChromeBoxes, word } from "./runtime/bundle-layer-client.js";
 import { DELIVERY, PRESENTATION_DOM, SHARE_ROOT, WEBSITE_DELIVERY, agentName, annotationMode, applicationPresenter, applicationState, documentChanged, offlineInteractive, readPart, runtime, runtimeResource, shareUrl, whenApplicationPresented } from "./runtime/bundle-context.js";
 import { JUST_NOW, PRESENTATION, UPGRADE, afterPresentation, ago, atScrollEnd, effectiveScroller, markPagePresented, markPageUpgraded, moveScrollerBy, pageReadiness, pageScroller, reachScrollers, readingRegionFor, registerReadingRegion, scrollChainOf, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, settlePageInterface, shortAgo, syncLayoutRegion, userReadingRegion, whenArrived } from "./runtime/bundle-reading-regions.js";
 import { activeCommandLabel, availableCommandRoutes, dispatchKey, executeCommand, innermostStance, invokePress, keyReady, onSampleNotice, registerSampleCommand, sampleNotice, userIn } from "./runtime/bundle-dispatch.js";
@@ -333,6 +333,9 @@ function createCompositionInputs({ uploadMedia, inputHint }) {
 		const field = document.createElement("div");
 		field.className = "lf-compose-field";
 		ta.before(field);
+		const oneLine = ta.getAttribute("aria-multiline") === "false";
+		const sendBindings = () => oneLine ? ["Enter", "Mod+Enter"] : submitBindings();
+		const sendKey = () => spell(sendBindings()[0]);
 		const visibleHint = document.createElement("span");
 		visibleHint.className = "lf-compose-placeholder";
 		visibleHint.slot = "placeholder";
@@ -478,7 +481,7 @@ function createCompositionInputs({ uploadMedia, inputHint }) {
 		const paint = (contextualHint) => {
 			const currentLocation = focused() === ta;
 			const advertising = advertisesKeys();
-			const sendKeys = advertising ? submitLabel() : "";
+			const sendKeys = advertising ? sendKey() : "";
 			const suffix = !advertising ? "" : currentLocation ? sendKeys : contextualHint?.box === ta ? contextualHint.label : "";
 			const status = dictationStatus();
 			const word = status || label();
@@ -514,7 +517,7 @@ function createCompositionInputs({ uploadMedia, inputHint }) {
 			keepsHidden(cover, !error);
 			const action = sendLabel();
 			keeps(sendBtn, "aria-label", action);
-			const newline = sendKeys === spell("Enter") ? ` · ${spell("Shift+Enter")} new line` : "";
+			const newline = sendKeys === spell("Enter") && !oneLine ? ` · ${spell("Shift+Enter")} new line` : "";
 			keeps(sendBtn, "title", sendKeys ? `${action} (${sendKeys})${newline}` : action);
 			keeps(sendBtn, "aria-disabled", !canSend());
 			if (altBtn) keeps(altBtn, "aria-disabled", !canSend());
@@ -717,13 +720,13 @@ function createCompositionInputs({ uploadMedia, inputHint }) {
 		}, { capture: true });
 		keys(ta, "In a text box", [{
 			id: "text.send",
-			keys: submitBindings,
-			label: submitLabel,
+			keys: sendBindings,
+			label: sendKey,
 			title: sends,
 			run: () => pressed(send)
 		}, ...rows]);
 		ta.addEventListener("lf-edit-return", (event) => {
-			if (submitBindings().includes("Enter")) event.preventDefault();
+			if (sendBindings().includes("Enter")) event.preventDefault();
 		});
 		let composing = false;
 		ta.addEventListener("compositionstart", () => composing = true);
@@ -8292,7 +8295,7 @@ function createCommandHints({ presentedControl }) {
 			routedControls.add(control);
 		}
 		withdrawRoutes(new Set(routes.map(({ control }) => control)));
-		const visualRoutes = routes.filter(({ bindingBadge }) => bindingBadge !== void 0);
+		const visualRoutes = advertisesKeys() ? routes.filter(({ bindingBadge }) => bindingBadge !== void 0) : [];
 		hasRoutes = visualRoutes.length > 0;
 		if (!visualRoutes.length) {
 			restoreBindingBadges();

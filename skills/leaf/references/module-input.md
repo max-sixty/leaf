@@ -161,8 +161,11 @@ A live revision moves focus from a generated control to its replacement by a
 
 `focused()` is the focused element across shadow trees, and `currentLocationIn(scope)` says
 whether focus is in a scope. `whenLeft(element, leave)` runs `leave` once when focus
-leaves an element. A group the user moves through with arrow keys offers one Tab stop
-with `rove(items, stop)`.
+leaves an element. `onPressAway(away, dismiss)` hears each primary press that begins and
+ends where `away(path)` is true of its composed path, as an open editor that a tap
+elsewhere should save does, and calls `dismiss(path, from)` before the press's click; it
+ignores a touch scroll the browser cancels, and returns its unsubscribe function. A group
+the user moves through with arrow keys offers one Tab stop with `rove(items, stop)`.
 
 `onCurrentLocation(read)` calls `read(node, cause, left)` synchronously when focus
 changes, including inside a declared shadow root, and returns its unsubscribe function;

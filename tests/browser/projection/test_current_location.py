@@ -961,10 +961,10 @@ def test_live_revision_drafts_wait_for_the_complete_controller_publication(
         "The first revision's existing body."
     )
     revised.locator(".lf-draft-body").click()
-    editor = revised.get_by_role("textbox", name="Edit revised-draft")
+    editor = revised.locator("leaf-text")
     write(editor, "The user's unsent replacement.\n")
-    # The user leaves the editor open and steps back to the page.
-    page.locator("h1").click()
+    # The editor stays open with the focus elsewhere; a press away would save it.
+    editor.blur()
     expect(editor).not_to_be_focused()
     assert take_browser_errors(page) == []
 
@@ -978,6 +978,6 @@ def test_live_revision_drafts_wait_for_the_complete_controller_publication(
         "The second revision's newly inserted body."
     )
     expect(
-        revised.get_by_role("textbox", name="Edit revised-draft")
+        revised.locator("leaf-text")
     ).to_have_js_property("value", "The user's unsent replacement.\n")
     assert take_browser_errors(page) == []

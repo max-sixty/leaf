@@ -1,6 +1,7 @@
 """Added-option presentation and replay tests."""
 
 import base64
+import re
 
 import pytest
 from browser_sources import browser_function
@@ -460,6 +461,39 @@ def test_an_arrival_cannot_hide_an_obligation_draft(browser, serve):
     assert action["detail"] == {"option": added.get_attribute("id"), "text": draft}
     page.locator(".lf-fp-threads").click()
     expect(page.locator(f'.lf-fp-thread[data-key="{external["id"]}"]')).to_have_count(1)
+
+
+def test_on_a_phone_options_draw_no_keys_and_return_adds_a_written_one(
+    browser, serve
+):
+    """A phone has no keys to press, so a group the user is in draws no digits, while
+    its controls keep their shortcuts for a keyboard someone attaches. Return on a
+    phone's keyboard breaks a line in a comment, but an option's title is one line, so
+    there it adds the option."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, live_url(serve(OBLIGATION_PAGE)), context=context)
+    page.locator("#br-steel").tap()
+    round_trip(page)
+    expect(page.locator("#br-steel")).to_have_attribute("chosen", "")
+    faces = page.locator(".lf-key-badge[data-lf-binding-badge], .lf-command-binding-badge")
+    expect(faces).to_have_count(0)
+    expect(page.locator("#br-cedar .lf-pick")).to_have_attribute(
+        "aria-keyshortcuts", re.compile(".")
+    )
+
+    field = page.locator("#bracket > .lf-another").get_by_role(
+        "textbox", name="Another option", exact=True
+    )
+    expect(field).to_have_attribute("aria-multiline", "false")
+    field.tap()
+    page.keyboard.type("Ask the neighbours first")
+    page.keyboard.press("Enter")
+    added = page.locator("#bracket > lf-option[data-lf-added]")
+    expect(added).to_have_attribute("chosen", "")
+    expect(added).to_contain_text("Ask the neighbours first")
+    expect(field).to_have_js_property("value", "")
 
 
 def test_the_add_field_says_its_whole_hint_on_a_phone(browser, serve):

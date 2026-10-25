@@ -20,6 +20,7 @@ from render_harness import (
     http_error_console,
     leaf_page,
     open_page,
+    panel_field,
     resized,
     round_trip,
     scroll_settled,
@@ -387,7 +388,9 @@ def test_a_draft_uses_shared_editing_and_saves_exact_markdown_source(browser, se
     page.mouse.click(point[0], point[1])
     editor = draft.locator("leaf-text")
     expect(editor).to_be_focused()
-    expect(editor).to_have_attribute("aria-label", "Edit source")
+    # Named as the rest of the chrome names it, never by its id: nothing holding this
+    # draft has a name, so by its word.
+    expect(editor).to_have_attribute("aria-label", "Edit the draft")
     caret = editor.evaluate("el=>el.selectionStart")
     at = text.index("literal code")
     assert at <= caret <= at + len("literal code")
@@ -421,6 +424,51 @@ def test_a_draft_uses_shared_editing_and_saves_exact_markdown_source(browser, se
     page.locator("#exhibit .lf-draft-body").click()
     expect(page.locator("#exhibit leaf-text")).to_have_count(0)
     expect(page.locator("#exhibit .lf-draft-body")).to_have_text("Read-only source.")
+
+
+def test_a_press_away_from_an_open_draft_saves_it(browser, serve):
+    """On a phone the user types into a draft and taps elsewhere, expecting it kept, as
+    a form keeps what was typed. A press away from the open draft saves it as Save does,
+    and the edit names the draft as the chrome does, by its holder's heading here, not
+    by its id. A press on the draft's own Discard stays a discard."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Draft notes",
+                '<h1>Draft notes</h1><section id="landing"><h2>Landing the branches</h2>'
+                '<lf-draft id="q9-note"><pre>\n</pre></lf-draft></section>'
+                '<p id="elsewhere">Something else on the page.</p>',
+            )
+        ),
+    )
+    resized(page, 390, 844)
+    draft = page.locator("#q9-note")
+    draft.click()
+    editor = draft.locator("leaf-text")
+    expect(editor).to_be_focused()
+    write(editor, "Only the pointer one.")
+    draft_control(page, "cancel", "q9-note").click()
+    expect(editor).to_have_count(0)
+    draft.click()
+    write(editor, "Land the pointer branch first.")
+    page.locator("#elsewhere").click()
+    round_trip(page)
+    expect(editor).to_have_count(0)
+    expect(draft.locator(".lf-draft-body")).to_have_text(
+        "Land the pointer branch first.", use_inner_text=True
+    )
+    edits = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event.get("action") == "edit"
+    ]
+    assert [event["detail"]["value"] for event in edits] == [
+        "Land the pointer branch first."
+    ]
+    expect(panel_field(page)).to_have_attribute(
+        "placeholder", re.compile("^Edited “Landing the branches”")
+    )
 
 
 def test_a_rendered_continuation_click_edits_the_exact_source_position(browser, serve):
@@ -885,7 +933,8 @@ def test_a_draft_button_keeps_its_target_when_pointerdown_focuses_it(browser, se
                 draft.locator("leaf-text"),
                 f"Keep `the corrected` note before {action}.",
             )
-        page.get_by_role("heading", name="Release note").click()
+        # The pointer rests off the box; a press there would save the open draft.
+        page.get_by_role("heading", name="Release note").hover()
         rendered(page)
         controls = draft.locator("[data-lf-draft-action]:visible")
         before = controls.evaluate_all(

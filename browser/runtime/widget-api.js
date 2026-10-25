@@ -57,7 +57,8 @@ export { under } from "./shadow.js";
 // caret included, across a move or re-render of the node they stand on, by key in a
 // list; their current location and whether it is in a scope; recording where a layer opened
 // from and handing them back as it closes; running something once they move off an
-// element; and a group's roving Tab stop. TEXT_FIELD is the tag of the box a widget offers for the user to write
+// element, or once a press lands away from it (`onPressAway`); and a group's roving Tab
+// stop. TEXT_FIELD is the tag of the box a widget offers for the user to write
 // Markdown in; TEXT_BOX matches it and any native textarea.
 export {
   closeLayer,
@@ -66,6 +67,7 @@ export {
   handBack,
   holdFocus,
   onCurrentLocation,
+  onPressAway,
   openLayer,
   openerOf,
   rove,

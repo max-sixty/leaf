@@ -99,7 +99,8 @@
  * its owner cancels `lf-edit-return` to reserve the press for submission. Android's
  * EditContext supplies no native insertion after CodeMirror handles the press, so this
  * editing route is explicit. Shift+Enter inserts a line and continues
- * a list or quote. Mod+Z and Mod+Shift+Z walk one history: the words' edits, and the
+ * a list or quote. A host the page marks `aria-multiline="false"`, such as an option's
+ * title, holds one line: Shift+Enter inserts nothing, and its owner reserves Return. Mod+Z and Mod+Shift+Z walk one history: the words' edits, and the
  * steps an owner records for what its draft holds beside them (`record`), such as a
  * composer's drawing, each taken back or redone in the order it was made.
  *
@@ -900,6 +901,8 @@ class LeafText extends HTMLElement {
             .map(({ value }) => ownerStep.of({ run: value.back, back: value.run })),
         ),
         keymap.of([
+          // A one-line field takes no line break (`#oneLine`).
+          { key: "Shift-Enter", run: () => this.#oneLine },
           {
             key: "Enter",
             run: (view) =>
@@ -982,7 +985,6 @@ class LeafText extends HTMLElement {
     const wanted = {
       ...this.#contentAttributes(),
       role: "textbox",
-      "aria-multiline": "true",
       contenteditable: "plaintext-only",
       ...(this.#readOnly && { "aria-readonly": "true" }),
     };
@@ -1130,11 +1132,16 @@ class LeafText extends HTMLElement {
     else this.#model = this.#model.update(spec).state;
   }
 
+  get #oneLine() {
+    return this.getAttribute("aria-multiline") === "false";
+  }
+
   #contentAttributes() {
     const attributes = {
       spellcheck: "true",
       autocorrect: "on",
       autocapitalize: "sentences",
+      "aria-multiline": String(!this.#oneLine),
     };
     if (this.placeholder) attributes["aria-placeholder"] = this.placeholder;
     const label = this.getAttribute("aria-label");

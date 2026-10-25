@@ -57,21 +57,25 @@ function seatRows(pins, { gap, occupied = [] }) {
 		const heldBounds = folded ? foldBounds : pin.bounds;
 		let rect = held && inside(held, heldBounds) ? held : null;
 		const avoiding = [...pin.cover, ...seated];
+		const pressed = [...pin.controls, ...seated];
 		const lowered = (list) => [
 			...list.slice(0, pin.corner),
 			slid(list[pin.corner], avoiding, gap, "down", pin.floor),
 			...list.slice(pin.corner + 1)
 		];
+		const asideOf = (list, bounds) => slid(boundedHome(list[pin.corner], bounds), pressed, gap, "left", bounds.left);
+		const clearAside = (list, bounds) => pinSpot([asideOf(list, bounds)], avoiding, bounds);
 		if (!rect) {
+			folded = false;
 			rect = pinSpot(lowered(pin.seats), avoiding, pin.bounds);
-			folded = !rect && Boolean(fold);
-			if (folded) rect = pinSpot(lowered(fold.seats), avoiding, foldBounds);
+			if (!rect && fold) [rect, folded] = [pinSpot(lowered(fold.seats), avoiding, foldBounds), true];
+			if (!rect) [rect, folded] = [clearAside(pin.seats, pin.bounds), false];
+			if (!rect && fold) [rect, folded] = [clearAside(fold.seats, foldBounds), true];
 		}
 		const seatsNow = folded ? fold.seats : pin.seats;
 		const boundsNow = folded ? foldBounds : pin.bounds;
-		const pressed = [...pin.controls, ...seated];
 		const corner = boundedHome(seatsNow[pin.corner], boundsNow);
-		const aside = slid(corner, pressed, gap, "left", boundsNow.left);
+		const aside = asideOf(seatsNow, boundsNow);
 		rect ??= leastCovering(seatsNow, pin.cover, pressed, boundsNow);
 		if (!rect) {
 			const push = packRows([{

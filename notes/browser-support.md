@@ -28,8 +28,8 @@ what fails and what still works.
 
 ### Scroll-state containers
 
-Firefox 157 and Playwright Firefox and WebKit 26.6 lacked CSS scroll-state
-containers on 2026-10-14. `browser/layouts.css` declares `normal` before
+Playwright Firefox 157.0 and WebKit 27.2 still lacked CSS scroll-state
+containers on 2026-10-24. `browser/layouts.css` declares `normal` before
 `scroll-state` so breakout tables keep their intended width in those engines;
 other tables keep the `inline-size` container from
 `browser/styles/components/reading.css`. Recheck table width with
@@ -41,22 +41,23 @@ other tables keep the `inline-size` container from
 `packages/default/widgets/lf-toc.js` uses a paused animation updated on scroll
 where `ScrollTimeline` is absent. The lens still marks the visible part of the
 page, but follows scrolling a frame later than the native timeline.
-Installed Firefox 157.0.1 lacked the API on 2026-10-10; Chrome 155 exposed it.
-Revisit the fallback when supported engines provide it.
+Playwright Firefox 157.0 still lacked the API on 2026-10-24; Chromium 156 and
+WebKit 27.2 expose it. Revisit the fallback when Firefox provides it.
 `test_the_lens_follows_the_scroll_without_a_scroll_timeline` in
 `tests/browser/widgets/test_contents_and_glosses.py` checks the fallback against
 the native timeline with the API removed.
 
 ### Highlight style inheritance
 
-Playwright Firefox 155 accepted `:root::highlight()` and `:host::highlight()`
-on 2026-10-22 but painted no highlight on nested syntax spans in either light
-or shadow DOM. Universal highlight rules paint those ranges correctly; retain
-them in `browser/runtime/annotation-overlay/annotation-marks.css` and
+Playwright Firefox 157.0 accepted `:root::highlight()` and `:host::highlight()`
+on 2026-10-24 (Firefox 155 on 2026-10-22) but painted no highlight on nested
+syntax spans in either light or shadow DOM. Universal highlight rules paint those
+ranges correctly; retain them in
+`browser/runtime/annotation-overlay/annotation-marks.css` and
 `browser/runtime/marks.css`. Revisit root-scoped rules when
 `test_highlight_paint_reaches_nested_syntax_in_the_widgets_theme` in
 `tests/browser/navigation/test_comment_marks.py` passes with them in supported
-engines. Chromium 153.0.8010.12 passed both forms in that check.
+engines. Chromium 153.0.8010.12 and 156.0.8078.4 passed both forms in that check.
 
 ### Intrinsic block retirement motion
 
@@ -64,7 +65,8 @@ engines. Chromium 153.0.8010.12 passed both forms in that check.
 `calc-size()`. Engines without intrinsic-size interpolation complete retirement
 immediately; content, Undo and Reopen keep their ordinary behavior. This is an
 accepted visual difference. Playwright Chromium 153.0.8010.12 supported the
-animation on 2026-10-14; Firefox 155 and WebKit 26.6 did not.
+animation on 2026-10-14; Firefox 157.0 and WebKit 27.2 still lacked `calc-size()`
+on 2026-10-24.
 Recheck native intrinsic interpolation before removing the capability check.
 
 ### Evidence disclosure motion
@@ -73,7 +75,8 @@ Recheck native intrinsic interpolation before removing the capability check.
 closures only where intrinsic-size interpolation and `interactivity` both work.
 Other engines close immediately and retain native disclosure behavior, an
 accepted visual difference. Playwright Chromium 153.0.8010.12 folded pointer
-closures on 2026-10-21; Firefox 155 closed immediately. Recheck both
+closures on 2026-10-21; Firefox 155 closed immediately, and Firefox 157.0 and
+WebKit 27.2 still lacked `calc-size()` and `interactivity` on 2026-10-24. Recheck both
 capabilities and keyboard access when changing this enhancement.
 
 ### Browser dictation in comment boxes
@@ -120,8 +123,8 @@ Reset is the recovery route. The current contract is
 [Live samples](../skills/leaf/references/live-samples.md).
 
 Departure fault handling in `browser/runtime/prepaint.js` is checked in
-Chromium and Firefox; Safari's ordering of navigation and request cancellation
-remains unverified. A press during a slow navigation can report aborted loads
+Chromium, Firefox 157.0 and Playwright WebKit 27.2 (2026-10-24); Safari's ordering
+of navigation and request cancellation remains unverified. A press during a slow navigation can report aborted loads
 before that navigation commits. Recheck canceled departure and slow navigation
 with `tests/journeys/test_render_sample_delivery.py` and
 `tests/browser/startup/test_readiness.py` when changing document lifetime.
@@ -147,7 +150,9 @@ skip generated apparatus and stop at declared rows. Native `margin-trim`
 cannot replace that behavior across the checked engines: on 2026-10-08,
 Chrome 155 trimmed block-flow margins but left flex and grid item margins;
 a generated child could prevent trimming the authored paragraph. Playwright
-Chromium 153.0.8010.12 and Firefox 155 did not accept the property.
+Chromium 153.0.8010.12 and Firefox 155 did not accept the property;
+on 2026-10-24 Firefox 157.0 still did not, and Chromium 156 and WebKit 27.2 did.
+Firefox's lack keeps the rules whatever the others do.
 Recheck wrapper and row behavior, not just parser support, against
 `test_frame_edges_pass_through_whatever_stands_at_them` and
 `test_a_row_at_a_frame_edge_holds_the_trim_by_declaring_it` in
@@ -158,7 +163,7 @@ Recheck wrapper and row behavior, not just parser support, against
 `browser/runtime/dom-move.js` uses `moveBefore` for retained nodes within one
 composed root. In engines without it, ordinary insertion restores focus and
 caret but still blurs the descendant and reloads an iframe. Playwright WebKit
-26.6 lacked the API on 2026-10-10. Recheck native state preservation before
+27.2 still lacked the API on 2026-10-24; Firefox 157.0 and Chromium 156 have it. Recheck native state preservation before
 removing the fallback; `test_retained_moves_keep_native_editor_and_frame_state`
 in `tests/browser/controls/test_focus.py` exercises native and forced-fallback
 paths in Chromium. API presence alone does not prove preservation.
@@ -187,9 +192,10 @@ installed engine. The anchored capture and live-sample journeys in
 
 `browser/runtime/css-anchors.js` names boxes through document `::part()` rules.
 Boxes deeper than the first shadow tree anchor through their host: Playwright
-Firefox 155 failed to anchor through re-exported `exportparts` on 2026-10-14.
-WebKit 26.6 failed to resolve a typed `attr()` anchor name inside `::part()`, so
-the runtime writes one rule per name.
+Firefox 157.0 still failed to anchor through re-exported `exportparts` on
+2026-10-24 (WebKit 27.2 and Chromium 156 anchored).
+WebKit 27.2 still failed to resolve a typed `attr()` anchor name inside `::part()`,
+so the runtime writes one rule per name (Firefox and Chromium resolved it).
 Recheck a fixed anchored box against a part-named child after scrolling its
 shadow scroller, then repeat one host deeper through `exportparts` and with a
 name read through `attr()` before lifting those limits.
@@ -198,8 +204,8 @@ name read through `attr()` before lifting those limits.
 
 An anchored margin row, highlight, aim or floating card can disappear or stay
 at its target's unstuck position while the target is sticky. Playwright Firefox
-155 ignored the stuck offset on 2026-10-14; Chromium 153, Chrome 155 and WebKit
-26.6 placed the box on the stuck target. `browser/runtime/css-anchors.js`
+157.0 still ignored the stuck offset on 2026-10-24; Chromium 156 and WebKit 27.2
+placed the box on the stuck target. `browser/runtime/css-anchors.js`
 accepts this gap; Threads and the Page Map keep controls reachable.
 Recheck a fixed box anchored to a sticky header after its scroller passes the
 header's initial position, comparing their rectangle tops.
@@ -215,10 +221,10 @@ return to sticky positioning.
 
 ### An anchor's transforms in Firefox
 
-Playwright Firefox 155 resolved anchors before transforms on 2026-10-16.
+Playwright Firefox 157.0 still resolved anchors before transforms on 2026-10-24.
 `anchorBox` in `browser/runtime/css-anchors.js` compensates for translations,
 including wide tables; scale, rotation and CSS zoom remain unsupported by that
-correction. Chromium 153 and WebKit 26.6 included transforms.
+correction. Chromium 156 and WebKit 27.2 included a translation.
 Recheck a fixed box anchored to a translated target by comparing their left
 edges before removing the compensation; test other transforms separately.
 
@@ -228,7 +234,9 @@ edges before removing the compensation; test other transforms separately.
 an item without moving the containing page. On 2026-10-14, Playwright Firefox
 155's native `scrollIntoView({container: "nearest"})` also moved an outer
 scroller when a horizontal strip's edge extended just beyond its band.
-Recheck a partly clipped strip's inner and outer scroll offsets before
+Playwright Firefox 157.0 still moved the page (scrollY 420 to 401) for a strip
+scrolled 150px with the page scrolled 420px on 2026-10-24; Chromium 156 and
+WebKit 27.2 left it. Recheck a partly clipped strip's inner and outer scroll offsets before
 replacing Leaf's bounded walk with native reveal.
 
 ### Fixed layers missing from Firefox screencast frames

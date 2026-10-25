@@ -291,6 +291,91 @@ and the follow-on brief from Codex session `01a13358-0141-70f0-8bb4-a8defb75b07e
 `~/.tmp/leaf.authoring-vs-plain-html/eval/`; those are distinct from the recovered
 twelve-author Codex comparison above. The continuing brief is TODO #20.
 
+## Widgets plain page check doesn't run, 2026-10-24
+
+Plain `page check` runs a page in a browser only where `needs_browser`
+(`render_gate/page_code.py`) finds a script, a page widget, a data widget or a widget
+naming page media. `widgets-draw-as-written` measures the kinds it left out: a tuning
+playground (the case's primary context), a playground of candidates
+(`/playground-candidates`), a text document with a Markdown preview
+(`/text-document`), and a chart or a Mermaid diagram in a thread message
+(`/thread-chart`, `/thread-diagram`). `visual-change-uses-captures/review` does the
+same for a visual review, since that case holds the captures. `/dashboard` is the
+control: its charts are a kind plain check already runs. Each sample authors one page
+in one turn; `dev/leaf_dev/draw_failures.py` reads the executor's final
+`page check --render`, which opens every thread holding markup, and every check the
+author ran, for findings that say a widget or the page's code failed to run or draw.
+
+```sh
+uv run leaf-dev eval 'widgets-draw-as-written*' visual-change-uses-captures/review --harness claude-code --repeat 10 -j 2
+uv run leaf-dev eval 'widgets-draw-as-written*' visual-change-uses-captures/review --harness codex --repeat 6 -j 2
+```
+
+The runs authored at `73222dc97` with the cases of `371e34337`: 70 pages on Claude Code
+with Opus 5.5 (mean $0.41–1.77 a page by context) and 42 on Codex with Sol 6.1
+(medium). Codex samples' own checks are read since `ff445bcdc`, which keeps a
+`leaf` MCP call's output in the check log; before it, a Codex author's checks never
+reached the log, so earlier readings of "the author's own checks" undercount Codex.
+Every sample placed the widget its context asks for.
+
+| Kind                                | Claude Code: a check saw it fail / final page fails | Codex      | Authors who ran `--render` |
+| ----------------------------------- | --------------------------------------------------- | ---------- | -------------------------- |
+| Tuning playground                   | 0 / 0 of 10                                         | 0 / 0 of 6 | 10 of 10; 0 of 6           |
+| Playground of candidates            | 0 / 0 of 10                                         | 0 / 0 of 6 | 7 of 10; 0 of 6            |
+| Text document with preview          | 0 / 0 of 10                                         | 0 / 0 of 6 | 2 of 10; 6 of 6            |
+| Visual review of supplied captures  | 0 / 0 of 10                                         | 0 / 0 of 6 | 10 of 10; 1 of 6           |
+| Chart in a thread message           | 0 / 0 of 10                                         | 0 / 0 of 6 | 1 of 10; 0 of 6            |
+| Mermaid diagram in a thread message | 0 / 0 of 10                                         | 0 / 5 of 6 | 5 of 10; 0 of 6            |
+| Control: charts on a dashboard page | 5 / 0 of 10                                         | 1 / 0 of 6 | 10 of 10; 6 of 6           |
+
+Measured:
+
+- None of the 64 pages with a playground, text document or visual review had the
+  widget fail to draw, at any check its author ran or on the final page (0 of 64,
+  0–6%). Authors wrote values on the step, choices that exist and focus rectangles
+  inside their captures; all 16 visual reviews set a focus rectangle.
+- 5 of 6 Codex thread messages holding a sequence diagram didn't draw (44–97%):
+  each put a `;` in a `loop` label or a `Note`, which Mermaid reads as the end of a
+  statement. None of those authors ran `--render`, and plain check never draws a
+  thread, so all five reached the user as an error box; Leaf would have told the
+  author only once the user opened the thread. Claude Code's 10 diagrams and all 16
+  thread charts drew.
+- On dashboards, 5 of 10 Claude Code authors and 1 of 6 Codex authors first gave a
+  Plot `text` mark a function for `dy`, which Plot takes as a constant, after
+  `--render` reported their end labels drawn over each other. Plot drew those labels
+  at `translate(x,NaN)`. Plain check runs those charts and passed them, since it hears
+  only what the runtime reports and nothing threw; only `--render`, which reads the
+  console, reported them. Every dashboard author ran `--render`, so every final page
+  was clean.
+- The run plain check already gives a page caught the page-code failures Codex
+  authors made: a playground script that created an `lf-chart` at runtime ("has no
+  captured widget descriptor", then the chart's body throwing) and a script that
+  registered a command id the runtime refused. No author's plain check run failed on
+  a widget's authored values.
+- Two Claude Code playground authors (in 11, counting the smoke run) hit the render
+  gate's own crash, `gate-failed` from `shrunkLabels` reading `ownerSVGElement` of a
+  `<text>` in the HTML namespace, which a lit `html` sub-template inside an `<svg>`
+  makes. Each read the gate's `words.js` to work out why, and rebuilt the drawing
+  with `createElementNS`.
+
+Inferred, not measured: the playground, text document and visual review results
+cover one request each; a request with harder constraints (a step the values don't
+divide, captures at device scale 2) could fail more. The thread results cover one
+request per widget, and the semicolon failure is specific to Mermaid's grammar.
+
+Decision, made on this evidence:
+
+- Plain `page check` keeps its criterion. The left-out page widgets didn't fail, and
+  every failure its browser run caught came from a trigger it already has.
+- A thread message whose markup places a widget that criterion names is run once
+  before it posts and refused on what the run reports (`bed5963ff`,
+  `render_gate/command.message_check`), reversing #1691 for those messages only.
+  Reposting the 32 eval messages with it refused exactly the 5 that don't draw and
+  posted the other 27, each in 1.3–1.9 s at a load of 10–20; markup without such a
+  widget waits on no browser.
+- `lf-chart` reports a mark it drew at NaN, keeping the drawing (`79c1a185e`), so
+  plain check's chart run, `--render` and `leaf wait` all hear the dashboard mistake.
+
 ## Remaining evaluation gaps
 
 - Recovering a long thread's middle after the agent has lost it. `elided` now

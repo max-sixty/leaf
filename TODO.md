@@ -88,10 +88,6 @@ has tried; settle that before building it.
   them (see "A reply's widgets in every view of it"). Hiding resolved cards in place
   would show them among open ones unless CSS reorders them, so it needs the user's
   say; the `lf-diff` fix is keeping rows stable or the containers outside them.
-- **A summary's fold button ignores a press while words are selected.** With text
-  selected in a thread message, pressing "Show/Hide N earlier messages" does nothing,
-  even twice; Enter works. Reproduced in Chromium with a selection set by script,
-  before the flat transcript too.
 
 ### Agent and author experience
 
@@ -299,17 +295,6 @@ Boxes that still move without input, which the "Stability" rule in
 `browser/AGENTS.md` forbids. `tests/known_widget_findings.py` lists each widget
 that changes size after first paint, with its cause.
 
-- **Draw a text document's listing once its text has arrived.** Every
-  `lf-text-document` now keeps its final box from first paint, but its module draws
-  the listing as soon as it upgrades, before the state answer brings the text: one
-  empty row under a caption reading “· no data”. When the text arrives, the gutter
-  widens for two-digit line numbers and the code column moves right inside the box.
-  `leaf-dev probe` on a page with a 20-line, a 3-line and a preview document scores
-  that move 0.12 of layout shift at 1440px and 0.44 at 390px, though nothing outside
-  the boxes moves, except where the “· no data” suffix wraps a long label onto
-  another line and its removal shortens the box. Drawing nothing until the first
-  state answer has been read would leave the theme's stand-in frame and caption until
-  then.
 - **Let a press say it takes the user somewhere.** The shift watch lets a key move
   the control it was pressed on only where its command declares `travels`, and a
   press only on a link (`shift_watch.js`, "Scrolls a gesture makes"); a press on any
@@ -549,6 +534,11 @@ Revisit these when their stated trigger becomes real; they are not an active que
   real task.
 - **Other harnesses:** add a blocking `leaf wait` route when another agent harness needs
   foreground handoff.
+- **Consider Leaf running the agent session.** A side lane that answers questions
+  while the session runs a long tool, or Leaf hosting the whole session, would reach
+  controls Claude Code and the Codex app don't expose to a companion
+  ([evidence and options](notes/leaf-run-sessions.md)). Trigger: busy-agent waits
+  grow past a few questions a day, or a user wants Leaf to be where they work.
 - **Decide whether an exported page carries its threads.** `leaf page
 export` writes a file that boots the page's own runtime offline, and that file
   embeds the page's threads in its state reading. The runtime turns the

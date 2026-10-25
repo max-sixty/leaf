@@ -269,9 +269,9 @@
  * its share, "over 1% (today)" onto two lines in a 450px card with half its width
  * free; authors overrode the cells in page CSS to get the row back (2026-10-24 eval).
  * A label wider than the whole row still wraps, since a flex item shrinks to its
- * words' width only when it stands alone on its line. The gap holds a focused face's
- * ring, which stands outside its face, so the next face would paint over any of the
- * ring that reached it. */
+ * words' width only when it stands alone on its line. Columns the author sets replace
+ * the row (below). The gap holds a focused face's ring, which stands outside its face,
+ * so the next face would paint over any of the ring that reached it. */
 .lf-playground-choices {
   display: flex;
   flex-wrap: wrap;
@@ -284,12 +284,23 @@
  * checked face and card draw from the radio rather than another selection state. */
 .lf-playground-candidates > .lf-playground-choices {
   display: grid;
-  grid-template-columns: var(
-    --playground-choice-columns,
-    repeat(auto-fit, minmax(min(100%, 20rem), 1fr))
-  );
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
   gap: var(--sp-3);
   align-items: start;
+}
+/* `--playground-choice-columns`, set on a choice control or its parent, arranges its
+ * choices, plain or rich, in the author's grid columns. Authors set it on a row of
+ * threshold choices, saw nothing change, and wrote rules against the generated class
+ * instead (13 of 78 pages in 24 configuration samples). A plain face starts its cell
+ * at its words' width (`.choice`, controls.css), so its label wraps only where the
+ * column is narrower. No `var()` fallback can turn the plain row's flex box into a
+ * grid, so a style query asks the group's parent, the control, whether the property is
+ * set; `:scope`, the control, outweighs the rich default above. */
+@container style(--playground-choice-columns) {
+  :scope:is(lf-playground-control) > .lf-playground-choices {
+    display: grid;
+    grid-template-columns: var(--playground-choice-columns);
+  }
 }
 :is(.lf-playground-candidates, .lf-playground-candidates > .lf-playground-choices)
   > lf-playground-choice {

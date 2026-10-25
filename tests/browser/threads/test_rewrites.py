@@ -221,6 +221,7 @@ def _rewrite_surface(
     thanks=False,
     text="Fit the north bracket.",
     init_script=None,
+    context=None,
 ):
     """A thread holding the user's message and the agent's answer, drawn on `surface`:
     the floating panel's view of a thread about the whole page, the seat in the
@@ -275,7 +276,7 @@ def _rewrite_surface(
         append_carried_log_record(
             serve.page_dir, {"kind": "resolve", "author": "user", "parent": mine["id"]}
         )
-    page = open_page(browser, url, init_script=init_script)
+    page = open_page(browser, url, init_script=init_script, context=context)
     resized(page, *size)
     if surface == "panel":
         thread = open_panel_thread(page, mine["id"])
@@ -485,6 +486,9 @@ def test_a_rewrite_keeps_the_message_as_it_stood(browser, serve, surface):
     assert editing["says"] == shown["says"]
     for side in ("x", "y", "width", "height"):
         for part in ("head", "picture"):
+            # The card's head takes the room its Resolve leaves while a rewrite is open.
+            if (surface, part, side) == ("card", "head", "width"):
+                continue
             assert editing[part][side] == pytest.approx(shown[part][side], abs=0.5), (
                 part,
                 shown[part],
@@ -862,23 +866,31 @@ def test_a_cards_message_controls_cover_its_head(browser, serve):
     receipt, the words and the controls reading through each other. The head keeps its
     Edit's room as every other surface's does, and the rewrite's pair, two glyphs,
     stands in that room and covers the head beyond it: nothing under the pair shows
-    while the rewrite is open, and opening it moves none of the head's words."""
-    page, _, message = _rewrite_surface(browser, serve, "card")
+    while the rewrite is open, and opening it moves none of the head's words. The
+    row is the rewrite's: the card's Resolve leaves it while the rewrite is open.
+
+    Under a finger each glyph takes the aim floor, so the pair reaches past the Edit's
+    room over the head's labels, which it doesn't at a desktop's card width."""
+    context = browser.new_context(has_touch=True, is_mobile=True)
+    page, card, message = _rewrite_surface(
+        browser, serve, "card", size=(390, 844), context=context
+    )
     # A saved rewrite marks the message edited, and the agent owes it an answer, so
     # the head carries its labels out to its end.
-    message.locator(".lf-msg-text").dblclick()
+    message.locator(".lf-msg-edit").tap()
     page.keyboard.type(" Then the south one.")
     with sending(page, "the first rewrite"):
-        page.keyboard.press("Enter")
+        message.get_by_role("button", name="Save", exact=True).tap()
     expect(message.locator(".lf-edited")).to_be_visible()
     head = message.locator(".lf-msg-head")
     rendered(page)
     words = head.evaluate(FIRST_LINE)
-    message.locator(".lf-msg-text").dblclick()
+    message.locator(".lf-msg-edit").tap()
     expect(message.locator(".lf-msg-editor leaf-text")).to_be_focused()
-    page.mouse.move(0, 0)
     rendered(page)
     assert head.evaluate(FIRST_LINE) == pytest.approx(words, abs=0.5)
+    resolve = card.get_by_role("button", name="Resolve thread", exact=True)
+    expect(resolve).to_be_hidden()
     pair = message.evaluate(UNDER_EDIT_ACTIONS)
     assert pair["under"], f"no words of the head reach under the pair: {pair}"
     shown = page.screenshot(clip=pair["box"])
@@ -889,6 +901,8 @@ def test_a_cards_message_controls_cover_its_head(browser, serve):
     )
     one_frame(page)
     assert page.screenshot(clip=pair["box"]) == shown, "the head shows under the pair"
+    page.keyboard.press("Escape")
+    expect(resolve).to_be_visible()
 
 
 @pytest.mark.parametrize("previous", ["reply", "reply-after-empty-composer", "drawing"])

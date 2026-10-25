@@ -3427,6 +3427,7 @@ var MessageEditor = class {
 			accessibleName: () => `Edit message: ${said().slice(0, 60)}`,
 			sends: "save",
 			sendBtn: save,
+			icon: "save",
 			submitIn: actions,
 			sentMedia: true,
 			save: (value) => {

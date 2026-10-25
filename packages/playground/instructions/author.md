@@ -84,10 +84,11 @@ Name a preset for its outcome: `Status strip`, not `Preset 2`.
 In this comparison, `format` names which candidate to build. Each choice contains its
 preview. Pressing its label or noninteractive body selects it; buttons, editors and media remain
 operable without selecting it. Do not put a second `format` control in the rail.
-Rich choices form a responsive grid. When the comparison needs a particular arrangement,
-set `--playground-choice-columns` on the authored choice control or its parent, such as
-`repeat(2, minmax(0, 1fr))`, and use a media query to stack them on narrow screens.
-Plain label choices take no columns: they run in a row and wrap between whole labels.
+Rich choices form a responsive grid, and plain label choices run in a row that wraps
+between whole labels. When the comparison needs a particular arrangement of either, set
+`--playground-choice-columns` on the authored choice control or its parent to a grid's
+columns, such as `repeat(2, minmax(0, 1fr))`, and use a media query to stack them on
+narrow screens.
 
 ```html
 <lf-ask id="notification-ask">

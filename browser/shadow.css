@@ -151,15 +151,11 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-command-reference-command,
 .lf-quote {
   min-width: var(--aim-floor);
+  min-height: var(--lf-face-floor, var(--aim-floor));
 }
-[data-lf-offer]:where(:not([data-lf-offer=""], [data-lf-offer=checkbox], [data-lf-offer=radio], .lf-mark-note, .lf-btn, .lf-msg-control)),
-.lf-react,
-.lf-margin-entry,
-.lf-command-reference-command,
-.lf-quote {
-  min-height: var(--aim-floor);
-}
+@property --lf-face-floor { syntax: "*"; inherits: false; }
 :where(.lf-btn, .button, .lf-icon-action, .lf-msg-control, .lf-thread-action, .lf-thread-notice:is(button), .lf-draft-action, .lf-corner-mark, button.lf-fp-face) {
+  --lf-face-floor: auto;
   position: relative;
   &::after {
     content: "";
@@ -619,6 +615,28 @@ button.lf-primary-news {
   color: var(--ink-2);
   font-weight: 600;
 }
+.lf-thread-todos {
+  margin: 0 0 var(--sp-2);
+  padding: 0 0 0 var(--lf-thread-text-inset);
+  list-style: none;
+}
+.lf-thread-todo {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--t-6);
+}
+.lf-thread-todo-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--ink-2);
+  font-weight: 600;
+}
+.lf-thread-todo > .lf-thread-action {
+  flex: none;
+  white-space: nowrap;
+}
 
 /* browser/styles/components/reading.css */
 :root {
@@ -783,7 +801,7 @@ leaf-text.lf-fab-input,
   --lf-measure: var(--col);
 }
 .lf-msg:where(.user) {
-  --lf-msg-text-end: var(--lf-thread-text-inset, 0px);
+  --lf-msg-text-end: calc(var(--lf-compose-send-end) + 1px);
 }
 .lf-msg-text {
   display: block;
@@ -806,7 +824,7 @@ leaf-text.lf-fab-input,
 }
 .lf-msg-text > p {
   font: inherit;
-  white-space: break-spaces;
+  white-space: pre-wrap;
   margin-block: 1lh;
 }
 .lf-msg-body :is(th, td) {
@@ -1341,6 +1359,10 @@ svg[data-lf-icon] {
   --lf-compose-action-inset: 6px;
 }
 :root,
+.lf-compose-field {
+  --lf-compose-send-end: calc( var(--lf-icon-action-hit) + 2 * var(--lf-compose-action-inset) );
+}
+:root,
 .lf-compose-field,
 .lf-icon-action {
   --lf-icon-action-hit: max(var(--lf-icon-action-face), var(--aim-floor));
@@ -1419,7 +1441,7 @@ svg[data-lf-icon] {
   padding-inline-end: var(--lf-compose-pad-inline-start);
 }
 .lf-compose-field:where(:has(> .lf-compose-submit)) > leaf-text:not(.lf-fab-input) {
-  --lf-field-end-room: calc( var(--lf-icon-action-hit) + 2 * var(--lf-compose-action-inset) - var(--lf-compose-pad-inline-start) );
+  --lf-field-end-room: calc( var(--lf-compose-send-end) - var(--lf-compose-pad-inline-start) );
 }
 .lf-icon-action {
   box-sizing: border-box;
@@ -1905,10 +1927,10 @@ html[data-lf-draw-mode] main {
   }
 }
 :root {
-  --lf-code-copy-size: var(--lf-line);
   --lf-code-copy-inset: 4px;
 }
 .lf-code-copy {
+  --lf-code-copy-size: var(--lf-line);
   position: absolute;
   top: calc(anchor(top, -9999px) + var(--lf-code-copy-inset) + var(--lf-block-control-dy, 0px));
   left: calc(anchor(right, -9999px) - var(--lf-code-copy-size) - var(--lf-code-copy-inset) + var(--lf-block-control-dx, 0px));
@@ -1945,18 +1967,63 @@ html[data-lf-draw-mode] main {
   position: relative;
   width: var(--lf-code-copy-size);
   height: var(--lf-code-copy-size);
-  padding: 6px;
+  padding: min(6px, max(1px, (var(--lf-code-copy-size) - var(--t-5) - 2px) / 2));
   border: 1px solid var(--code-border);
   border-radius: var(--r);
   background: var(--pre-bg);
   color: var(--muted);
   display: flex;
-  font-size: var(--t-5);
+  font-size: min(var(--t-5), calc(var(--lf-code-copy-size) - 4px));
 }
 .lf-code-copy::part(button):hover {
   color: var(--ink);
 }
 .lf-code-copy::part(button)::after {
+  content: "";
+  position: absolute;
+  inset: min(0px, (100% - var(--aim-floor)) / 2);
+}
+:root {
+  --lf-heading-link-size: var(--lf-line);
+}
+@position-try --lf-heading-link-end {
+  right: auto;
+  left: calc(anchor(right, -9999px) - var(--lf-heading-link-size) + var(--lf-block-control-dx, 0px));
+}
+.lf-heading-link {
+  position: absolute;
+  top: calc(anchor(top, -9999px) + var(--lf-heading-link-top, 0px) + (var(--lf-heading-link-line, var(--lf-heading-link-size)) - var(--lf-heading-link-size)) / 2 + var(--lf-block-control-dy, 0px));
+  right: calc(anchor(left, 9999px) - var(--lf-block-control-dx, 0px));
+  position-try-fallbacks: --lf-heading-link-end;
+  width: var(--lf-heading-link-size);
+  height: var(--lf-heading-link-size);
+  z-index: 1;
+  font-size: 0;
+  line-height: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+.lf-heading-link:is(.lf-heading-link-shown, :hover, [data-lf-focus-within]) {
+  opacity: 1;
+  pointer-events: auto;
+}
+.lf-heading-link::part(button) {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: var(--lf-heading-link-size);
+  height: var(--lf-heading-link-size);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r);
+  background: none;
+  color: var(--muted);
+  font-size: var(--t-5);
+}
+.lf-heading-link::part(button):hover {
+  color: var(--ink);
+}
+.lf-heading-link::part(button)::after {
   content: "";
   position: absolute;
   inset: min(0px, (100% - var(--aim-floor)) / 2);

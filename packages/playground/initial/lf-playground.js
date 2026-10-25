@@ -21,11 +21,6 @@ const ownControls = (host, preview) => [
     belongsTo(host, control),
   ),
 ];
-const COPY_LABELS = [
-  ["rest", "Copy instruction"],
-  ["success", "Copied"],
-  ["error", "Copy failed"],
-];
 
 function render(host, { tabStore, offer, generatedElement, keeps }) {
   const presets = own(host, "lf-playground-preset");
@@ -207,7 +202,6 @@ function render(host, { tabStore, offer, generatedElement, keeps }) {
     }),
   );
   let submit = null,
-    copy = null,
     reset = null;
   if (interactive) {
     const railed = controls.filter((control) => control.parentElement === host);
@@ -290,17 +284,11 @@ function render(host, { tabStore, offer, generatedElement, keeps }) {
     }
     const actions = node("footer", "lf-playground-actions");
     reset = offer("button", "lf-btn lf-playground-reset", "Reset");
-    copy = offer("button", "lf-btn lf-playground-copy-trigger");
-    copy.id = `${host.id}-copy`;
-    copy.dataset.copyState = "rest";
-    for (const [state, text] of COPY_LABELS)
-      copy.append(node("span", `lf-playground-copy-label ${state}`, text));
-    submit = offer(
-      "button",
-      "lf-btn primary lf-playground-submit",
-      host.getAttribute("submit-label") ?? "Use these settings",
-    );
-    actions.append(reset, copy, submit);
+    submit = offer("button", "lf-btn primary lf-playground-submit");
+    const submitLabel = host.getAttribute("submit-label") ?? "Use these settings";
+    submit.dataset.room = `${submitLabel}\nUndo choice`;
+    submit.append(node("span", "", submitLabel));
+    actions.append(reset, submit);
     if (document.querySelector("script[data-lf-offline]"))
       actions.append(
         node(
@@ -388,10 +376,13 @@ function render(host, { tabStore, offer, generatedElement, keeps }) {
     }
     return { attributes, properties };
   };
+  // A slot's value is the configuration's, not the author's, so a version comparison
+  // reads the instruction around it; the user can still quote the value.
   const renderValues = (next) => {
     for (const slot of output.querySelectorAll("lf-playground-value")) {
       if (!belongsTo(host, slot)) continue;
       const name = slot.getAttribute("for");
+      generatedElement(slot, { says: true });
       text(slot, formatted(controlByName.get(name), next[name]));
     }
   };
@@ -424,7 +415,6 @@ function render(host, { tabStore, offer, generatedElement, keeps }) {
     output,
     preview,
     submit,
-    copy,
     reset,
     regions,
     presetButtons,

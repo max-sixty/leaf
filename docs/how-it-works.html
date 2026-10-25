@@ -950,7 +950,7 @@
               </thead>
               <tbody>
                 <tr>
-                  <td><a href="#loop">Workflow</a></td>
+                  <td><a href="#workflow">Workflow</a></td>
                   <td>
                     How does an agent publish, receive an update, answer, and finish?
                     How do the harnesses differ?
@@ -958,7 +958,7 @@
                 </tr>
                 <tr>
                   <td>
-                    <a href="#page">Pages</a> · <a href="#styling">Styles</a> ·
+                    <a href="#pages">Pages</a> · <a href="#styles">Styles</a> ·
                     <a href="#layout">Layout</a>
                   </td>
                   <td>
@@ -968,11 +968,11 @@
                 </tr>
                 <tr>
                   <td>
-                    <a href="#data">State</a> · <a href="#revisions">Revisions</a>
+                    <a href="#state">State</a> · <a href="#revisions">Revisions</a>
                   </td>
                   <td>
                     What is recorded, what is derived, and what survives edits, Undo,
-                    reloads, and approval requests?
+                    reloads, and permission requests?
                   </td>
                 </tr>
                 <tr>
@@ -996,8 +996,8 @@
             </table>
           </section></lf-tab
         >
-        <lf-tab id="loop" label="Workflow"
-          ><details class="topic-outline" id="loop-outline">
+        <lf-tab id="workflow" label="Workflow"
+          ><details class="topic-outline" id="workflow-outline">
             <summary>In this topic</summary>
             <nav aria-label="Workflow sections">
               <ul>
@@ -1039,7 +1039,7 @@
                 <code>leaf page init</code> installs the page’s
                 <a href="#layer">runtime and selected packages</a>. The agent then
                 authors its content using the HTML and Leaf elements described in
-                <a href="#page">Pages</a>.
+                <a href="#pages">Pages</a>.
               </p>
               <p id="handoff-serving">
                 <code>leaf server start</code> starts the page’s HTTP server and claims
@@ -1054,7 +1054,7 @@
 # Write ./review/index.html with the harness's file tools.
 leaf page check ./review --render
 leaf page stamp ./review --text "Queue policy ready for review"
-leaf thread open ./review --obligation --text "Which queue policy fits the importer?"
+leaf thread create ./review --obligation --text "Which queue policy fits the importer?"
 leaf server start ./review</code></pre>
               <p id="handoff-checkpoint">
                 This example is a record meant to be revisited, so the agent reviews and
@@ -1124,7 +1124,7 @@ leaf page state ./review
 leaf page state ./review &lt;thread-id&gt;
 # Revise ./review/index.html.
 leaf thread reply &lt;answer.ref&gt; --done --text "The importer policy is updated."
-leaf thread open ./review --obligation --text "Does the revised policy match the workload?"</code></pre>
+leaf thread create ./review --obligation --text "Does the revised policy match the workload?"</code></pre>
               <p id="answers-kinds">
                 A comment needs a thread reply. A decision widget creates an
                 <em>obligation</em> on the user’s On me list, with a prompt, typed
@@ -1155,7 +1155,7 @@ leaf thread open ./review --obligation --text "Does the revised policy match the
                 </p>
                 <pre
                   id="decision-commands"
-                ><code class="language-bash">leaf task start ./review &lt;event-id&gt; "Recording the chosen queue policy"
+                ><code class="language-bash">leaf task start ./review &lt;event-id&gt; --text "Recording the chosen queue policy"
 leaf page state ./review
 # Add chosen to the picked option in ./review/index.html; check and review.
 leaf page stamp ./review --text "Queue policy: drop the oldest record"</code></pre>
@@ -1352,14 +1352,14 @@ leaf page stamp ./review --text "Queue policy: drop the oldest record"</code></p
                   a to-do, which stays open across replies, revisions and sessions until
                   the agent ends it. The agent opens it on a thread, a widget that takes
                   to-dos, or the whole page, and starts it with the id
-                  <code>leaf task open</code> prints:
+                  <code>leaf task create</code> prints:
                 </p>
                 <pre
                   id="widget-completion-command"
-                ><code class="language-bash">leaf task open ./review page "Check the importer policy"
-leaf task start ./review &lt;todo-id&gt; "Checking the importer under load"
+                ><code class="language-bash">leaf task create ./review page --title "Check the importer policy"
+leaf task start ./review &lt;todo-id&gt; --text "Checking the importer under load"
 # Run the check and put its result on the page.
-leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the page"</code></pre>
+leaf task end ./review &lt;todo-id&gt; done --text "The load check is recorded on the page"</code></pre>
                 <p id="todo-completion">
                   A to-do ends as <code>done</code>, <code>failed</code>, or
                   <code>dropped</code>, with a note saying where its result is or why
@@ -1494,13 +1494,11 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                 </tr>
                 <tr>
                   <td>
-                    <strong>Read page evidence</strong><br />Read current JSON state,
-                    raw JSONL events, or a Markdown exchange. These reads do not confirm
-                    receipt of input.
+                    <strong>Read page evidence</strong><br />Read current JSON state or
+                    raw JSONL events. These reads do not confirm receipt of input.
                   </td>
                   <td>
-                    <code>leaf page state</code><br /><code>leaf page events</code
-                    ><br /><code>leaf page transcript</code>
+                    <code>leaf page state</code><br /><code>leaf page events</code>
                   </td>
                 </tr>
                 <tr>
@@ -1532,7 +1530,7 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                     plan.
                   </td>
                   <td>
-                    <code>leaf task open</code><br /><code>leaf task start</code>
+                    <code>leaf task create</code><br /><code>leaf task start</code>
                     <br /><code>leaf task end</code> <br /><code>leaf task plan</code>
                   </td>
                 </tr>
@@ -1543,7 +1541,7 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                     of messages.
                   </td>
                   <td>
-                    <code>leaf thread open</code><br /><code>leaf thread reply</code
+                    <code>leaf thread create</code><br /><code>leaf thread reply</code
                     ><br /><code>leaf thread edit</code><br /><code
                       >leaf thread resolve</code
                     ><br /><code>leaf thread summarize</code>
@@ -1633,8 +1631,9 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
               <li>
                 <strong>A direct wait confirms on its next call.</strong> A Codex task
                 running its own wait uses
-                <code>leaf wait --ack &lt;delivery-id&gt;</code>. Until then, the events
-                remain available to the next wait, in case output was lost or cut off.
+                <code>leaf delivery ack &lt;delivery-id&gt; &amp;&amp; leaf wait</code>.
+                Until then, the events remain available to the next wait, in case output
+                was lost or cut off.
                 <a href="#stages-picked">Stages of an update</a> names the evidence for
                 Delivered on each route.
               </li>
@@ -1685,8 +1684,9 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                   <td>Direct wait</td>
                   <td>
                     Without a hook integration, <code>leaf wait</code> prints the
-                    delivery in the current turn, and the next
-                    <code>leaf wait --ack</code> confirms it and waits again.
+                    delivery in the current turn, and
+                    <code>leaf delivery ack</code> confirms it before the next
+                    <code>leaf wait</code>.
                   </td>
                 </tr>
               </tbody>
@@ -1777,18 +1777,18 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
           </section>
         </lf-tab>
 
-        <lf-tab id="page" label="Pages"
-          ><details class="topic-outline" id="page-outline">
+        <lf-tab id="pages" label="Pages"
+          ><details class="topic-outline" id="pages-outline">
             <summary>In this topic</summary>
             <nav aria-label="Pages sections">
               <ul>
-                <li><a href="#pages">Parts of a page</a></li>
+                <li><a href="#pages-parts">Parts of a page</a></li>
                 <li><a href="#layer">Runtime and packages</a></li>
                 <li><a href="#widgets">Widgets</a></li>
               </ul>
             </nav>
           </details>
-          <section id="pages">
+          <section id="pages-parts">
             <h2>Parts of a page</h2>
             <p id="scaffold">
               The agent writes an HTML document containing the page's title,
@@ -1975,19 +1975,19 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
             </p>
           </section>
         </lf-tab>
-        <lf-tab id="styling" label="Styles"
-          ><details class="topic-outline" id="styling-outline">
+        <lf-tab id="styles" label="Styles"
+          ><details class="topic-outline" id="styles-outline">
             <summary>In this topic</summary>
             <nav aria-label="Styles sections">
               <ul>
-                <li><a href="#styles">Styles and overrides</a></li>
+                <li><a href="#styles-overrides">Styles and overrides</a></li>
                 <li><a href="#styles-try-title">Which rule wins</a></li>
                 <li><a href="#styles-tiers">The tiers</a></li>
                 <li><a href="#styles-packages">Writing a package&#x27;s styles</a></li>
               </ul>
             </nav>
           </details>
-          <section id="styles">
+          <section id="styles-overrides">
             <h2>Styles and overrides</h2>
             <p id="styles-lede">
               A page’s <code>&lt;style&gt;</code> changes that page; a theme package
@@ -3428,8 +3428,8 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
             </figure>
           </section>
         </lf-tab>
-        <lf-tab id="data" label="State"
-          ><details class="topic-outline" id="data-outline">
+        <lf-tab id="state" label="State"
+          ><details class="topic-outline" id="state-outline">
             <summary>In this topic</summary>
             <nav aria-label="State sections">
               <ul>
@@ -3652,7 +3652,7 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                   <div id="relations-obligation-sources">
                     <strong>A request for an answer</strong>
                     <ul>
-                      <li>A widget question, decision or approval</li>
+                      <li>A widget question or decision</li>
                       <li>An update handed to the agent</li>
                     </ul>
                   </div>
@@ -3689,7 +3689,7 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                   </div>
                 </div>
                 <figcaption>
-                  The page-wide lists include widget approvals alongside other
+                  The page-wide lists include widget decisions alongside other
                   obligations. The same records supply each thread’s attention and the
                   page’s lists.
                 </figcaption>
@@ -3940,31 +3940,40 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
               disappears. If neither can be identified, the thread detaches rather than
               choosing unrelated text.
             </p>
-            <p id="approval-requests">
-              An <code>lf-approval</code> widget requests permission for the action its
-              heading and prose describe. Its <code>approve</code> action answers an
-              ordinary widget obligation on On me; Undo approval reopens it. Each
-              request is independent of other unanswered widgets and page stamps.
-              Approval persists with the widget's id across unrelated edits. When the
-              action or evidence changes enough to invalidate that permission, the
-              author explains the change and marks the widget <code>restated</code>. A
-              request that depends on another decision is presented after that decision,
-              once the action to authorize is concrete.
+            <p id="permission-requests">
+              A request to permit an action is an ordinary decision: an
+              <code>lf-options</code> group whose options take the action its heading
+              and prose describe or keep things as they are, so declining is an answer
+              too. Its pick answers the widget's obligation on On me, and choosing it
+              again reopens it. Each request is independent of other unanswered widgets
+              and page stamps, and the pick persists with the widget's id across
+              unrelated edits. When the action or evidence changes enough to invalidate
+              that permission, the author explains the change and marks the widget
+              <code>restated</code>. A request that depends on another decision is
+              presented after that decision, once the action to permit is concrete.
             </p>
-            <p id="approval-sample-guide">
-              Try Approve, then Undo approval. The request changes immediately, and the
-              activity feed records the action and its withdrawal.
+            <p id="permission-sample-guide">
+              Choose Publish the report, then choose it again. The request changes
+              immediately, and the activity feed records the pick and its withdrawal.
             </p>
             <lf-sample
-              id="approval-sample"
-              label="Approval of a sample report"
+              id="permission-sample"
+              label="Permission for a sample report"
               interactive
             >
-              <lf-approval id="sample-publish-report">
+              <lf-ask id="sample-publish-report-decision">
                 <h2>Publish the sample report?</h2>
-                <p>Publish the park survey to the sample team's shared workspace.</p>
-              </lf-approval>
-              <lf-activity id="sample-approval-history"></lf-activity>
+                <p>The park survey would go to the sample team's shared workspace.</p>
+                <lf-options id="sample-publish-report" choose>
+                  <lf-option id="sample-publish-report-keep"
+                    ><strong>Keep it private</strong></lf-option
+                  >
+                  <lf-option id="sample-publish-report-publish"
+                    ><strong>Publish the report</strong></lf-option
+                  >
+                </lf-options>
+              </lf-ask>
+              <lf-activity id="sample-permission-history"></lf-activity>
             </lf-sample>
           </section>
 
@@ -4138,9 +4147,8 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
               </li>
               <li id="progress-done">
                 <time>2m</time> <small>observation</small> <strong>Answered</strong> The
-                revision goes live, the agent's reply reports it, and a waiting status
-                names what the agent wants back:
-                <em>Claude awaits — does the shorter lede keep enough?</em>
+                revision goes live, the agent's reply reports it, and the status returns
+                to <em>Claude awaits — select text to comment</em>.
               </li>
             </ol>
           </section>
@@ -4189,9 +4197,9 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                       Leaf delivers the update again.
                     </p>
                     <p>
-                      <strong>A <code>leaf wait</code> loop.</strong> The agent's next
-                      <code>leaf wait --ack</code> confirmed the delivery the last wait
-                      printed.
+                      <strong>A <code>leaf wait</code> loop.</strong> The agent's
+                      <code>leaf delivery ack</code>, run before its next wait,
+                      confirmed the delivery the last wait printed.
                     </p>
                     <p>
                       <strong>Codex.</strong> The turn that the queued message opens
@@ -4438,11 +4446,10 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                   </td>
                 </tr>
                 <tr id="updates-reading-awaits">
-                  <td>Claude awaits — pick a layout</td>
+                  <td>Claude awaits — select text to comment</td>
                   <td>
-                    The agent is taking input, and its last status says what it wants
-                    from the user. While an update is on its way to the agent it reads
-                    <em>Claude listening · 1 waiting</em> instead.
+                    The agent is taking input. While an update is on its way to the
+                    agent it reads <em>Claude listening · 1 waiting</em> instead.
                   </td>
                 </tr>
                 <tr id="updates-reading-ended">
@@ -4509,8 +4516,8 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                 <em>Show 1 progress message</em> when the answer arrives.
               </li>
               <li id="updates-written-working">
-                <strong><code>leaf task start … &lt;id&gt; "…"</code></strong> Names the
-                current operation for an update or to-do, such as
+                <strong><code>leaf task start … &lt;id&gt; --text "…"</code></strong>
+                Names the current operation for an update or to-do, such as
                 <em>Claude working — running the browser suite</em>. Its line remains
                 beside the thread or widget until answered or ended. The panel’s leaf
                 and tab icon take the status’s colour; All pages repeats its line.
@@ -4551,14 +4558,14 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                 or withdrawn.
               </li>
               <li id="updates-written-on-you">
-                <strong><code>leaf task open … --on user</code></strong> Puts a task
+                <strong><code>leaf task create … --on user</code></strong> Puts a task
                 such as trying a build on On me. <kbd>m</kbd> reaches it; its
                 <em>Done</em> button, or <kbd>x</kbd>, ends it and tells the agent. A
                 thread question has no Done button: the user’s reply answers it.
               </li>
               <li id="updates-written-comment">
                 <strong
-                  ><code>leaf thread open</code>, <code>leaf thread edit</code>,
+                  ><code>leaf thread create</code>, <code>leaf thread edit</code>,
                   <code>leaf thread resolve</code></strong
                 >
                 A thread the agent opens on a passage, a message it corrects, marked
@@ -4778,6 +4785,14 @@ EOF</code></pre>
                   <td>
                     <kbd>/</kbd> opens search. <kbd>Enter</kbd> chooses a match;
                     <kbd>n</kbd> / <kbd>Shift</kbd> + <kbd>n</kbd> then walk matches.
+                  </td>
+                </tr>
+                <tr>
+                  <td>Link to a section</td>
+                  <td>
+                    The link mark beside a heading, shown under the pointer or by a tap,
+                    copies the page's address of that section. On the section,
+                    <kbd>Enter</kbd> copies it.
                   </td>
                 </tr>
                 <tr>
@@ -5262,8 +5277,8 @@ EOF</code></pre>
               </p>
               <p id="phone-panel-menu">
                 The leaf’s menu includes Search page and Page Map under Navigate, Undo,
-                and Select element, Draw mode, Design mode and Hide annotations under
-                Annotations. Approval requests appear in On me and in their widgets. An
+                and Comment on an element, Draw mode, Design mode and Hide annotations
+                under Annotations. Decisions appear in On me and in their widgets. An
                 active mode or search names itself in the panel and provides a ✕ exit.
                 Search arrows stand beside the match count; tapping the marked match
                 selects it.
@@ -5274,7 +5289,7 @@ EOF</code></pre>
               <p id="phone-comments-select">
                 Select words to quote them in the panel’s field; tap the field to open a
                 comment below the block. For a whole table, figure or other element, use
-                <a href="#phone-gap-element">Select element</a>.
+                <a href="#phone-gap-element">Comment on an element</a>.
               </p>
               <p id="phone-comments-pins">
                 Where the margin cannot hold a rail, markers appear as pins on their
@@ -5292,8 +5307,8 @@ EOF</code></pre>
               <ul id="phone-gaps-list">
                 <li id="phone-gap-element">
                   <strong>Whole elements.</strong> Open the leaf’s menu → Annotations →
-                  Select element, then tap the target. This opens its comment composer
-                  without activating the target’s controls.
+                  Comment on an element, then tap the target. This opens its comment
+                  composer without activating the target’s controls.
                 </li>
                 <li id="phone-gap-keys">
                   <strong>Commands.</strong> Menu commands and direct controls provide
@@ -5743,7 +5758,7 @@ EOF</code></pre>
               The HTTP server exposes the <a href="#data-home">page directory</a> to
               browsers. A session-started server stops when no live session claims the
               page; a claim names the recipient of its updates. A server started from a
-              bare shell or with <code>--persistent</code> runs until
+              bare shell or with <code>--lifetime persistent</code> runs until
               <code>leaf server stop</code>.
             </p>
             <p id="lifetime-website">

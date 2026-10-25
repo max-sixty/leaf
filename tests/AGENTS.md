@@ -104,17 +104,26 @@ A change lands through a gate that runs the broad selection: a pull request's `t
 job or `wt merge`'s pre-merge. A failure there that the change causes is the gate doing
 its job; fix it and push. A failure the change doesn't cause, such as one main's latest
 run also shows (confirm by running it on main by node id), blocks nothing and calls
-for no rerun: name it in the pull request as inherited and land. For now, by the user's
-choice, `test` is not a required check on `main`.
+for no rerun: name it in the pull request as inherited, check that it has an owner
+(below), and land. For now, by the user's choice, `test` is not a required check on
+`main`.
 `wt merge` refuses on any failure, so such a change lands through a pull request.
 
 `tend-ci-fix` repairs what CI's `test` job (`ci.yaml`) fails on main. The user accepted
 that a pull request can land green and break a test it never ran, so a red main is no
 reason to widen a change or its tests. A newer push cancels main's waiting run, as
 intended. To learn what main fails, read that job's run and reproduce a failure by node
-id. A failure only macOS reproduces is beyond `tend-ci-fix`: check that no session,
-worktree or open pull request covers it, then start a local session for it (for example
-with `/dispatch`).
+id.
+
+A failure on main, in that run or only in a local one, needs an owner. `tend-ci-fix`
+owns one that main's latest run shows while its run on it is going, or while an open
+`fix/ci-*` pull request or `ci-fix:` issue it opened names it. A failure only macOS
+reproduces is beyond it, as is one whose `tend-ci-fix` run was refused or ended without
+naming it. Confirm a macOS-only failure at normal priority: `taskpolicy -b` slows
+headless Chrome's frames about sixfold, and tests that time frames then fail only on the
+Mac. For a failure `tend-ci-fix` doesn't own, check that no session, worktree (Codex's
+under `~/.codex/worktrees` included) or open pull request covers it, then start a local
+session for it (for example with `/dispatch`).
 
 CLI output and agent-facing text are regtest recordings in each tier's
 `_regtest_outputs/`, normalized for temporary paths and generated ids but never for
@@ -377,6 +386,15 @@ route before the gesture it catches, or through `primed` or `held_events` for th
 navigation; raw and `browser.unwatched` pages aren't set up for later routes. Where
 the driver loses a fact, such as the Page for a tab Chromium opened, read the
 browser's record (`opened_tab`).
+
+A watch finding that CI reports and this machine doesn't is usually a frame that lands
+later on CI's slower runner, after the input window that credits it has closed. Load
+alone rarely shows it; a slower CPU does. `--cpu-throttle RATE`, given to pytest or
+`leaf-dev flake`, slows every Chromium page the browser fixtures open. Past findings
+reproduced at rates from 6 to 20, and one rate can miss a finding another reproduces,
+so try more than one. Run the merge base under the same rate to learn whether the
+change caused it. A test whose subject is a slow CPU slows its own page
+with `leaf_dev.browser.slow_cpu`.
 
 - A route handler that returns without resolving holds the request before the server.
   Call `holding` before reading the list of held requests, since the ledger counts a

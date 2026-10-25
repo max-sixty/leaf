@@ -113,12 +113,6 @@
   border-block-start: 1px solid var(--rule);
   margin-block-start: var(--sp-2);
   padding-block-start: var(--sp-2);
-}
-.lf-shot-key-label {
-  color: var(--muted);
-  margin-block-end: var(--sp-1);
-}
-.lf-shot-key-item {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
@@ -144,6 +138,12 @@
   .lf-shot-tools {
     gap: 0;
   }
+}
+.lf-shotstage,
+.lf-shotstage *,
+.lf-shotstage *::before,
+.lf-shotstage *::after {
+  box-sizing: border-box;
 }
 .lf-shotstage {
   --lf-shot-frame-room: calc(var(--raise-1-drop) + var(--raise-1-blur));
@@ -365,14 +365,9 @@
   inset: 0;
   mask: var(--lf-shot-pixels, linear-gradient(transparent, transparent)) 0 0 / 100% 100% no-repeat;
 }
-:is(.lf-shotpixels, .lf-shot-pixel-key) [data-lf-shot-side=both] {
+.lf-shot-pixel-mask,
+.lf-shot-key-swatch {
   background: var(--warn);
-}
-:is(.lf-shotpixels, .lf-shot-pixel-key) [data-lf-shot-side=before] {
-  background: var(--danger-ink);
-}
-:is(.lf-shotpixels, .lf-shot-pixel-key) [data-lf-shot-side=after] {
-  background: var(--ok-ink);
 }
 @container style(--lf-full-height:1) {
   :scope:is(lf-shot) {
@@ -386,9 +381,7 @@
     block-size: auto;
     overflow: visible;
   }
-  .lf-shot-toolbar,
-  .lf-shotpixels,
-  .lf-shotdiff {
+  .lf-shotpixels {
     display: none !important;
   }
   .lf-shotstage {
@@ -398,12 +391,12 @@
   .lf-shotcanvas,
   .lf-shotcomparison,
   .lf-shotframe,
+  :scope:is(lf-shot)[data-lf-shot-mode=pixels] .lf-shotframe,
   .lf-shot-frame-label,
-  .lf-shotcap,
   .lf-shotviewport,
   .lf-shotimage,
   .lf-shotplane {
-    display: block !important;
+    display: block;
     inline-size: 100% !important;
     block-size: auto !important;
     visibility: visible !important;
@@ -1080,10 +1073,9 @@
   }
 }
 :scope:is(lf-options):not(:has(> lf-option > strong)) > lf-option > .lf-ref {
-  display: table-cell;
-  width: 0;
-  white-space: nowrap;
-  vertical-align: middle;
+  float: inline-end;
+  margin-inline-start: var(--lf-row-gap);
+  line-height: 1lh;
 }
 :scope:is(lf-options):not(:has(> lf-option > strong)) > lf-option > .lf-pick {
   position: absolute;
@@ -1121,7 +1113,7 @@
 }
 :scope:is(lf-options)[settled] > .lf-settled[data-lf-focus-visible] {
   outline: var(--focus-ring);
-  outline-offset: 1px;
+  outline-offset: calc(-1 * var(--focus-ring-w));
 }
 .lf-settled-count {
   margin-left: auto;
@@ -2125,6 +2117,9 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
   margin: 0;
   padding-block: max(7px, (var(--aim-floor) - 1lh) / 2);
 }
+:scope:is(lf-toc) .lf-toc-toggle[data-lf-focus-visible] {
+  outline-offset: calc(-1 * var(--focus-ring-w));
+}
 :scope:is(lf-toc) .lf-toc-disclosure[open] .lf-toc-toggle {
   margin-bottom: 7px;
 }
@@ -2564,6 +2559,19 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
 :scope:is(lf-ask) {
   display: block;
 }
+:scope:is(lf-ask)[data-lf-obligation] {
+  position: relative;
+  outline: none !important;
+}
+:scope:is(lf-ask)[data-lf-obligation]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  outline: var(--lf-obligation-ring, var(--focus-ring));
+  outline-offset: calc(-1 * var(--focus-ring-w));
+}
 @media screen {
   :scope:is(lf-ask) {
     box-sizing: border-box;
@@ -2729,6 +2737,10 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
   border: 1px solid var(--border-2);
   border-radius: var(--r);
   background: var(--paper);
+}
+.lf-sample-frame[data-lf-focus] {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
 }
 :scope:is(lf-sample)[window] .lf-sample-frame {
   box-sizing: border-box;
@@ -3205,30 +3217,6 @@ html[data-lf-interactive] :scope:is(lf-text-document):not(:has(> *))::before {
     opacity: 1;
     pointer-events: auto;
   }
-}
-
-/* packages/default/styles/approval.css */
-:scope:is(lf-approval) {
-  display: block;
-  padding: var(--sp-4);
-  border: 1px solid var(--rule);
-  border-radius: var(--r);
-}
-:scope:is(lf-approval) > :is(h2, h3, h4, p) {
-  margin-block: 0 var(--sp-3);
-}
-:scope:is(lf-approval) .lf-approval-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--sp-3);
-  font-family: var(--sans);
-}
-:scope:is(lf-approval) .lf-approval-status {
-  color: var(--muted);
-}
-:scope:is(lf-approval) .lf-approval-actions button {
-  min-block-size: var(--aim-floor);
 }
 
 /* packages/default/styles/theme.css */

@@ -42,8 +42,8 @@ saying *you* or *my*: “The draft is kept”, “New messages”. Text addresse
 agent, such as `x-instructions` and event handling, uses the second person, as does
 the website's prose to a visitor.
 
-Name an update's kind where it is known: a **comment**, **reply**, **choice**,
-**reaction** or **approval**; in protocol text a widget's is an **action**, after its
+Name an update's kind where it is known: a **comment**, **reply**, **choice**
+or **reaction**; in protocol text a widget's is an **action**, after its
 event kind. Don't call an update a *move* or *feedback*, or an *input* as a count noun;
 *input* stays as a mass noun (“waiting for input”). Only the user's input is an update:
 a worker's news is a **report**, and the agent's interim thread message a **progress
@@ -172,7 +172,7 @@ the headings over the document's height.
 | **Target picker** | The `s` interaction that shows addressable elements and ends when the user picks one or closes it |
 | **Page search** | The `/` interaction that filters or steps through text matches for a query |
 | **Walk** | Stepping in order through one kind of destination: open threads (`t`), the user's On me list (`m`), a list's rows |
-| **Obligation** | What a widget or an agent's message waits on the user for, what an update the user handed over is owed, or a to-do given to the user (`obligations.py`, `readObligations()`): its prompt, its answer once given, its status and its next actor, under an id that never changes (`widget:<id>`, `message:<event-id>`, `update:<event-id>`, or the to-do's own id). A thread is never one |
+| **Obligation** | What a widget or an agent's message waits on the user for, what an update the user handed over is owed, or a to-do given to the user (`obligations.py`, `readObligations()`): its prompt, its answer once given, its status and its next actor, under an id that never changes (`widget:<id>`, `message:<message>`, `update:<event-id>`, or the to-do's own id). A thread is never one |
 | **On me** | The user's list of everything waiting on them (`queues.on_user`): the open obligations whose next actor is the user and the to-dos the agent gave them. `m` walks it. Labels for what waits on the user name the list, as **Next on me** and **Waiting on me** do, and a row names its obligation by the widget's word (`x-word`) |
 | **On *agent*** | The agent's list of everything waiting on it (`queues.on_agent`), named for the agent, such as **On Claude**: the obligations whose next actor is the agent and its own to-dos. Prose about no particular agent writes `On <agent>` |
 | **To-do** | Explicit work owed until it ends (`todo` in the protocol), by the agent or by the user |

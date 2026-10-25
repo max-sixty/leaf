@@ -333,9 +333,13 @@ def test_the_render_gate_fails_a_page_that_scrolls_sideways_only_between_viewpor
         ("<div id=dusk>", (1280, 1280)),
         ("<div id=dusk>", (540, 540)),
     }, clipped
+    # Each card that loses its controls loses the prose above them too, at the same
+    # widths: the content reading names the card, with what would show the rest.
+    cut = {(f.at, f.widths) for f in reading.failures if f.code == "clipped-content"}
+    assert cut == {(f.values["by"], f.widths) for f in clipped}, reading.failures
     assert {(f.code, f.at, f.widths) for f in reading.failures} - {
         (f.code, f.at, f.widths) for f in clipped
-    } == {
+    } - {("clipped-content", *box) for box in cut} == {
         ("page-scrolls", "", (600, 880)),
         ("scrollbar-clearance", "<div id=strip>", (600, 880)),
     }, reading.failures
@@ -1566,7 +1570,13 @@ def test_the_render_gate_holds_project_widgets_to_their_declarations(
     hidden light-DOM span and `querySelector` finds it, so a check written against the
     markup passes on a page whose user is never handed the word. Asking `says()` for
     the words is what tells the two apart — the layer's own reading enters a declared
-    root in the host's stead."""
+    root in the host's stead.
+
+    The page's own `count-note` writes a paragraph without marking it, so comparing
+    the version with itself marks that paragraph as changed, as every comparison a
+    user asks for would; `marked-note` writes the same words through
+    `generatedElement` and is not named. `lf-callout`'s words in its body's stead read
+    as changed too."""
     monkeypatch.chdir(tmp_path)
     package = tmp_path / ".leaf"
     _author_lying_callout(tmp_path)
@@ -1635,8 +1645,21 @@ customElements.define("field-host", class extends HTMLElement {{
     shadow_frame = escape(
         "<head>" + control + "<body><field-host></field-host></body>", quote=True
     )
+    counts = """<script type="module">
+import { generatedElement } from "/runtime/widget-api.js";
+for (const [tag, marked] of [["count-note", false], ["marked-note", true]])
+  customElements.define(tag, class extends HTMLElement {
+    connectedCallback() {
+      const count = document.createElement("p");
+      count.textContent = `Three items counted by ${tag}.`;
+      if (marked) generatedElement(count, { says: true });
+      this.append(count);
+    }
+  });
+</script></head>"""
     source = (
         CUSTOM_WIDGET_PAGE.replace("</head>", control)
+        .replace("</head>", counts)
         .replace(
             '<h1 id="title">Project vocabulary</h1>',
             f"""<h1 id="title">Project vocabulary</h1>
@@ -1653,7 +1676,9 @@ customElements.define("field-host", class extends HTMLElement {{
             "</lf-dusk>\n"
             '<lf-stager id="staged-note"><strong>Heads up</strong> Staged.</lf-stager>\n'
             '<lf-veil id="veiled-note" label="Escalated">'
-            "<strong>Heads up</strong> Clipped words.</lf-veil>\n</main>",
+            "<strong>Heads up</strong> Clipped words.</lf-veil>\n"
+            '<count-note id="count-note"></count-note>\n'
+            '<marked-note id="marked-note"></marked-note>\n</main>',
         )
     )
 
@@ -1670,6 +1695,10 @@ customElements.define("field-host", class extends HTMLElement {{
         return [f for f in failures if f.code == code and at in f.at]
 
     assert reported("verbatim", "custom-note"), failures
+    assert [(f.at, f.values["words"]) for f in reported("read-as-changed")] == [
+        ("<lf-callout id=custom-note>", "Entirely different words."),
+        ("<p> in <count-note id=count-note>", "Three items counted by count-note."),
+    ], failures
     assert any("<div>" in f.values["hosts"] for f in reported("undeclared-shadow")), (
         failures
     )
@@ -3231,9 +3260,12 @@ RESTORE_ADOPTED = """async () => {
 
 # The layer's own list of aims, read from the rule that floors them rather than copied
 # here: a control joins the floor by joining that selector list, and the sweep below has
-# to follow it there. The list states the inline floor; the block floor is padding on
-# the controls a flex or grid container could squeeze, and min-height on the rest.
-AIM_FLOOR_RULE = "min-width: var(--aim-floor);"
+# to follow it there. The rule states both floors; a control that hangs a reach leaves
+# the block floor to it, and one a flex or grid container could squeeze states it as
+# padding.
+AIM_FLOOR_RULE = (
+    "min-width: var(--aim-floor); min-height: var(--lf-face-floor, var(--aim-floor));"
+)
 
 
 def aim_selectors():
@@ -3257,7 +3289,8 @@ AIM_BOXES = browser_function("aims.js", "flooredAims")
 # `cursor` first, the hand being the plainest promise a page makes; the rest is the dress
 # a control wears — a chip ground, a pill's corner, a border, a link's underline, a
 # summary's marker. Colour is not read: a chip that is red is saying something, and what a
-# control says is the other half of this bargain rather than this half.
+# control says is the other half of this bargain rather than this half. Every box
+# inherits a list style, but only a list item, as a summary is, draws its marker.
 PRINTED_OFFERS = """() => [...document.querySelectorAll('[data-lf-offer]')]
   .filter(n => n.checkVisibility() && n.getBoundingClientRect().width > 0)
   .map(n => {
@@ -3271,7 +3304,7 @@ PRINTED_OFFERS = """() => [...document.querySelectorAll('[data-lf-offer]')]
         parseFloat(s.borderTopLeftRadius) > 0 && 'a rounded corner',
         parseFloat(s.borderTopWidth) > 0 && 'a border',
         s.textDecorationLine.includes('underline') && 'an underline',
-        s.listStyleType !== 'none' && 'a marker',
+        s.display === 'list-item' && s.listStyleType !== 'none' && 'a marker',
       ].filter(Boolean),
     };
   })"""

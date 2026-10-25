@@ -152,7 +152,12 @@
   // measured under whatever pointer the page is shown to. A box and not
   // checkVisibility(): the corpus renders much of itself inside content-visibility
   // sections, which this browser answers no for, and a control laid out inside one is a
-  // control a user reaches by scrolling to it.
+  // control a user reaches by scrolling to it. Each control is held to the floor it
+  // computes, as the floor rule holds it: a press that is one row of a stack of lines,
+  // as a diff line's number is, has no room for a reach or a floor-tall face, and says
+  // so by setting its own `--aim-floor` to 0px. Only the control's own declaration
+  // lowers its floor; one it inherits from a container holds it to the document's, and
+  // an aim another box covers to nothing is short under any floor.
   function flooredAims(selectors) {
     const floor = parseFloat(
       getComputedStyle(document.documentElement).getPropertyValue("--aim-floor"),
@@ -164,13 +169,14 @@
         const { box, w, h, by } = aim(el);
         if (!box.width || !box.height) continue;
         const shown = getComputedStyle(el);
-        // Hidden, or standing there for a pointer a finger is not: the diff's line
-        // comment is transparent and takes no presses until its row is hovered, and a
-        // finger never hovers it.
-        if (shown.visibility === "hidden") continue;
-        if (shown.opacity === "0" || shown.pointerEvents === "none") continue;
+        if (shown.visibility === "hidden" || shown.pointerEvents === "none") continue;
         seen += 1;
-        if (Math.min(w, h) < floor - 0.5)
+        const own = parseFloat(shown.getPropertyValue("--aim-floor"));
+        const parent = el.parentElement ?? el.getRootNode().host;
+        const inherited =
+          parent &&
+          parseFloat(getComputedStyle(parent).getPropertyValue("--aim-floor")) === own;
+        if (Math.min(w, h) < Math.max(inherited ? floor : own, 1) - 0.5)
           short.push(
             `${Math.round(w)}x${Math.round(h)} ${el.className}${by ? ` under ${by}` : ""}`,
           );

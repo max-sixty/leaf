@@ -4,8 +4,8 @@ import { PAGE_PAINT_ATTRIBUTE, PRESS, admitResponse, adoptRegistry, announce, bi
 import { applicationState, attachApplicationPresentation, offlineInteractive, pageClaimed, readApplication, readPart, runtime, runtimeModule, runtimeResource, whenApplicationPresented, whenDocumentPresented, whenWidgetsPresented } from "./bundle-context.js";
 import { ago, aimedTop, atScrollEnd, claimReachStop, containingReadingRegionFor, effectiveScroller, moveScrollerBy, pageReadingRegion, pageScroller, placeKept, reachScrollers, reachable, readingRegionFor, readingRegions, releaseReachStop, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, shortAgo, shownRegionBounds, startScroll } from "./bundle-reading-regions.js";
 import { chromeForeground, chromeRoot } from "./bundle-chrome.js";
-import { COLLAPSE, alignText, closestAcross, elementById, fencePassageParts, inChrome, labelWords, pageBlocks, pageDocument, pageRange, pageText, pageWords, pointAt, quoteFrom, rangeOf, readingFrom, segmentBlock, segmentsIn, selectEnds, selectionBackward, spanIn, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity } from "./bundle-passages.js";
-import { ADDRESSABLE, addressableWord, aimTargetAt, anchorBox, anchorForPassage, anchorForRange, anchorReading, anchorView, anchoringIsReady, cutFrames, datumAimTarget, datumLabel, followingItsEnd, headerLevels, localScrollBy, marks, nameAnchor, nameable, projectedDatum, refreshAnchorView, resolveAnchor, scrollAxes, sectionLabel, sectionOf, targetElement, targetSegments, visualPartLabel } from "./bundle-css-anchors.js";
+import { COLLAPSE, alignText, closestAcross, elementById, fencePassageParts, inChrome, labelWords, pageBlocks, pageDocument, pageQueryAll, pageRange, pageText, pageWords, pointAt, quoteFrom, rangeOf, readingFrom, segmentBlock, segmentsIn, selectEnds, selectionBackward, spanIn, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity } from "./bundle-passages.js";
+import { ADDRESSABLE, addressableWord, aimTargetAt, anchorBox, anchorForPassage, anchorForRange, anchorReading, anchorView, anchoringIsReady, cutFrames, datumAimTarget, datumLabel, followingItsEnd, headerLevels, isAddressable, leadingTitle, localScrollBy, marks, nameAnchor, nameable, projectedDatum, refreshAnchorView, resolveAnchor, scrollAxes, sectionLabel, sectionOf, targetElement, targetSegments, visualPartLabel } from "./bundle-content-layout.js";
 import { initialOrigin, initialSource } from "./bundle-initial-render.js";
 import { copyControl } from "./bundle-copy-control.js";
 import { aborted, commitWidgetDescriptors, dataBody, rememberAuthoredParents, setChildren, stageAuthoredStates, stageWidgetDescriptors } from "./bundle-abort.js";
@@ -424,7 +424,7 @@ const DRAWING = "img, svg, canvas, video, picture, iframe, object, embed";
 const draws = (element) => element.matches(DRAWING) || element.localName.includes("-");
 const LANDMARK_CAP = 160;
 const QUOTABLE = 24;
-const HEADING = "h1, h2, h3, h4, h5, h6";
+const HEADING$1 = "h1, h2, h3, h4, h5, h6";
 const textBlocks = (root = pageDocument()) => pageBlocks().filter((block) => under(block, root));
 const drawsLandmark = (parent) => {
 	if (!parent || skipped(parent) || getComputedStyle(parent).visibility !== "visible") return false;
@@ -640,7 +640,7 @@ function drawnAt(body, box, x, edge, blocks) {
 function capturePlace(region = null, blocks = textBlocks()) {
 	const box = region ? effectiveScroller(region) : pageScroller;
 	const boxTop = landingBand(box).top + aimedTop(box) - box.scrollTop;
-	const landmarkTop = (top, block, blockTop = top) => block?.matches(HEADING) ? top + Math.max(0, -blockTop) : top;
+	const landmarkTop = (top, block, blockTop = top) => block?.matches(HEADING$1) ? top + Math.max(0, -blockTop) : top;
 	const view = {
 		y: box.scrollTop,
 		scroller: scrollerIdentity(box),
@@ -670,7 +670,7 @@ function capturePlace(region = null, blocks = textBlocks()) {
 	const lineOf = (block, rect, runs) => {
 		for (const run of runs) {
 			if (quoteFrom(run).length < QUOTABLE) continue;
-			const segments = lineAt(run, boxTop, range, block.matches(HEADING));
+			const segments = lineAt(run, boxTop, range, block.matches(HEADING$1));
 			if (!segments) continue;
 			const landmark = lineAnchor(segments);
 			if (!landmark) return null;
@@ -818,12 +818,21 @@ const answeredInWords = (obligation) => obligation?.source.kind === "message" ||
 
 //#endregion
 //#region runtime/obligations/place.js
+const NOWHERE = Object.freeze({
+	source: null,
+	context: null,
+	node: null
+});
 function obligationPlace(item, items = readObligations().all) {
-	if (!item || item.source.kind !== "widget") return {
-		source: null,
-		context: null,
-		node: null
-	};
+	if (item?.source.kind === "todo") {
+		const node = subjectPlace(item.source.subject);
+		return node ? {
+			source: null,
+			context: node,
+			node
+		} : NOWHERE;
+	}
+	if (item?.source.kind !== "widget") return NOWHERE;
 	const owner = elementById(item.source.id);
 	const source = item.source.unit ? projectedDatum(owner, item.source.unit) : owner;
 	const context = elementById(item.prompt.target);
@@ -834,9 +843,19 @@ function obligationPlace(item, items = readObligations().all) {
 		node: item.source.unit || shared ? source : context
 	};
 }
+const subjectPlace = (subject) => subject.kind === "page" ? pageHead() : subject.kind === "thread" ? null : elementById(subject.id);
+const HEADINGS = ["h1", "h1, h2, h3, h4, h5, h6"];
+function pageHead() {
+	for (const selector of HEADINGS) {
+		const heading = [...document.querySelectorAll(selector)].find((candidate) => !inChrome(candidate));
+		if (heading) return heading;
+	}
+	const content = pageDocument();
+	return content?.firstElementChild ?? content ?? document.body.firstElementChild;
+}
 function obligationsIn(region, items = readObligations().all) {
 	return items.filter((item) => {
-		if (item.source.kind !== "widget" || item.status === "withdrawn") return false;
+		if (item.status === "withdrawn") return false;
 		const { source } = obligationPlace(item, items);
 		return Boolean(source && under(source, region));
 	});
@@ -849,15 +868,14 @@ function declareSide(bridge, { beside = false } = {}) {
 	sides.set(bridge, beside);
 	return () => sides.delete(bridge);
 }
-function obligationHolding(items, node) {
+function obligationHolding(items, node, inventory = items) {
 	if (!node) return null;
 	const holds = (element) => element && under(node, element);
 	let held = null;
 	for (const item of items) {
-		if (item.source.kind !== "widget") continue;
-		const { source, node: target } = obligationPlace(item, items);
+		const { source, node: target } = obligationPlace(item, inventory);
 		const at = holds(source) ? source : holds(target) ? target : null;
-		if (at && (!held || under(at, held.at))) held = {
+		if (at && (!held || at !== held.at && under(at, held.at))) held = {
 			item,
 			at
 		};
@@ -1168,6 +1186,25 @@ const makeCut = () => {
 	return frame;
 };
 const placed = /* @__PURE__ */ new Map();
+const wired$1 = /* @__PURE__ */ new WeakSet();
+let hoveredControl = null;
+let focusedControl = null;
+const activeBlock = (control) => control && placed.get(control);
+const syncActive = (block) => {
+	if (block) block.toggleAttribute("data-lf-control-active", activeBlock(hoveredControl) === block || activeBlock(focusedControl) === block);
+};
+const setActiveControl = (kind, control) => {
+	const previous = kind === "hover" ? hoveredControl : focusedControl;
+	if (previous === control) return;
+	if (kind === "hover") hoveredControl = control;
+	else focusedControl = control;
+	syncActive(activeBlock(previous));
+	syncActive(activeBlock(control));
+};
+onCurrentLocation((node) => {
+	for (let at = node; at; at = upFrom(at)) if (placed.has(at)) return setActiveControl("focus", at);
+	setActiveControl("focus", null);
+});
 let resized = 0;
 addEventListener("resize", () => {
 	resized ||= nextRender(() => {
@@ -1181,9 +1218,21 @@ addEventListener("resize", () => {
 	});
 });
 function standInChrome(control, block, levels) {
+	const previousBlock = placed.get(control);
 	const frames = cutFrames(levels, cuts.get(control) ?? [], makeCut);
 	cuts.set(control, frames);
 	placed.set(control, block);
+	if (!wired$1.has(control)) {
+		wired$1.add(control);
+		control.addEventListener("pointerenter", () => setActiveControl("hover", control));
+		control.addEventListener("pointerleave", () => {
+			if (hoveredControl === control) setActiveControl("hover", null);
+		});
+	}
+	if (previousBlock !== block) {
+		syncActive(previousBlock);
+		syncActive(block);
+	}
 	if (home.parentNode !== chromeRoot) move(chromeRoot, home, null);
 	if (frames[0] && frames[0].parentNode !== home) move(home, frames[0], null);
 	const frame = frames.at(-1) ?? home;
@@ -1227,11 +1276,18 @@ function tabFromBlock(control, block, signal) {
 		if (event.key === "Tab") focusDestination(block, "step");
 	}, { signal });
 }
+let pressedPath = /* @__PURE__ */ new WeakSet();
+addEventListener("pointerdown", (event) => pressedPath = new WeakSet(event.composedPath()), { capture: true });
+const pressedElsewhere = (event, control) => event.detail > 0 && !pressedPath.has(control);
 function releaseControl(control) {
+	const block = placed.get(control);
+	if (hoveredControl === control) hoveredControl = null;
+	if (focusedControl === control) focusedControl = null;
 	control.remove();
 	cuts.get(control)?.[0]?.remove();
 	cuts.delete(control);
 	placed.delete(control);
+	syncActive(block);
 }
 
 //#endregion
@@ -1239,8 +1295,15 @@ function releaseControl(control) {
 const controls = /* @__PURE__ */ new WeakMap();
 const wired = /* @__PURE__ */ new WeakMap();
 const COPY_SCOPE = Symbol("code copy");
-let pressedPath = /* @__PURE__ */ new WeakSet();
-addEventListener("pointerdown", (event) => pressedPath = new WeakSet(event.composedPath()), { capture: true });
+function copySize(block) {
+	const style = getComputedStyle(block);
+	const chosen = style.getPropertyValue("--lf-code-copy-size").trim() || (block.localName === "pre" ? style.lineHeight : "");
+	return CSS.supports("width", chosen) ? chosen : "";
+}
+function setCopySize(copy, size) {
+	if (size) copy.style.setProperty("--lf-code-copy-size", size);
+	else copy.style.removeProperty("--lf-code-copy-size");
+}
 onCurrentLocation((node) => {
 	for (let at = node; at; at = upFrom(at)) {
 		const copy = controls.get(at);
@@ -1256,7 +1319,7 @@ function prepareCodeBlock(pre, source, noun) {
 			error: `Unable to copy ${noun}`
 		});
 		copy.addEventListener("click", (event) => {
-			if (event.detail && !pressedPath.has(copy)) {
+			if (pressedElsewhere(event, copy)) {
 				event.preventDefault();
 				event.stopImmediatePropagation();
 			} else copy.value = source();
@@ -1278,7 +1341,9 @@ function declareCopy(pre, copy, noun) {
 	}]));
 }
 function copyBlock(block, source, noun) {
+	const size = copySize(block);
 	const copy = aimControl(prepareCodeBlock(block, source, noun));
+	setCopySize(copy, size);
 	declareCopy(block, copy, noun);
 	return copy;
 }
@@ -1292,10 +1357,12 @@ function watchCodeBlocks() {
 			const prepared = blocks.filter((pre) => pre.getRootNode() === document).map((pre) => [
 				pre,
 				prepareCodeBlock(pre, () => pre.querySelector(":scope > code").textContent, "code"),
-				headerLevels(pre)
+				headerLevels(pre),
+				copySize(pre)
 			]);
-			for (const [pre, pending, levels] of prepared) {
+			for (const [pre, pending, levels, size] of prepared) {
 				const copy = aimControl(pending);
+				setCopySize(copy, size);
 				standInChrome(copy, pre, levels);
 				copy.tabIndex = -1;
 				claimReachStop(pre);
@@ -1321,6 +1388,346 @@ function watchCodeBlocks() {
 			releaseReachStop(pre);
 			projectCommandScope(pre, COPY_SCOPE, null);
 		}
+	});
+}
+
+//#endregion
+//#region runtime/keyboard/register.js
+watchCommandScopes(() => [...[...scopes.values()].flat(), { rows: [...commands.values()] }]);
+const ELEMENTS = Symbol("the scopes of the focused element");
+const PAGE = Symbol("the page's own keys");
+const RUNGS = Symbol("Escape's fallback ladder");
+const COMMAND_REFERENCE = "command.reference.open";
+const GO_TO = "navigation.go-to.open";
+const STACK = [
+	"command reference",
+	"page map",
+	"go to",
+	"response options",
+	"reactions",
+	"page search",
+	"target picker",
+	ELEMENTS,
+	"region capture",
+	"current-location",
+	"versions",
+	"composer",
+	"text entry",
+	"thread",
+	"link",
+	"disclosure",
+	"heading",
+	"draw mode",
+	"design mode",
+	"todo",
+	PAGE,
+	RUNGS
+];
+const RUNG_LADDER = [
+	"selection",
+	"margin options",
+	"floating panel",
+	"draw mode",
+	"design mode",
+	"page"
+];
+const PAGE_COMMANDS = [
+	"comment.create",
+	"writing.resume",
+	"selection.restore",
+	"target.picker.open",
+	"reaction.open",
+	"page.search.open",
+	"page.search.repeat",
+	"thread.walk",
+	"queue.walk",
+	"page.move",
+	"scroll.move",
+	"reading.align.top",
+	"thread.unread.first",
+	"navigation.panel.threads",
+	"navigation.panel.queue",
+	"navigation.panel.leaves",
+	"navigation.page-map",
+	"version.open",
+	"history.undo",
+	GO_TO,
+	"draw.mode.enter",
+	"capture.region.open",
+	"design.mode.enter",
+	"annotations.toggle",
+	"panel.floating.fold",
+	COMMAND_REFERENCE,
+	"browser.caret",
+	"aim.comment"
+];
+const scopes = /* @__PURE__ */ new Map();
+const commands = /* @__PURE__ */ new Map();
+const rungs = /* @__PURE__ */ new Map();
+let resolved = null;
+let validated = false;
+const place = (where, name) => {
+	if (!where.includes(name)) throw new Error(`leaf: ${String(name)} has no place in the page's keyboard`);
+};
+function pageScope(name, declaration) {
+	place(STACK, name);
+	if (declaration.ready !== void 0) declareCommandReadiness(declaration.rows, declaration.ready);
+	const declarations = scopes.get(name) ?? [];
+	declarations.push(declaration);
+	scopes.set(name, declarations);
+	resolved = null;
+	validated = false;
+	paintKeys();
+	return () => {
+		const remaining = scopes.get(name)?.filter((item) => item !== declaration) ?? [];
+		if (remaining.length) scopes.set(name, remaining);
+		else scopes.delete(name);
+		resolved = null;
+		validated = false;
+		paintKeys();
+	};
+}
+function pageCommand(row) {
+	place(PAGE_COMMANDS, row.id);
+	if (commands.has(row.id)) throw new Error(`leaf: ${row.id} is declared twice`);
+	commands.set(row.id, row);
+	resolved = null;
+	validated = false;
+	paintKeys();
+	return row;
+}
+function pageRung(name, reading) {
+	place(RUNG_LADDER, name);
+	const readings = rungs.get(name) ?? [];
+	readings.push(reading);
+	rungs.set(name, readings);
+	return () => {
+		const remaining = rungs.get(name)?.filter((item) => item !== reading) ?? [];
+		if (remaining.length) rungs.set(name, remaining);
+		else rungs.delete(name);
+	};
+}
+function rung() {
+	const steps = [];
+	for (const name of RUNG_LADDER) for (const reading of rungs.get(name) ?? []) {
+		const step = reading();
+		if (step) steps.push({
+			...step,
+			name
+		});
+	}
+	const here = focused();
+	let surface = null;
+	for (const { root } of steps) {
+		if (!root || root === document || !renderedUnder(here, root)) continue;
+		if (!surface || renderedUnder(root, surface)) surface = root;
+	}
+	const holds = (step) => renderedUnder(step.root ?? document, surface);
+	return (surface && steps.find(holds)) ?? steps[0] ?? null;
+}
+const BACK_OUT = {
+	id: "navigation.back",
+	keys: ["Escape"],
+	title: () => rung() ? titleOf(rung()) : "Back",
+	description: () => rung() ? descriptionOf(rung()) : void 0,
+	when: () => Boolean(rung()),
+	run: () => rung().out()
+};
+function assemble() {
+	const rows = PAGE_COMMANDS.flatMap((id) => commands.has(id) ? [commands.get(id)] : []);
+	const unanswered = rows.filter((row) => row.touch === void 0).map((row) => row.id);
+	if (unanswered.length) throw new Error(`leaf: ${unanswered.join(", ")} must declare \`touch\`: its words under a finger, or false where a finger reaches it directly`);
+	const unreached = [...scopes.values()].flat().flatMap((scope) => scope.rows).filter((row) => row.run && !row.exit && row.touch !== false).map((row) => row.id);
+	if (unreached.length) throw new Error(`leaf: ${unreached.join(", ")} must be its stance's \`exit\` or declare \`touch: false\`: only a page command takes a finger's words`);
+	return STACK.flatMap((name) => {
+		if (name === PAGE) return { rows };
+		if (name === RUNGS) return {
+			root: () => rung()?.root ?? document,
+			rows: [BACK_OUT]
+		};
+		if (typeof name !== "string") return name;
+		return scopes.get(name) ?? [];
+	});
+}
+function pageScopes() {
+	if (offlineInteractive) return [ELEMENTS];
+	resolved ??= assemble();
+	if (!validated) {
+		validated = true;
+		for (const scope of resolved) if (typeof scope !== "symbol") checked(scope.rows, scope.title ?? "the page's own keys");
+	}
+	return resolved;
+}
+const namedScopes = () => STACK.flatMap((name) => typeof name === "string" ? scopes.get(name) ?? [] : []);
+const exitOf = (scope) => scope.rows.find((row) => row.exit) ?? null;
+function touchPresses() {
+	pageScopes();
+	return PAGE_COMMANDS.flatMap((id) => commands.has(id) ? touchPresses$1(commands.get(id)) : []);
+}
+function stances() {
+	pageScopes();
+	return namedScopes().flatMap((scope) => {
+		const exit = exitOf(scope);
+		return exit ? [{
+			scope,
+			exit
+		}] : [];
+	});
+}
+const universalCommandReference = () => offlineInteractive ? void 0 : commands.get(COMMAND_REFERENCE);
+const textEntryScope = () => scopes.get("text entry")?.[0];
+const allButCommandReference = (binding) => !bindings(universalCommandReference()).includes(binding);
+const pageDoor = (binding) => [COMMAND_REFERENCE, GO_TO].some((id) => commands.has(id) && bindings(commands.get(id)).includes(binding));
+
+//#endregion
+//#region runtime/heading-links.js
+const HEADING = "h1, h2, h3, h4, h5, h6";
+const links = /* @__PURE__ */ new Map();
+const owners = /* @__PURE__ */ new WeakMap();
+function headingAddress(heading) {
+	let address = isAddressable(heading) ? heading : null;
+	for (let at = heading.parentElement; at && leadingTitle(at) === heading;) {
+		if (isAddressable(at)) address = at;
+		at = at.parentElement;
+	}
+	return address;
+}
+function headingAt(node) {
+	const heading = (node?.nodeType === Node.ELEMENT_NODE ? node : node?.parentElement)?.closest(HEADING);
+	return heading && heading.getRootNode() === document && !inChrome(heading) ? heading : null;
+}
+function headingOn(node) {
+	if (node?.nodeType !== Node.ELEMENT_NODE) return null;
+	if (headingAt(node) === node) return headingAddress(node) ? node : null;
+	const title = leadingTitle(node);
+	return title && headingAt(title) === title && headingAddress(title) === node ? title : null;
+}
+const linkUrl = (address) => new URL(`#${encodeURIComponent(address.id)}`, location.href).href;
+function makeLink(heading) {
+	const control = copyControl("lf-heading-link", {
+		label: "Copy link to section",
+		success: "Link copied",
+		error: "Unable to copy link"
+	});
+	control.append(Object.assign(iconElement("link", "lf-heading-link-icon"), { slot: "copy-icon" }));
+	control.tabIndex = -1;
+	const link = {
+		heading,
+		control,
+		shown: /* @__PURE__ */ new Set(),
+		events: new AbortController(),
+		stop: () => {}
+	};
+	control.addEventListener("click", (event) => {
+		const address = headingAddress(heading);
+		if (address && !pressedElsewhere(event, control)) {
+			control.value = linkUrl(address);
+			return;
+		}
+		event.preventDefault();
+		event.stopImmediatePropagation();
+	}, { capture: true });
+	tabFromBlock(control, heading, link.events.signal);
+	owners.set(control, heading);
+	links.set(heading, link);
+	link.stop = watchOwner(heading, { disconnect: () => retire(link) });
+	const reading = anchorControl(control, heading);
+	const levels = headerLevels(heading);
+	const insets = readInsets(heading);
+	const line = firstLine(heading);
+	aimControl(reading);
+	writeInsets(control, insets);
+	standInChrome(control, heading, levels);
+	writeLine(control, line);
+	return link;
+}
+function firstLine(heading) {
+	const box = heading.getBoundingClientRect();
+	const range = document.createRange();
+	range.selectNodeContents(heading);
+	const line = range.getClientRects()[0];
+	return line ? {
+		top: line.top - box.top,
+		height: line.height
+	} : {
+		top: 0,
+		height: box.height
+	};
+}
+function writeLine(control, { top, height }) {
+	for (const [property, length] of [["--lf-heading-link-top", top], ["--lf-heading-link-line", height]]) {
+		const value = layoutPx(length);
+		if (control.style.getPropertyValue(property) !== value) control.style.setProperty(property, value);
+	}
+}
+function retire(link) {
+	link.stop();
+	link.events.abort();
+	releaseControl(link.control);
+	links.delete(link.heading);
+}
+function show(heading, reason, force) {
+	let link = links.get(heading);
+	if (force && !headingAddress(heading)) {
+		if (link) retire(link);
+		return null;
+	}
+	if (force && !link) link = makeLink(heading);
+	else if (force) {
+		revealControl(link.control, heading);
+		writeLine(link.control, firstLine(heading));
+	}
+	if (!link) return null;
+	link.shown[force ? "add" : "delete"](reason);
+	link.control.classList.toggle("lf-heading-link-shown", link.shown.size > 0);
+	return link;
+}
+function watchHeadingLinks() {
+	if (document.documentElement.lfSample) return;
+	let hovered = null;
+	const hover = (heading) => {
+		if (heading === hovered) return;
+		if (hovered) show(hovered, "hover", false);
+		hovered = heading;
+		if (heading) show(heading, "hover", true);
+	};
+	addEventListener("pointerover", (event) => {
+		if (event.pointerType === "touch") return;
+		const target = event.target;
+		const control = target instanceof Element && target.closest(".lf-heading-link");
+		hover(control ? owners.get(control) : headingAt(target));
+	}, { capture: true });
+	addEventListener("pointerout", (event) => {
+		if (!event.relatedTarget) hover(null);
+	}, { capture: true });
+	addEventListener("pointerdown", (event) => {
+		if (event.pointerType !== "touch") return;
+		const heading = headingAt(event.target);
+		if (heading && headingAddress(heading)) focusDestination(heading, "move");
+	}, { capture: true });
+	let current = null;
+	onCurrentLocation((node) => {
+		const heading = (node?.nodeType === Node.ELEMENT_NODE ? headingAt(node) : null) ?? headingOn(node);
+		if (heading === current) return;
+		if (current) show(current, "current", false);
+		current = heading;
+		if (heading) show(heading, "current", true);
+	});
+	pageScope("heading", {
+		title: "On a section heading",
+		root: focused,
+		at: () => Boolean(headingOn(focused())),
+		when: () => pageQueryAll(HEADING).some((heading) => headingOn(heading)),
+		rows: [{
+			id: "heading.link.copy",
+			keys: ["Enter"],
+			title: "copy link to section",
+			touch: false,
+			run: () => {
+				const heading = headingOn(focused());
+				(heading && show(heading, "current", true))?.control.shadowRoot.querySelector("button").click();
+			}
+		}]
 	});
 }
 
@@ -2093,6 +2500,7 @@ async function installDocument(scope) {
 		commitWidgetDescriptors(descriptors);
 		watchExternalLinks();
 		watchCodeBlocks();
+		watchHeadingLinks();
 		watchVideos();
 		await importWidgets(scope);
 		await settle(presentation, scope, [scope], whenApplicationPresented);
@@ -3696,193 +4104,6 @@ function anchorLabel(anchor, about) {
 		label
 	].filter(Boolean).join(" · ");
 }
-
-//#endregion
-//#region runtime/keyboard/register.js
-watchCommandScopes(() => [...[...scopes.values()].flat(), { rows: [...commands.values()] }]);
-const ELEMENTS = Symbol("the scopes of the focused element");
-const PAGE = Symbol("the page's own keys");
-const RUNGS = Symbol("Escape's fallback ladder");
-const COMMAND_REFERENCE = "command.reference.open";
-const GO_TO = "navigation.go-to.open";
-const STACK = [
-	"command reference",
-	"page map",
-	"go to",
-	"response options",
-	"reactions",
-	"page search",
-	"target picker",
-	ELEMENTS,
-	"region capture",
-	"current-location",
-	"todo",
-	"versions",
-	"composer",
-	"text entry",
-	"thread",
-	"link",
-	"disclosure",
-	"draw mode",
-	"design mode",
-	PAGE,
-	RUNGS
-];
-const RUNG_LADDER = [
-	"selection",
-	"margin options",
-	"floating panel",
-	"draw mode",
-	"design mode",
-	"page"
-];
-const PAGE_COMMANDS = [
-	"comment.create",
-	"writing.resume",
-	"selection.restore",
-	"target.picker.open",
-	"reaction.open",
-	"page.search.open",
-	"page.search.repeat",
-	"thread.walk",
-	"queue.walk",
-	"page.move",
-	"scroll.move",
-	"reading.align.top",
-	"thread.unread.first",
-	"navigation.panel.threads",
-	"navigation.panel.queue",
-	"navigation.panel.leaves",
-	"navigation.page-map",
-	"version.open",
-	"history.undo",
-	GO_TO,
-	"draw.mode.enter",
-	"capture.region.open",
-	"design.mode.enter",
-	"annotations.toggle",
-	"panel.floating.fold",
-	COMMAND_REFERENCE,
-	"browser.caret",
-	"aim.comment"
-];
-const scopes = /* @__PURE__ */ new Map();
-const commands = /* @__PURE__ */ new Map();
-const rungs = /* @__PURE__ */ new Map();
-let resolved = null;
-let validated = false;
-const place = (where, name) => {
-	if (!where.includes(name)) throw new Error(`leaf: ${String(name)} has no place in the page's keyboard`);
-};
-function pageScope(name, declaration) {
-	place(STACK, name);
-	if (declaration.ready !== void 0) declareCommandReadiness(declaration.rows, declaration.ready);
-	const declarations = scopes.get(name) ?? [];
-	declarations.push(declaration);
-	scopes.set(name, declarations);
-	resolved = null;
-	validated = false;
-	paintKeys();
-	return () => {
-		const remaining = scopes.get(name)?.filter((item) => item !== declaration) ?? [];
-		if (remaining.length) scopes.set(name, remaining);
-		else scopes.delete(name);
-		resolved = null;
-		validated = false;
-		paintKeys();
-	};
-}
-function pageCommand(row) {
-	place(PAGE_COMMANDS, row.id);
-	if (commands.has(row.id)) throw new Error(`leaf: ${row.id} is declared twice`);
-	commands.set(row.id, row);
-	resolved = null;
-	validated = false;
-	paintKeys();
-	return row;
-}
-function pageRung(name, reading) {
-	place(RUNG_LADDER, name);
-	const readings = rungs.get(name) ?? [];
-	readings.push(reading);
-	rungs.set(name, readings);
-	return () => {
-		const remaining = rungs.get(name)?.filter((item) => item !== reading) ?? [];
-		if (remaining.length) rungs.set(name, remaining);
-		else rungs.delete(name);
-	};
-}
-function rung() {
-	const steps = [];
-	for (const name of RUNG_LADDER) for (const reading of rungs.get(name) ?? []) {
-		const step = reading();
-		if (step) steps.push({
-			...step,
-			name
-		});
-	}
-	const here = focused();
-	let surface = null;
-	for (const { root } of steps) {
-		if (!root || root === document || !renderedUnder(here, root)) continue;
-		if (!surface || renderedUnder(root, surface)) surface = root;
-	}
-	const holds = (step) => renderedUnder(step.root ?? document, surface);
-	return (surface && steps.find(holds)) ?? steps[0] ?? null;
-}
-const BACK_OUT = {
-	id: "navigation.back",
-	keys: ["Escape"],
-	title: () => rung() ? titleOf(rung()) : "Back",
-	description: () => rung() ? descriptionOf(rung()) : void 0,
-	when: () => Boolean(rung()),
-	run: () => rung().out()
-};
-function assemble() {
-	const rows = PAGE_COMMANDS.flatMap((id) => commands.has(id) ? [commands.get(id)] : []);
-	const unanswered = rows.filter((row) => row.touch === void 0).map((row) => row.id);
-	if (unanswered.length) throw new Error(`leaf: ${unanswered.join(", ")} must declare \`touch\`: its words under a finger, or false where a finger reaches it directly`);
-	const unreached = [...scopes.values()].flat().flatMap((scope) => scope.rows).filter((row) => row.run && !row.exit && row.touch !== false).map((row) => row.id);
-	if (unreached.length) throw new Error(`leaf: ${unreached.join(", ")} must be its stance's \`exit\` or declare \`touch: false\`: only a page command takes a finger's words`);
-	return STACK.flatMap((name) => {
-		if (name === PAGE) return { rows };
-		if (name === RUNGS) return {
-			root: () => rung()?.root ?? document,
-			rows: [BACK_OUT]
-		};
-		if (typeof name !== "string") return name;
-		return scopes.get(name) ?? [];
-	});
-}
-function pageScopes() {
-	if (offlineInteractive) return [ELEMENTS];
-	resolved ??= assemble();
-	if (!validated) {
-		validated = true;
-		for (const scope of resolved) if (typeof scope !== "symbol") checked(scope.rows, scope.title ?? "the page's own keys");
-	}
-	return resolved;
-}
-const namedScopes = () => STACK.flatMap((name) => typeof name === "string" ? scopes.get(name) ?? [] : []);
-const exitOf = (scope) => scope.rows.find((row) => row.exit) ?? null;
-function touchPresses() {
-	pageScopes();
-	return PAGE_COMMANDS.flatMap((id) => commands.has(id) ? touchPresses$1(commands.get(id)) : []);
-}
-function stances() {
-	pageScopes();
-	return namedScopes().flatMap((scope) => {
-		const exit = exitOf(scope);
-		return exit ? [{
-			scope,
-			exit
-		}] : [];
-	});
-}
-const universalCommandReference = () => offlineInteractive ? void 0 : commands.get(COMMAND_REFERENCE);
-const textEntryScope = () => scopes.get("text entry")?.[0];
-const allButCommandReference = (binding) => !bindings(universalCommandReference()).includes(binding);
-const pageDoor = (binding) => [COMMAND_REFERENCE, GO_TO].some((id) => commands.has(id) && bindings(commands.get(id)).includes(binding));
 
 //#endregion
 //#region runtime/composing/capture.js
@@ -5728,6 +5949,21 @@ function workingMessage(thread, attention, messages) {
 		condition
 	});
 }
+function threadTodos(todos, done) {
+	if (!todos.length) return nothing;
+	return html`<ul class="lf-thread-todos">
+    ${todos.map((todo) => html`<li class="lf-thread-todo">
+          <span class="lf-thread-todo-title">To-do · ${todo.title}</span
+          ><button
+            type="button"
+            class="lf-btn lf-thread-action"
+            @click=${() => done(todo.id)}
+          >
+            Done
+          </button>
+        </li>`)}
+  </ul>`;
+}
 function threadReading(thread, surface, commands) {
 	const resolved = Boolean(thread.resolved);
 	const settling = Boolean(thread.settling);
@@ -5766,6 +6002,10 @@ function threadReading(thread, surface, commands) {
 			pending: settling
 		}),
 		reply: replyAvailable(thread),
+		todos: Object.freeze(thread.userTodos.map(({ id, title }) => Object.freeze({
+			id,
+			title
+		}))),
 		summaries: Object.freeze(thread.summaries),
 		messages: Object.freeze(messages),
 		working: workingMessage(thread, attention, messages),
@@ -5945,7 +6185,7 @@ var ThreadView = class {
 		});
 		if (reply && !this.#reply) this.#reply = this.#createReply(model);
 		const body = html`
-      ${this.#transcript.node}
+      ${threadTodos(model.todos, (id) => this.#commands.todos.done(id))}${this.#transcript.node}
       ${threadActions ? marginControls ? html`<div class="lf-margin-thread-controls">${threadActions}</div>` : html`<div class="lf-thread-controls" data-lf-reflow="text">
                 ${news}${threadActions}
               </div>` : nothing}
@@ -6755,4 +6995,4 @@ function surfaceFocusTarget(name, { part = "reply" } = {}) {
 }
 
 //#endregion
-export { DESIGN_MODE_KEY, ELEMENTS, HOLDS_WORD, HeldNews, HeldReading, MessageView, PAGE_DRAFT, PAGE_SCOPE, SAYS_IN, SAY_BOX, THREAD, ThreadView, Transcript, allButCommandReference, allThreads, alreadyShown, anchorLabel, answeredInWords, arrivalOf, authoredHolder, beginThreadSeats, beginWalk, blocksOnScreen, bringBackSurfaceOf, captureDraftEditing, capturePlace, carryingThreadPlace, claimSeatReplies, claimed, clearDraft, commitThreadSeats, completeReadingReturn, copyBlock, createPassageSelection, createReplyView, createWritingResume, currentLocationOrigin, currentLocationThreadId, declareOffFlowSurface, declareSide, declareThreadParts, designName, dismissReply, dismissReplyAt, draftContexts, draftEditingDestination, draftEditingStands, draftHasContent, draftStore, drawnThreadId, ensureSyntaxLanguage, fitsWhole, focusThread, focusedInView, focusedThreadTarget, followBoxGrowth, formatDeclaredMarkdown, hasLandmark, heldGrowth, heldObligation, heldOut, heldThread, heldThreadId, highlightBlocks, holdReplyCompositions, holdThreadPlace, holdToRead, importWidgets, inlineMarkdownFragment, isExternalPageLink, isPagePaint, isPageWidgetWorkflow, isWorkflowProgress, keepRefusedWords, keepThreadLanding, keepView, landingPlace, landingRoom, langForPath, leftThePage, listWalkPosition, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, markdownSourceOffset, markdownWords, messageHolding, messageReading, messageText, mirrorDraft, mountFirstMessage, newsNotice, obligationEntry, obligationHolding, obligationPlace, obligationsIn, onReadingInterrupted, openMessageEditIn, openingPassage, openingView, pageCommand, pageDoor, pageReadingBlock, pageRung, pageScope, pageScopes, pageSelection, paintMarkdown, passageBlock, patchDocument, placeKeeper, placeNode, placeOf, placeOffset, placePageThreads, placedMarkdownTokens, preloadWidgets, prepareAuthoredMessage, prepareDeclaredMarkdown, progressFace, quietWord, quoteReading, rawOffsetFits, readBoxPlace, readObligations, readThreads, readingBlock, readingIsContinuous, readingReturn, registerWritingDestination, reindexPassageOwners, releaseAuthoredUnder, releaseOutlets, releaseReplies, rememberPassageParts, rememberWriting, renderMarginThread, renderMarkdown, renderQuiet, renderSeats, renderSurfaces, replyAvailable, replyCompositionHasDraft, replyContext, replyDestination, replyDraftContext, replyDraftsHold, replyIsEditing, restoreDraftEditing, restorePlace, restoreReplyEditing, restrictUserIntent, retainThreadSeats, retainUserIntent, revealHeld, rowWalk, saveDraft, scrollIntoReadingBand, scrollIntoView, scrollThreadIntoView, selectionAnchor, sendDraft, sendLanding, sendMessage, settleAcceptedDrafts, settleThread, showHeld, showHeldThread, showReturnTurn, snapSelection, stances, stepFrom, storedDraft, strongestWorkflow, surfaceFocusTarget, synNodes, syntax, tabStore, tellDraft, textBlocks, textEntryScope, threadAttention, threadDraft, threadFocusDestination, threadHeading, threadIdNamed, threadList, threadName, threadNamed, threadPart, threadReading, threadReplyInput, threadRewrites, threadState, threadSummary, threadSurface, todoLabel, tokenLines, touchPresses, transferDraft, universalCommandReference, upgradeWidgets, userStore, walkOrigin, walkPosition, walkPositionLabel, watchDraft, watchDrafts, watchThreadSurfaces, whereDraft, wholeThread, workflowLabel, workflowStep };
+export { DESIGN_MODE_KEY, ELEMENTS, HOLDS_WORD, HeldNews, HeldReading, MessageView, PAGE_DRAFT, PAGE_SCOPE, SAYS_IN, SAY_BOX, THREAD, ThreadView, Transcript, allButCommandReference, allThreads, alreadyShown, anchorLabel, answeredInWords, arrivalOf, authoredHolder, beginThreadSeats, beginWalk, blocksOnScreen, bringBackSurfaceOf, captureDraftEditing, capturePlace, carryingThreadPlace, claimSeatReplies, claimed, clearDraft, commitThreadSeats, completeReadingReturn, copyBlock, createPassageSelection, createReplyView, createWritingResume, currentLocationOrigin, currentLocationThreadId, declareOffFlowSurface, declareSide, declareThreadParts, designName, dismissReply, dismissReplyAt, draftContexts, draftEditingDestination, draftEditingStands, draftHasContent, draftStore, drawnThreadId, ensureSyntaxLanguage, fitsWhole, focusThread, focusedInView, focusedThreadTarget, followBoxGrowth, formatDeclaredMarkdown, hasLandmark, heldGrowth, heldObligation, heldOut, heldThread, heldThreadId, highlightBlocks, holdReplyCompositions, holdThreadPlace, holdToRead, importWidgets, inlineMarkdownFragment, isExternalPageLink, isPagePaint, isPageWidgetWorkflow, isWorkflowProgress, keepRefusedWords, keepThreadLanding, keepView, landingPlace, landingRoom, langForPath, leftThePage, listWalkPosition, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, markdownSourceOffset, markdownWords, messageHolding, messageReading, messageText, mirrorDraft, mountFirstMessage, newsNotice, obligationEntry, obligationHolding, obligationPlace, obligationsIn, onReadingInterrupted, openMessageEditIn, openingPassage, openingView, pageCommand, pageDoor, pageReadingBlock, pageRung, pageScope, pageScopes, pageSelection, paintMarkdown, passageBlock, patchDocument, placeKeeper, placeNode, placeOf, placeOffset, placePageThreads, placedMarkdownTokens, preloadWidgets, prepareAuthoredMessage, prepareDeclaredMarkdown, progressFace, quietWord, quoteReading, rawOffsetFits, readBoxPlace, readObligations, readThreads, readingBlock, readingIsContinuous, readingReturn, registerWritingDestination, reindexPassageOwners, releaseAuthoredUnder, releaseOutlets, releaseReplies, rememberPassageParts, rememberWriting, renderMarginThread, renderMarkdown, renderQuiet, renderSeats, renderSurfaces, replyAvailable, replyCompositionHasDraft, replyContext, replyDestination, replyDraftContext, replyDraftsHold, replyIsEditing, replyThreadKey, restoreDraftEditing, restorePlace, restoreReplyEditing, restrictUserIntent, retainThreadSeats, retainUserIntent, revealHeld, rowWalk, saveDraft, scrollIntoReadingBand, scrollIntoView, scrollThreadIntoView, selectionAnchor, sendDraft, sendLanding, sendMessage, settleAcceptedDrafts, settleThread, showHeld, showHeldThread, showReturnTurn, snapSelection, stances, stepFrom, storedDraft, strongestWorkflow, subjectPlace, surfaceFocusTarget, synNodes, syntax, tabStore, tellDraft, textBlocks, textEntryScope, threadAttention, threadDraft, threadFocusDestination, threadHeading, threadIdNamed, threadList, threadName, threadNamed, threadPart, threadReading, threadReplyInput, threadRewrites, threadState, threadSummary, threadSurface, threadTodos, todoLabel, tokenLines, touchPresses, transferDraft, universalCommandReference, upgradeWidgets, userStore, walkOrigin, walkPosition, walkPositionLabel, watchDraft, watchDrafts, watchThreadSurfaces, whereDraft, wholeThread, workflowLabel, workflowStep };

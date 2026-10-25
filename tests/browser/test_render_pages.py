@@ -256,7 +256,7 @@ def test_a_written_anchor_keeps_its_copy_when_the_page_grows_another(browser, se
         cli_model.cli,
         [
             "thread",
-            "open",
+            "create",
             str(d),
             "--quote",
             "The version stamp never lands",
@@ -286,7 +286,7 @@ def stand_on_thread(page, thread_id):
     stands selected."""
     open_panel_thread(page, thread_id)
     page.locator(".lf-fp-aux").get_by_role(
-        "button", name="On the page", exact=True
+        "button", name="Show on page", exact=True
     ).click()
     panel_settled(page, open=False)
 
@@ -306,7 +306,7 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
             cli_model.cli,
             [
                 "thread",
-                "open",
+                "create",
                 str(d),
                 "--quote",
                 "Retries are capped at three",

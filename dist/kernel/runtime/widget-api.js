@@ -3,14 +3,15 @@ import { TEXT_BOX, TEXT_FIELD, afterScript, atLayoutPrecision, cancelAnimation, 
 import { LAYOUT, LayerRefused, PAGE_PAINT_ATTRIBUTE, PRESS, PRESSABLE, announce, closeNativeLayer, commandScope, commandsOn, cycledRow, declarationFor, dragging, el, elementsDeclaring, frameFor, generated, generatedElement, growthIsSeen, iconElement, iconTemplate, inBaseLayer, keys, labelOf, landingInsets, layerFact, layoutChanged, matchesWhen, measure, motionPreview, notice, offer, offered, paintKeys, plainPress, pressIsKeyboardActivation, raiseError, reachedForWords, registry, relabel, removeRuntimeRootStyle, requestJson, rowArrows, saying, searchField, selectableOffer, selectableOffered, setRuntimeRootStyle, showNativeLayer, shownParts, shownWindow, whileConnected, worksInside } from "./bundle-layer-client.js";
 import { agentName, applicationRegionsPresented, applicationState, offlineInteractive, pageUrl, projectionRegionsPresented, readPart, revisionLabel } from "./bundle-context.js";
 import { PAGE_INTERFACE, PRESENTATION, afterPresentation, ago, atScrollEnd, clockValue, compoundReadingRegionId, deferredArrival, pageScroller, preserveReadingRegions, quietSince, regionScrollBehavior, registerReadingRegion, scrollLimit, scrollerFor, shortAgo, showReadingSubject, watchReadingRegionTransitions } from "./bundle-reading-regions.js";
-import { LeafEditorView, LeafElement, answerWords, claimTraversals, comparisonChanges, consumeAnnotations, currentProjection, landInThread, loadDeferred, navigateToDatum, obligationActions, placePageThreads, projectData, publishOutput, pushEntry, queueActions, queueItemKey, queueTitle, readQueues, referencedProjection, registerThreadPresentation, replaceEntry, requireReference, threadActions, threadBox, threadInput, widgetController, wireInput } from "./bundle-answer.js";
+import { claimTraversals, comparisonChanges, pushEntry, referencedProjection, replaceEntry, requireReference } from "./bundle-version.js";
 import { alignText, authoredScope, closestAcross, elementById, excerptWords, inChrome, renderRetired, says, textNodesUnder, wrote } from "./bundle-passages.js";
-import { addressableLabel, addressableName, addressableWord, addressedElements, fragmentTarget, projectedDatum, registerVisualParts } from "./bundle-css-anchors.js";
+import { addressableLabel, addressableName, addressableWord, addressedElements, fragmentTarget, projectedDatum, registerVisualParts } from "./bundle-content-layout.js";
 import { initialRender } from "./bundle-initial-render.js";
 import { HOLDS_WORD, HeldReading, allButCommandReference, anchorLabel, answeredInWords, beginWalk, capturePlace, clearDraft, copyBlock, ensureSyntaxLanguage, fitsWhole, heldGrowth, highlightBlocks, inlineMarkdownFragment, keepView, langForPath, listWalkPosition, loadDraft, loadMarkdown, markdownReady, markdownSourceOffset, markdownWords, obligationsIn, openingView, paintMarkdown, placeKeeper, placeOf, quietWord, readObligations, readThreads, releaseOutlets, renderMarkdown, restorePlace, retainUserIntent, rowWalk, saveDraft, scrollIntoReadingBand, scrollIntoView, sendDraft, synNodes, syntax, tabStore, threadSummary, threadSurface, tokenLines, watchDraft } from "./bundle-surfaces.js";
 import { DISCLOSE, aborted, bodyText, dataBody, failSoft, once, placesFailure, quoted, reportFailure, setChildLists, setChildren, setRenderedChildren, shadowStage } from "./bundle-abort.js";
 import { backgroundFlash, foldBlock, foldDuration, motion, onMotionPreferenceChange, reducedMotion, returnDuration, scrollBehavior } from "./bundle-motion.js";
 import { isCanonicalMediaUrl, scopedMediaUrl } from "./bundle-media.js";
+import { LeafEditorView, LeafElement, answerWords, consumeAnnotations, currentProjection, landInThread, loadDeferred, navigateToDatum, obligationActions, placePageThreads, projectData, publishOutput, queueActions, queueItemKey, queueTitle, readQueues, registerThreadPresentation, threadActions, threadBox, threadInput, widgetController, wireInput } from "./bundle-answer.js";
 import { CONTRIBUTION_ENTRY_SCHEMA, contributionEntry, contributionItemKey, presentContributionEntry, presentContributionReceipts, registerContribution } from "./bundle-margin-model.js";
 import { dressSamples, wear } from "./bundle-dress.js";
 
@@ -629,91 +630,47 @@ function pixelChange(a, one, b, other, x, y) {
 }
 const FAINT = 40;
 const FAR = 96;
-function changedPixels(a, b) {
+async function changedPixels(a, b) {
+	const { default: diff } = await import("/vendor/blazediff.js");
 	const width = Math.max(a.width, b.width);
 	const height = Math.max(a.height, b.height);
+	const data = new Uint8ClampedArray(width * height * 4);
+	diff(padded(a, width, height), padded(b, width, height), data, width, height, {
+		threshold: 0,
+		includeAA: true,
+		diffMask: true,
+		diffColor: [
+			0,
+			0,
+			0
+		]
+	});
 	const one = words(a);
 	const other = words(b);
-	const change = new Uint8Array(width * height);
-	for (let y = 0; y < height; y += 1) for (let x = 0; x < width; x += 1) change[y * width + x] = pixelChange(a, one, b, other, x, y);
-	const masks = {
-		before: new Uint8ClampedArray(width * height * 4),
-		after: new Uint8ClampedArray(width * height * 4),
-		both: new Uint8ClampedArray(width * height * 4)
-	};
-	const around = new Uint8Array(width * height);
-	const reached = [];
-	for (let i = 0; i < change.length; i += 1) {
-		const x = i % width;
-		const y = (i - x) / width;
-		if ((x === 0 || y === 0 || x === width - 1 || y === height - 1) && !change[i]) {
-			around[i] = 1;
-			reached.push(i);
-		}
-	}
-	for (let n = 0; n < reached.length; n += 1) {
-		const i = reached[n];
-		const x = i % width;
-		for (const j of [
-			x > 0 ? i - 1 : -1,
-			x < width - 1 ? i + 1 : -1,
-			i - width,
-			i + width
-		]) {
-			if (j < 0 || j >= change.length || change[j] || around[j]) continue;
-			around[j] = 1;
-			reached.push(j);
-		}
-	}
-	const seen = new Uint8Array(width * height);
-	for (let start = 0; start < change.length; start += 1) {
-		if (!change[start] || seen[start]) continue;
-		const run = [start];
-		seen[start] = 1;
-		const counts = /* @__PURE__ */ new Map();
-		let ground;
-		for (let n = 0; n < run.length; n += 1) {
-			const i = run[n];
-			const x = i % width;
-			const y = (i - x) / width;
-			for (const [nx, ny] of [
-				[x - 1, y],
-				[x + 1, y],
-				[x, y - 1],
-				[x, y + 1]
-			]) {
-				if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
-				const j = ny * width + nx;
-				if (change[j]) {
-					if (!seen[j]) {
-						seen[j] = 1;
-						run.push(j);
-					}
-					continue;
-				}
-				if (!around[j]) continue;
-				const q = other[ny * b.width + nx];
-				const count = (counts.get(q) ?? 0) + 1;
-				counts.set(q, count);
-				if (ground === void 0 || count > counts.get(ground)) ground = q;
+	for (let y = 0; y < height; y += 1) for (let x = 0; x < width; x += 1) {
+		const alpha = (y * width + x) * 4 + 3;
+		const inA = x < a.width && y < a.height;
+		if (inA !== (x < b.width && y < b.height)) data[alpha] = 255;
+		else if (inA) {
+			const p = one[y * a.width + x];
+			const q = other[y * b.width + x];
+			if (data[alpha] || p >>> 24 !== q >>> 24) {
+				const far = Math.min(distance(p, q), FAR);
+				data[alpha] = FAINT + 215 * far / FAR;
 			}
-		}
-		for (const i of run) {
-			const x = i % width;
-			const y = (i - x) / width;
-			const p = x < a.width && y < a.height ? one[y * a.width + x] : void 0;
-			const q = x < b.width && y < b.height ? other[y * b.width + x] : void 0;
-			const drawsA = q === void 0 || p !== void 0 && (ground === void 0 || distance(p, ground) >= SLIGHT);
-			const mask = drawsA === (p === void 0 || q !== void 0 && (ground === void 0 || distance(q, ground) >= SLIGHT)) ? masks.both : drawsA ? masks.before : masks.after;
-			const far = p === void 0 || q === void 0 ? FAR : Math.min(distance(p, q), FAR);
-			mask[i * 4 + 3] = FAINT + 215 * far / FAR;
 		}
 	}
 	return {
 		width,
 		height,
-		...masks
+		data
 	};
+}
+function padded(image, width, height) {
+	if (image.width === width && image.height === height) return image.data;
+	const data = new Uint8ClampedArray(width * height * 4);
+	for (let y = 0; y < image.height; y += 1) data.set(image.data.subarray(y * image.width * 4, (y + 1) * image.width * 4), y * width * 4);
+	return data;
 }
 function differenceKind({ changed, throughout, regions }) {
 	if (!changed) return "identical";

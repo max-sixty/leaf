@@ -487,6 +487,29 @@ OVER_ITS_CONTAINER = LONG_PAGE.replace(
     "<style>lf-test-drawing-control { display: block; width: 90px; }"
     "#clipped-drawing { width: 200px; }</style></head>",
 )
+_LOG_LINES = "\n".join(f"line {i}" for i in range(1, 41))
+# Boxes that cut off content of their own, which has no box for a container to lose,
+# beside boxes that cut on purpose and say so. A <pre> scrolls sideways only, so a
+# max-height alone hides every line past it.
+CUT_CONTENT = (
+    f"<pre id='capped-log' style='max-height: 6rem'>{_LOG_LINES}</pre>"
+    "<div id='short-box' style='height: 3rem; overflow: hidden'>"
+    "<p>First of three.</p><p>Second of three.</p><p>Third of three.</p></div>"
+    "<div id='unwrapped' style='width: 120px; overflow: hidden; white-space: nowrap'>"
+    "A label written longer than its box</div>"
+    f"<pre id='bounded-log' data-bound='start'>{_LOG_LINES}</pre>"
+    "<details id='shut-log'><summary>The whole log</summary>"
+    f"<pre id='shut-capped' style='max-height: 6rem'>{_LOG_LINES}</pre></details>"
+    "<p id='clamped' style='display: -webkit-box; -webkit-box-orient: vertical; "
+    "-webkit-line-clamp: 2; overflow: hidden'>"
+    + "A clamped summary marks its own cut. "
+    * 20
+    + "</p><p id='tight-line' style='line-height: 1; height: 1em; overflow: hidden'>"
+    "Descenders gyp</p>"
+    "<span id='listening' style='position: absolute; width: 1px; height: 1px; "
+    "overflow: hidden; clip-path: inset(50%); white-space: nowrap'>"
+    "Words for whoever is listening</span>"
+)
 DRAWING_CONTROL_LAYER = {
     "lf-test-drawing-control": {
         "description": "A native offered control inside a drawing viewport.",

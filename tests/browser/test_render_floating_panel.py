@@ -681,7 +681,7 @@ SEATS = """() => {
 def test_news_in_an_open_thread_moves_none_of_its_controls(browser, serve):
     """A thread's controls each stand where they stood while the thread changes. Retitled
     long or short, the name over the view gives or takes room at its own end, and Back,
-    On the page, Resolve and Close stay put; detached by a revision, On the page leaves
+    Show on page, Resolve and Close stay put; detached by a revision, Show on page leaves
     its seat empty; resolved by the agent, the thread's Reopen takes Resolve's seat."""
     url = serve(LONG_PAGE, comments=3, anchored=[("p3", "Paragraph 3.")])
     root = events_model.read_events(serve.page_dir)[-1]["id"]
@@ -710,7 +710,7 @@ def test_news_in_an_open_thread_moves_none_of_its_controls(browser, serve):
         settled(page)
         assert page.evaluate(SEATS) == seats
 
-    # A revision that drops the passage detaches the thread: On the page has nowhere
+    # A revision that drops the passage detaches the thread: Show on page has nowhere
     # to go, and its seat stands empty while the view does.
     append_carried_log_record(
         serve.page_dir,
@@ -3504,13 +3504,15 @@ def test_a_website_copy_says_who_revises_it_and_where_leaf_comes_from(browser, s
 def test_a_mode_entered_from_the_panel_offers_its_way_out_in_the_row(browser, serve):
     """Annotations, a row of the leaf's menu, opens a list whose Draw mode stands its ✕ at
     the row's end, beside the counts, and names the mode in the field; the ✕ leaves the
-    mode. Picking an element is left to the page, where selecting words or pressing `s`
-    starts it, so Annotations doesn't list it."""
+    mode. Annotations also lists Comment on an element for a mouse, with the `s` that
+    reaches it from the keyboard, since selecting words picks no widget or picture."""
     page = floating(browser, serve(LONG_PAGE, comments=1))
     page.locator(".lf-fp-leaf").click()
     page.locator(".lf-fp-menu .lf-fp-item", has_text="Annotations").click()
     expect(page.locator(".lf-fp-item", has_text="Capture area")).to_be_visible()
-    expect(page.locator(".lf-fp-item", has_text="Select element")).to_have_count(0)
+    pick = page.locator('.lf-fp-item[data-row="command:target.picker.open"]')
+    expect(pick).to_contain_text("Comment on an element")
+    expect(pick.locator("kbd")).to_have_text("s")
     page.locator(".lf-fp-item", has_text="Draw mode").click()
     exit_step = page.locator('.lf-fp-exit[aria-label="Exit Draw mode"]')
     expect(exit_step).to_be_visible()
@@ -3579,7 +3581,9 @@ def test_a_list_the_menu_leads_to_takes_its_place_and_goes_back(browser, serve):
     annotations.focus()
     page.keyboard.press("ArrowRight")
     expect(name).to_have_text("Annotations")
-    expect(menu.locator(".lf-fp-item", has_text="Draw mode")).to_be_focused()
+    expect(
+        menu.locator(".lf-fp-item", has_text="Comment on an element")
+    ).to_be_focused()
     page.keyboard.press("ArrowLeft")
     expect(annotations).to_be_focused()
     page.keyboard.press("Enter")
@@ -3889,8 +3893,7 @@ def test_the_row_s_marks_and_presses_share_the_words_line(browser, serve):
     """Everything in the row stands on the one line the words are written on: the
     leaf, Dictate, the counts, and Send while the user types, each centred on the
     field's last line of words, however many lines it holds. Send floats in the field's
-    end corner, as an anchored comment box's does: the words above its line run past
-    it, and the last line keeps room for it."""
+    end corner, as an anchored comment box's does, and every line keeps room for it."""
     page = open_page(browser, serve(LONG_PAGE), init_script=EDITOR_ROOTS)
     field(page).click()
     settled(page)
@@ -3907,38 +3910,8 @@ def test_the_row_s_marks_and_presses_share_the_words_line(browser, serve):
     for mark in ("leaf", "send"):
         assert abs(seats[mark] - seats["line"]) < 0.5, (mark, seats)
     assert seats["press"]["right"] == pytest.approx(seats["field"], abs=1), seats
-    # The lines above Send's own may run past its left edge (where words end depends
-    # on how they wrap); the last line's words stop short of it.
-    first_line = field(page).evaluate(
-        "host => window.editorRoots.get(host).querySelector('.cm-line')"
-        ".getBoundingClientRect().right"
-    )
-    assert first_line > seats["press"]["left"], (first_line, seats)
     lines = field(page).evaluate(WORD_LINES)
-    assert lines[-1] <= seats["press"]["left"], (lines, seats)
-
-
-def test_a_touch_panel_does_not_reserve_send_room_twice(browser, serve):
-    context = browser.new_context(
-        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
-    )
-    page = open_page(
-        browser, serve(LONG_PAGE), context=context, init_script=EDITOR_ROOTS
-    )
-    draft = field(page)
-    draft.click()
-    page.keyboard.type("The last words should have room beside Send.")
-    room = draft.evaluate("""host => {
-      const line = window.editorRoots.get(host).querySelector('.cm-line.lf-field-last');
-      return {
-        glued: host.hasAttribute('data-lf-end-room-glued'),
-        padding: getComputedStyle(window.editorRoots.get(host).querySelector('.lf-field')).paddingInlineEnd,
-        after: getComputedStyle(line, '::after').content,
-      };
-    }""")
-    assert room["glued"]
-    assert room["padding"] != "0px", room
-    assert room["after"] == "none", room
+    assert max(lines) <= seats["press"]["left"], (lines, seats)
 
 
 def test_a_long_draft_offers_more_room_at_a_press(browser, serve):

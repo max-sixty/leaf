@@ -52,7 +52,6 @@ from leaf import hooks as hooks_model
 from leaf import leases as leases_model
 from leaf import presence as presence_model
 from leaf import schema as schema_model
-from leaf import server_rows as server_rows_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as cleanup_model
@@ -624,6 +623,31 @@ def test_claude_codes_turn_confirms_what_its_hooks_hand_over(claimed, capsys):
     assert page_state(claimed)["pending"] == 0
 
 
+def prompt_watch(prompt_id: str, monkeypatch) -> tuple[threading.Thread, list]:
+    """Start the watch Claude Code's prompt registration starts in the background, and
+    return once its first pass has read the pages, with the list its wake lands in."""
+    started = threading.Event()
+    await_news = session_model.Watch.await_news
+
+    def after_a_pass(watch, mark, *args, **kwargs):
+        started.set()
+        return await_news(watch, mark, *args, **kwargs)
+
+    monkeypatch.setattr(session_model.Watch, "await_news", after_a_pass)
+    outcome = []
+    payload = {
+        "hook_event_name": "UserPromptSubmit",
+        "session_id": "s1",
+        "prompt_id": prompt_id,
+    }
+    watch = threading.Thread(
+        target=lambda: outcome.append(hooks_model.cmd_watch("claude-code", payload))
+    )
+    watch.start()
+    assert started.wait(STATED_TIMEOUT), "the prompt's watch never read the pages"
+    return watch, outcome
+
+
 def test_a_handover_its_turn_never_confirmed_is_offered_again(
     claimed, interactive, context_record, monkeypatch, capsys
 ):
@@ -631,9 +655,9 @@ def test_a_handover_its_turn_never_confirmed_is_offered_again(
     Leaf's context with it, after Leaf's hook has handed its delivery over, and the
     transcript shows none of it. Claude Code's record then reads idle, so the turn
     reads ended and what it was handed is input again, both an update that owes a
-    reply and one that owes none. With no watch from before that turn, the page's
-    server nudges the session, and the prompt that opens, under a prompt id of its
-    own, is handed it again; once the transcript shows it, the next hook confirms."""
+    reply and one that owes none. The watch the turn's prompt started wakes the
+    session, and the prompt that opens, under a prompt id of its own, is handed it
+    again; once the transcript shows it, the next hook confirms."""
     asked = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "which ships first?"}
     )
@@ -643,15 +667,12 @@ def test_a_handover_its_turn_never_confirmed_is_offered_again(
     resolve = append_carried_log_record(
         claimed, {"kind": "resolve", "author": "user", "parent": withdrawn["id"]}
     )
+    serving(claimed, 1)
+    session_model.cmd_waiting(claimed, "")
+    leases_model.mark_hooks("s1")
     live = {"state": "busy", "since": datetime.now().astimezone().isoformat()}
     monkeypatch.setattr(
         harness_model.ClaudeCodeHarness, "live_turn", lambda harness: dict(live)
-    )
-    nudged = []
-    monkeypatch.setattr(
-        harness_model.ClaudeCodeHarness,
-        "nudge",
-        lambda harness, page: nudged.append(page) or True,
     )
 
     def handed_over(prompt_id: str) -> list[str]:
@@ -672,22 +693,23 @@ def test_a_handover_its_turn_never_confirmed_is_offered_again(
     updates = [asked["id"], withdrawn["id"], resolve["id"]]
     context_record.dropped = {"p1"}
     assert handed_over("p1") == updates
-    # The page's server reads the harness's record among its live facts, and while
-    # the turn runs it finds nothing to nudge for.
-    server = server_rows_model.RowPublisher(claimed, "fixture-server")
-    server.refresh()
-    assert nudged == []
+    # While the turn runs, its prompt's watch wakes nobody.
+    watch, outcome = prompt_watch("p1", monkeypatch)
+    assert outcome == []
 
     time.sleep(0.01)
     live.update(state="idle", since=datetime.now().astimezone().isoformat())
     with service_model.PageTransaction(claimed) as page:
         assert [event["id"] for event in delivery_model.deliverable(page)] == updates
-    server.live_until = 0
-    server.refresh()
-    assert nudged == [claimed]
+    append_carried_log_record(
+        claimed, {"kind": "error", "author": "page", "text": "moves the log"}
+    )
+    watch.join(timeout=STATED_TIMEOUT)
+    [woke] = outcome
+    assert woke.startswith(f"{claimed} has new input")
     assert acknowledged_through(claimed) == 0
 
-    assert handed_over("p2") == updates
+    assert handed_over("p2")[:3] == updates
     monkeypatch.setattr(
         harness_model.ClaudeCodeHarness, "escape_sandbox", lambda harness: None
     )
@@ -695,7 +717,7 @@ def test_a_handover_its_turn_never_confirmed_is_offered_again(
         "claude-code",
         {"hook_event_name": "PreToolUse", "session_id": "s1", "prompt_id": "p2"},
     )
-    assert acknowledged_through(claimed) == resolve["seq"]
+    assert acknowledged_through(claimed) > resolve["seq"]
 
 
 def test_claude_codes_transcript_says_which_handovers_reached_the_model(tmp_path):
@@ -760,28 +782,27 @@ def test_a_boundary_handover_escape_kept_is_never_handed_over_twice(
 ):
     """Escape during a tool boundary's hooks keeps that boundary's context, so the
     transcript shows the comment the boundary handed over, and the turn ends with
-    no later hook (Claude Code 2.1.308 and 2.1.310). The page's server reads the
-    turn interrupted and nudges the session, since the comment may not have reached
-    the model. The woken prompt's hook confirms what the transcript shows first, so
-    it names the comment as owed rather than handing the delivery over again."""
+    no later hook (Claude Code 2.1.308 and 2.1.310). The watch the turn's prompt
+    started wakes the session once Claude Code reads the turn ended, since the
+    comment may not have reached the model. The woken prompt's hook confirms what
+    the transcript shows first, so it names the comment as owed rather than handing
+    the delivery over again."""
     monkeypatch.setattr(
         harness_model.ClaudeCodeHarness, "escape_sandbox", lambda harness: None
     )
+    serving(claimed, 1)
+    session_model.cmd_waiting(claimed, "")
+    leases_model.mark_hooks("s1")
     live = {"state": "busy", "since": datetime.now().astimezone().isoformat()}
     monkeypatch.setattr(
         harness_model.ClaudeCodeHarness, "live_turn", lambda harness: dict(live)
-    )
-    nudged = []
-    monkeypatch.setattr(
-        harness_model.ClaudeCodeHarness,
-        "nudge",
-        lambda harness, page: nudged.append(page) or True,
     )
     hooks_model.cmd_hook(
         "claude-code",
         {"hook_event_name": "UserPromptSubmit", "session_id": "s1", "prompt_id": "p1"},
     )
     capsys.readouterr()
+    watch, outcome = prompt_watch("p1", monkeypatch)
     asked = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "which ships first?"}
     )
@@ -792,12 +813,15 @@ def test_a_boundary_handover_escape_kept_is_never_handed_over_twice(
     boundary = json.loads(capsys.readouterr().out)["hookSpecificOutput"]
     assert asked["id"] in boundary["additionalContext"]
 
+    assert outcome == []
     time.sleep(0.01)
     live.update(state="idle", since=datetime.now().astimezone().isoformat())
-    server = server_rows_model.RowPublisher(claimed, "fixture-server")
-    server.live_until = 0
-    server.refresh()
-    assert nudged == [claimed]
+    append_carried_log_record(
+        claimed, {"kind": "error", "author": "page", "text": "moves the log"}
+    )
+    watch.join(timeout=STATED_TIMEOUT)
+    [woke] = outcome
+    assert woke.startswith(f"{claimed} has new input")
 
     hooks_model.cmd_hook(
         "claude-code",
@@ -808,7 +832,9 @@ def test_a_boundary_handover_escape_kept_is_never_handed_over_twice(
     ]
     assert acknowledged_through(claimed) == asked["seq"]
     assert asked["id"] in reminder
-    assert not reminder.startswith(hook_transport_model.INLINE_OPENING)
+    # The widget error that moved the log goes inline; the comment only as owed.
+    [batch] = json.loads(reminder.split("\n")[1])["batches"]
+    assert asked["id"] not in [event["id"] for event in batch["events"]]
 
 
 def test_a_turn_ends_on_its_answer_and_a_turn_of_its_own_names_what_it_owes(

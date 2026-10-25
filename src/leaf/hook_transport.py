@@ -59,9 +59,9 @@ So a Claude Code hook leaves the receipt to the transcript's record of the model
 context, which every later hook reads first (`delivery.confirm_entered`). Until
 then the handed input is not offered again. Once its turn reads ended, it may not
 have reached the model, so it is input again (`delivery.deliverable`): Claude Code
-submits a wake Escape interrupted again at once as a new prompt; a watch from
-before the turn wakes for it; and where none runs, the page's server nudges the
-session (`presence.nudge_interrupted`). The hook of the prompt that opens confirms
+submits a wake Escape interrupted again at once as a new prompt, and the watch
+its turn's prompt started wakes for it (`hooks.cmd_watch`). The hook of the prompt
+that opens confirms
 what the transcript shows before it reads the page, so it hands over again only
 what never reached the model, and names an update the model did read and left
 unanswered as owed.

@@ -77,10 +77,12 @@ class Harness:
       wake opens begins, and the tool-batch hook within a turn put the input in
       the turn's context (`hook_delivers`), which its transcript confirms
       (`commits_hook_context`); the other Stop hook does only under plain
-      `--print`, where no watch follows the turn (`hook_transport`). A turn that
-      ends without its Stop hooks, as an interrupt does, starts no watch, so
-      where no watch from before it runs, nothing watches while the session lives
-      on, which is why this is the harness with a `nudge`.
+      `--print`, where no watch follows the turn (`hook_transport`). The prompt
+      hook starts a watch too, which waits while its turn runs, so a turn an
+      interrupt ends without its Stop hooks still has one. A watch can still
+      stop while the session lives on, failing or at its hook's timeout, or with
+      a background job's retired worker, which is why this is the harness with a
+      `nudge`.
     - Pi runs Leaf's extension in its own process, which calls the same hooks at
       the same points of a run and starts the same watch as each run settles, and
       starts the turn the watch wakes itself.

@@ -196,9 +196,12 @@ def cmd_hook(harness: str, payload: dict) -> None:
 
 
 def cmd_watch(harness: str, payload: dict) -> str | None:
-    """The watch `harness`'s Stop hook or extension starts as a turn ends,
-    watching the session's pages until input, and what it wakes the session with, or
-    None where it ends without waking it (`session.watch_between_turns`).
+    """The watch `harness`'s Stop hook or extension starts as a turn ends, or Claude
+    Code's prompt hook as a turn starts, watching the session's pages until input,
+    and what it wakes the session with, or None where it ends without waking it
+    (`session.watch_between_turns`). A prompt's watch takes the turn it starts with
+    as a later one: it waits while that turn runs and wakes only once Escape ends it
+    with no Stop hook, since a Stop starts the watch that supersedes it.
 
     It watches only while the session holds a page, and only where its harness
     watches between turns. Pi's extension starts one with an Interrupt payload
@@ -219,7 +222,11 @@ def cmd_watch(harness: str, payload: dict) -> str | None:
         return None
     from .session import watch_between_turns
 
-    return watch_between_turns(watching, interrupted=interrupted)
+    return watch_between_turns(
+        watching,
+        interrupted=interrupted,
+        at_prompt=payload.get("hook_event_name") == "UserPromptSubmit",
+    )
 
 
 # What `cmd_pages` prints of each page, so a change to anything else stays quiet.

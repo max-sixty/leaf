@@ -531,7 +531,21 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
     )
     round_trip(page)
     rendered(page)
-    consume_browser_errors(page, http_error_console(400))
+    # The panel stands on the window's foot and a refused turn keeps no room there
+    # (#3400): the turn leaving lowers the panel's head, and the words given back to its
+    # field raise the controls standing over it. Those vertical moves inside the panel
+    # are the refusal's; every other place holds still, as does the panel's Send.
+    expected = [http_error_console(400)]
+    if place == "panel":
+        expected.append(
+            lambda problem: (
+                problem.code == "moved-without-input"
+                and problem.values["by"][0] == 0
+                and ["leaf-floating-panel.lf-ui.lf-floating-panel"]
+                in problem.values["beside"]
+            )
+        )
+    consume_browser_errors(page, *expected)
     restored = pose()
     for node in pending:
         for edge in pending[node]:

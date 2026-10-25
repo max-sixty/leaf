@@ -577,18 +577,15 @@ def refresh_keeps_selection(page, serve, document, name):
     assert page.evaluate(reading) == before, document
 
 
-# A page-authored driver that points at a code block's lines through its declared `for`,
-# from its first connection, before the block's lazy tokenizer has put any line in.
-
-
 def test_an_excerpt_shows_and_answers_to_its_source_line_numbers(browser, serve):
     """An lf-code body with `lines` is a quotation from a longer file. What the user
     reads is the file's own numbering: the gutter counts from where the quote starts
     and jumps where it skips, each skip stands as an elided row saying how much is
     left out, and the gutter widens so four digits still leave the code in line with
-    its notes. Everything that points into the block — `hi` and a note's `at` — names lines by those numbers. A left-out number addresses the elided
-    row standing for it, so a note placed there is that row's caption, and a number
-    outside the block addresses nothing. A body longer than its ranges goes on counting,
+    its notes. Everything that points into the block — `hi`, a note's `at`, a key
+    another widget navigates to — names lines by those numbers. A left-out number
+    addresses the elided row standing for it, so a note placed there is that row's
+    caption, and a number outside the block addresses nothing. A body longer than its ranges goes on counting,
     and a note past either end stands at the block's foot rather than leaving the page.
     A range far longer than the body numbers only the body's lines.
     A copied excerpt is the quoted source and the authored notes, never the numbers or
@@ -672,6 +669,13 @@ only
                  .map(r => [r.left, r.height])"""
     )
     assert caption[0] > code_x and caption[1] < 2 * gutter[1], (gutter, caption)
+
+    # The rows a key addresses, as `navigateToDatum` reads them through lfElementsFor.
+    addressed = """key => [...document.querySelector('#walk').lfElementsFor(key)]
+        .map(l => l.dataset.line ?? `${l.dataset.from}-${l.dataset.to}`)"""
+    assert page.evaluate(addressed, "1507-1550") == ["1507", "1508-1549", "1550"]
+    assert page.evaluate(addressed, "1520") == ["1508-1549"]
+    assert page.evaluate(addressed, "3") == []
 
     # The user drags from the excerpt's first word to its last.
     ends = page.locator("#walk pre").evaluate(

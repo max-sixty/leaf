@@ -94,8 +94,7 @@ const numbering = (el, count) => {
 customElements.define(
   "lf-code",
   class extends HTMLElement {
-    // The rendered lines a range addresses, none before the lines are in; the render
-    // states their arrival through layoutChanged.
+    // The rendered lines a range addresses, none before the lines are in.
     lfElementsFor(key) {
       const addressed = within(key);
       return [

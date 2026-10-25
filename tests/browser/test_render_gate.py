@@ -4,6 +4,7 @@ import itertools
 import json
 import re
 import threading
+from contextlib import contextmanager
 from html import escape
 from urllib.parse import urlsplit
 
@@ -3370,25 +3371,84 @@ def short_aim_findings(page):
     in with max(), and this sweep is what says they did: it reads the layer's selector
     list, then measures every visible control, with any reach it hangs past its box,
     under an emulated finger."""
+    return _short_aims(page, every_tab=False)
+
+
+def short_aim_findings_in_every_tab(page):
+    """The same floor, read as every tab opens it, wherever the page is sized.
+
+    A page's own CSS can shrink a control under a narrow window's rules, and a tab's
+    content stands in the layout only while that tab is open, so a reading of the first
+    tab at desktop width never met the three examples whose controls fell below the
+    floor at 390px. Each tab, and each tab inside it, is opened once and read."""
+    return _short_aims(page, every_tab=True)
+
+
+NEXT_TAB = """(opened) => {
+  // The last unopened tab in document order, so the tabs a tab opens, which stand
+  // after it, are all opened before the strip they hang from goes on to its next tab.
+  const tab = [...document.querySelectorAll('[role="tab"]')].findLast(
+    (tab) =>
+      !tab.closest('.lf-chrome') &&
+      !tab.closest('[hidden]') &&
+      tab.checkVisibility() &&
+      !opened.includes(tab.getAttribute('aria-controls')),
+  );
+  if (!tab) return null;
+  // Pressed by script: a strip that runs past a phone's width leaves tabs outside the
+  // window, and what is under test is the content the tab opens, not the strip's reach.
+  tab.click();
+  return tab.getAttribute('aria-controls');
+}"""
+
+
+def _short_aims(page, *, every_tab):
+    short, seen = {}, 0
+    # Opening a tab hands the browser a block of new layout, and under load it may say
+    # once that a ResizeObserver delivery was deferred. That is the platform's notice,
+    # which `navigate` also sets aside on a first sighting; this reading measures
+    # sizes and does not confirm the notice again.
+    outside = getattr(page, "lf_resize_notices", None)
+    page.lf_resize_notices = []
+    with under_a_finger(page):
+        opened = []
+        while True:
+            measured = page.evaluate(AIM_BOXES, aim_selectors())
+            assert measured["floor"] == 44, f"a finger asked for {measured['floor']}px"
+            seen = max(seen, measured["seen"])
+            for found in measured["short"]:
+                short.setdefault(found, []).append(opened[-1] if opened else "first")
+            tab = every_tab and page.evaluate(NEXT_TAB, opened)
+            if not tab:
+                break
+            opened.append(tab)
+            rendered(page)
+    page.lf_resize_notices = outside
+    assert seen > 30, f"only {seen} aims stood on the corpus"
+    if not short:
+        return []
+    return [
+        f"{len(short)} aims are smaller than 44px under a finger, of {seen} read:\n"
+        + "\n".join(
+            f"{found} (open on {', '.join(dict.fromkeys(tabs[:3]))})"
+            for found, tabs in sorted(short.items())
+        )
+    ]
+
+
+@contextmanager
+def under_a_finger(page):
+    """Show the page to a coarse pointer, as the aim floor's own rules read it."""
     cdp = page.context.new_cdp_session(page)
     cdp.send("Emulation.setTouchEmulationEnabled", {"enabled": True})
     try:
         assert page.evaluate("() => matchMedia('(pointer: coarse)').matches"), (
             "the touch emulation never reached Leaf's coarse-pointer rules"
         )
-        measured = page.evaluate(AIM_BOXES, aim_selectors())
+        yield
     finally:
         cdp.send("Emulation.setTouchEmulationEnabled", {"enabled": False})
         cdp.detach()
-    assert measured["floor"] == 44, f"a finger asked for {measured['floor']}px"
-    assert measured["seen"] > 50, f"only {measured['seen']} aims stood on the corpus"
-    if not measured["short"]:
-        return []
-    return [
-        f"{len(measured['short'])} of {measured['seen']} aims are smaller than "
-        f"{measured['floor']}px under a finger:\n"
-        + "\n".join(sorted(measured["short"]))
-    ]
 
 
 def pressable_paper_findings(page):

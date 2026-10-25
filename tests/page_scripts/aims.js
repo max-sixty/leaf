@@ -35,6 +35,10 @@
     !!closestAcross(over, ".lf-chrome") !== !!closestAcross(el, ".lf-chrome") ||
     closestAcross(over, TOP) !== closestAcross(el, TOP);
   const reachedBy = (el, x, y) => {
+    // A press that lands on a box hidden from the accessibility tree is another route
+    // to something a control gives, as a tab strip's paging edge stands over the tab
+    // scrolled beneath it: it stands over a face by design and takes no aim from it.
+    if (closestAcross(pressed(x, y), '[aria-hidden="true"]')) return false;
     for (let at = pressed(x, y); at; at = at.parentNode || at.host) {
       if (at === el) return false;
       if (at.nodeType !== 1 || !at.matches(PRESS)) continue;
@@ -170,6 +174,9 @@
         if (!box.width || !box.height) continue;
         const shown = getComputedStyle(el);
         if (shown.visibility === "hidden" || shown.pointerEvents === "none") continue;
+        // An inactive tab's panel is `hidden`, its content skipped rather than laid
+        // out, so the boxes it leaves are stale and press nothing.
+        if (closestAcross(el.parentNode || el.host, "[hidden]")) continue;
         seen += 1;
         const own = parseFloat(shown.getPropertyValue("--aim-floor"));
         const parent = el.parentElement ?? el.getRootNode().host;
@@ -178,7 +185,8 @@
           parseFloat(getComputedStyle(parent).getPropertyValue("--aim-floor")) === own;
         if (Math.min(w, h) < Math.max(inherited ? floor : own, 1) - 0.5)
           short.push(
-            `${Math.round(w)}x${Math.round(h)} ${el.className}${by ? ` under ${by}` : ""}`,
+            `${Math.round(w)}x${Math.round(h)} ${el.className || el.localName}${by ? ` under ${by}` : ""}` +
+              ` in ${el.closest("[id]")?.id ?? el.getRootNode().host?.closest?.("[id]")?.id ?? "?"}`,
           );
       }
       for (const el of root.querySelectorAll("*"))

@@ -21,6 +21,7 @@ None of these is a gate. Read the outputs as well as the pass counts.
 # --case working sends the release ask while the user's own turn runs.
 uv run leaf-dev journey claude-code [--case working]
 uv run leaf-dev journey codex-app-server [--case working]
+uv run leaf-dev journey codex-queue [--case working]
 uv run leaf-dev journey pi [--case working]
 uv run leaf-dev journey website-adapter
 uv run leaf-dev journey-chart
@@ -117,7 +118,7 @@ reaches the tab by one of two routes, depending on which comes first:
   the save, once its process has started. The tab's read waits for the stamp's
   whole check under the lock. The state read that follows checks the same source
   again, since the server's record that a source passed its check lives in that
-  process only. A stamp right after a save, or one `--from-directory`, can take
+  process only. A stamp right after a save, or one with `--replace`, can take
   this route.
 
 `uv run leaf-dev bench-latency --page corpus --transition revision` reads both;
@@ -192,6 +193,8 @@ the batch: three journeys per harness and case on this Mac between 13:43 and 14:
 on 2026-10-22, at `cef6a5bc2` with this note's change, the comments posted over HTTP
 and the load average between 21 and 29 on 18 cores. Each column's parts add up to its
 whole reply: seconds, mean over the runs, with each part's share of the whole.
+The batch has no `codex-queue` runs, so its Codex columns time only the experimental
+App Server route, not the queue route the desktop app and IDE use.
 
 | Seconds, mean (share)      | Claude Code, waiting | Claude Code, working | Codex App Server, waiting | Codex App Server, working |          Pi, waiting |          Pi, working |
 | -------------------------- | -------------------: | -------------------: | ------------------------: | ------------------------: | -------------------: | -------------------: |

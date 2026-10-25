@@ -95,7 +95,14 @@ def test_prepared_install_authors_custom_packages_and_exports_without_builds(
     leaf("page", "stamp", page_dir, "--text", "Prepared installation verified")
     exported = tmp_path / "export.html"
     server = spawn(
-        [str(install / "bin/leaf"), "server", "run", "--temporary", str(page_dir)],
+        [
+            str(install / "bin/leaf"),
+            "server",
+            "run",
+            "--lifetime",
+            "temporary",
+            str(page_dir),
+        ],
         env=consumer_env,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,

@@ -415,14 +415,9 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     // pair, so a box cannot be handed a send button dressed as something else. `primary`
     // is a different face: it dresses the press's own box, which is the hit target and
     // stands larger than the disc wherever the pointer is coarse. A send press never
-    // wears it. A press standing among words rather than in the field, as a rewrite's
-    // Save at its message's head, takes no glyph (`icon: null`) and wears its word.
+    // wears it.
     sendBtn.classList.add("lf-icon-action", "lf-compose-submit");
-    if (icon) sendBtn.replaceChildren(iconElement(icon, "lf-action-icon"));
-    else {
-      const word = typeof sends === "function" ? sends() : sends;
-      sendBtn.replaceChildren(word.charAt(0).toUpperCase() + word.slice(1));
-    }
+    sendBtn.replaceChildren(iconElement(icon, "lf-action-icon"));
     const mediaShelf = document.createElement(MEDIA_SHELF_TAG);
     mediaShelf.className = sentMedia ? "lf-msg-media" : "lf-composer-media scroll";
     mediaShelf.sent = sentMedia;

@@ -79,6 +79,7 @@
     <script type="module">
       import {
         PAGE_INTERFACE,
+        generatedElement,
         keepsText,
         layoutChanged,
         offer,
@@ -186,6 +187,11 @@
             const tableFrame = document.createElement("div");
             tableFrame.className = "query-table-frame";
             tableFrame.append(table);
+            // The module writes every word here: the filter rows label controls, and the
+            // rest is the explorer speaking.
+            for (const box of [toolbar, this.#count, tableFrame])
+              generatedElement(box, { says: true });
+            generatedElement(this.#rows, { says: false });
             this.append(toolbar, this.#rows, this.#count, tableFrame);
           }
 

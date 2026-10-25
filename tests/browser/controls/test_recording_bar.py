@@ -50,4 +50,3 @@ def test_a_recording_fills_the_screen_under_the_browsers_controls(
     page.evaluate("() => document.exitFullscreen()")
     page.wait_for_function(LEFT, arg=handle)
     expect(video).to_have_attribute("aria-keyshortcuts", KEYS)
-    context.close()

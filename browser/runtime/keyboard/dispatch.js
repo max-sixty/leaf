@@ -389,6 +389,7 @@ function announceInvocation(invocation) {
         binding: invocation.binding,
         title: titleOf(route?.title === undefined ? row : route),
         description: descriptionOf(route?.description === undefined ? row : route),
+        travels: Boolean(row.travels),
       },
     }),
   );

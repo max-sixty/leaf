@@ -19,8 +19,13 @@
    click after it is swallowed: a finger held long enough to read may get none, so the
    release, not the click, is the commit. The swallowed click is the next pointer click
    wherever it lands, since the press may have put something else under the finger,
-   such as the thread a margin entry opens. A keyboard press carries no count and passes
-   untouched; the keyboard reads a word by focusing its control, which paints the same.
+   such as the thread a margin entry opens. The release first focuses the control
+   without a ring, as a pointer's press does. A finger's press is focused only by the
+   browser's events after the release, so without this what the press opens is laid
+   out with nothing marking where the user is: a margin pin unfolding lost the seat it
+   keeps while focused (margin-layout.js, `HELD`). A keyboard press carries no count
+   and passes untouched; the keyboard reads a word by focusing its control, which
+   paints the same.
    Touch capture is released at the press so the slide is heard over each control. A
    finger that starts scrolling instead ends the press with `pointercancel`, which
    presses nothing; a control that should not scroll from a press says so with
@@ -60,6 +65,7 @@ export function holdToRead() {
     hold = null;
     if (!holder) return;
     released = holder;
+    holder.focus({ preventScroll: true, focusVisible: false });
     holder.dispatchEvent(
       new MouseEvent("click", {
         bubbles: true,

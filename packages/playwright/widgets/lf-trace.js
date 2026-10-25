@@ -534,6 +534,7 @@ customElements.define(
         commands(this.#timelineHost.value, "On a recording timeline", [
           {
             id: "trace.first",
+            travels: true,
             keys: ["Home"],
             title: "first capture",
             control: this.#first.value,
@@ -542,6 +543,7 @@ customElements.define(
           },
           {
             id: "trace.last",
+            travels: true,
             keys: ["End"],
             title: "last capture",
             run: () => this.#navigate(this.#items().at(-1)?.id ?? null),
@@ -1218,7 +1220,7 @@ customElements.define(
             : !fitted && this.#picture?.imageData.ratio === 1,
         );
       keepsText(
-        this.#imageTools.value.querySelector(".lf-trace-image-status"),
+        this.#imageTools.value.querySelector(".lf-trace-tools-status"),
         this.#picture?.viewed
           ? ""
           : this.#pendingPicture
@@ -2156,7 +2158,7 @@ customElements.define(
                       </button>`,
                   )}
                 </div>
-                <span class="lf-trace-image-status"></span>
+                <span class="lf-trace-tools-status"></span>
               </div>
             </div>
             <div class="lf-trace-capture-footer" ?hidden=${!trace}>

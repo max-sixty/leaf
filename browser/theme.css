@@ -1719,7 +1719,7 @@ h3 {
   margin: var(--h3-start) 0 8px;
   text-wrap: balance;
 }
-@container style(--lf-wide-page: 1) {
+@container style(--lf-wide-page: 1) and (not style(--lf-density: working)) {
   h1 {
     font-size: clamp(36px, 3.2cqi, 46px);
     font-weight: 700;
@@ -1739,6 +1739,7 @@ p {
 }
 .density-working {
   --lf-density: working;
+  --page-pad-start: 28px;
   --t-1: 22px;
   --t-2: 18px;
   --t-3: 15.5px;
@@ -1831,7 +1832,8 @@ dd {
 figcaption,
 caption,
 th:not([scope=row]),
-.facts dt {
+.facts dt,
+summary {
   font-family: var(--sans);
   font-variant-numeric: tabular-nums;
 }

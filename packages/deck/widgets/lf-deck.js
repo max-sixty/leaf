@@ -20,14 +20,17 @@
  * it. Inactive cards are `hidden="until-found"`, so find-in-page, a fragment and the On
  * walk (`m`, `obligationActions.next`) open the card holding what they reach
  * (`beforematch`, `lf-reveal`); `m` is therefore the keyboard's Later, and a card the
- * walk leaves behind stays waiting for the end of the pass.
+ * walk leaves behind stays waiting for the end of the pass. Leaf's Undo travels to the
+ * answer it takes back before taking it, which opens its card the same way, so the deck
+ * has no Undo of its own.
  *
  * The bar above the cards holds Back, the tally's count of the deck's obligations
  * (`tallyWords`) with a mark per card, and one forward control: Later on a waiting
- * card, Next on any other, then Go through or Review once the pass is over. It stands
- * above the card, and the forward control keeps the room of its widest label, so cards
- * of different heights and changing labels never move a control under the pointer; for
- * the same reason a card that comes up takes no press until it has settled. A touch
+ * card, Next on any other, then Go through the cards left, or Review, once the pass is
+ * over. Back and forward are symbols of one size, named by their titles, as a draft's
+ * actions are. The bar stands above the card, so cards of different heights never move
+ * a control under the pointer; for the same reason a card that comes up takes no press
+ * until it has settled. A touch
  * drag across the card sends it either way: left is Later, right is Next once the card
  * no longer waits, and a short or early drag settles back. A mouse or pen drag stays
  * text selection, which comments start from. Unupgraded, and on paper, the cards stand
@@ -58,6 +61,7 @@ import {
   under,
   whileConnected,
   html,
+  iconTemplate,
   nothing,
 } from "/runtime/widget-api.js";
 
@@ -325,22 +329,22 @@ customElements.define(
         if (waits(each)) return "waiting";
         return held.some((item) => item.status === "open") ? "agent" : "done";
       };
-      const forward = card
-        ? waits(card)
-          ? "Later"
-          : "Next"
-        : left
-          ? `Go through ${left === 1 ? "it" : `the ${left}`}`
-          : "Review";
+      // The forward control's word, which is its accessible name and its tooltip, and
+      // its symbol: on a card, Later or Next; once the pass is over, back to its start.
+      const [forward, icon] = card
+        ? [waits(card) ? "Later" : "Next", "next"]
+        : [left ? `Go through the ${left} left` : "Review from the start", "start"];
       return html`
         <button
-          ${offered("lf-btn lf-quiet-action lf-deck-back")}
+          ${offered("lf-btn lf-quiet-action lf-deck-action lf-deck-back")}
           type="button"
+          aria-label="Back"
+          title="Back"
           ?disabled=${index === 0}
           @mousedown=${(event) => event.preventDefault()}
           @click=${() => this.#back()}
         >
-          Back
+          ${iconTemplate("previous", "lf-action-icon")}
         </button>
         <span class="lf-deck-count" role="status">${count}</span>
         <span class="lf-deck-pips" aria-hidden="true"
@@ -349,15 +353,16 @@ customElements.define(
           )}</span
         >
         <button
-          ${offered(`lf-btn lf-deck-forward${card && !waits(card) ? " primary" : ""}`)}
+          ${offered(
+            `lf-btn lf-quiet-action lf-deck-action lf-deck-forward${card && !waits(card) ? " primary" : ""}`,
+          )}
           type="button"
-          title=${card && waits(card) ? "Leave this card for later" : ""}
+          aria-label=${forward}
+          title=${forward}
           @mousedown=${(event) => card && event.preventDefault()}
           @click=${() => this.#forwardPress(this.#readings())}
         >
-          <span data-room=${"Later\nNext\nReview\nGo through the 00"}
-            ><span>${forward}</span></span
-          >
+          ${iconTemplate(icon, "lf-action-icon")}
         </button>
       `;
     }
@@ -384,7 +389,7 @@ customElements.define(
       // A comment leaves an obligation open with the agent, and the agent ending one
       // closes it without an answer, so neither moves the card.
       const held = readings.get(card);
-      const answered =
+      const closed =
         held.some((item) => item.status === "answered") &&
         !held.some((item) => item.status === "open");
       const here = focused();
@@ -392,9 +397,9 @@ customElements.define(
       const onCard =
         Boolean(place && under(place, card)) ||
         (this.#pressed === card && [null, document.body].includes(here));
-      if (this.#waited && !waits && answered && onCard)
+      if (this.#waited && !waits && closed && onCard) {
         this.#go(this.#after(card, readings), "right");
-      else this.#waited = waits;
+      } else this.#waited = waits;
     }
   },
 );

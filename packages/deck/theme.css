@@ -45,6 +45,16 @@
 .lf-deck-pip[data-state="open"] {
   background: var(--ink-2);
 }
+/* Back and forward are one kind of control, a square symbol named by its title. */
+.lf-deck-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  inline-size: max(var(--lf-line), var(--aim-floor));
+  block-size: max(var(--lf-line), var(--aim-floor));
+  padding: 0;
+}
 .lf-deck-forward {
   margin-inline-start: auto;
 }

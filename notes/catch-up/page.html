@@ -25,12 +25,14 @@
         <p id="try-how">
           The sample is a page of its own, so nothing you do in it reaches this page,
           and Reset starts it again. Pick <strong>Keep Redis</strong>, and the next card
-          comes up as soon as the answer is recorded. Press <strong>Later</strong> on
-          the upgrade note, pick two beta platforms and press Done, then Later past the
-          draft and the retry question, and approve the release notes. The bar then
-          counts the cards still to answer, and <strong>Go through the 3</strong> starts
-          again from the first of them. <strong>Back</strong> returns to a card you
-          answered, where its own controls change the answer. From the keyboard,
+          comes up as soon as the answer is recorded. Press the bar's right arrow,
+          <strong>Later</strong>, on the upgrade note, pick two beta platforms and press
+          Done, then Later past the draft and the retry question, and approve the
+          release notes. The bar then counts the cards still to answer, and its button,
+          <strong>Go through the 3 left</strong>, starts again from the first of them.
+          The left arrow, <strong>Back</strong>, returns to a card you answered, where
+          its own controls change the answer; Leaf's Undo (<code>z</code>) also takes
+          you back to the card before taking the answer back. From the keyboard,
           <code>m</code> goes to the open card's question and its number keys answer it;
           <code>m</code> again leaves it for later. On a phone, a swipe left is Later
           and a swipe right moves on from an answered card.
@@ -152,11 +154,12 @@ Thanks for the report. 2.4 moves session lookups off the slow path; logins shoul
           and no protocol bump, and no other widget knows it exists.
         </p>
         <p id="mechanism-layout">
-          The bar stands above the card and its forward control keeps the room of its
-          widest label, so neither cards of different heights nor changing labels move a
-          control under the pointer, and a card that comes up takes no press for a
-          quarter second. Only a touch drag moves a card; a mouse drag across a card
-          still selects its words, which is how a comment starts.
+          The bar's controls are symbols named by their titles, as a draft's actions
+          are, and stand above the card, so cards of different heights never move them
+          under the pointer; a card that comes up takes no press for a quarter second.
+          The deck has no Undo of its own, since Leaf's Undo already goes to the answer
+          it takes back, which opens its card. Only a touch drag moves a card; a mouse
+          drag across a card still selects its words, which is how a comment starts.
         </p>
       </section>
 

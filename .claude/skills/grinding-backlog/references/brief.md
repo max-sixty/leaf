@@ -1,6 +1,6 @@
 # Grind: shared rules
 
-You are one of many agents working Leaf's TODO items in parallel while the
+You are one of many agents working Leaf's backlog issues in parallel while the
 maintainer (Max, GitHub `max-sixty`) is away. Nobody will answer a question before
 you finish, so don't ask one: where a choice stalls you, take the option you would
 defend, and say in your PR and report that it's a call Max may reverse. Your item's
@@ -76,8 +76,10 @@ The other agents and Max's own sessions share this Mac (18 cores).
 - Open a **draft** PR: `gh pr create --draft --base main --head grind/<item-id>
 --title "<title>" --body-file <file>`. The body becomes `main`'s squash commit
   message if it lands, so hold its claims to the diff's standard: what changed, why,
-  the before/after evidence, what you ran, and what you didn't verify. End it with
-  the line `> _This was written by Claude Code on behalf of max-sixty_`.
+  the before/after evidence, what you ran, and what you didn't verify. Say
+  `Closes #N` for the issue your item came from, or `Part of #N` if work on it
+  remains. End it with the line
+  `> _This was written by Claude Code on behalf of max-sixty_`.
 - Don't mark it ready, merge it, request reviewers, or wait for CI.
 - Never force-push or rewrite pushed history, even on your own branch: add commits.
 - If a Leaf restriction (a CSP, a validator, an allowlist) blocks the item, don't

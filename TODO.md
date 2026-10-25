@@ -35,10 +35,6 @@ a new item takes a number neither uses.
 Completed work and rejected ideas live in git history or the relevant research note.
 An item marked **Unconfirmed** rests on a reading nobody has run or a design nobody
 has tried; settle that before building it.
-An item marked **Waits on the user** needs Max's decision, review or go-ahead
-before more work; the item says which. Any other item in Now and Next is open to
-an agent working unattended (`/grinding-todo`). An agent that finds an unmarked item needs the user
-adds the mark.
 
 ## Now
 
@@ -54,8 +50,7 @@ adds the mark.
   older messages. Test a current one-line reading of what is decided and what remains
   open, distinct from a historical summary, and decide how a revision invalidates it.
   See the [Thread plan](notes/threads.md#current-status).
-- **Test annotation placement in context.** **Waits on the user** to pick the margin
-  treatment once the comparison is built. Compare a pinned marker card with a
+- **Test annotation placement in context.** Compare a pinned marker card with a
   sparse left-comment layout on a document and a workspace. Keep full history and
   search in Threads and use Page Map on narrow pages; show only one margin treatment
   at a time.
@@ -64,22 +59,24 @@ adds the mark.
   result is hidden. Decide whether a page needs one progress reading across On me,
   board work, and version approval. Test a concrete first task before changing the
   public home page's prompt.
-- **#28 — Finish the floating panel.** **Waits on the user.** The floating panel, rebuilt on 12 October to
+- **#28 — Finish the floating panel.** The floating panel, rebuilt on 12 October to
   the sketch the user configured (the header of
   `browser/runtime/floating-panel.js` holds its contract), is Leaf's only
   chrome since 16 October, when the banner, the bottom bar and the switch between them
   went. Every follow-up the user named has landed, so the item waits on the user's
   review of the desktop design. The phone waits until the desktop design is firm, and
   where a passage thread opens from Threads waits until later.
-- **Keep a held-news count whole as it grows.** **Waits on the user.** A notice in a seat's head row keeps
-  the width of the news it first said (`data-room`); facts that no longer fit drop
-  whole and show as "+N" (`data-lf-more`, #3459). A single count growing past that
-  room ("1 new reply", then "2 new replies") still cuts at its end ("2 new repl…").
-  The notice stands absolutely over the free head row, so its room could be the whole
+- **Say when a held-news notice holds more than it shows.** A notice in a seat's
+  head row keeps the width of the news it first said (`data-room`) and shows each
+  fact whole or not at all (`newsNotice`), so "1 new reply" with a message arriving
+  after it still reads "1 new reply", with nothing on screen saying more waits; the
+  title that names every fact doesn't reach touch. A count growing past that room
+  ("1 new reply", then "2 new replies") still cuts at its end ("2 new repl…"). The
+  notice stands absolutely over the free head row, so its room could be the whole
   slot up to the visible end (`thread-card.js`, `#retainHeaderSlot`), if a notice
-  wider than its words under the pointer is acceptable. In a margin card the notice
-  takes its width from the heads' track, and a wide one moved the head's time
-  sideways in CI (PR #3250's first run).
+  wider than its words under the pointer is acceptable; a "+1" for dropped facts is
+  the other route. In a margin card the notice takes its width from the heads'
+  track, and a wide one moved the head's time sideways in CI (PR #3250's first run).
 - **Stop moving live content between parents.** A thread summary hides the messages
   it covers in place, so a frame keeps its document and a selection stays.
   Four places still move live nodes, which reloads a frame in WebKit (no
@@ -99,7 +96,7 @@ adds the mark.
   a route to the desktop-owned App Server or non-user queued input, then use
   Leaf's existing tool-output delivery
   ([interface gap](notes/codex-integration.md#delivery-without-user-messages)).
-- **Consider a reminder when revising decided content.** **Waits on the user.** An optional `--force`
+- **Consider a reminder when revising decided content.** An optional `--force`
   acknowledgment could make an agent pause over an existing decision. Revisions
   currently remain unrestricted; decide whether such a reminder helps before
   adding one.
@@ -149,8 +146,7 @@ adds the mark.
 
 ## Next
 
-- **Add a host-owned widget LLM allowance.** **Waits on the user** for how a grant is
-  given and billed. The initial `/api/llm` endpoint
+- **Add a host-owned widget LLM allowance.** The initial `/api/llm` endpoint
   uses the claimant harness's login and bounds input size, but does not bound
   cumulative usage. Define an explicitly granted allowance shared across page
   servers, with accounting appropriate to the login's quota or billing model.
@@ -164,7 +160,7 @@ adds the mark.
   in Slack, Discord and Telegram, so an accidental press loses a long rewrite. Offer a
   way back, such as `g D` restoring the last discarded rewrite into its editor (the
   user's suggestion, 2026-10-06).
-- **Decide when a page merits a separate phone composition.** **Waits on the user.** Many pages are
+- **Decide when a page merits a separate phone composition.** Many pages are
   ephemeral and authored for a user reading on a large screen, so a bespoke phone
   animation may not repay its cost. Decide how the agent weighs the user's viewing
   context, expected reuse, and a readable fallback against that work. Distinguish
@@ -176,7 +172,7 @@ adds the mark.
   buckets scroll horizontally and the release rationale sits below the board.
   Keep comparison context available during a move, preserving direct destination
   controls and undo.
-- **Decide whether Back may restore a leaf.page page whole.** **Waits on the user.** The local server
+- **Decide whether Back may restore a leaf.page page whole.** The local server
   sends `no-cache`, so Chrome and Firefox restore its pages on Back. leaf.page's
   container and the edge's state answers still send `no-store`, which keeps its
   pages out of Chrome's back/forward cache ([browser support](notes/browser-support.md),
@@ -200,7 +196,7 @@ adds the mark.
   key has: a mode's or search's steps take the counts off the panel's row until it ends, Android's back
   gesture closes nothing (the Escape ladder could answer it), Draw mode blocks scrolling
   and zoom, and an `lf-draft` has no close that keeps the edit.
-- **Reconsider thread navigation.** **Waits on the user.** Decide how Threads should change before
+- **Reconsider thread navigation.** Decide how Threads should change before
   refining it (`browser/AGENTS.md`, "Space and scrolling"). The
   redesign also settles how focus stays off page content a panel covers (Max,
   2026-10-10). His rule (2026-10-06): the panels dominate focus, so moving focus never
@@ -230,8 +226,7 @@ and its chrome coordinate.
   newcomer out of view rather than pushing down the card being read. The user sees
   it only in the count; give that arrival a visible route while preserving the
   current reading.
-- **Let a page restyle Leaf's chrome on purpose.** **Waits on the user** to choose the
-  route below. A page's rules reach a widget's
+- **Let a page restyle Leaf's chrome on purpose.** A page's rules reach a widget's
   controls when they name the widget (`runtime/page-sheets.js`), but `chrome.css` is
   unlayered and adopted after the page's sheets, so a page rule naming a chrome class
   wins only by out-weighing the chrome's own selector. Choose the deliberate route for
@@ -290,7 +285,7 @@ and its chrome coordinate.
 - **Layout values that wait for a task:** a selection-and-detail widget whose phone
   form shows one side at a time; canvas regions, whose reading position is
   two-dimensional; slides as a presentation of `lf-tabs`.
-- **Decide whether a too-narrow table fails a page at the fixed widths.** **Waits on the user.** It is
+- **Decide whether a too-narrow table fails a page at the fixed widths.** It is
   advice at every width, the two fixed viewports included, where it once refused
   the page.
 
@@ -345,7 +340,7 @@ on 2026-10-07.
 
 ### The agent's text interface
 
-- **Decide the Leaf-owned defects the bad-pages eval left open.** **Waits on the user.**
+- **Decide the Leaf-owned defects the bad-pages eval left open.**
   [Bad pages and the checks](notes/agent-usability-evals.md#bad-pages-and-the-checks-2026-10-20)
   lists three that follow from recorded choices: an open thread card covers the text
   near its passage (14 of 40 pages), a phone's thread pin covers words (5), and a
@@ -368,7 +363,7 @@ on 2026-10-07.
   says to fix a failure the user saw, agents changed the page for advice every time;
   a clause that tells failures from advice kept every failure fixed and had Claude
   Code leave the advice in 4 of 5.
-- **Consider loading a page once per render check.** **Waits on the user.** `page check --render` loads
+- **Consider loading a page once per render check.** `page check --render` loads
   the page afresh for each of its four passes, including dark mode and the narrow
   viewport. Switching those in place would save at most about 1.4 s on
   `triage-board` and 12.6 s on the corpus, measured by tracing the check's passes.
@@ -382,14 +377,13 @@ on 2026-10-07.
 
 ### Development velocity
 
-- **Require `test` on `main` again.** **Waits on the user** for the branch-protection
-  change, once main stays green. Since 2026-10-13 Leaf merges any change that
+- **Require `test` on `main` again.** Since 2026-10-13 Leaf merges any change that
   introduces no new failure, so `test` is not a required check: a pull request
   inherits whatever main fails among the tests it runs, and only an admin could merge
   past that (`tests/AGENTS.md`, "Selecting checks"). Once main stays green
   between merges, make `test` required again in `main`'s branch protection and drop
   that paragraph's exception.
-- **Resume the thread appearance gate.** **Waits on the user.** The user wants it working again at some point
+- **Resume the thread appearance gate.** The user wants it working again at some point
   (2026-10-21). Since 2026-10-12 the message-delivery journey and acceptance tests in
   `tests/*/test_render_thread_snapshots.py` are skipped to save test time while
   development moves fast; the references had already drifted twice unnoticed, since

@@ -1,35 +1,36 @@
 ---
-name: grinding-todo
-description: Runs a campaign of parallel agents on TODO.md items while the user is away, each item reviewed and ready as a draft PR. Use for "grind the TODO", "run grinds overnight", or a batch of agent-ready items.
+name: grinding-backlog
+description: Runs a campaign of parallel agents on Leaf's backlog issues while the user is away, each item reviewed and ready as a draft PR. Use for "grind the backlog", "run grinds overnight", or a batch of agent-ready items.
 ---
 
-# Grinding the TODO
+# Grinding the backlog
 
-Turn the items in `TODO.md` that need no judgment from the user into draft pull
+Turn the backlog items that need no judgment from the user into draft pull
 requests they can review on return, each one already reviewed and fixed. The user's
 attention is the scarce resource: they read the results, not the work, so every
 PR has to be right without them. Load `/developing-leaf` for repository work.
 
 ## Choose the items
 
-`TODO.md`'s preamble says which items an agent can take unattended: any item in
-Now and Next not marked **Waits on the user**. Small items batch well; a large
-item whose design is settled suits one agent for the whole run.
+`TODO.md`, "Backlog", gives the query for the issues an agent can take unattended:
+labelled `backlog`, not `waits-on-user`, and claimed by no pull request. Small
+items batch well; a large item whose design is settled suits one agent for the
+whole run.
 
 Before dispatching an item, establish that it is still live and its premise
 true, by running something: a probe, the test it names, a reproduction.
 A premise checked by reading the code is a guess, and those guesses were wrong
 for 3 of 10 items in one run, while every premise checked by running was right.
 Check also that no open PR, other session or other campaign already works on the
-item (`gh pr list`, `claude agents`, `wt list`). In one run two campaigns on the
-same `TODO.md` duplicated four PRs, and other sessions landed two more of its
-items on main mid-run.
+item (`gh pr list`, `claude agents`, `wt list`): an unlinked PR is invisible to the
+query. In one run two campaigns on the same list duplicated four PRs, and other
+sessions landed two more of its items on main mid-run.
 
 ## Run the agents
 
 Give each item one agent in its own worktree (`isolation: "worktree"`), briefed
 with [`references/brief.md`](references/brief.md) and a paragraph of its own:
-the item's text and id, what the pre-check found, and what a finished result
+the issue number and text, what the pre-check found, and what a finished result
 shows. The brief says how; the paragraph says what. An item that changes shipped
 instructions also names the eval cases to score, with a paired `--base` arm
 (`/developing-leaf`, "Score an instruction change"): an unpaired comparison
@@ -65,5 +66,5 @@ what you learned about running the campaign. Register each decision a PR leaves
 to the user on their On me list, including calls an agent made that they may
 reverse. An agent's report names its calls for a reader who knows the PR, and the
 user hasn't opened it, so each decision says what the user sees today, what the PR
-changes, and what choosing each option leads to. A campaign that found nothing to change in an item reports that as a
-result.
+changes, and what choosing each option leads to. A campaign that found nothing to
+change in an item reports that as a result.

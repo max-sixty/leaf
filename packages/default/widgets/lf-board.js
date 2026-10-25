@@ -322,6 +322,8 @@ customElements.define(
           title: "move",
           when: held,
           repeat: true,
+          // The card goes where it is moved, and the view and the user with it.
+          travels: true,
           // Columns run the way the page's words do, so left is the previous column
           // only in left-to-right text.
           run: (binding) => {
@@ -345,6 +347,7 @@ customElements.define(
           id: "board.cancel",
           keys: ["Escape"],
           title: "cancel the move",
+          travels: true,
           when: () => held() || Boolean(this.#activeDrag()),
           run: () => {
             const drag = this.#activeDrag();

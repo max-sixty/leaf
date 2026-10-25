@@ -15,6 +15,31 @@ load in October 2026, with one run per condition:
 | Full speed  |    53.4 s | 119.1 s |
 | 4× throttle |   150.9 s | 469.6 s |
 
+## Gesture scroll judgement
+
+Judging the scrolls a gesture makes ("Scrolls a gesture makes") adds one fresh
+reading of the pressed control per input, and per frame only while a gesture that
+called a scrolling API is still rendering. Timing the frame callback (`tick`) with
+`performance.now()` in a scratch copy of the watch, at `--cpu-throttle 4`, serially
+on an M-series Mac under other sessions' load in October 2026, over two runs each,
+interleaved:
+
+```sh
+uv run pytest -n0 --cpu-throttle 4 \
+  "tests/browser/test_render_send_placement.py::test_send_grows_thread_around_the_words[size0-0.4-False-False-False-False-browser]" \
+  "tests/browser/test_render_send_placement.py::test_send_grows_thread_around_the_words[size4-0.4-scrolled-False-False-False-browser]" \
+  tests/browser/test_render_floating_panel.py::test_the_thread_walk_stands_on_each_thread_it_opens \
+  tests/browser/margin/test_card_placement.py::test_a_press_in_the_card_keeps_the_pressed_spot_still \
+  tests/smoke/test_smoke.py::test_a_sent_margin_reply_shows_its_words_while_delivery_is_pending
+```
+
+| Watch  | Frames per run | Mean frame callback |  Wall time |
+| ------ | -------------: | ------------------: | ---------: |
+| Before |   1,372, 1,334 |       23.6, 23.1 ms | 96 s, 93 s |
+| After  |   1,323, 1,306 |       23.3, 23.4 ms | 96 s, 96 s |
+
+The difference is inside the run-to-run spread.
+
 ## Idle cost
 
 The sensor's frame loop and paint checkpoint keep requesting frames on a still

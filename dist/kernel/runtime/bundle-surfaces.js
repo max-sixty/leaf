@@ -2965,6 +2965,7 @@ function createWritingResume({ revealInThread, arriveEditor, holdsThreadDraft })
 		title: "Resume writing",
 		touch: "Resume writing",
 		menu: "keys",
+		travels: true,
 		when: () => writingPlace !== null,
 		run: resume
 	};
@@ -3108,8 +3109,9 @@ const separateTranscript = (held) => {
 	return transcript && userScrollport(getComputedStyle(transcript).overflowY) ? transcript : null;
 };
 const landingTarget = (held, control) => {
-	if (fitsWhole(held)) return { node: held };
 	const reply = replyRowOf(held, control);
+	if (control !== held && !replyPinned(reply) && alreadyShown(control)) return { node: null };
+	if (fitsWhole(held)) return { node: held };
 	if (replyPinned(reply)) return control === held ? { node: null } : {
 		node: held,
 		block: "end"
@@ -4335,12 +4337,14 @@ function rowWalk({ id, noun, plural, rows, position = () => listWalkPosition(row
 		routes: [route("ArrowUp", up), route("ArrowDown", down)],
 		title: `walk the ${plural}`,
 		repeat: true,
+		travels: scroll,
 		run: (binding) => land((list) => clampedRow(list, focused(), binding === "ArrowDown" ? 1 : -1, 0))
 	}, {
 		id: `${id}.edge`,
 		keys: ["Home", "End"],
 		routes: [route("Home", home), route("End", end)],
 		title: `${home} / ${end}`,
+		travels: scroll,
 		run: (binding) => land((list) => binding === "Home" ? list[0] : list.at(-1))
 	}];
 }

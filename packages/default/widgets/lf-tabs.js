@@ -279,6 +279,7 @@ export class TabSet extends LeafElement {
         ],
         title: "walk the tabs",
         repeat: true,
+        travels: true,
         run: (binding) => {
           const step = [ahead, "ArrowDown"].includes(binding) ? 1 : -1;
           walk(cycledRow(tabs(), focused(), step));
@@ -292,6 +293,7 @@ export class TabSet extends LeafElement {
           { id: "tab.last", binding: "End", title: "Last tab" },
         ],
         title: "first / last",
+        travels: true,
         run: (binding) => walk(binding === "Home" ? tabs()[0] : tabs().at(-1)),
       },
     ]);

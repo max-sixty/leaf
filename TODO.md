@@ -356,27 +356,16 @@ height and where a switch lands wait on the workspace decision under Layout.
 
 ### Before/after comparison
 
-- **#29 — Decide whether Pixels should soften redrawn-shadow fringes.** The halo is
-  not a classification. Since #3820 Pixels is one BlazeDiff mask at threshold 0 with
-  anti-aliasing suppression off, painted in one amber; it never reads the move/change
-  outlines that `differingRegions` computes, and no recolour category remains.
-  `changedPixels` gives every differing pixel at least alpha 40 (16%), rising
-  linearly to 255 at 96 levels of channel distance. A soft shadow moved 1 or 3 px
-  (a synthetic 60x40 box with a 40-level Gaussian shadow, `differingRegions` and
-  `changedPixels` run under `node --import ./tests/runtime/dom.mjs`) changes 2334
-  or 3042 pixels: 78 or 164 of them opaque at the box edge, and 89-93% of them
-  at alpha 41-99 along the fringe, which is the halo. `differingRegions` reads
-  the same pair correctly, as one "moved" block per frame including the shadow, so
-  the Pixels view holds less than the outlines know. Options: (a) leave it, since
-  a faint fringe truthfully shows that pixels differ and Slider and Pair interpret
-  the cause; (b) lift `FAINT`, or ramp from 0, so changes under about 5 levels
-  vanish, which also hides a deliberate 1-level edit that the tests protect;
-  (c) multiply the mask by the regions' reading, fading pixels inside a "moved"
-  block, which restores a second implementation of the move rule inside Pixels
-  and a `differingRegions` cost on the Pixels path; (d) re-enable BlazeDiff's
-  threshold or anti-aliasing suppression, which #3820 turned off so that subtle
-  edits stay visible. Commercial tools (Chromatic, Percy) take a per-pixel
-  tolerance of that kind by default (recalled, not re-checked this session).
+- **#29 — Decide whether Pixels should soften redrawn-shadow fringes.** **Waits on
+  the user.** The halo is not a classification. Pixels is one BlazeDiff mask that
+  never reads the move outlines, and `changedPixels` floors every differing pixel at
+  alpha 40, so a moved shadow's few-level fringe paints faintly while
+  `differingRegions` reads the same pair as one moved block. Options: (a) leave it,
+  since the fringe truthfully differs and Slider and Pair explain the cause; (b) lift
+  the alpha floor, which also hides the 1-level deliberate edits the tests protect;
+  (c) fade pixels inside moved blocks, which copies the move rule into Pixels and
+  runs `differingRegions` on its path; (d) re-enable BlazeDiff's threshold or
+  anti-aliasing suppression, which #3820 turned off to keep subtle edits visible.
   Leaning (a), or (b) if the halo hides what moved.
 
 ### Recorded interaction review

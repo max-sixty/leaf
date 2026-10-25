@@ -828,8 +828,10 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    # The launcher calls this with -S, including on system Python before Click
-    # exists. Only status 3 skips the hook; any failure runs it whole.
+    # `bin/leaf` asks this before starting uv for a hook registered `--if-claimed`,
+    # with -S, so no site packages load. A hook it skips takes about 25 ms in
+    # place of about 70 for starting the package (measured on macOS). Only status
+    # 3 skips the hook; any failure runs it whole.
     if sys.argv[1:] == ["hook-gate"]:
         payload = json.load(sys.stdin)
         sys.exit(0 if held_claims(payload.get("session_id") or "") else 3)

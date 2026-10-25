@@ -36,7 +36,8 @@ declarations only once the payload names a session. Page-owning prompt and Stop
 hooks reach `hook_transport`; Codex's tool and Stop hooks reach its delivery
 records in `codex`. Claude Code's background Stop hook and Pi's extension watch
 between turns (`cmd_watch`), and Leaf's Claude Code hooks module follows the
-session's pages (`cmd_pages`) to draw them beside the prompt. Click dispatches `leaf hook` here without loading page reading.
+session's pages (`cmd_pages`) to draw them beside the prompt. `leaf hook`
+(`cli.hook`) dispatches here.
 
 Claude Code's PostToolBatch carries pending input before the next model call,
 after successful or failed tools, using the same envelope and receipt as its

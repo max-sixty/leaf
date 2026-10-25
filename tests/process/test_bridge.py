@@ -6,7 +6,6 @@ import socket
 import subprocess
 
 import pytest
-from click.testing import CliRunner
 from interact_support import ROOT, STATED_TIMEOUT
 
 from leaf import bridge as bridge_model
@@ -158,12 +157,15 @@ def test_a_session_that_runs_no_leaf_command_starts_no_bridge():
 
 @pytest.mark.parametrize(
     "argv",
-    [["--help"], ["--version"], ["package", "run", "page", "script", "--", "--help"]],
+    [["--help"], ["--version"], ["--root", "--", "x"]],
 )
-def test_bridge_entry_preserves_leaf_arguments(monkeypatch, argv):
-    """The bridge parses its mode; Leaf owns every argument after it."""
+def test_the_bridge_client_forwards_leaf_arguments_verbatim(monkeypatch, argv):
+    """`bin/leaf` hands a sandboxed command's whole argv to the bridge client,
+    which passes every argument after its mode to Leaf unparsed, `--` included."""
     received = []
     monkeypatch.setattr(bridge_model, "run", lambda args: received.append(args) or 7)
-    result = CliRunner().invoke(bridge_model.main, ["run", *argv])
-    assert result.exit_code == 7, result.output
+    monkeypatch.setattr("sys.argv", ["bridge.py", "run", *argv])
+    with pytest.raises(SystemExit) as exited:
+        bridge_model.main()
+    assert exited.value.code == 7
     assert received == [argv]

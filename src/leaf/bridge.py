@@ -61,8 +61,6 @@ from http.client import HTTPConnection
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
-import click
-
 from .leases import release_lease, take_lease
 from .piped_input import STDIN_PIPED, piped
 from .state import PLUGIN_ROOT, STRING, Record, described, object_schema, state_home
@@ -401,25 +399,11 @@ def run(argv: list[str]) -> int:
     return 1
 
 
-@click.group()
 def main() -> None:
-    """Run or reach the bridge outside Claude Code's sandbox."""
-
-
-@main.command("serve")
-@click.argument("lease", type=int)
-def serve_command(lease: int) -> None:
-    serve(lease)
-
-
-@main.command(
-    "run",
-    add_help_option=False,
-    context_settings={"ignore_unknown_options": True, "allow_interspersed_args": False},
-)
-@click.argument("argv", nargs=-1, type=click.UNPROCESSED)
-def run_command(argv: tuple[str, ...]) -> None:
-    sys.exit(run(list(argv)))
+    if sys.argv[1] == "serve":
+        serve(int(sys.argv[2]))
+    else:
+        sys.exit(run(sys.argv[2:]))
 
 
 if __name__ == "__main__":

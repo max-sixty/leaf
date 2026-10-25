@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Claude Code's background-watch transport, separate from Leaf's application.
 
-The synchronous Stop, prompt and SessionEnd registrations call `bin/leaf hook`
-directly. That shell launcher owns uv; no Leaf Python process starts an
+The synchronous Stop and prompt registrations call `bin/leaf hook` directly, and
+SessionEnd's calls `bin/leaf session-end`. That shell launcher owns uv; no Leaf Python process starts an
 environment manager.
 
 This supervisor calls `bin/leaf` with its own arguments, which the registration

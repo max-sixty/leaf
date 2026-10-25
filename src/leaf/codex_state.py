@@ -15,9 +15,10 @@ hook-provided path needed to observe that source.
 
 Codex's startup hook captures the native source before a page is claimed, including
 for a dispatched chat whose first input runs no prompt hook. The prompt hook records
-the provider turn. Once the session has claimed a page (`state.held_claims`), its PostToolUse hook identifies an
-unknown session-scoped turn once, or renews only the provider turn already observed
-running, and offers one immutable envelope between steps (`codex.offer_hook_delivery`).
+the provider turn. Once the session has claimed a page (`state.held_claims`), its
+PostToolUse hook identifies an unknown session-scoped turn once, or renews only the
+provider turn already observed running, and offers one immutable envelope between
+steps (`codex.offer_hook_delivery`).
 The observation's revision advances on a prompt, an ending or a tool step, and the
 queue rechecks it under the delivery lock before reserving its transport, so even a
 renewed step in the same turn invalidates an idle reading taken before it. Completing

@@ -43,7 +43,9 @@ function travel(start, end, low, high, alignment, margin, side) {
     : end - high + margin;
 }
 
-function caretAt(view, at) {
+// The caret at `at`, as a node a reveal can land and its rectangle, read from the DOM
+// so a scroll handler may call it while the view updates.
+export function caretAt(view, at) {
   const position = view.domAtPos(at);
   const caret = document.createRange();
   caret.setStart(position.node, position.offset);

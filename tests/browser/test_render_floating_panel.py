@@ -3683,11 +3683,13 @@ def test_every_chevron_in_the_menu_is_drawn_as_a_stroke_at_one_size(browser, ser
     assert {(c["width"], c["right"]) for c in drawn} == {(12, drawn[0]["right"])}, drawn
 
 
-def test_the_leaf_s_menu_is_one_tab_stop_its_keys_walk(browser, serve):
+@pytest.mark.parametrize("reduce_motion", [False, True])
+def test_the_leaf_s_menu_is_one_tab_stop_its_keys_walk(browser, serve, reduce_motion):
     """Opened by a press, the leaf's menu is walked from the leaf by the arrows, Home and
     End, as one stop for Tab; Tab leaves it for the field, putting it away. On the leaf
     and on a count, as Escape leaves the user, the page's two-key Go-to still answers."""
     page = floating(browser, serve(LONG_PAGE, comments=1))
+    page.emulate_media(reduced_motion="reduce" if reduce_motion else "no-preference")
     leaf = page.locator(".lf-fp-leaf")
     leaf.click()
     rows = page.locator(".lf-fp-menu .lf-fp-item:not(:disabled)")
@@ -4720,9 +4722,11 @@ def test_a_draft_draws_a_list_as_the_message_will(browser, serve):
     # already holding words; load it first, so the list is drawn as it is typed.
     page.evaluate("async () => (await window.__lfWidgetApi()).loadMarkdown()")
     field(page).click()
+    # The first item wraps to two lines both in the field and in the sent message's
+    # wider column, so the two hold the same lines.
     page.keyboard.insert_text(
         "Notes:\n- "
-        + "an item long enough to wrap in the field " * 3
+        + "an item long enough to wrap in the field " * 2
         + "\n- parent\n      deeper\n    - child\n\n1. one\n\n       indented"
         + "\n\n```\ncode\n```\nend"
     )

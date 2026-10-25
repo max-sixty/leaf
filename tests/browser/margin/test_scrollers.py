@@ -773,15 +773,9 @@ def test_an_authored_anchor_scope_leaves_margin_controls_reachable(browser, serv
     expect(stuck).to_be_visible()
 
 
-@pytest.mark.parametrize(
-    ("engine", "positions"),
-    [
-        ("browser", ("sticky", "sticky-ancestor", "fixed")),
-        ("webkit_browser", ("fixed",)),
-    ],
-)
+@pytest.mark.parametrize("engine", ["browser", "webkit_browser"])
 def test_a_constrained_target_carries_its_row_through_scroll(
-    request, serve, subtests, engine, positions
+    request, serve, subtests, engine
 ):
     """A sticky or fixed box between a target and its scroller moves the target as no
     scroll alone does, so its row's carrier is anchored to the target itself, which
@@ -791,13 +785,14 @@ def test_a_constrained_target_carries_its_row_through_scroll(
     stays put through the document's scroll. Firefox draws a stuck target's row where
     the target would stand unstuck, and WebKit moves a fixed target's row with the
     document's scroll (notes/browser-support.md, "A stuck sticky anchor in Firefox",
-    "An anchor under a fixed box in WebKit"); WebKit runs the fixed case alone.
+    "An anchor under a fixed box in WebKit"). Chromium also reads the compositor's frames,
+    which only it traces; WebKit checks the rectangles after each scroll.
     """
     page = open_page(request.getfixturevalue(engine), serve(PANEL_PAGE))
     resized(page, 1280, 900)
     # Each case adds its own scroller and row, replacing the case before; the fixed
     # target, which also lengthens the document, goes last.
-    for position in positions:
+    for position in ("sticky", "sticky-ancestor", "fixed"):
         with subtests.test(position=position):
             # The last case left the pointer where this case's target will stand.
             page.mouse.move(0, 0)
@@ -867,7 +862,7 @@ def test_a_constrained_target_carries_its_row_through_scroll(
                 after = page.evaluate(reading)
                 assert after["offset"] == pytest.approx(before["offset"], abs=1), after
                 assert after["hit"] and not after["withheld"], after
-            if position == "fixed":
+            if position == "fixed" or engine != "browser":
                 continue
             # A rectangle read in the frame after a scroll shows where the last frame drew an
             # anchored box, so the compositor's own frames are what show it carried.

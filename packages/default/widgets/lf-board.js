@@ -249,12 +249,13 @@ customElements.define(
     }
 
     // Where a card showing an answer stands: the first column holding the value the
-    // answer names, which is the first holding none while it names none.
+    // answer names, else the first holding none (shown_answers.py).
     #columnFor(card, value) {
+      const columns = [...this.querySelectorAll(":scope > lf-column")];
       return (
-        [...this.querySelectorAll(":scope > lf-column")].find(
-          (column) => this.#holds(column, card) === value,
-        ) ?? null
+        columns.find((column) => this.#holds(column, card) === value) ??
+        columns.find((column) => this.#holds(column, card) === null) ??
+        null
       );
     }
 

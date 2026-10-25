@@ -140,7 +140,7 @@ proposals answered in their own sections. The view's element declares `x-shows`,
 page or message, and `value` the attribute on the view's compound owner (its
 `x-owners` tag, here `lf-column`) naming the answer that owner holds. The view stands
 in the owner holding the value the answer names, or in one without `value` while the
-answer names none. A `value` record's answer names its attribute's value. An
+answer names none, or one no owner holds. A `value` record's answer names its attribute's value. An
 `attribute` record's answer names a value when every member it picks carries the same
 value in the attribute `x-awaits.key` names, as `lf-options` declares `"key":
 "value"` and each `lf-option` a `value` unique within its group (`x-unique`); an empty

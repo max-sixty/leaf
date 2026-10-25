@@ -120,6 +120,16 @@ def test_a_card_stands_where_its_widget_s_authored_answer_puts_it():
     )
 
 
+def test_an_answer_no_column_holds_stands_with_those_that_name_none():
+    """The group may offer an answer the board has no column for; its card then
+    stands where the answers naming no value do, rather than nowhere."""
+    no_drop = board({"open": ["rail"]}).replace(
+        '<lf-column id="col-drop" label="Drop" value="drop"></lf-column>', ""
+    )
+    page = leaf_page("Proposals", section("rail", chosen="drop") + no_drop)
+    assert shown_findings(page) == []
+
+
 def test_a_board_of_answers_holds_the_answers_that_name_none():
     """A cleared pick, an option the user wrote in, or several picks naming different
     values put the card in a column with no value; a board without one has nowhere to

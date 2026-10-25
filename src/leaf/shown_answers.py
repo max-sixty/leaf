@@ -6,7 +6,8 @@ widget's own coordinate whichever view the user changes it in, so a board drop a
 section pick are one fact, undone, refused and retracted as one. A view keeps no fact
 of its own about it: an element declaring `x-shows` names the widget in the attribute
 `attr` names, and stands in a compound owner whose attribute `value` names the answer
-that owner holds. An owner without one holds the views of answers that name no value.
+that owner holds. An owner without one holds the views of answers that name no value,
+or one no owner beside it holds.
 
 An answer names a value when it is one string: a `value` record's attribute, or the
 members an `attribute` record picks when every one of them carries the same
@@ -155,6 +156,9 @@ def shown_errors(document, registry: dict) -> list[Finding]:
         answer = named_value(
             _authored_answer(owner, record, by_id, registry), key, by_id
         )
+        held = {sibling["attrs"].get(shows["value"]) for sibling in siblings}
+        if answer not in held:
+            answer = None
         stands = place["attrs"].get(shows["value"]) or None
         if stands != answer:
             errors.append(

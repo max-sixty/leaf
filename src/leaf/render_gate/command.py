@@ -218,7 +218,7 @@ def message_check(page_dir: Path, kind: str, markup: str) -> None:
     from leaf.files import latest_revision
     from leaf.findings import Rejected
     from leaf.registry.storage import read_page_registry
-    from leaf.revision_artifact import capture_artifact
+    from leaf.revision_artifact import ArtifactError, capture_artifact
 
     from .page_code import message_page, places_judged_widget
 
@@ -226,13 +226,18 @@ def message_check(page_dir: Path, kind: str, markup: str) -> None:
     if layer is None:
         return
     document = message_page(markup)
-    artifact = capture_artifact(
-        page_dir,
-        document,
-        layer.registry,
-        declaration_sources=layer.declaration_sources,
-        widget_sources=layer.widget_sources,
-    )
+    try:
+        artifact = capture_artifact(
+            page_dir,
+            document,
+            layer.registry,
+            declaration_sources=layer.declaration_sources,
+            widget_sources=layer.widget_sources,
+        )
+    except ArtifactError:
+        # Markup that names what no page may load, such as the theme's stylesheet,
+        # is the markup gate's to refuse, in its own words, under the page lease.
+        return
     if not places_judged_widget(document, artifact):
         return
     revision = (latest_revision(page_dir) or 0) + 1

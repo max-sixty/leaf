@@ -399,7 +399,13 @@ uv run leaf-dev eval widgets-draw-as-written/thread-diagram --harness codex --ba
 On the base, 4 of 8 diagram messages didn't draw (22–78%; 9 of 14 with the first
 run, 39–84%). With the message run, 7 of 8 authors had their first message refused
 with Mermaid's parse error, fixed it and posted again, and all 8 final messages drew
-(0 of 8, 0–32%). Mean author time rose from 1.0 to 1.2 minutes.
+(0 of 8, 0–32%). Mean author time rose from 1.0 to 1.2 minutes. Claude Code's
+thread charts and diagrams, 6 of each per arm, all drew on both arms, and no message
+was refused; mean author time was 1.1 minutes with the run and 1.4 without.
+
+```sh
+uv run leaf-dev eval widgets-draw-as-written/thread-diagram widgets-draw-as-written/thread-chart --harness claude-code --base --repeat 6 -j 2
+```
 
 ## Render findings after handover, 2026-10-24
 

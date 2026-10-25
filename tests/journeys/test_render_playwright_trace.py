@@ -722,6 +722,9 @@ def test_trace_initial_selection_opens_evidence_and_keeps_earlier_empty_stops(
     first_scope.press("ArrowRight")
     expect(second_scope).to_be_focused()
     expect(widget.locator(".lf-trace-position")).to_have_text("0.015 s")
+    # The arrow's rendering ends before the next press: Playwright scrolls Next into
+    # view first, and a scroll inside the arrow's rendering is charged to the arrow.
+    rendered(user)
     widget.get_by_role("button", name="Next", exact=True).click()
     expect(widget.locator(".lf-trace-position")).to_have_text("0.030 s")
     first_scope.click()

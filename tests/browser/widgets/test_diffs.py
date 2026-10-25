@@ -444,7 +444,8 @@ def test_inline_diff_lines_and_files_can_start_comments(browser, serve):
 
 def test_filtering_a_diff_keeps_its_field_and_toolbar_controls_fixed(browser, serve):
     """The matching count leaves the filter field in place at every result count, on a
-    phone and on a desktop window."""
+    phone and on a desktop window. A patch of one file has nothing to filter, so it
+    draws no filter."""
     url = serve(MANIFEST_DIFF_PAGE)
 
     def patch(count):
@@ -472,7 +473,7 @@ def test_filtering_a_diff_keeps_its_field_and_toolbar_controls_fixed(browser, se
 
     for width in (390, 1280):
         resized(page, width, 844)
-        for total in (12, 1):
+        for total in (12, 2):
             data_model.cmd_data_set(
                 serve.page_dir, "review-patch", patch_manifest(patch(total))
             )
@@ -494,6 +495,11 @@ def test_filtering_a_diff_keeps_its_field_and_toolbar_controls_fixed(browser, se
                 after = diff.evaluate(geometry)
                 assert after == before, (width, query, before, after)
                 expect(search).to_be_focused()
+
+    data_model.cmd_data_set(serve.page_dir, "review-patch", patch_manifest(patch(1)))
+    told(page)
+    expect(rows).to_have_count(1)
+    expect(diff.locator(".lf-diff-search")).to_have_count(0)
 
 
 def test_a_diff_refresh_keeps_the_readers_inspection(browser, serve):

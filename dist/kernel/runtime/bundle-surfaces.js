@@ -3358,7 +3358,9 @@ var MessageEditor = class {
 		const save = offer("button", "lf-msg-control lf-msg-edit-save");
 		const cancel = offer("button", "lf-msg-control lf-msg-edit-cancel");
 		cancel.type = "button";
-		cancel.textContent = "Discard";
+		cancel.setAttribute("aria-label", "Discard");
+		cancel.title = "Discard";
+		cancel.append(iconElement("undo", "lf-msg-control-icon"));
 		actions.append(cancel);
 		this.foot = document.createElement("span");
 		this.foot.className = "lf-msg-edit-foot";
@@ -3396,7 +3398,6 @@ var MessageEditor = class {
 			hint: "Edit message",
 			accessibleName: () => `Edit message: ${said().slice(0, 60)}`,
 			sends: "save",
-			icon: null,
 			sendBtn: save,
 			submitIn: actions,
 			sentMedia: true,

@@ -377,11 +377,7 @@ function createCompositionInputs({ uploadMedia, inputHint }) {
 		});
 		const held = () => busy() || errorOver(ta) !== null;
 		sendBtn.classList.add("lf-icon-action", "lf-compose-submit");
-		if (icon) sendBtn.replaceChildren(iconElement(icon, "lf-action-icon"));
-		else {
-			const word = typeof sends === "function" ? sends() : sends;
-			sendBtn.replaceChildren(word.charAt(0).toUpperCase() + word.slice(1));
-		}
+		sendBtn.replaceChildren(iconElement(icon, "lf-action-icon"));
 		const mediaShelf = document.createElement(MEDIA_SHELF_TAG);
 		mediaShelf.className = sentMedia ? "lf-msg-media" : "lf-composer-media scroll";
 		mediaShelf.sent = sentMedia;

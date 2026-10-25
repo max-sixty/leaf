@@ -821,6 +821,13 @@ def into_the_body(page: Page) -> None:
     page.evaluate("() => scrollTo(0, 2 * innerHeight)")
 
 
+def plan_disclosure(page: Page) -> None:
+    """The plan's first disclosure, between the prose of two steps."""
+    page.locator("#plan-network").evaluate(
+        "details => details.scrollIntoView({block: 'center'})"
+    )
+
+
 def code_note(page: Page) -> None:
     """The first code block with a note, the note in view."""
     page.locator("lf-code pre lf-note").first.evaluate(
@@ -1801,6 +1808,7 @@ STATES = (
     ),
     State("gallery-multiline-passage", "developer/feature-gallery", multiline_passage),
     State("plan", "review-a-plan", at_rest),
+    State("plan-disclosure", "review-a-plan", plan_disclosure, region="#plan-network"),
     State("page-search", "review-a-plan", page_search, region=".lf-floating-panel"),
     State(
         "accepted-page-search",

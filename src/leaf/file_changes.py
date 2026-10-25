@@ -7,9 +7,16 @@ generation taken before an observation retains writes arriving during it.
 Clock-only lifetime and activity transitions still have bounded timed reads. A
 page's subscription accepts exactly the inputs its reading stamps
 (`served_state.reading`), so diagnostics never wake it. watchfiles' public
-`watch` owns platform notifications and polling fallback.
+`watch` owns platform notifications and polling.
+
+The kernel's inotify limits are per user and shared with every program the user
+runs, so Leaf can't count on a native watcher however few it holds. When the
+kernel refuses one because a limit ran out, that subscription polls instead and
+names the limit in a note, so the process notices changes later rather than
+exiting.
 """
 
+import errno
 import os
 import threading
 import weakref
@@ -17,6 +24,7 @@ from pathlib import Path
 
 from watchfiles import watch
 
+from .findings import Finding, note
 from .page_memory import memo
 from .served_state.reading import outside_inputs, page_input
 
@@ -116,16 +124,7 @@ class FileChanges:
 
     def _run(self, paths, recursive, accepts, started):
         try:
-            for changes in watch(
-                *paths,
-                watch_filter=lambda _change, path: accepts(Path(path)),
-                debounce=25,
-                step=50,
-                stop_event=started,
-                rust_timeout=0,
-                raise_interrupt=False,
-                recursive=recursive,
-            ):
+            for changes in _changes(paths, recursive, accepts, started):
                 with self.condition:
                     if self.pending is not None:
                         self.pending.update(path for _change, path in changes)
@@ -184,6 +183,49 @@ class FileChanges:
             paths = self.pending.copy()
             self.pending.clear()
             return paths
+
+
+# What watchfiles 1.3.0 (on notify 8) says when the kernel refuses a native watcher
+# because a per-user limit ran out, and the limit each names. It raises
+# `WatchfilesRustInternalError` when the inotify instance can't be created (EMFILE)
+# and a bare `OSError` when a watch can't be added (ENOSPC, which notify renames).
+# Neither carries an errno, so these words are all a reader has.
+_LIMITS = {
+    f"(os error {errno.EMFILE})": "fs.inotify.max_user_instances",
+    "OS file watch limit reached": "fs.inotify.max_user_watches",
+}
+
+
+def _changes(paths, recursive, accepts, started):
+    """The batches `watch` reports for these roots, polled when the kernel has no
+    native watcher left to give. Exhaustion arises only while the watcher is
+    created, before `started` reports it installed (notify drops a later watch it
+    can't add), so the polling watcher misses no change the native one reported."""
+    options = {
+        "watch_filter": lambda _change, path: accepts(Path(path)),
+        "debounce": 25,
+        "step": 50,
+        "stop_event": started,
+        "rust_timeout": 0,
+        "raise_interrupt": False,
+        "recursive": recursive,
+    }
+    try:
+        yield from watch(*paths, **options)
+    except Exception as error:
+        limit = next(
+            (name for words, name in _LIMITS.items() if words in str(error)), None
+        )
+        if limit is None:
+            raise
+        note(
+            Finding(
+                "watch-limit",
+                values={"limit": limit, "roots": [str(path) for path in paths]},
+                severity="advice",
+            )
+        )
+        yield from watch(*paths, **options, force_polling=True)
 
 
 def _existing_roots(requested: dict[Path, bool]) -> dict[Path, bool]:

@@ -15,12 +15,17 @@ corpus's own page directory, so its markup still names a declared element there.
 
 import html
 import json
+import tempfile
 from pathlib import Path
 
 import click
 import turbohtml
+from click.testing import CliRunner
 
+from leaf.cli import cli
+from leaf.event_log import read_events
 from leaf.registry.contract import is_element_name
+from leaf.registry.kernel import kernel_event_ownership
 from leaf.registry.layer import merge_layer_declarations
 from leaf.state import flocked, replace_bytes
 from leaf.structure import SourceDocument, rel_tokens
@@ -35,6 +40,7 @@ from leaf_dev.example_data import (
     regression_sources,
     seed_log,
 )
+from leaf_dev.page_fixtures import prepare_page, read_fixture
 
 # Focused chrome galleries with several live child pages stay separate; their
 # underlying widget and thread states already stand in the feature gallery.
@@ -286,12 +292,31 @@ def build_page(inputs: list[Path]) -> dict[str, bytes]:
     return {"registry.json": registry.encode(), **files}
 
 
+def _run_leaf(*args: str, input_text: str | None = None) -> None:
+    result = CliRunner().invoke(cli, list(args), input=input_text)
+    if result.exit_code:
+        raise ValueError(f"leaf {' '.join(args)}: {result.output}") from (
+            result.exception
+        )
+
+
+def admitted_history(source: Path) -> list[dict]:
+    """The log a page built from `source` holds: its seed as the door admitted it,
+    with the fields admission derives, which a thread closure reads."""
+    with tempfile.TemporaryDirectory(prefix="leaf-corpus-") as scratch:
+        page = Path(scratch) / "page"
+        prepare_page(page, read_fixture(source), _run_leaf, final_status=None)
+        return read_events(page)
+
+
 def build_events(inputs: list[Path]) -> str:
-    """Carry the threads embedded samples explicitly depend on.
+    """Carry the threads embedded samples explicitly depend on, as the commands
+    the corpus's own seed admits.
 
     The corpus otherwise starts undecided; composing every example's history would
     settle unrelated controls before the corpus can exercise them.
     """
+    derived = kernel_event_ownership()["derived"]
     combined = {}
     for source in inputs:
         document = SourceDocument(source.read_text(encoding="utf-8"))
@@ -302,11 +327,7 @@ def build_events(inputs: list[Path]) -> str:
         }
         if not selected:
             continue
-        events = [
-            json.loads(line)
-            for line in seed_log(source).read_text().splitlines()
-            if line.strip()
-        ]
+        events = admitted_history(source)
         # A declaration naming nothing is a typo here and nothing else: the history
         # is the example's own shipped log, so a thread absent from it will be absent
         # from every page built from this source. `sample_events` seeds what a log
@@ -316,7 +337,8 @@ def build_events(inputs: list[Path]) -> str:
                 f"{source.name} declares sample threads its log does not "
                 f"hold: {', '.join(sorted(unknown))}"
             )
-        for event in sample_events(document, events, selected):
+        for record in sample_events(document, events, selected):
+            event = {key: value for key, value in record.items() if key not in derived}
             if event["id"] in combined and combined[event["id"]] != event:
                 raise ValueError(
                     f"corpus examples contribute conflicting event {event['id']!r}"

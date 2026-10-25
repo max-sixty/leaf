@@ -17,7 +17,9 @@ from pathlib import Path
 from typing import Literal, Protocol
 
 from leaf.delivery import record_receipt
-from leaf.event_log import read_events
+from leaf.event_contracts import append_admitted
+from leaf.event_log import EventRefused, read_events
+from leaf.files import list_revisions
 from leaf.interaction_log import append_interactions
 from leaf.media import media_name
 from leaf.revision_artifact import Resource, capture_artifact, capture_local_resource
@@ -289,11 +291,38 @@ def refresh_captures(fixture: PageFixture, page: Path, run_leaf: LeafRunner) -> 
             )
 
 
-def _seed_log(fixture: PageFixture, page: Path) -> None:
+def _seed_commands(fixture: PageFixture) -> list[dict]:
+    """The events an example's companion log seeds, in order, each as its writer
+    would send it. The log's grammar joins events with "\n", never `splitlines()`,
+    whose wider class breaks a U+2028 inside a message."""
     if fixture.seed is None:
+        return []
+    return [
+        json.loads(line)
+        for line in fixture.seed.read_text(encoding="utf-8").split("\n")
+        if line.strip()
+    ]
+
+
+def _seed_log(fixture: PageFixture, page: Path, pending: list[dict], *, last: bool):
+    """Admit the leading `pending` seed events the page's revisions can hold.
+
+    Each goes through the door every writer uses, so the log holds what a real
+    page's would: admission refuses a seed no writer could send and writes the
+    fields it derives, such as an action's meaning. An event waits for the stamp
+    of the revision it names, as its writer did; after the `last` stamp, the door
+    refuses one naming a version the example doesn't ship."""
+    if not pending:
         return
-    with (page / "events.jsonl").open("a", encoding="utf-8") as log:
-        log.write(fixture.seed.read_text(encoding="utf-8"))
+    newest = list_revisions(page)[-1]
+    with PageTransaction(page) as transaction:
+        while pending and (last or pending[0].get("revision", newest) <= newest):
+            event = pending.pop(0)
+            try:
+                append_admitted(transaction, event)
+            except EventRefused as error:
+                error.add_note(f"seeded by {fixture.seed} as {event.get('id')!r}")
+                raise
 
 
 def _acknowledge_seed(fixture: PageFixture, page: Path) -> None:
@@ -323,15 +352,15 @@ def prepare_page(
     here. The current source is written before the data operations, because
     `leaf data set` validates a source against the page's markup and the current
     version is the one that has to bind it. Versions are then stamped oldest first,
-    and the seed log goes in after the first stamp and before any later one, so a
+    and each seed event is admitted once the revision it names is stamped, so a
     revised example reads in the order it happened: a version, what the user said
-    about it, then the version that answered. A receipt acknowledges the seed, since
-    a seed is history: an unacknowledged one would hand the next agent session
-    questions the log already answers.
+    about it, then the version that answered and the reply that says so. A receipt
+    acknowledges the seed, since a seed is history: an unacknowledged one would hand
+    the next agent session questions the log already answers.
 
-    `each_version` is called with each version's source once it is stamped, and once
-    the seed is in the log after the first, so it reads the page as a builder
-    leaves it at that version.
+    `each_version` is called with each version's source once it is stamped and the
+    seed events it holds are in the log, so it reads the page as a builder leaves it
+    at that version.
     """
     selection = package_selection_args(fixture.packages)
     if initialize:
@@ -350,17 +379,14 @@ def prepare_page(
         assets=assets,
     )
     _seed_data(fixture, page, run_leaf)
+    pending = _seed_commands(fixture) if seed_log else []
     for order, version in enumerate(fixture.versions):
+        last = order == len(fixture.versions) - 1
         (page / "index.html").write_text(markup[version], encoding="utf-8")
         run_leaf(
-            "page",
-            "stamp",
-            str(page),
-            "--text",
-            current_note if order == len(fixture.versions) - 1 else earlier_note,
+            "page", "stamp", str(page), "--text", current_note if last else earlier_note
         )
-        if order == 0 and seed_log:
-            _seed_log(fixture, page)
+        _seed_log(fixture, page, pending, last=last)
         if each_version is not None:
             each_version(version)
     if seed_log:

@@ -2072,7 +2072,8 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
     event's `markup` goes through `leaf thread reply`, which validates it and then freezes
     it in an append-only log, so that door is the last moment anything about it can
     be fixed. An example's companion log is neither: it is written into the
-    repository by hand, and from there `leaf-dev site` publishes it to
+    repository by hand, and the append door it goes through reads the event, not
+    its markup. From there `leaf-dev site` publishes it to
     leaf.page, `serve` lays it into every browser sweep, and `leaf-dev preview`
     serves it live. `page check` reads such a log only for ids colliding
     with the version's.
@@ -2131,6 +2132,35 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
         "no seeded event carries markup, so this read nothing — see "
         "examples/AGENTS.md on what a log is for"
     )
+
+
+def test_a_seed_no_writer_could_send_stops_the_page_it_seeds(tmp_path, monkeypatch):
+    """An example's companion log enters through the append door, so a seed in a
+    shape no real page holds fails the build that lays it in, rather than reaching
+    the site and every sweep. A line copied from a stored log is that shape: it
+    carries what admission derives, which goes stale as the contract moves."""
+    monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
+    source = tmp_path / "seeded.html"
+    source.write_text(PAGE)
+    stored = {
+        "kind": "comment",
+        "author": "user",
+        "revision": 1,
+        "text": "Why this plan?",
+        "anchor": {"section": "plan"},
+        "attention": True,
+    }
+    source.with_suffix(".jsonl").write_text(json.dumps(stored) + "\n")
+    with pytest.raises(events_model.EventRefused, match="attention"):
+        prepare_page(
+            tmp_path / "page", read_fixture(source), run_leaf, final_status=None
+        )
+    del stored["attention"]
+    source.with_suffix(".jsonl").write_text(json.dumps(stored) + "\n")
+    page = tmp_path / "admitted"
+    prepare_page(page, read_fixture(source), run_leaf, final_status=None)
+    [seeded] = [e for e in events_model.read_events(page) if e["kind"] == "comment"]
+    assert seeded["attention"] is True
 
 
 def test_page_state_and_the_transcript_read_reactions_as_marks(page_dir):

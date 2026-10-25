@@ -53,7 +53,9 @@ An example's markup is its current version. Beside it may sit:
   declarations, modules or styles;
 - `versions/<stem>.vN.html`, earlier versions, read in filename order;
 - `<stem>.jsonl`, seeded events for what markup can't describe: a thread, a user
-  decision, or a widget in a message;
+  decision, or a widget in a message. Each line is an event as its writer would send
+  it, which the page admits through the append door, so leave out what admission
+  derives, such as an action's `meaning`;
 - `<stem>.data.json`, each page-owned data source's current value (`example_data.py`
   says how to give it).
 

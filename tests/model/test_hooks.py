@@ -710,6 +710,49 @@ def test_a_boundary_with_nothing_new_needs_no_leaf(claimed, monkeypatch, capsys)
     assert handed() == []
 
 
+def test_a_handover_the_transcript_records_late_is_received_at_the_next_boundary(
+    claimed, interactive, monkeypatch, capsys
+):
+    """A prompt the user types while a turn runs gets its prompt hook at once,
+    under the running turn's `prompt_id`, but its context joins the transcript only
+    once the turn takes the prompt in, after the turn's next tool boundary has run
+    (measured at 2.1.310). That boundary finds the comment the prompt handed over
+    awaiting a receipt it cannot yet confirm, so it keeps no reading, and the
+    boundary after it confirms the receipt rather than the launcher answering it.
+    Until then the page counts the comment as pending."""
+    shown: set[str] = set()
+    monkeypatch.setattr(
+        harness_model.ClaudeCodeHarness,
+        "entered_context",
+        lambda harness, payload: set(shown),
+    )
+
+    def hook(event: str) -> None:
+        payload = {"hook_event_name": event, "session_id": "s1", "prompt_id": "p1"}
+        # What the launcher does before a boundary (`state.boundary_quiet`).
+        if not (event == "PostToolBatch" and cleanup_model.boundary_quiet("s1")):
+            hooks_model.cmd_hook("claude-code", payload)
+
+    hook("UserPromptSubmit")
+    hook("PostToolBatch")
+    capsys.readouterr()
+    asked = append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "which ships first?"}
+    )
+    hook("UserPromptSubmit")  # typed while the turn runs
+    assert asked["id"] in capsys.readouterr().out
+    hook("PostToolBatch")
+    assert acknowledged_through(claimed) < asked["seq"]
+
+    shown.add(asked["id"])
+    hook("PostToolBatch")
+    assert acknowledged_through(claimed) == asked["seq"]
+    assert page_state(claimed)["pending"] == 0
+    assert capsys.readouterr().out == ""
+    hook("PostToolBatch")
+    assert cleanup_model.boundary_quiet("s1")
+
+
 BOUNDARY_PROBE = """\
 import json, sys
 opened = set()

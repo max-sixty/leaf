@@ -91,11 +91,11 @@ deadline, and a page whose lock is still held goes as a pointer. App Server turn
 interrupted just after they start leave their updates Delivered.
 
 Claude Code runs PostToolBatch after every batch of tool calls, and most hand
-nothing over. One that hands nothing over keeps what it read
-(`state.record_quiet`), and the launcher answers the next one that would read the
-same without starting Leaf (`state.boundary_quiet`). The reading is taken before
-the plans are read, so whatever changes after it, read or not, makes the next
-reading differ. The other facts a boundary reads can't give it input
+nothing over. One that hands nothing over, and leaves no handover awaiting its
+receipt, keeps what it read (`state.record_quiet`), and the launcher answers the
+next one that would read the same without starting Leaf (`state.boundary_quiet`).
+The reading is taken before the plans are read, so whatever changes after it,
+read or not, makes the next reading differ. The other facts a boundary reads can't give it input
 (`session-lifetime.md`, "The hook", lists them and says why). A new event, the
 agent's own `leaf` write among them, a claim or a turn that changed, or a record
 another hook keeps changes the reading, and the next boundary runs whole.
@@ -109,6 +109,7 @@ from pathlib import Path
 
 from .activity import acknowledged_obligations, turn_obligations, unanswered
 from .delivery import (
+    awaiting_receipt,
     batch_data,
     deliverable,
     delivery_pointer_prompt,
@@ -175,6 +176,8 @@ class PagePlan:
     `unwritable` says why this Leaf may record no pickup there, or is None
     (`event_contracts.write_refusal`). `unready` is what re-vendoring the page
     before the reading left for the agent, or None (`vendoring.renew_layer`).
+    `awaiting` is what a hook handed into the owner's open turn whose receipt
+    still waits on the harness's record (`delivery.awaiting_receipt`).
     """
 
     page: Path
@@ -190,6 +193,7 @@ class PagePlan:
     preview: bool
     unwritable: Finding | None
     unready: Finding | None
+    awaiting: set[str]
 
 
 def read_plans(session_id: str) -> list[PagePlan]:
@@ -265,6 +269,7 @@ def read_plans(session_id: str) -> list[PagePlan]:
                         (page_dir / PREVIEW_FILE).exists(),
                         write_refusal(page_dir),
                         unready,
+                        awaiting_receipt(page),
                     )
                 )
         except FileNotFoundError:
@@ -555,7 +560,10 @@ def carry_turn(
         else []
     )
     if event == "PostToolBatch" and not batches:
-        record_quiet(sid, reading)
+        # A handover still awaiting its receipt may reach the transcript after
+        # this boundary, and the next one would confirm it.
+        if not any(plan.awaiting for plan in plans):
+            record_quiet(sid, reading)
         return
     if event == "UserPromptSubmit":
         pick_up_acknowledged(sid, plans)

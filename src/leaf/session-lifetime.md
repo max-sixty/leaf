@@ -180,11 +180,12 @@ tool-boundary and Stop hooks hand into a turn:
   before its deadline. Otherwise it hands over a pointer the agent confirms with
   `leaf delivery ack`.
 
-Claude Code's tool boundary that hands nothing over keeps what it read, and the
-launcher answers the next one that would read the same without starting Leaf
-(`hook_transport.py`). The reading (`state.boundary_reading`) covers the install's
-registry, the session's own files in `sessions/`, the claims it holds, and their
-pages' event logs and vendored registries. A boundary hands over what
+Claude Code's tool boundary that hands nothing over, and leaves no handover
+awaiting its receipt, keeps what it read, and the launcher answers the next one
+that would read the same without starting Leaf (`hook_transport.py`). The
+reading (`state.boundary_reading`) covers the install's registry, the session's
+own files in `sessions/`, the claims it holds, and their pages' event logs and
+vendored registries. A boundary hands over what
 `delivery.deliverable` finds, and the other facts it reads can't add to that:
 
 - a page's revisions, which `page stamp` writes with the `version` event that
@@ -195,9 +196,14 @@ pages' event logs and vendored registries. A boundary hands over what
   each removed only once every page it names is gone;
 - a claim's lifetime (`service.lifetime_is_live`), which only ends, and takes
   pages away when it does;
-- Claude Code's own record of the session (`activity.claimant_turn`), which
-  matters only for input handed into the open turn and not yet confirmed, and the
-  boundary confirms that input before it takes its reading;
+- Claude Code's own record of the session, its status (`activity.claimant_turn`)
+  and its transcript (`delivery.confirm_entered`), which matter only for input
+  handed into the open turn and not yet received. The boundary confirms what the
+  transcript shows before it takes its reading, and keeps none while a handover
+  still awaits its receipt, since a handover can reach the transcript after the
+  next boundary has run: a prompt typed while a turn runs gets its hook at once,
+  but its context joins the transcript only once the turn takes the prompt in,
+  after that boundary (measured at 2.1.310);
 - the install's code, which an update replaces under another root, one the reading
   names; a checkout edited in place runs its new code at the next event.
 

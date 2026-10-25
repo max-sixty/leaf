@@ -428,7 +428,7 @@ test("held in at the window's foot, a card may grow back to the tallest it stood
   assert.equal(stood, 150);
 });
 
-test("a requested foot hold grows into the room above the card", async () => {
+test("a rising card has the window's height and keeps the top it stood at", async () => {
   const ui = await import("/vendor/floating-ui.esm.js");
   let height = 120;
   const platform = windowPlatform(() => ({ width: 320, height }));
@@ -438,8 +438,8 @@ test("a requested foot hold grows into the room above the card", async () => {
   let room = null;
   // An element 700px down, with 155px of room under the card's line.
   const clear = block(300, 300, 700, 730);
-  const place = async (edge = "top") => {
-    const seat = card.choose({
+  const place = async (rises = false) => {
+    card.choose({
       clear,
       boundary,
       scroller: scroller(1000),
@@ -453,7 +453,8 @@ test("a requested foot hold grows into the room above the card", async () => {
       fit(offered) {
         room = offered.height;
       },
-      edge,
+      edge: "top",
+      rises,
     });
     const answer = await ui.computePosition(
       { getBoundingClientRect: () => reference },
@@ -461,28 +462,18 @@ test("a requested foot hold grows into the room above the card", async () => {
       { placement, middleware: [...middleware, held], platform, strategy: "fixed" },
     );
     card.landed(answer);
-    return { edge, top: answer.y, floored: seat.floored };
+    return answer.y;
   };
   await place();
-  // A draft with room below grows the card down from its top.
+  // Holding its top, a card is offered the room below it.
   height = 150;
-  assert.deepEqual(await place(), { edge: "top", top: 692, floored: false });
+  assert.equal(await place(), 692);
   assert.equal(room, boundary.bottom - 692);
-  // Once it reaches the window's foot, its interaction owner can ask to hold that
-  // edge. The solver then offers the room above it.
-  height = 200;
-  assert.deepEqual(await place(), {
-    edge: "top",
-    top: boundary.bottom - 200,
-    floored: false,
-  });
-  height = 260;
-  assert.deepEqual(await place("foot"), {
-    edge: "foot",
-    top: boundary.bottom - 260,
-    floored: true,
-  });
+  // Rising, it is offered the window's height, and the boundary lifts it.
+  height = 400;
+  assert.equal(await place(true), boundary.bottom - 400);
   assert.equal(room, boundary.height);
-  // Read rather than drafted, it holds its top again.
-  assert.equal((await place()).edge, "top");
+  // Shorter again, it comes back down to the top it held.
+  height = 150;
+  assert.equal(await place(true), 692);
 });

@@ -528,6 +528,7 @@ export function createThreadPreview({
             }
           },
           edge: anchored.edge,
+          rises: anchored.rises,
         });
         watch(ui);
         return placementDriver.position(

@@ -74,7 +74,10 @@
    still that way while a turn joins the transcript above it.
 
    A held surface grows no taller than the room from its held edge, or than the tallest
-   it has stood since its line last moved (`fit`'s `stood`), whichever is more. Against
+   it has stood since its line last moved (`fit`'s `stood`), whichever is more. One
+   that `rises` holds its top but has the boundary's whole height, so the boundary
+   lifts it as it outgrows the room below; its held top is the spot before that lift,
+   so shrinking brings it back down to where it stood. Against
    the window's foot the boundary keeps a card's foot, so content that shrinks it, a
    rewrite opening over long words, a fold, an edit, lowers its top, and growing back
    raises it again to where it stood. A scroll moves the line and keeps only the
@@ -351,7 +354,8 @@ export const cardMeasure = () => rootLength("--thread-card");
    line when quoted, else the initial side's clearance edge. Without an explicit
    edge, the landed seat holds its growing surface by its foot above and top elsewhere,
    so an editor needs no transcript reading to keep its attachment while typing; before
-   that landing, an adopted frame's offsets are the ones held.
+   that landing, an adopted frame's offsets are the ones held. `rises` offers a surface
+   holding its top the boundary's whole height for `fit`, rather than the room below.
 
    `fit({ side, width, height, stood, scale })` sizes the surface for the room its side
    gives, in its positioning space; `stood` is the height a held surface caps no lower
@@ -459,7 +463,6 @@ export function commentPlacement() {
         side,
         fresh,
         adopted: initialHold !== null,
-        floored: held?.floored ?? false,
       };
     },
     options(
@@ -473,6 +476,7 @@ export function commentPlacement() {
         boundary,
         fit,
         edge = side === "top" ? "foot" : "top",
+        rises = false,
       },
     ) {
       const minimumWidth = cardMinimum();
@@ -541,7 +545,6 @@ export function commentPlacement() {
                       ? rects.reference.y
                       : rects.reference.y + (row - box.top) / scale.y,
               last: rects.reference.y + (lastRow - box.top) / scale.y,
-              foot: rects.reference.y + (boundary.bottom - box.top) / scale.y,
             },
           };
         },
@@ -602,7 +605,7 @@ export function commentPlacement() {
               Math.min(minimumWidth, boundary.width) / scale.x,
               Math.min(state.availableWidth, lane / scale.x),
             ),
-            height: state.availableHeight,
+            height: rises ? boundary.height / scale.y : state.availableHeight,
             stood,
             scale,
           });
@@ -718,14 +721,13 @@ export function commentPlacement() {
     },
     landed({ x, y, middlewareData }) {
       initialHold = null;
-      const { scale, column, attachmentInline, line, foot } = middlewareData.scaled;
+      const { scale, column, attachmentInline, line } = middlewareData.scaled;
       // A left-side surface grows toward the boundary, keeping its right edge beside
       // the target. Holding its compact left edge would widen it over the target.
       if (vertical(side)) inline ??= x - column;
       else if (side !== "left") carriedInline ??= (x - attachmentInline) * scale.x;
       const top = (y - (middlewareData.shift?.y ?? 0) - line) * scale.y;
       const height = middlewareData.held.height * scale.y;
-      const spot = { top, foot: top + height };
       tallest = {
         height:
           tallest && Math.abs(tallest.line - line) < 0.5
@@ -733,10 +735,7 @@ export function commentPlacement() {
             : height,
         line,
       };
-      held = {
-        ...spot,
-        floored: y + middlewareData.held.height >= foot - 0.5,
-      };
+      held = { top, foot: top + height };
       return { scale };
     },
   };

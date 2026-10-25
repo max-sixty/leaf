@@ -54,7 +54,9 @@ The title names the page, and the lede under it states the finding. A section th
 reaches a finding states it in its heading, short enough to scan in an `lf-toc`; put
 qualifications in the first sentence. A `<summary>` and an option's `<strong>` do the
 same. "What we learned" promises a finding and withholds it. Use a plain label only where there is no finding, as over a list, table or board
-that speaks for itself.
+that speaks for itself. A panel's heading (`section.panel`, as on a dashboard) is
+set in small capitals, which read as a region's name and not as a sentence, so name
+the region there in a few words and state its finding in the panel's first line.
 
 Write for what the user has seen: this conversation and the page so far. Introduce the
 names a decision depends on, show evidence for any claim they could doubt, and drop the

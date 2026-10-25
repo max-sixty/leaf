@@ -1416,6 +1416,7 @@ const RUNG_LADDER = [
 const PAGE_COMMANDS = [
 	"comment.create",
 	"writing.resume",
+	"message.edit.restore",
 	"selection.restore",
 	"target.picker.open",
 	"reaction.open",
@@ -2713,6 +2714,13 @@ function transferDraft(from, to, text, payload) {
 	tellDraft(to, activeDraftRecord(to)?.text ?? text, payload);
 	return true;
 }
+function restoreDraft(ctx, text, payload) {
+	refreshDraftRecord(ctx);
+	if (draftHasContent(ctx)) return false;
+	saveDraft(ctx, text, payload);
+	tellDraft(ctx, text, payload);
+	return true;
+}
 const loadDraft = (ctx) => activeDraftRecord(ctx)?.text ?? null;
 const loadDraftPayload = (ctx) => activeDraftRecord(ctx)?.payload;
 const draftContexts = () => /* @__PURE__ */ new Set([...draftCache.keys(), ...draftStore.keys().filter((key) => key.startsWith(DRAFT)).map((key) => key.slice(9))]);
@@ -3262,6 +3270,26 @@ function holdBox(control) {
 const OPEN_MESSAGE_EDIT = "lf-open-message-edit";
 const open = /* @__PURE__ */ new Map();
 const sending = /* @__PURE__ */ new Set();
+let discarded = null;
+function createRewriteRestore({ revealInThread, holdsThreadDraft }) {
+	const restorable = () => discarded && !open.has(discarded.id) && !draftHasContent(rewriteContext(discarded.id)) && holdsThreadDraft(rewriteContext(discarded.id));
+	return {
+		id: "message.edit.restore",
+		keys: ["Shift+d"],
+		title: "Restore discarded edit",
+		touch: "Restore discarded edit",
+		menu: "page",
+		when: () => Boolean(restorable()),
+		run: async () => {
+			if (!restorable()) return;
+			const { id, text, over } = discarded;
+			const ctx = rewriteContext(id);
+			if (!restoreDraft(ctx, text, { over })) return;
+			discarded = null;
+			await revealInThread(ctx, retainUserIntent());
+		}
+	};
+}
 function holdsMessageEdit(id, view) {
 	const holder = open.get(id);
 	if (!holder) return false;
@@ -3382,7 +3410,16 @@ var MessageEditor = class {
 			if (painting) paint();
 			if (says) announce(says);
 		};
-		const close = () => leave(true, { says: unchanged() ? "Stopped editing" : "Edit discarded; the message is as it was" });
+		const close = () => {
+			if (unchanged()) return leave(true, { says: "Stopped editing" });
+			discarded = {
+				id,
+				text: whole(),
+				over: base
+			};
+			leave(true);
+			notice("Edit discarded; the leaf's menu can restore it");
+		};
 		const putAside = () => {
 			if (!unchanged()) return;
 			leave(true, {
@@ -6958,4 +6995,4 @@ function surfaceFocusTarget(name, { part = "reply" } = {}) {
 }
 
 //#endregion
-export { DESIGN_MODE_KEY, ELEMENTS, HOLDS_WORD, HeldNews, HeldReading, MessageView, PAGE_DRAFT, PAGE_SCOPE, SAYS_IN, SAY_BOX, THREAD, ThreadView, Transcript, allButCommandReference, allThreads, alreadyShown, anchorLabel, answeredInWords, arrivalOf, authoredHolder, beginThreadSeats, beginWalk, blocksOnScreen, bringBackSurfaceOf, captureDraftEditing, capturePlace, carryingThreadPlace, claimSeatReplies, claimed, clearDraft, commitThreadSeats, completeReadingReturn, copyBlock, createPassageSelection, createReplyView, createWritingResume, currentLocationOrigin, currentLocationThreadId, declareOffFlowSurface, declareSide, declareThreadParts, designName, dismissReply, dismissReplyAt, draftContexts, draftEditingDestination, draftEditingStands, draftHasContent, draftStore, drawnThreadId, ensureSyntaxLanguage, fitsWhole, focusThread, focusedInView, focusedThreadTarget, followBoxGrowth, formatDeclaredMarkdown, hasLandmark, heldGrowth, heldObligation, heldOut, heldThread, heldThreadId, highlightBlocks, holdReplyCompositions, holdThreadPlace, holdToRead, importWidgets, inlineMarkdownFragment, isExternalPageLink, isPagePaint, isPageWidgetWorkflow, isWorkflowProgress, keepRefusedWords, keepThreadLanding, keepView, landingPlace, landingRoom, langForPath, leftThePage, listWalkPosition, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, markdownSourceOffset, markdownWords, messageHolding, messageReading, messageText, mirrorDraft, mountFirstMessage, newsNotice, obligationEntry, obligationHolding, obligationPlace, obligationsIn, onReadingInterrupted, openMessageEditIn, openingPassage, openingView, pageCommand, pageDoor, pageReadingBlock, pageRung, pageScope, pageScopes, pageSelection, paintMarkdown, passageBlock, patchDocument, placeKeeper, placeNode, placeOf, placeOffset, placePageThreads, placedMarkdownTokens, preloadWidgets, prepareAuthoredMessage, prepareDeclaredMarkdown, progressFace, quietWord, quoteReading, rawOffsetFits, readBoxPlace, readObligations, readThreads, readingBlock, readingIsContinuous, readingReturn, registerWritingDestination, reindexPassageOwners, releaseAuthoredUnder, releaseOutlets, releaseReplies, rememberPassageParts, rememberWriting, renderMarginThread, renderMarkdown, renderQuiet, renderSeats, renderSurfaces, replyAvailable, replyCompositionHasDraft, replyContext, replyDestination, replyDraftContext, replyDraftsHold, replyIsEditing, restoreDraftEditing, restorePlace, restoreReplyEditing, restrictUserIntent, retainThreadSeats, retainUserIntent, revealHeld, rowWalk, saveDraft, scrollIntoReadingBand, scrollIntoView, scrollThreadIntoView, selectionAnchor, sendDraft, sendLanding, sendMessage, settleAcceptedDrafts, settleThread, showHeld, showHeldThread, showReturnTurn, snapSelection, stances, stepFrom, storedDraft, strongestWorkflow, surfaceFocusTarget, synNodes, syntax, tabStore, tellDraft, textBlocks, textEntryScope, threadAttention, threadDraft, threadFocusDestination, threadHeading, threadIdNamed, threadList, threadName, threadNamed, threadPart, threadReading, threadReplyInput, threadRewrites, threadState, threadSummary, threadSurface, todoLabel, tokenLines, touchPresses, transferDraft, universalCommandReference, upgradeWidgets, userStore, walkOrigin, walkPosition, walkPositionLabel, watchDraft, watchDrafts, watchThreadSurfaces, whereDraft, wholeThread, workflowLabel, workflowStep };
+export { DESIGN_MODE_KEY, ELEMENTS, HOLDS_WORD, HeldNews, HeldReading, MessageView, PAGE_DRAFT, PAGE_SCOPE, SAYS_IN, SAY_BOX, THREAD, ThreadView, Transcript, allButCommandReference, allThreads, alreadyShown, anchorLabel, answeredInWords, arrivalOf, authoredHolder, beginThreadSeats, beginWalk, blocksOnScreen, bringBackSurfaceOf, captureDraftEditing, capturePlace, carryingThreadPlace, claimSeatReplies, claimed, clearDraft, commitThreadSeats, completeReadingReturn, copyBlock, createPassageSelection, createReplyView, createRewriteRestore, createWritingResume, currentLocationOrigin, currentLocationThreadId, declareOffFlowSurface, declareSide, declareThreadParts, designName, dismissReply, dismissReplyAt, draftContexts, draftEditingDestination, draftEditingStands, draftHasContent, draftStore, drawnThreadId, ensureSyntaxLanguage, fitsWhole, focusThread, focusedInView, focusedThreadTarget, followBoxGrowth, formatDeclaredMarkdown, hasLandmark, heldGrowth, heldObligation, heldOut, heldThread, heldThreadId, highlightBlocks, holdReplyCompositions, holdThreadPlace, holdToRead, importWidgets, inlineMarkdownFragment, isExternalPageLink, isPagePaint, isPageWidgetWorkflow, isWorkflowProgress, keepRefusedWords, keepThreadLanding, keepView, landingPlace, landingRoom, langForPath, leftThePage, listWalkPosition, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, markdownSourceOffset, markdownWords, messageHolding, messageReading, messageText, mirrorDraft, mountFirstMessage, newsNotice, obligationEntry, obligationHolding, obligationPlace, obligationsIn, onReadingInterrupted, openMessageEditIn, openingPassage, openingView, pageCommand, pageDoor, pageReadingBlock, pageRung, pageScope, pageScopes, pageSelection, paintMarkdown, passageBlock, patchDocument, placeKeeper, placeNode, placeOf, placeOffset, placePageThreads, placedMarkdownTokens, preloadWidgets, prepareAuthoredMessage, prepareDeclaredMarkdown, progressFace, quietWord, quoteReading, rawOffsetFits, readBoxPlace, readObligations, readThreads, readingBlock, readingIsContinuous, readingReturn, registerWritingDestination, reindexPassageOwners, releaseAuthoredUnder, releaseOutlets, releaseReplies, rememberPassageParts, rememberWriting, renderMarginThread, renderMarkdown, renderQuiet, renderSeats, renderSurfaces, replyAvailable, replyCompositionHasDraft, replyContext, replyDestination, replyDraftContext, replyDraftsHold, replyIsEditing, restoreDraftEditing, restorePlace, restoreReplyEditing, restrictUserIntent, retainThreadSeats, retainUserIntent, revealHeld, rowWalk, saveDraft, scrollIntoReadingBand, scrollIntoView, scrollThreadIntoView, selectionAnchor, sendDraft, sendLanding, sendMessage, settleAcceptedDrafts, settleThread, showHeld, showHeldThread, showReturnTurn, snapSelection, stances, stepFrom, storedDraft, strongestWorkflow, surfaceFocusTarget, synNodes, syntax, tabStore, tellDraft, textBlocks, textEntryScope, threadAttention, threadDraft, threadFocusDestination, threadHeading, threadIdNamed, threadList, threadName, threadNamed, threadPart, threadReading, threadReplyInput, threadRewrites, threadState, threadSummary, threadSurface, todoLabel, tokenLines, touchPresses, transferDraft, universalCommandReference, upgradeWidgets, userStore, walkOrigin, walkPosition, walkPositionLabel, watchDraft, watchDrafts, watchThreadSurfaces, whereDraft, wholeThread, workflowLabel, workflowStep };

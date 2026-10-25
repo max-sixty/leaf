@@ -73,6 +73,7 @@ import { createPageGeometry } from "./runtime/page-geometry.js";
 import * as targetPaint from "./runtime/target-paint.js";
 import { pointerAt } from "./runtime/pointer.js";
 import { createWritingResume } from "./runtime/drafts.js";
+import { createRewriteRestore } from "./runtime/thread/message-edit.js";
 import { allThreads } from "./runtime/thread/state.js";
 import { anchorLabel } from "./runtime/thread/messages.js";
 import {
@@ -610,12 +611,18 @@ const writingResume = createWritingResume({
     app.threadDestinations.openThreadDraft(context, intent),
   holdsThreadDraft: (context) => app.threadDestinations.holdsThreadDraft(context),
 });
+const rewriteRestore = createRewriteRestore({
+  revealInThread: (context, intent) =>
+    app.threadDestinations.openThreadDraft(context, intent),
+  holdsThreadDraft: (context) => app.threadDestinations.holdsThreadDraft(context),
+});
 goToSequence = createGoToSequence({
   doors: floatingPanel.doors,
   hintChrome,
   openPageMap: (...args) => pageMapDialog.openPageMap(...args),
   directDestinations: () => [
     writingResume,
+    rewriteRestore,
     passageSelection.command,
     navigation.alignTop,
     app.read.firstUnreadCommand,

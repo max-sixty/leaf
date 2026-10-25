@@ -130,6 +130,23 @@
           </ol>
         </aside>
 
+        <lf-ask id="pr-approval-decision">
+          <h2>Approve PR #3865?</h2>
+          <p id="pr-approval-premise">
+            Approval accepts revision <code>9ca8f78b</code> as it stands; the benchmark
+            and the dry-run gap become follow-up issues rather than blockers.
+          </p>
+          <lf-options id="pr-approval" choose>
+            <lf-option id="pr-approval-hold"
+              ><strong>Hold approval</strong> Ask for the selected-row benchmark before
+              this merges.</lf-option
+            >
+            <lf-option id="pr-approval-approve"
+              ><strong>Approve it</strong> File both follow-ups as issues.</lf-option
+            >
+          </lf-options>
+        </lf-ask>
+
         <section class="panel" id="pr-orientation">
           <h2>Review finding</h2>
           <div id="pr-agent-summary">

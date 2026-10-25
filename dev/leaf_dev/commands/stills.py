@@ -1068,6 +1068,24 @@ def element_thread(page: Page) -> None:
     page.locator("#off-t-vendor").evaluate("el => el.scrollIntoView({block: 'center'})")
 
 
+def ship_tasks(page: Page) -> None:
+    """The ship review's task list, each task's status beside its title."""
+    page.locator("#off-readiness").evaluate(
+        "el => el.scrollIntoView({block: 'center'})"
+    )
+
+
+def ship_answered(page: Page) -> None:
+    """On me once the user has pressed Done in the reconnect thread and picked the
+    release: what still waits on them."""
+    card_by_pointer(page)
+    page.locator(".lf-margin-preview:not([hidden]) .lf-done").click()
+    page.keyboard.press("Escape")
+    page.locator("#off-release-ship").click()
+    page.locator(".lf-fp-on-user").click()
+    expect(page.locator(".lf-fp-opened")).to_be_visible()
+
+
 def more_menu(page: Page) -> None:
     """The leaf's menu, opened: the agent's state at its head over the page's
     controls."""
@@ -2078,6 +2096,7 @@ STATES = (
         touch=True,
     ),
     State("triage-grabbed", "triage-board", card_grabbed),
+    State("walkthrough", "pr-walkthrough", at_rest),
     State(
         "walkthrough-body-short",
         "pr-walkthrough",
@@ -2169,6 +2188,22 @@ STATES = (
         touch=True,
     ),
     State("ship-thread", "ship-review", element_thread),
+    State("ship-tasks", "ship-review", ship_tasks, region="#off-readiness"),
+    State(
+        "ship-tasks-dark",
+        "ship-review",
+        ship_tasks,
+        scheme="dark",
+        region="#off-readiness",
+    ),
+    State(
+        "ship-tasks-phone",
+        "ship-review",
+        ship_tasks,
+        viewport=(390, 844),
+        touch=True,
+    ),
+    State("ship-answered", "ship-review", ship_answered, region=".lf-fp-opened"),
     State("ship-card-more-room", "ship-review", card_more_room, viewport=(1440, 600)),
     State(
         "ship-card-short-window", "ship-review", card_by_pointer, viewport=(1440, 480)

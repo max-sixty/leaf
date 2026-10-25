@@ -625,14 +625,15 @@ def test_claude_codes_turn_confirms_what_its_hooks_hand_over(claimed, capsys):
 
 
 def test_a_handover_its_turn_never_confirmed_is_offered_again(
-    claimed, interactive, monkeypatch, capsys
+    claimed, interactive, context_record, monkeypatch, capsys
 ):
     """Escape while another plugin's prompt hook still runs drops the whole prompt,
-    Leaf's context with it, after Leaf's hook has handed its delivery over. Claude
-    Code's record then reads idle with no hook having run since, so the turn reads
-    ended and what it was handed is input again, both an update that owes a reply
-    and one that owes none. With no watch from before that turn, the page's server
-    nudges the session, and the turn that opens is handed it again."""
+    Leaf's context with it, after Leaf's hook has handed its delivery over, and the
+    transcript shows none of it. Claude Code's record then reads idle, so the turn
+    reads ended and what it was handed is input again, both an update that owes a
+    reply and one that owes none. With no watch from before that turn, the page's
+    server nudges the session, and the prompt that opens, under a prompt id of its
+    own, is handed it again; once the transcript shows it, the next hook confirms."""
     asked = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "which ships first?"}
     )
@@ -652,10 +653,16 @@ def test_a_handover_its_turn_never_confirmed_is_offered_again(
         "nudge",
         lambda harness, page: nudged.append(page) or True,
     )
-    prompt = {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
 
-    def handed_over() -> list[str]:
-        hooks_model.cmd_hook("claude-code", prompt)
+    def handed_over(prompt_id: str) -> list[str]:
+        hooks_model.cmd_hook(
+            "claude-code",
+            {
+                "hook_event_name": "UserPromptSubmit",
+                "session_id": "s1",
+                "prompt_id": prompt_id,
+            },
+        )
         context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
             "additionalContext"
         ]
@@ -663,7 +670,8 @@ def test_a_handover_its_turn_never_confirmed_is_offered_again(
         return [event["id"] for event in batch["events"]]
 
     updates = [asked["id"], withdrawn["id"], resolve["id"]]
-    assert handed_over() == updates
+    context_record.dropped = {"p1"}
+    assert handed_over("p1") == updates
     # The page's server reads the harness's record among its live facts, and while
     # the turn runs it finds nothing to nudge for.
     server = server_rows_model.RowPublisher(claimed, "fixture-server")
@@ -677,16 +685,112 @@ def test_a_handover_its_turn_never_confirmed_is_offered_again(
     server.live_until = 0
     server.refresh()
     assert nudged == [claimed]
+    assert acknowledged_through(claimed) == 0
 
-    assert handed_over() == updates
-    # The model's first `leaf` command shows it read them: its PreToolUse confirms.
+    assert handed_over("p2") == updates
     monkeypatch.setattr(
         harness_model.ClaudeCodeHarness, "escape_sandbox", lambda harness: None
     )
     hooks_model.cmd_hook(
-        "claude-code", {"hook_event_name": "PreToolUse", "session_id": "s1"}
+        "claude-code",
+        {"hook_event_name": "PreToolUse", "session_id": "s1", "prompt_id": "p2"},
     )
     assert acknowledged_through(claimed) == resolve["seq"]
+
+
+def test_claude_codes_transcript_says_which_handovers_reached_the_model(tmp_path):
+    """Claude Code writes a `hook_additional_context` record once a hook's output
+    joins the conversation (the shape below is 2.1.310's), and none for a prompt
+    Escape dropped. A reminder, another hook's context, a record still being written
+    and a missing transcript show nothing."""
+    delivery = {"batches": [{"events": [{"id": "e1"}, {"id": "e2"}]}]}
+    inline = "\n".join(
+        [hook_transport_model.INLINE_OPENING, json.dumps(delivery), "Leaf needs"]
+    )
+    records = [
+        {"type": "user", "promptId": "p1", "message": {"content": "hi"}},
+        {
+            "type": "attachment",
+            "attachment": {
+                "type": "hook_additional_context",
+                "content": [inline],
+                "hookName": "PostToolBatch",
+            },
+        },
+        {
+            "type": "attachment",
+            "attachment": {
+                "type": "hook_additional_context",
+                "content": ["Leaf needs attention: e3 is owed"],
+            },
+        },
+    ]
+    transcript = tmp_path / "session.jsonl"
+    transcript.write_text("".join(json.dumps(record) + "\n" for record in records))
+    assert harness_model.claude_code_entered(transcript) == {"e1", "e2"}
+    assert harness_model.claude_code_entered(tmp_path / "missing.jsonl") == set()
+    assert (
+        harness_model.ClaudeCodeHarness.hook_payload(
+            {"hook_event_name": "Stop", "prompt_id": "p1"}
+        )["turn_id"]
+        == "p1"
+    )
+
+
+def test_a_boundary_handover_escape_kept_is_never_handed_over_twice(
+    claimed, interactive, context_record, monkeypatch, capsys
+):
+    """Escape during a tool boundary's hooks keeps that boundary's context, so the
+    transcript shows the comment the boundary handed over, and the turn ends with
+    no later hook (Claude Code 2.1.308 and 2.1.310). The page's server reads the
+    turn interrupted and nudges the session, since the comment may not have reached
+    the model. The woken prompt's hook confirms what the transcript shows first, so
+    it names the comment as owed rather than handing the delivery over again."""
+    monkeypatch.setattr(
+        harness_model.ClaudeCodeHarness, "escape_sandbox", lambda harness: None
+    )
+    live = {"state": "busy", "since": datetime.now().astimezone().isoformat()}
+    monkeypatch.setattr(
+        harness_model.ClaudeCodeHarness, "live_turn", lambda harness: dict(live)
+    )
+    nudged = []
+    monkeypatch.setattr(
+        harness_model.ClaudeCodeHarness,
+        "nudge",
+        lambda harness, page: nudged.append(page) or True,
+    )
+    hooks_model.cmd_hook(
+        "claude-code",
+        {"hook_event_name": "UserPromptSubmit", "session_id": "s1", "prompt_id": "p1"},
+    )
+    capsys.readouterr()
+    asked = append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "which ships first?"}
+    )
+    hooks_model.cmd_hook(
+        "claude-code",
+        {"hook_event_name": "PostToolBatch", "session_id": "s1", "prompt_id": "p1"},
+    )
+    boundary = json.loads(capsys.readouterr().out)["hookSpecificOutput"]
+    assert asked["id"] in boundary["additionalContext"]
+
+    time.sleep(0.01)
+    live.update(state="idle", since=datetime.now().astimezone().isoformat())
+    server = server_rows_model.RowPublisher(claimed, "fixture-server")
+    server.live_until = 0
+    server.refresh()
+    assert nudged == [claimed]
+
+    hooks_model.cmd_hook(
+        "claude-code",
+        {"hook_event_name": "UserPromptSubmit", "session_id": "s1", "prompt_id": "p2"},
+    )
+    reminder = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
+        "additionalContext"
+    ]
+    assert acknowledged_through(claimed) == asked["seq"]
+    assert asked["id"] in reminder
+    assert not reminder.startswith(hook_transport_model.INLINE_OPENING)
 
 
 def test_a_turn_ends_on_its_answer_and_a_turn_of_its_own_names_what_it_owes(

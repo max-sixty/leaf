@@ -42,10 +42,10 @@ entry routes `leaf hook` here before loading the CLI.
 Claude Code's PostToolBatch carries pending input before the next model call,
 after successful or failed tools, using the same envelope and receipt as its
 prompt hook. A boundary with nothing pending adds no response-debt reminders.
-Claude Code may still drop what a hook hands over, so its PreToolUse, PostToolBatch
-and Stop hooks first confirm what the turn's earlier hooks handed into it
-(`delivery.confirm_turn`): the model reads the context before it calls a tool or
-ends its turn.
+Claude Code may still drop what a hook hands over, so each of its hooks first
+records the receipt of what its transcript shows entered the model's context
+(`delivery.confirm_entered`). Its hooks name the turn by `prompt_id`
+(`ClaudeCodeHarness.hook_payload`).
 
 Session-start and prompt hooks also inspect retained claims for disconnected pages
 (`reconnect`), including inactive ownership. That notice does not reclaim a
@@ -99,6 +99,8 @@ def cmd_hook(harness: str, payload: dict) -> None:
     from .harness import hook_harness
 
     hooked = hook_harness(harness, sid)
+    payload = hooked.hook_payload(payload)
+    turn_id = payload.get("turn_id")
     if event == "PreToolUse":
         # Hooks run outside the harness's sandbox and shell commands inside it.
         # Claude Code's registration runs this only before a command naming
@@ -107,13 +109,12 @@ def cmd_hook(harness: str, payload: dict) -> None:
         if not holds_claims(sid):
             # The launcher skipped this turn's prompt hook (`bin/leaf`),
             # so the turn a claim joins opens here, before the command.
-            prompt_turn(sid)
+            prompt_turn(sid, turn_id)
         elif not hooked.commits_hook_context:
-            from .delivery import confirm_turn
+            from .delivery import confirm_entered
 
-            confirm_turn(sid)
+            confirm_entered(hooked, payload)
         return
-    turn_id = payload.get("turn_id")
     if event in {"UserPromptSubmit", "TurnStart"}:
         expected = prompt_turn(sid, turn_id)
         if expected is None or event == "TurnStart":
@@ -156,10 +157,13 @@ def cmd_hook(harness: str, payload: dict) -> None:
             sid, turn_id, expected=expected, ended_at=payload.get("ended_at")
         )
         return
-    if event in {"PostToolBatch", "Stop"} and not hooked.commits_hook_context:
-        from .delivery import confirm_turn
+    if (
+        event in {"UserPromptSubmit", "PostToolBatch", "Stop"}
+        and not hooked.commits_hook_context
+    ):
+        from .delivery import confirm_entered
 
-        confirm_turn(sid)
+        confirm_entered(hooked, payload)
     prompt, expected = hooked.offer_at_step(event, payload, expected)
     if prompt:
         print(json.dumps(hooked.hook_context(event, prompt)))

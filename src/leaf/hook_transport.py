@@ -54,15 +54,17 @@ too (`Harness.fits_hook_context`).
 
 Pi has the context once the hook returns, so its hook records the receipt with the
 pickup. Claude Code reads it only once every hook of the event has exited, and
-Escape before then drops it with the prompt or the tool boundary. So a Claude Code
-hook leaves the receipt to the turn's next hook, PreToolUse before a `leaf` command,
-PostToolBatch or Stop, which runs only once the model has read the context
-(`delivery.confirm_turn`). Until then the handed input is not offered again. Once
-the turn reads ended without that hook, or a prompt opens it again, it is input
-again (`delivery.deliverable`): Claude Code submits a wake Escape interrupted again
-at once, whose prompt hook hands it over anew; a watch from before the turn wakes for
-it; and where none runs, as after a turn a wake opened, the page's server nudges the
-session (`presence.nudge_interrupted`).
+Escape before then drops a prompt with its context, though not a tool boundary's.
+So a Claude Code hook leaves the receipt to the transcript's record of the model's
+context, which every later hook reads first (`delivery.confirm_entered`). Until
+then the handed input is not offered again. Once its turn reads ended, it may not
+have reached the model, so it is input again (`delivery.deliverable`): Claude Code
+submits a wake Escape interrupted again at once as a new prompt; a watch from
+before the turn wakes for it; and where none runs, the page's server nudges the
+session (`presence.nudge_interrupted`). The hook of the prompt that opens confirms
+what the transcript shows before it reads the page, so it hands over again only
+what never reached the model, and names an update the model did read and left
+unanswered as owed.
 
 A page vendored at an older protocol is re-vendored before it is read
 (`vendoring.renew_layer`), and the turn is told why that failed or which checks

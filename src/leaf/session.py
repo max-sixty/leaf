@@ -651,7 +651,7 @@ def watch_between_turns(harness: Harness, *, interrupted: bool = False) -> str |
     unless it arrives in a later turn than the one the watch follows
     (`later_turn_wakes`), which takes it itself. A watch after Escape
     wakes for what the stopped turn left deliverable: input that never entered its
-    context, and input its hooks handed over that no later hook of it confirmed
+    context, and input its hooks handed over that its transcript does not show
     (`delivery.deliverable`); input the turn confirmed waits for a prompt.
     Settled thread input alone never wakes; it remains in the next receipt batch.
     The session lease and each page transaction retain ownership of delivery,

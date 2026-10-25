@@ -4006,7 +4006,7 @@ def test_resume_metadata_cannot_replace_a_newer_observation_during_the_request(
                 else:
                     cleanup_model.prompt_turn("codex-thread", "new-turn")
                     with service_model.PageTransaction(page_dir) as page:
-                        page.set_status("waiting", "New turn")
+                        page.set_status("waiting")
                     codex_model.set_stream_activity(
                         "codex-thread",
                         "new-turn",
@@ -4212,7 +4212,7 @@ def test_old_fold_cannot_change_activity_in_a_reused_session_generation(
         page.take_claim(
             harness_model.EmbeddedHarness("codex-thread", "Codex", os.getpid())
         )
-        page.set_status("waiting", "New generation")
+        page.set_status("waiting")
     codex_model.set_stream_activity(
         "codex-thread",
         "same-turn",
@@ -4263,7 +4263,7 @@ def test_an_old_fold_cannot_publish_working_or_tool_activity_after_its_turn(
     if replacement == "prompt":
         cleanup_model.prompt_turn("codex-thread", "new-turn")
         with service_model.PageTransaction(page_dir) as page:
-            page.set_status("waiting", "New turn")
+            page.set_status("waiting")
         codex_model.set_stream_activity(
             "codex-thread",
             "new-turn",
@@ -4317,7 +4317,7 @@ def test_a_rejected_started_fold_cannot_publish_initial_working_activity(
             page.take_claim(
                 harness_model.EmbeddedHarness("codex-thread", "Codex", os.getpid())
             )
-            page.set_status("waiting", "New generation")
+            page.set_status("waiting")
         codex_model.set_stream_activity(
             "codex-thread",
             turn_id,
@@ -4376,7 +4376,7 @@ def test_fresh_resume_replaces_a_fold_from_an_earlier_session_generation(page_di
         page.take_claim(
             harness_model.EmbeddedHarness("codex-thread", "Codex", os.getpid())
         )
-        page.set_status("waiting", "New generation")
+        page.set_status("waiting")
     expected = cleanup_model.session_record("codex-thread")
     connection.lifecycle = expected
     connection._resume(

@@ -8,6 +8,7 @@ import json
 import shutil
 import subprocess
 import sys
+import threading
 import time
 import urllib.parse
 import urllib.request
@@ -72,7 +73,7 @@ def test_authored_recordings_are_served_with_seekable_captured_bytes(
     }.items():
         source = tmp_path / ("recording" + suffix.upper())
         source.write_bytes(data)
-        _, path = media_model.cmd_media(page_dir, [source])[0]
+        path = media_model.cmd_media(page_dir, [source])[0]["path"]
         paths.append((path, mime))
     markup = "".join(f'<audio controls src="{path}"></audio>' for path, _ in paths)
     (page_dir / "index.html").write_text(PAGE.replace("</main>", markup + "</main>"))
@@ -268,8 +269,7 @@ def test_server_round_trip(server, page_dir):
     moved = event_model.read_events(page_dir)[-1]
     assert moved["author"] == "user" and moved["detail"]["value"] == "col-doing"
     # A design comment names the control the press landed on beside the widget it is
-    # about. The door takes its design intent as posted, and the transcript says which
-    # kind of comment it was.
+    # about. The door takes its design intent as posted.
     status, _ = fetch(
         f"{server}/api/event",
         data=json.dumps(
@@ -285,10 +285,6 @@ def test_server_round_trip(server, page_dir):
     assert status == 200
     design = event_model.read_events(page_dir)[-1]
     assert design["about"] == "design" and design["anchor"]["part"] == "grip"
-    transcript = CliRunner().invoke(
-        cli_model.cli, ["page", "transcript", str(page_dir)]
-    )
-    assert "> § feeder-board · grip  — about the design" in transcript.output
     status, _ = fetch(
         f"{server}/api/event",
         data=json.dumps(
@@ -306,10 +302,8 @@ def test_server_round_trip(server, page_dir):
         ).encode(),
     )
     assert status == 200
-    transcript = CliRunner().invoke(
-        cli_model.cli, ["page", "transcript", str(page_dir)]
-    )
-    assert "> “Remove” · grip" in transcript.output
+    quoted = event_model.read_events(page_dir)[-1]["anchor"]
+    assert (quoted["quote"], quoted["part"]) == ("Remove", "grip")
     drawing = {
         "strokes": [[[-20, 74], [50, 10], [120, 74]]],
         "box": [640.5, 96],
@@ -336,13 +330,6 @@ def test_server_round_trip(server, page_dir):
     drawn = event_model.read_events(page_dir)[-1]
     assert drawn["drawing"] == drawing
     assert "text" not in drawn
-    transcript = CliRunner().invoke(
-        cli_model.cli, ["page", "transcript", str(page_dir)]
-    )
-    assert (
-        "_(drawing attached over “to reap every process … before exporting”)_"
-        in transcript.output
-    )
     for bad in [
         {"kind": []},
         {"kind": "action", "action": "move"},  # no widget
@@ -751,7 +738,7 @@ def test_a_server_keeps_its_row_fresh_without_browser_visits(page_dir, spawn):
         )
     )
     end_work(neighbor)
-    declare(neighbor, "waiting", "pick one")
+    declare(neighbor, "waiting")
     session = cleanup_model.session_record("invisible")
     cleanup_model.write_session({**session, "turn_closed": cleanup_model.now_iso()})
     await_row(lambda row: row["activity"]["kind"] == "away")
@@ -820,7 +807,7 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
     # must not make this page's poll fail: the field is ignored.
     malformed = pages / "malformed-stream"
     neighbour_page(malformed, title="Malformed stream")
-    declare(malformed, detail="unknown")
+    declare(malformed)
     write_record(malformed / "stream.json", {"work": [{}]})
     # A page served from a session's scratch directory, plus the asking page
     # itself: the claim index finds the first, and the second stays out of its own
@@ -885,3 +872,24 @@ def test_neighbours_follow_their_servers_and_ignore_deleted_pages(page_dir, tmp_
     shutil.rmtree(stopped)
     assert titles() == ["Scratch"]
     assert service_model.claim_path(stopped).exists()
+
+
+def test_concurrent_posts_never_tear_the_log(server, page_dir):
+    publish(page_dir)
+
+    def post(i):
+        fetch(
+            f"{server}/api/event",
+            data=json.dumps(
+                {"kind": "comment", "revision": 1, "text": f"c{i} " + "x" * 500}
+            ).encode(),
+        )
+
+    threads = [threading.Thread(target=post, args=(i,)) for i in range(20)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    events = [e for e in event_model.read_events(page_dir) if e["kind"] == "comment"]
+    assert {e["text"].split()[0] for e in events} == {f"c{i}" for i in range(20)}
+    assert len({e["id"] for e in events}) == 20  # server-minted, all distinct

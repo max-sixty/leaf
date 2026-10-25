@@ -10,7 +10,10 @@ that every other feature has been tested across those browsers.
 
 Keep the current user-visible effect, code owner, dated browser evidence,
 disposition, and a regression test or minimal reproduction that can settle a
-recheck. Distinguish an installed test engine from a current stable browser,
+recheck. A recheck settles nothing unless it fails on the engine the gap was
+recorded in, so confirm that before citing a pass as the gap closing, and name
+Playwright engines by build as well as version, since two builds can report one
+version. Distinguish an installed test engine from a current stable browser,
 and observed behavior from published compatibility data. A successful API
 adoption needs no entry. Resolved failures leave this list; reasons the current
 implementation still needs belong beside its code. Rewrite an entry when its
@@ -60,12 +63,36 @@ engines. Chromium 153.0.8010.12 passed both forms in that check.
 
 ### Intrinsic block retirement motion
 
-`browser/runtime/motion.js` (`foldBlock`) animates block retirement with
-`calc-size()`. Engines without intrinsic-size interpolation complete retirement
-immediately; content, Undo and Reopen keep their ordinary behavior. This is an
-accepted visual difference. Playwright Chromium 153.0.8010.12 supported the
-animation on 2026-10-14; Firefox 155 and WebKit 26.6 did not.
-Recheck native intrinsic interpolation before removing the capability check.
+`browser/runtime/motion.js` (`foldBlock`) animates block retirement, a decided
+block suggestion and a resolved inline thread, with `calc-size()`. Where
+intrinsic-size interpolation is missing it folds from the block's measured pixel
+height, and where `display` can't be animated it keeps an already-retired slot
+drawn with an inline `display` the effect's end removes. Playwright Firefox 155
+needed both on 2026-10-25 and folded the same curve as Chromium.
+lf-draft's return from its editor (`packages/default/widgets/lf-draft.js`)
+still needs `calc-size()`: its end height is known only after the close lays
+out, and reading it then would clamp a reader at the document foot. In Firefox
+it returns in one frame, an accepted visual difference.
+
+On 2026-10-25 neither capability was coming to Firefox soon. `calc-size()`
+([bug 1896734](https://bugzilla.mozilla.org/show_bug.cgi?id=1896734)) and
+`interpolate-size`
+([bug 1945962](https://bugzilla.mozilla.org/show_bug.cgi?id=1945962)) were
+unassigned; on 2026-09-17 Mozilla called `calc-size()` a "would be nice"
+feature for "sometime soon (during the next year perhaps)" with no release
+committed, though its [standards position](https://github.com/mozilla/standards-positions/issues/1022)
+is positive. Animating `display`
+([bug 1834877](https://bugzilla.mozilla.org/show_bug.cgi?id=1834877)) was
+unassigned. Interop 2026 [declined](https://github.com/web-platform-tests/interop/issues/1008)
+the feature. WebKit implemented `interpolate-size`
+([bug 324460](https://bugs.webkit.org/show_bug.cgi?id=324460), fixed
+2026-09-18), shipped it in Safari Technology Preview 254 and
+[supports](https://github.com/WebKit/standards-positions/issues/348) it.
+Recheck those bugs; when Firefox ships both, delete the fallback branch and the
+`display` hold. `test_a_decided_change_folds_away_rather_than_vanishing` in
+`tests/browser/widgets/test_suggestions.py` and
+`test_inline_retirement_is_resolved_before_its_pixels_finish` in
+`tests/browser/threads/test_resolving.py` run in both engines.
 
 ### Evidence disclosure motion
 
@@ -73,8 +100,10 @@ Recheck native intrinsic interpolation before removing the capability check.
 closures only where intrinsic-size interpolation and `interactivity` both work.
 Other engines close immediately and retain native disclosure behavior, an
 accepted visual difference. Playwright Chromium 153.0.8010.12 folded pointer
-closures on 2026-10-21; Firefox 155 closed immediately. Recheck both
-capabilities and keyboard access when changing this enhancement.
+closures on 2026-10-21; Firefox 155 closed immediately. Firefox's intrinsic
+interpolation is not near ("Intrinsic block retirement motion" has the bugs,
+checked 2026-10-25). Recheck both capabilities and keyboard access when
+changing this enhancement.
 
 ### Browser dictation in comment boxes
 
@@ -132,7 +161,8 @@ The local page server sends `no-cache`; leaf.page keeps `no-store`. On
 2026-10-20, Chromium 153.0.8010.12 and installed Firefox 158.0.1 restored a local
 `release-notes` page on Back and applied state changes made while away.
 Firefox loaded a page containing samples afresh. Safari remains unverified.
-The leaf.page cache-policy decision is tracked in `TODO.md`.
+The leaf.page cache-policy decision is tracked in
+[issue #4024](https://github.com/max-sixty/leaf/issues/4024).
 
 Playwright disables back/forward caching in its normal test browsers.
 `test_a_page_cache_round_trip_keeps_the_sample_connected` in

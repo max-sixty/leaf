@@ -1,6 +1,7 @@
 """A framed Leaf document reads as visible while its frame shows on screen
 (runtime/frame-visibility.js), whatever its own styles do."""
 
+from playwright.sync_api import expect
 from render_harness import leaf_page, open_page
 
 VISIBLE = """async () => {
@@ -120,3 +121,29 @@ def test_a_same_origin_frame_reads_hidden_and_settled_off_screen(browser, serve)
       const state = document.querySelector('script[data-lf-entry]').lfRenderingState();
       return state.updatesSettled && state.preparationsSettled;
     }""")
+
+
+def test_a_framed_page_arriving_leaves_the_user_where_they_are(browser, serve):
+    """A page arriving starts Tab at its first control by focusing its body, which in
+    a page framed in another would take the user out of the page they are working in:
+    the embedding page's control they just pressed loses its focus to the frame. A
+    framed page holds no user until they enter it, so its arrival moves nobody."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Embedding page",
+                """
+<h1>Embedding page</h1>
+<button id="here" type="button">Stay here</button>
+<iframe id="frame" title="Embedded page" style="width: 600px; height: 250px"></iframe>
+""",
+            )
+        ),
+    )
+    here = page.locator("#here")
+    here.click()
+    page.locator("#frame").evaluate("frame => frame.src = location.href")
+    embedded = page.locator("#frame").element_handle().content_frame()
+    embedded.wait_for_function("() => document.body.hasAttribute('data-lf-presented')")
+    expect(here).to_be_focused()

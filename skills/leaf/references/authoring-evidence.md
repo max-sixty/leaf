@@ -32,6 +32,12 @@ and dark schemes; an SVG file added with `leaf page media` can't. Use the
 Use `lf-chart` for quantities, not Mermaid's charts. A few numbers the sentence can
 carry belong in prose.
 
+Use `lf-timeline` for an order of events between actors that you describe, such as a
+race between two jobs, rather than drawing one in `svg.drawing`: it places every label
+clear of bars, other labels and the playhead, and the reader steps through the events
+with the keyboard or a finger. It ships in the `timeline` package. A recorded browser
+journey belongs in `lf-trace` instead (below).
+
 A user can comment on a whole drawing. To let them comment on one part, give the part
 an id: in an inline `<svg>`, put an `id` on each `<g>` holding a shape and its label,
 named for what the part is, since the thread reports it to you. For `lf-diagram`, its
@@ -84,8 +90,9 @@ and every thread that quotes it. To keep evidence exactly as it was reviewed, gi
 its own source id, such as `pr-patch-8f61c2a` for one commit's patch, and never write to
 that id again. Evidence that should follow later `data set` calls shares one id.
 
-Run `leaf page media <page> <file>…` and use each printed `/media/…` `path` for images,
-video and audio; never inline media bytes. To let the reader zoom into an image, link it
+Run `leaf page media <page> <file>…`, naming each file as its own argument as a glob
+such as `shots/*.png` does, and use each printed `/media/…` `path` for images, video
+and audio; never inline media bytes. To let the reader zoom into an image, link it
 to its own media URL: `<a href="/media/…"><img src="/media/…" alt="…"></a>`.
 
 Keep each capture in its own image file; never join captures into one. Where captures

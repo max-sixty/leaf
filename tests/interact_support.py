@@ -2085,9 +2085,13 @@ def under_codex(spawn, codex_program):
     pid by accident. It also keeps the command's own status, where the `| cat`
     that produced the shape in the wild would report the pipeline's last exit.
     PYTHONHOME because a copied interpreter has no prefix beside it to find its
-    own standard library in."""
+    own standard library in. It is the copy's alone: the runner drops it before
+    the shell, so the command gets the environment the test gave it, and a
+    Python below it on another base, such as a prepared installation's, still
+    finds its own."""
     runner = (
-        "import subprocess, sys; "
+        "import os, subprocess, sys; "
+        "os.environ.pop('PYTHONHOME'); "
         "sys.exit(subprocess.run(['/bin/sh', '-c', sys.argv[-1]]).returncode)"
     )
 

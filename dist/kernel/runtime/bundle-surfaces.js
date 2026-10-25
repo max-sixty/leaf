@@ -1,5 +1,5 @@
 import { PENDING, Z, bindQueuedWork, editable, html, isElementName, isReaction, keyed, lastMovedAt, messageKey, moved, nothing, pendingForParent, render as render$1, repeat, sameAnchor, seatRoot, share, threadKey, threadNames, turns } from "./bundle-browser-runtime.js";
-import { CARET_KEYS, TEXT_FIELD, afterScript, atLayoutPrecision, cancelRender, caretAtKey, carriedFrom, currentLocationIn, currentLocationNodes, currentLocationTouches, deepFocus, drawn as drawn$2, focusDestination, focused, holdCurrentLocation, holdFocus, inputCount, keeps, keepsHidden, layoutPx, move, nextFrame, nextRender, onCurrentLocation, onPress, onPressAway, readCaret, recentPlaceInput, renderedOrder, renderedParent, renderedUnder, ringBox, selectsAll, sizeObserver, takesLetters, under, upFrom } from "./bundle-dom-move.js";
+import { CARET_KEYS, TEXT_FIELD, afterScript, atLayoutPrecision, cancelRender, caretAtKey, carriedFrom, currentLocationIn, currentLocationNodes, currentLocationTouches, deepFocus, drawn as drawn$2, focusDestination, focused, holdCurrentLocation, holdFocus, inputCount, keeps, keepsHidden, layoutPx, move, nextAnimation, nextFrame, nextRender, onCurrentLocation, onPress, onPressAway, readCaret, recentPlaceInput, renderedOrder, renderedParent, renderedUnder, ringBox, selectsAll, sizeObserver, takesLetters, under, upFrom } from "./bundle-dom-move.js";
 import { PAGE_PAINT_ATTRIBUTE, admitResponse, pagePresented, randomId, reportPageError, revealLayer, sameLayer } from "./bundle-layer-client.js";
 import { applicationState, attachApplicationPresentation, offlineInteractive, pageClaimed, readApplication, readPart, runtime, runtimeModule, runtimeResource, whenApplicationPresented, whenDocumentPresented, whenWidgetsPresented } from "./bundle-context.js";
 import { PRESS, adoptRegistry, announce, bindings, checked, clampedRow, clippedContents, clippingAxes, commandScope, cycledRow, declarationFor, declareCommandReadiness, descriptionOf, el, elementDeclarations, elementsDeclaring, exhibits, generatedElement, growthAfterIsSeen, growthIsSeen, headerInset, holdStatus, iconElement, iconTemplate, inUi, inWindowChrome, keys, landingBand, loadShadowRules, measure, nearestScrollBy, notice, offer, offered, paintKeys, passErrorsAt, placeBox, placeHolder, plainPress, pointerAt, pressIsKeyboardActivation, projectCommandScope, raiseError, registry as registry$1, repaint, seenRect, shownBox, shownRect, shownWindow, skipped, stuckBox, tagsDeclaring, titleOf, tokenEntry, touchPresses as touchPresses$1, union, userScrollport, visibleBand, watchArrivals, watchCommandScopes, watchOwner, whenNone } from "./bundle-errors.js";
@@ -5405,6 +5405,7 @@ var ReplyContinuity = class {
 	#row = null;
 	#departure = null;
 	#space = 0;
+	#through = null;
 	#returningWriting = 0;
 	#presenting = [];
 	#writing = null;
@@ -5459,7 +5460,7 @@ var ReplyContinuity = class {
 			held: place?.take({ spans: false })
 		};
 	}
-	after(reading) {
+	after(reading, folds = []) {
 		this.#row = this.#owner.querySelector(":scope > .lf-thread-reply");
 		const presenting = this.#presenting;
 		this.#presenting = [];
@@ -5485,6 +5486,31 @@ var ReplyContinuity = class {
 		this.#departure = whenNone([this.#row], growthIsSeen, () => {
 			if (!this.#owner.isConnected) this.release();
 			else this.#releaseSpace();
+		});
+		if (reading != null && folds.length) this.#holdThrough(folds);
+	}
+	#holdThrough(folds) {
+		const extent = parseFloat(getComputedStyle(this.#owner).blockSize);
+		const through = { cut: 0 };
+		this.#through = through;
+		const take = () => {
+			if (this.#through !== through) return;
+			const writing = this.#writing;
+			const cut = writing?.input.matches(":state(placeholder-shown)") ? 0 : through.cut;
+			const now = parseFloat(getComputedStyle(this.#owner).blockSize);
+			const room = extent - (now - this.#space + cut);
+			this.#cutWriting(writing ? Math.max(0, -room) : 0);
+			this.#keep(Math.max(0, room));
+		};
+		const frame = () => {
+			if (this.#through !== through) return;
+			take();
+			nextAnimation(frame);
+		};
+		nextAnimation(frame);
+		Promise.all(folds.map(({ finished }) => finished.catch(() => {}))).then(() => {
+			take();
+			if (this.#through === through) this.#through = null;
 		});
 	}
 	#keep(space) {
@@ -5529,7 +5555,16 @@ var ReplyContinuity = class {
 		this.#sizes.unobserve(input);
 		this.#writing = null;
 	}
+	#cutWriting(cut) {
+		const through = this.#through;
+		if (!through || cut === through.cut) return;
+		through.cut = cut;
+		const { input, room } = this.#writing ?? {};
+		input?.style.setProperty("--lf-reply-writing-room", cut ? `calc(${room} - ${layoutPx(cut)})` : room);
+	}
 	#releaseSpace() {
+		this.#cutWriting(0);
+		this.#through = null;
 		this.#departure?.();
 		this.#departure = null;
 		this.#space = 0;
@@ -5607,6 +5642,11 @@ function workingPlace(ranges, after) {
 
 //#endregion
 //#region runtime/thread/transcript.js
+const MESSAGE_NAMES = [
+	"data-message",
+	"data-event",
+	"data-attempt"
+];
 function workingView(working, controls = nothing) {
 	return html`<div class="lf-thread-working-head">
       ${working.who ? html`<b>${working.who}</b>` : nothing}
@@ -5641,6 +5681,7 @@ var Transcript = class Transcript {
 	#pendingCovers = /* @__PURE__ */ new Map();
 	#pendingOpen = false;
 	#checkpoints = /* @__PURE__ */ new Map();
+	#folding = /* @__PURE__ */ new Map();
 	#expandedSummaries = /* @__PURE__ */ new Set();
 	#id = ++nextTranscriptId;
 	#named = 0;
@@ -5663,6 +5704,9 @@ var Transcript = class Transcript {
 	}
 	messageNode(key) {
 		return this.#messages.get(key)?.node ?? null;
+	}
+	get folds() {
+		return [...this.#folding.values()].flatMap(({ played }) => played ?? []);
 	}
 	summaryNode(id) {
 		return this.#checkpoints.get(id)?.node ?? null;
@@ -5698,7 +5742,22 @@ var Transcript = class Transcript {
 		}
 		this.#model = model;
 		const wanted = new Set(model.messages.map((message) => message.key));
-		for (const [key, view] of this.#messages) if (!wanted.has(key)) view.retire();
+		for (const key of [...this.#folding.keys()]) if (wanted.has(key)) this.#endFold(key, false);
+		for (const [key, view] of this.#messages) {
+			if (wanted.has(key)) continue;
+			const { node } = view;
+			if (!this.#folding.has(key) && node.parentNode === this.node && node.checkVisibility()) {
+				const names = MESSAGE_NAMES.map((name) => [name, node.getAttribute(name)]);
+				for (const [name] of names) node.removeAttribute(name);
+				node.inert = true;
+				this.#folding.set(key, {
+					node,
+					names,
+					played: null
+				});
+			}
+			view.retire();
+		}
 		const summarized = summaryRanges(model.messages, model.summaries);
 		const describedRanges = model.resolved ? summarized : withPendingProgress(summarized);
 		const summaries = new Set(describedRanges.flatMap((range) => range.summary ? [range.summary.id] : []));
@@ -5789,11 +5848,40 @@ var Transcript = class Transcript {
 			else node.style.removeProperty("--lf-fold-foot");
 		}
 		keeps(this.node, "data-lf-reflow", appends ? "append" : null);
-		setChildren(this.node, transcript);
+		setChildren(this.node, this.#withFolds(transcript));
+		for (const [key, fold] of this.#folding) {
+			if (fold.played) continue;
+			fold.played = foldBlock(fold.node);
+			if (!fold.played) {
+				this.#endFold(key, true);
+				continue;
+			}
+			fold.played.finished.then(() => {
+				if (this.#folding.get(key) === fold) this.#endFold(key, true);
+			}, () => {});
+		}
 		if (!currentLocationToggle || currentLocationToggle.isConnected) return null;
 		const toggleFor = (id) => this.node.querySelector(`.lf-summary-expand[data-summary-toggle="${CSS.escape(id)}"]`);
 		const succeeded = currentLocationToggle.dataset.summaryToggle;
 		return [succeeded, ...(successors.get(succeeded) ?? []).map(({ summary }) => summary.id)].map(toggleFor).find(Boolean) ?? null;
+	}
+	#withFolds(nodes) {
+		if (!this.#folding.size) return nodes;
+		const folding = new Set([...this.#folding.values()].map(({ node }) => node));
+		const staying = new Set(nodes);
+		const after = /* @__PURE__ */ new Map();
+		let anchor = null;
+		for (const child of this.node.children) if (folding.has(child)) after.set(anchor, [...after.get(anchor) ?? [], child]);
+		else if (staying.has(child)) anchor = child;
+		return [...after.get(null) ?? [], ...nodes.flatMap((node) => [node, ...after.get(node) ?? []])];
+	}
+	#endFold(key, removed) {
+		const fold = this.#folding.get(key);
+		this.#folding.delete(key);
+		if (removed) fold.node.remove();
+		else fold.played?.cancel();
+		fold.node.inert = false;
+		for (const [name, value] of fold.names) if (value !== null) fold.node.setAttribute(name, value);
 	}
 	static #face(id) {
 		const node = document.createElement("div");
@@ -5871,6 +5959,10 @@ var Transcript = class Transcript {
 	retire() {
 		this.#stopWorkingExposure?.();
 		this.#stopWorkingExposure = null;
+		for (const [key, { played }] of this.#folding) {
+			played?.cancel();
+			this.#endFold(key, true);
+		}
 		for (const view of this.#messages.values()) view.retire();
 	}
 };
@@ -6217,7 +6309,7 @@ var ThreadView = class {
       `, this.node);
 		if (!marginControls && model.news) measure(this.node, () => this.#retainHeaderSlot());
 		else this.#releaseHeaderSlot();
-		this.#continuity?.after(bodyPlace);
+		this.#continuity?.after(bodyPlace, this.#transcript.folds);
 		restoreFocus?.(handedOn ? () => (focusDestination(handedOn, "return"), true) : () => this.#commands.landInThread(this.node.querySelector(SAY_BOX) ?? this.node));
 		return this.node;
 	}

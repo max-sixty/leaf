@@ -7,7 +7,9 @@
 // follow them. Reconciliation, not the originating press, owns the fold because the same
 // change can arrive from another tab or the agent. A resolved thread leaves the
 // open-thread vocabulary at once, folds in place, then moves under the resolved
-// disclosure.
+// disclosure. A message leaving a thread, as a reply the log refuses does, folds where
+// it stood (thread/transcript.js); where the thread holds the turn's room for its reply
+// box, the room it gives back stays held (thread/reply-continuity.js).
 //
 // Projection composes the complete final state before rendering. Ordered containers
 // measure once around that composition and show one FLIP from the current layout to the
@@ -121,8 +123,8 @@ export function backgroundFlash(el, ms) {
 // worth of page closing, short enough that the act still reads as having happened at
 // the press: the board's own FLIP is 150ms over a card's width, and this is a taller
 // distance travelled by the whole column below it. A decided suggestion's retired
-// slot and a resolved inline thread fold over it, and a picture's zoom (media.js)
-// takes the same time.
+// slot, a resolved inline thread and a message leaving a thread fold over it, and a
+// picture's zoom (media.js) takes the same time.
 export const foldDuration = () => motionTime("--lf-motion-fold");
 // A retained frame returns from an editor to its shorter reading.
 export const returnDuration = () => motionTime("--lf-motion-return");

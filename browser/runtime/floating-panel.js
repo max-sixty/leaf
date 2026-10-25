@@ -609,7 +609,8 @@ export function createFloatingPanel({
   // messages: on opening, the whole of it, at the turn the user comes back for
   // (`showReturnTurn`); after the user's turn, past it, at its end (`end`).
   let landing = null;
-  const drawnTurns = () => outletOf()?.querySelectorAll(".lf-msg").length ?? 0;
+  const drawnTurns = () =>
+    outletOf()?.querySelectorAll(".lf-msg[data-message]").length ?? 0;
 
   // ---------- one native editor per destination ----------
   // The errors the field can say now, newest first (errors.js): about nothing, not yet

@@ -5414,7 +5414,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	let drafted = false;
 	let postureMoved = true;
 	let landing = null;
-	const drawnTurns = () => outletOf()?.querySelectorAll(".lf-msg").length ?? 0;
+	const drawnTurns = () => outletOf()?.querySelectorAll(".lf-msg[data-message]").length ?? 0;
 	function sayable() {
 		const input = host.dataset.rest === "mark" ? null : fieldInput();
 		if (!input?.isConnected || draftOf(input) !== "") return [];

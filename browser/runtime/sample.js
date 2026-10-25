@@ -373,7 +373,7 @@ export function mountSample(frame, { template, window: asWindow = false }) {
           }),
         );
       else {
-        if (data.type === "input") inputInFrame(frame);
+        if (data.type === "input") inputInFrame(frame, data.detail.type);
         notify(data.type, data.detail);
       }
     };

@@ -752,14 +752,18 @@ function reconcile(step, pressed) {
 }
 // A press inside a frame goes to the frame's document, and focus follows it there with
 // no event here: Firefox fires none at all, and Chromium only the window's `blur`. The
-// frame's owner hears of each input from the frame's document and reports it here. One
-// that left focus in a frame the user was not yet on, which only a press there does
-// without an event here, is the user's latest press, and puts them on the frame as a
+// frame's owner hears of each input from the frame's document, by its event `type`, and
+// reports it here. A key or a press there is the user's latest input, which decides
+// whether the frame wears its ring, and one that left focus in a frame the user was not
+// yet on, which only a press does without an event here, puts them on the frame as a
 // Tab into it would have.
-export function inputInFrame(frame) {
-  if (deepFocus() !== frame || published?.deref() === frame) return;
-  pressedPath = [new WeakRef(frame)];
-  reconcile(null, pressedPath);
+export function inputInFrame(frame, type) {
+  if (deepFocus() !== frame) return;
+  if (type === "keydown") pressedPath = null;
+  else if (type === "pointerdown" || type === "touchstart")
+    pressedPath = [new WeakRef(frame)];
+  if (published?.deref() === frame) queueFocusPaint();
+  else reconcile(null, pressedPath);
 }
 addEventListener(
   "click",

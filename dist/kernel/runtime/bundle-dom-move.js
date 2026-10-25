@@ -692,10 +692,12 @@ function reconcile(step, pressed) {
 		[stepping, pressedPath] = input;
 	}
 }
-function inputInFrame(frame) {
-	if (deepFocus() !== frame || published?.deref() === frame) return;
-	pressedPath = [new WeakRef(frame)];
-	reconcile(null, pressedPath);
+function inputInFrame(frame, type) {
+	if (deepFocus() !== frame) return;
+	if (type === "keydown") pressedPath = null;
+	else if (type === "pointerdown" || type === "touchstart") pressedPath = [new WeakRef(frame)];
+	if (published?.deref() === frame) queueFocusPaint();
+	else reconcile(null, pressedPath);
 }
 addEventListener("click", () => {
 	const pressed = pressedPath;

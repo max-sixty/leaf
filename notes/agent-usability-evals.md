@@ -475,13 +475,12 @@ Measured (40 sessions, Opus 5.5 and Sol 6.1, on runtimes that differ from
 - All 8 agents who skipped `--render` and got the failures fixed them, so every
   final page in the quick runs is clean of failures but one, the agent above.
 
-Inferred, not measured: the delivery came as an `error` event, whose handling clause
-says "The page's runtime reported a failure the user saw. Fix the page or widget and
-save the fix." A server-side pass would likely deliver advice through a gentler
-clause, so the 11 of 11 advice fixes are an upper bound, and one agent cited the
-error framing as the reason to change a layout it had judged the user's. One
-fixture and one request; a page an agent wrote itself may get a different response
-than a draft the user handed over.
+The delivery came as an `error` event, whose handling clause says "The page's
+runtime reported a failure the user saw. Fix the page or widget and save the fix.",
+and one agent cited that framing as the reason to change a layout it had judged the
+user's; the next paragraphs measure a clause of the pass's own. Not measured: this
+is one fixture and one request, and a page an agent wrote itself may get a different
+response than a draft the user handed over.
 
 To see what the clause decides, the quick context ran again on both harnesses with
 the `error` kind's handling in `browser/registry.json` replaced, in the arm only, by

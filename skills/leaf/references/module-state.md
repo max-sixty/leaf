@@ -95,10 +95,10 @@ render() {
 ```
 
 Leaf draws the widget again whenever the source's value, contract or validity changes.
-`this.data(input)` throws for an undeclared input, and returns `null` while there is no
-readable value, including when the value doesn't fit the contract. That includes the time before the
-first state answer; a widget that must not draw its empty case early checks
-`readObligations().phase !== "waiting"` (module-reading.md). Otherwise it returns
+A widget that reads data draws nothing until the page's data has arrived (or the page
+is known to have no server to bring it), so `this.data(input)` never reads `null` for
+want of an answer. It throws for an undeclared input, and returns `null` when the source
+has no readable value, including when the value doesn't fit the contract. Otherwise it returns
 `{source, contract, revision, run, updated, value, origin}`, the same copy until the
 next delivery: `revision` identifies the value and `run` the write, so a rerun with the
 same value gets a new `run`. A widget whose drawing of the data finishes later starts it

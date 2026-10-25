@@ -7749,6 +7749,7 @@ function dataReader(element, input, accepted) {
 		return copied.value;
 	};
 }
+const dataDelivered = () => runtime.data.version !== null || runtime.statePhase === "offline";
 const deliveries = Z(0);
 function joinDataDelivery(region) {
 	joined.add(region);
@@ -7919,6 +7920,7 @@ var LeafElement = class extends q(UpdateBoundary) {
 		this.#ticket = null;
 		if (this.#broken) return false;
 		if (!this.#complete()) return false;
+		if (registry[this.localName]?.["x-data"] && !this.whenReady(dataDelivered)) return false;
 		return super.shouldUpdate(changed);
 	}
 	update(changed) {

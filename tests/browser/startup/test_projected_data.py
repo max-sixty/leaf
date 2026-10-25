@@ -453,6 +453,23 @@ def test_a_text_document_is_never_drawn_before_its_text_arrives(browser, serve):
     )
 
 
+def test_a_text_document_whose_page_never_reaches_its_server_reads_no_data(
+    browser, serve
+):
+    """The wait for the first data answer ends when the page settles offline, so a
+    widget never waits forever on a server that does not answer."""
+    source_page = leaf_page(
+        "unreachable document",
+        '<lf-text-document id="lost" source="lost-text" label="lost.toml" language="toml"></lf-text-document>',
+    )
+    url = live_url(serve(source_page))
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    page.route("**/api/state*", lambda route: route.abort())
+    page.goto(url, wait_until="load")
+    expect(page.locator("#lost figcaption")).to_have_text("lost.toml · no data")
+    consume_browser_errors(page, "Failed to load resource")
+
+
 def test_a_captured_source_stays_pointable_and_pinned(browser, serve):
     """A captured file reads under its authored label and follows its source. A
     revision that binds a source id nothing rewrites keeps the reviewed words through

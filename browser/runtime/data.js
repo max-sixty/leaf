@@ -196,6 +196,14 @@ export function dataReader(element, input, accepted) {
   };
 }
 
+// Whether the page's data has been read once, or no answer will bring it: the server's
+// first state answer carries the data version, and a page that cannot reach its server
+// settles offline. Before then a source reads null for want of an answer, which a
+// widget cannot tell from a source with nothing in it, so a `LeafElement` that reads
+// data draws nothing until this holds (leaf-element.js, `shouldUpdate`).
+export const dataDelivered = () =>
+  runtime.data.version !== null || runtime.statePhase === "offline";
+
 // A renderer that draws data as it reads it holds the data version until its region
 // presents; its readers hear the delivery itself.
 const deliveries = signal(0);

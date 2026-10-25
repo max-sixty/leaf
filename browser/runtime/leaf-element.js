@@ -36,7 +36,9 @@
    (before the first state read, the authored state supplies every verb); its claim
    settles with nothing drawn. While its controller's `defer()` holds it, its claim stays
    open; the release draws the newest reading at once, changed or not, since the gesture
-   may have rewritten its nodes. An element whose tag declares `x-data` holds the page's data
+   may have rewritten its nodes. An element whose tag declares `x-data` draws nothing
+   until the page's data has been read (`dataDelivered`), so `data()` returning null always
+   means a source with nothing to read. It holds the page's data
    version while it stands, until it has drawn what was delivered, and any drawing that
    draw held it for (`drawing()`), such as highlighting or a loading frame, has landed.
    `setup()` runs once, on the first connection, before the first render. */
@@ -63,7 +65,7 @@ import {
 } from "./widget-upgrade.js";
 import { watchOwner } from "./arrivals.js";
 import { paintKeysWithin } from "./keyboard/scopes.js";
-import { dataReader, joinDataDelivery } from "./data.js";
+import { dataDelivered, dataReader, joinDataDelivery } from "./data.js";
 import { registry } from "./registry.js";
 
 let regions = 0;
@@ -268,6 +270,8 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
     this.#ticket = null;
     if (this.#broken) return false;
     if (!this.#complete()) return false;
+    if (registry[this.localName]?.["x-data"] && !this.whenReady(dataDelivered))
+      return false;
     return super.shouldUpdate(changed);
   }
 

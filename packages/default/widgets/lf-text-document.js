@@ -15,7 +15,6 @@ import {
   ensureSyntaxLanguage,
   inBaseLayer,
   LeafElement,
-  readObligations,
   nothing,
   whileConnected,
   keepsText,
@@ -82,10 +81,6 @@ customElements.define(
 
     render() {
       this.snapshot = this.data("document");
-      // The source reads null both before the first state answer and for a source with
-      // nothing to read; only the answer tells them apart, and "no data" drawn early
-      // is a one-row listing whose gutter widens when the text arrives.
-      this.waiting = !this.snapshot && readObligations().phase === "waiting";
       return nothing;
     }
 
@@ -93,7 +88,7 @@ customElements.define(
     // for them.
     updated(changed) {
       super.updated(changed);
-      if (!this.waiting) this.drawing(this.show(this.snapshot));
+      this.drawing(this.show(this.snapshot));
     }
 
     async show(snapshot) {

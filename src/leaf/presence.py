@@ -465,18 +465,21 @@ def nudge_interrupted(page_dir: Path) -> None:
     """Message the claimant whose turn was interrupted, as Escape ends one, for the
     input that turn left on the page (`nudge_unwatched`): what arrived while it ran
     and its tool boundaries had not yet taken, and what its hooks handed over that
-    no later hook confirmed (`delivery.deliverable`), as when Escape landed while
-    another prompt hook still ran and Claude Code dropped the prompt with Leaf's
-    context.
+    its harness's record does not show reached the model (`delivery.deliverable`),
+    as when Escape landed while another prompt hook still ran and Claude Code
+    dropped the prompt with Leaf's context.
 
     No hook runs on an interrupt, so nothing on the page moves when one happens;
     the page's server reads it from the harness's own record, among the live facts
     it looks at every presence interval (`server_rows`), and calls this when they
-    change. A watch from before the turn still holds the lease and wakes for the
-    input itself, and marks the ending it woke the session for, so the moment
+    change. Claude Code's prompt hook starts a watch that holds the lease through
+    its turn and wakes for what an interrupt leaves, so this sends only where no
+    watch runs: after a turn whose prompt came before the session held any page,
+    whose watch ended at once, or once a watch has failed. A watch that wakes the
+    session marks the ending it woke it for (`session.woke_after`), so the moment
     between its lease going and the woken turn starting sends nothing more. A turn
-    a Stop hook closed is left alone: that hook starts the watch that wakes for what
-    the turn left."""
+    a Stop hook closed is left alone: that hook starts the watch that wakes for
+    what the turn left."""
     from .delivery import deliverable
     from .session import wake_inputs
 

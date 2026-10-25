@@ -113,3 +113,4 @@ export { recordInteraction } from "./interaction-log.js";
 export { bringBackSurfaceOf } from "./off-flow.js";
 export { WORKS } from "./control-selectors.js";
 export { readingReturn, completeReadingReturn } from "./reading-continuity.js";
+export { selfComparison, servedElements } from "./version.js";

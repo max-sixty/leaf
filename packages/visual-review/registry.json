@@ -218,7 +218,8 @@
     "x-data": {
       "run": {
         "contract": "visual-run",
-        "source": "source"
+        "source": "source",
+        "property": "value"
       }
     },
     "x-awaits": {

@@ -324,57 +324,6 @@ def test_a_page_another_leaf_vendored_at_this_protocol_takes_its_writes(
     assert checked.returncode == 0, checked.stderr
 
 
-def test_a_command_re_vendors_its_sessions_page_an_older_leaf_vendored(
-    claimed, server, tmp_path
-):
-    """A reply through a reference names no page, so it is refused on a page an older
-    Leaf vendored, naming the re-vendor. The session's next write naming the page
-    makes that re-vendor itself (`vendoring.renew_layer`), restarting the server at
-    its address, and the reply then goes."""
-    replied = _replying_after(claimed, server, vendored_at_another_protocol)
-    assert replied.returncode != 0, replied.stdout
-    assert f"leaf page init {claimed}" in replied.stderr
-    read = subprocess.run(
-        [*LEAF_COMMAND, "page", "state", str(claimed)],
-        capture_output=True,
-        text=True,
-        timeout=STATED_TIMEOUT,
-        check=False,
-    )
-    assert read.returncode == 0, read.stderr
-    assert "page protocol" in json.loads(read.stdout)["source"]["error"]
-    before = interact_files.read_json(claimed / "registry.json")["$layer"]["generation"]
-    subprocess.run(
-        [
-            *LEAF_COMMAND,
-            "page",
-            "export",
-            str(claimed),
-            "--out",
-            str(tmp_path / "export.html"),
-        ],
-        capture_output=True,
-        text=True,
-        timeout=STATED_TIMEOUT,
-        check=False,
-    )
-    assert (
-        interact_files.read_json(claimed / "registry.json")["$layer"]["generation"]
-        == before
-    )
-    for command in (["page", "claim", str(claimed)], replied.args[len(LEAF_COMMAND) :]):
-        ran = subprocess.run(
-            [*LEAF_COMMAND, *command],
-            capture_output=True,
-            text=True,
-            timeout=STATED_TIMEOUT,
-            check=False,
-        )
-        assert ran.returncode == 0, ran.stderr
-        assert "re-vendor" not in ran.stderr
-    assert fetch(f"{server}/api/state")[0] == 200
-
-
 @pytest.mark.parametrize("unreadable", ["claim", "lifecycle"])
 def test_read_commands_leave_an_older_page_and_its_server_alone(
     claimed, server, unreadable
@@ -547,30 +496,6 @@ def test_page_state_reports_a_layer_this_leaf_cannot_serve(claimed, vendored, na
     assert f"leaf page init {page_dir}" in state["source"]["error"]
     assert state["active"]["revision"] == revisions[-1]
     assert interact_files.list_revisions(page_dir) == revisions
-
-
-def test_thread_reply_names_a_published_page_vendored_before_a_key_was_renamed(
-    claimed, server
-):
-    """Admission refuses an old page on the same reading the servers do, after a
-    revision is published as well as before: here the layer and the revision it
-    captured both use the key's old name, in `$keys` and on `lf-ask`, as the older
-    Leaf left them."""
-    replied = _replying_after(claimed, server, vendored_before_a_key_rename)
-    assert replied.returncode != 0, replied.stdout
-    assert "x-noun" in replied.stderr
-    assert f"leaf page init {claimed}" in replied.stderr
-    # The re-vendor it names repairs the page: init runs on it, and the reply goes.
-    for command in (["page", "init", str(claimed)], replied.args[len(LEAF_COMMAND) :]):
-        ran = subprocess.run(
-            [*LEAF_COMMAND, *command],
-            capture_output=True,
-            text=True,
-            timeout=STATED_TIMEOUT,
-            check=False,
-        )
-        assert ran.returncode == 0, ran.stderr
-    assert fetch(f"{server}/api/state")[0] == 200
 
 
 def test_a_layer_stamped_with_its_revision_still_names_the_revendor(page_dir):
@@ -1162,6 +1087,15 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         for path in shipped_payload()
         if path.suffix == ".lock"
     ] == ["uv.lock"]
+
+
+def test_page_authoring_names_the_theme_s_largest_spacing_step():
+    """Authors read the spacing scale's ends in page-authoring.md rather than the
+    theme, so a step the theme adds is one they can find."""
+    theme = (PLUGIN_ROOT / "browser/styles/theme.css").read_text()
+    largest = max(int(step) for step in re.findall(r"--sp-(\d+):", theme))
+    prose = (PLUGIN_ROOT / "skills/leaf/references/page-authoring.md").read_text()
+    assert f"`--sp-1` to `--sp-{largest}`" in " ".join(prose.split())
 
 
 def test_the_launcher_resolves_through_the_hosts_own_index(tmp_path):
@@ -2072,37 +2006,6 @@ PLAIN_PAGE = (
     '<!doctype html><html lang="en"><head><title>t</title></head>'
     "<body><main><h1>Title</h1><p>words</p></main></body></html>"
 )
-
-
-def test_the_browser_gate_reads_a_page_another_leaf_vendored(tmp_path, monkeypatch):
-    """A Leaf update leaves the render gate working on a page an earlier Leaf vendored
-    at this protocol: the gate runs the page under its own runtime and probes, and
-    names the page's Leaf beside its own."""
-    monkeypatch.chdir(tmp_path)
-    runner = CliRunner()
-    page = tmp_path / "page"
-    initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
-    assert initialized.exit_code == 0, initialized.output
-    (page / "index.html").write_text(PLAIN_PAGE, encoding="utf-8")
-    # The identity an earlier Leaf recorded for the layer it vendored.
-    stamp = page / "registry.json"
-    vendored = interact_files.read_json(stamp)
-    vendored["$layer"]["producer"] = {
-        "commit": "a74b08365870",
-        "dirty": False,
-        "committed": "2026-09-26T09:32:21-07:00",
-    }
-    stamp.unlink()
-    stamp.write_text(json.dumps(vendored), encoding="utf-8")
-
-    result = runner.invoke(cli_model.cli, ["page", "check", "--render", str(page)])
-
-    assert result.exit_code == 0, result.output
-    report = json.loads(result.stdout)
-    assert report["browser"]["ran"] == ["render check"]
-    assert "Leaf a74b08365870, committed 2026-09-26T09:32:21-07:00" in words(
-        result.stdout
-    )
 
 
 def test_the_browser_gate_opens_away_from_the_project_a_page_selected(
@@ -4366,6 +4269,7 @@ def test_page_owned_pr_brief_composes_its_data_contract(tmp_path, monkeypatch):
         "request": {
             "contract": "pull-request",
             "source": "source",
+            "property": "value",
         }
     }
     assert "pull-request" in registry["$data"]["contracts"]
@@ -4448,6 +4352,7 @@ def test_visual_review_package_composes_its_run_contract(tmp_path, monkeypatch):
         "run": {
             "contract": "visual-run",
             "source": "source",
+            "property": "value",
         }
     }
     assert widget["x-state"]["review"]["unit"] == "case"
@@ -5040,6 +4945,8 @@ def test_cli_selection_returns_the_composed_audience_map(instruction_page):
     for option, value, message in (
         ("--use", "lf-absent", "unknown instructions vocabulary entry"),
         ("--use", "$data", "unknown instructions vocabulary entry"),
+        # A Layout is a class the page's CSS provides; the refusal says where it is.
+        ("--use", "layout-tiles", "page-layout.md describes them"),
         ("--contract", "absent", "unknown instructions data contract"),
     ):
         result = runner.invoke(

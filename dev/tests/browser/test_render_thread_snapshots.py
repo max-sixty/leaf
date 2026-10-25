@@ -8,7 +8,7 @@ import pytest
 from leaf_dev.commands.thread_snapshots import COMPARED
 
 
-@pytest.mark.skip(reason="paused: TODO.md, Resume the thread appearance gate")
+@pytest.mark.skip(reason="paused: issue #4046, Resume the thread appearance gate")
 @pytest.mark.skipif(
     not COMPARED, reason="thread appearance is reviewed on macOS and Linux"
 )

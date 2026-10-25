@@ -1968,6 +1968,10 @@ aside.sidenote {
   margin: 0;
   padding-block-start: var(--sp-2);
   border-block-start: 1px solid var(--rule);
+  display: grid;
+  grid-row: span 2;
+  grid-template-rows: subgrid;
+  row-gap: 0;
 }
 .metric dt {
   color: var(--muted);

@@ -1713,11 +1713,19 @@ aside.sidenote {
    the figure, written as a one-term definition list. It is type and a hairline above,
    not a card, so a row of them reads as figures; a page restyles it through the
    tokens it reads. The figure and its change each go to a new line whole, and a figure
-   too long for the tile breaks anywhere rather than overflow it. */
+   too long for the tile breaks anywhere rather than overflow it.
+
+   In a grid, such as a row of tiles, the label and the figure take two of the row's
+   tracks (subgrid), so every figure in a row stands on one line however many lines a
+   neighbour's label wraps to. Elsewhere the tile is its own two-row grid. */
 .metric {
   margin: 0;
   padding-block-start: var(--sp-2);
   border-block-start: 1px solid var(--rule);
+  display: grid;
+  grid-row: span 2;
+  grid-template-rows: subgrid;
+  row-gap: 0;
 }
 .metric dt {
   color: var(--muted);

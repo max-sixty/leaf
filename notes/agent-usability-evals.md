@@ -289,7 +289,8 @@ and the follow-on brief from Codex session `01a13358-0141-70f0-8bb4-a8defb75b07e
 (line 13). The original nine-pair Claude report survives at
 `~/.local/state/leaf/pages/eval-plain-html/`, with its raw runs at
 `~/.tmp/leaf.authoring-vs-plain-html/eval/`; those are distinct from the recovered
-twelve-author Codex comparison above. The continuing brief is TODO #20.
+twelve-author Codex comparison above. The continuing brief is
+[issue #4017](https://github.com/max-sixty/leaf/issues/4017).
 
 ## Widgets plain page check doesn't run, 2026-10-24
 
@@ -441,7 +442,8 @@ thread message's `lf-chart` whose body throws.
 
 ## Render findings after handover, 2026-10-24
 
-TODO.md's "Read the full render gate after handover" would run the render readings on
+[Issue #4042](https://github.com/max-sixty/leaf/issues/4042),
+"Read the full render gate after handover", would run the render readings on
 the server when a version goes live and deliver them through `leaf wait`. Two
 measurements decide whether to build it: how long the readings take, and whether an
 agent that has handed a page over acts on findings that arrive afterwards.
@@ -554,7 +556,7 @@ With the render-pass clause every agent that got failures fixed them (10 of 10,
 deliveries, where the `error` clause had it change the chart every time. Codex changed
 the page for advice under either clause.
 
-For the TODO item: the readings take 7–8 s on a typical page. An agent that handed
+For that issue: the readings take 7–8 s on a typical page. An agent that handed
 over without them did so about 40 s sooner, the check plus the reading and fixing it
 prompted, and every such agent that got the failures afterwards fixed them. That
 supports building the pass. Its delivery decides what agents do with advice: a clause

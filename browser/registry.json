@@ -1858,6 +1858,10 @@
     "description": "A grid of labels and values for summary facts, written as a definition list. As a direct child of an `lf-option` titled with a `<strong>`, it floats right as a narrow column where the option is wide enough, so the options' figures line up.",
     "x-example": "<dl class=\"facts\">\n  <dt>Owner</dt><dd>payments</dd>\n  <dt>Rollout</dt><dd>behind a flag</dd>\n</dl>"
   },
+  ".metric": {
+    "description": "A metric tile: one figure under the label that names it, with an optional change beside the figure in a `<small>`, written as a one-term definition list. A row of them goes in a `layout-tiles` block. It is set as type under a hairline rather than as a card; restyle it through the theme's tokens.",
+    "x-example": "<div class=\"layout-tiles\">\n  <dl class=\"metric\" id=\"open-failures\">\n    <dt>open failures</dt>\n    <dd><strong>2</strong> <small>change: -1</small></dd>\n  </dl>\n  <dl class=\"metric\" id=\"duration\">\n    <dt>sample duration</dt>\n    <dd><strong>4 min</strong></dd>\n  </dl>\n</div>"
+  },
   "ol.steps": {
     "description": "An ordered procedure with numbered markers.",
     "x-example": "<ol class=\"steps\">\n  <li>Backfill the new store.</li>\n  <li>Verify counts, then flip reads.</li>\n</ol>"

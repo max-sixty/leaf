@@ -571,6 +571,12 @@
   --focus-shadow: 0 0 0 var(--focus-ring-w) var(--accent);
   --target-trace-w: 1.5px;
   --target-trace-ink: color-mix(in srgb, var(--ink-2) 42%, var(--paper));
+  /* The contour on an element a moment is about, such as the target of the thread the
+     user is in (annotation-chrome.css). It stands outside the box at the ring's gap,
+     clear of the words at its edge, so a lighter, thinner accent keeps it apart from the
+     focus ring standing in the same place. */
+  --mark-contour-w: 1.5px;
+  --mark-contour-ink: color-mix(in srgb, var(--accent) 72%, var(--paper));
   /* A pressable never wears the accent as a solid fill: the accent is its ink and its
      hairline, and this tint is the disc or ground that rises under it on hover. */
   --accent-tint: color-mix(in srgb, var(--accent) 12%, var(--card));
@@ -1702,6 +1708,32 @@ aside.sidenote {
 }
 .facts dd {
   margin: 0;
+}
+/* A metric tile: one figure under the label naming it, with an optional change beside
+   the figure, written as a one-term definition list. It is type and a hairline above,
+   not a card, so a row of them reads as figures; a page restyles it through the
+   tokens it reads. The figure and its change each go to a new line whole, and a figure
+   too long for the tile breaks anywhere rather than overflow it. */
+.metric {
+  margin: 0;
+  padding-block-start: var(--sp-2);
+  border-block-start: 1px solid var(--rule);
+}
+.metric dt {
+  color: var(--muted);
+  font: 600 var(--t-6) / 1.3 var(--sans);
+}
+.metric dd {
+  margin: var(--sp-1) 0 0;
+  font: 600 var(--t-2) / 1.2 var(--sans);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.metric dd > :is(strong, small) {
+  display: inline-block;
+}
+.metric dd small {
+  font: 500 var(--t-6) / 1.3 var(--sans);
 }
 @media screen {
   @container (width <= 640px) {

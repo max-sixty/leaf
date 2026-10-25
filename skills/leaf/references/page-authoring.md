@@ -81,8 +81,9 @@ extend beside it. Compose the page from these:
 
 - **Prose read in order**, such as a plan, review or decision, is plain semantic HTML.
 - **Independent status tiles** are a block with `class="layout-tiles"`, whose children
-  sit in equal cells. Each cell holds a metric, chart, table, list or log, with at most
-  a caption; tiles of paragraphs read worse than the column.
+  sit in equal cells. Each cell holds a metric (the theme's `.metric` entry), chart,
+  table, list or log, with at most a caption; tiles of paragraphs read worse than the
+  column.
 - **A comparison** is a table, or native sections arranged by the page's CSS.
 - **Controls beside evidence** is a playground. Aim for one coherent experience to
   read, operate and comment on. Embedded documents can isolate a demonstration, but
@@ -240,7 +241,9 @@ descendants. Use a bounded reading region for independently scrolling vertical c
 The theme scrolls a `<pre>` or table wider than its container and fits an image or SVG
 to it, so none needs a width. In a table that scrolls sideways, prose wraps a word per
 line. Put identifiers in `<code>`, which can break inside a cell, and keep the columns
-to what fits at the narrowest width the page's readers use.
+to what fits at the narrowest width the page's readers use. Write each row's name as its
+first cell, a `<th scope="row">`, and the names stay in view while the other columns
+scroll.
 
 ## Stable anchors
 

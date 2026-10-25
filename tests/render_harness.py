@@ -334,7 +334,7 @@ SAID_PAGE = leaf_page(
     """
 <h1 id="h">This week</h1>
 <div class="layout-tiles" id="numbers">
-  <dl id="m-open" class="panel"><dt>Open sessions</dt><dd><strong>1,204</strong> <small>+18%</small></dd></dl>
+  <dl id="m-open" class="metric"><dt>Open sessions</dt><dd><strong>1,204</strong> <small>+18%</small></dd></dl>
 </div>
 <lf-board id="board">
   <lf-column id="col-now" label="In flight">

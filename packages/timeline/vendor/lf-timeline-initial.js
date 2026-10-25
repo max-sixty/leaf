@@ -1,0 +1,294 @@
+(() => {
+  // leaf-initial-lit:lit
+  var { AsyncDirective, AsyncReplaceDirective, CSSResult, Directive, LitElement, PartType, ReactiveElement, TemplateResultType, UnsafeHTMLDirective, UntilDirective, _$LE, _$LH, adoptStyles, asyncAppend, asyncReplace, cache, choose, classMap, clearPart, createRef, css, customElement, defaultConverter, directive, eventOptions, getCommittedValue, getCompatibleStyle, getDirectiveClass, guard, html, ifDefined, insertPart, isCompiledTemplateResult, isDirectiveResult, isPrimitive, isServer, isSingleExpression, isTemplateResult, join, keyed, literal, live, map, mathml, noChange, notEqual, nothing, property, query, queryAll, queryAssignedElements, queryAssignedNodes, queryAsync, range, ref, removePart, render, repeat, setChildPartValue, setCommittedValue, standardProperty, state, staticHtml, staticMathml, staticSvg, styleMap, supportsAdoptingStyleSheets, svg, templateContent, unsafeCSS, unsafeHTML, unsafeMathML, unsafeSVG, unsafeStatic, until, when, withStatic } = document.documentElement.lfInitial.lit;
+
+  // browser/runtime/time-axis.js
+  var TICK_SPACING = 84;
+  var STEPS = [1, 2, 5];
+  function tickStep(pxPerMs) {
+    for (let power = 1; power < 1e9; power *= 10)
+      for (const step of STEPS)
+        if (step * power * pxPerMs >= TICK_SPACING) return step * power;
+    return 1e9;
+  }
+  function tickLabel(time2, step) {
+    if (time2 === 0) return "0 s";
+    const digits = step >= 1e3 ? 0 : step >= 100 ? 1 : step >= 10 ? 2 : 3;
+    return `${(time2 / 1e3).toFixed(digits)} s`;
+  }
+  function axisTicks(from, to, duration, pxPerMs) {
+    const step = tickStep(pxPerMs);
+    const minor = step / (String(step)[0] === "2" ? 4 : 5);
+    const ticks = [];
+    for (let time2 = Math.floor(from / minor) * minor; time2 <= to; time2 += minor) {
+      const rounded = Math.round(time2 * 1e3) / 1e3;
+      if (rounded < 0 || rounded > duration) continue;
+      const major = Math.abs(rounded / step - Math.round(rounded / step)) < 1e-6;
+      ticks.push({
+        time: rounded,
+        major,
+        label: major ? tickLabel(rounded, step) : null,
+        step
+      });
+    }
+    return ticks;
+  }
+  function assignRows(items, start, end) {
+    const rows = [];
+    const rowOf = /* @__PURE__ */ new Map();
+    for (const item of items.toSorted((a, b) => start(a) - start(b))) {
+      let row = rows.findIndex((last) => last <= start(item));
+      if (row < 0) row = rows.push(-Infinity) - 1;
+      rows[row] = end(item);
+      rowOf.set(item.id, row);
+    }
+    return rowOf;
+  }
+  var measuring = null;
+  function textWidth(text, font) {
+    measuring ??= document.createElement("canvas").getContext("2d");
+    measuring.font = font;
+    return measuring.measureText(text).width;
+  }
+
+  // packages/timeline/initial/timeline-view.js
+  var EDGE = 12;
+  var LABEL_GAP = 8;
+  var LABEL_CHROME = 12;
+  var time = (value) => value === null || value === "" ? null : Number(value);
+  var clock = (ms) => `${Number((ms / 1e3).toFixed(3))} s`;
+  function readTimeline(host) {
+    const problems = [];
+    const lanes = [...host.querySelectorAll(":scope > lf-lane")].map((lane, index) => ({
+      index,
+      label: lane.getAttribute("label") ?? "",
+      events: [...lane.querySelectorAll(":scope > lf-event")].map((event) => {
+        const at = time(event.getAttribute("at")) ?? 0;
+        let end = time(event.getAttribute("end"));
+        if (end !== null && end < at) {
+          problems.push(`lf-event #${event.id} ends (${end}) before it starts (${at})`);
+          end = null;
+        }
+        return {
+          id: event.id,
+          label: event.getAttribute("label") ?? "",
+          lane: index,
+          at,
+          end: end === at ? null : end
+        };
+      })
+    }));
+    const events = lanes.flatMap((lane) => lane.events);
+    const steps = [];
+    for (const event of events.toSorted((a, b) => a.at - b.at || a.lane - b.lane)) {
+      if (steps.at(-1)?.time === event.at) steps.at(-1).events.push(event);
+      else steps.push({ time: event.at, events: [event] });
+    }
+    steps.forEach((step, index) => {
+      for (const event of step.events) event.step = index;
+    });
+    const duration = Math.max(1, ...events.map((event) => event.end ?? event.at));
+    return { lanes, events, steps, duration, problems };
+  }
+  function stateAt(event, now) {
+    if (event.at > now) return { state: "future", done: 0 };
+    if (event.at === now) return { state: "current", done: 0 };
+    const done = event.end === null ? 1 : Math.min(1, (now - event.at) / (event.end - event.at));
+    return { state: done < 1 ? "running" : "past", done };
+  }
+  function layoutLabels(model, width, font) {
+    const span = Math.max(1, width - 2 * EDGE);
+    const x = (ms) => EDGE + ms / model.duration * span;
+    const placed = /* @__PURE__ */ new Map();
+    const rows = model.lanes.map((lane) => {
+      const labels = lane.events.map((event) => {
+        const anchor = x(event.at);
+        const size = textWidth(event.label, font) + LABEL_CHROME;
+        const flip = anchor + size > width && anchor - size >= 0;
+        const left = flip ? anchor - size : Math.min(anchor, Math.max(0, width - size));
+        return { id: event.id, left, size, flip };
+      });
+      const rowOf = assignRows(
+        labels,
+        (label) => label.left,
+        (label) => label.left + label.size + LABEL_GAP
+      );
+      for (const label of labels)
+        placed.set(label.id, { ...label, row: rowOf.get(label.id) });
+      return labels.length ? 1 + Math.max(...rowOf.values()) : 1;
+    });
+    return { x, span, rows, placed, pxPerMs: span / model.duration };
+  }
+  var px = (value) => `${Math.round(value * 64) / 64}px`;
+  function drawTimeline(host, tools) {
+    const model = readTimeline(host);
+    const saved = Number(tools.tabStore.get(`timeline:${host.id}`));
+    let current = Math.max(
+      0,
+      model.steps.findIndex((step) => step.time === saved)
+    );
+    let layout = null;
+    const view = tools.offer("div", "lf-timeline-view");
+    const controls = tools.offer("div", "lf-timeline-controls");
+    controls.setAttribute("role", "group");
+    controls.setAttribute("aria-label", host.getAttribute("aria-label") ?? "Timeline");
+    const previous = tools.offer("button", "lf-btn lf-timeline-previous", "Previous");
+    const position = tools.offer("span", "lf-timeline-position");
+    tools.generatedElement(position, { says: false });
+    const next = tools.offer("button", "lf-btn lf-timeline-next", "Next");
+    controls.append(previous, position, next);
+    const chart = document.createElement("div");
+    chart.className = "lf-timeline-chart";
+    chart.setAttribute("aria-hidden", "true");
+    tools.generatedElement(chart, { says: "echo" });
+    const list = document.createElement("ol");
+    list.className = "lf-timeline-steps";
+    tools.generatedElement(list, { says: true });
+    const rows = model.steps.map((step, index) => {
+      const item = document.createElement("li");
+      const button = tools.offer("button", "lf-timeline-step");
+      button.dataset.step = String(index);
+      const at = document.createElement("span");
+      at.className = "lf-timeline-step-time";
+      at.textContent = clock(step.time);
+      button.append(at);
+      for (const event of step.events) {
+        const line = document.createElement("span");
+        line.className = "lf-timeline-step-event";
+        const lane = document.createElement("span");
+        lane.className = "lf-timeline-step-lane";
+        lane.textContent = `${model.lanes[event.lane].label}: `;
+        line.append(lane, event.label);
+        button.append(line);
+      }
+      item.append(button);
+      list.append(item);
+      return button;
+    });
+    view.append(controls, chart, list);
+    host.append(view);
+    const paintChart = () => {
+      const now = model.steps[current]?.time ?? 0;
+      const ticks = layout ? axisTicks(0, model.duration, model.duration, layout.pxPerMs) : [];
+      render(
+        html`${model.lanes.map(
+          (lane) => html`<span
+              class="lf-timeline-name"
+              style="grid-row: ${lane.index + 2}; --lf-timeline-rows: ${layout?.rows[lane.index] ?? 1}"
+              >${lane.label}</span
+            >`
+        )}
+        <div class="lf-timeline-ruler">
+          ${repeat(
+          ticks,
+          (tick) => `${tick.step}:${tick.time}`,
+          (tick) => html`<span
+                class="lf-timeline-tick"
+                ?data-major=${tick.major}
+                ?data-flip=${tick.major && tick.time * layout.pxPerMs > layout.span - 36}
+                style="left: ${px(layout.x(tick.time))}"
+                >${tick.label ?? nothing}</span
+              >`
+        )}
+        </div>
+        ${model.lanes.map(
+          (lane) => html`<div
+              class="lf-timeline-lane"
+              style="grid-row: ${lane.index + 2}; --lf-timeline-rows: ${layout?.rows[lane.index] ?? 1}"
+            >
+              ${repeat(
+            lane.events,
+            (event) => event.id,
+            (event) => {
+              const label = layout?.placed.get(event.id);
+              const { state: state2, done } = stateAt(event, now);
+              const start = layout ? layout.x(event.at) : 0;
+              const end = layout && event.end !== null ? layout.x(event.end) : start;
+              return html`<div
+                    class="lf-timeline-event"
+                    data-event=${event.id}
+                    data-step=${event.step}
+                    data-state=${state2}
+                  >
+                    <span
+                      class="lf-timeline-label"
+                      ?data-flip=${label?.flip}
+                      style="--lf-timeline-row-index: ${label?.row ?? 0}; left: ${px(label?.left ?? 0)}"
+                      >${event.label}</span
+                    >
+                    <span
+                      class="lf-timeline-mark"
+                      data-kind=${event.end === null ? "instant" : "span"}
+                      style="left: ${px(start)}; --lf-timeline-length: ${px(end - start)}; --lf-timeline-done: ${done}"
+                    ></span>
+                  </div>`;
+            }
+          )}
+            </div>`
+        )}
+        <div class="lf-timeline-playhead">
+          <span
+            class="lf-timeline-playhead-line"
+            style="left: ${px(layout ? layout.x(now) : 0)}"
+          ></span>
+        </div>`,
+        chart
+      );
+      chart.style.setProperty("--lf-timeline-lanes", String(model.lanes.length));
+    };
+    const paintTransport = () => {
+      tools.keeps(previous, "aria-disabled", current > 0 ? null : "true");
+      tools.keeps(
+        next,
+        "aria-disabled",
+        current < model.steps.length - 1 ? null : "true"
+      );
+      const text = model.steps.length ? `Step ${current + 1} of ${model.steps.length} \xB7 ${clock(model.steps[current].time)}` : "No events";
+      if (position.textContent !== text) position.textContent = text;
+      rows.forEach((row, index) => {
+        tools.keeps(row, "aria-current", index === current ? "step" : null);
+        tools.keeps(row, "data-past", index < current ? "" : null);
+      });
+    };
+    const drawing = {
+      model,
+      controls,
+      previous,
+      next,
+      chart,
+      rows,
+      get current() {
+        return current;
+      },
+      /** Paint step `index`, clamped to the steps there are. */
+      show(index) {
+        current = Math.max(0, Math.min(model.steps.length - 1, index));
+        paintTransport();
+        paintChart();
+        return current;
+      },
+      /** Measure the track and lay labels out again; false while it has no width. */
+      layout() {
+        const ruler = chart.querySelector(".lf-timeline-ruler");
+        const width = ruler?.clientWidth ?? 0;
+        if (!width) return false;
+        const style = getComputedStyle(chart);
+        const font = `${style.getPropertyValue("--lf-timeline-label-weight").trim() || 500} ${style.fontSize} ${style.fontFamily}`;
+        layout = layoutLabels(model, width, font);
+        paintChart();
+        return true;
+      },
+      /** The event's drawn group and its mark, for comment targets. */
+      eventElement(id) {
+        return chart.querySelector(`.lf-timeline-event[data-event="${CSS.escape(id)}"]`);
+      }
+    };
+    paintTransport();
+    paintChart();
+    drawing.layout();
+    return drawing;
+  }
+
+  // packages/timeline/initial/lf-timeline.js
+  document.documentElement.lfInitial.register("lf-timeline", drawTimeline);
+})();

@@ -32,6 +32,12 @@ and dark schemes; an SVG file added with `leaf page media` can't. Use the
 Use `lf-chart` for quantities, not Mermaid's charts. A few numbers the sentence can
 carry belong in prose.
 
+Use `lf-timeline` for an order of events between actors that you describe, such as a
+race between two jobs, rather than drawing one in `svg.drawing`: it places every label
+clear of bars, other labels and the playhead, and the reader steps through the events
+with the keyboard or a finger. It ships in the `timeline` package. A recorded browser
+journey belongs in `lf-trace` instead (below).
+
 A user can comment on a whole drawing. To let them comment on one part, give the part
 an id: in an inline `<svg>`, put an `id` on each `<g>` holding a shape and its label,
 named for what the part is, since the thread reports it to you. For `lf-diagram`, its

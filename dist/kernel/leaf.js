@@ -6417,7 +6417,11 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	function admitRows() {
 		const top = trail.value.at(-1);
 		const view = top?.view === "threads" && drawnTop === routeKey(top) && !refitting && drawnStates !== null ? shownView() : null;
-		if (!view) return null;
+		if (!view) {
+			heldRows.clear();
+			joined.clear();
+			return null;
+		}
 		const drawn = new Map(threadRows().map((row) => [row.dataset.key, row]));
 		const band = view.getBoundingClientRect();
 		let next = null;
@@ -6431,10 +6435,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	function noteJoined(before) {
 		const said = joinedFacts().join();
 		const view = shownView();
-		if (!before) {
-			heldRows.clear();
-			joined.clear();
-		} else {
+		if (before) {
 			const listed = new Set(listedThreads().map((thread) => thread.key));
 			for (const thread of threads()) {
 				const { key } = thread;

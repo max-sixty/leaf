@@ -2315,7 +2315,13 @@ export function createFloatingPanel({
       drawnStates !== null
         ? shownView()
         : null;
-    if (!view) return null;
+    // A paint that draws no standing list, as a press that changes what the list
+    // shows, draws every row it lists and says nothing joined.
+    if (!view) {
+      heldRows.clear();
+      joined.clear();
+      return null;
+    }
     const drawn = new Map(threadRows().map((row) => [row.dataset.key, row]));
     const band = view.getBoundingClientRect();
     let next = null;
@@ -2338,10 +2344,7 @@ export function createFloatingPanel({
   function noteJoined(before) {
     const said = joinedFacts().join();
     const view = shownView();
-    if (!before) {
-      heldRows.clear();
-      joined.clear();
-    } else {
+    if (before) {
       const listed = new Set(listedThreads().map((thread) => thread.key));
       for (const thread of threads()) {
         const { key } = thread;

@@ -1516,31 +1516,36 @@ def test_tapping_code_copy_keeps_its_source_container_active(browser, serve):
     expect(actions).to_be_hidden()
 
 
-def test_code_copy_face_follows_a_compact_source_line(browser, serve):
+def test_code_copy_is_a_mark_whatever_its_block_s_line(browser, serve):
+    """Copy is a mark, one size on every block, compact or tall, and its reach keeps
+    the aim floor."""
     url = live_url(
         serve(
             leaf_page(
-                "Compact code copy",
-                '<pre id="source" style="font-size:12.5px;line-height:19px;'
+                "Code copy marks",
+                '<pre id="compact" style="font-size:12.5px;line-height:19px;'
                 'padding:7px 10px"><code>echo hello</code></pre>'
-                '<div style="--lf-code-copy-size:27px"><pre id="custom">'
-                "<code>echo custom</code></pre></div>",
+                '<pre id="tall" style="line-height:40px"><code>echo tall</code></pre>',
             )
         )
     )
     page = open_page(browser, url)
-    page.locator("#source").hover()
-    face = page.locator(".lf-chrome .lf-code-copy").first.get_by_role("button")
-    expect(face).to_be_visible()
-    assert face.evaluate("el => el.getBoundingClientRect().height") == 19
-    assert face.evaluate(
-        "el => parseFloat(getComputedStyle(el, '::after').height)"
-    ) >= page.evaluate(
+    mark = page.evaluate(
+        "parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--mark-size'))"
+    )
+    floor = page.evaluate(
         "parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--aim-floor'))"
     )
-    page.locator("#custom").hover()
-    custom = page.locator(".lf-chrome .lf-code-copy").last.get_by_role("button")
-    assert custom.evaluate("el => el.getBoundingClientRect().height") == 27
+    for index, block in enumerate(("#compact", "#tall")):
+        page.locator(block).hover()
+        face = page.locator(".lf-chrome .lf-code-copy").nth(index).get_by_role("button")
+        expect(face).to_be_visible()
+        box = face.evaluate("el => el.getBoundingClientRect().toJSON()")
+        assert (box["width"], box["height"]) == (mark, mark), block
+        assert (
+            face.evaluate("el => parseFloat(getComputedStyle(el, '::after').height)")
+            >= floor
+        ), block
 
 
 def test_code_copy_reads_sources_before_positioning_many_controls(browser, serve):

@@ -3698,6 +3698,72 @@ motion.pause();motion.currentTime=150;
     assert names_move(errors, "button#control") == bool(fault), errors
 
 
+@pytest.mark.parametrize(
+    "fault,finish",
+    [
+        ("", False),
+        ("child", False),
+        ("consumer", False),
+        ("coincidence", False),
+        ("all", False),
+        ("", True),
+        ("underlying", True),
+    ],
+)
+def test_inherited_custom_translation_credits_only_its_bound_consumer(
+    browser, fault, finish
+):
+    """A shadow stylesheet can carry a field's words through its host's animation.
+    Neither another descendant's layout nor a replacement translate inherits credit."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<!doctype html><style>
+@property --travel { syntax: '<length>+'; inherits: true; initial-value: 0px 0px; }
+</style><body style="margin:0"><button id="start">Start</button>
+<div id="panel" style="margin-left:350px"></div>
+<p id="trigger" style="position:absolute;left:10px;top:400px">Paint checkpoint</p>
+<script>
+const root = panel.attachShadow({mode:'open'});
+root.innerHTML = '<style>#carrier {translate:var(--travel)}</style>' +
+  '<div id="carrier"><button id="control">Retained control</button></div>';
+const carrier = root.getElementById('carrier'), control = root.getElementById('control');
+start.onclick=()=>{
+window.motion=panel.animate([{'--travel':'-200px 0px'},{'--travel':'0px 0px'}],
+  {duration:1000});
+motion.pause();motion.currentTime=150;
+};
+</script></body>""")
+    )
+    if fault == "coincidence":
+        page.evaluate(
+            "panel.shadowRoot.getElementById('carrier').style.translate = '-170px 0px'"
+        )
+    paint(page)
+    page.locator("#start").click()
+    paint(page)
+    judge_watches()
+    assert not take_browser_errors(page)
+    page.evaluate(
+        """({fault, finish}) => {
+      const root=panel.shadowRoot;
+      if(fault==='all') root.getElementById('carrier').style.all='initial';
+      if(fault==='child') root.getElementById('control').style.marginLeft='55px';
+      if(fault==='consumer' || fault==='coincidence')
+        root.getElementById('carrier').style.translate='-40px 0px';
+      if (fault==='underlying') panel.style.setProperty('--travel', '80px 0px');
+      if(finish) motion.finish(); else motion.currentTime=800;
+      trigger.style.left="40px";
+    }""",
+        {"fault": fault, "finish": finish},
+    )
+    paint(page)
+    judge_watches()
+    errors = take_browser_errors(page)
+    assert names_move(errors, "p#trigger"), errors
+    assert names_move(errors, "button#control") == bool(fault), errors
+
+
 @pytest.mark.parametrize("fault", [False, True])
 def test_native_anchor_follows_owned_translation_but_not_an_independent_offset(
     browser, fault

@@ -168,7 +168,8 @@ def test_interactive_export_runs_captured_local_behavior_without_a_host(
         "request",
         lambda request: (
             external.append(request.url)
-            if request.url != document_url and not request.url.startswith("data:")
+            if request.url != document_url
+            and not request.url.startswith(("data:", "blob:"))
             else None
         ),
     )
@@ -243,7 +244,8 @@ def test_interactive_export_hydrates_captured_deferred_values_offline(
         "request",
         lambda request: (
             external.append(request.url)
-            if request.url != document_url and not request.url.startswith("data:")
+            if request.url != document_url
+            and not request.url.startswith(("data:", "blob:"))
             else None
         ),
     )

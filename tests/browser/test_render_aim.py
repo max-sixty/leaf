@@ -69,6 +69,7 @@ from render_harness import (
     judge_watches,
     leaf_page,
     open_page,
+    open_threads,
     pane_scroll_behavior,
     panel_settled,
     panel_view,
@@ -2401,7 +2402,7 @@ def test_design_mode_leaves_the_chrome_working(browser, serve):
     assert comments() == seeded, "a press on the chrome posted a comment"
     exit_mode.click()
     expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode")
-    page.locator(".lf-fp-threads").click()
+    open_threads(page)
     expect(panel).to_be_visible()
 
 
@@ -3566,12 +3567,12 @@ def test_the_chrome_keeps_its_presses_while_the_page_is_armed(browser, serve):
     from a user who happens to be holding the key — and there is nothing in the layer
     to aim at anyway, since an anchor names an element of the page."""
     page = open_page(browser, serve(LONG_PAGE))
-    comments = page.locator(".lf-fp-threads")
-    comments.hover()
+    on_me = page.locator(".lf-fp-on-user")
+    on_me.hover()
     page.keyboard.down("Alt")
-    comments.click()
+    on_me.click()
     page.keyboard.up("Alt")
-    panel_settled(page, view="threads")
+    panel_settled(page, view="queue")
     expect(page.locator(".lf-composer")).to_be_hidden()
 
 

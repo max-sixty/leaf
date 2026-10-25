@@ -23,6 +23,7 @@ from render_harness import (
     leaf_page,
     margins_laid_out,
     open_page,
+    open_threads,
     panel_field,
     panel_settled,
     resized,
@@ -732,8 +733,7 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(browser,
 
     page.locator(".lf-margin-preview-close").click()
     expect(preview).to_be_hidden()
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    open_threads(page)
     marker.focus()
     page.keyboard.press("Enter")
     expect(preview).to_be_visible()
@@ -845,8 +845,7 @@ def test_a_new_anchored_comment_keeps_the_users_thread_view(
     page = open_page(browser, serve(OBLIGATION_PAGE))
     resized(page, width, 900)
     if threads_open:
-        page.locator(".lf-fp-threads").click()
-        panel_settled(page, view="threads")
+        open_threads(page)
     page.locator("#mounts-p").click(click_count=3)
     expect(page.locator(".lf-fab-input")).to_be_visible()
     page.locator(".lf-fab-input").click()
@@ -909,8 +908,7 @@ def test_a_comment_sent_from_a_control_is_left_by_the_levels_it_opened(
     page = open_page(browser, serve(OBLIGATION_PAGE))
     resized(page, 1440, 900)
     if threads_open:
-        page.locator(".lf-fp-threads").click()
-        panel_settled(page, view="threads")
+        open_threads(page)
     stood = page.locator("lf-option-control").first
     stood.focus()
     expect(stood).to_be_focused()
@@ -1264,8 +1262,7 @@ def test_a_shared_passage_steps_between_single_thread_cards(browser, serve):
     expect(preview).to_contain_text(COMMENT_ON_OBLIGATION["text"])
     expect(preview).not_to_contain_text(second_comment["text"])
     expect(preview.get_by_role("button", name=re.compile(r"Threads?"))).to_have_count(0)
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    open_threads(page)
     expect(preview).to_be_hidden()
 
 
@@ -1298,7 +1295,7 @@ def test_focusing_a_thread_margin_entry_does_not_open_its_card(browser, serve):
 
     marker.focus()
     expect(preview).to_be_hidden()
-    toggle = page.locator(".lf-fp-threads")
+    toggle = page.locator(".lf-fp-on-user")
     toggle.focus()
 
     expect(toggle).to_be_focused()

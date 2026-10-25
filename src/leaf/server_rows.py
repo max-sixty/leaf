@@ -107,7 +107,7 @@ ROW = Record(
                             ),
                             "on_user": described("How many rows On me holds.", COUNT),
                             "threads": described(
-                                "What the Leaf panel's Threads mark counts (`thread_counts`): "
+                                "What the Leaf panel counts of the threads (`thread_counts`): "
                                 "the open threads, and those the user hasn't read.",
                                 object_schema({"open": COUNT, "unread": COUNT}),
                             ),

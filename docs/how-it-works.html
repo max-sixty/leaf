@@ -3151,14 +3151,17 @@ leaf task end ./review &lt;todo-id&gt; done --text "The load check is recorded o
               <em>chrome</em>: the Leaf panel floating at the window's foot, comment and
               decision markers, and thread cards. At rest the panel is one row: the
               leaf, coloured by the agent's state; the comment field, which shows the
-              agent's status while it is empty; and marks counting On me and Threads.
-              The leaf opens a small menu of the page's other controls, and a mark opens
-              its list as a view above the row. Folded, the panel is the leaf alone in
-              the window's corner.
+              agent's status while it is empty; and the On me mark, counting what waits
+              on the user, with a dot while a thread holds a reply they haven't read.
+              The leaf opens a small menu of the page's other controls, and the mark
+              opens On me as a view above the row, where the mark's place holds the ✕
+              that closes it. Folded, the panel is the leaf alone in the window's
+              corner.
             </p>
             <p id="chrome-lists">
               The On view shows one list at a time, under a tab named for its actor,
-              with completed items under Done.
+              with completed items under Done, and a Threads tab listing the open
+              threads, then the resolved ones under Resolved.
               <a href="#progress-on-lists">On me and the agent’s list</a> defines their
               membership. Opening a view preserves the page’s text wrapping and reading
               position.
@@ -5096,7 +5099,7 @@ EOF</code></pre>
               its passage. An embedded thread folds in place.
             </p>
             <details id="navigation-resolution-cases">
-              <summary>List filters, replies, and undo</summary>
+              <summary>Search, replies, and undo</summary>
               <table id="navigation-resolution-table">
                 <thead>
                   <tr>
@@ -5109,7 +5112,7 @@ EOF</code></pre>
                     <td>Resolve the only shown thread</td>
                     <td>
                       The next destination comes from all open threads, independently of
-                      a list filter. When no open threads remain, the panel returns to
+                      a search. When no open threads remain, the panel returns to
                       Threads.
                     </td>
                   </tr>
@@ -5278,8 +5281,8 @@ EOF</code></pre>
               <h2>The panel and its menu</h2>
               <p id="phone-panel-row">
                 The panel fits a narrow window with space at its edges. Its row holds
-                the leaf, a comment field showing agent status, and On me and Threads
-                counts beside their icons. A temporary notice replaces the status words.
+                the leaf, a comment field showing agent status, and the On me count
+                beside its icon. A temporary notice replaces the status words.
               </p>
               <p id="phone-panel-menu">
                 The leaf’s menu includes Search page and Page Map under Navigate, Undo,

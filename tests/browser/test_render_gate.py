@@ -60,6 +60,7 @@ from render_harness import (
     CORPUS_SOURCES,
     EXAMPLE_PACKAGES,
     LONG_PAGE,
+    OPEN_THREAD_COUNT,
     ROOT,
     TOKEN,
     _traffic,
@@ -70,10 +71,10 @@ from render_harness import (
     left_alone,
     live_counts,
     open_page,
+    open_threads,
     pane_scroll_behavior,
     panel_control,
     panel_menu,
-    panel_settled,
     plant_quiet_word,
     primed,
     reader_state,
@@ -2093,8 +2094,11 @@ def test_reader_state_observes_behavior_without_freezing_the_dom(browser, serve)
 # page (keyboard/AGENTS.md); the ones Go-to opens take the most presses. A new surface
 # joins by its keys.
 #
-# A page has a thread to open when the panel's Threads mark counts an open thread.
-OPEN_THREADS = ".lf-fp-threads .lf-fp-num:not(:empty)"
+
+
+def has_open_thread(page):
+    """Whether the page has a thread to open: its reading holds an open thread."""
+    return bool(page.evaluate(OPEN_THREAD_COUNT))
 
 
 def other_pages(page):
@@ -2131,7 +2135,7 @@ SURFACES = {
     "target picker": (["s"], None),
     "page search": (["/"], None),
     "go-to": (["g"], None),
-    "thread card": (["t"], OPEN_THREADS),
+    "thread card": (["t"], has_open_thread),
     "threads view": (["g", "Shift+t"], None),
     "on me view": (["g", "Shift+m"], None),
     "all pages view": (["g", "Shift+l"], other_pages),
@@ -2328,9 +2332,11 @@ def untouched_resize_findings(page):
     said = landmark.evaluate("node => node.textContent.trim().slice(0, 60)")
     scrolled = page.evaluate("() => document.scrollingElement.scrollTop")
     return [
-        f"opened at {RESIZE_PATH[0]}px and scrolled by no one, narrowed to "
-        f"{RESIZE_PATH[-1]}px: the page scrolled to {scrolled}px, away from its "
-        f"place ({said})"
+        (
+            f"opened at {RESIZE_PATH[0]}px and scrolled by no one, narrowed to "
+            f"{RESIZE_PATH[-1]}px: the page scrolled to {scrolled}px, away from its "
+            f"place ({said})"
+        )
     ]
 
 
@@ -2401,9 +2407,7 @@ def into_the_page(page):
 TYPED_BOXES = {
     "comment on an item": lambda page: into_the_page(page) and ["c"],
     "comment on the page": lambda page: ["c"],
-    "thread card reply": lambda page: (
-        page.locator(OPEN_THREADS).first.is_visible() and ["t", "c"]
-    ),
+    "thread card reply": lambda page: has_open_thread(page) and ["t", "c"],
 }
 # A box another box's keys could reach instead, as `c` outside a thread opens the page's
 # comment, is reached only where this reading finds the focus in it.
@@ -4510,8 +4514,7 @@ def test_a_page_hands_its_note_strip_back_when_the_panel_takes_the_room(browser,
     }"""
     roomy = page.evaluate(reading)
     resized(page, 1024, 900)
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    open_threads(page)
     cramped = page.evaluate(reading)
     misplaced = render_checks_model.evaluate_probe(page, "misplacedBoxes")
     resized(page, 1728, 900)

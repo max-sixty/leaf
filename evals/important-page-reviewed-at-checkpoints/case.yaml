@@ -8,8 +8,7 @@
 # Code 0 of 4, Codex 0 of 2); the change ran one (5 of 5, 2 of 2).
 description: important-page-reviewed-at-checkpoints
 metadata:
-  purpose:
-    "Checks and checkpoints: a large page the user relies on throughout a long
+  purpose: "Checks and checkpoints: a large page the user relies on throughout a long
     conversation gets the browser review at a checkpoint the user names, though it is
     not a record."
   tags:

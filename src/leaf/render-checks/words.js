@@ -113,6 +113,66 @@ export function coveredWords({
   holdHidden = true,
   holdLabelLines = true,
 } = {}) {
+  const runs = paintedRuns(document.body, { holdFloating, holdHidden });
+  const found = [];
+  for (let i = 0; i < runs.length; i++)
+    for (let j = i + 1; j < runs.length; j++) {
+      const a = runs[i];
+      const b = runs[j];
+      if (a.el === b.el || a.el.contains(b.el) || b.el.contains(a.el)) continue;
+      if (holdLabelLines && a.label && a.label === b.label) continue;
+      // SVG renderers can draw a stroked copy directly behind a filled label
+      // to make its letters legible. They are one painted word, not two words
+      // covering each other; keep comparing either copy with every other run.
+      if (
+        a.label &&
+        b.label &&
+        a.label !== b.label &&
+        a.label.parentElement === b.label.parentElement &&
+        a.label.textContent === b.label.textContent &&
+        (getComputedStyle(a.label).fill === "none" ||
+          getComputedStyle(b.label).fill === "none") &&
+        Math.abs(a.box.left - b.box.left) < 1 &&
+        Math.abs(a.box.top - b.box.top) < 1 &&
+        Math.abs(a.box.width - b.box.width) < 1 &&
+        Math.abs(a.box.height - b.box.height) < 1
+      )
+        continue;
+      const across =
+        Math.min(a.box.right, b.box.right) - Math.max(a.box.left, b.box.left);
+      const down =
+        Math.min(a.box.bottom, b.box.bottom) - Math.max(a.box.top, b.box.top);
+      if (across <= 2 || down <= 2) continue;
+      found.push({
+        code: "covered-words",
+        at: at(a.el),
+        // Both elements' places (locate.js), so the gate's sweep meets the same pair
+        // again at another width and tells it from another pair sharing a name.
+        place: `${place(a.el)} ${place(b.el)}`,
+        words: a.text,
+        under: at(b.el),
+        covered: b.text,
+      });
+    }
+  return unique(found);
+}
+
+// Where the words under the element `selector` names are painted, one box per run:
+// the reading `coveredWords` compares, for a suite test asking what a box hides. It
+// sees what the user is shown, so a word said only to a screen reader (`.lf-quiet`),
+// whose text still lays out a line box past the pixel clipping it, hides nothing.
+export const paintedWords = (selector) =>
+  paintedRuns(document.querySelector(selector)).map(({ box, text }) => ({
+    left: box.left,
+    top: box.top,
+    right: box.right,
+    bottom: box.bottom,
+    text,
+  }));
+
+// Each run of words under `root` and the box it paints, read as `coveredWords`'s
+// header says.
+function paintedRuns(root, { holdFloating = true, holdHidden = true } = {}) {
   const runs = [];
   const outOfFlow = (style) =>
     style.position === "absolute" || style.position === "fixed";
@@ -172,7 +232,7 @@ export function coveredWords({
     }
     return box;
   };
-  const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   // A text walk visits text nodes.
   for (
     let node = /** @type {Text} */ (walk.nextNode());
@@ -198,47 +258,7 @@ export function coveredWords({
         runs.push({ el, label, box, text: node.data.trim().slice(0, 40) });
     }
   }
-  const found = [];
-  for (let i = 0; i < runs.length; i++)
-    for (let j = i + 1; j < runs.length; j++) {
-      const a = runs[i];
-      const b = runs[j];
-      if (a.el === b.el || a.el.contains(b.el) || b.el.contains(a.el)) continue;
-      if (holdLabelLines && a.label && a.label === b.label) continue;
-      // SVG renderers can draw a stroked copy directly behind a filled label
-      // to make its letters legible. They are one painted word, not two words
-      // covering each other; keep comparing either copy with every other run.
-      if (
-        a.label &&
-        b.label &&
-        a.label !== b.label &&
-        a.label.parentElement === b.label.parentElement &&
-        a.label.textContent === b.label.textContent &&
-        (getComputedStyle(a.label).fill === "none" ||
-          getComputedStyle(b.label).fill === "none") &&
-        Math.abs(a.box.left - b.box.left) < 1 &&
-        Math.abs(a.box.top - b.box.top) < 1 &&
-        Math.abs(a.box.width - b.box.width) < 1 &&
-        Math.abs(a.box.height - b.box.height) < 1
-      )
-        continue;
-      const across =
-        Math.min(a.box.right, b.box.right) - Math.max(a.box.left, b.box.left);
-      const down =
-        Math.min(a.box.bottom, b.box.bottom) - Math.max(a.box.top, b.box.top);
-      if (across <= 2 || down <= 2) continue;
-      found.push({
-        code: "covered-words",
-        at: at(a.el),
-        // Both elements' places (locate.js), so the gate's sweep meets the same pair
-        // again at another width and tells it from another pair sharing a name.
-        place: `${place(a.el)} ${place(b.el)}`,
-        words: a.text,
-        under: at(b.el),
-        covered: b.text,
-      });
-    }
-  return unique(found);
+  return runs;
 }
 
 // Inspect the theme's actual token paint, including declared widget shadow roots.

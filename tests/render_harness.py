@@ -2570,6 +2570,13 @@ def root_overflow(page) -> float:
     return render_checks_model.evaluate_probe(page, "rootOverflow")
 
 
+def painted_words(page, selector: str) -> list[dict]:
+    """Where the words under `selector` are painted, as the render gate reads them
+    (`paintedWords`): one `{left, top, right, bottom, text}` per run, each cut to what
+    the boxes holding it show, so a word said only to a screen reader hides nothing."""
+    return render_checks_model.evaluate_probe(page, "paintedWords", selector)
+
+
 def hold_selection(page, start, end, steps=8, frame_the_press=False):
     """Drag a selection without releasing, pressing on a whole pixel.
 

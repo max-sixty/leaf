@@ -603,10 +603,15 @@ summary {
   --lf-msg-body-gap: 4px;
   /* A message's control: the head keeps its room (controls.css), and so does the
      thread's own controls' row beside a first message (below). An open rewrite's
-     Discard and Save stand in that room, covering the head beyond it (response.css). */
+     Discard and Save stand in that room, covering the head's labels beyond it
+     (response.css), but never a notice of news, a press of its own, which the head
+     keeps clear of the pair's whole width. */
   --lf-msg-control-size: 26px;
   --lf-msg-control-width: max(var(--lf-msg-control-size), var(--aim-floor));
   --lf-msg-edit-gap: 4px;
+  --lf-msg-edit-width: calc(
+    2 * var(--lf-msg-control-width) + var(--lf-msg-edit-gap) + var(--sp-2)
+  );
   /* The room a held-news notice keeps at its end for the count of facts it drops
      (`.lf-thread-news > span[data-lf-more]`, below). */
   --lf-news-count-room: 16px;
@@ -684,6 +689,9 @@ summary {
   position: relative;
   --lf-msg-head-room: var(--lf-primary-news-width);
   padding-inline-end: var(--lf-msg-head-room);
+}
+.lf-msg:has(> .lf-msg-body > .lf-msg-editor) > .lf-msg-head:has(> .lf-primary-news) {
+  --lf-msg-control: var(--lf-msg-edit-width);
 }
 .lf-primary-part {
   position: relative;
@@ -944,9 +952,17 @@ summary {
 .lf-thread-content:has(> .lf-thread-controls):has(
     > .lf-thread-transcript
       > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint)
-      :is(.lf-react-strip, .lf-msg-control)
+      > :is(.lf-react-strip, .lf-msg-control)
   ) {
   --lf-thread-message-control-room: calc(var(--lf-msg-control-width) + var(--sp-2));
+}
+.lf-thread-content:has(> .lf-thread-controls):has(
+    > .lf-thread-transcript
+      > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint)
+      > .lf-msg-body
+      > .lf-msg-editor
+  ) {
+  --lf-thread-message-control-room: calc(var(--lf-msg-edit-width) + var(--sp-2));
 }
 .lf-thread-content:has(> .lf-thread-controls)
   > .lf-thread-transcript

@@ -527,8 +527,16 @@ button.lf-media-open {
   inset: auto;
   translate: none;
   opacity: 1;
+  inline-size: var(--lf-msg-control-width);
+  block-size: var(--lf-msg-control-size);
   min-width: 0;
   min-height: 0;
+  border: 1px solid transparent;
+}
+/* Both wear the message control's press face, Save's send glyph included. */
+.lf-msg-edit-actions > .lf-msg-control:is(:hover, [data-lf-focus]) {
+  border-color: var(--border-2);
+  background: var(--chip);
 }
 /* The rewrite's field stands just below its head, so Discard and Save reach the floor
    upward, over the head and the room above it, rather than over the field's top. */

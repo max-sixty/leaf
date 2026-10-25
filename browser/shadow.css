@@ -249,6 +249,7 @@ summary {
   --lf-msg-control-size: 26px;
   --lf-msg-control-width: max(var(--lf-msg-control-size), var(--aim-floor));
   --lf-msg-edit-gap: 4px;
+  --lf-msg-edit-width: calc( 2 * var(--lf-msg-control-width) + var(--lf-msg-edit-gap) + var(--sp-2) );
   --lf-news-count-room: 16px;
   --lf-primary-news-width: calc(5rem + var(--lf-news-count-room));
 }
@@ -296,6 +297,9 @@ summary {
   position: relative;
   --lf-msg-head-room: var(--lf-primary-news-width);
   padding-inline-end: var(--lf-msg-head-room);
+}
+.lf-msg:has(> .lf-msg-body > .lf-msg-editor) > .lf-msg-head:has(> .lf-primary-news) {
+  --lf-msg-control: var(--lf-msg-edit-width);
 }
 .lf-primary-part {
   position: relative;
@@ -498,8 +502,11 @@ summary {
   margin-inline-end: calc(var(--lf-thread-action-room) + var(--sp-2));
   padding-inline-end: calc(var(--lf-thread-notice-room) + var(--sp-2));
 }
-.lf-thread-content:has(> .lf-thread-controls):has(> .lf-thread-transcript > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint) :is(.lf-react-strip, .lf-msg-control)) {
+.lf-thread-content:has(> .lf-thread-controls):has(> .lf-thread-transcript > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint) > :is(.lf-react-strip, .lf-msg-control)) {
   --lf-thread-message-control-room: calc(var(--lf-msg-control-width) + var(--sp-2));
+}
+.lf-thread-content:has(> .lf-thread-controls):has(> .lf-thread-transcript > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint) > .lf-msg-body > .lf-msg-editor) {
+  --lf-thread-message-control-room: calc(var(--lf-msg-edit-width) + var(--sp-2));
 }
 .lf-thread-content:has(> .lf-thread-controls) > .lf-thread-transcript > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint) > .lf-msg-head {
   anchor-name: --lf-thread-headline, --lf-msg-head;
@@ -1719,8 +1726,15 @@ button.lf-media-open {
   inset: auto;
   translate: none;
   opacity: 1;
+  inline-size: var(--lf-msg-control-width);
+  block-size: var(--lf-msg-control-size);
   min-width: 0;
   min-height: 0;
+  border: 1px solid transparent;
+}
+.lf-msg-edit-actions > .lf-msg-control:is(:hover, [data-lf-focus]) {
+  border-color: var(--border-2);
+  background: var(--chip);
 }
 .lf-msg-edit-actions > .lf-msg-control::after {
   inset: min(0px, 100% - var(--aim-floor)) 0 0;

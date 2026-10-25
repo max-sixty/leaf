@@ -1781,7 +1781,6 @@ function createSelectionComposer({ setReact, reactionTokens, reactionAvailable, 
 						part: "thread",
 						focus: true,
 						travel: false,
-						flash: false,
 						intent: restrictUserIntent(currentIntent, revealAvailable),
 						origin
 					});
@@ -3324,7 +3323,7 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 	const threadFocusTarget = (id, { part = null } = {}) => surfaceFocusTarget(id, { part }) ?? preview?.focusTarget(id, { part }) ?? null;
 	const DECLINED = Symbol("declined");
 	const UNDRAWN = Symbol("undrawn");
-	async function openPageThread(id, { part = null, focus = true, travel = true, flash = true, scroll = true, intent = retainUserIntent(), origin = null, returning = false } = {}) {
+	async function openPageThread(id, { part = null, focus = true, travel = true, scroll = true, intent = retainUserIntent(), origin = null, returning = false } = {}) {
 		if (!intent()) return null;
 		const navigationStep = travel && scroll;
 		const selected = presentation?.owner.isConnected ? presentation : null;
@@ -5159,7 +5158,6 @@ function mountApplication(dependencies) {
 			part: "reply",
 			focus: false,
 			travel: false,
-			flash: false,
 			intent
 		}),
 		returnToPage: threadDestinations.returnToPage,

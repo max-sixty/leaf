@@ -1554,11 +1554,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     opacity: 0.5;
   }
 }
-@keyframes lf-runtime-4f3c2a8d-flash {
-  from {
-    background-color: var(--hi-tint);
-  }
-}
 @scope (.lf-chrome) {
   .lf-foreground {
     position: absolute;
@@ -1695,11 +1690,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     margin-inline-start: 7px;
     color: var(--muted-2);
     font: 500 var(--t-6)/1.25 var(--sans);
-  }
-  .lf-msg.flash,
-  .lf-thread-reply.flash,
-  .lf-thread-reply leaf-text.flash {
-    animation: lf-runtime-4f3c2a8d-flash var(--lf-motion-flash) ease-out;
   }
   .lf-quote {
     margin: 0 0 12px;

@@ -189,6 +189,7 @@ export {
   matchesWhen,
 } from "./registry.js";
 export {
+  flashDuration,
   foldDuration,
   returnDuration,
   foldBlock,

@@ -108,7 +108,7 @@ export const motionTime = (property, on = document.documentElement) => {
 export const motionEasing = (property, on = document.documentElement) =>
   token(property, on);
 
-// A thread's arrival tint and the navigation flash on the surface it revealed.
+// A message's arrival tint, and the cue on a tab a walk revealed.
 export const flashDuration = () => motionTime("--lf-motion-flash");
 // Independently rendered carriers join the same finite agent-work arrival window.
 export const agentArrivalDuration = () => motionTime("--lf-motion-agent-arrival");

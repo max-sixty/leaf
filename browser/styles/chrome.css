@@ -196,13 +196,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     opacity: 0.5;
   }
 }
-@keyframes lf-runtime-4f3c2a8d-flash {
-  /* The target owns its resting fill, including transparency and focus paint.
-     An omitted endpoint lets the browser interpolate to that underlying value. */
-  from {
-    background-color: var(--hi-tint);
-  }
-}
 /* Everything below is private to the chrome: no widget or page class can match it. */
 @scope (.lf-chrome) {
   /* The foreground dialog (chrome.js) is an empty box at the document's origin, so what
@@ -395,13 +388,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     margin-inline-start: 7px;
     color: var(--muted-2);
     font: 500 var(--t-6)/1.25 var(--sans);
-  }
-  /* Direct navigation cues the same bounded box it revealed: a short card, one
-     message, the reply row, or an oversized editor. */
-  .lf-msg.flash,
-  .lf-thread-reply.flash,
-  .lf-thread-reply leaf-text.flash {
-    animation: lf-runtime-4f3c2a8d-flash var(--lf-motion-flash) ease-out;
   }
 
   .lf-quote {

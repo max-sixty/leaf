@@ -112,11 +112,13 @@ def test_inline_settlement_retains_focus_when_its_controls_are_replaced(browser,
     page.unroute("**/api/event")
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 @pytest.mark.parametrize("existing_neighbors", [False, True])
 def test_inline_retirement_is_resolved_before_its_pixels_finish(
-    browser, serve, existing_neighbors
+    engine, request, serve, existing_neighbors
 ):
-    """The outgoing room is inert; open, undo and refusal interrupt it immediately."""
+    """The outgoing room is inert; open, undo and refusal interrupt it immediately.
+    Firefox, without intrinsic-size interpolation, starts from the same room."""
     url = serve(
         SEATED_OBLIGATION_PAGE.replace(
             "</main>", '<label>Later thought <input id="later"></label></main>'
@@ -146,7 +148,7 @@ def test_inline_retirement_is_resolved_before_its_pixels_finish(
         append_carried_log_record(
             serve.page_dir, {"kind": "resolve", "author": "user", "parent": settled}
         )
-    page = open_page(browser, url)
+    page = open_page(request.getfixturevalue(engine), url)
     page.emulate_media(reduced_motion="no-preference")
     thread = page.locator(f'#jobs .lf-page-thread[data-thread="{root}"]')
     summary = page.locator("#jobs .lf-resolved-summary")

@@ -207,7 +207,8 @@ since the effect keeps its pixels drawn until the fold finishes; keep its ordina
 sizing rules while it leaves, and cancel the effect if retirement is reversed.
 
 `backgroundFlash(element, ms)` gives an element a brief yellow tint that fades to its
-own background.
+own background. `flashDuration()` is how long Leaf's own arrival tint lasts, as on a
+newly arrived message.
 
 ## Notices and spoken words
 

@@ -313,8 +313,9 @@ function wireReply(
     // current location. A view whose box stays for the next turn lands the send itself (`sent`),
     // told whether the log takes it.
     send: (_text, raw, owns) => {
-      const { actions, landSent, sent } = composition.binding;
+      const { actions, landSent, sending, sent } = composition.binding;
       const land = sendLanding(input);
+      sending?.();
       const reply = sendReply(draftCtx, key, raw, owns, actions);
       if (!reply) return;
       if (sent) return sent(reply.flight);
@@ -423,7 +424,8 @@ export async function restoreReplyEditing(editing, land) {
 // (`hintAside`), and is named
 // (`accessibleName`), hold its sends while it covers the box's words (`busy`), and
 // where its box stays for the next turn, as the floating panel's field does, land a
-// send itself (`sent`) rather than stand on the thread. The view draws its row again
+// send itself (`sent`) rather than stand on the thread, told before the send draws
+// (`sending`). The view draws its row again
 // on `redraw`, as it takes another in its place.
 export function createReplyView(
   key,
@@ -436,6 +438,7 @@ export function createReplyView(
     hintAside = () => "",
     accessibleName = "Reply",
     busy = () => false,
+    sending = null,
     sent = null,
   } = {},
 ) {
@@ -453,7 +456,7 @@ export function createReplyView(
     });
   };
   let composition = fresh();
-  const binding = { ...commands, onChange, editLast, sent };
+  const binding = { ...commands, onChange, editLast, sending, sent };
   let detach = attach(composition, binding);
   // A view takes the session's row in its place and draws it (`redraw`), and gives its
   // own up for a fresh one (`carry`), drawn by the step it returns.

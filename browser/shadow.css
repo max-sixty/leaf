@@ -1673,7 +1673,7 @@ button.lf-media-open {
     opacity: 0;
   }
   .lf-composer-media-item > .lf-corner-mark {
-    transition: opacity 120ms;
+    transition: opacity var(--lf-motion-disclosure);
   }
 }
 @media (forced-colors: active) {

@@ -271,6 +271,17 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     opacity: 0;
     pointer-events: none;
   }
+  /* So it fades in where its first placement stands it, and out where it stood when the
+     user put it away (thread-preview.js, `close`), in a disclosure's time. Only its
+     paint changes: it takes presses from the frame it is placed, and none once put away.
+     A card Send opened grows out of its comment box instead (`data-lf-grows`, below),
+     which the same task that places it marks. */
+  .lf-margin-preview {
+    transition: opacity var(--lf-motion-disclosure) linear;
+  }
+  .lf-margin-preview[data-lf-grows] {
+    transition: none;
+  }
   /* The card is the thread's one frame. The thread fills it with no ground or ring of its
      own, so focus on the thread rings the card: the ring takes the
      card's edge in place of its border, inset, since the card stands over the page and

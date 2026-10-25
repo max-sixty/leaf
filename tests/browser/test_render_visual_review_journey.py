@@ -586,9 +586,13 @@ def test_a_comment_being_written_on_a_visual_case_stays_in_hand_as_the_case_goes
     resized(page, 1366, 768)
     datum = page.locator("#visual-review-run [data-lf-datum]").first
     case = datum.get_attribute("data-lf-datum")
+    # A case with no threads draws no discussion; the box seated there opens it.
+    discussion = page.locator(f'.lf-vr-case[data-lf-datum="{case}"] .lf-vr-discussion')
+    expect(discussion).to_be_hidden()
     comment_on_target(page, datum)
     box = page.locator(".lf-fab-input")
     expect(page.locator(".lf-vr-threads .lf-fab-input")).to_be_focused()
+    expect(discussion).to_be_visible()
     page.keyboard.type("Half")
     box.evaluate(
         "box => { window.blurs = 0; box.addEventListener('blur', () => window.blurs++); }"

@@ -270,7 +270,7 @@
   --lf-full-height: inherit;
 }
 .lf-vr-discussion:has(> .lf-vr-threads:empty) {
-  display: none;
+  display: none !important;
 }
 .lf-vr-threads {
   min-block-size: 0;

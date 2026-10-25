@@ -773,7 +773,16 @@ def test_an_authored_anchor_scope_leaves_margin_controls_reachable(browser, serv
     expect(stuck).to_be_visible()
 
 
-def test_a_constrained_target_carries_its_row_through_scroll(browser, serve, subtests):
+@pytest.mark.parametrize(
+    ("engine", "positions"),
+    [
+        ("browser", ("sticky", "sticky-ancestor", "fixed")),
+        ("webkit_browser", ("fixed",)),
+    ],
+)
+def test_a_constrained_target_carries_its_row_through_scroll(
+    request, serve, subtests, engine, positions
+):
     """A sticky or fixed box between a target and its scroller moves the target as no
     scroll alone does, so its row's carrier is anchored to the target itself, which
     carries the row in the first frame after every scroll with no pass to reseat it.
@@ -782,13 +791,13 @@ def test_a_constrained_target_carries_its_row_through_scroll(browser, serve, sub
     stays put through the document's scroll. Firefox draws a stuck target's row where
     the target would stand unstuck, and WebKit moves a fixed target's row with the
     document's scroll (notes/browser-support.md, "A stuck sticky anchor in Firefox",
-    "An anchor under a fixed box in WebKit").
+    "An anchor under a fixed box in WebKit"); WebKit runs the fixed case alone.
     """
-    page = open_page(browser, serve(PANEL_PAGE))
+    page = open_page(request.getfixturevalue(engine), serve(PANEL_PAGE))
     resized(page, 1280, 900)
     # Each case adds its own scroller and row, replacing the case before; the fixed
     # target, which also lengthens the document, goes last.
-    for position in ("sticky", "sticky-ancestor", "fixed"):
+    for position in positions:
         with subtests.test(position=position):
             # The last case left the pointer where this case's target will stand.
             page.mouse.move(0, 0)

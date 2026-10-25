@@ -504,8 +504,10 @@ def test_a_playground_reports_a_contributor_view_that_cannot_draw_its_edit(
 
 def test_inline_playground_keeps_half_a_short_workspace_for_its_stage(browser, serve):
     """With its controls on the stage, a playground in a short workspace keeps at least
-    half the window for the stage, and the workspace scrolls to the whole instruction
-    and its actions below it rather than either scrolling inside a squeezed box."""
+    half the window for the stage. An unfolded instruction longer than the room left
+    scrolls inside its own box above the bar, so the bar stays in view where the user
+    pressed it, rather than the workspace scrolling the bar away below the
+    instruction."""
     source = leaf_page(
         "Short alert workspace",
         '<lf-ask id="short-ask"><h1>Tune alert policies</h1>'
@@ -525,16 +527,25 @@ def test_inline_playground_keeps_half_a_short_workspace_for_its_stage(browser, s
     resized(page, 900, 500)
     playground = page.locator("#short-config")
     preview = playground.locator(".lf-playground-preview-body")
-    instruction = playground.locator("lf-playground-output")
     expect(playground.locator(".lf-playground-controls-region")).to_have_count(0)
     split = playground.locator(".lf-playground-split").bounding_box()
     assert preview.bounding_box()["width"] == pytest.approx(split["width"], abs=1)
     stage = playground.locator(".lf-playground-preview-region").bounding_box()
     assert stage["height"] >= 500 / 2 - 0.5
-    playground.get_by_role("button", name="Show instruction").click()
-    assert instruction.evaluate("node => node.scrollHeight <= node.clientHeight + 1")
+    fold = playground.get_by_role("button", name="Show instruction")
+    pressed = fold.bounding_box()
+    fold.click()
+    assert playground.get_by_role(
+        "button", name="Hide instruction"
+    ).bounding_box() == pytest.approx(pressed, abs=0.5)
+    assert (
+        playground.locator(".lf-playground-preview-region").bounding_box()["height"]
+        >= 500 / 2 - 0.5
+    )
+    body = playground.locator(".lf-playground-instruction-body")
+    assert body.evaluate("node => node.scrollHeight > node.clientHeight + 1")
     workspace = page.locator("#short-ask")
-    assert workspace.evaluate("node => node.scrollHeight > node.clientHeight + 1")
+    assert workspace.evaluate("node => node.scrollHeight <= node.clientHeight + 1")
     end = page.locator("#instruction-end")
     end.scroll_into_view_if_needed()
     expect(end).to_be_in_viewport()

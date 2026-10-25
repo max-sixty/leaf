@@ -6,8 +6,8 @@
  * tab-local persistence, CSS reflection, instruction copying, commands, and
  * the final recordless action. Intermediate changes never enter Leaf's event log.
  * The instruction stays folded under its actions until the user unfolds it, a browser
- * disclosure the log never records. Unfolded, it wears a code block's copy control
- * (`copyBlock`) on its rule with the actions.
+ * disclosure the log never records. Unfolded, it brings a code block's copy control
+ * (`copyBlock`) into the bar.
  *
  * The playground owns the complete working configuration. Contributors declare a
  * named default and get an immutable slice handle; set replaces that slice. Required
@@ -272,10 +272,11 @@ customElements.define(
         initial.reveal.addEventListener("click", () =>
           initial.paintReveal(body.hidden),
         );
-        // The copy stands in the bar, on its rule with the instruction (theme.css).
-        initial.reveal.parentElement.append(
-          copyBlock(body, () => this.#instruction(), "instruction"),
-        );
+        // The copy is a quiet action at the bar's start, shown while the instruction is
+        // (theme.css); appearing there, it moves none of the bar's other controls.
+        const copy = copyBlock(body, () => this.#instruction(), "instruction");
+        copy.classList.add("lf-quiet-action");
+        initial.reveal.parentElement.prepend(copy);
         this.addEventListener("mousedown", (event) => {
           const target = /** @type {Element} */ (event.target);
           if (target.closest(".lf-playground-control-label")) return;
@@ -457,7 +458,7 @@ customElements.define(
     #instruction() {
       return says(this.#output)
         .replace(/\s+/g, " ")
-        .replace(/\s+([,.;:!?])/g, "$1")
+        .replace(/\s+([,.;:!?])(?=\s|$)/g, "$1")
         .trim();
     }
 

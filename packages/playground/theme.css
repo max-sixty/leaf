@@ -1,10 +1,9 @@
 /* A playground is an instrument laid out as a sidebar page's body beside its aside: the
  * real preview is the stage and owns the larger field, and the controls that change all
  * of it stand above the bar of actions that sends the instruction they write, in a rail
- * beside it. A
- * control written inside the preview stands there, beside the item it changes, and the
- * rail then holds only what is left. With all controls inline, presets precede
- * the full-width preview and its instruction follows. Its regions are up to three generated panes
+ * beside it. A control written inside the preview stands there, beside the item it
+ * changes, and the rail then holds only what is left. With all controls inline, presets
+ * precede the full-width preview and the bar follows. Its regions are up to three generated panes
  * (data-lf-reading-role="pane", the kernel's theme.css), whose bodies scroll where a
  * workspace Layout fills the window (layouts.css); here the playground only places the
  * panes and draws them.
@@ -106,57 +105,53 @@
 }
 
 /* Full-height (a workspace Layout gives it a definite height to fill, `--lf-full-height`),
- * the playground, its split and its rail take that height. In the rail, the controls give
- * up height and scroll while the instruction and its actions stay whole under them. With
+ * the playground, its split and its rail take that height, and the bar of actions stands
+ * at its foot. In the rail, the controls give up height and scroll down to 12rem; with
  * all controls inline, the stage is what the reader came to set, so it keeps at least
- * half the window and the instruction keeps its whole height below it: where both don't
- * fit, the workspace scrolls to the instruction and its actions rather than squeezing
- * the stage. That reverses an earlier 12rem stage floor, which kept the actions in view
- * down to a 500px window but left a 192px stage at 900x700 (the user's decision,
- * 2026-10-22). */
+ * half the window. That reverses an earlier 12rem stage floor, which kept the actions in
+ * view down to a 500px window but left a 192px stage at 900x700 (the user's decision,
+ * 2026-10-22). An unfolded instruction takes what is left above the bar and scrolls
+ * inside it beyond that, so the bar stays in view and where the user pressed it. Before
+ * the instruction folded, it kept its whole height and the workspace scrolled to it,
+ * which pushed its actions down whenever the stage was at its floor (2026-10-25). */
 @media screen {
   @container style(--lf-full-height: 1) {
     /* Each box passes the height on, so the panes in the split are told they have one
        (`--lf-full-height`, layouts.css) and scroll their bodies, and the instruction
-       and its copy know which way it unfolds. */
+       knows which way it unfolds. */
     :scope:is(lf-playground) {
       min-block-size: 0;
       margin-block: 0;
       --lf-full-height: inherit;
     }
 
-    :is(
-      .lf-playground-split,
-      .lf-playground-rail,
-      .lf-playground-instruction,
-      .lf-playground-actions
-    ) {
+    :is(.lf-playground-split, .lf-playground-rail, .lf-playground-instruction) {
       min-block-size: 0;
       --lf-full-height: inherit;
     }
 
-    /* The instruction takes its content's height (`max-content`), since a box that
-     * scrolled inside the scrolling workspace would hide its end behind two scrolls. */
+    /* The instruction pane's row grows to its content where the room allows
+     * (`minmax(0, max-content)`), after the stage or controls take their floor. */
     .lf-playground-split:not(
       :has(
         > .lf-playground-controls-region,
         > .lf-playground-rail > .lf-playground-controls-region
       )
     ) {
-      grid-template-rows: minmax(max(12rem, 50dvh), 1fr) max-content;
+      grid-template-rows: minmax(max(12rem, 50dvh), 1fr) minmax(0, max-content);
     }
 
     /* A presets pane with no controls beside it heads the stage. */
     .lf-playground-split:has(> .lf-playground-controls-region) {
       grid-template-rows:
         minmax(min-content, auto) minmax(max(12rem, 50dvh), 1fr)
-        max-content;
+        minmax(0, max-content);
     }
 
     @container (min-width: 43.5rem) {
       .lf-playground-rail:has(> .lf-playground-controls-region) {
         align-self: stretch;
-        grid-template-rows: minmax(12rem, 1fr) auto;
+        grid-template-rows: minmax(12rem, 1fr) minmax(0, max-content);
       }
     }
 
@@ -166,11 +161,13 @@
      * does in a flowing page. Only here is the drawn order the reverse of the DOM's. */
     .lf-playground-instruction > .lf-playground-instruction-body {
       order: -1;
+      min-block-size: 0;
+      overflow: auto;
       border-top: 0;
       border-bottom: 1px solid var(--rule);
     }
-    .lf-playground-instruction > .lf-playground-actions > .lf-code-copy {
-      top: 0;
+    .lf-playground-instruction > .lf-playground-actions {
+      flex: none;
     }
   }
 }
@@ -415,7 +412,6 @@
 }
 
 .lf-playground-actions {
-  position: relative;
   padding: 12px 18px;
   display: flex;
   flex-wrap: wrap;
@@ -430,33 +426,39 @@
   text-align: end;
 }
 
-/* The instruction's copy is a code block's (lf-playground.js), a toolbar of one mark on
- * the rule between the actions and the unfolded instruction, as a code block's stands on
- * its block's top border (integration.css, `.lf-mark-bar`), and shows as a code block's
- * does, while the pointer is over the pane or the user is in it. It stands at the rule's
- * start: at its end it covered the key badge the submit button wears while the user is
- * in the playground, where the instruction unfolds above the bar. It stands in the bar,
- * which places it rather than the anchor `copyBlock` names, since Playwright Firefox
- * drew the anchored copy 20 to 365 px above the pane in three of the four bundled
- * playgrounds on 2026-10-24. A copy on the pane's top border, standing in the
- * instruction, was clipped where a held workspace scrolls the pane's body; the rule is
- * inside that body. The inset stands the mark where a code block's stands. */
+/* The instruction's copy is a code block's (lf-playground.js), standing in the bar as a
+ * quiet action, as a mark bar's copy does (integration.css, `.lf-mark-bar`), while the
+ * instruction is unfolded. It is the bar's first item, so its arrival moves none of the
+ * controls the bar packs at its end. Seated on the rule between the bar and the
+ * instruction, as a code block's stands on its block's border, it showed only under a
+ * hovering pointer, stood far from the fold control that revealed it and read after the
+ * submit button it stood above (a fresh user's test, 2026-10-25). */
 .lf-playground-instruction-body {
   padding: 12px 18px 16px;
   border-top: 1px solid var(--rule);
 }
 .lf-playground-actions > .lf-code-copy {
-  top: 100%;
-  left: calc(var(--lf-mark-bar-end) - 1px);
-  translate: 0 calc(-50% - 0.5px);
+  position: static;
+  width: auto;
+  height: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  opacity: 1;
+  pointer-events: auto;
+}
+/* Standing among the bar's buttons, it takes a finger's floor as they do. */
+.lf-playground-actions > .lf-code-copy::part(button) {
+  box-sizing: border-box;
+  min-inline-size: var(--aim-floor);
+  min-block-size: var(--aim-floor);
+  align-items: center;
+  justify-content: center;
 }
 .lf-playground-instruction:has(> .lf-playground-instruction-body[hidden])
   .lf-code-copy {
   display: none;
-}
-.lf-playground-instruction-region:is(:hover, [data-lf-focus-within]) .lf-code-copy {
-  opacity: 1;
-  pointer-events: auto;
 }
 
 /* A quoted playground is its preview and instruction as authored, without the controls

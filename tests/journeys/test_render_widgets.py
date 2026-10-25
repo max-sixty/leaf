@@ -1534,8 +1534,8 @@ def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
         "aria-pressed", "false"
     )
     playground.get_by_role("button", name="Dense").click()
-    # Copy is the code block's control, a toolbar on the unfolded instruction's top
-    # rule, while the pointer is over the pane or the user is in it.
+    # Copy is the code block's control, standing at the bar's start while the
+    # instruction is unfolded.
     pane = playground.locator(".lf-playground-instruction-region")
     copy = pane.get_by_role("button", name="Copy instruction")
     pane.scroll_into_view_if_needed()
@@ -1549,7 +1549,7 @@ def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
 
     playground.get_by_role("button", name="Reset").click()
     assert playground.evaluate("root => root.values")["radius"] == 12
-    playground.locator(".lf-playground-submit").press("Tab")
+    playground.get_by_role("button", name="Reset").press("Shift+Tab")
     expect(copy).to_be_focused()
     copy.press("Enter")
     assert "12px radius" in page.evaluate("navigator.clipboard.readText()")

@@ -1,7 +1,7 @@
 import { W, Z, foldWidgetStates, obligationValue, projectionOrigins, x } from "./bundle-browser-runtime.js";
 import { PRESSES, TEXT_BOX, deepFocus, drawn, focusDestination, focused, inputCount, keeps, move, nextAnimation, nextRender, onCurrentLocation, onUserInput, readCaret, renderingState, sizeObserver, typesText, under, upFrom } from "./bundle-dom-move.js";
 import { LayerRefused, PAGE_PAINT_ATTRIBUTE, admitReading, reportPageError, runtimeRootState } from "./bundle-layer-client.js";
-import { PRESSABLE, ariaShortcuts, bindings, buttonCommand, clippedPlace, commandAvailable, commandRoutes, decisionFor, el, frameFor, holdingError, labelOf, landingBand, layoutChanged, live, notice, placeBox, placeHolder, pointerAt, pruneScopedElements, raiseError, registry, repaint, restorePointer, reveal, savedReadingSettled, shownBox, skipped, spell, tagsDeclaring, word } from "./bundle-errors.js";
+import { PRESSABLE, ariaShortcuts, bindings, buttonCommand, clippedPlace, commandAvailable, commandRoutes, decisionFor, el, frameFor, holdingError, labelOf, landingBand, layoutChanged, live, notice, placeBox, placeHolder, pointerAt, presented, pruneScopedElements, raiseError, registry, repaint, restorePointer, reveal, savedReadingSettled, shownBox, skipped, spell, tagsDeclaring, word } from "./bundle-errors.js";
 import { LIVE_ROOT, PRESENTATION_DOM, applicationPresenter, applicationState, layerRoot, pageUrl, projectView, projectionRegionsPresented, readApplication, readPart, revisionLabel, runtime, watchPresentation } from "./bundle-context.js";
 import { chosenSince, containingReadingRegionFor, effectiveScroller, moveScrollerBy, onReadingInput, pageScroller, placeKept, readingRegionFor, readingRegions, recentReadingRegion, regionScrollBehavior, regionsSettled, scrollChainOf, scrollChoices, scrollLimit, scrollersOf, shownRegionBounds, stopScroll, unconcealedReadingRegions, watchReadingRegionTransitions } from "./bundle-reading-regions.js";
 import { TEXT_BLOCK, alignInlineText, authored, authoredScope, closestAcross, elementById, inChrome, pageDocument, pageQueryAll, pageRange, rangeOf, readingFrom, renderRetired, selectEnds, selectionBackward, textNodesUnder, wrote } from "./bundle-passages.js";
@@ -52,10 +52,10 @@ function returnPlace(checkpoint) {
 		const length = node?.nodeType === 3 ? node.length : node?.childNodes.length;
 		return [node, Math.min(offset, length ?? offset)];
 	});
-	if (focus !== document.body && drawn(focus)) {
+	if (focus !== document.body && focus?.isConnected && presented(focus)) {
 		focusDestination(focus, "return", { caret });
 		if (caret) return;
-	} else if (drawn(place)) focusDestination(place, "return");
+	} else if (place?.isConnected && presented(place)) focusDestination(place, "return");
 	else deepFocus()?.blur();
 	getSelection().removeAllRanges();
 	if (ends?.every(([node]) => node && drawn(node.nodeType === 1 ? node : upFrom(node)))) selectEnds(...ends);

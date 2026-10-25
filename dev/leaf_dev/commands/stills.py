@@ -942,7 +942,10 @@ def code_copy_by_pointer(page: Page) -> None:
 def code_copy_by_keyboard(page: Page) -> None:
     """Code's corner control focused from the keyboard."""
     code_note(page)
-    page.keyboard.press("Tab")
+    # After `scrollIntoView`, Chromium's Tab continues from the view but Firefox's from
+    # the top of the document, which scrolls the block away; Shift only marks the
+    # keyboard as the latest input.
+    page.keyboard.press("Shift")
     page.locator("lf-code .lf-code-copy").first.get_by_role("button").focus()
 
 

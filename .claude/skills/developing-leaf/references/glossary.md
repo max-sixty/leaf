@@ -205,8 +205,7 @@ route* is any keyboard path to an action, including Tab to a native control. A r
 
 The **command reference** is the keyboard help: the searchable catalog of all
 commands, including pointer and platform ones with no key, opened by `?` or Keyboard
-shortcuts in the leaf's menu. The menu's rows show their own shortcuts; Leaf's panel
-shows no other key hints but the one that enters an open thread's reply.
+shortcuts in the leaf's menu.
 
 ## Related terms
 

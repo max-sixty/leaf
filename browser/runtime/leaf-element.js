@@ -269,10 +269,14 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
     // runs is the next's. An update that draws nothing settles it all the same.
     this.#drawing = this.#ticket;
     this.#ticket = null;
-    if (this.#broken) return false;
-    if (!this.#complete()) return false;
-    if (awaitsData(this)) return false;
+    if (!this.#draws()) return false;
     return super.shouldUpdate(changed);
+  }
+
+  // Whether the element has a reading to draw: none after a `setup()` that threw,
+  // while its reading lacks a declared verb, or while its data is undelivered.
+  #draws() {
+    return !this.#broken && this.#complete() && !awaitsData(this);
   }
 
   update(changed) {
@@ -333,9 +337,11 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
    *  (render-checks/replay.js), which holds a draw of the same reading to change
    *  nothing. `updated()` does not run, since what follows a draw may start
    *  preparation that would claim the widget's presentation and land after the check
-   *  reads the page. An update Lit has queued stays queued, with its claim. */
+   *  reads the page. An update Lit has queued stays queued, with its claim. An element
+   *  with no reading to draw draws nothing here either, so one whose `setup()` threw
+   *  keeps showing that failure. */
   redraw() {
-    render(this.render(), this.renderRoot, this.renderOptions);
+    if (this.#draws()) render(this.render(), this.renderRoot, this.renderOptions);
   }
 
   updated(changed) {

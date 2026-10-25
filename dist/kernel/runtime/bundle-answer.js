@@ -5964,10 +5964,11 @@ var LeafElement = class extends q(UpdateBoundary) {
 		if (this.#held) return false;
 		this.#drawing = this.#ticket;
 		this.#ticket = null;
-		if (this.#broken) return false;
-		if (!this.#complete()) return false;
-		if (awaitsData(this)) return false;
+		if (!this.#draws()) return false;
 		return super.shouldUpdate(changed);
+	}
+	#draws() {
+		return !this.#broken && this.#complete() && !awaitsData(this);
 	}
 	update(changed) {
 		super.update(changed);
@@ -6008,7 +6009,7 @@ var LeafElement = class extends q(UpdateBoundary) {
 		this.#work = this.#work ? Promise.all([this.#work, named]) : named;
 	}
 	redraw() {
-		render(this.render(), this.renderRoot, this.renderOptions);
+		if (this.#draws()) render(this.render(), this.renderRoot, this.renderOptions);
 	}
 	updated(changed) {
 		super.updated(changed);

@@ -184,6 +184,14 @@ drains its rows, whatever its body says, since each row names a stranded
 trigger. This applies by title; a CI failure report names no stranded trigger,
 and its lane's next passing run closes it.
 
+## Leave backlog issues to the maintainer
+
+An issue labelled `backlog` is an item on the maintainer's prioritised backlog
+(`TODO.md` says how it is kept), not a report awaiting triage. `tend-triage`
+skips an issue opened with that label. When one reaches you another way, such as
+an unread notification, take no action, post nothing, and acknowledge the
+notification.
+
 ## Nightly: model and harness releases
 
 Keep Leaf's model defaults current and find upstream capabilities worth adopting.

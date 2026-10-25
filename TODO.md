@@ -88,10 +88,6 @@ has tried; settle that before building it.
   them (see "A reply's widgets in every view of it"). Hiding resolved cards in place
   would show them among open ones unless CSS reorders them, so it needs the user's
   say; the `lf-diff` fix is keeping rows stable or the containers outside them.
-- **A summary's fold button ignores a press while words are selected.** With text
-  selected in a thread message, pressing "Show/Hide N earlier messages" does nothing,
-  even twice; Enter works. Reproduced in Chromium with a selection set by script,
-  before the flat transcript too.
 
 ### Agent and author experience
 
@@ -549,6 +545,11 @@ Revisit these when their stated trigger becomes real; they are not an active que
   real task.
 - **Other harnesses:** add a blocking `leaf wait` route when another agent harness needs
   foreground handoff.
+- **Consider Leaf running the agent session.** A side lane that answers questions
+  while the session runs a long tool, or Leaf hosting the whole session, would reach
+  controls Claude Code and the Codex app don't expose to a companion
+  ([evidence and options](notes/leaf-run-sessions.md)). Trigger: busy-agent waits
+  grow past a few questions a day, or a user wants Leaf to be where they work.
 - **Decide whether an exported page carries its threads.** `leaf page
 export` writes a file that boots the page's own runtime offline, and that file
   embeds the page's threads in its state reading. The runtime turns the

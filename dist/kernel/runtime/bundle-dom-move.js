@@ -678,17 +678,22 @@ document.addEventListener("focusout", (event) => {
 const sequential = (event) => event.key === "Tab" && !event.altKey && !event.ctrlKey && !event.metaKey;
 function reconcile(step, pressed) {
 	if (heldByLabel()) return;
-	const at = deepFocus();
-	if (!at || at === document.body || at === published?.deref()) return;
+	const deep = deepFocus();
+	const at = deep === document.body ? null : deep;
+	const was = published?.deref() ?? null;
+	if (at === was || !at && was?.localName !== "iframe") return;
 	placements += 1;
-	lastLocation = new WeakRef(at);
-	const was = [stepping, pressedPath];
+	lastLocation = at && new WeakRef(at);
+	const input = [stepping, pressedPath];
 	[stepping, pressedPath] = [step, pressed];
 	try {
 		publish(at, cause(at));
 	} finally {
-		[stepping, pressedPath] = was;
+		[stepping, pressedPath] = input;
 	}
+}
+function inputInFrame(frame) {
+	if (deepFocus() === frame) reconcile(null, [new WeakRef(frame)]);
 }
 addEventListener("click", () => {
 	const pressed = pressedPath;
@@ -1112,4 +1117,4 @@ function move(parent, node, before) {
 document.documentElement.lfInitial.move = move;
 
 //#endregion
-export { CARET_KEYS, LENT_REACH_STOP, MODIFIER_KEYS, PRESSES, TAB_STOP, TEXT_BOX, TEXT_FIELD, WORKS, afterScript, afterSettling, atLayoutPrecision, byRenderedOrder, canPlaceFocus, cancelAnimation, cancelRender, caretAtKey, carriedFrom, closeLayer, composedParentNode, controlNavigationKeys, currentLocationIn, currentLocationNodes, currentLocationTouches, declareReading, declareRelease, deepFocus, drawn, focusDestination, focusRevision, focused, frameVisibility, handBack, holdCurrentLocation, holdFocus, holdRendering, inputCount, isNativeLayer, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, nativeLayerHolding, nativeLayerKind, nextAnimation, nextFrame, nextRender, observePreparations, onCurrentLocation, onFrameVisibility, onPress, onPressAway, onUserInput, openLayer, openerOf, pressLed, pressing, readCaret, readSampleVisibility, recentPlaceInput, recoveredLabelFocus, release, releaseFocus, renderedOrder, renderedParent, renderedUnder, renderingState, ringBox, roomPx, rove, selectsAll, shadowHost, sizeObserver, tabStops, takesLetters, typesText, under, upFrom, watchCurrentLocationIn, watchFrame, wearsLentStop, whenLeft };
+export { CARET_KEYS, LENT_REACH_STOP, MODIFIER_KEYS, PRESSES, TAB_STOP, TEXT_BOX, TEXT_FIELD, WORKS, afterScript, afterSettling, atLayoutPrecision, byRenderedOrder, canPlaceFocus, cancelAnimation, cancelRender, caretAtKey, carriedFrom, closeLayer, composedParentNode, controlNavigationKeys, currentLocationIn, currentLocationNodes, currentLocationTouches, declareReading, declareRelease, deepFocus, drawn, focusDestination, focusRevision, focused, frameVisibility, handBack, holdCurrentLocation, holdFocus, holdRendering, inputCount, inputInFrame, isNativeLayer, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, nativeLayerHolding, nativeLayerKind, nextAnimation, nextFrame, nextRender, observePreparations, onCurrentLocation, onFrameVisibility, onPress, onPressAway, onUserInput, openLayer, openerOf, pressLed, pressing, readCaret, readSampleVisibility, recentPlaceInput, recoveredLabelFocus, release, releaseFocus, renderedOrder, renderedParent, renderedUnder, renderingState, ringBox, roomPx, rove, selectsAll, shadowHost, sizeObserver, tabStops, takesLetters, typesText, under, upFrom, watchCurrentLocationIn, watchFrame, wearsLentStop, whenLeft };

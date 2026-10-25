@@ -724,20 +724,32 @@ const sequential = (event) =>
 // Where the user is, read again once a key's or a press's task ends, and once a
 // click's does, since a tap focuses at the click that follows it rather than at its
 // press. A component's roots join current location observation when focus first enters them;
-// the final input reading also covers a label's held intermediate move.
+// the final input reading also covers a label's held intermediate move. Leaving for
+// nowhere is the `focusout` reading's, except from a frame, which focus leaves with no
+// event here when a press on this document takes it back.
 function reconcile(step, pressed) {
   if (heldByLabel()) return;
-  const at = deepFocus();
-  if (!at || at === document.body || at === published?.deref()) return;
+  const deep = deepFocus();
+  const at = deep === document.body ? null : deep;
+  const was = published?.deref() ?? null;
+  if (at === was || (!at && was?.localName !== "iframe")) return;
   placements += 1;
-  lastLocation = new WeakRef(at);
-  const was = [stepping, pressedPath];
+  lastLocation = at && new WeakRef(at);
+  const input = [stepping, pressedPath];
   [stepping, pressedPath] = [step, pressed];
   try {
     publish(at, cause(at));
   } finally {
-    [stepping, pressedPath] = was;
+    [stepping, pressedPath] = input;
   }
+}
+// A press inside a frame goes to the frame's document, and focus follows it there with
+// no event here: Firefox fires none at all, and Chromium only the window's `blur`. The
+// frame's owner hears of each input from the frame's document and reports it here. One
+// that left focus in the frame, which only a press there does without an event here,
+// puts the user on the frame, as a Tab into it would have.
+export function inputInFrame(frame) {
+  if (deepFocus() === frame) reconcile(null, [new WeakRef(frame)]);
 }
 addEventListener(
   "click",

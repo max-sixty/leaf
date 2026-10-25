@@ -2767,9 +2767,13 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
   border-radius: var(--r);
   background: var(--paper);
 }
-.lf-sample-frame[data-lf-focus] {
-  outline: var(--focus-ring);
-  outline-offset: 2px;
+.lf-sample-exhibit:has(> .lf-sample-frame[data-lf-focus]) {
+  border-left-color: var(--accent);
+}
+@media (forced-colors: active) {
+  .lf-sample-exhibit:has(> .lf-sample-frame[data-lf-focus]) {
+    border-left-color: Highlight;
+  }
 }
 :scope:is(lf-sample)[window] .lf-sample-frame {
   box-sizing: border-box;
@@ -2797,8 +2801,6 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
 .lf-sample-view:modal > .lf-sample-exhibit {
   flex: 1;
   min-height: 0;
-  padding: 0;
-  border: 0;
 }
 .lf-sample-view:modal .lf-sample-frame {
   flex: 1;

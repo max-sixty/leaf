@@ -27,8 +27,9 @@
  * The bar above the cards holds Back, the tally's count of the deck's obligations
  * (`tallyWords`) with a mark per card, and one forward control: Later on a waiting
  * card, Next on any other, then Go through the cards left, or Review, once the pass is
- * over. Back and forward are symbols of one size, named by their titles, as a draft's
- * actions are. The bar stands above the card, so cards of different heights never move
+ * over. Back and forward are one control in two directions: symbols of one size and
+ * one style, named by their titles as a draft's actions are, that never take focus
+ * from a pointer, so neither wears a frame the other lacks. The bar stands above the card, so cards of different heights never move
  * a control under the pointer; for the same reason a card that comes up takes no press
  * until it has settled. A touch
  * drag across the card sends it either way: left is Later, right is Next once the card
@@ -353,13 +354,11 @@ customElements.define(
           )}</span
         >
         <button
-          ${offered(
-            `lf-btn lf-quiet-action lf-deck-action lf-deck-forward${card && !waits(card) ? " primary" : ""}`,
-          )}
+          ${offered("lf-btn lf-quiet-action lf-deck-action lf-deck-forward")}
           type="button"
           aria-label=${forward}
           title=${forward}
-          @mousedown=${(event) => card && event.preventDefault()}
+          @mousedown=${(event) => event.preventDefault()}
           @click=${() => this.#forwardPress(this.#readings())}
         >
           ${iconTemplate(icon, "lf-action-icon")}

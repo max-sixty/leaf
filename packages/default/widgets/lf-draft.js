@@ -37,7 +37,9 @@
  * The editor reads as an ordinary text box: its words stand in the field until Save
  * or Discard, and the field's own undo walks them back. Save submits one absolute edit
  * through the shared send generation; Discard and Escape close the editor, throwing away
- * its changes, as a message rewrite's do. Pointer Discard returns the frame
+ * its changes, as a message rewrite's do; Android's back gesture closes only an
+ * unchanged editor, since Discard declares the changed words it would throw away
+ * (`discards`, close-requests.js). Pointer Discard returns the frame
  * over a short native size interpolation; its words and Edit focus return at once.
  * Keyboard discarding and reduced motion are instant; reopening cancels the effect.
  * A saved edit is withdrawn with the page's undo (`z`), and the log keeps every version for the agent. Rejected: Escape setting
@@ -300,6 +302,8 @@ customElements.define(
           decision: true,
           title: "Discard",
           when: () => Boolean(this.#editor),
+          discards: () =>
+            this.#editor?.value !== this.controller.read().state.edit.value,
           run: () => this.#close(true),
         },
       ]);

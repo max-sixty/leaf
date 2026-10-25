@@ -354,9 +354,9 @@ function resolveKey(ev) {
 }
 const keyReady = (ev) => resolveKey(ev) !== INPUT_PENDING;
 const escapePress = () => new window.KeyboardEvent("keydown", { key: "Escape" });
-const escapeTakesAStep = () => {
+const escapeStep = () => {
 	const matched = resolveKey(escapePress());
-	return Boolean(matched) && matched !== INPUT_PENDING;
+	return matched && matched !== INPUT_PENDING ? matched.row : null;
 };
 const pressEscape = () => dispatchKey(escapePress());
 function dispatchKey(ev) {
@@ -425,4 +425,4 @@ function executeCommand(id) {
 }
 
 //#endregion
-export { activeCommandLabel, availableCommandRoutes, dispatchKey, escapeTakesAStep, executeCommand, innermostStance, invokePress, keyReady, onSampleNotice, pressEscape, registerSampleCommand, sampleNotice, stack, userIn };
+export { activeCommandLabel, availableCommandRoutes, dispatchKey, escapeStep, executeCommand, innermostStance, invokePress, keyReady, onSampleNotice, pressEscape, registerSampleCommand, sampleNotice, stack, userIn };

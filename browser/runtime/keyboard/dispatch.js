@@ -452,11 +452,11 @@ function resolveKey(ev) {
 }
 export const keyReady = (ev) => resolveKey(ev) !== INPUT_PENDING;
 // Escape with no key behind it, as the platform's close request asks for it
-// (close-requests.js): whether a press would take a step now, and taking it.
+// (close-requests.js): the row a press would run now, or null, and taking its step.
 const escapePress = () => new window.KeyboardEvent("keydown", { key: "Escape" });
-export const escapeTakesAStep = () => {
+export const escapeStep = () => {
   const matched = resolveKey(escapePress());
-  return Boolean(matched) && matched !== INPUT_PENDING;
+  return matched && matched !== INPUT_PENDING ? matched.row : null;
 };
 export const pressEscape = () => dispatchKey(escapePress());
 

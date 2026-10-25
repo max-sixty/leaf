@@ -50,6 +50,10 @@
      at the user's current position.
    - `run` performs one result. A run-less row names a press it does not make: the
      platform's own on a link, or one another scope's row already runs.
+   - `discards` says, as a value or a function of the moment, that `run` would throw
+     away words the user wrote and hasn't sent, such as Discard in a changed draft
+     editor. A key or a press may still take it; a close request, such as Android's
+     back gesture, doesn't (close-requests.js).
    - `touch` is the words of the menu row that stands in for a page command's press
      under a finger, or a function when state chooses them, and `false` where a finger
      reaches the result directly (keyboard/AGENTS.md, "Touch routes"). Every page

@@ -53,7 +53,8 @@
    ↑, landing and putting aside, over the views that reader draws. Resume writing
    (`g i`) opens a rewrite whose words were kept on the message where a message part
    opens (`openMessageEditIn`). Opening brings the editor into view. Enter saves; Escape and
-   Discard close it, throwing away changed words; opening another rewrite in the thread
+   Discard close it, throwing away changed words, which back leaves to them
+   (`discards`, keyboard/close-requests.js); opening another rewrite in the thread
    puts this one aside, keeping them. The
    editor is a rung below the thread's reply box, so Enter, Escape and Discard each hand
    the user to that box, or, in a thread showing none, onto the thread (`land`). Save sends
@@ -444,6 +445,7 @@ export class MessageEditor {
           id: "message.edit.close",
           keys: ["Escape"],
           title: "discard",
+          discards: () => !unchanged(),
           run: () => close(),
         },
       ],

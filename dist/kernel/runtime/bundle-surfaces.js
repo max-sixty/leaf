@@ -3473,6 +3473,7 @@ var MessageEditor = class {
 			id: "message.edit.close",
 			keys: ["Escape"],
 			title: "discard",
+			discards: () => !unchanged(),
 			run: () => close()
 		}], { escape: "inner" });
 		cancel.addEventListener("mousedown", (event) => event.preventDefault());

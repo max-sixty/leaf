@@ -41,6 +41,7 @@ from render_harness import (
 
 from browser.navigation import offered_routes
 from browser.threads import open_panel_thread
+from browser.threads.test_rewrites import _rewrite_surface
 from leaf import event_log as events_model
 from leaf.render_checks import rendered
 
@@ -1375,6 +1376,58 @@ def test_escape_takes_one_step_where_a_back_gesture_would_take_it(browser, serve
     assert page.evaluate("window.browserBack") == 0
     back_gesture(page)
     page.wait_for_function("window.browserBack === 1")
+
+
+@pytest.mark.parametrize("owner", ["draft", "rewrite"])
+def test_a_back_gesture_never_throws_away_unsent_words(browser, serve, owner):
+    """Escape's step in an open draft editor or message rewrite is Discard, which
+    nothing undoes, so back taking it lost an edit to one stray edge swipe. Back still
+    closes an editor whose words are unchanged, as Escape does, but leaves a changed one
+    open with its words, says they are kept, and doesn't go back in history either;
+    Escape and the Discard control still discard."""
+    # The browser's back stands before the page's watchers, as the open thread view
+    # holds one before the rewrite opens.
+    browser_back = f"({BROWSER_BACK})()"
+    if owner == "draft":
+        page = open_page(
+            browser,
+            serve(
+                leaf_page(
+                    "Back in a draft",
+                    '<h1>Back in a draft</h1><lf-draft id="d"><pre>Saved words.'
+                    "</pre></lf-draft>",
+                )
+            ),
+            init_script=browser_back,
+        )
+        editor = page.locator("#d leaf-text")
+
+        def open_editor():
+            draft_control(page, "edit", "d").click()
+    else:
+        page, _, message = _rewrite_surface(
+            browser, serve, "panel", init_script=browser_back
+        )
+        editor = message.locator(".lf-msg-editor leaf-text")
+
+        def open_editor():
+            message.locator(".lf-msg-text").dblclick()
+
+    open_editor()
+    expect(editor).to_be_focused()
+    back_gesture(page)
+    expect(editor).to_have_count(0)
+
+    open_editor()
+    write(editor, "Unsent words.")
+    back_gesture(page)
+    expect(page.locator(".lf-live")).to_have_text("The unsent words are kept")
+    expect(editor).to_have_js_property("value", "Unsent words.")
+    assert page.evaluate("window.browserBack") == 0
+
+    editor.focus()
+    page.keyboard.press("Escape")
+    expect(editor).to_have_count(0)
 
 
 def test_a_margin_marker_backs_out_onto_the_page_like_the_toggle(browser, serve):

@@ -5,7 +5,7 @@ import re
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf import event_log as events_model
+from model_folds import leaf_page
 from playwright.sync_api import expect
 from render_cases_interaction import SEATED_OBLIGATION_PAGE, panel_comment
 from render_cases_navigation import (
@@ -22,12 +22,15 @@ from render_harness import (
     draft_control,
     draft_key,
     expect_error_waits_in_menu,
+    expect_panel_says,
     holding,
     http_error_console,
     open_page,
     page_comment,
     panel_field,
+    panel_says,
     panel_settled,
+    panel_view,
     round_trip,
     select_words,
     stored_draft,
@@ -35,8 +38,8 @@ from render_harness import (
     write,
 )
 
-from browser.drafts import PANEL_SAYS, expect_panel_says
 from browser.threads import PANEL_REPLY, open_panel_thread, seed_panel_threads
+from leaf import event_log as events_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -63,7 +66,7 @@ def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
     every edit door stays closed and the exact body remains recoverable, and the busy
     draft is readable content.
 
-    A refused save is then an editable state, with Retry and Cancel at the same
+    A refused save is then an editable state, with Retry and Discard at the same
     target."""
     page = open_page(browser, serve(JOURNEY_V1))
     page.evaluate(
@@ -129,11 +132,11 @@ def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
         ),
     )
     draft_control(page, "save", "draft-ops").click()
-    item = draft.locator(".lf-draft-footer")
+    item = draft.locator(".lf-draft-tools")
     expect(item.get_by_role("status")).to_have_text("Save failed. The edit is kept.")
     expect(editor).to_have_js_property("value", "Keep these unsent words.")
     expect(item.get_by_role("button", name="Retry", exact=True)).to_be_visible()
-    expect(item.get_by_role("button", name="Cancel", exact=True)).to_be_visible()
+    expect(item.get_by_role("button", name="Discard", exact=True)).to_be_visible()
 
     write(editor, "Keep the revised unsent words.")
     expect(item.locator(".lf-draft-status")).to_be_empty()
@@ -259,12 +262,147 @@ def test_a_refused_selection_comment_reopens_its_words_while_the_send_owns_inten
                 "final": True,
             },
         )
-    expect(page.locator(".lf-fab-input")).to_be_focused()
-    expect(page.locator(".lf-fab-input")).to_have_js_property("value", words)
+    box = page.locator(".lf-fab-input")
+    expect(box).to_be_focused()
+    expect(box).to_have_js_property("value", words)
     # The box is back with the words, so the refusal names no address for them. It is
-    # about the passage's box, which the panel's field does not speak for, so it waits
-    # in the leaf's menu.
+    # about the passage's box, so it stands there over the words, which send nothing
+    # until the user's first key or press there, and the leaf's dot waits for it.
+    cover = page.locator(".lf-fab-bar .lf-compose-error")
+    expect(cover).to_have_text("Couldn't send — refused before append")
+    expect(page.locator(".lf-fp-error-dot")).to_be_hidden()
+    # The first Enter only lifts the cover, with the caret at the words' end, so the
+    # words are never sent unseen; the error waits in the leaf's menu.
+    page.keyboard.press("Enter")
+    expect(cover).to_be_hidden()
+    expect(box).to_be_focused()
+    assert box.evaluate("box => [box.selectionStart, box.selectionEnd]") == [
+        len(words),
+        len(words),
+    ]
+    assert held == [], "the covered words were sent"
+    # The next Enter sends them.
+    page.keyboard.press("Enter")
+    holding(page, held, 1, "the comment sent again")
+    assert held[0].request.post_data_json["text"] == words
+    held.pop(0).continue_()
     expect_error_waits_in_menu(page, "Couldn't send — refused before append")
+    consume_browser_errors(page, http_error_console(400))
+
+
+# A paragraph running into a suggestion: words selected across it cross the widget's
+# fence, so the page's text can't name them again and their anchor is detached.
+FENCED_PAGE = leaf_page(
+    "fenced",
+    '<h1 id="t">Fenced</h1><p id="p">The wall is painted <lf-suggestion id="swap">'
+    "<lf-old>red</lf-old><lf-new>blue</lf-new></lf-suggestion> before the opening.</p>",
+)
+
+
+def test_a_refused_detached_comment_reopens_beside_its_words(held_events, serve):
+    """Only the browser's selection knew where a detached comment's words stand, and
+    nothing beside them draws its thread, so the send opens that thread in the panel.
+    A refusal brings the box back beside the words, where the user wrote, and the
+    thread's view goes with the thread. The box once came back in the window's corner,
+    under a view saying the thread was not on the page."""
+    browser, held = held_events
+    page = open_page(browser, serve(FENCED_PAGE))
+    words = "Why this colour?"
+    compose(page, "#p", words)
+    box = page.locator(".lf-fab-input")
+    before = box.bounding_box()
+    page.keyboard.press("Enter")
+    holding(page, held, 1, "the detached comment")
+    expect(page.locator(panel_view("thread"))).to_have_count(1)
+
+    refuse(page, held)
+    expect(box).to_be_focused()
+    expect(box).to_have_js_property("value", words)
+    expect(page.locator(".lf-fp-view")).to_have_count(0)
+    after = box.bounding_box()
+    assert abs(after["x"] - before["x"]) < 1 and abs(after["y"] - before["y"]) < 1, (
+        f"the box came back at {after}, not beside its words at {before}"
+    )
+    consume_browser_errors(page, http_error_console(400))
+
+
+# The share of a cover's words past its last whole line: zero when it clips whole.
+COVER_LINE_REMAINDER = """cover => {
+  const words = cover.firstElementChild;
+  const line = parseFloat(getComputedStyle(words).lineHeight);
+  const lines = words.getBoundingClientRect().height / line;
+  return lines - Math.round(lines);
+}"""
+
+
+def refuse(page, held):
+    """Answer the held send with a final refusal."""
+    attempt = held[0].request.post_data_json["attempt"]
+    with page.expect_response(lambda response: "/api/event" in response.url):
+        held.pop(0).fulfill(
+            status=400,
+            json={
+                "ok": False,
+                "attempt": attempt,
+                "error": "refused before append",
+                "final": True,
+            },
+        )
+
+
+def test_a_refusals_error_leaves_with_the_words_it_stood_over(held_events, serve):
+    """The error stands over the refused words, not over the box: one comment box
+    serves every passage, so once Escape puts the words away the error waits in the
+    leaf's menu, and the box opened on another passage is free of it. The words over
+    them stop at the box's last whole line."""
+    browser, held = held_events
+    page = open_page(browser, serve(LONG_PAGE))
+    words = "The selection comment the server will refuse."
+    compose(page, "#p3", words)
+    page.keyboard.press("Enter")
+    holding(page, held, 1, "the selection comment")
+    refuse(page, held)
+    box = page.locator(".lf-fab-input")
+    cover = page.locator(".lf-fab-bar .lf-compose-error")
+    dot = page.locator(".lf-fp-error-dot")
+    expect(cover).to_have_text("Couldn't send — refused before append")
+    expect(dot).to_be_hidden()
+    assert cover.evaluate(COVER_LINE_REMAINDER) == pytest.approx(0, abs=0.01)
+
+    page.keyboard.press("Escape")
+    expect(box).to_be_hidden()
+    expect(dot).to_be_visible()
+    compose(page, "#p9")
+    expect(box).to_have_js_property("value", "")
+    expect(cover).to_be_hidden()
+    expect_error_waits_in_menu(page, "Couldn't send — refused before append")
+    consume_browser_errors(page, http_error_console(400))
+
+
+def test_resume_writing_comes_back_to_refused_words_at_their_end(held_events, serve):
+    """Words a refusal hands back to a box still on screen are where Resume writing
+    goes, and it lands at their end, where Enter sends them, wherever the caret stood
+    when they were sent."""
+    browser, held = held_events
+    page = open_page(browser, serve(LONG_PAGE))
+    box = page_comment(page)
+    words = "The comment sent with the caret at its start."
+    write(box, words)
+    page.keyboard.press("ArrowUp")
+    assert box.evaluate("box => box.selectionStart") == 0
+    page.keyboard.press("Enter")
+    holding(page, held, 1, "the general send")
+    refuse(page, held)
+    expect(box).to_have_js_property("value", words)
+    page.keyboard.press("Escape")
+    page.locator("body").focus()
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    expect(box).to_be_focused()
+    assert box.evaluate("box => [box.selectionStart, box.selectionEnd]") == [
+        len(words),
+        len(words),
+    ]
     consume_browser_errors(page, http_error_console(400))
 
 
@@ -375,27 +513,30 @@ def test_a_reply_under_a_refused_parent_comes_back_with_it(
         == reply
     )
 
-    # Resume writing leads to the comment, the one place that brings the reply back.
+    # The refusal covers the words it gave back until the user comes back to them.
+    cover = page.locator(".lf-fp-field .lf-compose-error")
+    expect(cover).to_contain_text("Couldn't send — refused before append")
+    # Resume writing leads to the comment, the one place that brings the reply back,
+    # and is the user coming back to its words: the error goes to the leaf's menu and
+    # the caret stands at the words' end, where Enter sends them.
     page.keyboard.press("Escape")
     expect(box).not_to_be_focused()
     page.keyboard.press("g")
     page.keyboard.press("i")
     expect(box).to_be_focused()
     expect(box).to_have_js_property("value", parent)
-    # The refusal covers the words it gave back until the user's first edit or press
-    # there, and the field sends nothing meanwhile; a press brings them back.
-    cover = page.locator(".lf-fp-error-cover")
-    expect(cover).to_contain_text("Couldn't send — refused before append")
-    cover.click()
     expect(cover).to_be_hidden()
-    expect(box).to_be_focused()
+    expect(page.locator(".lf-fp-error-dot")).to_be_visible()
+    assert box.evaluate("box => [box.selectionStart, box.selectionEnd]") == [
+        len(parent),
+        len(parent),
+    ]
     text = parent
     if edited:
-        page.keyboard.press("ControlOrMeta+End")
         page.keyboard.type(" Edited.")
         text = parent + " Edited."
 
-    page.locator(FIELD_SEND).click()
+    page.keyboard.press("Enter")
     holding(page, held, 1, "the parent sent again")
     assert (held[0].request.post_data_json["attempt"] == attempt) is not edited
     held.pop(0).continue_()
@@ -493,7 +634,7 @@ def test_a_refused_comment_takes_its_message_back_and_returns_the_words(
     attempt = held[0].request.post_data_json["attempt"]
     pending = page.locator(f'{PANEL_THREAD}[data-thread="pending:{attempt}"]')
     expect(pending).to_be_visible()
-    # The thread's view is the stop the user stands on.
+    # The thread's view is the stop the user is located on.
     pending.focus()
     expect(pending).to_be_focused()
 
@@ -509,13 +650,13 @@ def test_a_refused_comment_takes_its_message_back_and_returns_the_words(
         )
     expect(pending).to_have_count(0)
     assert not thread_listed(page, attempt), "the refused thread is still listed"
-    # The view the user stood on went with the thread, so the field stands for the page
+    # The view the user was located on went with the thread, so the field stands for the page
     # again with the words in it and the caret in them, and the refusal needs no
     # address for them.
     expect(box).to_be_focused()
     expect(box).to_have_js_property("value", words)
     expect_panel_says(page, "Couldn't send — refused before append")
-    assert "Draft kept" not in page.evaluate(PANEL_SAYS)
+    assert "Draft kept" not in panel_says(page)
     assert stored_draft_text(page, "general") == words
     assert not [
         event
@@ -685,7 +826,7 @@ def test_a_held_reply_send_leaves_the_panel_closed(held_events, serve):
 
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
-    standing = page.evaluate("() => document.activeElement.className")
+    current_location = page.evaluate("() => document.activeElement.className")
     held.pop(0).continue_()
     page.unroute("**/api/event")
     round_trip(page)
@@ -693,11 +834,11 @@ def test_a_held_reply_send_leaves_the_panel_closed(held_events, serve):
         "Send this while I return to reading."
     )
     panel_settled(page, open=False)
-    assert page.evaluate("() => document.activeElement.className") == standing
+    assert page.evaluate("() => document.activeElement.className") == current_location
 
 
 def test_a_held_reply_send_preserves_a_later_scroll(browser, serve):
-    """A wheel can move the reading place while the user stands in the thread the
+    """A wheel can move the reading place while the user is located in the thread the
     reply was sent in; its delivery moves neither."""
     url = serve(LONG_PAGE)
     (root,) = seed_panel_threads(serve.page_dir, 1, long_index=0, messages=20)

@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { summaryRanges, withPendingProgress } from "/runtime/thread/summary-ranges.js";
+import {
+  summaryRanges,
+  withPendingProgress,
+  workingPlace,
+} from "/runtime/thread/summary-ranges.js";
 
 const messages = ["a", "b", "c", "d", "e"].map((id) => ({ id, key: id }));
 
@@ -22,8 +26,8 @@ test("summary ranges replace their contiguous originals without taking later mes
 });
 
 test("progress no fold covers is gathered per run, named for its first message", () => {
-  // a and d are the user's; b, c and e are progress no answer has folded; f is progress
-  // the server already folded behind its answer, which stays as the server named it.
+  // a and d are the user's; b, c and e are pending progress; f is covered by
+  // an explicit summary, which stays as the server named it.
   const thread = [
     { id: "a", key: "a" },
     { id: "b", key: "b", progress: true },
@@ -32,7 +36,7 @@ test("progress no fold covers is gathered per run, named for its first message",
     { id: "e", key: "e", progress: true },
     { id: "f", key: "f", progress: true },
   ];
-  const folded = { id: "ephemeral:f:g", covers: ["f"], trigger: "g" };
+  const folded = { id: "s1", covers: ["f"], text: "Checkpoint" };
   const ranges = withPendingProgress(summaryRanges(thread, [folded]));
   assert.deepEqual(
     ranges.map(({ kind, message, summary }) =>
@@ -43,7 +47,7 @@ test("progress no fold covers is gathered per run, named for its first message",
       ["progress:b", ["b", "c"], true],
       "d",
       ["progress:e", ["e"], true],
-      ["ephemeral:f:g", ["f"], undefined],
+      ["s1", ["f"], undefined],
     ],
   );
 });
@@ -63,4 +67,22 @@ test("reaction ids inside canonical coverage do not break the visible range", ()
     ),
     ["a", ["b", "c"], "d", "e"],
   );
+});
+
+test("the working message stands after the range holding the last message said before it", () => {
+  const thread = [
+    { id: "a", key: "a" },
+    { id: "b", key: "b", progress: true },
+    { id: "c", key: "c" },
+    { id: "d", key: "d", progress: true },
+    { id: "e", key: "e" },
+  ];
+  const folded = { id: "s1", covers: ["c", "d"], protected: [], text: "Checkpoint" };
+  const ranges = withPendingProgress(summaryRanges(thread, [folded]));
+  // A step's run, a summary holding the message, and a message of its own.
+  assert.deepEqual(
+    ["b", "d", "e"].map((after) => workingPlace(ranges, after)),
+    [1, 2, 3],
+  );
+  assert.throws(() => workingPlace(ranges, "z"));
 });

@@ -7,6 +7,10 @@
       content="Compare scrolling and wrapping code readers in a narrow panel, adjust their spacing, and choose the treatment to keep."
     />
     <style data-controls>
+      #code-comparison-workspace > header {
+        --lf-block-frame: 1;
+      }
+
       code-reader-comparison {
         display: grid;
         gap: var(--sp-3);
@@ -100,6 +104,7 @@
       import {
         PAGE_INTERFACE,
         frameFor,
+        generatedElement,
         keeps,
         keepsText,
         layoutChanged,
@@ -145,6 +150,11 @@
               this.#button("Copy B to A", () => this.#copy("candidateB", "candidateA")),
             );
             this.prepend(toolbar);
+            // Each candidate's title and measurement are this module's words.
+            for (const words of this.querySelectorAll(
+              ".code-candidate-title, .code-measurement",
+            ))
+              generatedElement(words, { says: true });
           }
 
           #connect(signal) {
@@ -181,7 +191,7 @@
               const wrapping = chosen.wrap
                 ? "wrap long lines"
                 : "keep horizontal scrolling";
-              return `Update the built Leaf code reader in skills/leaf/packages/default/widgets/lf-code.js to use the ${chosen.density} reading density and ${wrapping} at a ${values.width}px comparison viewport. Preserve syntax and line anchors, then show the focused browser measurement test.`;
+              return `Update the built Leaf code reader in packages/default/widgets/lf-code.js to use the ${chosen.density} reading density and ${wrapping} at a ${values.width}px comparison viewport. Preserve syntax and line anchors, then show the focused browser measurement test.`;
             });
           }
 

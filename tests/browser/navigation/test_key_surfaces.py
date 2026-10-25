@@ -6,7 +6,6 @@ import re
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATIONS_PAGE, live_url
 from render_cases_navigation import NOTED_PAGE
@@ -23,6 +22,7 @@ from render_harness import (
 
 from browser.navigation import expect_walk_position
 from browser.threads import open_panel_thread
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -143,13 +143,13 @@ def test_registered_shortcuts_are_exposed_to_assistive_technology(browser, serve
     expect(
         page.locator(
             ".lf-command-reference [role=row]",
-            has_text="Next item waiting on me",
+            has_text="Next on me",
         ).locator("kbd")
     ).to_have_text("m")
     expect(
         page.locator(
             ".lf-command-reference [role=row]",
-            has_text="Previous item waiting on me",
+            has_text="Previous on me",
         ).locator("kbd")
     ).to_have_text("M")
     expect(
@@ -172,12 +172,8 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
     and worth knowing and not what the next press does."""
     page = open_page(browser, serve(NOTED_PAGE))
     page.keyboard.press("?")
-    expect(page.locator(".lf-command-reference")).to_contain_text(
-        "Move 60% of a page down"
-    )
-    expect(page.locator(".lf-command-reference")).to_contain_text(
-        "Move 60% of a page up"
-    )
+    expect(page.locator(".lf-command-reference")).to_contain_text("Page down")
+    expect(page.locator(".lf-command-reference")).to_contain_text("Page up")
     expect(page.locator(".lf-command-reference")).to_contain_text("Caret browsing")
     page.keyboard.press("Escape")
 
@@ -394,7 +390,7 @@ def test_a_field_names_no_key_to_a_finger(browser, serve):
 # page, since the command reference is a modal scope that shadows the page once open:
 # `runs`, what the page's enabled keys run from here; `runs_any`, what the reference can
 # run from here, a command whose shortcut the user turned off included; `dead`, the
-# commands of a scope the reference filters by liveness (one the user stands in, or one
+# commands of a scope the reference filters by liveness (one the user is located in, or one
 # that asks to be) that cannot run now, by the liveness each row declares for the
 # reference (`commandReferenceWhen`, else `when`); and `absent`, the commands of scopes
 # this page has not got. A command id another present scope also declares, where the
@@ -494,7 +490,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
         return register, reference
 
     # No threads and one version: there is nothing to walk, so the walks are dead
-    # where the user stands, and the page has no thread scope and no link.
+    # the current location, and the page has no thread scope and no link.
     register, reference = surfaces_name_what_runs()
     assert {"thread.next", "thread.previous"} <= register["dead"]
     assert {"thread.primary", "link.follow"} <= register["absent"]

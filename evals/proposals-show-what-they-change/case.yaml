@@ -36,7 +36,7 @@ vars:
     change you propose waits on the user's accept or reject. Your notes:
 
     CLI. When a comment is owed and the agent has no delivery, `leaf thread reply`
-    refuses with "`leaf response reply <answer.ref>` answers it", and nothing it names
+    refuses with "`leaf thread reply <answer.ref>` answers it", and nothing it names
     supplies the reference. Five of nine Leaf agents hit it and searched help and
     references before finding `leaf page claim` plus `leaf wait`. Proposal: the refusal
     adds "`leaf wait <page>` delivers it with its reference", with `leaf page claim`

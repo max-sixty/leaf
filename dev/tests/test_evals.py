@@ -10,14 +10,26 @@ from click.testing import CliRunner
 from leaf_dev.commands import eval as module
 
 
-def test_catalog_builds_native_and_workflow_promptfoo_tests(tmp_path):
+def test_catalog_builds_native_and_workflow_promptfoo_tests(tmp_path, monkeypatch):
+    # Configuration shares the external login; no native provider is invoked.
+    login = tmp_path / "login"
+    login.mkdir()
+    (login / "auth.json").write_text("{}")
+    monkeypatch.setenv("CODEX_HOME", str(login))
+    skill = tmp_path / "arm" / ".claude" / "skills" / "developing-leaf" / "SKILL.md"
+    skill.parent.mkdir(parents=True)
+    skill.write_text("Maintainer instructions.")
     cases = module.catalog()
     assert cases
     config = module.prepare(
         [
+            # Its provider takes instructions; the next case's provider takes none.
+            "interaction-proof-follows-the-reader",
             "todo-outlasts-the-turn",
             "configuration",
+            "dashboard/reader-clean",
             "parent-keeps-leaf-responsive/during-work",
+            "page-reads-at-every-width/queue",
         ],
         {"candidate": tmp_path / "arm"},
         tmp_path / "scratch",
@@ -28,10 +40,25 @@ def test_catalog_builds_native_and_workflow_promptfoo_tests(tmp_path):
     assert config["providers"] and config["tests"]
     assert all(test["assert"] for test in config["tests"])
     assert {test["metadata"]["case"] for test in config["tests"]} == {
+        "interaction-proof-follows-the-reader",
         "todo-outlasts-the-turn",
         "configuration",
+        "dashboard/reader-clean",
         "parent-keeps-leaf-responsive/during-work",
+        "page-reads-at-every-width/queue",
     }
+    assert all(
+        provider["config"]["viewports"] == ["desktop"]
+        for provider in config["providers"]
+        if provider["label"].endswith("/workflow")
+    )
+    # A prompt may reuse another task's request by naming its file.
+    queue = next(
+        test
+        for test in config["tests"]
+        if test["metadata"]["case"] == "page-reads-at-every-width/queue"
+    )
+    assert "ESC-4107" in queue["vars"]["prompt"]
 
 
 def test_eval_command_delegates_configuration_and_status_to_promptfoo(
@@ -52,7 +79,17 @@ def test_eval_command_delegates_configuration_and_status_to_promptfoo(
     monkeypatch.setattr(module, "build_arm", build_arm)
     result = CliRunner().invoke(
         module.eval,
-        ["--harness", "claude-code", "todo-outlasts-the-turn", "--repeat", "3"],
+        [
+            "--harness",
+            "claude-code",
+            "patch-review",
+            "--viewport",
+            "phone",
+            "--viewport",
+            "desktop",
+            "--repeat",
+            "3",
+        ],
     )
     assert result.exit_code == 100, result.output
     assert calls.read_text().strip().endswith("--repeat 3")
@@ -60,3 +97,6 @@ def test_eval_command_delegates_configuration_and_status_to_promptfoo(
         next((tmp_path / "runs").glob("*/promptfooconfig.json")).read_text()
     )
     assert config["providers"] and len(config["tests"]) == 1
+    assert len(config["providers"]) == 1
+    assert config["providers"][0]["config"]["viewports"] == ["phone", "desktop"]
+    assert "--viewport" not in calls.read_text()

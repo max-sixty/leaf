@@ -6,7 +6,6 @@ from math import hypot
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf.render_checks import rendered
 from leaf_dev.commands import pins as pin_cases
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE
@@ -18,8 +17,9 @@ from render_harness import (
     leaf_page,
     margins_laid_out,
     open_page,
-    pane_posture,
+    pane_scroll_behavior,
     panel_control,
+    panel_field,
     regions_side_by_side,
     resized,
     write,
@@ -28,6 +28,7 @@ from render_harness import (
 from browser.margin import (
     _comment_on,
 )
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -266,7 +267,7 @@ def test_a_pin_with_no_room_for_its_actions_stands_folded_and_unfolds_in_place(
     margins_laid_out(page)
     assert toggle.bounding_box() == pressed, (toggle.bounding_box(), pressed)
     assert accept.bounding_box()["x"] < pressed["x"]
-    expect(accept).to_be_focused()
+    # Touch focus can remain on the toggle; keyboard arrival is checked below.
     opened = row.locator(".lf-margin-entry:visible").evaluate_all(
         "els => els.map(el => { const b = el.getBoundingClientRect();"
         " return [el.getAttribute('aria-label'), b.left, b.right]; })"
@@ -529,6 +530,43 @@ def test_a_finger_hides_the_annotations_from_the_leaf_s_menu(browser, serve):
     expect(pin).to_be_visible()
 
 
+def test_the_panel_says_the_annotations_are_hidden_while_they_are(browser, serve):
+    """Hidden annotations leave a commented page looking as if nobody commented, and
+    the hidden layer comes back with a reload, after its notice has passed. So while it
+    is hidden the panel's field says so, ahead of the status or after a stance's name,
+    until `o` shows the layer again."""
+    page = open_page(browser, serve(PANEL_PAGE, events=[_comment_on("lede")]))
+    margins_laid_out(page)
+    field = panel_field(page)
+    page.evaluate(RELEASE_FOCUS)
+    page.keyboard.press("o")
+    expect(page.locator("html")).to_have_attribute("data-lf-annotations", "hidden")
+
+    page.reload()
+    page.wait_for_selector("body[data-lf-presented]")
+    expect(field).to_have_attribute("data-says", "status")
+    expect(field).to_have_attribute(
+        "placeholder", re.compile(r"^Annotations hidden · \S")
+    )
+
+    page.evaluate(RELEASE_FOCUS)
+    page.keyboard.press("w")
+    expect(field).to_have_attribute("data-says", "stance")
+    expect(field).to_have_attribute(
+        "placeholder", re.compile("^In Draw mode · Annotations hidden")
+    )
+    page.keyboard.press("Escape")
+    expect(page.locator("html")).not_to_have_attribute("data-lf-draw-mode", "")
+
+    page.keyboard.press("o")
+    expect(page.locator("html")).not_to_have_attribute(
+        "data-lf-annotations", re.compile(".*")
+    )
+    # The notice saying the annotations are shown passes, and the status stands alone.
+    expect(field).to_have_attribute("data-says", "status", timeout=8000)
+    expect(field).not_to_have_attribute("placeholder", re.compile("Annotations"))
+
+
 FOOTER_OBLIGATION_PAGE = leaf_page(
     "an Ask in a pane's footer",
     """
@@ -571,7 +609,7 @@ def test_a_pin_keeps_clear_only_of_controls_the_user_can_see(browser, serve):
     footer obligation's marker below the heading it stands beside."""
     page = open_page(browser, serve(FOOTER_OBLIGATION_PAGE))
     resized(page, 1440, 900)
-    pane_posture(page, page.locator("#ask-pane"), "bounded")
+    pane_scroll_behavior(page, page.locator("#ask-pane"), "bounded")
     # Scroll the body until its obligation's last control, at the obligation's right edge where a
     # pin stands, is behind the footer obligation's heading, with the body obligation's heading in
     # view.

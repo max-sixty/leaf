@@ -3,8 +3,8 @@
 import base64
 
 import pytest
+from browser_sources import browser_function
 from interact_support import append_carried_log_record, stamp
-from leaf import event_log as events_model
 from playwright.sync_api import expect
 from render_cases_interaction import (
     OBLIGATION_PAGE,
@@ -30,7 +30,11 @@ from render_harness import (
     write,
 )
 
+from leaf import event_log as events_model
+
 pytestmark = pytest.mark.shifts_unsurveyed
+
+AIM_RECT = browser_function("aims.js", "aimRect")
 
 
 def test_an_add_field_reconnects_to_its_shared_draft(browser, serve, one_user):
@@ -114,8 +118,12 @@ def test_the_add_field_previews_the_option_it_will_make(browser, serve):
     field_box = field.bounding_box()
     assert field_box == empty_field_box
     add_box = add.bounding_box()
-    assert add_box["width"] >= aim_floor
-    assert add_box["height"] >= aim_floor
+    add_aim = add.evaluate(AIM_RECT)
+    assert add_aim["width"] >= aim_floor
+    assert add_aim["height"] >= aim_floor
+    assert add_box["y"] + add_box["height"] / 2 == pytest.approx(
+        field_box["y"] + field_box["height"] / 2, abs=0.5
+    )
     assert 0 < form_box["y"] + form_box["height"] - add_box["y"] - add_box["height"] < 8
     write(field, "First line\nSecond line\nThird line")
     grown_form_box = form.bounding_box()
@@ -159,17 +167,31 @@ def test_the_add_field_previews_the_option_it_will_make(browser, serve):
 
     page.locator("html").evaluate("el => el.style.setProperty('--aim-floor', '44px')")
     form_box = form.bounding_box()
-    add_box = add.bounding_box()
+    add_aim = add.evaluate(AIM_RECT)
     assert form_box["height"] >= 44
-    assert add_box["y"] >= form_box["y"]
-    assert add_box["y"] + add_box["height"] <= form_box["y"] + form_box["height"]
+    assert add_aim["y"] >= form_box["y"]
+    assert add_aim["y"] + add_aim["height"] <= form_box["y"] + form_box["height"]
     # A coarse pointer widens what the user may hit, not what the page draws: the press
     # keeps painting nothing of its own, so the disc stays the size it was rather than
     # becoming a square as wide as its target.
     coarse = glyph_action_face(add)
-    assert add_box["width"] >= 44
+    assert add_aim["width"] >= 44
+    assert add_aim["height"] >= 44
     assert coarse["press"] == "rgba(0, 0, 0, 0)"
     assert coarse["discWidth"] == face["discWidth"]
+
+    # A one-line touch target must stay in its own row rather than covering the
+    # option above it. It shares the text line's centre even with the larger target.
+    write(field, "Portrait sketch")
+    form_box = form.bounding_box()
+    field_box = field.bounding_box()
+    add_box = add.bounding_box()
+    add_aim = add.evaluate(AIM_RECT)
+    assert add_aim["y"] >= form_box["y"]
+    assert add_aim["y"] + add_aim["height"] <= form_box["y"] + form_box["height"]
+    assert add_box["y"] + add_box["height"] / 2 == pytest.approx(
+        field_box["y"] + field_box["height"] / 2, abs=0.5
+    )
 
 
 def test_an_option_mark_keeps_addition_and_clarification_as_separate_routes(
@@ -201,7 +223,7 @@ def test_an_option_mark_keeps_addition_and_clarification_as_separate_routes(
     expect(page.locator("#storage-options > .lf-another leaf-text")).not_to_be_focused()
     expect(page.locator("#storage-options > lf-option[chosen]")).to_have_count(0)
 
-    # Standing on the obligation shows its discussion beside it, so c enters the reply
+    # Located on the obligation shows its discussion beside it, so c enters the reply
     # instead of adding an answer or opening another comment box.
     reply = page.locator(".lf-margin-preview .lf-page-thread leaf-text")
     expect(page.locator(".lf-margin-preview")).to_be_visible()
@@ -375,8 +397,14 @@ def test_the_add_field_says_why_it_will_not_take_a_pasted_image(browser, serve):
     pixels = (example_media() / "051bee487bfb5d13.png").read_bytes()
     field.evaluate(PASTE_IMAGE, base64.b64encode(pixels).decode())
 
-    # The error is about the add field, which the panel's field does not speak for, so
-    # it waits in the leaf's menu, the leaf's dot saying there is one.
+    # The error is about the add field, so it stands over that field until the user's
+    # first key or press there, and then waits in the leaf's menu.
+    cover = form.locator(".lf-compose-error")
+    expect(cover).to_have_text("Images can be added to comments, not options")
+    expect(page.locator(".lf-fp-error-dot")).to_be_hidden()
+    cover.click()
+    expect(cover).to_be_hidden()
+    expect(field).to_be_focused()
     expect_error_waits_in_menu(page, "Images can be added to comments, not options")
     expect(form.locator(".lf-composer-media")).to_be_hidden()
     expect(form.locator(".lf-composer-media img")).to_have_count(0)

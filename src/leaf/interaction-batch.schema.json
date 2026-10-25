@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "A batch of browser interaction observations as both doors admit it: the local server's `/api/interaction` (`interaction_log.admit_batch`) and leaf.page's Worker, whose zod schema (`interactionBatch` in `worker/src/interactions.ts`) `worker/test/interactions.test.ts` holds to this one. A batch that fails is refused whole. An entry's other fields stay open: the local server keeps them as the browser sent them (`runtime/interaction-log.js`), and the Worker keeps only the structural fields its projection declares.",
+  "type": "object",
+  "properties": {
+    "session": {
+      "description": "The tab's diagnostic session, the runtime's one random identifier (`runtime/ids.js`).",
+      "type": "string",
+      "pattern": "^[0-9a-f]{32}$"
+    },
+    "entries": {
+      "description": "The observations, each numbered by `sequence`.",
+      "minItems": 1,
+      "maxItems": 100,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "observed_at": {
+            "description": "The tab's wall clock, as `Date.prototype.toISOString` writes it.",
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+          },
+          "monotonic_ms": {
+            "description": "The document's monotonic clock (`performance.now`).",
+            "type": "number",
+            "minimum": 0
+          },
+          "sequence": {
+            "description": "The observation's place in its session, from 1.",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "visibility": {
+            "description": "The document's `visibilityState` when it observed the entry.",
+            "type": "string",
+            "enum": ["visible", "hidden"]
+          },
+          "type": {
+            "description": "What was observed, such as a DOM event's type.",
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,99}$"
+          }
+        },
+        "required": ["observed_at", "monotonic_ms", "sequence", "visibility", "type"],
+        "additionalProperties": {}
+      }
+    }
+  },
+  "required": ["session", "entries"],
+  "additionalProperties": false
+}

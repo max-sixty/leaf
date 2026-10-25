@@ -9,6 +9,29 @@
   "repository": "https://github.com/max-sixty/leaf",
   "license": "MIT",
   "hooks": "./hooks/codex.json",
+  "mcpServers": {
+    "leaf": {
+      "command": "python3",
+      "args": ["-I", "./src/leaf/codex_tool.py"],
+      "cwd": ".",
+      "env_vars": [
+        "XDG_STATE_HOME",
+        "CODEX_HOME",
+        "CODEX_INTERNAL_ORIGINATOR_OVERRIDE",
+        "LEAF_CODEX_APP_SERVER",
+        "LEAF_SESSION_ID",
+        "LEAF_AGENT",
+        "LEAF_BROWSER_EXECUTABLE",
+        "CHROME_PATH",
+        "CHROME_BIN",
+        "PLAYWRIGHT_NODEJS_PATH",
+        "SSH_CONNECTION",
+        "LEAF_HOST_LAUNCHER",
+        "LEAF_PAGE_COMMIT"
+      ],
+      "tool_timeout_sec": 300
+    }
+  },
   "keywords": [
     "generative-ui",
     "plan-review",

@@ -8,16 +8,10 @@ import pytest
 from browser.threads import open_panel_thread
 from interact_support import (
     append_carried_log_record,
+    declare,
     record_claim,
     wait_for,
-    write_record,
 )
-from leaf import event_log as events_model
-from leaf import hosting as hosting_model
-from leaf import presence as presence_model
-from leaf import state as cleanup_model
-from leaf.render_checks import rendered, wait_until_ready
-from leaf.schema import SERVICE_FILE
 from playwright.sync_api import expect
 from render_cases_interaction import (
     live_url,
@@ -52,6 +46,7 @@ from render_harness import (
     Traffic,
     _until,
     any_draft_control,
+    expect_panel_says,
     held_frames,
     holding,
     leaf_page,
@@ -61,7 +56,9 @@ from render_harness import (
     page_comment,
     panel_field,
     panel_menu,
+    panel_says,
     panel_settled,
+    panel_view,
     resized,
     root_overflow,
     round_trip,
@@ -72,7 +69,11 @@ from render_harness import (
     write,
 )
 
-from journeys import expect_panel_says, panel_says
+from leaf import event_log as events_model
+from leaf import hosting as hosting_model
+from leaf import presence as presence_model
+from leaf.render_checks import rendered, wait_until_ready
+from leaf.schema import SERVICE_FILE
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -148,7 +149,8 @@ def _sample_containment_page():
    {"kind":"reply","author":"agent","parent":"question","ephemeral":true,
     "text":"Checking the nested reading region."},
    {"kind":"reply","author":"agent","parent":"question",
-    "text":"The destination is inside the nested reading region."}]
+    "text":"The destination is inside the nested reading region.",
+    "markup":"<details><summary>Read the checks</summary><p>The reading region contains the destination.</p></details>"}]
 </script>
 <script type="module">
   const sample = document.querySelector('#practice');
@@ -220,11 +222,10 @@ diff --git a/gateway/limits.py b/gateway/limits.py
     f"""<lf-shot id="stable-shot" alt="the release card"
          before="{SHOT_SRC["before"]}" after="{SHOT_SRC["after"]}"></lf-shot>
 """,
-    head='<meta name="lf-review" content="sign-off">',
 )
 
 
-LEAVES = '.lf-fp-view[data-view="leaves"]:not([data-leaving])'
+LEAVES = panel_view("leaves")
 
 
 # The rendered control mechanisms whose rows must keep their geometry across a press.
@@ -245,46 +246,27 @@ CONTROL_ARCHETYPES = (
         "target": "#stable-tabs .lf-tab-btn:nth-child(2)",
     },
     {
-        # The playground's action row: Reset, Copy instruction, and the send beside each
-        # other under the controls. The send is the press with something to prove — it
-        # posts the configuration and comes back disabled, and a control that changes its
-        # own paint on the press is where a neighbour moves.
+        # The playground's action row: Reset and the send beside each other under the
+        # controls. The send is the press with something to prove — it posts the
+        # configuration and turns to Undo choice, and a control that changes its own
+        # words on the press is where a neighbour moves.
         "name": "playground-actions",
         "target": "#stable-playground .lf-playground-submit",
     },
     {
-        # The comparison rail: Before and After stand beside each other above the frames,
-        # and each caption chooses its own frame. Pressing After is the transition with
-        # something to prove — the caption the user leaves and the one they arrive at
-        # both change their active paint, and a rule that spent width on the active word
-        # would move the other caption under the user's pointer.
-        "name": "shot-caption",
-        "target": '#stable-shot .lf-shotcap[data-lf-state="after"]',
+        # Switching views must not move the buttons under the pointer.
+        "name": "shot-view",
+        "target": "#stable-shot .lf-shot-views button:nth-child(2)",
     },
     {
-        # The case queue's Previous, case selector, and Next controls share the
-        # row above the evidence. Selecting another title changes the select's
-        # contents without moving the buttons around it.
-        "name": "visual-review-navigation",
-        "source": VISUAL_REVIEW_GALLERY,
-        "target": ".lf-vr-case-select",
-        "option": "All mobile destinations remain reachable",
-    },
-    {
-        # The visual inspector's view and size presses are joined groups whose selected
-        # treatment changes in place. Pressing Flip exercises both states while its
-        # Compare, Overlay, and size neighbours stay under the user's pointer.
         "name": "visual-review-inspection",
         "source": VISUAL_REVIEW_GALLERY,
-        "open": ".lf-vr-inspection-summary",
-        "target": '.lf-vr-mode-group > [value="flip"]',
+        "target": '.lf-vr-case[aria-hidden="false"] .lf-shot-views button:nth-child(2)',
     },
     {
-        # A disposition changes both its selected paint and the case's durable review
-        # state while its opposite remains beside it.
-        "name": "visual-review-disposition",
+        "name": "visual-review-approval",
         "source": VISUAL_REVIEW_GALLERY,
-        "target": ".lf-vr-case[data-selected] .lf-vr-needs-work",
+        "target": '.lf-vr-case[aria-hidden="false"] .lf-vr-approval',
     },
 )
 
@@ -313,7 +295,6 @@ RING_CASES = (
             # since every page carries the same chrome and each reading over a large
             # document costs seconds.
             RING_CHROME: (
-                (".lf-skip", ".lf-skip"),
                 (".lf-grip", ".lf-grip"),
                 (".lf-fp-leaf", PANEL_RING),
                 (".lf-fp-threads", PANEL_RING),
@@ -331,23 +312,28 @@ RING_CASES = (
             "heat-loss": ((".lf-visual-action", ".lf-visual-action"),),
             # Working density, where a choice's gap is narrowest beside the next face.
             "notification-playground": (
-                (".lf-playground-radio", ".lf-playground-choice-face"),
+                ("lf-playground input[type=radio]", ".choice:has"),
             ),
-            "review-a-plan": (("main details > summary", ":where([data-lf-focus])"),),
+            "review-a-plan": (
+                ("main details > summary", ":where([data-lf-focus-visible])"),
+            ),
             "pr-walkthrough": (
-                ("#pr-flow-tab", ":where([data-lf-focus])"),
+                (
+                    "#pr-flow-tab",
+                    ".lf-rendered:has(> :is(lf-tab, lf-part)",
+                ),
                 ("lf-gloss:visible > .lf-gloss-mark", ".lf-gloss-mark"),
                 (".lf-diff-search input", "wa-input::part"),
                 ("lf-diff summary", ".lf-diff-file > details > summary"),
-                ("lf-diff code", "code[data-code]"),
+                ("lf-diff code", ".lf-diff-frame"),
             ),
             "release-notes": (
                 ("main p.lf-mark-el", ".lf-mark-el"),
                 (
                     'lf-shot .lf-shotcomparison [part~="handle"]',
-                    "wa-comparison::part(lf-focus)",
+                    "wa-comparison::part(",
                 ),
-                (".lf-shotcap", "[data-lf-offer]"),
+                (".lf-shot-views button", "button"),
             ),
             "wt-merge": (
                 (
@@ -369,11 +355,11 @@ RING_CASES = (
         ("g", "Shift+t", "ArrowDown"),
         {RING_CHROME: ((None, PANEL_RING),)},
     ),
-    # A resolved thread's view, whose head offers Reopen.
+    # A resolved thread's view, whose controls offer Reopen.
     (
         "a resolved thread",
         (),
-        {"ship-review": ((".lf-fp-head .lf-fp-settle", PANEL_RING),)},
+        {"ship-review": ((".lf-fp-controls .lf-fp-settle", PANEL_RING),)},
     ),
     # The same walk with the panel shut lands in the margin's thread view, on the
     # thread itself rather than a control inside it.
@@ -381,7 +367,7 @@ RING_CASES = (
     (
         "passage search",
         ("/",),
-        {RING_CHROME: ((".lf-page-search-box input:visible", "wa-input::part"),)},
+        {RING_CHROME: ((".lf-page-search-box input:visible", ".lf-fp-field"),)},
     ),
     # Item hints, and the anchored bar the user answers a chosen item on. Both open the
     # same mode, and both step back and then forward through it, which lands on the last
@@ -393,7 +379,7 @@ RING_CASES = (
     # The Tab in front of both sequences is a stop, not a gesture in the mode: target hints
     # claim Tab for browsing themselves, so the sample below moves nothing once the mode
     # is open, and with the document under it the sample would stand on nothing and read no
-    # page at all. Standing on a control first leaves the hint the keyboard is browsing on
+    # page at all. Located on a control first leaves the hint the keyboard is browsing on
     # screen for the sweep, which is where its band is read — the chips are a layer nothing
     # can focus, so the user's place in that mode is not a stop.
     (
@@ -444,7 +430,7 @@ RING_CASES = (
         (),
         {
             "ship-review": (
-                (".lf-react-palette:popover-open .lf-react", ".lf-outline-chip"),
+                (".lf-react-palette:popover-open .lf-react", "[data-lf-offer]"),
             )
         },
     ),
@@ -453,7 +439,7 @@ RING_CASES = (
     ("All pages", ("g", "Shift+l", "ArrowDown"), {RING_CHROME: ((None, PANEL_RING),)}),
     # The leaf's menu, opened by its press; the walk's step lands on a row.
     ("the leaf's menu", ("ArrowDown",), {RING_CHROME: ((None, PANEL_RING),)}),
-    # The menu's Versions, which `g V` opens standing on the version being read; the
+    # The menu's Versions, which `g V` opens focused on the version being read; the
     # walk's step lands on the earlier one.
     (
         "the versions menu",
@@ -526,6 +512,7 @@ RING_EXAMPLE_FILES = {
 # paint so an unrelated ring drawn by the same rule cannot credit the sample.
 RING_REMOTE_CARRIER = {
     ".lf-key-hint.lf-current": ".lf-target-picker-hint.lf-current",
+    ".lf-diff-frame": "lf-diff code[data-lf-focus-visible] + .lf-diff-frame",
     # A pane draws its focused body's band inset over the body's cell (theme.css).
     "[data-lf-reading-role=pane]": '[data-lf-reading-role="pane"]:has(> [data-lf-focus])',
 }
@@ -585,7 +572,7 @@ RING_SCOPE_WIDTH = {
 # Scopes whose samples stand in a thread's view of the panel: the view of the first
 # thread whose view holds the selector (`open_panel_thread_holding`).
 RING_SCOPE_THREAD = {
-    "a resolved thread": ".lf-fp-head .lf-fp-settle.lf-reopen",
+    "a resolved thread": ".lf-fp-controls .lf-fp-settle.lf-reopen",
     "a reaction palette": ".lf-react-strip > .lf-react-trigger",
     "message media": ".lf-message-media",
 }
@@ -683,55 +670,7 @@ def _tab_walk(page, stem):
     return unindicated, faults
 
 
-# Every box the layer promises a press on, wherever it stands. Not a list of class names:
-# what makes something a target is that the runtime built it (data-lf-offer) or that it
-# stands in the runtime's own layer, and that the page under the pointer says a press
-# lands there. A twelfth control joins by being one, which is how the six this first
-# reported were found.
-#
-# The reading takes the element's box together with any absolutely positioned pseudo it
-# hangs, because a control may enlarge its target outside layout rather than make the
-# visible line or row taller.
-#
-# Inline boxes are out, and that is the target-size exception rather than an excuse: a
-# link inside a sentence is sized by the words around it, and nothing can be done about
-# that which does not damage the sentence.
-AIM_BOXES = """(floor) => {
-  const found = [];
-  const seen = new Set();
-  for (const el of document.querySelectorAll(
-    '[data-lf-offer], .lf-chrome button, .lf-chrome [role="button"],' +
-    ' .lf-chrome [role="checkbox"], .lf-chrome [role="tab"], .lf-chrome .lf-btn,' +
-    ' .lf-chrome .lf-outline-chip, .lf-chrome .lf-quote'
-  )) {
-    if (seen.has(el)) continue;
-    seen.add(el);
-    const style = getComputedStyle(el);
-    if (!['pointer', 'grab'].includes(style.cursor)) continue;
-    // A box that takes no press is not an aim, however its cursor reads.
-    if (style.pointerEvents === 'none') continue;
-    if (!el.checkVisibility({ visibilityProperty: true, opacityProperty: true })) continue;
-    if (style.display === 'inline') continue;
-    // The option mark is the one control held out, and it is a handover rather than an
-    // exemption: its box is being rewritten alongside the group's pressable rule, and
-    // this line goes with that change. It stands at 11x11 today.
-    if (el.classList.contains('lf-pick')) continue;
-    const box = el.getBoundingClientRect();
-    if (!box.width || !box.height) continue;
-    let [w, h] = [box.width, box.height];
-    for (const pseudo of ['::before', '::after']) {
-      const at = getComputedStyle(el, pseudo);
-      if (at.content === 'none' || at.position !== 'absolute') continue;
-      w = Math.max(w, parseFloat(at.width) || 0);
-      h = Math.max(h, parseFloat(at.height) || 0);
-    }
-    const name = (el.className || el.tagName).toString().trim().split(/\\s+/)[0]
-      + ` ${JSON.stringify((el.textContent || '').trim().slice(0, 32))}`;
-    if (Math.min(w, h) < floor - 0.5)
-      found.push(`${name} at ${w.toFixed(1)}x${h.toFixed(1)}`);
-  }
-  return found;
-}"""
+AIM_BOXES = browser_function("aims.js", "offeredAims")
 
 
 # What the sweep has to have stood in front of before its answer means anything. Each is
@@ -739,7 +678,7 @@ AIM_BOXES = """(floor) => {
 AIM_SURFACES = (
     ".lf-fp-settle",
     '[data-row="preview"]',
-    ".lf-outline-chip",
+    ".lf-react-strip .lf-react",
     ".lf-fp-compare",
     ".lf-command-reference-command",
     ".lf-quote",
@@ -761,10 +700,10 @@ def _each_aim_surface(page, page_dir):
     # A resolved thread, which is the only state that has a Reopen to aim at. Resolving
     # moves the user on to the next open thread, so the resolved one is opened again.
     open_panel_thread(page, comment)
-    page.locator(".lf-fp-head .lf-fp-settle").click()
+    page.locator(".lf-fp-controls .lf-fp-settle").click()
     round_trip(page)
     open_panel_thread(page, comment)
-    expect(page.locator(".lf-fp-head .lf-fp-settle")).to_have_class(
+    expect(page.locator(".lf-fp-controls .lf-fp-settle")).to_have_class(
         re.compile(r"\blf-reopen\b")
     )
     yield
@@ -911,7 +850,11 @@ def test_live_sample_full_view_keeps_the_child_and_returns_after_inner_escape(
     resized(page, 390, 720)
     expect(back).to_be_in_viewport()
     assert root_overflow(page) <= 1
-    child.locator(".lf-fp-threads").click()
+    # The held draft gives the field the quick chips' room. Open Threads through
+    # the child's Go-to route while the same frame stands in Full view.
+    child.locator("h1").click()
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
     panel_settled(child, view="threads")
     page.keyboard.press("Escape")
     panel_settled(child, open=False)
@@ -1001,7 +944,7 @@ def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
         "resolved": page.frame_locator("#resolved-sample iframe"),
         "summary": page.frame_locator("#summary-sample iframe"),
     }
-    threads = '.lf-fp-view[data-view="threads"]:not([data-leaving])'
+    threads = panel_view("threads")
     for name in ("overview", "resolved"):
         expect(views[name].locator(PANEL)).to_have_attribute("data-open", "threads")
         expect(views[name].locator(f"{threads} .lf-fp-thread").first).to_be_visible()
@@ -1109,7 +1052,7 @@ def test_sample_fixture_history_presents_before_ready_and_returns_on_reset(
     first_state = first.locator("body").evaluate(
         "new URL('api/state', document.baseURI).href"
     )
-    first.locator(".lf-fp-head .lf-fp-settle").click()
+    first.locator(".lf-fp-controls .lf-fp-settle").click()
     wait_for(
         lambda: [e["kind"] for e in page.request.get(first_state).json()["events"]],
         lambda kinds: "resolve" in kinds,
@@ -1207,12 +1150,14 @@ def test_sample_child_passage_and_reply_gestures_scroll_only_the_child(browser, 
           behavior: 'instant'})"""
     )
     child = frame.element_handle().content_frame()
-    # The thread's view goes to the passage it quotes with On the page.
-    on_the_page = child.locator(".lf-fp-head").get_by_role("button", name="On the page")
-    on_the_page.scroll_into_view_if_needed()
+    # The thread's view goes to the passage it quotes with Show on page.
+    show_on_page = child.locator(".lf-fp-controls").get_by_role(
+        "button", name="Show on page"
+    )
+    show_on_page.scroll_into_view_if_needed()
     before = page.evaluate("scrollY")
     root_before = child.evaluate("scrollY")
-    on_the_page.click()
+    show_on_page.click()
     scroll_settled(child)
     landing = child.evaluate(
         """() => {
@@ -1234,14 +1179,14 @@ def test_sample_child_passage_and_reply_gestures_scroll_only_the_child(browser, 
     # A real child disclosure keeps its focused toggle in its own conversation.
     page.locator("#show-panel").click()
     expect(page.locator("#completed")).to_have_text("2")
-    expand = child.get_by_role("button", name="Show 1 progress message", exact=True)
+    expand = child.locator(".lf-fp-view summary").filter(has_text="Read the checks")
     expand.scroll_into_view_if_needed()
     before = page.evaluate("scrollY")
     expand.focus()
     expand.press("Enter")
-    collapse = child.get_by_role("button", name="Hide 1 progress message", exact=True)
-    expect(collapse).to_be_focused()
-    expect(collapse).to_be_in_viewport()
+    expect(child.locator(".lf-fp-view details")).to_have_attribute("open", "")
+    expect(expand).to_be_focused()
+    expect(expand).to_be_in_viewport()
     rendered(child)
     assert page.evaluate("scrollY") == before
 
@@ -2131,7 +2076,7 @@ def test_a_recorded_move_is_acknowledged_in_the_panel_and_nowhere_else(browser, 
     round_trip(page)
 
     # The field's own words come back once the notice has had its moment.
-    expect_panel_says(page, "Moved to Done", shown=False)
+    expect_panel_says(page, "Moved to Done", says=False)
 
 
 def test_all_pages_opens_a_neighbour_in_a_tab_of_its_own(
@@ -2194,10 +2139,7 @@ def test_leaves_keep_focus_through_reordering_and_stay_in_the_list_on_removal(
         "focusedLeaf === document.activeElement && focusedLeaf.isConnected"
     )
 
-    write_record(
-        other_dir / "status.json",
-        {"state": "idle", "detail": "", "ts": cleanup_model.now_iso()},
-    )
+    declare(other_dir, "idle")
     told(page)
     expect(rows).to_have_count(2)
     expect(rows.nth(1).locator(".lf-fp-label")).to_have_text("Middle leaf")
@@ -2325,7 +2267,7 @@ def test_a_newer_wheel_supersedes_a_panel_resize_landing(browser, serve):
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     panel_settled(page, view="threads")
-    threads = page.locator('.lf-fp-view[data-view="threads"]:not([data-leaving])')
+    threads = page.locator(panel_view("threads"))
     for _ in range(6):
         page.keyboard.press("ArrowDown")
     title = threads.locator(".lf-fp-thread").nth(5)
@@ -2360,6 +2302,7 @@ def test_a_newer_wheel_supersedes_a_panel_resize_landing(browser, serve):
     expect(title).to_be_focused()
 
 
+@pytest.mark.watch_shifts
 def test_the_feature_gallery_has_no_serious_wcag_a_or_aa_violations(browser, serve):
     """Axe covers semantic failures the render gate cannot see: an unnamed control,
     an invalid role relationship, or a contrast failure can occupy a perfectly good
@@ -2433,12 +2376,12 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     # Read mid-slide, the panel's words stand past the window's edge, where axe reads no
     # contrast for them and the sweep passes them unread.
     panel_settled(page, view="threads")
-    sweep("standing in Threads")
+    sweep("focused in Threads")
     page.keyboard.press("ArrowDown")
     page.keyboard.press("Enter")
     panel_settled(page, view="thread")
     expect(panel_field(page)).to_be_focused()
-    sweep("standing in a thread's reply box")
+    sweep("focused in a thread's reply box")
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
@@ -2446,7 +2389,7 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     # The page comment, which `c` puts the user in with nothing on the page to comment on.
     page.keyboard.press("c")
     expect(page.locator('.lf-fp-field leaf-text[name="comment"]')).to_be_focused()
-    sweep("standing in the page comment")
+    sweep("focused in the page comment")
     page.keyboard.press("Escape")
 
     # All pages and On me, the panel's other views. Waited out rather than pressed past:
@@ -2455,13 +2398,13 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     page.keyboard.press("g")
     page.keyboard.press("Shift+l")
     panel_settled(page, view="leaves")
-    sweep("standing in All pages")
+    sweep("focused in All pages")
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     panel_settled(page, view="queue")
-    sweep("standing in On me")
+    sweep("focused in On me")
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
 
@@ -2676,6 +2619,9 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
             )
             expect(page.locator('#merge-steps-pane > [tabindex="0"]')).to_have_count(1)
         if name == "release-notes":
+            page.locator("lf-shot").get_by_role(
+                "button", name="Slider", exact=True
+            ).click()
             # Ordinary element marks need a focusable sample for their conditional ring.
             page.locator("main p").first.evaluate(
                 "node => { node.classList.add('lf-mark-el'); node.tabIndex = 0; }"
@@ -2683,7 +2629,8 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
         # Settled choices are user view state, so expose their focusable controls.
         for row in page.locator("lf-options[settled] > .lf-settled").all():
             if row.is_visible():
-                row.click()
+                row.focus()
+                page.keyboard.press("Enter")
         page_at_rest(page)
 
         for scope, keys, cases in RING_CASES:
@@ -2730,7 +2677,7 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                 # Opening a collapsed file and loading its hunk finish after the key
                 # handler returns. Read the ring once the walk has actually landed.
                 expect(
-                    page.locator("#pr-exact-patch [data-content] > [data-line]:focus")
+                    page.locator("#pr-exact-patch .lf-diff-line > [data-line]:focus")
                 ).to_have_count(1)
             page_at_rest(page)
             if surface := RING_SCOPE_SURFACE.get(scope):

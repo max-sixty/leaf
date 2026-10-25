@@ -7,10 +7,6 @@ from click.testing import CliRunner
 from interact_support import (
     append_carried_log_record,
 )
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf import render_checks as render_checks_model
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import (
     OBLIGATION_PAGE,
@@ -29,13 +25,18 @@ from render_harness import (
     margins_laid_out,
     navigate,
     open_page,
-    pane_posture,
+    pane_scroll_behavior,
     resized,
     sending,
     ticked,
     told,
     write,
 )
+
+from leaf import cli as cli_model
+from leaf import event_log as events_model
+from leaf import render_checks as render_checks_model
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -353,7 +354,7 @@ def test_an_unchanged_compact_margin_keeps_the_user_at_the_document_end(browser,
 @pytest.mark.parametrize("width", [1440, 390])
 def test_draft_and_page_map_reaction_actions_stay_reachable(browser, serve, width):
     """A draft's local Save and Cancel stay reachable while it is edited, and the save outlasts
-    a reload; the Remove control of a reaction in force is reachable from the Page Map by keyboard
+    a reload; the Undo control of a reaction in force is reachable from the Page Map by keyboard
     and withdraws the reaction."""
     page = open_page(browser, serve(MARGIN_ACTIONS_PAGE, events=MARGIN_ACTIONS_EVENTS))
     resized(page, width, 900)
@@ -391,7 +392,7 @@ def test_draft_and_page_map_reaction_actions_stay_reachable(browser, serve, widt
     )
     reaction_actions.click()
     expect(dialog).to_be_visible()
-    remove = dialog.get_by_role("button", name="Remove prioritize reaction", exact=True)
+    remove = dialog.get_by_role("button", name="Undo prioritize reaction", exact=True)
     expect(remove).to_be_focused()
     page.keyboard.press("Escape")
     expect(remove).to_be_hidden()
@@ -852,7 +853,7 @@ def test_agent_status_leaves_the_margin_transcript_where_the_user_scrolled_it(
 ):
     """A state read places the card, and placing the card moves nothing inside it.
 
-    The user stands in the reply while reading partway up the transcript, then at its
+    The user is located in the reply while reading partway up the transcript, then at its
     end, and the agent's working and waiting statuses arrive meanwhile. Scroll
     anchoring is off on the transcript. It can restore a place a placement disturbed
     within one task: the headless shell restored it in every run, while headed Chrome
@@ -871,8 +872,11 @@ def test_agent_status_leaves_the_margin_transcript_where_the_user_scrolled_it(
 
     def statuses():
         for name, command in (
-            ("working", ["task", "start", str(serve.page_dir), "c" * 32, "Reading"]),
-            ("waiting", ["status", str(serve.page_dir), "waiting"]),
+            (
+                "working",
+                ["task", "start", str(serve.page_dir), "c" * 32, "--text", "Reading"],
+            ),
+            ("waiting", ["page", "open", str(serve.page_dir)]),
         ):
             result = CliRunner().invoke(cli_model.cli, command)
             assert result.exit_code == 0, result.output
@@ -1293,7 +1297,7 @@ def test_drafting_in_a_pane_keeps_the_card_and_reply_top_when_its_room_runs_out(
     past that room scrolls the editor without carrying the card or its first line."""
     page = open_page(browser, serve(PANE_PIN_PAGE, events=[_comment_on("pane-top")]))
     resized(page, *size)
-    pane_posture(page, page.locator("#pin-pane"), "bounded")
+    pane_scroll_behavior(page, page.locator("#pin-pane"), "bounded")
     page.locator('[data-lf-margin-for="pane-top"] .lf-margin-marker').click()
     card = page.locator(".lf-margin-preview")
     editor = card.get_by_role("textbox", name="Reply", exact=True)

@@ -1,14 +1,10 @@
 """Drawing-comment browser journeys."""
 
-import json
 import re
 from io import BytesIO
 
 import pytest
 from interact_support import append_carried_log_record, wait_for
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf.render_checks import rendered, wait_until_ready
 from PIL import Image, ImageChops
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -20,7 +16,6 @@ from render_cases_navigation import (
 )
 from render_harness import (
     PANEL_THREAD,
-    draft_key,
     leaf_page,
     open_page,
     panel_settled,
@@ -31,6 +26,9 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread, paste_image
+from leaf import data as data_model
+from leaf import event_log as events_model
+from leaf.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -251,6 +249,9 @@ def test_a_missing_native_frame_cannot_retarget_another_svg(browser, serve, chan
     assert [after[key] for key in ("width", "height")] == pytest.approx(
         [before[key] for key in ("width", "height")], abs=0.03
     )
+    # The floating composer follows its page anchor. Return there before pressing
+    # its control after the viewport change has scrolled the anchor away.
+    page.locator("#title").scroll_into_view_if_needed()
     page.get_by_role("button", name="Remove drawing").click()
     expect(page.locator(".lf-drawing-mark")).to_have_count(0)
 
@@ -817,10 +818,13 @@ def test_draw_mode_leaves_chrome_controls_usable(browser, serve):
 
     expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
     expect(page.locator(".lf-drawing-mark")).to_have_count(0)
+    page.locator(".lf-fp-close").click()
+    panel_settled(page, open=False)
+    expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
     exit_mode.click()
     expect(page.locator("html")).not_to_have_attribute("data-lf-draw-mode", "")
     page.locator(".lf-fp-threads").click()
-    panel_settled(page, open=False)
+    panel_settled(page, view="threads")
 
 
 def test_draw_mode_keeps_the_separate_design_mode_binding(browser, serve):
@@ -976,50 +980,6 @@ def test_an_unsent_drawing_survives_reload_before_it_has_words(browser, serve):
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "note"
 
 
-def test_another_protocols_anchored_drawing_draft_keeps_its_words_without_the_mark(
-    browser, serve
-):
-    """A draft a runtime at another protocol saved may hold a drawing this one cannot
-    draw, so its words come back and its mark neither shows nor sends."""
-    page = open_page(browser, serve(TARGETS_PAGE))
-    # The composer's draft is keyed on the passage it is on.
-    ctx = "composer:" + json.dumps([["section", "prose"]], separators=(",", ":"))
-    page.evaluate(
-        """([key, record]) => {
-          const anchor = {section: 'prose'};
-          localStorage.setItem(key, JSON.stringify({
-            text: JSON.stringify({
-              format: 'leaf-draft/0',
-              text: 'Keep these anchored words.',
-              anchor,
-              revision: 1,
-              suggest: false,
-              about: null,
-              drawing: {strokes: [[[0, 0], [9, 9]]]},
-              touched: Date.now(),
-            }),
-            attempt: record.attempt,
-            base: null,
-          }));
-        }""",
-        [draft_key(page, ctx), {"attempt": "b" * 32}],
-    )
-
-    page.reload(wait_until="load")
-    wait_until_ready(page)
-    field = page.locator(".lf-fab-input")
-    expect(field).to_be_visible()
-    expect(field).to_have_js_property("value", "Keep these anchored words.")
-    expect(page.locator(".lf-drawing-mark")).to_have_count(0)
-    with sending(page, "the text-only recovered anchored draft"):
-        page.keyboard.press("ControlOrMeta+Enter")
-
-    event = events_model.read_events(serve.page_dir)[-1]
-    assert event["anchor"] == {"section": "prose"}
-    assert event["text"] == "Keep these anchored words."
-    assert "drawing" not in event
-
-
 def test_a_drawing_can_be_sent_without_words(browser, serve):
     """The ink is the comment's content, so its normal send action works while the
     accompanying text field is empty. Its thread still names the drawing."""
@@ -1133,8 +1093,8 @@ def test_a_posted_drawing_stands_down_without_a_false_page_reference(browser, se
         for e in events_model.read_events(serve.page_dir)
         if e["kind"] == "comment"
     ]
-    # Out of Draw mode, whose step holds the panel's row, to reach Threads.
-    page.locator(".lf-fp-step", has_text="Exit Draw mode").click()
+    # Out of Draw mode, by its ✕ in the panel's row, to reach Threads.
+    page.locator('.lf-fp-exit[aria-label="Exit Draw mode"]').click()
     references = open_panel_thread(page, comment).locator(".lf-drawing-reference")
     expect(references.first).to_have_text("Drawing comment")
     assert set(references.all_text_contents()) == {"Drawing comment"}

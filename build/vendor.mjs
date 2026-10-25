@@ -2,7 +2,7 @@
  * The third-party bundles Leaf ships outside the browser framework.
  *
  * Nothing builds them at install time, so they are tracked. The files under
- * `skills/leaf/assets/vendor/` and each package's own `vendor/` are page payload:
+ * `browser/vendor/` and each package's own `vendor/` are page payload:
  * `page init` copies them into a page directory and a user's browser runs them. A
  * vendored library is payload of the package whose widget draws with it, not of the
  * layer: Pele and Pierre reach a page only when it selects `diagram` or `diff`.
@@ -23,50 +23,20 @@
  * export cannot load, and each bundle's `<name>.LICENSES.txt` states the packages that
  * reached it. `build/browser/build.mjs` writes and checks these outputs with its own.
  */
-import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { applyPatch, parsePatch } from "diff";
-import { build } from "esbuild";
-import { parse } from "acorn";
+import { build } from "./esbuild.mjs";
 import { bindToVendoredLit } from "./lit.mjs";
 import { patchTransitions } from "./webawesome/transition-patch.mjs";
 import { bundledPackages, checkModule, licenseNotices } from "./browser/shipped.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
-const assets = "skills/leaf/assets";
-const packageVendor = (name) => `skills/leaf/packages/${name}/vendor`;
+const assets = "browser";
+const packageVendor = (name) => `packages/${name}/vendor`;
 const input = (file) => path.join(root, "build", file);
-
-/** Expose selected installed exports without sharing a broad barrel's unused imports. */
-function selectedExports(source, entries, specifier) {
-  const options = { ecmaVersion: "latest", sourceType: "module" };
-  const names = entries.flatMap((entry) =>
-    parse(readFileSync(entry, "utf8"), options)
-      .body.filter((node) => node.source?.value === specifier)
-      .flatMap((node) => node.specifiers.map((item) => item.local.name)),
-  );
-  const body = parse(source, options).body;
-  const published = body
-    .filter((node) => node.type === "ExportNamedDeclaration")
-    .flatMap((node) => node.specifiers.map((item) => item.exported.name));
-  if (!names.every((name) => published.includes(name)))
-    throw new Error("Pierre public export seam changed");
-  const imports = body
-    .filter((node) => node.type === "ImportDeclaration")
-    .flatMap((node) =>
-      node.specifiers
-        .filter((item) => names.includes(item.local.name))
-        .map(
-          (item) =>
-            `export { ${item.imported.name} } from ${JSON.stringify(node.source.value)};`,
-        ),
-    );
-  if (imports.length !== names.length) throw new Error("Pierre export seam changed");
-  return imports.join("\n");
-}
 
 /** The installed version of a package, which is the one the lock resolved. */
 const version = (name) =>
@@ -135,11 +105,15 @@ export function adapt(adaptations) {
   };
 }
 
-/** Resolve the specifiers `filter` matches to one module a page serves at `target`. */
+/** Bind side-effect-free libraries to the shared module a page serves at `target`. */
 const bindTo = (filter, target) => ({
   name: `leaf-bind ${target}`,
   setup(builder) {
-    builder.onResolve({ filter }, () => ({ path: target, external: true }));
+    builder.onResolve({ filter }, () => ({
+      path: target,
+      external: true,
+      sideEffects: false,
+    }));
   },
 });
 
@@ -153,19 +127,6 @@ const bindTo = (filter, target) => ({
 const bundles = {
   // Browser-native DOM rasterization, loaded only when capturing a page region.
   //
-  // After a capture, SnapDOM counts each later mutation against the target's
-  // ancestors, climbing out of a shadow tree through `getRootNode().host`. A target
-  // removed with its subtree has that subtree's top element as its root, and an `<a>`
-  // there answers `host` with its URL's host string. SnapDOM 3.3.0 to 3.3.3 then use
-  // that string as a WeakMap key, so a removed link throws from the observer, an
-  // uncaught page error. Climb only from an element whose parent is a shadow root.
-  //
-  // A fixed or sticky box keeps its place in the capture because SnapDOM rewrites its
-  // clone to an absolute box at the place it is painted. SnapDOM 3.3.0 to 3.3.4 rewrite
-  // only HTML elements, so an outer `<svg>`, which is a CSS box like any other, keeps
-  // `position: fixed` and lands at its viewport offset from the top of the document,
-  // outside a crop of the scrolled page. Rewrite an outer `<svg>` too.
-  //
   // Leaf captures without `reconcile` (`runtime/composing/page-image.js` says why), and
   // SnapDOM then warns on the console that text may wrap differently. The capture's own
   // `warnings` keep that notice; the console copy would read as a page problem.
@@ -175,7 +136,7 @@ const bundles = {
   // document's origin is opaque, so every request is cross-origin and Leaf's server
   // answers it `Access-Control-Allow-Origin: *`, which a credentialed request may not
   // read: the child's own icon.svg mask failed with a CORS error in every capture.
-  // Compare with the document's origin, `self.origin`, instead (SnapDOM 3.3.4).
+  // Compare with the document's origin, `self.origin`, instead (SnapDOM 3.3.6).
   snapdom: () => ({
     out: `${assets}/vendor/snapdom.esm.js`,
     entry: 'export { snapdom } from "@zumer/snapdom";\n',
@@ -185,23 +146,13 @@ const bundles = {
         edit: (source) =>
           seam(
             seam(
-              seam(
-                seam(
-                  source,
-                  'y.origin===location.origin?"include":"omit"',
-                  'y.origin===self.origin?"include":"omit"',
-                  "SnapDOM credentials origin",
-                ),
-                "for(;r;r=r.parentElement||r.getRootNode?.()?.host)",
-                "for(;r;r=r.parentElement||(r.parentNode?.nodeType===11?r.parentNode.host:null))",
-                "SnapDOM mutation-ancestor",
-              ),
-              "for(let[a,c]of n){if(!Rt(a)||c?.nodeType!==1",
-              'for(let[a,c]of n){if(!(Rt(a)||It(a)&&a.localName==="svg"&&!It(c?.parentNode))||c?.nodeType!==1',
-              "SnapDOM fixed-box rewrite",
+              source,
+              'y.origin===location.origin?"include":"omit"',
+              'y.origin===self.origin?"include":"omit"',
+              "SnapDOM credentials origin",
             ),
-            'I.warnedReconcile||(I.warnedReconcile=!0,console.warn("[SnapDOM] Some text may wrap differently in the capture. Pass { reconcile: true } to fix it (about 2x slower)."))',
-            "I.warnedReconcile=!0",
+            'D.warnedReconcile||(D.warnedReconcile=!0,console.warn("[SnapDOM] Some text may wrap differently in the capture. Pass { reconcile: true } to fix it (about 2x slower)."))',
+            "D.warnedReconcile=!0",
             "SnapDOM reconcile console warning",
           ),
       },
@@ -372,15 +323,15 @@ const bundles = {
     adapt: [
       {
         file: /pele\/dist\/pele\.js$/,
-        // Pele 1.6.0 consumes every HTML-looking label tag, discarding unsupported
+        // Pele consumes every HTML-looking label tag, discarding unsupported
         // tags such as a literal <img> code sample. Consume only the formatting
         // tags its tokenizer recognizes; other characters stay in its text buffer
         // and the SVG builder escapes them. Breaks are handled before this scan.
         edit: (source) =>
           seam(
             source,
-            "h&&(l(),o=m?o&~h|r&h:o|h),i+=p[0].length;continue",
-            "if(h){l();o=m?o&~h|r&h:o|h;i+=p[0].length;continue}",
+            "b&&(f(),o=h?o&~b|r&b:o|b,s=h?s&~b|r&b:s|b),c+=u[0].length;continue",
+            "if(b){f();o=h?o&~b|r&b:o|b;s=h?s&~b|r&b:s|b;c+=u[0].length;continue}",
             "Pele literal unsupported label tags",
           ),
       },
@@ -527,6 +478,11 @@ const bundles = {
       'export { diffArrays } from "diff/lib/diff/array.js";\n',
   }),
 
+  blazediff: () => ({
+    out: `${assets}/vendor/blazediff.js`,
+    entry: 'export { default } from "@blazediff/core";\n',
+  }),
+
   // DBSCAN groups screenshot fragments by their original neighborhoods.
   "density-clustering": () => ({
     out: `${assets}/vendor/density-clustering.esm.js`,
@@ -553,9 +509,11 @@ const bundles = {
   }),
 
   // Parsing is needed before a metadata row appears; static rendering waits for
-  // textual evidence to open. One graph shares their common implementation.
-  // Pierre's static renderer uses the shared Leaf syntax engine: Shiki binds to
-  // `syntax.esm.js`, and Pierre's theme registry binds to Leaf's theme shim.
+  // textual evidence to open. Independent builds keep the shared public barrel
+  // from hoisting the renderer into the parser's eager dependency graph.
+  // Pierre's static renderer reads Leaf's syntax module for grammars, Shiki core
+  // and the token theme. Its grammar and core imports are made static below so
+  // offline exports can inline them without bundling Shiki's full catalogs.
   // The unused WASM import carries no binary or separate module.
   pierre: () => ({
     out: `${packageVendor("default")}/pierre-diffs.esm.js`,
@@ -567,71 +525,37 @@ const bundles = {
     place: {
       [`${packageVendor("default")}/pierre-parser.esm.js`]: `${packageVendor("diff")}/pierre-parser.esm.js`,
     },
-    splitting: true,
-    chunkNames: "pierre/[name]-[hash]",
     adapt: [
       {
-        file: /@pierre\/diffs\/dist\/managers\/ResizeManager\.js$/,
-        // Leaf seats wrapping conversations in Pierre's code grid. Its column
-        // widths can change those conversations' height, including the observed
-        // code/gutter boxes. Apply them in Leaf's next frame, outside ResizeObserver
-        // delivery, so readiness includes the resulting layout. The manager lookup
-        // at delivery drops retired nodes, so a file
-        // removed before that frame receives no writes. This is Leaf's integration
-        // adaptation, not an upstream backport.
-        edit: (source) => {
-          source = seam(
-            source,
-            "\t\tif (columnCount > 1 && !disableAnnotations) {",
-            `		// Pierre's code and gutter have no inline padding or border: their CSS
-		// widths are the content widths the observer will report. Initialize
-		// through the same update path before a wrapping conversation paints.
-		// No layout box has zero content width, as in ResizeObserver's reading;
-		// computed width can be "auto" while a file's ancestor is hidden.
-		const columnInlineSize = element => element == null || !element.getClientRects().length
-			? 0 : parseFloat(getComputedStyle(element).width);
-		this.applyColumnUpdates(new Map([...new Set(this.observedNodes.values())]
-			.filter(item => item.type === "code")
-			.map(item => [item, {
-				codeInlineSize: columnInlineSize(item.codeElement),
-				numberInlineSize: columnInlineSize(item.numberElement)
-			}])));
-		if (columnCount > 1 && !disableAnnotations) {`,
-            "Pierre initial column sizing",
-          );
-          return (
-            'import {nextFrame as leafNextFrame} from "/runtime/widget-api.js";\n' +
-            seam(
-              source,
-              "new ResizeObserver(ResizeManager.handleSharedResizeEntries)",
-              "new ResizeObserver((entries) => leafNextFrame(() => ResizeManager.handleSharedResizeEntries(entries)))",
-              "Pierre resize delivery phase",
-            )
-          );
-        },
-      },
-      {
-        file: /@pierre\/diffs\/dist\/index\.js$/,
-        edit: (source) =>
-          selectedExports(
-            source,
-            [input("pierre/parser.mjs"), input("pierre/entry.mjs")],
-            "@pierre/diffs",
-          ),
-      },
-      {
-        file: /@pierre\/diffs\/dist\/ssr\/index\.js$/,
-        edit: (source) =>
-          selectedExports(source, [input("pierre/entry.mjs")], "@pierre/diffs/ssr"),
-      },
-      {
-        file: /@pierre\/diffs\/dist\/highlighter\/shared_highlighter\.js$/,
+        file: /@pierre\/diffs\/dist\/highlighter\/backends\/shiki\.js$/,
         edit: (source) =>
           seam(
             source,
             'import("shiki/wasm")',
             "Promise.resolve({default: undefined})",
             "Pierre unused WASM import",
+          ),
+      },
+      {
+        file: /@pierre\/diffs\/dist\/highlighter\/languages\/resolveLanguage\.js$/,
+        edit: (source) =>
+          'import { bundledLanguages } from "shiki/langs";\n' +
+          seam(
+            source,
+            'const { bundledLanguages } = await import("shiki/langs");',
+            "",
+            "Pierre shared grammar catalog",
+          ),
+      },
+      {
+        file: /@pierre\/diffs\/dist\/highlighter\/themes\/themeResolver\.js$/,
+        edit: (source) =>
+          'import * as leafShikiCore from "shiki/core";\n' +
+          seam(
+            source,
+            'createCachedLoader(() => import("shiki/core"))',
+            "createCachedLoader(() => Promise.resolve(leafShikiCore))",
+            "Pierre shared Shiki core",
           ),
       },
     ],
@@ -642,7 +566,7 @@ const bundles = {
       js: `/*! @pierre/diffs ${version("@pierre/diffs")} — Apache-2.0 — licenses: pierre-diffs.LICENSES.txt */`,
     },
     plugins: [
-      bindTo(/^shiki$/, "./syntax.esm.js"),
+      bindTo(/^shiki(?:\/(?:core|langs))?$/, "./syntax.esm.js"),
       {
         name: "leaf-pierre-shims",
         setup(builder) {
@@ -652,6 +576,56 @@ const bundles = {
         },
       },
     ],
+  }),
+
+  // The optional file navigator uses Trees' vanilla model and its own shadow-DOM
+  // renderer. Upstream includes its styles and Preact runtime; no React wrapper,
+  // external stylesheet, or consumer build reaches the page.
+  trees: () => ({
+    out: `${packageVendor("file-tree")}/pierre-trees.esm.js`,
+    entryPoints: [input("trees/entry.mjs")],
+    platform: "browser",
+    target: "chrome105",
+    // Keep upstream's core/override ordering inside the page's vendor tier, so
+    // authored styles retain the same precedence as every other widget's.
+    adapt: [
+      {
+        file: /@pierre\/trees\/dist\/model\/FileTreeController\.js$/,
+        // beta.6 treats a nonempty query with no matches as unfiltered, exposing
+        // unrelated root rows. The controller must retain an empty filtered set;
+        // its existing empty-query branch remains the route back to all files.
+        edit: (source) =>
+          seam(
+            seam(
+              source,
+              'this.#searchMode === "hide-non-matches" && matchingPaths.length > 0',
+              'this.#searchMode === "hide-non-matches"',
+              "Trees empty search-result set",
+            ),
+            'this.#searchMode !== "hide-non-matches" || this.#searchMatchPathSet.size === 0',
+            'this.#searchMode !== "hide-non-matches"',
+            "Trees empty search-result visibility",
+          ),
+      },
+      {
+        file: /@pierre\/trees\/dist\/utils\/cssWrappers\.js$/,
+        edit: (source) =>
+          seam(
+            seam(
+              source,
+              "return `${LAYER_ORDER}\n@layer base {\n  ${coreCSS}\n}`;",
+              "return `@layer lf-base {\n${LAYER_ORDER}\n@layer base {\n  ${coreCSS}\n}\n}`;",
+              "Trees core CSS cascade",
+            ),
+            "return `${LAYER_ORDER}\n@layer unsafe {\n  ${unsafeCSS}\n}`;",
+            "return `@layer lf-base {\n${LAYER_ORDER}\n@layer unsafe {\n  ${unsafeCSS}\n}\n}`;",
+            "Trees override CSS cascade",
+          ),
+      },
+    ],
+    banner: {
+      js: `/*! @pierre/trees ${version("@pierre/trees")} — Apache-2.0 — licenses: pierre-trees.LICENSES.txt */`,
+    },
   }),
 
   // Split chrome controls from optional widgets, sharing their dependency graph. Both
@@ -670,7 +644,6 @@ const bundles = {
     },
     splitting: true,
     chunkNames: "webawesome/[name]-[hash]",
-    external: ["/runtime/shadow-stage.js"],
     // Web Awesome 3.14.0 prepends a comment naming its docs to an element's shadow root
     // on every `connectedCallback`, so an element the chrome keeps and connects again,
     // as the floating panel's menu does its copy rows, grows by a node each time it
@@ -680,80 +653,27 @@ const bundles = {
       {
         file: /webawesome\/dist\/chunks\/chunk\.AOKMSJXD\.js$/,
         edit: (source) =>
-          patchTransitions(
-            seam(
-              source,
-              "this.shadowRoot?.prepend(",
-              "this.shadowRoot?.firstChild?.nodeType !== Node.COMMENT_NODE && this.shadowRoot?.prepend(",
-              "Web Awesome docs comment",
-              2,
-            ),
+          seam(
+            source,
+            "this.shadowRoot?.prepend(",
+            "this.shadowRoot?.firstChild?.nodeType !== Node.COMMENT_NODE && this.shadowRoot?.prepend(",
+            "Web Awesome docs comment",
+            2,
           ),
       },
-      { file: /webawesome\/dist\/chunks\/.*\.js$/, edit: patchTransitions },
+      {
+        file: /webawesome\/dist\/chunks\/chunk\.ZAVDMBWV\.js$/,
+        edit: patchTransitions,
+      },
     ],
     platform: "browser",
     target: "chrome105",
     banner: {
       js: `/*! Web Awesome ${version("@awesome.me/webawesome")} — MIT — licenses: webawesome.LICENSES.txt */`,
     },
-    plugins: [
-      await bindToVendoredLit(),
-      {
-        name: "leaf-wa-theme",
-        setup(builder) {
-          builder.onResolve({ filter: /^\.\/theme\.mjs$/ }, () => ({
-            path: "theme.mjs",
-            namespace: "leaf-wa-theme",
-          }));
-          builder.onLoad({ filter: /.*/, namespace: "leaf-wa-theme" }, async () => ({
-            contents: `import { registerWidgetStyles } from "/runtime/shadow-stage.js";
-registerWidgetStyles("Web Awesome", ${JSON.stringify(await webawesomeTheme())});`,
-          }));
-        },
-      },
-      {
-        name: "leaf-wa-transitions",
-        setup(builder) {
-          builder.onResolve({ filter: /^leaf-wa-transitions$/ }, () => ({
-            path: input("webawesome/transitions.mjs"),
-          }));
-        },
-      },
-    ],
+    plugins: [await bindToVendoredLit()],
   }),
 };
-
-/**
- * Web Awesome's theme, scoped to the controls Leaf bundles.
- *
- * Only upstream theme variables move to component hosts: transplanting root
- * appearance would override component state ink, and `leaf-theme.css` owns the chosen
- * typography defaults. The selectors also work in Leaf's declared shadow stages.
- * `webawesome/theme.py` selects the variables with the CSS parser Leaf's runtime
- * already depends on.
- */
-async function webawesomeTheme() {
-  const css = await build({
-    entryPoints: [
-      fileURLToPath(
-        import.meta.resolve("@awesome.me/webawesome/dist/styles/themes/default.css"),
-      ),
-    ],
-    bundle: true,
-    minify: true,
-    write: false,
-  });
-  const tokens = execFileSync(
-    "uv",
-    ["run", "--quiet", "python", input("webawesome/theme.py")],
-    { cwd: root, input: css.outputFiles[0].text, encoding: "utf8" },
-  );
-  const hosts =
-    "wa-copy-button, wa-comparison, wa-radio-group, wa-radio, wa-slider, wa-tooltip, wa-select, wa-option, wa-input";
-  const leafTheme = await readFile(input("webawesome/leaf-theme.css"), "utf8");
-  return `/* Generated by build/vendor.mjs webawesome. Web Awesome ${version("@awesome.me/webawesome")} — MIT; see vendor/webawesome.LICENSES.txt */\n@layer lf-vendor{@scope (:is(${hosts})){${tokens}}\n${leafTheme}}`;
-}
 
 /** One bundle's outputs, its license notices last, keyed by repository path. */
 async function bundle(spec) {

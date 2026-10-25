@@ -2,7 +2,7 @@
    that semantic intake and revision comparison read before behavior modules start. */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { initialRender, initialOrigin } from "/runtime/initial-render.js";
+import { authoredBody, initialRender, initialOrigin } from "/runtime/initial-render.js";
 import { unmarkedCopy } from "/runtime/initial-render.js";
 import { tabStore } from "/runtime/storage.js";
 import { adoptRegistry } from "/runtime/registry.js";
@@ -198,4 +198,110 @@ test("member state owns each physical slot independently across a hierarchy", ()
   assert.deepEqual(states.get("outer").state.move.value, { one: ["card"], two: [] });
   assert.deepEqual(states.get("one").state.choose.value, ["card"]);
   assert.deepEqual(states.get("inner-zone").state.choose.value, ["inner-card"]);
+});
+
+test("the contents drawing keeps its early parts through upgrade and keyed revisions", async () => {
+  await import("../../packages/default/initial/lf-toc.js");
+  document.body.innerHTML =
+    '<main><h1>Field guide</h1><lf-toc id="contents"></lf-toc>' +
+    '<h2 id="first">Take inventory</h2><h3>Save a snapshot</h3></main>';
+  const host = document.querySelector("lf-toc");
+  const early = document.documentElement.lfInitial.paint(host);
+  const disclosure = host.querySelector("details");
+  const summary = host.querySelector("summary");
+  const links = [...host.querySelectorAll("a")];
+  assert.deepEqual(
+    links.map((link) => link.getAttribute("href")),
+    [null, "#first", null],
+  );
+  assert.equal(document.querySelector("h3").id, "");
+  disclosure.open = true;
+  links[1].focus();
+
+  const live = initialRender(host);
+  const reading = {
+    label: (heading) => heading.textContent,
+    chrome: () => false,
+    lends: true,
+  };
+  const sections = live.update(reading);
+  assert.equal(live, early);
+  assert.equal(host.querySelector("details"), disclosure);
+  assert.equal(host.querySelector("summary"), summary);
+  assert.equal(disclosure.open, true);
+  assert.deepEqual(
+    sections.map(({ link }) => link),
+    links,
+  );
+  assert.equal(document.activeElement, links[1]);
+  assert.equal(links[2].getAttribute("href"), "#lf-contents-section-2");
+
+  const first = document.querySelector("h2");
+  const next = document.querySelector("h3");
+  first.before(next);
+  first.textContent = "Read the inventory";
+  const reordered = live.update(reading);
+  assert.deepEqual(
+    reordered.map(({ link }) => link),
+    [links[0], links[2], links[1]],
+  );
+  assert.equal(links[1].textContent, "Read the inventory");
+  assert.equal(disclosure.open, true);
+  host.remove();
+  assert.equal(live.scope(), null);
+  document.querySelector("main").append(host);
+  assert.equal(live.scope(), document.querySelector("main"));
+  assert.equal(live.update(reading)[1].link, links[2]);
+});
+
+test("generated words say which kind they are, and a producer can't leave it unsaid", () => {
+  document.body.innerHTML = '<main><lf-worded id="worded"></lf-worded></main>';
+  const host = document.querySelector("lf-worded");
+  document.documentElement.lfInitial.register(
+    "lf-worded",
+    (node, { generatedElement }) => {
+      const heading = generatedElement(document.createElement("h2"), { says: true });
+      const name = generatedElement(document.createElement("span"), { says: "echo" });
+      // An x-says span keeps the attribute it names.
+      const declared = document.createElement("span");
+      declared.dataset.lfSaid = "label";
+      generatedElement(declared, { says: true });
+      node.append(heading, name, declared);
+      assert.throws(() => generatedElement(document.createElement("p"), {}), TypeError);
+      return { heading, name, declared };
+    },
+  );
+  const { heading, name, declared } = document.documentElement.lfInitial.paint(host);
+  const { generatedElement } = document.documentElement.lfInitial;
+  const markers = (node) =>
+    ["data-lf-gen", "data-lf-said", "data-lf-echo"].map((a) => node.getAttribute(a));
+  assert.deepEqual(markers(heading), ["1", "", null]);
+  assert.deepEqual(markers(name), ["1", null, ""]);
+  assert.deepEqual(markers(declared), ["1", "label", null]);
+  // A later write restates the kind, as one element can wear both over its life.
+  generatedElement(name, { says: false });
+  assert.deepEqual(markers(name), ["1", null, null]);
+});
+
+test("an authored body takes every child its host was written with, source intact", () => {
+  document.body.innerHTML =
+    '<main><lf-bodied id="bodied"><p>One</p> <p>Two</p></lf-bodied><lf-plain id="plain"></lf-plain></main>';
+  const host = document.querySelector("lf-bodied");
+  const authored = host.outerHTML;
+  const written = [...host.childNodes];
+  const coordinator = document.documentElement.lfInitial;
+  coordinator.register("lf-bodied", (node, tools) => {
+    const body = tools.authoredBody(document.createElement("div"));
+    const frame = document.createElement("section");
+    frame.append(tools.offer("span", "bodied-label", "Label"), body);
+    node.append(frame);
+    return { body };
+  });
+  coordinator.register("lf-plain", () => ({}));
+  const { body } = coordinator.paint(host);
+  coordinator.paint(document.querySelector("lf-plain"));
+  assert.deepEqual([...body.childNodes], written);
+  assert.equal(authoredBody(host), body);
+  assert.equal(authoredBody(document.querySelector("lf-plain")), null);
+  assert.equal(unmarkedCopy(host).outerHTML, authored);
 });

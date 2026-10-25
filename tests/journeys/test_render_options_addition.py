@@ -1,7 +1,6 @@
 """Added-option presentation and replay tests."""
 
 import pytest
-from leaf import event_log as events_model
 from playwright.sync_api import expect
 from render_cases_interaction import (
     OBLIGATION_PAGE,
@@ -15,6 +14,8 @@ from render_harness import (
     undo,
     write,
 )
+
+from leaf import event_log as events_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -56,7 +57,7 @@ def test_the_draft_binding_badge_and_send_press_share_the_row_end(browser, serve
     ) == page.evaluate(
         r"() => getComputedStyle(document.body).getPropertyValue('--mono').trim().replace(/\s+/g, ' ')"
     )
-    assert hint.locator("span").evaluate(
+    assert hint.locator("span:not(.lf-compose-placeholder-aside)").evaluate(
         "label => getComputedStyle(label).fontFamily"
     ) == field.evaluate("box => getComputedStyle(box).fontFamily")
     write(field, "Something the author missed")

@@ -3,15 +3,16 @@
 import re
 
 from interact_support import record_claim
-from leaf import leases as leases_model
-from leaf import service as service_model
-from leaf import thread as thread_model
 from playwright.sync_api import expect
 from render_cases_interaction import (
     PANEL_PAGE,
     panel_comment,
 )
 from render_harness import open_page, panel_field, told
+
+from leaf import leases as leases_model
+from leaf import service as service_model
+from leaf import thread as thread_model
 
 
 def said(page):
@@ -34,7 +35,7 @@ def test_new_reply_and_user_question_share_one_notice_without_moving_focus(
 
     thread_model.post_reply(
         serve.page_dir,
-        {"to": root, "for": root},
+        {"responds": root},
         "I changed the route.",
         markup='<lf-ask id="route-answers">Does this answer your question?</lf-ask>',
     )
@@ -73,7 +74,7 @@ def test_terminal_failure_is_a_response_notice_not_an_agent_reply(browser, serve
 
     thread_model.post_reply(
         serve.page_dir,
-        {"to": root, "for": root},
+        {"responds": root},
         "The agent turn ended before completion.",
         failure="turn_failed",
         attempt="response-failed-attempt",
@@ -96,9 +97,15 @@ def test_interrupted_live_response_announces_its_exact_attempt(browser, serve, r
     request.addfinalizer(lease.close)
     attempt = service_model.delivery_reply_attempt("delivery-interrupted")
     with service_model.PageTransaction(serve.page_dir) as transaction:
-        transaction.set_status("waiting", "User feedback")
+        transaction.set_status("waiting")
         transaction.set_stream_reply(
-            "codex-thread", "leaf-turn", root, root, attempt, None, "Draft", "active"
+            "codex-thread",
+            "leaf-turn",
+            {"parent": root, "responds": root},
+            attempt,
+            None,
+            "Draft",
+            "active",
         )
     page = open_page(browser, url)
     said(page).not_to_have_attribute(

@@ -1,7 +1,7 @@
 """The `codex-app-server` and `codex-queue` journeys: a real Codex task reaching Leaf
 through one transport, and the steps a user takes at its terminal.
 
-    uv run leaf-dev journey codex-app-server|codex-queue [--preview]
+    uv run leaf-dev journey codex-app-server|codex-queue [--preview] [--sandbox]
 
 The suite drives the adapter with scripted App Server messages; this drives it with
 Codex itself. It installs this working tree's plugin payload (`extract_payload`) into
@@ -17,9 +17,13 @@ claim in process, and stops at the first check that fails.
 The steps, in order:
 
 - `setup`: the user asks for a page to review; serving it automatically connects
-  delivery using this journey's transport;
+  delivery using this journey's transport. With `--sandbox`, the task's shell
+  commands run in Codex's `workspace-write` sandbox, which may write the task's
+  directory but not the state home, and nothing approves an escalation, so the task
+  must serve through the plugin's MCP server (`leaf.codex_tool`);
 - `release`: the journey's timed ask, sent while the task is idle, is answered in a
-  turn Leaf starts (`journey.run_journey`);
+  turn Leaf starts (`journey.run_journey`); with `--case working` it is sent during
+  the user's own turn's shell command, which answers it;
 - `rich-choice` and `rich-question`: comments asking, in the author's own words, for
   clickable choices in the thread and for a question awaiting the user's answer, each
   moving its thread to the release rationale, are answered so;
@@ -27,10 +31,18 @@ The steps, in order:
   names the user's turn while it runs; on `codex-queue` the comment must also enter
   that turn and be answered before its first final response, starting no turn of
   its own;
-- `resume`, on `codex-queue`: a turn interrupted during its shell command is resumed
-  with empty input, as the desktop app resumes one, to report the interruption, so its
-  first boundary is its Stop; a comment sent as it starts enters it, starting no turn
-  of its own;
+- `resume`: a turn interrupted during its shell command is resumed with empty input,
+  as the desktop app resumes one, to report the interruption, so its first boundary is
+  its Stop. On `codex-app-server` a comment sent as it starts doesn't enter it, since
+  the Stop hook leaves input to the adapter's own turn, and is answered in a turn of
+  its own. On `codex-queue` it enters the resumed turn, starting no turn of its own,
+  since a queued turn would open on a message in the user's name;
+- `unload`: the user's next turn holds its first shell command at a checkpoint.
+  A comment sent there must enter that turn, starting no turn of its own. On
+  `codex-queue` the user first leaves the task; the isolated server expires idle
+  instances immediately, and the journey waits for native closure and Leaf's
+  SessionEnd evidence before resuming it. Over App Server the adapter's own
+  subscription keeps the task loaded;
 - `restart`: with the adapter killed, the user's next turn ends with the agent having
   started it again, and a comment sent afterwards is answered.
 
@@ -61,17 +73,24 @@ from pathlib import Path
 
 import click
 import psutil
+
+from leaf.agent_state import cmd_page_state
 from leaf.codex import private_app_server
 from leaf.delivery import pickup_receipts
 from leaf.event_log import read_events
-from leaf.leases import adapter_is_live, lock_is_held, titles_log
+from leaf.leases import adapter_is_live, hooks_ran, lock_is_held
 from leaf.server import running_server
 from leaf.service import page_claim
-from leaf.thread_titles import TIMEOUT
-
 from leaf_dev import ROOT
-from leaf_dev.arms import PageClient, codex_home, environment, now, run_leaf
-from leaf_dev.codex_task import Task, install_plugin
+from leaf_dev.arms import (
+    PageClient,
+    codex_home,
+    environment,
+    install_codex_plugin,
+    now,
+    run_leaf,
+)
+from leaf_dev.codex_task import Task, trust_plugin_hooks
 from leaf_dev.commands.journey import (
     STEP_LIMIT,
     Isolation,
@@ -95,14 +114,20 @@ from leaf_dev.review_scenario import (
 
 RESTART_TURN = "Reply with the single word OK."
 # A resumed turn only reports its interruption, so the first boundary it reaches is
-# its Stop, which must carry the comment sent while it runs.
+# its Stop, which decides where the comment sent while it runs goes.
 RESUME_TURN = (
     f"Run `python3 -c 'import time; {SLEEP}'` in the shell, then in a separate tool "
     "call run `printf 'verified\\n'`, then say done. If interrupted and resumed, "
     "skip the remaining shell command and report the interruption."
 )
-# Where the queue wrapper finds the private App Server the task's `codex queue` reaches.
-ENDPOINT = "LEAF_JOURNEY_CODEX_ENDPOINT"
+# The driver releases this command only after admitting the comment. Model prose
+# and host scheduling therefore cannot make the first command finish too early.
+UNLOAD_READY = ".leaf-unload-ready"
+UNLOAD_TURN = (
+    f"Run `while [ ! -e {UNLOAD_READY} ]; do sleep 0.1; done; printf 'verified\\n'` "
+    "in the shell in the foreground, with yield_time_ms 30000. "
+    "Then reply with the single word done."
+)
 
 
 class Codex(Terminal):
@@ -114,19 +139,49 @@ class Codex(Terminal):
         self.task = Task(endpoint, self.record)
         self.running_commands = self.task.running_commands
         self.commands = self.task.commands
+        # The task's cwd, approval policy and sandbox, which resuming it restores.
+        self.settings: dict[str, str] = {}
 
     def record(self, message: dict) -> None:
+        """Keep a notification of the task's thread as records, with where each turn
+        starts and ends, each model response's end, which App Server reports with
+        the response's token usage, and how long each hook ran, all of them Leaf's,
+        since its plugin is the session's only one. App Server reports no request
+        or stream start, only the items a response produces, the first of them after
+        any hidden reasoning, so the model's time stays unsplit."""
         if self.task.thread and self.task.owns(message):
-            self.trace.extend(
-                {**normalized, "received_at": now()}
-                for normalized in records_for(message, self.task.thread, "")
-            )
+            normalized = records_for(message, self.task.thread, "")
+            method, params = message.get("method"), message.get("params") or {}
+            marker = {
+                "turn/started": "turn_start",
+                "turn/completed": "turn_end",
+                "thread/closed": "thread_closed",
+            }.get(method)
+            if marker is not None:
+                normalized.append({"type": marker})
+            elif method == "thread/tokenUsage/updated":
+                last = params["tokenUsage"]["last"]
+                normalized.append(
+                    {"type": "model_response", "outputTokens": last["outputTokens"]}
+                )
+            elif method == "hook/completed":
+                normalized.append(
+                    {"type": "leaf_hook", "ms": params["run"]["durationMs"]}
+                )
+            self.trace.extend({**record, "received_at": now()} for record in normalized)
 
     def hear(self, seconds: float) -> None:
         self.task.listen(seconds)
 
     def idle(self) -> bool:
         return not self.task.running
+
+    def work(self) -> str:
+        """Type the user's own turn, wait for its shell command, and return the
+        turn's id."""
+        turn = self.task.say(USER_TURN)
+        self.await_command(SLEEP, "the user's turn did not start its command")
+        return turn
 
 
 def adapter_processes(codex: str) -> list[psutil.Process]:
@@ -139,26 +194,6 @@ def adapter_processes(codex: str) -> list[psutil.Process]:
     ]
 
 
-def page_server_title(codex: Codex, thread: str) -> dict | None:
-    """The page server's record of the title it generated for `thread`, hearing the
-    task as long as the request may take, or None where it made none. The log names
-    a thread's title but not who made it; this is what says the page server did."""
-    log = titles_log(codex.task.thread)
-    deadline = time.monotonic() + TIMEOUT
-    while True:
-        records = log.read_text().splitlines() if log.exists() else []
-        for line in records:
-            record = json.loads(line)
-            if (record["event"], record["thread"]) == (
-                "thread_title_generated",
-                thread,
-            ):
-                return record
-        if time.monotonic() > deadline:
-            return None
-        codex.hear(0.5)
-
-
 def check(page: Path, codex: Codex, sent: dict[str, str]) -> str | None:
     """What holds between steps (`settled`), the last comment's thread titled by the
     page server, and the claim's turn being the task's last. `sent` names each
@@ -167,7 +202,7 @@ def check(page: Path, codex: Codex, sent: dict[str, str]) -> str | None:
     titled = None
     if sent:
         last = list(sent)[-1]
-        record = page_server_title(codex, sent[last])
+        record = codex.page_server_title(page, sent[last])
         require(record is not None, f"the page server did not title `{last}`'s thread")
         titled = (
             f"titled in {record['durationMs']} ms, {record['inputTokens']} input tokens"
@@ -180,9 +215,18 @@ def check(page: Path, codex: Codex, sent: dict[str, str]) -> str | None:
     return titled
 
 
-def setup(codex: Codex, page: Path, executable: str, transport: str, preview: bool):
+def setup(
+    codex: Codex,
+    page: Path,
+    executable: str,
+    transport: str,
+    *,
+    preview: bool,
+    sandbox: bool,
+):
     """Ask for the page and require it served, with delivery connected through
-    `transport`."""
+    `transport`, and in the sandbox by a `leaf` command run through the plugin's
+    MCP server."""
     if preview:
         command = shlex.join(
             [
@@ -222,6 +266,16 @@ def setup(codex: Codex, page: Path, executable: str, transport: str, preview: bo
         ),
         f"the adapter did not select the {transport} transport",
     )
+    if sandbox:
+        require(
+            any(
+                block.get("name") == "mcp__leaf__run"
+                for record in codex.trace
+                if record["type"] == "assistant"
+                for block in record["message"]["content"]
+            ),
+            "the sandboxed task ran no `leaf` command through the plugin's MCP server",
+        )
 
 
 def steps(
@@ -307,8 +361,11 @@ def steps(
             )
         else:
             require(
-                "<lf-ask" in reply.get("markup", ""),
-                "the question does not await the user's answer",
+                any(
+                    item["thread"] == posted
+                    for item in cmd_page_state(page)["queues"]["on_user"]
+                ),
+                "the question has no On me obligation in its thread",
             )
         require(
             title(read_events(page), posted) is not None,
@@ -318,8 +375,7 @@ def steps(
 
     started = time.monotonic()
     previous_turns = len(task.started)
-    user_turn = task.say(USER_TURN)
-    codex.await_command(SLEEP, "the user turn did not start its command")
+    user_turn = codex.work()
     mid_turn = user.comment("mid-turn")
     if transport == "queue":
 
@@ -366,55 +422,108 @@ def steps(
         )
     step("mid-turn", started, details)
 
+    started = time.monotonic()
+    interrupted = task.say(RESUME_TURN)
+    codex.await_command(SLEEP, "the turn to interrupt did not start its command")
+    task.request("turn/interrupt", {"threadId": task.thread, "turnId": interrupted})
+    codex.until(
+        lambda: interrupted not in task.running, "the interrupted turn did not end"
+    )
+    # Aborted command items need not emit item/completed. They cannot stand
+    # in for execution of the resumed turn's first command.
+    task.running_commands.clear()
+    # The user writes the comment now and sends it the moment the resumed turn
+    # starts; in a browser its admission then does not wait on typing in a turn
+    # this short.
+    send = user.write("resume")
+    previous_turns = len(task.started)
+    resumed = task.request(
+        "turn/start",
+        {
+            "threadId": task.thread,
+            "input": [],
+            "turnTrigger": "resume_interrupted_task",
+        },
+    )["turn"]["id"]
+    codex.until(lambda: resumed in task.started, "the empty-input resume did not start")
+    require(resumed in task.running, "the empty-input resume already ended")
+    during = send()
+    codex.settle(
+        lambda: user.answered("resume"),
+        "the comment sent during resume was not answered",
+    )
+    sent.append("resume")
+    details = check_step()
+    entered = any(
+        event["turn"] == resumed
+        for event in pickup_receipts(read_events(page), phase="opened", input_id=during)
+    )
     if transport == "queue":
-        started = time.monotonic()
-        interrupted = task.say(RESUME_TURN)
-        codex.await_command(SLEEP, "the turn to interrupt did not start its command")
-        task.request("turn/interrupt", {"threadId": task.thread, "turnId": interrupted})
-        codex.until(
-            lambda: interrupted not in task.running, "the interrupted turn did not end"
-        )
-        # Aborted command items need not emit item/completed. They cannot stand
-        # in for execution of the resumed turn's first command.
-        task.running_commands.clear()
-        # The user writes the comment now and sends it the moment the resumed turn
-        # starts; in a browser its admission then does not wait on typing in a turn
-        # this short.
-        send = user.write("resume")
-        previous_turns = len(task.started)
-        resumed = task.request(
-            "turn/start",
-            {
-                "threadId": task.thread,
-                "input": [],
-                "turnTrigger": "resume_interrupted_task",
-            },
-        )["turn"]["id"]
-        codex.until(
-            lambda: resumed in task.started, "the empty-input resume did not start"
-        )
-        require(resumed in task.running, "the empty-input resume already ended")
-        during = send()
-        codex.settle(
-            lambda: user.answered("resume"),
-            "the comment sent during resume was not answered",
-        )
-        sent.append("resume")
-        details = check_step()
+        require(entered, "the comment did not enter the empty-input resumed turn")
         require(
             task.started[previous_turns:] == [resumed],
             "the resumed-turn comment started another turn",
         )
+    else:
         require(
-            any(
-                event["turn"] == resumed
-                for event in pickup_receipts(
-                    read_events(page), phase="opened", input_id=during
-                )
-            ),
-            "the comment did not enter the empty-input resumed turn",
+            not entered,
+            "the Stop hook handed the comment into the empty-input resumed turn",
         )
-        step("resume", started, details)
+        require(
+            len(task.started[previous_turns:]) == 2,
+            "the resumed-turn comment was not answered in one turn of its own",
+        )
+    step("resume", started, details)
+
+    started = time.monotonic()
+    if transport == "queue":
+        previous_records = len(codex.trace)
+        task.request("thread/unsubscribe", {"threadId": task.thread})
+        # SessionEnd runs before shutdown completes; only thread/closed makes
+        # the unloaded thread ready to resume.
+        codex.until(
+            lambda: any(
+                record["type"] == "thread_closed"
+                for record in codex.trace[previous_records:]
+            ),
+            "the task left by its last client did not close",
+        )
+        # The instance's SessionEnd retires the evidence that Leaf's hooks run in
+        # it (`state.end_harness_instance`).
+        require(
+            not hooks_ran(task.thread),
+            "the task left by its last client did not end its instance",
+        )
+        task.request("thread/resume", {"threadId": task.thread, **codex.settings})
+    previous_turns = len(task.started)
+    early = task.say(UNLOAD_TURN)
+    codex.await_command(UNLOAD_READY, "the resumed turn did not reach its checkpoint")
+    codex.until(
+        lambda: page_claim(page)["turn"] == early,
+        f"the claim never named the user's turn {early}",
+    )
+    during = user.comment("unload")
+    (Path(codex.settings["cwd"]) / UNLOAD_READY).touch()
+    codex.settle(
+        lambda: user.answered("unload"),
+        "the comment sent at the resumed turn's checkpoint was not answered",
+    )
+    sent.append("unload")
+    details = check_step()
+    require(
+        any(
+            event["turn"] == early
+            for event in pickup_receipts(
+                read_events(page), phase="opened", input_id=during
+            )
+        ),
+        f"the comment sent at the checkpoint did not enter turn {early}",
+    )
+    require(
+        task.started[previous_turns:] == [early],
+        "the comment sent at the checkpoint started a turn of its own",
+    )
+    step("unload", started, details)
 
     started = time.monotonic()
     for process in adapter_processes(executable):
@@ -483,21 +592,27 @@ def steps(
 
 def task_codex(root: Path, executable: str, transport: str) -> str:
     """Route the queue to the private server without exposing Leaf's observed
-    App Server transport to the task. Both transports use the real Codex executable."""
+    App Server transport to the task. Both transports use the real Codex executable.
+
+    The server's endpoint is kept in a file beside the wrapper rather than in the
+    environment, since Codex starts a plugin's MCP server, through which a sandboxed
+    task runs `leaf`, with only the variables the plugin names."""
     directory = root / "bin"
     directory.mkdir()
     wrapper = directory / "codex"
+    endpoint = directory / "endpoint"
     wrapper.write_text(
         f"#!{sys.executable}\n"
         "import os, sys\n"
+        "from pathlib import Path\n"
         "arguments = sys.argv[1:]\n"
+        f"endpoint = Path({str(endpoint)!r})\n"
         f"if {transport!r} == 'queue':\n"
         "    if arguments[0] == 'app-server':\n"
-        f"        os.environ[{ENDPOINT!r}] = "
-        "arguments[arguments.index('--listen') + 1]\n"
+        "        endpoint.write_text(arguments[arguments.index('--listen') + 1])\n"
         "        os.environ.pop('LEAF_CODEX_APP_SERVER', None)\n"
         "    elif arguments[0] == 'queue':\n"
-        f"        arguments += ['--remote', os.environ[{ENDPOINT!r}]]\n"
+        "        arguments += ['--remote', endpoint.read_text()]\n"
         f"os.execv({executable!r}, [{executable!r}, *arguments])\n"
     )
     wrapper.chmod(0o700)
@@ -506,10 +621,12 @@ def task_codex(root: Path, executable: str, transport: str) -> str:
 
 @contextmanager
 def answering(
-    browser, transport: str, *, preview: bool
+    browser, transport: str, *, preview: bool, sandbox: bool
 ) -> Iterator[tuple[User, Callable]]:
     """The user at the page a Codex task serves through `transport`, once it has,
-    and the steps that follow."""
+    and the steps that follow. With `sandbox`, the task's shell commands run in
+    Codex's sandbox and nothing approves an escalation, so a `leaf` command the
+    sandbox refuses reaches Leaf only through the plugin's MCP server."""
     codex_path = shutil.which("codex")
     if codex_path is None:
         raise click.ClickException("cannot find the `codex` executable on PATH")
@@ -519,7 +636,23 @@ def answering(
         nonlocal executable
         # Keep the journey's isolated executable on PATH; a login shell would
         # replace it with the user's Codex and bypass the queue wrapper.
-        home = codex_home(place.root / "codex-home", "allow_login_shell = false\n")
+        # Expire idle, unsubscribed instances immediately so the unload step
+        # observes native SessionEnd without the host's inactivity wait.
+        config = "allow_login_shell = false\nthread_unload_delay_secs = 0\n"
+        if sandbox:
+            # The journey's state home is under TMPDIR, which the sandbox otherwise
+            # lets a command write, where a user's is not. And the journey cannot
+            # answer Codex's question whether to allow Leaf's MCP tool, so it
+            # allows it as a user who answered "always" has. The state home's pages
+            # directory is writable, as the README asks a user to make it.
+            config += (
+                "[sandbox_workspace_write]\n"
+                "exclude_tmpdir_env_var = true\n"
+                f'writable_roots = ["{place.state / "leaf" / "pages"}"]\n'
+                '[plugins."leaf@leaf".mcp_servers.leaf]\n'
+                'default_tools_approval_mode = "approve"\n'
+            )
+        home = codex_home(place.root / "codex-home", config)
         executable = task_codex(place.root, codex_path, transport)
         return environment(
             XDG_STATE_HOME=str(place.state),
@@ -535,20 +668,35 @@ def answering(
             )
         else:
             prepare(ROOT, place.state, place.page)
-        with private_app_server(executable) as endpoint:
+        with (place.evidence / "stderr.txt").open("w") as output:
+            install_codex_plugin(
+                Path(executable),
+                place.payload,
+                cwd=place.work,
+                env=dict(os.environ),
+                output=output,
+            )
+        with private_app_server(executable) as (endpoint, _process):
             codex = Codex(endpoint)
             try:
-                install_plugin(codex.task, payload=place.payload, cwd=place.work)
-                codex.task.thread = codex.task.request(
-                    "thread/start",
-                    {
-                        "cwd": str(place.work),
-                        "approvalPolicy": "never",
-                        "sandbox": "danger-full-access",
-                    },
-                )["thread"]["id"]
+                trust_plugin_hooks(codex.task, place.work)
+                codex.settings = {
+                    "cwd": str(place.work),
+                    "approvalPolicy": "never",
+                    "sandbox": "workspace-write" if sandbox else "danger-full-access",
+                }
+                codex.task.thread = codex.task.request("thread/start", codex.settings)[
+                    "thread"
+                ]["id"]
                 started = time.monotonic()
-                setup(codex, place.page, executable, transport, preview)
+                setup(
+                    codex,
+                    place.page,
+                    executable,
+                    transport,
+                    preview=preview,
+                    sandbox=sandbox,
+                )
                 check(place.page, codex, {})
                 with user_at(browser, place, codex, started) as user:
                     yield (

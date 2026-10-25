@@ -1,11 +1,74 @@
 """Reader code views retain source evidence while changing line presentation."""
 
 from html import escape
+from socket import gethostname
 
-from leaf.render_checks import rendered
+import pytest
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
-from render_harness import PANEL, leaf_page, open_page, scroll_settled, told
+from render_harness import (
+    PANEL,
+    consume_browser_errors,
+    leaf_page,
+    open_page,
+    scroll_settled,
+    told,
+)
+
+from leaf.render_checks import rendered
+
+
+@pytest.mark.parametrize("gesture", ["click", "Enter"])
+def test_code_copy_on_plain_http_machine_name(browser, serve, gesture):
+    source = leaf_page(
+        "Code copy over HTTP",
+        "<h1>Code copy over HTTP</h1><pre><code>echo hello</code></pre>",
+    )
+    local_url = live_url(serve(source))
+    remote_url = local_url.replace("127.0.0.1", gethostname())
+    context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
+
+    def fetch_from_loopback(route):
+        response = route.fetch(
+            url=route.request.url.replace(gethostname(), "127.0.0.1")
+        )
+        route.fulfill(response=response)
+
+    context.route(f"http://{gethostname()}:**/*", fetch_from_loopback)
+    page = open_page(browser, remote_url, context=context)
+    assert page.evaluate("!isSecureContext && navigator.clipboard === undefined")
+    if gesture == "click":
+        page.locator("pre").hover()
+        page.get_by_role("button", name="Copy code", exact=True).click()
+    else:
+        page.locator("pre").focus()
+        page.keyboard.press("Enter")
+        expect(page.locator("pre")).to_be_focused()
+    copy_state = page.locator(".lf-code-copy").evaluate(
+        "e => ({status: e.status, value: e.value})"
+    )
+    assert copy_state["status"] == "success"
+    assert copy_state["value"] == "echo hello"
+
+    page.goto(local_url)
+    assert page.evaluate("navigator.clipboard.readText()") == "echo hello"
+
+
+def test_sample_code_copy_keeps_its_clipboard_boundary(browser, serve):
+    source = leaf_page(
+        "Sample copy boundary",
+        '<h1>Sample copy boundary</h1><lf-sample id="sample" label="Sample">'
+        '<template id="sample-page" data-sample>'
+        "<pre><code>private sample</code></pre></template></lf-sample>",
+    )
+    context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
+    page = open_page(browser, live_url(serve(source)), context=context)
+    page.evaluate("navigator.clipboard.writeText('kept')")
+    sample = page.frame_locator("#sample iframe")
+    sample.locator("pre").hover()
+    sample.get_by_role("button", name="Copy code", exact=True).click()
+    assert page.evaluate("navigator.clipboard.readText()") == "kept"
+    consume_browser_errors(page, "Permissions policy violation: The Clipboard API")
 
 
 def open_keyboard_shortcuts(page):

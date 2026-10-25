@@ -7,9 +7,6 @@ from urllib.parse import urlparse
 import pytest
 from click.testing import CliRunner
 from interact_support import append_carried_log_record, response_reference
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf.render_checks import wait_until_ready
 from leaf_dev.example_data import patch_manifest
 from playwright.sync_api import expect
 from render_cases_interaction import SUGGESTION_PAGE
@@ -26,6 +23,7 @@ from render_harness import (
     open_page,
     page_comment,
     panel_settled,
+    panel_view,
     primed,
     refuse,
     round_trip,
@@ -37,6 +35,10 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
+from leaf import cli as cli_model
+from leaf import data as data_model
+from leaf.render_checks import wait_until_ready
+from leaf.runtime_selection import serving_runtime
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -99,7 +101,7 @@ Two classic models.</pre></lf-code>
     expect(page.locator("#gate-code .lf-code-line")).to_have_count(0)
     expect(page.locator("#draft-ops .lf-draft-body")).to_have_count(0)
 
-    rows = page.locator(".lf-fp-view[data-view='threads'] .lf-fp-thread")
+    rows = page.locator(f"{panel_view('threads')} .lf-fp-thread")
     page.locator(".lf-fp-threads").click()
     panel_settled(page, view="threads")
     expect(rows).to_have_count(0)
@@ -154,7 +156,9 @@ def _asked(context):
 
     def record(request):
         path = urlparse(request.url).path
-        paths.append(re.sub(r"^/revisions/r\d+-[0-9a-f]+", "", path))
+        paths.append(
+            re.sub(r"^/revisions/r\d+-[0-9a-f]+/[0-9a-f]+|^/[0-9a-f]+", "", path)
+        )
 
     context.on("request", record)
     return paths
@@ -181,7 +185,6 @@ def test_a_page_loads_only_the_widget_modules_its_markup_uses(browser, serve):
 
     modules = sorted(p for p in asked if p.startswith("/widgets/"))
     assert modules == [
-        "/widgets/activity-view.js",
         "/widgets/lf-activity.js",
         "/widgets/lf-board.js",
     ], modules
@@ -381,7 +384,7 @@ def test_a_widget_a_reply_carries_arrives_with_its_module(browser, serve):
     replied = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(d, "c-store"),
@@ -469,7 +472,7 @@ def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serv
 
     page.locator(".lf-fp-threads").click()
     panel_settled(page, view="threads")
-    rows = page.locator(".lf-fp-view[data-view='threads'] .lf-fp-thread")
+    rows = page.locator(f"{panel_view('threads')} .lf-fp-thread")
     expect(rows.filter(has_text="Older")).to_have_count(1)
     expect(rows.filter(has_text="Newest")).to_have_count(1)
 
@@ -477,7 +480,7 @@ def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serv
 def test_the_public_widget_api_can_load_before_boot_registers_page_keys(browser, serve):
     """Importing capabilities does not start a half-constructed browser application."""
     url = serve(SUGGESTION_PAGE)
-    boot = (serve.page_dir / "leaf.js").read_text()
+    boot = serving_runtime().resources({})["/leaf.js"].data.decode()
     context = browser.new_context()
     context.route(
         "**/leaf.js",

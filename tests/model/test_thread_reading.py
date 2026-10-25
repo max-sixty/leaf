@@ -20,6 +20,7 @@ from interact_support import (
     serving,
     yaml_document,
 )
+
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import hook_transport as hook_transport_model
@@ -67,8 +68,8 @@ def test_thread_read_is_exact_and_paginated(page_dir):
     [move] = owed(reading)
     assert move["answer"] == {
         "kind": "reply",
-        "to": messages[2]["id"],
-        "for": messages[2]["id"],
+        "parent": messages[2]["id"],
+        "responds": messages[2]["id"],
     }
     second_seq = reading["content"][1]["source"]["seq"]
     assert reading["history"]["next_after"] == second_seq
@@ -269,7 +270,9 @@ def test_summary_cli_can_fold_without_prose_only_when_explicit(page_dir, label):
 
     # Allowing an empty summary body must not admit an empty reply.
     with pytest.raises(Refused, match="empty text"):
-        thread_model.post_reply(page_dir, {"to": root["id"], "for": root["id"]}, "")
+        thread_model.post_reply(
+            page_dir, {"parent": root["id"], "responds": root["id"]}, ""
+        )
 
 
 def test_summary_hint_keeps_the_latest_spoken_exchange_outside_reactions(page_dir):
@@ -329,7 +332,7 @@ def test_summary_hint_keeps_the_latest_spoken_exchange_outside_reactions(page_di
     }
 
 
-def test_summary_hint_does_not_cross_a_fold_of_ephemeral_updates(page_dir):
+def test_summary_hint_does_not_cross_ephemeral_updates(page_dir):
     root = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "x" * 1000}
     )
@@ -362,9 +365,9 @@ def test_summary_hint_does_not_cross_a_fold_of_ephemeral_updates(page_dir):
         [event for event in events if event["id"] not in update_ids], [latest], within
     )
     assert unfolded["summary_hint"] == {"from": root["id"], "through": older["id"]}
-    [folded] = thread_context_model.batch_threads(events, [latest], within)
-    assert folded["summaries"][0]["covers"] == [update["id"] for update in updates]
-    assert "summary_hint" not in folded
+    [with_progress] = thread_context_model.batch_threads(events, [latest], within)
+    assert with_progress["summaries"] == []
+    assert "summary_hint" not in with_progress
 
 
 def test_summary_hint_chooses_a_qualifying_run_over_more_short_messages(page_dir):
@@ -483,7 +486,7 @@ def test_summary_suggestions_only_accompany_new_input(claimed, older_texts, sugg
     # optional suggestion alone. It produces no separate summary delivery.
     thread_model.post_reply(
         claimed,
-        {"to": current["id"], "for": current["id"]},
+        {"parent": current["id"], "responds": current["id"]},
         "Proceed with the rollout.",
     )
     assert not any(plan.batch for plan in hook_transport_model.read_plans("s1"))

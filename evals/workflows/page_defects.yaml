@@ -1,0 +1,142 @@
+# The page-defect grader for authoring cases (`dev/leaf_dev/page_defects.py`).
+widths:
+  wide:
+    viewport: [1600, 1000]
+    description: a fullscreen desktop window
+  middle:
+    viewport: [900, 700]
+    description: a laptop window beside other work
+  phone:
+    viewport: [390, 844]
+    description: a phone held upright, with touch
+judge: |-
+  A user asked an agent for this page:
+
+  <request>
+  {request}
+  </request>
+
+  Use the page as that user would, at each of the three viewports. Read it from the
+  top, scroll through it, and open the disclosures, tabs, items and controls the
+  request needs; operate the controls the user would. Then select a sentence of the
+  page's text, comment on it through the page's comment route, and read the page
+  with that thread showing.
+
+  List every defect this user would notice: text they can't read at that size,
+  content cut off or out of reach, something drawn on top of something else, a
+  control they can't operate, a widget that draws broken or empty, space wasted so
+  that what they came for falls out of view, a fact the request supplied that the
+  page states wrongly or leaves out, or a decision they couldn't answer where they
+  land on it without asking what something it names is or does. Judge the visible
+  content's grouping, spacing and alignment with its labels and surrounding
+  explanation, even when everything fits and remains readable. List each defect
+  once, naming every viewport where it shows. A choice the author made that this
+  user would accept is not a defect.
+
+  Use pass when you found none, defect when you found at least one, and
+  insufficient_evidence when you could not observe the page.
+match: |-
+  A reviewer found the defects below on a page an agent wrote. Leaf's `page check`
+  reads a page's markup; with `--render` it also draws the page in a browser at
+  several widths. Below are its output on the final page, plain and with
+  `--render`, and the author's session: every tool call in order, with the output
+  of each page check the author ran.
+
+  For each defect, by its index, say:
+  - final_plain, final_render: whether that check's output on the final page
+    reports this defect, or a finding whose fix would remove it;
+  - session: whether a check the author ran reported it, and if so whether the
+    author's later calls changed the page to address it ("acted"), or not
+    ("ignored"); "unreported" when no check it ran reported it;
+  - message: the check's words that report it, or "" when none does.
+
+  Then list each distinct finding the author's own checks reported, and whether the
+  final render check still reports it.
+
+  <defects>
+  {defects}
+  </defects>
+
+  <final-plain-check>
+  {plain}
+  </final-plain-check>
+
+  <final-render-check>
+  {render}
+  </final-render-check>
+
+  <session>
+  {log}
+  </session>
+schemas:
+  defects:
+    type: object
+    additionalProperties: false
+    required: [status, reason, defects]
+    properties:
+      status:
+        enum: [pass, defect, insufficient_evidence]
+      reason:
+        type: string
+      defects:
+        type: array
+        items:
+          type: object
+          additionalProperties: false
+          required: [viewports, kind, where, observed, severity]
+          properties:
+            viewports:
+              type: array
+              items:
+                enum: [wide, middle, phone]
+            kind:
+              enum:
+                - legibility
+                - clipped-or-unreachable
+                - overlap
+                - control
+                - widget
+                - wasted-space
+                - composition
+                - content
+                - thread
+            where:
+              type: string
+            observed:
+              type: string
+            severity:
+              description: blocks the user's task, hinders it, or only looks wrong
+              enum: [blocks, hinders, cosmetic]
+  match:
+    type: object
+    additionalProperties: false
+    required: [defects, session_findings]
+    properties:
+      defects:
+        type: array
+        items:
+          type: object
+          additionalProperties: false
+          required: [index, final_plain, final_render, session, message]
+          properties:
+            index:
+              type: integer
+            final_plain:
+              type: boolean
+            final_render:
+              type: boolean
+            session:
+              enum: [acted, ignored, unreported]
+            message:
+              type: string
+      session_findings:
+        type: array
+        items:
+          type: object
+          additionalProperties: false
+          required: [finding, still_reported]
+          properties:
+            finding:
+              type: string
+            still_reported:
+              type: boolean

@@ -76,10 +76,9 @@ const responseFailure = (source, kind = "failed") =>
     thread: "t",
     coordinate: ["thread", "t"],
     seq: 3,
-    answer: null,
+    obligation: "update:input",
     stage: "answered",
     condition: { kind, operation: "response" },
-    next_actor: "user",
     response: source,
   });
 
@@ -96,7 +95,7 @@ test("accepted messages and user obligations arrive together after a quiet basel
     threads: [
       thread("t", [message("old", { unread: false }), message("new", { seq: 2 })], {
         kind: "needs_user",
-        reason: "widget",
+        reason: "obligation",
       }),
     ],
     pageObligations: [item("existing"), item("new")],
@@ -121,7 +120,7 @@ test("structural questions own their thread obligation and reopening starts a ne
   const baseline = observeSemanticNews(null, reading());
   const owed = reading({
     threads: [
-      thread("t", [message("question")], { kind: "needs_user", reason: "widget" }),
+      thread("t", [message("question")], { kind: "needs_user", reason: "obligation" }),
     ],
     pageObligations: [item("other")],
     threadObligations: [item("choice", "t")],
@@ -161,7 +160,7 @@ test("structural questions own their thread obligation and reopening starts a ne
       ["user_obligation", "t", "choice"],
     ],
   );
-  assert.equal(semanticNewsNotice(current), "2 items waiting on me");
+  assert.equal(semanticNewsNotice(current), "2 waiting on me");
   assert.deepEqual(combineSemanticNews(reopened.news, reopened.news), reopened.news);
   assert.deepEqual(observeSemanticNews(reopened.observed, owed).news, []);
 });
@@ -170,7 +169,7 @@ test("a second question in the same waiting thread has its own source version", 
   const firstQuestion = reading({
     threadObligations: [replyObligation("first")],
     threads: [
-      thread("t", [message("first")], { kind: "needs_user", reason: "widget" }),
+      thread("t", [message("first")], { kind: "needs_user", reason: "obligation" }),
     ],
   });
   const baseline = observeSemanticNews(null, firstQuestion);
@@ -181,7 +180,7 @@ test("a second question in the same waiting thread has its own source version", 
       threads: [
         thread("t", [message("first"), message("second", { seq: 2 })], {
           kind: "needs_user",
-          reason: "widget",
+          reason: "obligation",
         }),
       ],
     }),
@@ -221,7 +220,7 @@ test("current content versions and admitted messages determine arrivals", () => 
   assert.equal(changed.news[0].message.id, "original");
   assert.equal(
     semanticNewsNotice(currentSemanticNews(changed.news, next, changed.observed)),
-    "Agent updated a reply; Response failed",
+    "Agent edited a reply; Response failed",
   );
   const same = observeSemanticNews(
     changed.observed,
@@ -247,6 +246,26 @@ test("a failed answer to a move in a thread's markup is news about that thread",
     failed.news.map(({ kind, thread }) => [kind, thread]),
     [["response_failure", "t"]],
   );
+});
+
+test("an update handed back to the user is news once, as its failed response", () => {
+  const baseline = observeSemanticNews(null, reading());
+  const handedBack = observeSemanticNews(
+    baseline.observed,
+    reading({
+      threadObligations: [
+        {
+          id: "update:input",
+          thread: "t",
+          message: "input",
+          source: { kind: "update", id: "input" },
+          next_actor: "user",
+        },
+      ],
+      workflows: [responseFailure({ id: "failure" })],
+    }),
+  );
+  assert.deepEqual(kinds(handedBack), ["response_failure"]);
 });
 
 test("a response failure announces once per attempt and retrying is not recovery", () => {
@@ -393,7 +412,7 @@ test("one producer notice states a reply and new obligation as separate facts", 
     threads: [
       thread("t", [message("answer", { agent: "Sam" })], {
         kind: "needs_user",
-        reason: "widget",
+        reason: "obligation",
       }),
     ],
   });

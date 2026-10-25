@@ -17,7 +17,8 @@ The steps, in order:
 - `setup`: the user asks for a page to review; Pi serves it, and as the run settles
   the extension starts watching the session's pages;
 - `release`: the journey's timed ask, sent while Pi is idle, starts a run that
-  answers it (`journey.run_journey`);
+  answers it (`journey.run_journey`); with `--case working` it is sent during the
+  user's own run's shell command, which answers it;
 - `mid-turn`: a comment sent during a shell command is delivered into that run and
   answered before it settles, with no run after it, and the claim holds the run's
   turn open while it goes;
@@ -29,9 +30,10 @@ The steps, in order:
   and its watch has ended.
 
 Between steps every comment sent so far has exactly one reply and a pickup, the
-page's claim names Pi's session with its turn closed, and the watch is running. Pi's
-stderr joins the run's evidence. It spends a few model turns on the host's Codex
-login, so CI does not run it.
+last one's thread was named by the page server's own title request
+(`thread_titles`), the page's claim names Pi's session with its turn closed, and
+the watch is running. Pi's stderr joins the run's evidence. It spends a few model
+turns on the host's Codex login, so CI does not run it.
 """
 
 import itertools
@@ -46,13 +48,13 @@ from contextlib import contextmanager
 from pathlib import Path
 
 import click
+
 from leaf.delivery import pickup_receipts
 from leaf.event_log import read_events
 from leaf.leases import wait_is_live
 from leaf.server import running_server
 from leaf.service import claim_is_active, page_claim
 from leaf.state import session_record
-
 from leaf_dev import ROOT
 from leaf_dev.arms import MODELS, environment, now, pi_home
 from leaf_dev.commands.journey import (
@@ -108,6 +110,8 @@ class Pi(Terminal):
         self.running = False
         self.settled = 0
         self.closed_watches = 0
+        # The output of the response the next `turn_end` closes.
+        self.output_tokens: int | None = None
         self.session = self.request("get_state")["sessionId"]
 
     def _read(self) -> None:
@@ -120,9 +124,11 @@ class Pi(Terminal):
             self.closed_watches += 1
         elif kind == "agent_start":
             self.running = True
+            self.trace.append({"type": "turn_start", "received_at": now()})
         elif kind == "agent_settled":
             self.running = False
             self.settled += 1
+            self.trace.append({"type": "turn_end", "received_at": now()})
         elif kind == "tool_execution_start":
             if record["toolName"] == "bash":
                 self.running_commands[record["toolCallId"]] = record["args"]["command"]
@@ -139,6 +145,21 @@ class Pi(Terminal):
                     "received_at": now(),
                 }
             )
+        elif kind == "message_start" and record["message"]["role"] == "assistant":
+            # Pi starts an assistant message on the stream's first event.
+            self.trace.append({"type": "first_output", "received_at": now()})
+        elif kind == "message_end" and record["message"]["role"] == "assistant":
+            self.output_tokens = record["message"]["usage"]["output"]
+        elif kind == "turn_end":
+            # One assistant response and the tool calls it started have finished.
+            self.trace.append(
+                {
+                    "type": "model_response",
+                    "outputTokens": self.output_tokens,
+                    "received_at": now(),
+                }
+            )
+            self.output_tokens = None
         elif kind == "tool_execution_end":
             if command := self.running_commands.pop(record["toolCallId"], None):
                 self.commands.append(command)
@@ -180,6 +201,11 @@ class Pi(Terminal):
                 return record.get("data")
         raise click.ClickException(f"Pi did not answer `{command}`")
 
+    def work(self) -> None:
+        """Type the user's own turn and wait for its shell command."""
+        self.say(USER_TURN)
+        self.await_command(SLEEP, "the user's run did not start its command")
+
     def say(self, text: str) -> None:
         """Type one user turn into an idle session."""
         started = self.request("prompt", message=text)
@@ -198,25 +224,34 @@ def steps(pi: Pi, user: User, page: Path) -> None:
     """The steps after setup, as the module docstring lists them."""
     sent: list[str] = []
 
-    def check() -> dict:
+    def check() -> tuple[dict, str]:
+        """What holds between steps, and how the page server titled the last
+        comment's thread."""
         claim = settled(page, pi.session, {name: user.ids[name] for name in sent})
         require(
             wait_is_live(None, pi.session),
             "no watch holds the session's pages between runs",
         )
-        return claim
+        record = pi.page_server_title(page, user.ids[sent[-1]])
+        require(
+            record is not None, f"the page server did not title `{sent[-1]}`'s thread"
+        )
+        return claim, (
+            f"titled in {record['durationMs']} ms by {record['model']}, "
+            f"${record['costUsd']:.5f}"
+        )
 
     started = time.monotonic()
     user.release()
     pi.settle(lambda: True, "the run that answered `release` did not settle")
     sent.append("release")
-    turn = check()["turn"]
-    user.passed("release", started)
+    claim, titled = check()
+    turn = claim["turn"]
+    user.passed("release", started, titled)
 
     started = time.monotonic()
     before = pi.settled
-    pi.say(USER_TURN)
-    pi.await_command(SLEEP, "the user's run did not start its command")
+    pi.work()
     claim = page_claim(page)
     require(
         claim["turn"] != turn and claim["turn_closed"] is None,
@@ -244,12 +279,10 @@ def steps(pi: Pi, user: User, page: Path) -> None:
         "the comment sent during the user's run started another run",
     )
     sent.append("mid-turn")
-    check()
-    user.passed("mid-turn", started)
+    user.passed("mid-turn", started, check()[1])
 
     started = time.monotonic()
-    pi.say(USER_TURN)
-    pi.await_command(SLEEP, "the user's run did not start its command")
+    pi.work()
     pi.escape()
     require(not pi.running, "the run went on after Escape")
     before = pi.settled
@@ -262,12 +295,10 @@ def steps(pi: Pi, user: User, page: Path) -> None:
     user.comment("escape")
     pi.settle(lambda: user.answered("escape"), "`escape` was not answered")
     sent.append("escape")
-    check()
-    user.passed("escape", started)
+    user.passed("escape", started, check()[1])
 
     started = time.monotonic()
-    pi.say(USER_TURN)
-    pi.await_command(SLEEP, "the user's run did not start its command")
+    pi.work()
     interrupted_turn = page_claim(page)["turn"]
     closed_watches = pi.closed_watches
     held = user.comment("held-escape")
@@ -306,8 +337,7 @@ def steps(pi: Pi, user: User, page: Path) -> None:
         "held input did not enter a fresh turn after Escape",
     )
     sent.append("held-escape")
-    check()
-    user.passed("held-escape", started)
+    user.passed("held-escape", started, check()[1])
 
     started = time.monotonic()
     pi.process.stdin.close()
@@ -345,12 +375,14 @@ def answering(browser) -> Iterator[tuple[User, Callable]]:
     executable = PI_PROJECT / "node_modules" / ".bin" / "pi"
 
     def isolated_environment(place: Isolation) -> dict[str, str]:
-        return environment(
+        env = environment(
             XDG_STATE_HOME=str(place.state),
             PI_CODING_AGENT_DIR=str(pi_home(place.root / "pi-home")),
             PI_SKIP_VERSION_CHECK="1",
             PI_TELEMETRY="0",
         )
+        # The page server titles a thread through the `pi` on PATH.
+        return {**env, "PATH": f"{executable.parent}{os.pathsep}{env['PATH']}"}
 
     with isolated("pi", isolated_environment) as place:
         prepare(ROOT, place.state, place.page)

@@ -16,6 +16,7 @@ from interact_support import (
     read_page_data,
     registry_refusal,
 )
+
 from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import data_contracts as data_contracts_model
@@ -26,6 +27,7 @@ from leaf import thread as thread_model
 from leaf.findings import Rejected
 from leaf.registry import storage as registry_storage
 from leaf.registry import validation as registry_validation
+from leaf.structure import SourceDocument
 
 
 @pytest.mark.parametrize(
@@ -548,7 +550,7 @@ def test_a_reply_publishing_saved_edits_checks_its_markup_under_their_registry(
     with pytest.raises(Rejected) as refused:
         thread_model.post_reply(
             page_dir,
-            {"to": opened["id"], "for": opened["id"]},
+            {"parent": opened["id"], "responds": opened["id"]},
             "Both views of one feed.",
             '<lf-test-data id="rows-view" source="shared"></lf-test-data>'
             '<lf-test-other id="other-view" source="shared"></lf-test-other>',
@@ -576,3 +578,55 @@ def test_page_owned_data_contract_can_change_without_changing_source_meaning(
     activation = revisioning_model.activate_source(page_dir)
 
     assert activation.error is None and activation.created
+
+
+def test_widget_data_inputs_accept_typed_outputs_and_refuse_ambiguous_bindings():
+    from leaf.validation.instances import reference_errors, widget_errors
+
+    registry = {
+        "lf-producer": {
+            "type": "object",
+            "properties": {"id": {"type": "string"}},
+            "x-content": "empty",
+            "x-output": {"rows": {"contract": "rows"}},
+        },
+        "lf-consumer": {
+            "type": "object",
+            "properties": {
+                name: {"type": "string"} for name in ("id", "source", "for")
+            },
+            "x-content": "empty",
+            "x-data": {
+                "rows": {
+                    "contract": "rows",
+                    "source": "source",
+                    "reference": "for",
+                    "output": "rows",
+                }
+            },
+            "x-refers": {"for": {}},
+        },
+    }
+
+    def errors(binding):
+        document = SourceDocument(
+            f'<lf-producer id="feed"></lf-producer><lf-consumer id="consumer" {binding}></lf-consumer>'
+        )
+        records = document.lf_elements
+        by_id = {rec["attrs"]["id"]: rec for rec in records}
+        return widget_errors(records, registry) + reference_errors(
+            records, registry, set(by_id), by_id, thread_ids=set()
+        )
+
+    assert errors('for="feed"') == []
+    assert errors('source="external"') == []
+    assert [finding.code for finding in errors('for="feed" source="external"')] == [
+        "ambiguous-data-binding"
+    ]
+    registry["lf-consumer"]["x-data"]["rows"].pop("source")
+    registry["lf-consumer"]["properties"].pop("source")
+    assert errors('for="feed"') == []
+    registry["lf-producer"]["x-output"]["rows"]["contract"] = "other"
+    assert [finding.code for finding in errors('for="feed"')] == ["output-contract"]
+    registry["lf-producer"].pop("x-output")
+    assert [finding.code for finding in errors('for="feed"')] == ["output-contract"]

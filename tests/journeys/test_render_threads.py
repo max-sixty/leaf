@@ -9,9 +9,6 @@ from interact_support import (
     append_carried_log_record,
     append_command,
 )
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf.render_checks import rendered, wait_until_ready
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -26,6 +23,7 @@ from render_harness import (
     RELEASE_FOCUS,
     consume_browser_errors,
     example_media,
+    expect_panel_says,
     http_error_console,
     open_page,
     panel_field,
@@ -36,6 +34,10 @@ from render_harness import (
     told,
     write,
 )
+
+from leaf import cli as cli_model
+from leaf import event_log as events_model
+from leaf.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -57,7 +59,7 @@ from browser.threads import (
 )
 from render_harness import leaf_page
 
-from journeys import detached_threads, expect_panel_says
+from journeys import detached_threads
 
 # The same page with the change taken out of it, for the arm that carries the change
 # in a message instead: the two must differ in which document holds it and in nothing
@@ -115,7 +117,7 @@ def test_a_reply_sent_while_the_agent_streams_moves_nothing_when_accepted(
     expect(streamed.locator(".lf-msg-text")).to_have_text(
         "First words and more of them"
     )
-    expect(page.locator(".lf-fp-head .lf-thread-news:visible")).to_have_count(0)
+    expect(page.locator(".lf-fp-controls .lf-thread-news:visible")).to_have_count(0)
 
 
 def test_a_diff_outlet_keeps_the_shared_attachment_controls(browser, serve):
@@ -126,6 +128,7 @@ def test_a_diff_outlet_keeps_the_shared_attachment_controls(browser, serve):
     page.locator("#pr-exact-patch .lf-diff-file-comment").first.click()
     bar = page.locator('lf-diff .lf-fab-bar[data-lf-presentation="inline"]')
     field = bar.locator("leaf-text")
+    field_width = field.bounding_box()["width"]
     pixels = (example_media() / "051bee487bfb5d13.png").read_bytes()
     paste_image(field, pixels)
     image_open = bar.get_by_role("button", name="View attached image 1", exact=True)
@@ -136,11 +139,11 @@ def test_a_diff_outlet_keeps_the_shared_attachment_controls(browser, serve):
     picture, words = image_open.bounding_box(), field.bounding_box()
     assert picture["y"] + picture["height"] <= words["y"], (picture, words)
     assert remove.bounding_box()["y"] >= bar.bounding_box()["y"]
-    assert abs(words["width"] - bar.bounding_box()["width"]) < 1
-    # The shelf's face, its picture alone with a round removal on its corner, reaches
+    assert words["width"] == pytest.approx(field_width, abs=1)
+    # The shelf's face, its picture alone with a small removal on its corner, reaches
     # the widget's tree too (response.css).
-    expect(image_open).to_have_css("border-radius", "8px")
-    expect(remove).to_have_css("border-radius", "50%")
+    expect(image_open).to_have_css("border-radius", "6px")
+    expect(remove).to_have_css("border-radius", "3px")
     expect(image_open).to_have_css("cursor", "zoom-in")
     assert remove.evaluate("""button => {
       const box = button.getBoundingClientRect();
@@ -175,7 +178,7 @@ def test_a_diff_outlet_keeps_the_shared_attachment_controls(browser, serve):
     expect(bar.locator(".lf-composer-media")).to_be_hidden()
     expect(field).to_be_focused()
     field.press("Tab")
-    expect(bar).to_have_class(re.compile(r"\blf-response-open\b"))
+    expect(bar.locator(".lf-response-options")).to_be_visible()
     page.keyboard.press("Escape")
     expect(field).to_be_focused()
     action = bar.locator(".lf-compose-field > button:visible")
@@ -277,7 +280,7 @@ def test_a_pasted_image_survives_the_reply_draft_and_renders_from_the_message(
     expect(draft_image).to_be_visible()
     expect(draft_image).to_have_attribute("src", "/media/051bee487bfb5d13.png")
     remove = page.locator(".lf-fp-card .lf-composer-media-remove")
-    expect(remove).to_have_css("border-radius", "50%")
+    expect(remove).to_have_css("border-radius", "3px")
     expect(field.get_by_role("button", name="Send", exact=True)).to_have_attribute(
         "aria-disabled", "false"
     )
@@ -393,7 +396,7 @@ def test_an_idle_open_panel_thread_shows_appended_replies(browser, serve, reply_
     reply = append_agent_reply(serve.page_dir, root, words)
     told(page)
     expect(thread.locator(f'.lf-msg[data-event="{reply["id"]}"]')).to_be_visible()
-    expect(page.locator(".lf-fp-head .lf-thread-news:visible")).to_have_count(0)
+    expect(page.locator(".lf-fp-controls .lf-thread-news:visible")).to_have_count(0)
     rendered(page)
     # The view grows to hold the answer, the message keeping its place within it.
     assert message.evaluate(
@@ -730,7 +733,7 @@ def test_the_user_rewrites_their_own_message_where_it_stands(browser, serve):
     page.keyboard.press("i")
     expect(editor).to_be_focused()
     expect(editor).to_have_js_property("value", "Fit the south bracket. Or the east.")
-    message.get_by_role("button", name="Cancel").click()
+    message.get_by_role("button", name="Discard").click()
     expect(message.locator(".lf-msg-editor")).to_have_count(0)
     expect(message.locator(".lf-msg-kept")).to_have_count(0)
     round_trip(page)
@@ -815,20 +818,9 @@ def test_a_region_capture_keeps_scrolled_shadow_pixels_and_its_comment_anchor(
     surface = open_capture_area(page)
     page.mouse.move(left, top)
     page.mouse.down()
-    page.mouse.move(left + 360, top + 170, steps=5)
-    page.mouse.up()
-    selection = surface.locator(".lf-region-selection")
-    expect(selection).to_be_visible()
-    page.keyboard.press("ArrowRight")
-    page.keyboard.press("Shift+ArrowDown")
-    selected = selection.bounding_box()
-    assert selected["x"] == pytest.approx(left + 10)
-    assert selected["y"] == pytest.approx(top)
-    assert selected["width"] == pytest.approx(360)
-    assert selected["height"] == pytest.approx(180)
-
+    page.mouse.move(left + 360, top + 180, steps=5)
     with page.expect_response(lambda response: response.url.endswith("/api/media")):
-        page.keyboard.press("Enter")
+        page.mouse.up()
     expect(surface).to_be_hidden()
     attachment = page.locator(".lf-composer-media-item img")
     expect(attachment).to_be_visible()
@@ -888,9 +880,8 @@ def test_a_region_capture_draws_live_samples_and_survives_removed_links(browser,
     page.mouse.move(
         int(frame["x"] + frame["width"]) - 1, int(frame["y"]) + 260, steps=5
     )
-    page.mouse.up()
     with page.expect_response(lambda response: response.url.endswith("/api/media")):
-        page.keyboard.press("Enter")
+        page.mouse.up()
     expect(surface).to_be_hidden()
     media_url = page.locator(".lf-composer-media-item img").get_attribute("src")
     image = Image.open(

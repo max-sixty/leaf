@@ -24,9 +24,24 @@ from interact_support import (
     queue_board_registry,
     registry_refusal,
 )
+
 from leaf.registry import contract as registry_contract
 from leaf.registry import schema as registry_schema
 from leaf.registry import validation as registry_validation
+
+
+@pytest.mark.parametrize("content", ["markup", "data"])
+def test_patchable_children_can_be_native_markup_but_not_data(page_dir, content):
+    """Revision patching owns authored child trees, not a renderer's parsed input."""
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-tabs"]["x-content"] = content
+    if content == "markup":
+        registry_validation.validate_registry(registry, "test registry")
+    else:
+        finding = registry_refusal(
+            lambda: registry_validation.validate_registry(registry, "test registry")
+        )
+        assert found([finding], "invalid-extensions", "<lf-tabs>", keyword="enum")
 
 
 def test_a_custom_units_identity_rule_keeps_the_details_reference_base():
@@ -183,9 +198,8 @@ def test_the_resolves_attribute_belongs_to_a_widget_with_a_local_obligation(page
 
 
 def test_the_registry_door_demands_restated_of_a_whole_fold_widget(page_dir):
-    """The words gate instructs "add `restated`" when a version rewrites decided
-    words; a widget whose closed schema lacks the attribute would be told to
-    write markup its own element declaration refuses — every rewrite unpublishable."""
+    """A widget that folds user decisions needs an explicit withdrawal route;
+    its closed schema must admit the marker that retracts a decision."""
     registry = json.loads((page_dir / "registry.json").read_text())
     del registry["lf-suggestion"]["properties"]["restated"]
     (page_dir / "registry.json").write_text(json.dumps(registry))
@@ -552,21 +566,21 @@ def test_retirement_verbs_fold_by_the_parent_widget(page_dir, fault):
             "lf-options",
             "x-awaits",
             {"when": {"choose": ["yes"]}},
-            "predicate-flag",
+            "predicate-schema",
             {"key": "x-awaits", "attr": "choose", "value": "yes"},
         ),
         (
             "lf-test-task",
             "x-awaits",
-            {"when": {"status": [True]}},
-            "predicate-not-flag",
+            {"when": {"status": [True]}, "reply": True},
+            None,
             {"key": "x-awaits", "attr": "status", "value": True},
         ),
         (
             "lf-test-task",
             "x-awaits",
             {"when": {"status": ["reviewing"]}},
-            "predicate-enum",
+            "predicate-schema",
             {"key": "x-awaits", "attr": "status", "value": "reviewing"},
         ),
         (
@@ -606,17 +620,15 @@ def test_retirement_verbs_fold_by_the_parent_widget(page_dir, fault):
         ),
     ],
 )
-def test_check_refuses_a_predicate_no_page_could_carry(
+def test_check_holds_predicates_to_presence_or_declared_attribute_values(
     page_dir, tag, key, declaration, code, values
 ):
-    """A predicate naming a value the widget cannot hold applies to nothing silently.
+    """Booleans test attribute presence; strings must be values the widget can hold.
 
-    The widget is simply absent from every consumer, exactly as if the feature had
-    never been wired up.
-    Same for an answering verb the widget does not declare, which would hold its
-    Obligation open for a state no gesture writes."""
+    A predicate naming an impossible value silently omits the widget from every
+    consumer. An undeclared answering verb leaves its obligation open forever."""
     registry = json.loads((page_dir / "registry.json").read_text())
-    if key == "x-awaits":
+    if key == "x-awaits" and not declaration.get("reply"):
         declaration = {
             "value": next(iter(registry[tag]["x-state"])),
             "answered": {"choose": {}},
@@ -626,8 +638,11 @@ def test_check_refuses_a_predicate_no_page_could_carry(
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
     status, findings = check_findings(page_dir)
-    assert status != 0
-    assert found(findings, code, f"<{tag}>", **values), findings
+    if code is None:
+        assert status == 0, findings
+    else:
+        assert status != 0
+        assert found(findings, code, f"<{tag}>", **values), findings
 
 
 def test_a_local_obligation_declares_its_answered_condition(page_dir):

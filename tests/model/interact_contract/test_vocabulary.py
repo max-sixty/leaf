@@ -21,6 +21,7 @@ from interact_support import (
     registry_refusal,
     styled,
 )
+
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import files as files_model
@@ -34,7 +35,6 @@ from leaf import thread as thread_model
 from leaf.registry import contract as registry_contract
 from leaf.registry import page as registry_page
 from leaf.registry import storage as registry_storage
-
 from model.interact_contract import (
     _stateful_page_declaration,
 )
@@ -538,7 +538,7 @@ def test_candidate_vocabulary_can_change_after_frozen_thread_actions(page_dir):
     )
     thread_model.post_reply(
         page_dir,
-        {"to": "c1", "for": "c1"},
+        {"parent": "c1", "responds": "c1"},
         "Use this control.",
         '<lf-thread-local id="thread-choice" value="author">Local</lf-thread-local>',
     )
@@ -602,6 +602,7 @@ def test_revised_state_definitions_keep_original_history_and_admit_new_typed_sta
     page_dir, change
 ):
     from interact_support import state_json
+
     from leaf.projection import page_reading
     from leaf.revision_artifact import read_revision
 

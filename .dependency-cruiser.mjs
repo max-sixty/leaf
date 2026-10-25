@@ -15,7 +15,7 @@
 
 import fs from "node:fs";
 
-const assets = "skills/leaf/assets/";
+const assets = "browser/";
 const runtime = `${assets}runtime/`;
 const overlay = `${runtime}annotation-overlay/`;
 const owners = `^${runtime}`;
@@ -77,6 +77,8 @@ const exactClosures = {
     "keeps.js",
     "keyboard/bindings.js",
     "keyboard/layer-stack.js",
+    // Modal seating carries the existing chrome sheet into a source shadow root.
+    "stylesheets.js",
     "keyboard/register.js",
     "keyboard/scopes.js",
     "keyboard/text-entry.js",
@@ -88,9 +90,10 @@ const exactClosures = {
     "event-kinds.js",
     "names.js",
     "rendering.js",
-    "sample-visibility.js",
+    "frame-visibility.js",
     "repaint.js",
     "shadow.js",
+    "arrivals.js",
   ],
 };
 

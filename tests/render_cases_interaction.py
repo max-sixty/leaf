@@ -6,12 +6,14 @@ from datetime import datetime, timedelta
 
 from browser_sources import browser_source
 from interact_support import add_test_widget, append_carried_log_record, append_command
-from leaf.schema import ELEMENT_ID
 from render_harness import (
+    CORPUS_SOURCES,
     EXAMPLES,
     TOKEN,
     leaf_page,
 )
+
+from leaf.schema import ELEMENT_ID
 
 # A page with an outline: three headings, and passages under each to hang threads on.
 # LONG_PAGE has one heading and sixty paragraphs, which cannot tell an order that
@@ -317,9 +319,9 @@ EXHIBIT_EXTENT = """
 }
 """
 
-SAMPLE_EXAMPLES = [p for p in EXAMPLES if "<lf-sample" in p.read_text()]
+SAMPLE_EXAMPLES = [p for p in CORPUS_SOURCES if "<lf-sample" in p.read_text()]
 assert SAMPLE_EXAMPLES, (
-    "no shipped example holds a sample — the sweep below would drive the fixture "
+    "no authored fixture holds a sample — the sweep below would drive the fixture "
     "page alone, and the rule it holds is one the corpus is the whole test of"
 )
 TABLE_REPLY = """The ceilings, unchanged:
@@ -645,12 +647,12 @@ OBLIGATION_IN_A_CARD_PAGE = leaf_page(
 {"".join(f"<p id='ac-tail-{i}'>Later note {i}. " + "Background. " * 14 + "</p>" for i in range(6))}
 """,
 )
-# The decision the walk is standing on. One decision wears the mark, on however many boxes it
+# The decision at the current location. One decision wears the mark, on however many boxes it
 # shows through — every shipped widget draws one, and a wrapper a page styles boxless
 # hangs it on the boxes its contents make — so what says the walk is in one place is
 # the outermost page element wearing it, never the count of elements that do. Scoped to
 # main because the On panel's row mirrors the same fact in the chrome.
-STANDING_OBLIGATION = (
+CURRENT_OBLIGATION = (
     "main [data-lf-obligation]:not([data-lf-obligation] [data-lf-obligation])"
 )
 # The shipped board measures its grip from a live box. Author it into the page and
@@ -793,9 +795,7 @@ LIVE_V2 = (
     )
     .replace(
         "</head>",
-        '<meta name="lf-review" content="sign-off">\n'
-        "<style>#live-reading { --live-cut: 2; }</style>\n"
-        "</head>",
+        "<style>#live-reading { --live-cut: 2; }</style>\n</head>",
     )
 )
 LIVE_V3 = (
@@ -811,7 +811,6 @@ LIVE_V3 = (
     .replace(
         '<h1 id="live-title">Live second</h1>', '<h1 id="live-title">Live third</h1>'
     )
-    .replace('<meta name="lf-review" content="sign-off">\n', "")
     .replace("<style>#live-reading { --live-cut: 2; }</style>\n", "")
 )
 
@@ -1119,7 +1118,7 @@ ACTIONS_IN_FORCE = [
     (
         "ab-visual",
         "review",
-        {"case": "status-column", "disposition": "looks-right"},
+        {"case": "status-column", "approved": True},
     ),
     (
         "ab-card",

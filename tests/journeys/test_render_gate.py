@@ -7,16 +7,14 @@ import pytest
 from interact_support import (
     add_test_widget,
 )
-from leaf import render_checks as render_checks_model
-from leaf.findings import Finding
-from leaf.render_checks import wait_until_ready
-from leaf.render_gate import version as render_gate_model
+from leaf_dev.example_data import named_source
 from playwright.sync_api import expect
 from render_cases_interaction import (
     CHANGE_SHAPES_PAGE,
 )
 from render_cases_layout import (
     BARE_IDENTIFIERS_PAGE,
+    CUT_CONTENT,
     DRAWING_CONTROL_LAYER,
     DRAWING_CONTROL_WIDGETS,
     IDENTIFIERS_IN_CODE_PAGE,
@@ -39,13 +37,13 @@ from render_cases_widgets import (
     TYPED_PARTS_PAGE,
 )
 from render_harness import (
-    CORPUS_PAGE,
     CORPUS_SOURCES,
     EXAMPLE_PACKAGES,
     EXAMPLES,
     LONG_PAGE,
     at_rest,
     leaf_page,
+    margins_laid_out,
     names,
     open_page,
     panel_settled,
@@ -57,8 +55,17 @@ from render_harness import (
     take_browser_errors,
 )
 
+from leaf import render_checks as render_checks_model
+from leaf.files import latest_revision
+from leaf.findings import Finding
+from leaf.render_checks import rendered, wait_until_ready
+from leaf.render_gate import version as render_gate_model
+from leaf.render_gate.preview import preview_server
+from leaf.revision_artifact import read_revision
+
 pytestmark = pytest.mark.shifts_unsurveyed
 
+from browser.margin.test_entries import _refreshes_restate_no_margin_name
 from browser.test_render_gate import (
     BOUNDED_WORKSPACE_PAGE,
     COMPARE_NOTE_PAGE,
@@ -82,26 +89,45 @@ from browser.test_render_gate import (
 )
 
 
-def test_the_layer_holds_its_whole_page_rules_on_the_corpus(browser, serve):
+def test_the_layer_holds_its_whole_page_rules_on_the_corpus(browser, serve, subtests):
     """The corpus is the page that holds every widget and idiom at once, so the layer's
-    whole-page rules are read on it, on one page, in turn: the adopted sheet decides
-    nothing by standing last (`adopted_sheet_findings`), every aim takes a finger
-    (`short_aim_findings`), and paper takes the press off everything it cannot press
-    (`pressable_paper_findings`). The touch emulation and print media are each put back
-    before the next reading.
+    whole-page rules are read on it, on one page, in turn.
 
-    First, composition preserves markup, not another page's durable versions: the
-    gallery's durable-embedding scenario stays hidden and unloaded in the corpus,
+    First, at 1440px, where the corpus draws the widest margin the examples draw, most
+    of it withheld, margin passes that change nothing write nothing and cost the
+    browser work bounded by their count, not by the rows they place. The refresh count
+    is read first, on the page as it presents: on CI's runner it read 73 layouts for
+    five refreshes when it followed the other two passes.
+
+    Back at 1200px, composition preserves markup, not another page's durable versions:
+    the gallery's durable-embedding scenario stays hidden and unloaded in the corpus,
     which has no version 2 to embed. The corpus then goes back to its first tab, where
-    the aims are measured."""
+    the adopted sheet decides nothing by standing last (`adopted_sheet_findings`),
+    every aim takes a finger (`short_aim_findings`), and paper takes the press off
+    everything it cannot press (`pressable_paper_findings`). The touch emulation and
+    print media are each put back before the next reading."""
     # The corpus's sort film otherwise repaints SVG values while the sheets move.
     page = open_page(
         browser,
-        serve(CORPUS_PAGE),
+        serve(named_source("corpus")),
         context=browser.new_context(
             viewport={"width": 1200, "height": 900}, reduced_motion="reduce"
         ),
     )
+    resized(page, 1440, 900)
+    margins_laid_out(page)
+    # The placement event precedes deferred Reach and chrome work. A measurement
+    # starting here used to include whatever that previous invalidation still owed.
+    rendered(page)
+    # Each a subtest, so a failing margin reading leaves the later readings to report.
+    with subtests.test(reading="margin refresh count"):
+        _refreshes_force_layout_by_refresh_count(page)
+    with subtests.test(reading="margin names"):
+        _refreshes_restate_no_margin_name(page, {".lf-margin-cluster": 15})
+    with subtests.test(reading="margin passes"):
+        _layout_passes_batch_without_refolding_controls(page)
+    resized(page, 1200, 900)
+
     page.locator('[role="tab"][aria-controls="corpus-feature-gallery"]').click()
     page.locator('[role="tab"][aria-controls="bg-view-page"]').click()
     expect(page.locator("#bg-durable-embedding")).to_have_attribute("hidden", "")
@@ -118,6 +144,108 @@ def test_the_layer_holds_its_whole_page_rules_on_the_corpus(browser, serve):
     assert failed == {}, "\n\n".join(
         f"{reading}:\n" + "\n".join(found) for reading, found in failed.items()
     )
+
+
+def _layout_passes_batch_without_refolding_controls(page):
+    """Layout work is bounded by phases, not the number of contributed controls.
+
+    The corpus used to force 26 layouts and 44 style recalculations per unchanged
+    pass (about 45 ms in local Chrome). Count the browser's work rather than time;
+    the contributor's primary/overflow state must also remain untouched.
+    """
+    # A placement delivery precedes deferred Reach and chrome paints. Finish the
+    # warmup invalidation before recording the work of the five passes below.
+    margins_laid_out(page)
+    rendered(page)
+    session = page.context.new_cdp_session(page)
+    session.send("Performance.enable")
+    before = {
+        metric["name"]: metric["value"]
+        for metric in session.send("Performance.getMetrics")["metrics"]
+    }
+    page.evaluate(
+        """async () => {
+          const {layoutChanged} = await window.__lfWidgetApi();
+          const rows = [...document.querySelectorAll('.lf-margin-cluster')];
+          const boxes = () => rows.map(row => {
+            const {x, y, width, height} = row.getBoundingClientRect();
+            return {x, y, width, height};
+          });
+          const before = boxes();
+          // Collected from the callback rather than by `takeRecords` alone: letting a
+          // frame settle passes a microtask checkpoint, which delivers the records to
+          // the callback and empties the queue a bare `takeRecords` would read.
+          const seen = [];
+          const observer = new MutationObserver(list => seen.push(...list));
+          observer.observe(document.body, {subtree: true, attributes: true,
+            attributeFilter: ['data-lf-margin-entry-primary', 'data-lf-margin-entry-overflow']});
+          window.__lfFinishMarginPasses = () => {
+            const mutations = seen.length + observer.takeRecords().length;
+            observer.disconnect();
+            delete window.__lfFinishMarginPasses;
+            return {before, after: boxes(), mutations};
+          };
+          for (let i = 0; i < 5; i++) await new Promise(done => {
+            document.addEventListener('lf-margin-layout', done, {once: true});
+            layoutChanged(document.body);
+          });
+        }"""
+    )
+    rendered(page)
+    reading = page.evaluate("window.__lfFinishMarginPasses()")
+    after = {
+        metric["name"]: metric["value"]
+        for metric in session.send("Performance.getMetrics")["metrics"]
+    }
+    session.detach()
+    assert reading["mutations"] == 0
+    assert reading["after"] == reading["before"]
+    work = {
+        name: after[name] - before[name] for name in ("LayoutCount", "RecalcStyleCount")
+    }
+    # The current corpus takes 32 style recalculations across five passes with
+    # playback stopped; this bound still excludes work proportional to its rows.
+    assert all(count <= 35 for count in work.values()), work
+
+
+def _refreshes_force_layout_by_refresh_count(page):
+    """A viewport refresh cannot force layout once per Page Map location."""
+    session = page.context.new_cdp_session(page)
+    session.send("Performance.enable")
+    before = {
+        metric["name"]: metric["value"]
+        for metric in session.send("Performance.getMetrics")["metrics"]
+    }
+    refreshes = 5
+    page.evaluate(
+        """async refreshes => {
+          const frame = () => new Promise(resolve => requestAnimationFrame(resolve));
+          for (let i = 0; i < refreshes; i++) {
+            window.dispatchEvent(new Event('resize'));
+            await frame();
+          }
+        }""",
+        refreshes,
+    )
+    # A frame callback is before ResizeObserver delivery and the rereads it queues.
+    # Include the complete work caused by these refreshes before reading the count.
+    rendered(page)
+    after = {
+        metric["name"]: metric["value"]
+        for metric in session.send("Performance.getMetrics")["metrics"]
+    }
+    session.detach()
+    work = {
+        name: after[name] - before[name]
+        for name in (
+            "LayoutCount",
+            "RecalcStyleCount",
+        )
+    }
+    # These bounds include the browser's viewport bookkeeping while refusing work that
+    # scales with every Page Map location.
+    assert work["LayoutCount"] <= refreshes * 8, work
+    assert work["RecalcStyleCount"] <= refreshes * 30, work
 
 
 def test_a_drawing_fitted_until_its_labels_are_unreadable_gets_advice_and_still_passes(
@@ -697,7 +825,8 @@ def test_page_fixture_renders(browser, serve, source):
     still_page of it comes back from every journey as it was.
 
     The gate (render_gate.version.render_version) is the pass `page check --render`
-    runs on agent-authored pages, so this sweep also proves the gate a user's page
+    runs on agent-authored pages, served as that command serves it, from a read-only
+    capture (`preview_server`), so this sweep also proves the gate a user's page
     goes through: in both color schemes, no fail-soft error box, no console warning or
     error, every visible widget occupies real space, no sideways scroll, no unmarkable
     elements or undeclared text nodes under widget chrome. A widget that upgrades into
@@ -732,7 +861,11 @@ def test_page_fixture_renders(browser, serve, source):
     starting narrow needs a page that first painted narrow, so that journey gets a
     page of its own."""
     url = serve(source)
-    gate = render_gate_model.render_version(browser, url).failures
+    revision = latest_revision(serve.page_dir)
+    with preview_server(
+        serve.page_dir, read_revision(serve.page_dir, revision).document, revision
+    ) as preview:
+        gate = render_gate_model.render_version(browser, preview).failures
     # Reduced motion, which the still_page asks for, also holds the sort film still
     # while the scroll pass measures its writes.
     page = still_page(browser, url, width=RESIZE_PATH[0])
@@ -771,6 +904,24 @@ def test_page_fixture_renders(browser, serve, source):
     assert failed == {}, "\n\n".join(
         f"{journey}:\n" + "\n".join(found) for journey, found in failed.items()
     )
+
+
+@pytest.mark.parametrize("source", CORPUS_SOURCES, ids=lambda p: p.stem)
+def test_page_fixture_opens_without_firefox_console_warnings(
+    firefox_browser, serve, source
+):
+    """Firefox says in its console what Chrome never does, such as a `document.write`
+    that made it reparse the document, layout forced before the page loaded, or a
+    response blocked as opaque. Every page of the corpus, each live sample loaded,
+    leaves the console as `firefox_browser` requires: empty."""
+    page = open_page(firefox_browser, serve(source))
+    for sample in page.locator("lf-sample[data-lf-sample-live]").all():
+        sample.scroll_into_view_if_needed()
+        sample.evaluate(
+            """sample => Promise.race([sample.ready, new Promise((_, reject) =>
+              setTimeout(() => reject(new Error(`${sample.id} never got ready: ${
+                sample.textContent.trim().slice(0, 80)}`)), 60_000))])"""
+        )
 
 
 def test_a_table_too_wide_to_wrap_scrolls_inside_the_column(browser, serve):
@@ -1089,12 +1240,10 @@ def test_the_render_gate_reports_a_table_squeezed_by_what_cannot_break(browser, 
     assert len(squeezed) + len(owners) + len(phone) == len(advice), advice
 
 
-def test_the_runtime_holds_a_scroller_the_page_wrote(browser, serve):
-    """The table above is the theme's box. A page writes `overflow-x: auto` on a box
-    of its own, and a package on a widget's, and the word escapes a static one of
-    those the same way. The sweep that gives every scrolling box its tab stop marks
-    each static one (reachScrollers), and one theme rule positions the mark — read
-    from the composed box, so the page was asked to declare nothing.
+def test_the_runtime_holds_a_declared_scroll_surface(browser, serve):
+    """The table above is the theme's box. A page declares a scrolling surface
+    and positions a word against it. The shared class holds positioned descendants,
+    and reach gives the surface a keyboard stop when it overflows.
 
     Asked three ways. The containing block itself, through offsetParent, which for
     an out-of-flow box is the positioned ancestor it is laid out against: the
@@ -1102,18 +1251,15 @@ def test_the_runtime_holds_a_scroller_the_page_wrote(browser, serve):
     distance from its row's end edge before and after the box scrolls, which a word
     laid out against the page keeps only while the row stands still — at rest that
     word sits at the row's end too, on the page's own account. And the two boxes the
-    mark must leave and must reach: a scroller the page positioned itself, which
-    holds its own and takes no mark, and a diff's lines, which scroll in a declared
+    surface must cover: a scroller the page positioned itself and a diff's lines
+    in a declared
     shadow tree where a document rule does not go."""
     page = open_page(browser, serve(LOOSE_SCROLLER_PAGE))
     note = plant_quiet_word(page, "#far", "wider than the box")
     measured = note.evaluate(
         """(n) => {
         const box = document.querySelector('#loose');
-        const mark = (el) => ({
-            marked: el.hasAttribute('data-lf-holds'),
-            position: getComputedStyle(el).position,
-        });
+        const mark = (el) => ({ position: getComputedStyle(el).position });
         return {
             against: n.offsetParent.id || n.offsetParent.tagName.toLowerCase(),
             scrolls: box.scrollWidth - box.clientWidth,
@@ -1139,11 +1285,8 @@ def test_the_runtime_holds_a_scroller_the_page_wrote(browser, serve):
     assert measured["against"] == "loose", (
         f"the word is laid out against {measured['against']}, not the box scrolling it"
     )
-    assert measured["loose"] == {"marked": True, "position": "relative"}, measured
-    assert measured["held"] == {
-        "marked": False,
-        "position": "relative",
-    }, f"a box the page positioned holds its own and takes no mark: {measured}"
+    assert measured["loose"] == {"position": "relative"}, measured
+    assert measured["held"] == {"position": "relative"}, measured
     assert (
         measured["rest"]["sideways"] == 0 and measured["scrolled"]["sideways"] == 0
     ), f"the page grew sideways reaching for the word: {measured}"
@@ -1163,16 +1306,15 @@ def test_the_runtime_holds_a_scroller_the_page_wrote(browser, serve):
     # from reading as a clean sweep of nothing.
     diffed = page.evaluate(
         """() => [...document.querySelectorAll('lf-diff')]
-            .map((d) => d.shadowRoot.querySelector('pre'))
+            .map((d) => d.shadowRoot.querySelector('.lf-text-scroller'))
             .filter(Boolean)
-            .map((pre) => ({ scrolls: getComputedStyle(pre).overflowX,
-                             marked: pre.hasAttribute('data-lf-holds'),
-                             position: getComputedStyle(pre).position }))"""
+            .map((box) => ({ scrolls: getComputedStyle(box).overflowX,
+                             position: getComputedStyle(box).position }))"""
     )
     assert diffed, "no diff drew its lines here, so nothing stands in a shadow tree"
-    assert all(
-        d == {"scrolls": "auto", "marked": True, "position": "relative"} for d in diffed
-    ), f"the mark did not reach the diff's lines: {diffed}"
+    assert all(d == {"scrolls": "auto", "position": "relative"} for d in diffed), (
+        f"the scroll surface did not contain the diff's lines: {diffed}"
+    )
 
 
 def test_the_render_gate_measures_sideways_room_at_the_root_scrollport(browser, serve):
@@ -1222,13 +1364,22 @@ def test_the_render_gate_reports_a_box_its_container_clips_away(browser, serve):
 
     A choose group clips its own box too, so a note pulled into the page's margin from
     inside one is painted nowhere. Every other reading calls that well — the column
-    check excuses a margin resident, checkVisibility() is true of a clipped box so
+    check excuses margin content, checkVisibility() is true of a clipped box so
     screen and print agree, and the copy, which withholds the clip, shows the words the
     live page dropped — so the user is the only party who loses them. A section, a tab
     panel and a disclosure all pass a note through to the margin, so the gate names the
-    box that doesn't, at handover, to the one party who can still move it."""
+    box that doesn't, at handover, to the one party who can still move it.
+
+    A box's own content has no box to lose, so the box answers for it, down as well as
+    across: a log capped by a max-height, a short box of paragraphs and a label that
+    does not wrap each cut off what they hold. A bounded log scrolls, a closed
+    disclosure draws nothing, a line clamp and an ellipsis mark their cut, a tight line
+    box overhangs by less than a line, and words clipped to a pixel for whoever is
+    listening show nothing to cut from, so none of those is named."""
     url = serve(
-        OVER_ITS_CONTAINER.replace("</main>", _added(SIDENOTE_IN_A_WIDGET) + "</main>"),
+        OVER_ITS_CONTAINER.replace(
+            "</main>", _added(SIDENOTE_IN_A_WIDGET) + CUT_CONTENT + "</main>"
+        ),
         layer_registry=DRAWING_CONTROL_LAYER,
         layer_widgets=DRAWING_CONTROL_WIDGETS,
     )
@@ -1295,6 +1446,30 @@ def test_the_render_gate_reports_a_box_its_container_clips_away(browser, serve):
         f"the drawing declaration concealed a lost control: {failures}"
     )
     assert "clean-drawing-control" not in controls, failures
+    cut = {
+        f.at: (f.values["down"], f.values["across"])
+        for f in failures
+        if f.code == "clipped-content"
+    }
+    assert cut.get("<pre id=capped-log>", (0, 0))[0] > 500, (
+        f"a log cut off at a max-height went out with the handover: {failures}"
+    )
+    assert cut.get("<div id=short-box>", (0, 0))[0] > 0, failures
+    assert cut.get("<div id=unwrapped>", (0, 0))[1] > 0, (
+        f"words with no box of their own ran out of their box unnamed: {failures}"
+    )
+    quiet = {
+        "<div id=clipping>",
+        "<div id=telling>",
+        "<pre id=bounded-log>",
+        "<pre id=shut-capped>",
+        "<p id=clamped>",
+        "<p id=tight-line>",
+        "<span id=listening>",
+    }
+    assert not quiet & cut.keys(), (
+        f"a box that cuts on purpose, or one a lost box already names: {failures}"
+    )
 
 
 def test_a_page_hands_its_note_strip_back_when_the_panel_takes_the_room(browser, serve):

@@ -14,18 +14,21 @@ import pytest
 from interact_support import (
     PAGE,
     STATED_TIMEOUT,
+    activity_reading,
     append_command,
+    owed_answers,
+    page_state,
     publish,
     running_http_server,
 )
 from interact_support import append_carried_log_record as append_event
+
 from leaf.codex import delivery_records
 from leaf.delivery import current_responses
 from leaf.event_log import read_events
 from leaf.hosting import LeafHTTPServer
-from leaf.service import PageTransaction
+from leaf.service import PageTransaction, read_stream
 from leaf.state import session_record
-
 from process.website_server import (
     accept_in_turn,
     get,
@@ -90,7 +93,7 @@ def test_a_turn_that_completes_without_an_answer_is_still_receipted(
     # The turn ended by itself, so there is nothing to stop.
     assert interrupts == []
     assert website_server.page_claim(page_dir)["turn_closed"] is not None
-    assert website_server.full_state(page_dir, events)["activity"]["obligations"] == []
+    assert owed_answers(page_dir) == []
 
 
 def _page_pick(page_dir: Path) -> dict:
@@ -173,8 +176,8 @@ def test_a_failed_turn_hands_every_kind_of_owed_move_back(
     hosted_follower(harness, page_dir, prepared, Socket()).follow()
 
     events = read_events(page_dir)
-    state = website_server.full_state(page_dir, events)
-    assert state["activity"]["obligations"] == []
+    state = page_state(page_dir)
+    assert owed_answers(page_dir) == []
     assert website_server.next_unaccepted_agent_event(page_dir) is None
     returned = [
         workflow for workflow in state["workflows"] if workflow["input"] == move["id"]
@@ -191,7 +194,15 @@ def test_a_failed_turn_hands_every_kind_of_owed_move_back(
         assert (reply["responds"], reply["failure"]) == (move["id"], "turn_failed")
     [workflow] = returned
     assert workflow["condition"] == {"kind": "failed", "operation": "response"}
-    assert (workflow["next_actor"], workflow["answer"]) == ("user", None)
+    [record] = [
+        item
+        for item in state["browser"]["views"][str(state["active"]["revision"])][
+            "obligations"
+        ]
+        if item["id"] == workflow["obligation"]
+    ]
+    assert record["next_actor"] == "user"
+    assert owed_answers(page_dir) == []
 
 
 def test_a_harness_failure_receipt_answers_a_gesture_on_its_thread(page_dir):
@@ -294,7 +305,7 @@ def test_an_unanswered_widget_gesture_is_receipted_on_its_thread(page_dir, monke
         },
     )
     with website_server.PageTransaction(page_dir) as page:
-        page.set_status("idle", "")
+        page.set_status("idle")
     harness = website_server.WebsiteCodexHarness("codex")
     monkeypatch.setattr(
         harness, "_send", lambda *a, **k: {"turn": {"id": "app-server-turn"}}
@@ -314,7 +325,7 @@ def test_an_unanswered_widget_gesture_is_receipted_on_its_thread(page_dir, monke
         type("Process", (), {"pid": os.getpid()})(),
     )
     assert follow.reply_target is not None
-    assert follow.reply_target["reply_to"] != follow.reply_target["responds"]
+    assert follow.reply_target["parent"] != follow.reply_target["responds"]
 
     monkeypatch.setattr(harness, "_interrupt", lambda *args, **kwargs: None)
     follow.follow()
@@ -407,10 +418,7 @@ def test_a_native_final_message_never_becomes_a_leaf_reply(page_dir):
     assert claim["turn"] == "app-server-turn"
     assert claim["turn_closed"] is not None
     assert [
-        obligation["input"]
-        for obligation in website_server.full_state(page_dir, events)["activity"][
-            "obligations"
-        ]
+        obligation["input"] for obligation in activity_reading(page_dir)["obligations"]
     ] == [comment["id"]]
 
 
@@ -527,7 +535,7 @@ def test_a_rejected_streamed_reply_starts_a_website_correction(
 
     claim = website_server.page_claim(page_dir)
     assert claim["turn_closed"] is not None
-    reply = website_server.PageTransaction(page_dir).status["stream"]["reply"]
+    reply = read_stream(page_dir)["reply"]
     assert (reply["state"], reply["text"], reply["settles"]) == (
         "failed",
         "Done.",

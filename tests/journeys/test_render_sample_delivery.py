@@ -7,8 +7,6 @@ from uuid import uuid4
 
 import pytest
 from interact_support import wait_for
-from leaf import interaction_log as interaction_model
-from leaf.render_checks import HANDOVER_DEADLINE_MS
 from playwright.sync_api import expect
 from render_harness import (
     PANEL,
@@ -23,6 +21,9 @@ from render_harness import (
     take_browser_errors,
     write,
 )
+
+from leaf import interaction_log as interaction_model
+from leaf.render_checks import HANDOVER_DEADLINE_MS
 
 
 @pytest.mark.parametrize("surface", ["panel", "page"])
@@ -359,15 +360,15 @@ def test_reload_swap_retires_pending_sample_faults(browser, serve):
     sample.evaluate("async sample => await sample.ready")
     child = sample.locator("iframe").element_handle().content_frame()
     document_url = child.url
-    icons = []
-    icon_pattern = re.compile(
-        re.escape(urlsplit(document_url).path) + r"revisions/[^/]+/icon.svg$"
+    stylesheets = []
+    stylesheet_pattern = re.compile(
+        re.escape(urlsplit(document_url).path) + r"revisions/[^/]+/[^/]+/theme.css$"
     )
-    page.route(icon_pattern, lambda route: icons.append(route))
+    page.route(stylesheet_pattern, lambda route: stylesheets.append(route))
     with child.expect_navigation(wait_until="commit"):
         child.evaluate("location.reload()")
-    holding(page, icons, 1, "the middle document's pending icon fetch")
-    page.unroute(icon_pattern)
+    holding(page, stylesheets, 1, "the middle document's pending stylesheet")
+    page.unroute(stylesheet_pattern)
     destination = []
     page.route(document_url, lambda route: destination.append(route))
     child.evaluate("location.reload()")

@@ -6,11 +6,6 @@ import json
 
 from click.testing import CliRunner
 from interact_support import append_carried_log_record, record_claim
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf import leases as leases_model
-from leaf import service as service_model
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import (
     PANEL_PAGE,
@@ -27,14 +22,21 @@ from render_harness import (
     page_comment,
     panel_field,
     panel_settled,
+    panel_view,
     scroll_settled,
     write,
 )
 
+from leaf import cli as cli_model
+from leaf import data as data_model
+from leaf import leases as leases_model
+from leaf import service as service_model
+from leaf.render_checks import rendered
+
 # The open thread's reply, the editor standing in the panel's field, and the thread's
-# held news, which the panel stands in its view's head.
+# held news, which the panel stands among its view's controls.
 PANEL_REPLY = '.lf-fp-field leaf-text[name="reply"]'
-PANEL_NEWS = ".lf-fp-head .lf-thread-news"
+PANEL_NEWS = ".lf-fp-controls .lf-thread-news"
 
 
 def open_threads(page):
@@ -42,7 +44,7 @@ def open_threads(page):
     stands while the counts step aside for words being typed, else by its count."""
     if page.locator(PANEL).get_attribute("data-open") == "threads":
         return
-    back = page.locator(".lf-fp-head .lf-fp-back", has_text="Threads")
+    back = page.locator(".lf-fp-controls .lf-fp-back", has_text="Threads")
     (back if back.count() else page.locator(".lf-fp-threads")).click()
     panel_settled(page, view="threads")
 
@@ -60,9 +62,7 @@ def thread_row(page, key):
         key,
     )
     open_threads(page)
-    return page.locator(
-        f'.lf-fp-view[data-view="threads"] .lf-fp-thread[data-key="{key}"]'
-    )
+    return page.locator(f'{panel_view("threads")} .lf-fp-thread[data-key="{key}"]')
 
 
 def open_panel_thread(page, thread_id):
@@ -154,7 +154,7 @@ def claim_for_codex(page_dir, request):
     assert lease
     request.addfinalizer(lease.close)
     with service_model.PageTransaction(page_dir) as transaction:
-        transaction.set_status("waiting", "User feedback")
+        transaction.set_status("waiting")
 
 
 STREAM_ATTEMPT = service_model.delivery_reply_attempt("delivery-1")
@@ -167,8 +167,7 @@ def stream_reply(page_dir, root, text):
         transaction.set_stream_reply(
             "codex-thread",
             "leaf-turn",
-            root,
-            root,
+            {"parent": root, "responds": root},
             STREAM_ATTEMPT,
             "item-1" if text else None,
             text,
@@ -514,7 +513,7 @@ def clear_of_the_panel(page, locator):
 
 def pressed_send_surface(browser, serve, surface):
     """A page with words typed into `surface`'s box, and that box, the control that
-    submits it, where the user stands once it has sent, and the reply box a follow-up
+    submits it, the current location once it has sent, and the reply box a follow-up
     is written in: the same box for one that stays to take more, else None."""
     if surface in {"pause", "handoff"}:
         url, host = seated_page(serve, "task" if surface == "pause" else "verdict")
@@ -663,7 +662,8 @@ customElements.define('lf-capture-art', class extends HTMLElement {
 
 def open_capture_area(page, *, touch=False):
     """Enter the screenshot tool through its ordinary page-control route: the leaf's
-    menu, Annotations, Capture area."""
+    menu, Annotations, Capture area, and wait for it to dim the page. It opens with no
+    area drawn, inviting a drag."""
     menu = page.locator(".lf-fp-menu")
     for press in (
         page.locator(".lf-fp-leaf"),
@@ -676,4 +676,5 @@ def open_capture_area(page, *, touch=False):
             press.click()
     surface = page.get_by_role("region", name="Capture area", exact=True)
     expect(surface).to_be_visible()
+    expect(surface.locator(".lf-region-selection")).to_be_hidden()
     return surface

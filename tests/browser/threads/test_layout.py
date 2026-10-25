@@ -7,8 +7,6 @@ import re
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf import thread as thread_model
-from leaf.render_checks import one_frame, rendered
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, live_url, panel_comment
 from render_harness import (
@@ -33,6 +31,8 @@ from browser.threads import (
     open_panel_thread,
     paste_image,
 )
+from leaf import thread as thread_model
+from leaf.render_checks import one_frame, rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -78,7 +78,7 @@ def test_thread_actions_share_consistently_sized_message_headers(
               const box = selector => card.querySelector(selector).getBoundingClientRect();
               const title = card.querySelector('.lf-thread-head')?.getBoundingClientRect();
               const head = box('.lf-msg-head');
-              // The panel's Resolve stands in its view's head, off the messages' rows.
+              // The panel's Resolve stands among its view's controls, off the messages' rows.
               const action = card.querySelector('.lf-resolve')?.getBoundingClientRect()
                 ?? null;
               const body = box('.lf-msg-body');
@@ -573,9 +573,15 @@ CARD_TOP_AUTHORS = """transcript => {
   };
   const named = messages.find(shown);
   const head = named?.querySelector(':scope > .lf-msg-head').getBoundingClientRect();
-  const under = document.elementFromPoint(x, (head?.bottom ?? box.top) + 6)
+  const sampleY = (head?.bottom ?? box.top) + 6;
+  const under = document.elementFromPoint(x, sampleY)
     ?.closest('.lf-msg');
+  const next = messages[messages.indexOf(named) + 1];
+  const endGap = named && next &&
+    named.getBoundingClientRect().bottom <= head.bottom + 0.5 &&
+    next.getBoundingClientRect().top > sampleY && shown(next);
   return {named: messages.indexOf(named), under: messages.indexOf(under),
+          endGap,
           row: head ? head.top - box.top < head.height : false,
           scrolled: transcript.scrollTop > 0};
 }"""
@@ -585,7 +591,8 @@ def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser,
     """A card opened on a long thread shows its latest message, as a walk to it in the
     Threads list does, and its top row names whoever wrote the words under it. The
     card pinned the root's name beside its actions, so it opened at the top to keep
-    that name true, leaving the newest turn out of view."""
+    that name true, leaving the newest turn out of view. A continuation fades the
+    words below the moving name without fading the next message's author."""
     url = serve(PANEL_PAGE)
     root = panel_comment(
         serve.page_dir, "Opening turn. " + LANDING_WORDS, {"section": "how-store"}
@@ -617,7 +624,48 @@ def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser,
     assert latest["y"] + latest["height"] <= shown["y"] + shown["height"] + 1
     landed = transcript.evaluate(CARD_TOP_AUTHORS)
     assert landed["scrolled"] and landed["named"] > 0 and landed["row"], landed
-    assert landed["under"] == landed["named"], landed
+    # At the scroll limit a sliver of the previous author can precede a clear gap,
+    # with the next turn's own visible name below it (the known edge from #1763).
+    assert landed["under"] == landed["named"] or (
+        landed["under"] == -1 and landed["endGap"]
+    ), landed
+    assert not transcript.evaluate("box => box.hasAttribute('data-lf-more-below')")
+
+    def continuation():
+        """Read the fade's actual painted box, including its grid positioning."""
+        reading = transcript.evaluate(
+            """box => {
+              const style = getComputedStyle(box.parentElement, '::after');
+              return {height: parseFloat(style.height), display: style.display,
+                paint: style.backgroundImage,
+                heads: [...box.querySelectorAll('.lf-msg-head')]
+                  .map(head => head.getBoundingClientRect().toJSON()),
+                top: box.getBoundingClientRect().top + box.clientTop
+                  + parseFloat(getComputedStyle(box).paddingTop)};
+            }"""
+        )
+        cdp = page.context.new_cdp_session(page)
+        try:
+            card = cdp.send(
+                "Runtime.evaluate",
+                {
+                    "expression": f"document.querySelector({json.dumps(selector)}).parentElement"
+                },
+            )["result"]["objectId"]
+            described = cdp.send("DOM.describeNode", {"objectId": card})["node"]
+            pseudo = next(
+                node
+                for node in described["pseudoElements"]
+                if node["pseudoType"] == "after"
+            )
+            border = cdp.send(
+                "DOM.getBoxModel", {"backendNodeId": pseudo["backendNodeId"]}
+            )["model"]["border"]
+            reading.update(fade_top=min(border[1::2]), fade_bottom=max(border[1::2]))
+        finally:
+            cdp.detach()
+        return reading
+
     # Reading back up, the row names each message whose words stand under it.
     for index in (3, 2, 1, 0):
         transcript.evaluate(
@@ -635,30 +683,58 @@ def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser,
         rendered(page)
         reading = transcript.evaluate(CARD_TOP_AUTHORS)
         assert reading["named"] == reading["under"] == index and reading["row"], reading
+        cue = continuation()
+        if index:
+            assert cue["display"] != "none" and cue["height"] > 0, cue
+            assert "gradient" in cue["paint"], cue
+            assert cue["fade_top"] == pytest.approx(
+                cue["heads"][index]["bottom"], abs=1
+            ), cue
+        else:
+            assert cue["height"] == 0, cue
+
+    # Follow the outgoing header as the next author pushes it off the top, then
+    # follow the transcript edge through the gap. Neither position fades a name.
+    for handoff in ("pushed", "gap"):
+        transcript.evaluate(
+            """(box, handoff) => {
+              const messages = [...box.querySelectorAll('.lf-msg')];
+              const first = messages[0].getBoundingClientRect();
+              const head = messages[0].querySelector('.lf-msg-head').getBoundingClientRect();
+              const next = messages[1].querySelector('.lf-msg-head').getBoundingClientRect();
+              const target = handoff === 'pushed'
+                ? first.bottom - head.height / 2
+                : (first.bottom + next.top) / 2;
+              box.scrollTop += target - box.getBoundingClientRect().top - box.clientTop;
+            }""",
+            handoff,
+        )
+        rendered(page)
+        cue = continuation()
+        assert cue["display"] != "none" and cue["height"] > 0, cue
+        if handoff == "pushed":
+            assert cue["heads"][0]["top"] < cue["top"] < cue["heads"][0]["bottom"], cue
+            assert cue["fade_top"] == pytest.approx(cue["heads"][0]["bottom"], abs=1), (
+                cue
+            )
+        else:
+            assert cue["heads"][0]["bottom"] <= cue["top"], cue
+            assert cue["fade_top"] == pytest.approx(cue["top"], abs=1), cue
+        assert cue["fade_bottom"] <= cue["heads"][1]["top"] + 1, cue
 
 
 @pytest.mark.parametrize(("width", "touch"), [(1200, False), (311, True)])
 def test_a_stuck_card_head_keeps_the_name_and_lets_its_annotations_scroll_out(
     browser, serve, width, touch
 ):
-    """Reading down a long reply in the thread card, its head keeps the writer's name
-    and the time at the top, while its annotations, the progress disclosure and the
-    edited label, leave with the reply's first line as the words do. They stuck with
-    the name, so the row went on offering the reply's earlier updates over every line
-    of it. A narrow card wraps the disclosure onto a second row, and it rises under
-    the name rather than over it. A focused disclosure stays in the stuck row."""
+    """Reading down a long reply keeps its writer and time at the top while the
+    edited annotation leaves with the reply's first line."""
     url = serve(PANEL_PAGE)
     root = panel_comment(
         serve.page_dir, "Explain with examples?", {"section": "how-store"}
     )
-    thread_model.post_reply(
-        serve.page_dir,
-        {"to": root, "for": root},
-        "I'm capturing both widths.",
-        ephemeral=True,
-    )
     answer = thread_model.post_reply(
-        serve.page_dir, {"to": root, "for": root}, LANDING_WORDS * 8
+        serve.page_dir, {"responds": root}, LANDING_WORDS * 8
     )["id"]
     thread_model.cmd_edit(serve.page_dir, answer, "Edited. " + LANDING_WORDS * 8)
     # Later turns leave room to scroll the answer past the top in either direction.
@@ -686,8 +762,6 @@ def test_a_stuck_card_head_keeps_the_name_and_lets_its_annotations_scroll_out(
     rendered(page)
     scroll_settled(page, selector)
     message = transcript.locator(f'.lf-msg[data-event="{answer}"]')
-    toggle = message.get_by_role("button", name="Show 1 progress message", exact=True)
-    expect(toggle).to_be_visible()
     expect(message.locator(".lf-edited")).to_be_visible()
 
     def scrolled_past(distance):
@@ -716,12 +790,10 @@ def test_a_stuck_card_head_keeps_the_name_and_lets_its_annotations_scroll_out(
               // The name itself, and the gap between it and the time.
               const seen = [at.left + 4, time.getBoundingClientRect().left - 4]
                 .map(x => document.elementFromPoint(x, middle));
-              const toggle = head.querySelector('.lf-summary-expand');
               return {message: top(message), name: top(name),
                       time: top(time),
                       edited: top(head.querySelector('.lf-edited')),
-                      toggle: top(toggle),
-                      toggleBottom: toggle.getBoundingClientRect().bottom - from,
+                      editedBottom: head.querySelector('.lf-edited').getBoundingClientRect().bottom - from,
                       nameShown: seen.every(node => name.contains(node)),
                       head: head.offsetHeight};
             }""",
@@ -738,33 +810,19 @@ def test_a_stuck_card_head_keeps_the_name_and_lets_its_annotations_scroll_out(
         assert abs(reading["name"] - rest["name"]) <= 1, (rest, reading)
         assert abs(reading["time"] - rest["time"]) <= 1, (rest, reading)
         assert reading["nameShown"], reading
-        for part in ("toggle", "edited"):
-            moved = reading[part] - (rest[part] - distance)
-            assert abs(moved) <= 1, (part, rest, reading)
+        moved = reading["edited"] - (rest["edited"] - distance)
+        assert abs(moved) <= 1, (rest, reading)
     gone = scrolled_past(2 * rest["head"])
     assert abs(gone["name"] - rest["name"]) <= 1, (rest, gone)
-    assert gone["toggleBottom"] <= 0, gone
-
-    page.keyboard.press("Shift")
-    toggle.focus()
-    assert toggle.evaluate("node => node.matches(':focus-visible')")
-    rendered(page)
-    focused = transcript.evaluate(
-        """(box, toggle) => toggle.getBoundingClientRect().top
-             - box.getBoundingClientRect().top""",
-        toggle.element_handle(),
-    )
-    # Native focus reveals the offscreen disclosure below the stuck head; the
-    # exact offset depends on the space the scrollport has for that reveal.
-    assert focused >= rest["head"] - 1, (rest, focused)
-    expect(toggle).to_be_in_viewport(ratio=1)
+    assert gone["editedBottom"] <= 0, gone
 
 
 @pytest.mark.parametrize("scaled", [False, True])
 def test_a_short_window_keeps_media_choices_and_send_around_the_scrolling_draft(
     browser, serve, scaled
 ):
-    """A whole-frame cap reserves the image, choices and Send before text scrolls."""
+    """A whole-frame cap reserves the choices and Send before text scrolls; the attached
+    image hangs outside the frame (annotation-chrome.css)."""
     source = LONG_PAGE
     if scaled:
         source = source.replace(
@@ -800,8 +858,7 @@ def test_a_short_window_keeps_media_choices_and_send_around_the_scrolling_draft(
     assert bounds["top"] >= 6
     assert bounds["bottom"] <= height - 8
     parts = bar.locator(
-        ".lf-compose-field, .lf-fab-input, .lf-compose-submit, .lf-composer-media-item, "
-        ".lf-composer-media-remove, "
+        ".lf-compose-field, .lf-fab-input, .lf-compose-submit, "
         ".lf-response-options, .lf-response-action:visible"
     ).evaluate_all("nodes => nodes.map(node => node.getBoundingClientRect().toJSON())")
     for part in parts:

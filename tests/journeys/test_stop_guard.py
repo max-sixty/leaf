@@ -1,19 +1,20 @@
 """The guard on a turn's end: the Stop hook holding a turn over a page nothing
-watches or a move the agent still owes, `leaf status idle` refusing over input
+watches or a move the agent still owes, `leaf page close` refusing over input
 nobody answered, and the reminders both write."""
 
 import json
 import os
 
 from click.testing import CliRunner
-from interact_support import append_carried_log_record, check, continued
+from interact_support import append_carried_log_record, check
+
 from leaf import cli as cli_model
 from leaf import hooks as hooks_model
 from leaf import service as service_model
 
 
 def test_only_serving_or_claiming_a_page_puts_the_session_under_the_guard(
-    page_dir, monkeypatch, capsys
+    page_dir, interactive, monkeypatch, capsys
 ):
     """Verifying a change to the page layer means driving throwaway pages, and the
     guard must not read a handful of test fixtures as a handful of abandoned
@@ -39,8 +40,12 @@ def test_only_serving_or_claiming_a_page_puts_the_session_under_the_guard(
     assert CliRunner().invoke(cli_model.cli, ["wait", str(page_dir)]).exit_code == 0
     assert service_model.owned_pages("s7") == [page_dir.resolve()]
 
-    # The Stop hook carries the input the wait woke the session for into the turn.
-    hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s7"})
-    reason = continued(capsys.readouterr().out)
-    [batch] = json.loads(reason.split("\n")[1])["batches"]
+    # The prompt hook of the turn the wake opens carries the input into it.
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s7"}
+    )
+    context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
+        "additionalContext"
+    ]
+    [batch] = json.loads(context.split("\n")[1])["batches"]
     assert [event["text"] for event in batch["events"]] == ["hi"]

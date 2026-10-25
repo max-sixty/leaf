@@ -37,6 +37,11 @@ test("a staged widget shows each failure in its stage and its next stage replace
   const view = document.createElement("p");
   view.textContent = "Good reading";
   shadowStage(host, [view]);
+  const rendererSheet = new CSSStyleSheet();
+  rendererSheet.replaceSync("p { color: red }");
+  // An embedded renderer owns its sheet; restaging adds Leaf's apparatus without
+  // losing the renderer's face or accumulating copies on later draws.
+  host.shadowRoot.adoptedStyleSheets = [rendererSheet];
   for (const message of ["first failure", "second failure"]) {
     failSoftUnreported(host, new Error(message));
     const errors = host.shadowRoot.querySelectorAll(".lf-error");
@@ -46,6 +51,12 @@ test("a staged widget shows each failure in its stage and its next stage replace
     );
     assert.equal(view.isConnected, false);
     shadowStage(host, [view]);
+    assert.equal(
+      host.shadowRoot.adoptedStyleSheets.filter((sheet) => sheet === rendererSheet)
+        .length,
+      1,
+    );
+    assert.ok(host.shadowRoot.adoptedStyleSheets.length > 1);
     assert.equal(host.shadowRoot.querySelector(".lf-error"), null);
     assert.equal(view.isConnected, true);
   }
@@ -73,6 +84,7 @@ function patch(beforeMarkup, afterMarkup = beforeMarkup) {
     contains: under,
     declared: (node) => node.localName === "test-owner",
     reaches: () => false,
+    body: () => null,
     unchanged: (held, wanted) => held.isEqualNode(wanted),
     same: (held, wanted) => held.isEqualNode(wanted),
     sameValue: (_name, held, wanted) => held === wanted,
@@ -200,6 +212,26 @@ test("a native shadow editor follows its containing owner's authored retention",
     root.append(editor);
     assert.equal(retains(editor), !changed);
   }
+});
+
+test("a revision reaching a widget writes inside the authored body its module built", () => {
+  const { live, rules, install } = patch(
+    '<test-owner id="o"><p>Before</p></test-owner>',
+    '<test-owner id="o"><p>After</p><p>Added</p></test-owner>',
+  );
+  const owner = live.firstElementChild;
+  const kept = owner.firstElementChild;
+  const body = document.createElement("div");
+  body.append(...owner.childNodes);
+  const summary = document.createElement("span");
+  owner.append(summary, body);
+  rules.reaches = () => true;
+  rules.body = (node) => (node === owner ? body : null);
+  rules.arrive = (node) => node.cloneNode(true);
+  install();
+  assert.deepEqual([...owner.children], [summary, body]);
+  assert.equal(body.innerHTML, "<p>After</p><p>Added</p>");
+  assert.equal(body.firstElementChild, kept);
 });
 
 test("child reordering works without moveBefore and accepts new nodes", () => {

@@ -2,7 +2,6 @@
 
 import os
 
-from leaf.file_bindings import bind_file
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
@@ -15,6 +14,8 @@ from render_harness import (
     rendered,
     scroll_settled,
 )
+
+from leaf.file_bindings import bind_file
 
 
 def test_file_editor_saves_quietly_and_preserves_inflight_edits(
@@ -350,6 +351,10 @@ def test_file_editor_saves_quietly_and_preserves_inflight_edits(
         file.write_text("# Newest\n")
     choose("Use file version")
     expect(editor).to_contain_text("Newest")
+    page.keyboard.press("ControlOrMeta+z")
+    rendered(page)
+    expect(editor).to_have_text("# Newest")
+    assert file.read_text() == "# Newest\n"
     consume_browser_errors(
         page,
         http_error_console(409),

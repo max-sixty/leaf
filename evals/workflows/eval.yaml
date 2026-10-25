@@ -1,2 +1,17 @@
 # Shared instructions prepended to native instruction probes.
 skill_prefix: "Use the Leaf skill ($leaf in Codex; leaf:leaf in Claude Code).\n\n"
+# The time a reading probe is told it is, so the ages its fixtures' times give stay
+# what the case was written with, whenever it runs. A case whose fixtures stand at
+# another time sets its own as `vars.now`.
+now: "2026-10-08T01:30:00-07:00"
+default_viewports: [desktop]
+viewports:
+  desktop:
+    viewport: [1600, 1000]
+    description: a fullscreen 1600px by 1000px desktop window
+  short:
+    viewport: [900, 600]
+    description: a short 900px by 600px desktop window
+  phone:
+    viewport: [390, 844]
+    description: a 390px by 844px phone window

@@ -1,12 +1,13 @@
 """Thread response geometry through delivery refusal and retry."""
 
 import pytest
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_navigation import source_revision
 from render_harness import leaf_page, open_page, round_trip, write
+
+from leaf import data as data_model
+from leaf import event_log as events_model
+from leaf.render_checks import rendered
 
 EDITOR_INSPECTION = """(() => {
   const attach = Element.prototype.attachShadow;
@@ -545,15 +546,14 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "reply"
     ]
-    if place == "panel":
-        # The refusal covers the words it gave back in the panel's field, which sends
-        # nothing until the user's first edit or press there brings them back.
-        cover = page.locator(".lf-fp-error-cover")
-        expect(cover).to_contain_text("refused before append")
-        cover.click()
-    else:
-        draft.focus()
+    # The refusal covers the words it gave back in their box, wherever it stands. The
+    # first Enter there only uncovers them, so nothing is sent unseen; the next sends.
+    cover = draft.locator("xpath=following-sibling::p[@class='lf-compose-error']")
+    expect(cover).to_contain_text("refused before append")
+    draft.focus()
     expect(draft).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(cover).to_be_hidden()
     page.keyboard.press("Enter")
     holding(page, held, 1, "the refused reply's retry")
     assert held[0].request.post_data_json["attempt"] == attempt

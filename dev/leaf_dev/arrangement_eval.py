@@ -9,8 +9,8 @@ second decision reader or repeated render/quality grader for every revision.
 
 Each revision is retained for investigation. Reports capture the final and
 predecision pages and retain native timing/token accounting. Optional eval-pairs
-judges compare saved samples without rerunning their authors. Routine coverage is a
-fullscreen desktop; focused cases declare their own work environment and viewports.
+judges compare saved samples without rerunning their authors. The run centrally
+selects its viewports, defaulting to one fullscreen desktop for every case.
 """
 
 import json
@@ -27,7 +27,6 @@ from leaf.event_log import read_events
 from leaf.harness import ClaudeCodeHarness
 from leaf.service import requires_agent_attention
 from leaf.thread import successful_replies
-
 from leaf_dev import ROOT, arrangement_plain
 from leaf_dev.arms import (
     MODELS,
@@ -47,15 +46,17 @@ from leaf_dev.arms import (
     trace_summary,
 )
 from leaf_dev.browser import headless_shell, load, shell_executable, tab
-from leaf_dev.eval_cases import definition
+from leaf_dev.eval_cases import (
+    DEFAULT_VIEWPORTS,
+    VIEWPORTS,
+    definition,
+    selected_viewports,
+)
 from leaf_dev.eval_user import COMMAND_LIMIT, cli, comment_on_passage, decide
+from leaf_dev.leaf_assets import pinned_copy
 
 TASKS = ROOT / "evals"
 DEFINITION = definition("arrangement_eval")
-WIDTHS = {
-    name: (tuple(width["viewport"]), width["description"])
-    for name, width in DEFINITION["widths"].items()
-}
 PREFERENCE = DEFINITION["preference"]
 # Content out of view is reachable through a labeled control, as both judges count
 # it.
@@ -122,6 +123,11 @@ class Run:
     shots: Path
     harness: str = ClaudeCodeHarness.name
     condition: str = "leaf"
+    viewports: tuple[str, ...] = DEFAULT_VIEWPORTS
+
+    @property
+    def widths(self) -> dict:
+        return selected_viewports(self.viewports)
 
     @property
     def leaf_condition(self) -> bool:
@@ -175,25 +181,15 @@ def first_prompt(payload: Path, page: Path, subject: str, condition="leaf") -> s
     )
 
 
-def case_preference(subject: str) -> str:
-    """A focused regression can keep its explicitly requested work environment."""
-    return DEFINITION["cases"][subject].get("preference", PREFERENCE)
-
-
-def case_widths(subject: str) -> dict:
-    """Routine desktop coverage, or the focused case's declared viewports."""
-    if widths := DEFINITION["cases"][subject].get("widths"):
-        return {
-            name: (tuple(width["viewport"]), width["description"])
-            for name, width in widths.items()
-        }
-    return WIDTHS
-
-
-def preference_message(subject: str) -> str:
-    return DEFINITION["prompts"]["preference"].format(
-        preference=case_preference(subject)
+def preference(viewports: tuple[str, ...]) -> str:
+    """The same run-level work environment reaches the author and its judges."""
+    return PREFERENCE.format(
+        windows="; ".join(label for _, label in selected_viewports(viewports).values())
     )
+
+
+def preference_message(viewports: tuple[str, ...]) -> str:
+    return DEFINITION["prompts"]["preference"].format(preference=preference(viewports))
 
 
 def comment_message(comment: Comment) -> str:
@@ -232,6 +228,9 @@ def author(run: Run, cwd: Path) -> None:
     """Run the sample's live session through its phases, preserving each phase's
     page, and stop any server it left running."""
     cwd.mkdir(parents=True, exist_ok=True)
+    fixtures = pinned_copy(TASKS / run.subject)
+    if fixtures is not None and fixtures.is_dir():
+        shutil.copytree(fixtures, cwd / "evals" / run.subject)
     (run.directory / "work-dir").write_text(str(cwd))
     run.state.mkdir(parents=True)
     page = run.authored_page
@@ -247,7 +246,10 @@ def author(run: Run, cwd: Path) -> None:
         timed_out=run.directory / "timed-out",
         dirs=[run.payload] if leaf else [],
         env=(
-            {"LEAF": str(run.payload / "bin/leaf"), "XDG_STATE_HOME": str(run.state)}
+            {
+                "PATH": environment(payload=run.payload)["PATH"],
+                "XDG_STATE_HOME": str(run.state),
+            }
             if leaf
             else {}
         ),
@@ -264,7 +266,7 @@ def author(run: Run, cwd: Path) -> None:
                 since = live.answered
                 before = None
                 if phase == 2:
-                    live.send(preference_message(run.subject))
+                    live.send(preference_message(run.viewports))
                 elif phase == 3:
                     before = comment(run, live)
                 elif phase == 4:
@@ -296,7 +298,7 @@ def comment(run: Run, live: LiveSession):
             remark.text,
             comment_message(remark),
             scenario.reveal,
-            viewport=next(iter(case_widths(run.subject).values()))[0],
+            viewport=next(iter(run.widths.values()))[0],
         )
     )
     live.note({"type": "eval_post", **posted, "received_at": now()})
@@ -334,7 +336,7 @@ def decision_round(run: Run, live: LiveSession) -> None:
     page = run.authored_page
     before = latest_seq(page)
 
-    viewport = next(iter(case_widths(run.subject).values()))[0]
+    viewport = next(iter(run.widths.values()))[0]
 
     def deciding():
         if run.leaf_condition:
@@ -378,7 +380,7 @@ def capture_phase(
     run: Run, phase: int, page: Path | None = None
 ) -> dict[str, list[str]]:
     """One arrival screenshot per width for reports; the live judge owns inspection."""
-    widths = case_widths(run.subject)
+    widths = run.widths
     captures = {name: [] for name in widths}
     page = page or run.page(phase)
     if page is None:
@@ -421,6 +423,16 @@ def judge_pages(
     try:
         evidence.mkdir(parents=True, exist_ok=True)
         with scratch() as cwd, ExitStack() as stack:
+            browser_config = cwd / "browser.json"
+            browser_config.write_text(
+                json.dumps(
+                    {
+                        "browser": {
+                            "launchOptions": {"executablePath": shell_executable()}
+                        }
+                    }
+                )
+            )
             sockets = stack.enter_context(
                 tempfile.TemporaryDirectory(prefix="leaf-pw-", dir="/tmp")
             )
@@ -449,7 +461,7 @@ def judge_pages(
                 )
             instructions = f"""Judge the live pages below against the task and criterion.
 Use this browser CLI: {shlex.join(command)}
-Open your own headless Chrome with -s=<session> open <URL> --browser=chrome.
+Open your own headless Chromium with -s=<session> open <URL> --config {browser_config}.
 Use --mobile for phone and resize W H for each required viewport. Choose your own
 tabs, navigation, actions and screenshots. Use one browser session
 at a time and close it before opening another. Evaluate the page without editing
@@ -547,7 +559,7 @@ def capture(run: Run) -> dict[int, dict[str, list[str]]]:
     """Report the final page and, when applicable, its decision controls."""
     return {
         int(phase): capture_phase(run, int(phase))
-        for phase in comparison_inputs(run.subject)["phases"].values()
+        for phase in comparison_inputs(run.subject, run.viewports)["phases"].values()
     }
 
 
@@ -589,17 +601,22 @@ def replies(trace: list[dict]) -> str:
 def listing(captures: dict[str, list[str]]) -> list[str]:
     """Report screenshot paths by viewport for static reader evals."""
     lines = []
-    for name, (_, label) in WIDTHS.items():
+    for name, paths in captures.items():
+        _, label = VIEWPORTS[name]
         lines.append(f"  On {label}, top to bottom:")
-        lines += [f"    {path}" for path in captures[name]]
+        lines += [f"    {path}" for path in paths]
     return lines
 
 
-def later_messages(subject: str, first: str = "version 1") -> list[str]:
+def later_messages(
+    subject: str,
+    first: str = "version 1",
+    viewports: tuple[str, ...] = DEFAULT_VIEWPORTS,
+) -> list[str]:
     """The user's messages after the first version, as both judges read them."""
     scenario = CASES[subject]
     lines = [
-        f'After {first}, the user added a lasting preference: "{case_preference(subject)}"'
+        f'After {first}, the user added a lasting preference: "{preference(viewports)}"'
     ]
     if comment := scenario.comment:
         lines += ["", f'Then the user commented: "{comment_message(comment)}"']
@@ -614,13 +631,15 @@ def later_messages(subject: str, first: str = "version 1") -> list[str]:
     return lines
 
 
-def brief(subject: str, answer: str = "") -> str:
+def brief(
+    subject: str, answer: str = "", viewports: tuple[str, ...] = DEFAULT_VIEWPORTS
+) -> str:
     """What the judge reads: the request, the later messages, the author's `answer`
     to the comment."""
     lines = [
         f"<request>\n{(TASKS / subject / 'request.md').read_text()}</request>",
         "",
-        *later_messages(subject),
+        *later_messages(subject, viewports=viewports),
         "",
         "Each message after the request produced the next version.",
     ]
@@ -635,7 +654,9 @@ def brief(subject: str, answer: str = "") -> str:
     return "\n".join(lines)
 
 
-def comparison_inputs(subject: str) -> dict:
+def comparison_inputs(
+    subject: str, viewports: tuple[str, ...] = DEFAULT_VIEWPORTS
+) -> dict:
     """Capture the common task before authoring, independent of its delivery route.
 
     Saved samples own the request, browser decision task, phase roles and viewports
@@ -653,14 +674,15 @@ def comparison_inputs(subject: str) -> dict:
             [
                 f"<request>\n{(TASKS / subject / 'request.md').read_text()}</request>",
                 "",
-                *later_messages(subject, "the first version"),
+                *later_messages(subject, "the first version", viewports),
             ]
         ),
         "decision_task": decision.task if decision else None,
         "phases": versions,
         "author_phases": list(order),
         "widths": {
-            name: list(viewport) for name, (viewport, _) in case_widths(subject).items()
+            name: list(viewport)
+            for name, (viewport, _) in selected_viewports(viewports).items()
         },
     }
 
@@ -678,13 +700,14 @@ def execute_scenario(
     shots: Path,
     harness=ClaudeCodeHarness.name,
     condition="leaf",
+    viewports: tuple[str, ...] = DEFAULT_VIEWPORTS,
 ) -> dict:
     """Execute only the selected condition; Promptfoo owns the condition matrix."""
     work.mkdir(parents=True, exist_ok=True)
     checks = dict.fromkeys(expected_checks(case, condition=condition), False)
-    run = Run(case, payload, work, shots, harness, condition)
+    run = Run(case, payload, work, shots, harness, condition, viewports)
     scenario = CASES[case]
-    comparison = comparison_inputs(case)
+    comparison = comparison_inputs(case, viewports)
     run.record("comparison", comparison)
     diagnostics = {
         "subject": case,
@@ -742,7 +765,7 @@ def execute_scenario(
         "harness": observed_sum(harness_costs),
     }
     return {
-        "output": brief(case, answer),
+        "output": brief(case, answer, viewports),
         "metadata": {"checks": checks, "diagnostics": diagnostics},
         **(
             {"cost": cost}

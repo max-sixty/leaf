@@ -4,17 +4,15 @@ history, the stuck strip and the headers stacked under it, and queue rows and gr
 import re
 
 import pytest
-from leaf import render_checks as render_checks_model
-from leaf.render_checks import rendered, wait_until_ready
 from playwright.sync_api import expect
-from render_cases_interaction import live_url
+from render_cases_interaction import HOLD_MOTION, live_url
 from render_harness import (
     ROOT,
     displayed,
     holding,
     leaf_page,
     open_page,
-    pane_posture,
+    pane_scroll_behavior,
     panel_settled,
     post_event,
     resized,
@@ -24,6 +22,9 @@ from render_harness import (
     undo,
     wait_for_revision,
 )
+
+from leaf import render_checks as render_checks_model
+from leaf.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -135,7 +136,7 @@ def test_root_tabs_switch_views_without_moving_the_strip_and_follow_history(
     assert page.url.endswith("#plan-rollback")
 
     # A reveal (a comment anchor, find-in-page) opens another view, and the entry the
-    # user stands on names it, so pressing away and coming Back returns there.
+    # user is located on names it, so pressing away and coming Back returns there.
     page.evaluate(
         """async () => {
           const {reveal} = await window.__lfCheckApi();
@@ -207,6 +208,81 @@ def test_a_url_into_a_hidden_root_view_lands_once_the_view_is_built(browser, ser
     )
 
 
+def test_pointer_tab_underline_moves_without_delaying_the_view(browser, serve):
+    """Only adjacent pointer selections travel; a new input retargets or ends the cue."""
+    source = leaf_page(
+        "Selection motion",
+        '<h1>Selection motion</h1><section><lf-tabs id="moving-tabs">'
+        + "".join(
+            f'<lf-tab id="view-{i}" label="View number {i}"><p>Content {i}</p></lf-tab>'
+            for i in range(6)
+        )
+        + '</lf-tabs><lf-tabs id="side-tabs" list="side">'
+        '<lf-tab id="side-a" label="First" summary="First context"><p>First.</p></lf-tab>'
+        '<lf-tab id="side-b" label="Second" summary="Second context"><p>Second.</p></lf-tab>'
+        "</lf-tabs></section>",
+        head="<style>#moving-tabs { max-width:480px }</style>",
+    )
+    page = open_page(browser, serve(source), init_script=HOLD_MOTION)
+    page.emulate_media(reduced_motion="no-preference")
+    tabs = page.locator("#moving-tabs").get_by_role("tab")
+    mark = page.locator('#moving-tabs [aria-selected="true"] .lf-tab-mark')
+    animating = "node => node.getAnimations().length"
+    at = "node => node.getBoundingClientRect().left"
+    advance = "(node, time) => node.getAnimations()[0].currentTime = time"
+    initial = mark.evaluate(at)
+    tabs.nth(1).click()
+    expect(tabs.nth(1)).to_have_attribute("aria-selected", "true")
+    expect(page.locator("#view-1 p")).to_be_visible()
+    assert mark.evaluate(animating) == 1
+    assert mark.evaluate(at) == pytest.approx(initial, abs=0.5)
+    mark.evaluate(advance, 80)
+    middle = mark.evaluate(at)
+    destination = tabs.nth(1).locator(".lf-tab-name").evaluate(at)
+    assert initial < middle < destination
+    # Reverse while its pixels are between names: no snap back to either endpoint.
+    tabs.first.click()
+    assert mark.evaluate(at) == pytest.approx(middle, abs=0.5)
+    expect(page.locator("#view-0 p")).to_be_visible()
+    mark.evaluate(advance, 80)
+    assert initial < mark.evaluate(at) < middle
+    # Keyboard selection is immediate, including interruption of pointer motion.
+    page.keyboard.press("ArrowRight")
+    expect(tabs.nth(1)).to_have_attribute("aria-selected", "true")
+    assert mark.evaluate(animating) == 0
+    tabs.first.click()
+    tabs.nth(3).click()
+    assert mark.evaluate(animating) == 0  # A nonadjacent choice does not travel.
+    # Vertical strips keep their selected face, with no travelling mark.
+    side = page.locator("#side-tabs").get_by_role("tab")
+    side.nth(1).click()
+    assert side.nth(1).locator(".lf-tab-mark").evaluate(animating) == 0
+    page.emulate_media(reduced_motion="reduce")
+    tabs.nth(2).click()
+    assert mark.evaluate(animating) == 0
+    page.emulate_media(reduced_motion="no-preference")
+    tabs.first.focus()
+    page.keyboard.press("Home")
+    tabs.nth(1).click()
+    assert mark.evaluate(animating) == 1
+    page.locator("#moving-tabs > .lf-tabstrip").evaluate("node => node.scrollLeft = 30")
+    page.wait_for_function(
+        "document.querySelector('#moving-tabs [aria-selected=true] .lf-tab-mark').getAnimations().length === 0"
+    )
+    tabs.first.focus()
+    page.keyboard.press("Home")
+    tabs.nth(1).click()
+    assert mark.evaluate(animating) == 1
+    resized(page, 390, 844)
+    assert mark.evaluate(animating) == 0
+    # The side list now runs horizontally; its mark is below the summary, and travels too.
+    side.first.click()
+    side_mark = side.first.locator(".lf-tab-mark")
+    assert side_mark.evaluate(animating) == 1
+    assert side_mark.bounding_box()["height"] == 2
+    side_mark.evaluate("node => node.getAnimations()[0].finish()")
+
+
 def test_a_stuck_root_tab_strip_hides_what_passes_under_it(browser, serve):
     """The root strip sticks at the window's top and paints over the document, so what
     passes under it is not on screen: `shownRect`, the one reading of that, clips a
@@ -258,10 +334,9 @@ def test_a_stuck_root_tab_strip_hides_what_passes_under_it(browser, serve):
       const strip = document.querySelector('#root-tabs > .lf-tabstrip');
       const background = getComputedStyle(strip).backgroundColor;
       return [...strip.querySelectorAll('.lf-tab-btn')].map(tab => {
-        const name = getComputedStyle(tab.querySelector('.lf-tab-name'));
+        const mark = getComputedStyle(tab.querySelector('.lf-tab-mark'));
         return {selected: tab.getAttribute('aria-selected') === 'true',
-          marked: name.borderBottomColor !== background
-            && parseFloat(name.borderBottomWidth) > 0};
+          marked: mark.visibility === 'visible' && mark.backgroundColor !== background};
       });
     }"""
     for _ in range(2):
@@ -314,7 +389,7 @@ def _stacked_headers(browser, serve, flow="page"):
     page.wait_for_function(
         "() => document.querySelectorAll('lf-diff.lf-rendered').length === 3"
     )
-    expect(page.locator("#tabs")).to_have_attribute("data-lf-tabs-flow", flow)
+    expect(page.locator("#tabs")).to_have_attribute("data-lf-views-flow", flow)
     return page
 
 
@@ -421,6 +496,66 @@ def test_focus_in_a_stuck_header_leaves_the_page_where_it_is(browser, serve):
     assert code["top"] >= code["head"], code
 
 
+WIDE_TABLE_IN_A_FRAMED_SET = leaf_page(
+    "A wide table in a framed set",
+    '<h1>Framed</h1><section><lf-tabs id="views"><lf-tab id="table-tab" label="Table">'
+    + "<p>Reading before the table.</p>" * 30
+    + '<table id="wide"><thead><tr><th>Row</th>'
+    + "".join(f"<th>Column {c}</th>" for c in range(12))
+    + "</tr></thead><tbody>"
+    + "".join(
+        f'<tr><td><a id="row-{r}" href="#views">row {r}</a></td>'
+        + "".join(f"<td>column {c} with some words</td>" for c in range(12))
+        + "</tr>"
+        for r in range(30)
+    )
+    + "</tbody></table>"
+    + "<p>Reading after the table.</p>" * 30
+    + '</lf-tab><lf-tab id="other-tab" label="Other"><p>Other.</p></lf-tab>'
+    "</lf-tabs></section>" + "<p>After the set.</p>" * 30,
+)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_tab_onto_a_link_in_a_wide_table_under_a_framed_strip_clears_the_strip(
+    request, serve, engine
+):
+    """A wide table scrolls only sideways, so the browser's own focus scroll on a link in
+    it still counts the framed set's strip stuck over the table. Tab onto a link the
+    strip stands over brings the link and its ring out below the strip; where the table
+    also scrolled down, its links counted nothing over it and stood with their ring
+    under the strip."""
+    page = open_page(request.getfixturevalue(engine), serve(WIDE_TABLE_IN_A_FRAMED_SET))
+    resized(page, 1280, 720)
+    expect(page.locator("#views")).to_have_attribute("data-lf-views-flow", "box")
+    # Stick the strip, then stand row 11's link 20px under the strip's top: inside the
+    # root's landing band, which the strip covers.
+    page.evaluate(
+        "scrollBy({top: document.getElementById('wide').getBoundingClientRect().top"
+        " - 100, behavior: 'instant'})"
+    )
+    scroll_settled(page)
+    page.evaluate("""() => {
+      const strip = document.querySelector('#views > .lf-tabstrip').getBoundingClientRect();
+      const link = document.getElementById('row-11').getBoundingClientRect();
+      scrollBy({top: link.top - strip.top - 20, behavior: 'instant'});
+    }""")
+    scroll_settled(page)
+    page.locator("#row-10").evaluate("a => a.focus({preventScroll: true})")
+    page.keyboard.press("Tab")
+    expect(page.locator("#row-11")).to_be_focused()
+    scroll_settled(page)
+    read = page.evaluate("""() => {
+      const strip = document.querySelector('#views > .lf-tabstrip').getBoundingClientRect();
+      const link = document.getElementById('row-11');
+      const style = getComputedStyle(link);
+      const ring = parseFloat(style.outlineOffset) + parseFloat(style.outlineWidth);
+      return {strip: [strip.top, strip.bottom], ringTop: link.getBoundingClientRect().top - ring};
+    }""")
+    assert read["strip"][0] == pytest.approx(0, abs=0.5), read
+    assert read["ringTop"] >= read["strip"][1], read
+
+
 def test_embedded_tab_selection_preserves_the_document_reading_position(browser, serve):
     source = (
         ROOT_TABS_PAGE.read_text()
@@ -430,7 +565,7 @@ def test_embedded_tab_selection_preserves_the_document_reading_position(browser,
     page = open_page(browser, serve(source))
     resized(page, 1280, 720)
     tabs = page.locator("#root-tabs")
-    expect(tabs).to_have_attribute("data-lf-tabs-flow", "box")
+    expect(tabs).to_have_attribute("data-lf-views-flow", "box")
     evidence = tabs.get_by_role("tab", name="Evidence", exact=True)
     evidence.evaluate("el => el.scrollIntoView({block: 'start', behavior: 'instant'})")
     scroll_settled(page)
@@ -488,7 +623,7 @@ def test_page_tabs_take_the_page_width_and_its_one_left_edge(browser, serve):
     page = open_page(browser, serve(source))
     resized(page, 1440, 900)
     tabs = page.locator("#root-tabs")
-    expect(tabs).to_have_attribute("data-lf-tabs-flow", "page")
+    expect(tabs).to_have_attribute("data-lf-views-flow", "page")
     boxes = page.evaluate(
         """() => {
           const box = (el) => {
@@ -516,9 +651,13 @@ def test_page_tabs_take_the_page_width_and_its_one_left_edge(browser, serve):
     assert boxes["title"]["left"] == boxes["content"]["left"], boxes
 
 
-def test_a_workspace_page_tab_gives_its_only_block_height_before_upgrade(
+def test_a_workspace_page_tab_gives_its_only_block_its_box_before_upgrade(
     browser, serve
 ):
+    """A full-height page tab's only block takes the height the strip leaves from the
+    first paint, and the box it has then is the box the upgrade keeps. Before upgrade the
+    set lacked the ring's room the upgraded set keeps under the panel, so the block
+    stood 5px taller and shrank when the module drew."""
     source = leaf_page(
         "Workspace page tab",
         '<header><h1>Review</h1></header><lf-tabs id="views">'
@@ -541,7 +680,8 @@ def test_a_workspace_page_tab_gives_its_only_block_height_before_upgrade(
             return page.evaluate("""() => {
               const tab = document.querySelector('#work').getBoundingClientRect();
               const block = document.querySelector('#surface').getBoundingClientRect();
-              return {tab: tab.height, block: block.height, bottom: tab.bottom - block.bottom};
+              return {tab: tab.height, block: block.height, bottom: tab.bottom - block.bottom,
+                      sides: [block.left, block.right]};
             }""")
 
         first = heights()
@@ -550,6 +690,14 @@ def test_a_workspace_page_tab_gives_its_only_block_height_before_upgrade(
         wait_until_ready(page)
         upgraded = heights()
         assert abs(upgraded["bottom"]) <= 1, upgraded
+        assert upgraded["sides"] == pytest.approx(first["sides"], abs=0.5), (
+            first,
+            upgraded,
+        )
+        assert upgraded["block"] == pytest.approx(first["block"], abs=0.5), (
+            first,
+            upgraded,
+        )
     finally:
         for route in boot:
             route.continue_()
@@ -633,7 +781,7 @@ def test_wide_evidence_in_a_page_tab_takes_the_room_it_would_outside_one(
         for route in boot:
             route.continue_()
         page.unroute_all(behavior="wait")
-    expect(page.locator("#root-tabs")).to_have_attribute("data-lf-tabs-flow", "page")
+    expect(page.locator("#root-tabs")).to_have_attribute("data-lf-views-flow", "page")
     assert twins("desktop") == first
     # Wider than the reading column, which a workspace's prose does not keep.
     assert first["in-wide"]["width"] > 720, first
@@ -732,10 +880,10 @@ def test_a_side_list_workspace_scrolls_its_list_and_its_item_apart(browser, serv
 
 
 def test_side_tabs_distinguish_withdrawn_obligations_from_answers(browser, serve):
-    """A row's mark says its obligation's obligations are open until every one is answered, and
-    withdrawal retires a request without claiming the user answered it: a row whose
-    only obligation was withdrawn shows no mark, and one whose other obligation is answered shows
-    the answer."""
+    """A row's mark, and the words beside it, say its obligations are open until every
+    one is answered, and withdrawal retires a request without claiming the user
+    answered it: a row whose only obligation was withdrawn shows no mark, and one whose
+    other obligation is answered shows the answer."""
     source = leaf_page(
         "Question outcomes",
         '<lf-tabs id="queue" list="side">'
@@ -750,6 +898,8 @@ def test_side_tabs_distinguish_withdrawn_obligations_from_answers(browser, serve
     marks = page.locator("#queue .lf-tab-answer")
     expect(marks.nth(0)).to_have_attribute("data-lf-obligations", "open")
     expect(marks.nth(1)).to_have_attribute("data-lf-obligations", "open")
+    # The open mark is said in words beside it, the words a tally counts by.
+    expect(marks.nth(0)).to_have_text("To answer")
     stamp_page(
         serve.page_dir,
         source.replace('id="only-options" choose', 'id="only-options"').replace(
@@ -827,6 +977,10 @@ def test_a_queue_row_names_an_answer_whose_widget_module_arrives_last(browser, s
 
     undo(page)
     expect(answer).to_have_text("Fix")
+    # The undo is announced by the name the gesture's own acknowledgement used.
+    expect(page.locator(".lf-live")).to_have_text(
+        "Undid: Chose “Escalate to engineering” · just now — sent"
+    )
     assert row.bounding_box() == before
     page.locator("#o-a-long").get_by_role("checkbox").click()
     expect(words).to_have_text(
@@ -1102,7 +1256,7 @@ def test_root_tab_targets_remain_global(browser, serve):
     )
     expect(page.locator("#plan-return")).to_be_in_viewport()
     tabs.get_by_role("tab", name="Workbench", exact=True).click()
-    pane_posture(page, page.locator("#queue-pane"), "flow")
+    pane_scroll_behavior(page, page.locator("#queue-pane"), "flow")
 
 
 def test_parts_switch_without_moving_the_list_and_follow_history(browser, serve):
@@ -1218,7 +1372,7 @@ def test_parts_switch_without_moving_the_list_and_follow_history(browser, serve)
     assert page.url.endswith("#part-plan-rollback")
 
     # A reveal (a comment anchor, find-in-page) opens another part, and the entry the
-    # user stands on names it, so pressing away and coming Back returns there.
+    # user is located on names it, so pressing away and coming Back returns there.
     page.evaluate(
         """async () => {
           const {reveal} = await window.__lfCheckApi();
@@ -1257,10 +1411,14 @@ def test_parts_switch_without_moving_the_list_and_follow_history(browser, serve)
 
 def test_a_strip_marks_its_open_tab_by_the_way_it_runs(browser, serve):
     """Whichever widget writes a strip, the open tab's mark follows which way the strip
-    runs: down a column the open name paints a raised, outlined face; along a row it
-    stands on a rule, with no fill, as page tabs' does. A page's parts and a queue each
-    run both ways, so each shows both marks. The rule costs a tab no height, so a queue's
-    row stays within the room its strip reserves before upgrade."""
+    runs: down a column the open name paints a raised, outlined face; along a row the
+    tab stands on a rule, with no fill, as a page tab's name does. A tab with a summary
+    takes the rule at its foot, a line of its own under its last line, so the rule
+    underlines the whole tab rather than the name above its summary. A page's parts and
+    a queue each run both ways, so each shows both marks. The rule costs a tab no height,
+    so a queue's row stays within the room its strip reserves before upgrade, and the
+    row stands on its frame's ground rather than the column's tint. Forced colors draw
+    only the open tab's rule."""
     queue = leaf_page(
         "Queue",
         '<h1 id="title">Queue</h1><section id="queue-section"><lf-tabs id="queue" '
@@ -1275,11 +1433,17 @@ def test_a_strip_marks_its_open_tab_by_the_way_it_runs(browser, serve):
     mark = """strip => {
       const tab = strip.querySelector('[aria-selected="true"]');
       const name = getComputedStyle(tab.querySelector('.lf-tab-name'));
+      const foot = getComputedStyle(tab.querySelector('.lf-tab-mark'));
+      const rows = getComputedStyle(tab).gridTemplateRows.split(' ');
       return {flow: getComputedStyle(strip).flexDirection,
         filled: name.backgroundColor !== 'rgba(0, 0, 0, 0)',
         contoured: name.boxShadow.includes('inset'),
-        rule: parseFloat(name.borderBottomWidth),
-        ruleInk: name.borderBottomColor === name.color,
+        nameRule: parseFloat(name.borderBottomWidth),
+        rule: foot.display === 'none' ? 0 : parseFloat(foot.blockSize),
+        ruleInk: foot.backgroundColor === name.color,
+        lastRow: rows.at(-1), rows: rows.length,
+        ground: getComputedStyle(strip).backgroundColor,
+        frame: getComputedStyle(strip.parentElement).backgroundColor,
         height: strip.getBoundingClientRect().height,
         reserved: parseFloat(getComputedStyle(strip).minBlockSize)};
     }"""
@@ -1288,7 +1452,8 @@ def test_a_strip_marks_its_open_tab_by_the_way_it_runs(browser, serve):
         resized(page, 1280, 720)
         column = page.locator(f"{strip} > .lf-tabstrip").evaluate(mark)
         assert column["flow"] == "column", column
-        assert column["filled"] and column["contoured"] and column["rule"] == 0, column
+        assert column["filled"] and column["contoured"], column
+        assert column["rule"] == 0 and column["nameRule"] == 0, column
         resized(page, 390, 800)
         page.wait_for_function(
             "s => getComputedStyle(document.querySelector(s)).flexDirection === 'row'",
@@ -1296,15 +1461,31 @@ def test_a_strip_marks_its_open_tab_by_the_way_it_runs(browser, serve):
         )
         row = page.locator(f"{strip} > .lf-tabstrip").evaluate(mark)
         assert not row["filled"] and not row["contoured"], row
-        assert row["rule"] == 2 and row["ruleInk"], row
+        assert row["rule"] == 2 and row["ruleInk"] and row["nameRule"] == 0, row
+        assert row["lastRow"] == "2px", row
         if strip == "#queue":
+            # Name, summary, then the rule.
+            assert row["rows"] == 3, row
             assert row["height"] == pytest.approx(row["reserved"], abs=0.01), row
+            assert row["ground"] == row["frame"], row
+        page.emulate_media(forced_colors="active")
+        ruled = page.locator(f"{strip} > .lf-tabstrip").evaluate(
+            """strip => {
+              const ground = getComputedStyle(strip).backgroundColor;
+              return [...strip.querySelectorAll('.lf-tab-btn')].map(tab => [
+                tab.getAttribute('aria-selected') === 'true',
+                getComputedStyle(tab.querySelector('.lf-tab-mark')).visibility === 'visible'
+                  && getComputedStyle(tab.querySelector('.lf-tab-mark')).backgroundColor !== ground]);
+            }"""
+        )
+        assert all(selected == drawn for selected, drawn in ruled), ruled
 
 
 def test_a_workspace_part_fills_the_window_from_first_paint(browser, serve):
     """A page of parts whose opening part is a workspace gives that workspace the
-    window's height before the runtime upgrades the parts, so nothing grows or moves when
-    it does."""
+    window's height above the floating panel's row before the runtime upgrades the parts,
+    so nothing grows or moves when it does. The row's room is the part's own end, so the
+    part and the page reach the window's foot with no band below them."""
     source = leaf_page(
         "Workspace part",
         '<header><h1>Review</h1></header><lf-parts id="parts">'
@@ -1326,15 +1507,20 @@ def test_a_workspace_part_fills_the_window_from_first_paint(browser, serve):
         def heights():
             return page.evaluate("""() => {
               const block = document.querySelector('#surface').getBoundingClientRect();
-              const main = document.querySelector('main').getBoundingClientRect();
+              const part = document.querySelector('#work').getBoundingClientRect();
+              const room = parseFloat(getComputedStyle(document.querySelector('#work'))
+                .paddingBlockEnd);
               const scroller = document.scrollingElement;
               return {top: Math.round(block.top), height: Math.round(block.height),
-                      foot: Math.round(main.bottom - block.bottom),
+                      room: Math.round(room),
+                      under: Math.round(part.bottom - block.bottom - room),
+                      foot: Math.round(innerHeight - part.bottom),
                       scrolls: scroller.scrollHeight - scroller.clientHeight};
             }""")
 
         first = heights()
-        assert first["height"] > 400 and first["foot"] == 0, first
+        assert first["height"] > 400 and first["room"] > 0, first
+        assert first["under"] == first["foot"] == 0, first
         assert first["scrolls"] <= 0, first
         boot.pop().continue_()
         wait_until_ready(page)
@@ -1448,6 +1634,45 @@ def test_wide_evidence_in_a_part_takes_the_room_it_would_on_a_page_of_its_own(
     boxed("phone", phone)
     assert root_overflow(page) == 0
     twin(phone, "phone")
+
+
+def test_the_list_of_parts_lands_its_last_name_above_the_floating_row(browser, serve):
+    """The list of parts runs to the window's foot, under the floating panel's row where
+    a narrow window puts the row over the column. A name the keyboard moves to still
+    lands above the row, as a landing in the page does. The window leaves the list
+    100 px between its title and the row, whatever height the host's fonts give the
+    title, so the list scrolls to reach its last name."""
+    page = open_page(browser, serve(ROOT_PARTS_PAGE))
+    resized(page, 800, 900)
+    title = page.locator("main > header").bounding_box()
+    under_row = 900 - page.locator(".lf-fp-row").bounding_box()["y"]
+    resized(page, 800, round(title["y"] + title["height"] + 100 + under_row))
+    tabs = page.locator("#root-parts")
+    tabs.get_by_role("tab", name="Plan", exact=True).focus()
+    page.keyboard.press("End")
+    last = tabs.get_by_role("tab", name="Summary", exact=True)
+    expect(last).to_be_focused()
+    scroll_settled(page)
+    row = page.locator(".lf-fp-row").bounding_box()
+    box = last.bounding_box()
+    assert box["x"] < row["x"] + row["width"], (box, row)
+    assert box["y"] + box["height"] <= row["y"], (box, row)
+
+
+def test_a_short_window_keeps_the_list_of_parts_in_reach(browser, serve):
+    """The column stands fixed in the window, so a title taller than a short window
+    scrolls on its own and leaves the list a few names' room, rather than pushing the
+    list below the window's foot."""
+    page = open_page(browser, serve(ROOT_PARTS_PAGE))
+    resized(page, 1280, 300)
+    tabs = page.locator("#root-parts")
+    tabs.get_by_role("tab", name="Plan", exact=True).focus()
+    page.keyboard.press("End")
+    last = tabs.get_by_role("tab", name="Summary", exact=True)
+    expect(last).to_be_focused()
+    scroll_settled(page)
+    box = last.bounding_box()
+    assert 0 <= box["y"] and box["y"] + box["height"] <= 300, box
 
 
 def test_a_phone_keeps_the_list_of_parts_in_reach_and_each_part_s_place(browser, serve):

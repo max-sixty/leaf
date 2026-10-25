@@ -13,8 +13,8 @@ import subprocess
 import sys
 
 import click
-from leaf.state import flocked, state_home
 
+from leaf.state import flocked, state_home
 from leaf_dev import ROOT
 
 
@@ -45,7 +45,6 @@ def setup() -> None:
                 "chromium",
                 "webkit",
                 "firefox",
-                "--only-shell",
             )
             run("uv", "run", "--frozen", "playwright", "install", "chrome")
             if sys.platform == "linux":

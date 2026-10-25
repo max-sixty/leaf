@@ -7,14 +7,24 @@ import threading
 
 import leaf_website as website_server
 import pytest
-from interact_support import STATED_TIMEOUT, take_stream_activity
+from interact_support import (
+    STATED_TIMEOUT,
+    activity_reading,
+    declared,
+    owed_answers,
+    page_state,
+    status_and_stream,
+    take_stream_activity,
+)
 from interact_support import append_carried_log_record as append_event
+
 from leaf import codex as leaf_codex
 from leaf.codex import AppServerRequestRejected
+from leaf.delivery import response_addresses
 from leaf.event_log import read_events
+from leaf.interaction_log import read_interactions
 from leaf.state import session_record
 from leaf.thread import post_reply
-
 from process.website_server import (
     accept_in_turn,
     hosted_follower,
@@ -134,7 +144,7 @@ def test_a_turn_whose_stream_drops_is_stopped_and_its_move_receipted(
     harness._hold_waiter(page_dir, "hosted-thread")
     follow.follow()
     events = read_events(page_dir)
-    activity = website_server.full_state(page_dir, events)["activity"]
+    activity = activity_reading(page_dir)
 
     assert interrupts == [("hosted-thread", "app-server-turn")]
     [reply] = [event for event in events if event["kind"] == "reply"]
@@ -200,7 +210,11 @@ def test_notifications_before_start_response_reach_the_turn_follower(
                     "method": "turn/completed",
                     "params": {
                         "threadId": "hosted-thread",
-                        "turn": {"id": "initial-turn", "status": "completed"},
+                        "turn": {
+                            "id": "initial-turn",
+                            "status": "completed",
+                            "items": [],
+                        },
                     },
                 }
             ),
@@ -259,7 +273,7 @@ def test_notifications_before_start_response_reach_the_turn_follower(
         (
             page_dir,
             "hosted-thread",
-            {"id": "initial-turn", "status": "completed"},
+            {"id": "initial-turn", "status": "completed", "items": []},
         )
     ]
     assert socket.closed
@@ -289,12 +303,12 @@ def test_the_website_harness_keeps_its_claim_listening_through_the_agent_turn(
         # The reading is the turn's, so it starts when the follower opens the turn
         # rather than when the request that made it went out.
         follow.begin()
-        state = website_server.full_state(page_dir, read_events(page_dir))
+        state = page_state(page_dir)
 
         assert state["listening"] is True
         assert state["activity"]["kind"] == "working"
         assert state["activity"]["observed_kind"] == "working"
-        assert state["activity"]["obligations"][0]["input"] == comment["id"]
+        assert owed_answers(page_dir)[0]["input"] == comment["id"]
 
         leaf_codex.set_stream_activity(
             "hosted-thread",
@@ -302,16 +316,14 @@ def test_the_website_harness_keeps_its_claim_listening_through_the_agent_turn(
             {"kind": "tool", "detail": "Editing index.html"},
             expected=session_record("hosted-thread"),
         )
-        working = website_server.full_state(page_dir, read_events(page_dir))
+        working = page_state(page_dir)
         assert working["activity"]["kind"] == "working"
         assert working["activity"]["observed_kind"] == "tool"
         assert working["activity"]["observed"] == "Editing index.html"
     finally:
         harness.close()
 
-    assert (
-        website_server.full_state(page_dir, read_events(page_dir))["listening"] is False
-    )
+    assert page_state(page_dir)["listening"] is False
 
 
 def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, capsys):
@@ -336,6 +348,9 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, 
                             "id": "command-1",
                             "type": "commandExecution",
                             "command": "leaf page check .",
+                            "commandActions": [],
+                            "cwd": "/work",
+                            "status": "inProgress",
                         },
                     },
                 }
@@ -353,6 +368,8 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, 
                             "command": "leaf page check .",
                             "status": "completed",
                             "exitCode": 0,
+                            "commandActions": [],
+                            "cwd": "/work",
                         },
                     },
                 }
@@ -467,17 +484,13 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, 
     # The turn's own reading and no other, taken off once, when the follower
     # accounts for the ended turn.
     assert clears == [("hosted-thread", "initial-turn")]
+    [address] = response_addresses(prepared.payload)
     assert streamed == [
         (
             "hosted-thread",
             "initial-turn",
             prepared.payload["id"],
-            {
-                "page": str(page_dir),
-                "reply_to": comment["id"],
-                "responds": comment["id"],
-                "ref": prepared.payload["batches"][0]["events"][0]["answer"]["ref"],
-            },
+            address,
         ),
         ("Deployment verified.", True),
     ]
@@ -494,6 +507,7 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, 
         "turn_item_completed",
         "turn_first_model_message",
         "turn_reply_first_text_published",
+        "turn_reply_published",
         "turn_stream_completed",
         # The reply above is this test's stand-in, which records the commit rather
         # than writing it, so the move it was answering is still owed one.
@@ -514,6 +528,19 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, 
     assert logs[7]["durationMs"] == 500
     assert logs[8]["phase"] == "final_answer"
     assert logs[9]["recovered"] is False
+    published = next(
+        record
+        for record in read_interactions(page_dir)
+        if record["type"] == "turn_reply_published"
+    )
+    assert published["eventId"] == comment["id"]
+    assert published["reply"] == {
+        "item": "message-1",
+        "phase": "final_answer",
+        "text": "Deployment verified.",
+        "complete": True,
+    }
+    assert all("reply" not in record for record in logs)
     assert finished == [
         (
             page_dir,
@@ -585,7 +612,7 @@ def test_a_stream_that_goes_silent_ends_its_turn_like_a_dropped_one(
     assert (reply["responds"], reply["failure"]) == (comment["id"], "turn_failed")
     assert interrupts == [("hosted-thread", "app-server-turn")]
     assert website_server.page_claim(page_dir)["turn_closed"] is not None
-    assert website_server.full_state(page_dir, events)["activity"]["kind"] != "working"
+    assert activity_reading(page_dir)["kind"] != "working"
     assert silent.closed
 
 
@@ -632,7 +659,7 @@ def test_a_follower_fault_of_any_shape_still_releases_its_website_turn(
     assert (reply["responds"], reply["failure"]) == (comment["id"], "turn_failed")
     assert interrupts == [("hosted-thread", "app-server-turn")]
     assert website_server.page_claim(page_dir)["turn_closed"] is not None
-    activity = website_server.full_state(page_dir, events)["activity"]
+    activity = activity_reading(page_dir)
     assert activity["kind"] != "working"
     assert activity["obligations"] == []
     assert socket.closed
@@ -666,13 +693,10 @@ def test_an_invalid_source_still_releases_a_finished_website_turn(page_dir):
     claim = website_server.page_claim(page_dir)
     assert claim["turn"] == "app-server-turn"
     assert claim["turn_closed"] is not None
-    assert website_server.PageTransaction(page_dir).status["state"] == "waiting"
-    assert [
-        obligation["input"]
-        for obligation in website_server.full_state(page_dir, read_events(page_dir))[
-            "activity"
-        ]["obligations"]
-    ] == [comment["id"]]
+    assert declared(page_dir)["state"] == "waiting"
+    assert [obligation["input"] for obligation in owed_answers(page_dir)] == [
+        comment["id"]
+    ]
 
 
 def test_a_reply_that_cannot_be_written_still_closes_its_website_turn(
@@ -723,12 +747,12 @@ def test_a_finished_website_turn_does_not_overwrite_an_agent_reply(page_dir):
     accept_in_turn("hosted-thread")
     post_reply(
         page_dir,
-        {"to": comment["id"], "for": comment["id"]},
+        {"parent": comment["id"], "responds": comment["id"]},
         "Done.",
         identity={"agent": "Agent", "session": "leaf-website-agent"},
     )
     with website_server.PageTransaction(page_dir) as page:
-        page.set_status("waiting", "Finishing")
+        page.set_status("waiting")
     before = read_events(page_dir)
 
     website_server.WebsiteCodexHarness("codex")._finish_turn(
@@ -738,8 +762,12 @@ def test_a_finished_website_turn_does_not_overwrite_an_agent_reply(page_dir):
         expected=session_record("hosted-thread"),
     )
 
-    assert read_events(page_dir) == before
-    assert website_server.PageTransaction(page_dir).status["state"] == "waiting"
+    # The ending declares the page waiting for its agent, and writes nothing else.
+    after = read_events(page_dir)
+    assert after[: len(before)] == before
+    assert [(event["kind"], event["state"]) for event in after[len(before) :]] == [
+        ("status", "waiting")
+    ]
 
 
 def test_an_old_website_completion_does_not_close_the_new_leaf_turn(page_dir):
@@ -774,8 +802,7 @@ def test_an_old_website_completion_does_not_close_the_new_leaf_turn(page_dir):
         if event["kind"] == "reply"
     }
     assert replies == {}
-    state = website_server.full_state(page_dir, read_events(page_dir))
-    assert [item["input"] for item in state["activity"]["obligations"]] == [
+    assert [item["input"] for item in owed_answers(page_dir)] == [
         first["id"],
         second["id"],
     ]
@@ -796,7 +823,7 @@ def test_hosted_completion_cannot_borrow_a_reused_session_generation(page_dir):
     prompt_turn("hosted-thread", "same-turn")
     with website_server.PageTransaction(page_dir) as page:
         page.take_claim(website_server.website_harness("hosted-thread", os.getpid()))
-        page.set_status("waiting", "New generation")
+        page.set_status("waiting")
     leaf_codex.set_stream_activity(
         "hosted-thread",
         "same-turn",
@@ -804,7 +831,7 @@ def test_hosted_completion_cannot_borrow_a_reused_session_generation(page_dir):
         expected=session_record("hosted-thread"),
     )
     winner = session_record("hosted-thread")
-    status = website_server.PageTransaction(page_dir).status
+    status = status_and_stream(page_dir)
     old.close({"id": "same-turn", "status": "completed", "items": []}, None)
     assert session_record("hosted-thread") == winner
-    assert website_server.PageTransaction(page_dir).status == status
+    assert status_and_stream(page_dir) == status

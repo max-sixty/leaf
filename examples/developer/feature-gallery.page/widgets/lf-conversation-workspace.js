@@ -7,7 +7,8 @@ import {
   keeps,
   keepsText,
   offer,
-  once,
+  LeafElement,
+  noChange,
   queueActions,
   queueItemKey,
   queueTitle,
@@ -23,15 +24,13 @@ import {
   threadActions,
   threadSummary,
   threadTurns,
-  watchProjection,
   whileConnected,
 } from "/runtime/widget-api.js";
 
 customElements.define(
   "lf-conversation-workspace",
-  class extends HTMLElement {
-    connectedCallback() {
-      if (!once(this)) return;
+  class extends LeafElement {
+    setup() {
       this.build();
       whileConnected(this, () => {
         const stopRegions = this.regionBodies.map(([name, body]) =>
@@ -58,7 +57,10 @@ customElements.define(
           this.presentation.unregister();
         };
       });
-      watchProjection(this, () => this.paintObligations());
+    }
+    render() {
+      this.paintObligations();
+      return noChange;
     }
     build() {
       this.mode = "Conversation";
@@ -75,6 +77,9 @@ customElements.define(
       /* The index, each queue in it, and the reader scroll on their own within the
          reader's fixed height, as a mail client's panes do. */
       .index,.reader { min-width:0; min-height:0; overflow:auto; --lf-holds-height:1; }
+      /* Leaf draws a rewrite's frame around the user's words, past the part's edge;
+         the reader keeps that room inside its scroll, in the gap beside it. */
+      .reader { padding-inline:12px; margin-inline:-12px; }
       .index { display:grid; grid-template-columns:minmax(0,1fr); grid-template-rows:minmax(0,2fr) repeat(3,minmax(0,1fr)); gap:8px; }
       .group { min-width:0; min-height:0; display:flex; flex-direction:column; }
       .group ul { overflow:auto; min-height:0; --lf-holds-height:1; }

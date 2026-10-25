@@ -14,11 +14,20 @@ from types import SimpleNamespace
 
 import pytest
 from interact_support import STATED_TIMEOUT
-from leaf.interaction_log import read_interactions
 from leaf_dev import ROOT, journey_claude_code, journey_pi
 from leaf_dev.commands import journey, journey_chart
 from leaf_dev.page_fixtures import record_run_context
+from leaf_dev.reply_phases import (
+    claude_code_debug_records,
+    claude_code_records,
+    reply_breakdown,
+    turn_phases,
+)
 from leaf_dev.review_scenario import SLEEP
+
+from leaf import harness
+from leaf.hook_transport import INLINE_OPENING
+from leaf.interaction_log import read_interactions
 
 
 def at(seconds: float) -> str:
@@ -169,7 +178,7 @@ def test_a_steps_comments_are_timed_from_the_log_and_in_a_browser_the_page(end):
         if end == "browser"
         else journey.HttpEnd(url, Path("page"), time.sleep)
     )
-    user = journey.User(user_end, "v", lambda: events, terminal)
+    user = journey.User(user_end, "v", lambda: events, terminal, list)
     user.release_reading = {
         "version": "v",
         "comment": {
@@ -214,13 +223,17 @@ def test_a_steps_comments_are_timed_from_the_log_and_in_a_browser_the_page(end):
     else:
         assert "sinceSendMs" not in reading and shown == []
     # The record before the pickup is no delivery; the work after it is.
-    assert [phase["phase"] for phase in reading["turn"]] == [
+    assert [phase["phase"] for phase in reading["reply"]["phases"]] == [
         "delivery",
         "model",
         "tool",
         "model",
     ]
-    assert reading["turn"][0] == {"phase": "delivery", "startMs": 0, "ms": 1000}
+    assert reading["reply"]["phases"][0] == {
+        "phase": "delivery",
+        "startMs": 0,
+        "ms": 1000,
+    }
     assert terminal.approved == []
     prompted = {**sample, "target": "claude-code", "version": "old"}
     later = {
@@ -289,29 +302,53 @@ def test_the_users_command_is_found_only_among_the_panes_own_processes(spawn):
 
 def test_claude_codes_transcript_gives_tool_and_turn_records(tmp_path):
     """Claude Code's transcript stamps each record as it writes it, and a prompt's
-    content may be a bare string; the journey reads both, and nothing else."""
+    content may be a bare string; the journey reads both, and nothing else, and a
+    model response ends with the last record carrying its message id."""
     session = "6f1c"
     path = tmp_path / ".claude" / "projects" / "-private-work" / f"{session}.jsonl"
     path.parent.mkdir(parents=True)
     lines = [
-        {"type": "user", "timestamp": at(1), "message": {"content": "Serve it."}},
+        {
+            "type": "user",
+            "timestamp": at(1),
+            "turnPosition": {"promptIndex": 1, "turnIndex": 1},
+            # Claude Code writes U+2028 raw inside a string.
+            "message": {"content": "Serve\u2028it."},
+        },
         {"type": "attachment", "timestamp": at(1.5), "attachment": {}},
         {
             "type": "assistant",
             "timestamp": at(2),
             "message": {
+                "id": "m1",
                 "content": [
                     {"type": "tool_use", "id": "b", "name": "Bash", "input": {}}
-                ]
+                ],
+                "usage": {"output_tokens": 120},
             },
         },
         {"type": "system", "timestamp": at(2.5), "subtype": "stop_hook_summary"},
-    ]
-    path.write_text("".join(json.dumps(line) + "\n" for line in lines))
-    assert journey_claude_code.transcript(tmp_path, session) == [
+        {"type": "system", "timestamp": at(3), "subtype": "turn_duration"},
         {
             "type": "user",
-            "message": {"content": [{"type": "text", "text": "Serve it."}]},
+            "timestamp": at(4),
+            "isCompactSummary": True,
+            "turnPosition": {"promptIndex": 1, "turnIndex": 1},
+            "message": {"content": "Summary."},
+        },
+    ]
+    # Claude Code is still writing the last record, which is no record yet; its
+    # bytes so far can end inside a character.
+    path.write_bytes(
+        "".join(json.dumps(line, ensure_ascii=False) + "\n" for line in lines).encode()
+        + '{"type": "assistant", "text": "é'.encode()[:-1]
+    )
+    native = journey_claude_code.native_records(tmp_path, session)
+    assert claude_code_records(native) == [
+        {"type": "turn_start", "received_at": at(1)},
+        {
+            "type": "user",
+            "message": {"content": [{"type": "text", "text": "Serve\u2028it."}]},
             "received_at": at(1),
         },
         {
@@ -323,7 +360,81 @@ def test_claude_codes_transcript_gives_tool_and_turn_records(tmp_path):
             },
             "received_at": at(2),
         },
+        {"type": "model_response", "received_at": at(2), "outputTokens": 120},
+        {"type": "turn_end", "received_at": at(3)},
+        {
+            "type": "user",
+            "message": {"content": [{"type": "text", "text": "Summary."}]},
+            "received_at": at(4),
+        },
     ]
+
+
+def test_the_journey_reads_claude_codes_status_as_it_is_now(tmp_path, monkeypatch):
+    """Claude Code rewrites its registry record in place, which Leaf's reused
+    listing doesn't notice within its time bucket; the journey's reading sees the
+    rewrite at once, as a step that presses Escape and waits for the next turn
+    needs."""
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path))
+    (tmp_path / "sessions").mkdir()
+    record = tmp_path / "sessions" / f"{os.getpid()}.json"
+    # Leaf's listing reads within one time bucket throughout.
+    monkeypatch.setattr(harness.time, "monotonic", lambda: 0.0)
+
+    def write(status: str, at: int) -> None:
+        with record.open("w") as written:
+            written.write(
+                json.dumps(
+                    {
+                        "pid": os.getpid(),
+                        "sessionId": "s",
+                        "status": status,
+                        "statusUpdatedAt": at,
+                    }
+                )
+            )
+
+    cc = journey_claude_code.ClaudeCode.__new__(journey_claude_code.ClaudeCode)
+    cc.session = "s"
+    write("idle", 1)
+    assert (
+        harness.ClaudeCodeHarness(session="s", agent="Claude").live_turn()["state"]
+        == "idle"
+    )
+    assert cc.idle()
+    write("busy", 2)
+    assert (
+        harness.ClaudeCodeHarness(session="s", agent="Claude").live_turn()["state"]
+        == "idle"
+    )
+    assert cc.state() == "busy"
+
+
+def test_a_delivered_update_waits_for_the_turn_it_opened_to_end():
+    """The journey waits for the turn a delivery reached to end in the transcript;
+    a turn that ended before the delivery doesn't count. Waiting on Claude Code's
+    idle instead read the idle an Escape wrote before the delivery's turn started,
+    and found the page's claim holding that running turn open."""
+    delivery = {
+        "format": "leaf-delivery/15",
+        "batches": [{"events": [{"kind": "resolve", "id": "f4a21046"}]}],
+    }
+    records = [
+        {"type": "system", "subtype": "turn_duration"},
+        {"type": "user", "message": {"content": "<task-notification>"}},
+        {
+            "type": "attachment",
+            "attachment": {
+                "type": "hook_additional_context",
+                "hookEvent": "UserPromptSubmit",
+                "content": [INLINE_OPENING + "\n" + json.dumps(delivery)],
+            },
+        },
+    ]
+    assert not journey_claude_code.delivery_ended(records, "f4a21046")
+    records.append({"type": "system", "subtype": "turn_duration"})
+    assert journey_claude_code.delivery_ended(records, "f4a21046")
+    assert not journey_claude_code.delivery_ended(records, "a-comment-never-sent")
 
 
 def test_a_comment_picked_up_while_a_call_is_out_starts_in_that_tool_phase():
@@ -350,24 +461,302 @@ def test_a_comment_picked_up_while_a_call_is_out_starts_in_that_tool_phase():
         ),
         record(5, "user", {"type": "tool_result", "tool_use_id": "s"}),
     ]
-    assert journey.turn_phases(records, at(0), at(3), at(6)) == [
+    assert turn_phases(records, at(0), at(3), at(6)) == [
         {"phase": "delivery", "startMs": 0, "ms": 3000},
         {"phase": "tool", "startMs": 3000, "ms": 2000, "calls": ["sleep 4"]},
         {"phase": "model", "startMs": 5000, "ms": 1000},
     ]
 
 
+def test_a_reply_taken_while_working_splits_into_leaf_share_and_model_calls():
+    """A comment sent while the harness works waits for the tool boundary, which is
+    the harness's time, not Leaf's; Leaf's share is the delivery after it and the
+    time each `leaf` command recorded, from its start after the comment until the
+    reply. Model phases with no response ending between them are one model call,
+    whose tool calls ran while it still streamed."""
+
+    def use(seconds: float, id: str, command: str) -> dict:
+        part = {"type": "tool_use", "id": id, "name": "Bash", "input": {}}
+        if command != "Edit":
+            part["input"]["command"] = command
+        else:
+            part["name"] = "Edit"
+        return {
+            "type": "assistant",
+            "message": {"content": [part]},
+            "received_at": at(seconds),
+        }
+
+    def result(seconds: float, id: str) -> dict:
+        part = {"type": "tool_result", "tool_use_id": id}
+        return {
+            "type": "user",
+            "message": {"content": [part]},
+            "received_at": at(seconds),
+        }
+
+    def responded(seconds: float) -> dict:
+        return {"type": "model_response", "received_at": at(seconds)}
+
+    records = [
+        {"type": "turn_start", "received_at": at(0.2)},
+        use(0.5, "s", "sleep 4"),
+        result(5, "s"),
+        use(7, "a", "leaf task start . c1"),
+        use(7, "b", "cat index.html"),
+        responded(7),
+        result(7.4, "a"),
+        result(7.5, "b"),
+        use(9, "c", "Edit"),
+        result(9.1, "c"),
+        use(9.3, "d", "/x/bin/leaf page check ."),
+        responded(9.35),
+        result(10, "d"),
+        responded(12),
+        use(12, "e", "leaf thread reply c1"),
+    ]
+
+    def ran(started: float, ended: float) -> dict:
+        return {"started": at(started), "ts": at(ended)}
+
+    # The watch running from before the comment and a command of the harness's
+    # other work while it was busy are no part of the reply, commands running
+    # together count once, and the reply's own command counts until the reply is
+    # admitted.
+    commands = [
+        ran(0, 20),
+        ran(2, 4),
+        ran(7, 7.4),
+        ran(7.1, 7.3),
+        ran(9.3, 10),
+        ran(12, 12.8),
+    ]
+    reply = reply_breakdown(records, commands, at(1), at(5.2), at(12.5))
+    # With no requests or first outputs in the record, the model's time is unsplit.
+    assert {key: value for key, value in reply.items() if key != "phases"} == {
+        "wholeMs": 11500,
+        "leafMs": 1800,
+        "busyMs": 4000,
+        "deliveryMs": 200,
+        "leafCommandsMs": 1600,
+        "leafHooksMs": 0,
+        "harnessMs": 0,
+        "modelMs": 5500,
+        "waitMs": 0,
+        "generationMs": 0,
+        "otherToolsMs": 200,
+        "idleMs": 0,
+        "outputTokens": None,
+        "modelCalls": [
+            {"ms": 1800, "calls": ["leaf task start . c1", "cat index.html"]},
+            {"ms": 1700, "calls": ["Edit", "/x/bin/leaf page check ."]},
+            {"ms": 2000, "calls": ["leaf thread reply c1"]},
+        ],
+    }
+    assert [phase["phase"] for phase in reply["phases"][:3]] == [
+        "busy",
+        "delivery",
+        "model",
+    ]
+    assert reply_breakdown(records, [], at(1), None, at(12.5)) is None
+    # Where the agent works before the pickup, the boundary handed it a pointer it
+    # read and acknowledged itself, and the delivery ended at that boundary.
+    acknowledged = reply_breakdown(records, [], at(1), at(9.2), at(12.5))
+    assert (acknowledged["busyMs"], acknowledged["deliveryMs"]) == (4000, 0)
+    assert acknowledged["modelMs"] == 5700
+    # A busy turn that ends before the agent takes the comment leaves the harness
+    # idle until the turn that reads it starts.
+    ended = [
+        {"type": "turn_start", "received_at": at(0)},
+        {"type": "turn_end", "received_at": at(2)},
+        {"type": "turn_start", "received_at": at(32)},
+        use(33, "r", "leaf delivery read c1"),
+        result(33.5, "r"),
+    ]
+    later = reply_breakdown(ended, [], at(1), at(34), at(35))
+    assert (later["busyMs"], later["idleMs"], later["modelMs"]) == (1000, 30000, 2500)
+    # Calls out together at the admission hold the harness until the last returns.
+    batch = [
+        {"type": "turn_start", "received_at": at(0)},
+        use(0.5, "a", "sleep 2"),
+        use(0.5, "b", "sleep 10"),
+        result(2, "a"),
+        result(10, "b"),
+    ]
+    drained = reply_breakdown(batch, [], at(1), at(10.2), at(12))
+    assert (drained["busyMs"], drained["deliveryMs"]) == (9000, 200)
+    # A call an interrupted turn left without a result holds no later turn.
+    interrupted = [
+        {"type": "turn_start", "received_at": at(0)},
+        use(1, "x", "sleep 60"),
+        {"type": "turn_end", "received_at": at(2)},
+        {"type": "turn_start", "received_at": at(3)},
+        use(4, "y", "sleep 2"),
+        result(6, "y"),
+    ]
+    later = reply_breakdown(interrupted, [], at(5), at(6.2), at(8))
+    assert (later["busyMs"], later["deliveryMs"]) == (1000, 200)
+    assert later["phases"][2]["phase"] == "model"
+
+
+def test_a_reply_is_attributed_to_leaf_the_harness_and_the_models_wait_and_output():
+    """Claude Code's debug log times each request, its first byte and Leaf's hooks:
+    a call splits into the harness's part before its request, the model's wait for
+    its first output and its generation, and Leaf's hooks count as Leaf's share,
+    out of the harness's and the tools' time. A first byte is the main thread's
+    where the request it names is; a call without one stays unsplit. The parts add
+    up to the whole reply."""
+
+    def logged(seconds: float, rest: str) -> str:
+        return f"{at(seconds)} [DEBUG] {rest}"
+
+    def request(seconds: float, source: str = "repl_main_thread") -> str:
+        return logged(seconds, f"[API REQUEST] /v1/messages x=1 source={source}")
+
+    def first_byte(seconds: float, after: float) -> str:
+        return logged(seconds, f"[API:timing] first byte after {after * 1000:.0f}ms")
+
+    def hook(seconds: float, event: str, ms: int, plugin: str = "leaf@inline") -> str:
+        return logged(
+            seconds,
+            f'Hooks: {event} ["/x/bin/leaf" hook || exit 1] (plugin {plugin}) '
+            f"finished with status 0 ({ms}ms)",
+        )
+
+    log = "\n".join(
+        [
+            request(0.6),
+            first_byte(1.6, 1),
+            hook(4.2, "PreToolUse:Bash", 150),
+            hook(4.75, "PostToolBatch", 200),
+            # Another plugin's hook is the harness's.
+            hook(4.75, "PostToolBatch", 300, plugin="other@inline"),
+            # A prompt suggestion's stream answers first, and the main thread's
+            # first byte is unlogged, so its call stays unsplit.
+            request(4.7, "prompt_suggestion"),
+            request(4.8),
+            first_byte(5.5, 0.8),
+            hook(7.3, "PostToolBatch", 200),
+            request(7.3),
+            first_byte(8.3, 1),
+        ]
+    )
+
+    def part(seconds: float, kind: str, block: dict) -> dict:
+        return {
+            "type": kind,
+            "message": {"content": [block]},
+            "received_at": at(seconds),
+        }
+
+    def use(seconds: float, id: str, command: str) -> dict:
+        return part(
+            seconds,
+            "assistant",
+            {
+                "type": "tool_use",
+                "id": id,
+                "name": "Bash",
+                "input": {"command": command},
+            },
+        )
+
+    def result(seconds: float, id: str) -> dict:
+        return part(seconds, "user", {"type": "tool_result", "tool_use_id": id})
+
+    def responded(seconds: float, tokens: int) -> dict:
+        return {
+            "type": "model_response",
+            "received_at": at(seconds),
+            "outputTokens": tokens,
+        }
+
+    records = [
+        {"type": "turn_start", "received_at": at(0.5)},
+        use(4, "a", "leaf thread reply c1 --ephemeral"),
+        responded(4, 200),
+        result(4.5, "a"),
+        use(7, "b", "Edit"),
+        responded(7, 300),
+        result(7.05, "b"),
+        use(10, "c", "leaf thread reply c1 --done"),
+        responded(10, 150),
+        *claude_code_debug_records(log),
+    ]
+    records.sort(key=lambda record: record["received_at"])
+    commands = [
+        {"started": at(4.2), "ts": at(4.5)},
+        {"started": at(10), "ts": at(10.4)},
+    ]
+    reply = reply_breakdown(records, commands, at(0), at(0.5), at(10.3))
+    parts = {key: value for key, value in reply.items() if key != "phases"}
+    assert parts == {
+        "wholeMs": 10300,
+        "leafMs": 1650,
+        "busyMs": 0,
+        "deliveryMs": 500,
+        "leafCommandsMs": 600,
+        "leafHooksMs": 550,
+        "harnessMs": 250,
+        "modelMs": 8300,
+        "waitMs": 2000,
+        "generationMs": 4100,
+        "otherToolsMs": 100,
+        "idleMs": 0,
+        "outputTokens": 650,
+        "modelCalls": [
+            {
+                "ms": 3500,
+                "harnessMs": 100,
+                "waitMs": 1000,
+                "generationMs": 2400,
+                "outputTokens": 200,
+                "calls": ["leaf thread reply c1 --ephemeral"],
+            },
+            {"ms": 2500, "harnessMs": 100, "outputTokens": 300, "calls": ["Edit"]},
+            {
+                "ms": 2950,
+                "harnessMs": 50,
+                "waitMs": 1000,
+                "generationMs": 1700,
+                "outputTokens": 150,
+                "calls": ["leaf thread reply c1 --done"],
+            },
+        ],
+    }
+    unsplit = parts["modelMs"] - parts["waitMs"] - parts["generationMs"]
+    assert unsplit == 2200
+    assert parts["wholeMs"] == unsplit + sum(
+        parts[key]
+        for key in (
+            "deliveryMs",
+            "leafCommandsMs",
+            "leafHooksMs",
+            "harnessMs",
+            "waitMs",
+            "generationMs",
+            "otherToolsMs",
+        )
+    )
+
+
 def test_pis_events_give_the_turn_phases(monkeypatch):
-    """Pi reports its runs and tool calls as RPC events; the journey keeps its tool
-    calls as the records `turn_phases` reads, and tracks the shell commands
+    """Pi reports its runs, responses and tool calls as RPC events; the journey
+    keeps its tool calls, each response's first output and its output tokens as the
+    records `turn_phases` and `reply_breakdown` read, and tracks the shell commands
     running."""
     seconds = count(3)
     monkeypatch.setattr(journey_pi, "now", lambda: at(next(seconds)))
     pi = journey_pi.Pi.__new__(journey_pi.Pi)
     journey.Terminal.__init__(pi)
     pi.running, pi.settled, pi.closed_watches = False, 0, 0
+    pi.output_tokens = None
+    assistant = {"role": "assistant", "usage": {"output": 90}}
     for event in (
         {"type": "agent_start"},
+        {"type": "message_start", "message": {"role": "user"}},
+        {"type": "message_start", "message": assistant},
+        {"type": "message_end", "message": assistant},
         {
             "type": "tool_execution_start",
             "toolCallId": "s",
@@ -375,19 +764,39 @@ def test_pis_events_give_the_turn_phases(monkeypatch):
             "args": {"command": "sleep 1"},
         },
         {"type": "tool_execution_end", "toolCallId": "s"},
+        {"type": "turn_end"},
         {"type": "leaf_watch_closed", "code": 0},
         {"type": "agent_settled"},
     ):
         pi._hear(event)
     assert pi.commands == ["sleep 1"] and pi.running_commands == {}
     assert (pi.settled, pi.closed_watches, pi.idle()) == (1, 1, True)
-    phases = journey.turn_phases(pi.records(), at(0), at(2), at(6))
+    assert [record["type"] for record in pi.records()] == [
+        "turn_start",
+        "first_output",
+        "assistant",
+        "user",
+        "model_response",
+        "turn_end",
+    ]
+    phases = turn_phases(pi.records(), at(0), at(2), at(9))
     assert phases == [
         {"phase": "delivery", "startMs": 0, "ms": 2000},
-        {"phase": "model", "startMs": 2000, "ms": 1000},
-        {"phase": "tool", "startMs": 3000, "ms": 1000, "calls": ["sleep 1"]},
-        {"phase": "model", "startMs": 4000, "ms": 2000},
+        {"phase": "model", "startMs": 2000, "ms": 3000},
+        {"phase": "tool", "startMs": 5000, "ms": 1000, "calls": ["sleep 1"]},
+        {"phase": "model", "startMs": 6000, "ms": 2000},
+        {"phase": "idle", "startMs": 8000, "ms": 1000},
     ]
+    call, after = reply_breakdown(pi.records(), [], at(0), at(2), at(9))["modelCalls"]
+    assert call == {
+        "ms": 3000,
+        "waitMs": 2000,
+        "generationMs": 1000,
+        "outputTokens": 90,
+        "calls": ["sleep 1"],
+    }
+    # The phase after the tool's result had no response end by the reply.
+    assert after == {"ms": 2000, "calls": []}
 
 
 def test_the_release_ask_over_http_is_the_shared_check(tmp_path):
@@ -395,10 +804,11 @@ def test_the_release_ask_over_http_is_the_shared_check(tmp_path):
     check as in a browser waits on its turn, title and answer, requiring a published
     revision naming the release; it reads nothing a browser would. A step's comment
     is posted on its section."""
-    from leaf.event_log import append_event, read_events
-    from leaf.thread import post_reply, title_event
     from leaf_dev.arms import run_leaf, serving
     from leaf_dev.review_scenario import post, prepare
+
+    from leaf.event_log import append_event, read_events
+    from leaf.thread import post_reply, title_event
 
     state, page = tmp_path / "state", tmp_path / "page"
     prepare(ROOT, state, page)
@@ -425,14 +835,14 @@ def test_the_release_ask_over_http_is_the_shared_check(tmp_path):
         append_event(page, title_event(comment["id"], "Release recorded", agent))
         post_reply(
             page,
-            {"to": comment["id"], "for": comment["id"]},
+            {"parent": comment["id"], "responds": comment["id"]},
             "Recorded.",
             identity=agent,
         )
 
     with serving(ROOT, state, page) as url:
         reading = journey.run_journey(journey.HttpEnd(url, page, pause), version)
-        step = post(url, "mid-turn")
+        step = post(url, "ending")
     assert reading["change"] == {
         "marker": "abcd1234",
         "revision": 2,
@@ -469,7 +879,7 @@ def test_a_harness_journey_over_http_starts_no_browser(monkeypatch):
     entered = []
 
     @contextmanager
-    def target_session(browser, target, release, *, hooks_module, sandbox, preview):
+    def target_session(browser, target, release, *, sandbox, preview):
         entered.append(browser)
         end = (
             journey.HttpEnd("http://127.0.0.1:1/?t=t", Path("page"), time.sleep)

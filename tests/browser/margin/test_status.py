@@ -8,11 +8,6 @@ import pytest
 from axe_playwright_python.sync_playwright import Axe
 from click.testing import CliRunner
 from interact_support import append_carried_log_record, declare_idle, record_claim
-from leaf import cli as cli_model
-from leaf import delivery as delivery_model
-from leaf import event_log as events_model
-from leaf import service as service_model
-from leaf.served_state import context as served_context
 from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATION_PAGE, PANEL_PAGE, live_url
 from render_cases_layout import token_colour
@@ -28,6 +23,7 @@ from render_harness import (
     margins_laid_out,
     open_page,
     panel_settled,
+    panel_view,
     resized,
     select,
     sending,
@@ -41,14 +37,19 @@ from browser.margin import (
     leave_card_by_its_target,
 )
 from browser.threads import open_panel_thread
+from leaf import cli as cli_model
+from leaf import delivery as delivery_model
+from leaf import event_log as events_model
+from leaf import service as service_model
+from leaf.served_state import context as served_context
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
 RECEIPT_PHASES = {
     "Sent": "sent",
-    "Waiting for pickup": "waiting",
-    "Picked up": "pickup",
+    "Waiting for delivery": "waiting",
+    "Delivered": "pickup",
 }
 
 
@@ -274,6 +275,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
             "start",
             str(serve.page_dir),
             roots[0]["id"],
+            "--text",
             detail,
         ],
     )
@@ -466,7 +468,14 @@ def test_each_seat_agrees_with_the_page_map_on_a_controls_receipt(
         delivery_model.record_pickup(transaction, roots)
     claimed = CliRunner().invoke(
         cli_model.cli,
-        ["task", "start", str(serve.page_dir), roots[0]["id"], "Checking the visit."],
+        [
+            "task",
+            "start",
+            str(serve.page_dir),
+            roots[0]["id"],
+            "--text",
+            "Checking the visit.",
+        ],
     )
     assert claimed.exit_code == 0, claimed.output
     told(page)
@@ -683,6 +692,7 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
             "start",
             str(serve.page_dir),
             roots[0]["id"],
+            "--text",
             "Checking the user comment.",
         ],
     )
@@ -768,7 +778,7 @@ def test_a_thread_an_open_to_do_holds_says_so_beside_the_page(browser, serve):
     page.keyboard.press("Shift+m")
     panel_settled(page, view="queue")
     page.locator(".lf-floating-panel .lf-fp-filters button").nth(1).click()
-    queue = page.locator('.lf-fp-view[data-view="queue"]:not([data-leaving])')
+    queue = page.locator(panel_view("queue"))
     owed = queue.locator('.lf-fp-on-item[data-list="agent"]')
     expect(owed).to_have_count(1)
     expect(owed.locator(".lf-fp-on-title, .lf-fp-prompt").first).to_have_text(named)
@@ -848,7 +858,7 @@ def test_unit_claim_arrivals_share_one_window_with_the_open_page_map(browser, se
     record_claim(serve.page_dir)
     claimed = CliRunner().invoke(
         cli_model.cli,
-        ["task", "open", str(serve.page_dir), "sprint", "Check the board"],
+        ["task", "create", str(serve.page_dir), "sprint", "--title", "Check the board"],
     )
     assert claimed.exit_code == 0, claimed.output
     told(page)
@@ -902,6 +912,7 @@ def test_unit_claim_arrivals_share_one_window_with_the_open_page_map(browser, se
                 "start",
                 str(serve.page_dir),
                 move["id"],
+                "--text",
                 "Checking both moved cards",
             ],
         )
@@ -942,8 +953,8 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
 ):
     """A margin entry keeps the margin entry family visible without promising a press.
 
-    Sent, Waiting for pickup, and Picked up report a move already made. Their status
-    margin entry therefore keeps the circular silhouette and full ink, while leaving the
+    Sent, Waiting for delivery, and Picked up report a move already made. Their status
+    margin entry therefore keeps the family silhouette and full ink, while leaving the
     accessibility tree as a status rather than a control and showing no hover fill.
     Hovering the status draws a soft neutral trace to the
     target without making the margin entry respond like a control. The walk still arrives,
@@ -1064,7 +1075,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
             "borderStyle": "solid",
             "animation": "none",
             "ink": expected_ink,
-            "iconInk": pickup_ink if phase == "Picked up" else expected_ink,
+            "iconInk": pickup_ink if phase == "Delivered" else expected_ink,
             "opacity": "1",
             "width": "32px",
             "wordOpacity": "0",
@@ -1151,7 +1162,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     go_to_address(page, "Margin entry", address_target)
     expect(marker).to_be_focused()
 
-    # Standing there is not the same as being the way in. A repaint under the user
+    # Located there is not the same as being the way in. A repaint under the user
     # leaves the rail's one stop on a margin entry that acts, and the status without one.
     page.evaluate("() => window.dispatchEvent(new Event('resize'))")
     page.evaluate(
@@ -1179,15 +1190,17 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         monkeypatch.setattr(clock_owner, "now_iso", advanced_now)
     declare_idle(page_dir)
     told(page)
-    expect(marker).to_have_attribute("aria-label", re.compile(r"^Waiting for pickup,"))
-    assert_status("Waiting for pickup", "3m ago")
+    expect(marker).to_have_attribute(
+        "aria-label", re.compile(r"^Waiting for delivery,")
+    )
+    assert_status("Waiting for delivery", "3m ago")
 
     # Pickup belongs to an active agent turn; an unclaimed pickup is stale work.
     record_claim(page_dir)
     with service_model.PageTransaction(page_dir) as transaction:
         delivery_model.record_pickup(transaction, [logged_action])
     told(page)
-    assert_status("Picked up", "just now")
+    assert_status("Delivered", "just now")
 
     # A surviving semantic action carries pickup itself. Removing that carrier
     # restores the status fallback with the same canonical receipt.
@@ -1207,7 +1220,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     carrier = page.locator(".lf-workflow-primary-probe")
     expect(marker).to_be_hidden()
     expect(carrier).to_have_attribute("data-lf-agent-workflow", "picked_up")
-    expect(carrier).to_have_attribute("aria-description", "Picked up")
+    expect(carrier).to_have_attribute("aria-description", "Delivered")
     expect(carrier.locator(".lf-margin-entry-icon")).to_have_attribute(
         "data-lf-icon", "edit"
     )
@@ -1234,7 +1247,14 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
 
     claimed = CliRunner().invoke(
         cli_model.cli,
-        ["task", "start", str(page_dir), logged_action["id"], "checking the mounts"],
+        [
+            "task",
+            "start",
+            str(page_dir),
+            logged_action["id"],
+            "--text",
+            "checking the mounts",
+        ],
     )
     assert claimed.exit_code == 0, claimed.output
     told(page)
@@ -1322,7 +1342,7 @@ def test_status_hover_trace_uses_a_registered_visual_surface(browser, serve):
           registerContribution({
             key: 'shape-status', target: document.querySelector('#outer'),
             read: () => ({entries: [contributionEntry({
-              key: 'shape-status', icon: 'pickup', label: 'Picked up', behavior: 'status'
+              key: 'shape-status', icon: 'pickup', label: 'Delivered', behavior: 'status'
             })]}), activate: () => {}
           });
         }"""

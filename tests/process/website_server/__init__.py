@@ -9,6 +9,8 @@ from pathlib import Path
 
 import leaf_website as website_server
 import pytest
+from interact_support import route_answer_error
+
 from leaf.codex import accept_codex_delivery, delivery_records
 from leaf.codex_state import delivery_lock_path
 from leaf.state import flocked, open_session_turn, session_record, start_session_turn
@@ -68,7 +70,10 @@ def post(url: str, body: dict, headers: dict | None = None) -> tuple[dict, Messa
         headers={"Content-Type": "application/json", **(headers or {})},
     )
     with urllib.request.urlopen(request) as response:
-        return json.loads(response.read()), response.headers
+        raw = response.read()
+    if error := route_answer_error(url, raw):
+        raise AssertionError(f"{url} answered outside its schema: {error}")
+    return json.loads(raw), response.headers
 
 
 def write_manifest(site: Path, pages: dict[str, tuple[str, str]]) -> None:

@@ -3,9 +3,6 @@ replaced outlet leave of its caret, focus, reading position and Send."""
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf.render_checks import rendered, wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import panel_comment
 from render_cases_navigation import source_revision
@@ -26,6 +23,9 @@ from render_harness import (
 )
 
 from browser.threads import PANEL_REPLY, open_panel_thread, seed_panel_threads
+from leaf import data as data_model
+from leaf import event_log as events_model
+from leaf.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -215,8 +215,8 @@ def expect_resolved(page, surface, thread, resolved):
     """The thread reads resolved, or not: the panel's by its head's Resolve or Reopen,
     a margin card by its own state."""
     if surface == "panel":
-        expect(page.locator(".lf-fp-settle")).to_have_text(
-            "Reopen" if resolved else "Resolve", use_inner_text=True
+        expect(page.locator(".lf-fp-settle")).to_have_accessible_name(
+            "Reopen" if resolved else "Resolve thread"
         )
     else:
         expect(thread).to_have_attribute("data-resolved", str(resolved).lower())
@@ -274,7 +274,7 @@ def test_reply_admission_finishes_or_restores_its_native_session(
         # nothing until the user's first edit or press there brings them back. The
         # press is one in the reply's row, so the resolved thread keeps its editor
         # once the press has finished painting.
-        cover = page.locator(".lf-fp-error-cover")
+        cover = page.locator(".lf-fp-field .lf-compose-error")
         expect(cover).to_contain_text("Please retry.")
         cover.click()
         rendered(page)
@@ -362,7 +362,11 @@ def test_reply_editing_and_saved_words_have_separate_resolution_lifetimes(
         # settlement, and every other field remain strict.
         errors = consume_browser_errors(
             page,
-            {"code": "words-left-screen", "words": words, "place": ["leaf-text.lf-ui"]},
+            {
+                "code": "words-left-screen",
+                "words": words,
+                "place": ["leaf-text.lf-ui.scroll"],
+            },
         )
         assert len(errors) == 1
 
@@ -613,7 +617,7 @@ def test_tab_browsing_continues_a_displaced_reply_without_an_annotation_overlay(
         serve.page_dir, "review-patch", patch + "@@ -9 +9 @@\n-old = 1\n+new = 1\n"
     )
     told(page)
-    # Tab is a newer standing intent while the same native editing generation remains
+    # Tab is a newer location intent while the same native editing generation remains
     # alive: the reply's continuation does not take it back.
     expect(after).to_be_focused()
     page.keyboard.press("Tab")

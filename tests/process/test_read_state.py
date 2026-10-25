@@ -10,6 +10,7 @@ from interact_support import (
     served_thread,
     state_json,
 )
+
 from leaf import event_endpoint as endpoint_model
 from leaf import event_log as event_log_model
 from leaf import harness as harness_model
@@ -97,7 +98,7 @@ def test_what_the_user_does_in_a_thread_acknowledges_what_it_said(page_dir, serv
     assert _unread(answer["state"], root) == []
 
     reply = thread_model.post_reply(
-        page_dir, {"for": _last_id(page_dir)}, "Mounts first, then."
+        page_dir, {"responds": _last_id(page_dir)}, "Mounts first, then."
     )["id"]
     assert state_json(page_dir)["threads"][0]["unread"] == [reply]
     status, answer = _post(
@@ -106,9 +107,9 @@ def test_what_the_user_does_in_a_thread_acknowledges_what_it_said(page_dir, serv
     assert status == 200, answer
     assert _unread(answer["state"], root) == []
 
-    later = thread_model.post_reply(page_dir, {"for": _last_id(page_dir)}, "Done.")[
-        "id"
-    ]
+    later = thread_model.post_reply(
+        page_dir, {"responds": _last_id(page_dir)}, "Done."
+    )["id"]
     status, answer = _post(server, {"kind": "resolve", "parent": root})
     assert status == 200, answer
     assert _unread(answer["state"], root) == []

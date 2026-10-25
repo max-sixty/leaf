@@ -19,21 +19,25 @@ import test from "node:test";
 
 import { registry } from "/runtime/registry.js";
 import {
+  blockAt,
   closestAcross,
   contextAround,
   elementReading,
   fencePassageParts,
+  findQuote,
   inChrome,
   neighbourhood,
   pageText,
+  pageBlocks,
   pageWords,
   pointAt,
   programmaticSelection,
+  quoteFrom,
   selectEnds,
   says,
-  watchPassageRoot,
 } from "/runtime/passages.js";
 import { upFrom } from "/runtime/shadow.js";
+import { shadowStage } from "/runtime/shadow-stage.js";
 
 test("no node means no passage location, rather than a runtime error", () => {
   assert.equal(closestAcross(null, "main"), null);
@@ -118,6 +122,40 @@ test("a word the page changes is in the next reading", () => {
   assert.equal(pageText().raw, "Alpha gamma");
 });
 
+test("projected rows have separate passages inside one text block", () => {
+  document.body.innerHTML =
+    '<main><pre><span id="first">First <b>row</b></span>' +
+    '<span id="second">Second row</span></pre></main>';
+  const pre = document.querySelector("pre");
+  const first = document.querySelector("#first");
+  const second = document.querySelector("#second");
+  assert.deepEqual(pageBlocks(), [pre]);
+  for (const row of [first, second]) {
+    row.dataset.lfProjection = "source";
+    row.dataset.lfDatum = row.id;
+  }
+  assert.deepEqual(pageBlocks(), [first, second]);
+  assert.equal(blockAt(first.querySelector("b").firstChild), first);
+  assert.equal(says(pre), "First rowSecond row");
+  first.removeAttribute("data-lf-datum");
+  assert.deepEqual(pageBlocks(), [pre, second]);
+  second.removeAttribute("data-lf-projection");
+  assert.deepEqual(pageBlocks(), [pre]);
+});
+
+test("projecting an inline value preserves its typography and resolved quote", () => {
+  document.body.innerHTML = "<main><p>The rate is <span><b>42</b>%</span>.</p></main>";
+  const paragraph = document.querySelector("p");
+  const value = document.querySelector("span");
+  assert.equal(says(paragraph), "The rate is 42%.");
+  value.dataset.lfGen = "1";
+  value.dataset.lfProjection = "source";
+  value.dataset.lfDatum = "rate";
+  assert.deepEqual(pageBlocks(), [paragraph, value]);
+  assert.equal(says(paragraph), "The rate is 42%.");
+  assert.equal(quoteFrom(findQuote(pageText(), "42%", {}, value)), "42%");
+});
+
 test("words the page gains or loses are in the next reading", () => {
   document.body.innerHTML = "<main><p>Alpha</p></main>";
   pageText();
@@ -200,13 +238,13 @@ test("a declared shadow tree's words are read, and its changes are seen", () => 
     $layer: { generation: "passage-doors" },
   });
   document.body.innerHTML = "<main><p>Alpha</p><lf-staged></lf-staged></main>";
-  const root = document.querySelector("lf-staged").attachShadow({ mode: "open" });
-  root.append(Object.assign(document.createElement("p"), { textContent: "Beta" }));
-  // Attaching the root and filling it reached no node the document observes.
-  watchPassageRoot(root);
+  // Staging the root and filling it reaches no node the document observes.
+  const root = shadowStage(document.querySelector("lf-staged"), [
+    Object.assign(document.createElement("p"), { textContent: "Beta" }),
+  ]);
   assert.match(pageText().raw, /Alpha.*Beta/s);
   // And the door leaves the tree watched, rather than forgetting the reading once.
-  root.firstElementChild.textContent = "Gamma";
+  root.querySelector("p").textContent = "Gamma";
   assert.match(pageText().raw, /Alpha.*Gamma/s);
 });
 
@@ -221,9 +259,9 @@ test("chrome over a declared tree stops at its root, and not for what it slots",
   });
   document.body.innerHTML =
     '<main><p>Page</p></main><div class="lf-ui"><lf-staged><b>Slotted</b> loose</lf-staged></div>';
-  const root = document.querySelector("lf-staged").attachShadow({ mode: "open" });
-  root.innerHTML = "<p>Staged</p><p><slot></slot></p>";
-  watchPassageRoot(root);
+  const staged = document.createElement("template");
+  staged.innerHTML = "<p>Staged</p><p><slot></slot></p>";
+  shadowStage(document.querySelector("lf-staged"), [...staged.content.childNodes]);
   const raw = pageText().raw;
   assert.match(raw, /Staged/, "the chrome above the host is not the tree's");
   assert.doesNotMatch(
@@ -240,7 +278,9 @@ test("a line break assigned to a shadow slot separates its words", () => {
   });
   document.body.innerHTML = "<main><lf-staged>Alpha<br>Beta</lf-staged></main>";
   const host = document.querySelector("lf-staged");
-  host.attachShadow({ mode: "open" }).innerHTML = "<p><slot></slot></p>";
+  const staged = document.createElement("template");
+  staged.innerHTML = "<p><slot></slot></p>";
+  shadowStage(host, [...staged.content.childNodes]);
   assert.equal(says(host.shadowRoot), "Alpha Beta");
   assert.equal(pageText().raw, "Alpha Beta");
 });

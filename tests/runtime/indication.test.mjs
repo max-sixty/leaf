@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
 
 import { indicate } from "/runtime/indication.js";
-import { referencedProjection } from "/runtime/anchor-resolution.js";
+import { referencedProjection } from "/runtime/references.js";
 import { registry } from "/runtime/registry.js";
 import { LAYOUT } from "/runtime/widget-elements.js";
 

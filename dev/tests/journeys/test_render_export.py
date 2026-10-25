@@ -23,6 +23,17 @@ from interact_support import (
     woken,
 )
 from journeys.test_render_export import ROOT, _reachable
+from leaf_dev.commands import preview as preview_model
+from playwright.sync_api import expect
+from render_harness import (
+    REPLAYED_PAGE,
+    example_media,
+    open_page,
+    panel_menu,
+    restarting,
+    sending,
+)
+
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import files as files_model
@@ -35,16 +46,6 @@ from leaf import state as cleanup_model
 from leaf.findings import Finding
 from leaf.render_checks import HANDOVER_DEADLINE_MS, wait_until_ready
 from leaf.structure import SourceDocument
-from leaf_dev.commands import preview as preview_model
-from playwright.sync_api import expect
-from render_harness import (
-    REPLAYED_PAGE,
-    example_media,
-    open_page,
-    panel_menu,
-    restarting,
-    sending,
-)
 
 
 def end_preview(process) -> None:
@@ -384,7 +385,7 @@ def test_named_live_previews_serve_one_source_in_independent_runtime_slots(
     prefix, default = preview_slot
     installed = install_payload(tmp_path / "other-runtime")
     runtime_marker = "selected-preview-runtime"
-    installed_runtime = installed / "skills" / "leaf" / "assets" / "leaf.js"
+    installed_runtime = installed / "browser" / "leaf.js"
     installed_runtime.write_text(
         installed_runtime.read_text(encoding="utf-8")
         + f"\nglobalThis.__previewRuntimeMarker = {json.dumps(runtime_marker)};\n",
@@ -601,7 +602,7 @@ def test_a_user_preview_restarts_under_its_original_codex_claim(
     source = tmp_path / "detached.html"
     source.write_text(REPLAYED_PAGE)
     runtime = install_payload(tmp_path / "detached-runtime")
-    theme = runtime / "skills" / "leaf" / "assets" / "theme.css"
+    theme = runtime / "browser" / "theme.css"
     slot, directory = preview_slot
     log = tmp_path / "preview.log"
     # The Codex task runs the preview as its own long-running command.
@@ -763,7 +764,7 @@ def test_terminating_a_preview_mid_update_leaves_no_service(
         source, runtime, directory, process, _, log = watching(
             tmp_path, preview_slot, spawn, user=True, env=env
         )
-        theme = runtime / "skills" / "leaf" / "assets" / "theme.css"
+        theme = runtime / "browser" / "theme.css"
         with theme.open("a", encoding="utf-8") as stream:
             stream.write("\nh1 { color: navy; }\n")
         try:
@@ -815,7 +816,7 @@ def test_a_user_preview_update_keeps_the_sessions_wait_watching(
             source.read_text().replace("Rollout", "A watched revision", 1)
         )
     else:
-        theme = runtime / "skills" / "leaf" / "assets" / "theme.css"
+        theme = runtime / "browser" / "theme.css"
         with theme.open("a", encoding="utf-8") as stream:
             stream.write("\nh1 { color: navy; }\n")
     wait_for(
@@ -837,7 +838,7 @@ def test_a_user_preview_update_keeps_the_sessions_wait_watching(
     )
     assert waiter.wait(timeout=STATED_TIMEOUT) == 0, waited.read_text()
     payload, _, events = woken(waited.read_text(), session=session)
-    assert f"leaf wait --ack {payload['id']}" in payload["acknowledge"]
+    assert f"leaf delivery ack {payload['id']} && leaf wait" in payload["acknowledge"]
     assert [event["text"] for event in events] == ["still there?"]
 
 

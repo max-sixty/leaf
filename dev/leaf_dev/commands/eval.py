@@ -33,8 +33,8 @@ from pathlib import Path
 
 import click
 import yaml
-from leaf.harness import ClaudeCodeHarness
 
+from leaf.harness import ClaudeCodeHarness
 from leaf_dev import ROOT
 from leaf_dev.arms import (
     HARNESSES,
@@ -51,16 +51,18 @@ from leaf_dev.arms import (
     install_codex_plugin,
     instruction_context,
 )
-from leaf_dev.eval_cases import definition
+from leaf_dev.eval_cases import DEFAULT_VIEWPORTS, VIEWPORTS, definition
 from leaf_dev.leaf_assets import pinned_copy
+from leaf_dev.screenshot_judge import screenshot_judge
 
 PROMPTFOO = ROOT / "node_modules/.bin/promptfoo"
 RUNS = ROOT / ".tmp/eval"
 SKILL_PREFIX = definition("eval")["skill_prefix"]
+NOW = definition("eval")["now"]
 
 
 def context_case(source: dict, address: str) -> dict:
-    """A named diagnostic overrides the primary, inheriting its metadata."""
+    """A named diagnostic overrides the primary, inheriting its metadata and vars."""
     primary = {key: value for key, value in source.items() if key != "variants"}
     if "/" not in address:
         return primary
@@ -68,7 +70,8 @@ def context_case(source: dict, address: str) -> dict:
     return {
         **primary,
         **variant,
-        "metadata": {**primary["metadata"], **variant["metadata"]},
+        "metadata": {**primary["metadata"], **variant.get("metadata", {})},
+        "vars": {**primary.get("vars", {}), **variant.get("vars", {})},
     }
 
 
@@ -197,7 +200,12 @@ def workflow_harness(harness: str) -> str:
 
 
 def workflow_provider(
-    harness: str, condition: str, payload: Path, samples: Path, screenshots: Path
+    harness: str,
+    condition: str,
+    payload: Path,
+    samples: Path,
+    screenshots: Path,
+    viewports: tuple[str, ...],
 ) -> dict:
     """The Python provider that hands one complete task to its declared executor."""
     return {
@@ -214,52 +222,11 @@ def workflow_provider(
             "payload": str(payload),
             "samples": str(samples),
             "screenshots": str(screenshots),
+            "viewports": list(viewports),
             "pythonExecutable": sys.executable,
             "timeout": WORKFLOW_LIMIT * 1000,
             # A retry would replace a failed, side-effecting sample with a new one.
             "maxRetries": 0,
-        },
-    }
-
-
-def screenshot_judge(screenshots: Path | None, home: Path) -> dict:
-    """The Codex visual grader for `agent-rubric`s, run under a home of its own.
-
-    Its permission profile lets it read the run's screenshot tree and nothing else,
-    so only copied images are available as filesystem evidence. An assertion may
-    supply authored HTML to identify image references; transcripts and paths naming
-    the arm remain outside the judge's input. Passing None leaves evidence access
-    to each call's isolated profile,
-    so an assertion can grant exactly one sample instead of the run's whole tree.
-    `:minimal` is the runtime paths tools need, which include the temp
-    directories but not the repository. Codex starts its sandbox helper by executing
-    itself, so the profile also grants the executable, run by its resolved path: a
-    symlink's own location is refused. A profile replaces Codex's older sandbox
-    settings, so the provider sets no `sandbox_mode`."""
-    codex = codex_program()
-    home.mkdir(mode=0o700, parents=True)
-    profile = "\n".join(
-        [
-            'default_permissions = "screenshots"',
-            "",
-            "[permissions.screenshots.filesystem]",
-            '":minimal" = "read"',
-            *([f'{json.dumps(f"{screenshots}/**")} = "read"'] if screenshots else []),
-            f'{json.dumps(str(codex))} = "read"',
-            "",
-        ]
-    )
-    return {
-        "id": "openai:codex-sdk",
-        "config": {
-            "model": MODELS["screenshots"],
-            "codex_path_override": str(codex),
-            "working_dir": str(home),
-            "skip_git_repo_check": True,
-            "cli_env": {
-                "HOME": str(home),
-                "CODEX_HOME": str(codex_home(home / ".codex", profile)),
-            },
         },
     }
 
@@ -271,6 +238,7 @@ def prepare(
     harnesses: tuple[str, ...],
     conditions: tuple[str, ...],
     samples: Path,
+    viewports: tuple[str, ...] = DEFAULT_VIEWPORTS,
 ) -> dict:
     """One test per selected address and condition, run on each column it applies to."""
     definitions = catalog()
@@ -306,10 +274,17 @@ def prepare(
                     if label not in providers:
                         if executor or authoring:
                             configured = workflow_provider(
-                                harness, condition, payload, samples, screenshots
+                                harness,
+                                condition,
+                                payload,
+                                samples,
+                                screenshots,
+                                viewports,
                             )
                         else:
-                            work = scratch / "work" / label
+                            # One flat directory per label: a nested one would
+                            # sit inside the plain arm's ("claude-code/base").
+                            work = scratch / "work" / label.replace("/", "--")
                             work.mkdir(parents=True)
                             configured, skill = native_provider(harness, payload, work)
                             if skill is not None and not instructions:
@@ -343,7 +318,7 @@ def prepare(
                     any(r["type"].endswith("agent-rubric") for r in rubrics)
                     and judge is None
                 ):
-                    judge = screenshot_judge(screenshots, scratch / "judge")
+                    judge = screenshot_judge(screenshots, scratch / "judge-login")
                 sample["assert"] = [
                     *(
                         {
@@ -384,16 +359,28 @@ def prepare(
                 ]
                 sample["vars"] = {"prompt": address}
             else:
+                # A prompt may reuse another task's request, named under `evals/`.
+                prompt = sample["vars"]["prompt"]
+                if prompt.startswith("file://"):
+                    prompt = (
+                        ROOT / "evals" / prompt.removeprefix("file://")
+                    ).read_text()
+                # An authoring agent's page dates its events by the real clock, so only
+                # a reading probe is told the time its fixtures were written at.
+                now = sample["vars"].pop("now", NOW)
+                if not authoring:
+                    prompt = f"It is now {now}.\n\n{prompt}"
                 sample["vars"] = {
                     **sample["vars"],
-                    "prompt": ("" if instructions else SKILL_PREFIX)
-                    + sample["vars"]["prompt"],
+                    "prompt": ("" if instructions else SKILL_PREFIX) + prompt,
                 }
                 if authoring:
                     for assertion in sample["assert"]:
                         if assertion["type"].endswith("agent-rubric"):
                             if judge is None:
-                                judge = screenshot_judge(screenshots, scratch / "judge")
+                                judge = screenshot_judge(
+                                    screenshots, scratch / "judge-login"
+                                )
                             assertion["provider"] = judge
                     sample["assert"] = [
                         *(
@@ -500,7 +487,22 @@ def describe(base: str | None, head: str, globs: tuple[str, ...]) -> str:
     default="leaf",
     show_default=True,
 )
-def eval(args: tuple[str, ...], base: str | None, harness: str, condition: str):
+@click.option(
+    "--viewport",
+    "viewports",
+    type=click.Choice(list(VIEWPORTS)),
+    multiple=True,
+    default=DEFAULT_VIEWPORTS,
+    show_default=True,
+    help="Window size for all authored-task comparisons in this run; repeat to check more.",
+)
+def eval(
+    args: tuple[str, ...],
+    base: str | None,
+    harness: str,
+    condition: str,
+    viewports: tuple[str, ...],
+):
     """Score CASE globs or task/context addresses on the working tree.
 
     Options Promptfoo takes follow the cases, such as `--repeat 3` or `-j 4`.
@@ -549,6 +551,7 @@ def eval(args: tuple[str, ...], base: str | None, harness: str, condition: str):
             HARNESSES if harness == "both" else (harness,),
             conditions,
             out / "samples",
+            viewports,
         )
         config["description"] = describe(
             commits.get("base"), commits["candidate"], globs

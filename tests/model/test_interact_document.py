@@ -53,6 +53,8 @@ from interact_support import (
     state_json,
     write_revision,
 )
+from leaf_dev.example_data import captured_value, patch_manifest
+
 from leaf import agent_state as agent_state_model
 from leaf import anchor_capture as anchor_capture_model
 from leaf import cli as cli_model
@@ -66,6 +68,7 @@ from leaf import page_memory as page_memory_model
 from leaf import passages as passages_model
 from leaf import projection as projection_model
 from leaf import publishing as publishing_model
+from leaf import reports as reports_model
 from leaf import revision_artifact as artifact_model
 from leaf import revision_delivery as revision_delivery_model
 from leaf import revisioning as revisioning_model
@@ -76,16 +79,16 @@ from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf import thread as thread_model
 from leaf.refusals import Refused
-from leaf.registry.contract import RANK, detail_schema
+from leaf.registry.contract import DECLARED_WORDS, RANK, detail_schema
 from leaf.registry.schema import schema_error
 from leaf.registry.storage import read_page_registry, require_registry
 from leaf.render_gate import readings as render_gate_readings
 from leaf.served_state.context import read_page
 from leaf.served_state.page import read_served_page
 from leaf.validation import composition as validation_model
+from leaf.validation.admission import message_markup_errors
 from leaf.validation.source import check_source
 from leaf.validation.source_history import predecessor_reading
-from leaf_dev.example_data import captured_value, patch_manifest
 
 
 def test_stamp_installs_or_restores_complete_authored_inputs_before_activation(
@@ -110,7 +113,7 @@ def test_stamp_installs_or_restores_complete_authored_inputs_before_activation(
     )
     publishing_model.cmd_stamp(page_dir, "Original")
     previous = publishing_model.authored_files(page_dir / "index.html", authored)
-    expected = publishing_model.authored_digest(previous)
+    expected = state_json(page_dir)["source"]["digest"]
     first = files_model.latest_revision(page_dir)
     log = (page_dir / "events.jsonl").read_bytes()
     candidate = tmp_path / "candidate"
@@ -136,8 +139,7 @@ def test_stamp_installs_or_restores_complete_authored_inputs_before_activation(
             publishing_model.cmd_stamp,
             page_dir,
             "Candidate",
-            from_directory=candidate,
-            if_source=expected,
+            replace=(candidate, expected),
         )
         try:
             assert reached.wait(timeout=STATED_TIMEOUT)
@@ -157,17 +159,96 @@ def test_stamp_installs_or_restores_complete_authored_inputs_before_activation(
     assert (page_dir / "events.jsonl").read_bytes() == log
 
     (candidate / "page/b.js").write_text("export const b = 2;")
-    publishing_model.cmd_stamp(
-        page_dir, "Complete", from_directory=candidate, if_source=expected
-    )
+    publishing_model.cmd_stamp(page_dir, "Complete", replace=(candidate, expected))
     assert files_model.latest_revision(page_dir) > first
     assert artifact_model.read_artifact(page_dir, first).resources[
         "/page/a.js"
     ].data == (b"export const a = 1;")
     with pytest.raises(Refused, match="authored inputs changed"):
-        publishing_model.cmd_stamp(
-            page_dir, "Stale", from_directory=candidate, if_source=expected
-        )
+        publishing_model.cmd_stamp(page_dir, "Stale", replace=(candidate, expected))
+
+
+def test_page_state_digest_guards_the_complete_authored_tree(page_dir, tmp_path):
+    """CLI authors can publish a candidate without overwriting another file edit."""
+    initial = state_json(page_dir)["source"]["digest"]
+    companion = page_dir / "page" / "nested" / "notes.txt"
+    companion.parent.mkdir(parents=True, exist_ok=True)
+    companion.write_text("Original notes")
+    added = state_json(page_dir)["source"]["digest"]
+    assert added != initial
+
+    candidate = tmp_path / "candidate"
+    candidate.mkdir()
+    shutil.copy2(page_dir / "index.html", candidate / "index.html")
+    shutil.copytree(page_dir / "page", candidate / "page")
+    source = candidate / "index.html"
+    source.write_text(
+        source.read_text().replace("<h2>Plan</h2>", "<h2>Updated plan</h2>")
+    )
+    command = [
+        "page",
+        "stamp",
+        str(page_dir),
+        "--replace",
+        str(candidate),
+        added,
+        "--text",
+        "Updated plan",
+    ]
+
+    companion.write_text("Another author's notes")
+    edited = state_json(page_dir)["source"]["digest"]
+    assert edited not in {initial, added}
+    refused = CliRunner().invoke(cli_model.cli, command)
+    assert refused.exit_code != 0 and "authored inputs changed" in refused.output
+    assert companion.read_text() == "Another author's notes"
+
+    companion.unlink()
+    deleted = state_json(page_dir)["source"]["digest"]
+    assert deleted == initial
+    refused = CliRunner().invoke(cli_model.cli, command)
+    assert refused.exit_code != 0 and "authored inputs changed" in refused.output
+    assert not companion.exists()
+
+    (candidate / "page" / "nested" / "notes.txt").unlink()
+    command[command.index("--replace") + 2] = deleted
+    stamped = CliRunner().invoke(cli_model.cli, command)
+    assert stamped.exit_code == 0, stamped.output
+    assert "Updated plan" in (page_dir / "index.html").read_text()
+    assert state_json(page_dir)["source"]["digest"] != deleted
+
+
+@pytest.mark.parametrize("invalid_source", [b"", None])
+def test_page_state_digest_can_repair_invalid_or_missing_source(
+    page_dir, tmp_path, invalid_source
+):
+    source = page_dir / "index.html"
+    candidate = tmp_path / "candidate"
+    candidate.mkdir()
+    shutil.copy2(source, candidate / "index.html")
+    valid = state_json(page_dir)["source"]["digest"]
+    if invalid_source is None:
+        source.unlink()
+    else:
+        source.write_bytes(invalid_source)
+    invalid = state_json(page_dir)["source"]
+    assert invalid["error"] and not invalid["live"]
+    assert invalid["digest"] != valid
+    repaired = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "page",
+            "stamp",
+            str(page_dir),
+            "--replace",
+            str(candidate),
+            invalid["digest"],
+            "--text",
+            "Repaired source",
+        ],
+    )
+    assert repaired.exit_code == 0, repaired.output
+    assert state_json(page_dir)["source"]["digest"] == valid
 
 
 def test_a_revision_captures_the_complete_dependency_graph(page_dir):
@@ -200,22 +281,25 @@ def test_a_revision_captures_the_complete_dependency_graph(page_dir):
     assert first.created
     artifact = artifact_model.read_artifact(page_dir, first.revision)
     assert artifact.html == html.encode()
-    assert artifact.resources["/page/app.js"].dependencies == (
+    assert {
+        "/page/app.js",
         "/page/nested/value.js",
-        "/runtime/widget-api.js",
-    )
-    assert artifact.resources["/page/style.css"].dependencies == (
+        "/page/value.js",
+        "/page/style.css",
         "/page/nested/theme.css",
-    )
-    assert artifact.resources["/page/nested/theme.css"].dependencies == (
         "/page/image.svg",
-    )
+    } <= artifact.resources.keys()
+    # The public module app.js imports is the runtime's, which the delivering Leaf
+    # supplies, so the revision holds none of it.
+    assert "/runtime/widget-api.js" not in artifact.resources
     assert artifact.resources["/page/image.svg"].mime == "image/svg+xml"
     assert artifact.resources["/page/inline.svg"].mime == "image/svg+xml"
     assert artifact.resources["/page/app.js"].mime == "application/javascript"
     assert artifact.registry == read_page_registry(page_dir).registry
     assert artifact.implementations["lf-options"]["path"] == "/widgets/lf-options.js"
-    assert "/vendor/browser-runtime.LICENSES.txt" in artifact.resources
+    # The vendored layer is captured whole; the runtime is the delivering Leaf's.
+    assert "/vendor/plot.LICENSES.txt" in artifact.resources
+    assert "/leaf.js" not in artifact.resources
     assert artifact_model.read_artifact(page_dir, first.revision) is artifact
     unchanged = revisioning_model.activate_source(page_dir)
     assert not unchanged.created and unchanged.revision == first.revision
@@ -228,17 +312,20 @@ def test_a_revision_captures_the_complete_dependency_graph(page_dir):
     assert changed.digest != artifact.digest
     assert changed.resources["/page/value.js"].data == b"export const value = 2;"
     files_model.replace_files(
-        [(page_dir / "leaf.js", b"// replacement runtime", False)]
+        [(page_dir / "vendor" / "plot.esm.js", b"// replacement module", False)]
     )
     third = revisioning_model.activate_source(page_dir)
     assert third.error is None, third.error
     assert third.created and third.revision == second.revision + 1
     replaced = artifact_model.read_artifact(page_dir, third.revision)
-    assert replaced.resources["/leaf.js"].data == b"// replacement runtime"
+    assert replaced.resources["/vendor/plot.esm.js"].data == b"// replacement module"
     assert replaced.digest != changed.digest
     historical = artifact_model.read_artifact(page_dir, first.revision)
     assert historical.resources["/page/value.js"].data == b"export const value = 1;"
-    assert historical.resources["/leaf.js"].data == artifact.resources["/leaf.js"].data
+    assert (
+        historical.resources["/vendor/plot.esm.js"].data
+        == artifact.resources["/vendor/plot.esm.js"].data
+    )
 
 
 def test_a_revision_keeps_its_bytes_when_a_layer_file_is_edited_in_place(page_dir):
@@ -250,7 +337,7 @@ def test_a_revision_keeps_its_bytes_when_a_layer_file_is_edited_in_place(page_di
         files_model.revision_path(page_dir, first.revision).with_suffix("")
         / "resources"
     )
-    for layer_file in ("leaf.js", "theme.css", "runtime/layer-generation.js"):
+    for layer_file in ("theme.css", "vendor/plot.esm.js", "widgets/lf-options.js"):
         assert (captured / layer_file).stat().st_ino != (
             page_dir / layer_file
         ).stat().st_ino, layer_file
@@ -261,9 +348,9 @@ def test_a_revision_keeps_its_bytes_when_a_layer_file_is_edited_in_place(page_di
 
 
 def test_a_sample_child_stages_its_revision_without_fsync(page_dir, monkeypatch):
-    """A sample's child is Leaf's own and deleted on release, so nothing reads its
-    revision after a crash and staging it pays for no fsync, while a page's own
-    revision is still made durable."""
+    """A sample's child lives only in this server, so nothing reads its revision
+    after a crash and staging it pays for no fsync, while a page's own revision
+    is still made durable."""
     template = (
         '<template id="practice" data-sample><h1>Practice</h1>'
         "<p>Child text.</p></template>"
@@ -292,12 +379,9 @@ def test_a_sample_child_stages_its_revision_without_fsync(page_dir, monkeypatch)
     identity = samples.create(
         page_dir, artifact, document, [], {"sources": {}}, "practice", None, None
     )
-    try:
-        child = samples.pages[identity].directory
-        assert files_model.latest_revision(child) == 1
-        assert synced == []
-    finally:
-        samples.close()
+    child = samples.pages[identity].directory
+    assert files_model.latest_revision(child) == 1
+    assert synced == []
 
 
 def test_the_captured_widget_digests_say_which_widgets_a_user_may_keep(page_dir):
@@ -357,7 +441,6 @@ const computed = import(text, { with: { type: './missing.js' } });
     assert activated.error is None, activated.error
     artifact = artifact_model.read_artifact(page_dir, activated.revision)
     resource = artifact.resources["/page/app.js"]
-    assert resource.dependencies == ("/page/options.js", "/page/value.js")
     rewritten = revision_delivery_model.rebase_module(
         resource.data, "/page/app.js", lambda path: "/revisions/captured" + path
     )
@@ -389,6 +472,13 @@ def test_invalid_dependencies_leave_the_previous_revision_active(page_dir, tmp_p
         ('import "./missing.js";', "dependency-unreadable"),
         ('import "ftp://outside.example/module.js";', "dependency-not-local"),
         ('import "../../outside.js";', "module-outside-page"),
+        ('import "./%2e%2e/%2e%2e/outside.js";', "module-outside-page"),
+        ('import "%2Foutside.js";', "module-not-local"),
+        ('import "page/app.js";', "module-not-local"),
+        ('import " ./app.js";', "module-not-local"),
+        ('import "/page/%2e%2e/outside.js";', "module-outside-page"),
+        ('import "./data.json?variant";', "dependency-not-local"),
+        ('import "./data.json#variant";', "dependency-not-local"),
         ('import "/runtime/events.js";', "module-outside-page"),
         ('import "/vendor/lit.js";', "module-outside-page"),
         ('import "./data.json";', "module-type"),
@@ -573,7 +663,7 @@ def test_an_anchorless_comment_uses_the_last_good_revision_during_an_edit(page_d
     assert "anchor" not in event
 
     [anchored] = command_findings(
-        "thread", "open", page_dir, "--quote", "Plan", "--text", "Change this"
+        "thread", "create", page_dir, "--quote", "Plan", "--text", "Change this"
     )
     assert (anchored.code, anchored.values["operation"]) == ("invalid-source", "anchor")
 
@@ -980,7 +1070,7 @@ def test_a_move_on_a_replaced_revision_lands_only_where_its_column_held(page_dir
         _move(page_dir, "x", "c-todo", "1i")
     stale = refused_on(refused.value)
     assert (stale.code, stale.values["container"]) == ("stale-move", "c-todo")
-    assert refused.value.user == "The page changed while you moved this; move it again."
+    assert refused.value.user == "The page changed while I moved this; move it again."
     _move(page_dir, "x", "c-todo", "2i", revision=2)
     assert _todo_order(page_dir) == ["n", "a", "x", "b", "c"]
 
@@ -1147,6 +1237,11 @@ def test_page_state_names_each_bound_source_and_its_failures(page_dir):
     stored.write_text(json.dumps({**publication, "value": ["passing", 3]}))
     [error] = state_json(page_dir)["data"]["errors"]
     assert "builds" in error
+    _, findings = check_findings(page_dir)
+    assert any(
+        finding.code == "unreadable-data" and error in str(finding)
+        for finding in findings
+    )
 
 
 def test_sample_templates_bind_the_parents_producer_sources(page_dir):
@@ -1309,7 +1404,9 @@ def test_check_rejects_widget_violations(page_dir):
     # any non-void tag, not only on the vocabulary's.
     assert [f.at for f in found(findings, "self-closing")] == ["<lf-gloss>", "<figure>"]
     assert found(findings, "unknown-widget", "<lf-bogus>")
-    assert found(findings, "unknown-word", "<lf-column>", attr="tone", value="medium")
+    assert found(
+        findings, "attribute-schema", "<lf-column>", keyword="enum", path=["tone"]
+    )
     assert found(findings, "not-member", "<lf-option>", owners=["lf-options"])
     assert found(findings, "attribute-schema", "<lf-option>", keyword="required")
     assert found(
@@ -1338,9 +1435,10 @@ def test_check_rejects_a_widget_language_nothing_will_color(page_dir):
     )
     status, findings = check_findings(page_dir)
     assert status == 1
-    assert [(f.at, f.values["value"]) for f in found(findings, "unknown-word")] == [
-        ("<lf-code>", "pythn")
-    ]
+    assert [
+        (f.at, f.values["path"])
+        for f in found(findings, "attribute-schema", keyword="enum")
+    ] == [("<lf-code>", ["language"])]
 
 
 def test_a_widget_that_declares_a_language_is_checked_by_that_alone(page_dir):
@@ -1361,12 +1459,7 @@ def test_a_widget_that_declares_a_language_is_checked_by_that_alone(page_dir):
     status, findings = check_findings(page_dir)
     assert status == 1
     assert found(
-        findings,
-        "unknown-word",
-        "<lf-gloss>",
-        attr="dialect",
-        value="lisp",
-        declares="x-language",
+        findings, "attribute-schema", "<lf-gloss>", keyword="enum", path=["dialect"]
     )
 
 
@@ -1379,16 +1472,27 @@ def test_every_declared_attribute_and_enum_stands_in_an_example():
     enumerates — restated, overruled and resolves each name something the log
     holds, which a one-version corpus cannot earn.
 
+    Live samples are example pages too; their child documents contribute the
+    attributes the reader can exercise there.
+
     The floor reads every package the examples select rather than a list written
     here, which is how it followed lf-diagram and lf-diff into their own packages.
     Widening it that way brought pr-review's two widgets under the floor for the
     first time and found one uncovered attribute, exempted below."""
     registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
     used = {}
-    for path in (Path(__file__).parents[2] / "examples").glob("*.html"):
-        for rec in structure_model.SourceDocument(path.read_text()).lf_elements:
+
+    def read(document):
+        for rec in document.lf_elements:
             for attr, value in rec["attrs"].items():
                 used.setdefault(rec["tag"], {}).setdefault(attr, set()).add(value)
+        for sample in document.samples:
+            read(sample["document"])
+
+    from leaf_dev.commands.corpus import sources
+
+    for path in sources():
+        read(structure_model.SourceDocument(path.read_text()))
     missing = []
     for tag, entry in sorted(registry.items()):
         if not tag.startswith("lf-"):
@@ -1397,9 +1501,12 @@ def test_every_declared_attribute_and_enum_stands_in_an_example():
             if attr in {"restated", "overruled", "resolves"}:
                 continue
             seen = used.get(tag, {}).get(attr)
+            # A declared word's enum is the layer's list, stamped in
+            # (`registry.contract.stamp_words`), not values the widget draws apart.
+            declared = {entry.get(key) for key, _ in DECLARED_WORDS}
             if seen is None:
                 missing.append(f"{tag}[{attr}]")
-            else:
+            elif attr not in declared:
                 missing.extend(
                     f'{tag}[{attr}="{value}"]'
                     for value in spec.get("enum", [])
@@ -1512,7 +1619,9 @@ def test_a_layer_naming_no_languages_refuses_every_word_rather_than_none(page_di
     )
     status, findings = check_findings(page_dir)
     assert status == 1
-    assert found(findings, "unknown-word", "<lf-code>", value="python", known=[])
+    assert found(
+        findings, "attribute-schema", "<lf-code>", keyword="enum", path=["language"]
+    )
 
 
 def test_check_rejects_loose_content_in_items_container(page_dir):
@@ -1589,18 +1698,74 @@ def test_suggestion_rejects_malformed_shapes(page_dir):
             "<lf-old><p>orphan</p></lf-old><lf-options>",
             ("not-member", "<lf-old>"),
         ),
-        (
-            (
-                '<lf-suggestion id="sug-a" resolves="nosuch"><lf-new><p>x</p></lf-new>'
-                "</lf-suggestion><lf-options>"
-            ),
-            ("unknown-thread", "<lf-suggestion id=sug-a>"),
-        ),
     ]:
         (page_dir / "index.html").write_text(PAGE.replace("<lf-options>", markup))
         status, findings = check_findings(page_dir)
         assert status == 1, markup
         assert expected in [(f.code, f.at) for f in findings], markup
+
+
+@pytest.mark.parametrize("widget", ["lf-suggestion", "lf-options"])
+def test_resolves_names_a_thread_for_every_declared_answering_widget(page_dir, widget):
+    registry_path = page_dir / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    registry["lf-options"]["properties"]["resolves"] = {"type": "string"}
+    registry_path.write_text(json.dumps(registry))
+    source = (
+        PAGE.replace(
+            "<lf-options>",
+            '<lf-suggestion id="answer" resolves="plan"><lf-new><p>Proposed</p>'
+            "</lf-new></lf-suggestion><lf-options>",
+        )
+        if widget == "lf-suggestion"
+        else PAGE.replace(
+            "<lf-options>", '<lf-options id="answer" choose resolves="plan">'
+        )
+    )
+    (page_dir / "index.html").write_text(source)
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    assert found(findings, "unknown-thread", f"<{widget} id=answer>", resolves="plan")
+
+    append_carried_log_record(
+        page_dir,
+        {"kind": "comment", "id": "c1", "author": "user", "text": "Revise this"},
+    )
+    (page_dir / "index.html").write_text(
+        source.replace('resolves="plan"', 'resolves="c1"')
+    )
+    status, findings = check_findings(page_dir)
+    assert status == 0, [f.json() for f in findings]
+
+
+def test_message_widget_thread_references_use_the_same_namespace(page_dir):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-options"]["properties"]["resolves"] = {"type": "string"}
+    markup = (
+        '<lf-options id="answer" choose resolves="plan">'
+        '<lf-option id="approve"><strong>Approve</strong></lf-option></lf-options>'
+    )
+    page = structure_model.SourceDocument(PAGE)
+
+    def errors(source):
+        return message_markup_errors(
+            page_dir,
+            structure_model.SourceDocument(source),
+            events_model.read_events(page_dir),
+            registry,
+            page,
+            set(),
+            [],
+            {},
+            None,
+        )
+
+    assert found(errors(markup), "unknown-thread", resolves="plan")
+    append_carried_log_record(
+        page_dir,
+        {"kind": "comment", "id": "c1", "author": "user", "text": "Revise this"},
+    )
+    assert errors(markup.replace('resolves="plan"', 'resolves="c1"')) == []
 
 
 def test_reply_refuses_a_suggestion(page_dir):
@@ -1610,7 +1775,7 @@ def test_reply_refuses_a_suggestion(page_dir):
     result = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, "c1"),
@@ -1646,7 +1811,7 @@ def test_response_addresses_one_obligation_and_activates_the_current_source(page
     result = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, "c1"),
@@ -1700,7 +1865,7 @@ def test_reply_refuses_an_invalid_current_source(page_dir, invalid):
     result = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             reference,
@@ -1746,7 +1911,7 @@ def test_response_reference_selects_one_of_several_obligations(page_dir):
 
     ambiguous = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", "--done", "--text", "Updated."],
+        ["thread", "reply", "--done", "--text", "Updated."],
     )
     assert ambiguous.exit_code != 0
     assert "Missing argument" in ambiguous.output
@@ -1755,7 +1920,7 @@ def test_response_reference_selects_one_of_several_obligations(page_dir):
     selected = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, "c2"),
@@ -1798,7 +1963,7 @@ def test_response_never_settles_a_newer_undelivered_correction(page_dir):
     )
 
     [refused] = command_findings(
-        "response", "reply", "--done", reference, "--text", "Made it blue."
+        "thread", "reply", "--done", reference, "--text", "Made it blue."
     )
     assert refused.code == "superseded-reply"
     assert not any(
@@ -1829,7 +1994,7 @@ def test_response_belongs_to_the_session_with_the_opened_delivery(
 
     result = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", "--done", reference, "--text", "Updated."],
+        ["thread", "reply", "--done", reference, "--text", "Updated."],
     )
 
     assert result.exit_code != 0
@@ -1855,7 +2020,7 @@ def test_response_address_survives_its_delivery_turn_closing(page_dir):
     result = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, "c1"),
@@ -1888,12 +2053,12 @@ def test_a_cli_write_is_admitted_through_the_browser_door(page_dir):
         {"kind": "comment", "id": "c1", "author": "agent", "revision": 1, "text": "?"},
     )
     with pytest.raises(Refused) as refused:
-        thread_model.post_reply(page_dir, {"to": "c1"}, "Answered.", attempt="r1")
+        thread_model.post_reply(page_dir, {"parent": "c1"}, "Answered.", attempt="r1")
     invalid = refused_on(refused.value)
     assert (invalid.code, invalid.values["field"]) == ("invalid-event", "/attempt")
 
     with pytest.raises(Refused) as unknown_widget:
-        thread_model.cmd_report(page_dir, "no-such-widget", "status", ())
+        reports_model.cmd_report(page_dir, "no-such-widget", "status", ())
     assert refused_on(unknown_widget.value).values == {
         "kind": "report",
         "widget": "no-such-widget",
@@ -1906,11 +2071,8 @@ def test_a_cli_write_is_admitted_through_the_browser_door(page_dir):
     ]
 
 
-def test_response_attempt_is_idempotent(page_dir):
-    """An attempt is an opaque durable key, and the append door holds every
-    writer to the record contract's shape for one — the delivery transports mint
-    theirs from a digest, so a short hand-written label is not a retry key."""
-    attempt = "retry-inferred-reply-1"
+def test_response_reference_is_idempotent(page_dir):
+    """A rerun of an answer with the same reference posts nothing new."""
     comment = append_carried_log_record(
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "update it"},
@@ -1926,8 +2088,8 @@ def test_response_attempt_is_idempotent(page_dir):
         )
 
     reference = response_reference(page_dir, comment)
-    first = thread_model.post_response(reference, "Updated.", attempt=attempt)
-    retried = thread_model.post_response(reference, "Updated.", attempt=attempt)
+    first = thread_model.post_response(reference, "Updated.")
+    retried = thread_model.post_response(reference, "Updated.")
 
     assert retried["id"] == first["id"]
     assert (
@@ -1940,32 +2102,6 @@ def test_response_attempt_is_idempotent(page_dir):
         )
         == 1
     )
-
-
-def test_reply_for_a_stale_event_reports_the_failed_fence(page_dir):
-    append_carried_log_record(
-        page_dir,
-        {"kind": "comment", "id": "c1", "author": "user", "text": "update it"},
-    )
-    reference = response_reference(page_dir, "c1")
-    thread_model.post_response(reference, "Updated.")
-
-    result = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "response",
-            "reply",
-            "--done",
-            reference,
-            "--attempt",
-            "distinct-retry-attempt",
-            "--text",
-            "Again.",
-        ],
-    )
-
-    assert result.exit_code != 0
-    assert refused_on(result.stderr).code == "superseded-reply"
 
 
 @pytest.mark.parametrize(
@@ -2157,7 +2293,7 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
         json.loads(line)
         for line in run(
             "thread",
-            "open",
+            "create",
             "--text",
             "Which store?",
             "--markup",
@@ -2315,7 +2451,7 @@ def test_stamp_and_report_choose_one_log_order(page_dir, monkeypatch):
         )
         serialized = leases_model.lock_is_held(page_dir / "events.jsonl")
         reporting = executor.submit(
-            thread_model.cmd_report,
+            reports_model.cmd_report,
             page_dir,
             "t-parser",
             "status",
@@ -2360,12 +2496,12 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
     ]
     assert state["active"]["revision"] == 1 and state["active"]["version"] == 1
     assert state["active"]["file"].startswith("revisions/r1-")
-    assert state["source"] == {
+    assert {
         "file": "index.html",
         "live": True,
         "error": None,
-    }
-    assert state["data"] == {"file": "data.json", "dir": "data", "errors": []}
+    }.items() <= state["source"].items()
+    assert state["data"] == {"dir": "data", "errors": []}
     assert state["event_seq"] == events_model.read_events(page_dir)[-1]["seq"]
     # The one asking group: PAGE's own bare <lf-options> takes no `choose`. The obligation
     # names the region the user is sent to and the group that answers it.
@@ -2464,7 +2600,7 @@ def test_package_data_is_validated_replaced_and_indexed_in_page_state(page_dir):
         "value": ["api", "worker"],
     }
     assert data_model.read_contracts(page_dir) == {"deployments": "deployment-rows"}
-    assert served["data"] == {"file": "data.json", "dir": "data", "errors": []}
+    assert served["data"] == {"dir": "data", "errors": []}
     assert served["data_bindings"] == {
         "deployments": {
             "contract": "deployment-rows",
@@ -2488,7 +2624,7 @@ def test_package_data_is_validated_replaced_and_indexed_in_page_state(page_dir):
         assert rejected.exit_code != 0
         error = json.loads(rejected.stderr)["error"]
         assert "source 'deployments' value is invalid" in error
-        assert ("false" if isinstance(invalid, list) else encoded) in error
+        assert repr(invalid[0] if isinstance(invalid, list) else invalid) in error
         assert read_page_data(page_dir) == first
 
     non_json = runner.invoke(
@@ -2503,7 +2639,12 @@ def test_package_data_is_validated_replaced_and_indexed_in_page_state(page_dir):
     # Any process may rewrite the value file, so a reading judges what it finds.
     stored.write_bytes(
         data_model.PUBLICATION.encode(
-            {"run": "2" * 32, "updated": cleanup_model.now_iso(), "value": "ready"}
+            {
+                "contract": "deployment-rows",
+                "run": "2" * 32,
+                "updated": cleanup_model.now_iso(),
+                "value": "ready",
+            }
         )
     )
     [error] = state_json(page_dir)["data"]["errors"]
@@ -2516,14 +2657,10 @@ def test_package_data_is_validated_replaced_and_indexed_in_page_state(page_dir):
     )
     assert cleared.exit_code == 0, cleared.output
     assert not stored.exists()
-    assert state_json(page_dir)["data"] == {
-        "file": "data.json",
-        "dir": "data",
-        "errors": [],
-    }
-    assert read_page_data(page_dir)["sources"] == {
-        "deployments": {"contract": "deployment-rows"}
-    }
+    # Clearing removes the source whole, the contract it was set under included.
+    assert state_json(page_dir)["data"] == {"dir": "data", "errors": []}
+    assert read_page_data(page_dir)["sources"] == {}
+    assert data_model.read_contracts(page_dir) == {}
 
     unbound = runner.invoke(
         cli_model.cli,
@@ -2691,7 +2828,7 @@ def test_a_source_bound_only_by_frozen_reply_markup_can_be_set(page_dir):
     )
     reply = thread_model.post_reply(
         page_dir,
-        {"to": "data-question", "for": "data-question"},
+        {"parent": "data-question", "responds": "data-question"},
         "Here it is.",
         '<lf-test-data id="reply-data" source="reply-feed"></lf-test-data>',
     )
@@ -2699,7 +2836,7 @@ def test_a_source_bound_only_by_frozen_reply_markup_can_be_set(page_dir):
 
     data_model.cmd_data_set(page_dir, "reply-feed", [])
     served = state_json(page_dir)
-    assert served["data"] == {"file": "data.json", "dir": "data", "errors": []}
+    assert served["data"] == {"dir": "data", "errors": []}
     reading = read_page_data(page_dir)["sources"]["reply-feed"]
     assert (reading["contract"], reading["value"]) == ("rows", [])
     assert served["data_bindings"]["reply-feed"]["consumers"] == [
@@ -2744,7 +2881,7 @@ def test_thread_markup_can_use_a_different_binding_from_a_page_source(page_dir):
 
     reply = thread_model.post_reply(
         page_dir,
-        {"to": "data-question", "for": "data-question"},
+        {"parent": "data-question", "responds": "data-question"},
         "Here it is.",
         '<lf-other-data id="reply-data" source="project-feed"></lf-other-data>',
     )
@@ -2770,10 +2907,9 @@ def test_thread_markup_can_use_a_different_binding_from_a_page_source(page_dir):
         structure_model.SourceDocument(reply["markup"]).lf_elements, captured
     )
     assert errors == [] and thread_bindings == {"project-feed": "other-rows"}
-    frozen = data_model.read_source(
-        page_dir, "project-feed", thread_bindings["project-feed"], captured
+    assert data_contracts_model.payload_error(
+        "project-feed", thread_bindings["project-feed"], active["value"], captured
     )
-    assert "error" in frozen and "value" not in frozen
     with pytest.raises(data_model.DataError, match="value is invalid"):
         data_model.cmd_data_set(page_dir, "project-feed", {"thread": "wrong producer"})
     assert read_page_data(page_dir)["sources"]["project-feed"] == active
@@ -2826,7 +2962,7 @@ def test_thread_markup_can_use_a_different_binding_from_a_draft_only_page_source
 
     thread_model.post_reply(
         page_dir,
-        {"to": "draft-data-question", "for": "draft-data-question"},
+        {"parent": "draft-data-question", "responds": "draft-data-question"},
         "Here it is.",
         '<lf-other-data id="reply-data" source="project-feed"></lf-other-data>',
     )
@@ -2873,8 +3009,14 @@ def test_data_set_wraps_an_unproductive_recursive_schema(page_dir):
     # A value another process wrote is judged on reading by the same validator.
     data_model.write_data(
         page_dir,
-        {"loop": "loop"},
-        {"loop": {"run": "1" * 32, "updated": "2026-01-01T00:00:00Z", "value": {}}},
+        {
+            "loop": {
+                "contract": "loop",
+                "run": "1" * 32,
+                "updated": "2026-01-01T00:00:00Z",
+                "value": {},
+            }
+        },
     )
     assert read_page_data(page_dir)["sources"]["loop"]["error"] == (
         "source 'loop' contract 'loop' could not validate its value: "
@@ -3677,7 +3819,7 @@ def test_page_inspection_fragments_only_the_manifest_branch_of_a_data_contract(
 @pytest.mark.parametrize(
     ("files", "refusal"),
     [
-        ([], "does not satisfy minItems: 1"),
+        ([], "should be non-empty"),
         (
             [{"path": "a.py"}] * 2,
             "record keys must be unique",
@@ -4066,16 +4208,13 @@ def test_a_page_keeps_its_readings_while_its_samples_live(page_dir):
         held = artifact_model.read_revision(page_dir, revision)
         samples = samples_model.Samples()
         artifact = artifact_model.read_artifact(page_dir, revision)
-        try:
-            for _ in range(page_memory_model.PageMemories.LIMIT):
-                samples.create(
-                    page_dir, artifact, held.document, [], {"sources": {}},
-                    "practice", None, None,
-                )  # fmt: skip
-            gc.collect()
-            assert artifact_model.read_revision(page_dir, revision) is held
-        finally:
-            samples.close()
+        for _ in range(page_memory_model.PageMemories.LIMIT):
+            samples.create(
+                page_dir, artifact, held.document, [], {"sources": {}},
+                "practice", None, None,
+            )  # fmt: skip
+        gc.collect()
+        assert artifact_model.read_revision(page_dir, revision) is held
 
 
 def test_a_reading_under_outcomes_is_the_walk_under_them():
@@ -4376,7 +4515,9 @@ def test_a_decision_stands_when_an_earlier_leaf_recorded_its_operation(page_dir)
     reading = state_json(page_dir)
     [current] = [item for item in reading["state"] if item["action"] == "choose"]
     assert current["detail"] == {"value": ["o-shim"]}
-    [item] = reading["obligations"]
+    [item] = [
+        item for item in reading["obligations"] if item["source"]["kind"] == "widget"
+    ]
     assert item["status"] == "answered"
     assert item["answer"]["event"]["id"] == picked["id"]
 

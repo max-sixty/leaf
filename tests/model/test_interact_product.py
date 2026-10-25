@@ -4,8 +4,11 @@ import copy
 import json
 import os
 import re
+import socket
+import sys
 from pathlib import Path
 
+import click
 import pytest
 from click.testing import CliRunner
 from interact_support import (
@@ -14,6 +17,7 @@ from interact_support import (
     PAGE,
     ROOT,
     SHIPPED_PACKAGES,
+    STATED_TIMEOUT,
     _report,
     _tasks_version,
     append_carried_log_record,
@@ -26,15 +30,18 @@ from interact_support import (
     fragment_errors,
     fresh_process,
     live_versions,
+    owed,
     page_state,
     publish,
     published,
     refused_on,
     response_reference,
-    served_thread,
     state_json,
     words,
 )
+from leaf_dev.example_data import regression_sources
+from leaf_dev.page_fixtures import prepare_page, read_fixture
+
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import events as event_folds_model
@@ -51,10 +58,11 @@ from leaf.registry.contract import element_declarations
 from leaf.structure import SourceDocument
 from leaf.thread_context import thread_digest
 from leaf.validation import composition as validation_model
-from leaf.validation.admission import check_markup, revision_publication
+from leaf.validation.admission import (
+    check_markup,
+    revision_publication,
+)
 from leaf.validation.instances import reference_errors
-from leaf_dev.example_data import regression_sources
-from leaf_dev.page_fixtures import prepare_page, read_fixture
 
 PUBLIC_EXAMPLES = tuple(
     path for path in sorted((ROOT / "examples").glob("*.html")) if path.stem != "corpus"
@@ -229,16 +237,13 @@ def test_stamp_assigns_versions_to_the_exact_immutable_revision(page_dir):
     assert not (page_dir / "versions").exists()
 
 
-def test_page_events_name_revisions_stamps_name_both_and_signoff_a_version(page_dir):
+def test_page_events_name_revisions_and_stamps_name_both(page_dir):
     kinds = registry_storage.load_registry(page_dir)["$events"]["kinds"]
     for kind in ("comment", "action", "report"):
         required = kinds[kind]["record"]["required"]
         assert "revision" in required and "version" not in required
     required = kinds["note"]["record"]["required"]
     assert "revision" in required and "version" in required
-    # A sign-off names the stamp it approves; the note already maps that to a revision.
-    required = kinds["done"]["record"]["required"]
-    assert "version" in required and "revision" not in required
     result = CliRunner().invoke(cli_model.cli, ["page", "--help"])
     assert result.exit_code == 0
     assert "\n  stamp " in result.output and "\n  publish " not in result.output
@@ -390,7 +395,9 @@ def test_command_references_preserve_the_package_owned_subject_roles(page_dir):
         "</lf-test-worker></lf-test-task></lf-test-plan>"
     )
 
-    errors = reference_errors(parser.lf_elements, registry, parser.ids, parser.by_id)
+    errors = reference_errors(
+        parser.lf_elements, registry, parser.ids, parser.by_id, thread_ids=set()
+    )
 
     assert [(e.code, e.values["via"], e.values["where"]) for e in errors] == [
         ("reference-contract", "$work.widgets", {"role": "readings"}),
@@ -412,7 +419,9 @@ def test_a_readings_seat_answers_to_one_command(page_dir):
         '<lf-test-summary id="orphan"></lf-test-summary>'
     )
 
-    errors = reference_errors(parser.lf_elements, registry, parser.ids, parser.by_id)
+    errors = reference_errors(
+        parser.lf_elements, registry, parser.ids, parser.by_id, thread_ids=set()
+    )
 
     assert errors == [
         Finding(
@@ -480,7 +489,6 @@ def test_every_path_a_diff_resolves_names_a_language_the_bundles_carry(page_dir)
 
 PAGE_FIXTURES = (
     *CORPUS_SOURCES,
-    ROOT / "examples" / "corpus.html",
     *sorted((ROOT / "notes").glob("**/*.html")),
 )
 
@@ -562,12 +570,7 @@ def test_the_feature_gallery_eyebrows_index_literal_code_names():
     assert apparatus.isdisjoint(indexed), (
         f"feature eyebrows expose gallery apparatus: {', '.join(sorted(apparatus & indexed))}"
     )
-    # `leaf-dev corpus` strips the contents sidebar when it composes the tab, so
-    # lf-toc is page chrome rather than a sample a section demonstrates.
-    sections = re.sub(
-        r'<aside class="sidebar".*?</aside>', "", authored, flags=re.DOTALL
-    )
-    tags = set(re.findall(r"<(lf-[a-z0-9-]+)[\s>]", sections)) - apparatus
+    tags = set(re.findall(r"<(lf-[a-z0-9-]+)[\s>]", authored)) - apparatus
     assert tags
     assert tags <= indexed, f"feature eyebrows omit {', '.join(sorted(tags - indexed))}"
 
@@ -816,9 +819,10 @@ def test_a_playground_control_stands_in_the_rail_or_inside_its_preview():
         '<lf-playground-output><lf-playground-value for="item-tone">'
         "</lf-playground-value></lf-playground-output></lf-playground>"
     ).lf_elements
-    assert [e.code for e in reference_errors(quoted_records, registry, set(), {})] == [
-        "unmatched-member"
-    ]
+    assert [
+        e.code
+        for e in reference_errors(quoted_records, registry, set(), {}, thread_ids=set())
+    ] == ["unmatched-member"]
     assert [
         e.code
         for e in errors(
@@ -852,7 +856,7 @@ def test_reply_validates_widget_markup(page_dir):
         return CliRunner().invoke(
             cli_model.cli,
             [
-                "response",
+                "thread",
                 "reply",
                 "--done",
                 response_reference(page_dir, "c1"),
@@ -895,7 +899,7 @@ def test_reply_validates_typed_references_against_the_page(page_dir):
         return CliRunner().invoke(
             cli_model.cli,
             [
-                "response",
+                "thread",
                 "reply",
                 "--done",
                 response_reference(page_dir, "c1"),
@@ -930,7 +934,7 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
 
     def reply(markup, *, for_event=None, to="c1"):
         route = (
-            ["response", "reply", "--done", response_reference(page_dir, for_event)]
+            ["thread", "reply", "--done", response_reference(page_dir, for_event)]
             if for_event
             else ["thread", "reply", str(page_dir), to]
         )
@@ -1031,7 +1035,7 @@ def test_the_runtimes_lf_id_namespace_is_off_limits(page_dir):
     reply = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, "c1"),
@@ -1056,11 +1060,12 @@ def test_the_runtimes_lf_id_namespace_is_off_limits(page_dir):
 def test_agent_messages_preserve_a_single_space(page_dir):
     """Only the zero-length string is empty; every typed character reaches the log."""
     empty = CliRunner().invoke(
-        cli_model.cli, ["thread", "open", str(page_dir), "--text", ""]
+        cli_model.cli, ["thread", "create", str(page_dir), "--text", ""]
     )
     assert empty.exit_code != 0
     assert json.loads(empty.stderr)["error"] == (
-        "empty text (pass --text or pipe via stdin)"
+        "empty text (pass --text, --file PATH or a pipe on stdin; --file - reads"
+        " any stdin)"
     )
 
     opened = comment(page_dir, "--text", " ")
@@ -1087,6 +1092,98 @@ def test_agent_messages_preserve_a_single_space(page_dir):
     assert [message["text"] for message in messages] == [" ", " "]
 
 
+def test_a_body_reads_only_piped_stdin(monkeypatch):
+    """A body given by neither --text nor --file comes from a pipe or file; a socket
+    the caller keeps open, as Claude Code hands a command spanning lines, gives none
+    at once rather than being waited on."""
+    held, caller = socket.socketpair()
+    with held, caller:
+        # A regression waits on the socket; the timeout turns that into a failure.
+        held.settimeout(STATED_TIMEOUT)
+        monkeypatch.setattr(sys, "stdin", held.makefile("r"))
+        assert cli_model.read_body(None, None) is None
+
+    read, write = os.pipe()
+    os.write(write, b"Checked the label row.")
+    os.close(write)
+    with open(read) as piped:
+        monkeypatch.setattr(sys, "stdin", piped)
+        assert cli_model.read_body(None, None) == "Checked the label row."
+
+
+def _commands(group, path=()):
+    for name, command in group.commands.items():
+        if isinstance(command, click.Group):
+            yield from _commands(command, (*path, name))
+        else:
+            yield (
+                " ".join((*path, name)),
+                {
+                    param.name
+                    for param in command.params
+                    if isinstance(param, click.Option)
+                },
+            )
+
+
+def test_every_body_takes_text_and_file():
+    """Every command that takes a body takes it the same ways: `--text` inline,
+    `--file` naming a file or `-` for stdin, else a pipe on stdin
+    (`cli.body_options`)."""
+    bodies = {
+        name: params & {"text", "body_file"}
+        for name, params in _commands(cli_model.cli)
+        if params & {"text", "body_file"}
+    }
+    assert "thread reply" in bodies
+    assert {name for name, given in bodies.items() if len(given) < 2} == set()
+
+
+def test_a_body_comes_from_text_a_file_or_stdin(page_dir, tmp_path):
+    """One reply's text, and one plan's JSON, by each route the convention offers;
+    giving both options is refused before anything is written."""
+    reply = tmp_path / "reply.md"
+    reply.write_text("Checked the **label** row.\n", encoding="utf-8")
+    runner = CliRunner()
+    opened = json.loads(comment(page_dir, "--text", "Opening.").output)
+
+    def posted(*body, stdin=None):
+        result = runner.invoke(
+            cli_model.cli,
+            ["thread", "reply", str(page_dir), opened["id"], *body],
+            input=stdin,
+        )
+        assert result.exit_code == 0, result.output
+        return json.loads(result.stdout)["text"]
+
+    assert posted("--file", str(reply)) == "Checked the **label** row.\n"
+    assert posted("--file", "-", stdin="From stdin.") == "From stdin."
+    assert posted(stdin="Piped.") == "Piped."
+    both = runner.invoke(
+        cli_model.cli,
+        ["thread", "reply", str(page_dir), opened["id"], "--text", "a"]
+        + ["--file", str(reply)],
+    )
+    assert both.exit_code == 2
+    assert "not both" in json.loads(both.stderr)["error"]
+    renamed = runner.invoke(
+        cli_model.cli,
+        ["thread", "edit", str(page_dir), opened["id"], "--title", "Label row"],
+        input="Not the text.",
+    )
+    assert renamed.exit_code == 0, renamed.output
+    assert [
+        record["kind"] for record in map(json.loads, renamed.stdout.split("\n")[:-1])
+    ] == ["thread_title"]
+
+    planned = runner.invoke(
+        cli_model.cli,
+        ["task", "plan", str(page_dir), "--text"]
+        + ['[{"depth": 0, "title": "Check the rows", "state": "working"}]'],
+    )
+    assert planned.exit_code == 0, planned.output
+
+
 def test_the_wire_ships_a_message_as_logged(page_dir):
     """The wire adds nothing to the log: text is Markdown the page's vendored runtime
     renders (test_render holds that side), markup is the fragment the CLI gate
@@ -1104,7 +1201,7 @@ def test_the_wire_ships_a_message_as_logged(page_dir):
     result = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, "c1"),
@@ -1150,7 +1247,7 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
     assert _report(page_dir, "t-parser", "status", "value=review").exit_code == 0
     answered = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", "--done", reference, "--text", "The work is ready."],
+        ["thread", "reply", "--done", reference, "--text", "The work is ready."],
     )
     assert answered.exit_code == 0, answered.output
     assert json.loads(answered.output)["responds"] == "c1"
@@ -1175,12 +1272,6 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
     session = service_model.page_claim(page_dir)
     assert session["id"] == "hub" and session["agent"] == "Hub"
     assert page_state(page_dir)["agent"] == "Hub"
-    # The user meets each message under the name it carried.
-    transcript = CliRunner().invoke(
-        cli_model.cli, ["page", "transcript", str(page_dir)]
-    )
-    assert "- **Indexer**: indexing done" in transcript.output
-    assert "- **Crawler**: crawl running" in transcript.output
 
 
 def test_ephemeral_reply_takes_the_move_in_hand_and_leaves_it_owed(claimed):
@@ -1204,7 +1295,7 @@ def test_ephemeral_reply_takes_the_move_in_hand_and_leaves_it_owed(claimed):
         route = (
             ["thread", "reply", str(claimed), root["id"]]
             if proactive
-            else ["response", "reply", reference]
+            else ["thread", "reply", reference]
         )
         return CliRunner().invoke(
             cli_model.cli,
@@ -1228,7 +1319,7 @@ def test_ephemeral_reply_takes_the_move_in_hand_and_leaves_it_owed(claimed):
     assert events_model.read_events(claimed)[-1] == update
     [working] = page_state(claimed)["workflows"]
     assert (working["stage"], working["detail"]) == ("working", "Checking the camera.")
-    assert working["answer"]["for"] == root["id"]
+    assert working["obligation"] == f"update:{root['id']}"
     # The same exact input remains owed; newer progress replaces the Working line.
     again = progress("Checking the clock.")
     assert again.exit_code == 0, again.output
@@ -1238,7 +1329,7 @@ def test_ephemeral_reply_takes_the_move_in_hand_and_leaves_it_owed(claimed):
     answer = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             reference,
@@ -1251,11 +1342,6 @@ def test_ephemeral_reply_takes_the_move_in_hand_and_leaves_it_owed(claimed):
     assert completed["responds"] == root["id"]
     state = page_state(claimed)
     assert state["workflows"] == []
-    [thread] = served_thread(state["browser"])["threads"]
-    assert thread["summaries"][0]["covers"] == [
-        update["id"],
-        json.loads(again.output.splitlines()[0])["id"],
-    ]
     # Once nothing is owed, an update takes nothing in hand, so it may run long.
     later = progress("The clock drifts.\n\nWatching it overnight.", proactive=True)
     assert later.exit_code == 0, later.output
@@ -1281,7 +1367,7 @@ def test_an_agent_reply_asks_the_user_only_through_a_widget_in_its_markup(page_d
     answered = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, root["id"]),
@@ -1336,7 +1422,7 @@ def test_an_agent_edits_predecessor_messages_without_rewriting_history(
     answered = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, user["id"]),
@@ -1392,6 +1478,7 @@ def test_an_agent_edits_predecessor_messages_without_rewriting_history(
         for thread in state["threads"]
     )
     expected = {root["id"]: [root["id"]], user["id"]: [user["id"], reply["id"]]}
+    shown = {}
     for thread, ids in expected.items():
         selected = CliRunner().invoke(
             cli_model.cli, ["page", "state", str(page_dir), thread]
@@ -1399,18 +1486,11 @@ def test_an_agent_edits_predecessor_messages_without_rewriting_history(
         assert selected.exit_code == 0, selected.output
         content = json.loads(selected.output)["content"]
         assert [message["message"] for message in content] == ids
-
-    transcript = CliRunner().invoke(
-        cli_model.cli, ["page", "transcript", str(page_dir)]
-    )
-    assert transcript.exit_code == 0, transcript.output
-    assert (
-        "- **Indexer** *(edited)*: The index is complete and verified."
-        in transcript.output
-    )
-    assert "- **Indexer** *(edited)*: The crawl is running." in transcript.output
-    assert "still pending" not in transcript.output
-    assert "crawl is paused" not in transcript.output
+        shown |= {message["message"]: message for message in content}
+    # A reading shows each edited message in its latest words, marked edited.
+    assert shown[root["id"]]["text"] == "The index is complete and verified."
+    assert shown[reply["id"]]["text"] == "The crawl is running."
+    assert shown[root["id"]].get("edited") and shown[reply["id"]].get("edited")
 
     before = events_model.read_events(page_dir)
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-2")
@@ -1475,7 +1555,7 @@ def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
         result = CliRunner().invoke(
             cli_model.cli,
             [
-                "response",
+                "thread",
                 "reply",
                 "--done",
                 response_reference(page_dir, event_id),
@@ -1487,12 +1567,9 @@ def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
         return json.loads(result.output)
 
     def owed_answers():
-        state = state_json(page_dir)
-        owed = set(state["activity"]["obligations"])
         return [
             (item["input"], item["message"], item["answer"])
-            for item in state["workflows"]
-            if item["id"] in owed
+            for item in owed(state_json(page_dir))
         ]
 
     asked = append_command(
@@ -1516,7 +1593,7 @@ def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
         (
             edit["id"],
             asked["id"],
-            {"kind": "reply", "to": asked["id"], "for": edit["id"]},
+            {"kind": "reply", "parent": asked["id"], "responds": edit["id"]},
         )
     ]
     with service_model.PageTransaction(page_dir) as page:
@@ -1556,7 +1633,7 @@ def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
     asking = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             response_reference(page_dir, again["id"]),
             "--text",
@@ -1618,7 +1695,7 @@ def test_a_rewritten_message_stays_out_of_the_suggested_summary(page_dir, monkey
         result = CliRunner().invoke(
             cli_model.cli,
             [
-                "response",
+                "thread",
                 "reply",
                 "--done",
                 response_reference(page_dir, said["id"]),
@@ -1680,7 +1757,7 @@ def test_a_rewrite_lands_only_on_the_words_it_was_written_over(page_dir):
     south = rewrite("South.", said["id"])
     with pytest.raises(events_model.EventRefused) as stale:
         rewrite("East.", said["id"])
-    assert stale.value.user == "The message changed while you edited it; edit it again."
+    assert stale.value.user == "The message changed while I edited it; edit it again."
     west = rewrite("West.", south["id"])
     with pytest.raises(events_model.EventRefused):
         rewrite("West.", west["id"])
@@ -1746,159 +1823,6 @@ def test_markup_enters_only_through_the_cli_gate(server, page_dir):
     assert events_model.read_events(page_dir) == before
 
 
-def test_export_prints_threads_and_versions(page_dir):
-    # The heading is the page's title as a user sees it, entities and all.
-    titled = (
-        FLOW_PAGE.replace("<title>t</title>", "<title>Cutoff &amp; backfill</title>")
-        .replace(
-            '<lf-diagram id="flow">',
-            '<lf-diagram id="flow" parts="all">',
-        )
-        .replace("<lf-options>", '<lf-options id="plan-options">')
-    )
-    (page_dir / "index.html").write_text(titled)
-    CliRunner().invoke(
-        cli_model.cli,
-        ["page", "stamp", str(page_dir), "--text", "first cut"],
-    )
-    append_carried_log_record(
-        page_dir,
-        {
-            "kind": "comment",
-            "id": "c1",
-            "author": "user",
-            "anchor": {"quote": "flip reads"},
-            "text": "why?",
-        },
-    )
-    append_carried_log_record(
-        page_dir,
-        {
-            "kind": "reply",
-            "id": "r1",
-            "author": "agent",
-            "agent": "Claude",
-            "parent": "c1",
-            "text": "reversibility",
-            "markup": '<lf-diagram id="why"><pre>graph LR\n  A --> B</pre></lf-diagram>',
-        },
-    )
-    append_carried_log_record(
-        page_dir, {"kind": "resolve", "id": "x1", "author": "user", "parent": "r1"}
-    )
-    append_carried_log_record(
-        page_dir,
-        {
-            "kind": "comment",
-            "id": "c2",
-            "author": "user",
-            "anchor": {"section": "flow"},
-            "text": "arrow?",
-        },
-    )
-    append_carried_log_record(
-        page_dir,
-        {
-            "kind": "comment",
-            "id": "c-visual",
-            "author": "user",
-            "revision": 1,
-            "anchor": {"section": "flow", "visual": "node:A"},
-            "text": "start here?",
-        },
-    )
-    append_carried_log_record(
-        page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "b",
-            "action": "move",
-            "detail": {"unit": "card-x", "value": "col-done", "rank": "0i"},
-            "meaning": {
-                "scope": "page",
-                "unit": "card-x",
-                "depends": ["b", "card-x", "col-done"],
-            },
-        },
-    )
-    append_carried_log_record(
-        page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "plan-options",
-            "action": "choose",
-            "detail": {"value": ["backfill-first"]},
-            "meaning": {
-                "scope": "page",
-                "unit": "plan-options",
-                "depends": ["backfill-first", "plan-options"],
-            },
-        },
-    )
-    # An anchor holds the whole passage, because that is the extent the page marks; a
-    # transcript is prose someone pastes into an MR, so a passage of any length is
-    # named by its ends and the exchange stays readable under it.
-    said = "The batch replays from the top."
-    long_quote = " ".join([said] * 20)
-    append_carried_log_record(
-        page_dir,
-        {
-            "kind": "comment",
-            "id": "c3",
-            "author": "user",
-            "anchor": {"quote": long_quote},
-            "text": "all of it",
-        },
-    )
-    # An abandoned newer draft is not the live page whose exchange is exported.
-    (page_dir / "index.html").write_text(
-        PAGE.replace("<title>t</title>", "<title>Abandoned draft</title>")
-    )
-    result = CliRunner().invoke(cli_model.cli, ["page", "transcript", str(page_dir)])
-    assert result.exit_code == 0, result.output
-    assert result.output.startswith("## Leaf: Cutoff & backfill\n")
-    assert "- v1: first cut" in result.output
-    # The user's direct edits are outcomes of the exchange, not just events.
-    assert "### Edits" in result.output
-    assert (
-        '- `b`: move unit="card-x" value="col-done" rank="0i" (on v1)' in result.output
-    )
-    # A choice says what was chosen in the words of the version it was made on.
-    assert (
-        '- `plan-options`: choose value=["backfill-first"] — “effort: med risk: low '
-        "Backfill first Verify, then flip. My take: do this first.” (on v1)"
-    ) in result.output
-
-    # And one they took back is an outcome under its own name: left out it would
-    # read as never made, and shown plainly it would read as final.
-    moved = next(e for e in events_model.read_events(page_dir) if e["kind"] == "action")
-    append_carried_log_record(
-        page_dir, {"kind": "undo", "author": "user", "undoes": moved["id"]}
-    )
-    result = CliRunner().invoke(cli_model.cli, ["page", "transcript", str(page_dir)])
-    assert result.exit_code == 0, result.output
-    assert (
-        '- `b`: move unit="card-x" value="col-done" rank="0i" (on v1) — taken back'
-        in result.output
-    )
-    assert "> “flip reads”  — resolved" in result.output
-    assert "- **User**: why?" in result.output
-    # The widget rides its message into the transcript, indented under the words.
-    assert "- **Claude**: reversibility\n  <lf-diagram" in result.output
-    assert "> § flow" in result.output  # element-anchored comments keep their target
-    assert "> § flow · node:A" in result.output
-    assert long_quote not in result.output, "the whole passage went into the transcript"
-    head = next(
-        ln for ln in result.output.splitlines() if ln.startswith("> “The batch")
-    )
-    assert head.startswith(f"> “{said}") and head.endswith(f"{said}”"), head
-    assert "…" in head and len(head) < len(long_quote) / 2, head
-
-
 @pytest.mark.parametrize(
     "markup", ["", '<lf-diagram id="f"><pre>graph LR\n  A --> B</pre></lf-diagram>']
 )
@@ -1915,7 +1839,7 @@ def test_reply_refuses_a_missing_current_layer(page_dir, markup):
     result = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             reference,
@@ -2044,12 +1968,12 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
     )
 
 
-def test_page_state_and_the_transcript_read_reactions_as_marks(page_dir):
+def test_page_state_reads_reactions_as_marks(page_dir):
     """`page state` lists every reaction in force, beside threads that
     leave a bare one out — paint on the page is not a thread — and takes a
-    reaction back in once someone answers it, as the panel does. The transcript
-    prints one as the user's mark rather than a turn. Its durable token is enough;
-    packages may add an explanation, but the default layer does not prescribe one."""
+    reaction back in once someone answers it, as the panel does. Its durable token
+    is enough; packages may add an explanation, but the default layer does not
+    prescribe one."""
     published(page_dir)
     bare = append_carried_log_record(
         page_dir,
@@ -2095,11 +2019,6 @@ def test_page_state_and_the_transcript_read_reactions_as_marks(page_dir):
     ]
     assert state["reactions"][0]["anchor"]["quote"] == "Ship dark"
 
-    result = CliRunner().invoke(cli_model.cli, ["page", "transcript", str(page_dir)])
-    assert result.exit_code == 0, result.output
-    assert "- **User** reacted: ✂️ shorten\n" in result.output
-    assert "- **User** reacted: ❌ change\n" in result.output
-
 
 def test_an_agent_names_and_renames_a_thread_without_changing_its_speech(
     page_dir,
@@ -2119,7 +2038,7 @@ def test_an_agent_names_and_renames_a_thread_without_changing_its_speech(
     named = runner.invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, root),

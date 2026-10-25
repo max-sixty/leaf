@@ -15,19 +15,6 @@ from interact_support import (
     trial_family,
     working,
 )
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf import files as files_model
-from leaf import hosting as hosting_model
-from leaf import http as http_model
-from leaf import render_checks as render_checks_model
-from leaf import structure as structure_model
-from leaf.registry import storage as registry_storage
-from leaf.render_checks import rendered, wait_until_ready
-from leaf.render_gate import version as render_gate_model
-from leaf.render_gate.preview import preview_server
-from leaf.render_gate.readings import DevtoolsIssues
 from playwright.sync_api import expect
 from render_cases_interaction import (
     ACTIONS_IN_FORCE,
@@ -65,6 +52,7 @@ from render_harness import (
     example_media,
     expect_obligations_answered,
     expect_panel_offers,
+    expect_panel_says,
     holding,
     leaf_page,
     names,
@@ -73,9 +61,11 @@ from render_harness import (
     page_registry,
     panel_control,
     panel_field,
+    panel_view,
     resized,
     root_overflow,
     round_trip,
+    selection_field,
     sending,
     stamp_page,
     ticked,
@@ -85,11 +75,25 @@ from render_harness import (
     write,
 )
 
+from leaf import cli as cli_model
+from leaf import data as data_model
+from leaf import event_log as events_model
+from leaf import files as files_model
+from leaf import hosting as hosting_model
+from leaf import http as http_model
+from leaf import render_checks as render_checks_model
+from leaf import structure as structure_model
+from leaf.registry import storage as registry_storage
+from leaf.render_checks import rendered, wait_until_ready
+from leaf.render_gate import version as render_gate_model
+from leaf.render_gate.preview import preview_server
+from leaf.render_gate.readings import DevtoolsIssues
+
 pytestmark = pytest.mark.shifts_unsurveyed
 
 from browser.threads import open_panel_thread
 
-from journeys import expect_panel_says, first_thread_quote
+from journeys import first_thread_quote
 
 
 def test_call_diff_projects_stable_commentable_rows(browser, serve):
@@ -170,7 +174,9 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     ).evaluate("el => getComputedStyle(el).backgroundColor")
     expect(group.locator(":scope > summary")).to_have_count(1)
     expect(group).to_have_attribute("open", "")
-    expect(widget.locator(".lf-call-toggle")).to_have_text("Collapse all")
+    expect(widget.locator(".lf-call-toggle")).to_have_attribute(
+        "aria-label", "Collapse all 1 call-tree root"
+    )
     expect(lines.nth(0)).to_have_attribute("data-meta", "")
     expect(lines.nth(0).locator(".lf-call-body")).to_have_text(
         "calldiff diff main → feature"
@@ -194,10 +200,14 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     assert all(before == tinted for before, tinted in colors), colors
     widget.locator(".lf-call-toggle").click()
     expect(group).not_to_have_attribute("open", "")
-    expect(widget.locator(".lf-call-toggle")).to_have_text("Expand all")
+    expect(widget.locator(".lf-call-toggle")).to_have_attribute(
+        "aria-label", "Expand all 1 call-tree root"
+    )
     widget.locator(".lf-call-toggle").click()
     expect(group).to_have_attribute("open", "")
-    expect(widget.locator(".lf-call-toggle")).to_have_text("Collapse all")
+    expect(widget.locator(".lf-call-toggle")).to_have_attribute(
+        "aria-label", "Collapse all 1 call-tree root"
+    )
     file_row = page.locator("#patch .lf-diff-file").first
     expect(file_row).to_have_attribute("data-lf-datum", '["gateway/limits.py","file"]')
     expect(file_row).to_have_attribute(
@@ -238,7 +248,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
         )
     )
     assert selected == "└─ if request.token"
-    expect(page.get_by_role("button", name="Comment on selection")).to_be_visible()
+    expect(selection_field(page)).to_be_visible()
 
     updated = call_diff(
         capture["trees"][0]["tree"],
@@ -257,13 +267,15 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     expect(group).to_have_attribute("open", "")
     expect(groups).to_have_count(2)
     expect(groups.nth(1)).not_to_have_attribute("open", "")
-    expect(widget.locator(".lf-call-toggle")).to_have_text("Expand all")
+    expect(widget.locator(".lf-call-toggle")).to_have_attribute(
+        "aria-label", "Expand all 2 call-tree roots"
+    )
     expect(lines.nth(2).locator(".lf-call-location")).to_have_text(
         "gateway/limits.py:40"
     )
     assert lines.nth(2).evaluate("el => el.__callIdentity") is True
     assert page.evaluate("() => getSelection().toString()") == selected
-    page.get_by_role("button", name="Comment on selection").click()
+    selection_field(page).click()
     expect(page.locator("#lf-composer-quote")).to_contain_text(f"“{selected}”")
     expect(page.locator(".lf-fab-input")).to_be_focused()
 
@@ -485,230 +497,55 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     told(page)
     widget = page.locator("#visual-run")
     cases = widget.locator(".lf-vr-case")
-    first = cases.filter(has=page.locator(".lf-vr-case-title", has_text="Run list"))
-    second = cases.filter(has=page.locator(".lf-vr-case-title", has_text="Run detail"))
+    first = cases.filter(has=page.locator(".lf-vr-title", has_text="Run list"))
+    second = cases.filter(has=page.locator(".lf-vr-title", has_text="Run detail"))
 
-    expect(widget.locator(".lf-vr-title")).to_have_text(record["title"])
-    case_select = widget.locator(".lf-vr-case-select")
-    expect(case_select.locator("wa-option")).to_have_count(2)
+    expect(widget.locator(".lf-vr-heading h2")).to_have_text(record["title"])
+    expect(widget.locator(".lf-vr-case-button")).to_have_count(2)
     expect(first).to_be_visible()
     expect(second).to_be_hidden()
     expect(first).to_have_attribute("data-lf-projection", "visual-run")
-    expect(first).to_have_attribute("data-lf-datum", "run-list")
     origin = first.evaluate("node => JSON.parse(node.dataset.lfOrigin)")
     assert origin["source"] == "docs-run"
     assert origin["path"] == ["cases", 0]
-    expect(first.locator("lf-shot")).to_have_attribute(
-        "before", "/media/051bee487bfb5d13.png"
-    )
-    expect(first.locator("lf-shot")).to_have_attribute(
-        "after", "/media/a99a1b63048502d0.png"
-    )
     expect(first.locator("lf-shot img")).to_have_count(2)
     expect(
         first.locator(f'.lf-page-thread[data-thread="{case_thread["id"]}"]')
     ).to_have_count(1)
-    expect(first.get_by_role("link", name="Open base")).to_have_attribute(
-        "href", "https://base.example/rev/runs?owner=max"
+    first.get_by_role("button", name="Capture details").click()
+    for label, href in (
+        ("Open before page", "https://base.example/rev/runs?owner=max"),
+        ("Open after page", "https://candidate.example/rev/runs?owner=max"),
+        ("Capture trace", "https://trace.example/runs/17"),
+    ):
+        expect(first.get_by_role("link", name=label)).to_have_attribute("href", href)
+    expect(first.locator(".lf-vr-provenance")).to_contain_text("Chrome 140.0.7339.80")
+    expect(first.locator(".lf-vr-provenance")).to_contain_text(
+        "120, 80 · 640 × 220 CSS px"
     )
-    expect(first.get_by_role("link", name="Open candidate")).to_have_attribute(
-        "href", "https://candidate.example/rev/runs?owner=max"
+    page.keyboard.press("Escape")
+    first.get_by_role("button", name="Image options").click()
+    first.get_by_role("checkbox", name="Full frame").check()
+    first.get_by_role("button", name="100%", exact=True).click()
+    rendered(page)
+    width = first.locator("lf-shot img").first.evaluate(
+        "node => node.getBoundingClientRect().width"
     )
-    expect(first.get_by_role("link", name="Open trace")).to_have_attribute(
-        "href", "https://trace.example/runs/17"
-    )
-    expect(first.locator(".lf-vr-browser")).to_have_text("Chrome 140.0.7339.80")
-    expect(first.locator(".lf-vr-viewport")).to_have_text("900 × 373 · 2×")
-    expect(first.locator(".lf-vr-appearance")).to_have_text(
-        "light · en-US · America/Los_Angeles"
-    )
-    expect(first.locator(".lf-vr-focus")).to_have_text("120, 80 · 640 × 220 CSS px")
-
-    expect(widget).to_have_attribute("data-inspection-mode", "compare")
-    expect(widget).to_have_attribute("data-inspection-scale", "fit")
-    expect(widget).to_have_attribute("data-inspection-scope", "focus")
-    widget.get_by_text("Inspect comparison", exact=True).click()
-    scope = widget.get_by_role("radiogroup", name="Scope")
-    expect(scope).to_be_visible()
-    expect(widget.get_by_role("radio", name="Focus change")).to_be_checked()
-    expect(widget.get_by_role("radio", name="Compare")).to_be_checked()
-    expect(widget.get_by_role("radio", name="Compare")).to_have_css(
-        "box-shadow", "none"
-    )
-    opacity = first.locator(".lf-vr-opacity").get_by_role("slider", include_hidden=True)
-    expect(opacity).to_be_disabled()
-    expect(opacity).to_be_hidden()
-
-    expect(widget).to_have_attribute("data-compare-layout", "stack")
-    assert first.locator(".lf-shot-frame-label").evaluate_all(
-        "nodes => nodes.map(node => node.dataset.label)"
-    ) == ["Base · Candidate below", "Candidate"]
-    expect(first.locator("lf-shot")).to_have_attribute("data-lf-shot-controls", "off")
-    expect(first.locator(".lf-shotflip")).to_be_hidden()
-    expect(first.locator(".lf-shotcap[aria-keyshortcuts]")).to_have_count(0)
-    expect(first.locator(".lf-shotflip[aria-keyshortcuts]")).to_have_count(0)
-    frames = first.locator(".lf-shotframe")
-    before_box, after_box = frames.evaluate_all(
-        "nodes => nodes.map(node => node.getBoundingClientRect())"
-    )
-    assert after_box["top"] >= before_box["bottom"]
-
-    shot_host = first.locator(".lf-vr-shot-host")
-    expect(first.locator("lf-shot")).to_have_attribute("data-lf-shot-crop", "true")
-    crop = frames.first.evaluate(
-        """frame => {
-          const box = frame.getBoundingClientRect();
-          const label = frame.querySelector('.lf-shot-frame-label').getBoundingClientRect();
-          const imageNode = frame.querySelector('img');
-          const image = imageNode.getBoundingClientRect();
-          const labelHit = document.elementFromPoint(
-            label.left + label.width / 2,
-            label.top + label.height / 2,
-          );
-          return {
-            box,
-            label,
-            image,
-            objectViewBox: getComputedStyle(imageNode).objectViewBox,
-            transform: getComputedStyle(imageNode).transform,
-            labelVisible: labelHit?.closest('.lf-shot-frame-label') === frame.querySelector('.lf-shot-frame-label'),
-          };
-        }"""
-    )
-    assert crop["labelVisible"]
-    assert crop["image"]["top"] == pytest.approx(crop["label"]["bottom"], abs=1)
-    assert crop["objectViewBox"] == "inset(160px 280px 146px 240px)"
-    assert crop["transform"] == "none"
-    resized(page, 1200, 480)
-    expect(widget).to_have_attribute("data-compare-layout", "stack")
-    before_box, after_box = frames.evaluate_all(
-        "nodes => nodes.map(node => node.getBoundingClientRect())"
-    )
-    assert after_box["top"] >= before_box["bottom"]
-    resized(page, 1200, 900)
-    expect(widget).to_have_attribute("data-compare-layout", "stack")
-
-    # In flow the stage is as tall as the view it shows, whatever part of the page
-    # the window shows.
-    def stage_height():
-        return shot_host.evaluate("node => node.getBoundingClientRect().height")
-
-    def scrolled(top):
-        page.evaluate(f"() => document.scrollingElement.scrollTo(0, {top})")
-
-    compare_height = stage_height()
-    scrolled("document.scrollingElement.scrollHeight")
-    assert stage_height() == pytest.approx(compare_height, abs=1)
-    widget.get_by_role("radio", name="Flip").evaluate("node => node.click()")
-    expect(widget).to_have_attribute("data-inspection-mode", "flip")
-    flip_height = stage_height()
-    assert flip_height < compare_height
-    scrolled(0)
-    assert stage_height() == pytest.approx(flip_height, abs=1)
-    widget.get_by_role("radio", name="Compare").evaluate("node => node.click()")
-    assert stage_height() == pytest.approx(compare_height, abs=1)
-
-    widget.get_by_role("radio", name="Full frame").click()
-    expect(widget).to_have_attribute("data-inspection-scope", "full")
-    expect(first.locator("lf-shot")).to_have_attribute("data-lf-shot-crop", "false")
-    marker = frames.first.evaluate(
-        "frame => getComputedStyle(frame, '::after').getPropertyValue('content')"
-    )
-    assert marker == '""'
-
-    widget.get_by_role("radio", name="100%").click()
-    expect(widget).to_have_attribute("data-inspection-scale", "actual")
-    assert shot_host.evaluate("node => node.scrollHeight <= node.clientHeight + 1")
-    captured_width = first.locator("lf-shot img").first.evaluate(
-        "image => image.getBoundingClientRect().width"
-    )
-    assert captured_width == pytest.approx(900, abs=1), (
-        "100% is the captured CSS viewport width, not the retina bitmap width: "
-        f"{captured_width}px"
-    )
-
-    focus_button = widget.get_by_role("radio", name="Focus change")
-    focus_button.focus()
-    focus_button.press("Enter")
-    expect(focus_button).to_be_focused()
-    expect(widget).to_have_attribute("data-inspection-scope", "focus")
-    expect(first.locator("lf-shot")).to_have_attribute("data-lf-shot-crop", "true")
-    focused_width = frames.first.evaluate(
-        "frame => frame.getBoundingClientRect().width"
-    )
-    assert focused_width == pytest.approx(642, abs=1)
-
-    widget.get_by_role("radio", name="Fit").click()
-    widget.get_by_role("radio", name="Flip").click()
-    expect(first.locator("lf-shot[data-lf-shot-controls]")).to_have_count(0)
-    expect(first.locator(".lf-shot-frame-label")).to_have_count(0)
-    widget.get_by_role("radio", name="Overlay").click()
-    expect(widget).to_have_attribute("data-inspection-mode", "overlay")
-    expect(opacity).to_be_enabled()
-    expect(opacity).to_be_visible()
-    expect(first.locator(".lf-vr-opacity-control")).to_contain_text("Candidate opacity")
-    expect(first.locator(".lf-vr-opacity-value")).to_have_css("white-space", "nowrap")
-    opacity.press("ArrowLeft")
-    opacity.press("ArrowLeft")
-    opacity.press("ArrowLeft")
-    expect(widget.locator(".lf-vr-opacity-value")).to_have_text("35%")
-    expect(widget.locator(".lf-vr-opacity-value")).not_to_have_attribute(
-        "data-lf-said", ""
-    )
-    before_box, after_box = frames.evaluate_all(
-        "nodes => nodes.map(node => node.getBoundingClientRect())"
-    )
-    assert abs(before_box["left"] - after_box["left"]) < 1
-    assert abs(before_box["width"] - after_box["width"]) < 1
-    expect(first.locator('.lf-shotframe[data-lf-state="after"]')).to_have_css(
-        "opacity", "0.35"
-    )
-
-    with sending(page, "the first visual disposition"):
-        first.get_by_role("button", name="Looks right").click()
-    expect(first).to_have_attribute("data-disposition", "looks-right")
-    expect(widget.locator(".lf-vr-progress")).to_have_text("1 of 2 cases reviewed")
-
-    next_button = widget.get_by_role("button", name="Next", exact=True)
-    page.keyboard.press("g")
-    next_box = next_button.bounding_box()
-    assert next_box
-    go_to_hints = page.locator(".lf-go-to-hint[data-lf-hint-code]")
-    expect(go_to_hints).not_to_have_count(0)
-    next_code = go_to_hints.evaluate_all(
-        """(hints, target) => hints.map(hint => {
-          const box = hint.getBoundingClientRect();
-          const dx = box.x + box.width / 2 - (target.x + target.width / 2);
-          const dy = box.y + box.height / 2 - (target.y + target.height / 2);
-          return {code: hint.dataset.lfHintCode, distance: dx * dx + dy * dy};
-        }).sort((left, right) => left.distance - right.distance)[0].code""",
-        next_box,
-    )
-    page.keyboard.type(next_code)
+    assert width == pytest.approx(900, abs=1), "Actual size is captured CSS pixels"
+    with sending(page, "approve the first visual case"):
+        first.get_by_role("checkbox", name="Looks right").check()
+    expect(widget.locator(".lf-vr-progress")).to_contain_text("1 of 2")
+    widget.locator(".lf-vr-case-button").nth(1).click()
     expect(first).to_be_hidden()
     expect(second).to_be_visible()
-    expect(second.locator(".lf-vr-trace-link")).to_be_hidden()
-    expect(scope).to_be_hidden()
-    second.get_by_text("Capture details", exact=True).click()
-    expect(second.locator(".lf-vr-detail:has(.lf-vr-focus)")).to_have_count(0)
-    second.get_by_text("Capture details", exact=True).click()
-    expect(widget).to_have_attribute("data-inspection-scope", "full")
-    expect(case_select).to_have_js_property("value", "run-detail")
-    expect(case_select).not_to_be_focused()
-    page.keyboard.press("g")
-    expect(page.locator("body")).to_have_attribute("data-lf-go-to-active", "")
-    page.keyboard.press("Escape")
+    second.get_by_role("button", name="Slider").click()
 
-    inserted_case = record["cases"][1] | {
-        "id": "run-middle",
-        "title": "Inserted run case",
-        "path": "/runs/middle",
-    }
+    inserted = record["cases"][1] | {"id": "run-middle", "title": "Inserted run case"}
     changed = record | {
         "base": {"revision": record["base"]["revision"]},
         "cases": [
             record["cases"][0],
-            inserted_case,
+            inserted,
             record["cases"][1]
             | {
                 "result": "The detail route remains stable after the rerun.",
@@ -719,78 +556,51 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     original = second.element_handle()
     data_model.cmd_data_set(serve.page_dir, "docs-run", changed)
     told(page)
-    expect(second.locator(".lf-vr-observed")).to_have_attribute(
-        "datetime", "2026-10-08T10:00:00-07:00"
-    )
-    expect(first.locator(".lf-vr-observed")).to_have_attribute(
-        "datetime", "2026-09-10T10:30:00-07:00"
-    )
-    expect(second.locator(".lf-vr-base-link")).to_be_hidden()
-    expect(second.locator(".lf-vr-base-link")).not_to_have_attribute("href")
-    expect(second.get_by_role("link", name="Open candidate")).to_have_attribute(
-        "href", "https://candidate.example/rev/runs/17"
-    )
-    expect(page.locator("#visual-pinned .lf-vr-base-link").first).to_be_visible()
-
     expect(second.locator(".lf-vr-result")).to_have_text(
         "The detail route remains stable after the rerun."
     )
-    expect(
-        page.locator("#visual-pinned .lf-vr-result").filter(
-            has_text="The detail link and surrounding layout stay stable."
-        )
-    ).to_have_count(1)
     assert original.evaluate(
         "node => node === document.querySelector('.lf-vr-case[data-lf-datum=\"run-detail\"]')"
     )
     expect(second).to_be_visible()
-    expect(first).to_have_attribute("data-disposition", "looks-right")
-    expect(widget).to_have_attribute("data-inspection-mode", "overlay")
-    expect(widget.locator(".lf-vr-opacity")).to_have_js_property("value", 35)
-    case_select.click()
-    widget.get_by_role("option", name="Run list", exact=False).click()
-    next_button.click()
-    expect(case_select).to_have_js_property("value", "run-middle")
-    expect(next_button).to_be_focused()
-
+    expect(second.get_by_role("button", name="Slider")).to_have_attribute(
+        "aria-pressed", "true"
+    )
+    expect(
+        first.get_by_role("checkbox", name="Looks right", include_hidden=True)
+    ).to_be_checked()
+    expect(
+        page.locator("#visual-pinned .lf-vr-result").filter(
+            has_text=record["cases"][1]["result"]
+        )
+    ).to_have_count(1)
+    second.get_by_role("button", name="Capture details").click()
+    expect(second.locator(".lf-vr-provenance")).to_contain_text(
+        "2026-10-08T10:00:00-07:00"
+    )
+    expect(second.get_by_role("link", name="Open before page")).to_have_count(0)
+    expect(second.get_by_role("link", name="Open after page")).to_have_attribute(
+        "href", "https://candidate.example/rev/runs/17"
+    )
+    page.keyboard.press("Escape")
     resized(page, 390, 900)
     assert root_overflow(page) == 0
-    widget.get_by_role("radio", name="Compare").click()
-    expect(
-        widget.locator(".lf-vr-case[data-selected] .lf-shot-frame-label").first
-    ).to_be_visible()
-    page.emulate_media(media="print")
-    expect(first).to_be_visible()
-    expect(second).to_be_visible()
-    expect(widget.locator(".lf-vr-queue-region")).to_be_hidden()
-    expect(widget.locator(".lf-vr-dispositions").first).to_be_hidden()
-    expect(widget.locator(".lf-vr-inspector")).to_be_hidden()
-    expect(widget.locator(".lf-shot-frame-label").first).to_be_hidden()
-    before_box, after_box = first.locator(".lf-shotframe").evaluate_all(
-        "nodes => nodes.map(node => node.getBoundingClientRect())"
-    )
-    assert after_box["top"] >= before_box["bottom"]
-    page.emulate_media(media="screen")
 
+    widget.locator(".lf-vr-case-button").first.click()
     invalid_focus = changed | {
         "cases": [
             changed["cases"][0]
-            | {"focus": {"x": 120, "y": 300, "width": 640, "height": 220}},
+            | {
+                "focus": {"x": 120, "y": 300, "width": 640, "height": 220},
+            },
             *changed["cases"][1:],
         ]
     }
     data_model.cmd_data_set(serve.page_dir, "docs-run", invalid_focus)
     told(page)
-    case_select.click()
-    widget.get_by_role("option", name="Run list", exact=False).click()
-    expect(widget.locator(".lf-error")).to_contain_text(
-        "focus 120,300 640×220 CSS px falls outside its captured images"
-    )
-    consume_browser_errors(
-        page,
-        "focus 120,300 640×220 CSS px falls outside its captured images",
-    )
-    expect(case_select).to_be_visible()
+    error = "focus 120,300 640×220 CSS px falls outside its captured images"
+    expect(first.locator(".lf-error")).to_contain_text(error)
+    consume_browser_errors(page, error)
     unequal_pair = changed | {
         "cases": [
             changed["cases"][0]
@@ -803,44 +613,16 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     }
     data_model.cmd_data_set(serve.page_dir, "docs-run", unequal_pair)
     told(page)
-    expect(widget.locator(".lf-error")).to_contain_text(
-        "before is 1800px wide and after is 780px"
-    )
-    consume_browser_errors(page, "before is 1800px wide and after is 780px")
-    corrected = changed | {
-        "cases": [
-            changed["cases"][0]
-            | {
-                "capture": capture | {"viewport": capture["viewport"] | {"width": 1000}}
-            },
-            *changed["cases"][1:],
-        ]
-    }
-    data_model.cmd_data_set(serve.page_dir, "docs-run", corrected)
+    error = "before is 1800px wide and after is 780px"
+    expect(first.locator(".lf-error")).to_contain_text(error)
+    consume_browser_errors(page, error)
+    data_model.cmd_data_set(serve.page_dir, "docs-run", changed)
     told(page)
-    expect(widget.locator(".lf-error")).to_have_count(0)
+    expect(first.locator(".lf-error")).to_have_count(0)
     expect(first.locator("lf-shot img")).to_have_count(2)
-    widget.get_by_role("radio", name="Full frame").click()
-    widget.get_by_role("radio", name="100%").click()
-    decoded_css_width = first.locator("lf-shot img").first.evaluate(
-        "image => image.naturalWidth / 2"
-    )
-    # The widget lays out a scale change in a rendering callback after the click.
-    rendered(page)
-    assert first.locator("lf-shot img").first.evaluate(
-        "image => image.getBoundingClientRect().width"
-    ) == pytest.approx(decoded_css_width, abs=1), (
-        "captured CSS coordinates must render against the decoded image, not stale viewport metadata"
-    )
-    assert (
-        first.locator("lf-shot").evaluate(
-            "shot => shot.captureGeometry.images[0].width / 2"
-        )
-        == decoded_css_width
-    )
-    with sending(page, "a corrected visual disposition"):
-        first.get_by_role("button", name="Needs work").click()
-    expect(first).to_have_attribute("data-disposition", "needs-work")
+    with sending(page, "withdraw the approval"):
+        first.get_by_role("checkbox", name="Looks right").uncheck()
+    expect(first.get_by_role("checkbox", name="Looks right")).not_to_be_checked()
 
 
 def test_a_live_revision_preserves_a_reply_after_native_tab(browser, serve):
@@ -1240,7 +1022,7 @@ def test_the_render_gate_applies_every_action_in_force_a_second_time(
     assert all(names(f, "lf-tally") for f in failures), failures
 
 
-def test_a_widget_standing_out_of_place_is_a_page_the_gate_reports(
+def test_a_widget_current_location_out_of_place_is_a_page_the_gate_reports(
     browser, serve, tmp_path, monkeypatch
 ):
     """The premise the test below rests on, stated where it can fail on its own.
@@ -1849,7 +1631,7 @@ def test_a_thread_obligation_waits_until_answered(browser, serve):
     page.locator("#tq-one .lf-pick").first.focus()
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    threads = page.locator('.lf-fp-view[data-view="threads"]:not([data-leaving])')
+    threads = page.locator(panel_view("threads"))
     expect(threads).to_be_visible()
     page.keyboard.press("1")
     expect(threads).to_be_visible()

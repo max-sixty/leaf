@@ -11,6 +11,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 import click
+
 from leaf.codex import app_server_connect, app_server_handshake, app_server_request
 
 
@@ -104,16 +105,9 @@ class Task:
         return started["turn"]["id"]
 
 
-def install_plugin(task: Task, payload: Path, cwd: Path) -> None:
-    """Install the payload as the task's Leaf plugin and trust its hooks, which
-    Codex otherwise lists and never runs."""
-    task.request(
-        "plugin/install",
-        {
-            "pluginName": "leaf",
-            "marketplacePath": str(payload / ".agents/plugins/marketplace.json"),
-        },
-    )
+def trust_plugin_hooks(task: Task, cwd: Path) -> None:
+    """Trust the installed Leaf plugin's hooks, which Codex otherwise lists and
+    never runs. Installation belongs to `arms.install_codex_plugin`."""
     hooks = [
         hook
         for hook in task.request("hooks/list", {"cwds": [str(cwd)]})["data"][0]["hooks"]

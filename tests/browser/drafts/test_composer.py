@@ -4,8 +4,6 @@ and uploads, Return on a phone, and Resume writing."""
 import base64
 
 import pytest
-from leaf import event_log as events_model
-from leaf.render_checks import one_frame
 from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATION_PAGE, live_url
 from render_cases_layout import glyph_action_face, token_colour
@@ -17,6 +15,7 @@ from render_harness import (
     draft_control,
     example_media,
     expect_error_waits_in_menu,
+    expect_panel_says,
     holding,
     leaf_page,
     open_page,
@@ -34,8 +33,9 @@ from render_harness import (
     write,
 )
 
-from browser.drafts import expect_panel_says
 from browser.threads import clear_of_the_panel
+from leaf import event_log as events_model
+from leaf.render_checks import one_frame
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -289,7 +289,15 @@ def test_a_picture_still_uploading_stays_out_of_the_next_passages_draft(browser,
     held.pop().continue_()
     expect(box).not_to_have_attribute("aria-busy", "true")
     expect(page.locator(".lf-composer-media img")).to_have_count(0)
-    # The error is about the composer, which the panel's field does not speak for.
+    # The error is about the composer, so it stands over the box the paste was made in,
+    # and waits in the leaf's menu once the user writes there.
+    cover = page.locator(".lf-fab-bar .lf-compose-error")
+    expect(cover).to_have_text(
+        "Image not added — the comment moved before it finished uploading"
+    )
+    page.keyboard.type("Instead")
+    expect(cover).to_be_hidden()
+    expect(box).to_have_js_property("value", "Instead")
     expect_error_waits_in_menu(
         page, "Image not added — the comment moved before it finished uploading"
     )
@@ -626,8 +634,8 @@ def test_composer_return_edits_or_sends_according_to_its_keyboard(
     assert [event["text"] for event in comments] == [exact]
 
 
-def test_nested_markdown_decoration_uses_the_renderers_block_markers(browser, serve):
-    """Nested headings keep their face and fence-shaped code stays code while editing."""
+def test_markdown_decoration_keeps_source_editable(browser, serve):
+    """Headings and code follow the renderer; new bullets render before typing text."""
     page = open_page(browser, serve(LONG_PAGE))
     field = page_comment(page)
     source = "> - # Heading\n\n````\n```\nbody\n````\n\n**end**"
@@ -652,8 +660,10 @@ def test_nested_markdown_decoration_uses_the_renderers_block_markers(browser, se
                 "functionDeclaration": """function() {
               return [...this.querySelectorAll('.cm-line')].map(line => ({
                 text: line.textContent, heading: line.classList.contains('lf-md-heading'),
-                muted: [...line.querySelectorAll('.lf-md-mark')].map(mark => mark.textContent),
+                syntax: [...line.querySelectorAll('.lf-md-mark, .lf-md-unseen')].map(mark => mark.textContent),
                 strong: line.querySelector('strong')?.textContent,
+                listed: getComputedStyle(line).display === 'list-item',
+                shownMarkers: [...line.querySelectorAll('.lf-md-marker:not(.lf-md-unseen)')].map(mark => mark.textContent),
               }));
             }""",
             },
@@ -661,8 +671,8 @@ def test_nested_markdown_decoration_uses_the_renderers_block_markers(browser, se
 
     lines = reading()
     assert lines[0]["heading"] and "Heading" in lines[0]["text"], lines
-    assert lines[3]["text"] == "```" and not lines[3]["muted"], lines
-    assert lines[2]["muted"] == ["````"] and lines[5]["muted"] == ["````"], lines
+    assert lines[3]["text"] == "```" and not lines[3]["syntax"], lines
+    assert lines[2]["syntax"] == ["````"] and lines[5]["syntax"] == ["````"], lines
     assert lines[-1]["strong"] == "**end**", lines
     # Native caret movement and undo preserve the exact source, including the
     # delimiter the renderer reads as literal code.
@@ -672,4 +682,30 @@ def test_nested_markdown_decoration_uses_the_renderers_block_markers(browser, se
     page.keyboard.press("ControlOrMeta+z")
     expect(field).to_have_js_property("value", source)
     assert reading()[0]["heading"]
+
+    # Continuing a list already shows its bullet. Typing the first letter must not
+    # be what changes the marker, and moving into its source must still expose it.
+    write(field, "- First")
+    field.press("Shift+Enter")
+    expect(field).to_have_js_property("value", "- First\n- ")
+    lines = reading()
+    assert len(lines) == 2, lines
+    assert all(line["listed"] and not line["shownMarkers"] for line in lines), lines
+    field.press("ArrowLeft")
+    assert reading()[-1]["shownMarkers"] == ["- "]
+    field.press("Backspace")
+    expect(field).to_have_js_property("value", "- First\n ")
+    page.keyboard.type("*")
+    expect(field).to_have_js_property("value", "- First\n* ")
+    assert reading()[-1]["shownMarkers"] == ["* "]
+    field.press("ArrowRight")
+    assert reading()[-1]["listed"]
+    page.keyboard.type("Carts")
+    expect(field).to_have_js_property("value", "- First\n* Carts")
+    assert reading()[-1]["listed"]
+    field.press("ArrowLeft")
+    field.press("Backspace")
+    expect(field).to_have_js_property("value", "- First\n* Cars")
+    field.press("ControlOrMeta+z")
+    expect(field).to_have_js_property("value", "- First\n* Carts")
     cdp.detach()

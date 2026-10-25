@@ -3,7 +3,6 @@
 import re
 
 import pytest
-from leaf import event_log as events_model
 from playwright.sync_api import expect
 from render_cases_navigation import (
     composer_quote,
@@ -31,6 +30,8 @@ from render_harness import (
     wait_for_revision,
     write,
 )
+
+from leaf import event_log as events_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -69,7 +70,6 @@ def test_a_tab_whose_key_is_refused_keeps_its_moves_and_names_the_link(browser, 
     expect(page.locator(PANEL_THREAD)).to_contain_text("Words the server never read")
     # The leaf's menu says what the user can do about it, and that the tab stays open.
     expect(panel_menu(page).locator(".lf-fp-state")).to_have_text(
-        "Not connected"
         "Key refused — open Leaf's link in a new tab"
         "Keep this tab open so pending changes can send."
     )

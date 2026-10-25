@@ -4,22 +4,86 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { spawnSync } from "node:child_process";
 import { parse } from "acorn";
 import { build } from "esbuild";
 import { adapt, seam } from "../vendor.mjs";
-import { buildOutputs, checkOutputs } from "./build.mjs";
+import { buildOutputs, checkOutputs, compilerPaths } from "./build.mjs";
 import { bundledPackages, checkModule } from "./shipped.mjs";
-import { createApplicationPublisher, share } from "./snapshot.ts";
+import { createApplicationPublisher, share } from "../../browser/framework/snapshot.ts";
 
 const outputs = await buildOutputs();
 const root = fileURLToPath(new URL("../../", import.meta.url));
-const vendor = "skills/leaf/assets/vendor";
+const vendor = "browser/vendor";
 const read = (name) => outputs.get(`${vendor}/${name}`).toString();
 const exportsOf = (code) =>
   parse(code, { ecmaVersion: "latest", sourceType: "module" })
     .body.filter((node) => node.type === "ExportNamedDeclaration")
     .flatMap((node) => node.specifiers.map((specifier) => specifier.exported.name))
     .sort();
+
+test("compiler paths discover package modules and keep the facade's source types", async (context) => {
+  const scratch = await mkdtemp(path.join(tmpdir(), "leaf-compiler-paths-"));
+  context.after(() => rm(scratch, { recursive: true }));
+  const put = async (name, text) => {
+    const destination = path.join(scratch, name);
+    await mkdir(path.dirname(destination), { recursive: true });
+    await writeFile(destination, text);
+  };
+  const config = JSON.parse(
+    await readFile(new URL("../../browser/framework/tsconfig.json", import.meta.url)),
+  );
+  config.compilerOptions.types = [];
+  config.compilerOptions.noUncheckedSideEffectImports = true;
+  config.include = ["imports.ts"];
+  await put("browser/framework/tsconfig.json", JSON.stringify(config));
+  await put(
+    "browser/framework/index.ts",
+    "export const count = (value: number) => value;\n",
+  );
+  await put("packages/playground/vendor/lf-playground-initial.js", "void 0;\n");
+  await put("packages/playwright/widgets/lf-trace.js", "export const trace = 1;\n");
+  await put(
+    "browser/framework/imports.ts",
+    `
+import { count } from "/vendor/browser-runtime.js";
+import "/vendor/lf-playground-initial.js";
+import { trace } from "/widgets/lf-trace.js";
+import { future } from "/vendor/lf-future.js";
+import { widget } from "/widgets/lf-future.js";
+count(trace + future + widget);
+// @ts-expect-error The facade retains the TypeScript source signature.
+count("wrong");
+`,
+  );
+  const check = () =>
+    spawnSync(
+      process.execPath,
+      [
+        path.join(root, "node_modules/typescript/bin/tsc"),
+        "--project",
+        path.join(scratch, "browser/framework/tsconfig.json"),
+        "--pretty",
+        "false",
+      ],
+      { encoding: "utf8" },
+    );
+  await put("browser/framework/tsconfig.paths.json", await compilerPaths(scratch));
+  const missing = check();
+  assert.equal(missing.status, 1, missing.stdout + missing.stderr);
+  assert.match(missing.stdout, /Cannot find module '\/vendor\/lf-future.js'/);
+  assert.match(missing.stdout, /Cannot find module '\/widgets\/lf-future.js'/);
+  assert.doesNotMatch(
+    missing.stdout,
+    /Cannot find module '\/(?:vendor\/lf-playground-initial|widgets\/lf-trace)/,
+  );
+
+  await put("packages/future/vendor/lf-future.js", "export const future = 2;\n");
+  await put("packages/future/widgets/lf-future.js", "export const widget = 3;\n");
+  await put("browser/framework/tsconfig.paths.json", await compilerPaths(scratch));
+  const discovered = check();
+  assert.equal(discovered.status, 0, discovered.stdout + discovered.stderr);
+});
 
 test("locked source reproduces the complete committed output", async () => {
   const rebuilt = await buildOutputs();
@@ -30,8 +94,10 @@ test("locked source reproduces the complete committed output", async () => {
     "Directive",
     "LitElement",
     "PartType",
+    "SignalWatcher",
+    "batch",
     "classMap",
-    "collectReads",
+    "computed",
     "createPresentationCoordinator",
     "createPresentationSchedule",
     "createRef",
@@ -45,7 +111,6 @@ test("locked source reproduces the complete committed output", async () => {
     "live",
     "noChange",
     "nothing",
-    "outsideReading",
     "ref",
     "render",
     "repeat",
@@ -69,7 +134,10 @@ test("each source module compiles to one module that keeps its lines", async () 
   );
   for (const name of ["application", "presentation", "snapshot"]) {
     const source = (
-      await readFile(new URL(`./${name}.ts`, import.meta.url), "utf8")
+      await readFile(
+        new URL(`../../browser/framework/${name}.ts`, import.meta.url),
+        "utf8",
+      )
     ).split("\n");
     const compiled = read(`browser-runtime/${name}.js`).split("\n");
     // One trailer line names the source; every other line is the source's.
@@ -93,10 +161,11 @@ test("each source module compiles to one module that keeps its lines", async () 
   assert.match(read("browser-runtime.js"), /^export \{[^}]*\} from "\.\/lit\.js";$/m);
   assert.match(
     read("browser-runtime/snapshot.js"),
-    /^import \{ computed, signal \} from "\.\/signals-core\.js";$/m,
+    /^import \{ computed, signal, untracked as signalUntracked \} from "\.\/signals-core\.js";$/m,
   );
   for (const name of modules.filter((name) => !name.endsWith("signals-core.js")))
     assert.ok(!outputs.get(name).includes("litHtmlVersions"), name);
+  assert.ok(!read("browser-runtime/signals-core.js").includes("litHtmlVersions"));
 });
 
 test("checking stale output refuses it without changing any bytes", async (context) => {
@@ -108,6 +177,11 @@ test("checking stale output refuses it without changing any bytes", async (conte
     await writeFile(destination, bytes);
   }
   await checkOutputs(outputs, scratch);
+  const paths = "browser/framework/tsconfig.paths.json";
+  await writeFile(path.join(scratch, paths), "{}\n");
+  await assert.rejects(checkOutputs(outputs, scratch), /tsconfig\.paths\.json/);
+  assert.equal(await readFile(path.join(scratch, paths), "utf8"), "{}\n");
+  await writeFile(path.join(scratch, paths), outputs.get(paths));
   const module = path.join(scratch, vendor, "browser-runtime.js");
   const stale = Buffer.from("export const stale = true;\n");
   await writeFile(module, stale);
@@ -124,19 +198,19 @@ test("checking stale output refuses it without changing any bytes", async (conte
   await assert.rejects(checkOutputs(outputs, scratch), /browser-runtime\/removed\.js/);
   await rm(path.join(scratch, vendor, "browser-runtime", "removed.js"));
   // So is any file in a package's vendor directory that no build writes.
-  const chunk = "skills/leaf/packages/diagram/vendor/chunk-removed.js";
+  const chunk = "packages/diagram/vendor/chunk-removed.js";
   await writeFile(path.join(scratch, chunk), "");
   await assert.rejects(checkOutputs(outputs, scratch), new RegExp(chunk));
   await rm(path.join(scratch, chunk));
   // A kernel left behind by a merge names the command that rebuilds it.
-  const kernel = path.join(scratch, "skills/leaf/kernel/leaf.js");
+  const kernel = path.join(scratch, "dist/kernel/leaf.js");
   await writeFile(kernel, "<<<<<<< ours\n");
   await assert.rejects(
     checkOutputs(outputs, scratch),
     (error) =>
       error.message.includes(
         "pnpm install --frozen-lockfile && pnpm run build:browser",
-      ) && error.message.endsWith("\nskills/leaf/kernel/leaf.js"),
+      ) && error.message.endsWith("\ndist/kernel/leaf.js"),
   );
 });
 
@@ -194,6 +268,33 @@ test("the bundle gate reads the parsed module, not its text", () => {
   checkModule('import { html } from "/vendor/lit.js"; export * from "../a.js";');
   // Pierre's TextMate grammars carry it as data.
   checkModule('export const grammar = { begin: "import\\\\(", end: "require(x)" };');
+});
+
+test("Trees search hides every nonmatch and restores an empty query", async () => {
+  // Exercise the actual shipped dependency, including its build adaptations.
+  const bundle = outputs.get("packages/file-tree/vendor/pierre-trees.esm.js");
+  const { FileTree } = await import(
+    `data:text/javascript;base64,${bundle.toString("base64")}`
+  );
+  const tree = new FileTree({
+    paths: ["README.md", "src/main.py"],
+    initialExpansion: "open",
+    search: true,
+  });
+  try {
+    const visible = () =>
+      tree.getVisibleRows(0, tree.getVisibleCount() - 1).map(({ path }) => path);
+    const unfiltered = visible();
+    tree.setSearch("main");
+    assert.deepEqual(visible(), ["src/", "src/main.py"]);
+    tree.setSearch("not-a-file");
+    assert.deepEqual(tree.getSearchMatchingPaths(), []);
+    assert.deepEqual(visible(), []);
+    tree.setSearch("");
+    assert.deepEqual(visible(), unfiltered);
+  } finally {
+    tree.cleanUp();
+  }
 });
 
 test("notices name the packages whose code reached an output", () => {
@@ -285,8 +386,8 @@ test("publisher shares unchanged subtrees, so a selection hears only its own par
   const heard = [];
   thread.subscribe((value) => heard.push(["thread", value]));
   pair.subscribe((value) => heard.push(["pair", value]));
-  const standing = thread.read();
-  const standingPair = pair.read();
+  const initialThread = thread.read();
+  const initialPair = pair.read();
   publisher.publish({
     ...initial,
     effective: {
@@ -294,8 +395,8 @@ test("publisher shares unchanged subtrees, so a selection hears only its own par
       widgets: new Map([["board", { state: { column: "done" } }]]),
     },
   });
-  assert.equal(thread.read(), standing);
-  assert.equal(pair.read(), standingPair);
+  assert.equal(thread.read(), initialThread);
+  assert.equal(pair.read(), initialPair);
   assert.equal(heard.length, 2);
   publisher.publish({
     ...initial,
@@ -304,7 +405,7 @@ test("publisher shares unchanged subtrees, so a selection hears only its own par
       widgets: new Map([["board", { state: { column: "done" } }]]),
     },
   });
-  assert.notEqual(thread.read(), standing);
+  assert.notEqual(thread.read(), initialThread);
   assert.deepEqual(
     heard.slice(2).map(([name]) => name),
     ["thread", "pair"],
@@ -323,9 +424,9 @@ test("sharing keeps a JSON field named __proto__ an own field", () => {
   assert.equal(shared.kept, prior.kept);
 });
 
-test("publisher secures shallow-frozen inputs and complete selected collections", () => {
+test("publisher secures collection keys, members and selected descendants", () => {
   const key = { id: "thread" };
-  const collection = Object.freeze(new Map([[key, { words: ["kept"] }]]));
+  const collection = new Map([[key, { words: ["kept"] }]]);
   const document = Object.freeze({ collection });
   const publisher = createApplicationPublisher({
     document,
@@ -338,7 +439,7 @@ test("publisher secures shallow-frozen inputs and complete selected collections"
     .select(() =>
       Object.freeze({
         nested: { count: 1 },
-        members: Object.freeze(new Set([{ id: "message" }])),
+        members: new Set([{ id: "message" }]),
       }),
     )
     .read();
@@ -361,8 +462,4 @@ test("publisher secures shallow-frozen inputs and complete selected collections"
   assert.throws(() => {
     reading.document.collection.set("extra", {});
   }, TypeError);
-  collection.set("outside", { words: [] });
-  assert.equal(reading.document.collection.has("outside"), false);
-  publisher.publish({ ...reading, document, semanticEpoch: 1 });
-  assert.equal(publisher.read().document.collection.has("outside"), true);
 });

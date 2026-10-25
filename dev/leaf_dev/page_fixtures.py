@@ -16,13 +16,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Protocol
 
-from leaf.event_log import read_events, write_cursor
+from leaf.delivery import record_receipt
+from leaf.event_log import read_events
 from leaf.interaction_log import append_interactions
 from leaf.media import media_name
 from leaf.revision_artifact import Resource, capture_artifact, capture_local_resource
 from leaf.schema import MEDIA_DIR, MEDIA_TYPES
+from leaf.service import PageTransaction
 from leaf.structure import SourceDocument
-
 from leaf_dev import ROOT, docs
 from leaf_dev.example_data import (
     data_operations,
@@ -143,9 +144,21 @@ def authored_markup(path: Path, assets: Path | None = None) -> str:
     return docs.compose(path, markup, assets=assets)
 
 
-def composition_inputs(path: Path) -> list[Path]:
-    """The files besides `path` and the asset pin that `authored_markup` reads."""
-    return docs.inputs(path) if path.parent == docs.DOCS else []
+def composition_inputs(path: Path) -> tuple[list[Path], list[Path]]:
+    """Composition inputs besides `path` and the asset pin, including discovery trees."""
+    from leaf_dev.commands import corpus
+
+    if root := corpus.source_root(path):
+        return corpus.composition_inputs(root)
+    return (docs.inputs(path) if path.parent == docs.DOCS else []), []
+
+
+def refresh_composition(source: Path) -> None:
+    """Materialize a generated fixture before reading its markup and companions."""
+    from leaf_dev.commands import corpus
+
+    if root := corpus.source_root(source):
+        corpus.generate(root)
 
 
 def read_fixture(
@@ -286,8 +299,9 @@ def _seed_log(fixture: PageFixture, page: Path) -> None:
 def _acknowledge_seed(fixture: PageFixture, page: Path) -> None:
     if fixture.seed is None:
         return
-    events = read_events(page)
-    write_cursor(page, events[-1]["seq"] if events else 0)
+    with PageTransaction(page) as transaction:
+        if transaction.events:
+            record_receipt(transaction, transaction.events[-1]["seq"])
 
 
 def prepare_page(
@@ -311,9 +325,9 @@ def prepare_page(
     version is the one that has to bind it. Versions are then stamped oldest first,
     and the seed log goes in after the first stamp and before any later one, so a
     revised example reads in the order it happened: a version, what the user said
-    about it, then the version that answered. The cursor ends past the seed, since a
-    seed is history: a cursor at zero would hand the next agent session questions
-    the log already answers.
+    about it, then the version that answered. A receipt acknowledges the seed, since
+    a seed is history: an unacknowledged one would hand the next agent session
+    questions the log already answers.
 
     `each_version` is called with each version's source once it is stamped, and once
     the seed is in the log after the first, so it reads the page as a builder
@@ -352,7 +366,7 @@ def prepare_page(
     if seed_log:
         _acknowledge_seed(fixture, page)
     if final_status is not None:
-        run_leaf("status", str(page), final_status)
+        run_leaf("page", "close" if final_status == "idle" else "open", str(page))
     return PreparedPage(
         data_sources=len({operation["source"] for operation in fixture.data}),
         versions=len(fixture.versions),

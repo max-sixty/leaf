@@ -7,32 +7,22 @@ deletes its entry, so the list only shrinks. A widget joins only as a defect to 
 never as behavior to keep. The corpus sweep reads the same list, since a defect is the
 widget's wherever it stands (`test_render_gate.py`, `held_scroller_findings`)."""
 
-from interact_support import SKILL_ROOT
 from leaf import schema as schema_model
 
 # The base layer's two halves and every bundled package, each answering for its own
 # widgets as a package author's `package check --render` would.
 PACKAGES = [
     schema_model.ASSETS,
-    *sorted(path for path in (SKILL_ROOT / "packages").iterdir() if path.is_dir()),
+    *sorted(
+        path for path in (schema_model.BUNDLED_PACKAGES).iterdir() if path.is_dir()
+    ),
 ]
 
 KNOWN = {
-    "default": {
-        # What these draw is the page's state, which arrives with the first state
-        # answer after the first paint and which the served document does not carry:
-        # a text document's lines are its bound source's value, wrapped at the column's width.
-        ("lf-text-document", "keeps-first-box"),
-        # The contents are written empty and build their list from the page's
-        # headings as the module upgrades, so the first paint has no box to keep.
-        # Residency (`data-lf-margin`, prepaint.js) already decides their form
-        # before that paint.
-        ("lf-toc", "keeps-first-box"),
-    },
     "diff": {
-        # The worked example states its drawing's height in pixels (`data-height="151"`),
-        # measured at reading density; at working density the drawing's rows are
-        # shorter and it presents at 145px. A stated height is one density's.
+        # The worked example states its drawing's height in pixels at reading
+        # density. At working density the rows present at another height; a
+        # stated height is one density's.
         ("lf-diff", "keeps-first-box"),
     },
 }

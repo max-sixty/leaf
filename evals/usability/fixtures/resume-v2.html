@@ -33,15 +33,14 @@
           <h2>How should traffic move to the new index?</h2>
           <p id="approach-premise">
             Every approach keeps the old index until the new one has served a full day.
+            I recommend the alias swap, because it is the fastest and the rehearsal
+            shows the new index keeps up.
           </p>
           <lf-options id="rollout" choose>
             <lf-option id="opt-alias-swap"
+              ><small class="tag ok">recommended</small
               ><strong>Alias swap</strong> Point the search alias at the new index in
-              one step.
-              <em
-                >My take: the fastest, and the rehearsal shows the new index keeps
-                up.</em
-              ></lf-option
+              one step.</lf-option
             >
             <lf-option id="opt-shadow"
               ><strong>Shadow reads first</strong> Send a copy of every query to the new

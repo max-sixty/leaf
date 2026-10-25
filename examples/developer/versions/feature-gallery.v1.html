@@ -2,7 +2,6 @@
 <html lang="en">
   <head>
     <title>Leaf feature gallery</title>
-    <meta name="lf-review" content="sign-off" />
     <style>
       #bg-metrics > dl {
         margin: 0;
@@ -86,12 +85,26 @@
         <h2>Try the core user workflows</h2>
 
         <section id="bg-signoff">
-          <h3>Approve a version</h3>
+          <h3>Permission for a stated action</h3>
           <p id="bg-signoff-guide">
-            This page declares sign-off, so <strong>Approve version</strong> is a real
-            Button in the banner. Press it to record approval, then press
-            <kbd>z</kbd> to take that approval back. The page stays live either way.
+            Choose Book the shelter, then press it again to reopen the request. Other
+            questions can stay unanswered. The pick stays through unrelated page edits
+            until its author explicitly restates the request.
           </p>
+          <lf-ask id="bg-picnic-decision">
+            <h4>Book the covered picnic shelter?</h4>
+            <p>
+              Reserve the park's covered shelter for the sample group's Saturday lunch.
+            </p>
+            <lf-options id="bg-picnic" choose>
+              <lf-option id="bg-picnic-skip"
+                ><strong>Leave it unbooked</strong></lf-option
+              >
+              <lf-option id="bg-picnic-book"
+                ><strong>Book the shelter</strong></lf-option
+              >
+            </lf-options>
+          </lf-ask>
         </section>
 
         <section id="bg-design-comments">

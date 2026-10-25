@@ -4,12 +4,14 @@
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { build } from "esbuild";
+import { build } from "./esbuild.mjs";
+import { bindToInitialLit, initialLitPath } from "./lit.mjs";
 import { checkModule } from "./browser/shipped.mjs";
 const root = fileURLToPath(new URL("../", import.meta.url));
 export async function initialOutputs() {
   const outputs = new Map();
-  const packages = path.join(root, "skills/leaf/packages");
+  const dependencies = {};
+  const packages = path.join(root, "packages");
   for (const item of (await readdir(packages, { withFileTypes: true }))
     .filter((item) => item.isDirectory())
     .sort((a, b) => a.name.localeCompare(b.name))) {
@@ -19,29 +21,38 @@ export async function initialOutputs() {
     const registry = JSON.parse(
       await readFile(path.join(directory, "registry.json"), "utf8"),
     );
-    const declared = [
-      ...new Set(
-        Object.values(registry).flatMap((entry) =>
-          entry?.["x-initial"] ? [entry["x-initial"]] : [],
-        ),
-      ),
-    ];
-    if (!declared.length) continue;
-    if (declared.length !== 1)
-      throw new Error(`${name} needs a source entry for each initial bundle`);
-    const entry = path.join(directory, "initial.js");
-    const result = await build({
-      entryPoints: [entry],
-      bundle: true,
-      format: "iife",
-      write: false,
-      minify: false,
-      target: "es2022",
-      legalComments: "inline",
-    });
-    const output = path.join("skills/leaf/packages", name, declared[0].slice(1));
-    checkModule(result.outputFiles[0].text, output);
-    outputs.set(output, Buffer.from(result.outputFiles[0].contents));
+    // Each tag's renderer is its own bundle, from `initial/<tag>.js`, so a document
+    // inlines only the renderers of the widgets it holds.
+    for (const [tag, entry] of Object.entries(registry)) {
+      if (!entry?.["x-initial"]) continue;
+      const output = path.join("packages", name, entry["x-initial"].slice(1));
+      if (outputs.has(output))
+        throw new Error(`${output} is more than one tag's bundle`);
+      const result = await build({
+        entryPoints: [path.join(directory, "initial", `${tag}.js`)],
+        bundle: true,
+        metafile: true,
+        plugins: [await bindToInitialLit()],
+        format: "iife",
+        write: false,
+        minify: false,
+        target: "es2022",
+        legalComments: "inline",
+      });
+      checkModule(result.outputFiles[0].text, output);
+      outputs.set(output, Buffer.from(result.outputFiles[0].contents));
+      if (
+        Object.keys(result.metafile.inputs).some((input) =>
+          input.startsWith("leaf-initial-lit:"),
+        )
+      )
+        dependencies[entry["x-initial"]] = [`/${initialLitPath}`];
+    }
   }
+  // Delivery reads the build's dependency facts; it never names widget families.
+  outputs.set(
+    "browser/vendor/initial-dependencies.json",
+    Buffer.from(JSON.stringify(dependencies) + "\n"),
+  );
   return outputs;
 }

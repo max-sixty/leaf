@@ -9,9 +9,11 @@ names another ref (`base_ref`).
 A child runs from a scratch cwd outside any repository, so no project instructions
 load, under a home of its own beside that cwd, so its bypassed permissions write to
 that home rather than the user's `~` (children given the user's home once appended to
-the user's `~/.claude/CLAUDE.md`). The home carries only the login. A trace is the
-child's normalized tool/turn evidence; it counts when its harness turn completed
-(`completed`). CC raw stdout and Codex notifications are retained too.
+the user's `~/.claude/CLAUDE.md`). The home carries the login and, for a sandboxed
+Claude Code child, generated instructions naming its scratch directory and
+restriction. A trace is the child's normalized tool/turn evidence; it counts when
+its harness turn completed (`completed`). CC raw stdout and Codex notifications
+are retained too.
 A `LiveChild` keeps its session open across turns, so a driver can post
 user moves to a served page (`PageClient`) as a tab would; a `LiveSession` is how
 every live driver holds one: it records the stream, sends chat messages, and tells
@@ -34,19 +36,21 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import datetime
 from functools import partial
 from pathlib import Path
-from typing import IO, Self
+from typing import IO, NamedTuple, Self
 
 import click
+
 from leaf.codex import APP_SERVER_ENV
 from leaf.delivery import opened_input_ids
 from leaf.harness import IDENTITY_VARIABLES, ClaudeCodeHarness, CodexHarness
 from leaf.render_gate import browser as browser_model
-
+from leaf.render_gate import command as render_command_model
 from leaf_dev import ROOT
 from leaf_dev.browser import shell_executable
 from leaf_dev.page_fixtures import prepare_page, read_fixture, record_run_context
@@ -65,6 +69,10 @@ PAYLOAD = (
     "bin",
     "hooks",
     "skills",
+    "src",
+    "browser",
+    "packages",
+    "dist",
     "package.json",
     "leaf-distribution.json",
     "pyproject.toml",
@@ -96,31 +104,44 @@ def run_directory(parent: Path) -> Path:
     return Path(tempfile.mkdtemp(prefix="run-", dir=parent))
 
 
-def environment(**extra: str) -> dict[str, str]:
+def environment(*, payload: Path | None = None, **extra: str) -> dict[str, str]:
     """This process's environment without the agent session it may be running in.
 
     A harness run from a Claude Code or Codex session inherits that session's
     identity: its id, job directory, effort level and App Server endpoint. A `leaf`
     command would sign events as that session, and a child would use its transport
-    and settings. An inherited LEAF_HOST_LAUNCHER would override the arm's launcher.
+    and settings. Inherited LEAF and LEAF_HOST_LAUNCHER would point at the parent's
+    launcher instead of the arm's.
     `CLAUDE_CONFIG_DIR` stays, since it names where the login lives. Nor does PATH
     keep `uv run`'s environment or the bin directory of a Leaf tree, such as the
     one the session's harness added for its own Leaf plugin: the `leaf` in either
     would shadow the launcher a child harness puts on PATH for the arm's plugin.
+    When supplied, `payload` puts that arm's bin directory first on the clean PATH.
 
     A child names the pinned headless shell as its browser through
     LEAF_BROWSER_EXECUTABLE (`shell_executable`), unless that variable is already
     set. It outranks CHROME_PATH and CHROME_BIN, which hosts set for other tools
     (GitHub's runner image sets CHROME_BIN to its Chrome), so leaf-dev's children
-    draw with the build `headless_shell` drives, as the suite's fixture arranges."""
+    draw with the build `headless_shell` drives, as the suite's fixture arranges.
+    It also pins `page check --render` to the fixed desktop window
+    (LEAF_RENDER_VIEWPORT), unless that variable is set, so a judged page's verdict
+    doesn't depend on the window of whichever browser last viewed it."""
     env = {
         key: value
         for key, value in os.environ.items()
-        if key not in (*IDENTITY_VARIABLES, APP_SERVER_ENV, "LEAF_HOST_LAUNCHER")
+        if key
+        not in (
+            *IDENTITY_VARIABLES,
+            APP_SERVER_ENV,
+            "LEAF",
+            "LEAF_HOST_LAUNCHER",
+            "CODEX_INTERNAL_ORIGINATOR_OVERRIDE",
+        )
         and not (key.startswith("CLAUDE") and key != "CLAUDE_CONFIG_DIR")
     }
     if browser_model.VARIABLE not in env:
         env[browser_model.VARIABLE] = shell_executable()
+    env.setdefault(render_command_model.PIN_VARIABLE, "fixed")
     venv = os.environ.get("VIRTUAL_ENV")
     env["PATH"] = os.pathsep.join(
         entry
@@ -128,6 +149,8 @@ def environment(**extra: str) -> dict[str, str]:
         if not (venv and entry == str(Path(venv) / "bin"))
         and not (Path(entry).parent / "skills" / "leaf").is_dir()
     )
+    if payload is not None:
+        env["PATH"] = os.pathsep.join((str(payload / "bin"), env["PATH"]))
     return {**env, **extra}
 
 
@@ -158,11 +181,18 @@ def run_leaf(
 
 @contextmanager
 def serving(arm: Path, state: Path, page: Path):
-    """Serve `page` with the arm's `leaf server run --temporary` under the state home
+    """Serve `page` with the arm's `leaf server run --lifetime temporary` under the state home
     `state`, and yield the tokened URL it prints. Retirement joins the owned process
     through its active requests and sample cleanup before the caller reuses its page."""
     server = subprocess.Popen(
-        [str(arm / "bin" / "leaf"), "server", "run", "--temporary", str(page)],
+        [
+            str(arm / "bin" / "leaf"),
+            "server",
+            "run",
+            "--lifetime",
+            "temporary",
+            str(page),
+        ],
         env=environment(XDG_STATE_HOME=str(state)),
         stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL,
@@ -178,27 +208,48 @@ def serving(arm: Path, state: Path, page: Path):
 
 def build_source(arm: Path, state: Path, source: Path, page: Path) -> None:
     """Build the authored `source` into the page directory `page` with the arm's own
-    launcher under the state home `state`. The checkout is an arm too: `ROOT` runs
-    its working tree. Developer pages use the same compiled kernel as the website.
+    launcher under the state home `state`. Callers select a prepared installation
+    before building, then use that same installation to serve or check the page.
     """
-    from leaf_dev.commands.distribution import cached_installation
-
     prepare_page(
         page,
         read_fixture(source, runtime=arm, env=environment(XDG_STATE_HOME=str(state))),
-        partial(run_leaf, cached_installation(arm), state, check=True),
+        partial(run_leaf, arm, state, check=True),
     )
     record_run_context(page, purpose="automated", run=state, authored_source=source)
+
+
+class ServedPage(NamedTuple):
+    """A page `serving_source` serves: its directory, its keyed address, and its arm's
+    launcher under its state home."""
+
+    directory: Path
+    address: str
+    leaf: Callable[..., subprocess.CompletedProcess]
+
+
+# The page `serving_source` serves while it does, for an input that writes to it from
+# outside the tab, as the agent or another tab does (stills.py, `held_news`).
+served_page: ContextVar[ServedPage] = ContextVar("served_page")
 
 
 @contextmanager
 def serving_source(arm: Path, source: Path, scratch: Path):
     """Build `source` into a page under `scratch` (`build_source`), serve it
-    (`serving`), and yield the address."""
+    (`serving`), and yield the address, all using one prepared installation."""
+    from leaf_dev.commands.distribution import cached_installation
+
+    arm = cached_installation(arm)
     state, page = scratch / "state", scratch / "page"
     build_source(arm, state, source, page)
     with serving(arm, state, page) as address:
-        yield address
+        bound = served_page.set(
+            ServedPage(page, address, partial(run_leaf, arm, state, check=True))
+        )
+        try:
+            yield address
+        finally:
+            served_page.reset(bound)
 
 
 def merge_base(ref: str = "HEAD") -> str:
@@ -266,10 +317,19 @@ def extract_payload(
 def build_arm(ref: str | None, dest: Path, *, paths: Iterable[str] = PAYLOAD) -> str:
     """Extract `paths` at `ref`, or as the working tree has it when `ref` is None,
     into `dest`, replacing any earlier arm there, and build its environment; return
-    the commit, HEAD's for the working tree."""
+    the commit, HEAD's for the working tree.
+
+    The arm's Python is compiled to bytecode here, as a used install's and the
+    working tree's already are. Without it, an arm's first server compiles each
+    module it imports while answering the page, and a timing that compares the arm
+    with the working tree counts that compilation against the arm."""
     extract_payload(dest, ref, paths=paths)
     with tempfile.TemporaryDirectory() as state:
         run_leaf(dest, Path(state), "--root", check=True)
+    # Serial: `-j` needs a forkserver socket, which a sandboxed CI runner refuses.
+    subprocess.run(
+        [dest / ".venv/bin/python", "-m", "compileall", "-q", dest], check=True
+    )
     return subprocess.run(
         ["git", "-C", ROOT, "rev-parse", f"{ref or 'HEAD'}^{{commit}}"],
         capture_output=True,
@@ -314,16 +374,15 @@ def install_codex_plugin(
 ) -> Path:
     """Install a complete Leaf payload through Codex's native marketplace commands.
 
-    Return the install directory reported by the CLI. Callers supply the isolated
-    task's environment and its CLI. Installer output is captured on failures and
+    Prepare the installed launcher's environment before native hooks acquire
+    their deadlines, and return its directory. Callers supply the isolated
+    task's environment and its CLI. Command output is captured on failures and
     copied whole to `output` when the caller keeps a log.
     """
-    for arguments in (
-        ("plugin", "marketplace", "add", str(payload), "--json"),
-        ("plugin", "add", "leaf@leaf", "--json"),
-    ):
+
+    def run(command: list[str]) -> subprocess.CompletedProcess:
         result = subprocess.run(
-            [str(codex), *arguments],
+            command,
             cwd=cwd,
             env=env,
             check=False,
@@ -335,19 +394,24 @@ def install_codex_plugin(
             output.write(result.stderr)
             output.flush()
         result.check_returncode()
-    return Path(json.loads(result.stdout)["installedPath"])
+        return result
+
+    run([str(codex), "plugin", "marketplace", "add", str(payload), "--json"])
+    result = run([str(codex), "plugin", "add", "leaf@leaf", "--json"])
+    installed = Path(json.loads(result.stdout)["installedPath"])
+    run([str(installed / "bin/leaf"), "--root"])
+    return installed
 
 
 def codex_home(path: Path, config: str = "") -> Path:
-    """Make `path` a Codex home holding a copy of the host's login and `config` as its
+    """Make `path` a Codex home sharing the host's login and holding `config` as its
     `config.toml`, so a Codex child run with `CODEX_HOME=path` reads none of the
     host's settings, plugins, hooks or task history. Codex still reads the user's
-    `~/.agents/skills`, which `CODEX_HOME` does not move."""
+    `~/.agents/skills`, which `CODEX_HOME` does not move. Keep one credential file:
+    a child refreshing a copied login would leave the host's refresh token stale."""
     path.mkdir(mode=0o700)
     host = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
-    auth = path / "auth.json"
-    shutil.copyfile(host / "auth.json", auth)
-    auth.chmod(0o600)
+    (path / "auth.json").symlink_to((host / "auth.json").resolve())
     (path / "config.toml").write_text(config)
     return path
 
@@ -491,10 +555,11 @@ def private_tmp(*owned: Path) -> str:
     """The macOS sandbox profile a Claude Code child runs under, so that two
     children never share a file under `/tmp`.
 
-    Its `TMPDIR` is already its own (`claude_child`), but authoring agents also
-    write fixed names there, such as `/tmp/chk.py`, which a concurrent sample would
-    overwrite. Writes to `/tmp` are refused except under `owned`, the child's own
-    directories, wherever they are, and the names Claude Code and Leaf give their
+    Its `TMPDIR` and zsh's `TMPPREFIX` are already its own (`claude_child`), but
+    authoring agents also write fixed names such as `/tmp/chk.py`, which a
+    concurrent sample would overwrite. Writes to `/tmp` are refused except under
+    `owned`, the child's own directories, wherever they are, and the names
+    Claude Code and Leaf give their
     own machine-local files there: Claude Code's per-user directory and each
     shell's cwd file and socket, zsh's here-document files, whose names are
     unique, and Leaf's per-user package locks and each App Server's socket
@@ -534,7 +599,8 @@ def claude_child(
     beyond `cwd`, and `env` adds to `environment()`. Output is verbose stream-json.
     On macOS the child runs under `private_tmp`, owning `cwd`, its home and
     `dirs`, unless `sandbox` is False, as a child that drives the harness's own
-    browser is."""
+    browser is. Its private-home CLAUDE.md names the sandbox's scratch directory
+    and restriction; an unsandboxed launch retires that generated file."""
     dirs = list(dirs)
     (cwd / "tmp").mkdir(exist_ok=True)
     home = claude_home(cwd.with_name(f"{cwd.name}-home"))
@@ -544,10 +610,23 @@ def claude_child(
         "--output-format", "stream-json",
         "--verbose", *(arg for d in dirs for arg in ("--add-dir", str(d))),
     ]  # fmt: skip
+    instructions = home / ".claude" / "CLAUDE.md"
     if sandbox and shutil.which("sandbox-exec"):
+        instructions.parent.mkdir(exist_ok=True)
+        instructions.write_text(
+            f"Writable scratch directory: `{cwd / 'tmp'}` (`$TMPDIR`).\n"
+            "The sandbox rejects arbitrary writes under shared `/tmp`.\n"
+        )
         profile = private_tmp(cwd, home, *dirs)
         command = ["sandbox-exec", "-p", profile, *command]
-    child_env = claude_environment(home, TMPDIR=str(cwd / "tmp"), **(env or {}))
+    else:
+        instructions.unlink(missing_ok=True)
+    child_env = claude_environment(
+        home,
+        TMPDIR=str(cwd / "tmp"),
+        TMPPREFIX=str(cwd / "tmp/zsh"),
+        **(env or {}),
+    )
     return {"args": command, "cwd": cwd, "env": child_env}
 
 

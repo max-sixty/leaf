@@ -10,25 +10,30 @@ import shutil
 import signal
 import subprocess
 import sys
+import tempfile
+from functools import cache
 from pathlib import Path
 from typing import NamedTuple
 
 import psutil
 import pytest
 from click.testing import CliRunner
+from leaf_dev import LEAF_COMMAND as SOURCE_LEAF_COMMAND
+from leaf_dev.browser import shell_executable, use_linux_fonts
+from leaf_dev.page_fixtures import package_selection_args
+from playwright.sync_api import Frame, Page, sync_playwright
+
 from leaf import cli as cli_model
 from leaf import codex as codex_model
+from leaf import codex_adapter as codex_adapter_model
 from leaf import harness as harness_model
 from leaf import layer as layer_model
 from leaf import leases as leases_model
 from leaf import machine as machine_model
 from leaf import state as cleanup_model
-from leaf.registry.schema import schema_error
+from leaf.registry.schema import schema_error, with_leaf_resources
 from leaf.render_gate import browser as browser_model
-from leaf_dev import LEAF_COMMAND as SOURCE_LEAF_COMMAND
-from leaf_dev.browser import shell_executable, use_linux_fonts
-from leaf_dev.page_fixtures import package_selection_args
-from playwright.sync_api import Frame, Page, sync_playwright
+from leaf.render_gate import command as render_command_model
 
 __all__ = ["LEAF_COMMAND"]
 
@@ -94,7 +99,7 @@ class PagePool:
     way to stop paying for them per test is to stop making a page per test.
 
     What a test leaves behind is small: a served page differs from the shape it
-    was made from in `index.html`, `events.jsonl`, `status.json`, `viewed.json`,
+    was made from in `index.html`, `events.jsonl`, `stream.json`, `user-views.json`,
     the revision it stamped. `reset` reads the
     difference off the filesystem rather than a list — every file whose identity,
     size or modification time moved is put back from the shape, every file and
@@ -253,8 +258,8 @@ def compiled_pages(request, monkeypatch, isolated_session):
         monkeypatch.setattr(layer_model, "KERNEL", request.path.parent / "no-kernel")
         return
     installation = request.getfixturevalue("compiled_installation")
-    monkeypatch.setattr(layer_model, "ASSETS", installation / "skills/leaf/assets")
-    monkeypatch.setattr(layer_model, "KERNEL", installation / "skills/leaf/kernel")
+    monkeypatch.setattr(layer_model, "ASSETS", installation / "browser")
+    monkeypatch.setattr(layer_model, "KERNEL", installation / "dist/kernel")
     monkeypatch.setattr(layer_model, "PLUGIN_ROOT", installation)
     monkeypatch.setenv("LEAF_HOST_LAUNCHER", str(installation / "bin/leaf"))
     original_command = LEAF_COMMAND[:]
@@ -500,12 +505,12 @@ HOOKED_SESSIONS = (f"pytest-{os.getpid()}", "s1")
 
 @pytest.fixture(scope="session", autouse=True)
 def failing_harness_programs(tmp_path_factory):
-    """Put a `claude` and a `codex` that fail at once ahead of the developer's own on
-    PATH, for the entire worker lifetime, before any fixture starts a server.
+    """Put a `claude`, a `codex` and a `pi` that fail at once ahead of the developer's
+    own on PATH, for the entire worker lifetime, before any fixture starts a server.
     Page servers ask the claimant's harness to name user threads (`thread_titles`);
     a test about titling puts its own program first."""
     programs = tmp_path_factory.mktemp("harness-programs")
-    for name in ("claude", "codex"):
+    for name in ("claude", "codex", "pi"):
         program = programs / name
         program.write_text("#!/bin/sh\nexit 1\n")
         program.chmod(0o755)
@@ -543,7 +548,8 @@ def isolated_session(tmp_path_factory, monkeypatch):
     monkeypatch.setenv("CODEX_HOME", str(tmp_path_factory.mktemp("codex")))
     monkeypatch.delenv(codex_model.APP_SERVER_ENV, raising=False)
     monkeypatch.delenv("LEAF_HOST_LAUNCHER", raising=False)
-    for name in (*harness_model.IDENTITY_VARIABLES, *machine_model.SANDBOX_VARIABLES):
+    monkeypatch.delenv("CODEX_INTERNAL_ORIGINATOR_OVERRIDE", raising=False)
+    for name in (*harness_model.IDENTITY_VARIABLES, *machine_model.SANDBOX_REMEDIES):
         monkeypatch.delenv(name, raising=False)
     # Claude Code's session registry, where a live turn is read
     # (`harness.claude_code_session_records`): empty, so no session of the developer's
@@ -551,6 +557,9 @@ def isolated_session(tmp_path_factory, monkeypatch):
     monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path_factory.mktemp("claude")))
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", f"pytest-{os.getpid()}")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
+    # A test's own browser reports its window to the pages it opens, so `page check
+    # --render` reads the fixed window unless a test unsets this.
+    monkeypatch.setenv(render_command_model.PIN_VARIABLE, "fixed")
     # A Claude Code session whose harness runs Leaf's hooks, as the plugin installs
     # them, supplying capability evidence to hook transport and turn activity.
     for session in HOOKED_SESSIONS:
@@ -571,13 +580,115 @@ def declared_records(monkeypatch):
         written = encode(record, value)
         stored = json.loads(written)
         del stored["format"]
-        if error := schema_error(record.schema, stored):
+        if error := schema_error(with_leaf_resources(record.schema), stored):
             raise AssertionError(
                 f"a {record.kind} record that fails its schema: {error}"
             )
         return written
 
     monkeypatch.setattr(cleanup_model.Record, "encode", checked)
+
+
+@cache
+def _app_server_protocol() -> dict:
+    """Codex's App Server protocol, as the `@openai/codex` that `package.json` pins
+    generates it (`wt setup` installs it), as a validator per method of each kind of
+    message: what a client sends, a `ClientRequest` or `ClientNotification`, and what
+    a server sends, a `ServerRequest` or `ServerNotification`."""
+    from jsonschema import Draft7Validator
+
+    codex = TESTS.parent / "node_modules" / ".bin" / "codex"
+    kinds = (
+        "ClientRequest",
+        "ClientNotification",
+        "ServerRequest",
+        "ServerNotification",
+    )
+    with tempfile.TemporaryDirectory() as out:
+        subprocess.run(
+            [
+                codex,
+                "app-server",
+                "generate-json-schema",
+                "--experimental",
+                "--out",
+                out,
+            ],
+            check=True,
+            capture_output=True,
+        )
+        schemas = {
+            kind: json.loads(Path(out, f"{kind}.json").read_text()) for kind in kinds
+        }
+    return {
+        kind: {
+            method: Draft7Validator(
+                {**branch, "definitions": schema.get("definitions", {})}
+            )
+            for branch in schema["oneOf"]
+            for method in branch["properties"]["method"]["enum"]
+        }
+        for kind, schema in schemas.items()
+    }
+
+
+def app_server_message_error(message: dict, sender: str) -> str | None:
+    """Where one App Server message that `sender`, `Client` or `Server`, sends breaks
+    Codex's schema for its method, or None. A response names no method, and its
+    result's shape depends on the request it answers, so it isn't checked."""
+    from jsonschema.exceptions import best_match
+
+    if "method" not in message:
+        return None
+    kind = sender + ("Request" if "id" in message else "Notification")
+    method = message["method"]
+    validator = _app_server_protocol()[kind].get(method)
+    if validator is None:
+        return f"{kind} {method}: the protocol has no such method"
+    error = best_match(validator.iter_errors(message))
+    if error is None:
+        return None
+    return f"{kind} {method}: {error.json_path}: {error.message[:300]}"
+
+
+def collect_app_server_error(found: list, message: dict, sender: str) -> None:
+    """Add to `found` where `message` breaks Codex's schema, or that it could not be
+    checked: a reader runs a check on its own thread, where a raise would read as a
+    connection failure rather than reach the test."""
+    try:
+        error = app_server_message_error(message, sender)
+    except Exception as failure:  # noqa: BLE001 - reported at the test's end
+        error = f"{message.get('method')}: not checked: {failure!r}"
+    if error:
+        found.append(error)
+
+
+@pytest.fixture(autouse=True)
+def app_server_messages(monkeypatch):
+    """Every App Server message a test hands Leaf's readers holds Codex's own schema,
+    whether a stand-in sent it or the test built it, so a fixture can't drift from
+    what Codex sends: each notification `AppServerEvents` or `TaskConnection` reads,
+    and each message a test asks `app_server_delivery_id` about. The `app_server`
+    stand-in adds what Leaf sends it. The test fails at its end on what was found."""
+    found = []
+    for owner in (codex_model.AppServerEvents, codex_adapter_model.TaskConnection):
+
+        def checked(self, message, read=owner._read):
+            collect_app_server_error(found, message, "Server")
+            return read(self, message)
+
+        monkeypatch.setattr(owner, "_read", checked)
+    delivery_id = codex_model.app_server_delivery_id
+
+    def checked_delivery_id(message):
+        collect_app_server_error(found, message, "Server")
+        return delivery_id(message)
+
+    monkeypatch.setattr(codex_model, "app_server_delivery_id", checked_delivery_id)
+    yield found
+    assert not found, "App Server messages outside Codex's schema:\n" + "\n".join(
+        dict.fromkeys(found)
+    )
 
 
 @pytest.fixture

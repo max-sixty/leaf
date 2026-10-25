@@ -24,6 +24,9 @@ from pathlib import Path
 from uuid import uuid4
 
 import click
+from PIL import Image
+from playwright.sync_api import Page
+
 from leaf.delivery import freeze_delivery, receive_held
 from leaf.harness import detached_environment, session_harness
 from leaf.hook_transport import read_plans
@@ -40,9 +43,6 @@ from leaf.state import session_record
 from leaf.thread import post_reply
 from leaf.todos import cmd_start
 from leaf.vendoring import cmd_init
-from PIL import Image
-from playwright.sync_api import Page
-
 from leaf_dev import LEAF_COMMAND
 from leaf_dev.browser import headless_shell, settle, tab
 from leaf_dev.leaf_assets import publish, stage
@@ -137,7 +137,6 @@ def demo_page(version: int, board: dict[str, list[str]] | None = None) -> str:
 <html lang="en">
 <head>
 <title>Migration plan</title>
-<meta name="lf-review" content="sign-off">
 <style>#demo-metrics dl {{ margin: 0; padding: var(--sp-3); border: 1px solid var(--rule); }} #demo-metrics dt {{ color: var(--muted); font: 500 var(--t-6)/1.3 var(--sans); }} #demo-metrics dd {{ margin: 0; font: 600 var(--t-2)/1.3 var(--sans); }} #demo-metrics dd small {{ font-size: var(--t-6); }}</style>
 </head>
 <body>
@@ -189,6 +188,14 @@ new version as the checks finish.</p>
 {board_markup(board or BOARD)}
 </lf-board>
 </section>
+<lf-ask id="migration-approval-decision">
+<h2>Approve the migration plan?</h2>
+<p>The rollout sequence and acceptance criteria described above.</p>
+<lf-options id="migration-approval" choose>
+<lf-option id="migration-hold"><strong>Hold the rollout</strong></lf-option>
+<lf-option id="migration-approve"><strong>Approve the plan</strong></lf-option>
+</lf-options>
+</lf-ask>
 </main>
 </body>
 </html>
@@ -225,6 +232,7 @@ class DemoWaiter:
     rearms the wait. The demo itself stands in for the reader."""
 
     def __init__(self, page_dir: Path) -> None:
+        self.page_dir = page_dir
         self.process = subprocess.Popen(
             [*LEAF_COMMAND, "wait", str(page_dir)],
             stdout=subprocess.PIPE,
@@ -253,8 +261,14 @@ class DemoWaiter:
                 f"the demo waiter exited {self.process.returncode} without one batch "
                 f"of user events\n{stderr}".rstrip()
             )
+        if not hooked:
+            subprocess.run(
+                [*LEAF_COMMAND, "delivery", "ack", payload["id"]],
+                check=True,
+                capture_output=True,
+            )
         self.process = subprocess.Popen(
-            [*LEAF_COMMAND, "wait", *([] if hooked else ["--ack", payload["id"]])],
+            [*LEAF_COMMAND, "wait", *([] if harness else [str(self.page_dir)])],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -309,9 +323,9 @@ def record(
     shot(1600)
 
     select_text(page, "#p2", "Backfill history")
-    # The selected words offer the response action. Open it before typing, then
-    # send from the focused field with Mod+Enter.
-    page.get_by_role("button", name="Comment on selection").click()
+    # The panel's field offers the selected words, quoting them. A press there opens
+    # their comment before typing, then the focused field sends with Mod+Enter.
+    page.locator('.lf-fp-field leaf-text[data-says="selection"]').click()
     field = page.locator(".lf-fab-input")
     field.focus()
     page.keyboard.insert_text("Can the backfill stay online?")
@@ -343,13 +357,13 @@ def record(
 
     post_reply(
         page_dir,
-        {"for": comment_id},
+        {"responds": comment_id},
         "Yes. The fixed rate limit keeps the backfill online.",
         validate_source=True,
     )
     (page_dir / "index.html").write_text(demo_page(2), encoding="utf-8")
     cmd_stamp(page_dir, "Backfill stays online; rehearsal progress is now 3 of 4")
-    cmd_waiting(page_dir, "")
+    cmd_waiting(page_dir)
     page.wait_for_function(
         "() => document.querySelector('meta[name=lf-revision][data-lf-runtime]')"
         "?.content === '2'"
@@ -410,7 +424,7 @@ def shoot_stills(browser, url: str, page_dir: Path, into: Path) -> None:
         demo_page(2, folded_board(page_dir)), encoding="utf-8"
     )
     cmd_stamp(page_dir, "On-call staffing moved into During, as the board now reads")
-    cmd_waiting(page_dir, "")
+    cmd_waiting(page_dir)
 
     for name, size, scheme in STILLS:
         with tab(browser, size, scheme) as page:
@@ -472,7 +486,7 @@ def record_demo(output: Path | None) -> None:
         cmd_init(page_dir)
         (page_dir / "index.html").write_text(demo_page(1), encoding="utf-8")
         cmd_stamp(page_dir, "Migration rehearsal started; 2 of 4 checks complete")
-        cmd_waiting(page_dir, "")
+        cmd_waiting(page_dir)
         with claim_and_start(page_dir) as started:
             pass
         url = started.url

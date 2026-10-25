@@ -3,8 +3,6 @@ and an obligation's digits and thread."""
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf import event_log as events_model
-from leaf.render_checks import one_frame, rendered
 from playwright.sync_api import expect
 from render_cases_interaction import (
     OBLIGATIONS_PAGE,
@@ -26,7 +24,7 @@ from render_harness import (
     ROOT,
     leaf_page,
     open_page,
-    pane_posture,
+    pane_scroll_behavior,
     panel_settled,
     regions_side_by_side,
     resized,
@@ -40,8 +38,13 @@ from render_harness import (
 
 from browser.navigation import expect_walk_position, walk_position
 from browser.threads import open_panel_thread
+from leaf import event_log as events_model
+from leaf.render_checks import one_frame, rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
+
+# The margin card a thread about a passage opens in.
+CARD = ".lf-margin-preview"
 
 
 @pytest.mark.parametrize(("nested_source", "reduced"), [(False, True), (True, False)])
@@ -207,7 +210,7 @@ def test_an_obligation_walk_glides_within_a_view_and_opens_other_tabs_at_the_que
         top = page.locator(f"#ask-{target}").bounding_box()["y"]
         assert top == pytest.approx(edge + 5, abs=3), (top, edge)
 
-    # Leave the previous arrival entirely: the next trip must preserve this reading
+    # Leave the previous arrival entirely: the next navigation step must preserve this reading
     # as its own Back destination, including the tab that owned the outgoing offset.
     page.mouse.move(400, 400)
     page.mouse.wheel(0, 1100)
@@ -409,9 +412,7 @@ def test_a_failed_obligation_reveal_does_not_register_an_arrival(browser, serve)
     )
     page.wait_for_function("window.obligationRevealRejected === true")
     rendered(page)
-    position = walk_position(page)
-    assert position["text"] == "1 of 4 waiting on me · Options"
-    assert not position["boundary"]
+    assert walk_position(page)["text"] == "1 of 4 waiting on me · Options"
     expect(page.locator("#live-question-decision")).to_be_focused()
     assert [said(error) for error in take_browser_errors(page)] == [
         "leaf: Presentation failed: obligation reveal probe"
@@ -562,28 +563,30 @@ def test_an_obligations_digits_are_drawn_whole(browser, serve):
 def test_frozen_widget_obligation_walk_orders_by_its_threads_page_passage(
     browser, serve
 ):
-    """A materialized frozen source in chrome keeps its thread's authored page order."""
+    """A materialized frozen source keeps its thread's authored page order."""
     page = open_page(browser, serve(ROOT / "examples" / "ship-review.html"))
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     panel_settled(page, view="threads")
     page.locator("h1").focus()
     page.keyboard.press("m")
-    expect(page.locator(f"{PANEL_THREAD} lf-ask[data-lf-obligation]")).to_be_focused()
+    expect(page.locator(f"{CARD} lf-ask[data-lf-obligation]")).to_be_focused()
 
 
-def test_an_obligation_walk_leaves_the_panel_it_reached_through(browser, serve):
-    """`m` from the page reaches an obligation seated in a thread through the panel, so the
-    press opens its thread there on the way. The walk is lateral — it moves the user
-    from obligation to obligation rather than down a level — and Escape puts the view away. No step
-    depends on which press opened the view."""
+def test_an_obligation_walk_leaves_the_card_it_reached_through(browser, serve):
+    """`m` from the page reaches an obligation in a reply to a thread about a passage
+    through that thread's margin card, which draws the reply's widgets, so the press
+    opens the card on the way and leaves the panel shut. Escape steps back to the
+    passage, and again puts the card away."""
     page = open_page(browser, serve(ROOT / "examples" / "ship-review.html"))
-    expect(page.locator(PANEL_THREAD)).to_have_count(0)
     page.keyboard.press("m")
-    item = page.locator(f"{PANEL_THREAD} lf-ask[data-lf-obligation]")
+    item = page.locator(f"{CARD} lf-ask[data-lf-obligation]")
     expect(item).to_be_focused()
+    expect(page.locator(PANEL_THREAD)).to_have_count(0)
     page.keyboard.press("Escape")
-    panel_settled(page, open=False)
+    expect(page.locator("#off-t-resync")).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(page.locator(CARD)).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")
 
 
@@ -606,6 +609,7 @@ def test_an_absent_walk_destination_returns_to_the_callers_fallback(browser, ser
     page.get_by_role("button", name="Find a thread or message").click()
     page.locator("input.lf-fp-search").fill("no matching thread")
     expect(page.locator(".lf-fp-thread")).to_have_count(0)
+    page.get_by_role("button", name="Close search").click()
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
     page.evaluate(RELEASE_FOCUS)
@@ -642,10 +646,12 @@ def test_obligations_sharing_context_keep_their_source_identity(browser, serve):
         ),
     )
 
+    # The widgets' own obligations; a pick also publishes the update's, the version
+    # the agent then owes.
     def questions():
         return page.evaluate(
             """async () => (await window.__lfWidgetApi())
-              .readObligations().all"""
+              .readObligations().all.filter((item) => item.source.kind === "widget")"""
         )
 
     initial = questions()
@@ -749,11 +755,11 @@ def test_the_obligation_walk_measures_from_chrome_only_where_the_chrome_holds_an
     browser, serve
 ):
     """The user's place has to be a place in the walk's own ordered space. The chrome is
-    appended after the whole page, so a user standing on a thread in the panel would
+    appended after the whole page, so a user located on a thread in the panel would
     measure as past every obligation there is.
 
     The route runs through the chrome all the same: a widget frozen into a reply is an
-    obligation the walk visits, and a user working its controls is standing in the space the
+    obligation the walk visits, and a user working its controls is located in the space the
     step measures. So the question is which obligations the layer holds and not whether the
     layer is chrome.
 
@@ -811,7 +817,7 @@ def test_the_obligation_walk_measures_from_chrome_only_where_the_chrome_holds_an
     page.keyboard.press("Shift+m")
     expect(page.locator("#first-decision")).to_be_focused()
 
-    # Standing in that obligation is standing in the space, so the step measures from it.
+    # Located in that obligation is located in the space, so the step measures from it.
     pick = page.locator("#reply-decision .lf-pick").first
     pick.focus()
     expect(pick).to_be_focused()
@@ -935,12 +941,13 @@ def test_walking_to_an_obligation_opens_its_discussion(browser, serve, family):
     expect(discussion.locator("leaf-text")).to_be_focused()
 
 
-def test_an_obligation_and_its_thread_are_one_standing_target(browser, serve):
+def test_an_obligation_and_its_thread_are_one_current_target(browser, serve):
     """An obligation and the thread its card shows are one place held from two sides
-    (glossary, Standing target). From the obligation, `c` continues that thread and `t` steps
-    on past it; from its thread in the card, the obligation keeps its ring and its digits. A thread about an enclosing block is that block's, so an obligation
-    inside the block still starts a thread of its own. From an element with no thread,
-    `t` measures from its place in the document, as `m` does."""
+    (glossary, Current target). From the obligation, `c` continues that thread and `t` steps
+    on past it; from its thread in the card, the obligation keeps its ring and its digits.
+    A thread about an enclosing block holds the decision inside it with the agent, so
+    On me skips that decision. From an element with no thread, `t` measures from its
+    place in the document, as `m` does."""
     url = serve(OBLIGATION_THREAD_PAGE)
     d = serve.page_dir
     panel_comment(
@@ -974,7 +981,7 @@ def test_an_obligation_and_its_thread_are_one_standing_target(browser, serve):
 
     # From an obligation with no thread, `t` goes to the next thread after it in the document,
     # which is the task's. Back from there is the obligation's own thread, where, in the card,
-    # the obligation is still where the user stands.
+    # the obligation is still the current location.
     page.keyboard.press("m")
     expect(page.locator("#ship-ask")).to_be_focused()
     page.keyboard.press("t")
@@ -983,24 +990,25 @@ def test_an_obligation_and_its_thread_are_one_standing_target(browser, serve):
     expect(obligation_thread).to_be_focused()
     expect(item).to_have_attribute("data-lf-obligation", "1")
 
-    # The nested obligation's card shows its task's thread, which is about the task, so `c`
-    # still starts the obligation a thread of its own.
+    # The thread on the task holds its nested decision with the agent. On me therefore
+    # cycles past that decision until the agent answers the thread.
     page.keyboard.press("m")
     expect(page.locator("#ship-ask")).to_be_focused()
     page.keyboard.press("m")
-    expect(page.locator("#retry-ask")).to_be_focused()
-    expect(card.locator(f'.lf-page-thread[data-thread="{about_task}"]')).to_be_visible()
+    expect(item).to_be_focused()
 
 
 def test_an_obligation_in_a_reply_is_where_the_user_stands_once_answered(
     browser, serve
 ):
-    """An obligation frozen into a reply sits in a thread about a page lf-ask. Standing in the
-    reply's obligation is standing there whether or not it is answered: the thread leads to
+    """An obligation frozen into a reply sits in a thread about a page lf-ask. Located in the
+    reply's obligation keeps that location whether or not it is answered: the thread leads to
     its page obligation only from a node inside no obligation, so a user back on the answered option
     does not have the page obligation's ring and digits. A contributed control for a widget in
-    the reply stands nowhere, since its widget is chrome in no obligation, so `m` from it
-    starts where the reader is rather than behind every obligation on the page."""
+    the reply stands where that widget does: in no obligation, it stands where the thread's
+    view does, at the page obligation the thread is about, which wears the ring and takes
+    the digits, and `m` from it steps on from that obligation to the question in the reply
+    rather than from behind every obligation on the page."""
     url = serve(
         OBLIGATION_THREAD_PAGE,
         media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
@@ -1047,12 +1055,19 @@ def test_an_obligation_in_a_reply_is_where_the_user_stands_once_answered(
     )
     expect(contributed).to_be_visible()
     contributed.focus()
+    assert (
+        contributed.evaluate(
+            "async (control) => (await window.__lfCheckApi()).placeOf(control)?.id"
+        )
+        == "cache-ask"
+    ), "a control on a widget in a reply does not stand where its thread is about"
+    expect(page.locator("#cache-ask")).to_have_attribute("data-lf-obligation", "1")
     page.keyboard.press("m")
-    expect(page.locator("#cache-ask")).to_be_focused()
+    expect(page.locator("#follow-ask")).to_be_focused()
     option = page.locator("#follow-yes")
     option.click()
     expect(option).to_have_attribute("chosen", "")
-    # Back on the answered option, the user stands in the reply's lf-ask. Answering moves
+    # Back on the answered option, the user is located in the reply's lf-ask. Answering moves
     # focus to the message, which is inside no obligation and so does stand at the page lf-ask.
     round_trip(page)
     option.locator(".lf-pick").focus()
@@ -1060,6 +1075,17 @@ def test_an_obligation_in_a_reply_is_where_the_user_stands_once_answered(
     page.keyboard.press("1")
     round_trip(page)
     expect(page.locator("#cache-disk")).not_to_have_attribute("chosen", "")
+
+    # From the control on the reply's widget, which stands at the page lf-ask, its digit
+    # answers it, and the answered obligation keeps its ring there: the control is a
+    # review route to it, as an On card is.
+    contributed.focus()
+    expect(page.locator("#cache-ask")).to_have_attribute("data-lf-obligation", "1")
+    page.keyboard.press("1")
+    round_trip(page)
+    expect(page.locator("#cache-disk")).to_have_attribute("chosen", "")
+    expect(contributed).to_be_focused()
+    expect(page.locator("#cache-ask")).to_have_attribute("data-lf-obligation", "1")
 
 
 OBLIGATION_IN_A_PANE_PAGE = leaf_page(
@@ -1101,7 +1127,7 @@ def test_an_obligation_landed_in_a_pane_keeps_its_ring_inside_the_pane(browser, 
     rule."""
     page = open_page(browser, serve(OBLIGATION_IN_A_PANE_PAGE))
     resized(page, 1440, 900)
-    pane_posture(page, page.locator("#ask-detail"), "bounded")
+    pane_scroll_behavior(page, page.locator("#ask-detail"), "bounded")
     page.keyboard.press("m")
     item = page.locator("#pane-decision")
     expect(item).to_be_focused()

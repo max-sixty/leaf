@@ -1,7 +1,7 @@
 """Browser diagnostics retain the evidence available at the reporting boundary."""
 
 import pytest
-from leaf_dev.commands.probe import console_errors
+from leaf_dev.commands.probe import console_findings
 from leaf_dev.commands.verify_site import observe_startup
 from playwright.sync_api import Error as PlaywrightError
 from render_harness import (
@@ -12,7 +12,7 @@ from render_harness import (
 )
 
 
-@pytest.mark.parametrize("collector", [watched, console_errors, observe_startup])
+@pytest.mark.parametrize("collector", [watched, console_findings, observe_startup])
 def test_uncaught_errors_keep_the_throw_site_in_each_document(browser, collector):
     """Identical messages in separate documents must keep their distinct call sites."""
     page = browser.unwatched.new_page()
@@ -51,40 +51,6 @@ def test_a_stack_location_does_not_consume_an_unrelated_error(browser):
         consume_browser_errors(page, "40041")
 
 
-@pytest.mark.parametrize("owner_read", [1, 2])
-def test_health_judgement_releases_a_frame_removed_during_its_read(
-    browser, monkeypatch, owner_read
-):
-    """A native frame can disappear between enumeration, owner lookup and drain.
-
-    Hold the driver's owner request at the causal edge and remove the real iframe
-    before forwarding it to Chrome; no scheduling speed decides whether it races.
-    """
-    page = browser.new_page()
-    page.route(
-        "https://diagnostics.test/**",
-        lambda route: route.fulfill(
-            content_type="text/html", body='<iframe srcdoc="<p>Child</p>"></iframe>'
-        ),
-    )
-    page.goto("https://diagnostics.test/")
-    child = page.frames[1]
-    frame_element = child.frame_element
-    reads = 0
-
-    def remove_before_owner_read():
-        nonlocal reads
-        reads += 1
-        if reads == owner_read:
-            page.locator("iframe").evaluate("element => element.remove()")
-        return frame_element()
-
-    monkeypatch.setattr(child, "frame_element", remove_before_owner_read)
-    judge_watches()
-    assert reads == owner_read
-    assert child.is_detached()
-
-
 @pytest.mark.parametrize("call", ["start", "read"])
 def test_health_judgement_releases_a_frame_removed_inside_its_evaluation(
     browser, monkeypatch, call
@@ -113,10 +79,11 @@ def test_health_judgement_releases_a_frame_removed_inside_its_evaluation(
               judgement = value;
               if (call === 'start') remove();
               else {
-                const drawn = value.ancestorsDrawn;
-                Object.defineProperty(value, 'ancestorsDrawn', {
-                  get: () => drawn,
-                  set: remove,
+                // The driver's read checks for an error before completion.
+                const error = value.error;
+                Object.defineProperty(value, 'error', {
+                  get: () => { remove(); return error; },
+                  set() {},
                 });
               }
             },

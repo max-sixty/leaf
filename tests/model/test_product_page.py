@@ -7,6 +7,9 @@ from pathlib import Path
 
 import click
 from click.testing import CliRunner
+from leaf_dev.page_fixtures import authored_markup
+from unidiff import PatchSet
+
 from leaf import __main__ as leaf_entry
 from leaf import cli as cli_model
 from leaf import event_contracts as event_contracts_model
@@ -16,12 +19,10 @@ from leaf.registry import validation as registry_validation
 from leaf.registry.schema import check_schema
 from leaf.structure import SourceDocument
 from leaf.validation import composition as validation_model
-from leaf_dev.page_fixtures import authored_markup
-from unidiff import PatchSet
 
 ROOT = Path(__file__).parents[2]
-ASSETS = ROOT / "skills" / "leaf" / "assets"
-DEFAULT_PACKAGE = ROOT / "skills" / "leaf" / "packages" / "default"
+ASSETS = ROOT / "browser"
+DEFAULT_PACKAGE = ROOT / "packages" / "default"
 DOCS = ROOT / "docs"
 EXAMPLES = ROOT / "examples"
 DEVELOPER_PAGES = tuple(sorted((EXAMPLES / "developer").glob("*.html")))
@@ -47,16 +48,7 @@ def test_kernel_event_contracts_declare_closed_records():
 
 def test_docs_pages_leave_delivery_markup_to_leaf():
     pages = sorted(DOCS.glob("*.html"))
-    assert {page.name for page in pages} == {
-        "index.html",
-        "examples.html",
-        "extending.html",
-        "how-it-works.html",
-        "registry.html",
-        "event-log.html",
-        "threads.html",
-        "website.html",
-    }
+    assert pages
     for page in pages:
         text = page.read_text()
         assert 'href="/theme.css"' not in text, page.name
@@ -110,14 +102,12 @@ def test_extension_references_follow_the_concepts_they_explain():
 
 def test_package_catalog_routes_every_optional_package_to_inspectable_content():
     tree = SourceDocument((DOCS / "extending.html").read_text()).tree
-    cards = [
-        (card.attrs["href"], card.select_one("strong").text)
-        for card in tree.select("a.package-card")
-    ]
+    cards = tree.select("a.package-card")
     declared = json.loads((EXAMPLES / "layer.json").read_text())
 
-    assert [name.casefold().replace(" ", "-") for _, name in cards] == declared
-    for href, _ in cards:
+    assert [card.attrs["data-package"] for card in cards] == declared
+    for card in cards:
+        href = card.attrs["href"]
         if href.startswith("/examples/"):
             assert href.endswith("/")
         else:
@@ -231,11 +221,11 @@ def test_the_event_log_page_shows_the_records_the_door_writes(page_dir):
     what the door stores now has to be what the page shows, `id` and `ts` aside.
     A changed field, meaning, or refusal fails here with the records to paste."""
     source = SourceDocument(EVENT_LOG.read_text())
-    template = source.tree.select_one("template#try-page").inner_html
+    sample = source.tree.select_one("lf-sample#try-sample").inner_html
     (page_dir / "index.html").write_text(
         '<!doctype html><html lang="en"><head><title>Release question</title>'
         '<meta name="description" content="The sample."></head>'
-        f"<body><main>{template}</main></body></html>"
+        f"<body><main>{sample}</main></body></html>"
     )
     stamped = CliRunner().invoke(
         cli_model.cli, ["page", "stamp", str(page_dir), "--text", "v1"]

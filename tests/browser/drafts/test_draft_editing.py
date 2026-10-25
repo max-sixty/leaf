@@ -2,13 +2,11 @@
 saving and its controls, Enter, and comparing versions."""
 
 import re
+import shutil
 
 import pytest
 from click.testing import CliRunner
 from interact_support import append_command, response_reference
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf.render_checks import rendered, wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import panel_comment
 from render_cases_navigation import DRAFT_TEXT, JOURNEY_V1, _publish
@@ -16,6 +14,7 @@ from render_harness import (
     compare_with,
     consume_browser_errors,
     draft_control,
+    example_media,
     hold_selection,
     holding,
     http_error_console,
@@ -28,7 +27,11 @@ from render_harness import (
     write,
 )
 
+from browser.margin import MARGIN_EDITOR_ROOTS
 from browser.threads import open_panel_thread
+from leaf import cli as cli_model
+from leaf import event_log as events_model
+from leaf.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -36,9 +39,10 @@ pytestmark = pytest.mark.shifts_unsurveyed
 def test_double_clicking_a_draft_keeps_its_frame_and_selected_word(browser, serve):
     """The draft stays in place and double-click keeps the selected word on edit.
 
-    The editor leaves room for Copy beside the caret. The frame's inset focus paint
-    changes without reaching outside the reading box, and print keeps the saved body
-    while dropping the shared editor."""
+    The editor sets its words exactly where the prose stood, since the toolbar hovers
+    over the border rather than taking room beside the caret. The frame's inset focus
+    paint changes without reaching outside the reading box, and print keeps the saved
+    body while dropping the shared editor."""
     page = open_page(browser, serve(JOURNEY_V1))
     metrics = """(sel) => {
       const el = document.querySelector('#draft-ops ' + sel), s = getComputedStyle(el);
@@ -53,11 +57,12 @@ def test_double_clicking_a_draft_keeps_its_frame_and_selected_word(browser, serv
     # reach it: an outset ring is paint, so every rect stayed exactly as asserted
     # below while the frame the user sees grew 2px on every side, corners
     # rounding wider to match. Bytes, not pixels — the same encoder over the same
-    # content gives the same file, so identical files are identical paint.
+    # content gives the same file, so identical files are identical paint. The band
+    # stops at the box's middle, short of the toolbar that hovers over its top right.
     band = {
         "x": host["x"] - 4,
         "y": host["y"] - 4,
-        "width": host["width"] + 8,
+        "width": host["width"] / 2,
         "height": 4,
     }
     inside = {"x": host["x"], "y": host["y"], "width": 40, "height": 40}
@@ -92,10 +97,9 @@ def test_double_clicking_a_draft_keeps_its_frame_and_selected_word(browser, serv
         "the open editor is indistinguishable from the read view at the box's edge"
     )
     edited = page.evaluate(metrics, "leaf-text")
-    assert (edited[0], edited[1], edited[3]) == (read[0], read[1], read[3]), (
-        "the editor moved the draft's words or changed their line height"
+    assert edited == read, (
+        "the editor moved, narrowed or changed the height of the draft's words"
     )
-    assert edited[2] < read[2], "the editor left no room for Copy beside the caret"
     assert page.locator("#draft-ops").bounding_box() == host, (
         "the draft changed shape under the pointer when the editor opened"
     )
@@ -198,6 +202,158 @@ def test_opening_a_visible_line_in_a_long_draft_preserves_the_reading_position(
     offset = editor.evaluate("el => el.selectionStart")
     assert text.index("Line 30:") <= offset <= text.index("Line 30:") + 8
     expect(editor).to_have_js_property("value", text)
+
+
+DRAFT_BLOCKS = """# Workshop
+
+The morning starts at nine. Read the [setup guide](https://example.com/setup) first.
+
+
+Two blank lines stand before these words.
+
+- one **bold** item
+- a second with `inline`
+
+```
+leaf page init ./workshop
+```
+
+> ### Quoted
+>
+> Practice beats theory.
+
+Setext
+------
+
+![Room layout](/media/051bee487bfb5d13.png)
+
+Tables seat four."""
+
+# A picture named by a reference, and one whose source spans two lines.
+NAMED_PICTURES = """![Room layout][room]
+
+![Room
+layout](/media/051bee487bfb5d13.png)
+
+[room]: /media/051bee487bfb5d13.png"""
+
+# Where a draft's words and picture stand, from its top: the first rendered glyph of each
+# word, the picture, and the mark after the link, in its prose or in its editor's
+# closed root, whose source syntax is skipped where the editor leaves it unseen.
+DRAFT_AS_DRAWN = """(draft, words) => {
+  const box = draft.getBoundingClientRect();
+  const editor = draft.querySelector(':scope > leaf-text');
+  const root = editor ? window.marginEditorRoots.get(editor) : draft.querySelector('.lf-draft-body');
+  const at = (node) => {
+    const r = node.getBoundingClientRect();
+    return [Math.round(r.left - box.left), Math.round(r.top - box.top), Math.round(r.width), Math.round(r.height)];
+  };
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const found = {};
+  for (let node; (node = walker.nextNode()); ) {
+    if (node.parentElement.closest('.lf-md-unseen, .lf-md-mark')) continue;
+    for (const word of words) {
+      const i = node.data.indexOf(word);
+      if (i < 0 || word in found) continue;
+      const range = document.createRange();
+      range.setStart(node, i);
+      range.setEnd(node, i + 1);
+      found[word] = at(range);
+    }
+  }
+  found.picture = at(root.querySelector('img:not(.cm-widgetBuffer)'));
+  found.mark = at(root.querySelector('.lf-external-mark'));
+  found.height = Math.round(box.height);
+  return found;
+}"""
+
+
+def test_a_draft_edits_where_it_reads(browser, serve):
+    """A draft's editor drew its Markdown in a sent message's face: a heading at the
+    words' size, a blank line for each gap between blocks, a picture as its source, a
+    fence's lines at a code line each and no mark after a link that leaves the page.
+    Opening a draft holding them moved the words below its first block. Each word, the
+    picture and the link's mark now stay where the prose showed them, the editor
+    taking each block's face and gaps from where it stands."""
+    url = serve(
+        leaf_page(
+            "Draft faces",
+            f'<h1>Draft faces</h1><lf-draft id="faces"><pre>{DRAFT_BLOCKS}</pre></lf-draft>'
+            f'<lf-draft id="named"><pre>{NAMED_PICTURES}</pre></lf-draft>',
+        )
+    )
+    (serve.page_dir / "media").mkdir(exist_ok=True)
+    shutil.copy(
+        example_media() / "051bee487bfb5d13.png",
+        serve.page_dir / "media" / "051bee487bfb5d13.png",
+    )
+    page = open_page(browser, url, init_script=MARGIN_EDITOR_ROOTS)
+    draft = page.locator("#faces")
+    words = [
+        "Workshop",
+        "morning",
+        "guide",
+        "Two",
+        "bold",
+        "inline",
+        "leaf",
+        "Quoted",
+        "Practice",
+        "Setext",
+        "Tables",
+    ]
+    draft.locator(".lf-draft-body img").evaluate("image => image.decode()")
+    shown = draft.evaluate(DRAFT_AS_DRAWN, words)
+    draft_control(page, "edit", "faces").click()
+    expect(draft.locator("leaf-text")).to_be_focused()
+    page.wait_for_function(
+        "draft => window.marginEditorRoots.get(draft.querySelector('leaf-text'))"
+        "?.querySelector('img.lf-md-picture')?.complete",
+        arg=draft.element_handle(),
+    )
+    rendered(page)
+    editing = draft.evaluate(DRAFT_AS_DRAWN, words)
+    for part, place in shown.items():
+        assert editing[part] == pytest.approx(place, abs=1), (part, shown, editing)
+    # The caret in a fence's code leaves the fence's lines standing for its padding.
+    box = draft.bounding_box()
+    page.mouse.click(
+        box["x"] + editing["leaf"][0] + 2, box["y"] + editing["leaf"][1] + 5
+    )
+    rendered(page)
+    assert draft.evaluate(DRAFT_AS_DRAWN, words)["Tables"] == editing["Tables"]
+    # A press on the picture opens its source and leaves the picture drawn after it.
+    page.mouse.click(
+        box["x"] + editing["picture"][0] + 20, box["y"] + editing["picture"][1] + 20
+    )
+    rendered(page)
+    opened = draft.evaluate(DRAFT_AS_DRAWN, words)
+    assert opened["picture"][2:] == editing["picture"][2:], (opened, editing)
+    assert opened["picture"][1] > editing["picture"][1]
+    # A paragraph typed after the last one starts on the line it will stand on, the
+    # blank line before it already standing as the gap.
+    last_line = """draft => [...window.marginEditorRoots.get(draft.querySelector('leaf-text'))
+      .querySelectorAll('.cm-line')].at(-1).getBoundingClientRect().top"""
+    page.keyboard.press("ControlOrMeta+End")
+    page.keyboard.press("Enter")
+    page.keyboard.press("Enter")
+    rendered(page)
+    before = draft.evaluate(last_line)
+    page.keyboard.type("N")
+    rendered(page)
+    assert draft.evaluate(last_line) == pytest.approx(before, abs=0.5)
+    # A picture a reference names is drawn from the reference, with its words; one
+    # whose source spans lines stays source.
+    page.keyboard.press("Escape")
+    draft_control(page, "edit", "named").click()
+    named = page.locator("#named leaf-text")
+    expect(named).to_be_focused()
+    rendered(page)
+    pictures = named.evaluate("""field => [...window.marginEditorRoots.get(field)
+      .querySelectorAll('img.lf-md-picture')].map(img => [img.getAttribute('src'), img.alt])""")
+    assert len(pictures) == 1 and pictures[0][0] and pictures[0][1] == "Room layout", (
+        pictures
+    )
 
 
 def test_a_draft_uses_shared_editing_and_saves_exact_markdown_source(browser, serve):
@@ -311,7 +467,7 @@ def test_a_click_on_a_reply_s_draft_opens_it_in_the_panel(browser, serve):
     replied = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(serve.page_dir, question),
@@ -331,7 +487,7 @@ def test_a_click_on_a_reply_s_draft_opens_it_in_the_panel(browser, serve):
 def test_a_draft_in_an_obligation_takes_no_digits_and_answers_from_its_controls(
     browser, serve
 ):
-    """A draft lends its obligation no digits, so a digit typed while standing on the obligation
+    """A draft lends its obligation no digits, so a digit typed while focused on the obligation
     or in the editor is not a command; the user Tabs to Edit and saves with
     Mod+Enter."""
     original = "Keep **this** source editable."
@@ -504,7 +660,7 @@ def test_first_draft_save_and_refusal_keep_the_local_editor_controls(browser, se
 def test_draft_controls_survive_hiding_annotations_and_escape_discards(browser, serve):
     """Editing operations stay in their box while the annotation layer is hidden.
 
-    The footer offers Save and Cancel, and Escape cancels as the button does, so a
+    The toolbar offers Save and Discard, and Escape discards as the button does, so a
     closed box holds no unsent words. The box's Copy control copies the Markdown source
     the box shows, the open editor's while it stands."""
     context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
@@ -666,6 +822,42 @@ def test_draft_comparison_detects_format_changes_but_not_the_same_current_edit(
     expect(page.locator("#source .lf-draft-body strong")).to_have_text("edit")
 
 
+def test_a_finger_copies_a_draft_from_anywhere_in_copy_s_reach(browser, serve):
+    """Copy runs on its shadow button's press, so its reach is the button's: under a
+    finger, a press just past its face copies. A reach on the host would stand over the
+    button and take every press from it."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Copied draft",
+                '<h1>Release note</h1><lf-draft id="note"><pre>Keep `this` note.</pre></lf-draft>',
+            )
+        ),
+        context=context,
+    )
+    copy = page.locator("#note .lf-draft-tools > wa-copy-button")
+    copy.evaluate(
+        """c => { c.presses = 0;
+        for (const t of ['wa-copy', 'wa-error']) c.addEventListener(t, () => c.presses++); }"""
+    )
+    x, top, bottom = copy.evaluate(
+        """c => { const b = c.shadowRoot.querySelector('[part~="button"]')
+          .getBoundingClientRect();
+        return [b.left + b.width / 2, b.top, b.bottom]; }"""
+    )
+    assert bottom - top < 44, "the face already meets a finger's floor"
+    # A mouse press, which Chrome's touch adjustment doesn't move onto the button.
+    page.mouse.click(x, top - 4)
+    page.wait_for_function(
+        "() => document.querySelector('#note .lf-draft-tools > wa-copy-button')"
+        ".presses === 1"
+    )
+
+
 def test_a_draft_button_keeps_its_target_when_pointerdown_focuses_it(browser, serve):
     """Raw pointer down must not move the button before the matching up arrives. Either
     edge detects a button that moves under the press, so each action, pressed in turn
@@ -730,3 +922,55 @@ def test_a_draft_button_keeps_its_target_when_pointerdown_focuses_it(browser, se
             if e.get("action") == "edit"
         ]
         assert len(edits) == (0 if saved == "Keep this note." else 1), action
+
+
+def test_pointer_cancel_returns_draft_room_without_delaying_reading_or_focus(
+    browser, serve
+):
+    from render_cases_interaction import HOLD_MOTION
+
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Cancel draft",
+                '<h1>Review</h1><div style="height:1100px"></div>'
+                '<lf-draft id="copy"><pre>Original short text.</pre></lf-draft>'
+                '<p id="after">Next section</p>',
+            )
+        ),
+        init_script=HOLD_MOTION,
+    )
+    page.emulate_media(reduced_motion="no-preference")
+    draft = page.locator("#copy")
+    rest = draft.bounding_box()["height"]
+    draft_control(page, "edit", "copy").click()
+    editor = draft.locator("leaf-text")
+    editor.focus()
+    editor.evaluate("e=>e.select()")
+    page.keyboard.insert_text("\n\n".join(["A longer paragraph in the draft."] * 8))
+    page.evaluate("scrollTo(0, document.documentElement.scrollHeight)")
+    scroll_settled(page)
+    before = draft.bounding_box()["height"]
+    scroll_before = page.evaluate("scrollY")
+    draft_control(page, "cancel", "copy").click()
+    expect(editor).to_have_count(0)
+    expect(draft.locator(".lf-draft-body")).to_have_text("Original short text.")
+    expect(draft_control(page, "edit", "copy")).to_be_focused()
+    assert draft.bounding_box()["height"] == pytest.approx(before, abs=1)
+    assert page.evaluate("scrollY") == pytest.approx(scroll_before, abs=1)
+    draft.evaluate("d=>d.getAnimations()[0].currentTime=90")
+    middle = draft.bounding_box()["height"]
+    assert rest < middle < before
+    draft_control(page, "edit", "copy").click()
+    expect(editor).to_be_focused()
+    assert draft.evaluate("d=>d.getAnimations().length") == 0
+    page.keyboard.insert_text("\n" * 8)
+    page.keyboard.press("Escape")
+    expect(editor).to_have_count(0)
+    assert draft.evaluate("d=>d.getAnimations().length") == 0
+    page.emulate_media(reduced_motion="reduce")
+    draft_control(page, "edit", "copy").click()
+    page.keyboard.insert_text("\n" * 8)
+    draft_control(page, "cancel", "copy").click()
+    assert draft.evaluate("d=>d.getAnimations().length") == 0

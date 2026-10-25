@@ -721,6 +721,11 @@
         if (ringed(getComputedStyle(child))) carriers.push([child, null]);
         overlaid(child);
       }
+    // A diff's scroller gives its ring to the following frame so its rows cannot
+    // paint over the band. The frame is outside the focused node's ancestry.
+    const frame = e.nextElementSibling;
+    if (frame?.matches(".lf-diff-frame") && ringed(getComputedStyle(frame)))
+      carriers.push([frame, null]);
     for (let el = flatParent(e); el; el = flatParent(el)) {
       const up = getComputedStyle(el);
       if (up.outlineStyle === "auto") return null;

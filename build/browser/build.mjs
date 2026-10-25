@@ -9,12 +9,15 @@
  * paths, and writes and checks every other committed Node-built output beside them:
  * the initial renderers (`build/initial.mjs`), the stylesheets (`build/styles.mjs`),
  * the modules generated from the registry (`build/registry.mjs`), the page
- * protocol's types, the event records and the served state, and the baseline
- * `protocol.test.ts` holds them to (`contract-types.mjs`), the third-party bundles (`build/vendor.mjs`), and last the
- * kernel compiled from all of them (`build/runtime-bundle.mjs`). The kernel's
+ * protocol's types, the event records and the served state (`contract-types.mjs`),
+ * and the baseline its schemas are held to (`protocol.mjs`), the third-party bundles
+ * (`build/vendor.mjs`), and last the kernel compiled from all of them
+ * (`build/runtime-bundle.mjs`). The kernel's
  * directory, the layer's `vendor/` and each package's hold nothing else, so a file
  * there that no build writes is stale. Leaf installation, vendoring, activation, and
  * export never invoke this tool.
+ * The compiler's layer paths are generated into `tsconfig.paths.json` from the
+ * package directories, so its CLI and editors resolve the same installed modules.
  *
  * Each TypeScript module compiles to one JavaScript module, its types blanked to
  * whitespace, so every line keeps its source line number and two branches conflict
@@ -26,8 +29,10 @@
  * in, so its file count costs requests only where a page serves source modules.
  *
  * The framework's third-party packages are minified builds from the lock and the
- * adaptations below. `vendor/lit.js` is the page's one copy of Lit (`build/lit.mjs`);
- * the framework imports Lit from it, as Web Awesome's bundle does. Signals are the
+ * adaptations below. Delivery inlines Lit only when an initial producer needs it,
+ * mapping `vendor/lit.js` to that instance's facade; otherwise it loads as a normal
+ * module (`build/lit.mjs`). Both outputs share the same namespace source, and a page
+ * loads one implementation. Signals are the
  * framework's own and sit inside its directory. `shipped.mjs` decides whether each
  * output's imports resolve on every page and writes the notices for the packages
  * that reached them, as it does for every vendored bundle.
@@ -40,10 +45,18 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { parse } from "acorn";
 import { transformSync } from "amaro";
-import { build } from "esbuild";
-import { contractTypes } from "./contract-types.mjs";
+import { build } from "../esbuild.mjs";
+import { contractTypes, protocolSchemas } from "./contract-types.mjs";
+import { baselineSchemas, protocolBreaks } from "./protocol.mjs";
 import { initialOutputs } from "../initial.mjs";
-import { litNamespace, litPath } from "../lit.mjs";
+import {
+  initialLitPath,
+  sharedLitPath,
+  litFacade,
+  litGlobal,
+  litNamespace,
+  litPath,
+} from "../lit.mjs";
 import { registryOutputs } from "../registry.mjs";
 import { styleOutputs } from "../styles.mjs";
 import { kernelOutputs } from "../runtime-bundle.mjs";
@@ -51,10 +64,12 @@ import { adapt, seam, vendorOutputs } from "../vendor.mjs";
 import { bundledPackages, checkModule, licenseNotices } from "./shipped.mjs";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
-const assets = "skills/leaf/assets";
+const assets = "browser";
 /** The committed kernel, which installs serve while it matches the tree's modules. */
-const kernelDirectory = "skills/leaf/kernel";
-const sourceRoot = "build/browser";
+const kernelDirectory = "dist/kernel";
+const sourceRoot = "browser/framework";
+const compilerPathsFile = `${sourceRoot}/tsconfig.paths.json`;
+const packageRoot = "packages";
 const facade = "vendor/browser-runtime.js";
 const frameworkDirectory = "vendor/browser-runtime";
 /** The framework's layer paths: its facade and the directory of its modules. */
@@ -62,10 +77,40 @@ export const frameworkPaths = [facade, frameworkDirectory];
 /** Whether a layer path belongs to the framework, which delivery compiles away. */
 export const inFramework = (layerPath) =>
   layerPath === facade || layerPath.startsWith(`${frameworkDirectory}/`);
+
+/** Package directories in deterministic order, shared by paths and build ownership. */
+async function packageDirectories(directory) {
+  return (
+    await readdir(path.join(directory, packageRoot), { withFileTypes: true }).catch(
+      missing,
+    )
+  )
+    .filter((entry) => entry.isDirectory())
+    .map(({ name }) => `${packageRoot}/${name}`)
+    .sort();
+}
+
+/** Compiler paths for the rooted URLs the layer serves, with source facade types. */
+export async function compilerPaths(directory = root) {
+  const roots = [assets, ...(await packageDirectories(directory))];
+  const paths = {
+    [`/${facade}`]: ["./index.ts"],
+    ...Object.fromEntries(
+      ["vendor", "widgets"].map((kind) => [
+        `/${kind}/*`,
+        roots.map((base) => path.posix.relative(sourceRoot, `${base}/${kind}/*`)),
+      ]),
+    ),
+    "/runtime/*": [path.posix.relative(sourceRoot, `${assets}/runtime/*`)],
+    "/checks/*": ["../../src/leaf/render-checks/*"],
+  };
+  return Buffer.from(`${JSON.stringify({ compilerOptions: { paths } }, null, 2)}\n`);
+}
 /** The layer path each package the framework imports is vendored at. */
 const packages = {
   lit: litPath,
   "@preact/signals-core": `${frameworkDirectory}/signals-core.js`,
+  "@lit-labs/preact-signals": `${frameworkDirectory}/signals-core.js`,
 };
 
 /** Each source module's layer path. */
@@ -127,15 +172,21 @@ function compileModule(text, source) {
 }
 
 /**
- * Build `lit.js` (`build/lit.mjs`), adapting the locked published modules in memory.
+ * Build the classic Lit implementation, adapting the locked published modules in memory.
  *
  * Backport lit/lit#5218 while 3.3.0 avoids the repeat marker leak (#5298). Route
  * keyed and child-part insertions through `runtime/dom-move.js`, which keeps the
  * user's place and native state across the move.
+ *
+ * `package.json` holds `lit-html` at 3.3.0 for that leak: from 3.3.1 `repeat` leaves a
+ * comment behind for each item it removes, so a list the chrome redraws grows for as
+ * long as the page is open. Lift the pin to a release that carries lit/lit#5299; the
+ * closed-surface journey of `test_page_fixture_renders` fails while the leak remains.
  */
 async function litModule() {
   const contents = await litNamespace();
-  const move = 'import {move as leafMove} from "/runtime/dom-move.js";\n';
+  const move =
+    "const leafMove = (parent, node, before) => document.documentElement.lfInitial.move(parent, node, before);\n";
   return [
     {
       name: "leaf-lit",
@@ -186,29 +237,37 @@ async function litModule() {
   ];
 }
 
-// The protocol's contract as it last stood at the current page protocol, which
-// `protocol.test.ts` holds every later contract at that protocol to. A build
-// whose typecheck passes moves it forward to the contract it built; a new protocol
-// starts it again (`layer-registry.md`, "Page protocol").
-const protocolContractPath = path.join(root, sourceRoot, "protocol-contract.d.ts");
+// Every schema a page vendored at the current protocol relies on, and every record's,
+// as it last stood (`protocol.mjs`). It is an output, so a build that passes moves it
+// forward. A build refuses a change that breaks it.
+const baselineName = "build/browser/protocol-baseline.json";
 
-async function protocolContract(contract) {
-  const registry = JSON.parse(
-    await readFile(path.join(root, assets, "registry.json"), "utf8"),
+// JSON with a key per line to `depth` levels and each value below on one line, so the
+// baseline's diff names the event kinds and records a change moved.
+function layout(value, depth, indent = "") {
+  if (!depth || value === null || typeof value !== "object" || Array.isArray(value))
+    return JSON.stringify(value);
+  const inner = `${indent}  `;
+  const entries = Object.entries(value).map(
+    ([key, item]) =>
+      `${inner}${JSON.stringify(key)}: ${layout(item, depth - 1, inner)}`,
   );
-  const protocol = registry.$events.protocol;
-  const header = `/* @noformat The contract pages vendored at protocol ${protocol} speak and read, as it last stood (protocol.test.ts). */`;
-  return { header, text: `${header}\n${contract.slice(contract.indexOf("\n") + 1)}` };
+  return `{\n${entries.join(",\n")}\n${indent}}`;
 }
 
-async function protocolHeader() {
-  try {
-    const text = await readFile(protocolContractPath, "utf8");
-    return text.slice(0, text.indexOf("\n"));
-  } catch (error) {
-    if (error.code !== "ENOENT") throw error;
-    return null;
-  }
+async function protocolOutputs() {
+  const schemas = await protocolSchemas(new URL("../../", import.meta.url));
+  const baseline = JSON.parse(await readFile(path.join(root, baselineName), "utf8"));
+  const held = baselineSchemas(schemas);
+  const refused = protocolBreaks(baseline, held);
+  if (refused.length)
+    throw new Error(
+      `A page vendored at protocol ${baseline.protocol}, or a Leaf sharing a record's format, breaks on:\n${refused.join("\n")}\nKeep what it took, or bump $events.protocol in browser/registry.json (for a record, set its since to the current protocol), then run pnpm run build:browser.`,
+    );
+  return {
+    contract: await contractTypes(new URL("../../", import.meta.url), schemas),
+    baseline: `${layout(held, 3)}\n`,
+  };
 }
 
 // Two programs type-check the browser code, and each file has one checker.
@@ -231,7 +290,7 @@ async function protocolHeader() {
 // the build drops it.
 const runtimeChecks = (file) =>
   file.endsWith(".js") &&
-  !/^skills\/leaf\/(?:assets|packages\/[^/]+)\/vendor\//.test(file) &&
+  !/^(?:browser|packages\/[^/]+)\/vendor\//.test(file) &&
   !readFileSync(path.join(root, file), "utf8").startsWith("// @ts-check");
 
 function typecheck(config, reports = () => true) {
@@ -262,16 +321,20 @@ function typecheck(config, reports = () => true) {
 }
 
 export async function buildOutputs() {
+  const paths = await compilerPaths();
+  if (!(await readFile(path.join(root, compilerPathsFile))).equals(paths))
+    throw new Error("Stale compiler paths; run pnpm run build:browser");
   const contractPath = path.join(root, sourceRoot, "contract.d.ts");
-  const contract = await contractTypes(new URL("../../", import.meta.url));
-  if ((await readFile(contractPath, "utf8")) !== contract)
+  const protocol = await protocolOutputs();
+  if ((await readFile(contractPath, "utf8")) !== protocol.contract)
     throw new Error("Stale protocol types; run pnpm run build:browser");
-  if ((await protocolHeader()) !== (await protocolContract(contract)).header)
-    throw new Error("Stale protocol contract; run pnpm run build:browser");
   typecheck("tsconfig.json");
   typecheck("tsconfig.runtime.json", runtimeChecks);
 
-  const outputs = new Map();
+  const outputs = new Map([
+    [compilerPathsFile, paths],
+    [baselineName, Buffer.from(protocol.baseline)],
+  ]);
   const pending = [`${sourceRoot}/index.ts`];
   while (pending.length) {
     const source = pending.pop();
@@ -289,13 +352,42 @@ export async function buildOutputs() {
   const result = await build({
     absWorkingDir: root,
     entryPoints: Object.fromEntries(
-      Object.entries(packages).map(([name, layerPath]) => [
-        layerPath.slice("vendor/".length, -".js".length),
-        name === "lit" ? "leaf:lit" : name,
-      ]),
+      Object.entries(packages)
+        .filter(([name]) => name !== "lit")
+        .map(([, layerPath]) => [
+          layerPath.slice("vendor/".length, -".js".length),
+          "leaf:signals",
+        ]),
     ),
     outdir: `${assets}/vendor`,
-    plugins: await litModule(),
+    plugins: [
+      {
+        name: "shared-signals",
+        setup(build) {
+          build.onResolve({ filter: /^leaf:signals$/ }, () => ({
+            path: "signals",
+            namespace: "leaf-signals",
+          }));
+          build.onLoad({ filter: /.*/, namespace: "leaf-signals" }, () => ({
+            // The package barrel also initializes its optional template directives,
+            // pulling another Lit into this bundle. Build the published mixin alone.
+            contents:
+              'export * from "@preact/signals-core"; export { SignalWatcher } from ' +
+              JSON.stringify(
+                fileURLToPath(
+                  new URL(
+                    "./lib/signal-watcher.js",
+                    import.meta.resolve("@lit-labs/preact-signals"),
+                  ),
+                ),
+              ) +
+              ";",
+            resolveDir: root,
+            loader: "js",
+          }));
+        },
+      },
+    ],
     external: ["/runtime/dom-move.js"],
     platform: "browser",
     format: "esm",
@@ -318,7 +410,57 @@ export async function buildOutputs() {
     checkModule(file.text, name);
     outputs.set(name, Buffer.from(file.contents));
   }
-  const packageRoots = bundledPackages(result.metafile, root);
+  const initialLit = await build({
+    absWorkingDir: root,
+    stdin: {
+      contents: `import * as lit from "leaf:lit"; ${litGlobal} = lit;`,
+      resolveDir: root,
+      sourcefile: "leaf-initial-lit.js",
+    },
+    outfile: `${assets}/${initialLitPath}`,
+    plugins: await litModule(),
+    platform: "browser",
+    format: "iife",
+    target: "es2022",
+    bundle: true,
+    minify: true,
+    legalComments: "eof",
+    metafile: true,
+    write: false,
+    logLevel: "silent",
+  });
+  const [initialLitFile] = initialLit.outputFiles;
+  checkModule(initialLitFile.text, initialLitPath);
+  outputs.set(`${assets}/${initialLitPath}`, Buffer.from(initialLitFile.contents));
+  const moduleLit = await build({
+    absWorkingDir: root,
+    stdin: {
+      contents: `import "/runtime/dom-move.js"; import * as lit from "leaf:lit"; ${litGlobal} = lit; export * from "leaf:lit";`,
+      resolveDir: root,
+      sourcefile: "leaf-module-lit.js",
+    },
+    outfile: `${assets}/${litPath}`,
+    plugins: await litModule(),
+    external: ["/runtime/dom-move.js"],
+    platform: "browser",
+    format: "esm",
+    target: "es2022",
+    bundle: true,
+    minify: true,
+    legalComments: "eof",
+    write: false,
+    logLevel: "silent",
+  });
+  const [moduleLitFile] = moduleLit.outputFiles;
+  checkModule(moduleLitFile.text, litPath);
+  outputs.set(`${assets}/${litPath}`, Buffer.from(moduleLitFile.contents));
+  outputs.set(`${assets}/${sharedLitPath}`, Buffer.from(await litFacade()));
+  const packageRoots = [
+    ...new Set([
+      ...bundledPackages(result.metafile, root),
+      ...bundledPackages(initialLit.metafile, root),
+    ]),
+  ];
   outputs.set(
     `${assets}/vendor/browser-runtime.LICENSES.txt`,
     Buffer.from(licenseNotices("browser-runtime", packageRoots)),
@@ -367,17 +509,10 @@ const missing = (error) => {
  * stale.
  */
 async function ownedDirectories(directory) {
-  const packages = "skills/leaf/packages";
   return [
     kernelDirectory,
     `${assets}/vendor`,
-    ...(
-      await readdir(path.join(directory, packages), { withFileTypes: true }).catch(
-        missing,
-      )
-    )
-      .filter((entry) => entry.isDirectory())
-      .map(({ name }) => `${packages}/${name}/vendor`),
+    ...(await packageDirectories(directory)).map((base) => `${base}/vendor`),
   ];
 }
 
@@ -412,27 +547,23 @@ export async function checkOutputs(outputs, directory = root) {
 }
 
 async function main(args) {
+  const usage = "Usage: node build/browser/build.mjs [--check]";
   if (args.length === 1 && args[0] === "--help") {
     console.log(
-      "Usage: node build/browser/build.mjs [--check]\n\nBuild committed browser ESM, or check it without writing. Run pnpm install --frozen-lockfile first.",
+      `${usage}\n\nBuild committed browser ESM, or check it without writing. Run pnpm install --frozen-lockfile first.`,
     );
     return;
   }
-  if (args.length > 1 || (args.length && args[0] !== "--check")) {
-    throw new Error("Usage: node build/browser/build.mjs [--check]");
-  }
-  const contract = await contractTypes(new URL("../../", import.meta.url));
-  const protocol = await protocolContract(contract);
+  if (args.length > 1 || (args.length && args[0] !== "--check")) throw new Error(usage);
   if (args[0] !== "--check") {
+    await writeFile(path.join(root, compilerPathsFile), await compilerPaths());
+    const { contract } = await protocolOutputs();
     await writeFile(path.join(root, sourceRoot, "contract.d.ts"), contract);
-    if ((await protocolHeader()) !== protocol.header)
-      await writeFile(protocolContractPath, protocol.text);
     // The modules generated from the registry are the typecheck's inputs too.
     for (const [name, bytes] of await registryOutputs())
       await writeFile(path.join(root, name), bytes);
   }
   const outputs = await buildOutputs();
-  if (args[0] !== "--check") await writeFile(protocolContractPath, protocol.text);
   if (args[0] === "--check") await checkOutputs(outputs);
   else {
     for (const owned of await ownedDirectories(root))

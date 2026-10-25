@@ -16,8 +16,6 @@ from journeys.test_render_export import (  # noqa: F401 (fixtures)
     _reachable,
     requested_documents,
 )
-from leaf import server as server_model
-from leaf.render_checks import HANDOVER_DEADLINE_MS
 from playwright.sync_api import expect
 from render_harness import (
     is_problem,
@@ -25,6 +23,9 @@ from render_harness import (
     restarting,
     sending,
 )
+
+from leaf import server as server_model
+from leaf.render_checks import HANDOVER_DEADLINE_MS
 
 from ..journeys.test_render_export import (  # noqa: F401
     preview_slot_fixture,
@@ -129,7 +130,7 @@ def test_every_tab_follows_a_runtime_edit(browser, watched_preview):
             pages[resource] = (page, status, documents)
         # A changed layer replaces the server. An invalid input is now refused
         # before that replacement, so change a valid theme to test recovery.
-        theme = runtime / "skills" / "leaf" / "assets" / "theme.css"
+        theme = runtime / "browser" / "theme.css"
         updated = runtime.parent / "theme.css.next"
         updated.write_text(theme.read_text() + "\nh1 { color: navy; }\n")
         updated.replace(theme)
@@ -192,7 +193,7 @@ def test_a_service_that_goes_away_mid_start_says_only_that_and_comes_back(
         # makes must find a server that answers.
         if not interrupted:
             interrupted.append(True)
-            theme = runtime / "skills" / "leaf" / "assets" / "theme.css"
+            theme = runtime / "browser" / "theme.css"
             updated = runtime.parent / "theme.css.next"
             updated.write_text(theme.read_text() + "\nh1 { color: navy; }\n")
             updated.replace(theme)

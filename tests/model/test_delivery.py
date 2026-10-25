@@ -10,6 +10,8 @@ from interact_support import (
     COMMAND_SUBJECTS,
     PAGE,
     PICKS_PAGE,
+    ROOT,
+    SKILL_ROOT,
     _start,
     append_carried_log_record,
     append_command,
@@ -17,6 +19,7 @@ from interact_support import (
     freeze_events,
     last_deliverable_seq,
     let_a_pick_settle_a_thread,
+    owed_answers,
     page_state,
     printed,
     publish,
@@ -27,6 +30,7 @@ from interact_support import (
     thread_records,
     woken,
 )
+
 from leaf import cli as cli_model
 from leaf import codex as codex_model
 from leaf import delivery as delivery_model
@@ -62,7 +66,7 @@ def test_each_delivered_event_says_only_what_its_own_case_asks(page_dir, capsys)
     """Shared clauses travel once, and each event names only its applicable rules:
     its kind's, then the answer it owes, and no answer's where it owes none."""
     serving(page_dir, 1)
-    session_model.cmd_waiting(page_dir, "")
+    session_model.cmd_waiting(page_dir)
     page_pick = {
         "kind": "action",
         "author": "user",
@@ -121,8 +125,8 @@ def test_each_delivered_event_says_only_what_its_own_case_asks(page_dir, capsys)
     replying = [c["text"] for c in declared["answering"]["reply"] if "when" not in c]
     # The envelope says once how this explicit wait is acknowledged; individual
     # events carry only their own handling and reply clauses.
-    assert f"leaf wait --ack {envelope['id']}" in envelope["acknowledge"]
-    assert not any("--ack" in text for text in handling.values())
+    assert f"leaf delivery ack {envelope['id']} && leaf wait" in envelope["acknowledge"]
+    assert not any("delivery ack" in text for text in handling.values())
     assert plain[-len(replying) :] == replying
     # A drawn comment is told everything a plain one is, and how to read its drawing.
     assert reading_a_drawing in drawn
@@ -162,7 +166,7 @@ def test_active_handling_survives_a_mutable_layer_edit(page_dir, capsys):
     registry_path.write_text(json.dumps(registry))
 
     serving(page_dir, 1)
-    session_model.cmd_waiting(page_dir, "")
+    session_model.cmd_waiting(page_dir)
     append_carried_log_record(page_dir, comment)
 
     assert service_model.claim_page(page_dir)
@@ -176,8 +180,8 @@ def test_active_handling_survives_a_mutable_layer_edit(page_dir, capsys):
 def test_codex_delivery_carries_only_the_selected_events_handling(page_dir):
     """A later reply stays out of this delivery, including its unique clauses."""
     for event in (
-        {"kind": "error", "message": "first failure"},
-        {"kind": "error", "message": "second failure"},
+        {"kind": "error", "text": "first failure"},
+        {"kind": "error", "text": "second failure"},
         {"kind": "comment", "text": "first question"},
         {
             "kind": "comment",
@@ -294,9 +298,9 @@ def test_delivery_distinguishes_thread_obligations_from_closing_answered_work(pa
     assert opened.exit_code == 0, opened.output
     assert not write("resolve", parent=question["id"])["attention"]
     assert not write("unresolve", parent=question["id"])["attention"]
-    assert page_state(page_dir)["activity"]["obligations"] == []
+    assert owed_answers(page_dir) == []
     with service_model.PageTransaction(page_dir) as page:
-        page.set_status("idle", "")
+        page.set_status("idle")
     assert withdrawal in service_model.unacknowledged(
         events_model.read_events(page_dir), newest["seq"]
     )
@@ -339,7 +343,8 @@ def test_delivery_distinguishes_composing_an_obligation_from_changing_input_in_h
     assert (
         CliRunner()
         .invoke(
-            cli_model.cli, ["task", "open", str(page_dir), "choice", "Build the choice"]
+            cli_model.cli,
+            ["task", "create", str(page_dir), "choice", "--title", "Build the choice"],
         )
         .exit_code
         == 0
@@ -363,7 +368,8 @@ def test_delivery_distinguishes_composing_an_obligation_from_changing_input_in_h
     assert (
         CliRunner()
         .invoke(
-            cli_model.cli, ["task", "open", str(page_dir), "draft", "Edit the draft"]
+            cli_model.cli,
+            ["task", "create", str(page_dir), "draft", "--title", "Edit the draft"],
         )
         .exit_code
         == 0
@@ -376,9 +382,11 @@ def test_delivery_distinguishes_composing_an_obligation_from_changing_input_in_h
     assert undone in selected and changed in selected
 
 
-def test_signoff_withdrawals_reports_and_errors_remain_deliverable(page_dir):
+def test_widget_actions_withdrawals_reports_and_errors_remain_deliverable(page_dir):
     source = PAGE.replace(
-        "</head>", '<meta name="lf-review" content="sign-off"></head>'
+        "</section>",
+        '<lf-options id="permit" choose><lf-option id="publish">Publish</lf-option>'
+        '<lf-option id="hold">Keep it private</lf-option></lf-options></section>',
     )
     source = source.replace(
         "</section>",
@@ -386,7 +394,17 @@ def test_signoff_withdrawals_reports_and_errors_remain_deliverable(page_dir):
     )
     (page_dir / "index.html").write_text(source)
     publish(page_dir)
-    done = append_command(page_dir, {"kind": "done", "author": "user", "version": 1})
+    done = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "permit",
+            "action": "choose",
+            "detail": {"value": ["publish"]},
+        },
+    )
     undo = append_command(
         page_dir, {"kind": "undo", "author": "user", "undoes": done["id"]}
     )
@@ -511,10 +529,10 @@ def test_a_delivered_reply_carries_the_thread_it_lands_in(page_dir, capsys):
     assert session_model.cmd_wait(page_dir) == 0
     _, header, shown = delivered(capsys)
     assert [e["id"] for e in shown] == [followed["id"]]
-    assert {key: shown[0]["answer"][key] for key in ("kind", "to", "for")} == {
+    assert {key: shown[0]["answer"][key] for key in ("kind", "parent", "responds")} == {
         "kind": "reply",
-        "to": followed["id"],
-        "for": followed["id"],
+        "parent": followed["id"],
+        "responds": followed["id"],
     }
     assert delivery_model.response_address(shown[0]["answer"]["ref"])["page"] == str(
         page_dir
@@ -772,8 +790,8 @@ def test_one_action_can_belong_to_its_widget_thread_and_the_thread_it_resolves(
     assert shown[0]["threads"] == [origin["id"], target["id"]]
     assert shown[0]["answer"] == {
         "kind": "reply",
-        "to": origin["id"],
-        "for": accepted["id"],
+        "parent": origin["id"],
+        "responds": accepted["id"],
         "ref": f"{payload['id']}:0:{accepted['id']}",
         "writer": "agent",
     }
@@ -789,7 +807,7 @@ def test_one_action_can_belong_to_its_widget_thread_and_the_thread_it_resolves(
 
     reply = thread_model.post_reply(
         page_dir,
-        {"to": origin["id"], "for": accepted["id"]},
+        {"parent": origin["id"], "responds": accepted["id"]},
         "Applied the accepted wording.",
     )
     assert reply["parent"] == origin["id"]
@@ -1010,7 +1028,7 @@ def test_a_settling_reaction_wakes_only_when_it_answers_the_agent(
 ):
     serving(page_dir, 1)
     publish(page_dir)
-    session_model.cmd_waiting(page_dir, "")
+    session_model.cmd_waiting(page_dir)
     question = thread_model.cmd_comment(
         page_dir, "", "", "", "One question:", '<lf-ask id="forty">Forty?</lf-ask>'
     )
@@ -1053,8 +1071,8 @@ def test_a_settling_reaction_wakes_only_when_it_answers_the_agent(
     assert mark["attention"] is False
 
 
-def test_success_readers_require_the_same_exact_agent_answer(tmp_path):
-    from leaf.thread import answered_by_reply, successful_replies
+def test_successful_replies_require_an_exact_agent_answer():
+    from leaf.thread import successful_replies
 
     comment = {
         "kind": "comment",
@@ -1080,6 +1098,49 @@ def test_success_readers_require_the_same_exact_agent_answer(tmp_path):
         reply = {**answer, **changes}
         events = [comment, reply]
         expected = [reply] if success else []
-        (tmp_path / "events.jsonl").write_text("\n".join(json.dumps(e) for e in events))
         assert successful_replies(events, "input") == expected
-        assert answered_by_reply(events, "input") is success
+
+
+def test_the_reference_names_each_field_a_delivered_event_adds():
+    """`references/event-batches.md` lists what a delivery adds to each logged event;
+    `DELIVERY` declares the same fields."""
+    import re
+
+    text = (SKILL_ROOT / "references" / "event-batches.md").read_text()
+    listed = text.split("Events keep their stored fields", 1)[1].split("\n\n", 2)[1]
+    named = set(re.findall(r"`([a-z_]+)\b", listed))
+    items = delivery_model.DELIVERY.schema["properties"]["batches"]["items"]
+    declared = items["properties"]["events"]["items"]["properties"]
+    assert set(declared) <= named
+    assert set(re.findall(r"^- `([a-z_]+)`", listed, re.MULTILINE)) <= set(declared)
+
+
+def test_every_delivery_an_eval_pastes_is_the_envelope_leaf_writes():
+    """An eval case that pastes a delivery scores the shipped instructions against
+    that envelope, so a change to `DELIVERY` fails here until the case is frozen
+    again with `freeze_delivery`."""
+    import yaml
+
+    from leaf.registry.schema import schema_error, with_leaf_resources
+
+    def strings(value):
+        if isinstance(value, str):
+            yield value
+        elif isinstance(value, dict | list):
+            for item in value.values() if isinstance(value, dict) else value:
+                yield from strings(item)
+
+    pasted = [
+        (case.parent.name, json.loads(line))
+        for case in sorted((ROOT / "evals").glob("*/case.yaml"))
+        for text in strings(yaml.safe_load(case.read_text()))
+        for line in text.splitlines()
+        if line.lstrip().startswith('{"format"') and "leaf-delivery/" in line
+    ]
+    assert pasted
+    for case, envelope in pasted:
+        assert envelope.pop("format") == delivery_model.DELIVERY.format, case
+        error = schema_error(
+            with_leaf_resources(delivery_model.DELIVERY.schema), envelope
+        )
+        assert error is None, f"{case}: {error}"

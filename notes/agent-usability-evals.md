@@ -1,305 +1,8 @@
 # Agent usability evals
 
-What earlier eval runs found about agents authoring, reading and revising Leaf pages,
-and what remains unmeasured. The runs used harnesses the catalog has since absorbed
-(`evals/README.md`); their scenarios survive as the `usability_eval` and
-`arrangement_eval` executors. The per-run results were under
-`notes/usability-eval/results/` and `notes/arrangement-eval/results/` until this
-note was condensed; `git log --` on those paths finds them.
-
-## Current observations
-
-Reconciled on 2026-10-15 against main `fd68e3943`: inline ownership, scoped
-validation and LeafElement are already shared. The playground now owns one immutable
-working configuration. Contributors replace their named slices through `get`/`set`
-handles; required views subscribe through LeafElement rather than keeping a parallel
-model and read/apply callbacks. Complete restoration still preserves snapshots for late
-sources. Undo follows the canonical choice identity, so two equal-valued choices
-restore the earlier choice instead of leaving a later draft; pending-to-admitted
-acknowledgement keeps the same attempt identity. The early drawing pass remains.
-The empty all-inline rail is removed and long button labels wrap. Duplicate ownership
-and export tests were dropped; existing browser journeys cover state, labels and the
-short workspace, with one added contrast for a required view that fails to draw.
-The historical author comparison below has not been rerun on this runtime and
-establishes no broader quality result.
-
-The initial reading and resumption probes did not call for a new page-reading
-interface. Their misses were instruction misses or missing declaration information;
-those agents did not write to the wrong place or lose a user's state. The later
-authoring comparisons below also examine presentation and measurement faults. Each
-set establishes behavior on particular revisions with few samples.
-
-### First baseline, 2026-09-27
-
-At 387dfed45 with Opus 5.5, three scored runs per case after one pilot that fixed each
-fixture and scorer; $5.85 scored. Every check passed:
-
-| Case            | Checks                                                                                    | Result   |
-| --------------- | ----------------------------------------------------------------------------------------- | -------- |
-| `cold-report`   | skill loaded, page valid, checked, unstamped, no Ask, no sign-off                         | 3/3 each |
-| `cold-decision` | one Ask with one single-choice group of three options, gesture named                      | 3/3 each |
-| `near-miss`     | skill not loaded, no page                                                                 | 3/3      |
-| `reading`       | seven questions, one per surface                                                          | 21/21    |
-| `resume`        | date, approach and next step; batch edit in place; pick kept; thread answered; v3 stamped | 3/3 each |
-
-- Reading runs answered from `index.html`, `events.jsonl` and `data/*.json` without
-  loading the skill, and read a pick the user made, replaced, then undid.
-- Asked which tab the user is looking at, agents said the page files don't record it.
-  Only a browser observation could supply that, and no task needed one.
-- In `resume`, 2 of 9 runs took a loose "go ahead" as consent to publish a rejected
-  save's date change, and said so.
-- A resumed page's pending events stay unacknowledged until `leaf wait` delivers
-  them, even after the agent has answered each one.
-
-### Second slice, 2026-09-27
-
-At 64186bcb9, three runs each; $5.71 scored. In the live cases the harness played the
-user through the served page.
-
-| Case            | What the user does                                                                                         | Checks |
-| --------------- | ---------------------------------------------------------------------------------------------------------- | ------ |
-| `handoff`       | asks for a drafted page to be handed over, asks for an edit, then asks a question                          | 54/54  |
-| `mixed`         | sends a comment, a pick, a `shorten` reaction, a card move and its undo, and a page error, in one delivery | 41/42  |
-| `elided`        | asks a question whose premise is in the part of a long thread the delivery leaves out                      | 27/27  |
-| `package`       | asks for a widget only the page's own package supplies, without naming it                                  | 22/24  |
-| `shared-source` | asks about, then updates, one of two widgets whose shared data source also holds a look-alike record       | 21/24  |
-
-- The live loop ran as the references describe: every round arrived through the
-  prompt hook, every turn re-armed the wait and ended `waiting` with the URL, and
-  edit requests were claimed on their thread before the reply.
-- The `mixed` miss: one run claimed all the batch's work page-wide rather than the
-  comment on its thread, so the comment read "Picked up" until the reply landed.
-- `shared-source` and `package` agents read the widget's renderer to confirm what
-  the registry entry left unsaid: `lf-worktree`'s description says only "the
-  matching record", and the fixture's entry doesn't say what the widget draws.
-- `elided` did not test recovery: every agent read the closed thread before serving
-  the page. The fixture now admits that history only after handover.
-
-An A/B of the two obvious fixes (a per-move claim rule in `conversation-loop.md`; a
-sharper `lf-worktree` description) changed neither result, and both were reverted.
-
-### Inspection comparison, 2026-09-27
-
-`page state` carrying the page's construction tree tied, on correctness, a candidate
-that read the active HTML beside compact state (`resume`, `constructs`, `board`,
-three runs per arm, all checks passed, $12.27), while the tree made up most of the
-output:
-24,422 against 4,755 bytes on the reading fixture and 122,280 against 10,360 on
-`command-hub`. The page-level tree was removed; a thread keeps its construction
-reading, since its frozen markup has no separate HTML file.
-
-### Layout vocabulary, 2026-09-29
-
-Document, dashboard and queue pages were authored and then revised for a 900px
-window, with Leaf's Layout vocabulary and without it, three runs per arm, and
-compared pairwise by a blinded Claude judge on screenshots. Every page passed the
-render check in both arms. With the vocabulary, agents wrote about half the CSS
-(62 against 135 lines over the first versions, 92 against 219 after the revision).
-On the first versions the judge preferred the queue with the vocabulary in all three
-pairs and the document without it in all three; on the dashboard the version without
-it won one pair and the judge split on the other two. After the
-revision the vocabulary won 3, 2 and 1 of the three queue, dashboard and document
-pairs, and every revision met the width preference.
-Its reasons kept naming tiny text at 900px and on a phone, which the render check
-now reads at every swept width, and an Ask whose premise and controls fall below the
-first screen (TODO.md, "Measure how often agents produce bad pages").
-
-### Authoring against plain HTML, 2026-10-12
-
-The same request, width revision and user comment, built once with Leaf and once
-with ordinary HTML/CSS/JS and no Leaf payload. Nine pairs at a2cf7a001 with Opus 5.5
-on Claude Code: three each of `document` (a review the team decides from), `queue`
-(eight escalations, list beside detail) and `configuration` (six alert thresholds to
-tune). The first configuration pair ran at 51ef3d615, whose prompts are the same.
-Each sample authors the page, revises it for the 900px lasting preference, then
-handles a comment that adds a fact to one passage. Leaf gets the comment anchored on
-the passage, or on the page whole where no candidate quote appears exactly once
-(5 of 9, including every configuration, whose alert text the author's script
-renders), and HTML gets it in chat naming the passage. Agent spend was about $40 at
-API prices on the signed-in login, including a discarded document sample whose
-comment named the wrong weekday; the Codex screenshot judge read about 7M tokens and
-the pairwise judge cost $11.
-
-Within each task, the three Leaf samples ran before the three HTML samples, so the
-minutes are confounded with any drift in host load (load average 4 to 7 throughout);
-tokens, cost and code are not.
-
-The executor has since been rebuilt on the real loop, so these commands no longer
-reproduce this run: Leaf runs as the installed plugin and hands the page over, the
-comment is posted from a browser selection and delivered by the hook, every task
-ends with a decision the user makes on the page and asks to have applied, and
-`eval-pairs` is the quality score (`evals/README.md`, "Reading the results").
-Runs alternate the conditions, one repeat each, swapping which goes first:
-
-```sh
-for task in document queue configuration; do
-  uv run leaf-dev eval $task --harness claude-code --condition leaf --repeat 1 -j 1
-  uv run leaf-dev eval $task --harness claude-code --condition html --repeat 1 -j 1
-  uv run leaf-dev eval $task --harness claude-code --condition html --repeat 1 -j 1
-  uv run leaf-dev eval $task --harness claude-code --condition leaf --repeat 1 -j 1
-done
-uv run leaf-dev eval-pairs .tmp/eval/<run>...
-uv run leaf-dev eval-report "$(mktemp -d)/report" .tmp/eval/<run>...
-```
-
-Every sample completed every phase and passed its render gate; every page's files
-carried the comment's fact, and every answer named it, on the comment's thread in Leaf and in
-chat in HTML; every Leaf document and queue reader read the seeded choice back
-correctly. The configuration seeds no choice, so whether Leaf reads its settings back
-went unmeasured. The catalog checks the comment's fact in the page's text; only
-`eval-pairs` judges where a reader finds it.
-
-Means per sample over the three phases, with the last version's authored CSS and
-script lines:
-
-| Task          | Condition | Minutes | Cost  | Turns | Input tokens | CSS | Script | Page writes | Renders |
-| ------------- | --------- | ------- | ----- | ----- | ------------ | --- | ------ | ----------- | ------- |
-| document      | Leaf      | 7.1     | $2.40 | 48    | 3.7M         | 14  | 0      | 7.0         | 6.7     |
-| document      | HTML      | 3.9     | $0.88 | 30    | 0.8M         | 99  | 69     | 7.7         | 7.3     |
-| queue         | Leaf      | 6.0     | $2.03 | 45    | 3.2M         | 5   | 0      | 6.3         | 7.7     |
-| queue         | HTML      | 4.6     | $1.01 | 27    | 1.0M         | 121 | 240    | 9.0         | 5.3     |
-| configuration | Leaf      | 13.5    | $3.72 | 78    | 7.3M         | 44  | 132    | 12.3        | 13.7    |
-| configuration | HTML      | 5.8     | $1.31 | 31    | 1.2M         | 113 | 217    | 9.7         | 5.3     |
-
-Page writes and renders count tool calls that write the page and that run a check or
-a browser on it; repair iterations show as writes beyond the first, and the two
-conditions repaired about equally often.
-
-- **Leaf authors wrote less code and spent more.** Their CSS was a seventh of HTML's
-  on the document, a twenty-fifth on the queue and two fifths on the configuration,
-  with no script for the document and queue and three fifths of HTML's for the
-  configuration's playground. They cost 2.0–2.8 times as much, over 1.6–2.5 times as
-  many turns, each carrying a larger context: the skill and its references (30–100
-  KB read in the first phase) stay in every later turn. Configuration authors also
-  read the playground's own source (35–46 KB of widget script and theme) to learn
-  it. The page check's screenshot review (11 to 25 screenshots) mostly ran in a
-  subagent, and added little to the author's context.
-- **Answering a comment the agent found on the page took most of the comment phase.**
-  Six of the nine Leaf agents ran `leaf thread reply`. Five were refused because
-  the thread owed a response, with a refusal that names
-  `leaf response reply <answer.ref>` without saying where the reference comes
-  from; one passed a flag it lacks, and three read only its help. All nine then took the page, with `leaf page claim` or
-  `leaf server start`, and ran a timed `leaf wait` to obtain a delivery. Finding
-  the comment and the route took 11 to 15 of each phase's 13 to 22 tool calls, and
-  the phase cost $0.56–1.08 against $0.10–0.46 in HTML. Every phase's prompt says
-  not to wait for input, so the agents reached `leaf wait` only after other routes
-  failed, and a live session's delivery carries the reference; what remains is that
-  the refusal names a reference no command it mentions supplies.
-- **Judged quality is close, and each task's composition decided it.** The Codex
-  screenshot judge failed almost every version in both conditions (Leaf 2 of 27,
-  HTML 4 of 27). Its reasons were mostly evidence it may not open, such as a
-  collapsed disclosure or an unselected queue item, and phone clipping in HTML; the
-  Leaf configurations also left out request facts (24/7 cover, the incidents a 5%
-  threshold misses). `eval-pairs`, judging each pair's final versions in both
-  orders, preferred HTML on all three configurations by a clear margin in each
-  order, Leaf on two of three documents and HTML on one of three queues, slightly;
-  it split on the other three pairs, picking the same position both times. The
-  pairwise judge runs the authors' model, Opus 5.5, and Leaf's viewer chrome in the
-  screenshots shows it which page is Leaf's.
-  - Documents: on the two documents Leaf won, it won on decisions in both orders,
-    since it put both decisions on the page as asks where HTML offered a reply
-    to copy. HTML's sticky contents ran out of the short 900px window on all three;
-    both conditions' comparison tables lost a column at 390px.
-  - Configurations: every Leaf author used `lf-playground`, whose control panel sits
-    apart from each alert's 30-day evidence. Every HTML author put each alert's
-    choices, evidence and outcome in one card, and HTML won evidence, decisions and
-    the comment in every order.
-  - Queues: HTML won on decisions in every order, with progress through the eight,
-    previous and next, and a decision record; Leaf queues became a sideways strip on
-    a phone. One Leaf author answered the comment by marking ESC-4110's new route
-    outcome as chosen, labelled "your call". Neither condition showed
-    the comment's change in the open ticket, since the commented ticket was not the
-    one open.
-
-What this points #20 and the instructions at, strongest first:
-
-- Configuration wants each item's controls beside its evidence. Test a composition
-  suggestion for per-item controls against the playground's single panel, and
-  check that a configuration keeps the request's facts.
-- A queue worked through in one sitting wants progress and a way to the next
-  undecided item; test that as a composition suggestion.
-- The skill and references an author reads stay in every later turn's context.
-  Measure how much of the cost they account for, and what a first page needs to
-  read, before trimming them.
-- An owed input without a delivery has no stated route to an answer. The refusal
-  from `leaf thread reply` could say where `<answer.ref>` comes from (the delivery
-  `leaf wait` prints, after `leaf page claim` on a page another session held).
-- On-page decisions are where Leaf's documents won; keep them in whatever #20
-  changes.
-
-### Authoring owner comparison, 2026-10-12
-
-The configuration layout hypothesis reached a primitive constraint. Diagnostic
-configuration authors received the complete skill, page-authoring, asks, and composed
-playground instructions before writing. The registry required direct controls, and
-the initial renderer moved all of them into a shared panel. Guidance alone could not
-put an alert's controls with its evidence.
-
-Controls now belong to their nearest playground, including inside its preview.
-Direct controls form the shared panel; inline controls keep their authored positions.
-Both use the same typed configuration, presets, reset, persistence, copy, submission,
-and undo. The authoring change explains this capability without prescribing cards.
-
-One cold native author per arm completed the same four-phase alert configuration
-workflow on baseline `4f7cc21c1497ce6d449f6ec22d9508651fd654c3` and an initial inline
-trial. Both preserved and independently read back all twelve user-selected settings.
-The trial increased effort: 107 versus 71 turns, 31 versus 11 page writes, and $4.925
-versus $3.450 author spend. It is a diagnostic trial, not efficiency evidence for the
-final candidate. The author read private theme code and added three layout overrides.
-Removing only those overrides from the same page, the owner default widened its
-900px preview from 552 to 852px and alert column from 230 to 530px. At 600px, preview
-and alert dimensions matched; presets now precede the preview. All values matched.
-
-Contrasting query editing exposed stale restoration: an unrelated built-in gesture
-could erase an unnotified contributor draft. Local gestures now adopt live sources;
-reset and projection restore snapshots. Late contributors join a pending chosen
-snapshot, and undo replaces it. Focused browser journeys cover these transitions,
-copy/submission, reload, short workspaces with and without presets, and existing
-structured explorers. Reproduce the central case with:
-
-```sh
-uv run pytest -q -n0 tests/browser/test_render_widgets.py::test_playground_adopts_live_sources_without_restoring_their_drafts
-```
-
-Two further native authors built independent proposals. Both began with three open
-Questions and no selected defaults. Ordinary Remove/Keep clicks left one unanswered
-proposal; an unrelated heading revision preserved both exact answers. Read-only
-source probes had produced an invalid candidate proposal, which this native workflow
-did not reproduce. Source sketches and validated working pages are distinct evidence.
-
-The final authoring arm is `candidate-inline-v3`, payload manifest SHA256
-`33225dc70ba0c1b9dff9a2edd325c4e096bf43fbc4e79736e1d90b951f963784`.
-The executor is frozen at `c3060df98bc2e6b73d9a81a624d0499fc4221e44`.
-One fresh cold author per arm completed the final matched workflow with that same
-executor. Both passed every deterministic check and independently read back all
-twelve settings. The candidate used 98 versus 103 turns, $5.209 versus $5.922,
-and 5 versus 24 recorded page-write operations (the executor's approximate tool and
-shell-command count). Complete intended instructions appeared before each author's
-first page write; normalized initial prompts and evaluator source hashes matched.
-This supports reduced effort on this pair, not a general efficiency improvement.
-Independent comparison found stronger local tuning caveats in the candidate, but the
-baseline better kept the final overview beside its summary at 900px. Both phone
-tables fragmented alert identities. Preserved decisions do not imply a uniformly
-better final page; no unqualified quality improvement is established.
-
-A later owner repair removes unconditional `nowrap` from the shared ordinary
-button face. The same candidate page's long preset labels then fit on a phone;
-its 900px presets, compact banner, and twelve values remain unchanged. The original
-button matrix was trimmed to one narrow-browser regression: long preset and short
-Reset labels fit, and both actions work. Composition and state-preservation coverage
-is retained. Delivery
-arm `candidate-inline-v4` has manifest
-`70efc1093fe7f2c6c1fe2e15ba82375290c8dd0326132ecfb91bd14020737b04`;
-the matched author results remain tied to v3.
-
-The separate clipboard-permission change for live samples is deferred at the user's
-request; it is not required by these repairs.
-
-The frozen executor's observation/replay code is reviewed, but its quality rubric remains preliminary:
-calibration found unsupported explanations. Quality conclusions therefore use
-independent inspection, with no calibrated aggregate score. Raw runs, exact
-instruction receipts, payload manifests, and browser evidence remain under
-`.tmp/authoring-quality/` and `.tmp/playground-browser-evidence/` in this worktree.
+Evidence from Leaf/plain HTML comparisons and page-quality studies, with remaining
+evaluation gaps. `evals/README.md` owns execution and reporting; the maintainer
+`/grinding-ui` skill owns the improvement loop.
 
 ## Recovered Codex comparison, 2026-10-14
 
@@ -378,6 +81,216 @@ This pass repairs grading across decision and final-record phases and clarifies 
 may retire an ask. Further compositions and authoring advice need current task-specific
 evidence, rather than the older configuration verdict alone.
 
+## Bad pages and the checks, 2026-10-20
+
+`page-reads-at-every-width` has an agent author one ordinary page in a single turn,
+from the request of the document, dashboard, queue or configuration task, with no
+user feedback. `dev/leaf_dev/page_defects.py` then has a Codex judge (Sol 6.1, medium)
+use a live copy of the final page at 1600×1000, 900×700 and 390×844 with touch,
+comment on a sentence, and list every defect a user would notice, without seeing any
+check. A second, text-only turn sets each defect beside `page check` on the final
+page, plain and with `--render`, and beside the checks the author ran itself.
+
+```sh
+uv run leaf-dev eval 'page-reads-at-every-width*' --harness claude-code --repeat 3 -j 2
+uv run leaf-dev eval 'page-reads-at-every-width*' --harness codex --repeat 3 -j 2
+uv run leaf-dev eval page-reads-at-every-width page-reads-at-every-width/dashboard page-reads-at-every-width/queue --harness claude-code --repeat 2 -j 2
+uv run leaf-dev eval page-reads-at-every-width page-reads-at-every-width/dashboard page-reads-at-every-width/queue --harness codex --repeat 2 -j 2
+```
+
+The runs authored 37 pages at main `e1ed34cec`: 19 on Claude Code with Opus 5.5
+(mean $1.29 a page) and 18 on Codex with Sol 6.1. The last two commands ran with
+[#3328](https://github.com/max-sixty/leaf/pull/3328) in the tree, which changes only
+an ask that holds a playground before other content. Three more configuration pages,
+authored after that fix to check it, count in the defect table but not in the rates.
+Each defect's owner is a hand classification from the judge's description and
+screenshots. Each judgment's `metadata.page_defects` in `results.json` holds the
+defects and check readings.
+
+Pages with at least one defect, by the defect's owner, with Wilson 95% intervals:
+
+| Owner of the defect                                 | Claude Code, 19 pages | Codex, 18 pages | All, 37 pages    |
+| --------------------------------------------------- | --------------------- | --------------- | ---------------- |
+| Author's content: a supplied fact wrong or left out | 17 (69–97%)           | 0 (0–18%)       | 17, 46% (31–62%) |
+| Author's layout: a drawing, chart, table or order   | 5 (12–49%)            | 2 (3–33%)       | 7, 19% (9–34%)   |
+| A Leaf widget                                       | 2 (3–31%)             | 4 (9–45%)       | 6, 16% (8–31%)   |
+| Leaf's thread chrome                                | 10 (32–73%)           | 7 (20–61%)      | 17, 46% (31–62%) |
+| Any rendering defect but the chrome's               | 7 (19–59%)            | 5 (12–51%)      | 12, 32% (20–49%) |
+| Any defect but the chrome's                         | 18 (75–99%)           | 5 (12–51%)      | 23, 62% (46–76%) |
+
+Rendering defects other than the chrome's fell on 6 of 11 dashboards, 4 of 6
+configurations, 2 of 10 queues and no document. Every defect on all 40 pages, beside
+the checks:
+
+| Defect                                                                                                                                                                                                                                                        | Owner                          | Defects (pages) | Final plain check | Final render check | Author's own checks                |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ | --------------- | ----------------- | ------------------ | ---------------------------------- |
+| A supplied fact stated wrongly or left out                                                                                                                                                                                                                    | author                         | 26 (19)         | 0                 | 0                  | none reported                      |
+| SVG labels a few pixels high on a phone or at 900px                                                                                                                                                                                                           | author                         | 3 (3)           | 0                 | 3                  | reported; changed, not enough      |
+| Other author layout: a chart annotation cut off at the phone's edge (2), labels too faint, a chart tooltip reading "UTC 935", a phone table dropping a column, a note's table clipped, headline metrics three screens down (2), two footer spans run together | author                         | 9 (7)           | 0                 | 0                  | 1 reported and changed, not enough |
+| A playground followed by a note draws its instruction over the note at 900×700                                                                                                                                                                                | `lf-ask` (fixed, #3328)        | 2 (2)           | 0                 | 0                  | none reported                      |
+| A playground's stage gets 190–280px at 900×700, under its presets and instruction                                                                                                                                                                             | `lf-playground` in a workspace | 4 (4)           | 0                 | 0                  | none reported                      |
+| The tally says "1 of 8 to answer" while its Next on me is disabled                                                                                                                                                                                            | `lf-tally`                     | 2 (2)           | 0                 | 0                  | none reported                      |
+| An open thread card covers the text near its passage at 900px and on a phone                                                                                                                                                                                  | thread chrome                  | 14 (14)         | 0                 | 0                  | none reported                      |
+| A thread's pin covers words at a line's end on a phone                                                                                                                                                                                                        | thread chrome                  | 5 (5)           | 0                 | 0                  | none reported                      |
+| The inline thread header's pencil overlaps "Waiting for pickup" on a phone                                                                                                                                                                                    | thread chrome                  | 1 (1)           | 0                 | 0                  | none reported                      |
+
+Of the 66 defects, the final render check reported 3 and the plain check none. The
+checks read neither the page's facts nor Leaf's own chrome (`render_gate/readings.py`
+leaves chrome to the suite), so their reach is the 20 rendering defects outside the
+chrome, of which they reported 3. Their value shows earlier: on 35 of the 40 pages the
+author's own checks reported 142 distinct findings, as the matching turn groups repeats,
+and the final page still had 10 of them. The render check's were labels shrunk below
+10px (52 on 10 pages, 9 kept on 4), tables squeezed at 360px (7), labels drawn over
+each other in a chart (6), scrollbar clearance (3), content past the column (1), a
+verbatim mismatch (2) and a console error (1). The plain check's were markup: targets with no id (35 on 18 pages), schema
+refusals (25 on 7 pages), and 10 runs before `index.html` existed. Every author ran a
+check, and 27 of 40 ran `--render`; on the 13 pages whose authors did not, mostly
+queues and Codex pages, the final render check found nothing.
+
+For "Decide what plain `page check` runs in a browser" (TODO.md): on no final page did
+the judge see a widget fail to draw or the render check report a console error. The
+one console error during authoring, an `lf-chart` transform reading `NaN`, came from
+the render check and was fixed. Every plain-check finding was markup.
+
+How far to trust these numbers:
+
+- The rates are what this judge reported. It misses defects: every judge opened a
+  thread, yet it reported the thread card over neighbouring text on 14 of the 40
+  pages. How often it reports a defect that isn't there was not measured.
+- Four content defects checked against the requests were real: a backfill of
+  "about 550k" sessions where the request says 312k, "holding keeps half its
+  checkouts timing out" where 50% is the rollout stage and the error rate is 0.91%,
+  errors that "held at 0.91% since the pause" though the buckets after it read 0.97,
+  0.95 and 0.93, and a fifth contact called the fourth. Codex pages restated the
+  supplied facts more nearly word for word, and Claude Code pages added derived
+  claims; the "half of eu-west's checkouts" claim appeared on 5 of 6 Claude Code
+  dashboards.
+- A second reading of the same 37 pages confirmed the gap, though not through a
+  second live judge. Opus 5.5 given the same pages and prompt reported a fact defect
+  on 6 of 19 Claude Code pages and 3 of 18 Codex pages, catching 6 of the 26 real
+  ones on Claude Code pages; it spent its turn on layout. A text-only audit that sets
+  the request beside the page's source, run once with Opus 5.5 and once with Sol
+  6.1, flagged 16 and 18 of the 19 Claude Code pages and 8 and 10 of the 18 Codex
+  pages, most Codex flags being rewordings a reader wouldn't notice. Reading every
+  flag by hand, a supplied fact was misstated on 12 of 19 Claude Code pages (41–81%)
+  and 0 of 18 Codex pages (0–18%; 1 counting a reworded recommendation), and
+  misstated or left out on 17 of 19 and 1 of 18. The Codex live judge caught 23 of
+  the 26 on Claude Code pages, and 3 of its 24 fact reports were not real (a
+  discrepancy the page had labelled, a disputable date, a phone layout), so it shows
+  no bias toward Codex pages. Five Codex dashboards also said errors "remain at
+  0.91%" after the pause, but only in a chart's screen-reader label.
+- The 3 render-reported defects match the check messages the matching turn quoted.
+  A second matching turn, given each check's whole output and each tool call whole
+  where the first had cut them, read 65 of the 66 defects the same way; it found that
+  the author of the faint labels had changed them after a check reported them shrunk.
+  The other readings were not checked by hand.
+
+A paragraph in `skills/leaf/references/page-authoring.md`, "Reading cost", now asks
+the author to keep supplied facts as given and to keep the figures a derived claim
+rests on beside it. Over two batches of Claude Code pages from the document,
+dashboard, queue and configuration requests (the second without the document,
+whose pages misstated nothing in either arm), labelled by hand without knowing the
+arm, pages misstating a supplied fact fell from 22 of 37 to 12 of 36 (−26 points,
+95% interval −45 to −3), and pages where the Codex judge reported a fact defect from
+26 of 37 to 17 of 36 (−23, −43 to −1). Configuration pages improved most (5 of 10 to
+1 of 10). Dashboards still misstate (9 of 11 to 7 of 11), mostly as "half of
+eu-west's checkouts" and errors that "sat at 0.91%" after the pause, and queues
+still count Orbis's contacts one short (8 of 11 to 4 of 10). The second batch ran
+because the first alone (−29 points, −53 to +1) did not exclude no change. Six Codex
+pages per arm showed no change.
+
+The recurring Leaf-owned defects below follow from recorded choices, and are open
+decisions rather than fixes:
+
+- A thread card opens over the text near its passage, which Escape uncovers (root
+  `AGENTS.md`, "Working on the repository"); the judge counted it on 14 pages.
+- On a phone a thread's pin stands over the end of the line it marks (5 pages).
+
+## Current configuration anchor, 2026-10-21
+
+One bounded block used four fresh Codex authors, in Leaf, HTML, HTML, Leaf order,
+at `0cc2760636d14b9fc8873f3be69337486ecb723c`. All used `gpt-6.1-sol` with medium
+reasoning and the same configuration task at 1600×1000. All four saved
+`comparison.json` inputs match, as do the 639 non-cache files in each saved
+`skills/leaf` tree. The working-tree changes during authoring were maintainer
+instructions, outside that shipped tree.
+
+| Round | Condition | Native author minutes | Initial turn minutes | Final record      |
+| ----- | --------- | --------------------- | -------------------- | ----------------- |
+| 1     | Leaf      | 9.5                   | 4.7                  | All six decisions |
+| 2     | HTML      | 5.0                   | 2.1                  | All six decisions |
+| 3     | HTML      | 6.0                   | 3.0                  | All six decisions |
+| 4     | Leaf      | 11.1                  | 4.8                  | All six decisions |
+
+Leaf averaged 10.3 author minutes and HTML 5.5, across four turns each. These are
+native author durations, excluding browser users, live judges and command elapsed
+time. Dollar cost and first usable handoff time remain unmeasured. The older
+comparison used a different harness revision; these figures do not measure a
+causal before/after gain.
+
+Both Leaf decision journeys used its event log; both HTML journeys copied the
+page's settings without typed fallback. All final records retained Finance
+ownership, separate finance-ops paging and the remaining noisy payments page,
+without claiming a live alert configuration change. Execution and page checks
+completed for all four. The first HTML's final judge reported a threshold-keyboard
+defect; the other three final judges passed. Replaying the same keys on the first
+HTML and on a bare, script-free native select produced the same non-response in
+headless Chromium and Firefox. That test does not isolate an authored defect, so
+the attribution remains unconfirmed. The original verdict is retained; the browser
+users and pair judges completed the offered selection and copying routes.
+
+Both paired Sol judgments preferred HTML in both presentation orders: slight/clear
+for the first pair and slight/slight for the second. HTML kept six settings visible
+beside navigable evidence. Leaf's first page required tab switching; the second's
+header and instruction area left a short scrolling preview. Evidence favored Leaf
+in three judgments and tied in one; comments and applied decisions tied in all
+four. These are local composition trade-offs, not a general product ranking.
+
+A separate 1600×1000 chrome journey on the first Leaf's saved phase 3 typed a
+draft, retained it through Escape/reopen, sent a visible comment that persisted in
+the log, and reached another alert through Escape and its tab. It reported no
+console findings or horizontal overflow. It does not cover other chrome journeys
+or mobile.
+
+A fresh `gpt-6-astra` judge independently operated the first pair's saved phase 3
+and phase 4 pages in both presentation orders, without prior verdicts in its
+prompt. Both judgments preferred HTML slightly for its overview, while favoring
+Leaf's historical evidence and noting its direct-send route. The second pair has
+Sol judging only. The exact README copied-index recipe completed successfully;
+both native `thread/started` notifications confirm Astra, and hashes establish
+that all four original result indexes and the main verdict file stayed unchanged.
+Audit evidence is `.tmp/eval/audit-yci6yzij/0/`, with its provenance recorded in
+`.tmp/ui-grinding/cycle/astra-audit.json`. Opus reviewed the proposed skill and
+audit recipe; this block did not run fresh Opus authors.
+
+The four runs are under `.tmp/eval/` in this checkout:
+
+- `20261021-135550-9h8_k04r` — Leaf, `configuration-ocar5rb0`.
+- `20261021-141858-mlmwdqua` — HTML, `configuration-dmgg6mb1`.
+- `20261021-142853-coaxw4ab` — HTML, `configuration-jskgsnus`.
+- `20261021-143958-54gvyi2w` — Leaf, `configuration-b7p94ayd`.
+
+`.tmp/ui-grinding/cycle/provenance-checked.json` retains runtime hashes, native
+model fields and phase paths. `eval-report` on those four runs regenerates the
+comparison; use the README's isolated copied-index recipe for rejudging without
+overwriting the original verdicts. The maintainer's `/grinding-ui` skill owns the
+improvement loop and experiment design, with command mechanics kept in the README.
+The keyboard and chrome replays use disposable original-runtime copies:
+
+```sh
+uv run python .tmp/ui-grinding/replay_saved.py html 20261021-141858-mlmwdqua .tmp/ui-grinding/keyboard_journey.py
+uv run python .tmp/ui-grinding/replay_saved.py html 20261021-141858-mlmwdqua .tmp/ui-grinding/keyboard_journey.py --firefox
+uv run python .tmp/ui-grinding/replay_saved.py leaf 20261021-135550-9h8_k04r .tmp/ui-grinding/chrome_journey.py
+```
+
+The original October 12 brief and refinements were recovered from Claude session
+`0cc26736-55c9-40c3-80bf-c13a77d209db` (lines 6, 1685, 2335–2337, 2427 and 3892),
+and the follow-on brief from Codex session `01a13358-0141-70f0-8bb4-a8defb75b07e`
+(line 13). The original nine-pair Claude report survives at
+`~/.local/state/leaf/pages/eval-plain-html/`, with its raw runs at
+`~/.tmp/leaf.authoring-vs-plain-html/eval/`; those are distinct from the recovered
+twelve-author Codex comparison above. The continuing brief is TODO #20.
+
 ## Remaining evaluation gaps
 
 - Recovering a long thread's middle after the agent has lost it. `elided` now
@@ -393,197 +306,3 @@ evidence, rather than the older configuration verdict alone.
 When a real failure supplies a case, state its expected answer
 and edit owner before running it, and classify a miss as missing information,
 inaccessible information, or information misread.
-
-## Current authoring UX loop
-
-Fresh Sol 6.1 medium comparisons now cover configuration, queue, document and dashboard.
-These are individual authored samples: configuration and document preferences vary by
-sample and presentation order, queue clearly favors Leaf, and dashboard slightly
-favors Leaf. Independent Astra audits support those queue/dashboard judgments while
-recognizing HTML's more compact dashboard decision. Baseline advantages do not establish
-that a branch change improved the product.
-
-A second independently authored HTML queue accepts the prescribed seven choices but
-also blocks finish at seven of eight when the comment-settled ticket stays untouched.
-Both judging orders prefer the retained Leaf queue. A fresh Leaf dashboard is slightly
-preferred to the fixed HTML control in both orders. Its Astra evidence audit supports
-that margin but qualifies stale wording as partly shared immediately after submission;
-selected-state and transmission feedback differ. Opening full checks or exact buckets
-is an interaction cost, not an established failure when the failing check and central
-trend remain exposed. That audit saw the verdict summary before browser inspection,
-so it is not a fully blind rescore.
-
-The second HTML document retains the conditional migration plan that the first
-control omitted. Against the same Leaf document it splits: one order slightly
-prefers HTML's directly exposed review and compact phone opening; the other slightly
-prefers Leaf's direct send and fitting phone comparison table. Both preserve the
-Redis decision and Mei's Wednesday request. The earlier clear Leaf result remains
-evidence about that first control, not a general document advantage.
-
-Two shared presentation repairs have controlled evidence on identical authored pages:
-
-- Queue outcomes get a reserved line beside the existing title and summary. Normal
-  Fix/Escalate labels become readable; phone navigation spends one additional 17px line.
-  Choosing, correcting and undoing preserve row positions. Long arbitrary answers still
-  ellipsize. A fresh queue retains the substantive Orbis/Quanta context that an earlier
-  author sample omitted.
-- Settled options collapse every hidden child’s box, including generated add/Done
-  controls, despite ordinary authored padding or minimum heights. The dashboard had
-  retained 64px of empty card space. Expanded cards and rationale are unchanged;
-  pointer, keyboard, anchored reveal and print remain available. The feature gallery’s
-  settled answer demonstrates spacious expanded cards returning to one disclosure.
-
-Revision guidance now distinguishes a current decision record and needed evidence from
-its superseded interaction. A result-first wording has not established an overall
-quality gain; unchanged repeats span losses and wins, so that extra wording was removed. An isolated A/B of playground
-guidance about consequences at the controls showed no intended benefit and slightly
-favored the original in both orders; the added wording was removed.
-
-The browser user’s model report is not the canonical observation of copying. Handover
-uses observed clipboard activity first, then admitted attention-bearing user events,
-then reported manual export text, and finally the typed fallback. Incomplete decisions
-retain the fallback. A successful settings Send was previously mislabeled as copying
-because the model quoted the displayed instruction. Its final record was correct, but
-verbatim chat feedback prevented it independently proving native-event recovery.
-Saved runs retain that original evidence and limitation.
-
-The existing first-served observation now retains the active revision and event boundary
-without another state read. This identifies a candidate for later usability review;
-it is not first HTTP response, first handoff or first usability. HTML controls have no
-equivalent early immutable history. Author completion remains a separate metric.
-
-Reproduce the focused product contracts:
-
-```sh
-uv run pytest tests/browser/test_render_options_settled.py -k 'collapse_without_going_out_of_reach or reconciles_added_options or printed_page' -q -n0
-uv run pytest tests/browser/test_render_widgets.py -k side_tab -q -n0
-pnpm run test:runtime
-```
-
-A later audit reproduced pooled budget behavior after Finance ownership changed, but
-could not establish that the request excludes Finance pages from the cap. A payments
-service-wide budget and a payments-rotation budget are both plausible. The judge prompt now asks for assumptions behind concerns based on ambiguous intent. Rejudging the same
-configuration pair and the explicit Brightline constraint checks that calibration;
-no product rule about budget ownership follows from the ambiguity.
-
-A prospective first-served descriptor now has one bounded usability proof: the fresh
-dashboard’s exact observed revision supported status, evidence navigation and a real
-rollback selection at 900×600 after 155.7 seconds, 65.6 seconds before initial author
-completion. The proof replays captured resources and the event boundary in a disposable
-writable page. It does not establish the earliest usable revision, actual handoff, or
-a comparable early HTML time.
-
-The original HTML dashboard also retains a usable candidate before author completion.
-Its first file write completed 173.6 seconds after the initial author phase began,
-65.6 seconds before its answer. The literal heredoc can be reconstructed without
-executing recorded commands; replaying four later literal replacements exactly
-reproduces the saved first-phase file. In a disposable 900×600 browser, that earlier
-source exposes rollout status and metrics and records rollback in fresh localStorage.
-After recording, the top request remains stale except for its Edit decision button;
-the explicit choice appears farther down. This is a retrospective usable-candidate
-bound, not historical browser readiness. Leaf's served-revision observation and HTML's
-completed-write observation, on different environment packets, do not establish a
-causal or earliest-time comparison.
-
-A separate registry-owner label-instruction pilot also did not establish its intended
-behavior: neither author put consequences in choice labels despite confirmed exposure.
-Both full workflows passed, and the pair split overall; both orders preferred the
-candidate’s phone table and the base’s direct final navigation. The candidate also read
-the reformatted raw registry, exposing a JSON-whitespace context difference. The added
-instruction is rejected; the maintained registry remains unchanged. The independent
-initial-control audit found better desktop evidence adjacency in the candidate, but
-that composition difference does not show a consequence-label gain.
-
-The fresh dashboard v1/v2 ablation slightly favors restored v2 in both completed
-judgments; both workflows and quality checks pass. Both orders favor v2 phone
-presentation and v1 decision experience, with width/comment/application tied. They
-flag v1’s omitted memory comparison against 4.11. The independent reader, before
-learning arm identities or verdicts, found the same phone advantage and v1’s advantage
-for showing all four metrics at 900×600; v2 exposes the full trend there instead.
-Both actual rollback routes and final decisions are correct.
-
-This is a real whole-workflow one-guide contrast with one fresh author per arm. The
-guide was read before initial composition, so an earlier influence is possible;
-author variation remains unresolved. Source order already differs before finalization,
-preventing attribution specifically to the phase4 rewrite, not invalidating the
-contrast. Pruning v2 is therefore not an established phone-framing fix. Maintained v1
-stays as the minimal rule given the prior mixed configuration results and no established
-general benefit. No additional compactness instruction follows.
-
-Later comparisons extend the same four-phase workflow to `patch-review`,
-`notification-design`, `dependency-review`, `latency-review` and `draft-review`.
-These add code review, visual design, directed data-flow correction, quantitative
-chart inspection and user-owned freeform wording. They retain the same task in
-Leaf and HTML; the user corrects a fact before making a final decision. The fixtures
-and `evals/README.md` own their requirements and the current model configuration;
-`MODELS` in `dev/leaf_dev/arms.py` owns pins. Historical runs used different frozen
-runtimes, so this is case coverage, not one homogeneous benchmark population.
-
-Main judgments and independent ordinary-reader audits sometimes disagree. Patch
-review exposes a real tradeoff between code density and wrapped readability; its
-split judgment is not a clear winner. Dependency review separates initial diagram
-and interaction quality from the final record's prominence. Latency review's main
-judgments and independent audit slightly prefer Leaf. These observations do not
-establish a general advantage for either implementation or a runtime speed gain.
-The original draft comparison remains unscored after an incomplete judge route;
-its independent audit prefers HTML. An incomplete order is not a tie or a win.
-
-The controlled rendering evidence now includes the earlier queue labels and settled
-options repairs, native contents disclosure, and live diff reply sizing. In-flow
-contents starts closed, reducing the opening footprint while preserving ordinary
-links, reader open state, margin navigation and print. Cross-engine checking found
-that CSS could not make closed-details links reachable in Firefox's margin posture;
-the retained implementation follows the actual disclosure lifecycle. The live diff
-repair seeds Pierre's existing column applier synchronously, then schedules resize
-observations through Leaf's frame scheduler. It preserves initial sizing and avoids
-the reproduced ResizeObserver feedback loop during a streamed line reply. Hidden
-content retains the dependency's zero-width behavior. Neither repair proves a faster
-whole authoring task. Optional code wrapping separately gives readers a choice
-without changing copied source; it is not evidence that every code view should wrap.
-
-Two retained authoring clarifications describe existing contracts. `serving-pages.md`
-distinguishes offline reading and local page behavior from new recorded choices,
-Undo and threads, which need the live server, not necessarily an active agent.
-Both before/after comprehension probes chose the live route correctly. The Sign-off
-paragraph in `authoring-decisions.md` states that later widget edits neither withdraw a
-version approval nor approve new wording: editable content must distinguish the
-approved wording from the current draft. No new approval primitive or automatic
-invalidation was introduced.
-
-In the fresh draft guidance contrast, both authors already preserved a separate
-approved record; the clarified arm won slightly in both orders for phone navigation.
-Against the retained original HTML control, that preselected treatment artifact lost
-slightly in both orders; an independent audit also preferred HTML's focused complete-
-copy confirmation and nearby facts. The whole-document guardrail passed its workflow
-checks but slightly favored unchanged guidance for directly visible evidence. These
-results support retaining a factual clarification, not claiming it caused a UX or
-speed improvement. Both document authors retired Mei Tanaka's Wednesday assessment
-after Redis was chosen. The request does not explicitly cancel that assessment or
-condition it on selecting Postgres; retirement is a plausible scope inference, not
-an established ownership violation or unqualified compliance.
-
-Native failures also exposed canonical boundaries worth repairing. Before a first
-valid revision, `page state` must report the invalid source without reparsing its
-invalid registry and aborting an author who just received actionable check feedback.
-It now uses the existing accepted-page reading; invalid source still fails checking.
-Script placement exposed a separate lifetime bug: moving an unchanged script between
-head and patched main could leave duplicate nodes. Executable identity now includes
-the DOM patch region, so crossing regions reloads; prose-only changes do not.
-Validated scripts may consequently follow main, while inline classic execution and
-other content/security restrictions remain checked. The aborted author attempt and
-original failed diagnostics remain evidence, separate from subsequent successful runs.
-
-Reproduce current tasks and the narrow contracts below. Replace `RUN_DIRECTORY`
-with a run directory printed by `eval`; saved comparisons retain original payloads and
-both predecision and final pages. Reusing a control or judging both presentation
-orders adds no author sample. Native primary and helper durations are separate;
-cached input is included in input totals and is not a dollar estimate. These runs
-leave the broader measurement question in TODO #24 open.
-
-```sh
-uv run leaf-dev eval patch-review notification-design dependency-review latency-review draft-review --harness codex --condition both --repeat 1 -j 1
-uv run leaf-dev eval-pairs .tmp/eval/RUN_DIRECTORY
-uv run pytest tests/browser/test_render_toc_disclosure.py::test_contents_disclosure_keeps_its_links_focus_and_open_state tests/browser/test_render_code_reading.py::test_code_wrapping_keeps_source_copy_and_reader_choice tests/browser/test_render_code_reading.py::test_code_reference_keeps_command_context_and_cancel_destination -q -n0
-uv run pytest tests/browser/test_render_diff_controls.py::test_a_live_line_reply_wraps_without_resize_observer_feedback tests/browser/test_chrome_contracts.py::test_script_region_moves_reload_without_leaving_duplicate_nodes -q -n0
-uv run pytest tests/model/test_interact_document.py::test_page_state_keeps_accepted_registry_while_source_is_invalid tests/model/test_interact_document.py::test_tail_script_still_requires_deferred_execution -q -n0
-```

@@ -14,7 +14,7 @@
 // markers while updating real content, so comment-only restoration is not judged.
 // Such a rendered write still costs a style pass and a repaint, of the whole document while
 // a CSS highlight holds a range, so code writes only what changed
-// (skills/leaf/assets/AGENTS.md).
+// (browser/AGENTS.md).
 //
 // Each finding is reported once per document: a writer that fires every frame would
 // otherwise bury the report under its own repetitions.
@@ -54,7 +54,10 @@
   // delivers two records, unlike replaceChildren(), but can restate the same list.
   // Nodes in native records stay live. Read only the compared subtree at a record
   // boundary, undoing its later native changes rather than treating today's node as
-  // its earlier value. Attribute order does not affect equality.
+  // its earlier value. Attribute order does not affect equality. A list re-rendered
+  // row by row is read once per record, so each subtree nothing wrote into is read
+  // once per batch: reading every subtree at every record made a 76-row table's
+  // re-render take a second.
   const batchReadings = (records) => {
     const changes = new Map();
     const positions = new Map();
@@ -68,7 +71,27 @@
       if (!changes.has(record.target)) changes.set(record.target, []);
       changes.get(record.target).push({ record, position });
     });
+    // Each node whose subtree, shadow trees included, holds a written node now. A
+    // subtree the batch wrote into at any point holds one still: a node a write took
+    // out of it was taken out by a write to a node within it. So any other subtree
+    // holds the same at every boundary.
+    const written = new Set();
+    for (const target of changes.keys())
+      for (
+        let node = target;
+        node && !written.has(node);
+        node = node instanceof ShadowRoot ? node.host : node.parentNode
+      )
+        written.add(node);
+    // A node's value at a boundary, its shadow tree included, as a string, which is
+    // the same string at every boundary for a subtree nothing wrote into.
+    const unwritten = new Map();
     const valueAt = (node, boundary) => {
+      if (written.has(node)) return readAt(node, boundary);
+      if (!unwritten.has(node)) unwritten.set(node, readAt(node, boundary));
+      return unwritten.get(node);
+    };
+    const readAt = (node, boundary) => {
       const children = [...node.childNodes];
       const attributes = new Map(
         [...(node.attributes ?? [])].map((attribute) => [
@@ -92,20 +115,21 @@
           else attributes.set(key, record.oldValue);
         } else text = record.oldValue;
       }
-      return [
+      const own = JSON.stringify([
         node.nodeType,
         node.namespaceURI,
         node.nodeName,
         text,
         [...attributes].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
-        children.map((child) => valueAt(child, boundary)),
-        shadows.has(node) ? valueAt(shadows.get(node), boundary) : null,
-      ];
+      ]);
+      const inner = children.map((child) => valueAt(child, boundary)).join(",");
+      const shadow = shadows.has(node) ? valueAt(shadows.get(node), boundary) : null;
+      return `[${own},[${inner}],${shadow}]`;
     };
     return {
       position: (record) => positions.get(record),
       read: (nodes, boundary) =>
-        JSON.stringify(nodes.map((node) => valueAt(node, boundary))),
+        `[${nodes.map((node) => valueAt(node, boundary)).join(",")}]`,
     };
   };
   // Detaching an iframe retires its browsing context even if the same element is
@@ -173,9 +197,10 @@
       const after = renderedChildren(current);
       if (
         !frameRecords.has(record) &&
-        (pending.get(after.length) ?? []).includes(
-          readings.read(after, readings.position(record) + 1),
-        )
+        pending.has(after.length) &&
+        pending
+          .get(after.length)
+          .includes(readings.read(after, readings.position(record) + 1))
       )
         return true;
     }
@@ -209,11 +234,15 @@
     // CodeMirror writes every attribute of its content element when it mounts a view,
     // the tab-size style that element already holds among them.
     (what, node) => what === "style" && is(node, "div.cm-content"),
-    // CodeMirror reapplies this line decoration when the editor view updates, even
-    // when the last line still holds the same words and the class is unchanged.
+    // CodeMirror's setAttrs assigns a line's style whenever it syncs the line's
+    // attributes, as a list item's line carries its depth and number.
+    (what, node) =>
+      what === "style" && is(node, "div.cm-line.lf-md-item") && hosts(node).length > 0,
+    // CodeMirror also restates a line's decoration class when it reconciles an
+    // editor update, even when the preview gives that line the same face.
     (what, node) =>
       what === "class" &&
-      is(node, "div.cm-line.lf-field-last") &&
+      is(node, "div.cm-line") &&
       hosts(node)[0]?.localName === "leaf-text",
     // CodeMirror's CompositeTile.sync replaces a line's children while reconciling
     // editor updates, including equivalent line-break nodes in either editor host.
@@ -232,6 +261,12 @@
     // as they update, and restate what their own shadow trees hold.
     (what, node) => what !== "children" && node.localName?.startsWith("wa-"),
     (what, node) => hosts(node).some((host) => host.localName.startsWith("wa-")),
+    // Trees restores native row focus after closing search, restating the focus
+    // marker its row renderer already painted.
+    (what, node) =>
+      what === "data-item-focused" &&
+      is(node, 'button[role="treeitem"]') &&
+      hosts(node)[0]?.localName === "lf-file-tree",
     // Viewer.js reapplies image/canvas classes and magnifier visibility when an
     // inspected image changes. It is an upstream-owned renderer; Leaf's adapter
     // controls remain watched.
@@ -245,6 +280,9 @@
     // Sortable takes a dragged card's ghost class off and puts it back as the drag
     // crosses into another lane.
     (what, node) => what === "class" && is(node, ".lf-ghost"),
+    // Sortable's drop sets the pressed card's `draggable` to false on every release of
+    // its grip, whether or not the press became a drag.
+    (what, node) => what === "draggable" && is(node, "lf-card"),
     // PhotoSwipe reasserts its root's zoom and pointer classes while handling
     // gestures and viewport changes, including when those classes already stand.
     (what, node) => what === "class" && is(node, "div.pswp"),
@@ -325,7 +363,7 @@
     record.oldValue === null &&
     through.some((value) => value !== null) &&
     focusGuards.has(record.target);
-  // Residency verifies that authored CSS actually supplies a requested grid shift.
+  // Margin layout verifies that authored CSS actually supplies a requested grid shift.
   // An ignored request is withdrawn in the same reading; every other style member
   // must remain unchanged. A settled failed placement must not probe again (the
   // authored-track browser test separately asserts zero subsequent mutations).

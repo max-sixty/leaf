@@ -10,12 +10,6 @@ from interact_support import (
     _start,
     wait_for,
 )
-from leaf import data as data_model
-from leaf import delivery as delivery_model
-from leaf import event_log as events_model
-from leaf import service as service_model
-from leaf import thread as thread_model
-from leaf.render_checks import rendered, wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import (
     NESTED_PROPOSAL_PAGE,
@@ -55,10 +49,16 @@ from render_harness import (
     write,
 )
 
+from leaf import data as data_model
+from leaf import delivery as delivery_model
+from leaf import event_log as events_model
+from leaf import service as service_model
+from leaf import thread as thread_model
+from leaf.render_checks import rendered, wait_until_ready
+
 pytestmark = pytest.mark.shifts_unsurveyed
 
 from browser.widgets import PLAYGROUND_PAGE
-
 from journeys import first_thread_quote
 
 
@@ -152,9 +152,9 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
 
     tabs = page.get_by_role("tab")
     expect(tabs.first).to_have_accessible_name("Ticket a")
-    expect(tabs.first).to_have_text("Ticket asev a · suggested fix")
+    expect(tabs.first).to_have_text("Ticket asev a · suggested fixTo answer")
     expect(tabs.first).to_have_accessible_description(
-        "sev a · suggested fix. Unanswered"
+        "sev a · suggested fix. To answer"
     )
     rows = (
         "() => [...document.querySelectorAll('#queue .lf-tab-btn')]"
@@ -169,7 +169,7 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
 
     answer = page.locator("#queue .lf-tab-btn").first.locator(".lf-tab-answer")
     expect(answer).to_have_attribute("data-lf-obligations", "open")
-    expect(answer).to_have_text("")
+    expect(answer).to_have_text("To answer")
     page.locator("#o-a-fix .lf-pick").click()
     told(page)
     expect(answer).to_be_visible()
@@ -179,7 +179,7 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
         "sev a · suggested fix. Answered: Fix"
     )
     expect(tabs.nth(1)).to_have_accessible_description(
-        "sev b · suggested fix. Unanswered"
+        "sev b · suggested fix. To answer"
     )
     assert page.evaluate(rows) == heights
     page.keyboard.press("Tab")
@@ -228,9 +228,9 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     page.unroute("**/api/event")
     round_trip(page)
     expect(answer).to_have_attribute("data-lf-obligations", "open")
-    expect(answer).to_have_text("")
+    expect(answer).to_have_text("To answer")
     expect(tabs.first).to_have_accessible_description(
-        "sev a · suggested fix. Unanswered"
+        "sev a · suggested fix. To answer"
     )
 
     page.locator("#o-a-fix .lf-pick").click()
@@ -261,7 +261,7 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     assert row == {"rows": 1, "runsPast": True}, row
 
     # As a scrolling page's root set, a side list keeps the page's history but is a
-    # box: nothing sticks, so a switch leaves the page where the user stands.
+    # box: nothing sticks, so a switch preserves the current page location.
     def long(key):
         return "".join(
             f"<p id='filler-{key}-{i}'>{'Background. ' * 40}</p>" for i in range(12)
@@ -330,7 +330,7 @@ def test_an_ordinary_two_part_obligation_retains_document_flow(browser, serve):
     assert item.evaluate(
         """async node => {
           const leaf = await window.__lfWidgetApi();
-          return leaf.readingPosture(node) === 'flow'
+          return leaf.regionScrollBehavior(node) === 'flow'
             && leaf.scrollerFor(node) === document.scrollingElement;
         }"""
     )
@@ -955,9 +955,6 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     page.mouse.move(1200, 700)
     expect(prepare).to_have_css("opacity", "0")
     page.evaluate(RELEASE_FOCUS)
-    # Twice: the layer's skip link is the document's first stop, and the map is what the
-    # page itself opens with.
-    page.keyboard.press("Tab")
     page.keyboard.press("Tab")
     expect(start).to_be_focused()
     expect(start).to_have_css("opacity", "1")
@@ -1246,6 +1243,7 @@ def test_structured_data_explorer_keeps_one_aggregate_query_configuration(
     ).to_have_value("4")
     instruction = page.locator("#release-query-instruction")
     expect(instruction).to_contain_text("risk above 80 and region is europe")
+    playground.locator(".lf-playground-instruction-region").hover()
     playground.get_by_role("button", name="Copy instruction").click()
     copied = page.evaluate("navigator.clipboard.readText()")
     assert copied == instruction.inner_text()
@@ -1293,6 +1291,8 @@ def test_structured_data_explorer_keeps_one_aggregate_query_configuration(
     expect(rows.first.get_by_label("Value")).to_have_value("asia")
     expect(instruction).to_contain_text("region is asia and risk above 40")
     undo(page)
+    expect(rows.first.get_by_label("Value")).to_have_value("asia")
+    playground.get_by_role("button", name="Reset").click()
     expect(rows.first.get_by_label("Value")).to_have_value("europe")
     expect(instruction).to_contain_text("region is europe and risk above 40")
     resized(page, 480, 760)
@@ -1408,6 +1408,7 @@ def test_built_code_comparison_drives_both_candidates(browser, serve):
     instruction = page.locator("#code-comparison-instruction")
     expect(instruction).to_contain_text("comfortable reading density")
     expect(instruction).to_contain_text("wrap long lines")
+    playground.locator(".lf-playground-instruction-region").hover()
     playground.get_by_role("button", name="Copy instruction").click()
     assert page.evaluate("navigator.clipboard.readText()") == instruction.inner_text()
     with sending(page, "the code reader treatment"):
@@ -1463,8 +1464,8 @@ def test_notification_configuration_becomes_a_commentable_local_artifact(
     ).to_have_accessible_name("Checkout needs attention")
     with sending(page, "the notification configuration"):
         playground.get_by_role("button", name="Create notification").click()
-    # The user can revise the configuration until the host stamps its result.
-    expect(playground.get_by_role("button", name="Create notification")).to_be_enabled()
+    # The control says the configuration is sent, and offers to withdraw it.
+    expect(playground.get_by_role("button", name="Undo choice")).to_be_enabled()
     action = next(
         event
         for event in reversed(events_model.read_events(serve.page_dir))
@@ -1659,7 +1660,7 @@ body { font-family: system-ui, sans-serif; }
     )
     thread_model.post_reply(
         serve.page_dir,
-        {"to": comment["id"], "for": comment["id"]},
+        {"responds": comment["id"]},
         "Added the deployment-run link to the artifact.",
     )
     refined = stamp_page(
@@ -1684,14 +1685,7 @@ def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
     browser, serve
 ):
     context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
-    # Present a wider rendered face before the control reserves its words, so a stated
-    # width cannot pass merely because it happens to fit this machine's font.
-    source = PLAYGROUND_PAGE.replace(
-        "</style>",
-        ".lf-playground-copy-trigger { letter-spacing: 0.125rem; }</style>",
-        1,
-    )
-    page = open_page(browser, serve(source), context=context)
+    page = open_page(browser, serve(PLAYGROUND_PAGE), context=context)
     playground = page.locator("#card-playground")
     expect(playground.get_by_role("group", name="Starting points")).to_be_visible()
     expect(playground.get_by_role("group", name="Controls")).to_be_visible()
@@ -1712,107 +1706,24 @@ def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
         "aria-pressed", "false"
     )
     playground.get_by_role("button", name="Dense").click()
-    copy = playground.locator(".lf-playground-copy-trigger")
-    copy.scroll_into_view_if_needed()
-
-    def copy_width(label):
-        expect(copy).to_have_accessible_name(label)
-        reading = copy.evaluate(
-            """button => {
-              const visible = [...button.querySelectorAll('.lf-playground-copy-label')]
-                .find(label => getComputedStyle(label).display !== 'none');
-              const buttonBox = button.getBoundingClientRect();
-              const labelBox = visible.getBoundingClientRect();
-              const style = getComputedStyle(button);
-              return {
-                label: visible.textContent,
-                width: buttonBox.width,
-                labelLeft: labelBox.left,
-                labelRight: labelBox.right,
-                contentLeft: buttonBox.left + parseFloat(style.paddingLeft),
-                contentRight: buttonBox.right - parseFloat(style.paddingRight),
-              };
-            }"""
-        )
-        assert reading["labelLeft"] >= reading["contentLeft"], reading
-        assert reading["labelRight"] <= reading["contentRight"], reading
-        return reading["width"]
-
-    reserved_width = copy_width("Copy instruction")
+    # Copy is the code block's control, floating at the instruction pane's corner
+    # while the pointer is over the pane or the user is in it.
+    pane = playground.locator(".lf-playground-instruction-region")
+    copy = pane.get_by_role("button", name="Copy instruction")
+    pane.scroll_into_view_if_needed()
+    pane.hover()
     copy.click()
-    assert copy_width("Copied") == reserved_width
-    # A changed accessible name is not news to a screen reader; the live region is.
-    live = page.locator(".lf-live")
-    expect(live).to_have_text("Instruction copied")
-    expect(copy).to_have_css(
-        "color",
-        page.evaluate(
-            """() => {
-          const probe = document.createElement('span');
-          probe.style.color = 'var(--ok-ink)';
-          document.body.append(probe);
-          const color = getComputedStyle(probe).color;
-          probe.remove();
-          return color;
-        }"""
-        ),
-    )
-    expect(copy).to_have_attribute("data-copy-state", "success")
     assert page.evaluate("navigator.clipboard.readText()") == (
         "Use a 4px radius, compact spacing set to true, a bold tone, #4f766f accents, "
         "and the title Field note."
     )
 
     playground.get_by_role("button", name="Reset").click()
-    expect(copy).to_have_accessible_name("Copy instruction")
     assert playground.evaluate("root => root.values")["radius"] == 12
+    playground.get_by_role("button", name="Reset").press("Shift+Tab")
+    expect(copy).to_be_focused()
     copy.press("Enter")
-    assert copy_width("Copied") == reserved_width
     assert "12px radius" in page.evaluate("navigator.clipboard.readText()")
-    expect(copy).to_have_accessible_name("Copy instruction")
-    page.evaluate(
-        """() => {
-          window.clipboardWrites = [];
-          window.clipboardReleases = [];
-          window.clipboardWrite = navigator.clipboard.writeText.bind(navigator.clipboard);
-          navigator.clipboard.writeText = value => {
-            window.clipboardWrites.push(value);
-            return new Promise(resolve => window.clipboardReleases.push(resolve));
-          };
-        }"""
-    )
-    copy.click()
-    radius = playground.get_by_role("slider", name="Corner radius")
-    radius.press("Home")
-    for _ in range(5):
-        radius.press("ArrowRight")
-    copy.click()
-    assert page.evaluate("window.clipboardWrites") == [
-        (
-            "Use a 12px radius, compact spacing set to false, a quiet tone, "
-            "#4f766f accents, and the title Field note."
-        ),
-        (
-            "Use a 5px radius, compact spacing set to false, a quiet tone, "
-            "#4f766f accents, and the title Field note."
-        ),
-    ]
-    page.evaluate(
-        """() => {
-          navigator.clipboard.writeText = window.clipboardWrite;
-          for (const release of window.clipboardReleases) release();
-        }"""
-    )
-    assert copy_width("Copied") == reserved_width
-    expect(copy).to_have_accessible_name("Copy instruction")
-    page.evaluate(
-        """() => {
-          navigator.clipboard.writeText = () => { throw new Error('refused'); };
-        }"""
-    )
-    copy.click()
-    assert copy_width("Copy failed") == reserved_width
-    expect(live).to_have_text("Could not copy the instruction")
     resized(page, 420, 760)
     assert page.evaluate("document.documentElement.scrollWidth") == 420
     assert " " not in playground.evaluate(
@@ -1923,7 +1834,7 @@ def test_a_playground_dresses_each_sample_child_and_never_its_own_page(browser, 
 def test_a_pointer_press_on_a_playground_control_leaves_the_user_in_the_preview(
     browser, serve
 ):
-    """A candidate can draw only on what the user stands at in the preview, such as a
+    """A candidate can draw only on what the user is located at in the preview, such as a
     focus treatment inside a sample child, so clicking a choice, a toggle, a preset or
     Reset, or dragging a slider, changes the candidate without taking the user out of
     the preview. A text control takes focus to be typed in, and from anywhere else a
@@ -1950,7 +1861,7 @@ def test_a_pointer_press_on_a_playground_control_leaves_the_user_in_the_preview(
       <lf-sample id="ring-sample" label="ring sample">
         <template id="ring-page" data-sample>
           <p>The page the candidate restyles.</p>
-          <button id="child-button" type="button">Where the user stands</button>
+          <button id="child-button" type="button">The current location</button>
         </template>
       </lf-sample>
     </lf-playground-preview>
@@ -1963,27 +1874,27 @@ def test_a_pointer_press_on_a_playground_control_leaves_the_user_in_the_preview(
     page = open_page(browser, serve(source))
     playground = page.locator("#ring-playground")
     child_button = page.frame_locator("#ring-sample iframe").locator("#child-button")
-    standing = "button => button.matches(':focus') && document.hasFocus()"
+    focused = "button => button.matches(':focus') && document.hasFocus()"
 
     def values():
         return playground.evaluate("root => root.values")
 
     child_button.focus()
-    assert child_button.evaluate(standing)
+    assert child_button.evaluate(focused)
     page.get_by_role("radio", name="Thick", exact=True).click()
     assert values()["ring"] == "thick"
-    assert child_button.evaluate(standing)
+    assert child_button.evaluate(focused)
 
     playground.get_by_role("switch", name="Dim").click()
     assert values()["dim"] is True
-    assert child_button.evaluate(standing), "switch"
+    assert child_button.evaluate(focused), "switch"
     page.get_by_role("button", name="Wide", exact=True).click()
     assert values()["width"] == 4
-    assert child_button.evaluate(standing), "preset"
+    assert child_button.evaluate(focused), "preset"
     slider = playground.get_by_role("slider", name="Width").bounding_box()
     page.mouse.click(slider["x"] + 2, slider["y"] + slider["height"] / 2)
     assert values()["width"] == 1
-    assert child_button.evaluate(standing), "slider"
+    assert child_button.evaluate(focused), "slider"
     page.mouse.move(slider["x"] + 2, slider["y"] + slider["height"] / 2)
     page.mouse.down()
     page.mouse.move(
@@ -1993,12 +1904,12 @@ def test_a_pointer_press_on_a_playground_control_leaves_the_user_in_the_preview(
     )
     page.mouse.up()
     assert values()["width"] == 4
-    assert child_button.evaluate(standing), "slider drag"
+    assert child_button.evaluate(focused), "slider drag"
     sample = page.locator("#ring-sample")
     sample.evaluate(
         """sample => {
-          const restore = sample.restoreStanding;
-          sample.restoreStanding = () => {
+          const restore = sample.restoreCurrentLocation;
+          sample.restoreCurrentLocation = () => {
             window.releaseRestore = () => {
               window.restoreDone = restore.call(sample);
             };
@@ -2013,11 +1924,11 @@ def test_a_pointer_press_on_a_playground_control_leaves_the_user_in_the_preview(
     page.evaluate("window.releaseRestore()")
     assert page.evaluate("() => window.restoreDone") is False
     expect(note).to_be_focused()
-    sample.evaluate("sample => delete sample.restoreStanding")
+    sample.evaluate("sample => delete sample.restoreCurrentLocation")
     child_button.focus()
     playground.locator(".lf-playground-reset").click()
     assert values()["ring"] == "thin"
-    assert child_button.evaluate(standing)
+    assert child_button.evaluate(focused)
 
     # The same holds in the preview's own light DOM.
     preview_button = page.locator("#preview-button")

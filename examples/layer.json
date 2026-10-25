@@ -6,5 +6,7 @@
   "monitoring",
   "visual-review",
   "playwright",
-  "file-editor"
+  "file-editor",
+  "file-tree",
+  "motion"
 ]

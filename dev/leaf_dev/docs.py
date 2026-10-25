@@ -14,7 +14,9 @@ it here from that owner as it reads the source (`page_fixtures.authored_markup`)
   `<meta name="description">`;
 - `table#all-verbs`'s body: every `x-state` verb the kernel and the bundled packages
   declare, in registry order;
-- `nav.reference-index` and `div.reference-list`: the kernel registry's `$keys`.
+- `nav.reference-index` and `div.reference-list`: the kernel registry's `$keys`;
+- `div.schema-list`: each declared schema in the group its `data-schemas` names
+  (`SCHEMA_LISTS`), as a table of its fields.
 
 A slot that already holds content is refused, since a copy there would go stale
 silently. The edits splice into the authored source at the parser's own spans, so every
@@ -29,26 +31,21 @@ from pathlib import Path
 from leaf.media import media_name
 from leaf.schema import MEDIA_DIR
 from leaf.structure import SourceDocument
-
-from leaf_dev import ROOT
+from leaf_dev import ROOT, declared_records
 from leaf_dev.example_data import document_metadata
 from leaf_dev.leaf_assets import pinned_assets
 
 DOCS = ROOT / "docs"
 EXAMPLES = ROOT / "examples"
-ASSETS = ROOT / "skills" / "leaf" / "assets"
-PACKAGES = ROOT / "skills" / "leaf" / "packages"
+ASSETS = ROOT / "browser"
+PACKAGES = ROOT / "packages"
+SCRIPTS = ROOT / "src" / "leaf"
+SERVED_SCHEMA = SCRIPTS / "served_state" / "state.schema.json"
+INTERACTION_SCHEMA = SCRIPTS / "interaction-batch.schema.json"
+# Where each event kind's meaning is written: its row of the kinds table that opens
+# the file, at the anchor `kind-<kind>`.
+EVENTS_REFERENCE = "https://github.com/max-sixty/leaf/blob/main/src/leaf/events.md"
 
-PRODUCT_ROUTES = {
-    "index.html": "/",
-    "examples.html": "/examples/",
-    "how-it-works.html": "/how-it-works/",
-    "extending.html": "/extending/",
-    "registry.html": "/registry/",
-    "event-log.html": "/event-log/",
-    "threads.html": "/threads/",
-    "website.html": "/website/",
-}
 # The site's route bar, the brand first.
 SITE_NAV = (
     ("/", "leaf"),
@@ -60,6 +57,16 @@ SITE_NAV = (
 # A $keys entry longer than its first sentence by this many words keeps the rest
 # behind a disclosure.
 COLLAPSED_DETAIL_WORDS = 30
+
+
+def product_sources() -> list[Path]:
+    """The top-level product documents, each published at its filename's route."""
+    return sorted(DOCS.glob("*.html"))
+
+
+def product_route(source: Path) -> str:
+    """The site's index is `/`; every other document uses `/<stem>/`."""
+    return "/" if source.stem == "index" else f"/{source.stem}/"
 
 
 def media_url(source: Path) -> str:
@@ -172,6 +179,312 @@ def key_entries() -> list[str]:
     return entries
 
 
+def read_json(path: Path) -> dict:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def schema_reference(ref: str) -> str:
+    """A `$ref` as a link to the entry that declares its target: a served-state
+    definition, an event kind, or the registry's `x-state`."""
+    uri, _, pointer = ref.partition("#")
+    if not uri:
+        name = pointer.removeprefix("/$defs/")
+        return f'<a href="#served-{name or "state"}">{name or "served state"}</a>'
+    if uri == "leaf:verb":
+        return '<a href="/registry/#x-state">x-state verb</a>'
+    if uri == "leaf:event":
+        return '<a href="#events">event</a>'
+    kind = uri.removeprefix("leaf:event/")
+    field = pointer.removeprefix("/properties/")
+    named = (
+        f"<code>{kind}</code>'s <code>{field}</code>"
+        if field
+        else f"<code>{kind}</code>"
+    )
+    return f'<a href="#event-{kind}">{named}</a>'
+
+
+def type_label(schema) -> str:
+    """What one schema admits, in a few words."""
+    if schema is True or schema == {}:
+        return "any"
+    if schema is False:
+        return "nothing"
+    if "$ref" in schema:
+        return schema_reference(schema["$ref"])
+    if "const" in schema:
+        return f"<code>{html.escape(json.dumps(schema['const']))}</code>"
+    if "enum" in schema:
+        return " | ".join(
+            f"<code>{html.escape(json.dumps(value))}</code>" for value in schema["enum"]
+        )
+    union = schema.get("anyOf") or schema.get("oneOf")
+    if union and "type" not in schema:
+        return " or ".join(dict.fromkeys(type_label(branch) for branch in union))
+    kinds = schema.get("type", "object" if "properties" in schema else "any")
+    return " or ".join(
+        kind_label(schema, kind)
+        for kind in ([kinds] if isinstance(kinds, str) else kinds)
+    )
+
+
+def kind_label(schema: dict, kind: str) -> str:
+    """One JSON type `schema` admits, with what its arrays and maps hold."""
+    values = schema.get("additionalProperties")
+    if kind == "array" and "prefixItems" in schema:
+        return "[" + ", ".join(map(type_label, schema["prefixItems"])) + "]"
+    if kind == "array":
+        return f"array of {type_label(schema.get('items', True))}"
+    if kind == "object" and isinstance(values, dict) and not schema.get("properties"):
+        return f"map of {type_label(values)}"
+    if kind == "string" and "format" in schema:
+        return f"string ({schema['format']})"
+    return kind
+
+
+def variant_label(branch: dict) -> str:
+    """What picks one branch of a union: the constants its fields hold."""
+    held = [
+        f"<code>{name}</code> is {type_label(field)}"
+        for name, field in branch.get("properties", {}).items()
+        if isinstance(field, dict) and ("const" in field or "enum" in field)
+    ]
+    return " and ".join(held)
+
+
+def field_rows(schema, path: str = "", skip: frozenset = frozenset()) -> list[tuple]:
+    """A row `(path, type, required, description)` for each field `schema` declares,
+    at any depth. A branch of a union or conditional clause that declares fields of
+    its own adds a one-cell row introducing them; one that only requires fields
+    declared beside it adds a row saying which."""
+    if not isinstance(schema, dict):
+        return []
+    rows = []
+    required = set(schema.get("required", ()))
+    for name, field in schema.get("properties", {}).items():
+        if name in skip:
+            continue
+        at = f"{path}.{name}" if path else name
+        description = field.get("description", "") if isinstance(field, dict) else ""
+        rows.append((at, type_label(field), name in required, description))
+        rows.extend(field_rows(field, at))
+    if isinstance(values := schema.get("additionalProperties"), dict):
+        rows.extend(field_rows(values, f"{path}.*" if path else "*"))
+    if isinstance(items := schema.get("items"), dict):
+        rows.extend(field_rows(items, f"{path}[]"))
+    where = f"<code>{path}</code> " if path else ""
+    declared = {row[0] for row in rows}
+    # Each clause and the condition it holds under: a union's branch is picked by
+    # the constants it holds, a conditional by its `if`, and an `allOf` conjunct
+    # always holds.
+    clauses = [
+        (branch, when(variant_label(branch)), True)
+        for branch in [*schema.get("anyOf", []), *schema.get("oneOf", [])]
+    ]
+    conditionals = [schema, *schema.get("allOf", [])]
+    for clause in conditionals:
+        if "if" in clause:
+            condition = when(variant_label(clause["if"]))
+            clauses.append((clause.get("then", {}), condition, False))
+            if "else" in clause:
+                clauses.append((clause["else"], "otherwise", False))
+        elif clause is not schema:
+            clauses.append((clause, "", False))
+    # Each clause's own fields, less those it restates from beside it.
+    adding = [
+        [row for row in field_rows(branch, path) if row[0] not in declared]
+        for branch, _, _ in clauses
+    ]
+    alternatives = []
+    for index, ((branch, condition, alternative), nested) in enumerate(
+        zip(clauses, adding), 1
+    ):
+        if nested:
+            label = condition or f"variant {index}"
+            description = key_prose(branch.get("description", ""))
+            # A union with one branch of fields, such as an object or null, needs no
+            # row telling its branches apart.
+            if condition or description or sum(map(bool, adding)) > 1:
+                rows.append((f"{where}{label}. {description}".strip(),))
+            rows.extend(nested)
+        elif rule := requirement(branch):
+            if condition:
+                rows.append((f"{where}{condition}, {rule}.",))
+            elif alternative:
+                alternatives.append(rule)
+            else:
+                rows.append((f"{where}{rule}.",))
+    if alternatives:
+        rows.append((f"{where}one of: {'; '.join(alternatives)}.",))
+    return rows
+
+
+def when(label: str) -> str:
+    return f"when {label}" if label else ""
+
+
+def code_list(names) -> str:
+    return ", ".join(f"<code>{name}</code>" for name in names)
+
+
+def requirement(clause) -> str:
+    """The fields a clause requires and forbids, in words."""
+    if not isinstance(clause, dict):
+        return ""
+    parts = []
+    if clause.get("required"):
+        parts.append(f"requires {code_list(clause['required'])}")
+    excluded = clause.get("not", {})
+    forbidden = [
+        group["required"][0]
+        for group in [excluded, *excluded.get("anyOf", [])]
+        if len(group.get("required", ())) == 1
+    ]
+    if forbidden:
+        parts.append(f"forbids {code_list(forbidden)}")
+    return " and ".join(parts)
+
+
+def table_row(row: tuple) -> str:
+    if len(row) == 1:
+        return f'<tr class="schema-variant"><td colspan="4">{row[0]}</td></tr>'
+    path, label, required, description = row
+    # A break opportunity after each dot, so a long path wraps between its fields.
+    shown = path.replace(".", ".<wbr>")
+    cells = (
+        f"<code>{shown}</code>",
+        label,
+        "yes" if required else "",
+        key_prose(description),
+    )
+    return "<tr>" + "".join(f"<td>{cell}</td>" for cell in cells) + "</tr>"
+
+
+def schema_entry(
+    entry_id: str,
+    heading: str,
+    schema: dict,
+    notes: list[str] = (),
+    *,
+    skip: frozenset = frozenset(),
+) -> str:
+    """One declared schema: its heading, what it is, and a table of its fields."""
+    parts = [f"<h3>{heading}</h3>"]
+    if text := schema.get("description"):
+        parts.append(f"<p>{key_prose(text)}</p>")
+    label = type_label(schema)
+    if label != "object":
+        notes = [f"Type: {label}.", *notes]
+    if notes:
+        parts.append(f'<p class="schema-notes">{" ".join(notes)}</p>')
+    rows = field_rows(schema, skip=skip)
+    if rows:
+        parts.append(
+            '<table class="schema-fields"><thead><tr><th>Field</th><th>Type</th>'
+            "<th>Required</th><th>Description</th></tr></thead>"
+            f"<tbody>{''.join(map(table_row, rows))}</tbody></table>"
+        )
+    return f'<section class="schema-entry" id="{entry_id}">{"".join(parts)}</section>'
+
+
+def served_entries() -> list[str]:
+    """The state `GET /api/state` serves, then each definition it names, POST answers
+    included."""
+    schema = read_json(SERVED_SCHEMA)
+    definitions = schema.pop("$defs")
+    schema.pop("$schema", None)
+    return [
+        schema_entry("served-state", "<code>GET /api/state</code>", schema),
+        *(
+            schema_entry(f"served-{name}", f"<code>{name}</code>", definition)
+            for name, definition in definitions.items()
+        ),
+    ]
+
+
+def event_entries() -> list[str]:
+    """The fields every event record shares, then each kind's own, with the meaning
+    left to `events.md`."""
+    kinds = read_json(ASSETS / "registry.json")["$events"]["kinds"]
+    records = [contract["record"] for contract in kinds.values()]
+    shared = tuple(
+        name
+        for name, field in records[0]["properties"].items()
+        if all(
+            record["properties"].get(name) == field
+            and (name in record["required"]) == (name in records[0]["required"])
+            for record in records
+        )
+    )
+    envelope = {
+        "type": "object",
+        "properties": {name: records[0]["properties"][name] for name in shared},
+        "required": [name for name in records[0]["required"] if name in shared],
+    }
+    entries = [schema_entry("event-envelope", "Every event", envelope)]
+    for kind, contract in kinds.items():
+        notes = [f'<a href="{EVENTS_REFERENCE}#kind-{kind}">What it means</a>.']
+        if "browser" in contract:
+            notes.append("The browser may post it to <code>POST /api/event</code>.")
+        for member in ("message", "bookkeeping", "undoable"):
+            if contract.get(member):
+                notes.append(f"A <code>{member}</code> kind.")
+        if writer := contract.get("verb_writer"):
+            notes.append(f"Carries an x-state verb the {writer} writes.")
+        entries.append(
+            schema_entry(
+                f"event-{kind}",
+                f"<code>{kind}</code>",
+                contract["record"],
+                notes,
+                skip=frozenset(shared),
+            )
+        )
+    return entries
+
+
+def record_entries() -> list[str]:
+    """Each record Leaf keeps outside a page's log and document, the composer's draft
+    among them, with the `format` it is stored at."""
+    draft = read_json(ASSETS / "registry.json")["$events"]["draft"]
+    records = {
+        kind: (record.since, record.schema)
+        for kind, record in declared_records().items()
+    } | {
+        "draft": (
+            draft["since"],
+            {"description": draft["description"], **draft["schema"]},
+        )
+    }
+    return [
+        schema_entry(
+            f"record-{kind}",
+            f"<code>{kind}</code>",
+            schema,
+            [f"Stored with <code>format</code> <code>leaf-{kind}/{since}</code>."],
+        )
+        for kind, (since, schema) in sorted(records.items())
+    ]
+
+
+def interaction_entries() -> list[str]:
+    return [
+        schema_entry(
+            "interaction-batch",
+            "<code>POST /api/interaction</code>",
+            read_json(INTERACTION_SCHEMA),
+        )
+    ]
+
+
+SCHEMA_LISTS = {
+    "served": served_entries,
+    "events": event_entries,
+    "records": record_entries,
+    "interactions": interaction_entries,
+}
+
+
 def inputs(source: Path) -> list[Path]:
     """The files `compose` reads for one product document, besides the asset pin, so a
     preview follows an edit to an owner."""
@@ -182,7 +495,16 @@ def inputs(source: Path) -> list[Path]:
         if (name := example_name(link))
     ]
     composed = tree.select("table#all-verbs, nav.reference-index, div.reference-list")
-    return [*examples, *(registries() if composed else [])]
+    schemas = tree.select("div.schema-list")
+    return [
+        *examples,
+        *(registries() if composed else []),
+        *(
+            [SERVED_SCHEMA, INTERACTION_SCHEMA, ASSETS / "registry.json"]
+            if schemas
+            else []
+        ),
+    ]
 
 
 def compose(source: Path, markup: str, *, assets: Path | None = None) -> str:
@@ -209,7 +531,7 @@ def compose(source: Path, markup: str, *, assets: Path | None = None) -> str:
         edits.append((start, end, f"{inner}\n{indent}"))
 
     for nav in document.tree.select("nav.sitenav"):
-        fill(nav, site_nav(PRODUCT_ROUTES[source.name]))
+        fill(nav, site_nav(product_route(source)))
     previews = None
     for link in document.tree.select("a[href]"):
         name = example_name(link)
@@ -237,6 +559,8 @@ def compose(source: Path, markup: str, *, assets: Path | None = None) -> str:
         fill(nav, key_index())
     for listing in document.tree.select("div.reference-list"):
         fill(listing, key_entries())
+    for listing in document.tree.select("div.schema-list"):
+        fill(listing, SCHEMA_LISTS[listing.attrs["data-schemas"]]())
     for start, end, text in sorted(edits, reverse=True):
         markup = markup[:start] + text + markup[end:]
     return markup

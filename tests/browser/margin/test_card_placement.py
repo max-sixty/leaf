@@ -5,14 +5,12 @@ import re
 from datetime import datetime, timedelta
 
 import pytest
-from leaf import thread as thread_model
-from leaf.render_checks import rendered
+from interact_support import append_carried_log_record
 from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATION_PAGE, PANEL_PAGE, panel_comment
 from render_harness import (
     EXAMPLES,
     PANEL,
-    PANEL_THREAD,
     ROOT,
     holding,
     leaf_page,
@@ -38,6 +36,8 @@ from browser.margin import (
     leave_card_by_its_target,
     resized_shell,
 )
+from leaf import thread as thread_model
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -223,7 +223,7 @@ def test_an_open_card_takes_news_without_moving_its_controls(browser, serve):
     root = panel_comment(
         serve.page_dir, "Make the banner quieter", {"section": "h-how"}
     )
-    address = {"to": root, "for": root}
+    address = {"parent": root, "responds": root}
     thread_model.post_reply(
         serve.page_dir, address, "Reading the banner's styles.", ephemeral=True
     )
@@ -276,7 +276,7 @@ def test_an_open_card_takes_news_without_moving_its_controls(browser, serve):
     )
     told(page)
     notice = preview.locator(".lf-thread-notice-news")
-    expect(notice).to_have_text("1 new update")
+    expect(notice).to_have_text("1 new message")
     expect(words).to_contain_text("before and after the change")
     thread_model.post_reply(
         serve.page_dir,
@@ -344,11 +344,11 @@ def test_a_card_s_head_row_cuts_the_name_before_the_time(browser, serve):
     rendered(page)
     thread_model.post_reply(
         serve.page_dir,
-        {"to": root, "for": root},
+        {"responds": root},
         "The status line can drop one weight.",
     )
     thread_model.post_reply(
-        serve.page_dir, {"to": root}, "And the title the muted ink."
+        serve.page_dir, {"parent": root}, "And the title the muted ink."
     )
     told(page)
     notice = preview.locator(".lf-margin-thread-controls .lf-thread-news")
@@ -370,7 +370,7 @@ def test_a_card_above_its_target_holds_news_it_would_grow_up_for(browser, serve)
     no draft, and shows when the user presses it."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Make the banner quieter", {"section": "m19"})
-    address = {"to": root, "for": root}
+    address = {"parent": root, "responds": root}
     thread_model.post_reply(
         serve.page_dir, address, "Reading the banner's styles.", ephemeral=True
     )
@@ -391,7 +391,7 @@ def test_a_card_above_its_target_holds_news_it_would_grow_up_for(browser, serve)
     )
     told(page)
     notice = preview.locator(".lf-thread-notice-news")
-    expect(notice).to_have_text("1 new update")
+    expect(notice).to_have_text("1 new message")
     rendered(page)
     assert preview.bounding_box() == pytest.approx(opened, abs=0.5)
     notice.click()
@@ -402,17 +402,25 @@ def test_a_card_above_its_target_holds_news_it_would_grow_up_for(browser, serve)
 @pytest.mark.parametrize("how", ["press", "key"])
 def test_a_press_in_the_card_keeps_the_pressed_spot_still(browser, serve, how):
     """What a press shows grows the card from where the user pressed, as a seat on
-    the page grows: opening an answer's progress, by pointer or key, grows the card up
+    the page grows: opening pending progress, by pointer or key, grows the card up
     past the disclosure, which stays where it was pressed. The hold ends with that
     input, so a draft typed next grows the card down from its head row."""
     url = serve(PANEL_PAGE)
     root = panel_comment(
         serve.page_dir, "Make the banner quieter", {"section": "h-how"}
     )
-    address = {"to": root, "for": root}
+    address = {"parent": root, "responds": root}
     for words in ("Comparing the banner.", "Checking both schemes.", "Measuring."):
         thread_model.post_reply(serve.page_dir, address, words, ephemeral=True)
-    thread_model.post_reply(serve.page_dir, address, "Done: the banner is quieter.")
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "user",
+            "parent": root,
+            "text": "And check the dark scheme?",
+        },
+    )
     page = open_page(browser, url)
     resized(page, 1200, 900)
     page.locator(".lf-margin-marker").first.click()
@@ -495,7 +503,8 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     expect(preview).to_be_visible()
     expect(preview).to_have_attribute("aria-label", "Thread for iOS reconnect stall")
     expect(thread.locator(".lf-msg.user").first).to_be_visible()
-    expect(thread.get_by_role("button", name="Open interactive reply")).to_have_count(1)
+    # The card draws the reply's interactive widgets in place.
+    expect(thread.locator("#off-slip-chase [role=checkbox]")).to_be_checked()
     expect(thread.locator(".lf-page-thread")).to_be_focused()
     geometry = marker.evaluate(
         """markerNode => {
@@ -599,22 +608,10 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     expect(preview).to_be_visible()
     expect(thread.locator(".lf-page-thread")).to_be_focused()
 
-    open_full = thread.get_by_role("button", name="Open interactive reply")
-    open_full.focus()
-    expect(open_full).to_be_focused()
-    page.keyboard.press("Enter")
-    # The thread opens in the panel, which draws the reply's interactive widgets.
-    panel_settled(page, view="thread")
-    expect(page.locator(f"{PANEL_THREAD} #off-slip")).to_be_in_viewport()
-    expect(page.locator("#off-slip-chase [role=checkbox]")).to_be_checked()
-    page.locator(".lf-fp-close").click()
-    panel_settled(page, open=False)
-    marker.focus()
-    page.keyboard.press("Enter")
-    expect(preview).to_be_visible()
-    expect(preview.locator(".lf-page-thread")).to_be_focused()
+    expect(thread.locator("#off-slip-chase [role=checkbox]")).to_be_checked()
 
-    resized_shell(page, 1436, 900)
+    # Tall enough for the whole thread, its reply's options drawn in the card.
+    resized_shell(page, 1436, 1000)
     beside = page.evaluate(
         """() => {
           const main = document.querySelector('main').getBoundingClientRect();
@@ -816,7 +813,6 @@ def test_a_focused_thread_covers_the_pages_choice_hints(browser, serve):
         browser, serve(ROOT / "tests/fixtures/pages/thread-choice-hints.html")
     )
     resized(page, 741, 838)
-    page.keyboard.press("Tab")
     page.locator(".lf-margin-marker").first.focus()
     page.keyboard.press("Enter")
     card = page.locator(".lf-margin-preview .lf-page-thread")
@@ -1068,7 +1064,7 @@ def test_the_paint_over_a_target_in_panes_rides_each_panes_scroll(browser, serve
     it (target-paint-geometry.js, `paintStand`). A scroll of either pane writes nothing to
     them and leaves them over the element. Drawn in the document's plane from the
     element's box as the panes cut it, they were rewritten on every scroll step, a frame
-    behind the words. The card's thread marks the element while the user stands in it,
+    behind the words. The card's thread marks the element while the user is located in it,
     and the trace while they stand on its marker."""
     comment = {**COMMENT_ON_OBLIGATION, "anchor": {"section": "pane-sec"}}
     page = open_page(browser, serve(NESTED_PANE_PAGE, events=[comment]))

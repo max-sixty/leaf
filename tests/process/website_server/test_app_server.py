@@ -9,15 +9,17 @@ import subprocess
 import sys
 import threading
 import time
+from pathlib import Path
 from types import SimpleNamespace
 
 import leaf_website as website_server
 import pytest
 from interact_support import STATED_TIMEOUT, Prose, yaml_document
 from interact_support import append_carried_log_record as append_event
+
+from leaf.codex import APP_SERVER_ENV
 from leaf.machine import pid_alive
 from leaf.service import delivery_reply_attempt
-
 from process.website_server import (
     write_manifest,
 )
@@ -156,7 +158,6 @@ def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatc
     monkeypatch.setenv("LEAF_SITE_ROOT", str(site_root))
     harness = website_server.WebsiteCodexHarness(
         "codex",
-        tmp_path / "app-server.sock",
         tmp_path / "app-server.log",
     )
     launched = {}
@@ -178,19 +179,19 @@ def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatc
 
     def popen(command, **options):
         launched.update(command=command, options=options)
-        harness.socket_path.touch()
+        Path(command[3].removeprefix("unix://")).touch()
         return Process()
 
     monkeypatch.setattr(website_server.subprocess, "Popen", popen)
 
     assert harness._ensure_server() is not None
+    harness.close()
     path = launched["options"]["env"]["PATH"].split(os.pathsep)
     assert shutil.which("leaf", path=path[0]) == website_server.LEAF_COMMAND
     assert "LEAF_REPLY" not in launched["options"]["env"]
     assert "LEAF_REPLY_TOKEN" not in launched["options"]["env"]
     assert launched["options"]["cwd"] == str(site_root)
-    assert launched["options"]["env"][website_server.APP_SERVER_ENV] == harness.endpoint
-    assert launched["options"]["env"]["LEAF"] == website_server.LEAF_COMMAND
+    assert launched["options"]["env"][APP_SERVER_ENV] == harness.endpoint
     assert (
         launched["options"]["env"]["LEAF_HOST_LAUNCHER"] == website_server.LEAF_COMMAND
     )
@@ -204,7 +205,7 @@ def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatc
     # run a closing `resolve` and never reply, which `leaf-dev journey website-adapter`
     # caught. The hosted page's sentence comes from the steps App Server watches
     # instead, which the activity fold prefers over Leaf's own claim wording for
-    # exactly this reason. The shared contract describes `leaf status`, so what the
+    # exactly this reason. The shared contract describes `leaf page open`, so what the
     # agent receives has to hand the status to the harness.
     instructions = " ".join(website_server.CODEX_INSTRUCTIONS.split())
     assert "Leave status to the harness" in instructions
@@ -215,7 +216,6 @@ def test_a_timed_out_app_server_is_stopped_before_startup_retries(
 ):
     harness = website_server.WebsiteCodexHarness(
         "codex",
-        tmp_path / "app-server.sock",
         tmp_path / "app-server.log",
     )
     clock = [0.0]
@@ -233,11 +233,11 @@ def test_a_timed_out_app_server_is_stopped_before_startup_retries(
         def wait(self, timeout=None):
             return 0
 
-    def popen(*args, **kwargs):
+    def popen(command, **kwargs):
         process = Process()
         processes.append(process)
         if len(processes) == 2:
-            harness.socket_path.touch()
+            Path(command[3].removeprefix("unix://")).touch()
         return process
 
     monkeypatch.setattr(website_server.subprocess, "Popen", popen)
@@ -248,12 +248,13 @@ def test_a_timed_out_app_server_is_stopped_before_startup_retries(
         lambda seconds: clock.__setitem__(0, clock[0] + 21),
     )
 
-    with pytest.raises(RuntimeError, match="did not become ready"):
+    with pytest.raises(website_server.Refused, match="did not become ready"):
         harness._ensure_server()
 
     assert processes[0].stopped
     assert harness.process is None
     assert harness._ensure_server() is processes[1]
+    harness.close()
 
 
 def test_an_attach_waiting_on_failed_prewarm_retries_startup(page_dir, monkeypatch):
@@ -372,9 +373,7 @@ def test_the_leaf_cli_prewarm_runs_the_installed_command(monkeypatch):
 
 def test_closing_the_website_harness_stops_its_app_server(tmp_path):
     """The harness adapter owns the process it starts, including during local runs."""
-    harness = website_server.WebsiteCodexHarness(
-        "codex", tmp_path / "app-server.sock", tmp_path / "app-server.log"
-    )
+    harness = website_server.WebsiteCodexHarness("codex", tmp_path / "app-server.log")
 
     class Process:
         stopped = False
@@ -389,18 +388,25 @@ def test_closing_the_website_harness_stops_its_app_server(tmp_path):
             return 0
 
     process = Process()
-    harness.process = process
-    harness.socket_path.touch()
 
-    harness.close()
+    def popen(command, **options):
+        Path(command[3].removeprefix("unix://")).touch()
+        return process
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setenv("LEAF_SITE_ROOT", str(tmp_path))
+        patch.setattr(website_server.subprocess, "Popen", popen)
+        assert harness._ensure_server() is process
+        socket_path = Path(harness.endpoint.removeprefix("unix://"))
+        harness.close()
 
     assert process.stopped
     assert harness.process is None
-    assert not harness.socket_path.exists()
+    assert not socket_path.exists()
 
 
 def test_the_adapter_takes_its_app_server_with_it_when_it_is_told_to_stop(
-    tmp_path, socket_dir, spawn
+    tmp_path, spawn
 ):
     """The stop signal reaches the App Server, not only the adapter that started it.
 
@@ -413,7 +419,7 @@ def test_the_adapter_takes_its_app_server_with_it_when_it_is_told_to_stop(
 
     The whole adapter runs here, with a stand-in for the App Server itself: the fault
     was in how this process dies, so uvicorn's signal handling, the handler beneath
-    it, and the real `_stop_server` are the parts that have to be real.
+    it, and the shared process owner are the parts that have to be real.
     """
     site = tmp_path / "site"
     site.mkdir()
@@ -446,7 +452,7 @@ import leaf_website as module
 
 original_harness = module.WebsiteCodexHarness
 module.WebsiteCodexHarness = lambda: original_harness(
-    {str(codex)!r}, Path({str(socket_dir / "app-server.sock")!r}),
+    {str(codex)!r},
     Path({str(tmp_path / "app-server.log")!r}),
 )
 module.main(["--port", "0"])
@@ -478,15 +484,3 @@ module.main(["--port", "0"])
             "the App Server outlived the adapter that started it"
         )
         time.sleep(0.05)
-    assert not (socket_dir / "app-server.sock").exists()
-
-
-def test_closing_a_harness_that_started_no_server_preserves_the_shared_socket(tmp_path):
-    """A passive harness does not own another harness's process-global files."""
-    socket_path = tmp_path / "app-server.sock"
-    socket_path.touch()
-    harness = website_server.WebsiteCodexHarness("codex", socket_path)
-
-    harness.close()
-
-    assert socket_path.exists()

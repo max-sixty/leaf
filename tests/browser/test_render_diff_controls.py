@@ -1,12 +1,12 @@
 """Diff controls share canonical fields and preserve the compact source reader."""
 
+import re
 from html import escape
 
 import pytest
-from leaf import data as data_model
-from leaf.render_checks import one_frame, rendered
 from leaf_dev.example_data import patch_manifest
 from playwright.sync_api import expect
+from render_cases_interaction import live_url
 from render_harness import (
     consume_browser_errors,
     holding,
@@ -14,16 +14,441 @@ from render_harness import (
     open_page,
     reported_browser_errors,
     resized,
+    scroll_settled,
     sending,
+    told,
 )
+
+from leaf import data as data_model
+from leaf.render_checks import one_frame, rendered, wait_until_ready
+
+
+def test_worktree_disclosures_keep_diff_reading_state_and_unknown_totals(
+    browser, serve
+):
+    """Several worktrees stay open independently, retaining each nested reader.
+
+    Missing evidence remains visibly unknown beside known totals; neither an empty
+    collection nor a fifth member needs a different browsing surface. A revision to a
+    row's evidence edits it in place, and one that rebuilds the rows reopens each the
+    reader opened.
+    """
+    head = "1234567890abcdef1234567890abcdef12345678"
+    patch = "".join(
+        f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
+        "@@ -1 +1 @@\n-old\n+new\n"
+        for path in ("app.py", "tests.py")
+    )
+    page = open_page(
+        browser,
+        live_url(
+            serve(
+                leaf_page(
+                    "Review worktrees",
+                    '<h1>Review worktrees</h1><lf-worktree-diffs id="trees">'
+                    '<lf-worktree id="drafts" label="retain-drafts" '
+                    'branch="codex/retain-drafts" path="/workspace/leaf.retain-drafts" '
+                    f'head="{head}" status="changed" files="2" additions="2" deletions="2" open>'
+                    "<p>Keep reply drafts keyed by thread</p>"
+                    "<aside>Drafts survive changing the selected thread.</aside>"
+                    "<details><summary>Snapshot details</summary>"
+                    f"<p>Current commit <code>{head}</code></p></details>"
+                    f'<lf-diff id="patch"><pre>{escape(patch)}</pre></lf-diff>'
+                    '</lf-worktree><lf-worktree id="missing" label="missing checkout" '
+                    'path="/workspace/missing" status="unavailable">'
+                    "<p>The supplied checkout could not be read.</p></lf-worktree>"
+                    + "".join(
+                        f'<lf-worktree id="clean-{index}" label="clean {index}" '
+                        f'path="/workspace/clean-{index}" status="clean" files="0" '
+                        f'additions="0" deletions="0">'
+                        "<p>No changes.</p></lf-worktree>"
+                        for index in range(3)
+                    )
+                    + '</lf-worktree-diffs><lf-worktree-diffs id="empty"></lf-worktree-diffs>'
+                    '<lf-file-tree id="files" for="patch"></lf-file-tree>',
+                ),
+                packages=("diff", "file-tree"),
+            )
+        ),
+    )
+    overview = page.locator("#trees > .lf-worktree-overview")
+    expect(overview).to_contain_text("5 worktrees")
+    expect(overview).to_contain_text("2 files")
+    expect(overview).to_contain_text("+2")
+    expect(overview).to_contain_text("−2")
+    expect(overview).to_contain_text("1 unavailable")
+    expect(page.locator("#empty").get_by_text("No worktrees supplied")).to_be_visible()
+    expect(
+        page.locator("#empty").get_by_text("0 files", exact=True)
+    ).not_to_be_visible()
+
+    row = page.locator("#drafts > details")
+    summary = row.locator(":scope > summary")
+    expect(row).to_contain_text("/workspace/leaf.retain-drafts")
+    expect(summary).to_contain_text(head[:8])
+    snapshot = row.locator(
+        "details", has=page.get_by_text("Snapshot details", exact=True)
+    )
+    snapshot.locator("summary").click()
+    expect(snapshot.locator("code")).to_have_text(head)
+    diff = page.locator("#patch")
+    search = diff.get_by_label("Filter diff files")
+    search.fill("app.py")
+    file_summary = diff.locator("summary").filter(has_text="app.py")
+    file_summary.click()
+    expect(file_summary.locator("..")).not_to_have_attribute("open")
+
+    summary.click()
+    expect(search).not_to_be_visible()
+    # Tab reaches the next worktree; Enter opens it independently of the first.
+    page.keyboard.press("Tab")
+    missing_summary = page.locator("#missing > details > summary")
+    expect(missing_summary).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(page.get_by_text("The supplied checkout could not be read.")).to_be_visible()
+    expect(missing_summary).to_contain_text("Unavailable")
+    expect(missing_summary).not_to_contain_text("0 files")
+    expect(missing_summary).not_to_contain_text("+0")
+
+    summary.click()
+    expect(search).to_have_value("app.py")
+    expect(file_summary.locator("..")).not_to_have_attribute("open")
+    expect(snapshot.locator("code")).to_be_visible()
+    expect(page.get_by_text("The supplied checkout could not be read.")).to_be_visible()
+    # Editing both the active row and its sibling retains nested reading state, even
+    # where the edit changes the evidence's own elements: the row reads none of them.
+    source = serve.page_dir / "index.html"
+    source.write_text(
+        source.read_text()
+        .replace(
+            "The supplied checkout could not be read.",
+            "The supplied checkout is temporarily unavailable.",
+        )
+        .replace(
+            "Keep reply drafts keyed by thread",
+            "Keep reply drafts safely keyed by thread",
+        )
+        .replace("<aside>", '<aside title="Agent commentary">')
+    )
+    told(page)
+    expect(
+        page.get_by_text("The supplied checkout is temporarily unavailable.")
+    ).to_be_visible()
+    expect(page.get_by_text("Keep reply drafts safely keyed by thread")).to_be_visible()
+    expect(row.locator("aside")).to_have_attribute("title", "Agent commentary")
+    expect(search).to_have_value("app.py")
+    expect(file_summary.locator("..")).not_to_have_attribute("open")
+    expect(snapshot.locator("code")).to_be_visible()
+    file_summary.click()
+    expect(diff.locator("[data-line]:visible").filter(has_text="new")).to_be_visible()
+    fifth_summary = page.locator("#clean-2 > details > summary")
+    fifth_summary.click()
+    expect(page.locator("#clean-2").get_by_text("No changes.")).to_be_visible()
+    # A related navigator must reveal the worktree around its destination too.
+    summary.click()
+    expect(row).not_to_have_attribute("open")
+    page.locator("#files").get_by_role("treeitem", name="app.py", exact=True).click()
+    expect(row).to_have_attribute("open", "")
+    expect(diff.locator("[data-line]:visible").filter(has_text="new")).to_be_visible()
+    # A changed snapshot attribute rebuilds the rows; each keeps the reader's choice,
+    # whether it closed an authored-open row or opened a closed one.
+    summary.click()
+    expect(row).not_to_have_attribute("open")
+    source.write_text(
+        source.read_text().replace(
+            'path="/workspace/missing"', 'path="/workspace/gone"'
+        )
+    )
+    told(page)
+    expect(page.locator("#missing")).to_contain_text("/workspace/gone")
+    expect(row).not_to_have_attribute("open")
+    expect(
+        page.get_by_text("The supplied checkout is temporarily unavailable.")
+    ).to_be_visible()
+    expect(page.locator("#clean-2").get_by_text("No changes.")).to_be_visible()
+
+
+def test_a_visible_datum_takes_over_pending_thread_motion(browser, serve):
+    """Readable geometry before a glide starts is no promise of a final landing."""
+    url = serve(
+        leaf_page(
+            "Datum arrival",
+            '<h1>Review</h1><lf-file-tree id="files" for="patch"></lf-file-tree>'
+            '<lf-diff id="patch" source="change"><pre></pre></lf-diff>'
+            '<p style="min-height:2000px">Context</p><p id="far">Far thread.</p>',
+        ),
+        anchored=[("far", "Far thread.")],
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "change",
+        patch_manifest(
+            "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
+            "@@ -1 +1 @@\n-old\n+new\n"
+        ),
+    )
+    page = open_page(browser, url)
+    datum = page.locator('lf-diff [data-lf-datum=\'["app.py","new",1]\']')
+    expect(datum).to_be_in_viewport()
+    page.locator("h1").click()
+    page.evaluate("""async () => {
+      const {navigateToDatum} = await window.__lfWidgetApi();
+      const scrollBy = Element.prototype.scrollBy;
+      Element.prototype.scrollBy = function(options) {
+        const result = scrollBy.call(this, options);
+        if (this === document.scrollingElement && options.behavior === 'smooth') {
+          Element.prototype.scrollBy = scrollBy;
+          queueMicrotask(async () => {
+            window.datumArrived = await navigateToDatum(document.querySelector('#files'),
+              'for', '["app.py","new",1]');
+          });
+        }
+        return result;
+      };
+    }""")
+    page.keyboard.press("t")
+    page.wait_for_function("window.datumArrived !== undefined")
+    assert page.evaluate("datumArrived")
+    scroll_settled(page)
+    expect(datum).to_be_focused()
+    box = datum.bounding_box()
+    assert 0 <= box["y"] < box["y"] + box["height"] <= page.viewport_size["height"]
+
+
+@pytest.mark.parametrize("view", ["patch", "file"])
+def test_file_tree_opens_current_diff_files_by_pointer_and_keyboard(
+    browser, serve, view
+):
+    """A separately mounted navigator follows a diff's output and travels through
+    the ordinary datum route, including reactivation and updated source evidence."""
+
+    def patch(path, value):
+        return (
+            f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
+            f"@@ -1 +1 @@\n-old\n+{value}\n"
+        )
+
+    url = serve(
+        leaf_page(
+            "Browse patch files",
+            "<h1>Review the importer</h1>"
+            '<lf-file-tree id="files" for="patch" data-height="250"></lf-file-tree>'
+            f'<lf-diff id="patch" source="change" view="{view}" collapsed><pre></pre></lf-diff>',
+        )
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "change",
+        patch_manifest(
+            patch("src/importer.py", "keep_names = True")
+            + patch("tests/importer.py", "assert keep_names")
+        ),
+    )
+    page = open_page(browser, url)
+    tree = page.locator("#files")
+    row = tree.get_by_role("treeitem", name=re.compile(r"importer\.py")).first
+    expect(row).to_be_visible()
+    folds = page.locator("#patch .lf-diff-fold")
+    if view == "patch":
+        expect(folds.first).not_to_have_attribute("open", "")
+    else:
+        expect(page.locator("#patch .lf-diff-search")).to_have_count(0)
+        expect(folds.first).to_have_attribute("open", "")
+    # Search narrows the navigator until a file is opened.
+    search = tree.get_by_role("textbox")
+    search.fill("importer")
+    row.click()
+    expect(search).to_have_value("")
+    expect(search).to_be_focused()
+    expect(folds.first).to_have_attribute("open", "")
+    expect(folds.first.locator("pre")).to_contain_text("keep_names = True")
+    # The same selected file still has an activation route after its patch closes.
+    folds.first.locator("summary").click()
+    row.click()
+    expect(folds.first).to_have_attribute("open", "")
+    # A released pointer activation keeps this navigator's keyboard ownership.
+    # The tree's folders remain part of its ordinary arrow-key traversal.
+    expect(row).to_be_focused()
+    search.fill("")
+    search.press("Tab")
+    expect(row).to_be_focused()
+    folder = tree.get_by_role("treeitem", name="src", exact=True)
+    page.keyboard.press("ArrowLeft")
+    expect(folder).to_be_focused()
+    page.keyboard.press("ArrowLeft")
+    expect(folder).to_have_attribute("aria-expanded", "false")
+    page.keyboard.press("ArrowRight")
+    expect(folder).to_have_attribute("aria-expanded", "true")
+    page.keyboard.press("ArrowDown")
+    expect(row).to_be_focused()
+    page.keyboard.press("ArrowDown")
+    expect(tree.get_by_role("treeitem", name="tests", exact=True)).to_be_focused()
+    page.keyboard.press("ArrowDown")
+    other = tree.get_by_role("treeitem", name=re.compile(r"importer\.py")).last
+    expect(other).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(folds.last).to_have_attribute("open", "")
+    expect(folds.last.locator("pre")).to_contain_text("assert keep_names")
+    expect(other).to_be_focused()
+    if view == "file":
+        expect(folds.first).not_to_be_visible()
+        expect(folds.last).to_be_visible()
+        expect(other).to_have_attribute("aria-selected", "true")
+        # Trees confirms a search match onto its row; the row opens its file.
+        for path, visible in [
+            ("src/importer.py", folds.first),
+            ("tests/importer.py", folds.last),
+        ]:
+            search.fill(path)
+            search.press("ArrowDown")
+            search.press("Enter")
+            expect(search).to_have_value("")
+            expect(tree.locator(f'[data-item-path="{path}"]')).to_be_focused()
+            page.keyboard.press("Enter")
+            expect(visible).to_be_visible()
+        folds.last.locator("summary").press("{")
+        expect(folds.first).to_be_visible()
+        expect(folds.last).not_to_be_visible()
+        expect(row).to_have_attribute("aria-selected", "true")
+        expect(other).to_have_attribute("aria-selected", "false")
+        # Reading new evidence does not take ownership of a selection made while
+        # that read is in flight. Hold one boundary to make the ordering exact.
+        page.evaluate("""() => {
+          const diff = document.getElementById('patch');
+          const readEntry = diff.readEntry.bind(diff);
+          const held = new Promise(resolve => window.releaseEvidence = resolve);
+          diff.readEntry = async (...args) => {
+            window.evidenceHeld = true;
+            await held;
+            return readEntry(...args);
+          };
+        }""")
+        data_model.cmd_data_set(
+            serve.page_dir,
+            "change",
+            patch_manifest(
+                patch("src/importer.py", "new_names = True")
+                + patch("tests/importer.py", "assert new_names")
+            ),
+        )
+        page.wait_for_function("window.evidenceHeld === true")
+        folds.first.locator("summary").press("}")
+        page.evaluate("window.releaseEvidence()")
+        expect(folds.last.locator("pre")).to_contain_text("assert new_names")
+        expect(folds.last).to_be_visible()
+        expect(folds.first).not_to_be_visible()
+        expect(other).to_have_attribute("aria-selected", "true")
+        expect(row).to_have_attribute("aria-selected", "false")
+    search.fill("")
+    # A source update replaces the producer inventory, rather than leaving stale rows.
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "change",
+        patch_manifest(patch("src/reader.py", "preserve_case = True")),
+    )
+    next_row = tree.get_by_role("treeitem", name=re.compile(r"reader\.py"))
+    expect(next_row).to_be_visible()
+    expect(
+        tree.get_by_role("treeitem", name=re.compile(r"importer\.py"))
+    ).to_have_count(0)
+    next_row.click()
+    expect(page.locator("#patch pre")).to_contain_text("preserve_case = True")
+    # Clearing the input clears the derived inventory too.
+    data_model.cmd_data_clear(serve.page_dir, "change")
+    expect(tree.get_by_role("treeitem")).to_have_count(0)
+
+
+def test_file_tree_lands_at_the_file_start_in_a_scrolled_patch_pane(browser, serve):
+    """Choosing another file, or returning to the current one, starts its evidence
+    below the pane header rather than preserving or centering a mid-file offset."""
+
+    def patch(path):
+        return (
+            f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
+            "@@ -1,100 +1,100 @@\n"
+            + "".join(f"-old line {line}\n+new line {line}\n" for line in range(100))
+        )
+
+    url = serve(
+        leaf_page(
+            "Navigate a long patch",
+            '<header><h1>Review two long files</h1></header><div id="regions">'
+            '<lf-pane id="files-pane" label="Files"><header>Files</header>'
+            '<lf-file-tree id="files" for="patch"></lf-file-tree></lf-pane>'
+            '<lf-pane id="patch-pane" label="Patch"><header>Patch</header>'
+            '<div id="evidence"><p>Inspect the changes in each file.</p>'
+            '<lf-diff id="patch" source="change" view="file"><pre></pre></lf-diff>'
+            "</div></lf-pane></div>",
+            head="""<style>
+              #regions { display:grid; grid-template-columns:240px minmax(0,1fr); }
+              #files { --lf-pane-top:0px; margin:0; padding:0; }
+              #patch { margin:0; }
+            </style>""",
+            layout="workspace",
+        )
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "change",
+        patch_manifest(patch("first.md") + patch("second.md")),
+    )
+    context = browser.new_context(viewport={"width": 810, "height": 990})
+    page = open_page(browser, url, context=context)
+    tree = page.locator("#files")
+    evidence = page.locator("#evidence")
+    visible = page.locator("#patch .lf-diff-fold:visible")
+    expect(visible).to_contain_text("first.md")
+    tree_box = tree.bounding_box()
+    pane = page.locator("#files-pane")
+    pane_box = pane.bounding_box()
+    border = pane.evaluate(
+        "node => parseFloat(getComputedStyle(node).borderBottomWidth)"
+    )
+    assert tree_box["y"] + tree_box["height"] == pytest.approx(
+        pane_box["y"] + pane_box["height"] - border, abs=0.5
+    ), "the navigator must fill the pane without an authored height override"
+    second = tree.get_by_role("treeitem", name="second.md", exact=True)
+
+    def scroll_into_file():
+        evidence.hover()
+        page.mouse.wheel(0, 900)
+        page.wait_for_function("document.getElementById('evidence').scrollTop > 400")
+
+    def starts_below_header():
+        page.wait_for_function("""() => {
+          const body = document.getElementById('evidence');
+          const fold = [...document.getElementById('patch').shadowRoot
+            .querySelectorAll('.lf-diff-fold')].find(node => node.checkVisibility());
+          const summary = fold?.querySelector('summary');
+          const firstLine = fold?.querySelector('.lf-diff-line > [data-line]');
+          if (!summary || !firstLine?.textContent.includes('old line 0')) return false;
+          const top = summary.getBoundingClientRect().top;
+          const edge = body.getBoundingClientRect().top + body.clientTop;
+          const padding = parseFloat(getComputedStyle(body).paddingTop);
+          const line = firstLine.getBoundingClientRect();
+          return top >= edge - 1 && top <= edge + padding + 4
+            && line.top >= summary.getBoundingClientRect().bottom - 1
+            && line.bottom <= body.getBoundingClientRect().bottom;
+        }""")
+
+    scroll_into_file()
+    second.click()
+    expect(visible).to_contain_text("second.md")
+    starts_below_header()
+    expect(second).to_be_focused()
+    # A file already selected still has a route back to the start after reading down.
+    scroll_into_file()
+    second.click()
+    starts_below_header()
+    expect(second).to_be_focused()
 
 
 @pytest.mark.parametrize("bound", [False, True], ids=["inline", "bound"])
 def test_a_patch_that_failed_stays_failed_when_its_diff_returns(browser, serve, bound):
     """A refusal stands while its patch is unchanged: a diff that leaves the page and
     returns, as document reconciliation moves it, renders its patch again only when
-    the departure cut that rendering short, and does not tell the author twice. A bound
-    patch returns through its data subscription, an inline one through the widget."""
+    the departure cut that rendering short, and does not tell the author twice.
+    Both inline and bound patches use the widget's render lifecycle."""
     one = "diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n-x\n+y\n"
     diff = (
         '<lf-diff id="d-bad" source="bad-patch"><pre></pre></lf-diff>'
@@ -49,6 +474,47 @@ def test_a_patch_that_failed_stays_failed_when_its_diff_returns(browser, serve, 
     assert returned, "the returning diff rendered its refused patch again"
     errors = consume_browser_errors(page, '<lf-diff id="d-bad"> failed: ')
     assert len(errors) == 1, errors
+
+
+def test_an_inline_patch_resumes_preparation_on_return_and_keeps_its_finished_rows(
+    browser, serve
+):
+    """A departure cuts short preparation, but a settled return keeps its native rows."""
+    patch = "diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n-old\n+new\n"
+    url = serve(
+        leaf_page("Returning diff", f'<lf-diff id="patch"><pre>{patch}</pre></lf-diff>')
+    )
+    page = browser.new_page()
+    held = []
+    page.route("**/vendor/pierre-parser.esm.js", lambda route: held.append(route))
+    page.goto(url)
+    holding(page, held, 1, "the inline patch parser")
+    page.evaluate("""async () => {
+        const diff = document.getElementById('patch');
+        const parent = diff.parentNode;
+        const next = diff.nextSibling;
+        diff.remove();
+        // Cross the departure task boundary; preparation stays held by the route.
+        await new Promise((resolve) => setTimeout(resolve));
+        parent.insertBefore(diff, next);
+        await diff.updateComplete;
+    }""")
+    held[0].continue_()
+    wait_until_ready(page)
+    expect(page.locator("#patch [data-line]").last).to_contain_text("new")
+    assert page.evaluate("""async () => {
+        const diff = document.getElementById('patch');
+        const row = diff.shadowRoot.querySelector('[data-line]');
+        const parent = diff.parentNode;
+        const next = diff.nextSibling;
+        diff.remove();
+        // A separate task makes this a departure and return, not an in-page move.
+        await new Promise((resolve) => setTimeout(resolve));
+        parent.insertBefore(diff, next);
+        await diff.updateComplete;
+        await diff.sourceRendering;
+        return row !== null && row === diff.shadowRoot.querySelector('[data-line]');
+    }"""), "a completed inline patch replaced its rows on return"
 
 
 def test_an_expanded_diff_file_can_retry_its_failed_chunk_in_place(browser, serve):
@@ -505,6 +971,17 @@ def test_resolved_file_threads_share_the_file_disclosure_edge(browser, serve):
         ), geometry
         assert geometry["file"]["size"] == geometry["resolved"]["size"], geometry
         assert geometry["file"]["content"] == geometry["resolved"]["content"], geometry
+    # Paper has nothing to turn, so neither row draws its marker there.
+    page.emulate_media(media="print")
+    printed = summary.evaluate("""summary => [
+      summary.closest('.lf-diff-file').querySelector(':scope > details > summary'),
+      summary,
+    ].map(node => {
+      const arrow = getComputedStyle(node, '::before');
+      return arrow.display === 'none' || arrow.visibility === 'hidden';
+    })""")
+    assert printed == [True, True], printed
+    page.emulate_media(media="screen")
     summary.click()
     expect(thread).to_be_visible()
     reopen = thread.get_by_role("button", name="Reopen", exact=True)
@@ -680,3 +1157,185 @@ def test_a_live_line_reply_wraps_without_resize_observer_feedback(
     expect(outlet).to_be_visible()
     rendered(page)
     assert outlet.bounding_box()["width"] <= code.bounding_box()["width"]
+
+
+def test_file_tree_reads_standalone_data_without_a_diff_package(browser, serve):
+    """The optional tree consumes a path list on its own and retains its mounted
+    navigation when an unrelated data value changes."""
+    url = serve(
+        leaf_page(
+            "Explore project files",
+            "<h1>Project files</h1>"
+            '<a href="#project-files">Back to files</a>'
+            '<lf-file-tree id="project-files" source="project" '
+            'data-height="280"></lf-file-tree>',
+            head="<style>#project-files { --lf-file-tree-height:280px; }</style>",
+        ),
+        packages=("file-tree",),
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "project",
+        {
+            "files": [
+                {"path": "README.md"},
+                {"path": "src/main.py", "status": "added"},
+            ],
+        },
+    )
+    page = open_page(browser, url)
+    tree = page.locator("#project-files")
+    assert tree.bounding_box()["height"] == 280, "flow keeps the authored height"
+    row = tree.get_by_role("treeitem", name=re.compile(r"README\.md"))
+    expect(row).to_be_visible()
+    row.click()
+    expect(row).to_have_attribute("aria-selected", "true")
+    page.keyboard.press("c")
+    expect(page.locator(".lf-composer leaf-text")).to_be_focused()
+    page.keyboard.press("Escape")
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "project",
+        {
+            "files": [
+                {"path": "README.md", "status": "modified"},
+                {"path": "src/main.py"},
+            ],
+        },
+    )
+    expect(row).to_have_attribute("aria-selected", "true")
+    search = tree.get_by_role("textbox")
+    page.get_by_role("link", name="Back to files").click()
+    expect(search).to_be_focused()
+    search.fill("main")
+    expect(tree.get_by_role("treeitem", name=re.compile(r"README\.md"))).to_have_count(
+        0
+    )
+    search.fill("no-such-file")
+    expect(tree.get_by_role("treeitem")).to_have_count(0)
+    expect(tree).to_contain_text("No matching files.")
+    search.fill("")
+    expect(row).to_be_visible()
+    search.fill("main")
+    search.press("Escape")
+    expect(search).to_have_value("")
+
+
+@pytest.mark.shifts_unsurveyed  # The test explicitly scrubs native CSS transitions.
+@pytest.mark.parametrize("kind", ["call", "file"])
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_evidence_close_folds_room_but_retires_controls_immediately(
+    request, serve, kind, engine
+):
+    """Closed evidence retires controls at once; every reopening reaches full size."""
+    from render_cases_navigation import call_diff, call_node
+
+    tag = "lf-call-diff" if kind == "call" else "lf-diff"
+    attributes = 'diff="patch"' if kind == "call" else ""
+    body = "" if kind == "call" else "<pre></pre>"
+    extra = (
+        '<lf-diff id="patch" source="patch-data" collapsed><pre></pre></lf-diff>'
+        if kind == "call"
+        else ""
+    )
+    url = serve(
+        leaf_page(
+            "Fold evidence",
+            f'<h1>Review</h1><div style="height:1100px"></div><{tag} id="evidence" source="change" {attributes}>{body}</{tag}>'
+            '<button id="after">Continue review</button>' + extra,
+        ),
+        packages=("diff",),
+    )
+    content = (
+        call_diff(
+            call_node("root", children=[call_node(f"step {i}") for i in range(12)])
+        )
+        if kind == "call"
+        else patch_manifest(
+            "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n@@ -1,12 +1,12 @@\n"
+            + "".join(f"-old{i}\n+new{i}\n" for i in range(12))
+        )
+    )
+    data_model.cmd_data_set(serve.page_dir, "change", content)
+    if kind == "call":
+        data_model.cmd_data_set(
+            serve.page_dir,
+            "patch-data",
+            patch_manifest(
+                "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n@@ -1 +1 @@\n-old\n+new\n"
+            ),
+        )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.emulate_media(reduced_motion="no-preference")
+    details = page.locator("#evidence details").first
+    summary = details.locator("summary")
+    expect(summary).to_be_visible()
+    # Interactive evidence can be supplied by another package. Keep a positive
+    # focus control before proving that the closing boundary retires it.
+    details.evaluate("""d => {
+      const b = document.createElement('button');
+      b.textContent = 'Inspect evidence';
+      d.append(b);
+      d.style.setProperty('--lf-motion-fold', '1000000s');
+      d.classList.add('held-evidence');
+      const style = document.createElement('style');
+      style.textContent = '.held-evidence:not([open])::details-content {transition-delay:-500000s}';
+      const root = d.getRootNode();
+      (root.head || root).append(style);
+    }""")
+    inside = details.locator("button", has_text="Inspect evidence")
+    inside.focus()
+    expect(inside).to_be_focused()
+
+    def height():
+        return details.evaluate("d=>d.getBoundingClientRect().height")
+
+    page.evaluate("scrollTo(0, document.documentElement.scrollHeight)")
+    scroll_settled(page)
+    full = height()
+    animated = page.evaluate("""() =>
+      CSS.supports('block-size', 'calc-size(auto, size)') &&
+      CSS.supports('interactivity', 'inert')""")
+    summary.click()
+    expect(details).not_to_have_attribute("open")
+    # Native details transitions live in the UA shadow tree, outside getAnimations.
+    # Stretch their real CSS timeline around its halfway point to inspect a stable
+    # intermediate frame without intercepting or rebuilding the animation.
+    page.evaluate("() => new Promise(requestAnimationFrame)")
+    middle = height()
+    assert middle < full
+    # A painted closing body is already outside focus and Tab access.
+    inside.evaluate("b => b.focus()")
+    expect(inside).not_to_be_focused()
+    page.keyboard.press("Tab")
+    expect(page.locator("#after")).to_be_focused()
+    # Reopening a partially folded body snaps to its ordinary complete geometry.
+    summary.click()
+    assert details.evaluate("d=>d.open")
+    assert height() == pytest.approx(full, abs=1)
+    summary.press("Enter")
+    assert not details.evaluate("d=>d.open")
+    closed = height()
+    assert closed < full
+    if animated:
+        assert middle > closed + 1
+    assert (
+        details.evaluate(
+            "d => getComputedStyle(d, '::details-content').contentVisibility"
+        )
+        == "hidden"
+    )
+    summary.press("Enter")
+    assert height() == pytest.approx(full, abs=1)
+    page.emulate_media(reduced_motion="reduce")
+    summary.click()
+    assert not details.evaluate("d=>d.open")
+    assert height() < full
+    assert (
+        details.evaluate(
+            "d => getComputedStyle(d, '::details-content').contentVisibility"
+        )
+        == "hidden"
+    )
+    details.evaluate("d => d.open = true")
+    assert height() == pytest.approx(full, abs=1)

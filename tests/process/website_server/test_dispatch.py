@@ -9,8 +9,18 @@ from types import SimpleNamespace
 
 import leaf_website as website_server
 import pytest
-from interact_support import STATED_TIMEOUT, refused_on, running_http_server, wait_for
+from conftest import app_server_message_error
+from interact_support import (
+    STATED_TIMEOUT,
+    activity_reading,
+    refused_on,
+    running_http_server,
+    status_and_stream,
+    wait_for,
+)
 from interact_support import append_carried_log_record as append_event
+from websockets.exceptions import ConnectionClosedError
+
 from leaf import codex as leaf_codex
 from leaf.codex import AppServerRequestRejected, delivery_records
 from leaf.event_log import read_events
@@ -18,8 +28,6 @@ from leaf.hosting import LeafHTTPServer
 from leaf.refusals import Refused
 from leaf.state import session_record
 from leaf.thread import post_reply
-from websockets.exceptions import ConnectionClosedError
-
 from process.website_server import (
     FakeCodexHarness,
     accept_in_turn,
@@ -34,7 +42,6 @@ def test_the_website_harness_delivers_into_the_existing_codex_thread(
 ):
     harness = website_server.WebsiteCodexHarness(
         "codex",
-        tmp_path / "app-server.sock",
         tmp_path / "app-server.log",
     )
     process = type("Process", (), {"pid": 41})()
@@ -93,8 +100,8 @@ def test_the_website_harness_delivers_into_the_existing_codex_thread(
                                 "answer": {
                                     "kind": "reply",
                                     "writer": "turn",
-                                    "to": "user-event",
-                                    "for": "user-event",
+                                    "parent": "user-event",
+                                    "responds": "user-event",
                                     "attempt": "leaf-delivery-1",
                                 },
                             }
@@ -174,7 +181,11 @@ def test_an_active_thread_has_its_unwatched_turn_stopped_before_the_next_starts(
                     "method": "turn/completed",
                     "params": {
                         "threadId": "hosted-thread",
-                        "turn": {"id": "active-turn", "status": "interrupted"},
+                        "turn": {
+                            "id": "active-turn",
+                            "status": "interrupted",
+                            "items": [],
+                        },
                     },
                 }
             )
@@ -188,7 +199,12 @@ def test_an_active_thread_has_its_unwatched_turn_stopped_before_the_next_starts(
     def request(resources, method, params):
         return (
             Socket(),
-            {"thread": {"id": "hosted-thread", "status": {"type": "active"}}},
+            {
+                "thread": {
+                    "id": "hosted-thread",
+                    "status": {"type": "active", "activeFlags": []},
+                }
+            },
             [],
         )
 
@@ -204,6 +220,10 @@ def test_an_active_thread_has_its_unwatched_turn_stopped_before_the_next_starts(
     )
     assert [method for method, _ in sent] == ["turn/interrupt", "turn/start"]
     assert sent[0][1] == {"threadId": "hosted-thread", "turnId": ""}
+    for method, params in sent:
+        request = {"method": method, "id": 0, "params": params}
+        assert app_server_message_error(request, "Client") is None
+    assert app_server_message_error(json.loads(Socket().recv(1)), "Server") is None
     assert sent[1][1]["clientUserMessageId"]
     [(_, queue)] = delivery_records("hosted-thread")
     assert queue.state == "offering"
@@ -346,9 +366,9 @@ def test_a_thread_opened_during_a_hosted_turn_is_named_as_it_is_dispatched(
     )
     requests = []
 
-    def app_server_title(endpoint, model):
+    def app_server_title(endpoint):
         def generate(request, target):
-            requests.append((endpoint, model, request))
+            requests.append((endpoint, request))
             return {"title": "Export speed"}
 
         return generate
@@ -362,8 +382,8 @@ def test_a_thread_opened_during_a_hosted_turn_is_named_as_it_is_dispatched(
             failure="the thread was never named",
         )
         assert (title["thread"], title["title"]) == (comment["id"], "Export speed")
-        [(endpoint, model, request)] = requests
-        assert (endpoint, model) == (harness.endpoint, website_server.HOSTED_MODEL)
+        [(endpoint, request)] = requests
+        assert endpoint == harness.endpoint
         assert "Why is the export slow?" in request
 
         def resume_and_start(target, thread_id, process, event_id):
@@ -541,7 +561,7 @@ def test_a_start_that_names_no_turn_gives_the_user_their_message_back(
         with pytest.raises(Refused) as refused:
             post_reply(
                 page_dir,
-                {"to": comment["id"], "for": comment["id"]},
+                {"parent": comment["id"], "responds": comment["id"]},
                 "Competing tool reply",
                 identity={"agent": "Codex", "session": "hosted-thread"},
             )
@@ -570,7 +590,7 @@ def test_a_start_that_names_no_turn_gives_the_user_their_message_back(
     assert delivery_records("hosted-thread") == []
     assert competing_writer_rejected == [True]
     assert website_server.page_claim(page_dir) is None
-    activity = website_server.full_state(page_dir, read_events(page_dir))["activity"]
+    activity = activity_reading(page_dir)
     assert activity["observed_kind"] is None
     assert [item["stage"] for item in activity["obligations"]] == ["sent"]
     # The reply reservation is released, so the Worker's own receipt reaches the user.
@@ -655,7 +675,7 @@ def test_an_acknowledged_start_answers_a_user_with_no_turn_started_notification(
     )
     follow.follow()
     events = read_events(page_dir)
-    activity = website_server.full_state(page_dir, events)["activity"]
+    activity = activity_reading(page_dir)
     harness.close()
 
     [reply] = [event for event in events if event["kind"] == "reply"]
@@ -723,7 +743,7 @@ def test_hosted_start_retains_its_admitted_epoch_until_it_begins(
             page.take_claim(
                 website_server.website_harness("hosted-thread", os.getpid())
             )
-            page.set_status("waiting", "New epoch")
+            page.set_status("waiting")
         current = session_record("hosted-thread")
         leaf_codex.set_stream_activity(
             "hosted-thread",
@@ -732,7 +752,7 @@ def test_hosted_start_retains_its_admitted_epoch_until_it_begins(
             expected=current,
         )
         winner["epoch"] = current
-        winner["status"] = website_server.PageTransaction(page_dir).status
+        winner["status"] = status_and_stream(page_dir)
 
     monkeypatch.setattr(website_server, "log_agent", competing_work)
     try:
@@ -743,6 +763,6 @@ def test_hosted_start_retains_its_admitted_epoch_until_it_begins(
             old.begin()
         old.close({"id": "started-turn", "status": "completed", "items": []}, None)
         assert session_record("hosted-thread") == winner["epoch"]
-        assert website_server.PageTransaction(page_dir).status == winner["status"]
+        assert status_and_stream(page_dir) == winner["status"]
     finally:
         harness.close()

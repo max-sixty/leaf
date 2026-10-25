@@ -7,8 +7,6 @@ from urllib.parse import urljoin
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf.media import store_uploaded_media
-from leaf.render_checks import rendered
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -25,8 +23,10 @@ from render_harness import (
     open_page,
     page_comment,
     panel_settled,
+    panel_view,
     resized,
     select,
+    selection_field,
     stamp_page,
     told,
     wait_for_revision,
@@ -34,6 +34,8 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
+from leaf.media import store_uploaded_media
+from leaf.render_checks import rendered
 
 
 def test_another_threads_reply_keeps_the_selected_thread_in_place(browser, serve):
@@ -182,6 +184,119 @@ def test_a_compact_comment_reserves_only_the_room_send_occupies(browser, serve):
     assert reservation["textEnd"] == pytest.approx(reservation["sendStart"], abs=0.1)
 
 
+# The field's shadow root is closed, so the reading keeps each root as it is attached.
+KEEP_ROOTS = """(() => {
+  const attach = Element.prototype.attachShadow;
+  const roots = (window.__lfRoots = new WeakMap());
+  Element.prototype.attachShadow = function (init) {
+    const root = attach.call(this, init);
+    roots.set(this, root);
+    return root;
+  };
+})()"""
+
+# The caret's node and offset in the field. An offset between elements has no box; the
+# caret after them ends their text, which is the text the browser draws it beside.
+CARET_AT = """
+  const root = window.__lfRoots.get(box);
+  let [{startContainer: at, startOffset: offset}] = document
+    .getSelection().getComposedRanges({shadowRoots: [root]});
+  while (at.nodeType === Node.ELEMENT_NODE && offset > 0) {
+    at = at.childNodes[offset - 1];
+    offset = at.nodeType === Node.TEXT_NODE ? at.length : at.childNodes.length;
+  }"""
+
+# How far past the caret's offset the boxes clipping the field's words let paint run.
+CARET_ROOM = f"""box => {{{CARET_AT}
+  const caret = document.createRange();
+  caret.setStart(at, offset);
+  let clip = Infinity;
+  for (let node = at.parentElement; node; node = node.parentElement) {{
+    const style = getComputedStyle(node);
+    if (style.overflowX !== 'clip') continue;
+    const margin = parseFloat(style.overflowClipMargin) || 0;
+    clip = Math.min(clip, node.getBoundingClientRect().right + margin);
+  }}
+  return clip - caret.getBoundingClientRect().right;
+}}"""
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_caret_at_a_lines_end_paints_inside_the_field(engine, request, serve):
+    """The caret after a line's last character stands at the very end of the text
+    column: in a box that grows with its words, and after a trailing space that fits
+    beside Send. Firefox paints the caret a pixel wide from that offset onward, pulled
+    inside only by a scroll container (nsCaret, `AdjustRectForClipping`), so a field
+    clipping its words at the column's end hid it, and it read as gone under Send.
+    Chromium and WebKit pull a line-end caret back inside the line's block, and WebKit
+    has no `overflow-clip-margin` to read."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page("Compact comment", '<p id="passage">A passage to comment on.</p>')
+        ),
+        init_script=KEEP_ROOTS,
+    )
+    page.locator("#passage").click(modifiers=["Alt"])
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_focused()
+    # The box grows with its words, so the caret after the last word ends its column.
+    page.keyboard.insert_text(
+        "it's not really a feed as much as a list? I see a feed as"
+    )
+    rendered(page)
+    assert field.evaluate(CARET_ROOM) >= 1
+    # At a narrow allocation the trailing space fits beside Send (see above).
+    resized(page, 346, 900)
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.insert_text("this is a nice feature; is it in leaf, or you")
+    page.keyboard.press("Space")
+    rendered(page)
+    assert field.evaluate(CARET_ROOM) >= 1
+
+
+# The ink the browser draws the caret in, beside the ink of the field's words.
+CARET_INK = f"""box => {{{CARET_AT}
+  const holder = at.nodeType === Node.TEXT_NODE ? at.parentElement : at;
+  return [getComputedStyle(holder).caretColor,
+    getComputedStyle(holder.closest('.cm-content')).color];
+}}"""
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_the_caret_after_a_list_bullet_is_drawn(engine, request, serve):
+    """A new list item shows its bullet with the caret just past the hidden source
+    marker, so the browser places the caret inside the marker's text. The caret takes
+    that text's ink, so hiding the marker's glyphs must leave the ink alone, however
+    the caret arrived: continuing the list, deleting the marker's space, or arrows."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page("Compact comment", '<p id="passage">A passage to comment on.</p>')
+        ),
+        init_script=KEEP_ROOTS,
+    )
+    page.locator("#passage").click(modifiers=["Alt"])
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_focused()
+    page.keyboard.type("- one")
+    page.keyboard.press("Shift+Enter")
+    expect(field).to_have_js_property("value", "- one\n- ")
+    rendered(page)
+    caret, words = field.evaluate(CARET_INK)
+    assert caret == words
+    page.keyboard.press("Backspace")
+    expect(field).to_have_js_property("value", "- one\n-")
+    rendered(page)
+    caret, words = field.evaluate(CARET_INK)
+    assert caret == words
+    page.keyboard.press("ArrowLeft")
+    page.keyboard.press("ArrowRight")
+    rendered(page)
+    caret, words = field.evaluate(CARET_INK)
+    assert caret == words
+
+
 # Two threads put the card's navigation on the row too, which a finger's larger
 # controls leave least room for.
 @pytest.mark.parametrize(("touch", "thread_count"), [(False, 1), (True, 2)])
@@ -325,9 +440,9 @@ def test_a_phone_comment_field_keeps_its_passage_clear(iphone, serve):
       getSelection().addRange(range);
     }""")
     expect(page.locator(".lf-fab-input")).to_be_hidden()
-    # A finger's selection puts Comment on selection in the panel's row as the
-    # gesture's next step.
-    comment = page.locator(".lf-fp-step", has_text="Comment on selection")
+    # A finger's selection is quoted in the panel's field, a tap on which comments on
+    # it.
+    comment = selection_field(page)
     box = comment.bounding_box()
     assert box and 0 <= box["y"] < page.evaluate("innerHeight"), box
     before_scroll = page.evaluate("scrollY")
@@ -706,7 +821,7 @@ def test_an_auxiliary_surface_stands_over_the_page_and_moves_none_of_it(
       };
     }"""
     before = page.evaluate(shape)
-    region = page.locator(f'.lf-fp-view[data-view="{surface}"]')
+    region = page.locator(panel_view(surface))
 
     toggle_surface(page, surface)
     expect(region).to_be_visible()
@@ -839,43 +954,73 @@ def test_a_repaint_unsettles_the_rendering_until_it_lands(browser, serve):
     toggle = page.locator(".lf-fp-threads")
     toggle.hover()
     rendered(page)
-    # The reading on either side of the press: as it goes down, before any listener has
-    # answered it, and once its click has passed every listener.
+    # Read before dispatch: an earlier pointerdown capture listener may already have
+    # queued the repaint by the time a listener installed here receives the event.
+    assert page.evaluate(
+        "() => Object.values(document.querySelector('script[data-lf-entry]').lfRenderingState()).every(Boolean)"
+    )
+    # Once the click has passed every listener, its repaint is pending.
     page.evaluate(
         """() => {
           const state = document.querySelector('script[data-lf-entry]').lfRenderingState;
           const settled = () => Object.values(state()).every(Boolean);
           window.__lfPress = [];
           const read = () => window.__lfPress.push(settled());
-          addEventListener('pointerdown', read, {capture: true, once: true});
           addEventListener('click', read, {once: true});
         }"""
     )
     toggle.click()
-    assert page.evaluate("window.__lfPress") == [True, False]
+    assert page.evaluate("window.__lfPress") == [False]
     rendered(page)
     # Completion is the reading rendered waited on. A later slide-end scan can
     # queue new work, so a second reading need not still be settled.
-    expect(page.locator('.lf-fp-view[data-view="threads"]')).to_be_visible()
+    expect(page.locator(panel_view("threads"))).to_be_visible()
 
 
-@pytest.mark.parametrize("engine", ["browser", "webkit_browser"])
-def test_send_room_moves_to_every_line_only_while_the_field_scrolls(
-    engine, request, serve
-):
-    """The field holds Send's room after its last words until its words scroll, and on
-    every line while they do, in an engine without CSS scroll-state queries as in
-    Chromium. Keyed on the query alone, WebKit and Firefox held it on every line
-    always, so the change never reached them."""
-    page = open_page(request.getfixturevalue(engine), serve(LONG_PAGE))
+# The words of the field's draft, row by row as the field draws them.
+WORD_ROWS = """box => {
+  const content = window.__lfRoots.get(box).querySelector('.cm-content');
+  const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT);
+  const rows = [];
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    for (const word of node.data.matchAll(/\\S+/g)) {
+      const range = document.createRange();
+      range.setStart(node, word.index);
+      range.setEnd(node, word.index + word[0].length);
+      const top = range.getClientRects()[0].top;
+      const row = rows.find((r) => Math.abs(r.top - top) < 4);
+      if (row) row.words.push(word[0]);
+      else rows.push({top, words: [word[0]]});
+    }
+  }
+  return rows.map((r) => r.words.join(" "));
+}"""
+
+
+# The comment whose words moved as it was typed in the panel's field.
+REPORTED_DRAFT = (
+    "great, let's go with the more square form. I don't have a strong view of which"
+    " one is better, and the other parts of this thread can wait until later"
+)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_space_after_the_last_word_moves_no_word(engine, request, serve):
+    """Where a draft's words wrap turns on the words alone, so a space typed after the
+    last word leaves every word on its row, as in a textarea. With Send's room kept
+    after the last word only, a word that fit only without the room rose to the row
+    above when a space followed it; under CodeMirror's `break-spaces`, a word ending
+    at the row's edge fell to the next row with the space."""
+    page = open_page(
+        request.getfixturevalue(engine), serve(LONG_PAGE), init_script=KEEP_ROOTS
+    )
     field = page_comment(page)
-    scrolls = "el => el.scrollHeight > el.clientHeight"
-
-    write(field, "First line.\nSecond line.")
-    assert not field.evaluate(scrolls)
-    expect(field).to_have_js_property("endRoom", "last-line")
-    write(field, "A long draft scrolls inside its field. " * 120)
-    assert field.evaluate(scrolls)
-    expect(field).to_have_js_property("endRoom", "every-line")
-    write(field, "Short again.")
-    expect(field).to_have_js_property("endRoom", "last-line")
+    words = REPORTED_DRAFT.split()
+    write(field, words[0])
+    rendered(page)
+    for end in range(2, len(words) + 1):
+        draft = " ".join(words[:end])
+        write(field, draft)
+        rows = field.evaluate(WORD_ROWS)
+        page.keyboard.press("Space")
+        assert field.evaluate(WORD_ROWS) == rows, draft

@@ -8,11 +8,6 @@ from datetime import datetime, timedelta
 import pytest
 from click.testing import CliRunner
 from interact_support import ROOT, append_carried_log_record
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf import state as cleanup_model
-from leaf.render_checks import rendered, wait_until_ready
 from leaf_dev.example_data import patch_manifest
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
@@ -27,6 +22,7 @@ from render_harness import (
     root_overflow,
     round_trip,
     select,
+    selection_field,
     sending,
     suggestion_control,
     ticked,
@@ -35,6 +31,11 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
+from leaf import cli as cli_model
+from leaf import data as data_model
+from leaf import event_log as events_model
+from leaf import state as cleanup_model
+from leaf.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -246,7 +247,7 @@ def test_pr_review_package_keeps_the_authors_brief_distinct_and_stable(browser, 
     )
     assert card.evaluate("el => el.__reviewIdentity") is True
     assert page.evaluate("() => getSelection().toString()") == selected
-    page.get_by_role("button", name="Comment on selection").click()
+    selection_field(page).click()
     expect(page.locator("#lf-composer-quote")).to_contain_text(f"“{selected}”")
     expect(page.locator(".lf-fab-input")).to_be_focused()
 
@@ -752,7 +753,7 @@ def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(
 
 
 def test_call_diff_keeps_the_user_on_a_row_a_new_capture_moves(browser, serve):
-    """A capture that reorders the roots moves the group the user stands in, and one
+    """A capture that reorders the roots moves the group the user is located in, and one
     that reorders a root's calls moves the row: either way they stay on its location."""
     url = serve(
         leaf_page(
@@ -1001,11 +1002,12 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
     expect(card).to_have_css("opacity", "1")
     rendered(page)
     # Reopening is a fresh placement on the datum's current full-width box; it
-    # need not retain the old quote's inline start after its words disappeared.
+    # need not retain the old quote's inline start after its words disappeared. The
+    # document scrolls inside its box, so the card may open over that box or under it.
     reopened = card.bounding_box()
     assert datum["x"] < reopened["x"] + reopened["width"]
     assert reopened["x"] < datum["x"] + datum["width"]
-    assert reopened["y"] == pytest.approx(datum["y"] + datum["height"] + 8, abs=2)
+    assert datum["y"] < reopened["y"] < datum["y"] + datum["height"] + 10
     # The thread's own head says the words it quotes are earlier data, as a plain word
     # rather than a boxed badge.
     status = open_panel_thread(page, comment["id"]).locator(".lf-anchor-status")

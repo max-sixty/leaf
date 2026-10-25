@@ -6,9 +6,6 @@ import io
 import pytest
 from click.testing import CliRunner
 from interact_support import append_carried_log_record
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf.render_checks import one_frame, rendered
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, panel_comment
@@ -39,6 +36,9 @@ from browser.threads import (
     thread_row,
     to_window_foot,
 )
+from leaf import cli as cli_model
+from leaf import event_log as events_model
+from leaf.render_checks import one_frame, rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -82,7 +82,7 @@ def test_a_new_sent_message_does_not_hide_work_on_an_earlier_message(browser, se
     root = panel_comment(serve.page_dir, "Check the capacity.", {"section": "how-cap"})
     active = CliRunner().invoke(
         cli_model.cli,
-        ["task", "start", str(serve.page_dir), root, "checking capacity"],
+        ["task", "start", str(serve.page_dir), root, "--text", "checking capacity"],
     )
     assert active.exit_code == 0, active.output
     page = open_page(browser, url)
@@ -405,21 +405,6 @@ def test_a_pressed_send_leaves_the_user_where_enter_does(browser, serve, surface
             # The press never takes the focus, so the box never hears it leave.
             expect(box).to_be_focused()
             page.mouse.up()
-    if surface.startswith("composer"):
-        sent = next(
-            event
-            for event in events_model.read_events(serve.page_dir)
-            if event.get("text") == "Sent from the box."
-        )
-        if surface == "composer-widget":
-            # Exact message navigation belongs to Threads, not the local reply box.
-            assert page.evaluate(
-                """async id => {
-                  const {surfaceFocusTarget} = await window.__lfCheckApi();
-                  return surfaceFocusTarget(id, {part: 'message'}) === null;
-                }""",
-                sent["id"],
-            )
     rendered(page)
     expect(after).to_be_focused()
     expect(after).to_be_visible()

@@ -42,12 +42,12 @@ from urllib.parse import urlencode, urljoin, urlsplit
 
 import click
 import psutil
-from leaf.findings import Finding
-from leaf.render_gate.scheme import collect_page_errors
 from playwright.sync_api import APIResponse, BrowserContext, Page
 from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
+from leaf.findings import Finding
+from leaf.render_gate.scheme import collect_page_errors
 from leaf_dev import ROOT
 from leaf_dev.arms import (
     codex_home,
@@ -509,7 +509,13 @@ def user_session(
             return served_instead(reached, release)
         return AgentSession(context, page, failures, url, state_url, passive.json())
     activation = activation_url(url, passive.json())
-    activated = activation_read(context, activation)
+    try:
+        activated = activation_read(context, activation)
+    except PlaywrightError as error:
+        if "read ECONNRESET" not in str(error):
+            raise
+        context.close()
+        return "lost its activation connection"
     if activated is None:
         context.close()
         return STILL_STARTING
@@ -539,7 +545,8 @@ def agent_session(
 ) -> AgentSession:
     """Open one user session whose private container is serving `release`, retrying
     with a fresh context for up to 180 s while the rollout reaches allocations (they
-    answer as another release or as the edge's `503`). Nothing here writes."""
+    answer as another release or as the edge's `503`) or activation loses its
+    connection. Nothing here writes."""
     url = f"{origin}/examples/triage-board/"
     state_url = urljoin(url, "api/state")
     deadline = time.monotonic() + 180
@@ -638,9 +645,10 @@ def ready_origin(log: Path, event: str, path: str) -> str | None:
 
 @contextmanager
 def local_adapter() -> Iterator[tuple[str, str]]:
-    """Build the site and serve it with the website adapter under a temporary copy of
-    the host's Codex login and a normal Leaf plugin installation, removed with the
-    adapter's pages and task history."""
+    """Build the site and serve it with the website adapter sharing the host's login.
+
+    Its isolated Codex home and normal Leaf plugin installation are removed with
+    the adapter's pages and task history."""
     out = run_directory(ROOT / ".tmp" / "verify-site")
     log = out / "website-adapter.log"
     with (
@@ -954,13 +962,19 @@ class LocalWorker:
 def local_worker() -> Iterator[LocalWorker]:
     """Serve the built site through `wrangler dev`: the Worker and its page container.
 
-    The patience covers building the container image. Wrangler leaves each container's
+    Build the image before timing HTTP readiness: a cold dependency download is not
+    a Worker startup failure. Wrangler leaves each container's
     `proxy-everything` sidecar running when it exits, so the run serves under a Worker
     name of its own and removes the containers carrying it on the way out.
     """
     out = run_directory(ROOT / ".tmp" / "verify-site")
-    name = f"lv-{out.name}"
+    # Temporary directory suffixes may begin with `_`, which cannot follow a
+    # hyphen in a Docker image name. Hex keeps the run identity and uses only
+    # characters accepted by both Docker and Wrangler.
+    name = f"lv-{out.name.encode().hex()}"
+    image_tag = f"{name}:latest"
     log = out / "wrangler-dev.log"
+    image = None
     try:
         with (
             tempfile.TemporaryDirectory(prefix="leaf-worker-") as temporary,
@@ -995,6 +1009,33 @@ def local_worker() -> Iterator[LocalWorker]:
             release = json.loads(
                 (context / ".tmp" / "site" / "_leaf" / "site.json").read_text()
             )["release"]
+            # Warm the same Docker build Wrangler runs for production's amd64
+            # architecture before the bounded server-readiness check starts.
+            # Keep the Dockerfile in Wrangler's config: local image references
+            # are pulled from a registry even when Docker already has them.
+            # Wrangler sends the Dockerfile on stdin, so use the same ignores
+            # for that build and Docker's file-based warm build.
+            shutil.copyfile(
+                context / "Dockerfile.website.dockerignore", context / ".dockerignore"
+            )
+            subprocess.run(
+                [
+                    "docker",
+                    "build",
+                    "--platform",
+                    "linux/amd64",
+                    "--file",
+                    str(context / "Dockerfile.website"),
+                    "--tag",
+                    image_tag,
+                    str(context),
+                ],
+                cwd=ROOT,
+                stdout=output,
+                stderr=subprocess.STDOUT,
+                check=True,
+            )
+            image = image_tag
             config = tomllib.loads((ROOT / "worker" / "wrangler.toml").read_text())
             config.pop("env")
             config["name"] = name
@@ -1049,6 +1090,12 @@ def local_worker() -> Iterator[LocalWorker]:
         if started := listed.stdout.split():
             subprocess.run(
                 ["docker", "rm", "--force", *started],
+                stdout=subprocess.DEVNULL,
+                check=True,
+            )
+        if image is not None:
+            subprocess.run(
+                ["docker", "image", "rm", image],
                 stdout=subprocess.DEVNULL,
                 check=True,
             )

@@ -9,14 +9,6 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 from interact_support import append_carried_log_record, response_reference, wait_for
-from leaf import anchor_capture as anchor_capture_model
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf import structure as structure_model
-from leaf.registry import storage as registry_storage
-from leaf.render_checks import rendered
-from leaf.schema import ELEMENT_ID
 from leaf_dev.example_data import patch_manifest
 from PIL import Image
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
@@ -82,6 +74,7 @@ from render_harness import (
     resized,
     scroll_settled,
     select,
+    selection_field,
     sending,
     stamp_page,
     told,
@@ -90,6 +83,14 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
+from leaf import anchor_capture as anchor_capture_model
+from leaf import cli as cli_model
+from leaf import data as data_model
+from leaf import event_log as events_model
+from leaf import structure as structure_model
+from leaf.registry import storage as registry_storage
+from leaf.render_checks import rendered
+from leaf.schema import ELEMENT_ID
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -115,10 +116,10 @@ def thread_quote(page, thread_id):
     return page.locator(".lf-fp-quote")
 
 
-def on_the_page(page, *, key=False):
-    """Take the open thread's way back to its words, On the page, by pointer or key."""
+def show_on_page(page, *, key=False):
+    """Take the open thread's way back to its words, Show on page, by pointer or key."""
     door = page.locator(".lf-fp-aux").get_by_role(
-        "button", name="On the page", exact=True
+        "button", name="Show on page", exact=True
     )
     if key:
         door.focus()
@@ -152,10 +153,10 @@ def expect_open_threads(page, count):
 
 
 def open_selected_comment(page):
-    """Choose the Comment action offered for the completed selection."""
-    button = page.get_by_role("button", name="Comment on selection", exact=True)
-    expect(button).to_be_visible()
-    button.click()
+    """Press the panel's field, which offers the completed selection."""
+    field = selection_field(page)
+    expect(field).to_be_visible()
+    field.click()
 
 
 def selected_comment_marks_chosen_start(page, chosen):
@@ -389,7 +390,7 @@ def test_a_revision_preserves_every_open_quoted_thread(browser, serve):
             cli_model.cli,
             [
                 "thread",
-                "open",
+                "create",
                 str(serve.page_dir),
                 "--section",
                 "revised-quotes",
@@ -513,7 +514,7 @@ def test_monitoring_regions_share_one_collaboration_layer(browser, serve):
         if e["kind"] == "comment" and (e.get("anchor") or {}).get("quote") == quote
     ]
     expect(thread_quote(page, thread_id)).to_contain_text(quote)
-    on_the_page(page)
+    show_on_page(page)
     expect(page.locator("#lp-check-finance")).to_be_in_viewport()
     # The panel stood over the region the comment is about, so the trip cleared it.
     panel_settled(page, open=False)
@@ -639,9 +640,7 @@ def test_the_comment_button_stands_on_no_control(browser, serve):
         >= box["x"] + box["width"]
     ), "the control must hang beside the selected paragraph"
 
-    # A box that takes no pointer cannot be covered for the pointer, which is the whole
-    # subject here: the skip link rests transparent and inert at the window's head and only
-    # becomes a control at all when the keyboard reaches it.
+    # A box that takes no pointer cannot be covered for the pointer.
     under = page.evaluate("""() => [...document.querySelectorAll("[data-lf-offer]")]
         .filter(c => (!c.closest(".lf-chrome") || c.closest(".lf-margin-cluster"))
                      && c.checkVisibility()
@@ -1025,8 +1024,21 @@ def test_a_drag_that_overshoots_the_layer_is_not_a_passage(browser, serve):
     this — which of the layer's words a selection may reach at all — is
     `controls/test_covering.py::test_a_selection_that_reaches_the_layer_stops_at_the_page`.
     """
-    quoted = "Paragraph 3. Filler. Filler. Filler."
-    page = open_page(browser, serve(LONG_PAGE, anchored=(("p3", quoted),)))
+    # Distinct words let the restored passage resolve after the drag. Repeated filler
+    # gives this page many indistinguishable anchors, so no pending mark can paint.
+    unique_page = leaf_page(
+        "long",
+        "<h1 id='t'>Long</h1>{paras}",
+    ).format(
+        paras="\n".join(
+            f"<p id='p{i}'>Paragraph {i}. "
+            + " ".join(f"Word{8 * i + j:03d}." for j in range(8))
+            + "</p>"
+            for i in range(60)
+        )
+    )
+    quoted = "Paragraph 3. Word024. Word025. Word026."
+    page = open_page(browser, serve(unique_page, anchored=(("p3", quoted),)))
     resized(page, 1400, 900)
     card = thread_quote(page, comment_ids(serve.page_dir)[-1])
     expect(card).to_be_visible()
@@ -1052,6 +1064,9 @@ def test_a_drag_that_overshoots_the_layer_is_not_a_passage(browser, serve):
     # The selection saying it covers something is the fact this read wants, and the drag
     # is still held, so there is no composer to wait on yet.
     page.wait_for_function("() => getSelection().toString().length > 0")
+    # Selectionchange can still be queued after the last mouse move. Give that event
+    # its turn so the gesture remembers this endpoint before it leaves the document.
+    page.evaluate("() => new Promise(resolve => requestAnimationFrame(resolve))")
     covered = page.evaluate("() => getSelection().toString()")
     page.mouse.move(into["x"] + 40, into["y"] + into["height"] / 2, steps=20)
     page.mouse.up()
@@ -1067,9 +1082,10 @@ def test_a_drag_that_overshoots_the_layer_is_not_a_passage(browser, serve):
     assert len(quote) < 2 * len(covered), (
         f"the drag out of the document stored {len(quote)} characters as its passage"
     )
-    assert quote and quote in page.evaluate(
-        "() => document.querySelector('main').textContent"
-    ), f"the composer quotes something the document does not hold: {quote!r}"
+    document_words = page.evaluate("() => document.querySelector('main').textContent")
+    assert quote and quote in " ".join(document_words.split()), (
+        f"the composer quotes something the document does not hold: {quote!r}"
+    )
     # The three readings of one passage: what the box says it is about, what the page
     # paints, and what the field is called. A capture that ran past the document moved
     # all three together, so any one of them alone would pass on a page it had ruined.
@@ -1151,9 +1167,8 @@ def test_a_quote_finds_its_passage_whatever_its_whitespace(browser, serve):
 
 def test_the_captured_quote_is_prose_a_file_can_hold(browser, serve):
     """A quote is read back as prose — seeded into the suggestion box, printed in the
-    panel, emitted into a Markdown blockquote by `leaf page transcript` — and written to a
-    UTF-8 file on the way. Source text is neither: it carries the author's line wraps,
-    which break a blockquote open, and cutting it to length by UTF-16 unit can halve a
+    panel — and written to a UTF-8 file on the way. Source text is neither: it carries
+    the author's line wraps, which break the prose, and cutting it to length by UTF-16 unit can halve a
     character, which no UTF-8 file can hold. The server refuses that write and the
     user is told it is offline, with no way to ever send the comment."""
     url = serve(INLINE_PAGE)
@@ -1367,6 +1382,98 @@ def test_code_copy_enter_leaves_nested_links_usable(browser, serve):
     expect(page).to_have_url(re.compile(r"#destination$"))
 
 
+def test_code_copy_keeps_its_source_container_active(browser, serve):
+    source = leaf_page(
+        "Copy in card",
+        '<div id="card"><p id="actions">Actions</p>'
+        '<pre id="source"><code>echo hello</code></pre></div>'
+        '<button id="outside">Outside</button>',
+    ).replace(
+        "</head>",
+        "<style>#card:not(:hover, :focus-within, :has([data-lf-control-active])) "
+        "#actions { visibility: hidden; }</style></head>",
+    )
+    page = open_page(browser, live_url(serve(source)))
+    card = page.locator("#card")
+    actions = page.locator("#actions")
+    pre = page.locator("#source")
+    copy = page.locator(".lf-chrome .lf-code-copy").get_by_role("button")
+
+    expect(actions).to_be_hidden()
+    pre.hover()
+    expect(actions).to_be_visible()
+    copy.hover()
+    expect(pre).to_have_attribute("data-lf-control-active", "")
+    expect(actions).to_be_visible()
+    assert not card.evaluate("node => node.matches(':hover')")
+
+    page.mouse.move(2, 300)
+    expect(pre).not_to_have_attribute("data-lf-control-active", "")
+    expect(actions).to_be_hidden()
+    pre.hover()
+    copy.focus()
+    page.mouse.move(2, 300)
+    expect(pre).to_have_attribute("data-lf-control-active", "")
+    expect(actions).to_be_visible()
+    page.locator("#outside").focus()
+    expect(pre).not_to_have_attribute("data-lf-control-active", "")
+    expect(actions).to_be_hidden()
+
+
+def test_tapping_code_copy_keeps_its_source_container_active(browser, serve):
+    source = leaf_page(
+        "Touch copy in card",
+        '<div id="card"><p id="actions">Actions</p>'
+        '<pre id="source"><code>echo hello</code></pre></div>'
+        '<button id="outside">Outside</button>',
+    ).replace(
+        "</head>",
+        "<style>#card:not(:focus-within, :has([data-lf-control-active])) "
+        "#actions { visibility: hidden; }</style></head>",
+    )
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, live_url(serve(source)), context=context)
+    pre = page.locator("#source")
+    actions = page.locator("#actions")
+    pre.tap(position={"x": 30, "y": 20})
+    expect(actions).to_be_visible()
+    page.locator(".lf-chrome .lf-code-copy").get_by_role("button").tap()
+    expect(pre).to_have_attribute("data-lf-control-active", "")
+    expect(actions).to_be_visible()
+    page.locator("#outside").tap()
+    expect(pre).not_to_have_attribute("data-lf-control-active", "")
+    expect(actions).to_be_hidden()
+
+
+def test_code_copy_face_follows_a_compact_source_line(browser, serve):
+    url = live_url(
+        serve(
+            leaf_page(
+                "Compact code copy",
+                '<pre id="source" style="font-size:12.5px;line-height:19px;'
+                'padding:7px 10px"><code>echo hello</code></pre>'
+                '<div style="--lf-code-copy-size:27px"><pre id="custom">'
+                "<code>echo custom</code></pre></div>",
+            )
+        )
+    )
+    page = open_page(browser, url)
+    page.locator("#source").hover()
+    face = page.locator(".lf-chrome .lf-code-copy").first.get_by_role("button")
+    expect(face).to_be_visible()
+    assert face.evaluate("el => el.getBoundingClientRect().height") == 19
+    assert face.evaluate(
+        "el => parseFloat(getComputedStyle(el, '::after').height)"
+    ) >= page.evaluate(
+        "parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--aim-floor'))"
+    )
+    page.locator("#custom").hover()
+    custom = page.locator(".lf-chrome .lf-code-copy").last.get_by_role("button")
+    assert custom.evaluate("el => el.getBoundingClientRect().height") == 27
+
+
 def test_code_copy_reads_sources_before_positioning_many_controls(browser, serve):
     blocks = "".join(
         f"<p>Example {i}</p><pre><code>code {i}</code></pre>" for i in range(60)
@@ -1495,6 +1602,9 @@ def test_code_copy_leaves_the_window_with_its_hidden_source(browser, serve, hold
     rendered(page)
     expect(page.locator("#source")).to_be_hidden()
     expect(control).not_to_be_in_viewport()
+    # A source opened once retains an old layout inside its skipped subtree.
+    # Resize while it is hidden, then reveal it at the new width.
+    resized(page, 1440, 900)
     opener.click()
     rendered(page)
     expect(control).to_be_in_viewport()
@@ -1504,6 +1614,66 @@ def test_code_copy_leaves_the_window_with_its_hidden_source(browser, serve, hold
     button.click()
     expect(button).to_have_accessible_name("Code copied")
     assert page.evaluate("navigator.clipboard.readText()") == "copy this source"
+
+
+def test_resizing_closed_code_sections_does_not_lay_out_each_hidden_section(
+    browser, serve
+):
+    """Previously viewed code stays skipped when its disclosure closes and the window
+    resizes. Reading every block's header cuts used to force one layout per hidden
+    section; never-opened sections conceal that cost because they have no old layout."""
+    sections = "".join(
+        f"<details open><summary>Example {i}</summary>"
+        f"<div><pre><code>code {i}</code></pre></div></details>"
+        for i in range(20)
+    )
+    page = open_page(browser, serve(leaf_page("Closed code sections", sections)))
+    controls = page.locator(".lf-chrome .lf-code-copy")
+    expect(controls).to_have_count(20)
+    for summary in page.locator("main summary").all():
+        summary.click()
+    rendered(page)
+    expect(page.locator("main details[open]")).to_have_count(0)
+
+    browser.start_tracing(
+        page=page,
+        categories=[
+            "devtools.timeline",
+            "disabled-by-default-devtools.timeline",
+            "disabled-by-default-devtools.timeline.stack",
+        ],
+    )
+    try:
+        resized(page, 1440, 900)
+        rendered(page)
+        # Establish that this browser records JavaScript layout stacks at all.
+        # The fixed-position probe takes no room in the document.
+        page.evaluate("""() => {
+          const probe = document.createElement('div');
+          probe.style.position = 'fixed';
+          document.body.append(probe);
+          probe.getBoundingClientRect();
+          probe.remove();
+        }""")
+    finally:
+        trace = json.loads(browser.stop_tracing())
+    layouts = [
+        event
+        for event in trace["traceEvents"]
+        if event["name"] == "Layout" and event["ph"] == "X"
+    ]
+    assert any(event["args"]["beginData"].get("stackTrace") for event in layouts)
+    # Count only layout forced by the controls' cut reading, rather than comparing
+    # whole-page totals that include the browser's viewport and observer work.
+    forced = [
+        event
+        for event in layouts
+        if any(
+            frame["functionName"] == "headerLevels"
+            for frame in event["args"]["beginData"].get("stackTrace", [])
+        )
+    ]
+    assert not forced, {"hidden-section layouts": len(forced), "first": forced[0]}
 
 
 def test_code_copy_releases_only_its_own_scroll_stop(browser, serve):
@@ -1521,6 +1691,29 @@ def test_code_copy_releases_only_its_own_scroll_stop(browser, serve):
     expect(control).to_have_count(0)
     assert pre.evaluate("el => el.scrollWidth > el.clientWidth")
     expect(pre).to_have_attribute("tabindex", "0")
+
+
+def test_native_code_uses_the_bundled_grammars_language_aliases(browser, serve):
+    """Markdown fence labels select the same colors as their full language names."""
+    sources = {
+        "js": ("javascript", 'const value = "leaf"; // keep the source\n'),
+        "sh": ("bash", 'leaf page check "$PAGE" --render\n'),
+    }
+    blocks = "".join(
+        f'<pre id="{label}"><code class="language-{label}">{escape(source)}</code></pre>'
+        for alias, (name, source) in sources.items()
+        for label in (alias, name)
+    )
+    page = open_page(browser, serve(leaf_page("Code aliases", blocks)))
+    for alias, (name, source) in sources.items():
+        tokens = "el => [...el.querySelectorAll('[data-lf-syn]')].map(token => [token.textContent, getComputedStyle(token).color])"
+        short = page.locator(f"#{alias} code")
+        full = page.locator(f"#{name} code")
+        expect(short).to_have_attribute("data-lf-syntax", name)
+        assert short.text_content() == full.text_content() == source
+        painted = short.evaluate(tokens)
+        assert len({color for _, color in painted}) > 1
+        assert painted == full.evaluate(tokens)
 
 
 def test_a_block_rewritten_while_it_is_colored_keeps_its_new_text(browser, serve):
@@ -1562,12 +1755,12 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
     """Colouring is spans, and the anchor pass is what spans break: the revision holds
     one run of characters where the DOM now holds a dozen nodes. A <span> is no text block,
     so both readings collapse to the same string — which is what lets the runtime color a
-    block the file knows nothing about, and what keeps `leaf thread open` able to quote
+    block the file knows nothing about, and what keeps `leaf thread create` able to quote
     into one.
 
     One pass serves both shapes a page has for code, lf-code's `language` and a plain
     <pre><code class="language-*">, and neither guesses: a lf-code with no `language` stays
-    the color of its own ink. The quote below is written the way `leaf thread open`
+    the color of its own ink. The quote below is written the way `leaf thread create`
     writes one — against the file — and spans a token boundary on its way back."""
     url = serve(CODE_PAGE)
     page = open_page(browser, url)
@@ -1830,7 +2023,7 @@ def test_shell_commands_share_colors_in_plain_code_widgets_and_diffs(browser, se
         """async (langs) => {
           const { parsePatchFiles } =
             await window.__lfVendorImport('pierre-parser.esm.js');
-          const { preloadDiffHTML } =
+          const { DiffHunksRenderer, renderHTML } =
             await window.__lfVendorImport('pierre-diffs.esm.js');
           const { themeName } =
             await window.__lfVendorImport('syntax.esm.js');
@@ -1847,10 +2040,11 @@ def test_shell_commands_share_colors_in_plain_code_widgets_and_diffs(browser, se
             try {
               const file = parsePatchFiles(source, undefined, true)[0].files[0];
               file.lang = lang;
-              const html = await preloadDiffHTML({
-                fileDiff: file,
-                options: {theme: themeName},
+              const renderer = new DiffHunksRenderer({
+                theme: themeName, diffStyle: 'unified', useTokenTransformer: false,
               });
+              const rendered = await renderer.asyncRender(file);
+              const html = renderHTML(rendered.unifiedContentAST);
               if (!html.includes('new')) bad.push([lang, 'rendered no source']);
             } catch (error) {
               bad.push([lang, String(error)]);
@@ -1906,9 +2100,9 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
       return {
         path: path.textContent,
         statGenerated: stat.dataset.lfGen === '1',
-        // The row draws its own triangle, since a flex row draws no native marker.
+        // A flex row draws no native marker, so it wears Leaf's, turned its own way.
         disclosure: getComputedStyle(d.querySelector('summary'), '::before').content
-          .startsWith(d.open ? '"\u25bc"' : '"\u25b6"'),
+          .includes(d.open ? 'disclosure-open' : 'disclosure-closed'),
         summaryAligned: Math.abs(path.getBoundingClientRect().top
           - stat.getBoundingClientRect().top) < 1,
         lines: [...d.querySelectorAll('[data-line]')].map(l => ({
@@ -1923,16 +2117,16 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
           text: s.textContent.trim(),
           chrome: s.classList.contains('lf-ui'),
         })),
-        numbers: [...d.querySelectorAll('[data-line-number-content]')].map(n => ({
+        numbers: [...d.querySelectorAll('.lf-diff-line-comment')].map(n => ({
           text: n.textContent,
           chrome: n.classList.contains('lf-ui'),
           generated: n.dataset.lfGen === '1',
-          hidden: n.getAttribute('aria-hidden'),
+          label: n.getAttribute('aria-label'),
           userSelect: getComputedStyle(n).userSelect,
           face: [getComputedStyle(n).fontFamily, getComputedStyle(n).fontSize],
         })),
-        code: [getComputedStyle(d.querySelector('pre[data-diff]')).fontFamily,
-               getComputedStyle(d.querySelector('pre[data-diff]')).fontSize],
+        code: [getComputedStyle(d.querySelector('code[data-code]')).fontFamily,
+               getComputedStyle(d.querySelector('code[data-code]')).fontSize],
       };
     })""")
     by_path = {f["path"]: f["lines"] for f in files}
@@ -1959,7 +2153,7 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
         number["text"].isdigit()
         and number["chrome"]
         and number["generated"]
-        and number["hidden"] == "true"
+        and number["label"].startswith("Comment on ")
         and number["userSelect"] == "none"
         for number in numbers
     ), numbers
@@ -1978,7 +2172,7 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
       const reference = document.createElement('pre');
       reference.textContent = 'literal evidence';
       document.querySelector('main').append(reference);
-      const rendered = shadow.querySelector('pre[data-diff]');
+      const rendered = shadow.querySelector('code[data-code]');
       const statText = shadow.querySelector('.lf-diff-stat').textContent;
       const leafFont = getComputedStyle(reference).fontFamily;
       const leafFontSize = getComputedStyle(reference).fontSize;
@@ -1994,17 +2188,15 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
         saysStat: says(document).includes(statText),
         wroteStat: wrote(document).includes(statText),
         lineNumberWords: segments
-          .filter(({node}) => node.parentElement?.closest('[data-line-number-content]'))
+          .filter(({node}) => node.parentElement?.closest('.lf-diff-line-comment'))
           .map(({node}) => node.data),
         separatorText: segments
           .filter(({node}) => node.parentElement?.closest('[data-separator]'))
           .map(({node}) => node.data),
-        coreSheets: shadow.querySelectorAll('style[data-core-css]').length,
-        themeSheets: shadow.querySelectorAll('style[data-theme-css]').length,
         font: getComputedStyle(rendered).fontFamily,
         fontSize: getComputedStyle(rendered).fontSize,
         lineHeight: getComputedStyle(rendered).lineHeight,
-        background: getComputedStyle(rendered).backgroundColor,
+        background: getComputedStyle(rendered.parentElement).backgroundColor,
         leafFont,
         leafFontSize,
         leafLineHeight,
@@ -2023,7 +2215,6 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     assert reading["separatorText"] == [], (
         f"Pierre separator chrome entered the page reading: {reading}"
     )
-    assert (reading["coreSheets"], reading["themeSheets"]) == (1, 1), reading
     assert reading["font"] == reading["leafFont"], reading
     assert reading["fontSize"] == reading["leafFontSize"] == "12.5px", reading
     assert reading["lineHeight"] == reading["leafLineHeight"] == "19px", reading
@@ -2099,6 +2290,31 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     assert selected == "  burst: 40"
     page.evaluate("getSelection().removeAllRanges()")
 
+    # Native multi-line copying crosses the interleaved numbered controls. Only the
+    # source belongs on the clipboard; generated indicators and buttons stay behind.
+    page.locator("lf-diff [data-line]").filter(
+        has_text="burst: 20"
+    ).scroll_into_view_if_needed()
+    ends = page.evaluate("""() => {
+      const root = document.querySelector('#patch').shadowRoot;
+      const lines = [...root.querySelectorAll('[data-line]')].filter(line =>
+        line.closest('details').querySelector('.lf-diff-path').textContent === 'gateway/config.yaml');
+      const range = document.createRange();
+      range.selectNodeContents(lines[0]);
+      const first = range.getBoundingClientRect();
+      range.selectNodeContents(lines.at(-1));
+      const last = range.getBoundingClientRect();
+      return [[first.left, first.top + first.height / 2],
+              [last.right, last.top + last.height / 2]];
+    }""")
+    select(page, *ends)
+    copied = "  burst: 20\n  burst: 40\n  window: 60"
+    assert page.evaluate("getSelection().toString()") == copied
+    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
+    page.keyboard.press("ControlOrMeta+C")
+    assert page.evaluate("navigator.clipboard.readText()") == copied
+    page.evaluate("getSelection().removeAllRanges()")
+
     files = page.evaluate("""() => [...document.querySelector('#patch').shadowRoot
       .querySelectorAll('details')].map(d => ({
       path: d.querySelector('.lf-diff-path').textContent,
@@ -2108,7 +2324,7 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
         marks: [...line.querySelectorAll('[data-diff-span]')].map(span => span.textContent),
         inked: [...line.querySelectorAll('[data-diff-span] [data-lf-syn]')]
           .map(span => [span.style.color, span.textContent]),
-        linePaint: getComputedStyle(line).backgroundColor,
+        linePaint: getComputedStyle(line.parentElement).backgroundColor,
         prePaint: getComputedStyle(line.closest('pre')).backgroundColor,
         markPaint: [...line.querySelectorAll('[data-diff-span]')].map(span => {
           const style = getComputedStyle(span);
@@ -2410,7 +2626,7 @@ def test_the_widget_reads_the_diff_patch_table(browser, serve):
         rendered: host.classList.contains('lf-rendered'),
         error: host.querySelector('.lf-error')?.firstChild?.textContent ?? null,
         details: shadow?.querySelectorAll('details').length ?? 0,
-        diffs: shadow?.querySelectorAll('pre[data-diff]').length ?? 0,
+        diffs: shadow?.querySelectorAll('pre').length ?? 0,
         renameCount: renames.length,
         from: rename?.querySelector('.lf-diff-source-path')?.textContent ?? null,
         to: rename?.querySelector('.lf-diff-destination-path')?.textContent ?? null,
@@ -2480,13 +2696,14 @@ def test_staged_widget_controls_name_the_presses_their_owners_make(browser, serv
 
     The staged control is the one the register could not reach at all.
     `document.activeElement` retargets to the host, so the scope walk started at the
-    widget and never saw the control the user was standing on."""
+    widget and never saw the control the user was located on."""
     url = serve(
         NATIVE_CONTROL_PAGE,
         media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
     )
     page = open_page(browser, url)
 
+    page.locator("lf-shot").get_by_role("button", name="Slider", exact=True).click()
     comparison = page.locator("lf-shot wa-comparison")
     handle = comparison.get_by_role("scrollbar")
     handle.scroll_into_view_if_needed()
@@ -2528,12 +2745,12 @@ def test_staged_widget_controls_name_the_presses_their_owners_make(browser, serv
     assert summary.get_attribute("aria-keyshortcuts") == "Enter Space ArrowLeft"
 
 
-def test_a_tab_inside_a_shadow_tree_no_stage_watches_still_reaches_standing(
+def test_a_tab_inside_a_shadow_tree_no_stage_watches_still_reaches_current_location(
     browser, serve
 ):
     """A component that makes its own shadow root, as a Web Awesome control does, moves
     focus between its own controls with no event reaching any root focus.js listens on.
-    Where the user stands is still read once the key's task ends, so every reader of it
+    The current location is still read once the key's task ends, so every reader of it
     hears the move as the Tab it was."""
     page = open_page(browser, serve(DIFF_PAGE))
     page.evaluate(
@@ -2543,9 +2760,9 @@ def test_a_tab_inside_a_shadow_tree_no_stage_watches_still_reaches_standing(
           host.attachShadow({ mode: "open" }).innerHTML =
             "<button id=one>one</button><button id=two>two</button>";
           document.querySelector("main").append(host);
-          const { onStanding } = await window.__lfCheckApi();
+          const { onCurrentLocation } = await window.__lfCheckApi();
           window.heard = [];
-          onStanding((node, cause) => window.heard.push([node?.id ?? null, cause]));
+          onCurrentLocation((node, cause) => window.heard.push([node?.id ?? null, cause]));
           host.shadowRoot.getElementById("one").focus();
         }"""
     )
@@ -2596,9 +2813,9 @@ def test_internal_focus_moves_publish_before_old_markup_is_collected(
             dialog.replaceWith(layer);
             layer.showPopover();
           }
-          const {onStanding} = await window.__lfCheckApi();
+          const {onCurrentLocation} = await window.__lfCheckApi();
           window.heard = [];
-          onStanding((node, cause) => window.heard.push([node?.id ?? null, cause]));
+          onCurrentLocation((node, cause) => window.heard.push([node?.id ?? null, cause]));
           host.shadowRoot.getElementById('one').focus();
         }""",
         removed,
@@ -2685,10 +2902,10 @@ def test_first_entry_into_a_shadow_root_can_forward_focus(browser, serve, arriva
           const root = host.attachShadow({mode: 'open'});
           root.innerHTML = '<button id="one">First</button><button id="two">Next</button>';
           document.querySelector('main').append(host);
-          const {onStanding} = await window.__lfCheckApi();
+          const {onCurrentLocation} = await window.__lfCheckApi();
           const {focusDestination} = await window.__lfWidgetApi();
           window.heard = [];
-          onStanding((node, cause) => window.heard.push([node?.id ?? null, cause]));
+          onCurrentLocation((node, cause) => window.heard.push([node?.id ?? null, cause]));
           const one = root.getElementById('one');
           one.addEventListener('focus', () => root.getElementById('two').focus(), {once: true});
           if (arrival === 'return') focusDestination(one, 'return');
@@ -2961,11 +3178,11 @@ def test_taking_words_inside_a_mark_keeps_them_and_a_press_still_opens_the_threa
 
 def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
     """A pointer press briefly moves focus from an open thread to the page before its
-    click lands back in the thread. Nothing that says where the user stands may look
+    click lands back in the thread. Nothing that marks the current location may look
     deselected in that gap: not the element's contour, which the pointer on the page no
     longer raises, and not the margin entry's selection.
 
-    So standing holds across the whole press, every frame from mouse-down until after
+    So the current location holds across the whole press, every frame from mouse-down until after
     the click. The reaction beside the comment is the case that first showed the gap.
     """
     url = serve(INLINE_PAGE)
@@ -3039,7 +3256,7 @@ def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
     frames = page.evaluate("() => window.lfFrames.splice(0)")
     lost = [frame for frame in frames if not frame["contour"] or frame["entry"] != 1]
     assert not lost, (
-        f"standing blinked during the press: {lost} of {len(frames)} frames"
+        f"the current location blinked during the press: {lost} of {len(frames)} frames"
     )
 
 
@@ -3197,7 +3414,7 @@ def test_an_ambiguous_revised_passage_keeps_its_section_until_the_agent_moves_it
     moved = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(d, root["id"]),
@@ -3269,7 +3486,7 @@ def test_a_removed_subject_keeps_its_thread_open_and_detached(browser, serve):
     detached = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(d, root["id"]),
@@ -3290,7 +3507,7 @@ def test_a_removed_subject_keeps_its_thread_open_and_detached(browser, serve):
     expect(quote).to_have_attribute("title", re.compile("no longer"))
     # With nowhere on the page to go, the view offers no way there.
     expect(
-        page.locator(".lf-fp-aux button:enabled", has_text="On the page")
+        page.locator(".lf-fp-aux button:enabled", has_text="Show on page")
     ).to_have_count(0)
 
 
@@ -4075,6 +4292,37 @@ def test_pending_comparison_moves_with_a_live_revision(browser, serve):
         page.unroute(view_request)
 
 
+def test_a_failed_comparison_clears_its_pending_choice_and_can_retry(browser, serve):
+    """A failed replacement leaves no old marks and releases its selected base."""
+    v2 = INLINE_PAGE.replace("A neighbouring block", "A neighbouring passage")
+    v3 = v2.replace("The setup is in the runbook", "The setup is in the handbook")
+    url = serve(INLINE_PAGE)
+    _publish(serve.page_dir, 2, v2, "reworded the neighbour")
+    _publish(serve.page_dir, 3, v3, "reworded the compound")
+    page = open_page(browser, url.replace("v1.html", "v3.html"))
+    compare_with(page, 1)
+    expect(page.locator(".lf-ins-block")).to_have_count(2)
+
+    held = []
+    view_request = re.compile(r"/api/view\?")
+    page.route(view_request, lambda route: held.append(route))
+    compare_with(page, 2)
+    holding(page, held, 1, "the replacement comparison")
+    expect(page.locator(".lf-ins-block")).to_have_count(0)
+    held[0].fulfill(status=500, json={"error": "comparison unavailable"})
+    expect_panel_says(page, "Couldn't load v2")
+    consume_browser_errors(page, http_error_console(500))
+    page.unroute(view_request)
+
+    menu = panel_menu(page, "versions")
+    compare = menu.get_by_role("menuitem", name="Compare with v2")
+    expect(compare).to_have_attribute("aria-pressed", "false")
+    # A pending choice left behind would treat this press as cancellation.
+    compare.click()
+    expect(page.locator(".lf-ins-block")).to_have_count(1)
+    expect(page.locator("#compound")).to_have_class(re.compile(r"\blf-ins-block\b"))
+
+
 def test_the_menu_compares_with_any_version_older_than_this_one(browser, serve):
     """A page that ships a version whenever the work moves leaves its user behind by
     more than one, and "what changed since the previous version" is then the wrong
@@ -4306,7 +4554,7 @@ def test_a_drag_across_a_written_diff_line_is_the_passage_c_comments_on(browser,
     page.wait_for_function(
         "() => document.querySelector('lf-diff.lf-rendered') !== null"
     )
-    line = page.locator('lf-diff [data-content] [data-line-type="change-addition"]')
+    line = page.locator('lf-diff [data-line][data-line-type="change-addition"]')
     # Where the phrase's first and last glyphs stand, so the drag starts and ends on them.
     ends = line.evaluate(
         """line => {
@@ -4458,7 +4706,7 @@ def test_a_datum_comment_reveals_its_shadow_host_and_outer_tab(browser, serve):
     quote = thread_quote(page, comment_ids(serve.page_dir)[0])
     expect(quote).not_to_have_class(re.compile(r"\bdetached\b"))
 
-    on_the_page(page)
+    show_on_page(page)
 
     expect(patch_tab).not_to_have_attribute("hidden", re.compile(".*"))
     added = page.locator(
@@ -4531,7 +4779,7 @@ def test_a_deferred_diff_renders_only_opened_files_and_hydrates_comment_travel(
     All file evidence is checked first; opening one file renders only that file. An existing line thread on a
     different unopened file remains attached at its disclosure; pressing its quote
     renders that file before ordinary exact-line navigation resumes. The press is the
-    thread's On the page, in the panel.
+    thread's Show on page, in the panel.
     """
     authored = leaf_page(
         "deferred diff",
@@ -4580,7 +4828,7 @@ def test_a_deferred_diff_renders_only_opened_files_and_hydrates_comment_travel(
     [thread] = comment_ids(serve.page_dir)
     quote = thread_quote(page, thread)
     expect(quote).not_to_have_class(re.compile(r"\bdetached\b"))
-    on_the_page(page, key=activation == "keyboard")
+    show_on_page(page, key=activation == "keyboard")
     page.wait_for_function("typeof window.__leafReleaseDeferred === 'function'")
     search = page.locator("lf-diff .lf-diff-search input")
     if superseded:
@@ -4607,7 +4855,7 @@ def test_a_deferred_diff_renders_only_opened_files_and_hydrates_comment_travel(
     if superseded:
         expect(search).to_be_focused()
         thread_quote(page, thread)
-        on_the_page(page)
+        show_on_page(page)
     landed()
     expect(second).to_have_class(re.compile(r"\blf-mark-here\b"))
     expect(page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')).to_have_count(0)
@@ -4618,7 +4866,7 @@ def test_a_deferred_diff_renders_only_opened_files_and_hydrates_comment_travel(
     details.evaluate("element => { element.open = false; }")
     expect(reply).to_have_count(0)
     thread_quote(page, thread)
-    on_the_page(page, key=True)
+    show_on_page(page, key=True)
     landed()
     assert page.evaluate("window.__leafDeferredRequests") == ["first.py", "second.py"]
 
@@ -4831,7 +5079,7 @@ def test_a_failed_deferred_hydration_waits_for_a_user_retry(browser, serve):
     context.route("**/api/deferred*", refuse)
     page = open_page(browser, url, context=context)
     thread_quote(page, comment_ids(serve.page_dir)[0])
-    on_the_page(page)
+    show_on_page(page)
     expect(page.locator("lf-diff .lf-error")).to_contain_text(
         "the patch is unavailable"
     )
@@ -5231,7 +5479,7 @@ new file mode 120000
         rendered: host.classList.contains('lf-rendered'),
         error: host.querySelector('.lf-error')?.firstChild?.textContent ?? null,
         details: shadow?.querySelectorAll('details').length ?? 0,
-        diffs: shadow?.querySelectorAll('pre[data-diff]').length ?? 0,
+        diffs: shadow?.querySelectorAll('pre').length ?? 0,
         renameCount: renames.length,
         evidence: [...shadow.querySelectorAll(".lf-diff-evidence")].map(node => node.textContent),
         metadata: renames.slice(3).map(node => node.querySelector('.lf-diff-stat').textContent),
@@ -5272,8 +5520,8 @@ new file mode 120000
             "mode 100644 → 100755",
             "binary content",
             "copied",
-            "added · mode 100644",
-            "deleted · mode 100644",
+            "added",
+            "deleted",
         ],
         "copied": True,
         "overflow": False,

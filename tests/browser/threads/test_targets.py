@@ -6,11 +6,6 @@ import re
 import pytest
 from click.testing import CliRunner
 from interact_support import append_carried_log_record, response_reference
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf import service as service_model
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import LIST_ORDER, PANEL_PAGE, live_url, panel_comment
 from render_harness import (
@@ -19,8 +14,10 @@ from render_harness import (
     any_owner_entry,
     leaf_page,
     open_page,
+    panel_settled,
     resized,
     select_words,
+    selection_field,
     sending,
     stamp_page,
     told,
@@ -37,6 +34,11 @@ from browser.threads import (
     seed_reply,
     thread_row,
 )
+from leaf import cli as cli_model
+from leaf import data as data_model
+from leaf import event_log as events_model
+from leaf import service as service_model
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -49,7 +51,46 @@ def open_from_threads(page, root):
     margin = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
     expect(view.or_(margin).filter(visible=True).first).to_be_visible()
     rendered(page)
+    if view.filter(visible=True).count():
+        # A painted view can still be moving; later tests read its touch reach.
+        panel_settled(page, view="thread")
     return view if view.filter(visible=True).count() else margin
+
+
+def test_a_thread_mark_inside_a_tab_panel_opens_on_press(browser, serve):
+    source = leaf_page(
+        "Thread in tabs",
+        '<lf-tabs id="views">'
+        '<lf-tab id="first" label="First">'
+        '<p id="inside">Commented words in the first tab.</p>'
+        '</lf-tab><lf-tab id="second" label="Second">Other words.</lf-tab>'
+        "</lf-tabs>",
+    )
+    page = open_page(
+        browser,
+        serve(
+            source,
+            events=[
+                {
+                    "kind": "comment",
+                    "id": "inside-thread",
+                    "author": "user",
+                    "revision": 1,
+                    "text": "About this paragraph.",
+                    "anchor": {"section": "inside"},
+                }
+            ],
+        ),
+    )
+    panel = page.locator("#first")
+    expect(panel).to_have_attribute("tabindex", "0")
+    passage = page.locator("#inside")
+    passage.hover()
+    expect(passage).to_have_css("cursor", "pointer")
+    passage.click()
+    expect(
+        page.locator('.lf-margin-preview .lf-page-thread[data-thread="inside-thread"]')
+    ).to_be_visible()
 
 
 def test_a_thread_on_words_a_widget_renders_stands_where_the_widget_does(
@@ -189,8 +230,8 @@ def test_a_control_in_a_reply_holds_the_page_s_control_shape(browser, serve):
         "return [s.width, s.height, s.borderRadius]; })"
     )
     in_reply = page.evaluate(geometries)
-    assert in_reply and all(shape == ["32px", "32px", "50%"] for shape in in_reply), (
-        f"a control in a reply lost the canonical circle: {in_reply}"
+    assert in_reply and all(shape == ["32px", "32px", "6px"] for shape in in_reply), (
+        f"a control in a reply lost the margin entry face: {in_reply}"
     )
     page.close()
 
@@ -406,7 +447,7 @@ def test_original_quoted_words_remain_readable_after_the_page_rewrites_them(
     page = open_page(browser, live_url(url), context=context)
     select_words(page, "#passage")
     if touch:
-        page.get_by_role("button", name="Comment on selection", exact=True).tap()
+        selection_field(page).tap()
     write(page.locator(".lf-composer leaf-text"), "Please revisit this earlier plan.")
     with sending(page, "the long passage comment"):
         page.locator(".lf-composer button.lf-compose-submit").click()
@@ -426,7 +467,7 @@ def test_original_quoted_words_remain_readable_after_the_page_rewrites_them(
         result = CliRunner().invoke(
             cli_model.cli,
             [
-                "response",
+                "thread",
                 "reply",
                 "--done",
                 response_reference(d, root),
@@ -533,13 +574,17 @@ def test_a_long_quote_of_replaced_data_has_a_local_reading(browser, serve):
     disclosure = card.get_by_role("button", name="Full quote", exact=True)
     expect(disclosure).to_be_visible()
     compact = card.bounding_box()["height"]
+    compact_quote = quote.bounding_box()["height"]
     disclosure.click()
     assert quote.evaluate("el => el.scrollHeight <= el.clientHeight + 1")
     rendered(page)
-    assert card.bounding_box()["height"] > compact
+    assert quote.bounding_box()["height"] > compact_quote
+    assert card.bounding_box()["height"] == pytest.approx(compact, abs=0.5)
+    assert card.evaluate("el => el.scrollHeight > el.clientHeight")
     disclosure.click()
     rendered(page)
     assert card.bounding_box()["height"] == pytest.approx(compact, abs=0.5)
+    assert quote.evaluate("el => el.scrollHeight > el.clientHeight")
 
 
 @pytest.mark.parametrize("quoted", [True, False], ids=["short-quote", "whole-section"])

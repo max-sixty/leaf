@@ -18,11 +18,11 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 import click
-from leaf.findings import Finding
-from leaf.render_checks import PageNotReady
-from leaf.render_gate.scheme import collect_page_errors
 from playwright.sync_api import Error as PlaywrightError
 
+from leaf.findings import Finding
+from leaf.render_checks import PageNotReady
+from leaf.render_gate.scheme import collect_page_exceptions, console_finding
 from leaf_dev import ROOT
 from leaf_dev.arms import base_ref, build_arm, serving_source
 from leaf_dev.browser import (
@@ -31,12 +31,15 @@ from leaf_dev.browser import (
     headless_shell,
     load,
     settle,
+    slow_cpu,
     tab,
 )
 from leaf_dev.commands.stills import DRIVERS
 from leaf_dev.example_data import named_source
+from leaf_dev.main_thread import SCRIPT as MAIN_THREAD_SCRIPT
+from leaf_dev.main_thread import reading as main_thread_reading
 from leaf_dev.recording import recording
-from leaf_dev.startup import observe_startup, startup_reading
+from leaf_dev.startup import layout_shifts_reading, observe_startup, startup_reading
 
 OUT = ROOT / ".tmp" / "probe"
 
@@ -150,6 +153,12 @@ def viewport(value: str) -> tuple[int, int]:
     help="Run in Playwright's Firefox rather than the Chromium shell.",
 )
 @click.option(
+    "--cpu-throttle",
+    "throttle",
+    type=click.FloatRange(min=1),
+    help="Slow Chromium's CPU this many times from before the page loads.",
+)
+@click.option(
     "--base",
     is_flag=False,
     flag_value="",
@@ -171,6 +180,7 @@ def probe(
     scheme,
     touch,
     firefox,
+    throttle,
     base,
 ) -> None:
     """Open SOURCE in Chrome, or Firefox with --firefox, run each --do step, and
@@ -185,14 +195,24 @@ def probe(
       focus:SEL     focus it
       drive:NAME    a `leaf-dev stills` state's input, e.g. card-by-keyboard
 
-    Focus rings draw whenever a control holds focus, by click or keyboard arrival.
+    Controls and reading destinations follow browser focus-visible; use keyboard
+    input to inspect their rings. Text editors retain their entry cue.
     --base takes an optional ref, so put
     SOURCE before it or give it one (--base=REF).
 
-    Prints one JSON line per arm: startup phases, resources and diagnostic initial
-    layout shifts; what --js returned, or the error that stopped the arm;
-    the page's console errors and uncaught exceptions; and with --shot the
-    screenshot's path under .tmp/probe/.
+    Prints one JSON line per arm: startup phases and resources; native layout shifts
+    through the journey, including recent input and affected node rectangles;
+    long animation frames during startup and input steps, with script
+    entry points and forced layout; what --js returned, or the error that stopped the arm;
+    the page's console errors and warnings and its uncaught exceptions; and with
+    --shot the screenshot's path under .tmp/probe/.
+
+    Layout shifts are diagnostics, not a stability gate; their sources name affected
+    nodes, not the code that moved them. Main-thread readings are diagnostics, not
+    timing gates: native frames of at least 50 ms, not all CPU work. Script entry points are clues for profiling,
+    not proof which widget caused a pause. Unsupported browsers say so. A journey
+    that navigates reports the current document's frames and layout shifts. The journey
+    must wait for its own result, including delayed completion, before returning.
 
     --journey loads a Python file with run(page), using the full Playwright API
     for clicks, typing, scrolling and assertions. --record DIR saves trace.zip
@@ -218,6 +238,8 @@ def probe(
         raise click.UsageError(
             "--gif, --actions and --checkpoint-images require --record DIR"
         )
+    if throttle and firefox:
+        raise click.UsageError("--cpu-throttle needs Chromium's CDP, not --firefox")
     if isinstance(source, str) and base is not None:
         raise click.UsageError("--base requires a Leaf source, not a URL")
     run = None
@@ -263,23 +285,35 @@ def probe(
                     ):
                         if record_dir:
                             reading["recording"] = str(record_dir.resolve() / arm)
-                        reading["errors"] = console_errors(page)
+                        reading["console"] = console_findings(page)
+                        page.add_init_script(path=MAIN_THREAD_SCRIPT)
+                        observe_startup(page)
+                        if throttle:
+                            slow_cpu(page, throttle)
                         doing = "load"
                         if isinstance(source, str):
                             page.goto(address)
                         else:
-                            observe_startup(page)
                             load(page, address)
                             reading["startup"] = startup_reading(page)
-                        for verb, arg in steps:
-                            doing = f"{verb}:{arg}"
-                            STEPS[verb](page, arg)
-                        if run:
-                            doing = "journey"
-                            reading["journey"] = run(page)
-                        doing = "settle"
-                        if not isinstance(source, str):
-                            settle(page)
+                        reading["main_thread"] = {"startup": main_thread_reading(page)}
+                        try:
+                            for verb, arg in steps:
+                                doing = f"{verb}:{arg}"
+                                STEPS[verb](page, arg)
+                            if run:
+                                doing = "journey"
+                                reading["journey"] = run(page)
+                            doing = "settle"
+                            if not isinstance(source, str):
+                                settle(page)
+                        finally:
+                            if not page.is_closed():
+                                if steps or run:
+                                    reading["main_thread"]["interaction"] = (
+                                        main_thread_reading(page)
+                                    )
+                                reading["layout_shifts"] = layout_shifts_reading(page)
                         if expression:
                             doing = "js"
                             reading["result"] = page.evaluate(expression)
@@ -292,15 +326,23 @@ def probe(
                     message = str(error).split("\n", 1)[0] or type(error).__name__
                     reading["failed"] = f"{doing}: {message}"
                 failed |= "failed" in reading
-                if "errors" in reading:
-                    reading["errors"] = list(map(str, reading["errors"]))
+                if "console" in reading:
+                    reading["console"] = list(map(str, reading["console"]))
                 click.echo(json.dumps({"arm": arm, "ran": ran, **reading}))
     if failed:
         raise click.ClickException("probe failed; see the arm's reading and recording")
 
 
-def console_errors(page) -> list[Finding]:
-    """The page's console errors and uncaught exceptions, collected from here on."""
-    errors = []
-    collect_page_errors(page, errors)
-    return errors
+def console_findings(page) -> list[Finding]:
+    """The console errors and warnings and the uncaught exceptions of every document
+    in the page, collected from here on. Warnings carry the browser's own diagnostics,
+    such as Firefox's note that a `document.write` forced a reparse."""
+    found = []
+
+    def heard(message):
+        if (finding := console_finding(message)) is not None:
+            found.append(finding)
+
+    page.on("console", heard)
+    collect_page_exceptions(page, found)
+    return found

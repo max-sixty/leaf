@@ -4,8 +4,6 @@ import re
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf import event_log as events_model
-from leaf import render_checks as render_checks_model
 from playwright.sync_api import expect
 from render_cases_interaction import (
     OBLIGATION_SHAPES_PAGE,
@@ -31,11 +29,15 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
+from leaf import event_log as events_model
+from leaf import render_checks as render_checks_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
-def test_a_reconnected_settled_obligation_restores_its_diff_watcher(browser, serve):
+def test_a_reconnected_settled_obligation_restores_its_comparison_reading(
+    browser, serve
+):
     """Tabs and settled answers count the comparison, including after reconnection."""
     first = SETTLED_PAGE.replace(
         '<lf-ask id="transport-decision">',
@@ -77,7 +79,7 @@ def test_a_reconnected_settled_obligation_restores_its_diff_watcher(browser, ser
 def test_a_comparison_mark_that_failed_on_return_keeps_following_the_comparison(
     browser, serve
 ):
-    """A comparison watcher whose paint throws on its owner's return reports that once
+    """A tab strip whose render throws on its return reports that once
     and still paints the next comparison: the failed reading stands, not the failure."""
     first = SETTLED_PAGE.replace(
         '<lf-ask id="transport-decision">',
@@ -105,10 +107,12 @@ def test_a_comparison_mark_that_failed_on_return_keeps_following_the_comparison(
     # changed reading throws once; the next comparison must still update its mark.
     page.evaluate("""() => {
         const views = document.getElementById('views');
-        const tab = views.querySelector('[aria-controls="decision"]');
-        tab.querySelector(':scope > .lf-tabdiff').textContent = 'stale';
-        tab.querySelector = () => {
-          delete tab.querySelector;
+        const render = views.render;
+        views.render = function () {
+          // Subscribe before the deliberate failure so the next comparison can
+          // retry this same Lit element through its normal render boundary.
+          render.call(this);
+          delete this.render;
           throw new Error('the marks failed once');
         };
         window.detachedViews = views;
@@ -119,7 +123,9 @@ def test_a_comparison_mark_that_failed_on_return_keeps_following_the_comparison(
     expect(page.locator("#transport .lf-settled-diff")).to_have_count(0)
     # The paint reports the failure, and nothing else does: no uncaught throw.
     errors = consume_browser_errors(page, "the marks failed once")
-    assert len(errors) == 1 and said(errors[0]).startswith("leaf: paint failed"), errors
+    assert len(errors) == 1 and said(errors[0]).startswith(
+        'leaf: <lf-tabs id="views"> failed'
+    ), errors
     compare_with(page, 1)
     expect(page.locator("#transport .lf-settled-diff")).to_have_text("Δ1")
     expect(mark).to_have_text("Δ1")
@@ -250,7 +256,7 @@ def test_settled_options_collapse_without_going_out_of_reach(browser, serve):
     ]
     open_panel_thread(page, root)
     page.locator(".lf-fp-aux").get_by_role(
-        "button", name="On the page", exact=True
+        "button", name="Show on page", exact=True
     ).click()
     expect(page.locator("#opt-strict")).to_be_visible()
 

@@ -15,29 +15,6 @@
   const documentId = crypto.randomUUID();
   const clock = () => performance.timeOrigin + performance.now();
   let input = null;
-  // Long animation frames since `arm`, read whole by Python, which picks the window.
-  let frames = [];
-  new PerformanceObserver((list) => {
-    for (const frame of list.getEntries()) {
-      const end = frame.startTime + frame.duration;
-      frames.push({
-        start: performance.timeOrigin + frame.startTime,
-        end: performance.timeOrigin + end,
-        // The frame's own style, layout and paint, after its scripts and animation
-        // frame callbacks; what a script forced is counted in that script.
-        render: frame.styleAndLayoutStart ? end - frame.styleAndLayoutStart : 0,
-        scripts: frame.scripts.map((script) => ({
-          start: performance.timeOrigin + script.startTime,
-          ms: script.duration,
-          forced: script.forcedStyleAndLayoutDuration,
-          // The module and function, or what invoked an anonymous callback.
-          owner: `${script.sourceURL.split("/").pop() || "(page)"} ${
-            script.sourceFunctionName || script.invoker
-          }`,
-        })),
-      });
-    }
-  }).observe({ type: "long-animation-frame" });
   addEventListener(
     "keydown",
     (event) => {
@@ -137,6 +114,9 @@
       url: entry.name,
       initiator: entry.initiatorType,
       bytes: entry.transferSize,
+      // When it started and its last byte arrived, in epoch milliseconds.
+      start: performance.timeOrigin + entry.startTime,
+      end: performance.timeOrigin + entry.responseEnd,
     })),
   });
   Object.defineProperty(window, "__leafBench", {
@@ -146,7 +126,7 @@
         if (delivering) await diagnostics();
         stopWatching?.();
         input = null;
-        frames = [];
+        window.__leafMainThread.reset();
         const watch = {
           goals: goals.map((goal) => ({ ...goal, at: null })),
           document: documentId,
@@ -184,7 +164,7 @@
         sessionStorage.removeItem(WATCH);
       },
       input: () => input,
-      frames: () => frames,
+      frames: () => window.__leafMainThread.reading().frames,
       revision: () =>
         Number(document.querySelector('meta[name="lf-revision"]')?.content),
       quiet() {

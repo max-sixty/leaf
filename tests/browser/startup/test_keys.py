@@ -4,8 +4,6 @@ controls waiting for saved history, and the help overlay."""
 import re
 
 import pytest
-from leaf import event_log as events_model
-from leaf.render_checks import rendered, wait_until_ready
 from playwright.sync_api import expect
 from render_cases_navigation import JOURNEY_V1, _publish
 from render_harness import (
@@ -26,6 +24,8 @@ from browser.startup import (
     HELD_KEYS_PAGE,
     _hold_startup,
 )
+from leaf import event_log as events_model
+from leaf.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -394,6 +394,43 @@ def test_a_key_pressed_on_a_checkbox_before_the_runtime_loads_is_held(browser, s
 
 
 @pytest.mark.parametrize("stage", ["module", "state"])
+def test_editors_and_select_typeahead_keep_letters_before_presentation(
+    browser, serve, stage
+):
+    """A native field keeps typing and a select keeps typeahead while page keys wait."""
+    url = serve(
+        leaf_page(
+            "Typing while loading",
+            '<h1>Typing while loading</h1><p id="said">A commented sentence.</p>'
+            '<textarea id="editor" aria-label="Notes"></textarea>'
+            '<select id="pick" aria-label="Animal"><option>dog</option>'
+            "<option>cat</option></select>",
+        ),
+        events=[HELD_KEYS_THREAD],
+    )
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    watched(page)
+    held, release = _hold_startup(page, stage)
+    page.goto(url, wait_until="commit")
+    holding(page, held, 1, f"the {stage} request")
+    if stage == "state":
+        expect(page.locator("body")).to_have_attribute("data-lf-upgraded", "1")
+    page.locator("#editor").click()
+    page.keyboard.press("c")
+    expect(page.locator("#editor")).to_have_value("c")
+    page.locator("#pick").focus()
+    page.keyboard.press("c")
+    expect(page.locator("#pick")).to_have_value("cat")
+    expect(page.locator(".lf-held-keys")).to_have_count(0)
+    page.locator("#said").click()
+    page.keyboard.press("t")
+    expect(page.locator(".lf-held-keys kbd")).to_have_text("t")
+    release()
+    expect(page.locator('[data-thread="held-thread"]').first).to_be_focused()
+    expect(page.locator("#editor")).to_have_value("c")
+
+
+@pytest.mark.parametrize("stage", ["module", "state"])
 def test_disabled_quick_shortcuts_are_not_held_before_presentation(
     browser, serve, stage
 ):
@@ -552,7 +589,7 @@ def test_the_help_overlay_answers_to_one_owner(browser, serve):
     A section is its title, so two drafts on a page are one heading and a project
     widget declaring under a heading a standard one already uses joins it. That is
     the scope talking rather than the declaration: "On a draft" names where the
-    user would be standing, and there is one such place however many modules
+    user would be located, and there is one such place however many modules
     have something to say about it. Sections used to key on their exact rows, so
     the same heading twice was two headings — and the user, who has one keyboard
     and one draft in front of them, got the reference split in half."""
@@ -581,8 +618,8 @@ def test_the_help_overlay_answers_to_one_owner(browser, serve):
         )
     ).to_be_visible()
     expect(
-        page.locator(".lf-command-reference", has_text="Edit the text in place")
-    ).to_be_visible()
+        page.locator('.lf-command-reference [role=row][data-lf-command="draft.edit"]')
+    ).to_be_attached()
     # Help is a scope: the table stands down behind it, so c must open nothing under
     # the sheet, neither a panel view nor the page comment in the panel's field.
     page.keyboard.press("c")

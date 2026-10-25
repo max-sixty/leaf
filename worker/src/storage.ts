@@ -1,7 +1,9 @@
 /** Durable page records and their Python-produced, dormant delivery publication.
  *
  * Python stages one successor per page under its append lease, uploads missing
- * content-addressed chunks, then atomically publishes files and HTTP responses.
+ * content-addressed chunks, then commits the returned content identity to atomically
+ * publish the stored files and captured HTTP 200 responses. The identity describes
+ * content, not a prepare attempt: preparing identical content keeps the same identity.
  * Committed records, staged successors and in-flight delivery/restore streams are the
  * complete set of chunk owners. Replacing or committing a stage reclaims unused
  * bytes; an interrupted upload retains at most one successor until that page retries.
@@ -16,7 +18,7 @@
 
 import * as z from "zod/mini";
 import { createTarPacker } from "modern-tar";
-import type { ServedState } from "../../build/browser/contract.js";
+import type { ServedState } from "../../browser/framework/contract.js";
 
 export const CHUNK_BYTES = 1024 * 1024;
 const digest = z.string().check(z.regex(/^[0-9a-f]{64}$/));
@@ -29,7 +31,6 @@ const publicationSchema = z.strictObject({
   responses: z.record(
     z.string(),
     z.strictObject({
-      status: z.number().check(z.int(), z.minimum(200), z.maximum(599)),
       headers: z.record(z.string(), z.string()),
       chunks,
     }),
@@ -37,20 +38,15 @@ const publicationSchema = z.strictObject({
 });
 
 export type PagePublication = z.infer<typeof publicationSchema>;
+type WebsiteRelease = { release: string; pages: Record<string, unknown> };
+const commitSchema = z.strictObject({ root: z.string(), identity: digest });
+type PublicationCommit = z.infer<typeof commitSchema>;
+export function readPublicationCommit(value: unknown): PublicationCommit {
+  return commitSchema.parse(value);
+}
 
 export function readPublication(value: unknown): PagePublication {
   return publicationSchema.parse(value);
-}
-
-function references(publication: PagePublication): string[] {
-  return [
-    ...new Set(
-      [
-        ...Object.values(publication.record),
-        ...Object.values(publication.responses),
-      ].flatMap((entry) => entry.chunks),
-    ),
-  ];
 }
 
 function responseIdentity(path: string): string {
@@ -79,23 +75,33 @@ export class PageStore {
 
   constructor(private storage: DurableObjectStorage) {
     storage.sql.exec(`CREATE TABLE IF NOT EXISTS leaf_pages (
-      root TEXT, staged INTEGER, release TEXT, PRIMARY KEY(root, staged)
+      root TEXT, staged INTEGER, release TEXT, identity TEXT, PRIMARY KEY(root, staged)
     ); CREATE TABLE IF NOT EXISTS leaf_files (
       root TEXT, staged INTEGER, path TEXT, chunks TEXT, modified REAL,
       PRIMARY KEY(root, staged, path)
     ); CREATE TABLE IF NOT EXISTS leaf_responses (
-      root TEXT, staged INTEGER, path TEXT, status INTEGER, headers TEXT, chunks TEXT,
+      root TEXT, staged INTEGER, path TEXT, headers TEXT, chunks TEXT,
       PRIMARY KEY(root, staged, path)
     ); CREATE TABLE IF NOT EXISTS leaf_blobs (
       digest TEXT PRIMARY KEY, bytes BLOB
     )`);
   }
 
-  private references(staged?: boolean): string[] {
-    const where = staged === undefined ? "" : ` WHERE staged = ${Number(staged)}`;
+  private references(staged?: boolean, root?: string): string[] {
+    const conditions = [];
+    const bindings: (string | number)[] = [];
+    if (staged !== undefined) {
+      conditions.push("staged = ?");
+      bindings.push(Number(staged));
+    }
+    if (root !== undefined) {
+      conditions.push("root = ?");
+      bindings.push(root);
+    }
+    const where = conditions.length ? ` WHERE ${conditions.join(" AND ")}` : "";
     return ["leaf_files", "leaf_responses"].flatMap((table) =>
       this.storage.sql
-        .exec<{ chunks: string }>(`SELECT chunks FROM ${table}${where}`)
+        .exec<{ chunks: string }>(`SELECT chunks FROM ${table}${where}`, ...bindings)
         .toArray()
         .flatMap(({ chunks }) => JSON.parse(chunks) as string[]),
     );
@@ -121,14 +127,42 @@ export class PageStore {
     }
   }
 
-  prepare(publication: PagePublication): string[] {
+  private checkRelease(root: string, release: string, manifest: WebsiteRelease): void {
+    if (!(root in manifest.pages) || release !== manifest.release)
+      throw new Error("publication does not name a page in this website release");
+  }
+
+  async prepare(
+    publication: PagePublication,
+    manifest: WebsiteRelease,
+  ): Promise<{ identity: string; missing: string[] }> {
+    this.checkRelease(publication.root, publication.release, manifest);
+    // JSON's replacer sorts every object while preserving array order. Normalize
+    // response addresses by the same rule used to store and serve them.
+    const descriptor = JSON.stringify(
+      { ...publication, responses: Object.fromEntries(responseEntries(publication)) },
+      (_key, value) =>
+        value && typeof value === "object" && !Array.isArray(value)
+          ? Object.fromEntries(
+              Object.entries(value).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
+            )
+          : value,
+    );
+    const identity = Array.from(
+      new Uint8Array(
+        await crypto.subtle.digest("SHA-256", new TextEncoder().encode(descriptor)),
+      ),
+    )
+      .map((byte) => byte.toString(16).padStart(2, "0"))
+      .join("");
     return this.storage.transactionSync(() => {
       const root = publication.root;
       this.erase(root, true);
       this.storage.sql.exec(
-        "INSERT INTO leaf_pages VALUES (?, 1, ?)",
+        "INSERT INTO leaf_pages VALUES (?, 1, ?, ?)",
         root,
         publication.release,
+        identity,
       );
       for (const [path, file] of Object.entries(publication.record)) {
         this.storage.sql.exec(
@@ -141,16 +175,15 @@ export class PageStore {
       }
       for (const [path, response] of responseEntries(publication)) {
         this.storage.sql.exec(
-          "INSERT INTO leaf_responses VALUES (?, 1, ?, ?, ?, ?)",
+          "INSERT INTO leaf_responses VALUES (?, 1, ?, ?, ?)",
           root,
           path,
-          response.status,
           JSON.stringify(response.headers),
           JSON.stringify(response.chunks),
         );
       }
       this.collect();
-      return this.missing(references(publication));
+      return { identity, missing: this.missing(this.references(true, root)) };
     });
   }
 
@@ -187,7 +220,7 @@ export class PageStore {
   }
 
   private missing(names: string[]): string[] {
-    return names.filter(
+    return [...new Set(names)].filter(
       (name) =>
         this.storage.sql
           .exec("SELECT digest FROM leaf_blobs WHERE digest = ?", name)
@@ -195,54 +228,19 @@ export class PageStore {
     );
   }
 
-  publish(publication: PagePublication): void {
+  publish(commit: PublicationCommit, manifest: WebsiteRelease): void {
     this.storage.transactionSync(() => {
-      const root = publication.root;
-      const expectedResponses = new Map(responseEntries(publication));
+      const root = commit.root;
       const pages = this.storage.sql
-        .exec<{ release: string }>(
-          "SELECT release FROM leaf_pages WHERE root = ? AND staged = 1",
+        .exec<{ release: string; identity: string }>(
+          "SELECT release, identity FROM leaf_pages WHERE root = ? AND staged = 1",
           root,
         )
         .toArray();
-      const files = this.storage.sql
-        .exec<{ path: string; chunks: string; modified: number }>(
-          "SELECT path, chunks, modified FROM leaf_files WHERE root = ? AND staged = 1",
-          root,
-        )
-        .toArray();
-      const responses = this.storage.sql
-        .exec<{
-          path: string;
-          status: number;
-          headers: string;
-          chunks: string;
-        }>(
-          "SELECT path, status, headers, chunks FROM leaf_responses WHERE root = ? AND staged = 1",
-          root,
-        )
-        .toArray();
-      if (
-        pages[0]?.release !== publication.release ||
-        files.length !== Object.keys(publication.record).length ||
-        files.some(
-          ({ path, chunks, modified }) =>
-            chunks !== JSON.stringify(publication.record[path]?.chunks) ||
-            modified !== publication.record[path]?.modified,
-        ) ||
-        responses.length !== expectedResponses.size ||
-        responses.some(({ path, status, headers, chunks }) => {
-          const response = expectedResponses.get(path);
-          return (
-            !response ||
-            status !== response.status ||
-            headers !== JSON.stringify(response.headers) ||
-            chunks !== JSON.stringify(response.chunks)
-          );
-        })
-      )
+      if (pages[0]?.identity !== commit.identity)
         throw new Error("page publication was not staged");
-      const missing = this.missing(references(publication));
+      this.checkRelease(root, pages[0].release, manifest);
+      const missing = this.missing(this.references(true, root));
       if (missing.length) throw new Error(`missing page storage chunk ${missing[0]}`);
       this.erase(root, false);
       for (const table of ["leaf_pages", "leaf_files", "leaf_responses"]) {
@@ -313,33 +311,9 @@ export class PageStore {
     const finish = () => {
       if (this.deliveries.delete(names)) this.collect();
     };
-    const reader = stream.getReader();
-    return new ReadableStream(
-      {
-        pull: async (controller) => {
-          try {
-            const { done, value } = await reader.read();
-            if (done) {
-              controller.close();
-              finish();
-            } else {
-              controller.enqueue(value);
-            }
-          } catch (error) {
-            controller.error(error);
-            finish();
-          }
-        },
-        cancel: async (reason) => {
-          try {
-            await reader.cancel(reason);
-          } finally {
-            finish();
-          }
-        },
-      },
-      { highWaterMark: 0 },
-    );
+    const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
+    void stream.pipeTo(writable).then(finish, finish);
+    return readable;
   }
 
   private body(names: string[]): ReadableStream<Uint8Array> {
@@ -366,11 +340,10 @@ export class PageStore {
   async response(root: string, path: string, head: boolean): Promise<Response | null> {
     const rows = this.storage.sql
       .exec<{
-        status: number;
         headers: string;
         chunks: string;
       }>(
-        "SELECT status, headers, chunks FROM leaf_responses WHERE root = ? AND path = ? AND staged = 0",
+        "SELECT headers, chunks FROM leaf_responses WHERE root = ? AND path = ? AND staged = 0",
         root,
         responseIdentity(path),
       )
@@ -380,16 +353,14 @@ export class PageStore {
     const headers = new Headers(JSON.parse(response.headers));
     headers.set("Cache-Control", "private, no-store");
     headers.set("Leaf-State-Source", "durable");
-    if (head || response.status === 204 || response.status === 304) {
-      return new Response(null, { status: response.status, headers });
-    }
+    if (head) return new Response(null, { headers });
     const body = this.body(JSON.parse(response.chunks));
     if (path === "api/state" || path.startsWith("api/state?")) {
       const state = (await new Response(body).json()) as ServedState;
       dateStateDelivery(state);
       headers.delete("Content-Length");
-      return Response.json(state, { status: response.status, headers });
+      return Response.json(state, { headers });
     }
-    return new Response(body, { status: response.status, headers });
+    return new Response(body, { headers });
   }
 }

@@ -1,5 +1,7 @@
 # Added with opt-in ephemeral progress replies. This measures command selection
 # from shipped instructions; CLI and browser tests cover execution and folding.
+# Its answer was rewritten in the declared envelope's shape (`parent`,
+# `responds`) at 6a66b9b7b. Not rescored.
 description: ephemeral-progress-reply
 metadata:
   purpose: Post interim progress in an owed thread without answering the input, then let the final reply fold it.
@@ -10,7 +12,7 @@ vars:
     You own a live Leaf page at ~/.local/state/leaf/pages/layout-review.
     A delivered user message user-request in thread layout-thread asks:
     "Stop the reply box jumping when I switch drafts."
-    Its current answer is {"kind":"reply","to":"user-request","for":"user-request","ref":"7f20c3d9:0:user-request","writer":"agent"}.
+    Its current answer is {"kind":"reply","parent":"user-request","responds":"user-request","ref":"7f20c3d9:0:user-request","writer":"agent"}.
 
     You are still testing the fix. Send an interim message in that thread saying
     "Checking the keyboard route." Keep the user's actual answer due. When your
@@ -23,7 +25,7 @@ assert:
   - type: llm-rubric
     metric: declares-progress-without-answering
     value: |
-      Pass only if the command is one `leaf response reply` naming the reference
+      Pass only if the command is one `leaf thread reply` naming the reference
       `7f20c3d9:0:user-request`, marked `--ephemeral`, with `--text` carrying the
       line "Checking the keyboard route." (or close wording), so the message posts as
       progress and the user's answer stays due. Any spelling of the launcher passes.

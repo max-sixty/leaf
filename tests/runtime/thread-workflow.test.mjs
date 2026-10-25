@@ -6,15 +6,9 @@ import {
   strongestWorkflow,
   threadAttention,
   workflowLabel,
-} from "../../skills/leaf/assets/runtime/thread/workflow.js";
-import {
-  foldThreads,
-  readThreadRecords,
-} from "../../skills/leaf/assets/runtime/thread/model.js";
-import {
-  isTurnEvent,
-  turnMessage,
-} from "../../skills/leaf/assets/runtime/pending/model.js";
+} from "../../browser/runtime/thread/workflow.js";
+import { foldThreads, readThreadRecords } from "../../browser/runtime/thread/model.js";
+import { isTurnEvent, turnMessage } from "../../browser/runtime/pending/model.js";
 import { servedReading, servedThread, servedWorkflow } from "../served.mjs";
 
 // The user's turns, which `events.exchange` and `events.turn_message` read off the log
@@ -31,8 +25,8 @@ for (const { id, events, turns } of TURN_CASES)
     );
   });
 
-// A workflow for an input in the thread `root` opened, which the agent owes a reply
-// and which holds the thread.
+// A workflow for an input in the thread `root` opened, which serves the record of the
+// reply the agent owes it.
 const workflow = (id, stage, changes = {}) =>
   servedWorkflow({
     id,
@@ -42,7 +36,7 @@ const workflow = (id, stage, changes = {}) =>
     subject: { kind: "thread", id: "root" },
     thread: "root",
     coordinate: ["thread", "root"],
-    answer: { kind: "reply", to: id, for: id },
+    obligation: `update:${id}`,
     stage,
     ...changes,
   });
@@ -94,12 +88,13 @@ test("thread attention gives an open user obligation precedence over agent work"
   const work = workflow("a", "working");
   const recovery = workflow("recovery", "sent", {
     condition: { kind: "failed" },
-    next_actor: "user",
   });
   const thread = {
     resolved: null,
     workflows: [recovery, work],
-    attention: { kind: "needs_user", reason: "widget", workflow: "recovery" },
+    // The record the agent's work serves, which it still owes.
+    obligations: [{ id: "update:a", source: { kind: "update" }, next_actor: "agent" }],
+    attention: { kind: "needs_user", reason: "obligation", workflow: "recovery" },
   };
   assert.deepEqual(threadAttention(thread), {
     kind: "needs_user",
@@ -142,7 +137,6 @@ test("a send this tab has not delivered ranks below the served workflows of its 
   // Served strongest first; the server's order is taken as given.
   const recovery = workflow("recovery", "answered", {
     condition: { kind: "failed", operation: "response" },
-    next_actor: "user",
   });
   const older = workflow("older", "sent", { seq: 1 });
   const newer = workflow("newer", "sent", { seq: 2 });
@@ -150,7 +144,6 @@ test("a send this tab has not delivered ranks below the served workflows of its 
   const refused = workflow("rejected:retry", "sending", {
     seq: 4,
     condition: { kind: "failed", operation: "delivery" },
-    next_actor: "user",
   });
   assert.equal(strongestWorkflow([recovery, older, pending, refused]), recovery);
   assert.equal(strongestWorkflow([newer, older, pending, refused]), refused);
@@ -222,7 +215,6 @@ test("a pending reply shows on its message and leaves whose turn it is to the lo
     [
       workflow("failed", "answered", {
         condition: { kind: "failed", operation: "response" },
-        next_actor: "user",
       }),
       workflow("pending:retry", "sending"),
     ],
@@ -313,7 +305,7 @@ test("pending thread gestures fold in the order the user made them, as the log w
   const undo = { id: "pending:undo", kind: "undo", author: "user", undoes: "kept" };
   const resolve = { kind: "resolve", parent: "root", author: "user" };
   const unresolve = { ...resolve, kind: "unresolve" };
-  const owed = { kind: "needs_user", reason: "widget", workflow: null };
+  const owed = { kind: "needs_user", reason: "obligation", workflow: null };
   const fold = (changes, ...gestures) =>
     foldThreads([servedThread([asked, question], changes)], gestures)[0];
 

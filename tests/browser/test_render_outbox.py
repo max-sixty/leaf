@@ -559,6 +559,11 @@ def test_another_key_or_a_scroll_away_puts_the_shown_gesture_back_to_showing(
     def pressed_without_taking():
         page.keyboard.press("z")
         expect(picks).to_be_in_viewport()
+        # A scroll clears the arm only once the arm has seen what the press showed: its
+        # travel finished and the next pass read it in view. The user is on it from
+        # then, so a scroll before it would be one no user could make.
+        page.wait_for_function("() => !navigation.transition")
+        rendered(page)
         told(page)
         assert _undos(serve.page_dir) == []
 
@@ -571,6 +576,8 @@ def test_another_key_or_a_scroll_away_puts_the_shown_gesture_back_to_showing(
     page.evaluate("window.scrollTo({top: 0, behavior: 'instant'})")
     scroll_settled(page)
     expect(picks).not_to_be_in_viewport()
+    # The arm reads the scroll in the pass after the window moves.
+    rendered(page)
     pressed_without_taking()
 
     page.mouse.move(400, 300)

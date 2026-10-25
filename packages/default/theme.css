@@ -554,6 +554,7 @@
 
 /* packages/default/styles/options.css */
 @property --lf-options-across { syntax: "<integer>"; inherits: false; initial-value: 0; }
+@property --lf-option-in-row { syntax: "<integer>"; inherits: false; initial-value: 0; }
 @property --lf-option-line { syntax: "<length>"; inherits: true; initial-value: 0px; }
 :scope:is(lf-options) {
   display: block;
@@ -563,6 +564,7 @@
   --lf-option-line: 1lh;
   --lf-option-pad-min: 5px;
   --lf-option-pad-block: var(--lf-option-pad-min);
+  --lf-options-row-width: initial;
   container-type: inline-size;
 }
 @media screen {
@@ -931,6 +933,7 @@
   @container style(--lf-options-across: 1) {
     :scope:is(lf-options)[choose]:not([settled]):not(:where([data-lf-exhibit]) *):has(> lf-option > strong) {
       --lf-option-count: 99;
+      --lf-options-row-width: calc(var(--lf-option-count) * 14rem);
       &:has(> lf-option:nth-of-type(1):last-of-type) {
         --lf-option-count: 1;
       }
@@ -949,8 +952,21 @@
       &:has(> lf-option:nth-of-type(6):last-of-type) {
         --lf-option-count: 6;
       }
-      grid-template-columns: repeat(auto-fit, minmax(clamp(100% / var(--lf-option-count), (var(--lf-option-count) * 14rem - 100%) * 999, 100%), 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(clamp(100% / var(--lf-option-count), (var(--lf-options-row-width) - 100%) * 999, 100%), 1fr));
       max-inline-size: none;
+    }
+  }
+  :scope:is(lf-options):has(> lf-option > strong) > lf-option {
+    --lf-option-in-row: clamp(0, sign(100cqi - var(--lf-options-row-width)) + 1, 1);
+    align-content: first baseline;
+  }
+  @container style(--lf-option-in-row: 1) {
+    :scope:is(lf-option) > .tag:has(~ strong) {
+      float: inline-start;
+      margin-block-end: calc(var(--lf-card-state-height) - 1lh);
+    }
+    :scope:is(lf-options):has(> lf-option > .tag ~ strong) > lf-option > strong {
+      clear: both;
     }
   }
   :is(:scope, :scope *)[data-lf-obligation]:has(lf-options[choose]:not(:where([data-lf-exhibit]) *) [data-lf-focus-visible]) {

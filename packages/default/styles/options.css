@@ -11,7 +11,8 @@
  *
  * Chips are inline-block in front of the title, so a titled option's band lands on its
  * own line above the block <strong> and a bare label's rides in its row. Authors write
- * as many as the decision needs, so the band wraps rather than reserving room.
+ * as many as the decision needs, so the band wraps rather than reserving room. Cards that
+ * share a row float their chips instead, so their titles align (below).
  *
  * Joined is a second axis: under `choose` on screen, the group becomes one control whose
  * cells share hairlines; under `settled`, in an exhibit, or on paper it comes apart.
@@ -27,6 +28,14 @@
  * lf-ask framing a figure does (ask.css); it does not inherit, so a nested group keeps its
  * own. */
 @property --lf-options-across {
+  syntax: "<integer>";
+  inherits: false;
+  initial-value: 0;
+}
+/* Whether an option shares a row with its siblings, which it does only in a group laid
+ * across that is wide enough to hold them all (`--lf-options-row-width`). Each option
+ * computes it against its group's width and its children read it. */
+@property --lf-option-in-row {
   syntax: "<integer>";
   inherits: false;
   initial-value: 0;
@@ -47,6 +56,9 @@
   --lf-option-line: 1lh;
   --lf-option-pad-min: 5px;
   --lf-option-pad-block: var(--lf-option-pad-min);
+  /* The width a row of its options needs, set only where the group lays them across, so
+   * a group nested in an option does not inherit its holder's. */
+  --lf-options-row-width: initial;
   container-type: inline-size;
 }
 /* Options are read as lines of text, so the group keeps the reading measure as its
@@ -548,6 +560,7 @@
         > lf-option > strong
       ) {
       --lf-option-count: 99;
+      --lf-options-row-width: calc(var(--lf-option-count) * 14rem);
       &:has(> lf-option:nth-of-type(1):last-of-type) {
         --lf-option-count: 1;
       }
@@ -571,13 +584,38 @@
         minmax(
           clamp(
             100% / var(--lf-option-count),
-            (var(--lf-option-count) * 14rem - 100%) * 999,
+            (var(--lf-options-row-width) - 100%) * 999,
             100%
           ),
           1fr
         )
       );
       max-inline-size: none;
+    }
+  }
+  /* Cards laid across align their titles, whatever chips each opens with. The chips
+   * that open a card float out of the line flow, so its title is the card's first
+   * baseline, and the row aligns each card's contents on it (baseline
+   * content-alignment) while the cards keep the row's height and their corners.
+   * Chromium lacks baseline content-alignment (`notes/browser-support.md`), so where
+   * any card in the row opens with chips every title also clears the state seat:
+   * chips that fit beside the seat then leave every title on the line below it in
+   * both engines. A row without chips keeps its titles beside the seat. Subgrid would
+   * need a box around a card's chips, and a card's children stay as the author wrote
+   * them. */
+  :scope:is(lf-options):has(> lf-option > strong) > lf-option {
+    --lf-option-in-row: clamp(0, sign(100cqi - var(--lf-options-row-width)) + 1, 1);
+    align-content: first baseline;
+  }
+  @container style(--lf-option-in-row: 1) {
+    /* Each chip's row is the seat's height, so the chips wrap level beside the seat and
+     * under it rather than stepping down where the seat ends. */
+    :scope:is(lf-option) > .tag:has(~ strong) {
+      float: inline-start;
+      margin-block-end: calc(var(--lf-card-state-height) - 1lh);
+    }
+    :scope:is(lf-options):has(> lf-option > .tag ~ strong) > lf-option > strong {
+      clear: both;
     }
   }
   /* Focus inside the control is carried by the exact row, so the obligation's location ring

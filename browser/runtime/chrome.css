@@ -63,6 +63,7 @@
     color: var(--ink);
   }
   .lf-fp-card {
+    isolation: isolate;
     anchor-name: --lf-fp-panel;
     display: flex;
     flex-direction: column;

@@ -102,6 +102,7 @@ import { commandSteps } from "./keyboard/control-keys.js";
 import { pruneScopedElements } from "./keyboard/scopes.js";
 import { repaint } from "./repaint.js";
 import { notice } from "./notifications.js";
+import { backgroundFlash, flashDuration } from "./motion.js";
 import {
   authored,
   elementById,
@@ -688,7 +689,12 @@ let versionSource = () => null;
 // with the same loaded renderer.
 export function selfComparison() {
   const source = versionSource()?.source;
-  if (!source) return [];
+  return source ? blocksNewSince(source) : [];
+}
+// The live page's blocks a version's source has no twin for, read as the comparison
+// reads them, with the current widget state painted on both sides. A revision landing
+// asks it of the source it replaced, to tint the blocks the revision changed.
+function blocksNewSince(source) {
   const doc = document.implementation.createHTMLDocument("");
   doc.body.replaceChildren(doc.importNode(source, true));
   formatDeclaredMarkdown(doc);
@@ -1421,6 +1427,7 @@ export function createVersionController({
     const comparedFrom = selectedBase();
     if (comparedFrom !== null) setDiff(false);
     const live = pageDocument();
+    const outgoing = authoredSource;
     // Capture before replacing nodes, using the outgoing source as the baseline.
     const carry = captureCarry(live, authoredSource);
     const source = pageDocument(doc);
@@ -1590,6 +1597,10 @@ export function createVersionController({
             await restoreEditingContinuity(editingContinuity, currentIntent);
           }
           if (comparedFrom !== null) showComparison(comparedFrom);
+          // Each block the revision changed takes a newly arrived message's tint,
+          // which paints and moves nothing.
+          for (const [block] of blocksNewSince(outgoing))
+            backgroundFlash(block, flashDuration());
           notice(`Updated to ${target.label}`, { background: true });
         }),
     };

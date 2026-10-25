@@ -862,6 +862,7 @@ export function createThreadPreview({
       return null;
     }
     keepsHidden(preview, false);
+    keeps(preview, "inert", null);
     buildThreadCard(entry, selected.id);
     const positioned = placedThreadPreview();
     return session.sent ? growOut(session, positioned) : positioned;
@@ -891,10 +892,27 @@ export function createThreadPreview({
     if (!previewSession) return;
     const closed = selection();
     retirePreviewSession();
-    placementDriver.stop();
+    // Unplaced, the card fades out where it stood (annotation-chrome.css), inert, and
+    // hides once the fade ends, unless a card opened meanwhile. Its placement holds it
+    // there until then.
+    placementDriver.supersede();
     delete preview.dataset.lfThreadPlacement;
-    for (const edge of CUT_EDGES) preview.style.removeProperty(edge);
-    keepsHidden(preview, true);
+    const hide = () => {
+      if (previewSession) return;
+      placementDriver.stop();
+      for (const edge of CUT_EDGES) preview.style.removeProperty(edge);
+      keepsHidden(preview, true);
+      keeps(preview, "inert", null);
+    };
+    const fade = preview.hidden
+      ? null
+      : preview
+          .getAnimations()
+          .find((played) => played.transitionProperty === "opacity");
+    if (fade) {
+      keeps(preview, "inert", "");
+      fade.finished.then(hide, hide);
+    } else hide();
     // The widgets of a reply the card held go back to another drawing of it.
     releaseAuthoredUnder(preview);
     onClose(closed);

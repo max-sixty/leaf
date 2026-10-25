@@ -352,7 +352,6 @@ export function mountApplication(dependencies) {
         part: "reply",
         focus: false,
         travel: false,
-        flash: false,
         intent,
       }),
     returnToPage: threadDestinations.returnToPage,

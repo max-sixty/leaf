@@ -739,6 +739,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 			return null;
 		}
 		keepsHidden(preview, false);
+		keeps(preview, "inert", null);
 		buildThreadCard(entry, selected.id);
 		const positioned = placedThreadPreview();
 		return session.sent ? growOut(session, positioned) : positioned;
@@ -762,10 +763,20 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 		if (!previewSession) return;
 		const closed = selection();
 		retirePreviewSession();
-		placementDriver.stop();
+		placementDriver.supersede();
 		delete preview.dataset.lfThreadPlacement;
-		for (const edge of CUT_EDGES) preview.style.removeProperty(edge);
-		keepsHidden(preview, true);
+		const hide = () => {
+			if (previewSession) return;
+			placementDriver.stop();
+			for (const edge of CUT_EDGES) preview.style.removeProperty(edge);
+			keepsHidden(preview, true);
+			keeps(preview, "inert", null);
+		};
+		const fade = preview.hidden ? null : preview.getAnimations().find((played) => played.transitionProperty === "opacity");
+		if (fade) {
+			keeps(preview, "inert", "");
+			fade.finished.then(hide, hide);
+		} else hide();
 		releaseAuthoredUnder(preview);
 		onClose(closed);
 	}

@@ -8,7 +8,12 @@ import re
 import pytest
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
-from render_cases_interaction import PANEL_PAGE, live_url, panel_comment
+from render_cases_interaction import (
+    PANEL_PAGE,
+    THREAD_DIFF_PAGE,
+    live_url,
+    panel_comment,
+)
 from render_harness import (
     LONG_PAGE,
     example_media,
@@ -109,6 +114,49 @@ def test_thread_actions_share_consistently_sized_message_headers(
             geometry
         )
         assert geometry["bodyLeft"] == geometry["headLeft"], geometry
+
+
+# Where a message's words may run to, and the thread's inset before its words.
+WORDS_END = """message => {
+  const words = message.querySelector('.lf-msg-text');
+  const end = words.getBoundingClientRect().right
+    - parseFloat(getComputedStyle(words).paddingInlineEnd);
+  const inset = parseFloat(
+    getComputedStyle(message).getPropertyValue('--lf-thread-text-inset'));
+  return {end, inset};
+}"""
+
+
+@pytest.mark.parametrize("surface", ["panel", "seat"])
+def test_the_user_s_words_end_where_the_agent_s_do(browser, serve, surface):
+    """The user's own message runs to the thread's column, as the agent's under it
+    does, keeping at its end only the inset its words start with, where its rewrite's
+    frame stands. In the panel the user's lines stopped 86px short of the agent's, and
+    41px in a thread on the page, the room Send takes in the field they were typed in,
+    so every message the user sent wrapped narrower than the reply under it."""
+    words = (
+        "Check that these balance robust interfaces with code simplicity, deferring "
+        "to standards and the browser wherever they can, and keeping the code simple."
+    )
+    url = serve(PANEL_PAGE if surface == "panel" else THREAD_DIFF_PAGE)
+    root = panel_comment(
+        serve.page_dir, words, None if surface == "panel" else {"section": "cd-q"}
+    )
+    append_agent_reply(serve.page_dir, root, words)
+    page = open_page(browser, url)
+    resized(page, 1280, 900)
+    if surface == "panel":
+        thread = open_panel_thread(page, root)
+    else:
+        thread = page.locator("#cd-q .lf-page-thread").first
+    user, agent = thread.locator(".lf-msg.user"), thread.locator(".lf-msg.agent")
+    expect(agent).to_contain_text("Check that these")
+    rendered(page)
+    mine, theirs = user.evaluate(WORDS_END), agent.evaluate(WORDS_END)
+    assert theirs["end"] - mine["end"] == pytest.approx(mine["inset"], abs=0.5), (
+        mine,
+        theirs,
+    )
 
 
 def test_opening_message_reactions_does_not_reflow_the_thread(browser, serve):

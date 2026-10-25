@@ -170,22 +170,18 @@ def test_worktree_disclosures_keep_diff_reading_state_and_unknown_totals(
 
 def test_a_visible_datum_takes_over_pending_thread_motion(browser, serve):
     """Readable geometry before a glide starts is no promise of a final landing."""
+    patch = (
+        "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
+        "@@ -1 +1 @@\n-old\n+new\n"
+    )
     url = serve(
         leaf_page(
             "Datum arrival",
             '<h1>Review</h1><lf-file-tree id="files" for="patch"></lf-file-tree>'
-            '<lf-diff id="patch" source="change"><pre></pre></lf-diff>'
+            f'<lf-diff id="patch"><pre>{escape(patch)}</pre></lf-diff>'
             '<p style="min-height:2000px">Context</p><p id="far">Far thread.</p>',
         ),
         anchored=[("far", "Far thread.")],
-    )
-    data_model.cmd_data_set(
-        serve.page_dir,
-        "change",
-        patch_manifest(
-            "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
-            "@@ -1 +1 @@\n-old\n+new\n"
-        ),
     )
     page = open_page(browser, url)
     datum = page.locator('lf-diff [data-lf-datum=\'["app.py","new",1]\']')

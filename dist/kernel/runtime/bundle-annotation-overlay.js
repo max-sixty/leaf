@@ -216,7 +216,7 @@ const CUT_EDGES = [
 	"--lf-cut-bottom",
 	"--lf-cut-left"
 ];
-function createThreadPreview({ inventory, renderMarginThread, placedAt, openPageThread, scrollThreadIntoView, scrollToElement, onClose }) {
+function createThreadPreview({ inventory, renderMarginThread, placedAt, openPageThread, scrollThreadIntoView, scrollToElement, openInPanel, onClose }) {
 	const { targetFor, entryPoint, entryPlace, sourceItem } = inventory;
 	const preview = el("aside", "lf-ui lf-margin-preview");
 	preview.id = THREAD_CARD;
@@ -239,7 +239,13 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 	previewNext.setAttribute("aria-label", "Next thread");
 	previewNext.title = "Next thread";
 	previewNav.append(previewPrevious, previewPosition, previewNext);
+	const previewOpenInPanel = offer("button", "lf-btn lf-icon-action lf-quiet-action lf-margin-preview-expand");
+	previewOpenInPanel.type = "button";
+	previewOpenInPanel.append(iconElement("expand", "lf-action-icon"));
+	previewOpenInPanel.setAttribute("aria-label", "Open in panel");
+	previewOpenInPanel.title = "Open in panel";
 	const previewList = el("div", "lf-margin-preview-list");
+	let dismiss = () => {};
 	const carry = surfaceGrip({
 		surface: preview,
 		bounds: () => commentBoundary({ region: previewSession?.region }),
@@ -693,8 +699,14 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 			const body = el("div", "lf-margin-thread-body");
 			node.append(body);
 		}
-		renderMarginThread(node.querySelector(":scope > .lf-margin-thread-body"), sourceItem(item).thread, {
+		const shownThread = sourceItem(item).thread;
+		previewOpenInPanel.onclick = () => {
+			dismiss();
+			openInPanel(shownThread.id);
+		};
+		renderMarginThread(node.querySelector(":scope > .lf-margin-thread-body"), shownThread, {
 			nav: previewNav.hidden ? null : previewNav,
+			expand: previewOpenInPanel,
 			close: previewClose,
 			anchor: previewSession.anchor,
 			sending: following.stream,
@@ -830,6 +842,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 		}) : null;
 	}
 	function mount(onDismiss) {
+		dismiss = onDismiss;
 		previewClose.onclick = onDismiss;
 		previewPrevious.onclick = () => stepPreviewThread(-1);
 		previewNext.onclick = () => stepPreviewThread(1);
@@ -1095,7 +1108,7 @@ function createMarginClusterViews({ activateContribution, materializeReading, op
 
 //#endregion
 //#region runtime/annotation-overlay/margin-projection.js
-function createMarginProjection({ inventory, refreshInventory, renderAnnotations, openPageThread, designModeActive, pointerModeActive, leavePageMap, openPageMap, pageMapDialogContains, scrollThreadIntoView, renderMarginThread, placedAt, marksFor, scrollToElement }) {
+function createMarginProjection({ inventory, refreshInventory, renderAnnotations, openPageThread, designModeActive, pointerModeActive, leavePageMap, openPageMap, pageMapDialogContains, scrollThreadIntoView, renderMarginThread, placedAt, marksFor, scrollToElement, openInPanel }) {
 	const { targetFor, entryPoint, entryPlace, entryPassage, sourceItem, workflowReceipt, threadIdsAt, threadItem: marginThreadItem } = inventory;
 	const nav = el("nav", "lf-ui lf-margin-projection");
 	generatedElement(nav, { says: false });
@@ -1111,6 +1124,7 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 		openPageThread,
 		scrollThreadIntoView,
 		scrollToElement,
+		openInPanel,
 		onClose: closedPreview
 	});
 	const preview = card.element;

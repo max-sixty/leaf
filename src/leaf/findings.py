@@ -683,13 +683,15 @@ _TEXT = {
         " (authoring-evidence.md, Interactive and visual evidence)"
     ),
     "unreserved-height": lambda at, v: (
-        f"{at} draws {v['drawn']}px tall where its first paint "
+        f"{at} first paints {v['first']}px tall, "
         + (
-            "reserves no height"
+            "reserving no height"
             if v["reserved"] is None
-            else f"reserves {v['reserved']}px"
+            else f"reserving {v['reserved']}px"
         )
-        + f', so what follows it moves when it is drawn: state data-height="{v["drawn"]}"'
+        + f", and draws {v['drawn']}px tall, so what follows it moves"
+        f" {abs(v['drawn'] - v['first'])}px when it is drawn:"
+        f' state data-height="{v["drawn"]}"'
     ),
     # The page's own code, run once in the browser.
     "page-report": lambda at, v: v["text"],

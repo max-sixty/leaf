@@ -82,6 +82,7 @@ from render_harness import (
     take_browser_errors,
     told,
     wait_for_revision,
+    wide_width,
     write,
 )
 
@@ -793,6 +794,8 @@ def test_a_focused_card_comment_never_paints_over_the_cards_contents(browser, se
     mark = page.locator('.lf-visual-mark[data-for="lp-k-checks"].lf-visual-mark-here')
     expect(mark).to_be_visible()
     card.scroll_into_view_if_needed()
+    # Include the floating thread's final placement and shadow in both captures.
+    rendered(page)
     box = card.bounding_box()
 
     def screenshot():
@@ -1461,7 +1464,7 @@ def test_a_boards_minimum_keeps_the_room_the_column_can_grant(browser, serve):
                 assert at["board-4"]["scrolls"] > 0, at
                 assert at["board-5"]["scrolls"] > 0, at
             elif width == 1440:
-                assert at["wide"]["width"] == pytest.approx(840, abs=1), at
+                assert at["wide"]["width"] == pytest.approx(wide_width(page), abs=1), at
                 assert at["room"]["width"] > at["wide"]["width"], at
 
 
@@ -1507,13 +1510,14 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
     resized(page, 1726, 900)
     at = page.evaluate(measure)
     edge = at["prose"]["left"]
+    wide = round(wide_width(page))
     # An option list keeps the measure whatever one option holds: only a box's own
     # blocks widen it.
     for boxed in ("ask", "callout", "list"):
         assert at[boxed] == {"width": 720, "left": edge}, (boxed, at)
     # A granted callout's padding and border fall inside the wide measure.
-    for wide in ("granted", "granted-c", "holds"):
-        assert at[wide] == {"width": 840, "left": edge}, (wide, at)
+    for granted in ("granted", "granted-c", "holds"):
+        assert at[granted] == {"width": wide, "left": edge}, (granted, at)
     # The widened obligation frames its table, which stands wider than the measure.
     assert at["holds-t"]["width"] > 720, at
 
@@ -1558,7 +1562,7 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
             " 'wrapped']",
         )
     )
-    assert at["holds-t"]["width"] == 840, at
+    assert at["holds-t"]["width"] == wide, at
     assert at["holds-t"]["left"] == at["prose"]["left"], at
     assert at["holds"] == at["holds-t"], at
     heading = column.locator("#holds h3").bounding_box()
@@ -1566,7 +1570,9 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
     assert at["ask"] == at["prose"], at
     assert at["listed"] == at["listed-t"], at
     assert at["listed"]["width"] < at["prose"]["width"], at
-    assert at["both"] == at["both-t"] == {"width": 840, "left": at["holds"]["left"]}, at
+    assert at["both"] == at["both-t"] == {"width": wide, "left": at["holds"]["left"]}, (
+        at
+    )
     assert at["tracked"]["width"] == 350, at
     # An obligation inside a breakout takes its holder's room, as any block
     # there does, however much room its own block asks for.
@@ -1733,8 +1739,9 @@ def test_a_table_granted_room_stands_on_the_prose_axis(
     # A `wide` table grows only from the prose's start edge, toward the end side.
     assert at["edge"][start] == pytest.approx(prose[start], abs=1), at
     free_end = free_right if direction == "ltr" else free_left
-    if width(prose) + free_end >= 840:
-        expected = min(840, width(at["wide"]))
+    wide = wide_width(page)
+    if width(prose) + free_end >= wide:
+        expected = min(wide, width(at["wide"]))
         assert width(at["edge"]) == pytest.approx(expected, abs=1), at
     for edge in ("left", "right"):
         assert at["turned"][edge] == pytest.approx(at["wide"][edge], abs=1), at

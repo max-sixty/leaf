@@ -31,6 +31,7 @@ from render_harness import (
     resized,
     root_overflow,
     sending,
+    wide_width,
     write,
 )
 
@@ -626,19 +627,23 @@ def test_named_wide_is_the_evidence_width_of_a_document_layout(browser, serve):
     breakout's growth alone left a named-wide block at the holder's width there. The
     cap holds an authored occurrence and a package default (a diff) alike, at the
     page's own `--wide`, while a block that names no width still fills its holder and
-    `available` takes it all. A workspace states no evidence width, so there both fill
+    `available` takes it all. At the theme's own `--wide`, which it derives from the
+    code size, the diff's 100-column line at four-digit line numbers reads without
+    scrolling. A workspace states no evidence width, so there both fill
     their pane as a block that names none does. A narrow window's holder still bounds
     the wide block."""
-    blocks = """
+    line = '    return format!("{}: {}", self.bracket_name(), self.material.to_string()); // x'
+    line = (line + "x" * 100)[:100]
+    blocks = f"""
 <div id="named" data-width="wide">Named wide.</div>
 <lf-diff id="patch"><pre>
 diff --git a/feeders/mount.py b/feeders/mount.py
 --- a/feeders/mount.py
 +++ b/feeders/mount.py
-@@ -1,2 +1,2 @@
+@@ -1201,2 +1201,2 @@
  def bracket():
 -    return "plastic"
-+    return "steel"
++{line}
 </pre></lf-diff>
 <div id="plain">No width named.</div>
 <div id="available" data-width="available">Available.</div>
@@ -660,14 +665,23 @@ diff --git a/feeders/mount.py b/feeders/mount.py
         const box = document.getElementById(id).getBoundingClientRect();
         return [id, {width: Math.round(box.width), left: Math.round(box.left)}];
       }))"""
+    scrolled = """() => {
+      const text = document.getElementById('patch').shadowRoot
+        .querySelector('code.lf-text-scroller');
+      return text.scrollWidth - text.clientWidth;
+    }"""
     for source, cap in (
-        (sidebar_page, 840),
+        (sidebar_page, "theme"),
         (workspace_page, None),
         (configured, 900),
     ):
         page = open_page(browser, serve(source))
         resized(page, 1726, 900)
         at = page.evaluate(measure)
+        if cap == "theme":
+            cap = wide_width(page)
+            expect(page.locator("#patch")).to_have_class(re.compile(r"\blf-rendered\b"))
+            assert page.evaluate(scrolled) <= 0, at
         assert at["plain"]["width"] > 1080 + 200, at
         assert at["available"]["width"] == at["plain"]["width"], at
         for capped in ("named", "patch"):

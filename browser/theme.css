@@ -1322,7 +1322,7 @@
   --page-pad-end: 96px;
   --pane-bar-pad: 10px 14px;
   --pane-inset: 14px;
-  --wide: 840px;
+  --wide: calc(109 * 0.61 * var(--code-size) + 10px);
   --wide-page-max: 1600px;
   --lf-ui-lh: 1.45;
   --details-margin-block: 18px;
@@ -1338,8 +1338,8 @@
   --t-3: 20px;
   --t-2: 24px;
   --t-1: 31px;
-  --code-size: 12.5px;
-  --code-line: 19px;
+  --code-size: 13.5px;
+  --code-line: 20px;
   --msg-font: max(var(--entry-floor), var(--t-5)) / 1.5 var(--sans);
   --code-inline-size: 82%;
   --code-inline-pad: 1px 5px;
@@ -1678,6 +1678,7 @@ main {
 @property --map { syntax: "<length>"; inherits: true; initial-value: 0px; }
 @property --sidebar { syntax: "<length>"; inherits: true; initial-value: 0px; }
 @property --note { syntax: "<length>"; inherits: true; initial-value: 0px; }
+@property --wide { syntax: "<length>"; inherits: true; initial-value: 0px; }
 @media screen {
   :where(p, li, dt, dd, blockquote, figcaption, h1, h2, h3, h4, h5, h6, .callout, lf-suggestion) {
     max-inline-size: var(--lf-measure);
@@ -1757,8 +1758,8 @@ p {
   --sp-3: 10px;
   --sp-4: 14px;
   --sp-5: 18px;
-  --code-size: 12px;
-  --code-line: 17px;
+  --code-size: 13px;
+  --code-line: 18px;
   --pane-bar-pad: 6px 12px;
   --pane-inset: 12px;
   --h2-start: 18px;

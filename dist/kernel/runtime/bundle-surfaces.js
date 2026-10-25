@@ -6274,6 +6274,7 @@ var ThreadView = class {
 		const actions = marginControls ? [
 			model.news ? notice.node : null,
 			marginControls.nav,
+			marginControls.expand,
 			settlement,
 			marginControls.close
 		].filter(Boolean) : [settlement].filter(Boolean);

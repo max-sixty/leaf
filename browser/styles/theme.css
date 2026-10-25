@@ -362,12 +362,20 @@
      (layouts.css, "Breakouts"): one number for the whole vocabulary, because a width per
      widget is how a page becomes a ransom note. It is the width at which 100 columns of
      code, the common limit of formatters such as rustfmt, read unwrapped in the widest
-     code gutter Leaf draws: a diff's, with four-digit line numbers and its sign column
-     (about 830px). Sharing the prose's start edge is what lets a block this close to the
-     column read as part of it. --lf-room, the other half of the pair, is resolved by CSS
-     from the shell and its occupied margins, so a widget stands clear of both. An
-     `available` surface is not held to this number. */
-  --wide: 840px;
+     code gutter Leaf draws: a diff's, with four-digit line numbers and its sign column.
+     That row is 109 characters (the gutter's `digits + 5`, then the text) and 10px of
+     borders and padding (packages/diff/initial/lf-diff.js, which counts the same
+     anatomy). It is derived from --code-size rather than stated, so a code size the
+     root sets carries it. A character is taken as 0.61em: the --mono stack's widest
+     common faces advance 0.602em (Menlo, DejaVu Sans Mono; SF Mono is 0.6em), and
+     Firefox rounds that up far enough that at exactly 0.602em its diff scrolled the
+     last column by a pixel. Registered (below) so it computes to a length where it is
+     declared; unregistered, it would reach every reader as the formula. Sharing the
+     prose's start edge is what
+     lets a block this close to the column read as part of it. --lf-room, the other half
+     of the pair, is resolved by CSS from the shell and its occupied margins, so a widget
+     stands clear of both. An `available` surface is not held to this number. */
+  --wide: calc(109 * 0.61 * var(--code-size) + 10px);
   /* The widest a sidebar page (layouts.css) grows.
      Past it a board's columns and a dashboard's tiles stop gaining anything but the
      distance between them. */
@@ -402,8 +410,8 @@
   --t-3: 20px;
   --t-2: 24px;
   --t-1: 31px;
-  --code-size: 12.5px;
-  --code-line: 19px;
+  --code-size: 13.5px;
+  --code-line: 20px;
   /* What anyone wrote in a thread, wherever the thread stands (a card, the floating
      panel, a widget's seat), the comment being typed, and an On me question: Leaf's own
      sans, whatever the page sets its prose in, since these are the conversation about
@@ -1244,6 +1252,11 @@ main {
   inherits: true;
   initial-value: 0px;
 }
+@property --wide {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
 /* The column: the reading measure, and the one rule that applies it. A document's
  * Layout states its measure (`--lf-measure`, layouts.css); a workspace, whose regions
  * the page's grid sizes, and a page with no Layout state none, and there a line runs to
@@ -1386,8 +1399,8 @@ p {
   --sp-3: 10px;
   --sp-4: 14px;
   --sp-5: 18px;
-  --code-size: 12px;
-  --code-line: 17px;
+  --code-size: 13px;
+  --code-line: 18px;
   --pane-bar-pad: 6px 12px;
   --pane-inset: 12px;
   --h2-start: 18px;

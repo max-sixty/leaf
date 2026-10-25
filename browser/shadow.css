@@ -1290,8 +1290,10 @@ svg[data-lf-icon] {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-:is(.lf-btn, .button):where(:not(:disabled, [aria-disabled=true]):hover) {
-  background: var(--chip);
+@media (hover: hover) {
+  :is(.lf-btn, .button):where(:not(:disabled, [aria-disabled=true]):hover) {
+    background: var(--chip);
+  }
 }
 :is(button, .lf-btn, .button).lf-quiet-action,
 .lf-quiet-action.lf-ui::part(button) {
@@ -1301,18 +1303,26 @@ svg[data-lf-icon] {
   color: var(--muted);
   box-shadow: none;
 }
-:is(button, .lf-btn, .button).lf-quiet-action:where(:not(:disabled, [aria-disabled=true]):is(:hover, [data-lf-focus])),
-.lf-quiet-action.lf-ui:not(:disabled, [aria-disabled=true])::part(button):hover,
-.lf-quiet-action.lf-ui::part(lf-focus) {
+:is(button, .lf-btn, .button).lf-quiet-action:where(:not(:disabled, [aria-disabled=true])[data-lf-focus-visible]),
+.lf-quiet-action.lf-ui::part(lf-focus-visible) {
   background: var(--chip);
   color: var(--ink);
+}
+@media (hover: hover) {
+  :is(button, .lf-btn, .button).lf-quiet-action:where(:not(:disabled, [aria-disabled=true]):hover),
+  .lf-quiet-action.lf-ui:not(:disabled, [aria-disabled=true])::part(button):hover {
+    background: var(--chip);
+    color: var(--ink);
+  }
 }
 :is(.lf-btn, .button).primary {
   color: var(--accent);
   border-color: color-mix(in srgb, var(--accent) 45%, var(--card));
 }
-:is(.lf-btn, .button).primary:not(:disabled, [aria-disabled=true]):hover {
-  background: var(--accent-tint);
+@media (hover: hover) {
+  :is(.lf-btn, .button).primary:not(:disabled, [aria-disabled=true]):hover {
+    background: var(--accent-tint);
+  }
 }
 :is(.lf-btn, .button):disabled,
 :is(.lf-btn, .button)[aria-disabled=true] {

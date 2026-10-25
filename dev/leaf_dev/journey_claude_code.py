@@ -554,11 +554,19 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
         ),
         "boundary: the wake was not handed its comment",
     )
-    drop(user.comment("boundary"))
+    boundary = user.comment("boundary")
+    drop(boundary)
     cc.until(
         answered("first-wake", "boundary"),
         "boundary: the comment Escape dropped was not answered",
         150,
+    )
+    # Escape during a tool boundary's hooks keeps that boundary's context, so the
+    # comment is in the conversation once and the nudged turn only names it as owed.
+    handed = deliveries(native_records(cc.home, cc.session), boundary)
+    require(
+        len(handed) == 1,
+        f"boundary: the comment Escape kept was handed over {len(handed)} times",
     )
     step("boundary", started, "first-wake", "boundary")
 

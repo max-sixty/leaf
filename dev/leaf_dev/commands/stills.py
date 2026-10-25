@@ -2020,6 +2020,14 @@ STATES = (
     ),
     State("plan-card-reply-resolved", "review-a-plan", card_reply_resolved),
     State("triage", "triage-board", at_rest),
+    State("triage-metrics", "triage-board", at_rest, region="#triage-counts"),
+    State(
+        "triage-metrics-dark",
+        "triage-board",
+        at_rest,
+        scheme="dark",
+        region="#triage-counts",
+    ),
     State("triage-composer", "triage-board", composer),
     State(
         "triage-composer-empty",
@@ -2109,6 +2117,14 @@ STATES = (
     State("alert-options-in-pane", "alert-review", options_in_pane),
     State("ideas-ask", "ideas-to-implement", ask_by_keyboard),
     State("progress-callout", "live-progress", at_rest),
+    State("progress-metrics", "live-progress", at_rest, region="#lp-status"),
+    State(
+        "progress-metrics-dark",
+        "live-progress",
+        at_rest,
+        scheme="dark",
+        region="#lp-status",
+    ),
     State(
         "steps",
         "security-boundary",

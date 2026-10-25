@@ -913,9 +913,13 @@ export function createResponseSurface({
       !reactionContextContains(target)
     );
   }
+  // The press goes away as it completes, after its own focus change has placed the user
+  // where it landed, so the bar lets go only of a user it still holds: one who pressed
+  // its subject, or anything else that takes focus, stays there.
   function standDown() {
     if (composerOpen) composer.hideComposer();
-    if (fabAnchor.value) letGoOfFab();
+    if (fabAnchor.value)
+      closeLayer(() => showFab(null), fabBar.contains(fabFocused()) && letGo);
     // The armed react press goes with the bar it was armed on.
     setReact(false);
   }

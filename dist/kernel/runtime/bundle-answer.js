@@ -474,13 +474,16 @@ const reveal = EditorView.scrollHandler.of((view, selection, options) => {
 });
 const withNavigation = (state) => navigation.get(state) === void 0 ? state.update({ effects: StateEffect.appendConfig.of(navigation.of(reveal)) }).state : state;
 var LeafEditorView = class extends EditorView {
+	#focusing = false;
 	constructor(config = {}) {
 		super({
 			...config,
 			state: withNavigation(config.state ?? EditorState.create(config))
 		});
 		this.scrollDOM.classList.add("scroll");
-		this.contentDOM.addEventListener("focus", () => this.placeSelection());
+		this.contentDOM.addEventListener("focus", () => {
+			if (!this.#focusing) this.placeSelection();
+		});
 	}
 	setState(state) {
 		super.setState(withNavigation(state));
@@ -489,7 +492,12 @@ var LeafEditorView = class extends EditorView {
 		if (!canPlaceFocus()) return;
 		const selection = this.#selection();
 		if (this.root.activeElement !== this.contentDOM && selection.getComposedRanges({ shadowRoots: this.root instanceof ShadowRoot ? [this.root] : [] }).some((range) => this.contentDOM.contains(range.startContainer) || this.contentDOM.contains(range.endContainer))) selection.removeAllRanges();
-		this.contentDOM.focus({ preventScroll: true });
+		this.#focusing = true;
+		try {
+			this.contentDOM.focus({ preventScroll: true });
+		} finally {
+			this.#focusing = false;
+		}
 		this.placeSelection();
 	}
 	placeSelection() {

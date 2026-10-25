@@ -408,7 +408,10 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(
     assert narrow["innerWidth"] - 8 - (narrow["wordsRight"] + 8) < narrow["minimum"], (
         narrow
     )
-    assert narrow["minimum"] <= narrow["cardWidth"] <= narrow["preferred"], narrow
+    # The card takes the box's field rectangle (`test_send_grows_thread_around_the_words`);
+    # beside a one-line comment's field the options trigger leaves that rectangle
+    # narrower than the card's minimum, so its reply's width says it reads.
+    assert narrow["cardWidth"] <= narrow["preferred"], narrow
     assert narrow["replyWidth"] >= 160, narrow
     # The sent thread retains the comment frame's width and inline start.
     # Its control cluster remains clear when the card takes the lower route.
@@ -439,7 +442,7 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(
     # At this width clearing the controls would narrow the message. Both the
     # editor and its sent card use that space, retaining the editor's frame.
     wide = page.evaluate(THREAD_CARD_GEOMETRY)
-    assert wide["minimum"] <= wide["cardWidth"] <= wide["preferred"], wide
+    assert wide["cardWidth"] <= wide["preferred"], wide
     assert wide["replyWidth"] >= 160, wide
     assert wide["cardLeft"] == pytest.approx(editor_start, abs=0.5), wide
     assert wide["cardLeft"] == pytest.approx(wide["wordsRight"] + 8, abs=0.5), wide
@@ -452,7 +455,8 @@ def test_margin_card_holds_its_top_as_a_turn_arrives_and_as_a_reply_wraps(
     """Reading, a turn arriving extends the card downward. Drafting, so does each wrap
     of the reply: the thread being answered and the reply's first line stay where the
     user reads them, and Send moves down a line per wrap until the window's foot.
-    After that the editor scrolls internally, keeping the card and its first line still."""
+    After that the card grows up from the window's foot, its transcript unscrolled,
+    until it fills the window, and then the editor scrolls internally."""
     page = open_page(browser, serve(OBLIGATION_PAGE, events=[COMMENT_ON_OBLIGATION]))
     resized(page, 1920, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
@@ -509,14 +513,17 @@ def test_margin_card_holds_its_top_as_a_turn_arrives_and_as_a_reply_wraps(
     for edge in ("editorBottom", "cardBottom", "send"):
         assert wrapped[edge] > before[edge] + 30, (edge, before, wrapped)
 
-    # A draft with no room left under the card scrolls inside its editor, holding
-    # the card and the editor's top where the user began writing.
+    # A draft with no room left under the card grows it up from the window's foot,
+    # keeping the turn it answers in view, until the card fills the window; then the
+    # editor scrolls.
     write(editor, "\n".join(f"Line {n}" for n in range(60)))
     rendered(page)
     tall = page.evaluate(CARD_AND_REPLY)
     assert tall["cardBottom"] == pytest.approx(tall["foot"], abs=1), tall
-    for edge in ("cardTop", "turn", "editorTop"):
-        assert tall[edge] == pytest.approx(before[edge], abs=0.5), (before, tall)
+    assert tall["cardTop"] == pytest.approx(tall["head"], abs=1), tall
+    assert tall["turn"] - tall["cardTop"] == pytest.approx(
+        before["turn"] - before["cardTop"], abs=0.5
+    ), (before, tall)
     assert editor.evaluate("box => box.scrollHeight > box.clientHeight")
     caret = _focused_editor_caret(page)
     assert caret["selection"] == caret["length"], caret

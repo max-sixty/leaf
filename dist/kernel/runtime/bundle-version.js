@@ -1867,7 +1867,8 @@ function createVersionController({ compositionInput, openThread, refreshThread, 
 			if (!before && id !== own) continue;
 			const node = placeNode(entry.reading);
 			const carried = node ? boxOf(node) === box : id === own && (entry.reading.end || rawOffsetFits(entry.reading, box));
-			if ((carried || id === own || before?.has(id)) && !(found?.at > entry.at)) found = {
+			const ranks = !found || entry.at > found.at || entry.at === found.at && id === own;
+			if ((carried || id === own || before?.has(id)) && ranks) found = {
 				...entry,
 				lands: carried || node && under(box, node)
 			};

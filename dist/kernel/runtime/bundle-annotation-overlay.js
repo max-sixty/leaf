@@ -187,9 +187,11 @@ var CardAnchor = class {
 			}
 		}
 		const attachment = seat.side === "top" ? "foot" : "top";
-		const ordinary = this.#sent || (writing ? seat.floored && seat.side !== "top" && seat.side !== "bottom" : seat.side === "top") ? "foot" : "top";
+		const ordinary = this.#sent || !writing && seat.side === "top" ? "foot" : "top";
+		const beside = seat.side === "left" || seat.side === "right";
 		return {
 			edge: seat.adopted ? attachment : press?.edge ?? ordinary,
+			rises: !seat.adopted && !press?.edge && writing && !this.#sent && beside,
 			commit: () => {
 				if (this.#press === captured) this.#press = press;
 			}
@@ -480,7 +482,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 			scroller,
 			coarse: coarsePointer.matches
 		});
-		const { side, fresh } = seat;
+		const { side, fresh, opening } = seat;
 		let anchored;
 		floatingUi().then((ui) => {
 			if (!stillCurrent()) return null;
@@ -502,12 +504,13 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 					const room = Math.min(cardMeasure(), width, (session.width ?? Infinity) / scale.x);
 					preview.style.setProperty("--lf-thread-min-width", layoutPx(session.width === null ? Math.min(cardMinimum(), room) : room));
 					const fitted = measureThreadCard(room, Math.max(stood, height), reading);
-					if (fresh && (side === "top" || side === "bottom") && makeRoom(side, place.clear, place.extent, fitted, boundary, scroller)) {
+					if (opening && (side === "top" || side === "bottom") && makeRoom(side, place.clear, place.extent, fitted, boundary, scroller)) {
 						session.side.scrolled();
 						placeThreadPreview();
 					}
 				},
-				edge: anchored.edge
+				edge: anchored.edge,
+				rises: anchored.rises
 			});
 			watch(ui);
 			return placementDriver.position(ui.computePosition, commentReference(place, reference), {
@@ -1337,15 +1340,21 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 		}
 		const currentLocation = available.find((row) => row === focused());
 		const candidates = visible.length ? visible : available;
-		const held = visible.find((row) => row.tabIndex === 0);
 		const room = shownWindow();
-		const distance = (row) => {
+		const place = (row) => {
 			const box = row.getBoundingClientRect();
-			if (box.bottom < room.top) return room.top - box.bottom;
-			if (box.top > room.bottom) return box.top - room.bottom;
-			return 0;
+			return [
+				box.bottom < room.top ? room.top - box.bottom : box.top > room.bottom ? box.top - room.bottom : 0,
+				box.top,
+				box.left
+			];
 		};
-		holdTabStop(currentLocation ?? held ?? candidates.reduce((best, row) => distance(row) < distance(best) ? row : best));
+		const before = (a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
+		const nearest = () => candidates.map((row) => ({
+			row,
+			at: place(row)
+		})).reduce((best, next) => before(next.at, best.at) < 0 ? next : best).row;
+		holdTabStop(currentLocation ?? nearest());
 	}
 	function scheduleRoving() {
 		cancelRender(rovingFrame);

@@ -161,7 +161,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   min-height: var(--lf-face-floor, var(--aim-floor));
 }
 @property --lf-face-floor { syntax: "*"; inherits: false; }
-:where(.lf-btn, .button, .lf-icon-action, .lf-msg-control, .lf-thread-action, .lf-thread-notice:is(button), .lf-draft-action, .lf-corner-mark, button.lf-fp-face) {
+:where(.lf-btn, .button, .lf-icon-action, .lf-msg-control, .lf-thread-action, .lf-thread-notice:is(button), button.lf-mark, button.lf-fp-face) {
   --lf-face-floor: auto;
   position: relative;
   &::after {
@@ -169,6 +169,11 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     position: absolute;
     inset: min(0px, (100% - var(--aim-floor)) / 2);
   }
+}
+.lf-mark.lf-ui::part(button)::after {
+  content: "";
+  position: absolute;
+  inset: min(0px, (100% - var(--aim-floor)) / 2);
 }
 summary {
   align-content: center;
@@ -1323,34 +1328,43 @@ svg[data-lf-icon] {
   outline: var(--focus-ring);
   outline-offset: 2px;
 }
-.lf-corner-mark {
-  position: absolute;
-  z-index: 1;
+:where(button).lf-mark,
+.lf-mark.lf-ui::part(button) {
+  position: relative;
   display: grid;
   place-items: center;
-  inline-size: var(--corner-mark);
+  box-sizing: border-box;
+  inline-size: var(--mark-size);
   min-inline-size: 0;
-  block-size: var(--corner-mark);
+  block-size: var(--mark-size);
   min-block-size: 0;
   padding: 0;
   border: 0;
   border-radius: var(--r-s);
   font: inherit;
-  background: var(--lf-ground);
+  background: none;
   color: color-mix(in srgb, var(--ink) 72%, transparent);
-  box-shadow: 0 0 0 1px var(--lf-ring, var(--border-2)), var(--raise-1);
+  box-shadow: none;
   cursor: pointer;
 }
-.lf-corner-mark:hover {
+:where(button).lf-mark:hover,
+.lf-mark.lf-ui::part(button):hover {
   color: var(--ink);
 }
-.lf-corner-mark[data-lf-focus-visible] {
+:where(button).lf-mark[data-lf-focus-visible],
+.lf-mark.lf-ui::part(lf-focus-visible) {
   outline: var(--focus-ring);
-  outline-offset: 2px;
+  outline-offset: 0;
 }
-.lf-corner-mark > svg {
+.lf-mark > svg {
   inline-size: 12px;
   block-size: 12px;
+}
+.lf-corner-mark {
+  position: absolute;
+  z-index: 1;
+  background: var(--lf-ground);
+  box-shadow: 0 0 0 1px var(--lf-ring, var(--border-2)), var(--raise-1);
 }
 @media (forced-colors: active) {
   .lf-corner-mark {
@@ -1551,7 +1565,7 @@ svg[data-lf-icon] {
   --lf-media-mark-overhang: 6px;
 }
 .lf-composer-media {
-  --lf-media-room: max( calc(var(--raise-1-drop) + var(--raise-1-blur)), calc(var(--lf-media-mark-overhang) + (var(--aim-floor) - var(--corner-mark)) / 2) );
+  --lf-media-room: max( calc(var(--raise-1-drop) + var(--raise-1-blur)), calc(var(--lf-media-mark-overhang) + (var(--aim-floor) - var(--mark-size)) / 2) );
   --lf-media-h: 120px;
   display: flex;
   flex: 1 0 calc(100% + 2 * var(--lf-media-room));
@@ -1957,7 +1971,7 @@ html[data-lf-draw-mode] main {
 .lf-code-copy {
   box-sizing: border-box;
   display: flex;
-  gap: 2px;
+  gap: max(2px, var(--aim-floor) - var(--mark-size));
   padding: 1px;
   border: 1px solid var(--border-2);
   border-radius: var(--r);
@@ -1965,12 +1979,12 @@ html[data-lf-draw-mode] main {
   box-shadow: var(--raise-1);
 }
 .lf-code-copy {
-  --lf-code-copy-size: var(--lf-line);
+  --lf-code-copy-box: calc(var(--mark-size) + 4px);
   position: absolute;
-  top: calc(anchor(top, -9999px) - (var(--lf-code-copy-size) + 4px) / 2 + var(--lf-block-control-dy, 0px));
-  left: calc(anchor(right, -9999px) - var(--lf-mark-bar-end) - var(--lf-code-copy-size) - 4px + var(--lf-block-control-dx, 0px));
-  width: calc(var(--lf-code-copy-size) + 4px);
-  height: calc(var(--lf-code-copy-size) + 4px);
+  top: calc(anchor(top, -9999px) - var(--lf-code-copy-box) / 2 + var(--lf-block-control-dy, 0px));
+  left: calc(anchor(right, -9999px) - var(--lf-mark-bar-end) - var(--lf-code-copy-box) + var(--lf-block-control-dx, 0px));
+  width: var(--lf-code-copy-box);
+  height: var(--lf-code-copy-box);
   z-index: 1;
   white-space: normal;
   font-size: 0;
@@ -2011,20 +2025,6 @@ html[data-lf-draw-mode] main {
 }
 .lf-code-copy::part(button) {
   scroll-margin: var(--focus-ring-landing);
-  position: relative;
-  box-sizing: border-box;
-  width: var(--lf-code-copy-size);
-  height: var(--lf-code-copy-size);
-  padding: min(6px, max(1px, (var(--lf-code-copy-size) - var(--t-5) - 2px) / 2));
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: min(var(--t-5), calc(var(--lf-code-copy-size) - 4px));
-}
-.lf-code-copy::part(button)::after {
-  content: "";
-  position: absolute;
-  inset: min(0px, (100% - var(--aim-floor)) / 2);
 }
 :root {
   --lf-heading-link-size: var(--lf-line);

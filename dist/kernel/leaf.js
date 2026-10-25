@@ -4060,19 +4060,15 @@ function statusWords({ age, agent, dated, shortDate, detail, detailSource, handl
 			detail || !delivered ? "" : "It hasn't said what it's doing yet."
 		];
 	}
-	if (kind === "listening") {
-		const awaits = detail ? `${agent} awaits — ${detail}` : invite;
-		return listening ? [
-			`${agent} listening`,
-			`${agent} is listening${detail ? " — " + detail : ""}.`,
-			detail ? `It asked: ${detail}.` : ""
-		] : [
-			awaits,
-			awaits,
-			"",
-			Boolean(detail)
-		];
-	}
+	if (kind === "listening") return listening ? [
+		`${agent} listening`,
+		`${agent} is listening.`,
+		""
+	] : [
+		invite,
+		invite,
+		""
+	];
 	if (kind === "stalled") return [
 		shortDate,
 		[
@@ -4140,7 +4136,7 @@ function pageStatus(state, { reach = "reached", fault = null } = {}) {
 	const { activity, agent, publication = null } = state;
 	const onCall = Boolean(publication) && activity.kind !== "working";
 	const kind = onCall ? "listening" : activity.kind;
-	const detail = !onCall || activity.kind === "listening" ? activity.detail : "";
+	const detail = onCall ? "" : activity.detail;
 	const facts = activityFacts(state);
 	const saved = "Updates are saved.";
 	const checkedIn = facts.silentSince ? `${agent} last checked in ${facts.silentSince}` : `No check-in from ${agent} is recorded`;
@@ -4261,7 +4257,7 @@ function leafRow(entry) {
 	const stated = (word) => word + (detail ? " — " + detail : "");
 	const silence = `${facts.left ? "Left" : "Quiet"}${facts.silentSince ? ` (${facts.silentSince})` : ""}`;
 	const work = facts.work.replace(/^./, (letter) => letter.toUpperCase());
-	const primary = kind === "working" ? stated(work) : kind === "listening" ? facts.listening ? stated("Listening") : stated("Awaits") : kind === "stalled" ? stated(silence) : kind === "away" ? counts.overdue ? silence : "Away" : kind === "unheld" ? "No session" : "Closed";
+	const primary = kind === "working" ? stated(work) : kind === "listening" ? facts.listening ? "Listening" : "Awaits" : kind === "stalled" ? stated(silence) : kind === "away" ? counts.overdue ? silence : "Away" : kind === "unheld" ? "No session" : "Closed";
 	const line = facts.waiting.length ? `${primary} · ${facts.waiting.join(" · ")}` : primary;
 	return {
 		tone: facts.tone,

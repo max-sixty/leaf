@@ -69,7 +69,7 @@ def test_page_init_restarts_a_served_page_under_the_sessions_wait(
     generation = files_model.read_json(page_dir / "registry.json")["$layer"][
         "generation"
     ]
-    session_model.cmd_waiting(page_dir, "review the page")
+    session_model.cmd_waiting(page_dir)
     waited = tmp_path / "wait.log"
     with waited.open("w", encoding="utf-8") as output:
         waiter = spawn(

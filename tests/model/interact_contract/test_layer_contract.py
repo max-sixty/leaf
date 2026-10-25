@@ -501,7 +501,7 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
     (page_dir / "index.html").write_text(WALKTHROUGH_PAGE)
     publish(page_dir)
     service_model.claim_page(page_dir)
-    session_model.cmd_waiting(page_dir, "")
+    session_model.cmd_waiting(page_dir)
     posted = {
         "kind": "comment",
         "revision": 1,
@@ -708,7 +708,7 @@ def test_each_route_hands_the_agent_what_the_snapshot_shows(
     assert status == 200, answer
     logged = events_model.read_events(page_dir)[-1]
 
-    session_model.cmd_waiting(page_dir, "")
+    session_model.cmd_waiting(page_dir)
     capsys.readouterr()
     # A bare shell's wait, the printing kind, which claims nothing.
     session = harness_model.session_harness().session

@@ -3173,7 +3173,7 @@ def test_unchanged_presence_observation_is_shared_and_file_changes_refresh_it(
     assert reading() == first
     assert calls == 1
 
-    declare(page_dir, "waiting", "measuring")
+    declare(page_dir, "waiting")
     refreshed = reading()
     assert refreshed == first
     assert calls == 1
@@ -5592,7 +5592,7 @@ def test_a_claimed_page_without_a_declaration_serves_its_state(page_dir, server)
     status, raw = fetch(f"{server}/api/state")
 
     assert status == 200, raw
-    assert json.loads(raw)["status"] == {"state": "waiting", "detail": ""}
+    assert json.loads(raw)["status"] == {"state": "waiting"}
 
 
 def test_others_ships_on_a_network_facing_bind_too(page_dir):

@@ -1161,7 +1161,7 @@ def page_open(page_dir: Path) -> dict:
     """
     from leaf.session import cmd_waiting
 
-    return cmd_waiting(page_dir, "")
+    return cmd_waiting(page_dir)
 
 
 @page.command("close", short_help="Finish a page and stop watching for feedback.")
@@ -1175,7 +1175,7 @@ def page_close(page_dir: Path) -> dict:
     """
     from leaf.session import cmd_idle
 
-    return cmd_idle(page_dir, "")
+    return cmd_idle(page_dir)
 
 
 @cli.command(

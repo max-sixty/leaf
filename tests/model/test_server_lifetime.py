@@ -748,7 +748,7 @@ def test_a_persistent_server_outlives_a_session_that_picks_the_page_up(
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "later")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     assert service_model.claim_page(page_dir)
-    session_model.cmd_waiting(page_dir, "")
+    session_model.cmd_waiting(page_dir)
     # Without this the hook would skip the page for the wrong reason and the test
     # would pass with the bug in: the persistent check has to be what spares it.
     assert page_dir in service_model.owned_pages("later")

@@ -1782,7 +1782,7 @@ def declare_idle(page_dir):
     """Write the page's `idle` declaration directly, past `leaf page close`'s refusal
     over unanswered moves, for a test whose subject is what an idle page does."""
     with service_model.PageTransaction(page_dir) as page:
-        return page.set_status("idle", "")
+        return page.set_status("idle")
 
 
 def declared(page_dir):
@@ -1798,9 +1798,9 @@ def status_and_stream(page_dir):
     return declared(page_dir), service_model.read_stream(page_dir)
 
 
-def declare(page_dir, state="waiting", detail="", *, ts=None, **voice):
+def declare(page_dir, state="waiting", *, ts=None, **voice):
     """Seed the agent's declaration as the log holds it, a `status` event, for a test
-    of how a page reads it: `state` with `detail`, dated `ts` (now by default) and
+    of how a page reads it: `state`, dated `ts` (now by default) and
     spoken in `voice` (`agent`, `session`). Raw, so a test can date it in the past;
     `leaf page open` is the command an agent runs."""
     return append_carried_log_record(
@@ -1809,7 +1809,6 @@ def declare(page_dir, state="waiting", detail="", *, ts=None, **voice):
             "kind": "status",
             "author": "agent",
             "state": state,
-            "detail": detail,
             **({"ts": ts} if ts else {}),
             **voice,
         },
@@ -2875,7 +2874,7 @@ def _interaction_prompt_evidence(page, value):
 
 def _watched(page_dir):
     """A claimed page this session watches, so only its debts reach the hooks."""
-    session_model.cmd_waiting(page_dir, "")
+    session_model.cmd_waiting(page_dir)
     session = service_model.page_claim(page_dir)
     lease = leases_model.take_lease(
         leases_model.waiter_lease_path(page_dir, session["id"])

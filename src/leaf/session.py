@@ -49,7 +49,7 @@ from .state import (
 REVIVAL_CHECK_S = 5
 
 
-def cmd_waiting(page_dir: Path, detail: str) -> dict:
+def cmd_waiting(page_dir: Path) -> dict:
     """Keep the page open for feedback, which puts down every start that stands
     (`todos.item_starts`), and return the declaration's record. The updates still
     owed an answer, which the page goes on showing over it, are noted with the
@@ -60,7 +60,7 @@ def cmd_waiting(page_dir: Path, detail: str) -> dict:
 
     with PageTransaction(page_dir) as page:
         activate_source(page_dir, transaction=page)
-        status = page.set_status("waiting", detail)
+        status = page.set_status("waiting")
         owed = read_page(page_dir, page.events).work.obligations
     if owed:
         answers = [answer_command(item["answer"], page_dir) for item in owed]
@@ -68,7 +68,7 @@ def cmd_waiting(page_dir: Path, detail: str) -> dict:
     return status
 
 
-def cmd_idle(page_dir: Path, detail: str) -> dict:
+def cmd_idle(page_dir: Path) -> dict:
     """Idle, putting down every start that stands, unless the page still owes its
     user an answer.
 
@@ -121,7 +121,7 @@ def cmd_idle(page_dir: Path, detail: str) -> dict:
                 '`leaf task end <page> <id> done --text "<where the result is>"`, or '
                 '`dropped --text "<why>"`.'
             )
-        return page.set_status("idle", detail)
+        return page.set_status("idle")
 
 
 class PageTick(NamedTuple):

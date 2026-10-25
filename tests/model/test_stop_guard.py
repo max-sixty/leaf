@@ -111,7 +111,7 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
     codex_claimed_page, capsys
 ):
     page = codex_claimed_page
-    session_model.cmd_waiting(page, "")
+    session_model.cmd_waiting(page)
     session = service_model.page_claim(page)
     lease = leases_model.take_lease(leases_model.waiter_lease_path(page, session["id"]))
     assert lease
@@ -196,7 +196,7 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
 
 def test_stop_hook_does_not_borrow_a_foreign_bare_waiter_lease(page_dir, monkeypatch):
     """A page-local lease proves only an unclaimed bare-shell watch."""
-    session_model.cmd_waiting(page_dir, "")
+    session_model.cmd_waiting(page_dir)
     bare = leases_model.take_lease(page_dir / "waiter.lock")
     assert bare
     try:
@@ -223,7 +223,7 @@ def test_stop_hook_holds_a_turn_only_where_nothing_will_watch_its_page(claimed, 
     turn ends over a page nothing watches yet. A watcher that is a process of its
     own, as a Codex task's adapter is, has to be running before the turn may end:
     without it the page keeps saying "Codex is working" over nobody."""
-    session_model.cmd_waiting(claimed, "")
+    session_model.cmd_waiting(claimed)
     hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
 
@@ -250,7 +250,7 @@ def test_stop_hook_holds_a_turn_only_where_nothing_will_watch_its_page(claimed, 
 
     # A page a second session has since picked up is that session's to watch, so
     # s1 is no longer held to it.
-    session_model.cmd_waiting(claimed, "")
+    session_model.cmd_waiting(claimed)
     record_claim(claimed, harness="codex", id="s2")
     hooks_model.cmd_hook("codex", {"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
@@ -282,7 +282,7 @@ def test_pages_owing_the_same_thing_carry_one_copy_of_the_protocol(
         deliveries[delivered_ref(page, comment).partition(":")[0]] = (
             f"<{label}-delivery>"
         )
-        session_model.cmd_waiting(page, "")
+        session_model.cmd_waiting(page)
 
     hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     reason = continued(capsys.readouterr().out)
@@ -327,7 +327,7 @@ def test_a_preview_owes_no_watcher_but_still_carries_its_user(
     """
     # A Codex task owes its pages an adapter; a Claude Code session's watch is
     # its own Stop hook, and owes nothing here.
-    session_model.cmd_waiting(claimed, "")
+    session_model.cmd_waiting(claimed)
     record_claim(claimed, harness="codex")
     hooks_model.cmd_hook("codex", {"hook_event_name": "Stop", "session_id": "s1"})
     assert "no delivery adapter" in json.loads(capsys.readouterr().out)["reason"]
@@ -396,7 +396,7 @@ def test_the_turn_holds_again_when_a_version_takes_the_answer_back(
     every acknowledged comment would pass the other arm."""
     (claimed / "index.html").write_text(PICKS_PAGE)
     let_a_pick_settle_a_thread(claimed, "which")
-    session_model.cmd_waiting(claimed, "")
+    session_model.cmd_waiting(claimed)
     # Watched, so the guard's other clause is clear and what fires below can only
     # be this one.
     lease = leases_model.take_lease(
@@ -457,7 +457,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(
     agent was mid-turn on something else, the agent acknowledged it, answered
     the person in the terminal instead of on the page, and the user was left
     with a question that nothing would ever deliver again."""
-    session_model.cmd_waiting(claimed, "")
+    session_model.cmd_waiting(claimed)
     # Watched, which is the whole of what clears the guard's other case and
     # clears nothing here.
     session = service_model.page_claim(claimed)
@@ -603,7 +603,7 @@ def test_the_guard_survives_a_page_vendored_before_the_layer_moved(
     little older than the checkout, and says nothing about it. Found by running
     the guard against a real page from an earlier vendoring, where reading the
     published version to settle threads loaded that page's registry."""
-    session_model.cmd_waiting(claimed, "")
+    session_model.cmd_waiting(claimed)
     session = service_model.page_claim(claimed)
     lease = leases_model.take_lease(
         leases_model.waiter_lease_path(claimed, session["id"])
@@ -766,7 +766,7 @@ def test_idle_cannot_race_past_an_event_arriving_after_its_pending_check(
     keep the page open. Otherwise Stop sees an idle page, permits the turn to
     end, and leaves the newly appended event with no watcher to deliver it.
     """
-    session_model.cmd_waiting(page_dir, "comment on the prototype")
+    session_model.cmd_waiting(page_dir)
     marker = page_dir / "status-lock-requested"
     events = open(  # noqa: SIM115 - held across the child transition
         page_dir / "events.jsonl", "a+b"
@@ -842,7 +842,7 @@ def test_a_reaction_holds_no_turn_as_an_unanswered_obligation(
     acknowledged one nobody replied to does not hold the turn the way a comment
     does. Nor does an `ok` the user put on the agent's answer hand the thread back
     to the agent — a reaction is not the user speaking. The user's words are."""
-    session_model.cmd_waiting(claimed, "")
+    session_model.cmd_waiting(claimed)
     session = service_model.page_claim(claimed)
     lease = leases_model.take_lease(
         leases_model.waiter_lease_path(claimed, session["id"])
@@ -880,7 +880,7 @@ def test_a_reaction_holds_no_turn_as_an_unanswered_obligation(
 
 def test_agent_sees_codex_watcher_recovery(codex_claimed_page, capsys, snapshot):
     page = codex_claimed_page
-    session_model.cmd_waiting(page, "")
+    session_model.cmd_waiting(page)
     observations = {}
 
     def hook():

@@ -263,7 +263,7 @@ delivery.receive_delivery(os.environ["DELIVERY"])
 def test_the_wait_after_an_ack_delivers_only_later_input(page_dir, spawn, codex_loop):
     serving(page_dir, 1)
     codex_loop(page_dir)
-    session_model.cmd_waiting(page_dir, "answering the first comment")
+    session_model.cmd_waiting(page_dir)
     first = append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "one"}
     )
@@ -385,8 +385,8 @@ def test_ack_rearm_keeps_the_other_pages_when_its_batch_page_transfers(
     serving(other, 2)
     codex_loop(page_dir)
     codex_loop(other)
-    session_model.cmd_waiting(page_dir, "first page")
-    session_model.cmd_waiting(other, "second page")
+    session_model.cmd_waiting(page_dir)
+    session_model.cmd_waiting(other)
     first = append_carried_log_record(
         page_dir,
         {"kind": "comment", "id": "first", "author": "user", "text": "one"},
@@ -436,7 +436,7 @@ def test_ack_rearm_reports_when_its_only_page_transfers_after_selection(
     """
     serving(page_dir, 1)
     service_model.claim_page(page_dir)
-    session_model.cmd_waiting(page_dir, "first page")
+    session_model.cmd_waiting(page_dir)
     first = append_carried_log_record(
         page_dir,
         {"kind": "comment", "id": "first", "author": "user", "text": "one"},

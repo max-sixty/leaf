@@ -435,7 +435,7 @@ def test_hook_remedies_follow_the_harness_not_the_display_name(
     waited = under_codex(claim_and_wait_command(page), env, finished=finished)
     release_codex_command(page, waited, finished)
     assert waited.wait(timeout=STATED_TIMEOUT) == 0
-    session_model.cmd_waiting(page, "")
+    session_model.cmd_waiting(page)
 
     hooks_model.cmd_hook("codex", {"hook_event_name": "Stop", "session_id": "w1"})
     reason = json.loads(capsys.readouterr().out)["reason"]
@@ -460,7 +460,7 @@ def test_wait_lease_is_exact_and_excludes_another_wait(
     for name in identity_names:
         monkeypatch.delenv(name, raising=False)
     serving(page_dir, 1)
-    session_model.cmd_waiting(page_dir, "comment on the prototype")
+    session_model.cmd_waiting(page_dir)
     # Ownership is acquired explicitly before taking the session wait lease.
     if not identity_names:
         record_claim(page_dir, id="past-session")
@@ -514,7 +514,7 @@ def test_a_sigterm_its_handler_takes_inside_a_finalizer_still_ends_the_wait(
     for name in harness_model.IDENTITY_VARIABLES:
         monkeypatch.delenv(name, raising=False)
     serving(page_dir, 1)
-    session_model.cmd_waiting(page_dir, "comment on the prototype")
+    session_model.cmd_waiting(page_dir)
     waiter = spawn_probe(
         spawn,
         page_dir,

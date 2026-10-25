@@ -66,7 +66,7 @@ def test_each_delivered_event_says_only_what_its_own_case_asks(page_dir, capsys)
     """Shared clauses travel once, and each event names only its applicable rules:
     its kind's, then the answer it owes, and no answer's where it owes none."""
     serving(page_dir, 1)
-    session_model.cmd_waiting(page_dir, "")
+    session_model.cmd_waiting(page_dir)
     page_pick = {
         "kind": "action",
         "author": "user",
@@ -166,7 +166,7 @@ def test_active_handling_survives_a_mutable_layer_edit(page_dir, capsys):
     registry_path.write_text(json.dumps(registry))
 
     serving(page_dir, 1)
-    session_model.cmd_waiting(page_dir, "")
+    session_model.cmd_waiting(page_dir)
     append_carried_log_record(page_dir, comment)
 
     assert service_model.claim_page(page_dir)
@@ -300,7 +300,7 @@ def test_delivery_distinguishes_thread_obligations_from_closing_answered_work(pa
     assert not write("unresolve", parent=question["id"])["attention"]
     assert owed_answers(page_dir) == []
     with service_model.PageTransaction(page_dir) as page:
-        page.set_status("idle", "")
+        page.set_status("idle")
     assert withdrawal in service_model.unacknowledged(
         events_model.read_events(page_dir), newest["seq"]
     )
@@ -1028,7 +1028,7 @@ def test_a_settling_reaction_wakes_only_when_it_answers_the_agent(
 ):
     serving(page_dir, 1)
     publish(page_dir)
-    session_model.cmd_waiting(page_dir, "")
+    session_model.cmd_waiting(page_dir)
     question = thread_model.cmd_comment(
         page_dir, "", "", "", "One question:", '<lf-ask id="forty">Forty?</lf-ask>'
     )

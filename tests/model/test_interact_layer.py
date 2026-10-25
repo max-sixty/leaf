@@ -772,7 +772,7 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
 
     [waiting] = written(["page", "open", str(page_dir)])
     assert waiting == logged(waiting)
-    assert (waiting["state"], waiting["detail"]) == ("waiting", "")
+    assert waiting["state"] == "waiting"
 
     # The comment's id is the thread's; --title names it in the same command.
     [opened] = written(

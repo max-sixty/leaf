@@ -75,7 +75,7 @@ def test_codex_app_server_restart_finishes_an_accepted_batch_without_starting_it
         {"kind": "comment", "id": "accepted", "author": "user", "text": "hi"},
     )
     delivered = events_model.read_events(page)[-1]
-    session_model.cmd_waiting(page, "comment on the prototype")
+    session_model.cmd_waiting(page)
     with service_model.PageTransaction(page) as transaction:
         reading = session_model.PageTick(
             page,
@@ -203,7 +203,7 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
 ):
     page = codex_claimed_page
     program, log = fake_codex_cli(tmp_path)
-    session_model.cmd_waiting(page, "comment on the prototype")
+    session_model.cmd_waiting(page)
     environment = codex_env | {
         "CODEX_THREAD_ID": "codex-thread",
         "FAKE_CODEX_LOG": str(log),
@@ -388,7 +388,7 @@ def test_adding_a_page_cannot_race_the_codex_adapter_exit(
         "CODEX_THREAD_ID": "codex-thread",
         "FAKE_CODEX_LOG": str(log),
     }
-    session_model.cmd_waiting(first, "first page")
+    session_model.cmd_waiting(first)
     start_lock = codex_adapter_model.adapter_start_lock_path("codex-thread")
     read_gate = tmp_path / "adapter-read-gate"
     os.mkfifo(read_gate)
@@ -457,7 +457,7 @@ raise SystemExit(codex_adapter_model.run_adapter(os.environ["CODEX_PATH"]))
         check=True,
     )
     assert json.loads(persistent.stdout)["url"].startswith("http://127.0.0.1:")
-    session_model.cmd_waiting(second, "second page")
+    session_model.cmd_waiting(second)
     starter = None
     finished = tmp_path / "second-start-finished"
     starter_ready = tmp_path / "second-start-lock"

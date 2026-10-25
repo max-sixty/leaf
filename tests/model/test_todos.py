@@ -923,7 +923,7 @@ def test_only_the_latest_starting_session_can_complete_agent_work(task_log, outc
     )
     for session in ("older", "newer"):
         latest = append("start", session=session, item=todo["id"], text="Working")
-    append("status", session="newer", state="waiting", detail="")
+    append("status", session="newer", state="waiting")
     assert todos_model.TodoReading(log).owed[0]["running"] is None
 
     for session in ("older", "opener", "third", None):
@@ -1180,7 +1180,6 @@ def test_a_waiting_declaration_puts_down_every_start_before_it(page_dir):
     declaration = events_model.read_events(page_dir)[-1]
     assert (declaration["kind"], declaration["attention"]) == ("status", False)
     state = state_json(page_dir)
-    assert state["status"]["detail"] == ""
     assert state["queues"]["on_user"] == []
     assert state["activity"]["kind"] not in {"working", "stalled"}
     assert [item["stage"] for item in state["workflows"]] == ["sent"]

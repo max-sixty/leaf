@@ -737,7 +737,7 @@ def test_a_server_keeps_its_row_fresh_without_browser_visits(page_dir, spawn):
         )
     )
     end_work(neighbor)
-    declare(neighbor, "waiting", "pick one")
+    declare(neighbor, "waiting")
     session = cleanup_model.session_record("invisible")
     cleanup_model.write_session({**session, "turn_closed": cleanup_model.now_iso()})
     await_row(lambda row: row["activity"]["kind"] == "away")
@@ -806,7 +806,7 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
     # must not make this page's poll fail: the field is ignored.
     malformed = pages / "malformed-stream"
     neighbour_page(malformed, title="Malformed stream")
-    declare(malformed, detail="unknown")
+    declare(malformed)
     write_record(malformed / "stream.json", {"work": [{}]})
     # A page served from a session's scratch directory, plus the asking page
     # itself: the claim index finds the first, and the second stays out of its own

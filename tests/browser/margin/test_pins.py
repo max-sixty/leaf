@@ -563,7 +563,7 @@ def test_the_panel_says_the_annotations_are_hidden_while_they_are(browser, serve
         "data-lf-annotations", re.compile(".*")
     )
     # The notice saying the annotations are shown passes, and the status stands alone.
-    expect(field).to_have_attribute("data-says", "status", timeout=8000)
+    expect(field).to_have_attribute("data-says", "status")
     expect(field).not_to_have_attribute("placeholder", re.compile("Annotations"))
 
 

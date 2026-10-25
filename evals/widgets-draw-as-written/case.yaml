@@ -40,6 +40,22 @@ assert:
     metric: widgets-draw
     value: file://../dev/leaf_dev/draw_failures.py
 variants:
+  # Today's values fall between the steps a range would naturally take, so a range
+  # whose value is off its step fails to draw.
+  playground-fine-steps:
+    vars:
+      prompt: |
+        Make me a page where I can tune our thumbnail pipeline's image settings and
+        see what each does to a sample product photo, then send you the settings to
+        ship.
+
+        Today: JPEG quality 0.82, sharpening radius 0.7 px, saturation 1.15×, and
+        thumbnails 1,250 px wide. Sensible ranges: quality 0.40–0.95, sharpening
+        0–2 px, saturation 0.8–1.5×, width 320–2,560 px.
+
+        Product photos are mostly white-background shots of shoes and bags. Last
+        quarter, merchants complained about soft edges at widths under 600 px, and
+        our CDN bill grew 18% after we raised quality from 0.75.
   # Candidates the user switches between: a choice control's value must name one of
   # its choices, and a preset's settings must fit their controls.
   playground-candidates:

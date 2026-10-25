@@ -310,10 +310,12 @@ def probe(
                                 STEPS[verb](page, arg)
                             if run:
                                 doing = "journey"
-                                reading["result"] = run(page)
+                                returned = run(page)
                             doing = "settle"
                             if not isinstance(source, str):
                                 settle(page)
+                            if run:
+                                reading["result"] = returned
                         finally:
                             if not page.is_closed():
                                 if steps or run:

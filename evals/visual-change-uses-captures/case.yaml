@@ -51,8 +51,9 @@ variants:
         - widgets
     vars:
       prompt: |
-        Set up a visual review of the Save button fix so I can approve it or leave
-        feedback on it.
+        Set up a Leaf visual review (the visual-review package) of the Save button
+        fix, with a case for each Save state, so I can approve each or leave feedback
+        on it.
 
         The fix: the Save button's disabled state was the same grey as its enabled
         state, so users clicked it and nothing happened. Enabled Save is now the

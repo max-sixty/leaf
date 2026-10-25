@@ -108,6 +108,11 @@ variants:
             }
         }
         ```
+  # The control: charts in the page, which plain page check already runs, so the
+  # author's own plain checks say how often a chart it wrote failed to draw.
+  dashboard:
+    vars:
+      prompt: file://dashboard/request.md
   # A chart in a thread's message: the page check never draws it before it posts.
   thread-chart:
     vars:

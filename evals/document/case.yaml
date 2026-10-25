@@ -60,6 +60,13 @@ variants:
       purpose: Hand off and answer successive user rounds.
       conditions:
         - leaf
+  render-after-handover:
+    metadata:
+      executor: leaf_dev.usability_eval
+      scenario: render-after-handover
+      purpose: Act on render findings delivered after a quick handover.
+      conditions:
+        - leaf
   elided:
     metadata:
       executor: leaf_dev.usability_eval

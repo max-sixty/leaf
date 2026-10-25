@@ -22,6 +22,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 
 import click
@@ -44,6 +45,46 @@ COMPILER_INPUTS = (
 def compiler_root() -> Path:
     """The developer checkout that launched a selected-runtime preview."""
     return Path(os.environ.get("LEAF_PREVIEW_COMPILER_ROOT", ROOT)).resolve()
+
+
+KEEP_ENTRIES = 12
+KEEP_SECONDS = 24 * 3600
+
+
+def cache_root() -> Path:
+    """Where prepared installations live: one directory per user, not per checkout.
+
+    An entry's name is the hash of everything that determines it (payload, compiler
+    inputs, provenance), so worktrees and arms with the same content share one, and
+    a new worktree starts warm instead of compiling the kernel again.
+    """
+    base = os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache"
+    return Path(os.environ.get("LEAF_DEV_CACHE_DIR", Path(base) / "leaf-dev")) / (
+        "compiled-runtime"
+    )
+
+
+def evict(cache: Path) -> None:
+    """Delete entries beyond the newest `KEEP_ENTRIES` that nothing has selected for
+    `KEEP_SECONDS` (a hit touches its entry), and abandoned staging directories."""
+    now = time.time()
+    entries = sorted(
+        (p for p in cache.iterdir() if p.is_dir() and not p.name.startswith(".")),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+    stale = [
+        p
+        for p in cache.iterdir()
+        if p.name.startswith(".preparing-") and now - p.stat().st_mtime > KEEP_SECONDS
+    ]
+    for old in entries[KEEP_ENTRIES:]:
+        if now - old.stat().st_mtime > KEEP_SECONDS:
+            with flocked(cache / f"{old.name}.lock"):
+                shutil.rmtree(old, ignore_errors=True)
+            (cache / f"{old.name}.lock").unlink(missing_ok=True)
+    for path in stale:
+        shutil.rmtree(path, ignore_errors=True)
 
 
 def prepare(output: Path, runtime: Path = ROOT) -> None:
@@ -172,7 +213,7 @@ def cached_installation(runtime: Path = ROOT) -> Path:
     runtime = runtime.resolve()
     if (runtime / "leaf-distribution.json").is_file():
         return runtime
-    cache = compiler_root() / ".tmp/compiled-runtime"
+    cache = cache_root()
     cache.mkdir(parents=True, exist_ok=True)
 
     def identity():
@@ -194,6 +235,7 @@ def cached_installation(runtime: Path = ROOT) -> Path:
             if output.is_dir():
                 if identity() != selected:
                     continue
+                os.utime(output)
                 return output
             with tempfile.TemporaryDirectory(prefix=".preparing-", dir=cache) as raw:
                 staged = Path(raw) / "installation"
@@ -201,6 +243,7 @@ def cached_installation(runtime: Path = ROOT) -> Path:
                 if identity() != selected:
                     continue
                 staged.rename(output)
+            evict(cache)
             return output
 
 

@@ -24,7 +24,7 @@ from leaf.findings import Finding
 from leaf.render_checks import PageNotReady
 from leaf.render_gate.scheme import collect_page_exceptions, console_finding
 from leaf_dev import ROOT
-from leaf_dev.arms import base_ref, build_arm, serving_source
+from leaf_dev.arms import base_ref, extract_arm, serving_source
 from leaf_dev.browser import (
     DESKTOP,
     headless_firefox,
@@ -258,7 +258,7 @@ def probe(
         scratch = Path(built)
         arms = {"worktree": ("worktree", ROOT)}
         if base is not None:
-            commit = build_arm(base_ref(base), scratch / "base-arm")
+            commit = extract_arm(base_ref(base), scratch / "base-arm")
             arms = {"base": (commit, scratch / "base-arm"), **arms}
         with headless_firefox() if firefox else headless_shell() as browser:
             for arm, (ran, arm_dir) in arms.items():

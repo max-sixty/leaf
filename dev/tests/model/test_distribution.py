@@ -1,7 +1,9 @@
 """Developer tooling checks; run explicitly from dev/tests."""
 
 import json
+import os
 import subprocess
+import time
 
 import pytest
 from leaf_dev.commands import distribution
@@ -10,6 +12,7 @@ from leaf_dev.commands import distribution
 def test_compiled_cache_follows_payload_and_compiler_bytes(tmp_path, monkeypatch):
     """Identical saves and authored revisions reuse a kernel; its inputs do not."""
     monkeypatch.setattr(distribution, "ROOT", tmp_path)
+    monkeypatch.setenv("LEAF_DEV_CACHE_DIR", str(tmp_path / "cache"))
     module = tmp_path / "browser/runtime/example.js"
     compiler = tmp_path / "build/runtime-bundle.mjs"
     authored = tmp_path / "examples/page.html"
@@ -204,7 +207,7 @@ def test_cached_installation_retries_an_edit_while_staging_publication(
     assert (selected / "runtime/bundle.js").read_bytes() == second
     assert built == [first, second]
     publications = [
-        path for path in (runtime / ".tmp/compiled-runtime").iterdir() if path.is_dir()
+        path for path in distribution.cache_root().iterdir() if path.is_dir()
     ]
     assert publications == [selected]
 
@@ -229,9 +232,7 @@ def test_cached_installation_rechecks_provenance_before_publication(
         "producer"
     ] == (producer)
     publications = [
-        path
-        for path in (distribution.ROOT / ".tmp/compiled-runtime").iterdir()
-        if path.is_dir()
+        path for path in distribution.cache_root().iterdir() if path.is_dir()
     ]
     assert publications == [selected]
 
@@ -240,6 +241,7 @@ def test_cached_installation_rechecks_provenance_before_publication(
 def prepared_cache(tmp_path, monkeypatch):
     """Exercise cache selection with real files and locks, without the compiler."""
     monkeypatch.setattr(distribution, "ROOT", tmp_path)
+    monkeypatch.setenv("LEAF_DEV_CACHE_DIR", str(tmp_path / "cache"))
     module = tmp_path / "browser/runtime/example.js"
     module.parent.mkdir(parents=True)
     module.write_bytes(b"export const example = 1;")
@@ -258,3 +260,17 @@ def prepared_cache(tmp_path, monkeypatch):
 
     monkeypatch.setattr(distribution, "prepare", prepare)
     return module, built
+
+
+def test_eviction_keeps_recent_entries_and_drops_old_ones(tmp_path, monkeypatch):
+    """Entries past the cap go once unused for a day; a recent one stays."""
+    monkeypatch.setattr(distribution, "KEEP_ENTRIES", 1)
+    now = time.time()
+    for name, age in (("new", 0), ("recent", 3600), ("old", 3 * 86400)):
+        (tmp_path / name).mkdir()
+        os.utime(tmp_path / name, (now - age, now - age))
+    distribution.evict(tmp_path)
+    assert sorted(p.name for p in tmp_path.iterdir() if p.is_dir()) == [
+        "new",
+        "recent",
+    ]

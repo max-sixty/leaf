@@ -6171,7 +6171,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		}
 		copy.value = entry.copies;
 		copy.disabled = entry.disabled;
-		render(menuItem(`Copy ${entry.label}`, html`<wa-icon library="system" name="copy" variant="regular"></wa-icon>`, () => {}, {
+		render(menuItem(`Copy ${entry.label}`, iconTemplate("copy", "lf-fp-copy-icon"), () => {}, {
 			disabled: entry.disabled,
 			role: menuOpen.value ? "menuitem" : null,
 			row: entry.key,

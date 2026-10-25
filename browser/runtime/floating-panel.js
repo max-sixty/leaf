@@ -1891,7 +1891,7 @@ export function createFloatingPanel({
     render(
       menuItem(
         `Copy ${entry.label}`,
-        html`<wa-icon library="system" name="copy" variant="regular"></wa-icon>`,
+        iconTemplate("copy", "lf-fp-copy-icon"),
         () => {},
         {
           disabled: entry.disabled,

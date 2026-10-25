@@ -33,7 +33,6 @@ import {
   tabFromBlock,
 } from "./block-controls.js";
 import { headerLevels } from "./css-anchors.js";
-import { iconElement } from "./icons.js";
 import { focusDestination, onCurrentLocation } from "./focus.js";
 import { upFrom } from "./shadow.js";
 import { claimReachStop, releaseReachStop } from "./reach.js";
@@ -62,13 +61,6 @@ function prepareCodeBlock(pre, source, noun) {
       success: `${noun[0].toUpperCase()}${noun.slice(1)} copied`,
       error: `Unable to copy ${noun}`,
     });
-    // A mark draws Leaf's icons (icons.js) at rest and for its result.
-    for (const [icon, slot] of [
-      ["copy", "copy-icon"],
-      ["check", "success-icon"],
-      ["cross", "error-icon"],
-    ])
-      copy.append(Object.assign(iconElement(icon, "lf-mark-icon"), { slot }));
     copy.addEventListener(
       "click",
       (event) => {

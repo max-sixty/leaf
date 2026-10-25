@@ -644,9 +644,7 @@ svg[data-lf-icon] {
    The focus ring lies on the mark's edge, which on a corner is where its ground's
    ring stands and in a toolbar is the toolbar's own edge, so it stays off the words
    beside it either way. The reach is the aim floor on both axes (surfaces.css). Copy,
-   a vendor control, wears the face on the button part that takes its press, with
-   Leaf's icons in its icon slots (code-copy.js): the vendor's glyphs fill their box,
-   so at one size they stood larger than the icons beside them. */
+   a vendor control, wears the face on the button part that takes its press. */
 :where(button).lf-mark,
 .lf-mark.lf-ui::part(button) {
   position: relative;

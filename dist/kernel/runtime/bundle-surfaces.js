@@ -1310,11 +1310,6 @@ function prepareCodeBlock(pre, source, noun) {
 			success: `${noun[0].toUpperCase()}${noun.slice(1)} copied`,
 			error: `Unable to copy ${noun}`
 		});
-		for (const [icon, slot] of [
-			["copy", "copy-icon"],
-			["check", "success-icon"],
-			["cross", "error-icon"]
-		]) copy.append(Object.assign(iconElement(icon, "lf-mark-icon"), { slot }));
 		copy.addEventListener("click", (event) => {
 			if (pressedElsewhere(event, copy)) {
 				event.preventDefault();
@@ -1600,9 +1595,9 @@ function makeLink(heading) {
 	const control = copyControl("lf-heading-link", {
 		label: "Copy link to section",
 		success: "Link copied",
-		error: "Unable to copy link"
+		error: "Unable to copy link",
+		icon: "link"
 	});
-	control.append(Object.assign(iconElement("link", "lf-heading-link-icon"), { slot: "copy-icon" }));
 	control.tabIndex = -1;
 	const link = {
 		heading,

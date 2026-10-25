@@ -534,6 +534,7 @@ customElements.define(
         commands(this.#timelineHost.value, "On a recording timeline", [
           {
             id: "trace.first",
+            travels: true,
             keys: ["Home"],
             title: "first capture",
             control: this.#first.value,
@@ -542,6 +543,7 @@ customElements.define(
           },
           {
             id: "trace.last",
+            travels: true,
             keys: ["End"],
             title: "last capture",
             run: () => this.#navigate(this.#items().at(-1)?.id ?? null),

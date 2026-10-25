@@ -1034,6 +1034,7 @@ pageScope("command reference", {
       keys: ["ArrowDown"],
       title: "choose next",
       repeat: true,
+      travels: true,
       runFromCommandReference: false,
       // The list is built before search receives focus, so physical liveness is false at
       // that instant even though the reference always lists this instruction.
@@ -1047,6 +1048,7 @@ pageScope("command reference", {
       keys: ["ArrowUp"],
       title: "choose previous",
       repeat: true,
+      travels: true,
       runFromCommandReference: false,
       commandReferenceWhen: () => true,
       when: () => commandReferenceCommandActive(),

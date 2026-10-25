@@ -8,6 +8,7 @@ import json
 import shutil
 import subprocess
 import sys
+import threading
 import time
 import urllib.parse
 import urllib.request
@@ -871,3 +872,24 @@ def test_neighbours_follow_their_servers_and_ignore_deleted_pages(page_dir, tmp_
     shutil.rmtree(stopped)
     assert titles() == ["Scratch"]
     assert service_model.claim_path(stopped).exists()
+
+
+def test_concurrent_posts_never_tear_the_log(server, page_dir):
+    publish(page_dir)
+
+    def post(i):
+        fetch(
+            f"{server}/api/event",
+            data=json.dumps(
+                {"kind": "comment", "revision": 1, "text": f"c{i} " + "x" * 500}
+            ).encode(),
+        )
+
+    threads = [threading.Thread(target=post, args=(i,)) for i in range(20)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    events = [e for e in event_model.read_events(page_dir) if e["kind"] == "comment"]
+    assert {e["text"].split()[0] for e in events} == {f"c{i}" for i in range(20)}
+    assert len({e["id"] for e in events}) == 20  # server-minted, all distinct

@@ -563,6 +563,12 @@
   --focus-shadow: 0 0 0 var(--focus-ring-w) var(--accent);
   --target-trace-w: 1.5px;
   --target-trace-ink: color-mix(in srgb, var(--ink-2) 42%, var(--paper));
+  /* The contour on an element a moment is about, such as the target of the thread the
+     user is in (annotation-chrome.css). It stands outside the box at the ring's gap,
+     clear of the words at its edge, so a lighter, thinner accent keeps it apart from the
+     focus ring standing in the same place. */
+  --mark-contour-w: 1.5px;
+  --mark-contour-ink: color-mix(in srgb, var(--accent) 72%, var(--paper));
   /* A pressable never wears the accent as a solid fill: the accent is its ink and its
      hairline, and this tint is the disc or ground that rises under it on hover. */
   --accent-tint: color-mix(in srgb, var(--accent) 12%, var(--card));

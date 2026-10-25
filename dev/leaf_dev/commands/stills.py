@@ -1077,9 +1077,33 @@ def aim_cut_by_pane(page: Page) -> None:
     )
 
 
+def table_scrolled_sideways(page: Page) -> None:
+    """A table whose rows open with their names, scrolled to its far end on a phone."""
+    page.locator("#security-deep-record > summary").click()
+    page.locator("#security-vendor-table").evaluate(
+        """table => {
+          table.scrollIntoView({block: 'center'});
+          table.scrollLeft = table.scrollWidth;
+        }"""
+    )
+    page.wait_for_function(
+        "() => document.getElementById('security-vendor-table')"
+        ".hasAttribute('data-lf-more-before')"
+    )
+
+
 def element_thread(page: Page) -> None:
     """An element holding a thread, in view, with nothing indicating it."""
     page.locator("#off-t-vendor").evaluate("el => el.scrollIntoView({block: 'center'})")
+
+
+def element_thread_open(page: Page) -> None:
+    """The same element while the user is in its thread, opened from its margin card:
+    the contour that says which element the thread is about, beside the heading's
+    first letters."""
+    open_card(
+        page, page.locator('[data-lf-margin-for="off-t-vendor"] .lf-margin-marker')
+    )
 
 
 def more_menu(page: Page) -> None:
@@ -2092,6 +2116,21 @@ STATES = (
         region="#security-contract-list",
     ),
     State(
+        "table-scrolled-phone",
+        "security-boundary",
+        table_scrolled_sideways,
+        viewport=(390, 844),
+        region="#security-vendor-table",
+    ),
+    State(
+        "table-scrolled-phone-dark",
+        "security-boundary",
+        table_scrolled_sideways,
+        viewport=(390, 844),
+        scheme="dark",
+        region="#security-vendor-table",
+    ),
+    State(
         "alert-options-in-pane-touch",
         "alert-review",
         options_in_pane,
@@ -2198,6 +2237,16 @@ STATES = (
         touch=True,
     ),
     State("ship-thread", "ship-review", element_thread),
+    State(
+        "ship-thread-open", "ship-review", element_thread_open, region="#off-t-vendor"
+    ),
+    State(
+        "ship-thread-open-dark",
+        "ship-review",
+        element_thread_open,
+        scheme="dark",
+        region="#off-t-vendor",
+    ),
     State("ship-card-more-room", "ship-review", card_more_room, viewport=(1440, 600)),
     State(
         "ship-card-short-window", "ship-review", card_by_pointer, viewport=(1440, 480)

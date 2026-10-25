@@ -637,12 +637,11 @@ def test_a_widget_declaring_it_renders_a_picture_exposes_a_comment_target(
     look = overlay.evaluate(
         """el => { const style = getComputedStyle(el); return {
           background: style.backgroundImage,
-          borders: [style.borderTopWidth, style.borderRightWidth,
-                    style.borderBottomWidth, style.borderLeftWidth],
+          outline: [style.outlineStyle, style.outlineWidth],
         }; }"""
     )
     assert look["background"] == "none", look
-    assert len(set(look["borders"])) == 1 and look["borders"][0] != "0px", look
+    assert look["outline"][0] == "solid" and look["outline"][1] != "0px", look
     page.keyboard.press("Escape")
 
     # And a paragraph is still text: the click reaches no picture and raises nothing.
@@ -722,10 +721,10 @@ def test_a_screenshot_comment_contour_paints_above_its_edge_to_edge_frame(
     shot.scroll_into_view_if_needed()
     box = shot.bounding_box()
     clip = {
-        "x": math.floor(box["x"]) - 2,
-        "y": math.floor(box["y"]) - 2,
-        "width": math.ceil(box["x"] + box["width"]) - math.floor(box["x"]) + 4,
-        "height": math.ceil(box["y"] + box["height"]) - math.floor(box["y"]) + 4,
+        "x": math.floor(box["x"]) - 8,
+        "y": math.floor(box["y"]) - 8,
+        "width": math.ceil(box["x"] + box["width"]) - math.floor(box["x"]) + 16,
+        "height": math.ceil(box["y"] + box["height"]) - math.floor(box["y"]) + 16,
     }
 
     def screenshot():
@@ -739,13 +738,28 @@ def test_a_screenshot_comment_contour_paints_above_its_edge_to_edge_frame(
     expect(shot).to_have_class(re.compile(r"\blf-projected-mark\b"))
     overlay = page.locator(".lf-visual-mark-pending")
     expect(overlay).to_be_visible()
-    ink = overlay.evaluate(
-        """element => getComputedStyle(element).borderLeftColor
-          .match(/[0-9.]+/g).slice(0, 3).map(Number)"""
+    contour = overlay.evaluate(
+        """element => { const style = getComputedStyle(element);
+          // A mixed ink computes as color(srgb …); a canvas reads any colour as bytes.
+          const pen = document.createElement('canvas').getContext('2d');
+          pen.fillStyle = style.outlineColor;
+          pen.fillRect(0, 0, 1, 1);
+          return {
+            ink: [...pen.getImageData(0, 0, 1, 1).data.slice(0, 3)],
+            outset: parseFloat(style.outlineOffset) + parseFloat(style.outlineWidth),
+          }; }"""
     )
     marked = screenshot()
 
-    changed, _ = _edge_ink_changes(quiet, marked, box, clip, ink)
+    # The contour stands outside the frame, so its edges are the outline's outer box.
+    outset = contour["outset"]
+    outer = {
+        "x": box["x"] - outset,
+        "y": box["y"] - outset,
+        "width": box["width"] + 2 * outset,
+        "height": box["height"] + 2 * outset,
+    }
+    changed, _ = _edge_ink_changes(quiet, marked, outer, clip, contour["ink"])
     assert all(changed[side] > 0 for side in changed), (
         f"the screenshot frame covered part of its annotation contour: {changed}"
     )
@@ -1777,6 +1791,48 @@ def test_a_scrolling_breakout_table_keeps_its_caption_in_its_scrollport(
                 assert at["caption"][0] >= at["box"][0] - 1, (end, at)
                 assert at["caption"][1] <= at["box"][1] + 1, (end, at)
     assert root_overflow(page) == 0
+
+
+@pytest.mark.parametrize("direction", ["ltr", "rtl"])
+def test_a_scrolling_table_keeps_its_row_names_in_view(browser, serve, direction):
+    """A table whose rows open with a `<th scope="row">` keeps that column at its start
+    as the other columns scroll sideways, the heading over the names with it, and the
+    names paint over the columns passing under them. An overnight dashboard's table
+    scrolled its run names away, leaving values no reader could place."""
+    cells = "".join(f"<td>measured value {i}</td>" for i in range(8))
+    heads = "".join(f"<th>Measure {i}</th>" for i in range(8))
+    rows = "".join(
+        f'<tr><th scope="row" id="name-{n}">run {n}</th>{cells}</tr>' for n in range(3)
+    )
+    body = (
+        "<h1>Runs</h1>"
+        f'<table id="runs"><thead><tr><th id="corner">Run</th>{heads}</tr></thead>'
+        f"<tbody>{rows}</tbody></table>"
+    )
+    source = leaf_page("Runs", body).replace(
+        '<html lang="en">', f'<html lang="en" dir="{direction}">', 1
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 390, 844)
+    table = page.locator("#runs")
+    assert table.evaluate("t => t.scrollWidth > t.clientWidth")
+    table.evaluate(
+        "(t, x) => { t.scrollLeft = x; }", -10_000 if direction == "rtl" else 10_000
+    )
+    rendered(page)
+    at = table.evaluate("""t => {
+      const box = t.getBoundingClientRect();
+      const start = getComputedStyle(t).direction === 'rtl' ? 'right' : 'left';
+      return [...t.querySelectorAll('tr > :first-child')].map(c => {
+        const r = c.getBoundingClientRect();
+        const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        return {id: c.id, offset: Math.abs(r[start] - box[start]), on_top: c.contains(hit)};
+      });
+    }""")
+    assert [cell["id"] for cell in at] == ["corner", "name-0", "name-1", "name-2"]
+    for cell in at:
+        assert cell["offset"] <= 0.5, at
+        assert cell["on_top"], at
 
 
 @pytest.mark.parametrize("direction", ["ltr", "rtl"])

@@ -14,6 +14,12 @@ naming anything they operate or an identifier for one, read `references/glossary
 Leaf's canonical vocabulary and the voice its visible copy speaks in. A control may
 need no words at all (`<root>/browser/AGENTS.md`, "Visual grammar").
 
+## Take a backlog item
+
+Pick an issue labelled `backlog`, not `waits-on-user`, that no pull request links
+(`TODO.md` has the query), and open its pull request early, as a draft if need be,
+with `Closes #N` in the body, so the next session sees the item taken.
+
 ## Read the owning contract
 
 A contract shared across modules or runtimes lives in a reference beside the Python
@@ -380,7 +386,7 @@ whether one module owns it; if one does, the rule goes in that module's header (
 `AGENTS.md`, "Where instructions live").
 
 The thread appearance gate, `tests/*/test_render_thread_snapshots.py`, is paused
-(`TODO.md`, "Resume the thread appearance gate"), so a thread appearance change needs
+(issue #4046, "Resume the thread appearance gate"), so a thread appearance change needs
 no snapshot run before landing. `tests/AGENTS.md`, "Selecting checks", says what the
 landing gates run and what a failure there means. `wt merge` checks the rebased tree
 and lands it; `✗ Can't push to local main branch` means a fast-forward failed.

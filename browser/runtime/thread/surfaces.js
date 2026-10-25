@@ -404,7 +404,7 @@ export function renderSurfaces(collection, placements, commands) {
                   placements.placedAt(thread.id),
                 ) &&
                 (plan.registration.kind === "widget" ||
-                  (!widgetClaims.has(thread.id) && !heldOut(thread.id))),
+                  (!widgetClaims.has(thread.id) && !holdsOut(thread.id))),
             ),
           );
         if (

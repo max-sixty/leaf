@@ -113,7 +113,14 @@ test("a paint reading which threads a seat claims follows the commit that change
     );
     await seating.completion;
     assert.deepEqual(readings, [false], "preparation claims nothing");
-    seating.commit();
+    // The thread pass commits inside its own paint (thread/presentation.js), so a
+    // commit that followed what it moves would have the pass claim a second one.
+    let passes = 0;
+    effect(() => {
+      passes += 1;
+      if (passes === 1) seating.commit();
+    })();
+    assert.equal(passes, 1, "the pass that commits follows nothing the commit moved");
     assert.deepEqual(
       readings,
       [false, true],

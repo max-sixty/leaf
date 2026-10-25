@@ -2602,7 +2602,6 @@ const ICONS = {
 	add: "<path d=\"M8 3v10M3 8h10\"/>",
 	change: "<path d=\"M3 5.25h8.5M9.25 3l2.25 2.25L9.25 7.5M13 10.75H4.5M6.75 8.5 4.5 10.75 6.75 13\"/>",
 	check: "<path d=\"m3 8.25 3.15 3.15L13 4.75\"/>",
-	choose: "<path d=\"m5.25 6 2.75-2.75L10.75 6M5.25 10 8 12.75 10.75 10\"/>",
 	comment: "<path d=\"M3 3.25h10v7H7.25L4 12.75v-2H3z\"/>",
 	cross: "<path d=\"m4 4 8 8M12 4l-8 8\"/>",
 	dot: "<circle cx=\"8\" cy=\"8\" r=\"1.5\" fill=\"currentColor\" stroke=\"none\"/>",

@@ -3,21 +3,17 @@
    with `g M`, as Threads opens with `g T` and `t` walks the threads.
 
    On me groups its items one of three ways, which the user picks at the view's foot
-   and the browser keeps for every page (storage.js, `userChoice`): By place, under the
-   heading or named region of the part of the page each stands in (thread/placement.js,
-   `partOver`);
-   By kind, under the walk's word for each (`queueStop`); and By <agent>, under the
-   goals of the agent's plan whose steps name them, with those no goal names last.
-   Until the user picks, a plan that gives the user a step groups By <agent>, else By
-   place. Groups stand in the order their first item comes in page order, a plan's
-   goals in the plan's order and a goal's items in its steps' order, and the walk steps
-   through the groups' items in that one order, so successive presses reach successive
-   rows of the list (`onMeGroups` says how answered items keep that order still). The user chose groupings to choose from, the agent's plan among
-   them, on 21 October 2026, over Leaf ordering by what the plan waits on, an agent's
-   note with picks, and a priority on every obligation, each of which needed a new
-   contract or a guess. A step from no item on the list, from where the user reads,
-   still goes to the first item in that order that stands after their place
-   (`stepFrom`), so under By kind or By <agent> it may not be the nearest one below.
+   and the browser keeps for every page (storage.js, `userChoice`): By place, under what
+   names the part of the page each stands in (thread/placement.js, `partOver`); By kind,
+   under the walk's word for each (`queueStop`); and By <agent>, under the goals of the
+   agent's plan whose steps name them, those no goal names last. Until the user picks, a
+   plan that gives the user a step groups By <agent>, else By place. The walk steps
+   through the groups' items in the list's one order (`onMeGroups`), so successive
+   presses reach successive rows. The user chose these groupings (2026-10-21) over Leaf
+   ordering by what the plan waits on, an agent's note with picks, and a priority on
+   every obligation, each needing a new contract or a guess. A step from where the user
+   reads goes to the first item in that order after their place (`stepFrom`), which
+   under By kind or By <agent> may not be the nearest one below.
 
    What waits on the user is the application's one reading, `queues.on_user`
    (the server's `served_state.queues`, with this tab's sends placed against it): each open
@@ -235,8 +231,9 @@ export function createQueueWalk({
       ...reading.done.filter((item) => item.owner === "user"),
     ];
   };
-  // `items` in On me's groups (`grouping`), each a `title` over its items: the list's one
-  // order, which the walk follows too. The groups and their order are read from
+  // `items` in On me's groups (`grouping`), each a `title` over its items, and `leads`,
+  // the items that lead their walk stops: the list's one order, which the walk follows
+  // too. The groups and their order are read from
   // everything On me has held (`heldOnMe`), not from which items remain, so the list,
   // which keeps an answered item in its seat, and the walk, which steps over it, stand
   // in one order: a plan's goals in the plan's order, else each group where the first
@@ -273,9 +270,12 @@ export function createQueueWalk({
     });
     const shown = new Set(items.map(queueItemKey));
     const groups = new Map();
+    // The first item a group lists of each stop, which alone wears the walk's ring.
+    const leads = new Set();
     for (const stop of stops.values()) {
       const listed = stop.items.filter((item) => shown.has(queueItemKey(item)));
       if (!listed.length) continue;
+      leads.add(listed[0]);
       const group = stop.items
         .map(groupOf)
         .reduce((first, next) => (order.get(next) < order.get(first) ? next : first));
@@ -310,6 +310,7 @@ export function createQueueWalk({
                 ? addressableLabel(group)
                 : "The whole page",
         items: held.sort((a, b) => a.rank - b.rank).flatMap((stop) => stop.items),
+        leads,
       }));
   }
 

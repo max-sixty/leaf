@@ -2503,29 +2503,20 @@ export function createFloatingPanel({
   //
   // On me lists one line per item: the walk's word for what it is, its title, and the
   // part of the page it stands in, under the groups the `m` walk steps through in the
-  // same order (queue-walk.js, `onMeGroups`), each heading counting its rows, with what
-  // left the list under Done at its foot. A chooser at the view's foot picks the
-  // grouping; a row leaves out what its group's heading says. A press on a line opens
-  // its item in place as the card that answers it, with its answers, Discuss, Undo and
-  // Show, which travels to it on the page where `m` would, and another press or Escape
-  // folds it back; one item stands open at a time. The user chose one line per item,
-  // opened here with Show travelling, on 21 October 2026, over every card standing
-  // open, which fits eight items and not forty-five, and over a press that also
-  // scrolls the page to the item or travels there instead. An item the user answers
-  // here stays where it stood, saying its answer and offering Undo, until the view
-  // closes, so answering one never carries the next under the pointer.
+  // same order (queue-walk.js, `onMeGroups`), with what left the list under Done. A
+  // press on a line opens its card in place (answers, Discuss, Undo, Show, which
+  // travels where `m` would); another press or Escape folds it. An item answered here
+  // keeps its seat, saying its answer, until the view closes. The user chose this
+  // (2026-10-21) over every card standing open, which fits eight items and not
+  // forty-five, and over a press that also scrolls to the item or travels there.
   //
-  // On <agent> is the agent's work list: what it has in hand, what is queued behind
-  // that, and what it finished lately, newest first, a line each with its stage and
-  // how long it has stood at it; the plan's progress stands at the view's foot and
-  // discloses the plan's steps over the list. The user chose this on 21 October 2026
-  // over saying how much in the status alone and over a trace of the turn, which needs
-  // facts the served state lacks; it replaced the Plan tab of 19 October and the Done
-  // under each list. The same day they asked for a chooser between this List and a
-  // Summary, the same work said in a few sentences, to live with several layouts before
-  // settling one, against their 12 October rule that a layout is not picked from a
-  // menu. Both choices are one control (`chooser`) over one kind of kept choice
-  // (storage.js, `userChoice`).
+  // On <agent> is the agent's work list: in hand, queued and done, a line each with its
+  // stage and age, the plan's progress at the view's foot disclosing its steps. The
+  // user chose this (2026-10-21) over saying how much in the status alone and over a
+  // trace of the turn, which needs facts the served state lacks; it replaced the Plan
+  // tab. A chooser shows it as this List or as a Summary in sentences: the user chose a
+  // menu of layouts for now, to live with several before settling one, against their
+  // rule that a layout is not picked from a menu.
   let queueTab = "you";
   let seated = null; // On me's item keys present in the open view
   // The item standing open, by its key, and the height its card first stood at, which
@@ -2613,30 +2604,29 @@ export function createFloatingPanel({
   }
 
   // ---------- choosing an arrangement ----------
-  // A view's choice among its arrangements, at its foot: the platform's own select,
-  // which a key, a pointer and a finger each work, the chosen one its label. The
-  // choice is kept for every page, and the view fits what it then shows.
+  // A view's choice among its arrangements, at its foot: the platform's own select in
+  // the theme's face (`.lf-ui`), which a key, a pointer and a finger each work, the
+  // chosen one its label. The choice is kept for every page, and the view fits what it
+  // then shows.
   const chooser = ({ label, values, name, current, choose }) =>
-    html`<span class="lf-fp-chooser"
-      ><select
-        class="lf-fp-face"
-        aria-label=${label}
-        .value=${live(current)}
-        @change=${(event) => {
+    html`<select
+      class="lf-ui lf-fp-face"
+      aria-label=${label}
+      .value=${live(current)}
+      @change=${(event) => {
           choose(event.target.value);
           refit();
           fromTop = true;
           paint();
         }}
-      >
-        ${values.map(
+    >
+      ${values.map(
           (value) =>
             html`<option value=${value} ?selected=${value === current}>
               ${name(value)}
             </option>`,
-        )}</select
-      >${iconTemplate("choose", "lf-action-icon")}</span
-    >`;
+        )}
+    </select>`;
 
   // ---------- the plan ----------
   // What each state reads as to assistive tech, which hears no mark.
@@ -2879,9 +2869,7 @@ export function createFloatingPanel({
     // What the agent is doing about it: the line its last step wrote, as the status
     // says it of the whole page, else the stage it stands at.
     else if (list !== "you" && !answered)
-      answers = html`<span class="lf-fp-said"
-        >${item.todo?.running?.text ?? workflowStep(item.workflow)}</span
-      >`;
+      answers = html`<span class="lf-fp-said">${workOn(item).line}</span>`;
     else if (answered) {
       discussHere = false;
       answers = html`<span class="lf-fp-said">${obligationEnding(record)}</span>${
@@ -2943,7 +2931,7 @@ export function createFloatingPanel({
     let end = nothing;
     if (list === "agent") {
       const work = workOn(item);
-      end = html`<span class="lf-fp-said"
+      end = html`<span class="lf-fp-value"
         >${work.word}${
           work.since
             ? html` <span class="lf-fp-age">${shortAgo(work.since)}</span>`
@@ -2951,7 +2939,7 @@ export function createFloatingPanel({
         }</span
       >`;
     } else if (list === "done" && !record)
-      end = html`<span class="lf-fp-said"
+      end = html`<span class="lf-fp-value"
         >${itemOutcome(item)}${
           item.ended
             ? html` <span class="lf-fp-age">${shortAgo(item.ended)}</span>`
@@ -2959,10 +2947,10 @@ export function createFloatingPanel({
         }</span
       >`;
     else if (answered && !opened)
-      end = html`<span class="lf-fp-said">${obligationEnding(record)}</span>`;
+      end = html`<span class="lf-fp-value">${obligationEnding(record)}</span>`;
     else {
       const where = group ?? (says === "place" ? "" : onMe.place(item));
-      if (where) end = html`<span class="lf-fp-on-where">${where}</span>`;
+      if (where) end = html`<span class="lf-fp-value">${where}</span>`;
     }
     const name = heading || (thread ? threadHeading(thread) : queueTitle(item));
     return html`<section
@@ -2971,7 +2959,6 @@ export function createFloatingPanel({
       data-key=${key}
       data-obligation=${record?.id ?? nothing}
       ?data-open=${opened}
-      ?data-ended=${list === "done" || Boolean(answered)}
       ?data-walked=${leads && queueTab === "you" && walkedStop() === stop.key}
       style=${
         opened && seatHeights.has(key) ? `min-height: ${seatHeights.get(key)}px` : ""
@@ -2979,13 +2966,14 @@ export function createFloatingPanel({
     >
       <button
         type="button"
-        class="lf-fp-face lf-fp-on-line"
+        class="lf-fp-face lf-fp-item lf-fp-on-line"
         aria-expanded=${String(opened)}
+        ?data-resolved=${!opened && (list === "done" || Boolean(answered))}
         @click=${() => toggleItem(key)}
       >
-        <span class="lf-fp-on-kind">${kind}</span
+        <span class="lf-fp-value lf-fp-on-kind">${kind}</span
         ><span class="lf-fp-on-says"
-          ><span class="lf-fp-on-title">${name}</span>${end}</span
+          ><span class="lf-fp-label">${name}</span>${end}</span
         >
       </button>
       ${
@@ -3038,9 +3026,9 @@ export function createFloatingPanel({
             ? html`<hr class="lf-fp-on-rule" />`
             : row.item
               ? line(row.item, row.group)
-              : html`<h3 class="lf-fp-on-group">
-                  <span class="lf-fp-on-group-name">${row.group.title}</span
-                  ><span class="lf-fp-on-count"
+              : html`<h3 class="lf-label lf-fp-on-group">
+                  <span class="lf-fp-label">${row.group.title}</span
+                  ><span class="lf-fp-count"
                     >${row.group.count ?? row.group.items.length}</span
                   >
                 </h3>`,
@@ -3110,14 +3098,6 @@ export function createFloatingPanel({
       headed: group.items.length > 1,
       count: group.items.filter(waits).length,
     }));
-    // Lines arrived at in one place are one stop of the walk, which rings the first.
-    const stops = new Set();
-    const leading = new Set();
-    for (const item of groups.flatMap((group) => group.items))
-      if (!stops.has(queueStop(item).key)) {
-        stops.add(queueStop(item).key);
-        leading.add(item);
-      }
     // Another grouping draws the list afresh: every line moves, and moving each keyed
     // node in turn would stand some back where they were.
     return html`${
@@ -3135,7 +3115,7 @@ export function createFloatingPanel({
             : onItemCard(item, listOf(item), {
                 says: group.headed ? says : null,
                 group: group.headed || grouping === "kind" ? null : group.title,
-                leads: leading.has(item),
+                leads: group.leads.has(item),
               }),
       ),
     )}`;
@@ -3193,7 +3173,7 @@ export function createFloatingPanel({
     const now = work.find((each) => each.line && each.line !== each.word)?.line;
     const progress = planProgress();
     const [last] = done;
-    return html`<div class="lf-fp-summary">
+    return html`<div class="lf-fp-work-summary">
       <p>${first}${now ? ` Now: “${now}”.` : ""}</p>
       ${
         progress

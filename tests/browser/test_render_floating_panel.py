@@ -590,7 +590,9 @@ def test_the_on_view_is_titled_by_its_tab_with_that_list_s_done_under_it(
     sent = page.locator(".lf-fp-on-item")
     expect(sent).to_have_count(1)
     expect(sent).to_contain_text("Forty-eight hours covers the first cohort.")
-    expect(sent.locator(".lf-fp-said")).to_have_text(re.compile(r"^Sent"))
+    expect(sent.locator(".lf-fp-on-says > .lf-fp-value")).to_have_text(
+        re.compile(r"^Sent")
+    )
     # The On me mark turns the open view back to the user's list, and then closes it.
     page.locator(".lf-fp-on-user").click()
     expect(title).to_have_text("On me")
@@ -3312,7 +3314,7 @@ def test_on_me_groups_by_the_plan_and_on_claude_heads_with_its_progress(browser,
     expect(view.locator(".lf-fp-on-group")).to_have_count(0)
     lines = view.locator(".lf-fp-on-line")
     expect(lines.locator(".lf-fp-on-kind")).to_have_text(["Options", "Options"])
-    expect(lines.locator(".lf-fp-on-where")).to_have_text(
+    expect(lines.locator(".lf-fp-on-says > .lf-fp-value")).to_have_text(
         ["Ship the migration", "Not in the plan"]
     )
 
@@ -3367,10 +3369,10 @@ def test_on_claude_lists_its_work_in_hand_queued_and_done_or_says_it(browser, se
         ]
     )
     lines = view.locator(".lf-fp-on-line")
-    expect(lines.locator(".lf-fp-on-title")).to_have_text(
+    expect(lines.locator(".lf-fp-label")).to_have_text(
         ["Draft the release note", "Check the rollout", "Tidy the wording"]
     )
-    expect(lines.locator(".lf-fp-said")).to_have_text(
+    expect(lines.locator(".lf-fp-on-says > .lf-fp-value")).to_have_text(
         [
             re.compile(r"^Working \S+$"),
             re.compile(r"^To-do open \S+$"),
@@ -3386,7 +3388,7 @@ def test_on_claude_lists_its_work_in_hand_queued_and_done_or_says_it(browser, se
     chooser = page.get_by_role("combobox", name="Show On Claude as")
     expect(chooser).to_have_value("list")
     chooser.select_option("summary")
-    summary = view.locator(".lf-fp-summary")
+    summary = view.locator(".lf-fp-work-summary")
     expect(summary).to_contain_text(
         "Claude has 1 in hand, and 1 queued. Now: “Drafting the note's first line”."
     )
@@ -3400,7 +3402,7 @@ def test_on_claude_lists_its_work_in_hand_queued_and_done_or_says_it(browser, se
     expect(page.get_by_role("combobox", name="Show On Claude as")).to_have_value(
         "summary"
     )
-    expect(view.locator(".lf-fp-summary")).to_be_visible()
+    expect(view.locator(".lf-fp-work-summary")).to_be_visible()
 
 
 def test_versions_travel_opens_in_the_panel(browser, serve):

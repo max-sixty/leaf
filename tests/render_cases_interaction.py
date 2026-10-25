@@ -693,9 +693,10 @@ ON_ITEM_SAYS = """() => [...document.querySelectorAll(
   kind: JSON.parse(c.dataset.key)[0],
   id: JSON.parse(c.dataset.key)[1],
   list: c.dataset.list,
-  title: c.querySelector('.lf-fp-on-title')?.textContent ?? null,
+  title: c.querySelector('.lf-fp-on-line .lf-fp-label')?.textContent ?? null,
   prompt: c.querySelector('.lf-fp-prompt')?.textContent ?? null,
-  said: c.querySelector('.lf-fp-said')?.textContent ?? null,
+  said: (c.querySelector('.lf-fp-answers .lf-fp-said')
+    ?? c.querySelector('.lf-fp-on-says > .lf-fp-value'))?.textContent ?? null,
   w: Math.round(c.getBoundingClientRect().width),
   h: Math.round(c.getBoundingClientRect().height),
 }))"""

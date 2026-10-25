@@ -166,7 +166,7 @@
      control reset (chrome.css) and the layer's focus band at no weight (surfaces.css).
      A press reaches the pointer's floor by the shared reach (surfaces.css). */
   @layer lf-base {
-    :is(button, input, textarea):where(.lf-fp-face) {
+    :is(button, input, textarea, select):where(.lf-fp-face) {
       font: inherit;
       color: inherit;
     }
@@ -1262,7 +1262,7 @@
   .lf-fp-thread[data-yours] .lf-fp-value {
     color: var(--accent);
   }
-  .lf-fp-thread[data-resolved] .lf-fp-label {
+  :is(.lf-fp-thread, .lf-fp-on-line)[data-resolved] .lf-fp-label {
     color: var(--lf-fp-muted);
   }
   /* The row half of the mark the pointer is indicating (anchor-paint.js, `markRow`):
@@ -1419,38 +1419,25 @@
   }
 
   /* ---------- On: one line per item ---------- */
-  /* A group's heading over its lines, with how many it holds: small capitals in the
-     quiet ink, so the lines carry the words. */
+  /* A group's heading over its lines, in the label voice (`.lf-label`), with how many
+     it holds. */
   .lf-fp-on-group {
     display: flex;
     justify-content: space-between;
     gap: 8px;
     margin: 0;
     padding: 10px 8px 2px;
-    font: 11px / 16px var(--sans);
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--lf-fp-quiet);
   }
   .lf-fp-on-group:first-child,
   .lf-fp-on-rule + .lf-fp-on-group {
     padding-top: 2px;
   }
-
-  .lf-fp-on-group-name {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .lf-fp-on-count {
-    flex: none;
-    font-variant-numeric: tabular-nums;
-  }
-  /* The lines share their first column, what each item is, so every title starts on
-     one edge: each line takes the list's columns (`subgrid`), the widest word setting
-     the first up to a share of the width. The title and the line's end share the rest,
-     the title giving way first. */
+  /* Each line is a list row (`.lf-fp-item`) that shares its first column, what each
+     item is, with every line, so every title starts on one edge: the line takes the
+     list's columns (`subgrid`), the widest word setting the first up to a share of the
+     width. The title and the line's end share the rest, the title giving way first:
+     the end keeps its words up to its share, since a stage and its age cut short say
+     nothing. */
   .lf-fp-on-list {
     display: grid;
     grid-template-columns: fit-content(30%) minmax(0, 1fr);
@@ -1459,24 +1446,16 @@
   .lf-fp-on-item > * {
     grid-column: 1 / -1;
   }
-  .lf-fp-on-item {
-    display: grid;
-    grid-template-columns: subgrid;
-  }
-  /* An item open in place stands on the faintest ground, so its answers read as its
-     own; a folded one is its line alone. */
-  .lf-fp-on-item[data-open] {
-    border-radius: 8px;
-    background: color-mix(in srgb, var(--ink) 3%, transparent);
-  }
+  .lf-fp-on-item,
   .lf-fp-on-line {
     display: grid;
     grid-template-columns: subgrid;
-    align-items: baseline;
-    column-gap: 8px;
-    min-height: 32px;
-    padding: 6px 8px;
-    text-align: start;
+  }
+  /* An item open in place stands on the panel's faintest ground, so its answers read as
+     its own. */
+  .lf-fp-on-item[data-open] {
+    border-radius: var(--r);
+    background: var(--lf-fp-hover);
   }
   .lf-fp-on-says {
     display: flex;
@@ -1484,34 +1463,17 @@
     gap: 12px;
     min-width: 0;
   }
+  .lf-fp-on-says > .lf-fp-label {
+    flex: 1 1 auto;
+  }
   .lf-fp-on-kind,
-  .lf-fp-on-title,
-  .lf-fp-on-where,
-  .lf-fp-on-says > .lf-fp-said {
-    min-width: 0;
+  .lf-fp-on-says > .lf-fp-value {
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .lf-fp-on-kind,
-  .lf-fp-on-where,
-  .lf-fp-on-says > .lf-fp-said {
-    font-size: 12px;
-    color: var(--lf-fp-quiet);
-    font-variant-numeric: tabular-nums;
-  }
-  .lf-fp-on-title {
-    flex: 1 1 auto;
-  }
-  /* The end keeps its words, up to its share of the line, and the title gives way to
-     it: a stage and its age cut short say nothing. */
-  .lf-fp-on-where,
-  .lf-fp-on-says > .lf-fp-said {
+  .lf-fp-on-says > .lf-fp-value {
     flex: none;
     max-width: 45%;
-    margin: 0;
-  }
-  .lf-fp-on-item[data-ended]:not([data-open]) .lf-fp-on-title {
-    color: var(--lf-fp-muted);
   }
   /* An age stands in a room of its own, so a minute ticking over moves no word. */
   .lf-fp-age {
@@ -1709,7 +1671,7 @@
   .lf-fp-plan-bar {
     width: 40px;
     height: 4px;
-    border-radius: 2px;
+    border-radius: var(--r-s);
     background: linear-gradient(
       to right,
       var(--accent) var(--lf-fp-plan-done),
@@ -1721,43 +1683,11 @@
     border-bottom: 1px solid var(--lf-fp-faint);
   }
   /* The work said in sentences. */
-  .lf-fp-summary {
+  .lf-fp-work-summary {
     padding: 4px 8px 6px;
   }
-  .lf-fp-summary p {
+  .lf-fp-work-summary p {
     margin: 0 0 6px;
-  }
-
-  /* ---------- a view's chooser ---------- */
-  /* The platform's select in the panel's quiet face, its chevron drawn over its end. */
-  .lf-fp-chooser {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-  }
-  .lf-fp-chooser select {
-    appearance: none;
-    min-height: 26px;
-    margin: 0;
-    padding: 0 22px 0 8px;
-    border: 0;
-    border-radius: 6px;
-    background: none;
-    font: 12px / 26px var(--sans);
-    color: var(--lf-fp-muted);
-    cursor: pointer;
-  }
-  .lf-fp-chooser select:hover {
-    color: var(--ink);
-    background: var(--lf-fp-hover);
-  }
-  .lf-fp-chooser .lf-action-icon {
-    position: absolute;
-    inset-inline-end: 4px;
-    width: 14px;
-    height: 14px;
-    color: var(--lf-fp-muted);
-    pointer-events: none;
   }
 
   /* ---------- the leaf's menu ---------- */

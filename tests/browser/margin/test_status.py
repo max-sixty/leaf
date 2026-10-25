@@ -772,7 +772,9 @@ def test_a_thread_an_open_to_do_holds_says_so_beside_the_page(browser, serve):
     queue = page.locator(panel_view("queue"))
     owed = queue.locator('.lf-fp-on-item[data-list="agent"]')
     expect(owed).to_have_count(1)
-    expect(owed.locator(".lf-fp-on-title, .lf-fp-prompt").first).to_have_text(named)
+    expect(
+        owed.locator(".lf-fp-on-line .lf-fp-label, .lf-fp-prompt").first
+    ).to_have_text(named)
     page.keyboard.press("Escape")
     # The agent's answer settles the comment and opens the to-do that holds it.
     append_carried_log_record(

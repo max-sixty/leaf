@@ -207,9 +207,9 @@ Adds --dry-run to every mutating command.
         "widget:tone": "Build the strip one.",
     }
     for at, words in answers.items():
-        expect(on_card(page, at).locator(".lf-fp-said")).to_contain_text(
-            f"Answered: {words}"
-        )
+        expect(
+            on_card(page, at).locator(".lf-fp-on-says > .lf-fp-value")
+        ).to_contain_text(f"Answered: {words}")
 
 
 def test_obligation_cards_keep_identity_and_walk_order_when_the_live_dom_moves(
@@ -303,7 +303,7 @@ def test_a_completed_obligation_persists_and_on_me_says_its_current_answer(
     card = on_card(page, "widget:storage-options")
     expect(card.locator(".lf-fp-on-line")).to_be_focused()
     expect(card).to_have_attribute("data-list", "done")
-    expect(card.locator(".lf-fp-said")).to_contain_text(
+    expect(card.locator(".lf-fp-on-says > .lf-fp-value")).to_contain_text(
         "Answered: Pause offline editing"
     )
 
@@ -312,7 +312,7 @@ def test_a_completed_obligation_persists_and_on_me_says_its_current_answer(
     expect(page.locator("#storage-evict")).to_have_attribute("chosen", "")
     expect_obligations_answered(page, "1/1")
     open_on_me(page)
-    expect(card.locator(".lf-fp-said")).to_contain_text(
+    expect(card.locator(".lf-fp-on-says > .lf-fp-value")).to_contain_text(
         "Answered: Drop the oldest documents"
     )
 
@@ -333,7 +333,9 @@ def test_an_answered_boxless_obligation_is_taken_back_from_its_card(browser, ser
     open_on_me(page)
     card = on_card(page, "widget:sug-delete")
     expect(card).to_have_attribute("data-list", "done")
-    expect(card.locator(".lf-fp-said")).to_contain_text("Answered: Accepted")
+    expect(card.locator(".lf-fp-on-says > .lf-fp-value")).to_contain_text(
+        "Answered: Accepted"
+    )
     opened(card).get_by_role("button", name="Undo").click()
     round_trip(page)
     expect(page.locator("#sug-delete")).to_be_visible()
@@ -554,7 +556,7 @@ def test_the_chosen_grouping_orders_on_me_and_the_m_walk_alike(browser, serve):
     groups = view.locator(".lf-fp-on-group")
     expect(groups).to_have_text([re.compile(r"^\s*Implementation\s*2\s*$")])
     lines = view.locator(".lf-fp-on-line")
-    expect(lines.locator(".lf-fp-on-title")).to_have_text(
+    expect(lines.locator(".lf-fp-label")).to_have_text(
         [
             "Which exit code?",
             "Try the sandboxed run on a fork",
@@ -564,7 +566,7 @@ def test_the_chosen_grouping_orders_on_me_and_the_m_walk_alike(browser, serve):
     expect(lines.locator(".lf-fp-on-kind")).to_have_text(
         ["Options", "To-do", "Options"]
     )
-    expect(view.locator(".lf-fp-on-where")).to_have_text(["Rollout"])
+    expect(view.locator(".lf-fp-on-says > .lf-fp-value")).to_have_text(["Rollout"])
 
     chooser.select_option("kind")
     expect(groups).to_have_text([re.compile(r"^\s*Options\s*2\s*$")])
@@ -573,7 +575,7 @@ def test_the_chosen_grouping_orders_on_me_and_the_m_walk_alike(browser, serve):
     view = open_on_me(page)
     expect(page.get_by_role("combobox", name="Group On me")).to_have_value("kind")
     cards = view.locator(".lf-fp-on-item")
-    expect(cards.locator(".lf-fp-on-title")).to_have_text(
+    expect(cards.locator(".lf-fp-label")).to_have_text(
         [
             "Which exit code?",
             "Include self-hosted runners?",
@@ -581,7 +583,7 @@ def test_the_chosen_grouping_orders_on_me_and_the_m_walk_alike(browser, serve):
         ]
     )
     expect(cards.locator(".lf-fp-on-kind")).to_have_text(["", "", "To-do"])
-    expect(cards.locator(".lf-fp-on-where")).to_have_text(
+    expect(cards.locator(".lf-fp-on-says > .lf-fp-value")).to_have_text(
         ["Implementation", "Rollout", "Implementation"]
     )
 
@@ -624,7 +626,7 @@ def test_on_me_places_an_item_by_its_tab_s_title_or_label(browser, serve):
     page = open_page(browser, serve(TABBED_PAGE))
     resized(page, 1440, 900)
     view = open_on_me(page)
-    expect(view.locator(".lf-fp-on-where")).to_have_text(
+    expect(view.locator(".lf-fp-on-says > .lf-fp-value")).to_have_text(
         ["Move the runs into one sandbox", "Second plan"]
     )
 

@@ -6,6 +6,7 @@ import socket
 import subprocess
 
 import pytest
+from click.testing import CliRunner
 from interact_support import ROOT, STATED_TIMEOUT
 
 from leaf import bridge as bridge_model
@@ -153,3 +154,16 @@ def test_a_session_that_runs_no_leaf_command_starts_no_bridge():
     ):
         hooks_model.cmd_hook("claude-code", {"session_id": "unbridged", **payload})
     assert not bridge_model.bridge_path("lock").exists()
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [["--help"], ["--version"], ["package", "run", "page", "script", "--", "--help"]],
+)
+def test_bridge_entry_preserves_leaf_arguments(monkeypatch, argv):
+    """The bridge parses its mode; Leaf owns every argument after it."""
+    received = []
+    monkeypatch.setattr(bridge_model, "run", lambda args: received.append(args) or 7)
+    result = CliRunner().invoke(bridge_model.main, ["run", *argv])
+    assert result.exit_code == 7, result.output
+    assert received == [argv]

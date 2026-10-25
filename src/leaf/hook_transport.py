@@ -93,7 +93,6 @@ interrupted just after they start leave their updates Delivered.
 
 import json
 import time
-from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -465,47 +464,12 @@ def note_pointer(
         return
 
 
-def render(
-    harness: Harness,
-    event: str | None,
-    delivery: dict | None,
-    attention: list[str],
-    *,
-    confirm: Callable[[], list[dict]],
-    point: Callable[[], None],
-) -> dict | None:
-    """The hook's output, or None where it puts nothing in the turn. Where the
-    harness shows the whole message to the model (`Harness.fits_hook_context`), it
-    hands over inline the batches `confirm` records as opened in the turn, and
-    leaves a refused batch's input pending for a later handover. Otherwise, or
-    where `confirm` records none, it calls `point` and hands over the delivery's
-    pointer, which its reader's `leaf delivery ack` confirms after complete
-    reading: a pointer must leave no opened pickup, which would read as handed
-    over inline though the model read none of it."""
-    if delivery is None:
-        return harness.hook_context(event, "\n".join(attention)) if attention else None
-
-    def inline(batches: list[dict]) -> str:
-        shown = {**delivery, "batches": batches}
-        return "\n".join(
-            [INLINE_OPENING, json.dumps(shown, ensure_ascii=False), *attention]
-        )
-
-    if harness.fits_hook_context(inline(delivery["batches"])) and (
-        recorded := confirm()
-    ):
-        return harness.hook_context(event, inline(recorded))
-    point()
-    message = "\n".join([delivery_pointer_prompt(delivery["id"]), *attention])
-    return harness.hook_context(event, message)
-
-
 def carry_turn(
     harness: Harness,
     event: str | None,
     sid: str,
     payload: dict,
-    expected: dict | None | object = ...,
+    expected: dict | None,
     *,
     started: float,
     reconnect_harness: str | None = None,
@@ -514,7 +478,6 @@ def carry_turn(
     into the one hook output its harness reads, recording a delivery it hands
     over inline by `CONFIRM_WITHIN` after `started`, the hook's
     `time.monotonic()` as it began."""
-    expected = session_record(sid) if expected is ... else expected
     plans = read_plans(sid)
     if session_record(sid) != expected or any(
         plan.lifecycle != expected for plan in plans
@@ -593,12 +556,23 @@ def carry_turn(
     context = notices(reconnect_harness, sid, expected)
     if context is None:
         return
-    output = render(
-        harness,
-        event,
-        delivery,
-        [*context, *attention],
-        confirm=lambda: (
+    attention = [*context, *attention]
+    if delivery is None:
+        message = "\n".join(attention)
+    else:
+
+        def inline(batches: list[dict]) -> str:
+            return "\n".join(
+                [
+                    INLINE_OPENING,
+                    json.dumps({**delivery, "batches": batches}, ensure_ascii=False),
+                    *attention,
+                ]
+            )
+
+        # Record only input the model will see whole, while the hook can still
+        # exit before its timeout. A refused batch stays pending.
+        recorded = (
             receive_held(
                 delivery,
                 sid,
@@ -606,14 +580,15 @@ def carry_turn(
                 deadline=deadline,
                 confirm=harness.commits_hook_context,
             )
-            if time.monotonic() < deadline
+            if harness.fits_hook_context(inline(delivery["batches"]))
+            and time.monotonic() < deadline
             else []
-        ),
-        point=lambda: (
-            note_pointer(sid, expected, delivery, deadline=deadline)
-            if expected
-            else None
-        ),
-    )
-    if output:
-        print(json.dumps(output), flush=True)
+        )
+        if recorded:
+            message = inline(recorded)
+        else:
+            if expected:
+                note_pointer(sid, expected, delivery, deadline=deadline)
+            message = "\n".join([delivery_pointer_prompt(delivery["id"]), *attention])
+    if message:
+        print(json.dumps(harness.hook_context(event, message)), flush=True)

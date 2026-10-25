@@ -291,6 +291,109 @@ and the follow-on brief from Codex session `01a13358-0141-70f0-8bb4-a8defb75b07e
 `~/.tmp/leaf.authoring-vs-plain-html/eval/`; those are distinct from the recovered
 twelve-author Codex comparison above. The continuing brief is TODO #20.
 
+## Playground rail beside an inline stage, 2026-10-24
+
+One `/grinding-ui` cycle on the configuration task at 1600×1000, with Claude Code
+authors (Opus 5.5) and the default Codex pair judge. The 2026-10-21 runs above no longer
+exist on disk, so the evidence is fresh samples: three Leaf and three HTML configuration
+samples that two other sessions authored the same evening at `73222dc97`, and the four
+Leaf authors this cycle ran.
+
+**Weakness.** All seven Leaf authors wrote each alert's threshold and routing inside
+the preview, beside the alert, as the playground instructions ask, with presets and no
+control in the rail. A playground with every control in its preview stacked presets,
+then the stage, then the instruction and its Send button, at every width. On the five
+longer column pages the six alerts ran 1,000 to 1,300px tall, and Send was in view at
+3 to 5 of the 19 to 25 scroll positions the user passes while setting them. In a
+workspace the stage and instruction split the window's height: one sample's stage was 523px tall and cut off
+the last two alerts' text. The HTML authors put totals and the settings to send in a
+sticky right sidebar beside all six alerts, and both pair judges in the earlier anchor
+credited that.
+
+**Change.** `packages/playground`: the rail stands beside the stage at 43.5rem and
+wider whatever it holds. With every control in the preview, the rail holds the presets
+and the instruction, takes `minmax(16rem, 25%)` rather than a third, and sticks in view
+as the shared-controls rail already did. In a workspace the instruction pane's body
+scrolls under fixed actions when the rail is too short for it. Below 43.5rem nothing
+changes, and neither does a playground with shared controls (`leaf-dev stills` on the
+six playground states: 6 of 6 unchanged; a 390px phone renders identically).
+
+**Saved sources against both runtimes.** `leaf-dev probe --base` served each sample's
+before-decision page (phase 3) on both runtimes, and `.tmp/grind/measure.py` counted
+the window scroll positions, 50px apart, at which Send is in view. Earlier 1 to 3 are
+the other sessions' `dmk_sd50`, `ke89wgif` and `s3r467jb`. This cycle's Base 1 and 2 are `qm633q58` and
+`dqt4e6k4`, Candidate 1 is `4xf6wets`, and Candidate 2 is the run's fourth sample.
+
+| Sample      | Layout    | Send in view, base | Send in view, candidate | Stage width   |
+| ----------- | --------- | ------------------ | ----------------------- | ------------- |
+| Earlier 1   | column    | 3 of 19            | 17 of 17                | 1552 → 1140px |
+| Earlier 2   | column    | 4 of 25            | 23 of 23                | 1552 → 1140px |
+| Candidate 1 | column    | 4 of 24            | 14 of 16                | 1552 → 1140px |
+| Candidate 2 | column    | 4 of 25            | 21 of 21                | 1552 → 1140px |
+| Base 2      | column    | 5 of 21            | 19 of 19                | 1552 → 1140px |
+| Base 1      | column    | 3 of 6             | 4 of 4                  | 1552 → 1150px |
+| Earlier 3   | workspace | in view            | in view                 | 1576 → 1168px |
+
+On Earlier 3 the stage grew from 523 to 785px tall and all six alerts fit with no
+clipping. At 900×700 it grew from 350 to 442px and Send came into view; the stage
+narrowed from 876 to 606px. On Candidate 1 a long instruction leaves Send below the
+fold until the rail sticks.
+
+The cost is width. Authors size the alert rows to the stage they see, and on base pages
+re-served at the new width the choice cards wrapped to more lines. Base 1's author
+had fixed its alert grid's column minimums at 83rem, which overflows a 1150px stage and
+draws its outcome column under the rail. `page check --render` on that page re-vendored
+at the candidate reports it as a `covered-words` error, so a fresh author is told.
+
+**Fresh authors.** `leaf-dev eval configuration --harness claude-code --condition leaf
+--base --repeat 2 -j 2` (run `20261024-204434-p7k3qp4h`, $12.93 of authoring).
+All four final judges passed. Author minutes were 8.9 and 12.6 on base, 9.7 and 10.5
+on the candidate: no difference at this sample size, and the change doesn't target
+authoring. Both candidate authors kept every control in the preview, and the rail
+held the presets and instruction beside the stage.
+
+Pair judgments, through the README's copied-index recipe with the column filtered
+(`.tmp/grind/pairs.py`):
+
+- Base against candidate: one pair each. Candidate 1 beat Base 1 (clear, then
+  slight), and the judge named "its sidebar keeps the instruction and completion
+  controls alongside exploration". Base 2 beat Candidate 2 (slight both orders) on the
+  final record: the candidate's final summary table wrapped in a narrow column.
+- Candidate against the two HTML samples: HTML won both pairs in both orders (slight,
+  slight; clear, clear). Leaf won evidence in three of four judgments. HTML won
+  decisions and layout in all four. The defects judges named on Leaf were the tall
+  column introduction pushing the alerts below the first window, and a final record
+  in a narrow column with the tuning playground collapsed below it.
+- Base against the same HTML samples: HTML won both pairs (clear, clear; slight,
+  clear), winning decisions and layout in all four and evidence in three. One judge
+  named "pre-decision layout requires scrolling between alert rows and completion
+  controls" on Base 2; no judge named it on a candidate page.
+
+Against HTML, the candidate lost by slightly less (two slight and two clear margins,
+against one slight and three clear for base) and took evidence in three judgments
+rather than one. With two authors a side, that difference is the authors' as much as
+the runtime's.
+
+**Decision.** Keep. Send and the instruction stay beside the alerts at nearly every
+scroll position of a column page, and the workspace stage gets the window's height, at the price of a quarter of
+the stage's width. The judged gap to HTML remains, and it now sits outside the
+playground: the column page's title, lede and ask prose take 260 to 470px above the
+stage, and the final record is a narrow-column summary. The working-density title
+and the dashboard composition another session is testing address the first; the
+final record's composition is the next weakness to trace.
+
+Reproduce from the session's worktree, `leaf.agent-a881e07f1f82cdbe7`, whose `.tmp/`
+holds the scripts and runs:
+
+```sh
+bash .tmp/grind/replay.sh 1600x1000
+uv run python .tmp/grind/pairs.py .tmp/eval/audit-x claude-code/base/workflow .tmp/eval/20261024-204434-p7k3qp4h claude-code/candidate/workflow .tmp/eval/20261024-204434-p7k3qp4h
+```
+
+The other sessions' samples are copied under `.tmp/grind/saved/`; their runs are
+`leaf.agent-a926ac56ae2df7232/.tmp/eval/20261024-192805-36cgzkt4` and
+`leaf.agent-a10f091f355e3a600/.tmp/eval/20261024-192801-bevezs2u`.
+
 ## Remaining evaluation gaps
 
 - Recovering a long thread's middle after the agent has lost it. `elided` now

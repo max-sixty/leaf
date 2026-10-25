@@ -456,11 +456,10 @@ def test_a_playground_reports_a_contributor_view_that_cannot_draw_its_edit(
     consume_browser_errors(page, report)
 
 
-def test_inline_playground_keeps_half_a_short_workspace_for_its_stage(browser, serve):
-    """With its controls on the stage, a playground in a short workspace keeps at least
-    half the window for the stage, and the workspace scrolls to the whole instruction
-    and its actions below it rather than either scrolling inside a squeezed box."""
-    source = leaf_page(
+def short_inline_workspace(head: str = "") -> str:
+    """A workspace whose playground sets its one control on the stage, with an
+    instruction far longer than the window."""
+    return leaf_page(
         "Short alert workspace",
         '<lf-ask id="short-ask"><h1>Tune alert policies</h1>'
         '<lf-playground id="short-config" data-width="available">'
@@ -473,32 +472,31 @@ def test_inline_playground_keeps_half_a_short_workspace_for_its_stage(browser, s
         * 100
         + '<span id="instruction-end">Finish with the rollback procedure.</span>'
         "</lf-playground-output></lf-playground></lf-ask>",
+        head=head,
         layout="workspace",
     )
-    page = open_page(browser, serve(source))
-    resized(page, 900, 500)
+
+
+def sends_the_tuned_latency(page, serve):
+    """Tune the stage's slider, reach Send wherever it stands, and send."""
     playground = page.locator("#short-config")
     preview = playground.locator(".lf-playground-preview-body")
-    instruction = playground.locator("lf-playground-output")
-    expect(playground.locator(".lf-playground-controls-region")).to_have_count(0)
-    split = playground.locator(".lf-playground-split").bounding_box()
-    assert preview.bounding_box()["width"] == pytest.approx(split["width"], abs=1)
-    stage = playground.locator(".lf-playground-preview-region").bounding_box()
-    assert stage["height"] >= 500 / 2 - 0.5
-    assert instruction.evaluate("node => node.scrollHeight <= node.clientHeight + 1")
-    workspace = page.locator("#short-ask")
-    assert workspace.evaluate("node => node.scrollHeight > node.clientHeight + 1")
-    end = page.locator("#instruction-end")
-    end.scroll_into_view_if_needed()
-    expect(end).to_be_in_viewport()
     slider = playground.get_by_role("slider", name="Latency window")
     slider.press("ArrowRight")
     expect(slider).to_have_value("6")
     view = preview.bounding_box()
     field = slider.bounding_box()
     assert view["y"] <= field["y"] < view["y"] + view["height"]
+    end = page.locator("#instruction-end")
+    end.scroll_into_view_if_needed()
+    expect(end).to_be_in_viewport()
     submit = playground.get_by_role("button", name="Use these settings")
-    submit.scroll_into_view_if_needed()
+    # Where the workspace scrolls to Send, the user scrolls on to the workspace's end,
+    # whose room keeps Send clear of the floating panel.
+    page.locator("#short-ask").evaluate(
+        "node => { node.scrollTop = node.scrollHeight; }"
+    )
+    expect(submit).to_be_in_viewport()
     action = submit.bounding_box()
     main = page.locator("main").bounding_box()
     assert action["y"] + action["height"] <= main["y"] + main["height"]
@@ -507,6 +505,65 @@ def test_inline_playground_keeps_half_a_short_workspace_for_its_stage(browser, s
     assert events_model.read_events(serve.page_dir)[-1]["detail"]["values"] == {
         "latency": 6
     }
+
+
+def test_inline_playground_sets_its_instruction_beside_a_short_workspace_stage(
+    browser, serve
+):
+    """With its controls on the stage, a playground wide enough for a rail stands its
+    instruction and actions there, beside the stage, so the stage takes the whole height
+    of a short workspace and the instruction never takes it from the stage. An
+    instruction taller than the rail scrolls in its own box, the only one that scrolls,
+    with its actions in view below it."""
+    page = open_page(browser, serve(short_inline_workspace()))
+    resized(page, 900, 500)
+    playground = page.locator("#short-config")
+    expect(playground.locator(".lf-playground-controls-region")).to_have_count(0)
+    split = playground.locator(".lf-playground-split").bounding_box()
+    stage = playground.locator(".lf-playground-preview-region").bounding_box()
+    rail = playground.locator(".lf-playground-rail").bounding_box()
+    assert rail["x"] >= stage["x"] + stage["width"]
+    assert stage["width"] > rail["width"]
+    assert stage["height"] == pytest.approx(split["height"], abs=1)
+    assert stage["height"] > 500 / 2
+    expect(
+        playground.get_by_role("button", name="Use these settings")
+    ).to_be_in_viewport()
+    workspace = page.locator("#short-ask")
+    assert workspace.evaluate("node => node.scrollHeight <= node.clientHeight + 1")
+    sends_the_tuned_latency(page, serve)
+
+
+def test_stacked_inline_playground_keeps_half_a_short_workspace_for_its_stage(
+    browser, serve
+):
+    """Too narrow for a rail, the same playground stacks its instruction under the stage
+    and keeps at least half the window for the stage; the workspace scrolls to the whole
+    instruction and its actions rather than either scrolling inside a squeezed box (the
+    user's decision, 2026-10-22)."""
+    page = open_page(
+        browser,
+        serve(
+            short_inline_workspace(
+                # At the window's end edge, where the floating panel doesn't cover
+                # Send at the workspace's end.
+                "<style>#short-config { max-inline-size: 40rem;"
+                " margin-inline-start: auto; }</style>"
+            )
+        ),
+    )
+    resized(page, 900, 500)
+    playground = page.locator("#short-config")
+    preview = playground.locator(".lf-playground-preview-body")
+    split = playground.locator(".lf-playground-split").bounding_box()
+    assert preview.bounding_box()["width"] == pytest.approx(split["width"], abs=1)
+    stage = playground.locator(".lf-playground-preview-region").bounding_box()
+    assert stage["height"] >= 500 / 2 - 0.5
+    instruction = playground.locator("lf-playground-output")
+    assert instruction.evaluate("node => node.scrollHeight <= node.clientHeight + 1")
+    workspace = page.locator("#short-ask")
+    assert workspace.evaluate("node => node.scrollHeight > node.clientHeight + 1")
+    sends_the_tuned_latency(page, serve)
 
 
 def test_a_short_workspace_shows_more_below_its_playground_regions(browser, serve):

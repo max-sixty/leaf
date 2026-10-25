@@ -20,9 +20,13 @@ playground. Its value is submitted, and presets and Reset set it.
 Choose the playground's space by what the user needs to see and operate together
 (`references/page-authoring.md`, "Composing a page"). `data-width="available"` lets it
 break out of a reading column; a workspace gives it the window. A long comparison can
-flow down the page. Shared controls stay in their rail on wide layouts and above the
-preview on narrow layouts, where their own contents scroll if needed to leave room for
-the candidates. Controls authored beside an individual candidate stay beside it.
+flow down the page. On wide layouts the rail stands beside the preview and stays in view
+while it scrolls, holding the shared controls and presets above the instruction and its
+actions; with every control in the preview, it holds only the presets and the
+instruction and takes a quarter of the width. On narrow layouts shared controls and
+presets stand above the preview, where their own contents scroll if needed to leave
+room for the candidates, and the instruction below it. Controls authored beside an
+individual candidate stay beside it.
 
 Keep the premise focused on what the user is setting and why, so the preview, controls
 and submission remain easy to reach. Leave facts already visible in the preview there.

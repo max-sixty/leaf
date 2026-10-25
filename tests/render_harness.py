@@ -71,9 +71,9 @@ from leaf_dev.thread_snapshot_plugin import (
 )
 from model_folds import leaf_page
 from PIL import Image
+from playwright.sync_api import BrowserContext, Page, expect
 from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
-from playwright.sync_api import expect
 
 from leaf import cli as cli_model
 from leaf import files as files_model
@@ -2070,15 +2070,88 @@ def opened_tab(page, destination, press):
 # side. It is the escape `held_events` was written around, and why that fixture
 # routes from navigation onward.
 #
-# So each page arms itself when it is made, on a pattern nothing ever asks for.
-# Nothing is intercepted by it and no request's behavior changes; what changes is
-# that a route registered later — a keystroke before the gesture it holds — only
-# adds a pattern to a list the browser is already consulting.
+# Interception is not free, though. While any route is set, Playwright pauses every
+# request the page makes until its driver lets it go, and turns Chromium's HTTP cache
+# off (`Fetch.enable` on `*` and `Network.setCacheDisabled`). Measured on a plain test
+# page in October 2026, the arm added about 30 ms of CPU to each opening's 550, in the
+# browser process and the driver. Most pages are never routed.
 #
-# The arm is the render gate's own, which needs it for the other end of the same
-# fact: interception comes back down when a route list empties, and requests
-# crossing that transition are lost just as silently.
-arm_interception = render_gate_model.arm_interception
+# So a page the suite makes arms itself when something first routes it or its
+# context, on a pattern nothing else asks for, ahead of that first route. Before the
+# page navigates, nothing is in flight to escape and the arm is in place before the
+# first request, as `held_events` needs. After, the arm proves itself before the
+# test's route is added: the page fetches a probe the arm answers, and a probe the
+# arm missed escaped to the page server's quiet `favicon.ico` and is sent again. A
+# route registered later then only adds a pattern to a list the browser is already
+# consulting. The arm stays for the page's life, since interception comes back down
+# when a route list empties and requests crossing that transition are lost just as
+# silently; `unroute_all` takes it too, so the next route arms again.
+ARM_PROBE = re.compile(r"/favicon\.ico\?lf-interception-armed=\d+$")
+_route_page = Page.route
+_route_context = BrowserContext.route
+_unroute_all_page = Page.unroute_all
+
+
+def _arm(page):
+    """Turn interception on for a page the suite made, before its first route."""
+    if getattr(page, "lf_armed", True):
+        return
+    page.lf_armed = True
+    caught = set()
+
+    def arm(route):
+        caught.add(route.request.url)
+        route.fulfill(status=204)
+
+    _route_page(page, ARM_PROBE, arm)
+    # A page that has not navigated has nothing in flight, and a document that is no
+    # page server's has no quiet address to probe.
+    if not page.url.startswith(("http://", "https://")):
+        return
+    deadline = time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
+    for attempt in itertools.count():
+        probe = page.evaluate(
+            """attempt => {
+              const probe = new URL(`/favicon.ico?lf-interception-armed=${attempt}`,
+                location.href).href;
+              return fetch(probe, { cache: "no-store" }).then(() => probe, () => probe);
+            }""",
+            attempt,
+        )
+        if probe in caught:
+            return
+        assert time.monotonic() < deadline, (
+            f"request interception never caught a probe on {page.url}"
+        )
+
+
+def _arming_page(self, url, handler, **kwargs):
+    __tracebackhide__ = True
+    _arm(self)
+    return _route_page(self, url, handler, **kwargs)
+
+
+def _arming_context(self, url, handler, **kwargs):
+    __tracebackhide__ = True
+    # A page this context makes from here on starts with the context's route set, so
+    # it arms as it is made (`readable`).
+    self.lf_routed = True
+    for page in self.pages:
+        _arm(page)
+    return _route_context(self, url, handler, **kwargs)
+
+
+def _disarming(self, *args, **kwargs):
+    __tracebackhide__ = True
+    result = _unroute_all_page(self, *args, **kwargs)
+    if hasattr(self, "lf_armed"):
+        self.lf_armed = False
+    return result
+
+
+Page.route = _arming_page
+BrowserContext.route = _arming_context
+Page.unroute_all = _disarming
 
 # A browser wait bounds a hang; it does not time the work it waits for (tests/AGENTS.md,
 # "Functional results do not depend on execution speed"). One that names no deadline
@@ -2093,7 +2166,8 @@ def readable(page, *, java_script_enabled=True):
     """Install what the suite reads off a page, before the page navigates.
 
     The three readings are the same for every scripted page: the delivery ledger the traffic
-    helpers consume, the arm that keeps a later route real, and the problem list the
+    helpers consume, the arm that keeps a later route real (installed with the page's
+    first route, `_arm`), and the problem list the
     browser fixture rejects at the end of the test. None of them can be installed
     afterwards — an init script has to precede the navigation it instruments, and a
     console entry from a page nobody was listening to is simply gone — so a page that
@@ -2114,7 +2188,9 @@ def readable(page, *, java_script_enabled=True):
     if _CPU_THROTTLE and page.context.browser.browser_type.name == "chromium":
         slow_cpu(page, _CPU_THROTTLE)
     page.set_default_timeout(render_checks_model.SERVED_TIMEOUT_MS)
-    arm_interception(page)
+    page.lf_armed = False
+    if getattr(page.context, "lf_routed", False):
+        _arm(page)
     if java_script_enabled:
         page.lf_traffic = Traffic(page)
     watched(page, java_script_enabled=java_script_enabled)

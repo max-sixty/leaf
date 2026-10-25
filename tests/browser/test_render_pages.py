@@ -23,6 +23,8 @@ from render_cases_layout import (
     SHOT_SRC,
     SHOTS,
     current_location_ring,
+    ring_faults,
+    rings_drawn,
     toggle_queue,
     with_one_obligation,
 )
@@ -3233,6 +3235,49 @@ def test_a_sidebar_pages_track_stays_in_view_only_beside_the_body(browser, serve
             assert at["position"] != "sticky", case
             assert at["top"] < 0, case
             assert at["scroller"] != "held", case
+
+
+def test_a_sticking_block_shows_whole_the_rings_at_its_edges(browser, serve):
+    """A block that sticks beside the page scrolls what it holds, so it clips at its
+    padding edge, and a ring drawn outside a box at the block's side would be cut there:
+    a link that starts a line, a summary that runs the block's width. Keyboard focus on
+    either shows its ring whole, in a column's margin sidebar as in a sidebar page's
+    track. Only the track kept the ring's room, so the margin sidebar cut a summary's
+    ring at both sides and a link's at its start."""
+    held = (
+        "<p id='edge-lead'><a id='edge-link' href='#body'>Jump to the findings</a></p>"
+        "<details><summary id='edge-summary'>Related pages</summary>"
+        "<p>None yet.</p></details>"
+    )
+    body = "<div id='body'>" + "<p>Body paragraph. " * 600 + "</p></div>"
+    pages = {
+        "a column's margin sidebar": leaf_page(
+            "a column page", f"<aside class='sidebar'>{held}</aside>{body}"
+        ),
+        "a sidebar page's track": leaf_page(
+            "a sidebar page",
+            f"<header><h1>Review</h1></header><aside>{held}</aside>{body}",
+            layout="sidebar",
+        ),
+    }
+    holder = """() => getComputedStyle(
+      document.getElementById('edge-lead').parentElement).position"""
+    focused = "() => document.activeElement?.id ?? null"
+    for where, source in pages.items():
+        page = open_page(browser, serve(source))
+        resized(page, 1440, 900)
+        page.evaluate("scrollTo(0, 1500)")
+        assert page.evaluate(holder) == "sticky", where
+        for target in ("edge-link", "edge-summary"):
+            for _ in range(20):
+                page.keyboard.press("Tab")
+                if page.evaluate(focused) == target:
+                    break
+            else:
+                raise AssertionError(f"Tab never reached #{target} in {where}")
+            drawn = [ring for ring in rings_drawn(page) if ring["focused"]]
+            assert drawn, (where, target)
+            assert not ring_faults(drawn, f"in {where}, #{target}"), drawn
 
 
 def test_a_revision_keeps_the_readers_place_in_a_sidebar_tracks_body(browser, serve):

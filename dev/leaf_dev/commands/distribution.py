@@ -27,6 +27,7 @@ from pathlib import Path
 
 import click
 
+from leaf import state
 from leaf.layer import files_identity, payload_provenance
 from leaf.state import flocked, write_json
 from leaf_dev import ROOT
@@ -64,9 +65,31 @@ def cache_root() -> Path:
     )
 
 
+def launched_entries() -> set[Path]:
+    """The cache entries that live sessions have selected as their launcher.
+
+    A `--user` preview saves its entry's `bin/leaf` in the session record
+    (`session_runtime.select_launcher`), and the session's hooks and page server run
+    from it for as long as the record exists, however long ago the entry was
+    selected. The record is Leaf's own answer to "is this install in use".
+    """
+    sessions = state.state_home() / "sessions"
+    records = (
+        state.SESSION.read(path) for path in sessions.glob(f"*.{state.SESSION_SUFFIX}")
+    )
+    return {
+        Path(record["launcher"]).parent.parent
+        for record in records
+        if record and not record["ended"] and record.get("launcher")
+    }
+
+
 def evict(cache: Path) -> None:
     """Delete entries beyond the newest `KEEP_ENTRIES` that nothing has selected for
-    `KEEP_SECONDS` (a hit touches its entry), and abandoned staging directories."""
+    `KEEP_SECONDS` (a hit touches its entry) and no live session launches from, and
+    abandoned staging directories. Age is read again under the entry's lock, since a
+    reader may have selected it since the listing. Lock files stay: removing one
+    would let a waiter and a newcomer lock different inodes."""
     now = time.time()
     entries = sorted(
         (p for p in cache.iterdir() if p.is_dir() and not p.name.startswith(".")),
@@ -79,10 +102,13 @@ def evict(cache: Path) -> None:
         if p.name.startswith(".preparing-") and now - p.stat().st_mtime > KEEP_SECONDS
     ]
     for old in entries[KEEP_ENTRIES:]:
-        if now - old.stat().st_mtime > KEEP_SECONDS:
-            with flocked(cache / f"{old.name}.lock"):
+        with flocked(cache / f"{old.name}.lock"):
+            if (
+                old.is_dir()
+                and now - old.stat().st_mtime > KEEP_SECONDS
+                and old.resolve() not in launched_entries()
+            ):
                 shutil.rmtree(old, ignore_errors=True)
-            (cache / f"{old.name}.lock").unlink(missing_ok=True)
     for path in stale:
         shutil.rmtree(path, ignore_errors=True)
 

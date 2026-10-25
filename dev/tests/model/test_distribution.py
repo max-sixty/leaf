@@ -1,5 +1,6 @@
 """Developer tooling checks; run explicitly from dev/tests."""
 
+import contextlib
 import json
 import os
 import subprocess
@@ -12,7 +13,6 @@ from leaf_dev.commands import distribution
 def test_compiled_cache_follows_payload_and_compiler_bytes(tmp_path, monkeypatch):
     """Identical saves and authored revisions reuse a kernel; its inputs do not."""
     monkeypatch.setattr(distribution, "ROOT", tmp_path)
-    monkeypatch.setenv("LEAF_DEV_CACHE_DIR", str(tmp_path / "cache"))
     module = tmp_path / "browser/runtime/example.js"
     compiler = tmp_path / "build/runtime-bundle.mjs"
     authored = tmp_path / "examples/page.html"
@@ -37,6 +37,7 @@ def test_compiled_cache_follows_payload_and_compiler_bytes(tmp_path, monkeypatch
 def test_compiled_cache_refreshes_payload_and_git_provenance(tmp_path, monkeypatch):
     """Authored edits and commits publish an installation with current provenance."""
     monkeypatch.setattr(distribution, "ROOT", tmp_path)
+    monkeypatch.setenv("LEAF_DEV_CACHE_DIR", str(tmp_path / ".tmp/cache"))
 
     def git(*args):
         subprocess.run(
@@ -262,15 +263,58 @@ def prepared_cache(tmp_path, monkeypatch):
     return module, built
 
 
+def aged_entries(cache, ages):
+    now = time.time()
+    for name, age in ages.items():
+        (cache / name).mkdir()
+        os.utime(cache / name, (now - age, now - age))
+
+
 def test_eviction_keeps_recent_entries_and_drops_old_ones(tmp_path, monkeypatch):
     """Entries past the cap go once unused for a day; a recent one stays."""
     monkeypatch.setattr(distribution, "KEEP_ENTRIES", 1)
-    now = time.time()
-    for name, age in (("new", 0), ("recent", 3600), ("old", 3 * 86400)):
-        (tmp_path / name).mkdir()
-        os.utime(tmp_path / name, (now - age, now - age))
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path.parent / "state"))
+    aged_entries(tmp_path, {"new": 0, "recent": 3600, "old": 3 * 86400})
     distribution.evict(tmp_path)
     assert sorted(p.name for p in tmp_path.iterdir() if p.is_dir()) == [
         "new",
         "recent",
     ]
+
+
+def test_eviction_keeps_an_entry_a_session_launches_from(tmp_path, monkeypatch):
+    """A preview left open for days still runs from its entry."""
+    monkeypatch.setattr(distribution, "KEEP_ENTRIES", 0)
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    aged_entries(cache, {"used": 3 * 86400, "unused": 3 * 86400})
+    launcher = cache / "used/bin/leaf"
+    launcher.parent.mkdir()
+    launcher.touch()
+    distribution.state.write_session(
+        {
+            **distribution.state.new_session("s", {"kind": "test"}),
+            "launcher": str(launcher),
+        }
+    )
+    distribution.evict(cache)
+    assert sorted(p.name for p in cache.iterdir() if p.is_dir()) == ["used"]
+
+
+def test_eviction_rechecks_age_after_a_reader_selects_the_entry(tmp_path, monkeypatch):
+    """A reader that touches an entry while eviction waits for its lock keeps it."""
+    monkeypatch.setattr(distribution, "KEEP_ENTRIES", 0)
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+    aged_entries(tmp_path, {"old": 3 * 86400})
+    flocked = distribution.flocked
+
+    @contextlib.contextmanager
+    def reader_wins_the_lock(path):
+        with flocked(path):
+            os.utime(tmp_path / "old")
+            yield
+
+    monkeypatch.setattr(distribution, "flocked", reader_wins_the_lock)
+    distribution.evict(tmp_path)
+    assert (tmp_path / "old").is_dir()

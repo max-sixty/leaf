@@ -1707,13 +1707,13 @@ function watchHeadingLinks() {
 		if (heading && headingAddress(heading)) focusDestination(heading, "move");
 	}, { capture: true });
 	let current = null;
-	onCurrentLocation((node) => {
-		const heading = (node?.nodeType === Node.ELEMENT_NODE ? headingAt(node) : null) ?? headingOn(node);
-		if (heading === current) return;
+	const stand = (heading) => {
+		if (heading === current) return links.get(heading);
 		if (current) show(current, "current", false);
 		current = heading;
-		if (heading) show(heading, "current", true);
-	});
+		return heading && show(heading, "current", true);
+	};
+	onCurrentLocation((node) => stand(node?.nodeType === Node.ELEMENT_NODE ? headingAt(node) : null));
 	pageScope("heading", {
 		title: "On a section heading",
 		root: focused,
@@ -1725,8 +1725,7 @@ function watchHeadingLinks() {
 			title: "copy link to section",
 			touch: false,
 			run: () => {
-				const heading = headingOn(focused());
-				(heading && show(heading, "current", true))?.control.shadowRoot.querySelector("button").click();
+				stand(headingOn(focused()))?.control.shadowRoot.querySelector("button").click();
 			}
 		}]
 	});

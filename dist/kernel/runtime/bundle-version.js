@@ -135,9 +135,9 @@ function mountHistory({ followFragment, returnToFragment }) {
 					mayReturn.handoff(() => {
 						work = handler?.();
 					});
-					await work;
+					const placed = await work;
 					if (!mayReturn()) return;
-					if (!handler) {
+					if (!handler || placed === false) {
 						if (place) window.scrollTo({
 							left: place.offset[0],
 							top: place.offset[1],

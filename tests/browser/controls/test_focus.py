@@ -4,7 +4,7 @@ hand-back as layers close, focus kept through moves, and the frame audit."""
 import re
 
 import pytest
-from interact_support import append_carried_log_record
+from interact_support import append_carried_log_record, element_declaration
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_layout import (
@@ -504,7 +504,8 @@ def test_a_control_tab_skips_leaves_a_scrolling_box_its_own_stop(browser, serve)
 
 # Controls to Tab onto at a scroller's edge. Each wears its ring on a different box:
 # the radio on itself, a playground choice on its face, a joined option group's pick on
-# its row.
+# its row, a code block's Copy on its Web Awesome shadow button, and a diff's file
+# filter on the frame around its Web Awesome input.
 EDGE_CONTROLS = {
     "radio": '<p><label><input id="at" type="radio" name="r" checked> Pick</label></p>',
     "playground": (
@@ -520,13 +521,64 @@ EDGE_CONTROLS = {
         '<lf-options id="op" choose><lf-option id="op-a">Alpha</lf-option>'
         '<lf-option id="op-b">Beta, the second choice</lf-option></lf-options>'
     ),
+    "copy": (
+        '<lf-code id="cb" language="python"><pre>'
+        + "\n".join(f"step_{i}()" for i in range(8))
+        + "</pre></lf-code>"
+    ),
+    "filter": (
+        '<lf-diff id="patch"><pre>'
+        + "".join(
+            f"diff --git a/{name} b/{name}\n--- a/{name}\n+++ b/{name}\n"
+            "@@ -1,1 +1,1 @@\n-old\n+new\n"
+            for name in ("one.py", "two.py")
+        )
+        + "</pre></lf-diff>"
+    ),
+    "select": '<lf-edge-select id="sel"></lf-edge-select>',
+}
+# A package widget's Web Awesome select, whose ring is on the frame around its editor.
+EDGE_LAYERS = {
+    "select": {
+        "layer_registry": {
+            "lf-edge-select": element_declaration("lf-edge-select", upgrade=True)
+        },
+        "layer_widgets": {
+            "lf-edge-select.js": """
+import {once} from '/runtime/widget-api.js';
+import '/vendor/webawesome.esm.js';
+customElements.define('lf-edge-select', class extends HTMLElement {
+  connectedCallback() {
+    if (!once(this)) return;
+    const select = document.createElement('wa-select');
+    select.label = 'Route';
+    select.value = 'a';
+    for (const value of ['a', 'b']) {
+      const option = document.createElement('wa-option');
+      option.value = value;
+      option.textContent = `Route ${value}`;
+      select.append(option);
+    }
+    this.append(select);
+  }
+});
+"""
+        },
+    }
 }
 EDGE_TARGETS = {
     "radio": "#at",
     "playground": "#pg input:checked",
     "options": "#op-b .lf-pick",
     "table": "#wide td:nth-child(11) a",
+    "copy": "#cb .lf-code-copy [part~=button]",
+    "filter": "#patch .lf-diff-search input",
+    "select": "#sel wa-select [part~=display-input]",
 }
+EDGE_SIDES = {"table": "right", "copy": "top"}
+# Copy takes focus only once the keyboard stands in its block, so Tab reaches it from
+# the code before it.
+EDGE_BEFORE = {"copy": "#cb pre"}
 
 
 def edges_page(control):
@@ -559,6 +611,9 @@ def edges_page(control):
                 ("options", 6, "past", "Tab"),
                 ("options", 6, "past", "End"),
                 ("table", 6, "past", "Tab"),
+                ("copy", 6, "past", "Tab"),
+                ("filter", 3, "past", "Tab"),
+                ("select", 3, "past", "Tab"),
             ]
             for engine in ["browser", "firefox_browser"]
         ),
@@ -578,20 +633,34 @@ def test_a_key_onto_a_control_at_a_scrollers_edge_shows_its_ring(
     it kept its ring cut; a link 6px past a wide table's end stayed cut in both
     engines; and a joined option group's row and a playground choice's face, each
     wearing its control's ring, stayed cut in both, the face once its radio stood 7px
-    inside, the row whether Tab or End reached it. `past` is how far beyond the edge
-    the box wearing the ring stood before the key; each now shows its ring."""
-    page = open_page(request.getfixturevalue(engine), serve(edges_page(control)))
+    inside, the row whether Tab or End reached it. A Web Awesome control focuses a node
+    in its own shadow tree, which the page's focus margin doesn't reach: Tab from the
+    code stood Copy's button flush with the log's top, and a diff's file filter and a
+    select, each 3px past its foot, kept the ring on its frame cut, the select's still
+    once the margin reached it, since the landing measured its editor. `past` is how
+    far beyond the edge the box wearing the ring stood before the key; each now shows
+    its ring."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(edges_page(control), **EDGE_LAYERS.get(control, {})),
+    )
     resized(page, 1280, 560)
-    side = "right" if control == "table" else "bottom"
+    side = EDGE_SIDES.get(control, "bottom")
     target = page.locator(EDGE_TARGETS[control])
     # Which box wears the ring is the paint's answer: the nearest box out from the
-    # control whose outline is the ring.
-    target.evaluate("el => el.focus({preventScroll: true})")
+    # control, across shadow boundaries, whose outline is the ring.
+    if before := EDGE_BEFORE.get(control):
+        page.locator(before).focus()
+        rendered(page)
+        page.keyboard.press("Tab")
+    else:
+        target.evaluate("el => el.focus({preventScroll: true})")
+    expect(target).to_be_focused()
     rendered(page)
     target.evaluate(
         """(el) => {
           const w = getComputedStyle(el).getPropertyValue('--focus-ring-w').trim();
-          for (let n = el; n; n = n.parentElement) {
+          for (let n = el; n; n = n.parentElement ?? n.parentNode?.host) {
             const cs = getComputedStyle(n);
             if (cs.outlineStyle === 'solid' && cs.outlineWidth === w)
               return void (window.ringed = n);
@@ -604,12 +673,16 @@ def test_a_key_onto_a_control_at_a_scrollers_edge_shows_its_ring(
         page.locator("#op-a .lf-pick").evaluate("el => el.focus({preventScroll: true})")
     page.evaluate(
         """([side, past]) => {
-          const box = window.ringed.closest(side === 'bottom' ? '#log' : '#wide');
+          // A document block's Copy stands in chrome, cut to the block's scroller.
+          const box = document.querySelector(side === 'right' ? '#wide' : '#log');
+          window.edgeBox = box;
           const port = box.getBoundingClientRect();
           const at = window.ringed.getBoundingClientRect();
           if (side === 'bottom')
             box.scrollTop += at.bottom - (port.top + box.clientTop + box.clientHeight)
               - past;
+          else if (side === 'top')
+            box.scrollTop += at.top - (port.top + box.clientTop) + past;
           else
             box.scrollLeft += at.right - (port.left + box.clientLeft + box.clientWidth)
               - past;
@@ -623,14 +696,16 @@ def test_a_key_onto_a_control_at_a_scrollers_edge_shows_its_ring(
     read = page.evaluate(
         """(side) => {
           const el = window.ringed;
-          const box = el.closest(side === 'bottom' ? '#log' : '#wide');
+          const box = window.edgeBox;
           const port = box.getBoundingClientRect();
           const at = el.getBoundingClientRect();
           const style = getComputedStyle(el);
           return {
             room: side === 'bottom'
               ? port.top + box.clientTop + box.clientHeight - at.bottom
-              : port.left + box.clientLeft + box.clientWidth - at.right,
+              : side === 'top'
+                ? at.top - (port.top + box.clientTop)
+                : port.left + box.clientLeft + box.clientWidth - at.right,
             ring: parseFloat(style.outlineWidth) + parseFloat(style.outlineOffset),
           };
         }""",

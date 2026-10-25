@@ -448,16 +448,34 @@ claude-code` run (its `boundary` step), the transcript held the comment in both
   then capture, review and accept current images (`leaf-dev thread-snapshots`), and
   have landing run the comparison so it cannot drift again, such as `wt merge`'s macOS
   pre-merge when the thread runtime or theme changes.
-- **Guard thread appearance on CI again.** The thread snapshot gate compares images
-  on macOS only (`dev/leaf_dev/commands/thread_snapshots.py`), so a pull request's Linux CI
-  checks the delivery journey but not how it looks. Fonts and antialiasing differ by
-  OS, so Mac and Linux images never match. A Linux image could only be made on CI's
-  own runner, which meant pushing, downloading the run's images and accepting them
-  by hand. Find an approach where whoever changes the appearance can render the
-  compared images themselves. Candidates: render Linux baselines locally in the
-  same container CI runs, the approach Playwright recommends (an arm64 image on a
-  Mac matches CI only on an arm64 runner); or a hosted visual-review service that
-  renders both sides itself.
+- **Guard thread appearance on CI again.** The thread snapshot gate compares
+  images on macOS and Linux (`dev/leaf_dev/commands/thread_snapshots.py`), but only
+  macOS has an accepted profile, so a pull request's Linux CI checks the delivery
+  journey and not how it looks. `leaf-dev thread-snapshots capture --linux` renders
+  CI's Linux profile on any machine, in Playwright's published image for the
+  locked version (Ubuntu 24.04 on x86_64, as CI's runner is). Measured 2026-10-24
+  at e7ebb02d4 against the 30 journey images of CI run
+  [38239628776](https://github.com/max-sixty/leaf/actions/runs/38239628776): 23 were
+  byte-identical, and the other 7 differed in at most 10 antialiased pixels (largest
+  channel step 11 of 255). The gate's comparison (Pixelmatch at 0.01) counted none of
+  them, and every geometry reading matched. The same image run natively on arm64
+  also counted none, but differed by one or two levels in up to 6% of an image's
+  pixels, and a three-level grey step would already fail, so it leaves no margin. On
+  Apple Silicon the x86_64 image needs Rosetta (Colima's `--vz-rosetta`, or Docker
+  Desktop's Rosetta setting). Under Docker Desktop's default QEMU, Chromium's GPU
+  process crashes on launch. Five cases took 250 s under Rosetta, against 114 s on
+  CI's runner. The hosted services fit worse. Percy and Chromatic re-render a DOM
+  snapshot, and page script can't read the composer's closed shadow root
+  (`browser/runtime/composing/text-field.js`), where every composer draws the draft
+  the stages capture. Chromatic's Playwright SDK is JavaScript only, and Lost Pixel is shutting
+  down. Argos compares the screenshots CI uploads, free up to 5,000 a month; it
+  needs a project token, and its approval screen would replace the leaf-assets pin
+  as the home of the accepted images. To adopt, once "Resume the thread appearance
+  gate" lands: fix the journey, which fails on main at the refusal stage and the
+  margin marker click on macOS and Linux alike, then run `capture --linux`, review
+  the images and `accept` them. Max to decide whether the macOS profile stays,
+  which costs two captures and two reviews per appearance change, or whether CI's
+  Linux profile becomes the only one, with `darwin` dropped from `COMPARED`.
 - **Keep the agent journey's samples.** `leaf-dev journey` prints one timed sample
   per run, and `publish-site` runs it on every release, but only the machine that
   ran it keeps the sample (`$XDG_STATE_HOME/leaf-dev/journey.jsonl`), so CI's

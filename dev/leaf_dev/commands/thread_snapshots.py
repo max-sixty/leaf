@@ -3,17 +3,21 @@
 Images and viewport geometry live in max-sixty/leaf-assets, pinned by the existing
 leaf-assets.json's thread_snapshots_revision. Tests compare current Leaf directly
 against that immutable set;
-no historical runtime, source patch or baseline build is involved. Appearance is
-compared on macOS only: fonts and antialiasing differ by OS, and a Linux image could
-be made only on CI's own runner (TODO.md, "Development velocity"). Elsewhere the
-journey and its delivery assertions still run and keep their images as evidence,
+no historical runtime, source patch or baseline build is involved. Fonts and
+antialiasing differ by OS, so each OS compares against its own profile, named by the
+OS version, architecture and locked Chromium version. A missing profile fails, so
+browser upgrades require deliberately reviewed captures. Appearance is compared on
+macOS and Linux. `capture --linux` renders CI's Linux profile on any machine, in
+Playwright's image for the locked version: Ubuntu 24.04 on x86_64, as CI's runner is.
+The image runs as x86_64 because an arm64 render rounds colours differently across
+whole regions. On Apple Silicon that needs Rosetta (Colima's `--vz-rosetta`, or Docker
+Desktop's Rosetta setting), since Chromium's GPU process crashes under QEMU. Elsewhere
+the journey and its delivery assertions still run and keep their images as evidence,
 except in the dark cases, whose colour scheme changes only pixels.
-A profile names the macOS version, architecture and locked Chromium version, and a
-missing profile fails: browser upgrades require deliberately reviewed captures.
 Existing fetch-assets warms the same cache as every other asset reader.
 
     uv run pytest -n0 tests/*/test_render_thread_snapshots.py
-    uv run leaf-dev thread-snapshots capture
+    uv run leaf-dev thread-snapshots capture [--linux]
     uv run leaf-dev thread-snapshots accept .tmp/thread-snapshots/captures/<run>
 
 Capture runs the same journey and hard delivery assertions, writing all 48 PNG images and
@@ -41,14 +45,17 @@ import hashlib
 import io
 import json
 import math
+import os
 import platform
 import shutil
 import subprocess
 import sys
+import tarfile
 import tempfile
 import uuid
 from contextlib import contextmanager
 from dataclasses import dataclass
+from importlib.metadata import version
 from pathlib import Path
 
 import click
@@ -93,16 +100,18 @@ CASES = (
 )
 
 
-# The one platform whose appearance is reviewed and compared.
-COMPARED = sys.platform == "darwin"
+# The platforms whose appearance is reviewed and compared.
+COMPARED = sys.platform in ("darwin", "linux")
 
 
 def render_profile(browser_version: str) -> str:
     """The rendering environment whose images this run can compare meaningfully."""
-    return (
-        f"darwin-{platform.mac_ver()[0]}-{platform.machine()}"
-        f"-chromium-{browser_version}"
+    system = (
+        f"darwin-{platform.mac_ver()[0]}"
+        if sys.platform == "darwin"
+        else f"linux-{platform.freedesktop_os_release()['VERSION_ID']}"
     )
+    return f"{system}-{platform.machine()}-chromium-{browser_version}"
 
 
 def visible_capture(image: Image.Image, clip: dict, window: dict) -> Image.Image:
@@ -293,27 +302,111 @@ def thread_snapshots():
     """Capture, review and publish current Leaf's thread appearance."""
 
 
+def capture_command(store: str) -> list[str]:
+    """The pytest arguments that capture every case into `store`."""
+    return [
+        "pytest",
+        "-n0",
+        "-q",
+        "--image-snapshot-update",
+        "--thread-snapshot-store",
+        store,
+        "tests/journeys/test_render_thread_snapshots.py::test_message_delivery_appearance_and_first_frame",
+    ]
+
+
+# CI's runner is ubuntu-24.04 on x86_64 with Playwright's browsers and fonts-dejavu
+# (`leaf-dev setup`); the image matches its OS release and browser build.
+LINUX_PLATFORM = "linux/amd64"
+LINUX_BOOTSTRAP = """set -euo pipefail
+export DEBIAN_FRONTEND=noninteractive PATH="$HOME/.local/bin:$PATH"
+apt-get update -qq
+apt-get install -y -qq fonts-dejavu git >/dev/null
+curl -fsSL https://deb.nodesource.com/setup_22.x | bash - >/dev/null
+apt-get install -y -qq nodejs >/dev/null
+curl -LsSf https://astral.sh/uv/install.sh | sh >/dev/null
+mkdir -p /work
+tar -xf - -C /work
+cd /work
+git init -q
+git add -A
+git -c user.name=capture -c user.email=capture@localhost commit -qm capture
+corepack enable
+COREPACK_ENABLE_DOWNLOAD_PROMPT=0 pnpm install --frozen-lockfile --reporter=silent
+uv run --frozen leaf-dev fetch-assets
+exec uv run --frozen "$@"
+"""
+
+
+def working_tree_tar() -> bytes:
+    """The checkout as it stands, tracked and untracked files alike, minus ignored ones."""
+    names = subprocess.run(
+        ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+        cwd=ROOT,
+        capture_output=True,
+        check=True,
+    ).stdout.split(b"\0")
+    archive = io.BytesIO()
+    with tarfile.open(fileobj=archive, mode="w") as tar:
+        for name in filter(None, names):
+            path = ROOT / os.fsdecode(name)
+            if path.is_symlink() or path.exists():
+                tar.add(path, arcname=os.fsdecode(name), recursive=False)
+    return archive.getvalue()
+
+
+def linux_capture(directory: Path) -> subprocess.CompletedProcess:
+    """Run the capture in Playwright's image for the locked version, on CI's platform."""
+    runs = ROOT / ".tmp/thread-snapshots/runs"
+    runs.mkdir(parents=True, exist_ok=True)
+    image = f"mcr.microsoft.com/playwright/python:v{version('playwright')}-noble"
+    return subprocess.run(
+        [
+            "docker",
+            "run",
+            "--rm",
+            "-i",
+            "--platform",
+            LINUX_PLATFORM,
+            "--ipc=host",
+            "-v",
+            f"{directory}:/capture",
+            "-v",
+            f"{runs}:/work/.tmp/thread-snapshots/runs",
+            image,
+            "bash",
+            "-c",
+            LINUX_BOOTSTRAP,
+            "bootstrap",
+            *capture_command("/capture"),
+        ],
+        input=working_tree_tar(),
+        check=False,
+    )
+
+
 @thread_snapshots.command("capture")
-def capture():
+@click.option(
+    "--linux",
+    is_flag=True,
+    help="Capture CI's Linux profile in a container (needs Docker running x86_64).",
+)
+def capture(linux: bool):
     """Run all delivery assertions and capture current appearance for review."""
-    if not COMPARED:
-        raise click.ClickException("thread appearance is captured on macOS only")
+    if not (linux or COMPARED):
+        raise click.ClickException(
+            "thread appearance is captured on macOS or Linux; pass --linux"
+        )
     directory = ROOT / ".tmp/thread-snapshots/captures" / uuid.uuid4().hex
     directory.mkdir(parents=True)
-    result = subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "pytest",
-            "-n0",
-            "-q",
-            "--image-snapshot-update",
-            "--thread-snapshot-store",
-            str(directory),
-            "tests/journeys/test_render_thread_snapshots.py::test_message_delivery_appearance_and_first_frame",
-        ],
-        cwd=ROOT,
-        check=False,
+    result = (
+        linux_capture(directory)
+        if linux
+        else subprocess.run(
+            [sys.executable, "-m", *capture_command(str(directory))],
+            cwd=ROOT,
+            check=False,
+        )
     )
     if result.returncode:
         raise click.ClickException(

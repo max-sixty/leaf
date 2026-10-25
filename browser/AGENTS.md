@@ -63,9 +63,11 @@ representative desktop viewport.
 
 - **The page holds still under the user's aim.** A state change may repaint any box,
   but must not move the controls next to the gesture that caused it. A scroll the
-  gesture makes may not carry the control it was made on either, except where the
-  command takes the user somewhere, as a walk or Go-to does, and declares so
-  (`travels`, `runtime/keyboard/bindings.js`). Without a gesture,
+  gesture makes may not carry the control it was made on either, except to bring it
+  whole into a scroller that showed only part of it, or where the gesture takes the
+  user somewhere and says so: a command as a walk or Go-to does (`travels`,
+  `runtime/keyboard/bindings.js`), or a press by the history entry it adds, as a link
+  or a root tab set's switch does. Without a gesture,
   a box may grow or shrink into free room, but reading content and controls stay put. A
   change the user asked for may reflow the content it replaces, with motion the eye can
   follow. A reveal on hover, focus or a key never changes the size or position of its
@@ -333,7 +335,7 @@ reads (root `AGENTS.md`, "The document starts state; the log changes it"):
 | Fact                                                                                                          | Authority                                                                                                                                                                                          |
 | ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | authored widget state                                                                                         | the validated source markup, captured before upgrade                                                                                                                                               |
-| external data                                                                                                 | the latest page data; a widget reads each bound source through `this.data` (data.js)                                                                                                               |
+| external data                                                                                                 | the latest page data; Leaf sets each bound source on the widget property x-data names (data.js)                                                                                                    |
 | version shown                                                                                                 | the revision the delivery prelude names; a newer revision with the same executable identity patches in place, and a different one loads a fresh document                                           |
 | accepted history                                                                                              | the server's event log and its `/api/state` answer, which the publisher adopts whole; each answer has one `through_seq`, and a version comparison asks `/api/view` at the sequence already applied |
 | unresolved browser work, refusals included                                                                    | the publisher's one ordered list; the server records no refusal, since the condition behind one can change while the user's words stay the same                                                    |

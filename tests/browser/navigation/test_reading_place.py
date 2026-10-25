@@ -252,6 +252,15 @@ def test_a_new_reading_passage_ends_a_travel_group(
     scroll_settled(page)
     assert page.evaluate("history.length") == entries + 2
 
+    if focusable:
+        # Keep the card in its closing frame through Forward: a painted but inert
+        # card is already put away, so history must return through its page target.
+        page.locator(".lf-margin-preview").evaluate("""preview => {
+          preview.addEventListener('transitionrun', event => {
+            if (event.propertyName === 'opacity' && preview.inert)
+              preview.getAnimations().forEach(animation => animation.pause());
+          });
+        }""")
     page.go_back()
     page.wait_for_function("top => Math.abs(scrollY-top) <= 2", arg=chosen_top)
     if focusable:
@@ -261,10 +270,16 @@ def test_a_new_reading_passage_ends_a_travel_group(
             "() => getSelection().focusNode?.parentElement.closest('#elsewhere')"
         )
     page.wait_for_function("navigation.transition === null")
+    if focusable:
+        page.wait_for_function("""() => {
+          const preview = document.querySelector('.lf-margin-preview');
+          return preview.inert && preview.getAnimations().some(a => a.playState === 'paused');
+        }""")
     page.go_forward()
+    page.wait_for_function("navigation.transition === null")
     # A margin card that has closed on Back returns through its source; one still
     # the current location returns focus to its card. Both are the second thread's working place.
-    page.wait_for_function(
+    assert page.evaluate(
         "id => document.activeElement.id === 'second' || "
         "document.activeElement.closest('[data-thread]')?.dataset.thread === id",
         arg=roots[1],

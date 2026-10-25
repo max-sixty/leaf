@@ -21,12 +21,22 @@ stacking. Inspect the end of a longer page yourself. Look in every screen for il
 labels in drawings, lone tiles, pins covering headings, and a summary that comes too
 late on a phone, and fix what the page controls.
 
-Then give a subagent only the user's request and the saved screens, and have it report
-anything it can't follow, has to guess, or has to picture from a description. Give it
-none of your notes: the user hasn't seen them either. Fix what it finds. In your own
-read-through, check that headings state findings, claims have evidence, decisions have
-controls, and every line of prose is needed, and draw anything the page explains only
-in words when a picture would show it.
+Then decide whether a fresh reader sees the page before the user does. A reader with
+only the user's request and the saved screens catches what your own notes fill in for
+you: a step you skipped, a term you never defined, something you only described in words
+when it needed a picture. A subagent can be that reader, and it costs the time it takes
+before the user gets the page. Give the page one when it will be read later or by other
+people, who can't ask you what you meant, or when it makes an argument the user must
+follow to decide, where one gap breaks the chain. Hand over without one when the page is
+short and the user is waiting on it in the middle of their own work: there the wait
+costs more than the reader would find, and the user can ask about anything unclear as
+they read. When you run one, give it only the request and the screens and none of your
+notes, since the user hasn't seen them either; have it report anything it can't follow,
+has to guess or has to picture from a description, and fix what it finds.
+
+In your own read-through, check that headings state findings, claims have evidence,
+decisions have controls, and every line of prose is needed, and draw anything the page
+explains only in words when a picture would show it.
 
 For a page with contents, start at the top at desktop and phone widths and jump to a
 later section without first scrolling to find the navigation. Follow the page's links

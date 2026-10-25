@@ -58,7 +58,6 @@ def test_an_open_outline_first_paints_with_its_complete_reading_scope(browser, s
     finally:
         for route in held:
             route.abort()
-        context.close()
 
 
 @pytest.mark.parametrize("initially_open", [False, True])

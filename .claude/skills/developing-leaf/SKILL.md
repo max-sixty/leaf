@@ -14,6 +14,12 @@ naming anything they operate or an identifier for one, read `references/glossary
 Leaf's canonical vocabulary and the voice its visible copy speaks in. A control may
 need no words at all (`<root>/browser/AGENTS.md`, "Visual grammar").
 
+## Take a backlog item
+
+Pick an issue labelled `backlog`, not `waits-on-user`, that no pull request links
+(`TODO.md` has the query), and open its pull request early, as a draft if need be,
+with `Closes #N` in the body, so the next session sees the item taken.
+
 ## Read the owning contract
 
 A contract shared across modules or runtimes lives in a reference beside the Python
@@ -137,6 +143,11 @@ the same journey before handoff.
 Prefer outputs the user can review quickly. Do the reviews you can do as well as the
 user, and report the results. Choose the decisions the page puts to the user from
 their request, and show visible and interaction changes with the proof below.
+
+A choice about how something looks or moves can't be judged from a description, so
+every UI option you leave to the user carries a picture of its result: a still pair, a
+sketch, a diagram or a live sample. That includes the calls a PR body leaves to the
+user, and the decisions a page relays from it.
 
 ## Prove and hand off a visible change
 
@@ -358,7 +369,8 @@ makes Leaf harder to develop than it is worth:
   contract costs every nearby change, so it must clear a much higher bar. Signs it
   doesn't: a hold, carry or special case for one widget or gesture spread across
   several owners; a public API whose only callers are tests or a single example; a
-  mechanism `git log` shows patched again and again. Code in its own module, such as a
+  mechanism `git log --follow` shows patched again and again (without `--follow`, a file's
+  history stops at its last move). Code in its own module, such as a
   package, a widget or a `leaf-dev` command, costs little beyond its own files; remove
   it only when it is large and unused. Keep anything users would notice losing,
   including Leaf's interface guarantees. Taking a feature away is the maintainer's
@@ -379,7 +391,7 @@ whether one module owns it; if one does, the rule goes in that module's header (
 `AGENTS.md`, "Where instructions live").
 
 The thread appearance gate, `tests/*/test_render_thread_snapshots.py`, is paused
-(`TODO.md`, "Resume the thread appearance gate"), so a thread appearance change needs
+(issue #4046, "Resume the thread appearance gate"), so a thread appearance change needs
 no snapshot run before landing. `tests/AGENTS.md`, "Selecting checks", says what the
 landing gates run and what a failure there means. `wt merge` checks the rebased tree
 and lands it; `✗ Can't push to local main branch` means a fast-forward failed.

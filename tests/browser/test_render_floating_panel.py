@@ -222,6 +222,57 @@ def test_escape_leaves_the_field_before_it_puts_a_view_away(browser, serve):
     )
 
 
+def test_a_send_moves_the_panel_s_view_as_one_stream(browser, serve):
+    """A send slides what the view shows up as one stream: the thread's name and every
+    turn start the same distance below where they come to rest, whether the send opens
+    the thread's view or adds a turn to it, so nothing the reader reads overtakes or
+    swaps with anything else. Read at the motion's first frame, held, and again at
+    rest."""
+    page = floating(browser, serve(LONG_PAGE))
+    page.emulate_media(reduced_motion="no-preference")
+    title = ".lf-fp-title"
+    turns = ".lf-fp-view[data-view=thread] .lf-msg"
+
+    def offsets(count):
+        """How far below its rest each of the name and the turns is drawn now."""
+        page.wait_for_function(
+            f"document.querySelectorAll('{turns}').length === {count}"
+        )
+        rendered(page)
+        drawn = page.evaluate(
+            """([title, turns]) => [title, ...document.querySelectorAll(turns)]
+                .map(node => typeof node === 'string' ? document.querySelector(node) : node)
+                .map(node => node.getBoundingClientRect().top)""",
+            [title, turns],
+        )
+        page.evaluate(
+            "() => window.__lfHeld.splice(0).forEach(motion => motion.finish())"
+        )
+        settled(page)
+        rest = page.evaluate(
+            """([title, turns]) => [document.querySelector(title),
+                ...document.querySelectorAll(turns)]
+                .map(node => node.getBoundingClientRect().top)""",
+            [title, turns],
+        )
+        return [d - r for d, r in zip(drawn, rest)]
+
+    page.evaluate("() => {" + HOLD_MOTION + "}")
+    write(field(page), "Could the rollback cover the weekend?")
+    with sending(page, "the page comment"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    opened = offsets(1)
+    assert opened[0] > 10, f"the view opened in place: {opened}"
+    assert max(opened) - min(opened) < 1, f"the opening view came apart: {opened}"
+
+    write(field(page), "And the mobile cohort too.")
+    with sending(page, "the reply"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    replied = offsets(2)
+    assert replied[0] > 10, f"the view grew in place: {replied}"
+    assert max(replied) - min(replied) < 1, f"the stream came apart: {replied}"
+
+
 def test_c_in_an_open_thread_returns_to_its_reply(browser, serve):
     """Located anywhere in the thread open in the panel, `c` comments on that thread:
     from the view an Escape left the user on, and from a message in it, the caret
@@ -3632,11 +3683,13 @@ def test_every_chevron_in_the_menu_is_drawn_as_a_stroke_at_one_size(browser, ser
     assert {(c["width"], c["right"]) for c in drawn} == {(12, drawn[0]["right"])}, drawn
 
 
-def test_the_leaf_s_menu_is_one_tab_stop_its_keys_walk(browser, serve):
+@pytest.mark.parametrize("reduce_motion", [False, True])
+def test_the_leaf_s_menu_is_one_tab_stop_its_keys_walk(browser, serve, reduce_motion):
     """Opened by a press, the leaf's menu is walked from the leaf by the arrows, Home and
     End, as one stop for Tab; Tab leaves it for the field, putting it away. On the leaf
     and on a count, as Escape leaves the user, the page's two-key Go-to still answers."""
     page = floating(browser, serve(LONG_PAGE, comments=1))
+    page.emulate_media(reduced_motion="reduce" if reduce_motion else "no-preference")
     leaf = page.locator(".lf-fp-leaf")
     leaf.click()
     rows = page.locator(".lf-fp-menu .lf-fp-item:not(:disabled)")
@@ -3959,6 +4012,31 @@ def test_a_long_draft_offers_more_room_at_a_press(browser, serve):
     expect(expand).to_be_hidden()
     settled(page)
     assert panel.bounding_box()["width"] == pytest.approx(narrow, abs=1)
+
+
+def test_the_leaf_s_menu_covers_what_the_panel_holds(browser, serve):
+    """The leaf's menu stands over everything in the panel's box: what it covers shows
+    no pixel through it. A long draft's more-room mark drew over the menu's rows, as
+    every glyph and press raised over its own disc could, stacking beside the menu
+    rather than inside the box."""
+    page = floating(browser, serve(LONG_PAGE))
+    field(page).click()
+    page.keyboard.type("A line of words long enough to wrap in the panel's field, " * 4)
+    expect(page.locator(".lf-fp-expand")).to_be_visible()
+    page.locator(".lf-fp-leaf").click()
+    menu = page.locator(".lf-fp-menu")
+    expect(menu.get_by_role("menuitem", name="Fold to the leaf")).to_be_visible()
+    settled(page)
+    box = menu.bounding_box()
+    clip = {
+        "x": box["x"] + 12,
+        "y": box["y"] + 12,
+        "width": box["width"] - 24,
+        "height": box["height"] - 24,
+    }
+    shown = page.screenshot(clip=clip)
+    page.locator(".lf-fp-inner").evaluate("inner => inner.style.opacity = '0'")
+    assert page.screenshot(clip=clip) == shown, "the box shows through the menu"
 
 
 def test_a_long_draft_leaves_an_open_view_its_head(browser, serve):
@@ -4644,9 +4722,11 @@ def test_a_draft_draws_a_list_as_the_message_will(browser, serve):
     # already holding words; load it first, so the list is drawn as it is typed.
     page.evaluate("async () => (await window.__lfWidgetApi()).loadMarkdown()")
     field(page).click()
+    # The first item wraps to two lines both in the field and in the sent message's
+    # wider column, so the two hold the same lines.
     page.keyboard.insert_text(
         "Notes:\n- "
-        + "an item long enough to wrap in the field " * 3
+        + "an item long enough to wrap in the field " * 2
         + "\n- parent\n      deeper\n    - child\n\n1. one\n\n       indented"
         + "\n\n```\ncode\n```\nend"
     )
@@ -4746,7 +4826,8 @@ def test_a_draft_draws_a_list_as_the_message_will(browser, serve):
 
 def test_send_stands_in_the_counts_place_while_the_field_holds_a_draft(browser, serve):
     """Typing puts Send where the counts stood, wearing every composer's accent arrow
-    rather than the panel's own press face; a line break is a draft as a word is. A
+    rather than the panel's own press face, and the field runs to the row's end, past
+    the empty seat a view's Close would take; a line break is a draft as a word is. A
     press that takes the caret away leaves the draft as it stands, Send and every line
     in place, and so does a press back into it; the counts come back once the field
     empties."""
@@ -4767,6 +4848,13 @@ def test_send_stands_in_the_counts_place_while_the_field_holds_a_draft(browser, 
     expect(send).to_have_css("color", accent)
     expect(page.locator(".lf-fp-on-user")).to_be_hidden()
     settled(page)
+    short = page.evaluate(
+        "() => { const row = document.querySelector('.lf-fp-row');"
+        " const end = row.getBoundingClientRect().right"
+        " - parseFloat(getComputedStyle(row).paddingRight);"
+        " return end - document.querySelector('.lf-fp-field').getBoundingClientRect().right; }"
+    )
+    assert short <= 2, f"the drafted field stops {short}px short of the row's end"
     words = field(page).bounding_box()
     page.mouse.click(5, 5)
     expect(field(page)).not_to_be_focused()

@@ -104,8 +104,8 @@ class AttachedMediaShelf extends LitElement {
     this.actions = null;
     // Whether the pictures are a sent message's, drawn in its face (`sentMedia`).
     this.sent = false;
-    this.undoIcon = iconElement("undo", "lf-corner-mark-icon");
-    this.removeIcon = iconElement("cross", "lf-corner-mark-icon");
+    this.undoIcon = iconElement("undo", "lf-mark-icon");
+    this.removeIcon = iconElement("cross", "lf-mark-icon");
     // The picture is rebuilt only when the drawing changes, so a repaint that changes
     // nothing about it leaves its node in place.
     this.pictured = { drawing: null, target: null, node: null };
@@ -180,7 +180,7 @@ class AttachedMediaShelf extends LitElement {
               </button>
               <button
                 type="button"
-                class="lf-corner-mark lf-composer-drawing-undo"
+                class="lf-mark lf-corner-mark lf-composer-drawing-undo"
                 aria-label="Undo last stroke"
                 title="Undo last stroke"
                 @mousedown=${(event) => event.preventDefault()}
@@ -190,7 +190,7 @@ class AttachedMediaShelf extends LitElement {
               </button>
               <button
                 type="button"
-                class="lf-corner-mark"
+                class="lf-mark lf-corner-mark"
                 aria-label="Remove drawing"
                 title="Remove drawing"
                 @mousedown=${(event) => event.preventDefault()}
@@ -204,11 +204,11 @@ class AttachedMediaShelf extends LitElement {
       media.map(({ index, url }) => {
         const remove = html`<button
           type="button"
-          class="lf-corner-mark lf-composer-media-remove"
+          class="lf-mark lf-corner-mark lf-composer-media-remove"
           aria-label=${`Remove attached image ${index + 1}`}
           @click=${() => this.actions.removeMedia(index)}
         >
-          ${iconTemplate("cross", "lf-corner-mark-icon")}
+          ${iconTemplate("cross", "lf-mark-icon")}
         </button>`;
         // A sent message's picture is the one its message draws (markdown.js, the image
         // rule), in a paragraph of its own as the message sets it, with the removal mark

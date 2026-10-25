@@ -5,8 +5,9 @@ leaf-assets.json's thread_snapshots_revision. Tests compare current Leaf directl
 against that immutable set;
 no historical runtime, source patch or baseline build is involved. Appearance is
 compared on macOS only: fonts and antialiasing differ by OS, and a Linux image could
-be made only on CI's own runner (TODO.md, "Development velocity"). Elsewhere the
-journey and its delivery assertions still run and keep their images as evidence,
+be made only on CI's own runner (issue #4047, "Guard thread appearance on CI
+again"). Elsewhere the journey and its delivery assertions still run and keep their
+images as evidence,
 except in the dark cases, whose colour scheme changes only pixels.
 A profile names the macOS version, architecture and locked Chromium version, and a
 missing profile fails: browser upgrades require deliberately reviewed captures.

@@ -96,6 +96,12 @@ def native_code(page: Page) -> None:
     page.locator("#bg-javascript-code").scroll_into_view_if_needed()
 
 
+def native_code_copy_hover(page: Page) -> None:
+    """A document code block under the pointer, which shows its Copy on its border."""
+    native_code(page)
+    page.locator("#bg-javascript-code").hover()
+
+
 def recorded_video(page: Page) -> None:
     """The gallery's recording at rest under its play bar, beside the audio player."""
     page.locator("#bg-gallery-tabs").get_by_role(
@@ -1071,9 +1077,33 @@ def aim_cut_by_pane(page: Page) -> None:
     )
 
 
+def table_scrolled_sideways(page: Page) -> None:
+    """A table whose rows open with their names, scrolled to its far end on a phone."""
+    page.locator("#security-deep-record > summary").click()
+    page.locator("#security-vendor-table").evaluate(
+        """table => {
+          table.scrollIntoView({block: 'center'});
+          table.scrollLeft = table.scrollWidth;
+        }"""
+    )
+    page.wait_for_function(
+        "() => document.getElementById('security-vendor-table')"
+        ".hasAttribute('data-lf-more-before')"
+    )
+
+
 def element_thread(page: Page) -> None:
     """An element holding a thread, in view, with nothing indicating it."""
     page.locator("#off-t-vendor").evaluate("el => el.scrollIntoView({block: 'center'})")
+
+
+def element_thread_open(page: Page) -> None:
+    """The same element while the user is in its thread, opened from its margin card:
+    the contour that says which element the thread is about, beside the heading's
+    first letters."""
+    open_card(
+        page, page.locator('[data-lf-margin-for="off-t-vendor"] .lf-margin-marker')
+    )
 
 
 def more_menu(page: Page) -> None:
@@ -1179,6 +1209,12 @@ def draft_edit(page: Page) -> None:
     page.locator("#rn-cli .lf-draft-body").click()
     page.keyboard.press("Tab")
     page.locator("#rn-cli .lf-draft-edit").focus()
+
+
+def draft_hover(page: Page) -> None:
+    """A draft under the pointer, which shows its toolbar of marks on its border."""
+    page.locator("#rn-cli .lf-draft-body").hover()
+    expect(page.locator("#rn-cli .lf-draft-tools")).to_have_css("opacity", "1")
 
 
 def playground_controls(page: Page) -> None:
@@ -1311,6 +1347,12 @@ STATES = (
         "native-code",
         "developer/feature-gallery",
         native_code,
+        region="#bg-javascript-code",
+    ),
+    State(
+        "native-code-copy-hover",
+        "developer/feature-gallery",
+        native_code_copy_hover,
         region="#bg-javascript-code",
     ),
     State(
@@ -1739,6 +1781,7 @@ STATES = (
         touch=True,
     ),
     State("release-draft", "release-notes", draft_edit),
+    State("release-draft-hover", "release-notes", draft_hover, region="#rn-cli"),
     State(
         "release-draft-phone",
         "release-notes",
@@ -1977,6 +2020,14 @@ STATES = (
     ),
     State("plan-card-reply-resolved", "review-a-plan", card_reply_resolved),
     State("triage", "triage-board", at_rest),
+    State("triage-metrics", "triage-board", at_rest, region="#triage-counts"),
+    State(
+        "triage-metrics-dark",
+        "triage-board",
+        at_rest,
+        scheme="dark",
+        region="#triage-counts",
+    ),
     State("triage-composer", "triage-board", composer),
     State(
         "triage-composer-empty",
@@ -2066,11 +2117,34 @@ STATES = (
     State("alert-options-in-pane", "alert-review", options_in_pane),
     State("ideas-ask", "ideas-to-implement", ask_by_keyboard),
     State("progress-callout", "live-progress", at_rest),
+    State("progress-metrics", "live-progress", at_rest, region="#lp-status"),
+    State(
+        "progress-metrics-dark",
+        "live-progress",
+        at_rest,
+        scheme="dark",
+        region="#lp-status",
+    ),
     State(
         "steps",
         "security-boundary",
         steps_in_view,
         region="#security-contract-list",
+    ),
+    State(
+        "table-scrolled-phone",
+        "security-boundary",
+        table_scrolled_sideways,
+        viewport=(390, 844),
+        region="#security-vendor-table",
+    ),
+    State(
+        "table-scrolled-phone-dark",
+        "security-boundary",
+        table_scrolled_sideways,
+        viewport=(390, 844),
+        scheme="dark",
+        region="#security-vendor-table",
     ),
     State(
         "alert-options-in-pane-touch",
@@ -2179,6 +2253,16 @@ STATES = (
         touch=True,
     ),
     State("ship-thread", "ship-review", element_thread),
+    State(
+        "ship-thread-open", "ship-review", element_thread_open, region="#off-t-vendor"
+    ),
+    State(
+        "ship-thread-open-dark",
+        "ship-review",
+        element_thread_open,
+        scheme="dark",
+        region="#off-t-vendor",
+    ),
     State("ship-card-more-room", "ship-review", card_more_room, viewport=(1440, 600)),
     State(
         "ship-card-short-window", "ship-review", card_by_pointer, viewport=(1440, 480)

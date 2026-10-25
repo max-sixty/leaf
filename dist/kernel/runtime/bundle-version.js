@@ -1,15 +1,15 @@
 import { W, Z, foldWidgetStates, obligationValue, projectionOrigins, x } from "./bundle-browser-runtime.js";
 import { PRESSES, TEXT_BOX, deepFocus, drawn, focusDestination, focused, inputCount, keeps, move, nextAnimation, nextRender, onCurrentLocation, onUserInput, readCaret, renderingState, sizeObserver, typesText, under, upFrom } from "./bundle-dom-move.js";
 import { LayerRefused, PAGE_PAINT_ATTRIBUTE, admitReading, reportPageError, runtimeRootState } from "./bundle-layer-client.js";
+import { PRESSABLE, ariaShortcuts, bindings, buttonCommand, clippedPlace, commandAvailable, commandRoutes, decisionFor, el, frameFor, holdingError, labelOf, landingBand, layoutChanged, live, notice, placeBox, placeHolder, pointerAt, presented, pruneScopedElements, raiseError, registry, repaint, restorePointer, reveal, savedReadingSettled, shownBox, skipped, spell, tagsDeclaring, word } from "./bundle-errors.js";
 import { LIVE_ROOT, PRESENTATION_DOM, applicationPresenter, applicationState, layerRoot, pageUrl, projectView, projectionRegionsPresented, readApplication, readPart, revisionLabel, runtime, watchPresentation } from "./bundle-context.js";
-import { PRESSABLE, ariaShortcuts, bindings, buttonCommand, clippedPlace, commandAvailable, commandRoutes, decisionFor, el, frameFor, holdingError, labelOf, landingBand, layoutChanged, live, notice, placeBox, placeHolder, pointerAt, pruneScopedElements, raiseError, registry, repaint, restorePointer, reveal, savedReadingSettled, shownBox, skipped, spell, tagsDeclaring, word } from "./bundle-errors.js";
 import { chosenSince, containingReadingRegionFor, effectiveScroller, moveScrollerBy, onReadingInput, pageScroller, placeKept, readingRegionFor, readingRegions, recentReadingRegion, regionScrollBehavior, regionsSettled, scrollChainOf, scrollChoices, scrollLimit, scrollersOf, shownRegionBounds, stopScroll, unconcealedReadingRegions, watchReadingRegionTransitions } from "./bundle-reading-regions.js";
 import { TEXT_BLOCK, alignInlineText, authored, authoredScope, closestAcross, elementById, inChrome, pageDocument, pageQueryAll, pageRange, rangeOf, readingFrom, renderRetired, selectEnds, selectionBackward, textNodesUnder, wrote } from "./bundle-passages.js";
 import { ADDRESSABLE, PAGE_CONTROL_RANK, addressedElements, anchoringIsReady, fragmentTarget, livePoint, registerPageControl, resolveAnchor, revealAddressed, sectionOf, settleMarginContentLayout, targetElement, targetPlace, targetSegments } from "./bundle-content-layout.js";
 import { authoredBody, initialOrigin, restoreInitialSource, unmarkedCopy } from "./bundle-initial-render.js";
 import { PAGE_SCOPE, blocksOnScreen, captureDraftEditing, capturePlace, draftEditingDestination, draftEditingStands, focusedInView, formatDeclaredMarkdown, hasLandmark, heldThreadId, inlineMarkdownFragment, isPagePaint, openingPassage, pageReadingBlock, pageScopes, paintMarkdown, passageBlock, patchDocument, placeNode, placeOf, placeOffset, preloadWidgets, prepareDeclaredMarkdown, rawOffsetFits, reindexPassageOwners, rememberPassageParts, renderQuiet, replyDestination, restoreDraftEditing, restorePlace, restoreReplyEditing, restrictUserIntent, retainUserIntent, scrollIntoView, tabStore, textBlocks, threadNamed } from "./bundle-surfaces.js";
 import { authoredStates, commitWidgetDescriptors, patchRetains, patchTree, quoted, rememberAuthoredParents, stageAuthoredStates, stageWidgetDescriptors, widgetElement } from "./bundle-abort.js";
-import { scrollBehavior } from "./bundle-motion.js";
+import { backgroundFlash, flashDuration, scrollBehavior } from "./bundle-motion.js";
 
 //#region runtime/document-identity.js
 const servedRevision = document.querySelector("meta[name=\"lf-revision\"][data-lf-runtime]")?.content;
@@ -52,10 +52,10 @@ function returnPlace(checkpoint) {
 		const length = node?.nodeType === 3 ? node.length : node?.childNodes.length;
 		return [node, Math.min(offset, length ?? offset)];
 	});
-	if (focus !== document.body && drawn(focus)) {
+	if (focus !== document.body && focus?.isConnected && presented(focus)) {
 		focusDestination(focus, "return", { caret });
 		if (caret) return;
-	} else if (drawn(place)) focusDestination(place, "return");
+	} else if (place?.isConnected && presented(place)) focusDestination(place, "return");
 	else deepFocus()?.blur();
 	getSelection().removeAllRanges();
 	if (ends?.every(([node]) => node && drawn(node.nodeType === 1 ? node : upFrom(node)))) selectEnds(...ends);
@@ -135,9 +135,9 @@ function mountHistory({ followFragment, returnToFragment }) {
 					mayReturn.handoff(() => {
 						work = handler?.();
 					});
-					await work;
+					const placed = await work;
 					if (!mayReturn()) return;
-					if (!handler) {
+					if (!handler || placed === false) {
 						if (place) window.scrollTo({
 							left: place.offset[0],
 							top: place.offset[1],
@@ -1130,7 +1130,9 @@ function blocksWithoutTwin(doc, live = document.body) {
 let versionSource = () => null;
 function selfComparison() {
 	const source = versionSource()?.source;
-	if (!source) return [];
+	return source ? blocksNewSince(source) : [];
+}
+function blocksNewSince(source) {
 	const doc = document.implementation.createHTMLDocument("");
 	doc.body.replaceChildren(doc.importNode(source, true));
 	formatDeclaredMarkdown(doc);
@@ -1579,6 +1581,7 @@ function createVersionController({ compositionInput, openThread, refreshThread, 
 		const comparedFrom = selectedBase();
 		if (comparedFrom !== null) setDiff(false);
 		const live = pageDocument();
+		const outgoing = authoredSource;
 		const carry = captureCarry(live, authoredSource);
 		const source = pageDocument(doc);
 		const arrivingWidgets = documentWidgetDigests(doc);
@@ -1667,6 +1670,7 @@ function createVersionController({ compositionInput, openThread, refreshThread, 
 					await restoreEditingContinuity(editingContinuity, currentIntent);
 				}
 				if (comparedFrom !== null) showComparison(comparedFrom);
+				for (const [block] of blocksNewSince(outgoing)) backgroundFlash(block, flashDuration());
 				notice(`Updated to ${target.label}`, { background: true });
 			})
 		};

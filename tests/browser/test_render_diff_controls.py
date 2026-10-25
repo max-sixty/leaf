@@ -170,22 +170,18 @@ def test_worktree_disclosures_keep_diff_reading_state_and_unknown_totals(
 
 def test_a_visible_datum_takes_over_pending_thread_motion(browser, serve):
     """Readable geometry before a glide starts is no promise of a final landing."""
+    patch = (
+        "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
+        "@@ -1 +1 @@\n-old\n+new\n"
+    )
     url = serve(
         leaf_page(
             "Datum arrival",
             '<h1>Review</h1><lf-file-tree id="files" for="patch"></lf-file-tree>'
-            '<lf-diff id="patch" source="change"><pre></pre></lf-diff>'
+            f'<lf-diff id="patch"><pre>{escape(patch)}</pre></lf-diff>'
             '<p style="min-height:2000px">Context</p><p id="far">Far thread.</p>',
         ),
         anchored=[("far", "Far thread.")],
-    )
-    data_model.cmd_data_set(
-        serve.page_dir,
-        "change",
-        patch_manifest(
-            "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
-            "@@ -1 +1 @@\n-old\n+new\n"
-        ),
     )
     page = open_page(browser, url)
     datum = page.locator('lf-diff [data-lf-datum=\'["app.py","new",1]\']')
@@ -471,19 +467,29 @@ def test_a_patch_that_failed_stays_failed_when_its_diff_returns(browser, serve, 
         for (let i = 0; i < 3; i++) await new Promise(requestAnimationFrame);
         return diff.querySelector('.lf-error') === failure;
     }""")
-    assert returned, "the returning diff rendered its refused patch again"
+    assert returned, "the returning diff cleared its completed refusal"
     errors = consume_browser_errors(page, '<lf-diff id="d-bad"> failed: ')
     assert len(errors) == 1, errors
+    if bound:
+        data_model.cmd_data_set(serve.page_dir, "bad-patch", one)
+        expect(page.locator("#d-bad [data-line]").last).to_contain_text("y")
+        expect(page.locator("#d-bad .lf-error")).to_have_count(0)
 
 
-def test_an_inline_patch_resumes_preparation_on_return_and_keeps_its_finished_rows(
-    browser, serve
+@pytest.mark.parametrize("bound", [False, True], ids=["inline", "bound"])
+def test_a_patch_resumes_preparation_on_return_and_keeps_its_finished_rows(
+    browser, serve, bound
 ):
     """A departure cuts short preparation, but a settled return keeps its native rows."""
     patch = "diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n-old\n+new\n"
-    url = serve(
-        leaf_page("Returning diff", f'<lf-diff id="patch"><pre>{patch}</pre></lf-diff>')
+    diff = (
+        '<lf-diff id="patch" source="patch-data"><pre></pre></lf-diff>'
+        if bound
+        else f'<lf-diff id="patch"><pre>{patch}</pre></lf-diff>'
     )
+    url = serve(leaf_page("Returning diff", diff))
+    if bound:
+        data_model.cmd_data_set(serve.page_dir, "patch-data", patch)
     page = browser.new_page()
     held = []
     page.route("**/vendor/pierre-parser.esm.js", lambda route: held.append(route))
@@ -497,7 +503,9 @@ def test_an_inline_patch_resumes_preparation_on_return_and_keeps_its_finished_ro
         // Cross the departure task boundary; preparation stays held by the route.
         await new Promise((resolve) => setTimeout(resolve));
         parent.insertBefore(diff, next);
-        await diff.updateComplete;
+        // updateComplete includes the parser we are holding; let the arrival run
+        // without waiting for that preparation before releasing its response.
+        await new Promise((resolve) => setTimeout(resolve));
     }""")
     held[0].continue_()
     wait_until_ready(page)
@@ -514,7 +522,7 @@ def test_an_inline_patch_resumes_preparation_on_return_and_keeps_its_finished_ro
         await diff.updateComplete;
         await diff.sourceRendering;
         return row !== null && row === diff.shadowRoot.querySelector('[data-line]');
-    }"""), "a completed inline patch replaced its rows on return"
+    }"""), "a completed patch replaced its rows on return"
 
 
 def test_an_expanded_diff_file_can_retry_its_failed_chunk_in_place(browser, serve):

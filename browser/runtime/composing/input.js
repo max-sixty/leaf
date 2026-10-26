@@ -51,12 +51,7 @@
 import { rememberWriting } from "../drafts.js";
 import { keys, paintKeysWithin } from "../keyboard/scopes.js";
 import { keeps, keepsHidden, keepsText } from "../keeps.js";
-import {
-  advertisesKeys,
-  submitBindings,
-  spell,
-  PRESS,
-} from "../keyboard/bindings.js";
+import { advertisesKeys, submitBindings, spell, PRESS } from "../keyboard/bindings.js";
 import { readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "../media.js";
 import { announce } from "../notifications.js";
 import { iconElement, iconTemplate } from "../icons.js";

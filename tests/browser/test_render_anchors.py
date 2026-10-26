@@ -2232,7 +2232,8 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     ), [(file["code"], file["numbers"][:1]) for file in files]
 
     reading = page.evaluate("""async () => {
-      const { says, textNodesUnder, wrote } = await window.__lfWidgetApi();
+      const { says, wrote } = await window.__lfWidgetApi();
+      const { textNodesUnder } = await window.__lfCheckApi();
       const diff = document.querySelector('#patch');
       const shadow = diff.shadowRoot;
       const segments = textNodesUnder(document)

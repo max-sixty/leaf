@@ -1,6 +1,7 @@
 import { afterSettling, canPlaceFocus, composedParentNode, excludedByInert, focusDestination, focused, onCurrentLocation, onUserInput, recoveredLabelFocus, renderedUnder, sizeObserver, takesLetters } from "./bundle-dom-move.js";
 import { pagePresented, pageUpgraded } from "./bundle-layer-client.js";
-import { EVERYTHING, allBindings, answers, bindingEnabledFor, bindings, commandEntries, commandReady, commandRoutes, declaredBindings, descriptionOf, live, nativeActivationAt, nativeClaimAt, nativeLayers, quickShortcuts, referencedCommandEntry, routedCommand, scopeAvailable, scopeIdentity, scopesAt, scopesFor, spell, titleOf, word } from "./bundle-errors.js";
+import { nativeLayers } from "./bundle-geometry.js";
+import { EVERYTHING, allBindings, answers, bindingEnabledFor, bindings, commandEntries, commandReady, commandRoutes, declaredBindings, descriptionOf, live, nativeActivationAt, nativeClaimAt, quickShortcuts, referencedCommandEntry, routedCommand, scopeAvailable, scopeIdentity, scopesAt, scopesFor, spell, titleOf, word } from "./bundle-errors.js";
 import { whenArrived, whenArriving } from "./bundle-reading-regions.js";
 import { ELEMENTS, pageScopes, stances, textEntryScope, universalCommandReference } from "./bundle-surfaces.js";
 

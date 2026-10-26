@@ -1,5 +1,6 @@
 import { TAB_STOP, afterScript, atLayoutPrecision, cancelRender, keeps, layoutPx, move, nextRender, renderedParent, renderedUnder, shadowHost, sizeObserver, under, upFrom } from "./bundle-dom-move.js";
-import { LAYOUT, clamp, clippingAxes, coarsePointer, hoveringPointer, overlaps, overlapsAcross, renderedChildren, scrollsContent, shellRight, shownBand, shownExtent, shownParts, shownRect, shownWindow, skipped, union } from "./bundle-errors.js";
+import { clamp, clippingAxes, overlaps, overlapsAcross, renderedChildren, scrollsContent, shellRight, shownBand, shownExtent, shownParts, shownRect, shownWindow, skipped, union } from "./bundle-geometry.js";
+import { LAYOUT, coarsePointer, hoveringPointer } from "./bundle-errors.js";
 import { afterPresentation, containingReadingRegionFor, effectiveScroller, moveScrollerBy, pageScroller, scrollLimit, scrollerFor, shownRegionBounds } from "./bundle-reading-regions.js";
 import { scrollAxes } from "./bundle-element-frame.js";
 import { inChrome, layoutBox } from "./bundle-passages.js";

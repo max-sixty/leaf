@@ -8,6 +8,10 @@
         "type": "string",
         "pattern": "^[a-z0-9][a-z0-9-]*$"
       },
+      "contract": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*(?:/[a-z0-9][a-z0-9-]*)*$"
+      },
       "submit-label": {
         "type": "string",
         "minLength": 1
@@ -28,6 +32,7 @@
     },
     "x-state": {
       "choose": {
+        "contract": { "field": "values", "attribute": "contract" },
         "detail": {
           "type": "object",
           "properties": {

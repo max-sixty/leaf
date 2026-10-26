@@ -17,6 +17,7 @@ from .activity import (
     nudge_due,
     undeclared,
 )
+from .files import file_stamp
 from .harness import claim_harness
 from .leases import lock_is_held, wait_is_live, waiter_lease_path
 from .page_memory import memo
@@ -31,7 +32,7 @@ from .service import (
     read_stream,
     unacknowledged,
 )
-from .state import file_stamp, now_iso, state_home
+from .state import now_iso, state_home
 
 # Presence is deliberately a short-lived reading: process and lock leases can change
 # without touching a page file. Readers share one observation for two seconds, while

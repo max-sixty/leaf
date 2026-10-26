@@ -4157,14 +4157,14 @@ def _coarse_write_clock(monkeypatch):
     clock holds one time until a reader waits on it, and every write made meanwhile
     carries that time, the way two writes a few milliseconds apart share one there.
     Returns what a write calls to take the clock's time."""
-    now = [cleanup_model.write_clock()]
+    now = [files_model.write_clock()]
     real_sleep = time.sleep
 
     def waited(seconds):
         now[0] += 1_000_000
         real_sleep(seconds)
 
-    monkeypatch.setattr(cleanup_model, "write_clock", lambda: now[0])
+    monkeypatch.setattr(files_model, "write_clock", lambda: now[0])
     monkeypatch.setattr(time, "sleep", waited)
     return lambda path: os.utime(path, ns=(now[0], now[0]))
 

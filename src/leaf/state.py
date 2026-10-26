@@ -74,8 +74,6 @@ def hold_mode(path: Path, mode: int) -> None:
 HOOKS_SUFFIX = "hooks"
 # The tool calls its hooks last ran before (`leases.first_hook_for_tool`).
 TOOLS_SUFFIX = "tools"
-# What its last tool boundary that handed nothing over read (`QUIET`).
-QUIET_SUFFIX = "quiet"
 # Its lifecycle outlives its instance while a claim reads it (`_retire`).
 SESSION_SUFFIX = "lifecycle"
 
@@ -213,84 +211,6 @@ def replace_bytes(writes: list) -> None:
     finally:
         for tmp, _ in staged:
             tmp.unlink(missing_ok=True)
-
-
-# The clock a filesystem stamps a write's modification time from. Linux reads the
-# kernel's coarse clock, CLOCK_REALTIME_COARSE, which Python does not name: it moves
-# once a jiffy (1–10ms by kernel build), so every write inside one tick carries the same
-# time, nanosecond fields notwithstanding — measured on a 6.8 kernel, 94% of back-to-back
-# rewrites of one file kept the time the write before set. APFS reads the fine clock,
-# and no two of 20,000 back-to-back rewrites shared a time.
-WRITE_CLOCK = 5 if sys.platform == "linux" else time.CLOCK_REALTIME
-
-# The longest a stamp waits for that clock to move past a write: twice the slowest
-# jiffy, so any tick ends inside it.
-SETTLE_NS = 20_000_000
-
-
-def write_clock() -> int:
-    """The modification time a write made now would carry."""
-    return time.clock_gettime_ns(WRITE_CLOCK)
-
-
-def file_stamp(path: Path):
-    """What the filesystem says a file or directory is: which one, when it was last
-    written, and how big it is. A page directory holds files that are written once and
-    read on every request, so what each one says is worked out once and kept under this
-    stamp, and one rewritten since wears a different one. A path with nothing there
-    stamps as None, which keeps nothing and reads every time.
-
-    Every freshness key in leaf is built from these stamps — the page's reading that
-    `leaf wait`, browser freshness reads and activation follow, neighbour discovery, and the
-    caches of parsed files — so this is where a stamp is made exact. The time alone is
-    not, while `write_clock` is still in the tick that stamped the last write: a second
-    write inside it, to the same size, would leave the stamp unmoved — a data file
-    rewritten in place, an entry added beside a removed one, an atomic replace whose
-    staging file reused the inode the one before it freed. So a stamp is not taken
-    until the clock has moved past the time it would carry. That is a wait of at most
-    one tick for a reader right behind a writer, and none for anyone else. The stamp
-    is then exact and stays the same while the path does, so a cache or a follower
-    keyed on it neither misses a write nor wakes for one that did not happen.
-
-    A time the clock does not pass within `SETTLE_NS` — a file dated ahead of the
-    clock, or one rewritten on every tick — is not waited out. Its stamp carries what
-    the path holds instead, the rule git applies to a racily clean index entry, until
-    the clock passes that time and the stamp drops it. That is one move for an
-    unchanged file, once per such time, and the price of exactness: a stamp without
-    the contents would match one taken after a same-size rewrite in the tick the
-    clock reaches the file's time."""
-    settle_by = time.monotonic_ns() + SETTLE_NS
-    while True:
-        looked = write_clock()
-        try:
-            found = path.stat()
-            stamp = (found.st_ino, found.st_mtime_ns, found.st_size)
-            if found.st_mtime_ns < looked:
-                return stamp
-            if (
-                found.st_mtime_ns - looked >= SETTLE_NS
-                or time.monotonic_ns() >= settle_by
-            ):
-                return (*stamp, _contents(path, found.st_mode))
-        except OSError:
-            return None
-        time.sleep(0.001)
-
-
-def _contents(path: Path, mode: int) -> bytes | None:
-    """A digest of what a regular file holds, or of which entries a directory holds.
-    Anything else — a FIFO, a socket — holds nothing a read could name without
-    waiting on its writer."""
-    if stat.S_ISDIR(mode):
-        with os.scandir(path) as entries:
-            held = repr(
-                sorted((entry.name, entry.inode()) for entry in entries)
-            ).encode()
-    elif stat.S_ISREG(mode):
-        held = path.read_bytes()
-    else:
-        return None
-    return hashlib.blake2b(held, digest_size=16).digest()
 
 
 def json_bytes(obj, *, indent=None) -> bytes:
@@ -852,81 +772,6 @@ def held_claims(session_id: str) -> list[Path]:
     return held
 
 
-QUIET = Record(
-    "quiet",
-    described(
-        "What a session's last tool boundary that handed its turn nothing read "
-        "(`boundary_reading`), in the state home's `sessions/<digest>.quiet`.",
-        object_schema(
-            {
-                "reading": described(
-                    "This install, then each file read, as its path and its "
-                    "`file_stamp`, or as its path alone where it was missing.",
-                    {"type": "array"},
-                )
-            }
-        ),
-    ),
-    since=23,
-)
-
-
-def boundary_reading(session_id: str) -> list:
-    """The files a Claude Code tool boundary's hook reads to decide what it hands
-    the session's turn (`hook_transport.carry_turn`), beside facts that can't add
-    to it (`session-lifetime.md`, "The hook"), as one value a later reading
-    compares whole: this install and the identity of its registry, which states
-    the page protocol it writes, and of each file among the session's own in
-    `sessions/` (its lifecycle and the records its hooks keep), each claim payload
-    it holds, and the event log and vendored registry of each page those claims
-    name. Every write to one of those files moves its `file_stamp`, so a reading
-    equal to an earlier one finds the facts that one found. Its own record is
-    left out, and so
-    is the record of the tool calls its hooks ran before (`TOOLS_SUFFIX`), which
-    the hook before each tool call writes and no boundary reads."""
-    skipped = {
-        session_file(session_id, QUIET_SUFFIX),
-        session_file(session_id, TOOLS_SUFFIX),
-    }
-    paths = [path for path in _session_paths(session_id) if path not in skipped]
-    for locator in held_claims(session_id):
-        payload = locator.parent.parent / locator.name
-        paths.append(payload)
-        for page in named_pages(stored_record(payload) or {}):
-            paths.extend((page / EVENTS_FILE, page / "registry.json"))
-    return [
-        str(PLUGIN_ROOT),
-        _identity(PLUGIN_ROOT / "browser" / "registry.json"),
-        *(_identity(path) for path in sorted(paths)),
-    ]
-
-
-def _identity(path: Path) -> list:
-    """`path` and its `file_stamp`, as JSON keeps them."""
-    return [
-        str(path),
-        *(
-            part.hex() if isinstance(part, bytes) else part
-            for part in file_stamp(path) or ()
-        ),
-    ]
-
-
-def record_quiet(session_id: str, reading: list) -> None:
-    """Keep `reading` as what a tool boundary that handed the turn nothing read.
-    Its hook took it before reading anything it decided on, so whatever changed
-    after, whether the hook read it or not, makes the next reading differ."""
-    QUIET.write(session_file(session_id, QUIET_SUFFIX), {"reading": reading})
-
-
-def boundary_quiet(session_id: str) -> bool:
-    """Whether a tool boundary now would read what the last one that handed the
-    session's turn nothing read, and so would hand it nothing too: the launcher's
-    answer to a boundary that needs no Leaf (`bin/leaf`)."""
-    kept = QUIET.read(session_file(session_id, QUIET_SUFFIX))
-    return kept is not None and kept["reading"] == boundary_reading(session_id)
-
-
 def standing_claims() -> list[Path]:
     """Every claim payload on this machine whose page still stands, retiring those
     whose page is gone (`retire_claim`), whichever Leaf wrote them."""
@@ -982,18 +827,11 @@ def drop_locator(session_id: str, name: str) -> None:
 def main() -> None:
     payload = json.load(sys.stdin)
     if sys.argv[1:2] == ["hook-gate"]:
-        # `bin/leaf` asks this before starting Leaf for a hook registered
-        # `--if-claimed`, and a hook it answers takes about a fifth of a whole
-        # tool boundary's time (measured on macOS: 55 ms against 260 at a load
-        # of 27 on 18 cores). 3 alone says "nothing to do": a failure here must
-        # not skip the hook.
-        session = payload.get("session_id") or ""
-        if not holds_claims(session) or (
-            payload.get("hook_event_name") == "PostToolBatch"
-            and boundary_quiet(session)
-        ):
-            sys.exit(3)
-        sys.exit(0)
+        # `bin/leaf` asks this before starting uv for a hook registered
+        # `--if-claimed`, and a hook it skips takes about 25 ms in place of about
+        # 70 (measured on macOS). 3 alone says "nothing to do": a failure here
+        # must not skip the hook.
+        sys.exit(0 if holds_claims(payload.get("session_id") or "") else 3)
     if payload.get("hook_event_name") == "SessionEnd":
         end_harness_instance(payload.get("session_id") or "")
 

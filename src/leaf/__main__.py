@@ -1,6 +1,6 @@
 """The one application entry, for `python -m leaf` and the console script.
 
-`bin/leaf` runs this on the environment uv syncs for its install, except for cold
+`bin/leaf` selects the runtime through uv before reaching here, except for cold
 SessionEnd cleanup, which runs its standalone stdlib owner directly. A subprocess Leaf
 starts has `sys.executable` in hand and needs no launcher or environment manager.
 

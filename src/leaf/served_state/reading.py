@@ -24,7 +24,7 @@ import hashlib
 from pathlib import Path
 
 from ..file_bindings import bound_paths
-from ..files import STAGED, entry_stamps
+from ..files import STAGED, entry_stamps, file_stamp
 from ..schema import (
     DATA_DIR,
     INTERACTIONS_FILE,
@@ -34,7 +34,7 @@ from ..schema import (
     USER_VIEWS_LOCK,
 )
 from ..service import claim_path, page_claim
-from ..state import EVENTS_FILE, SESSION_SUFFIX, file_stamp, flocked, session_file
+from ..state import EVENTS_FILE, SESSION_SUFFIX, flocked, session_file
 
 # Diagnostic writes cannot move application state. The server writes
 # `user-views.json` as a tab reports its view and `observations.jsonl` for every

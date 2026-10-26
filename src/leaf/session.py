@@ -15,6 +15,7 @@ from typing import NamedTuple
 
 from .detached import StartRefused
 from .file_changes import FileChanges, target_paths
+from .files import file_stamp
 from .findings import Finding, note
 from .harness import Harness, claim_harness, session_harness
 from .hook_transport import HOOK_TIMEOUT_S
@@ -41,7 +42,6 @@ from .server import read_service, running_server
 from .service import PageTransaction, owned_pages, unacknowledged
 from .state import (
     SESSION_SUFFIX,
-    file_stamp,
     session_claims,
     session_file,
     session_record,

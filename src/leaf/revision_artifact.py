@@ -54,7 +54,7 @@ from pywhatwgurl import URL
 from tinycss2.serializer import serialize_string_value
 from tree_sitter import Language, Parser, Query, QueryCursor
 
-from leaf.files import latest_revision, list_revisions, revision_path
+from leaf.files import file_stamp, latest_revision, list_revisions, revision_path
 from leaf.findings import Finding, Rejected
 from leaf.page_memory import Slot, memo
 from leaf.passages import SourceReading, enclosing_ids
@@ -66,7 +66,7 @@ from leaf.schema import (
     SERVED_PATH,
     VENDORED_FILES,
 )
-from leaf.state import file_stamp, fsync_parents
+from leaf.state import fsync_parents
 from leaf.structure import (
     SourceDocument,
     annotation_mode,

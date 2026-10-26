@@ -183,38 +183,6 @@ tool-boundary and Stop hooks hand into a turn:
   before its deadline. Otherwise it hands over a pointer the agent confirms with
   `leaf delivery ack`.
 
-Claude Code's tool boundary that hands nothing over, and leaves no handover
-awaiting its receipt, keeps what it read, and the launcher answers the next one
-that would read the same without starting Leaf (`hook_transport.py`). The
-reading (`state.boundary_reading`) covers the install's registry, the session's
-own files in `sessions/`, the claims it holds, and their pages' event logs and
-vendored registries. A boundary hands over what
-`delivery.deliverable` finds, and the other facts it reads can't add to that:
-
-- a page's revisions, which `page stamp` writes with the `version` event that
-  names them;
-- a page's `stream.json` and `data/`, which feed its state and activity rather
-  than what a boundary hands over;
-- the delivery envelopes an answer reference names (`delivery.reads_reference`),
-  each removed only once every page it names is gone;
-- a claim's lifetime (`service.lifetime_is_live`), which only ends, and takes
-  pages away when it does;
-- Claude Code's own record of the session, its status (`activity.claimant_turn`)
-  and its transcript (`delivery.confirm_entered`), which matter only for input
-  handed into the open turn and not yet received. The boundary confirms what the
-  transcript shows before it takes its reading, and keeps none while a handover
-  still awaits its receipt, since a handover can reach the transcript after the
-  next boundary has run: a prompt typed while a turn runs gets its hook at once,
-  but its context joins the transcript only once the turn takes the prompt in,
-  after that boundary (measured at 2.1.310);
-- the install's code, which an update replaces under another root, one the reading
-  names; a checkout edited in place runs its new code at the next event.
-
-`tests/model/test_hooks.py` fails when a boundary opens a file that neither the
-reading nor this list accounts for. A change that makes delivery depend on another
-fact puts it in a covered file, extends the reading, or adds it here with the
-reason it can't add input.
-
 `delivery.py` owns receipt: when each harness's hook output counts as read, and how a
 handover the turn never confirmed becomes input again. Session death is neither
 completion nor an explicit stop, so work status and the desired service stay as they

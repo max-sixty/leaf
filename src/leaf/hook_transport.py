@@ -89,16 +89,6 @@ hook times out. So the hook records its handover only before `CONFIRM_WITHIN`, w
 inside its timeout, and prints afterwards. It never waits for a lock past that
 deadline, and a page whose lock is still held goes as a pointer. App Server turns
 interrupted just after they start leave their updates Delivered.
-
-Claude Code runs PostToolBatch after every batch of tool calls, and most hand
-nothing over. One that hands nothing over, and leaves no handover awaiting its
-receipt, keeps what it read (`state.record_quiet`), and the launcher answers the
-next one that would read the same without starting Leaf (`state.boundary_quiet`).
-The reading is taken before the plans are read, so whatever changes after it,
-read or not, makes the next reading differ. The other facts a boundary reads can't give it input
-(`session-lifetime.md`, "The hook", lists them and says why). A new event, the
-agent's own `leaf` write among them, a claim or a turn that changed, or a record
-another hook keeps changes the reading, and the next boundary runs whole.
 """
 
 import json
@@ -109,7 +99,6 @@ from pathlib import Path
 
 from .activity import acknowledged_obligations, turn_obligations, unanswered
 from .delivery import (
-    awaiting_receipt,
     batch_data,
     deliverable,
     delivery_pointer_prompt,
@@ -134,11 +123,9 @@ from .service import (
 from .state import (
     STRING,
     Record,
-    boundary_reading,
     described,
     flocked,
     object_schema,
-    record_quiet,
     session_file,
     session_lock_path,
     session_record,
@@ -176,8 +163,6 @@ class PagePlan:
     `unwritable` says why this Leaf may record no pickup there, or is None
     (`event_contracts.write_refusal`). `unready` is what re-vendoring the page
     before the reading left for the agent, or None (`vendoring.renew_layer`).
-    `awaiting` is what a hook handed into the owner's open turn whose receipt
-    still waits on the harness's record (`delivery.awaiting_receipt`).
     """
 
     page: Path
@@ -193,7 +178,6 @@ class PagePlan:
     preview: bool
     unwritable: Finding | None
     unready: Finding | None
-    awaiting: set[str]
 
 
 def read_plans(session_id: str) -> list[PagePlan]:
@@ -269,7 +253,6 @@ def read_plans(session_id: str) -> list[PagePlan]:
                         (page_dir / PREVIEW_FILE).exists(),
                         write_refusal(page_dir),
                         unready,
-                        awaiting_receipt(page),
                     )
                 )
         except FileNotFoundError:
@@ -408,8 +391,8 @@ HOOK_TIMEOUT_S = 20
 
 # How long after it starts a hook may still hand a delivery over inline and wait
 # for the locks that record it; the hook itself takes about 0.4 s. The other half
-# of its timeout covers what this clock does not see: the interpreter's start and
-# imports before it, and the receipt's writes and exit after it.
+# of its timeout covers what this clock does not see: uv's start and the
+# interpreter's imports before it, and the receipt's writes and exit after it.
 CONFIRM_WITHIN = HOOK_TIMEOUT_S / 2
 
 
@@ -532,7 +515,6 @@ def carry_turn(
     over inline by `CONFIRM_WITHIN` after `started`, the hook's
     `time.monotonic()` as it began."""
     expected = session_record(sid) if expected is ... else expected
-    reading = boundary_reading(sid) if event == "PostToolBatch" else None
     plans = read_plans(sid)
     if session_record(sid) != expected or any(
         plan.lifecycle != expected for plan in plans
@@ -560,10 +542,6 @@ def carry_turn(
         else []
     )
     if event == "PostToolBatch" and not batches:
-        # A handover still awaiting its receipt may reach the transcript after
-        # this boundary, and the next one would confirm it.
-        if not any(plan.awaiting for plan in plans):
-            record_quiet(sid, reading)
         return
     if event == "UserPromptSubmit":
         pick_up_acknowledged(sid, plans)

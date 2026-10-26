@@ -3,9 +3,8 @@
 from collections.abc import Collection
 from pathlib import Path
 
-from leaf.files import latest_revision, read_json
+from leaf.files import file_stamp, latest_revision, read_json
 from leaf.page_memory import Slot, memo
-from leaf.state import file_stamp
 
 from ..refusals import Refused
 from .contract import (

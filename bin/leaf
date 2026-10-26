@@ -8,25 +8,12 @@
 # Selecting this launcher itself leaves the default dispatch.
 #
 # By default the directory above it is a uv project — the repository and the
-# installed plugin are the same tree — and this runs that project's environment,
-# which uv keeps one of per installed version and syncs in place on first use.
+# installed plugin are the same tree — and this runs that project: uv keeps one
+# environment per installed version and syncs it in place on first use.
 # `--no-dev` because the project's dev group is the test suite and the
 # `leaf-dev` tooling, recorded in the shipped lock but never a harness's to
-# install. `--inexact`, as `uv run` syncs, so a checkout's dev tools stay. `-q`
-# because an agent reads stderr back and an ordinary sync has nothing to say; a
-# failed resolve is reported either way. The install owns its environment, so a
-# `UV_PROJECT_ENVIRONMENT` the caller set, which would have uv sync another one,
-# is dropped for the sync.
-#
-# Once uv has synced the environment, Leaf runs on its interpreter directly:
-# `uv run` costs about 70 ms more on every command and hook even with nothing to
-# sync (measured on macOS), and one reply runs dozens of them. The environment
-# keeps a mark of its last sync (`leaf-synced`), naming the tree it was synced
-# for, since an install that copies a checkout copies its environment too. A
-# lock or project file changed since, as a plugin update or a checkout makes, a
-# missing interpreter, or a mark naming another tree has uv sync it first. The
-# mark must be newer than both files, so a change in the same second as a sync
-# only costs one more sync.
+# install. `-q` because an agent reads stderr back and an ordinary sync has
+# nothing to say; a failed resolve is reported either way.
 #
 # The module rather than the `leaf` console script: where this path is long
 # enough to pass the ~127-byte shebang limit — a harness cache path reaches it —
@@ -44,17 +31,15 @@
 # do in a session that holds no claim. Each such registration says so
 # (`hook --harness NAME --if-claimed`), so where the environment exists the hook
 # first asks the same standalone program, on that environment's interpreter,
-# whether the session holds one (`state.holds_claims`). That spares the package's
-# imports wherever no page was claimed. It answers a Claude Code tool boundary
-# that would read what the last quiet one read the same way
-# (`state.boundary_quiet`). Without the environment, or with any answer but
-# "nothing", the hook runs whole.
+# whether the session holds one (`state.holds_claims`). That spares uv and the
+# package's imports wherever no page was claimed. Without the environment, or with
+# any answer but "nothing", the hook runs whole.
 #
 # Claude Code's sandbox refuses what a command needs, so where it confines this
 # one (SANDBOX_RUNTIME), the bridge Leaf's hooks keep outside it runs the command
 # (`bridge.py`). `-I` keeps the agent's directory off the module path.
 #
-# uv's cache serves only to fill the environment, yet `uv sync` opens it even
+# uv's cache serves only to fill the environment, yet `uv run` opens it even
 # with nothing to fetch, and Codex's sandbox refuses writes to ~/.cache/uv. So
 # once the environment exists, which the first hook ensures outside any sandbox,
 # uv runs without the cache; a sync a changed lock needs then downloads afresh.
@@ -75,31 +60,15 @@ if [ -n "${LEAF_HOST_LAUNCHER:-}" ] && [ ! "$LEAF_HOST_LAUNCHER" -ef "$0" ]; the
     unset LEAF_HOST_LAUNCHER
     exec "$leaf_host_launcher" "$@"
 fi
-python="$root/.venv/bin/python"
-if [ -n "${SANDBOX_RUNTIME:-}" ] && [ -x "$python" ]; then
-    exec "$python" -I -m leaf.bridge run "$@"
+if [ -n "${SANDBOX_RUNTIME:-}" ] && [ -x "$root/.venv/bin/python" ]; then
+    exec "$root/.venv/bin/python" -I -m leaf.bridge run "$@"
 fi
-synced="$root/.venv/leaf-synced"
-ensure_synced() {
-    marked=
-    [ -f "$synced" ] && read -r marked <"$synced"
-    if ! { [ "$marked" = "$root" ] && [ -x "$python" ] &&
-        [ "$synced" -nt "$root/uv.lock" ] && [ "$synced" -nt "$root/pyproject.toml" ]; }; then
-        (
-            unset UV_PROJECT_ENVIRONMENT
-            exec uv sync -q $cache --no-dev --inexact --project "$root" </dev/null
-        ) || exit
-        printf '%s\n' "$root" >"$synced"
-    fi
-}
-if [ "${1:-}" = hook ] && [ "${4:-}" = --if-claimed ] && [ -x "$python" ]; then
+if [ "${1:-}" = hook ] && [ "${4:-}" = --if-claimed ] && [ -x "$root/.venv/bin/python" ]; then
     payload=$(cat)
-    printf '%s' "$payload" | "$python" -S "$state" hook-gate
+    printf '%s' "$payload" | "$root/.venv/bin/python" -S "$state" hook-gate
     [ "$?" -eq 3 ] && exit 0
-    ensure_synced
-    exec "$python" -m leaf "$@" <<EOF
+    exec uv run -q $cache --no-dev --project "$root" python -m leaf "$@" <<EOF
 $payload
 EOF
 fi
-ensure_synced
-exec "$python" -m leaf "$@"
+exec uv run -q $cache --no-dev --project "$root" python -m leaf "$@"

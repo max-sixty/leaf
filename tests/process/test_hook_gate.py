@@ -1,12 +1,11 @@
-"""The hooks the launcher answers without starting Leaf: those registered
-`--if-claimed` in a session that holds no claim, and a tool boundary that would
-read what the last quiet one read (`bin/leaf`)."""
+"""The hooks the launcher answers without starting Leaf, in a session that holds no
+claim: those registered `--if-claimed` (`bin/leaf`)."""
 
 import json
 import os
 import subprocess
 
-from interact_support import ROOT, append_carried_log_record
+from interact_support import ROOT
 
 from leaf import service as service_model
 from leaf import state as state_model
@@ -15,47 +14,17 @@ LAUNCHER = str(ROOT / "bin" / "leaf")
 REGISTRATIONS = json.loads((ROOT / "hooks" / "hooks.json").read_text())["hooks"]
 
 
-def hook(event: str, session: str, env: dict | None = None) -> str:
-    """Run Claude Code's first registered command for `event`, as it would, and
-    return what it printed."""
+def hook(event: str, session: str) -> None:
+    """Run Claude Code's first registered command for `event`, as it would."""
     ran = subprocess.run(
         ["/bin/sh", "-c", REGISTRATIONS[event][0]["hooks"][0]["command"]],
         input=json.dumps({"hook_event_name": event, "session_id": session}),
-        env={**os.environ, "CLAUDE_PLUGIN_ROOT": str(ROOT), **(env or {})},
+        env={**os.environ, "CLAUDE_PLUGIN_ROOT": str(ROOT)},
         capture_output=True,
         text=True,
         check=False,
     )
     assert ran.returncode == 0, ran.stderr
-    return ran.stdout
-
-
-def test_a_quiet_boundary_is_answered_without_leaf(claimed, tmp_path):
-    """A session holding a page runs PostToolBatch after every batch of tool calls.
-    One that finds what the last quiet boundary found never starts Leaf, which a
-    stand-in package on the module path would witness, and new input brings Leaf
-    back to hand it over."""
-    standin = tmp_path / "standin" / "leaf"
-    standin.mkdir(parents=True)
-    (standin / "__init__.py").touch()
-    started = tmp_path / "started"
-    (standin / "__main__.py").write_text(
-        f"from pathlib import Path\nPath({str(started)!r}).touch()\n"
-    )
-    witnessed = {"PYTHONPATH": str(standin.parent)}
-
-    assert hook("PostToolBatch", "s1") == ""
-    assert hook("PostToolBatch", "s1", witnessed) == ""
-    assert not started.exists()
-
-    append_carried_log_record(
-        claimed, {"kind": "comment", "author": "user", "text": "one more"}
-    )
-    handed = json.loads(hook("PostToolBatch", "s1"))["hookSpecificOutput"]
-    assert "one more" in handed["additionalContext"]
-    # Its handover is the next boundary's to confirm, so that one runs Leaf too.
-    assert hook("PostToolBatch", "s1", witnessed) == ""
-    assert started.exists()
 
 
 def test_claude_code_runs_the_whole_hook_once_its_session_claims(page_dir):

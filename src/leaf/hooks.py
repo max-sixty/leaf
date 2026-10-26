@@ -26,15 +26,13 @@ renewed since open.
 
 Most sessions with the plugin installed never claim a page, so in a session
 holding no claim the launcher answers each hook registered `--if-claimed`
-without starting Leaf (`bin/leaf`): Codex's tool hook, and every Claude Code hook
+without starting uv (`bin/leaf`): Codex's tool hook, and every Claude Code hook
 but PreToolUse. Codex's other hooks record the provider turn a later claim rests
 on, so they always run. Claude Code's PreToolUse runs before each `leaf`
 command, and in such a session opens the turn the skipped prompt hook would have,
 so a claim that command makes joins it; of its runs for one tool call, one per
 registration the command matches, only the first does its work
-(`leases.first_hook_for_tool`). In a session that holds a page, the launcher also
-answers a PostToolBatch that would read what the last one that handed nothing
-over read (`hook_transport`). Hooks
+(`leases.first_hook_for_tool`). Hooks
 that do run with no retained claim avoid page reading, and import the harness
 declarations only once the payload names a session. Page-owning prompt and Stop
 hooks reach `hook_transport`; Codex's tool and Stop hooks reach its delivery

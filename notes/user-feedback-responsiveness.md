@@ -279,10 +279,7 @@ process: an earlier batch at a load average near 27 read 1.0–3.7 s.
   its test, which builds the schema by hand, kept passing. Codex's public transcript
   names spawned threads but missed 6 of 259.
 - **A shorter reply:** the parts of "A small page change's reply" Leaf decides are
-  its hooks, about 0.2 s at each tool boundary on Claude Code and Codex, where a
-  Claude Code boundary with nothing new now costs about 55 ms and one after the
-  agent's own `leaf` write still runs whole (#4084, "Measure Leaf's hook cost for
-  sessions holding pages"); and the 8 s of
+  its hooks, about 0.2 s at each tool boundary on Claude Code and Codex; and the 8 s of
   `page check --render` where an agent runs it before replying. Measure each change
   by the part it moves and by the whole reply over enough journeys.
 - **The hosted opening's cost:** whether the hosted agent's opening line delays its

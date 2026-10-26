@@ -30,6 +30,7 @@
   },
   "lf-document-gallery": {
     "description": "A gallery producer whose changing Markdown is read by a text document.",
+    "x-exhibit": true,
     "type": "object",
     "properties": { "id": { "type": "string" } },
     "required": ["id"],

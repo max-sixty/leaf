@@ -25,12 +25,14 @@ from render_harness import (
     open_page,
     open_threads,
     page_comment,
+    panel_settled,
     scroll_settled,
 )
 
 from browser.controls import (
     RING_NEW_STOP,
 )
+from browser.threads import open_panel_thread
 from leaf import data as data_model
 from leaf.render_checks import rendered
 
@@ -424,6 +426,56 @@ def test_a_marked_element_draws_nothing_under_the_pointer(browser, serve):
         assert all(seen == {0} for seen in rest.values()), (
             f"the comment on #{ident} drew a contour under the pointer: {rest}"
         )
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_contour_stands_inside_a_target_its_clip_leaves_no_room_around(
+    request, serve, engine
+):
+    """A joined option group clips its cells to its frame, so the contour of the thread
+    the user is in, drawn outside a cell at the ring's gap, lost its sides and left two
+    stray lines across the neighbouring cells. Inside the frame it stands just within
+    the cell's edge; a paragraph with room around it is the control that keeps it
+    outside."""
+    url = serve(
+        leaf_page(
+            "Contours",
+            """
+<h1>Contours</h1>
+<p id="said">A paragraph with room around it.</p>
+<lf-options id="pick" choose>
+  <lf-option id="keep"><strong>Keep</strong> the words alone.</lf-option>
+  <lf-option id="place" chosen><strong>Place</strong> them in the line.</lf-option>
+</lf-options>
+""",
+        )
+    )
+    for ident in ("said", "place"):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "id": f"on-{ident}",
+                "author": "user",
+                "revision": 1,
+                "text": "Say more about this.",
+                "anchor": {"section": ident},
+            },
+        )
+    page = open_page(request.getfixturevalue(engine), url)
+    for ident, inside in (("said", False), ("place", True)):
+        open_panel_thread(page, f"on-{ident}")
+        page.locator(".lf-fp-aux").get_by_role(
+            "button", name="Show on page", exact=True
+        ).click()
+        panel_settled(page, open=False)
+        mark = page.locator(f'.lf-visual-mark-here[data-for="{ident}"]')
+        expect(mark).to_be_visible()
+        room = mark.evaluate(
+            "n => { const s = getComputedStyle(n);"
+            " return parseFloat(s.outlineOffset) + parseFloat(s.outlineWidth); }"
+        )
+        assert (room <= 0) is inside, (ident, room)
 
 
 # A page holding a paragraph and one control, for the readings below that plant the

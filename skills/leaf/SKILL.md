@@ -44,8 +44,8 @@ must outlive the page directory.
    its vocabulary or instructions: `leaf page init --package diagram --package diff <page>`.
    `references/packages.md`, "Package reach", lists the packages. Use
    `playground` when the user explores candidates or tunes a configuration before
-   sending it; its choices can contain the previews themselves. Simple decisions
-   use `lf-options` (`references/authoring-decisions.md`). Running `page init`
+   sending it; its choices can contain the previews themselves. Simple choices
+   use `lf-options` (`references/authoring-on-me.md`). Running `page init`
    again with `--package` replaces the page's packages, so name every package the page keeps.
    Personal themes and their author instructions are discoverable with
    `leaf theme list`; `references/package-themes.md`, "Personal themes", covers
@@ -114,7 +114,7 @@ between bounded steps.
 ## Page contract
 
 `references/page-authoring.md` owns content, reading cost and composition. `references/page-layout.md` owns Layout geometry;
-`references/authoring-decisions.md` owns decisions and their controls.
+`references/authoring-on-me.md` owns the questions and choices you put to the user.
 
 Choose controls, gestures and options whose benefit to the user's task outweighs
 the attention and effort they require. Remove redundant actions before making
@@ -152,7 +152,7 @@ Read references from this skill directory.
   a `page/registry.json`, or anything loaded from another server.
 - `references/live-samples.md`: before letting the user operate a Leaf page inside a
   page or a thread message.
-- `references/authoring-decisions.md`: when the page or your reply leaves anything for
+- `references/authoring-on-me.md`: when the page or your reply leaves anything for
   the user to decide or approve an action, before choosing its widgets.
 - `references/authoring-revisions.md`: before changing a handed-over page,
   proposing a rewrite, using a user-owned draft, or revising the page's current state.

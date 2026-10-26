@@ -109,9 +109,10 @@ judgment.
 
 Before choosing a fix, read the failing test's record in main's earlier runs: each
 `ci` run uploads its junit results (`gh run download <run> -p 'pytest-results-*'`),
-and a `nightly` test runs only in the daily scheduled run
-(`gh run list -w ci -e schedule`). A test that failed with the same message, passed
-on code that didn't fix it, then failed again is non-deterministic, so fix the cause.
+with the failing pages' pictures (`tests/AGENTS.md`, **Failing tests**), and a
+`nightly` test runs only in the daily scheduled run (`gh run list -w ci -e schedule`).
+A test that failed with the same message, passed on code that didn't fix it, then
+failed again is non-deterministic, so fix the cause.
 A watch finding that fails on CI and passes locally needs a slower CPU rather than
 reruns to reproduce (`tests/AGENTS.md`, **Races**).
 Different messages across runs call for checking the intervening changes and the

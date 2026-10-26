@@ -787,18 +787,18 @@ function createAnchorTravel({ anchors, refreshThread, focusForNavigation, thread
 		const where = segment ? rangeOf([segment]) : targetElement(placement) ?? targetPlace(placement);
 		return livePoint(targetElement(placement) ?? targetPlace(placement), placement?.point) ?? where;
 	};
-	async function scrollToThread(id, { part = null, focus = true, presented = null, intent } = {}) {
+	async function scrollToThread(id, { part = null, focus = true, presented = null, intent, history = true } = {}) {
 		const mayArrive = retainTravel(intent);
 		const anchor = threadNamed(id)?.anchor;
 		const status = anchors.placedAt(id)?.status;
 		const hydrating = anchor?.datum && status !== "outdated" || anchor?.visual;
 		const destination = threadDestination(id);
 		const landing = () => threadDestination(id);
-		const departure = prepareNavigationStep({
+		const departure = history ? prepareNavigationStep({
 			landing,
 			intent: mayArrive
-		});
-		if (destination || hydrating) departure.plan(destination);
+		}) : null;
+		if (destination || hydrating) departure?.plan(destination);
 		if (hydrating) {
 			const source = sectionOf(anchor);
 			const hydration = source && revealAddressed(source, anchor.visual ?? anchor.datum);

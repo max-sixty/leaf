@@ -454,6 +454,22 @@
     if (label !== undefined) node.textContent = label;
     return node;
   };
+  const selectableOfferElement = (node, role, cls) => {
+    keepsAttribute(node, "role", role);
+    keepsAttribute(node, "class", cls ? `${cls} lf-ui lf-ui-face` : "lf-ui lf-ui-face");
+    keepsAttribute(node, "data-lf-gen", "1");
+    keepsAttribute(node, "data-lf-offer", role);
+    keepsAttribute(node, "data-lf-selectable-offer", "");
+  };
+
+  const selectableOffer = (role, cls, label) => {
+    const node = document.createElement("span");
+    selectableOfferElement(node, role, cls);
+    node.tabIndex = 0;
+    if (label !== undefined) node.textContent = label;
+    return node;
+  };
+
   // External marks occupy inline room, so the parser seats them before prose paints.
   // The module runtime adopts this owner and its baselines for subsequent arrivals.
   // External page links keep native link behavior but make the boundary explicit: the
@@ -1282,6 +1298,7 @@
         tabStore,
         offer,
         offerElement,
+        selectableOffer,
         generatedElement,
         keeps: keepsAttribute,
         authoredBody(node) {
@@ -1322,6 +1339,8 @@
     },
     offer,
     offerElement,
+    selectableOffer,
+    selectableOfferElement,
     generatedElement,
     origin(node) {
       return origins.get(node);

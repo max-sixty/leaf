@@ -1108,7 +1108,9 @@ def test_every_product_route_is_a_live_leaf_page(site, hosted, browser):
             "install_url": "/#install",
         }
         if name == "how-it-works.html":
-            diagram = page.locator("#arch")
+            # The package can use the page margins beyond its prose-width figure.
+            # Its own scrollport, rather than that wrapper, bounds the drawing.
+            diagram = page.locator("#agent-browser-architecture")
             expect(diagram).to_be_visible()
             width = diagram.evaluate(
                 "element => ({client: element.clientWidth, scroll: element.scrollWidth})"

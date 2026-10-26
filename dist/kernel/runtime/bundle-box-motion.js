@@ -693,6 +693,18 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 	let streamFrom = /* @__PURE__ */ new Map();
 	let streams = /* @__PURE__ */ new Map();
 	let stopStreaming = new AbortController();
+	let fieldScrolls = /* @__PURE__ */ new Map();
+	const noteFieldScrolls = () => {
+		for (const field of fieldScrolls.keys()) fieldScrolls.set(field, field.scrollTop);
+	};
+	for (const type of [
+		"keydown",
+		"pointerdown",
+		"beforeinput"
+	]) root.addEventListener(type, noteFieldScrolls, {
+		capture: true,
+		passive: true
+	});
 	function rebase() {
 		const at = boxOf(root.getBoundingClientRect());
 		const edges = held();
@@ -848,6 +860,8 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 		streams = /* @__PURE__ */ new Map();
 		motions = /* @__PURE__ */ new Map();
 		rests = next;
+		const scrolledFrom = fieldScrolls;
+		fieldScrolls = new Map([...rests.keys()].filter((element) => element.matches(TEXT_FIELD)).map((element) => [element, element.scrollTop]));
 		const space = boxOf(room.getBoundingClientRect());
 		const outline = (at, grow, radius) => [[
 			at.top - space.top - grow,
@@ -921,9 +935,9 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 			const emptied = gesture === "send" || part.element.matches(":state(placeholder-shown)");
 			const edgeBy = (start, end, length) => emptied && length(to) < length(from) - .5 && near(from[end], to[end]) && !near(from[start], to[start]) ? end : start;
 			const carries = [rtl ? edgeBy("right", "left", width) : edgeBy("left", "right", width), edgeBy("top", "bottom", height)];
-			let dx = from[carries[0]] - to[carries[0]];
+			const dx = from[carries[0]] - to[carries[0]];
 			let dy = from[carries[1]] - to[carries[1]];
-			const cut = [
+			const cut = () => [
 				from.top - (to.top + dy),
 				to.right + dx - from.right,
 				to.bottom + dy - from.bottom,
@@ -936,18 +950,19 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 					carries
 				});
 				move(part.element, dx, dy);
-				cutFrom(part.element, cut, radiusOf(part.style));
+				cutFrom(part.element, cut(), radiusOf(part.style));
 				return;
 			}
 			motions.set(part.element, {
 				from,
 				to
 			});
+			if (part.element.scrollHeight <= part.element.clientHeight && !emptied) dy -= scrolledFrom.get(part.element) ?? 0;
 			const reach = Math.max(0, rtl ? dx : -dx, -dy);
 			if (reach > 0) hold(part.element, "overflow", "visible");
 			start(part.element, [{
 				"--lf-field-carry": `${dx}px ${dy}px`,
-				"--lf-field-cut": cut.map((side) => `${side}px`).join(" "),
+				"--lf-field-cut": cut().map((side) => `${side}px`).join(" "),
 				"--lf-field-reach": `${reach}px`
 			}, {
 				"--lf-field-carry": "0px 0px",

@@ -4939,6 +4939,44 @@ def test_the_field_s_words_and_mark_ride_its_top_edge_both_ways(browser, serve):
         assert rest["opacity"] == opacity, (key, rest)
 
 
+def test_lines_removed_below_the_field_s_cap_leave_the_rest_in_place(browser, serve):
+    """A draft past the field's cap scrolls inside it; deleting its last lines until
+    the rest fits stops that scroll, and the lines still shown stay where they stood
+    on the tween's first frame, then travel down as the lines scrolled away come into
+    view. They used to jump down by the scroll the field gave up."""
+    page = open_page(browser, serve(LONG_PAGE), init_script=EDITOR_ROOTS)
+    page.emulate_media(reduced_motion="no-preference")
+    field(page).click()
+    page.keyboard.type("Line 1")
+    lines = 1
+    while not field(page).evaluate("box => box.scrollTop > 40"):
+        lines += 1
+        page.keyboard.press("Shift+Enter")
+        page.keyboard.type(f"Line {lines}")
+    for _ in range(4):
+        page.keyboard.press("Shift+Enter")
+        page.keyboard.type(f"Line {lines + 1 + _}")
+    settled(page)
+    shown = f"Line {lines - 4}"
+    where = """(host, words) => [...window.editorRoots.get(host).querySelectorAll('.cm-line')]
+      .find((line) => line.textContent === words).getBoundingClientRect().top"""
+    stood = field(page).evaluate(where, shown)
+    # Back past the line that first made the field scroll, so the rest fits.
+    for _ in range(7):
+        page.keyboard.press("Shift+ArrowUp")
+    page.keyboard.press("Backspace")
+    page.wait_for_function(
+        "() => document.querySelector('.lf-fp-ground').getAnimations()"
+        ".some(motion => motion.playState === 'running')"
+    )
+    assert field(page).evaluate("box => box.scrollHeight <= box.clientHeight")
+    page.evaluate(SEEK_MOTION, 0)
+    assert field(page).evaluate(where, shown) == pytest.approx(stood, abs=1)
+    page.evaluate("() => document.getAnimations().forEach(motion => motion.play())")
+    settled(page)
+    assert field(page).evaluate(where, shown) > stood + 20
+
+
 def test_a_send_s_reply_field_takes_the_row_s_seat_where_it_stands(browser, serve):
     """Sending a page comment of several lines opens its thread above the row, and the
     thread's reply field takes the page field's seat in the row from the tween's first

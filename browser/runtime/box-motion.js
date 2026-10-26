@@ -33,7 +33,8 @@
  *   the user types. That box cuts its words off at its edges, so where the editor's
  *   start moved up or back, as more room re-wrapping a paragraph moves it, the editor
  *   is carried whole instead; while the user types, as when a line is removed, the
- *   box stops cutting them as far as they travel (`--lf-field-reach`). A part that
+ *   box stops cutting them as far as they travel (`--lf-field-reach`). A field that
+ *   stops scrolling carries its words by the scroll it gave up too. A part that
  *   scrolls and changed size shows what its scroll puts in it, which the reader
  *   landing in it measures mid-tween, so it only grows from where it stood; one that
  *   kept its size is carried.
@@ -230,6 +231,15 @@ export function boxMotion({
   // where it stands, on the clock every part shares.
   let streams = new Map();
   let stopStreaming = new AbortController();
+  // How far each editor had scrolled its words before the change being read: taken at
+  // each reading, and again as each gesture begins, ahead of what it changes, since a
+  // field scrolls as it is typed in without changing size.
+  let fieldScrolls = new Map();
+  const noteFieldScrolls = () => {
+    for (const field of fieldScrolls.keys()) fieldScrolls.set(field, field.scrollTop);
+  };
+  for (const type of ["keydown", "pointerdown", "beforeinput"])
+    root.addEventListener(type, noteFieldScrolls, { capture: true, passive: true });
   function rebase() {
     const at = boxOf(root.getBoundingClientRect());
     const edges = held();
@@ -450,6 +460,12 @@ export function boxMotion({
     streams = new Map();
     motions = new Map();
     rests = next;
+    const scrolledFrom = fieldScrolls;
+    fieldScrolls = new Map(
+      [...rests.keys()]
+        .filter((element) => element.matches(TEXT_FIELD))
+        .map((element) => [element, element.scrollTop]),
+    );
 
     const space = boxOf(room.getBoundingClientRect());
     const outline = (at, grow, radius) => [
@@ -555,12 +571,12 @@ export function boxMotion({
         rtl ? edgeBy("right", "left", width) : edgeBy("left", "right", width),
         edgeBy("top", "bottom", height),
       ];
-      let dx = from[carries[0]] - to[carries[0]];
+      const dx = from[carries[0]] - to[carries[0]];
       let dy = from[carries[1]] - to[carries[1]];
       // Cut to where it stood, as far as its box carried there reaches: a shrinking
       // frame starts outside its final box, so children remain visible in the larger
       // outline they occupied before the change.
-      const cut = [
+      const cut = () => [
         from.top - (to.top + dy),
         to.right + dx - from.right,
         to.bottom + dy - from.bottom,
@@ -579,16 +595,23 @@ export function boxMotion({
       if (!editor || (!inside && gesture !== "typing")) {
         motions.set(part.element, { from, to, carries });
         move(part.element, dx, dy);
-        cutFrom(part.element, cut, radiusOf(part.style));
+        cutFrom(part.element, cut(), radiusOf(part.style));
         return;
       }
       motions.set(part.element, { from, to });
+      // A field the change lets stop scrolling, as deleting lines below its cap does,
+      // moves its words by the scroll it gave up as well as by its edge, and the cut
+      // keeps what that scroll hid out of sight until the outline reaches it.
+      const fits = part.element.scrollHeight <= part.element.clientHeight;
+      if (fits && !emptied) dy -= scrolledFrom.get(part.element) ?? 0;
       const reach = Math.max(0, rtl ? dx : -dx, -dy);
       if (reach > 0) hold(part.element, "overflow", "visible");
       start(part.element, [
         {
           "--lf-field-carry": `${dx}px ${dy}px`,
-          "--lf-field-cut": cut.map((side) => `${side}px`).join(" "),
+          "--lf-field-cut": cut()
+            .map((side) => `${side}px`)
+            .join(" "),
           "--lf-field-reach": `${reach}px`,
         },
         {

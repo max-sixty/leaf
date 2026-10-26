@@ -257,7 +257,7 @@ export function standBox(box, rect, stood, anchor, at = anchor && anchorBox(anch
 // All target contours (Aim brackets, references and full focus) use the target's
 // full box and radius. A cut clips that perimeter rather than inventing corners at
 // the cut: percentage radii retain their shape, and the browser carries the paint
-// with scrolling. Rebuilding a visible rectangle in script lagged compositor scroll.
+// with scrolling.
 // SVG targets retain their drawn contour, whose stroke straddles the path, rather
 // than acquiring rectangular brackets. Answers the stand and anchor for its label.
 export function standOver(stand, placed, borderRadius) {

@@ -13,9 +13,9 @@ import {
   targetSegments,
   targetSurface,
 } from "../resolved-target.js";
-import { elementFromPointAcross, inChrome, pageWords, rangeOf } from "../passages.js";
+import { elementFromPointAcross, pageWords, rangeOf } from "../passages.js";
 import { bareReaction } from "../thread/model.js";
-import { inUi, under } from "../shadow.js";
+import { under } from "../shadow.js";
 import { annotationsHidden } from "./annotation-layer.js";
 
 const MARK = "lf-mark";
@@ -80,12 +80,7 @@ export function createAnchorPaint({
     // Page controls need the same cue whether or not an author gave them an id.
     // Private controls and a face wearing another control's ring keep that paint.
     const ownsRing = active && ringBox(active) === active;
-    if (
-      ownsRing &&
-      active.getRootNode() === document &&
-      !inChrome(active) &&
-      !inUi(active)
-    )
+    if (ownsRing && active.getRootNode() === document && pageWords(active))
       elements.add(active);
     const focus = new Set(ownsRing && elements.has(active) ? [active] : []);
     /** @type {[string, Set<Element>][]} */

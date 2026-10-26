@@ -11,8 +11,8 @@ body.lf-over-mark {
    on its row in Threads, the thread the user is in — and is one hollow line.
    Unlike a text highlight, an element mark is projected above everything the target
    draws, so any interior paint can obscure the target's own words or picture. The
-   target painter keeps the contour above those descendants; the declarations below
-   are the no-JS fallback. The element still takes a press that opens its thread. */
+   target painter keeps the contour above those descendants. The element still takes
+   a press that opens its thread. */
 .lf-mark-el {
   cursor: pointer;
 }
@@ -22,21 +22,8 @@ body.lf-over-mark {
   .lf-mark-el:not(.lf-pending, .lf-mark-here, [data-lf-focus]) {
   cursor: auto;
 }
-/* The draft's own element (an open composer is on screen whenever this is), the pointer
-   on the thread's row in Threads and the thread the user is in share one contour
-   (chrome.css). The projected brackets stand flush outside its boundary;
-   focus earns the same outline drawn whole. This fallback draws the full outline
-   where no projection is available. */
-.lf-mark-el:is(.lf-pending, .lf-mark-hover, .lf-mark-here):not(.lf-projected-mark) {
-  outline: var(--mark-contour-w) solid var(--mark-contour-ink);
-  outline-offset: 0;
-}
 .lf-mark-el.lf-pending {
   cursor: auto;
-}
-.lf-mark-el:not(.lf-projected-mark)[data-lf-focus-visible] {
-  outline: var(--focus-ring);
-  outline-offset: 0;
 }
 /* Armed, a press on a thread-marked element is the aim's, not the thread's, so the
    hand here is the aim's answer rather than the thread's: it stands where the aim has
@@ -50,7 +37,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
 }
 /* Replace only the source focus cue, preserving authored outlines and obligations
    while a reference is projected. Native visibility covers the return before the
-   focus owner has reflected its attribute. */
+   focus owner has reflected its attribute. :root outranks field focus rules even
+   when their sheet arrives later. */
 :root .lf-projected-mark:is(:focus-visible, [data-lf-focus-visible]) {
   outline: none;
 }
@@ -200,7 +188,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     pointer-events: none;
     --lf-shape-ink: var(--mark-contour-ink);
     --lf-shape-stroke: var(--mark-contour-w);
-    outline-offset: 0;
     /* This layer is above the target's children. Keep its interior physically unable
        to paint over them, including under package and page-local theme rules. */
     background: none !important;
@@ -208,7 +195,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   .lf-visual-mark.lf-visual-mark-focus {
     --lf-shape-ink: var(--accent);
     --lf-shape-stroke: var(--focus-ring-w);
-    outline: var(--focus-ring);
   }
   .lf-visual-mark.lf-visual-mark-action:not(
       .lf-visual-mark-pending,
@@ -218,9 +204,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     ) {
     --lf-shape-stroke: 1px;
     --lf-target-outline: 1px solid var(--mark-contour-ink);
-  }
-  .lf-visual-mark.lf-shaped {
-    outline: none;
   }
   .lf-visual-mark-shape {
     display: block;

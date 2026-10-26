@@ -3434,13 +3434,12 @@ def test_target_brackets_and_focus_share_the_visible_boundary(browser, serve, su
         shown.right = Math.min(box.right, clip.left + port.clientLeft + port.clientWidth);
         shown.bottom = Math.min(box.bottom, clip.top + port.clientTop + port.clientHeight);
       }
-      const style = getComputedStyle(node), end = getComputedStyle(node, '::before');
+      const style = getComputedStyle(node), end = getComputedStyle(node, '::after');
       const ink = end.content !== 'none' ? end : style;
       const rect = node.getBoundingClientRect();
       const stroke = parseFloat(ink.outlineWidth), gap = parseFloat(ink.outlineOffset);
       const painted = {left:rect.left - stroke, top:rect.top - stroke,
         right:rect.right + stroke, bottom:rect.bottom + stroke};
-      let cuts = 0;
       for (let frame = node.parentElement; frame; frame = frame.parentElement) {
         if (!frame.matches('.lf-paint-frame')) continue;
         const values = getComputedStyle(frame).clipPath.match(/-?[\d.]+px/g)?.map(parseFloat);
@@ -3450,10 +3449,9 @@ def test_target_brackets_and_focus_share_the_visible_boundary(browser, serve, su
         painted.top = Math.max(painted.top, box.top + values[0]);
         painted.right = Math.min(painted.right, box.right - values[1]);
         painted.bottom = Math.min(painted.bottom, box.bottom - values[2]);
-        cuts++;
       }
-      return {source:box.toJSON(), shown, painted, cuts, rect:rect.toJSON(), stroke, gap, ink:ink.outlineStyle,
-        radius:style.borderRadius, ends:end.clipPath,
+      return {source:box.toJSON(), shown, painted, rect:rect.toJSON(), stroke, gap, ink:ink.outlineStyle,
+        radius:style.borderRadius, clip:ink.clipPath,
         nativeOutline:getComputedStyle(target).outlineStyle,
         rowBottom:id === 'square' ? target.rows[target.rows.length - 1].getBoundingClientRect().bottom : null};
     }"""
@@ -3490,7 +3488,6 @@ def test_target_brackets_and_focus_share_the_visible_boundary(browser, serve, su
             open_compact_comment(page)
             expect(page.locator(".lf-visual-mark-pending")).to_be_visible()
             pending = boundary(target, ".lf-visual-mark-pending")
-            assert pending["ends"] == aimed["ends"], (aimed, pending)
             if target == "rounded":
                 # A projected reference replaces Leaf's annotation paint, not an
                 # outline the page itself gave this target.
@@ -3501,6 +3498,7 @@ def test_target_brackets_and_focus_share_the_visible_boundary(browser, serve, su
             expect(focus).to_be_visible()
             focused = boundary(target, f'.lf-visual-mark-focus[data-for="{target}"]')
             assert focused["radius"] == aimed["radius"], (aimed, focused)
+            assert focused["clip"] == "none", focused
             assert focused["nativeOutline"] == "none", focused
             if target == "rounded":
                 port = page.locator("#port")
@@ -3512,7 +3510,6 @@ def test_target_brackets_and_focus_share_the_visible_boundary(browser, serve, su
                 clipped = boundary(
                     target, f'.lf-visual-mark-focus[data-for="{target}"]'
                 )
-                assert clipped["cuts"] > 0, clipped
                 # The original top is outside the clip: neither focus nor brackets
                 # invent a horizontal edge across the surviving part of the card.
                 assert clipped["rect"]["top"] < clipped["painted"]["top"] - 10, clipped
@@ -3544,7 +3541,9 @@ def test_focus_projection_follows_modality_and_leaves_private_controls_their_rin
                 '<section><lf-tabs id="views">'
                 '<lf-tab id="view-a" label="First">First panel</lf-tab>'
                 '<lf-tab id="view-b" label="Second">Second panel</lf-tab>'
-                "</lf-tabs></section>",
+                '</lf-tabs></section><lf-pane id="pane" label="Findings">'
+                '<div id="pane-body" style="height:160px;overflow:auto">'
+                '<p style="height:400px">The pane scrolls.</p></div></lf-pane>',
             )
         ),
     )
@@ -3569,8 +3568,6 @@ def test_focus_projection_follows_modality_and_leaves_private_controls_their_rin
             mark = page.locator(".lf-visual-mark-focus")
             expect(mark).to_have_count(1)
             expect(mark).to_be_visible()
-            expect(mark).to_have_css("outline-width", "2px")
-            expect(mark).to_have_css("outline-offset", "0px")
             expect(control).to_have_css("outline-style", "none")
             assert mark.bounding_box() == pytest.approx(control.bounding_box(), abs=0.5)
 
@@ -3605,6 +3602,18 @@ def test_focus_projection_follows_modality_and_leaves_private_controls_their_rin
           return {content:ring.content, style:ring.outlineStyle, width:ring.outlineWidth};
         }"""
     ) == {"content": '""', "style": "solid", "width": "2px"}
+    expect(page.locator(".lf-visual-mark-focus")).to_have_count(0)
+
+    page.keyboard.press("Tab")
+    expect(page.locator("#pane-body")).to_be_focused()
+    expect(page.locator("#pane-body")).to_have_css("outline-style", "none")
+    rendered(page)
+    assert (
+        page.locator("#pane").evaluate(
+            "node => getComputedStyle(node, '::after').outlineStyle"
+        )
+        == "solid"
+    )
     expect(page.locator(".lf-visual-mark-focus")).to_have_count(0)
 
 

@@ -575,7 +575,7 @@
   --target-trace-ink: color-mix(in srgb, var(--ink-2) 42%, var(--paper));
   /* SVG annotations stroke their actual contour in this quieter ink. Rectangular
      annotations use the focus outline cut into brackets (chrome.css), flush outside
-     the target; the full contour here also serves an unprojected element fallback. */
+     the target. */
   --mark-contour-w: 1.5px;
   --mark-contour-ink: color-mix(in srgb, var(--accent) 72%, var(--paper));
   /* A pressable never wears the accent as a solid fill: the accent is its ink and its
@@ -2438,6 +2438,9 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
  * itself paints under whatever positioned content scrolls across its edges. */
 [data-lf-reading-role="pane"] > :not(header, footer)[data-lf-focus-visible] {
   outline: none;
+}
+[data-lf-reading-role="pane"]:has(> :not(header, footer)[data-lf-focus-visible]) {
+  --lf-wears-ring: 1;
 }
 [data-lf-reading-role="pane"]:has(
     > :not(header, footer)[data-lf-focus-visible]

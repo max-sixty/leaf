@@ -2,7 +2,7 @@ import { SVG_NS, boxMotion, dropStand, liftReach, paintGeometry, paintShape, pai
 import { Z } from "./bundle-signals-core.js";
 import { TEXT_FIELD, afterScript, cancelAnimation, cancelRender, closeLayer, currentLocationIn, declareRelease, drawn, focusDestination, focused, handBack, holdFocus, inputCount, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, nativeLayerHolding, nextAnimation, nextRender, onCurrentLocation, onPressAway, onUserInput, pressLed, renderedOrder, renderedUnder, ringBox, roomPx, rove, sizeObserver, tabStops, under, visibleFocus } from "./bundle-dom-move.js";
 import { setRuntimeRootAttribute } from "./bundle-layer-client.js";
-import { clamp, hostIn, inUi, rightCover, seenRect, shownBox, shownWindow, skipped, slotTop, union, watchRoom } from "./bundle-geometry.js";
+import { clamp, hostIn, rightCover, seenRect, shownBox, shownWindow, skipped, slotTop, union, watchRoom } from "./bundle-geometry.js";
 import { bareReaction, html, render, sameAnchor, turns, whenDocumentPresented } from "./bundle-context.js";
 import { LAYOUT, PRESS, closeControl, coarsePointer, cycledRow, el, generatedElement, iconElement, keys, notice, offer, paintKeys, repaint, rowArrows } from "./bundle-errors.js";
 import { atScrollEnd, effectiveScroller, moveScrollerBy, readingRegionFor, registerReadingRegion, scrollToEnd } from "./bundle-reading-regions.js";
@@ -2211,7 +2211,7 @@ function createAnchorPaint({ targetPaint, pointer, currentLocationThreadId, rowT
 		].flatMap((states) => [...states]).filter((element) => element instanceof Element));
 		const active = visibleFocus();
 		const ownsRing = active && ringBox(active) === active;
-		if (ownsRing && active.getRootNode() === document && !inChrome(active) && !inUi(active)) elements.add(active);
+		if (ownsRing && active.getRootNode() === document && pageWords(active)) elements.add(active);
 		const focus = new Set(ownsRing && elements.has(active) ? [active] : []);
 		const sources = [
 			["pending", pending],

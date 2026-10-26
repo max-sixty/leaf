@@ -74,7 +74,9 @@
           label: event.getAttribute("label") ?? "",
           lane: index,
           at,
-          end: end === at ? null : end
+          end: end === at ? null : end,
+          // The index of the step it starts on, once the steps are known.
+          step: 0
         };
       })
     }));
@@ -150,9 +152,12 @@
     tools.generatedElement(list, { says: true });
     const rows = model.steps.map((step, index) => {
       const item = document.createElement("li");
-      const button = tools.generatedElement(tools.offer("button", "lf-timeline-step"), {
-        says: true
-      });
+      const button = tools.generatedElement(
+        tools.selectableOffer("button", "lf-timeline-step"),
+        {
+          says: true
+        }
+      );
       button.dataset.step = String(index);
       const at = document.createElement("span");
       at.className = "lf-timeline-step-time";

@@ -68,7 +68,7 @@ import {
   render as renderHint,
   effect,
   untracked,
-} from "/vendor/browser-runtime.js";
+} from "/runtime/framework.js";
 import "./text-field.js";
 import { followBoxGrowth, readBoxPlace } from "../thread/reply-landing.js";
 import { focusDestination, focused } from "../focus.js";

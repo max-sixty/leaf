@@ -50,7 +50,7 @@
    the selection composer (composing/selection.js) from them and its own bar commands.
    Its constructor binds no document listeners; mount installs the selection gesture
    lifecycle and field-focus tracking after all capabilities have been composed. */
-import { signal } from "/vendor/browser-runtime.js";
+import { signal } from "/runtime/framework.js";
 import { addressableWord } from "../addressable-names.js";
 import {
   anchoringIsReady,
@@ -112,7 +112,6 @@ import {
   focusDestination,
   focused,
   closeLayer,
-  currentLocationIn,
   onPressAway,
 } from "../focus.js";
 import { commandScope, projectCommandScope } from "../keyboard/scopes.js";
@@ -1224,23 +1223,22 @@ export function createResponseSurface({
       };
     const here = currentTarget();
     const anchor = fabAnchorAt();
-    // The thread the user is at continues where it is about what they stand on: they
-    // are in it, or its target lies within the element they stand at — the obligation holding
-    // focus, answered or not, else the element itself — as an obligation's options group does
-    // when the user holds one of its marks. A card showing an enclosing block's thread is
-    // about that block, so an element inside it, such as an obligation in a commented task,
+    // The thread drawn with the user's place (`threadHere`), such as the card beside it,
+    // is one place with it, so its reply box is where c writes, even where the thread is
+    // about a block enclosing what they stand on: the box they see is the one c names,
+    // rather than a new thread on the obligation the card stands beside, which closed the
+    // card they were reading. That thread starts from `s`, which chooses an element.
+    // An undrawn thread continues only where it is about what they stand on: its target
+    // lies within the element they stand at — the obligation holding focus, answered or
+    // not, else the element itself — as an obligation's options group does when the user
+    // holds one of its marks. So with no card shown, an element inside a commented block
     // takes a thread of its own, and a selection still starts one on its words.
 
     const inline = threadHere();
     const threadId = threadAtCurrentLocation();
     const replyId = replyThreadAtCurrentLocation();
     const target = threadId && threadTarget(threadId);
-    const inlineBox =
-      inline &&
-      (!here ||
-        currentLocationIn(inline) ||
-        (target && under(target, heldObligation() ?? here.element))) &&
-      threadInput(inline);
+    const inlineBox = inline && threadInput(inline);
     const said =
       currentLocationThread() ?? (inlineBox ? { held: inline, box: inlineBox } : null);
     const subject =

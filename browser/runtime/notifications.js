@@ -10,7 +10,7 @@
    nothing floats in a corner to become a stale pointer target. A failure is no news:
    it goes through errors.js, which keeps it until the user has dealt with it. */
 import { el } from "./widget-elements.js";
-import { signal } from "/vendor/browser-runtime.js";
+import { signal } from "/runtime/framework.js";
 
 export const liveEl = el("div", "lf-ui lf-live");
 liveEl.setAttribute("aria-live", "polite");

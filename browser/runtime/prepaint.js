@@ -3,7 +3,7 @@
 // the browser paints what has arrived well before that. Delivery places this script
 // after the head's canonical link, so the page root that link declares is in the
 // document when it runs, and before the bootstrap and the theme (`compose_document`).
-/** @typedef {import("../framework/contract.js").AuthoredAllocations} Allocations */
+/** @typedef {import("../types/contract.js").AuthoredAllocations} Allocations */
 (() => {
   const root = document.documentElement;
   // A page-wide allocation `body` states (`$authored`), or null where it states none.
@@ -509,6 +509,22 @@
       node.textContent = label;
     return node;
   };
+  const selectableOfferElement = (node, role, cls) => {
+    keepsAttribute(node, "role", role);
+    keepsAttribute(node, "class", cls ? `${cls} lf-ui lf-ui-face` : "lf-ui lf-ui-face");
+    keepsAttribute(node, "data-lf-gen", "1");
+    keepsAttribute(node, "data-lf-offer", role);
+    keepsAttribute(node, "data-lf-selectable-offer", "");
+  };
+
+  const selectableOffer = (role, cls, label) => {
+    const node = document.createElement("span");
+    selectableOfferElement(node, role, cls);
+    node.tabIndex = 0;
+    if (label !== undefined) node.textContent = label;
+    return node;
+  };
+
   // External marks occupy inline room, so the parser seats them before prose paints.
   // The module runtime adopts this owner and its baselines for subsequent arrivals.
   // External page links keep native link behavior but make the boundary explicit: the
@@ -1338,6 +1354,7 @@
         offer,
         offerElement,
         offerAction,
+        selectableOffer,
         generatedElement,
         keeps: keepsAttribute,
         authoredBody(node) {
@@ -1380,6 +1397,8 @@
     offerElement,
     offerAction,
     offerActionElement,
+    selectableOffer,
+    selectableOfferElement,
     generatedElement,
     origin(node) {
       return origins.get(node);

@@ -147,8 +147,8 @@ start a module where none does.
 File-side fixtures live in `interact_support.py`, browser fixtures in
 `render_harness.py`, and reusable browser cases in `render_cases_*.py`.
 `tests/runtime/*.test.mjs` tests what one runtime module decides on its own, in the
-document `tests/runtime/dom.mjs` sets up; `browser/framework/application.test.mjs` tests
-how the publisher combines those results. Both build server state with `served.mjs`,
+document `tests/runtime/dom.mjs` sets up; `framework-application.test.mjs` there tests
+how the framework's publisher combines those results. Both build server state with `served.mjs`,
 which calls the server's own `served_records.py`. A fixture carries every field the
 server sends and changes only the fields the
 case is about. `fixtures/pages/` holds full-page regressions under
@@ -295,8 +295,8 @@ allowance list.
   does it the way a user
   does.
 - `swap_watch.js` reports a row that grows or shrinks across its line as one occupant
-  gives way to another (`browser/AGENTS.md`, "What takes turns in a place doesn't size
-  it"). Fix the occupant so it takes the row's line.
+  gives way to another (`browser/AGENTS.md`, "Shared containers determine control
+  dimensions"). Fix the occupant so it takes the row's line.
 
 `input_work_watch.js` tells the shift and words watches which input caused a change. It
 follows timers, frames, promises and Lit updates but not a native `await`, so code that

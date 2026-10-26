@@ -102,7 +102,7 @@ import { partOver } from "./thread/placement.js";
 import { addressableLabel } from "./addressable-names.js";
 import { userChoice } from "./storage.js";
 import { agentName } from "./semantic-state.js";
-import { effect, untracked } from "/vendor/browser-runtime.js";
+import { effect, untracked } from "/runtime/framework.js";
 import { retainUserIntent } from "./user-intent.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";
 
@@ -495,7 +495,7 @@ export function createQueueWalk({
   const doneTodo = () => doneAt(currentLocationStop(stops()));
 
   // The user's Done on a to-do on them: their `todo_end`, through the one append door.
-  // The to-do leaves On me in the turn they press it (`application.ts`).
+  // The to-do leaves On me in the turn they press it (`framework/application.js`).
   function endTodo(id) {
     return actions.done(queueItemKey({ kind: "todo", id }));
   }

@@ -246,7 +246,9 @@ def test_a_resize_notice_is_pardoned_only_by_a_complete_clean_confirmation(monke
         monkeypatch.setattr(
             render_gate_model,
             "_render_version_attempt",
-            lambda browser, url, desktop, served_timeout_ms=None: left.pop(0),
+            lambda browser, url, desktop, served_timeout_ms=None, implementations=None, declaration_sources=None: (
+                left.pop(0)
+            ),
         )
         reading = render_gate_model.render_version(None, "http://page")
         assert not left, f"{len(left)} attempts were never made"
@@ -279,3 +281,49 @@ def test_a_resize_notice_is_pardoned_only_by_a_complete_clean_confirmation(monke
         error,
         notice,
     ]
+
+
+def test_output_contract_failures_refuse_page_and_package_checks():
+    from leaf.data_contracts import output_findings
+    from leaf.render_gate.command import WidgetQuality
+    from leaf.render_gate.version import RenderReading
+
+    registry = {
+        "$data": {
+            "contracts": {
+                "counts": {
+                    "schema": {
+                        "type": "object",
+                        "properties": {"count": {"type": "integer"}},
+                        "required": ["count"],
+                    }
+                }
+            }
+        }
+    }
+    readings = [
+        {
+            "tag": "lf-counter",
+            "id": "count",
+            "output": "total",
+            "contract": "counts",
+            "value": value,
+        }
+        for value in ({"count": 2}, {"count": "wrong"})
+    ]
+    found = output_findings(
+        readings,
+        registry,
+        {
+            "lf-counter": {"owner": "layer", "path": "/widgets/lf-counter.js"},
+        },
+    )
+    assert len(found) == 1
+    assert str(found[0]) == (
+        "<lf-counter id=count> (package producer): output 'total' value is invalid "
+        "for contract 'counts' at $.count: 'wrong' is not of type 'integer'"
+    )
+    assert (
+        BrowserCheck(["render check"], render=RenderReading(found, [], [])).status == 1
+    )
+    assert WidgetQuality(1, findings=tuple(found)).status == 1

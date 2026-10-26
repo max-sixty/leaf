@@ -99,7 +99,7 @@ customElements.define(
     }
 
     restoreCurrentLocation() {
-      return this.#host?.call("restore-current-location");
+      return this.#host?.restoreCurrentLocation();
     }
 
     connectedCallback() {

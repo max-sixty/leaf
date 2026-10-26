@@ -4,8 +4,8 @@
  * at /theme.css. Four tiers, cheapest first: tokens, element styles for plain
  * semantic HTML, class idioms (one rule + one catalog line each), and
  * element-widgets (lf-* tags rendered entirely by CSS). Customization follows
- * the same cascade: override a token, then a widget's rule. `page init` appends
- * user and project theme files after these defaults.
+ * the same cascade: override a token, then a widget's rule. `page init` composes
+ * the selected packages' explicit stylesheet contributions after these defaults.
  *
  * Every surface rides a color token, so the dark palette is exactly one more
  * token block — nothing else in this file (or the runtime, which styles its UI
@@ -188,7 +188,7 @@
   /* The page tab strip's stated height: its 8px head, a name's 38px face or the aim
      floor where that is taller, and its 1px rule. The default package draws the strip
      at it, and the root's `scroll-padding` adds it where a page tab strip stands over
-     the root (`--lf-root-headers`, lf-tabs.js). */
+     the root (`--lf-root-headers`, page-layout.js). */
   --lf-tabstrip-h: calc(9px + max(38px, var(--aim-floor)));
   /* Stacking: one ascending ladder for everything the runtime lifts over the page.
      A number local to a component's own stacking context stays where it is written.
@@ -232,12 +232,12 @@
   --ok: light-dark(#3f7d4e, #7fb98c);
   --warn: light-dark(#b4741a, #d8a95c);
   --danger: light-dark(#b4402f, #d98b7a);
-  /* A pin is filled with the accent, the ink the page already points with. The dark
-     scheme's accent is a pale tint a white glyph cannot stand on, so there the pin
-     takes a deeper one. */
-  --pin-fill: light-dark(var(--accent), #4d74a8);
-  /* The user's turn needs a deeper green under a white pin glyph in both schemes. */
+  /* Pins use independent fill/ink pairs: a link's accent may be too pale under a
+     glyph. Themes choose each pair together rather than deriving its contrast. */
+  --pin-fill: light-dark(#2f5480, #4d74a8);
+  --pin-ink: #fff;
   --pin-on-user: light-dark(#2f7d45, #2d8047);
+  --pin-on-user-ink: #fff;
   /* Corners come in three sizes, set by what wears them: the scale GitHub's Primer and
      Web Awesome's defaults share. A mark no taller than a line of text (a chip, a key,
      inline code, a tooltip, a checkbox, a mark, a word's highlight) takes --r-s.
@@ -356,7 +356,8 @@
   /* A pane's insets: its header and footer's, and its body's on every side. Tokens
      rather than numbers in the pane rules, so a density restates them and the rules
      keep the zero specificity a package restyling a pane relies on. */
-  --pane-bar-pad: 10px 14px;
+  --pane-bar-pad-block: 10px;
+  --pane-bar-pad: var(--pane-bar-pad-block) 14px;
   --pane-inset: 14px;
   /* How wide a block with `x-space: wide` may stand, from the prose's start edge
      (layouts.css, "Breakouts"): one number for the whole vocabulary, because a width per
@@ -402,16 +403,17 @@
      the column below holds about 74 of them. The numbered rungs are the prose's hierarchy;
      --t-working-label is the shared compact heading between its two smallest rungs. A size
      that has to fit something states its own number where it is set, as a code block
-     does against the characters it takes across. */
-  --t-6: 11.5px;
-  --t-working-label: 13px;
-  --t-5: 14px;
-  --t-4: 17px;
-  --t-3: 20px;
-  --t-2: 24px;
-  --t-1: 31px;
-  --code-size: 13.5px;
-  --code-line: 20px;
+     does against the characters it takes across. Rem units retain these sizes at
+     the browser's default 16px while following a reader's chosen default font size. */
+  --t-6: 0.71875rem;
+  --t-working-label: 0.8125rem;
+  --t-5: 0.875rem;
+  --t-4: 1.0625rem;
+  --t-3: 1.25rem;
+  --t-2: 1.5rem;
+  --t-1: 1.9375rem;
+  --code-size: 0.84375rem;
+  --code-line: 1.25rem;
   /* What anyone wrote in a thread, wherever the thread stands (a card, the floating
      panel, a widget's seat), the comment being typed, and an On me question: Leaf's own
      sans, whatever the page sets its prose in, since these are the conversation about
@@ -580,6 +582,8 @@
   /* A pressable never wears the accent as a solid fill: the accent is its ink and its
      hairline, and this tint is the disc or ground that rises under it on hover. */
   --accent-tint: color-mix(in srgb, var(--accent) 12%, var(--card));
+  /* Status marker, text and ground are independent theme inputs. In particular,
+     a warning dot's color need not provide readable small text on its ground. */
   --ok-tint: light-dark(#dfeddf, #1d2b1f);
   --ok-wash: color-mix(in srgb, var(--ok-tint) 52%, var(--paper));
   --ok-ink: light-dark(#2f6b40, #97cca3);
@@ -827,7 +831,7 @@ html {
     overflow-x: hidden;
     overflow-y: scroll;
     /* A sticky header over the whole root, a page tab strip, adds its stated height as
-     * `--lf-root-headers` (lf-tabs.js). */
+     * `--lf-root-headers` (page-layout.js). */
     scroll-padding-top: calc(var(--lf-top-covered) + var(--lf-landing-room));
     /* The floating panel's box reaches from the window's foot to its top, a view open
      * above the row included (`--lf-panel-reach`, floating-panel.js), and every landing
@@ -1387,21 +1391,22 @@ p {
 .density-working {
   --lf-density: working;
   --page-pad-start: 28px;
-  --t-1: 22px;
-  --t-2: 18px;
-  --t-3: 15.5px;
-  --t-4: 14px;
-  --t-5: 12.5px;
-  --t-6: 10.5px;
-  --t-working-label: 12px;
+  --t-1: 1.375rem;
+  --t-2: 1.125rem;
+  --t-3: 0.96875rem;
+  --t-4: 0.875rem;
+  --t-5: 0.78125rem;
+  --t-6: 0.65625rem;
+  --t-working-label: 0.75rem;
   --sp-1: 3px;
   --sp-2: 6px;
   --sp-3: 10px;
   --sp-4: 14px;
   --sp-5: 18px;
-  --code-size: 13px;
-  --code-line: 18px;
-  --pane-bar-pad: 6px 12px;
+  --code-size: 0.8125rem;
+  --code-line: 1.125rem;
+  --pane-bar-pad-block: 6px;
+  --pane-bar-pad: var(--pane-bar-pad-block) 12px;
   --pane-inset: 12px;
   --h2-start: 18px;
   --h3-start: 12px;
@@ -1478,6 +1483,12 @@ details {
   margin: var(--details-margin-block) 0;
   --lf-block-frame: trim;
 }
+/* A disclosure arranged in columns gives its evidence the whole row. Keep this
+   native pseudo-element rule outside package scopes: Firefox computes scoped
+   ::details-content declarations but does not use them for grid placement. */
+details::details-content {
+  grid-column: 1 / -1;
+}
 summary {
   cursor: pointer;
   font-weight: 600;
@@ -1505,7 +1516,7 @@ dd {
  * places is twenty chances to answer it differently. This rule is the layer's own
  * words — the idioms, the fail-soft box, and the chip row more than one package's widgets
  * write; a package theme
- * (packages/default/theme.css, or any selected package's) states the same rule for the
+ * (packages/default/widgets.css, or any selected package's) states the same rule for the
  * words its widgets wear.
  *
  * This is a look, not a permission — the anchoring norm's distinction exactly. A
@@ -2489,9 +2500,21 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
  * that pads a pane body another way sets `--lf-pane-top` with it. */
 :where([data-lf-reading-role="pane"]) > :not(header, footer) {
   --lf-pane-top: var(--pane-inset);
-  padding: var(--lf-pane-top) var(--pane-inset) var(--pane-inset);
+  padding: var(--lf-pane-top) var(--pane-inset)
+    calc(var(--pane-inset) + var(--lf-end-room));
   container-type: inline-size;
   --lf-block-frame: 1;
+}
+
+/* Only the last region owns the clearance; a footer already stands below the body. */
+:where([data-lf-reading-role="pane"]):not(:has(> footer)) > :not(header, footer) {
+  --lf-end-room: inherit;
+}
+@container not style(--lf-end-room: 0px) {
+  :where([data-lf-reading-role="pane"]) > footer {
+    --lf-end-room: inherit;
+    padding-block-end: calc(var(--pane-bar-pad-block) + var(--lf-end-room));
+  }
 }
 
 /* Board motion carries a compact card label without duplicating its live

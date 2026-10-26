@@ -167,7 +167,7 @@ arrives. Each `source.kind` adds its own facts:
   `answered_elsewhere` or `withdrawn` and `end.detail` says why.
 - An `update` is what a message the user sent, or an action in an answered widget's
   obligation, is owed. `source.id` names the event and `source.subject` the thread or
-  widget it stands on. Its next actor is the agent while it owes a reply or a version,
+  widget the update concerns. Its next actor is the agent while it owes a reply or a version,
   the user when it was handed back to send again, and `null` once a reply, named by
   `answer.event`, answered it. Of several messages the user sent in a row, only the
   newest has one. `obligationsIn` never counts an update.

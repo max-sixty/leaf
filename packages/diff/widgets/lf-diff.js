@@ -234,7 +234,7 @@ function renderedLines(file, content) {
 
 // A path separates ancestors, the immediate parent, and the basename. A narrow row
 // elides ancestors first so repeated basenames keep their distinguishing parent;
-// a rename shares the space between both basenames before folders (shadow.css). Where
+// a rename shares the space between both basenames before folders (widget-shadow.css). Where
 // a path wraps, as in a rename's row, it breaks after its slashes before anywhere else:
 // with no break in it but the one the stylesheet forces, a narrow row cut names mid-word
 // ("skills/wor|ktrunk", "preview.|rs"). The text is unchanged; a <wbr> adds only the
@@ -257,7 +257,7 @@ function pathTemplate(path) {
 }
 
 // While a file's row cuts its path short, the row wears `data-path-cut`, which draws the
-// whole path for the keyboard and a held press (shadow.css), and the path's title holds
+// whole path for the keyboard and a held press (widget-shadow.css), and the path's title holds
 // it for a pointer resting there. A path the row shows whole has neither, since each
 // would repeat it. Whether the row cuts the path changes only with the width of a part
 // of it, the folders or the name (at a new window width, face or press beside it), so
@@ -388,7 +388,7 @@ function summaryNode(record, open, verified = true) {
 // The press cannot go inside the <summary>: a disclosure is itself a control, and a
 // control nested in one is announced as a single thing — the serious
 // `nested-interactive` finding the corpus's axe sweep reports, once per file. They are
-// siblings in this wrapper instead, the press first, and shadow.css draws it back onto
+// siblings in this wrapper instead, the press first, and widget-shadow.css draws it back onto
 // the summary line. First because the line pins: the summary sticks at the window's top
 // while its rows go past, and the press sticks with it only as a box in the flow ahead
 // of the disclosure, since a box placed against the file's top would stay there and
@@ -535,7 +535,7 @@ function diffTools(host) {
   const count = document.createElement("span");
   progress.append(count);
   // Opening every file is rare beside opening one, so it is a quiet icon after the count
-  // of the files it opens rather than a labelled button of its own (shadow.css).
+  // of the files it opens rather than a labelled button of its own (widget-shadow.css).
   const foldAll = offerAction("symbol", "lf-diff-fold-all");
   foldAll.slot = "end";
   foldAll.addEventListener("click", () => host.foldAll());
@@ -1570,7 +1570,7 @@ customElements.define(
 
     // The files the filter shows are drawn as one bordered list, which a file's own
     // conversations break: they hang under that file in a box of their own, so the list
-    // runs on from the next file the filter shows (shadow.css). Only this pass knows
+    // runs on from the next file the filter shows (widget-shadow.css). Only this pass knows
     // which file that is, since CSS reads a file's sibling before it, which may be
     // hidden, and not the nearest shown one. It runs whenever the shown files or a
     // file's conversations change: on filtering, and on each outlet layout.
@@ -1760,7 +1760,7 @@ customElements.define(
     // header's own room has been added to, and then the focus without the browser
     // scrolling a second time. A row is not a tab stop — a patch is thousands of them —
     // so it is made focusable for the press that lands on it, and wears the band inset
-    // inside its own box (shadow.css). A file header
+    // inside its own box (widget-shadow.css). A file header
     // already is one, and writing a tabindex of -1 onto it would take it out of the
     // order a user tabs through.
     //

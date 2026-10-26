@@ -4,7 +4,7 @@ import { anchoringIsReady } from "../anchor-resolution.js";
 import { bindings, bindingEnabled, cycledRow } from "../keyboard/bindings.js";
 import { el, LAYOUT, offerAction, searchField } from "../widget-elements.js";
 import { coarsePointer } from "../pointer.js";
-import { html, nothing, render, signal } from "/vendor/browser-runtime.js";
+import { html, nothing, render, signal } from "/runtime/framework.js";
 
 import {
   contextAround,

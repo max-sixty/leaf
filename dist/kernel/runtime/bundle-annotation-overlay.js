@@ -1,9 +1,10 @@
 import { SVG_NS, boxMotion, dropStand, liftReach, paintGeometry, paintShape, paintStand, paintTrace, placement, standOver } from "./bundle-box-motion.js";
-import { Z, bareReaction, html, render, sameAnchor, turns } from "./bundle-browser-runtime.js";
+import { Z } from "./bundle-signals-core.js";
 import { TEXT_FIELD, afterScript, cancelAnimation, cancelRender, closeLayer, currentLocationIn, declareRelease, drawn, focusDestination, focused, handBack, holdFocus, inputCount, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, nativeLayerHolding, nextAnimation, nextRender, onCurrentLocation, onPressAway, onUserInput, pressLed, renderedOrder, renderedUnder, roomPx, rove, sizeObserver, tabStops, under } from "./bundle-dom-move.js";
 import { setRuntimeRootAttribute } from "./bundle-layer-client.js";
-import { LAYOUT, PRESS, clamp, closeControl, coarsePointer, cycledRow, el, generatedElement, hostIn, keys, notice, offer, offerAction, paintKeys, repaint, rightCover, rowArrows, seenRect, shownBox, shownWindow, skipped, slotTop, union, watchRoom } from "./bundle-errors.js";
-import { whenDocumentPresented } from "./bundle-context.js";
+import { clamp, hostIn, rightCover, seenRect, shownBox, shownWindow, skipped, slotTop, union, watchRoom } from "./bundle-geometry.js";
+import { bareReaction, html, render, sameAnchor, turns, whenDocumentPresented } from "./bundle-context.js";
+import { LAYOUT, PRESS, closeControl, coarsePointer, cycledRow, el, generatedElement, keys, notice, offer, offerAction, paintKeys, repaint, rowArrows } from "./bundle-errors.js";
 import { atScrollEnd, effectiveScroller, moveScrollerBy, readingRegionFor, registerReadingRegion, scrollToEnd } from "./bundle-reading-regions.js";
 import { chromeForeground, chromeRoot } from "./bundle-element-frame.js";
 import { blockAt, closestAcross, elementFromPointAcross, inChrome, labelWords, pageRange, pageWords, quoteFrom, rangeOf, segmentsIn } from "./bundle-passages.js";

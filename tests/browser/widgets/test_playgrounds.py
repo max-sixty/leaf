@@ -79,6 +79,51 @@ document.addEventListener(PAGE_INTERFACE, event => {
 )
 
 
+def test_playground_select_keeps_the_same_working_configuration(browser, serve):
+    """Compact choices use the native picker and the playground's existing
+    restoration and decision path, including withdrawal of a submitted choice."""
+    source = CONTRIBUTOR_PAGE.replace(
+        'kind="choice" value="checkout"',
+        'kind="choice" appearance="select" value="checkout"',
+    )
+    page = open_page(browser, serve(source))
+    playground = page.locator("#query-config")
+    stream = playground.get_by_role("combobox", name="Event stream")
+    expect(stream).to_have_value("checkout")
+    page.get_by_role("textbox", name="Region filter").focus()
+    stream.click()
+    expect(stream).to_be_focused()
+    stream.press("Escape")
+    stream.press("b")
+    expect(stream).to_have_value("billing")
+    expect(playground.locator("lf-playground-output")).to_have_text(
+        "Implement billing alerts for region eu-west-1."
+    )
+    page.reload()
+    wait_until_ready(page)
+    expect(stream).to_have_value("billing")
+    playground.get_by_role("button", name="Checkout stream").click()
+    expect(stream).to_have_value("checkout")
+    stream.select_option("billing")
+    playground.get_by_role("button", name="Reset", exact=True).click()
+    expect(stream).to_have_value("checkout")
+    stream.select_option("billing")
+    with sending(page, "the chosen event stream"):
+        playground.get_by_role("button", name="Use these settings").click()
+    round_trip(page)
+    choice = next(
+        event
+        for event in reversed(events_model.read_events(serve.page_dir))
+        if event.get("widget") == "query-config" and event.get("action") == "choose"
+    )
+    assert choice["detail"]["values"]["stream"] == "billing"
+    assert choice["detail"]["instruction"] == (
+        "Implement billing alerts for region eu-west-1."
+    )
+    undo(page)
+    expect(stream).to_have_value("billing")
+
+
 def test_playground_authored_defaults_draw_before_its_behavior_loads(browser, serve):
     """The control declaration owns first paint, including text and attribute CSS."""
     page = browser.new_page(viewport={"width": 1280, "height": 900})
@@ -631,6 +676,35 @@ def test_a_playground_followed_by_a_note_keeps_its_instruction_off_the_note(
     )
     note.scroll_into_view_if_needed()
     expect(note.get_by_text("How the tally counts")).to_be_in_viewport()
+
+
+def test_a_small_playground_keeps_its_controls_next_to_its_content(browser, serve):
+    """In document flow, a small preview ends at its content, so the controls and
+    instruction below it aren't separated from the evidence by an empty well."""
+    source = leaf_page(
+        "Small configuration",
+        '<lf-playground id="small-playground">'
+        '<lf-playground-control name="priority" label="Priority" kind="choice" value="normal">'
+        '<lf-playground-choice value="normal" label="Normal"></lf-playground-choice>'
+        '<lf-playground-choice value="urgent" label="Urgent"></lf-playground-choice>'
+        "</lf-playground-control><lf-playground-preview>"
+        "<table><tbody><tr><th>Daily export</th><td>Ready</td></tr>"
+        "<tr><th>Weekly digest</th><td>Ready</td></tr></tbody></table>"
+        "</lf-playground-preview><lf-playground-output>Run the two jobs.</lf-playground-output>"
+        "</lf-playground>",
+    )
+    page = open_page(browser, serve(source))
+    for width in (640, 390):
+        resized(page, width, 844)
+        room = page.locator("lf-playground-preview").evaluate(
+            """stage => stage.getBoundingClientRect().bottom
+              - parseFloat(getComputedStyle(stage).paddingBottom)
+              - parseFloat(getComputedStyle(stage).borderBottomWidth)
+              - stage.lastElementChild.getBoundingClientRect().bottom"""
+        )
+        assert room == pytest.approx(0, abs=1)
+        expect(page.get_by_role("radio", name="Urgent")).to_be_in_viewport()
+        expect(page.locator(".lf-playground-actions")).to_be_in_viewport()
 
 
 def test_an_artifact_that_changes_height_leaves_the_stage_where_it_stands(
@@ -1220,7 +1294,7 @@ def test_a_quoted_playground_draws_no_box_its_preview_wrote_only_for_controls(
     the controls are gone. The latency box held only its controls, each in a field
     of its own, so it goes with them rather than standing empty beside its alert;
     the rate box also held a sentence, which stays. The stage ends below its last
-    alert, rather than holding a live stage's minimum height empty under it."""
+    alert without leaving the hidden controls' space empty under it."""
     source = ROOT / "tests/fixtures/pages/quoted-playground.html"
     page = open_page(browser, serve(source))
     playground = page.locator("#quoted-alerts")

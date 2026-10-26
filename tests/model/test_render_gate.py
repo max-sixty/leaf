@@ -27,22 +27,37 @@ def test_swept_faults_are_reported_by_element_and_by_unbroken_run():
     def at(width, short=False):
         spill = 1560 <= width <= 1600 or width <= 600
         drawings = [
-            {"at": "<svg> in <figure id=f>", "place": place, "labels": n, "drawn": d}
+            {
+                "at": "<svg> in <figure id=f>",
+                "place": {"id": "f", "steps": [{"child": place}]},
+                "labels": n,
+                "drawn": d,
+            }
             | {"set": 11, "words": words}
-            for place, n, d, words in ((">0", 1, 8.8, "mild"), (">1", 3, 5, "worst"))
+            for place, n, d, words in ((0, 1, 8.8, "mild"), (1, 3, 5, "worst"))
             if width <= 800
         ]
         return {
             "overflow": 0,
             "misplaced": [
-                {"code": "past-column", "at": "<pre>", "place": "#x>0", "past": width}
+                {
+                    "code": "past-column",
+                    "at": "<pre>",
+                    "place": {"id": "x", "steps": [{"child": 0}]},
+                    "past": width,
+                }
             ]
             if spill
             else [],
             "scrollbars": [],
             "clipped": [
                 {"code": "clipped-control", "at": f"<button id={place[1:]}>"}
-                | {"place": place, "control": "pick", "id": place[1:], "lost": width}
+                | {
+                    "place": {"id": place[1:], "steps": []},
+                    "control": "pick",
+                    "id": place[1:],
+                    "lost": width,
+                }
                 | {"by": "<div id=row>"}
                 for place, clipped in (
                     ("#narrow", width <= 440),
@@ -57,7 +72,7 @@ def test_swept_faults_are_reported_by_element_and_by_unbroken_run():
                 {
                     "code": "squeezed-table",
                     "at": f"<table id={place[1:]}>",
-                    "place": place,
+                    "place": {"id": place[1:], "steps": []},
                     "scrolls": width,
                     "columns": [{"heading": None, "width": 80, "wraps": True}],
                 }

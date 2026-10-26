@@ -86,6 +86,9 @@ def test_worktree_disclosures_keep_diff_reading_state_and_unknown_totals(
     summary = row.locator(":scope > summary")
     expect(row).to_contain_text("/workspace/leaf.retain-drafts")
     expect(summary).to_contain_text(head[:8])
+    # Counts say a row changed; a word names only what counts can't.
+    expect(summary).not_to_contain_text("Changed")
+    expect(page.locator("#clean-0 > details > summary")).to_contain_text("Clean")
     snapshot = row.locator(
         "details", has=page.get_by_text("Snapshot details", exact=True)
     )

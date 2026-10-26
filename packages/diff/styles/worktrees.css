@@ -110,7 +110,10 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* The counts keep the last column, so they end at the same edge whether or not a
+ * status word precedes them. */
 .lf-worktree-stats {
+  grid-column: -2;
   display: inline-flex;
   flex-wrap: wrap;
   align-items: baseline;

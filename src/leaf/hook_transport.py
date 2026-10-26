@@ -44,25 +44,39 @@ input, or leaves it to the later turn that takes them.
 
 The hook records an inline delivery as opened in the turn itself (`receive_held`),
 so the updates read Delivered without waiting for the model, and the envelope's
-`acknowledge` is null. It hands a delivery over inline only after recording every
-batch: an inline delivery left unrecorded would stay pending, and every later hook
-would offer it again as new. A batch can still be refused, as when the page changed
-hands after `read_plans` read it, so whatever the hook could not record goes as a
-pointer; the agent's `leaf delivery ack` then confirms it or shows the refusal. A
+`acknowledge` is null. It hands inline only the batches it recorded: an inline
+batch left unrecorded would stay pending, and every later hook would offer it again
+as new. A batch can still be refused, as when the page changed hands after
+`read_plans` read it, and its input stays pending for whoever holds the page. A
 delivery whose context the harness wouldn't show the model whole goes as a pointer
-too (`Harness.fits_hook_context`).
+(`Harness.fits_hook_context`), as does one the hook recorded none of; the agent's
+`leaf delivery ack` confirms it. A pointer never follows a recorded batch, whose
+opened pickup would read as handed into the turn, and under Pi as received, though
+the model read none of it.
+
+A pointer's input stays unconfirmed until its reader runs `leaf delivery ack`, so a
+later tool boundary of the same turn would freeze it again and point at it under a
+new id, and the model would read the same input two or more times. A tool boundary
+carries only new input, so the hook notes each page it points at since the turn
+last opened (`POINTED`), and a later boundary hands nothing from that page until
+the pointer's input is confirmed; the page's later input follows at the boundary
+after the ack. Stop and a prompt that opens the turn again hand unconfirmed input
+over again, as they do input Escape dropped.
 
 Pi has the context once the hook returns, so its hook records the receipt with the
 pickup. Claude Code reads it only once every hook of the event has exited, and
-Escape before then drops it with the prompt or the tool boundary. So a Claude Code
-hook leaves the receipt to the turn's next hook, PreToolUse before a `leaf` command,
-PostToolBatch or Stop, which runs only once the model has read the context
-(`delivery.confirm_turn`). Until then the handed input is not offered again. Once
-the turn reads ended without that hook, or a prompt opens it again, it is input
-again (`delivery.deliverable`): Claude Code submits a wake Escape interrupted again
-at once, whose prompt hook hands it over anew; a watch from before the turn wakes for
-it; and where none runs, as after a turn a wake opened, the page's server nudges the
-session (`presence.nudge_interrupted`).
+Escape before then drops a prompt with its context, though not a tool boundary's.
+So a Claude Code hook leaves the receipt to the transcript's record of the model's
+context, which every later hook reads first (`delivery.confirm_entered`). Until
+then the handed input is not offered again. Once its turn reads ended, it may not
+have reached the model, so it is input again (`delivery.deliverable`): Claude Code
+submits a wake Escape interrupted again at once as a new prompt, and the watch
+its turn's prompt started wakes for it (`hooks.cmd_watch`), or where none runs, as
+after the turn that first claimed the page, the page's server nudges the session
+(`presence.nudge_interrupted`). The hook of the prompt that opens confirms what the
+transcript shows before it reads the page, so it hands over again only what never
+reached the model, and names an update the model did read and left unanswered as
+owed.
 
 A page vendored at an older protocol is re-vendored before it is read
 (`vendoring.renew_layer`), and the turn is told why that failed or which checks
@@ -106,7 +120,16 @@ from .service import (
     owned_pages,
     page_claim,
 )
-from .state import flocked, session_lock_path, session_record
+from .state import (
+    STRING,
+    Record,
+    described,
+    flocked,
+    object_schema,
+    session_file,
+    session_lock_path,
+    session_record,
+)
 
 
 def restart(obligations: list[dict]) -> str:
@@ -124,10 +147,9 @@ def restart(obligations: list[dict]) -> str:
     if not items:
         return ""
     return (
-        f"; your start on {', '.join(items)} came before this turn, or before a "
-        "newer update in its thread was picked up. Answer once that work is done, "
-        "or, while it still runs, start it again in this turn with "
-        '`leaf task start <page> <id> "<what is still running>"`'
+        f"; your start on {', '.join(items)} predates this turn or the pickup of "
+        "a newer update in its thread. Answer once that work is done, or, while it runs, start it "
+        'again with `leaf task start <page> <id> --text "<what is still running>"`'
     )
 
 
@@ -381,6 +403,67 @@ INLINE_OPENING = (
 # The words that open what a turn owes, as a reminder of its own or after a delivery.
 ATTENTION_OPENING = "Leaf needs attention:"
 
+POINTED = Record(
+    "pointed",
+    described(
+        "The pages whose input a hook handed a session's turn by pointer, in the "
+        "state home's `sessions/<digest>.pointed` (`state.session_file`).",
+        object_schema(
+            {
+                "turn": described("The turn the pointers were handed to.", STRING),
+                "opened": described(
+                    "When that turn last opened (`turn_opened`): a prompt that "
+                    "opens it again hands the input over anew.",
+                    STRING,
+                ),
+                "pages": described(
+                    "Each page directory, with the last log position pointed at.",
+                    {"type": "object", "additionalProperties": {"type": "integer"}},
+                ),
+            }
+        ),
+    ),
+    since=24,
+)
+
+
+def pointed(session_id: str, lifecycle: dict) -> dict[str, int]:
+    """The pages a hook pointed at since `lifecycle`'s turn last opened, each with
+    the last log position it pointed at."""
+    record = POINTED.read(session_file(session_id, POINTED.kind))
+    if record is None or (record["turn"], record["opened"]) != (
+        lifecycle["turn"],
+        lifecycle["turn_opened"],
+    ):
+        return {}
+    return dict(record["pages"])
+
+
+def note_pointer(
+    session_id: str, lifecycle: dict, delivery: dict, *, deadline: float
+) -> None:
+    """Note each page `delivery` carries input from as pointed at in the turn
+    `lifecycle` names, unless a newer lifecycle has replaced it. A session lock
+    still held at `deadline` leaves the note unwritten, since a hook that waited
+    on it could outlive its timeout and lose the pointer itself."""
+    try:
+        with flocked(session_lock_path(session_id), deadline=deadline):
+            if session_record(session_id) != lifecycle:
+                return
+            pages = pointed(session_id, lifecycle)
+            for batch in delivery["batches"]:
+                pages[batch["page"]] = batch["through_seq"]
+            POINTED.write(
+                session_file(session_id, POINTED.kind),
+                {
+                    "turn": lifecycle["turn"],
+                    "opened": lifecycle["turn_opened"],
+                    "pages": pages,
+                },
+            )
+    except TimeoutError:
+        return
+
 
 def render(
     harness: Harness,
@@ -388,20 +471,32 @@ def render(
     delivery: dict | None,
     attention: list[str],
     *,
-    confirm: Callable[[], bool],
+    confirm: Callable[[], list[dict]],
+    point: Callable[[], None],
 ) -> dict | None:
-    """The hook's output, or None where it puts nothing in the turn. It hands
-    `delivery` over inline only where the harness shows the whole message to the
-    model (`Harness.fits_hook_context`) and `confirm` then records every batch as
-    opened in the turn; otherwise it hands over the delivery's pointer, which its
-    reader's `leaf delivery ack` confirms after complete reading."""
+    """The hook's output, or None where it puts nothing in the turn. Where the
+    harness shows the whole message to the model (`Harness.fits_hook_context`), it
+    hands over inline the batches `confirm` records as opened in the turn, and
+    leaves a refused batch's input pending for a later handover. Otherwise, or
+    where `confirm` records none, it calls `point` and hands over the delivery's
+    pointer, which its reader's `leaf delivery ack` confirms after complete
+    reading: a pointer must leave no opened pickup, which would read as handed
+    over inline though the model read none of it."""
     if delivery is None:
         return harness.hook_context(event, "\n".join(attention)) if attention else None
-    message = "\n".join(
-        [INLINE_OPENING, json.dumps(delivery, ensure_ascii=False), *attention]
-    )
-    if not (harness.fits_hook_context(message) and confirm()):
-        message = "\n".join([delivery_pointer_prompt(delivery["id"]), *attention])
+
+    def inline(batches: list[dict]) -> str:
+        shown = {**delivery, "batches": batches}
+        return "\n".join(
+            [INLINE_OPENING, json.dumps(shown, ensure_ascii=False), *attention]
+        )
+
+    if harness.fits_hook_context(inline(delivery["batches"])) and (
+        recorded := confirm()
+    ):
+        return harness.hook_context(event, inline(recorded))
+    point()
+    message = "\n".join([delivery_pointer_prompt(delivery["id"]), *attention])
     return harness.hook_context(event, message)
 
 
@@ -432,8 +527,17 @@ def carry_turn(
     carries = event in {"UserPromptSubmit", "PostToolBatch"} or (
         event == "Stop" and not harness.later_turn_takes_input()
     )
+    through = pointed(sid, expected) if event == "PostToolBatch" and expected else {}
     batches = (
-        [plan.batch for plan in plans if plan.batch and plan.harness.hooks_carry()]
+        [
+            plan.batch
+            for plan in plans
+            if plan.batch
+            and plan.harness.hooks_carry()
+            and not any(
+                item["seq"] <= through.get(str(plan.page), 0) for item in plan.pending
+            )
+        ]
         if carries
         else []
     )
@@ -495,14 +599,20 @@ def carry_turn(
         delivery,
         [*context, *attention],
         confirm=lambda: (
-            time.monotonic() < deadline
-            and receive_held(
+            receive_held(
                 delivery,
                 sid,
                 expected,
                 deadline=deadline,
                 confirm=harness.commits_hook_context,
             )
+            if time.monotonic() < deadline
+            else []
+        ),
+        point=lambda: (
+            note_pointer(sid, expected, delivery, deadline=deadline)
+            if expected
+            else None
         ),
     )
     if output:

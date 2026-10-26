@@ -35,8 +35,10 @@ export {
   growthAfterIsSeen,
   stuckBox,
   stackLevel,
+  shownParts,
 } from "./geometry.js";
 export { renderedParent, uiInside, upFrom } from "./shadow.js";
+export { authoredBody } from "./initial-render.js";
 export {
   readingRegions,
   shownRegionBounds,
@@ -61,6 +63,7 @@ export {
   segmentsIn,
   spanIn,
   settledAway,
+  textNodesUnder,
 } from "./passages.js";
 export { shallowSigs } from "./projection/presentation.js";
 export { commandDeclarationsWithin } from "./keyboard/scopes.js";
@@ -77,12 +80,19 @@ export { onCurrentLocation, releaseFocus, takesLetters, tabStops } from "./focus
 export { selectionAnchor } from "./composing/capture.js";
 export { TEXT_BLOCK } from "./passage-facts.js";
 export { renderingState } from "./rendering.js";
-export { readingBlock, blocksOnScreen } from "./reading-place.js";
+export {
+  readingBlock,
+  blocksOnScreen,
+  capturePlace,
+  placeNode,
+} from "./reading-place.js";
 export { walkOrigin, heldObligation, placeOf } from "./current-target.js";
 export { walkPosition } from "./walk-position.js";
+export { threadCounts } from "./thread/model.js";
 export { nativeLayers } from "./keyboard/layer-stack.js";
 export { scrollAxes, elementFrame } from "./element-frame.js";
 export { fitsWhole, alreadyShown } from "./landing-scroll.js";
+export { scrollGlides, watchScrollEnds } from "./arrivals.js";
 export { pageScopes } from "./keyboard/register.js";
 export {
   chromeSheet,
@@ -100,7 +110,7 @@ export {
   readSampleVisibility,
 } from "./frame-visibility.js";
 export { observeQueuedWork, bindQueuedWork } from "./queued-work.js";
-export { createPresentationSchedule } from "/vendor/browser-runtime.js";
+export { createPresentationSchedule } from "/runtime/framework.js";
 export { reachScrollers, releaseReachStop } from "./reach.js";
 export { reveal, dragHeld } from "./widget-elements.js";
 export { flashDuration, agentArrivalDuration } from "./motion.js";
@@ -112,3 +122,6 @@ export { recordInteraction } from "./interaction-log.js";
 export { bringBackSurfaceOf } from "./off-flow.js";
 export { WORKS } from "./control-selectors.js";
 export { readingReturn, completeReadingReturn } from "./reading-continuity.js";
+
+export { observeOutputs } from "./data.js";
+export { selfComparison, servedElements } from "./version.js";

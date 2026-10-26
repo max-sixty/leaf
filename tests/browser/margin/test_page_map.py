@@ -161,7 +161,7 @@ def test_the_current_obligation_marks_its_selected_margin_reading(browser, serve
     expect(first_marker).to_have_attribute("data-lf-target-selected", "")
     assert first_marker.evaluate(
         "marker => getComputedStyle(marker).borderTopColor"
-    ) == first.evaluate("ask => getComputedStyle(ask).outlineColor")
+    ) == first.evaluate("ask => getComputedStyle(ask, '::after').outlineColor")
     page.keyboard.press("m")
     expect(page.locator("#bracket-decision")).to_be_focused()
     expect(first_marker).not_to_have_attribute(
@@ -1091,6 +1091,8 @@ def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve, ope
         "min-height", "44px"
     )
     assert page.evaluate("() => document.scrollingElement.scrollTop") == before
+    # Contrast is read on the sheet at rest, once its opening fade has ended.
+    dialog.evaluate("d => Promise.all(d.getAnimations().map((a) => a.finished))")
 
     result = Axe().run(
         page,

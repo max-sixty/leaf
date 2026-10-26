@@ -12,7 +12,7 @@ Keep the page current and give their questions and changes of direction priority
 
 The input is either work to develop on a page or a delivery from a page already
 handed over: a `leaf_delivery` tool output, a `leaf-delivery` element, or the
-envelope `leaf wait` printed. A delivery starts at step 6 below; continue that
+envelope `leaf wait` printed. A delivery starts at step 7 below; continue that
 page rather than initializing or handing it over again. With no subject in
 `$ARGUMENTS`, develop the work already under discussion.
 
@@ -34,15 +34,10 @@ Read [SOUL.md](SOUL.md) before authoring or responding on a Leaf page.
 
 Run commands as `leaf` when the harness puts its launcher on `PATH`. Otherwise
 use `../../bin/leaf` from the directory holding this `SKILL.md`. If the
-file is missing, report that the plugin payload is incomplete. In a checkout the
-launcher is `bin/leaf`. Pages usually live at `~/.local/state/leaf/pages/<slug>/`,
+file is missing, report that the plugin payload is incomplete.
+Pages usually live at `~/.local/state/leaf/pages/<slug>/`,
 but every command takes the directory explicitly; export or copy anything that
-must outlive the page directory. A command that takes a body, such as a reply's
-text, a changelog or a plan's JSON, takes it as `--text` inline, from the file
-`--file` names (`-` for stdin), or from a pipe or heredoc on stdin. A command
-prints its result on stdout, as JSON unless its help names another format. On
-stderr it prints one JSON object per line for each refusal or note, with the
-words in `error` or `text`.
+must outlive the page directory.
 
 1. Read `references/conversation-loop.md`, "When to write", to record the work
    you take on. Run `leaf page init <page>`, adding a package when the page needs
@@ -51,7 +46,10 @@ words in `error` or `text`.
    `playground` when the user explores candidates or tunes a configuration before
    sending it; its choices can contain the previews themselves. Simple decisions
    use `lf-options` (`references/authoring-decisions.md`). Running `page init`
-   again with a package adds it to a page already written.
+   again with `--package` replaces the page's packages, so name every package the page keeps.
+   Personal themes and their author instructions are discoverable with
+   `leaf theme list`; `references/package-themes.md`, "Personal themes", covers
+   choosing one for the task and how the page captures it.
 2. Read `references/page-authoring.md` and choose the subject and concrete case
    the user will examine. Construct that subject in the chosen situation, then
    compose the explanation around the result. Follow
@@ -61,29 +59,34 @@ words in `error` or `text`.
    and the browser. You write `index.html` and `page/`; only Leaf writes revisions
    and version mappings.
 3. **Check the page.** Before you first hand the page over, run
-   `leaf page check <page>` and fix every failure. That is the whole check for a
-   quick page, one the user reacts to once and then revises or drops: hand it over
-   without stamping or a browser review. A revision that answers a user's message,
-   even on a record, goes straight to the reply. The reply checks your saved edits
-   and is refused over an error; fix it and reply again. Each valid save is
-   already live on the user's page, so a separate check only delays the answer
-   they are waiting for.
-4. **Review and stamp a record.** A record is a page used beyond this
-   conversation. Before a record's first handoff, run `leaf page check <page> --render`, do the reading in
-   `references/page-checkpoints.md`, "Pre-handover review", then run
-   `leaf page stamp <page> --text "<changelog>"`. The render check shows that the
-   page renders; the reading shows what you meant.
-   `references/page-checkpoints.md`, "Stamp checkpoints", says when to stamp
-   again; each later stamp repeats the render check and the reading for the views
-   and On me obligations it adds. A quick page takes this review once a stamp makes it a record.
-5. Read the contract that "Harness selection" below picks. Follow
-   `references/conversation-loop.md`, "Status and handoff", and serve and hand
+   `leaf page check <page>` and fix every failure. A revision that answers a user's
+   message, even on a page you review, goes straight to the reply. The reply checks
+   your saved edits and is refused over an error; fix it and reply again. Each valid
+   save is already live on the user's page, so a separate check only delays the
+   answer they are waiting for.
+4. **Review an important page in the browser.** `leaf page check <page> --render`
+   and the reading in `references/page-checkpoints.md`, "Pre-handover review",
+   find what the markup check can't, such as a table squeezed to a word a line or a
+   layout that breaks at phone width. They take minutes, so give them to the pages
+   that matter. A page matters more the longer the user relies on it, whether past
+   this conversation or through a long one, the more it holds, and the more of its
+   layout you wrote yourself rather than took from the vocabulary. It matters less
+   the more urgently the user is waiting for it. A quick page, one the user reacts to
+   once and then revises or drops, needs no review. Review an important page before
+   its first handoff and again at each checkpoint, such as the user approving a plan
+   or settling a stage of the work, after the reply that answers it.
+5. **Stamp a record.** A record is a page used beyond this conversation, so it is
+   always important. Stamp it after each review, its first and each later one:
+   `leaf page stamp <page> --text "<changelog>"`. `references/page-checkpoints.md`,
+   "Stamp checkpoints", says which checkpoints a record has.
+6. Read the contract that "Harness selection" below picks. Follow
+   `references/conversation-loop.md`, "Page availability and handoff", and serve and hand
    over the page the way that contract says.
-6. When a delivery arrives, read `references/event-batches.md`, the harness
+7. When a delivery arrives, read `references/event-batches.md`, the harness
    contract and, for user messages, `references/threads.md`, and answer every
    event as they say. Say what you are doing before you do it
    (`references/conversation-loop.md`, "When to write").
-7. Stamp checkpoints and end the page as `references/page-checkpoints.md` says.
+8. Stamp checkpoints and end the page as `references/page-checkpoints.md` says.
 
 ## Harness selection
 
@@ -95,12 +98,9 @@ Pick the contract for the session that owns the page:
 | Pi          | `references/harness-pi.md`          |
 | Codex       | `references/harness-codex.md`       |
 
-`references/codex-setup.md` owns terminal App Server setup.
-
 ## Stay responsive
 
-`references/conversation-loop.md`, "When to write", owns the immediate reply and
-work status for each user update. The parent session owns the Leaf conversation:
+The parent session owns the Leaf conversation:
 answer the user, keep the page current, and direct background subagents doing the
 substantive research, editing and testing. Keep direct answers, revisions of existing material,
 and the review and integration of worker results with you. Having more work to do
@@ -124,8 +124,7 @@ sent words stay in the log.
 ## Keep the user current
 
 Follow `references/authoring-revisions.md`, "Keep the current page current", when
-work lands, a decision is made, or your understanding changes. That section owns
-how finished work leaves the column and how revisions preserve user state.
+work lands, a decision is made, or your understanding changes.
 
 ## Follow the user's preferences
 
@@ -141,8 +140,7 @@ Leaf repository.
 
 ## Conditional references
 
-Read references from this skill directory. Every route is listed here, so you
-never have to follow a chain of references to find one.
+Read references from this skill directory.
 
 ### Author a version
 
@@ -174,7 +172,7 @@ never have to follow a chain of references to find one.
 - `references/event-batches.md`: after a delivery, before processing its events.
 - `references/threads.md`: before opening, naming, replying to, editing,
   summarizing or resolving a thread.
-- `references/page-checkpoints.md`: before a record's pre-handover review, stamping,
+- `references/page-checkpoints.md`: before a pre-handover review, stamping,
   or ending a page.
 
 ### Serve or extend a page

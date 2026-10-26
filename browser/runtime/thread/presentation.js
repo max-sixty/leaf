@@ -13,7 +13,7 @@
    Reply continuity begins after commit and runs independently: its selected route may
    itself need this renderer to finish. Its caret follows the actual returned editor;
    its failures reach the page's existing asynchronous error channel. */
-import { untracked } from "/vendor/browser-runtime.js";
+import { untracked } from "/runtime/framework.js";
 import { keeps } from "../keeps.js";
 import { reportPageError } from "../layer-client.js";
 import { elementById, inChrome } from "../passages.js";
@@ -59,6 +59,7 @@ export function createThreadPresentation({
   renderSurfaces,
   openThread,
   continueThread,
+  returnToPage,
   threadAt,
   read,
 }) {
@@ -178,9 +179,12 @@ export function createThreadPresentation({
             read.present();
             // Continuity may reveal a route needing this very presenter. Its work starts
             // after the cohort commits, and never joins the ticket it is completing.
-            void continueReplies(restorePlace).catch((error) =>
-              reportPageError(error, `Reply continuation failed`),
-            );
+            // Once the user is placed, a thread the primary held as the last resort goes
+            // back to the page where the page now draws its place (thread/destination.js,
+            // `returnToPage`).
+            void continueReplies(restorePlace)
+              .then(returnToPage)
+              .catch((error) => reportPageError(error, `Reply continuation failed`));
           }),
         );
       };

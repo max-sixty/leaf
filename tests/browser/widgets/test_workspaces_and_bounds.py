@@ -66,7 +66,19 @@ WORKSPACE_PAGE = leaf_page(
 def test_workspace_root_scrollbar_appears_only_when_page_overflows(
     scrollbar_browser, serve
 ):
-    page = open_page(scrollbar_browser, serve(WORKSPACE_PAGE))
+    """A workspace scrolls its own panes, so a platform with classic scrollbars shows
+    the root's track only where the workspace flows past the window."""
+    page = open_page(
+        scrollbar_browser,
+        serve(WORKSPACE_PAGE),
+        # macOS draws the root's scrollbar as an overlay, which takes no width; a styled
+        # track is classic on every host, as Linux and Windows draw it.
+        init_script="""(() => {
+          const sheet = new CSSStyleSheet();
+          sheet.replaceSync('html::-webkit-scrollbar { width: 15px; }');
+          document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+        })()""",
+    )
     resized(page, 1200, 900)
     assert page.evaluate(
         """() => {
@@ -831,7 +843,8 @@ def test_regions_inside_a_bounded_pane_body_flow_within_the_body_that_scrolls(
 def test_a_release_page_is_wide_and_keeps_the_log_on_its_newest_line(browser, serve):
     """A sidebar page of body and track: the lede starts at the page's edge and keeps
     the reading measure, as does the status callout, every other region of the body
-    shares the body's two edges and every region of the track the track's, and the
+    shares the body's two edges and every region of the track its content edges,
+    leaving room for focus rings inside the track, and the
     checks table's box fills its panel. On a narrow
     window the track stacks under the body, and the bounded log opens on its newest
     line. Paper shows the log whole."""
@@ -850,6 +863,13 @@ def test_a_release_page_is_wide_and_keeps_the_log_on_its_newest_line(browser, se
       const left = box.left + parseFloat(style.paddingLeft);
       const right = box.right - parseFloat(style.paddingRight);
       read.main = {{left, right, width: right - left}};
+      const track = document.querySelector('[data-lf-track-body]');
+      const trackBox = track.getBoundingClientRect();
+      const trackStyle = getComputedStyle(track);
+      read.track = {{
+        right: trackBox.right,
+        contentRight: trackBox.right - parseFloat(trackStyle.paddingRight),
+      }};
       return read;
     }}"""
 
@@ -866,7 +886,10 @@ def test_a_release_page_is_wide_and_keeps_the_log_on_its_newest_line(browser, se
                 round(wide[track[0]][edge])
             }
     assert wide["lp-status"]["left"] == pytest.approx(page_box["left"], abs=1)
-    assert wide["lp-steps"]["right"] == pytest.approx(page_box["right"], abs=1)
+    assert wide["track"]["right"] == pytest.approx(page_box["right"], abs=1)
+    assert wide["lp-steps"]["right"] == pytest.approx(
+        wide["track"]["contentRight"], abs=1
+    )
     assert wide["lp-log"]["right"] < wide["lp-steps"]["left"]
     assert wide["lp-checks-table"]["width"] > wide["lp-checks"]["width"] - 48
     listing = page.locator("#lp-live-log pre")
@@ -918,6 +941,51 @@ def test_a_bound_at_its_end_follows_a_rebuilt_feed_until_the_user_scrolls_back(
     page.evaluate(rebuild, 120)
     page.evaluate("() => new Promise(requestAnimationFrame)")
     assert page.locator("#feed").evaluate("feed => feed.scrollTop") == 200
+
+
+def test_a_declared_inner_scroller_can_be_rebuilt_without_taking_a_nested_bound(
+    browser, serve
+):
+    """The host names its scrolling box even when a nested bound has a match first.
+    Replacing that box registers its successor and resumes following its end."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Nested bounded listings",
+                '<h1>Logs</h1><div id="outer" data-bound="end">'
+                '<div id="inner" data-bound="start"><div class="listing">'
+                + "<p>Nested entry</p>" * 30
+                + '</div></div><div id="listing" class="listing"></div></div>',
+                head="""<style>
+                  #outer { --lf-bound-box: .listing; max-block-size: none;
+                    overflow: visible; }
+                  #inner, #outer > .listing { max-block-size: 120px; overflow: auto; }
+                </style>""",
+            )
+        ),
+    )
+    regions = """async () => {
+      const { readingRegions } = await window.__lfCheckApi();
+      return Object.fromEntries(readingRegions()
+        .filter(({host}) => ['outer', 'inner'].includes(host.id))
+        .map(({host, body}) => [host.id, body.id]));
+    }"""
+    assert page.evaluate(regions) == {"outer": "listing", "inner": "inner"}
+    page.evaluate(
+        """() => {
+          const box = document.createElement('div');
+          box.id = 'replacement'; box.className = 'listing';
+          box.innerHTML = '<p>Arrived entry</p>'.repeat(60);
+          document.getElementById('listing').replaceWith(box);
+        }"""
+    )
+    page.wait_for_function(
+        """() => { const box = document.getElementById('replacement');
+          return box.scrollHeight > box.clientHeight &&
+            box.scrollHeight - box.scrollTop - box.clientHeight <= 2; }"""
+    )
+    assert page.evaluate(regions) == {"outer": "replacement", "inner": "inner"}
 
 
 def test_logs_in_a_hidden_tab_open_on_their_newest_entries(browser, serve):
@@ -1166,12 +1234,12 @@ def test_monitoring_evidence_moves_without_stealing_position_or_the_summary(
             ),
         ),
         (
-            '<dl id="lp-k-traffic" class="panel"><dt>candidate traffic</dt><dd><strong>25%</strong></dd></dl>',
-            '<dl id="lp-k-traffic" class="panel"><dt>target traffic</dt><dd><strong>100%</strong></dd></dl>',
+            '<dl id="lp-k-traffic" class="metric"><dt>candidate traffic</dt><dd><strong>25%</strong></dd></dl>',
+            '<dl id="lp-k-traffic" class="metric"><dt>target traffic</dt><dd><strong>100%</strong></dd></dl>',
         ),
         (
-            '<dl id="lp-k-checks" class="panel"><dt>checks passing</dt><dd><strong>4 of 5</strong></dd></dl>',
-            '<dl id="lp-k-checks" class="panel"><dt>checks passing</dt><dd><strong>5 of 5</strong></dd></dl>',
+            '<dl id="lp-k-checks" class="metric"><dt>checks passing</dt><dd><strong>4 of 5</strong></dd></dl>',
+            '<dl id="lp-k-checks" class="metric"><dt>checks passing</dt><dd><strong>5 of 5</strong></dd></dl>',
         ),
         (
             '<li id="lp-step-checks"><small class="tag danger">blocked · now</small>',

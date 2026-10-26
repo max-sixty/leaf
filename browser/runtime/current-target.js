@@ -51,21 +51,25 @@ export function declareSide(bridge, { beside = false } = {}) {
   return () => sides.delete(bridge);
 }
 
-// The innermost obligation whose source, or whose own enclosing widget, is or holds `node`.
-// An enclosing widget shared by several sources cannot identify one of them on its own,
-// so only a source stands for such an obligation (`obligationPlace`). Obligations nest, as a question
+// The innermost obligation whose source, or whose own place, is or holds `node`: a
+// widget's enclosing widget, or the element a to-do is on. An enclosing widget shared
+// by several sources cannot identify one of them on its own, so only a source stands for
+// such an obligation (`obligationPlace`). Obligations nest, as a question
 // inside a proposal's new text does, so the nearest place holding the node names the
 // obligation rather than the kind of place: on the inner question's enclosing widget the user
-// is on that question, not on the proposal whose source holds it.
-export function obligationHolding(items, node) {
+// is on that question, not on the proposal whose source holds it. Of two standing at one
+// place, as a to-do on a widget does beside the widget's own question, the first the
+// inventory lists names it, and the inventory lists widgets' obligations before to-dos.
+// `items` may be a selection, such as those waiting on the user, placed as the whole
+// `inventory` places them.
+export function obligationHolding(items, node, inventory = items) {
   if (!node) return null;
   const holds = (element) => element && under(node, element);
   let held = null;
   for (const item of items) {
-    if (item.source.kind !== "widget") continue;
-    const { source, node: target } = obligationPlace(item, items);
+    const { source, node: target } = obligationPlace(item, inventory);
     const at = holds(source) ? source : holds(target) ? target : null;
-    if (at && (!held || under(at, held.at))) held = { item, at };
+    if (at && (!held || (at !== held.at && under(at, held.at)))) held = { item, at };
   }
   return held?.item ?? null;
 }

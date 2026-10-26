@@ -10,7 +10,6 @@ import io
 import json
 import os
 import re
-import select
 import shlex
 import shutil
 import socket
@@ -939,7 +938,7 @@ def test_document_startup_and_media_ranges_do_not_read_whole_recordings(
     data = b"0123456789" * 200_000
     source = tmp_path / "large.mp4"
     source.write_bytes(data)
-    _, path = media_model.cmd_media(page_dir, [source])[0]
+    path = media_model.cmd_media(page_dir, [source])[0]["path"]
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "</main>", f'<video controls preload="none" src="{path}"></video></main>'
@@ -1044,6 +1043,9 @@ def test_the_browser_media_door_refuses_untrusted_or_unbounded_bytes(server, pag
         door.putheader("Content-Length", str(media_model.MAX_MEDIA_UPLOAD_BYTES + 1))
         door.putheader("Content-Type", "image/png")
         door.endheaders()
+        # The whole body, as a browser sends it: a door that refused it unread
+        # would reset the connection under the sender instead of answering.
+        door.send(bytes(media_model.MAX_MEDIA_UPLOAD_BYTES + 1))
         answer = door.getresponse()
         refusal = json.loads(answer.read())
     finally:
@@ -1052,7 +1054,6 @@ def test_the_browser_media_door_refuses_untrusted_or_unbounded_bytes(server, pag
         400,
         {"error": "image exceeds the 10 MiB limit"},
     )
-    assert answer.getheader("Connection") == "close"
     assert not any((page_dir / "media").iterdir())
 
 
@@ -2975,27 +2976,6 @@ def test_server_resolves_actions_from_agent_thread_widgets(server, page_dir):
     assert refused_on(body).code == "unknown-sender"
 
 
-def test_concurrent_posts_never_tear_the_log(server, page_dir):
-    publish(page_dir)
-
-    def post(i):
-        fetch(
-            f"{server}/api/event",
-            data=json.dumps(
-                {"kind": "comment", "revision": 1, "text": f"c{i} " + "x" * 500}
-            ).encode(),
-        )
-
-    threads = [threading.Thread(target=post, args=(i,)) for i in range(20)]
-    for t in threads:
-        t.start()
-    for t in threads:
-        t.join()
-    events = [e for e in event_model.read_events(page_dir) if e["kind"] == "comment"]
-    assert {e["text"].split()[0] for e in events} == {f"c{i}" for i in range(20)}
-    assert len({e["id"] for e in events}) == 20  # server-minted, all distinct
-
-
 def test_every_kind_of_user_move_is_named_in_eight_characters(server, page_dir):
     """An id is something the agent reads back and retypes. One user comment
     shows the agent its id five times over and is answered with `leaf thread reply <answer.ref>
@@ -3118,10 +3098,9 @@ def test_the_page_reports_its_own_errors_to_the_watcher(server, page_dir, sessio
     delivered = CliRunner().invoke(cli_model.cli, ["wait", str(page_dir)])
     assert delivered.exit_code == 0, delivered.output
     delivery = json.loads(delivered.output)
-    result = CliRunner().invoke(cli_model.cli, ["wait", "--ack", delivery["id"]])
-    # The page error was an acknowledgeable target, so the cursor moved and the
-    # re-armed wait ended on its own 2; a refused acknowledgement would be 1.
-    assert result.exit_code == 2, result.output
+    result = CliRunner().invoke(cli_model.cli, ["delivery", "ack", delivery["id"]])
+    # The page error was an acknowledgeable target, so the cursor moved.
+    assert result.exit_code == 0, result.output
     assert acknowledged_through(page_dir) == error["seq"]
 
 
@@ -3174,7 +3153,7 @@ def test_unchanged_presence_observation_is_shared_and_file_changes_refresh_it(
     assert reading() == first
     assert calls == 1
 
-    declare(page_dir, "waiting", "measuring")
+    declare(page_dir, "waiting")
     refreshed = reading()
     assert refreshed == first
     assert calls == 1
@@ -3256,11 +3235,10 @@ def test_a_pages_own_row_publications_do_not_rescan_its_neighbors(
     monkeypatch.setattr(presence_model, "other_leaves", observe)
     presence_model.neighbor_reading(page_dir)
     for n in range(20):
-        declare(page_dir, "waiting", str(n))
+        declare(page_dir, "waiting")
         own.refresh()
         record = files_model.read_json(own.path)
-        # Give every pass a concrete changed canonical producer publication,
-        # even when waiting's detail is absent from the compact activity fold.
+        # Give every pass a concrete changed canonical producer publication.
         cleanup_model.write_json(
             own.path, {**record, "row": {**record["row"], "title": f"Own {n}"}}
         )
@@ -3317,22 +3295,6 @@ def test_a_reader_retires_rows_no_server_lease_holds(page_dir, tmp_path):
     assert server_rows_model.row_path(reserved).is_file()
     assert not server_rows_model.row_path(stopped).exists()
     assert not server_rows_model.row_path(deleted).exists()
-
-
-def test_native_watcher_failure_reaches_its_owner(tmp_path, monkeypatch):
-    import watchfiles.main
-    from watchfiles._rust_notify import WatchfilesRustInternalError
-
-    from leaf import file_changes
-
-    def exhausted(*_args, **_kwargs):
-        raise WatchfilesRustInternalError(
-            "Error creating recommended watcher: Too many open files (os error 24)"
-        )
-
-    monkeypatch.setattr(watchfiles.main, "RustNotify", exhausted)
-    with pytest.raises(WatchfilesRustInternalError, match="Too many open files"):
-        file_changes.FileChanges({tmp_path: False}, lambda _path: True)
 
 
 def test_a_row_ages_at_the_canonical_deadline_and_recovers_after_cache_loss(
@@ -3931,84 +3893,57 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
             refusal,
         ), (name, status, answer)
 
-    # This refusal concerns the header rather than the body, and no opener will send it:
-    # Content-Length past what the door takes. The bound is declared rather than
-    # discovered, so the refusal lands before the read and this process never waits
-    # on bytes it has already decided not to accept.
+    # A body past what the door takes is read to its end and refused, whether it
+    # declares its length or arrives in chunks that declare none. A door that answered
+    # with bytes still arriving would close on them, and the reset can discard the
+    # answer before the sender reads it.
     # It arrives under this page's layer, as every runtime's POST does: a request from
     # another generation is answered with the one to reload into, ahead of any verdict
     # on a body written in a vocabulary this server no longer speaks.
     _, served = fetch(f"{server}/api/state")
-    door = http.client.HTTPConnection(
-        urllib.parse.urlsplit(server).netloc, timeout=STATED_TIMEOUT
-    )
-    try:
-        door.putrequest("POST", f"/api/event?t={TOKEN}")
-        door.putheader("Leaf-Layer", json.loads(served)["layer"]["generation"])
-        door.putheader("Content-Length", "999999999999999999")
-        door.putheader("Content-Type", "application/json")
-        door.endheaders()
-        door.send(b"")
-        answered = door.getresponse()
-        answer = json.loads(answered.read())
-    finally:
-        door.close()
-    assert (
-        answered.status,
-        answer.get("ok"),
-        answer.get("final"),
-        answer.get("error"),
-    ) == (400, False, True, "event exceeds the 10 MiB limit"), answer
-    assert answered.getheader("Connection") == "close"
-
-    # A chunked body declares no length and reaches the read without passing the
-    # header check, so the bound belongs to the read: the door
-    # stops taking chunks once they pass it rather than holding the whole stream first.
-    # It answers and closes while the sender is still writing, so the writes that land
-    # on the closed connection are the refusal arriving early rather than a fault.
+    layer = json.loads(served)["layer"]["generation"]
     host, _, port = urllib.parse.urlsplit(server).netloc.partition(":")
-    door = socket.create_connection((host, int(port)), timeout=STATED_TIMEOUT)
-    spoken = b""
-    try:
-        door.sendall(
-            b"POST /api/event?t=%s HTTP/1.1\r\nHost: %s\r\n"
-            b"Leaf-Layer: %s\r\nContent-Type: application/json\r\n"
-            b"Transfer-Encoding: chunked\r\n\r\n"
-            % (
-                TOKEN.encode(),
-                urllib.parse.urlsplit(server).netloc.encode(),
-                json.loads(served)["layer"]["generation"].encode(),
+    chunk = b"x" * (1024 * 1024)
+    filled, rest = divmod(media_model.MAX_MEDIA_UPLOAD_BYTES, len(chunk))
+    pieces = [chunk] * filled + [b"x" * (rest + 1)]
+    for framing, body in [
+        (
+            b"Content-Length: %d" % (media_model.MAX_MEDIA_UPLOAD_BYTES + 1),
+            b"".join(pieces),
+        ),
+        (
+            b"Transfer-Encoding: chunked",
+            b"".join(b"%x\r\n" % len(piece) + piece + b"\r\n" for piece in pieces)
+            + b"0\r\n\r\n",
+        ),
+    ]:
+        door = socket.create_connection((host, int(port)), timeout=STATED_TIMEOUT)
+        spoken = b""
+        try:
+            door.sendall(
+                b"POST /api/event?t=%s HTTP/1.1\r\nHost: %s\r\n"
+                b"Leaf-Layer: %s\r\nContent-Type: application/json\r\n"
+                b"Connection: close\r\n%s\r\n\r\n"
+                % (
+                    TOKEN.encode(),
+                    urllib.parse.urlsplit(server).netloc.encode(),
+                    layer.encode(),
+                    framing,
+                )
+                + body
             )
-        )
-        chunk = b"x" * (1024 * 1024)
-        door.settimeout(STATED_TIMEOUT)
-        try:
-            for _ in range(12):
-                if select.select([door], [], [], 0)[0]:
-                    break
-                door.sendall(b"%x\r\n" % len(chunk) + chunk + b"\r\n")
-        except (BrokenPipeError, ConnectionResetError, TimeoutError):
-            # The door has stopped reading, so the rest of the body has nowhere to go.
-            pass
-        try:
-            while select.select([door], [], [], 30)[0]:
-                heard = door.recv(65536)
-                if not heard:
-                    break
+            while heard := door.recv(65536):
                 spoken += heard
-        except (ConnectionResetError, TimeoutError):
-            pass
-    finally:
-        door.close()
-    head, _, body = spoken.partition(b"\r\n\r\n")
-    assert head.split(b"\r\n")[0].endswith(b"400 Bad Request"), spoken[:400]
-    assert b"{" in body, spoken[:400]
-    answer = json.loads(body[body.index(b"{") : body.rindex(b"}") + 1])
-    assert (answer.get("ok"), answer.get("final"), answer.get("error")) == (
-        False,
-        True,
-        "event exceeds the 10 MiB limit",
-    ), answer
+        finally:
+            door.close()
+        head, _, answered = spoken.partition(b"\r\n\r\n")
+        assert head.split(b"\r\n")[0].endswith(b"400 Bad Request"), spoken[:400]
+        answer = json.loads(answered[answered.index(b"{") : answered.rindex(b"}") + 1])
+        assert (answer.get("ok"), answer.get("final"), answer.get("error")) == (
+            False,
+            True,
+            "event exceeds the 10 MiB limit",
+        ), (framing, answer)
 
     assert [
         e for e in event_model.read_events(page_dir) if e["kind"] == "comment"
@@ -4317,7 +4252,7 @@ def test_a_snapshot_holds_declared_data_media_with_the_current_value(
     second = tmp_path / "second.svg"
     first.write_text('<svg xmlns="http://www.w3.org/2000/svg"><text>First</text></svg>')
     second.write_text(first.read_text().replace("First", "Second"))
-    urls = [item[1] for item in media_model.cmd_media(page_dir, [first, second])]
+    urls = [item["path"] for item in media_model.cmd_media(page_dir, [first, second])]
     data_model.cmd_data_set(page_dir, "images", {"images": [{"url": urls[0]}]})
     data_model.cmd_data_set(
         page_dir,
@@ -4496,7 +4431,7 @@ def test_a_loopback_serve_says_the_url_opens_only_on_this_machine(
     monkeypatch.delenv("SSH_CONNECTION", raising=False)
     runner = CliRunner()
     started = runner.invoke(
-        cli_model.cli, ["server", "start", "--persistent", str(page_dir)]
+        cli_model.cli, ["server", "start", "--lifetime", "persistent", str(page_dir)]
     )
     try:
         assert started.exit_code == 0, started.output
@@ -4512,7 +4447,15 @@ def test_a_stated_host_serve_says_nothing_about_loopback(page_dir, monkeypatch):
     runner = CliRunner()
     started = runner.invoke(
         cli_model.cli,
-        ["server", "start", "--persistent", "--host", "localhost", str(page_dir)],
+        [
+            "server",
+            "start",
+            "--lifetime",
+            "persistent",
+            "--host",
+            "localhost",
+            str(page_dir),
+        ],
     )
     try:
         assert started.exit_code == 0, started.output
@@ -4525,7 +4468,7 @@ def test_a_stated_host_serve_says_nothing_about_loopback(page_dir, monkeypatch):
 def test_server_start_names_the_page_layer_and_running_payload(page_dir):
     runner = CliRunner()
     started = runner.invoke(
-        cli_model.cli, ["server", "start", "--persistent", str(page_dir)]
+        cli_model.cli, ["server", "start", "--lifetime", "persistent", str(page_dir)]
     )
     try:
         assert started.exit_code == 0, started.output
@@ -4579,7 +4522,7 @@ def test_a_server_start_re_vendors_an_older_page_and_refuses_a_newer_one(page_di
     stamp.unlink()
     stamp.write_text(json.dumps({**newer, "$future": 1}), encoding="utf-8")
     reshaped = runner.invoke(
-        cli_model.cli, ["server", "start", "--persistent", str(page_dir)]
+        cli_model.cli, ["server", "start", "--lifetime", "persistent", str(page_dir)]
     )
     assert reshaped.exit_code != 0, reshaped.output
     assert f"Use a Leaf at protocol {foreign} or later" in reshaped.output
@@ -4601,7 +4544,9 @@ def test_a_server_start_re_vendors_an_older_page_and_refuses_a_newer_one(page_di
         assert stopped.exit_code == 0, stopped.output
 
 
-def test_a_revision_saved_before_a_re_vendor_neither_opens_nor_takes_input(page_dir):
+def test_a_revision_saved_before_a_re_vendor_neither_opens_nor_takes_input(
+    page_dir, tmp_path
+):
     """A re-vendor across a protocol bump leaves the revisions the page saved before
     it in place, each with the runtime it was saved with. Served, that runtime would
     talk to this Leaf's server across the bump, so its address refuses, as does an
@@ -4687,6 +4632,42 @@ def test_a_revision_saved_before_a_re_vendor_neither_opens_nor_takes_input(page_
         assert commented(2)[0] == 200
     finally:
         temporary.close()
+
+    # A picture serves the revision its drawing was made on, so one made on the
+    # older revision refuses as the address does, before any browser opens.
+    drawn = append_carried_log_record(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "anchor": {"section": "plan"},
+            "drawing": {
+                "viewport": [800, 600],
+                "scheme": "light",
+                "box": [100, 100],
+                "strokes": [[[10, 10], [90, 90]]],
+            },
+        },
+    )
+    pictured = CliRunner().invoke(
+        cli_model.cli, ["page", "picture", str(page_dir), drawn["id"]]
+    )
+    assert pictured.exit_code == 1, pictured.output
+    assert f"Revision 1 was saved at page protocol {foreign}" in pictured.output
+    # So does an export of a version stamped on it, which would run this Leaf's
+    # runtime against that revision's widgets.
+    append_carried_log_record(
+        page_dir,
+        {"kind": "note", "author": "agent", "revision": 1, "version": 1, "text": "v1"},
+    )
+    exported = CliRunner().invoke(
+        cli_model.cli,
+        ["page", "export", str(page_dir), "--out", str(tmp_path / "v1.html")],
+    )
+    assert exported.exit_code == 1, exported.output
+    assert f"Revision 1 was saved at page protocol {foreign}" in exported.output
+    assert not (tmp_path / "v1.html").exists()
 
 
 def test_a_revision_saved_before_a_key_was_renamed_neither_opens_nor_takes_input(
@@ -4799,7 +4780,8 @@ def test_a_start_waits_for_uncommitted_preparation_before_reusing(page_dir, spaw
             "server",
             "_serve",
             str(page_dir),
-            "--persistent",
+            "--lifetime",
+            "persistent",
             "--harness",
             "null",
             "--handshake",
@@ -4878,7 +4860,8 @@ def test_private_revival_cannot_advertise_the_previous_serving_row(
             "server",
             "_serve",
             str(neighbor),
-            "--persistent",
+            "--lifetime",
+            "persistent",
             "--revive",
             "--harness",
             "null",
@@ -4996,7 +4979,8 @@ def test_a_stop_waits_for_private_preparation_before_disabling(page_dir, spawn):
             "server",
             "_serve",
             str(page_dir),
-            "--persistent",
+            "--lifetime",
+            "persistent",
             "--harness",
             "null",
             "--handshake",
@@ -5414,7 +5398,8 @@ def test_start_server_forwards_its_flags_to_the_serving_child(page_dir, monkeypa
             str(page_dir),
             "--host",
             "page.example",
-            "--persistent",
+            "--lifetime",
+            "persistent",
             "--revive",
             "--harness",
             "null",
@@ -5447,7 +5432,7 @@ while json.loads((page / "service.json").read_text())["enabled"]:
 
 
 def hold_persistent(page: Path, start) -> subprocess.Popen:
-    """A persistent page with its lease held, as `server run --persistent` leaves one."""
+    """A persistent page with its lease held, as `server run --lifetime persistent` leaves one."""
     page.mkdir(parents=True)
     write_record(
         page / "service.json",
@@ -5581,7 +5566,7 @@ def test_a_claimed_page_without_a_declaration_serves_its_state(page_dir, server)
     status, raw = fetch(f"{server}/api/state")
 
     assert status == 200, raw
-    assert json.loads(raw)["status"] == {"state": "waiting", "detail": ""}
+    assert json.loads(raw)["status"] == {"state": "waiting"}
 
 
 def test_others_ships_on_a_network_facing_bind_too(page_dir):

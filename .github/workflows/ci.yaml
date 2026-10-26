@@ -7,7 +7,7 @@ name: ci
 #   `journeys` tests it edits, and the website gate;
 # - a push to main adds `browser`;
 # - the daily schedule and a manual dispatch run every product test, and their summary lists
-#   the tests over their directory's budget.
+#   the tests over their directory's budget; `test-macos` runs them on macOS too.
 # Developer-tool tests live in dev/tests and are opt-in, outside every CI selection.
 # Relevant pushes to main run the website gate in publish-site before deploy.
 on:
@@ -20,7 +20,7 @@ on:
 
 # Only a pull request cancels its own earlier run. A push to main keeps its run: a red
 # branch is judged against the base SHA's result, and the next merge must not end a
-# suite partway through. tend-ci-fix answers a failed run on main and never a
+# suite partway through. tend-ci-failures reports a failed run on main and never a
 # cancelled one, so a cancellation goes unreported. Nothing outside a pull request
 # shares a workflow group; the test job owns each event's queue.
 concurrency:
@@ -118,7 +118,7 @@ jobs:
         run: |
           mkdir -p .tmp/test-results
           # Fail normally before the six-hour job deadline, which cancels the run
-          # and never summons tend-ci-fix. Leave time for termination, profiles,
+          # and never reaches tend-ci-failures. Leave time for termination, profiles,
           # uploads and the website gates.
           # Keep the shell alive through INT while pytest and py-spy finalize. Shell
           # background jobs inherit INT ignored, so reset it at both child entries.
@@ -192,6 +192,45 @@ jobs:
         run: |
           uv run leaf-dev suite-profile .tmp/test-results | tee .tmp/test-results/summary.txt
           { echo '```'; cat .tmp/test-results/summary.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload pytest results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: pytest-results-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            .tmp/test-results/
+            .tmp/thread-snapshots/runs/
+          if-no-files-found: ignore
+          retention-days: 30
+
+  # Every product test on macOS, the platform Leaf's local sessions run on. Only the
+  # daily schedule and a dispatch run it, since it adds a runner for as long as the
+  # nightly suite takes, and a failure turns the run red for tend like `test`'s. The
+  # Linux job's gates, website checks and profiles are platform-independent or
+  # Linux-only, so this job runs the suite alone. The runner has three cores, so two
+  # workers keep the share of cores `test` leaves idle.
+  test-macos:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: macos-15
+    env:
+      PYTEST_ADDOPTS: --durations=25 --durations-min=1
+    steps:
+      - name: 📂 Checkout code
+        uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup
+
+      # A step that overruns fails the job before the six-hour job deadline, which
+      # would cancel the run and never summon tend. An explicit `bash` adds
+      # `pipefail`, so pytest's status survives `tee`.
+      - name: 🧪 Python tests
+        timeout-minutes: 300
+        shell: bash
+        run: |
+          mkdir -p .tmp/test-results
+          uv run pytest tests -n 2 -v --run-nightly --junitxml=.tmp/test-results/results.xml \
+            2>&1 | tee .tmp/test-results/output.log
 
       - name: Upload pytest results
         if: always()

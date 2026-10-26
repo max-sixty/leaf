@@ -39,7 +39,7 @@
    caller names that apparatus, which is the container's to press. The answer otherwise
    fails closed: declining one ambiguous container gesture is safer than recording a
    choice while the user operates nested evidence. */
-import { WORKS } from "./control-selectors.js";
+import { PRESSES, WORKS } from "./control-selectors.js";
 import { sizeObserver } from "./rendering.js";
 import { tagsDeclaring } from "./registry.js";
 import { paintKeysWithin } from "./keyboard/scopes.js";
@@ -56,7 +56,7 @@ import {
   html,
   render,
   signal,
-} from "/vendor/browser-runtime.js";
+} from "/runtime/framework.js";
 
 // A scroll target can sit inside a collapsed container — a closed <details>, an
 // inactive tab. Opening what the platform owns (details) and letting a container
@@ -338,21 +338,11 @@ export const offered = elementDirective("offered", offerElement);
 // few controls deliberately remain spans and their owning widget supplies the complete
 // key contract. Keeping this constructor separate makes selectable control text a visible
 // design decision instead of the behavior of every injected control.
-function selectableOfferElement(node, role, cls) {
-  keeps(node, "role", role);
-  keeps(node, "class", cls ? `${cls} lf-ui lf-ui-face` : "lf-ui lf-ui-face");
-  keeps(node, "data-lf-gen", "1");
-  keeps(node, "data-lf-offer", role);
-  keeps(node, "data-lf-selectable-offer", "");
-}
+const selectableOfferElement = (node, role, cls) =>
+  document.documentElement.lfInitial.selectableOfferElement(node, role, cls);
 
-export function selectableOffer(role, cls, label) {
-  const node = document.createElement("span");
-  selectableOfferElement(node, role, cls);
-  node.tabIndex = 0;
-  if (label !== undefined) node.textContent = label;
-  return node;
-}
+export const selectableOffer = (role, cls, label) =>
+  document.documentElement.lfInitial.selectableOffer(role, cls, label);
 
 // The selectable offer's template form; Lit owns its label and tab stop.
 export const selectableOffered = elementDirective(
@@ -402,8 +392,12 @@ document.addEventListener(
     // A drag is a pointer's; the keyboard's own activation of the control is not one and
     // is read the one way every press claim reads it (pointer.js).
     if (pressIsKeyboardActivation(ev)) return;
+    // The question goes to the innermost control the press landed on. A native control
+    // inside chrome a widget made, such as a fold's toggle in a thread card that wears
+    // `data-lf-offer`, is its own press: asked of the card, a selection anywhere in the
+    // card's words deadened every button in it.
     const control = /** @type {Partial<Element>} */ (ev.target).closest?.(
-      "[data-lf-offer]",
+      `${PRESSES},[data-lf-offer]`,
     );
     if (control && reachedForWords(control)) {
       ev.stopPropagation();
@@ -453,9 +447,10 @@ document.addEventListener(
 // `generatedElement(node, {says})` writes those markers without the words: for a box
 // whose contents the widget writes, or words it fills in some other way. prepaint.js
 // holds it so that an initial producer receives it as it receives `offerElement`.
-// A forgotten marker fails silently, as a widget's words read by the version diff as a
-// change nobody wrote, so widgets write the markers only through it, `relabel` and the
-// offers. `generated({says})` is its template form:
+// A forgotten marker shows as a widget's words read by the version diff as a change
+// nobody wrote, which only the render gate's comparison of a version with itself
+// reports (`version.js`, `selfComparison`), so widgets write the markers only through
+// it, `relabel` and the offers. `generated({says})` is its template form:
 // `<h2 ${generated({ says: true })}>${title}</h2>`. Three writers stand apart because
 // they do something it doesn't: the datum projection (projection/data.js) marks and
 // unmarks authored nodes as their data comes and goes, markdown.js serializes its

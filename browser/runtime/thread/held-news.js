@@ -141,7 +141,7 @@
    exception: it draws its lists at first paint, with "Lists current" as the control.
    A fixed-height box that scrolls the rows is no answer: a scroller shows no edge until
    it is scrolled, so nothing tells the reader a row is cut off. */
-import { html, render } from "/vendor/browser-runtime.js";
+import { html, render } from "/runtime/framework.js";
 import { growthAfterIsSeen, growthIsSeen, whenNone } from "../geometry.js";
 import { offer } from "../widget-elements.js";
 import { keeps, layoutPx } from "../keeps.js";
@@ -223,8 +223,10 @@ function messageChange(prior, message) {
 // says the news is the agent answering the user, who had the last turn as drawn: all of
 // it, the reply, the work under way on it and that work's fold, lies after that turn,
 // which a presentation may show at once (primary-reader.js, `answersAtOnce`). A message the log
-// took back is no news: it goes. Null where nothing differs.
-function difference(was, now, { progressOpen = false } = {}) {
+// took back is no news: it goes. `joined` names new messages and existing streamed
+// messages whose words grew, including progress. Card placement uses those same
+// arrivals when predicting motion and when they actually show. Null where nothing differs.
+export function threadChange(was, now, { progressOpen = false } = {}) {
   const drawn = new Map(was.messages.map((message) => [message.key, message]));
   const settled =
     Boolean(was.resolved) === Boolean(now.resolved)
@@ -248,10 +250,12 @@ function difference(was, now, { progressOpen = false } = {}) {
     appended: false,
   };
   const changed = new Set();
+  const joined = new Set();
   const arrived = new Set();
   for (const message of now.messages) {
     const prior = drawn.get(message.key);
     const change = messageChange(prior, message);
+    if (change === "joined") joined.add(message.key);
     if (!prior || prior.provisional) arrived.add(message.id);
     // A progress message joins the thread's working message, not its replies, so its
     // notice counts it, as it counts a reply; the answer that later folds it
@@ -350,7 +354,7 @@ function difference(was, now, { progressOpen = false } = {}) {
     !folds.summaries.length &&
     (!news.appended || appendedAtEnd) &&
     ![...changed, ...folds.messages].some((key) => asked.has(key));
-  return { news, changed, folds, appendedAtEnd, footFold, answers };
+  return { news, changed, joined, folds, appendedAtEnd, footFold, answers };
 }
 
 // The thread `now` with what `was`, the thread as the seat drew it, did not show held
@@ -656,7 +660,7 @@ export class HeldNews {
         const shown = thread.visible !== false && !thread.folding;
         const held =
           was && shown && !this.#released.has(thread.key)
-            ? difference(was, thread, {
+            ? threadChange(was, thread, {
                 progressOpen: this.#view(thread.key)?.progressOpen ?? false,
               })
             : null;

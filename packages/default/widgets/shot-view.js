@@ -11,8 +11,11 @@ const CONTROL = "lf-btn lf-quiet-action";
 let nextOptionsId = 0;
 
 // Fit uses the content box: the scrollport's padding keeps the image shadow visible.
+// In flow nothing bounds the stage's height, so a stacked Pair takes the screen's room
+// below the toolbar as its bound: the reader compares both frames in one view.
 export function shotAllocation(host, stage) {
   const style = getComputedStyle(stage);
+  const padding = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
   return {
     available:
       stage.clientWidth -
@@ -20,16 +23,19 @@ export function shotAllocation(host, stage) {
       parseFloat(style.paddingRight),
     availableHeight:
       getComputedStyle(host).getPropertyValue("--lf-holds-height").trim() === "1"
-        ? stage.clientHeight -
-          parseFloat(style.paddingTop) -
-          parseFloat(style.paddingBottom)
+        ? stage.clientHeight - padding
         : undefined,
+    screenHeight:
+      document.documentElement.clientHeight -
+      stage.previousElementSibling.offsetHeight -
+      padding,
   };
 }
 
 export function fitShotGeometry({
   available,
   availableHeight,
+  screenHeight,
   labelHeight,
   sourceWidth,
   sourceHeight,
@@ -43,28 +49,24 @@ export function fitShotGeometry({
   if (!available || !(crop || (sourceWidth && sourceHeight))) return null;
   const width = crop ? focus.width : sourceWidth;
   const height = crop ? focus.height : sourceHeight;
-  const fit = (columns, rows, captions = 0) =>
+  const fit = (columns, rows, captions = 0, bound = availableHeight) =>
     Math.max(
       0,
       Math.min(
         1,
         (available - columns * 2 - (columns - 1) * gap) / (columns * width),
-        availableHeight === undefined
+        bound === undefined
           ? Infinity
-          : (availableHeight - rows * (captions + 2) - (rows - 1) * gap) /
-              (rows * height),
+          : (bound - rows * (captions + 2) - (rows - 1) * gap) / (rows * height),
       ),
     );
+  // Pair takes whichever arrangement draws the captures larger, so short wide
+  // captures stack and tall narrow ones sit side by side. Frames side by side share
+  // rows, so in flow the page's scrolling keeps them aligned; stacked frames must
+  // both fit the room.
   const side = fit(2, 1);
-  const stack = fit(1, 2, labelHeight);
-  const layout =
-    availableHeight === undefined
-      ? width + gap + 4 <= available
-        ? "side"
-        : "stack"
-      : side >= stack
-        ? "side"
-        : "stack";
+  const stack = fit(1, 2, labelHeight, availableHeight ?? screenHeight);
+  const layout = side >= stack ? "side" : "stack";
   const pairScale = layout === "side" ? side : stack;
   const fitScale = view === "compare" ? pairScale : fit(1, 1);
   const scale = actual ? 1 : fitScale;
@@ -117,13 +119,29 @@ export function applyShotGeometry(host, geometry, keeps) {
   keeps(host, "data-lf-shot-crop", geometry.crop);
   keeps(host, "data-lf-shot-focus", geometry.focus);
   // Only the visible copy is page text, so a source name remains a unique
-  // comment target as the pair stacks or the reader changes views.
+  // comment target as the pair stacks or the reader changes views. The other copy
+  // echoes it, which paper prints as a plain label: paper shows the frames' copies
+  // whichever one the screen shows.
   const stacked = host.dataset.lfShotMode === "compare" && geometry.layout === "stack";
   for (const caption of host.querySelectorAll(".lf-shotcap"))
     document.documentElement.lfInitial.generatedElement(caption, {
-      says: caption.parentElement.classList.contains("lf-shot-frame-label") === stacked,
+      says:
+        caption.parentElement.classList.contains("lf-shot-frame-label") === stacked ||
+        "echo",
     });
 }
+
+// A box that holds the screenshot: the stage, its frames and labels' rows, the image
+// windows and the slider. These are the widget's drawing, which paper prints with the
+// page, where it drops what `offer` makes. A press on the image or the slider runs
+// through the link's and the widget's own handlers, and inside a container the
+// lf-shot itself is what holds the gesture (`worksInside`), so none needs an offer;
+// the toolbar's controls and the source labels stay offers.
+export const shotBox = (tag, cls) =>
+  document.documentElement.lfInitial.generatedElement(
+    Object.assign(document.createElement(tag), { className: cls }),
+    { says: false },
+  );
 
 export function drawShot(host, { offer, generatedElement, keeps }) {
   const buttons = (label, values, selected) => {
@@ -175,28 +193,18 @@ export function drawShot(host, { offer, generatedElement, keeps }) {
   const full = checkbox("Full frame");
   full.label.hidden = true;
   const key = offer("div", "lf-shot-pixel-key");
-  key.append(offer("div", "lf-shot-key-label", "Pixel colors"));
-  for (const [side, text] of [
-    ["before", "Before only"],
-    ["after", "After only"],
-    ["both", "Recolored"],
-  ]) {
-    const item = offer("div", "lf-shot-key-item");
-    const swatch = offer("span", "lf-shot-key-swatch");
-    swatch.dataset.lfShotSide = side;
-    swatch.ariaHidden = "true";
-    item.append(swatch, offer("span", "", text));
-    key.append(item);
-  }
+  const swatch = offer("span", "lf-shot-key-swatch");
+  swatch.ariaHidden = "true";
+  key.append(swatch, offer("span", "", "Changed pixels"));
   options.append(scale.group, full.label, key);
   tools.append(scaleTrigger, outlines, options);
   actions.append(views.group, tools);
   toolbar.append(actions);
-  const stage = offer("div", "lf-shotstage");
+  const stage = shotBox("div", "lf-shotstage");
   stage.tabIndex = 0;
   stage.role = "region";
   stage.ariaLabel = `Screenshot comparison — ${host.getAttribute("alt")}`;
-  const canvas = offer("div", "lf-shotcanvas");
+  const canvas = shotBox("div", "lf-shotcanvas");
   stage.append(canvas);
   const frames = [],
     viewports = [],
@@ -205,14 +213,14 @@ export function drawShot(host, { offer, generatedElement, keeps }) {
     frameCaptions = new Map(),
     openers = new Map();
   for (const state of ["before", "after"]) {
-    const frame = offer("div", "lf-shotframe lf-media-frame");
+    const frame = shotBox("div", "lf-shotframe lf-media-frame");
     frame.dataset.lfState = state;
     const caption = generatedElement(
       offer("span", "lf-shotcap lf-label", state === "before" ? "Before" : "After"),
       { says: true },
     );
     caption.dataset.lfState = state;
-    const heading = offer("div", "lf-shot-frame-label lf-ui");
+    const heading = shotBox("div", "lf-shot-frame-label");
     heading.dataset.lfState = state;
     const frameCaption = offer("span", "lf-shotcap lf-label", caption.textContent);
     frameCaption.dataset.lfState = state;
@@ -220,13 +228,13 @@ export function drawShot(host, { offer, generatedElement, keeps }) {
     frameCaptions.set(state, frameCaption);
     if (state === "before") toolbar.prepend(caption);
     else toolbar.append(caption);
-    const viewport = offer("div", "lf-shotviewport");
+    const viewport = shotBox("div", "lf-shotviewport");
     viewport.role = "region";
     viewport.ariaLabel = `${state}: ${host.getAttribute("alt")}`;
-    const imageBox = offer("a", "lf-shotimage lf-shot-open");
+    const imageBox = shotBox("a", "lf-shotimage lf-shot-open");
     imageBox.dataset.lfShotOpen = state;
     imageBox.tabIndex = -1;
-    const plane = offer("div", "lf-shotplane");
+    const plane = shotBox("div", "lf-shotplane");
     const image = document.createElement("img");
     image.crossOrigin = "anonymous";
     image.alt = `${state}: ${host.getAttribute("alt")}`;

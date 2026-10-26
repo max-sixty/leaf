@@ -2,20 +2,7 @@
 
 ## Measured facts
 
-Use `lf-num` for a repeatably measured number inside a sentence. Write the value with
-its unit, bind it to its measurement source, and pin the `run` receipt that
-`leaf data set` returns:
-
-```html
-The import takes
-<lf-num
-  source="import-latency"
-  run="a41f103e236c985ba938c643b78bfc21"
-  via="uv run bench-import"
-  >184 ms</lf-num
->
-at p95.
-```
+Use `lf-num` for a repeatably measured number inside a sentence, as its entry shows.
 
 The value stays as you wrote it. Any later write to the source, even of the same value,
 makes `page check` advise that the number needs another look. Use one source id per
@@ -24,13 +11,10 @@ measurement, and plain HTML for numbers with no repeatable source.
 ## Interactive and visual evidence
 
 For an existing interface, capture the relevant panel, card or menu with enough
-surrounding background to preserve its shadow; a clip at the bounding box cuts the
-shadow off. Crop or mark the capture so the eye lands on the point, cutting through
-background rather than text. Use `lf-shot` for before-and-after captures and a table
-for captures that vary along other axes ("Source files and media").
-
-Introduce each interaction in the page's own words, such as that a board takes a drag
-or an options group a click, rather than copying the sentence from another page.
+surrounding background to preserve its whole shadow. Crop or mark the capture so
+the eye lands on the point, cutting through background rather than text. Use
+`lf-shot` for before-and-after captures and a table for captures that vary along
+other axes ("Source files and media").
 
 Use `lf-diagram` for Mermaid syntax rendered by Pele. It ships in the `diagram`
 package, so create the page with `leaf page init --package diagram <page>`.
@@ -44,20 +28,21 @@ Draw what automatic layout can't place, such as a page layout, a wireframe or a
 thumbnail inside an option, as the `svg.drawing` idiom in a `<figure>` with an `id`,
 with `data-width="wide"` when it needs the room. The figure scales the drawing to its
 width, labels included, so make the `viewBox` close to the width it is shown at: 1600
-units in a 720px column draw an 11px label at 5px. `page check --render` names the
-window widths where a label drops under 10px. Keep the drawing schematic: a window is a
+units in a 720px column draw an 11px label at 5px. Keep the drawing schematic: a window is a
 rounded box, a line of text a grey bar, and only the figure's subject takes the accent
 colour. Put compared states side by side in one figure at one scale, drawn alike except
 where they differ. The idiom's classes use theme tokens, so the drawing follows light
 and dark schemes; an SVG file added with `leaf page media` can't. Use the
 `<figcaption>` for what the drawing can't show.
 
-Use `lf-chart` for quantities, not Mermaid's charts. Its body is the options
-Observable Plot's `Plot.plot` takes, so any chart Plot draws is available. A few numbers
-the sentence can carry belong in prose.
+Use `lf-chart` for quantities, not Mermaid's charts. A few numbers the sentence can
+carry belong in prose.
 
-For code, follow `page-authoring.md`, "Markup". An `lf-code` block's `lines` attribute
-quotes an excerpt of a longer file under the file's own line numbers.
+Use `lf-timeline` for an order of events between actors that you describe, such as a
+race between two jobs, rather than drawing one in `svg.drawing`: it places every label
+clear of bars, other labels and the playhead, and the reader steps through the events
+with the keyboard or a finger. It ships in the `timeline` package. A recorded browser
+journey belongs in `lf-trace` instead (below).
 
 A user can comment on a whole drawing. To let them comment on one part, give the part
 an id: in an inline `<svg>`, put an `id` on each `<g>` holding a shape and its label,
@@ -66,24 +51,15 @@ entry says which boxes `parts="all"` makes commentable.
 
 A comment's mark stays where its part was when the mark was drawn, so a part that moves
 leaves its mark behind. Draw moving parts in a page widget that declares `x-visual`
-parts, calls `registerVisualParts` from its module, and calls the registration's
-`update()` after each paint. For a drawing whose frames show different parts, also pass
-a `reveal` function that switches to a frame showing a given part, so a thread can
-still take the user to it. The registry's `$keys` entry for `x-visual` gives the full
-contract.
+parts (`module-annotations.md`, "Visual parts").
 
 ## Source files and media
 
 Use `lf-text-document` to show a text file the user can comment on without copying it
-into your HTML. Source lines are numbered; copied text and passage comments exclude
-the numbers. `preview="markdown"` or `preview="html"` adds Preview and Source tabs.
-An HTML preview runs in a sandboxed frame with none of Leaf's styles, and comments can't
-reach inside it, so the user comments on the source. `--lf-bound` sets the height of
-its scrolling box (default `28rem`).
+into your HTML.
 
 When the user reviews an edit to text, such as code, prose or configuration, show its
-exact patch in `lf-diff` and explain the effect beside it. Consider including the patch
-in updates on current work too. Choose the comparison that covers the work being
+exact patch in `lf-diff` and explain the effect beside it. Choose the comparison that covers the work being
 discussed; `wt step diff`, when available, often covers a branch.
 `lf-diff` ships in the `diff` package: create the page with
 `leaf page init --package diff <page>`. Bind each widget to a data source:
@@ -118,14 +94,16 @@ leaf page instructions <page> --contract unified-diff | jq -er '.producer'
 A bound widget always shows its source's current value, in every version of the page
 and every thread that quotes it. To keep evidence exactly as it was reviewed, give it
 its own source id, such as `pr-patch-8f61c2a` for one commit's patch, and never write to
-that id again. Evidence that should follow later `data set` calls shares one id. Add
-`collapsed` to a large `lf-diff` so each file starts closed.
-Markdown and plain-text files wrap long lines by default. For a patch where all files
-should share one mode, set `overflow="wrap"` or `overflow="scroll"` on `lf-diff`.
+that id again. Evidence that should follow later `data set` calls shares one id.
 
-Run `leaf page media <page> <file>…` and use each printed `/media/…` `path` for images,
-video and audio; never inline media bytes. To let the reader zoom into an image, link it
+Run `leaf page media <page> <file>…`, naming each file as its own argument as a glob
+such as `shots/*.png` does, and use each printed `/media/…` `path` for images, video
+and audio; never inline media bytes. To let the reader zoom into an image, link it
 to its own media URL: `<a href="/media/…"><img src="/media/…" alt="…"></a>`.
+The theme edges every image with a hairline ring and a slight lift, so a capture
+whose edge is the page's colour still shows where it ends. For an image meant to sit
+on the page without one, such as a badge or a transparent logo, give it
+`box-shadow: none; border-radius: 0` in the page's CSS.
 
 Keep each capture in its own image file; never join captures into one. Where captures
 vary along named axes, such as the moment in an interaction, the case, the window width
@@ -153,8 +131,7 @@ package's author instructions describe. Leaf
 accepts MP4 and WebM video and MP3, M4A, Ogg and WAV audio. An export embeds each
 recording whole, a third larger, so trim recordings to what the reader needs.
 
-Put invented examples inside `lf-sample` and make them visibly fictional. Render
-tickets, source locations and URLs as real links.
+Put invented examples inside `lf-sample` and make them visibly fictional.
 
 `lf-shot` shows two versions of an interface, before and after, captured at the same
 viewport. Before writing the prose and `alt`, open both images and compare them where
@@ -165,12 +142,12 @@ the relevant change readable there, without requiring the reader to zoom first.
 
 Every pair starts in **Slider**, followed by **Pair** and **Pixels** in the shared
 header. Before and After label the header, or each frame when stacked. Pair keeps
-the captures at the same scale; clicking either image opens its original. Fit keeps both frames visible in a bounded
-comparison, placing them beside one another or stacking them to make best use of the
-available space. At 100%, both panes stay visible and scrolling either image moves
+the captures at the same scale; clicking either image opens its original. Fit places them beside one another or stacks
+them, whichever draws them larger, so short wide captures stack and tall narrow ones sit
+side by side; stacked frames fit together on screen, or in a bounded comparison's room. At 100%, both panes stay visible and scrolling either image moves
 the other to the same location. This scale uses CSS pixels when capture metadata
 supplies the pixel ratio, or bitmap pixels otherwise. The **…** menu offers Fit,
-100%, the Pixels color key and, for a pair with focus metadata, Full frame to inspect
+100%, the Changed pixels color key and, for a pair with focus metadata, Full frame to inspect
 beyond that region. Outline changes stays beside the menu.
 
 In Slider, click or tap the image to alternate between the complete Before and After
@@ -178,9 +155,9 @@ frames. Drag the divider for an intermediate comparison, or focus it and use the
 arrow keys; Home and End show the complete frames.
 
 **Outline changes** marks changed regions in Pair and Slider, using the accent color
-for content that only moved. **Pixels** paints removed pixels red, added pixels
-green and recoloured pixels amber over the greyed after image, so build no difference
-image of your own. These controls belong to the reader; author the pair with `before`,
+for content that only moved. **Pixels** paints changed pixels amber over the greyed after image, softly for
+small changes and more strongly for large ones, so build no difference image of your
+own. It locates differences without inferring what was added or removed. These controls belong to the reader; author the pair with `before`,
 `after` and `alt`.
 
 The comparison reports identical images, slight changes or changes throughout the

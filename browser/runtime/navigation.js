@@ -291,6 +291,7 @@ export function createNavigation({ threadDestinations, placedAt, heldPlace }) {
     touch: "Align current item at top",
     menu: "keys",
     retainCurrentLocation: true,
+    travels: true,
     run: () => {
       const item = currentItem();
       if (!item) return;
@@ -326,6 +327,7 @@ export function createNavigation({ threadDestinations, placedAt, heldPlace }) {
     title: "threads",
     when: () => openThreads(placedAt).length > 0,
     repeat: true,
+    travels: true,
     // The walk moves the user laterally: it is the surface it reaches through, rather
     // than the walk, that Escape takes off. It stands them on a thread a widget seats on
     // the page, or opens the margin's thread view, or the floating panel's, for a thread
@@ -358,6 +360,7 @@ export function createNavigation({ threadDestinations, placedAt, heldPlace }) {
     ],
     title: "page down / up",
     repeat: true,
+    travels: true,
     run: (binding) => move(binding === "d" ? 0.6 : -0.6, "page"),
   });
   pageCommand({
@@ -378,6 +381,7 @@ export function createNavigation({ threadDestinations, placedAt, heldPlace }) {
     ],
     title: "scroll down / up",
     repeat: true,
+    travels: true,
     run: (binding) => move(binding === "j" ? 60 : -60, "pixel"),
   });
 

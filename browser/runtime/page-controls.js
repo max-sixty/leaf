@@ -14,15 +14,15 @@
  * view of the panel's own, such as Threads, has no press: the panel opens the view.
  *
  * An `exit` row is the way out of the stance the user is in, such as page search or
- * Draw mode (keyboard/touch-controls.js), which stands at the row's end beside its
- * counts. No other row stands in the panel's row: what a gesture does next, a finger
+ * Draw mode, or the Done of a to-do they stand on (keyboard/touch-controls.js), which
+ * stands at the row's end beside its counts as its `icon`. No other row stands in the panel's row: what a gesture does next, a finger
  * does on what the gesture acts on (keyboard/AGENTS.md, "Touch routes").
  *
  * Each field may be a value or a function read when the rows are read, so a paint that
  * reads them follows their native signals.
  * A row whose answer moves outside the page's readings, such as a stance's way out, says
  * so with `pageControlsChanged`, which publishes that invalidation as a signal. */
-import { signal } from "/vendor/browser-runtime.js";
+import { signal } from "/runtime/framework.js";
 import { afterScript } from "./rendering.js";
 
 const EMPTY = Object.freeze([]);
@@ -30,6 +30,7 @@ const EMPTY = Object.freeze([]);
 // Where each contributor's rows stand, among the others'.
 export const PAGE_CONTROL_RANK = Object.freeze({
   session: 10,
+  claimant: 15,
   preview: 20,
   layer: 30,
   inspection: 32,
@@ -76,6 +77,7 @@ const read = (value) => (typeof value === "function" ? value() : value);
  *   urgent?: string | null | (() => string | null),
  *   disabled?: boolean | (() => boolean),
  *   exit?: boolean,
+ *   icon?: string | (() => string),
  *   press?: (held?: any) => void,
  * }} row
  */
@@ -111,6 +113,7 @@ export function pageControls() {
         copies: read(row.copies) ?? "",
         urgent: read(row.urgent) ?? null,
         exit: Boolean(row.exit),
+        icon: read(row.icon) ?? null,
         disabled: Boolean(read(row.disabled)),
         press: row.press ?? null,
       });

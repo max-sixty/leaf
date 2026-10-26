@@ -26,19 +26,19 @@ proposed report groups them by cause and keeps their original row numbers:
     </thead>
     <tbody>
       <tr>
-        <td>8</td>
+        <th scope="row">8</th>
         <td>Northwind</td>
         <td>29.00</td>
         <td>Missing</td>
       </tr>
       <tr>
-        <td>19</td>
+        <th scope="row">19</th>
         <td>Acme</td>
         <td>15.50</td>
         <td>Missing</td>
       </tr>
       <tr>
-        <td>27</td>
+        <th scope="row">27</th>
         <td>Northwind</td>
         <td>8.00</td>
         <td>Missing</td>
@@ -81,23 +81,32 @@ Give the main result and the material supporting it the most attention and space
 Write headings that tell a scanning reader what each part establishes. Use the
 user's context to leave out explanations and background they already have.
 
+A panel's heading (`section.panel`, as on a dashboard) is set in small capitals,
+which read as a region's name and not as a sentence, so name the region there in a
+few words and state its finding in the panel's first line.
+
 Keep essential content visible. Collapse optional detail when it saves enough reading
 to justify finding and opening it; short qualifications and evidence needed for a
 judgment belong beside that judgment. Keep disclosure controls reachable, and make
-nested disclosures reveal substantial content of their own. Leaf opens a disclosure
-when a comment lands inside it.
+nested disclosures reveal substantial content of their own.
 
 Preserve the meaning and units of facts you use. Check derived quantities against their
 inputs, and keep uncertainty and evidence limits beside the claims they qualify. When
 your findings contradict the user's supplied facts, show the discrepancy explicitly.
-Use links for citations and `lf-gloss` for unfamiliar terms the reader can open locally.
+Use `lf-gloss` for unfamiliar terms the reader can open locally.
+
+Link each pull request, issue, commit, URL, and file or source line with a known
+destination in every section, decision and reply that names it. The user reaches each
+of those on its own, from the contents or On me, and opens what it names from there to
+check it.
 
 ## Composing a page
 
 Arrange the material so the reader can do the task with little navigation or memory.
 Put alternatives at a comparable scale, controls beside the results they change, and
 an explanation beside the evidence it interprets. Use the registry's semantic HTML,
-widgets and class idioms for those roles.
+widgets and class idioms for those roles, including the theme's `.metric` entry
+for a metric.
 
 Choose the Layout after the content: `layout-column` supports a sequence of views,
 including wide diagrams and comparisons; `layout-sidebar` keeps context beside a
@@ -105,16 +114,28 @@ working region; `layout-workspace` lets the user work within one screen. A Layou
 class on `main`; a page can also use its own grid or flex arrangement. `page-layout.md`
 owns their geometry, bounds, tiles, and pages with tabs or parts.
 
-Leaf supplies the theme and its own panel and comment margins. Use page CSS for the
-task's arrangement or visualization, or a design the user requests. Let the content
-supply the hierarchy; give a card surface a grouping or interaction to express.
+A surface the reader works at or keeps open rather than reads down, such as settings
+tuned against their evidence or a rollout dashboard glanced at between other work,
+keeps its working state in the reader's window: each setting or status beside the
+evidence that judges it, and the decision or submission waiting on the reader. A
+tuning pass or a glance doesn't scroll. Keep the title and premise to a line or two,
+and give `main` `density-working` (`page-layout.md`, "A workspace"). A workspace
+fills the window from the title's left edge; a dashboard whose detail the reader may
+read on down uses `layout-sidebar` with its regions side by side. Let the working
+surface lead, with supporting reading below it or in later parts.
+
+Leaf's panel takes its own room at the window's foot, and comment markers go in the
+margin or over their targets, so leave room for neither. The reader hides markers with
+`o`, or the leaf's menu → Annotations → Hide annotations, to read what's under one.
+Use page CSS for the task's arrangement or visualization, or a design the user
+requests. Let the content supply the hierarchy; give a card surface a grouping or
+interaction to express.
 
 ## Contents navigation
 
 Give a long scrolling document a contents outline so the reader can move between
 sections and see where they are; a document short enough to take in at a glance needs
-none. The outline should be reachable from the top of the page on a desktop and while
-the document scrolls, and in a narrow window it comes before the main reading.
+none.
 
 Write an empty `lf-toc` with a stable id. On a column page, put it in an
 `aside.sidebar` directly inside the box carrying `layout-column`, near the top:
@@ -125,9 +146,7 @@ Write an empty `lf-toc` with a stable id. On a column page, put it in an
 </aside>
 ```
 
-Leaf shows it in the desktop margin when there is room, and behind an **On this page**
-disclosure in the page's flow when there isn't. The same links remain available by
-keyboard and touch; printing shows the complete outline. On a sidebar page, put the
+On a sidebar page, put the
 contents and a short verdict or status at the top of the `aside` (`page-layout.md`, "A sidebar page"), short enough
 to fit the window, and put detailed evidence and history in the body or behind a
 disclosure. Workspaces and root page tabs have their own navigation, and so does a
@@ -137,11 +156,21 @@ page of parts, whose column parts each take their own outline.
 
 Use Leaf's default styling for ordinary content, with semantic HTML from the registry's
 elements and class idioms. The vendored theme supplies colours, type, spacing,
-headings, tables, code and widgets. Polish a page through clearer content and hierarchy
+headings, tables, code and widgets. Page CSS spaces with its steps, `--sp-1` to
+`--sp-5`, which `density-working` tightens. Polish a page through clearer content and hierarchy
 within that treatment. Reserve page CSS for task-specific arrangement, visualization
 or a particular design the user requests. An added card surface should express a
 grouping or interaction the task needs; wrapping already styled elements just for
-polish adds visual weight without meaning.
+polish adds visual weight without meaning. A box page CSS makes opaque, such as a
+sticky bar, paints `background: var(--lf-ground)`: the surface it stands on, which a
+card or a playground's preview sets for what it holds.
+
+When page CSS reveals controls while a container is hovered or focused, include
+`:has([data-lf-control-active])` in the condition if it contains a code block.
+Leaf marks that block while its floating Copy control is hovered or focused, since
+Copy lives outside the block's tree. For example,
+`.card:is(:hover, :focus-within, :has([data-lf-control-active])) .actions`
+keeps a card's actions visible when the pointer or focus moves onto Copy.
 
 `page-checkpoints.md`, "Page diagnostics", describes the optional source inventory
 for inspecting how much CSS a page adds and where it comes from.
@@ -153,9 +182,7 @@ which entries you pick:
 leaf page instructions <page> | jq -r '.author // empty'
 ```
 
-`<page>/registry.json` is the vocabulary `page init` vendored, and a
-`page/registry.json` the page writes adds entries to it; an element entry there
-replaces the layer's entry for that tag (`page-behavior.md`). Ordinary keys are
+`<page>/registry.json` is the vocabulary `page init` vendored. Ordinary keys are
 element names or CSS selectors; `$` keys are facts shared across the layer. List the
 vocabulary by purpose, then read the entries you pick, and any `$` fact you rely on, in
 full:
@@ -167,9 +194,6 @@ jq 'with_entries(select(.key | startswith("$") | not))
 jq '.["lf-options"], .[".eyebrow"], .["$series"]' "$registry"
 ```
 
-`description` says what an entry is for and when it helps; the schema and `x-example`
-give its form; `x-instructions` gives choices and obligations the schema can't express.
-
 Before writing markup, read the author instructions for the entries you will use,
 including any example you copy:
 
@@ -177,11 +201,10 @@ including any example you copy:
 leaf page instructions <page> --use lf-options --use .eyebrow | jq -r '.author // empty'
 ```
 
-The output is a JSON map from audience to text. It includes the packages' shared
-instructions, the named entries' instructions, and those of the elements and contracts
-their examples use. When you or an agent you assign takes another role, such as a
-data producer, read that audience's text for the same selection; `--contract` selects
-a data contract directly (`packages.md`, "Package contract").
+The output is a JSON map from audience to text. When you or an agent you assign takes
+another role a package names, such as a contract's `producer` or a `coordinator`, read
+that audience's text for the same selection; `--contract` selects a data contract
+directly (`packages.md`, "Package contract").
 
 ## Document scaffold
 
@@ -210,11 +233,9 @@ a pasted link, so write a description that makes sense on its own.
 
 Widget attributes carry scalars and children carry prose; a titled member of a compound
 widget starts with a `<strong>`. A widget whose body is data, such as `lf-code`, holds
-escaped text in a `<pre>`. Escape `&` first, then `<` and `>`; any other order can
-silently decode entity text.
+escaped text in a `<pre>`. Escape `&` first, then `<` and `>`.
 
-Format filenames and paths as inline code, and link a file that has a known
-destination.
+Format filenames and paths as inline code.
 
 Show source snippets as `<pre><code class="language-javascript">…</code></pre>`, or as
 `lf-code language="javascript"` for a line-numbered walkthrough, naming the actual
@@ -231,13 +252,14 @@ change overflow at a breakpoint; Leaf measures the declared surface, never all o
 descendants. Use a bounded reading region for independently scrolling vertical content.
 
 The theme scrolls a `<pre>` or table wider than its container and fits an image or SVG
-to it, so none needs a width. It scrolls them sideways only: one given just a
-`max-height` clips what runs past it, so add `overflow-y: auto` to let it scroll down
-too. In a table that scrolls sideways, prose wraps a word per
-line, and the render check reports each width from a 360px phone up where that happens.
-Put identifiers in `<code>`, which can break inside a cell, and keep the columns to
-what fits at the narrowest width the page's readers use. Keep a diagram's detail rather
-than shrinking it to fit the column.
+to it, so none needs a width. A table's columns size to their content, so leave its
+cells' widths and wrapping to the theme too. Text that can't break, such as a bare
+identifier or a cell kept on one line, holds its column at its full length, and once
+the table scrolls sideways, prose in the other columns wraps a word per line. Put
+identifiers in `<code>`, which can break inside a cell, and keep the columns to what
+fits at the narrowest width the page's readers use. Write each row's name as its
+first cell, a `<th scope="row">`, and the names stay in view while the other columns
+scroll.
 
 ## Stable anchors
 
@@ -251,9 +273,5 @@ When that title starts a section with an id, the `<section>` carries the address
 instead. An id a heading needs for `aria-labelledby` is not the section's address.
 
 Threads, reading position and version comparison all find a block by its id, so a
-rewritten paragraph keeps its id.
-
-Don't start an id or class with `lf-`, or an attribute with `data-lf-`: Leaf reserves
-those prefixes, and `page check` refuses any name in them. It also refuses an id of
-exactly eight lowercase hex digits, such as `4f9e2a1c`, the shape of the message ids
-the event log creates.
+rewritten paragraph keeps its id. A heading offers the reader a link to that address, so
+a heading with no id on it, its `<hgroup>` or the section it opens offers none.

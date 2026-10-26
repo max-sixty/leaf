@@ -7,8 +7,12 @@
  * screen reader reaches them from the drawing; a keyboard reaches the drawing and each
  * declared part through the target picker (`s`). A failed thread presentation withdraws
  * visual proxies until a valid reading replaces them. A reaction in force first reveals
- * its dedicated removal action; only that action withdraws the reaction. Commands enter
- * only through the constructor.
+ * its dedicated removal action; only that action withdraws the reaction. The removal
+ * wears the neutral undo icon and says "Undo", the word of every other control that takes
+ * a gesture back, because removing a reaction is an undo of it. A red ✕ read as "close
+ * this", nearly matched the ❌ reaction, and caught phone taps meant to dismiss the
+ * cluster; Max chose undo over it on 23 October 2026. Commands enter only through the
+ * constructor.
  */
 import { scrollIntoView } from "./landing-scroll.js";
 import { nextRender } from "./rendering.js";
@@ -18,12 +22,7 @@ import { sameAnchor } from "./anchor-coordinate.js";
 import { sectionLabel } from "./addressable-names.js";
 import { createAnchorNoteProjection } from "./anchor-note-view.js";
 import { shelve, unshelve } from "./details-shelf.js";
-import {
-  html,
-  nothing,
-  render as renderTemplate,
-  repeat,
-} from "/vendor/browser-runtime.js";
+import { html, nothing, render as renderTemplate, repeat } from "/runtime/framework.js";
 import {
   fragmentTarget,
   annotationAt,
@@ -312,9 +311,8 @@ export function createAnchorControls({
               },
               {
                 key: `reaction:${root.id}:remove`,
-                icon: "cross",
-                label: `Remove ${root.token} reaction`,
-                tone: "negative",
+                icon: "undo",
+                label: `Undo ${root.token} reaction`,
                 rank: "secondary",
                 className: "lf-react-remove",
                 scope: record.scope,

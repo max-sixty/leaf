@@ -12,13 +12,13 @@ from render_cases_navigation import pending_text, wait_for_pending_mark
 from render_harness import (
     CORPUS_SOURCES,
     EXAMPLES,
-    PANEL,
     RELEASE_FOCUS,
     comment_note,
     holding,
     leaf_page,
     margins_laid_out,
     open_page,
+    open_threads,
     pane_scroll_behavior,
     panel_settled,
     panel_view,
@@ -261,9 +261,7 @@ def test_a_closed_threads_panel_hands_the_page_back_where_the_user_was_reading(
         }"""
     )
 
-    if page.locator(PANEL).get_attribute("data-open") != "threads":
-        page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    open_threads(page)
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
     top = page.evaluate("document.scrollingElement.scrollTop")
@@ -1090,7 +1088,7 @@ def only_thread(page_dir):
 def travel_to_passage(page, thread_id):
     """Open the thread in the panel and take its way to the passage it is about."""
     open_panel_thread(page, thread_id)
-    page.locator(".lf-fp-quiet").filter(has_text="On the page").click()
+    page.locator(".lf-fp-quiet").filter(has_text="Show on page").click()
 
 
 BOUNDED_LOG_FILLER = "".join(

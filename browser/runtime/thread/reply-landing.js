@@ -201,7 +201,9 @@ export function scrollThreadIntoView(
 // the send removed has handed the user on already.
 // The sent turn lands without animation: fitting can change the transcript's room in
 // the next update, and an in-flight pixel destination would outlive the room it named.
-// The geometry owner then preserves the landed end while it fits that room.
+// The geometry owner then preserves the landed end while it fits that room. A floating
+// box presents the send itself, its content riding from where it stood to where the
+// landing left it (box-motion.js, "send"), so the landing stays one instant scroll.
 export function sendLanding(input) {
   const held = input.closest(SAYS_IN);
   if (!held) return () => {};

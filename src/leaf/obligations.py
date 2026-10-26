@@ -434,6 +434,48 @@ def discussed_by(anchor: dict, records: list[dict], within: dict) -> list[dict]:
     ]
 
 
+def thread_topics(threads: dict, records: list[dict], within: dict) -> dict[str, list]:
+    """Each thread's id → the page obligations among `records` it is about
+    (`discussed_by`), by the section its anchor names now; a thread with no section
+    is about none."""
+    return {
+        identity: discussed_by(anchor, records, within)
+        if (anchor := thread["anchor"]) and "section" in anchor
+        else []
+        for identity, thread in threads.items()
+    }
+
+
+def waiting_about(
+    widget: str, records: list[dict], threads: dict, within: dict, registry: dict
+) -> list[dict]:
+    """The records among `records` that still wait on the user's words in a thread
+    about an obligation of `widget` (`thread_topics`): the questions the agent asked
+    there, which an answer to that obligation may or may not settle. Each is its `id`
+    and the words that asked it (`prompt.text`)."""
+    page = [
+        record
+        for record in records
+        if record["thread"] is None and record["source"]["kind"] == "widget"
+    ]
+    asked = [
+        record
+        for record in records
+        if record["thread"] is not None
+        and record["status"] == "open"
+        and record["next_actor"] == "user"
+        and answered_in_words(record, registry)
+    ]
+    topics = thread_topics(
+        {record["thread"]: threads[record["thread"]] for record in asked}, page, within
+    )
+    return [
+        {"id": record["id"], "text": record["prompt"]["text"]}
+        for record in asked
+        if any(about["source"]["id"] == widget for about in topics[record["thread"]])
+    ]
+
+
 def discussed(records: list[dict], anchors: list[dict], within: dict) -> None:
     """Hand each open obligation discussed by `anchors` (`discussed_by`) to the agent."""
     for anchor in anchors:

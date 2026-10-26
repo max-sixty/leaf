@@ -20,7 +20,7 @@ stops once at each place and the panel draws a card per row. The records the use
 answers in words in one thread, its asking messages and its questions asked in words,
 are answered by one reply, so they share the thread's row, the first of them leading.
 That row joins the row of an open obligation on the page the thread is about
-(`obligations.discussed_by`, the relation that hands such an obligation to the agent
+(`obligations.thread_topics`, the relation that hands such an obligation to the agent
 while the thread awaits its word), since an obligation and the thread about it are one
 place: an answer about a decision rides on the decision's row. Each record still settles
 by its own rule, so a decision answered leaves the thread's records on a row of their own
@@ -47,7 +47,7 @@ action in, and its widget's record carries that ending, so the update's leaves t
 inventory and lands in no Done.
 """
 
-from ..obligations import answered_in_words, discussed_by
+from ..obligations import answered_in_words, thread_topics
 from ..registry.schema import aware_instant
 
 
@@ -120,13 +120,11 @@ def _on_user(
         for row in rows
         if row["kind"] == "widget" and row["thread"] is None
     }
+    topics = thread_topics({key: threads[key] for key in in_thread}, page, within)
     for identity, row in in_thread.items():
-        anchor = threads[identity]["anchor"]
-        about = (
-            discussed_by(anchor, page, within) if anchor and "section" in anchor else []
-        )
         joined = next(
-            (asks[record["id"]] for record in about if record["id"] in asks), None
+            (asks[record["id"]] for record in topics[identity] if record["id"] in asks),
+            None,
         )
         if joined is not None:
             joined["also"] += [row["id"], *row["also"]]

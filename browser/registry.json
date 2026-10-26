@@ -496,6 +496,12 @@
             }
           },
           "text": "This action owes no answer of its own."
+        },
+        {
+          "when": {
+            "required": ["waiting"]
+          },
+          "text": "Your questions in `waiting`, asked in a thread about this widget, still wait on the user. Judge from each one's `text` whether this action answers it: end one it settles with `leaf task end <page> <id> done --text \"<what answered it>\"`, and leave one that still needs the user."
         }
       ],
       "undo": [

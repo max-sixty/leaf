@@ -773,13 +773,16 @@ def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser,
         assert cue["fade_bottom"] <= cue["heads"][1]["top"] + 1, cue
 
 
+@pytest.mark.parametrize("forced", [False, True])
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-def test_words_scrolled_past_a_card_head_show_nowhere_above_it(engine, request, serve):
+def test_words_scrolled_past_a_card_head_show_nowhere_above_it(
+    engine, forced, request, serve
+):
     """Wherever the card's transcript is scrolled, its stuck head stands on the line
-    of the card's actions, and the focus-ring room above that line shows no words.
-    Firefox stuck a head at its subgrid scroller's edge, past the room, so the name
-    stood 6px above the actions and words showed over Resolve; in Chromium they
-    showed above the name."""
+    of the card's actions, and the focus-ring room above that line shows no words,
+    in forced colours too, which drop shadows. Firefox stuck a head at its subgrid
+    scroller's edge, past the room, so the name stood 6px above the actions and words
+    showed over Resolve; in Chromium they showed above the name."""
     url = serve(PANEL_PAGE)
     root = panel_comment(
         serve.page_dir, "Opening turn. " + LANDING_WORDS, {"section": "how-store"}
@@ -796,6 +799,8 @@ def test_words_scrolled_past_a_card_head_show_nowhere_above_it(engine, request, 
         )
     page = open_page(request.getfixturevalue(engine), url)
     resized(page, 1200, 600)
+    if forced:
+        page.emulate_media(forced_colors="active")
     page.locator('[data-lf-margin-for="how-store"] .lf-margin-marker').click()
     transcript = page.locator(
         f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]'

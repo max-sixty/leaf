@@ -705,9 +705,11 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     inset-block-start: var(--lf-top);
     z-index: 1;
     background-color: var(--lf-msg-ground);
-    /* Its ground over the room above it: a shadow, since the head clips what it holds,
-       and one that paints beneath the head's own controls and their rings. */
-    box-shadow: 0 calc(-1 * var(--lf-thread-room-cover, 0px)) var(--lf-msg-ground);
+    /* Paper over the room above it: a shadow, since the head clips what it holds and
+       anchors its control at its middle, and one that paints beneath the head's own
+       controls and their rings. Paper rather than the message's ground, which an
+       arriving message tints. */
+    box-shadow: 0 calc(-1 * var(--lf-thread-room-cover, 0px)) var(--paper);
   }
   .lf-margin-thread
     .lf-thread-transcript
@@ -770,6 +772,16 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     }
   }
   @media (forced-colors: active) {
+    /* Forced colours drop shadows, so the head keeps its cover by opting out of them
+       for its own ground and shadow, in the system's colour; what it holds keeps them. */
+    .lf-margin-thread .lf-thread-transcript .lf-msg-head {
+      forced-color-adjust: none;
+      background-color: Canvas;
+      box-shadow: 0 calc(-1 * var(--lf-thread-room-cover, 0px)) Canvas;
+    }
+    .lf-margin-thread .lf-thread-transcript .lf-msg-head > * {
+      forced-color-adjust: auto;
+    }
     .lf-margin-preview {
       border: 1px solid CanvasText;
       box-shadow: none;

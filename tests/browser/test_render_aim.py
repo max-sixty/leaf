@@ -283,12 +283,16 @@ def test_an_aimed_comment_keeps_its_place_with_on_me_open(browser, serve, width)
     resized(page, width, 900)
 
     target = page.locator("#lq-keep")
-    target.hover()
+    # The expanded queue covers the center; keep the pointer on the exposed start,
+    # where the comment press below also lands.
+    target.hover(position={"x": 12, "y": 12})
     page.keyboard.down("Alt")
     expect(page.locator(".lf-aim")).to_have_attribute("data-for", "lq-keep")
     # Open by script so the pointer remains parked on the target while the view arrives.
     page.locator(".lf-fp-on-user").evaluate("node => node.click()")
     panel_settled(page, view="queue")
+    expect(page.locator(".lf-aim")).to_be_visible()
+    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "lq-keep")
     aligned = page.evaluate(
         """() => {
           const target = document.getElementById('lq-keep').getBoundingClientRect();

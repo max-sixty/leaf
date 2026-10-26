@@ -31,6 +31,10 @@ const actions = commandScope("In a classifier", [
 commands(classifier, actions);
 ```
 
+`executeCommand(id)` runs a command by its id from the user's current location, as its
+key would there, and returns whether it ran; a control can use it to offer a command
+another owner declares, as `lf-deck`'s Reply runs `c`'s `comment.create`.
+
 In a template, `commandsOn(title, rows, options)` attaches a scope to the element it is
 bound on, takes the current rows on each render, and detaches when the element goes.
 Where the rows need the element, pass a function of it, such as
@@ -164,7 +168,9 @@ A live revision moves focus from a generated control to its replacement by a
 `data-lf-carry` key, unique within the control's nearest authored ancestor with an id.
 
 `focused()` is the focused element across shadow trees, and `currentLocationIn(scope)` says
-whether focus is in a scope. `whenLeft(element, leave)` runs `leave` once when focus
+whether focus is in a scope. `placeOf(node)` returns the page node a place stands for,
+so focus on a margin entry or in a thread card reads as being at its passage or
+obligation; a module asks it whether the user is on its content from either. `whenLeft(element, leave)` runs `leave` once when focus
 leaves an element. A group the user moves through with arrow keys offers one Tab stop
 with `rove(items, stop)`.
 

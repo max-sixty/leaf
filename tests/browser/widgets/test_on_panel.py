@@ -702,7 +702,8 @@ def test_an_item_arriving_above_takes_its_walk_place_and_moves_no_card_read(
 
 
 # Card-shaped options as the registry lays them out: tags, the recommended tag, a title,
-# the sentence saying what choosing it gives, then a picture; and a label-only option.
+# the sentence saying what choosing it gives, inline or as a paragraph, then a picture;
+# and a label-only option.
 CARD_OPTIONS_PAGE = leaf_page(
     "card options",
     """<h1 id="title">Sidebar</h1>
@@ -714,6 +715,8 @@ CARD_OPTIONS_PAGE = leaf_page(
     <svg class="drawing" viewBox="0 0 10 10"><text x="1" y="8">fig</text></svg></lf-option>
   <lf-option id="stick-aside"><strong>Stick the aside itself</strong> It covers the
     footer.</lf-option>
+  <lf-option id="stick-rule"><strong>Keep the one-block rule</strong>
+    <p>Authors keep writing one block.</p></lf-option>
   <lf-option id="stick-none">Leave it</lf-option>
 </lf-options></lf-ask>""",
 )
@@ -721,7 +724,7 @@ CARD_OPTIONS_PAGE = leaf_page(
 
 def test_an_option_s_choice_on_its_card_says_what_it_gives(browser, serve):
     """An On me card's choice for a card-shaped option names it over the sentence saying
-    what choosing it gives, and wears `recommended` where the page advises it, so the
+    what choosing it gives, written inline or as a paragraph, and wears `recommended` where the page advises it, so the
     user answers there without Show; the option's other tags and its picture stay on the
     page. A label-only option's choice is its name alone. A press there picks the
     option, and Undo puts the choices back."""
@@ -730,8 +733,8 @@ def test_an_option_s_choice_on_its_card_says_what_it_gives(browser, serve):
     open_on_me(page)
     card = on_card(page, "widget:stick")
     choices = card.locator(".lf-fp-answer[aria-pressed]")
-    expect(choices).to_have_count(4)  # and Another option
-    box, aside, none = (choices.nth(i) for i in range(3))
+    expect(choices).to_have_count(5)  # and Another option
+    box, aside, rule, none = (choices.nth(i) for i in range(4))
     expect(box.locator(".lf-fp-choice-name")).to_have_text("Wrap the blocks in one box")
     expect(box.locator(".lf-fp-choice-tag")).to_have_text("recommended")
     expect(box.locator(".lf-fp-choice-says")).to_have_text(
@@ -739,6 +742,9 @@ def test_an_option_s_choice_on_its_card_says_what_it_gives(browser, serve):
     )
     expect(aside.locator(".lf-fp-choice-says")).to_have_text("It covers the footer.")
     expect(aside.locator(".lf-fp-choice-tag")).to_have_count(0)
+    expect(rule.locator(".lf-fp-choice-says")).to_have_text(
+        "Authors keep writing one block."
+    )
     expect(none).not_to_have_attribute("data-told", "")
     expect(none).to_have_text("Leave it")
 
@@ -748,7 +754,7 @@ def test_an_option_s_choice_on_its_card_says_what_it_gives(browser, serve):
     card.get_by_role("button", name="Undo").click()
     round_trip(page)
     expect(page.locator("#stick-aside")).not_to_have_attribute("chosen", "")
-    expect(card.locator(".lf-fp-answer[data-told]")).to_have_count(2)
+    expect(card.locator(".lf-fp-answer[data-told]")).to_have_count(3)
 
 
 # Two decisions, the first under a heading a thread can be anchored on.

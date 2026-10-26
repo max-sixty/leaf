@@ -100,7 +100,8 @@
  * EditContext supplies no native insertion after CodeMirror handles the press, so this
  * editing route is explicit. Shift+Enter inserts a line and continues a list or
  * quote. A host the page marks `aria-multiline="false"`, such as an option's title,
- * holds one line: Shift+Enter inserts nothing, and its owner reserves Return. Mod+Z
+ * holds one line: Shift+Enter inserts nothing, a line break pasted or inserted any other
+ * way becomes a space, and its owner reserves Return. Mod+Z
  * and Mod+Shift+Z walk one history: the words' edits, and the steps an owner records
  * for what its draft holds beside them (`record`), such as a composer's drawing, each
  * taken back or redone in the order it was made.
@@ -896,6 +897,22 @@ class LeafText extends HTMLElement {
           return false;
         }),
         this.#history.of(history()),
+        // A one-line field holds one line, so a line break pasted or inserted by the
+        // platform, as Android's editing does, becomes a space.
+        EditorState.transactionFilter.of((tr) => {
+          if (!tr.docChanged || !this.#oneLine) return tr;
+          const breaks = [];
+          tr.changes.iterChanges((_fromA, _toA, fromB, _toB, inserted) => {
+            const text = inserted.toString();
+            for (
+              let at = text.indexOf("\n");
+              at !== -1;
+              at = text.indexOf("\n", at + 1)
+            )
+              breaks.push({ from: fromB + at, to: fromB + at + 1, insert: " " });
+          });
+          return breaks.length ? [tr, { changes: breaks, sequential: true }] : tr;
+        }),
         invertedEffects.of((tr) =>
           tr.effects
             .filter((effect) => effect.is(ownerStep))

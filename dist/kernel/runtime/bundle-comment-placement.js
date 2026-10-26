@@ -65,8 +65,8 @@ function seatRows(pins, { gap, occupied = [] }) {
 			slid(list[pin.corner], avoiding, gap, "down", pin.floor),
 			...list.slice(pin.corner + 1)
 		];
-		const asideOf = (list, bounds) => slid(boundedHome(list[pin.corner], bounds), pressed, gap, "left", bounds.left);
-		const clearAside = (list, bounds) => pinSpot([asideOf(list, bounds)], avoiding, bounds);
+		const asideOf = (list, bounds, past = pressed) => slid(boundedHome(list[pin.corner], bounds), past, gap, "left", bounds.left);
+		const clearAside = (list, bounds) => pinSpot([asideOf(list, bounds, avoiding)], [], bounds);
 		if (!rect) {
 			folded = false;
 			rect = pinSpot(lowered(pin.seats), avoiding, pin.bounds);

@@ -54,7 +54,7 @@
  * tab's open editor shows the same words. An active editor defers authoritative
  * projection until it closes. Another tab's settlement closes its matching editor
  * without taking focus from an unrelated place. A refused save reopens the retained
- * source with Retry. Print keeps the saved reading and omits controls.
+ * source with Retry, and takes the focus only from this draft or from nowhere. Print keeps the saved reading and omits controls.
  */
 import {
   addressableLabel,
@@ -494,7 +494,14 @@ customElements.define(
         // with the stale pre-send snapshot.
         if (stored !== null) {
           this.#failed = true;
-          this.#open(stored);
+          // A press away may have taken the user on to another place, such as the
+          // next draft's editor, which keeps the focus.
+          const here = focused(document);
+          this.#open(
+            stored,
+            undefined,
+            !here || here === document.body || this.contains(here),
+          );
         }
       }
     }

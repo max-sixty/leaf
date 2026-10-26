@@ -1076,6 +1076,22 @@ var LeafText = class extends HTMLElement {
 					return false;
 				}),
 				this.#history.of(history()),
+				EditorState.transactionFilter.of((tr) => {
+					if (!tr.docChanged || !this.#oneLine) return tr;
+					const breaks = [];
+					tr.changes.iterChanges((_fromA, _toA, fromB, _toB, inserted) => {
+						const text = inserted.toString();
+						for (let at = text.indexOf("\n"); at !== -1; at = text.indexOf("\n", at + 1)) breaks.push({
+							from: fromB + at,
+							to: fromB + at + 1,
+							insert: " "
+						});
+					});
+					return breaks.length ? [tr, {
+						changes: breaks,
+						sequential: true
+					}] : tr;
+				}),
 				invertedEffects.of((tr) => tr.effects.filter((effect) => effect.is(ownerStep)).map(({ value }) => ownerStep.of({
 					run: value.back,
 					back: value.run

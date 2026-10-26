@@ -164,11 +164,19 @@ test("with no clear seat, a pin stands over words but keeps off a control", () =
     seatOf(pin({ cover: [heading, action], controls: [action] })).get("card").rect,
     box(252, 100, 296, 144),
   );
-  // Where the title runs up to the control, that room is words too, and the pin takes
-  // the heading's end instead.
+  // A title set right against the control leaves its room on its other side.
+  const right = box(200, 104, 296, 140);
+  assert.deepEqual(
+    seatOf(pin({ cover: [heading, right, action], controls: [action] })).get("card")
+      .rect,
+    box(152, 100, 196, 144),
+  );
+  // Where the title runs from the control to the target's left edge, every room along
+  // the top is words, and the pin takes the heading's end instead.
   const long = box(24, 104, 296, 140);
   assert.deepEqual(
-    seatOf(pin({ cover: [heading, long, action], controls: [action] })).get("card").rect,
+    seatOf(pin({ cover: [heading, long, action], controls: [action] })).get("card")
+      .rect,
     above,
   );
   // Controls in every seat slide the pin left along its target's top, past them.

@@ -672,6 +672,37 @@ def test_the_draft_box_is_its_own_door(browser, serve):
     expect(draft.locator("leaf-text")).to_be_visible()
 
 
+def test_a_refused_save_from_a_press_away_leaves_the_focus_where_it_went(
+    browser, serve
+):
+    """The user leaves one draft by pressing Edit on the next, which saves the first.
+    When that save is refused, the first reopens with Retry, and the user keeps typing
+    in the second rather than having the focus pulled back."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Two drafts",
+                "<h1>Two drafts</h1>"
+                '<lf-draft id="rn-cli"><pre>CLI notes.</pre></lf-draft>'
+                '<lf-draft id="rn-api"><pre>API notes.</pre></lf-draft>',
+            )
+        ),
+    )
+    first, second = page.locator("#rn-cli"), page.locator("#rn-api")
+    draft_control(page, "edit", "rn-cli").click()
+    write(first.locator("leaf-text"), "Changed CLI notes.")
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    draft_control(page, "edit", "rn-api").click()
+    holding(page, held, 1, "the first draft's save on a press away")
+    expect(second.locator("leaf-text")).to_be_focused()
+    held[0].fulfill(status=400, json={"ok": False, "final": True, "error": "refused"})
+    expect(draft_control(page, "retry", "rn-cli")).to_be_visible()
+    expect(second.locator("leaf-text")).to_be_focused()
+    consume_browser_errors(page, http_error_console(400))
+
+
 def test_first_draft_save_and_refusal_keep_the_local_editor_controls(browser, serve):
     """A failed first save retains exact source and usable controls without empty history."""
     page = open_page(

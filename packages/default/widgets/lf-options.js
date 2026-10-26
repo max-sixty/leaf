@@ -132,22 +132,25 @@ import {
 // to an option with neither is to say "Settled" rather than name an id nobody wrote.
 const label = (option) => wrote(option.querySelector(":scope > strong") ?? option);
 
-// What choosing an option gives the user: the words after a card's title, up to any
-// picture or other block below them, as the registry's card shape lays them out. A
-// label-only option says nothing beyond its name. On me shows these words under the
-// option's name, where the user answers away from the card.
+// What choosing an option gives the user: the sentence after a card's title, as the
+// registry's card shape lays it out, written inline or as the paragraph that follows the
+// title, up to any picture or other block below it. A label-only option says nothing
+// beyond its name. On me shows these words under the option's name, where the user
+// answers away from the card.
 const consequence = (option) => {
   const title = option.querySelector(":scope > strong");
   let words = "";
   for (let node = title?.nextSibling; node; node = node.nextSibling) {
     if (node.nodeType === Node.TEXT_NODE) words += node.data;
     else if (node.nodeType !== Node.ELEMENT_NODE) continue;
-    else if (getComputedStyle(node).display !== "inline") break;
-    // `wrote` trims the element's own edges, which may be the spaces between words,
-    // as where Markdown emphasis splits a sentence.
-    else {
+    else if (getComputedStyle(node).display === "inline") {
+      // `wrote` trims the element's own edges, which may be the spaces between words,
+      // as where Markdown emphasis splits a sentence.
       const edges = node.textContent.match(/^(\s*)[\s\S]*?(\s*)$/);
       words += `${edges[1]}${wrote(node)}${edges[2]}`;
+    } else {
+      if (!words.trim() && node.localName === "p") words = wrote(node);
+      break;
     }
   }
   return words.replace(/\s+/g, " ").trim();

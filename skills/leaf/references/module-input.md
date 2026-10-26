@@ -252,7 +252,9 @@ place until then, so the scroller doesn't shrink.
 
 Wire the box with `wireInput(box, options)`. Enter sends on a physical keyboard,
 Shift+Enter writes a newline, and Mod+Enter sends anywhere; on a touch screen the
-visible control sends. The options are `sendBtn`, the send control; `sends`, its action
+visible control sends. A box for one line, such as a name, carries
+`aria-multiline="false"` before it is wired: Enter then sends from every keyboard, a
+phone's included, Shift+Enter writes nothing, and a pasted line break becomes a space. The options are `sendBtn`, the send control; `sends`, its action
 in words; `hint`, the placeholder; `save(value)`, called with the whole draft on each
 edit; `send(text, raw, owns)`, called on send with the trimmed and raw draft; `busy()`
 and `hasContent(raw)`, which hold sending back; and `paint()`, the widget's own drawing

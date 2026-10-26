@@ -109,15 +109,16 @@ export const inSeatingOrder = (rows) =>
 // `floor`, that clears what is there: the empty end of a line below a full one.
 //
 // A pin is meant to read as its target's, so every seat touches the target. Its corner
-// seat slid left along the target's top past the controls and pins there, as a card's
-// header keeps its buttons at its right, is one more clear seat when it covers nothing,
-// tried after the others: beside an option's mark, in the room its title leaves, rather
-// than over the heading above. Where no seat is clear, the pin still stands by its
-// target rather than wandering off to room elsewhere on the page, and the reader hides
-// annotations to see what it covers. It takes, of the seats that cover no control (where
-// a press would reach the pin instead), the one that covers least, so a pin over the end
-// of a heading's line beats one over a paragraph. Failing that it takes whichever covers
-// less, of the slid seat and the corner pushed below any pin already seated there, as a
+// seat slid left along the target's top, past the controls, pins and words there, to the
+// first room that covers nothing, is one more clear seat, tried after the others: beside
+// an option's mark, in the room its title leaves, rather than over the heading above.
+// Where no seat is clear, the pin still stands by its target rather than wandering off
+// to room elsewhere on the page, and the reader hides annotations to see what it covers.
+// It takes, of the seats that cover no control (where a press would reach the pin
+// instead), the one that covers least, so a pin over the end of a heading's line beats
+// one over a paragraph. Failing that it takes whichever covers less, of the corner slid
+// past the controls and pins alone, as a card's header keeps its buttons at its right,
+// and the corner pushed below any pin already seated there, as a
 // short list item's pin stands below its neighbour's rather than over its words; the
 // slid seat wins a tie. The pushed seat competes only while it ends within
 // one pin's height of `floor`, the room `cover` was read from, so what it covers is
@@ -174,9 +175,11 @@ export function seatRows(pins, { gap, occupied = [] }) {
       slid(list[pin.corner], avoiding, gap, "down", pin.floor),
       ...list.slice(pin.corner + 1),
     ];
-    const asideOf = (list, bounds) =>
-      slid(boundedHome(list[pin.corner], bounds), pressed, gap, "left", bounds.left);
-    const clearAside = (list, bounds) => pinSpot([asideOf(list, bounds)], avoiding, bounds);
+    const asideOf = (list, bounds, past = pressed) =>
+      slid(boundedHome(list[pin.corner], bounds), past, gap, "left", bounds.left);
+    // Slid past words as well as controls, it stops at the first room that is clear.
+    const clearAside = (list, bounds) =>
+      pinSpot([asideOf(list, bounds, avoiding)], [], bounds);
     // The clear seats in the order the pin takes them: its own, then folded, then slid
     // aside, unfolded and folded. With none clear it stands folded where it can fold.
     if (!rect) {

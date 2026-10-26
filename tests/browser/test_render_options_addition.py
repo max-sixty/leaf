@@ -468,13 +468,11 @@ def test_an_arrival_cannot_hide_an_obligation_draft(browser, serve):
     expect(page.locator(f'.lf-fp-thread[data-key="{external["id"]}"]')).to_have_count(1)
 
 
-def test_on_a_phone_options_draw_no_keys_and_return_adds_a_written_one(
-    browser, serve
-):
+def test_on_a_phone_options_draw_no_keys_and_return_adds_a_written_one(browser, serve):
     """A phone has no keys to press, so a group the user is in draws no digits, while
     its controls keep their shortcuts for a keyboard someone attaches. Return on a
     phone's keyboard breaks a line in a comment, but an option's title is one line, so
-    there it adds the option."""
+    there it adds the option, and a line break pasted into it becomes a space."""
     context = browser.new_context(
         viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
     )
@@ -482,7 +480,9 @@ def test_on_a_phone_options_draw_no_keys_and_return_adds_a_written_one(
     page.locator("#br-steel").tap()
     round_trip(page)
     expect(page.locator("#br-steel")).to_have_attribute("chosen", "")
-    faces = page.locator(".lf-key-badge[data-lf-binding-badge], .lf-command-binding-badge")
+    faces = page.locator(
+        ".lf-key-badge[data-lf-binding-badge], .lf-command-binding-badge"
+    )
     expect(faces).to_have_count(0)
     expect(page.locator("#br-cedar .lf-pick")).to_have_attribute(
         "aria-keyshortcuts", re.compile(".")
@@ -499,6 +499,10 @@ def test_on_a_phone_options_draw_no_keys_and_return_adds_a_written_one(
     expect(added).to_have_attribute("chosen", "")
     expect(added).to_contain_text("Ask the neighbours first")
     expect(field).to_have_js_property("value", "")
+    # Words with a line break, as a paste brings them, stay on the one line.
+    field.tap()
+    page.keyboard.insert_text("Ask the neighbours\nfirst")
+    expect(field).to_have_js_property("value", "Ask the neighbours first")
 
 
 def test_the_add_field_says_its_whole_hint_on_a_phone(browser, serve):

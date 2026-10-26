@@ -831,8 +831,8 @@ flowchart TD
               On a <code>layout-column</code> page, headings, paragraphs, lists, and
               code occupy a centred column up to 720px wide. On a sidebar page too, the
               theme limits paragraphs, list items, and headings to that reading width. A
-              workspace sets no reading width, and none of the widths below: every block
-              fills the pane it stands in.
+              workspace applies neither the reading width nor the limits below: every
+              block fills its pane.
             </p>
             <p id="column-widths-lede">
               A diagram, board, or wide table can extend into the margins beyond the
@@ -865,8 +865,9 @@ flowchart TD
               <code>data-width</code> attribute asks for <code>wide</code> or
               <code>available</code> on any block, overriding the default. If the
               margins have unequal space, an <code>available</code> block extends
-              farther into the wider margin. A table given a width takes its columns'
-              natural width up to that room rather than spreading across it.
+              farther into the wider margin. A table given one of these widths uses its
+              columns' natural width, up to that limit, rather than stretching across
+              the extra space.
             </p>
 
             <figure class="fig small" id="vocabulary-attribute">
@@ -1307,10 +1308,10 @@ flowchart TD
               leaf, coloured by the agent's state; the comment field, which shows the
               agent's status while it is empty; and the On me mark, counting what waits
               on the user, with a dot while a thread holds a reply they haven't read.
-              The leaf opens a small menu of the page's other controls, and the mark
-              opens On me as a view above the row, where the mark's place holds the ✕
-              that closes it. Folded, the panel is the leaf alone in the window's
-              corner.
+              The leaf opens a small menu of the page's other controls. Pressing the On
+              me mark opens its view above the row. A ✕ replaces the mark while the view
+              is open and closes it when pressed. A folded panel shows only the leaf in
+              the window's corner.
             </p>
             <p id="chrome-lists">
               The On view shows one list at a time, under a tab named for its actor,
@@ -1321,9 +1322,10 @@ flowchart TD
               wrapping and reading position.
             </p>
             <p id="chrome-bars">
-              The page leaves room at its foot for the panel's row, so its last lines
-              scroll clear of it. A view opens above the row and covers the page beneath
-              it without moving it; Escape or a press on the page puts it away.
+              The page reserves space at the bottom for the panel's row, so the last
+              lines can scroll above it. A view opens above the row and overlays the
+              page without moving its content. Escape or a press on the page closes the
+              view.
               <a href="#phone">Phones and touch screens</a> describes the panel on a
               touch screen.
             </p>
@@ -2156,7 +2158,7 @@ flowchart TD
                 and Comment on an element, Draw mode, Design mode and Hide annotations
                 under Annotations. Decisions appear in On me and in their widgets. An
                 active mode or search names itself in the panel and provides a ✕ exit.
-                Search arrows stand beside the match count; tapping the marked match
+                Search arrows appear beside the match count; tapping the marked match
                 selects it.
               </p>
             </section>

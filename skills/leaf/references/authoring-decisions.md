@@ -93,7 +93,7 @@ board whose cards show those answers, rather than asking twice. Give each option
 `value` naming the answer it gives, in words every section shares, and the board one
 column per value with that `value`, plus one column without a value for proposals not
 yet answered or answered in the user's own words. Each card's `shows` names its
-section's group, and the card stands in the column of that group's pick:
+section's group, and the card appears in the column matching that group's selected value:
 
 ```html
 <lf-options id="rail-choice" choose>

@@ -121,11 +121,11 @@ behavior. A compound widget may own reading regions without being a pane.
 | Term | Identity criterion |
 |---|---|
 | **Chrome** | Interface the runtime draws outside authored content, rooted at the one `.lf-chrome` container |
-| **Leaf panel** | Leaf's chrome (`floating-panel.js`): one box floating at the window's foot. Its **row** holds the leaf, the comment field, and one **seat** at its end: the **On me mark**, with its count and a dot while a thread holds a reply the user hasn't read, or, while a view or stance stands, the ✕ that closes it; **folded**, it is the leaf alone in the window's corner |
+| **Leaf panel** | Leaf's chrome (`floating-panel.js`): one box floating at the bottom of the window. Its **row** contains the leaf, the comment field, and one **seat** at the end. That seat shows the **On me mark**, with its count and a dot when a thread has an unread reply. While a view or stance is active, the seat instead shows the ✕ that closes it. A **folded** panel shows only the leaf in the window's corner |
 | **Leaf** | The mark at the row's start, coloured by the agent's state; a press opens the leaf's menu, or unfolds a folded panel |
 | **Leaf's menu** | The small menu above the leaf of the page's other controls (`page-controls.js`), one line each with its shortcut. A row ending in a chevron opens its list in the menu's place: Navigate, Annotations, About this page, Versions |
-| **Comment field** | The panel's one box for writing: a page comment, or a reply while a thread is open. Search uses the same seat with a persistent **Search page** or **Search threads** label and keeps the comment draft and caret. Outside search, the empty field says the agent's status, a passing notice or a walk's position where a placeholder would; in an open thread it says the reply, with a walk's position at its end |
-| **View** | What opens above the row and covers the page beneath it: a thread, the On view (tabs On me, On *agent*, Threads and the plan) or All pages. Escape or a press on the page puts it away |
+| **Comment field** | The panel's one box for writing: a page comment, or a reply while a thread is open. Search uses the same space with a persistent **Search page** or **Search threads** label and keeps the comment draft and caret. Outside search, the empty field shows the agent's status, a temporary notice or a walk's position in place of a placeholder; in an open thread it shows the reply, with a walk's position at its end |
+| **View** | What opens above the row and covers the page beneath it: a thread, the On view (tabs On me, On *agent*, Threads and the plan) or All pages. Escape or a press on the page closes it |
 
 A view takes no width from the page and leaves it live. A thread about a passage opens
 as a **thread card** beside its words, and in the panel where nothing on the page

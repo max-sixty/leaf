@@ -2,7 +2,7 @@
 
 Evidence from Leaf/plain HTML comparisons and page-quality studies, with remaining
 evaluation gaps. `evals/README.md` owns execution and reporting; the maintainer
-`/grinding-ui` skill owns the improvement loop.
+`/hill-climb-ui` skill owns the improvement loop.
 
 ## Recovered Codex comparison, 2026-10-14
 
@@ -273,7 +273,7 @@ The four runs are under `.tmp/eval/` in this checkout:
 `.tmp/ui-grinding/cycle/provenance-checked.json` retains runtime hashes, native
 model fields and phase paths. `eval-report` on those four runs regenerates the
 comparison; use the README's isolated copied-index recipe for rejudging without
-overwriting the original verdicts. The maintainer's `/grinding-ui` skill owns the
+overwriting the original verdicts. The maintainer's `/hill-climb-ui` skill owns the
 improvement loop and experiment design, with command mechanics kept in the README.
 The keyboard and chrome replays use disposable original-runtime copies:
 
@@ -645,7 +645,7 @@ The driver, analysis scripts and per-cycle log are in the campaign worktree's
 
 ## Opus page-quality campaign, 2026-10-24
 
-An overnight `/grinding-ui` run with fresh Claude Code authors (Opus 5.5) and Sol live
+An overnight `/hill-climb-ui` run with fresh Claude Code authors (Opus 5.5) and Sol live
 and pair judges, on the arrangement tasks at 1600×1000. The runs named in the two
 sections above no longer existed, so every control was authored fresh. Each repair
 was compared on its own task against the commit before it (`--base`), then on a

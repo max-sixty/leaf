@@ -20,6 +20,7 @@ from interact_support import (
     page_packages,
     publish,
     registry_refusal,
+    shipped_core_registry,
     yaml_block,
     yaml_document,
 )
@@ -45,7 +46,7 @@ def test_layer_facts_read_names_whole_and_an_absent_records_as_null():
     """The layer facts' schema holds names as the hand checks before it did: a
     trailing newline is no part of a token or contract name, and an optional
     `records: null` a same-protocol Leaf vendored still reads as absent."""
-    kernel = json.loads((schema_model.ASSETS / "registry.json").read_text())
+    kernel = shipped_core_registry()
 
     def facts(**changes):
         registry = deepcopy(kernel)
@@ -88,7 +89,7 @@ def test_init_inherits_contract_members_a_layer_does_not_state(
     )
     assert result.exit_code == 0, result.output
     merged = json.loads((page_dir / "registry.json").read_text())[section]
-    shipped = json.loads((schema_model.ASSETS / "registry.json").read_text())[section]
+    shipped = shipped_core_registry()[section]
     assert merged == shipped
 
 
@@ -121,9 +122,7 @@ def test_a_layer_restates_one_kind_s_handling_and_inherits_the_rest(page_dir, tm
     )
     assert result.exit_code == 0, result.output
     merged = json.loads((page_dir / "registry.json").read_text())["$events"]["handling"]
-    shipped = json.loads((schema_model.ASSETS / "registry.json").read_text())[
-        "$events"
-    ]["handling"]
+    shipped = cleanup_model.kernel_registry()["$events"]["handling"]
     assert merged["comment"] == [{"text": "Reply in French."}]
     assert "reply" not in merged
     assert merged["resolve"] == shipped["resolve"]
@@ -198,9 +197,7 @@ def test_the_events_reference_names_the_fields_each_kind_declares():
     """
     from markdown_it import MarkdownIt
 
-    kinds = json.loads((schema_model.ASSETS / "registry.json").read_text())["$events"][
-        "kinds"
-    ]
+    kinds = cleanup_model.kernel_registry()["$events"]["kinds"]
     text = Path(schema_model.__file__).with_name("events.md").read_text()
     tokens = MarkdownIt("commonmark").enable("table").parse(text)
     start = next(
@@ -309,7 +306,7 @@ What this file records
 ----------------------
 
 Step 3, for one example of every case, using the clauses in
-browser/registry.json (the file `leaf page init` copies into a page).
+browser/runtime/kernel-registry.json (which `leaf page init` composes into a page).
 Each top-level key below names a case and holds:
 
   event:  the input: a log line's `kind`, the kind of answer its delivery
@@ -366,7 +363,7 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
     the HTTP route through `leaf wait` and its acknowledged delivery, and holds that
     the clauses it lists as applying are exactly the `handling` the delivery
     carries."""
-    registry = json.loads((schema_model.ASSETS / "registry.json").read_text())
+    registry = shipped_core_registry()
     # Each case holds its `kind` and the fields some `when` reads, and nothing else:
     # a field no `when` names cannot change what the agent is told.
     on_page = {"scope": "page"}
@@ -886,7 +883,7 @@ def test_the_field_docs_hold_to_the_fields_their_schema_admits(fact):
     """`$state` documents the fields of an x-state verb and `$awaits` those of
     x-awaits, held to their schemas as `$keys` is to the x- keys: a field the schema
     admits with no member is one an author reads the registry for and finds unsaid."""
-    kernel = json.loads((schema_model.ASSETS / "registry.json").read_text())
+    kernel = shipped_core_registry()
     registry_layer.validate_layer_declarations(kernel, "kernel")
     documented = deepcopy(kernel)
     field = min(registry_layer.DOCUMENTED_KEYS[fact]["properties"])

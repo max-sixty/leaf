@@ -3,7 +3,7 @@ import { CARET_KEYS, TEXT_FIELD, afterScript, cancelRender, caretAtKey, carriedF
 import { PAGE_PAINT_ATTRIBUTE, admitResponse, pagePresented, randomId, reportPageError, revealLayer, sameLayer } from "./bundle-layer-client.js";
 import { adoptRegistry, clippedContents, clippingAxes, declarationFor, elementDeclarations, elementsDeclaring, exhibits, growthAfterIsSeen, growthIsSeen, headerInset, inUi, inWindowChrome, landingBand, loadShadowRules, nearestScrollBy, placeBox, placeHolder, registry as registry$1, seenRect, shownBox, shownRect, shownWindow, skipped, slotTop, stuckBox, tagsDeclaring, tokenEntry, union, userScrollport, visibleBand, watchArrivals, watchOwner, whenNone } from "./bundle-geometry.js";
 import { applicationState, attachApplicationPresentation, offlineInteractive, pageClaimed, readApplication, readPart, runtime, runtimeModule, runtimeResource, whenApplicationPresented, whenDocumentPresented, whenWidgetsPresented } from "./bundle-context.js";
-import { PRESS, announce, bindings, checked, clampedRow, commandScope, cycledRow, declareCommandReadiness, descriptionOf, el, generatedElement, holdStatus, iconElement, iconTemplate, keys, measure, notice, offer, offered, paintKeys, passErrorsAt, plainPress, pointerAt, pressIsKeyboardActivation, projectCommandScope, raiseError, repaint, titleOf, touchPresses as touchPresses$1, watchCommandScopes } from "./bundle-errors.js";
+import { PRESS, announce, bindings, checked, claimReleaseClick, clampedRow, commandScope, cycledRow, declareCommandReadiness, descriptionOf, el, generatedElement, holdStatus, iconElement, iconTemplate, keys, measure, notice, offer, offered, paintKeys, passErrorsAt, plainPress, pointerAt, projectCommandScope, raiseError, repaint, titleOf, touchPresses as touchPresses$1, watchCommandScopes } from "./bundle-errors.js";
 import { ago, aimedTop, atScrollEnd, claimReachStop, containingReadingRegionFor, effectiveScroller, moveScrollerBy, pageReadingRegion, pageScroller, placeKept, reachScrollers, reachable, readingRegionFor, readingRegions, releaseReachStop, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, shortAgo, shownRegionBounds, startScroll } from "./bundle-reading-regions.js";
 import { chromeForeground, chromeRoot } from "./bundle-chrome.js";
 import { COLLAPSE, alignText, closestAcross, elementById, fencePassageParts, inChrome, labelWords, pageBlocks, pageDocument, pageQueryAll, pageRange, pageText, pageWords, pointAt, quoteFrom, rangeOf, readingFrom, segmentBlock, segmentsIn, selectEnds, selectionBackward, spanIn, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity } from "./bundle-passages.js";
@@ -3594,7 +3594,6 @@ const HOLDS_WORD = "lf-holds-word";
 const HOLDER = `.${HOLDS_WORD}`;
 function holdToRead() {
 	let hold = null;
-	let released = null;
 	const holderIn = (event) => event.composedPath().find((node) => node instanceof Element && node.matches(HOLDER));
 	const read = (holder) => {
 		if (hold.reading === holder) return;
@@ -3612,7 +3611,7 @@ function holdToRead() {
 		read(null);
 		hold = null;
 		if (!holder) return;
-		released = holder;
+		claimReleaseClick();
 		holder.focus({
 			preventScroll: true,
 			focusVisible: false
@@ -3627,7 +3626,6 @@ function holdToRead() {
 		}));
 	};
 	document.addEventListener("pointerdown", (event) => {
-		released = null;
 		if (hold) read(null);
 		hold = null;
 		if (!event.isPrimary || !plainPress(event)) return;
@@ -3647,12 +3645,6 @@ function holdToRead() {
 	}, { capture: true });
 	document.addEventListener("pointerup", (event) => end(event, true), { capture: true });
 	document.addEventListener("pointercancel", (event) => end(event, false), { capture: true });
-	document.addEventListener("click", (event) => {
-		if (!released || !event.isTrusted || pressIsKeyboardActivation(event)) return;
-		released = null;
-		event.preventDefault();
-		event.stopImmediatePropagation();
-	}, { capture: true });
 	document.addEventListener("contextmenu", (event) => {
 		if (hold) event.preventDefault();
 	}, { capture: true });

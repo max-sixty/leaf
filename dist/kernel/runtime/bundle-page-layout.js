@@ -3,7 +3,7 @@ import { TEXT_FIELD, afterScript, byRenderedOrder, canPlaceFocus, closeLayer, co
 import { admitResponse, completeData, countTraffic, dataHeaders, layerHeaders, postEvent, randomId, recordInteraction, removeRuntimeRootStyle, reportCarried, reportPageError, sameLayer, sessionIsActive, setRuntimeRootStyle, watchPendingTraffic } from "./bundle-layer-client.js";
 import { clamp, clippedContents, clipsPastSurfaces, closeNativeLayer, growthIsSeen, hasArea, intersect, layoutWindow, matchesWhen, placeBox, placeHolder, presented, registry, seenRect, shadowRootsIn, showNativeLayer, shownWindow, tagsDeclaring, union, watchOwner, watchRoom, whenNone, whileConnected } from "./bundle-geometry.js";
 import { PRESENTATION_DOM, agentLabel, annotationMode, applicationPresenter, applicationState, attachApplicationPresentation, attachWidgetPresentation, documentChanged, offlineInteractive, offlineState, pageUrl, presentDocument, queueWidgetUpdate, readApplication, readPart, runtime, setPresentationFailureReporter, watchPresentation, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented } from "./bundle-context.js";
-import { PRESS, TEXT_ENTRY, announce, claimsEsc, cycledRow, el, generatedElement, holdingError, keys, notice, offer, paintKeys, paintKeysWithin, raiseError, repaint, responseAction, reveal as reveal$1, rowArrows, savedReadingSettled, saying } from "./bundle-errors.js";
+import { PRESS, TEXT_ENTRY, announce, claimsEsc, cycledRow, el, generatedElement, holdingError, iconElement, keys, notice, offer, paintKeys, paintKeysWithin, raiseError, repaint, responseAction, reveal as reveal$1, rowArrows, savedReadingSettled, saying } from "./bundle-errors.js";
 import { activityTransitionDue, ago, markStateApplied, moveScrollerBy, observeServerNow, observeWorkingGrace, reachScrollers, readingRegionFor, saidNow, settlePageInterface, syncLayoutRegion, tickClock } from "./bundle-reading-regions.js";
 import { awaitsData, bindsInput, comparisonBase, comparisonChanges, createProjectionPresentation, dataReader, inlineComparison, joinDataDelivery, suppliedSnapshot, toggleInlineComparison } from "./bundle-data.js";
 import { closestAcross, elementById, excerptWords, inChrome, labelWords, leafSurface, pageParts, pageReadingVersion, quoteFrom, textNodesUnder } from "./bundle-passages.js";
@@ -1388,16 +1388,15 @@ const fabSuggest = responseAction(el("button", "lf-ui lf-fab-suggest"), {
 	collapse: true
 });
 fabOptions.append(fabSuggest);
-const fabOptionsTrigger = responseAction(el("button", "lf-ui lf-response-trigger"), {
-	icon: "more",
-	label: "Other responses",
-	collapse: true,
-	behavior: "disclosure"
-});
+const fabOptionsTrigger = el("button", "lf-ui lf-icon-action lf-response-trigger");
+fabOptionsTrigger.type = "button";
+fabOptionsTrigger.title = "Other responses";
+fabOptionsTrigger.append(iconElement("more", "lf-action-icon"));
+fabOptionsTrigger.setAttribute("aria-label", "Other responses");
 fabOptionsTrigger.setAttribute("aria-controls", fabOptions.id);
 fabOptionsTrigger.setAttribute("aria-expanded", "false");
 fabOptionsTrigger.popoverTargetElement = fabOptions;
-fabBar.append(fab, fabOptionsTrigger, fabOptions);
+fabBar.append(fab, fabOptions);
 const composer = el("div", "lf-ui lf-composer");
 composer.id = "lf-composer";
 const composerQuote = el("blockquote", "lf-ui lf-quote detached");
@@ -1784,6 +1783,7 @@ function createSelectionComposer({ setReact, reactionTokens, reactionAvailable, 
 				}
 			}
 		});
+		composerInput.parentElement.append(fabOptionsTrigger);
 		fabSuggest.onclick = () => {
 			setResponseOptions(false);
 			setSuggestionMode(!suggestionMode);

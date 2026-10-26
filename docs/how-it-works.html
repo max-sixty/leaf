@@ -2148,7 +2148,8 @@ flowchart TD
   Theme -.->|visual inputs| Page
   Widget -->|actions| Core
   Core -->|current state| Widget
-</pre>
+</pre
+                >
               </lf-diagram>
               <figcaption id="responsibilities-example">
                 Ownership architecture. The author places widgets inside the page; each
@@ -2370,9 +2371,10 @@ flowchart TD
                 Leaf's core, called the kernel, supplies the browser runtime, shared
                 controls, and collaboration protocol. Packages supply reusable elements,
                 JavaScript modules, styles, and authoring instructions. The default
-                package provides common widgets and structural elements; optional packages add capabilities
-                such as diagrams and diffs. Project packages use the same format and can
-                replace or extend the page's selected layer. The
+                package provides common widgets and structural elements; optional
+                packages add capabilities such as diagrams and diffs. Project packages
+                use the same format and can replace or extend the page's selected layer.
+                The
                 <a href="/extending/">extension guide</a> lists the bundled packages and
                 demonstrates a small custom package.
               </p>
@@ -2721,8 +2723,8 @@ flowchart TD
                       <span class="tier"><code>lf-controls</code></span>
                       <span class="by">Theme packages</span>
                       <span class="what"
-                        >Each package’s <code>controls.css</code>, explicitly
-                        styling generated controls.</span
+                        >Each package’s <code>controls.css</code>, explicitly styling
+                        generated controls.</span
                       >
                     </li>
                     <li class="pkg">

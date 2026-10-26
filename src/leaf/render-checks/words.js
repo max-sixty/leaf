@@ -182,7 +182,7 @@ function paintedRuns(root, { holdFloating = true, holdHidden = true } = {}) {
     // its actual ancestry rather than jumping from offer to offer, so the geometry
     // owner can remain a generated container without making its children's words
     // look like ordinary in-flow prose.
-    for (let ancestor = el.closest("[data-lf-offer]"); ancestor;) {
+    for (let ancestor = el.closest("[data-lf-offer]"); ancestor; ) {
       if (outOfFlow(getComputedStyle(ancestor))) return true;
       ancestor = ancestor.parentElement;
     }
@@ -197,7 +197,7 @@ function paintedRuns(root, { holdFloating = true, holdHidden = true } = {}) {
   // does. The walk below stays in the light DOM, so the climb does too.
   const painted = (el, drawn) => {
     let box = drawn;
-    for (let ancestor = el; ancestor && ancestor !== document.body && box;) {
+    for (let ancestor = el; ancestor && ancestor !== document.body && box; ) {
       const style = getComputedStyle(ancestor);
       // SVG text ranges retain geometry below display:none groups, and Chromium's
       // checkVisibility still returns true for them. Their ancestry paints no words.

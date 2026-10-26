@@ -1386,7 +1386,7 @@ function createResponseSurface({ rememberSelection, landIn, threadHere, threadAt
 		const threadId = threadAtCurrentLocation();
 		const replyId = replyThreadAtCurrentLocation();
 		const target = threadId && threadTarget(threadId);
-		const inlineBox = inline && (!here || currentLocationIn(inline) || target && under(target, heldObligation() ?? here.element)) && threadInput(inline);
+		const inlineBox = inline && threadInput(inline);
 		const said = currentLocationThread() ?? (inlineBox ? {
 			held: inline,
 			box: inlineBox

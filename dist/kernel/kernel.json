@@ -54,7 +54,7 @@
     "runtime/composing/region-capture.js": "54f2ff5fa0f6f072a0569cf5d71fdc6677ed676b62292ac8671a022e314f2a64",
     "runtime/composing/region-selector.js": "c8ead8696d8418ac01716ac1bb42dc8f8ba28ec5a73dba0a4ecfd547f25f968c",
     "runtime/composing/selection.js": "60ca66b7a2fab5197e4aaa882ff2d8853ddbf2c2190b06e1d274c2f8029482aa",
-    "runtime/composing/surface.js": "1656f343584772411a5d90224404802a936537b26bc3e8d34dfda4dc01bcc274",
+    "runtime/composing/surface.js": "fef76ace875aecefc174ee00a9c994939831526b6f7e59e9d05ed66c1378414f",
     "runtime/composing/target-picker.js": "62e719740268c8f98f309e08722ff888a03a27eab453bdfca04007f0f29feb3e",
     "runtime/composing/text-field.js": "bf54eb36e95ec54344f9bc4a7231ede79c9ff0a3423b741812227c165a528331",
     "runtime/content-layout.js": "fec8799b67bb493c80b4d178d41d01cdc462b71f68f3fc444ca30cb495b725b3",

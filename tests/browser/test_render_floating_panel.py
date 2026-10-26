@@ -3533,6 +3533,21 @@ def test_versions_travel_opens_in_the_panel(browser, serve):
     keys = row.locator(".lf-binding-sequence")
     expect(keys.locator("kbd.lf-key-badge")).to_have_text(["g", "V"])
     expect(keys).to_have_attribute("aria-label", "g then V")
+    # Versions has an arrow after its shortcut; direct actions do not. Both
+    # shortcuts end in one column, with copy icons and arrows in the next one.
+    ends = page.locator(".lf-fp-menu .lf-binding-sequence:visible").evaluate_all(
+        "nodes => nodes.map(node => node.getBoundingClientRect().right)"
+    )
+    assert len(ends) >= 2
+    assert max(ends) - min(ends) <= 0.5, ends
+    icons = page.locator(
+        ".lf-fp-end > :is(.lf-fp-chevron, .lf-fp-copy-icon):visible"
+    ).evaluate_all(
+        "nodes => nodes.map(node => {const box = node.getBoundingClientRect(); "
+        "return box.x + box.width / 2;})"
+    )
+    assert len(icons) >= 2
+    assert max(icons) - min(icons) <= 0.5, icons
     row.click()
     expect(view).to_be_visible()
     page.keyboard.press("Escape")

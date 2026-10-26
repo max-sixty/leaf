@@ -200,6 +200,16 @@ VERB_SCHEMA = {
         },
         "writer": {"const": "agent"},
         "creates": ACTION_CREATES,
+        "decides": {"const": True},
+        "contract": {
+            "type": "object",
+            "properties": {
+                "field": {"type": "string", "minLength": 1},
+                "attribute": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+            },
+            "required": ["field", "attribute"],
+            "additionalProperties": False,
+        },
         # The effect owns the payload; `text` adds a required non-empty detail.text.
         "text": {"const": True},
     },
@@ -207,7 +217,14 @@ VERB_SCHEMA = {
     "allOf": [
         {
             "if": {"required": ["record"]},
-            "then": {"properties": {"detail": False, "creates": False}},
+            "then": {
+                "properties": {
+                    "detail": False,
+                    "creates": False,
+                    "contract": False,
+                    "decides": False,
+                }
+            },
             "else": {"required": ["detail"]},
         }
     ],
@@ -618,6 +635,16 @@ BUNDLED_PACKAGES = PLUGIN_ROOT / "packages"
 DEFAULT_PACKAGE = BUNDLED_PACKAGES / "default"
 # The files `page init` writes at the top of a page directory.
 VENDORED_FILES = ("theme.css", "shadow.css", "registry.json", "icon.svg")
+# A package's source contributions are composed into the page files above. Their
+# roles depend on their filenames, not on whether the package declares widgets.
+PACKAGE_STYLES = (
+    "widget-shadow.css",
+    "widgets.css",
+    "theme-shadow.css",
+    "theme.css",
+    "controls.css",
+)
+PACKAGE_FILES = (*PACKAGE_STYLES, "registry.json", "icon.svg")
 # The layer's browser directories, which packages add to.
 BROWSER_DIRS = ("runtime", "widgets", "vendor")
 # What the Leaf serving a page supplies rather than its vendored layer: the runtime's

@@ -1,8 +1,9 @@
 import { J, Z } from "./bundle-signals-core.js";
 import { LENT_REACH_STOP, TEXT_BOX, afterScript, deepFocus, keeps, nextFrame, nextRender, onCurrentLocation, pressing, renderedParent, renderedUnder, renderingState, sizeObserver, tabStops, under, upFrom, wearsLentStop } from "./bundle-dom-move.js";
 import { PAGE_PAINT_ATTRIBUTE, pagePresented, reportPageError, setRuntimeRootAttribute } from "./bundle-layer-client.js";
-import { LAYOUT, landingBand, scrollsBy, shadowRootsIn, shownRect, skipped, userScrollport, watchArrivals, whileConnected } from "./bundle-errors.js";
+import { landingBand, scrollsBy, shadowRootsIn, shownRect, skipped, userScrollport, watchArrivals, whileConnected } from "./bundle-geometry.js";
 import { applicationPresented } from "./bundle-context.js";
+import { LAYOUT } from "./bundle-errors.js";
 import { layoutBox, pageDocument } from "./bundle-passages.js";
 
 //#region runtime/presence.js

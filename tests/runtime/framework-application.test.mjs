@@ -17,6 +17,7 @@ const definition = (tag, spec) => ({
   unit: spec.unit,
   record: spec.record ?? null,
   creates: spec.creates ?? null,
+  decides: spec.decides ?? false,
   detail: spec.detail ?? null,
 });
 // A registry with `$states` stamped from its declarations, each verb's writer as stated.

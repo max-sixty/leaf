@@ -553,9 +553,10 @@ def isolated_session(tmp_path_factory, monkeypatch):
     run's tests fill it, so each test's three lookups grew with the tests before it,
     1.3 worker-minutes of a push run in October 2026."""
     home = tmp_path_factory.mktemp(f"session{next(_SESSIONS)}", numbered=False)
-    for name in ("state", "codex", "claude"):
+    for name in ("state", "config", "codex", "claude"):
         (home / name).mkdir()
     monkeypatch.setenv("XDG_STATE_HOME", str(home / "state"))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(home / "config"))
     monkeypatch.setenv("CODEX_HOME", str(home / "codex"))
     monkeypatch.delenv(codex_model.APP_SERVER_ENV, raising=False)
     monkeypatch.delenv("LEAF_HOST_LAUNCHER", raising=False)

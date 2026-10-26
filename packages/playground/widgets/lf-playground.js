@@ -38,7 +38,6 @@ import {
   commands,
   compoundReadingRegionId,
   copyBlock,
-  dressSamples,
   focusDestination,
   layoutChanged,
   initialRender,
@@ -232,7 +231,6 @@ customElements.define(
       this.#initial.renderValues(this.#values);
       const reflection = this.#reflection();
       wear(this, reflection);
-      dressSamples(this, reflection);
       if (this.#interactive) {
         this.addEventListener("click", (event) => {
           const target = /** @type {Element} */ (event.target);
@@ -423,7 +421,6 @@ customElements.define(
         this.#setInput(control, this.#values[name]);
       const reflection = this.#reflection();
       wear(this, reflection);
-      dressSamples(this, reflection);
       this.#renderOutput();
       this.#paintPresets();
       // Keep not-yet-declared tab values without another copy of known working slices.

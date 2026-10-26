@@ -1,8 +1,9 @@
 import { Z, bindQueuedWork } from "./bundle-signals-core.js";
 import { CARET_KEYS, TEXT_FIELD, afterScript, cancelRender, caretAtKey, currentLocationIn, currentLocationNodes, currentLocationTouches, drawn as drawn$2, focusDestination, focused, holdCurrentLocation, holdFocus, keeps, keepsHidden, layoutPx, move, nextFrame, nextRender, onCurrentLocation, onPress, onPressAway, readCaret, recentPlaceInput, renderedOrder, renderedParent, renderedUnder, selectsAll, sizeObserver, takesLetters, under, upFrom } from "./bundle-dom-move.js";
 import { PAGE_PAINT_ATTRIBUTE, admitResponse, pagePresented, randomId, reportPageError, revealLayer, sameLayer } from "./bundle-layer-client.js";
-import { PRESS, adoptRegistry, announce, bindings, checked, claimReleaseClick, clampedRow, clippedContents, commandScope, cycledRow, declarationFor, declareCommandReadiness, descriptionOf, el, elementDeclarations, elementsDeclaring, exhibits, generatedElement, growthAfterIsSeen, growthIsSeen, headerInset, holdStatus, iconElement, iconTemplate, inUi, inWindowChrome, keys, landingBand, loadShadowRules, measure, notice, offer, offered, paintKeys, passErrorsAt, plainPress, pointerAt, projectCommandScope, raiseError, registry as registry$1, repaint, seenRect, shownBox, shownRect, shownWindow, skipped, slotTop, stuckBox, tagsDeclaring, titleOf, tokenEntry, touchPresses as touchPresses$1, union, userScrollport, visibleBand, watchArrivals, watchCommandScopes, watchOwner, whenNone } from "./bundle-errors.js";
+import { adoptRegistry, clippedContents, declarationFor, elementDeclarations, elementsDeclaring, exhibits, growthAfterIsSeen, growthIsSeen, headerInset, inUi, inWindowChrome, landingBand, loadShadowRules, registry as registry$1, seenRect, shownBox, shownRect, shownWindow, skipped, slotTop, stuckBox, tagsDeclaring, tokenEntry, union, userScrollport, visibleBand, watchArrivals, watchOwner, whenNone } from "./bundle-geometry.js";
 import { PENDING, applicationState, attachApplicationPresentation, editable, html, isElementName, isReaction, keyed, lastMovedAt, messageKey, moved, nothing, offlineInteractive, pageClaimed, pendingForParent, readApplication, readPart, render as render$1, repeat, runtime, runtimeModule, runtimeResource, sameAnchor, seatRoot, share, threadKey, threadNames, turns, whenApplicationPresented, whenDocumentPresented, whenWidgetsPresented } from "./bundle-context.js";
+import { PRESS, announce, bindings, checked, claimReleaseClick, clampedRow, commandScope, cycledRow, declareCommandReadiness, descriptionOf, el, generatedElement, holdStatus, iconElement, iconTemplate, keys, measure, notice, offer, offered, paintKeys, passErrorsAt, plainPress, pointerAt, projectCommandScope, raiseError, repaint, titleOf, touchPresses as touchPresses$1, watchCommandScopes } from "./bundle-errors.js";
 import { ago, aimedTop, atScrollEnd, claimReachStop, containingReadingRegionFor, effectiveScroller, moveScrollerBy, pageReadingRegion, pageScroller, placeKept, reachScrollers, readingRegionFor, readingRegions, releaseReachStop, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, shortAgo, shownRegionBounds } from "./bundle-reading-regions.js";
 import { chromeForeground, chromeRoot } from "./bundle-element-frame.js";
 import { COLLAPSE, alignText, closestAcross, elementById, fencePassageParts, inChrome, labelWords, pageBlocks, pageDocument, pageQueryAll, pageRange, pageText, pageWords, pointAt, quoteFrom, rangeOf, readingFrom, segmentBlock, segmentsIn, selectEnds, selectionBackward, spanIn, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity } from "./bundle-passages.js";
@@ -10,7 +11,7 @@ import { ADDRESSABLE, addressableWord, aimTargetAt, anchorBox, anchorForPassage,
 import { initialOrigin, initialSource } from "./bundle-initial-render.js";
 import { alreadyShown, copyControl, fitsWhole, passOn, restrictUserIntent, retainUserIntent, scrollIntoReadingBand, scrollIntoView } from "./bundle-copy-control.js";
 import { aborted, commitWidgetDescriptors, dataBody, rememberAuthoredParents, setChildren, stageAuthoredStates, stageWidgetDescriptors } from "./bundle-abort.js";
-import { flashDuration, foldBlock, motion, scrollBehavior } from "./bundle-motion.js";
+import { flashDuration, foldBlock, motion, motionPlays, scrollBehavior } from "./bundle-motion.js";
 import { isCanonicalMediaUrl, readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "./bundle-media.js";
 
 //#region runtime/user-place.js
@@ -5441,7 +5442,7 @@ var Transcript = class Transcript {
 		for (const [key, view] of this.#messages) {
 			if (wanted.has(key)) continue;
 			const { node } = view;
-			if (!this.#folding.has(key) && node.parentNode === this.node && node.checkVisibility()) {
+			if (motionPlays() && !this.#folding.has(key) && node.parentNode === this.node && node.checkVisibility()) {
 				const names = MESSAGE_NAMES.map((name) => [name, node.getAttribute(name)]);
 				for (const [name] of names) node.removeAttribute(name);
 				node.inert = true;

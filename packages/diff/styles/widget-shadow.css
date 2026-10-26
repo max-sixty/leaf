@@ -2,7 +2,7 @@
 @import "./geometry.css";
 @import "./disclosure.css";
 
-/* The diff's rules inside its own shadow tree (x-shadow). A selector in theme.css stops
+/* The diff's rules inside its own shadow tree (x-shadow). A selector in widgets.css stops
    dead at a shadow boundary, so these go in as a <style> the shadow root owns. They stay
    in the package's
    stylesheets because the package owns the look: a project overriding it overrides these
@@ -502,6 +502,7 @@
   overflow: auto hidden;
   overscroll-behavior-x: auto;
   container-type: inline-size;
+  container-type: inline-size scroll-state;
   font: var(--code-size)/var(--code-line) var(--mono);
   white-space: pre;
   padding: 0;

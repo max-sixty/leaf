@@ -1497,8 +1497,11 @@ def _stated_faces(sheet, *, only_top_level):
 _PAGE_SIDE_SHEETS = [
     schema_model.ASSETS / "theme.css",
     schema_model.ASSETS / "shadow.css",
-    *sorted(schema_model.BUNDLED_PACKAGES.glob("*/theme.css")),
-    *sorted(schema_model.BUNDLED_PACKAGES.glob("*/shadow.css")),
+    *(
+        path
+        for name in schema_model.PACKAGE_STYLES
+        for path in sorted(schema_model.BUNDLED_PACKAGES.glob(f"*/{name}"))
+    ),
 ]
 
 
@@ -1842,7 +1845,14 @@ def test_no_face_is_stated_for_one_selector_in_both_layer_sheets():
 _LAYER_SHEET_ORDER = [
     sheet
     for root in SHIPPED_PACKAGES
-    for sheet in (root / name for name in layer_model.ROOT_SHEETS)
+    for sheet in (
+        root / name
+        for name in (
+            ("shadow.css", "theme.css")
+            if root == schema_model.ASSETS
+            else schema_model.PACKAGE_STYLES
+        )
+    )
     if sheet.is_file()
 ]
 
@@ -2503,6 +2513,36 @@ def test_composed_sheets_replace_surrogate_escapes_as_the_browser_does(tmp_path,
     assert "é🍂" in sheet
 
 
+def test_package_contributions_keep_their_roles_when_a_widget_is_added(tmp_path):
+    """A package's page and chrome contributions survive acquiring a widget,
+    and package installation captures every source sheet the compositor reads."""
+    package = tmp_path / "contributions"
+    package.mkdir()
+    (package / "registry.json").write_text("{}")
+    for name in ("theme.css", "theme-shadow.css", "controls.css"):
+        (package / name).write_text(f"/* {name} */ p {{ color: purple; }}")
+    before = layer_model.composed_sheets([schema_model.ASSETS, package])
+
+    (package / "registry.json").write_text(
+        json.dumps({"lf-contribution": element_declaration("lf-contribution")})
+    )
+    assert layer_model.composed_sheets([schema_model.ASSETS, package]) == before
+    for name in ("widgets.css", "widget-shadow.css"):
+        (package / name).write_text(":scope { color: green; }")
+    staged = tmp_path / "installed"
+    staged.mkdir()
+    packages_model.copy_package_contract(package, staged)
+    assert {
+        name: (staged / name).read_bytes() for name in schema_model.PACKAGE_STYLES
+    } == {name: (package / name).read_bytes() for name in schema_model.PACKAGE_STYLES}
+    assert {package / name for name in schema_model.PACKAGE_STYLES} <= set(
+        layer_model.input_paths([package])
+    )
+    assert layer_model.composed_sheets([schema_model.ASSETS, staged]) == (
+        layer_model.composed_sheets([schema_model.ASSETS, package])
+    )
+
+
 def test_init_merges_registry_layers_by_complete_entry(tmp_path, monkeypatch):
     """A custom widget adds one element declaration; it need not fork the shipped vocabulary.
 
@@ -2818,7 +2858,7 @@ def test_concurrent_page_init_serializes_creation(tmp_path, monkeypatch):
     # uncontended; the second is the one taker that can find it held.
     second_waiting = lock_contention(monkeypatch, page, by="second-init")
 
-    def paused_init(page_dir, selected):
+    def paused_init(page_dir, selected, *, theme=None):
         creator = threading.current_thread().name
         creations.append(creator)
         if creator == "first-init":
@@ -2826,7 +2866,7 @@ def test_concurrent_page_init_serializes_creation(tmp_path, monkeypatch):
             assert release_first.wait(STATED_TIMEOUT), "the first init was never let go"
         else:
             second_entered.set()
-        original_init(page_dir, selected)
+        original_init(page_dir, selected, theme=theme)
 
     def initialize():
         try:
@@ -2840,16 +2880,18 @@ def test_concurrent_page_init_serializes_creation(tmp_path, monkeypatch):
     first.start()
     try:
         wait_for(
-            first_entered.is_set,
+            lambda: first_entered.is_set() or bool(errors),
             bool,
             failure="the first init never began creating the page",
         )
+        assert errors == []
         second.start()
         wait_for(
-            lambda: second_waiting.is_set() or second_entered.is_set(),
+            lambda: second_waiting.is_set() or second_entered.is_set() or bool(errors),
             bool,
             failure="the second init neither waited on the page lock nor began creating",
         )
+        assert errors == []
         assert not second_entered.is_set(), (
             "the second init began creating while the first held the page"
         )
@@ -3381,6 +3423,8 @@ def test_init_refuses_to_write_inside_a_package(tmp_path, monkeypatch):
     ("relative", "directory"),
     [
         ("theme.css", True),
+        ("widgets.css", True),
+        ("controls.css", True),
         ("registry.json", True),
         ("instructions", False),
         ("widgets", False),
@@ -3465,7 +3509,7 @@ def test_package_check_leaves_root_matching_to_native_scope(tmp_path, monkeypatc
     created = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
     assert created.exit_code == 0, created.output
     add_test_widget(tmp_path / ".leaf", "lf-toned-note")
-    (tmp_path / ".leaf" / "theme.css").write_text(
+    (tmp_path / ".leaf" / "widgets.css").write_text(
         ":scope { color: teal; }\n:root { --toned: teal; }\n"
     )
 
@@ -3644,6 +3688,7 @@ def test_package_install_makes_a_source_selectable_by_name(tmp_path, monkeypatch
         "theme.css",
         "vendor",
         "widgets",
+        "widgets.css",
     ]
 
     shutil.rmtree(source)
@@ -4189,7 +4234,7 @@ def test_page_init_selects_the_same_directory_contract_at_any_cardinality(
     (widget_package / "registry.json").write_text(
         json.dumps({"lf-solo": element_declaration("lf-solo", upgrade=True)})
     )
-    (widget_package / "theme.css").write_text(
+    (widget_package / "widgets.css").write_text(
         ":scope:is(lf-solo) { --lf-block-frame: 1; }\n"
     )
     (widget_package / "widgets" / "lf-solo.js").write_text(
@@ -4235,8 +4280,7 @@ def test_page_init_selects_the_same_directory_contract_at_any_cardinality(
     assert (page / "widgets" / "ready.js").is_file()
     assert (page / "vendor" / "solo.json").is_file()
     theme = (page / "theme.css").read_text()
-    # A package with a widget reaches only inside it; a package without one is a
-    # theme, and its rules reach the page as written.
+    # Each contribution keeps its role regardless of the package's widget count.
     assert theme.index(":scope:is(lf-solo) { --lf-block-frame: 1; }") < theme.index(
         ":root { --solo-night: 1; }"
     )

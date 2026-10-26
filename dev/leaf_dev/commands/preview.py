@@ -94,6 +94,7 @@ from leaf_dev.page_fixtures import (
     DEFAULT_PACKAGES,
     authored_markup,
     composition_inputs,
+    fixture_environment,
     import_referenced_media,
     media_source,
     package_selection_args,
@@ -161,6 +162,7 @@ def leaf(launcher: Path, runtime: Path, *args, input_text: str | None = None) ->
     result = subprocess.run(
         [str(launcher), *args],
         cwd=runtime,
+        env=fixture_environment(),
         check=False,
         input=input_text,
         stdout=subprocess.PIPE,
@@ -799,6 +801,7 @@ def serve_preview(
     from leaf.files import read_json
     from leaf.layer import layer_inputs
     from leaf.server import PREVIEW
+    from leaf.themes import with_theme
 
     loaded = worker_identity(runtime)
     # Fixture progress is distinct from the page's own authored inputs: an agent
@@ -852,9 +855,8 @@ def serve_preview(
         )
         with service.starting() as url:
             pass
-        roots = layer_inputs(
-            tuple(read_json(page / "registry.json")["$layer"]["packages"])
-        )
+        layer = read_json(page / "registry.json")["$layer"]
+        roots = layer_inputs(with_theme(tuple(layer["packages"]), layer["theme"]))
         watched = watch_paths(source, runtime, roots)
         changes = watch_changes(watched)
         if handshake is not None and not handshake.announce({"url": url}):
@@ -918,9 +920,8 @@ def serve_preview(
             # Init can commit a selection even when the following source stamp
             # refuses. Follow the installed layer after every attempt, so that
             # its newly selected packages remain observable while source is fixed.
-            roots = layer_inputs(
-                tuple(read_json(page / "registry.json")["$layer"]["packages"])
-            )
+            layer = read_json(page / "registry.json")["$layer"]
+            roots = layer_inputs(with_theme(tuple(layer["packages"]), layer["theme"]))
             try:
                 rebuilt = watch_paths(source, runtime, roots)
             except (ValueError, OSError) as error:

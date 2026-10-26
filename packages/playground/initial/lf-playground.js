@@ -21,11 +21,6 @@ const ownControls = (host, preview) => [
     belongsTo(host, control),
   ),
 ];
-const COPY_LABELS = [
-  ["rest", "Copy instruction"],
-  ["success", "Copied"],
-  ["error", "Copy failed"],
-];
 
 function render(host, { tabStore, offer, generatedElement, keeps }) {
   const presets = own(host, "lf-playground-preset");
@@ -207,7 +202,6 @@ function render(host, { tabStore, offer, generatedElement, keeps }) {
     }),
   );
   let submit = null,
-    copy = null,
     reset = null;
   if (interactive) {
     const railed = controls.filter((control) => control.parentElement === host);
@@ -224,7 +218,19 @@ function render(host, { tabStore, offer, generatedElement, keeps }) {
       control.classList.add(`lf-playground-${kind}`);
       const heading = node("span", "lf-playground-control-label", label);
       control.prepend(heading);
-      if (kind === "choice") {
+      if (kind === "choice" && control.getAttribute("appearance") === "select") {
+        const input = offer("select", "lf-playground-input");
+        input.name = `${host.id}-${name}`;
+        input.setAttribute("aria-label", label);
+        for (const choice of choicesByName.get(name)) {
+          const option = node("option", "", choice.getAttribute("label"));
+          option.value = choice.getAttribute("value");
+          input.append(option);
+          choice.remove();
+        }
+        inputs.set(name, input);
+        control.append(input);
+      } else if (kind === "choice") {
         const group = node("div", "lf-playground-input lf-playground-choices");
         group.setAttribute("role", "radiogroup");
         group.setAttribute("aria-label", label);
@@ -290,16 +296,11 @@ function render(host, { tabStore, offer, generatedElement, keeps }) {
     }
     const actions = node("footer", "lf-playground-actions");
     reset = offer("button", "lf-btn lf-playground-reset", "Reset");
-    copy = offer("button", "lf-btn lf-playground-copy-trigger");
-    copy.id = `${host.id}-copy`;
-    copy.dataset.copyState = "rest";
-    for (const [state, text] of COPY_LABELS)
-      copy.append(node("span", `lf-playground-copy-label ${state}`, text));
     submit = offer("button", "lf-btn primary lf-playground-submit");
     const submitLabel = host.getAttribute("submit-label") ?? "Use these settings";
     submit.dataset.room = `${submitLabel}\nUndo choice`;
     submit.append(node("span", "", submitLabel));
-    actions.append(reset, copy, submit);
+    actions.append(reset, submit);
     if (document.querySelector("script[data-lf-offline]"))
       actions.append(
         node(
@@ -354,7 +355,7 @@ function render(host, { tabStore, offer, generatedElement, keeps }) {
       kind = control.getAttribute("kind"),
       input = inputs.get(name);
     if (!input) return;
-    if (kind === "choice")
+    if (Array.isArray(input))
       for (const radio of input) radio.checked = radio.value === value;
     else if (kind === "toggle") input.checked = value;
     else input.value = value;
@@ -364,7 +365,7 @@ function render(host, { tabStore, offer, generatedElement, keeps }) {
   const readInput = (control) => {
     const kind = control.getAttribute("kind"),
       input = inputs.get(control.getAttribute("name"));
-    return kind === "choice"
+    return Array.isArray(input)
       ? input.find((radio) => radio.checked)?.value
       : kind === "toggle"
         ? input.checked
@@ -387,10 +388,13 @@ function render(host, { tabStore, offer, generatedElement, keeps }) {
     }
     return { attributes, properties };
   };
+  // A slot's value is the configuration's, not the author's, so a version comparison
+  // reads the instruction around it; the user can still quote the value.
   const renderValues = (next) => {
     for (const slot of output.querySelectorAll("lf-playground-value")) {
       if (!belongsTo(host, slot)) continue;
       const name = slot.getAttribute("for");
+      generatedElement(slot, { says: true });
       text(slot, formatted(controlByName.get(name), next[name]));
     }
   };
@@ -423,7 +427,6 @@ function render(host, { tabStore, offer, generatedElement, keeps }) {
     output,
     preview,
     submit,
-    copy,
     reset,
     regions,
     presetButtons,

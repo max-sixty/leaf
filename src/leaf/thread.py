@@ -243,6 +243,11 @@ def cmd_comment(
     their decision retired is off the page, and a draft they edited holds their words,
     so a quote is met here the way it would land there."""
     body = checked_text(page_dir, text)
+    if markup:
+        from leaf.render_gate.command import message_check
+
+        # Apart from the page lease, since a browser run takes about a second.
+        message_check(page_dir, "comment", markup)
     with PageTransaction(page_dir) as page:
         events = page.events
         revision, anchor = current_anchor(
@@ -377,6 +382,11 @@ def post_reply(
     write.
     """
     text = checked_text(page_dir, text)
+    if markup:
+        from leaf.render_gate.command import message_check
+
+        # Apart from the page lease, since a browser run takes about a second.
+        message_check(page_dir, "reply", markup)
     posting_identity = message_identity() if identity is None else identity
     with PageTransaction(page_dir) as page:
         if claimed_session is not None:
@@ -831,6 +841,13 @@ def post_response(
     destination after user settlement but yields to another successful answer.
     Explicit addressed replies commit immediately; reservations prevent competing
     provider finals and failure receipts.
+
+    Each write's retry key (`post_reply`'s `attempt`) is derived here, never given:
+    the reservation for a provider's answer and the reservation's progress line for
+    its progress, so a provider's repeat returns the first; without a reservation,
+    the reference, in disjoint namespaces for answers and failure receipts so a
+    receipt's key never stands in for a later answer's. Progress without a
+    reservation takes no key, so each line posts.
     """
     address = response_address(reference)
     if address["kind"] != "reply":
@@ -845,15 +862,14 @@ def post_response(
                 )
             ]
         )
-    attempt = options.pop("attempt", None)
-    if reservation is None and (attempt is not None or not options.get("ephemeral")):
-        # Public retry keys identify this addressed author's writes, never a
-        # provider's reservation. The disjoint namespaces prevent a progress
-        # retry key from consuming its provider final's append identity too, and
-        # a failure receipt's from standing in for a later answer's.
-        retry = reference if attempt is None else f"{reference}:{attempt}"
+    ephemeral = options.get("ephemeral", False)
+    if reservation is not None:
+        attempt = f"{reservation}-progress" if ephemeral else reservation
+    elif ephemeral:
+        attempt = None
+    else:
         namespace = "failure" if options.get("failure") is not None else "response"
-        attempt = f"leaf-{namespace}-{sha256(retry.encode()).hexdigest()}"
+        attempt = f"leaf-{namespace}-{sha256(reference.encode()).hexdigest()}"
     return post_reply(
         Path(address["page"]),
         address,
@@ -1046,41 +1062,5 @@ def cmd_resolve(page_dir: Path, parent: str) -> dict:
             "kind": "resolve",
             "author": "agent",
             "parent": parent,
-        }
-        return append_admitted(page, event)[0]
-
-
-@contract_writer
-def cmd_report(
-    page_dir: Path,
-    widget: str,
-    verb: str,
-    fields: tuple,
-) -> dict:
-    """A worker's provisional news: a declared state change folded onto a page
-    widget, admitted the way the append door admits a user's action,
-    stamped with the posting session's voice, and made against the active revision —
-    the page the user is looking at. The runtime paints it live; it stands until
-    a stamped revision absorbs or overrules it by id (see `page stamp`), and the
-    page's watcher wakes to fold it in. Field values
-    are strings — the declared detail schemas for reports speak in attribute
-    values, which is all a report may move."""
-    from leaf.revisioning import activate_source
-
-    detail = {}
-    for field in fields:
-        name, eq, value = field.partition("=")
-        if not eq or not name:
-            raise Rejected([Finding("detail-field", values={"field": field})])
-        detail[name] = value
-    with PageTransaction(page_dir) as page:
-        activate_source(page_dir, transaction=page)
-        event = {
-            "kind": "report",
-            "author": "agent",
-            "widget": widget,
-            "action": verb,
-            "detail": detail,
-            "revision": require_revision(page_dir),
         }
         return append_admitted(page, event)[0]

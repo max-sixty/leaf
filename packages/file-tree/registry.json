@@ -18,7 +18,8 @@
         "contract": "file-list",
         "source": "source",
         "reference": "for",
-        "output": "files"
+        "output": "files",
+        "property": "value"
       }
     },
     "x-refers": { "for": {} },

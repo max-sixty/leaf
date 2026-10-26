@@ -19,7 +19,7 @@ import { inChrome } from "./passages.js";
 import { placePoints } from "./pointed-place.js";
 import { threadKey, threadNames } from "./thread/model.js";
 import { messageHolding } from "./thread/messages.js";
-import { signal } from "/vendor/browser-runtime.js";
+import { signal } from "/runtime/framework.js";
 
 const samePlacement = (a, b) =>
   a?.kind === b?.kind &&

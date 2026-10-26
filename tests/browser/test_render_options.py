@@ -29,6 +29,7 @@ from render_cases_navigation import (
     TWICE_PAGE,
 )
 from render_harness import (
+    CARRIED_PAGE,
     EXAMPLE_PACKAGES,
     EXAMPLES,
     REPLAYED_PAGE,
@@ -95,7 +96,7 @@ def test_the_runtime_does_not_replace_a_pages_keyframes(browser, serve):
         pageAnimation.currentTime = pageAnimation.effect.getTiming().duration / 2;
         const transform = getComputedStyle(document.getElementById("page-pulse")).transform;
 
-        const control = document.querySelector(".lf-fp-threads");
+        const control = document.querySelector(".lf-fp-on-user");
         control.setAttribute("aria-busy", "true");
         const runtimeAnimation = control.getAnimations()[0];
         return {
@@ -2608,3 +2609,107 @@ def test_an_obligation_digit_hangs_off_a_corner_clear_of_its_neighbours(browser,
         }"""
     )
     assert reading == {"covers": 0, "touches": True}, reading
+
+
+def test_a_pick_the_page_only_reports_can_still_be_pointed_at(browser, serve):
+    """An authored pick without a live control is a check with an accessible name.
+
+    The selected state does not introduce a visible status caption or new page words,
+    and the generated fallback remains outside the diff's authored-text reading.
+    """
+    url = serve(CARRIED_PAGE)
+    page = open_page(browser, live_url(url))
+    mark = page.locator("#c-lax .lf-pick")
+    assert mark.get_attribute("role") == "img"
+    assert mark.get_attribute("aria-label") == "selected: Lax cookie"
+    assert mark.evaluate("el => getComputedStyle(el).fontSize") == "0px"
+    assert mark.evaluate("el => getComputedStyle(el, '::before').content") == '"✓"'
+
+    # The generated check is not authored text, so rewording another option marks only
+    # that option in the version comparison.
+    d = serve.page_dir
+    stamp_page(
+        d,
+        CARRIED_PAGE.replace("Suits the mobile client", "Suits the mobile client best"),
+        "two",
+    )
+    wait_for_revision(page, 2)
+    compare_with(page)
+    page.wait_for_function(
+        "() => document.querySelectorAll('.lf-ins-block').length > 0"
+    )
+    assert page.evaluate(
+        "() => [...document.querySelectorAll('.lf-ins-block')].map(e => e.id)"
+    ) == ["c-bearer"], "the diff read the mark as text the base version lacked"
+
+
+def test_option_words_render_markdown_without_losing_the_user_draft(browser, serve):
+    source = OBLIGATION_PAGE.replace(
+        "Replace the <code>M8</code> mounts", "Ask the _widget_ to decide"
+    )
+    url = serve(source)
+    page = open_page(browser, url)
+    authored = page.locator("#job-mounts")
+    expect(authored.locator(":scope > .lf-markdown-words em")).to_have_text("widget")
+    expect(authored.locator(":scope > .lf-pick")).to_have_attribute(
+        "aria-label", re.compile(r"Ask the widget to decide — option 1")
+    )
+
+    group = page.locator("#jobs")
+    write(group.get_by_role("textbox", name="Another option"), "Keep **both** routes")
+    group.get_by_role("button", name="Add and select option").click()
+    added = group.locator(":scope > lf-option[data-lf-added]")
+    expect(added.locator("strong")).to_have_text("both")
+    round_trip(page)
+    page.reload(wait_until="load")
+    expect(added.locator("strong")).to_have_text("both")
+
+    group.locator("#job-heater").click()
+    round_trip(page)
+    adds = [
+        event["detail"]
+        for event in events_model.read_events(serve.page_dir)
+        if event.get("kind") == "action" and event.get("action") == "add"
+    ]
+    assert adds == [
+        {"option": added.get_attribute("id"), "text": "Keep **both** routes"}
+    ]
+    expect(added.locator("strong")).to_have_text("both")
+
+
+def test_an_option_set_as_a_paragraph_starts_under_its_title_as_a_sentence_does(
+    browser, serve
+):
+    """Authors write a card's consequence after its title either as a sentence or as a
+    paragraph, and both read as one card: the paragraph's own margin had set it three
+    times as far under the title."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "option shapes",
+                '<lf-options id="shapes" choose>'
+                '<lf-option id="sentence"><strong>Ship it</strong> The cohort gets it now.'
+                "</lf-option>"
+                '<lf-option id="paragraph"><strong>Hold it</strong>'
+                "<p>The cohort waits for the fix.</p></lf-option>"
+                "</lf-options>",
+            )
+        ),
+    )
+    gaps = page.evaluate(
+        """() => {
+          const below = (id) => {
+            const option = document.getElementById(id);
+            const title = option.querySelector(':scope > strong').getBoundingClientRect();
+            const range = document.createRange();
+            const body = id === 'sentence'
+              ? option.querySelector(':scope > strong').nextSibling
+              : option.querySelector(':scope > p').firstChild;
+            range.selectNodeContents(body);
+            return range.getClientRects()[0].top - title.bottom;
+          };
+          return { sentence: below('sentence'), paragraph: below('paragraph') };
+        }"""
+    )
+    assert gaps["paragraph"] == pytest.approx(gaps["sentence"], abs=1), gaps

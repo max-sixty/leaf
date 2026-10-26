@@ -11,7 +11,14 @@ absolute launcher; a bare `leaf` may run the installed plugin instead.
 
 Before writing words the user sees, such as a label, status line or placeholder, or
 naming anything they operate or an identifier for one, read `references/glossary.md`,
-Leaf's canonical vocabulary and the voice its visible copy speaks in.
+Leaf's canonical vocabulary and guidance for visible text. A control may
+need no words at all (`<root>/browser/AGENTS.md`, "Visual grammar").
+
+## Take a backlog item
+
+Pick an issue labelled `backlog`, not `waits-on-user`, that no pull request links
+(`TODO.md` has the query), and open its pull request early, as a draft if need be,
+with `Closes #N` in the body, so the next session sees the item taken.
 
 ## Read the owning contract
 
@@ -77,8 +84,8 @@ fixes how many tiles share a row overrides every page that needs another number.
 check may report what it sees, as the render check names where a tile row wraps, and
 leave the decision to the agent.
 
-`page check` and its render checks hold Leaf's contracts on every page: each widget
-upgrades, nothing a user needs is clipped out of reach, every control can be pressed.
+`page check` and its render checks enforce Leaf's page contracts: they report widget
+initialization failures and unintended clipping of content or controls.
 A rare authoring mistake costs one fix, or a clearer line in the instruction the agent
 misread, so prefer widening a general check to adding one for a particular mistake.
 Add a narrow check, or a note a command prints, only where agents get something wrong
@@ -103,12 +110,12 @@ evidence, report the observation without making it a requirement, and say what w
 checked and what was not. When a markup contract changes, update its reader,
 validation, dependent layout rules and instructions together.
 
-Data one Leaf module writes for another over a channel only Leaf writes is not input:
-the browser reading the server's answer, the Worker reading the manifest its build
-wrote. The reader uses it directly, and the producer's tests hold its shape. Data a
-person or agent can write on the way is input, even when Leaf code sent it: a request
-the browser posts, a file an agent edits, the answer of leaf.page's container, whose
-agent a visitor steers.
+Data passed between Leaf modules over a channel only Leaf can write needs no input
+validation. This includes the server's answer to the browser and the build manifest
+the Worker reads. The reader uses that data directly, and the producer's tests verify
+its shape. Data a person or agent can modify is input, even when Leaf code sent it:
+a request the browser posts, a file an agent edits, or the answer from leaf.page's
+container, where a visitor directs the agent.
 
 ## Explore an open design
 
@@ -136,6 +143,11 @@ the same journey before handoff.
 Prefer outputs the user can review quickly. Do the reviews you can do as well as the
 user, and report the results. Choose the decisions the page puts to the user from
 their request, and show visible and interaction changes with the proof below.
+
+A choice about how something looks or moves can't be judged from a description, so
+every UI option you leave to the user carries a picture of its result: a still pair, a
+sketch, a diagram or a live sample. That includes the calls a PR body leaves to the
+user, and the decisions a page relays from it.
 
 ## Prove and hand off a visible change
 
@@ -191,11 +203,15 @@ is about and stays running.
 
 ## Preview a page
 
-`uv run leaf-dev preview <example>` serves a live page that follows source and runtime
+`uv run leaf-dev preview <example>` serves a live page that follows source and browser-runtime
 edits at one URL; `--source <file>` serves any HTML file. Its module header
 (`dev/leaf_dev/commands/preview.py`) covers slots, restarts and which previews detach.
 Start one that stays in the foreground as a long-running command (`run_in_background`
 in Claude Code).
+
+Python, schema and dependency edits require restarting the preview; its log says when.
+For a user preview, stop its page server and rerun the same preview command to keep its
+URL and comments. A plain preview starts fresh on restart.
 
 Drive only plain previews, since every click this session drives on a `--user`
 preview arrives as an unanswered update, and start a `--user` preview only from the
@@ -278,11 +294,11 @@ compatibility refusal rather than falling back to the installed plugin.
 
 A page that explains how a Leaf widget, verb or event flow behaves lets the user try it
 in a live sample (`<root>/skills/leaf/references/live-samples.md`) holding only the
-demonstrated page and an `lf-activity` feed of its own log. The prose above the sample
-lists the gestures to try, in an order that exercises each verb the page explains, undo
-included. Before handoff, drive the sample using only what that prose says, and read
-each line the feed prints; a probe that knows more than the prose proves only that the
-sample works.
+demonstrated page and an `lf-activity` feed of its own log. Make the next gesture and
+its visible result clear as the user tries the sample, including Undo. Guidance beside
+the relevant step lets the user learn by operating the page. Before handoff, operate
+the sample using only its visible guidance and read each line the feed prints, so the
+review checks whether the user can work it without the author's knowledge.
 
 ## Keep authoring a page fast
 
@@ -347,6 +363,33 @@ card (`dev/AGENTS.md`, "Commands with consequences outside `.tmp/`"). Run `wt se
 Worktrunk asks to approve the project commands, ask the user to run
 `wt config approvals add`.
 
+## Weigh what a change adds
+
+Whoever writes or reviews a change asks whether what it adds is worth what later
+changes and users pay for it, by the bar "Regular maintenance" sets for code already
+there. Size says little: a two-line selector can reach every page.
+
+- **What it adds**: a mode, branch or special case; one more member of a set,
+  allowlist or tolerance; a wait, retry or timer; a public option; room reserved for a
+  state that may not come; a second statement of a rule with an owner; a reliance on a
+  dependency's internals.
+- **What it buys**: a behavior a user sees, a request the maintainer made, or a
+  measured cost. A green test buys what the test protects, so name that.
+- **Where its cost lands**: read the change's reach rather than its claim, such as a
+  selector's or guard's scope against the condition it names, what else inherits from
+  or sits in the box it changes, and how often a guard fires on a correct setup. Then
+  compare who pays with who gains: a cost paid in every state or on every page to fix
+  one transition usually outweighs it.
+- **The cheaper change**: a platform or dependency primitive, the fix in the owner
+  rather than a caller, the stale copy deleted, or the gap left open with an issue.
+  When `git log -L` shows earlier changes compensating for the same gap, ask whether
+  the mechanism is the wrong primitive and the cheaper change its general form.
+
+Keep an addition whose benefit is concrete when no cheaper change buys it, as with a
+fix in a primitive every caller gains from; otherwise make the cheaper change, or ask
+for it in review. When the fix for a finding would add another branch, flag or
+condition, first ask whether the finding is about the approach.
+
 ## Regular maintenance
 
 Whenever a survey, a review or the nightly sweep reads a file, look for code that
@@ -357,7 +400,8 @@ makes Leaf harder to develop than it is worth:
   contract costs every nearby change, so it must clear a much higher bar. Signs it
   doesn't: a hold, carry or special case for one widget or gesture spread across
   several owners; a public API whose only callers are tests or a single example; a
-  mechanism `git log` shows patched again and again. Code in its own module, such as a
+  mechanism `git log --follow` shows patched again and again (without `--follow`, a file's
+  history stops at its last move). Code in its own module, such as a
   package, a widget or a `leaf-dev` command, costs little beyond its own files; remove
   it only when it is large and unused. Keep anything users would notice losing,
   including Leaf's interface guarantees. Taking a feature away is the maintainer's
@@ -378,7 +422,7 @@ whether one module owns it; if one does, the rule goes in that module's header (
 `AGENTS.md`, "Where instructions live").
 
 The thread appearance gate, `tests/*/test_render_thread_snapshots.py`, is paused
-(`TODO.md`, "Resume the thread appearance gate"), so a thread appearance change needs
+(issue #4046, "Resume the thread appearance gate"), so a thread appearance change needs
 no snapshot run before landing. `tests/AGENTS.md`, "Selecting checks", says what the
 landing gates run and what a failure there means. `wt merge` checks the rebased tree
 and lands it; `✗ Can't push to local main branch` means a fast-forward failed.

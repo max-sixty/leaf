@@ -590,12 +590,14 @@
           // came back reported while every pixel of it was the accent's own. Asked where
           // the two boxes meet, since that is the only place hit testing can order them,
           // and only when both answer there — a point some third box owns says nothing
-          // about these two.
+          // about these two. Hit testing answers a control inside a shadow root with its
+          // host, as it does a code block's Copy, whose ring is its shadow button's, so
+          // the control's place in the stack is the first box that is it or holds it.
           const meetX = [Math.max(o.left, b.left), Math.min(o.right, b.right)];
           const meetY = [Math.max(o.top, b.top), Math.min(o.bottom, b.bottom)];
           if (meetX[0] <= meetX[1] && meetY[0] <= meetY[1]) {
             const stack = document.elementsFromPoint(mid(...meetX), mid(...meetY));
-            const control = stack.indexOf(el);
+            const control = stack.findIndex((n) => n === el || holds(n, el));
             const covering = stack.indexOf(over);
             if (control >= 0 && covering >= 0 && control < covering) break;
           }
@@ -659,7 +661,7 @@
   // What this cannot see, said out loud so a green is not read as more than it is. A
   // joined `lf-options` carrying log news — restated, pending, reported — deliberately
   // stands its ring down, because an element takes one outline and the log has claimed it;
-  // the layer's own comment (packages/default/theme.css) names the carriers that stand in
+  // the layer's own comment (packages/default/widgets.css) names the carriers that stand in
   // its place as the washed cell and the key badges, and neither is an outline nor an
   // accent shadow. That is a fifth way of drawing "here" and this reading has no honest
   // test for it: accepting a background would pass every stop on a tinted page. No corpus

@@ -13,7 +13,7 @@
    admission and later descriptor paints never replay the cue.
    The fragment is captured inertly before its first upgrade; presentation waits for
    preparation before capturing typed authored state. */
-import { html, keyed, render, nothing } from "/vendor/browser-runtime.js";
+import { html, keyed, render, nothing } from "/runtime/framework.js";
 import { generatedElement, offered } from "../widget-elements.js";
 import {
   loadMarkdown,
@@ -29,6 +29,7 @@ import {
   OPEN_MESSAGE_EDIT,
   holdsMessageEdit,
   keptRewrite,
+  messageDrawn,
   releaseMessageEdit,
   watchRewrite,
 } from "./message-edit.js";
@@ -96,8 +97,11 @@ function proseReading(message) {
   return reading;
 }
 
-/** @param {{readonly id?: string, readonly attempt?: string, readonly text?: string, readonly token?: string, readonly suggestion?: boolean, readonly edited?: {readonly id?: string} | null}} message @returns {string} */
+// Authored messages hold the complete captured reading of prose and islands.
+// Other messages and summaries still need their prose rendered here.
+/** @param {{readonly id?: string, readonly attempt?: string, readonly text?: string, readonly token?: string, readonly suggestion?: boolean, readonly body?: {readonly kind: string, readonly text: string}, readonly edited?: {readonly id?: string} | null}} message @returns {string} */
 export function messageText(message) {
+  if (message.body?.kind === "authored") return message.body.text;
   if (message.token) {
     const token = tokenEntry(message.token);
     return `${token?.glyph ?? ""} ${message.token}`.trim();
@@ -113,9 +117,7 @@ export function messageText(message) {
 export function threadName(thread) {
   if (thread.title != null) return thread.title;
   const { root } = thread;
-  const words = labelWords(
-    root.body.kind === "authored" ? root.body.text : messageText(root),
-  );
+  const words = labelWords(messageText(root));
   return words || (root.drawing ? "Drawing" : "");
 }
 
@@ -450,7 +452,9 @@ export class MessageView {
         <b>${model.by}</b
         ><span class="lf-msg-meta"
           ><time datetime=${model.timestamp}>${model.age}</time>${
-            model.unread ? html`<span class="lf-msg-new">New</span>` : nothing
+            model.unread
+              ? html`<span class="lf-msg-new"><span class="lf-quiet">New</span></span>`
+              : nothing
           }
           ${receipt}
           ${
@@ -545,6 +549,9 @@ export class MessageView {
         flashDuration(),
       );
     }
+    // Whether this message can be rewritten may have moved, which the reply box's ↑
+    // reads (`threadRewrites`).
+    messageDrawn();
     return this.node;
   }
 

@@ -136,7 +136,7 @@ const bundles = {
   // document's origin is opaque, so every request is cross-origin and Leaf's server
   // answers it `Access-Control-Allow-Origin: *`, which a credentialed request may not
   // read: the child's own icon.svg mask failed with a CORS error in every capture.
-  // Compare with the document's origin, `self.origin`, instead (SnapDOM 3.3.6).
+  // Compare with the document's origin, `self.origin`, instead (SnapDOM 3.3.7).
   snapdom: () => ({
     out: `${assets}/vendor/snapdom.esm.js`,
     entry: 'export { snapdom } from "@zumer/snapdom";\n',
@@ -151,8 +151,8 @@ const bundles = {
               'y.origin===self.origin?"include":"omit"',
               "SnapDOM credentials origin",
             ),
-            'D.warnedReconcile||(D.warnedReconcile=!0,console.warn("[SnapDOM] Some text may wrap differently in the capture. Pass { reconcile: true } to fix it (about 2x slower)."))',
-            "D.warnedReconcile=!0",
+            'O.warnedReconcile||(O.warnedReconcile=!0,console.warn("[SnapDOM] Some text may wrap differently in the capture. Pass { reconcile: true } to fix it (about 2x slower)."))',
+            "O.warnedReconcile=!0",
             "SnapDOM reconcile console warning",
           ),
       },
@@ -330,8 +330,8 @@ const bundles = {
         edit: (source) =>
           seam(
             source,
-            "b&&(f(),o=h?o&~b|r&b:o|b,s=h?s&~b|r&b:s|b),c+=u[0].length;continue",
-            "if(b){f();o=h?o&~b|r&b:o|b;s=h?s&~b|r&b:s|b;c+=u[0].length;continue}",
+            "if(b||o_.has(m)){c+=u[0].length;continue}",
+            "if(b){c+=u[0].length;continue}",
             "Pele literal unsupported label tags",
           ),
       },
@@ -478,9 +478,14 @@ const bundles = {
       'export { diffArrays } from "diff/lib/diff/array.js";\n',
   }),
 
+  blazediff: () => ({
+    out: `${packageVendor("default")}/blazediff.js`,
+    entry: 'export { default } from "@blazediff/core";\n',
+  }),
+
   // DBSCAN groups screenshot fragments by their original neighborhoods.
   "density-clustering": () => ({
-    out: `${assets}/vendor/density-clustering.esm.js`,
+    out: `${packageVendor("default")}/density-clustering.esm.js`,
     entry: 'export { default as DBSCAN } from "density-clustering/lib/DBSCAN.js";\n',
   }),
 
@@ -659,6 +664,25 @@ const bundles = {
       {
         file: /webawesome\/dist\/chunks\/chunk\.ZAVDMBWV\.js$/,
         edit: patchTransitions,
+      },
+      // A radio group's arrow moves focus to the next radio in its row, which the user
+      // already sees. Leaf places focus without scrolling (focus.js, `focusDestination`),
+      // and the focused-control landing margin made the native scroll move the chooser
+      // under the arrow wherever a landing had left it at the window's top edge.
+      {
+        file: /webawesome\/dist\/chunks\/chunk\.7YHRZ7G7\.js$/,
+        edit: (source) =>
+          seam(
+            seam(
+              source,
+              "radios[index].focus();",
+              "radios[index].focus({ preventScroll: true });",
+              "Web Awesome radio group arrow focus",
+            ),
+            'radios[index].shadowRoot.querySelector("button").focus();',
+            'radios[index].shadowRoot.querySelector("button").focus({ preventScroll: true });',
+            "Web Awesome radio button arrow focus",
+          ),
       },
     ],
     platform: "browser",

@@ -22,8 +22,10 @@ from render_harness import (
     consume_browser_errors,
     expect_obligations_answered,
     expect_panel_offers,
+    is_problem,
     leaf_page,
     open_page,
+    open_threads,
     open_versions,
     page_comment,
     panel_field,
@@ -327,10 +329,10 @@ def test_on_me_claims_nothing_before_the_first_replay(browser, serve):
     # The blanket answer claims no action before the first state answer.
     expect_panel_offers(page, "blanket:accept", offered=False)
 
-    threads = page.locator(".lf-fp-threads")
-    expect(threads).to_be_enabled()
-    threads.click()
-    panel_settled(page, view="threads")
+    on_me = page.locator(".lf-fp-on-user")
+    expect(on_me).to_be_enabled()
+    on_me.click()
+    panel_settled(page, view="queue")
     # The page's field takes words while the first state answer is still held.
     expect(page_comment(page)).to_be_editable()
     page.keyboard.press("Escape")
@@ -366,8 +368,7 @@ def test_comments_wait_for_the_first_log_to_be_renderable(browser, serve):
     assert held, "the positive control did not hold the Markdown renderer"
 
     rows = page.locator(f"{panel_view('threads')} .lf-fp-thread")
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    open_threads(page)
     expect(rows).to_have_count(0)
 
     held.pop(0).continue_()
@@ -700,8 +701,12 @@ def test_a_firefox_departure_reports_none_of_the_loads_it_aborts(
     # The import's rejection settles startup within the task that delivers it.
     page.evaluate("() => new Promise(done => setTimeout(() => setTimeout(done)))")
     assert page.evaluate("document.documentElement.dataset.lfStartupError") is None
-    # Firefox's own word on the aborted request is all the console holds.
-    consume_browser_errors(page, "Loading failed for the module")
+    # Firefox may also classify the loopback host as a bounce tracker during
+    # navigation. That browser privacy notice says nothing about page startup.
+    errors = consume_browser_errors(
+        page, "Loading failed for the module", "classified as a bounce tracker"
+    )
+    assert any(is_problem(error, "Loading failed for the module") for error in errors)
     assert not page.lf_errors
     assert not [
         event

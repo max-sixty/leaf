@@ -275,6 +275,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
             "start",
             str(serve.page_dir),
             roots[0]["id"],
+            "--text",
             detail,
         ],
     )
@@ -467,7 +468,14 @@ def test_each_seat_agrees_with_the_page_map_on_a_controls_receipt(
         delivery_model.record_pickup(transaction, roots)
     claimed = CliRunner().invoke(
         cli_model.cli,
-        ["task", "start", str(serve.page_dir), roots[0]["id"], "Checking the visit."],
+        [
+            "task",
+            "start",
+            str(serve.page_dir),
+            roots[0]["id"],
+            "--text",
+            "Checking the visit.",
+        ],
     )
     assert claimed.exit_code == 0, claimed.output
     told(page)
@@ -575,8 +583,15 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
     whose authored obligation has been handed to the agent by its comment.
     """
     comment = {**COMMENT_ON_OBLIGATION, "anchor": {"section": target}}
+    source = OBLIGATION_PAGE.replace(
+        "</head>",
+        """<style>:root {
+      --pin-on-user: light-dark(#d8f1b0, #e4e8aa);
+      --pin-on-user-ink: light-dark(#244714, #334017);
+    }</style></head>""",
+    )
     page = open_page(
-        browser, live_url(serve(OBLIGATION_PAGE, events=[comment])), color_scheme=scheme
+        browser, live_url(serve(source, events=[comment])), color_scheme=scheme
     )
     resized(page, 1440, 900)
     cluster = page.locator(f'[data-lf-margin-for="{target}"]')
@@ -684,6 +699,7 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
             "start",
             str(serve.page_dir),
             roots[0]["id"],
+            "--text",
             "Checking the user comment.",
         ],
     )
@@ -699,22 +715,26 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
     expect(cluster).to_have_attribute("data-lf-place", "pin")
     expect(marker).to_have_css("background-color", token_colour(page, "--pin-on-user"))
     expect(marker.locator(".lf-margin-entry-icon")).to_have_css(
-        "color", "rgb(255, 255, 255)"
+        "color", token_colour(page, "--pin-on-user-ink")
     )
     pin_contrast = marker.evaluate("""node => {
       const canvas = document.createElement('canvas');
       canvas.width = canvas.height = 1;
       const ctx = canvas.getContext('2d', {willReadFrequently: true});
-      ctx.fillStyle = getComputedStyle(node).backgroundColor;
-      ctx.fillRect(0, 0, 1, 1);
-      const channels = [...ctx.getImageData(0, 0, 1, 1).data.slice(0, 3)]
-        .map(value => value / 255)
-        .map(value => value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4);
-      const luminance = channels.reduce(
-        (sum, value, index) => sum + value * [.2126, .7152, .0722][index], 0);
-      return 1.05 / (luminance + .05);
+      const luminance = color => {
+        ctx.fillStyle = color;
+        ctx.fillRect(0, 0, 1, 1);
+        const channels = [...ctx.getImageData(0, 0, 1, 1).data.slice(0, 3)]
+          .map(value => value / 255)
+          .map(value => value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4);
+        return channels.reduce(
+          (sum, value, index) => sum + value * [.2126, .7152, .0722][index], 0);
+      };
+      const ground = luminance(getComputedStyle(node).backgroundColor);
+      const ink = luminance(getComputedStyle(node.querySelector('.lf-margin-entry-icon')).color);
+      return (Math.max(ground, ink) + .05) / (Math.min(ground, ink) + .05);
     }""")
-    assert pin_contrast >= 3, f"the white thread glyph lacks contrast: {pin_contrast}"
+    assert pin_contrast >= 3, f"the thread glyph lacks contrast: {pin_contrast}"
 
     # Answering is what ends the user's turn, and the gallery tells a developer to
     # watch for exactly that. Both agent threads have to be answered, because the
@@ -772,7 +792,7 @@ def test_a_thread_an_open_to_do_holds_says_so_beside_the_page(browser, serve):
     queue = page.locator(panel_view("queue"))
     owed = queue.locator('.lf-fp-on-item[data-list="agent"]')
     expect(owed).to_have_count(1)
-    expect(owed.locator(".lf-fp-on-title, .lf-fp-prompt").first).to_have_text(named)
+    expect(owed.get_by_role("button").locator(".lf-fp-label")).to_have_text(named)
     page.keyboard.press("Escape")
     # The agent's answer settles the comment and opens the to-do that holds it.
     append_carried_log_record(
@@ -849,7 +869,7 @@ def test_unit_claim_arrivals_share_one_window_with_the_open_page_map(browser, se
     record_claim(serve.page_dir)
     claimed = CliRunner().invoke(
         cli_model.cli,
-        ["task", "open", str(serve.page_dir), "sprint", "Check the board"],
+        ["task", "create", str(serve.page_dir), "sprint", "--title", "Check the board"],
     )
     assert claimed.exit_code == 0, claimed.output
     told(page)
@@ -903,6 +923,7 @@ def test_unit_claim_arrivals_share_one_window_with_the_open_page_map(browser, se
                 "start",
                 str(serve.page_dir),
                 move["id"],
+                "--text",
                 "Checking both moved cards",
             ],
         )
@@ -1237,7 +1258,14 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
 
     claimed = CliRunner().invoke(
         cli_model.cli,
-        ["task", "start", str(page_dir), logged_action["id"], "checking the mounts"],
+        [
+            "task",
+            "start",
+            str(page_dir),
+            logged_action["id"],
+            "--text",
+            "checking the mounts",
+        ],
     )
     assert claimed.exit_code == 0, claimed.output
     told(page)

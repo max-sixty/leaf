@@ -72,11 +72,22 @@ import { beginWalk, listWalkPosition } from "../walk-position.js";
 import { textField } from "./text-field.js";
 import { raiseError } from "../errors.js";
 import { isNativeLayer } from "../shadow-tree.js";
+import { iconElement } from "../icons.js";
 
 // The comment field keeps Send or Dictate as its primary action. Other responses
-// open in one anchored picker from the adjacent button, Tab, or e. The same picker
-// follows the composer between the floating panel, a passage, and a widget outlet;
-// opening it never changes the field's size or position.
+// open in one anchored picker from a ⋯ in the field's corner, Tab, or e. The same
+// picker follows the composer between the floating panel, a passage, and a widget
+// outlet; opening it never changes the field's size or position.
+//
+// The ⋯ stands beside Dictate only while the field is empty, and the draft's first
+// word takes its place, so the field spans the bar in every state and nothing moves
+// as the user starts typing (response.css). Max chose this on 25 October 2026 over a
+// bordered button beside the field, which kept 40px of a 294px bar from the words
+// and ended a sent card's message short of its Reply field, over hiding that button
+// at the first key, which widened the field under the caret, and over no button at
+// all, which left a mouse or finger no way to Suggest or a reaction. It replaces
+// #4124's ⋯ over the field's end, in the head row the floating frame reserves, which
+// only the floating presentation had.
 export const fabBar = el("div", "lf-ui lf-fab-bar lf-target-paint");
 fabBar.dataset.lfRuntime = ""; // Leaf's own when seated in a widget (passages.js, leafSurface)
 fabBar.setAttribute("role", "group");
@@ -104,19 +115,19 @@ const fabSuggest = responseAction(el("button", "lf-ui lf-fab-suggest"), {
   collapse: true,
 });
 fabOptions.append(fabSuggest);
-export const fabOptionsTrigger = responseAction(
-  el("button", "lf-ui lf-response-trigger"),
-  {
-    icon: "more",
-    label: "Other responses",
-    collapse: true,
-    behavior: "disclosure",
-  },
+// It joins the field `wireInput` builds around the editor when the composer mounts.
+export const fabOptionsTrigger = el(
+  "button",
+  "lf-ui lf-icon-action lf-response-trigger",
 );
+fabOptionsTrigger.type = "button";
+fabOptionsTrigger.title = "Other responses";
+fabOptionsTrigger.append(iconElement("more", "lf-action-icon"));
+fabOptionsTrigger.setAttribute("aria-label", "Other responses");
 fabOptionsTrigger.setAttribute("aria-controls", fabOptions.id);
 fabOptionsTrigger.setAttribute("aria-expanded", "false");
 fabOptionsTrigger.popoverTargetElement = fabOptions;
-fabBar.append(fab, fabOptionsTrigger, fabOptions);
+fabBar.append(fab, fabOptions);
 
 const composer = el("div", "lf-ui lf-composer");
 composer.id = "lf-composer";
@@ -751,7 +762,6 @@ export function createSelectionComposer({
             part: "thread",
             focus: true,
             travel: false,
-            flash: false,
             intent: restrictUserIntent(currentIntent, revealAvailable),
             origin,
           });
@@ -760,6 +770,7 @@ export function createSelectionComposer({
         }
       },
     });
+    composerInput.parentElement.append(fabOptionsTrigger);
     fabSuggest.onclick = () => {
       setResponseOptions(false);
       setSuggestionMode(!suggestionMode);

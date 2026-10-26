@@ -9,6 +9,7 @@ import re
 from .state import EVENTS_FILE, PLUGIN_ROOT
 
 ASSETS = PLUGIN_ROOT / "browser"
+SKILL_FILE = PLUGIN_ROOT / "skills" / "leaf" / "SKILL.md"
 
 # A session-managed server gives a replacement session one short poll window to
 # claim the page before it closes. The external claim record is the ownership
@@ -18,8 +19,8 @@ ORPHAN_GRACE_SECS = 1
 # supplies one, and an agent-authored event's that carries no `agent` (`agent_name`).
 UNNAMED_AGENT = "Agent"
 ANSWER_INSTRUCTION = (
-    "`leaf page state <page>` lists what is owed, and `leaf page state <page> <id>` "
-    "reads a thread's history."
+    "`leaf page state <page>` lists what is owed, and "
+    "`leaf page state <page> <message>` reads a thread's history."
 )
 WAIT_BATCH_OUTPUT_INSTRUCTION = (
     "Print one page's complete ordered batch, thread context, and response "
@@ -198,7 +199,18 @@ VERB_SCHEMA = {
             ]
         },
         "writer": {"const": "agent"},
+        "attention": {"const": True},
         "creates": ACTION_CREATES,
+        "decides": {"const": True},
+        "contract": {
+            "type": "object",
+            "properties": {
+                "field": {"type": "string", "minLength": 1},
+                "attribute": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+            },
+            "required": ["field", "attribute"],
+            "additionalProperties": False,
+        },
         # The effect owns the payload; `text` adds a required non-empty detail.text.
         "text": {"const": True},
     },
@@ -206,7 +218,14 @@ VERB_SCHEMA = {
     "allOf": [
         {
             "if": {"required": ["record"]},
-            "then": {"properties": {"detail": False, "creates": False}},
+            "then": {
+                "properties": {
+                    "detail": False,
+                    "creates": False,
+                    "contract": False,
+                    "decides": False,
+                }
+            },
             "else": {"required": ["detail"]},
         }
     ],
@@ -255,6 +274,7 @@ AWAITS_SCHEMA = {
         },
         "all": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "retired": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+        "key": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "reply": {"const": True},
         "encloses": {"const": True},
     },
@@ -265,6 +285,7 @@ AWAITS_SCHEMA = {
             "answered": False,
             "all": False,
             "records": False,
+            "key": False,
         },
     },
     "else": {"required": ["value", "answered"]},
@@ -291,6 +312,9 @@ DATA_INPUTS_SCHEMA = {
             "source": {"type": "string", "pattern": f"^{HTML_NAME}$"},
             "reference": {"type": "string", "pattern": f"^{HTML_NAME}$"},
             "output": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+            # The element property the runtime sets to the delivered value
+            # (leaf-element.js, "Bound values").
+            "property": {"type": "string", "pattern": "^[a-z][A-Za-z0-9]*$"},
         },
         "dependentRequired": {"reference": ["output"], "output": ["reference"]},
         "required": ["contract"],
@@ -341,6 +365,10 @@ EXTENSION_SCHEMA = {
             },
         },
         "x-example": {"type": "string"},
+        "x-example-data": {
+            "type": "object",
+            "propertyNames": {"pattern": f"^{DATA_SOURCE_NAME}$"},
+        },
         "x-exhibit": {
             "oneOf": [
                 {"type": "boolean"},
@@ -372,6 +400,15 @@ EXTENSION_SCHEMA = {
             "additionalProperties": {"enum": ["before", "after"]},
         },
         "x-shadow": {"type": "boolean"},
+        # A view of another widget's answer (`shown_answers.py`): `attr` names that
+        # widget, and `value` the attribute of the view's compound owner that names
+        # the answer it holds.
+        "x-shows": {
+            "type": "object",
+            "properties": {"attr": _ATTRIBUTE_NAME, "value": _ATTRIBUTE_NAME},
+            "required": ["attr", "value"],
+            "additionalProperties": False,
+        },
         "x-state": STATE_SCHEMA,
         "x-thread-surface": {"const": True},
         "x-tone": _ATTRIBUTE_NAME,
@@ -459,6 +496,7 @@ EXTENSION_SCHEMA = {
         "x-retired-when": ["x-owners"],
         "x-within": ["x-owners"],
         "x-measured": ["x-data"],
+        "x-shows": ["x-owners", "x-refers"],
     },
     # An upgraded container can retain authored children, native markup included.
     "if": {"required": ["x-patch"]},
@@ -598,6 +636,16 @@ BUNDLED_PACKAGES = PLUGIN_ROOT / "packages"
 DEFAULT_PACKAGE = BUNDLED_PACKAGES / "default"
 # The files `page init` writes at the top of a page directory.
 VENDORED_FILES = ("theme.css", "shadow.css", "registry.json", "icon.svg")
+# A package's source contributions are composed into the page files above. Their
+# roles depend on their filenames, not on whether the package declares widgets.
+PACKAGE_STYLES = (
+    "widget-shadow.css",
+    "widgets.css",
+    "theme-shadow.css",
+    "theme.css",
+    "controls.css",
+)
+PACKAGE_FILES = (*PACKAGE_STYLES, "registry.json", "icon.svg")
 # The layer's browser directories, which packages add to.
 BROWSER_DIRS = ("runtime", "widgets", "vendor")
 # What the Leaf serving a page supplies rather than its vendored layer: the runtime's

@@ -1,9 +1,9 @@
 ---
-name: grinding-ui
-description: Runs iterative improvements to Leaf UI and authoring instructions through experiments and comparisons with plain HTML. Use to start or resume a grinding campaign.
+name: hill-climb-ui
+description: Runs iterative improvements to Leaf UI and authoring instructions through experiments and comparisons with plain HTML. Use to start or resume a hill-climbing campaign.
 ---
 
-# Grinding UI
+# Hill-climb UI
 
 Improve Leaf through repeated comparisons with plain HTML, within the user's requested
 scope or duration. Load `/developing-leaf` for repository work.

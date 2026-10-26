@@ -7,10 +7,10 @@ conversation and actions outside the page.
 
 ## What a decision holds
 
-The user should be able to make the choice as well as you could from what the decision
-tells them. Say why the choice arises, what each option leads to in a case the user
-can picture, and what each costs, including the one you recommend, so they could reach
-your recommendation or turn it down for reasons the decision gives. Where you can't
+The user should be able to decide as well as you could from what the question tells
+them. Say why the choice arises, what each option leads to in a case the user can
+picture, and what each costs, including the one you recommend, so they could reach
+your recommendation or turn it down for reasons the question gives. Where you can't
 yet say what an option does, find out before you ask.
 
 Each option is a result the user can pick, so its title says what choosing it does to

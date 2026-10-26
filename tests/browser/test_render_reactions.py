@@ -32,12 +32,15 @@ from render_harness import (
     ROOT,
     accessible_details,
     available_commands,
+    expect_on_me,
+    expect_open_threads,
     expect_panel_says,
     held_frames,
     holding,
     leaf_page,
     margins_laid_out,
     open_page,
+    open_threads,
     page_comment,
     panel_settled,
     resized,
@@ -269,16 +272,13 @@ def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
         and level["clusters"] == 1
     ), level
     # A mark, not a thread: nothing in the panel, and nothing in its count.
-    expect(page.locator(".lf-fp-threads")).to_have_attribute(
-        "title", re.compile("^Threads, 0 open")
-    )
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    expect_open_threads(page, 0)
+    open_threads(page)
     expect(page.locator(".lf-fp-thread")).to_have_count(0)
     # The bar raised on the same passage again says the token stands. Its general
     # response disclosure keeps those choices with the field, while the reaction's glyph
     # remains the margin receipt and removal disclosure.
-    page.locator(".lf-fp-threads").click()
+    page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
     receipt_item = page.locator('.lf-margin-cluster[data-lf-margin-for="how-store"]')
     expect(receipt_item).to_have_attribute("data-lf-place", "rail")
@@ -565,8 +565,7 @@ def test_tab_opens_the_comment_picker_with_individual_emoji_buttons(browser, ser
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
 
     # Neither Threads nor the page comment adds an unanchored reaction target.
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    open_threads(page)
     expect(page.locator(".lf-floating-panel .lf-react-strip")).to_have_count(0)
     page_comment(page)
     expect(page.locator(".lf-floating-panel .lf-react-strip")).to_have_count(0)
@@ -942,7 +941,10 @@ def test_the_response_field_grows_under_its_picker_trigger(browser, serve):
         "button", name="Other responses", exact=True
     ).bounding_box()
     # The field takes the bar's whole measure; the trigger stands over its end.
-    assert trigger["y"] + trigger["height"] <= narrow_field["y"], (narrow_field, trigger)
+    assert trigger["y"] + trigger["height"] <= narrow_field["y"], (
+        narrow_field,
+        trigger,
+    )
     for box in (narrow_field, trigger):
         assert box["x"] + box["width"] == pytest.approx(content_right, abs=1), box
     page.keyboard.press("Enter")
@@ -2355,7 +2357,7 @@ def _thread(page_dir):
             "parent": root,
             "revision": 1,
             "text": "Forty is what the slowest device we ship on can hold.",
-            "markup": '<lf-ask id="forty-enough">Is forty enough?</lf-ask>',
+            "markup": f'<lf-ask id="forty-enough-{root}">Is forty enough?</lf-ask>',
         },
     )
     return root, reply["id"]
@@ -2372,8 +2374,7 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
     url = serve(PANEL_PAGE)
     root, reply = _thread(serve.page_dir)
     page = open_page(browser, url)
-    on_me = page.locator(".lf-fp-on-user")
-    expect(on_me).to_have_attribute("title", "On me: 1")
+    expect_on_me(page, 1)
     view = open_panel_thread(page, root)
     strip = view.locator(f'.lf-msg[data-message="{reply}"] .lf-react-strip')
     expect(strip.locator(".lf-react-trigger")).to_have_count(1)
@@ -2394,20 +2395,20 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
     expect(strip.locator('.lf-react[data-token="change"]')).to_have_attribute(
         "aria-pressed", "true"
     )
-    expect(on_me).to_have_attribute("title", "On me: 1")  # `no` settles nothing
+    expect_on_me(page, 1)  # `no` settles nothing
 
     strip.locator(".lf-react-trigger").click()
     with sending(page, "the ok that settles the thread"):
         strip.locator('.lf-react[data-token="keep"]').click()
     ok = events_model.read_events(serve.page_dir)[-1]
     assert ok["token"] == "keep" and ok["parent"] == reply
-    expect(on_me).to_have_attribute("title", "On me")  # out of "waiting on me"
+    expect_on_me(page, 0)  # out of "waiting on me"
     # The mark, pressed again, is the eraser — and the wait comes back with the undo.
     with sending(page, "the take-back of the ok"):
         strip.locator('.lf-react[data-token="keep"]').click()
     withdrawn = events_model.read_events(serve.page_dir)[-1]
     assert withdrawn["kind"] == "undo" and withdrawn["undoes"] == ok["id"]
-    expect(on_me).to_have_attribute("title", "On me: 1")
+    expect_on_me(page, 1)
     expect(strip.locator('.lf-react[data-token="keep"]')).to_have_attribute(
         "aria-pressed", "false"
     )
@@ -2459,9 +2460,7 @@ def test_a_reply_to_a_reaction_opens_a_thread_and_resolve_is_its_floor(browser, 
     )
     page = open_page(browser, url)
     painted(page, [["merge-both", "change"]])
-    expect(page.locator(".lf-fp-threads")).to_have_attribute(
-        "title", re.compile("^Threads, 0 open")
-    )
+    expect_open_threads(page, 0)
 
     thread_model.post_reply(
         serve.page_dir,
@@ -2469,9 +2468,7 @@ def test_a_reply_to_a_reaction_opens_a_thread_and_resolve_is_its_floor(browser, 
         "Which part — the case, or the answer?",
     )
     told(page)
-    expect(page.locator(".lf-fp-threads")).to_have_attribute(
-        "title", re.compile("^Threads, 1 open")
-    )
+    expect_open_threads(page, 1)
     thread = open_panel_thread(page, reaction["id"])
     expect(thread.locator(".lf-react-said")).to_have_text("❌ change")
     assert painted(page, []) == {"washed": "", "glyphs": [], "projected": 0}
@@ -2479,9 +2476,7 @@ def test_a_reply_to_a_reaction_opens_a_thread_and_resolve_is_its_floor(browser, 
 
     thread_model.cmd_resolve(serve.page_dir, reaction["id"])
     told(page)
-    expect(page.locator(".lf-fp-threads")).to_have_attribute(
-        "title", re.compile("^Threads, 0 open")
-    )
+    expect_open_threads(page, 0)
     assert page.evaluate("() => CSS.highlights.get('lf-mark').size") == 0
 
 

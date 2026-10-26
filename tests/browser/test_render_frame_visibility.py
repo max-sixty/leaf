@@ -165,7 +165,9 @@ def test_a_framed_page_moves_nobody_until_the_user_enters_it(browser, serve):
         navigation.addEventListener('navigatesuccess', resolve, { once: true }));
     }""")
     go.click()
-    assert embedded.evaluate("() => window.travelled.then(() => location.hash)") == "#far"
+    assert (
+        embedded.evaluate("() => window.travelled.then(() => location.hash)") == "#far"
+    )
     assert page.evaluate("document.activeElement.id") == "go"
     assert not embedded.evaluate("document.hasFocus()")
 

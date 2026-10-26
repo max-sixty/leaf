@@ -16,13 +16,17 @@ from journeys.test_render_read_state import (
     _box_height,
     _expect_news,
     _first_unread,
+    _on_me_mark,
     _read_events,
     _said,
     _seat_comment,
     _select_new_route,
     _thread_row,
-    _threads_mark,
     _to_upper_third,
+)
+from leaf_dev.browser import (
+    panel_tab,
+    threads_tab,
 )
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, panel_comment
@@ -39,6 +43,7 @@ from render_harness import (
     http_error_console,
     is_problem,
     open_page,
+    open_threads,
     panel_settled,
     reported_browser_errors,
     resized,
@@ -359,9 +364,8 @@ def test_modal_blocks_exposure_until_user_returns_to_threads(browser, serve):
     )
     page = open_page(browser, url)
     resized(page, width, 900)
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
-    page.locator(".lf-fp-threads").focus()
+    open_threads(page)
+    panel_tab(page, "Threads").focus()
     page.keyboard.press("?")
     reference = page.locator(".lf-command-reference")
     expect(reference).to_be_visible()
@@ -441,18 +445,16 @@ def test_first_unread_opens_the_exact_message_and_exposure_acknowledges_it(
     root = panel_comment(serve.page_dir, "An answer for the user.", author="agent")
     page = open_page(browser, url)
 
-    mark = _threads_mark(page)
-    expect(mark).to_have_text("2")
-    expect(mark).to_have_attribute("aria-label", "Threads, 2 open, 1 with news")
-    expect(mark).to_have_attribute("title", "Threads, 2 open, 1 with news")
+    mark = _on_me_mark(page)
+    expect(mark).to_have_attribute("aria-label", "On me, 1 thread with news")
+    expect(mark).to_have_attribute("title", "On me, 1 thread with news")
     expect(mark.locator(".lf-fp-news")).to_be_visible()
     thread_control_width = mark.bounding_box()["width"]
-    # With news waiting, Threads opens on the threads that hold it.
+    # With news waiting and nothing on the user, the mark opens Threads, where the
+    # thread holding it says so.
     mark.click()
     panel_settled(page, view="threads")
-    expect(page.locator(".lf-fp-filters button", has_text="Unread")).to_have_attribute(
-        "aria-pressed", "true"
-    )
+    expect(threads_tab(page).locator(".lf-fp-count")).to_have_text("2")
     row = _thread_row(page, root)
     expect(row).to_have_attribute("data-unread", "")
     with sending(page, "first unread acknowledgement"):
@@ -462,14 +464,15 @@ def test_first_unread_opens_the_exact_message_and_exposure_acknowledges_it(
     expect(card.locator(f'.lf-msg[data-message="{root}"]')).not_to_have_class(
         re.compile(r"(^|\s)lf-unread(\s|$)")
     )
-    expect(mark).to_have_attribute("aria-label", "Threads, 2 open")
-    expect(mark).to_have_attribute("title", "Threads, 2 open")
-    expect(mark.locator(".lf-fp-news")).to_be_hidden()
-    assert abs(mark.bounding_box()["width"] - thread_control_width) < 1
     assert _read_events(serve.page_dir)[-1]["messages"] == [
         {"message": root, "version": root}
     ]
-    expect(mark).to_have_text("2")
+    page.locator(".lf-fp-close").click()
+    panel_settled(page, open=False)
+    expect(mark).to_have_attribute("aria-label", "On me")
+    expect(mark).to_have_attribute("title", "On me")
+    expect(mark.locator(".lf-fp-news")).to_be_hidden()
+    assert abs(mark.bounding_box()["width"] - thread_control_width) < 1
     page.reload()
     _expect_news(page, False)
 
@@ -488,8 +491,7 @@ def test_progress_is_never_unread_and_reading_its_answer_reads_only_it(browser, 
         ephemeral=True,
     )["id"]
     page = open_page(browser, url)
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    open_threads(page)
     row = _thread_row(page, root)
     expect(row).to_be_visible()
     expect(row).not_to_have_attribute("data-unread", "")
@@ -1120,7 +1122,7 @@ def test_a_thread_the_agent_starts_on_a_bare_diff_line_waits_at_its_margin_marke
             range.selectNodeContents(node); const selection = getSelection();
             selection.removeAllRanges(); selection.addRange(range); }"""
         )
-        _threads_mark(page).focus()
+        _on_me_mark(page).focus()
         # The user scrolls the line away, a gesture of theirs the page answers.
         page.mouse.move(40, 400)
         page.mouse.wheel(
@@ -1221,8 +1223,7 @@ def test_a_page_seat_the_open_panel_stands_over_is_not_read(
         """thread => scrollBy(0, thread.getBoundingClientRect().top - innerHeight - 40)""",
         page.locator("lf-diff .lf-page-thread").element_handle(),
     )
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    open_threads(page)
     reply = thread_model.post_reply(
         serve.page_dir,
         {"responds": root},

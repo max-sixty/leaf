@@ -58,7 +58,8 @@ from interact_support import (
     wait_for,
     write_record,
 )
-from leaf_dev.browser import scroll_settled, slow_cpu
+from leaf_dev import browser as dev_browser
+from leaf_dev.browser import ON_ME_MARK, scroll_settled, slow_cpu, threads_tab
 from leaf_dev.example_data import regression_sources
 from leaf_dev.page_fixtures import (
     example_media,
@@ -1697,8 +1698,6 @@ def panel_view(name: str) -> str:
 
 # A view of one thread, which names the thread it shows by id in `data-thread`.
 PANEL_THREAD = panel_view("thread")
-# Rows the panel's own row holds, rather than its menu.
-PANEL_ROW_CONTROLS = {"threads": ".lf-fp-threads", "queue": ".lf-fp-on-user"}
 
 
 def panel_field(page):
@@ -1736,6 +1735,53 @@ def panel_settled(page, open=True, view=None):
     )
 
 
+def open_threads(page):
+    """Open the panel's Threads view by pointer, as a user reaches it
+    (`leaf_dev.browser.open_threads`), and wait for its motion to end."""
+    dev_browser.open_threads(page)
+    panel_settled(page, view="threads")
+
+
+# How many open threads the page's reading holds, the number the Threads tab says
+# (thread/model.js, `threadCounts`): those not resolved, a bare reaction being no
+# thread; null until the saved inventory has arrived. It leaves the reading as
+# `window.__lfOpenThreads` for a wait to poll.
+OPEN_THREAD_COUNT = """async () => {
+  const { readThreads } = await window.__lfWidgetApi();
+  const { threadCounts } = await window.__lfCheckApi();
+  window.__lfOpenThreads = () => {
+    const reading = readThreads();
+    return reading.phase === "ready" ? threadCounts(reading.threads).open : null;
+  };
+  return window.__lfOpenThreads();
+}"""
+
+
+def expect_open_threads(page, count):
+    """Wait until the page's reading holds `count` open threads (`OPEN_THREAD_COUNT`).
+
+    The count stands on the Threads tab, behind a press on the On me mark, so this
+    reads it without one, leaving focus, the open view and any card as they are; where
+    the tab itself is the subject, read `threads_tab`'s `.lf-fp-count`."""
+    page.evaluate(OPEN_THREAD_COUNT)
+    try:
+        page.wait_for_function(
+            "(want) => window.__lfOpenThreads() === want",
+            arg=count,
+            polling=render_checks_model.PROBE_POLL_MS,
+        )
+    except PlaywrightTimeout as error:
+        held = page.evaluate("() => window.__lfOpenThreads()")
+        raise AssertionError(f"open threads read {held}, not {count}") from error
+
+
+def expect_on_me(page, count):
+    """Wait until the panel counts `count` items waiting on the user. The folded leaf's
+    badge carries the count the On me mark does, whatever view stands open, where the
+    mark gives its seat to the view's ✕, and whatever news its name goes on to say."""
+    expect(page.locator(".lf-fp-badge")).to_have_text(str(count) if count else "")
+
+
 def panel_menu(page, at=None):
     """Open the leaf's menu and return it, open at its root or at the list `at`
     names: a group (`navigate`, `annotate`, `about`) or `versions`.
@@ -1769,16 +1815,19 @@ def panel_control(page, key, at=None):
     """Return the panel's control for the page's control row `key`, opening the leaf's
     menu, and the list `at` names (`panel_menu`), where the row stands there.
 
-    Threads (`threads`) and On me (`queue`) are the row's marks. Every other row is
-    the menu's, by its key:
+    On me (`queue`) is the row's mark, standing while no view or stance does, and
+    Threads (`threads`) the tab at the foot of On, which the mark opens to reach it
+    (`leaf_dev.browser.threads_tab`). Every other row is the menu's, by its key:
     `versions`, `leaves` (All pages, under `navigate` where other pages are live),
     `latest`, `blanket:accept`, `command:<id>` for a page command such as
     `command:history.undo` or `command:draw.mode.enter` (under `annotate`). The way out
     of the current panel view is the `.lf-fp-exit` ✕ named by its `aria-label`,
     and the page comment is `page_comment`'s, offering selected words as
     `selection_field`'s."""
-    if key in PANEL_ROW_CONTROLS:
-        control = page.locator(PANEL_ROW_CONTROLS[key])
+    if key == "queue":
+        control = page.locator(ON_ME_MARK)
+    elif key == "threads":
+        control = threads_tab(page)
     else:
         control = panel_menu(page, at).locator(f'.lf-fp-item[data-row="{key}"]')
     expect(control).to_be_visible()

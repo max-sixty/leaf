@@ -29,6 +29,7 @@ from render_harness import (
     is_problem,
     leaf_page,
     open_page,
+    open_threads,
     open_versions,
     panel_field,
     panel_settled,
@@ -166,16 +167,16 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
     page.set_viewport_size({"width": 1200, "height": 844})
     on_body = "() => document.activeElement === document.body"
     preview = page.locator(".lf-margin-preview")
-    toggle = page.locator(".lf-fp-threads")
+    toggle = page.locator(".lf-fp-on-user")
     marker = page.locator('[data-lf-margin-for="p"] > .lf-margin-marker')
     threads = [
         page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
         for root in roots
     ]
 
-    # Threads by pointer: out with the panel's view.
+    # On me by pointer: out with the panel's view.
     toggle.click()
-    panel_settled(page, view="threads")
+    panel_settled(page, view="queue")
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
     assert page.evaluate(on_body)
@@ -223,7 +224,7 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
 
     toggle.focus()
     page.keyboard.press("Enter")
-    panel_settled(page, view="threads")
+    panel_settled(page, view="queue")
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
     assert page.evaluate(on_body)
@@ -1305,8 +1306,7 @@ def test_escape_backs_out_from_a_control_nothing_is_typed_into(browser, serve):
     # The mouse opens between rounds because c is the select's own letter, and the
     # press has to be made the same way on both to be comparing anything.
     for control in ("#zoom", "#pick"):
-        page.locator(".lf-fp-threads").click()
-        panel_settled(page, view="threads")
+        open_threads(page)
         page.locator(control).focus()
         page.keyboard.press("Escape")
         assert page.evaluate("() => document.activeElement === document.body")
@@ -1329,7 +1329,7 @@ def test_a_margin_marker_backs_out_onto_the_page_like_the_toggle(browser, serve)
     marker = page.locator('[data-lf-margin-for="p"] > .lf-margin-marker')
     expect(marker).to_be_visible()
 
-    for control in (page.locator(".lf-fp-threads"), marker):
+    for control in (page.locator(".lf-fp-on-user"), marker):
         control.focus()
         expect(control).to_be_focused()
         page.keyboard.press("Escape")
@@ -1648,8 +1648,7 @@ def test_a_page_element_named_host_leaves_the_keyboard_climb_at_the_document(
         ),
     )
     assert page.evaluate("document.host instanceof HTMLFormElement")
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    open_threads(page)
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
 

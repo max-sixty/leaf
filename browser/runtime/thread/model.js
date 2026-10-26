@@ -18,10 +18,10 @@
 import { sameAnchor } from "../anchor-coordinate.js";
 import { PENDING } from "./identity.js";
 
-/** @typedef {import("../../framework/domain.js").Thread} Thread */
-/** @typedef {import("../../framework/domain.js").Message} Message */
-/** @typedef {import("../../framework/domain.js").Settlement} Settlement */
-/** @typedef {import("../../framework/domain.js").Anchor} Anchor */
+/** @typedef {import("../../types/domain.js").Thread} Thread */
+/** @typedef {import("../../types/domain.js").Message} Message */
+/** @typedef {import("../../types/domain.js").Settlement} Settlement */
+/** @typedef {import("../../types/domain.js").Anchor} Anchor */
 
 /** @param {{token?: string}} message */
 export const isReaction = (message) => Boolean(message.token);
@@ -182,7 +182,7 @@ const pendingSeat = (message) =>
 // server read until the log answers the gesture. A thread the user opened with words has
 // no log beyond the gesture: it waits on the agent for its send, under the pending id its
 // local workflow shares, and asks nothing yet.
-/** @param {{id: string}} turn @returns {import("../../framework/domain.js").Attention} */
+/** @param {{id: string}} turn @returns {import("../../types/domain.js").Attention} */
 const sending = (turn) => ({
   kind: "waiting",
   reason: "workflow",
@@ -193,7 +193,7 @@ const sending = (turn) => ({
 // rewrite as the thread draws it, each settlement with the `localParent` its pending
 // parent went by, and each undo.
 /** @param {readonly Thread[]} threads
- * @param {readonly import("../../framework/domain.js").ThreadGesture[]} gestures
+ * @param {readonly import("../../types/domain.js").ThreadGesture[]} gestures
  * @returns {Thread[]}
  */
 export function foldThreads(threads, gestures) {
@@ -326,7 +326,7 @@ export function lastMovedAt(thread) {
   return latest;
 }
 
-/** @param {import("../../framework/domain.js").ContentVersion} item */
+/** @param {import("../../types/domain.js").ContentVersion} item */
 const versionKey = ({ message, version }) => `${message}\u0000${version}`;
 
 /* Public thread values. The publisher calls this after folding local gestures
@@ -344,7 +344,7 @@ const versionKey = ({ message, version }) => `${message}\u0000${version}`;
  *   the open to-dos, of which each thread holds the agent's and the user's on it apart
  * @param {readonly import("../framework/application.js").ObligationRecord[]} obligations
  *   the view's obligations, of which each thread holds those its messages make
- * @param {import("../../framework/domain.js").ContentVersion[]} markingRead
+ * @param {import("../../types/domain.js").ContentVersion[]} markingRead
  * @param {boolean} ready
  */
 export function readThreadRecords(
@@ -358,7 +358,7 @@ export function readThreadRecords(
   ready = true,
 ) {
   const locallyRead = new Set(markingRead.map(versionKey));
-  /** @type {Map<string | undefined, {id: string, tag: string, state: import("../../framework/domain.js").AuthoredWidget["state"]}[]>} */
+  /** @type {Map<string | undefined, {id: string, tag: string, state: import("../../types/domain.js").AuthoredWidget["state"]}[]>} */
   const unitsByMessage = new Map();
   for (const descriptor of document.descriptors.values()) {
     if (descriptor.document.kind !== "thread") continue;

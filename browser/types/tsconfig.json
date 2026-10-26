@@ -14,6 +14,7 @@
     "moduleResolution": "Bundler",
     "strict": true,
     "allowJs": true,
+    "checkJs": true,
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
     "noEmit": true,

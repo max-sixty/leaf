@@ -1,4 +1,3 @@
-// @ts-check
 /**
  * One immutable snapshot publication primitive, independent of Leaf's folds.
  *

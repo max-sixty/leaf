@@ -59,8 +59,9 @@ const assets = "browser";
 /** The committed kernel, which installs serve while it matches the tree's modules. */
 const kernelDirectory = "dist/kernel";
 /** The type check's configurations and the declarations of the bundles it reads. */
-const typeRoot = "browser/framework";
+const typeRoot = "browser/types";
 const compilerPathsFile = `${typeRoot}/tsconfig.paths.json`;
+const litTypesFile = `${typeRoot}/lit.d.ts`;
 const packageRoot = "packages";
 /** The layer path of the framework's signals, which the kernel compiles in. */
 export const signalsPath = "vendor/signals-core.js";
@@ -94,6 +95,14 @@ export async function compilerPaths(directory = root) {
     "/checks/*": ["../../src/leaf/render-checks/*"],
   };
   return Buffer.from(`${JSON.stringify({ compilerOptions: { paths } }, null, 2)}\n`);
+}
+
+/** The types of `/vendor/lit.js`, whose minified build carries none: the namespace
+ * it bundles (`build/lit.mjs`), read from Lit's own declarations. */
+async function litTypes() {
+  return Buffer.from(
+    `/* @noformat Generated from Lit's package exports by build/browser/build.mjs. */\n${await litNamespace()}\n`,
+  );
 }
 /**
  * Build the classic Lit implementation, adapting the locked published modules in memory.
@@ -195,10 +204,10 @@ async function protocolOutputs() {
 }
 
 // Two programs type-check the browser code, and each file has one checker.
-// `tsconfig.json` holds the runtime modules that opt in with a leading `// @ts-check`,
-// the framework's among them, to strict mode; it includes every runtime module so
-// that each one opting in is checked there. `tsconfig.runtime.json` checks without
-// it the rest of the runtime's modules, `leaf.js`, the kernel's and packages' widget
+// `tsconfig.json` holds to strict mode the framework's modules, by path, and the
+// runtime modules that opt in with a leading `// @ts-check` (`strictlyChecked`); it
+// includes every runtime module so that each of those is checked there.
+// `tsconfig.runtime.json` checks without it the rest of the runtime's modules, `leaf.js`, the kernel's and packages' widget
 // modules, and the render checks pages import from `/checks/`. The `paths` both share
 // resolve the rooted paths a page serves, a package's `vendor/` and `widgets/` among
 // them, and map the framework's bundles, `/vendor/lit.js` and `/vendor/signals-core.js`,
@@ -207,14 +216,18 @@ async function protocolOutputs() {
 // `runtime-globals.d.ts` declares what the classic scripts hang on `<html>` and
 // `window`, the events the runtime dispatches with a detail, and the runtime's own
 // elements by tag. tsc checks a JavaScript file wherever an import reaches it,
-// with the options of the program it is in, and has no per-file opt-out, so the
-// runtime program also reaches the strict program's files and the vendored
-// third-party bundles. A diagnostic there is not the runtime program's to report, and
-// the build drops it.
+// with the options of the program it is in, and has no per-file opt-out, so each
+// program checks the other's files and the vendored third-party bundles too. A
+// diagnostic there is not that program's to report, and the build drops it.
+const strictlyChecked = (file) =>
+  /^browser\/(?:types\/|runtime\/framework(?:\.js$|\/))/.test(file) ||
+  (file.endsWith(".js") &&
+    readFileSync(path.join(root, file), "utf8").startsWith("// @ts-check"));
+const vendored = (file) => /^(?:browser|packages\/[^/]+)\/vendor\//.test(file);
+const strictChecks = (file) =>
+  !vendored(file) && (!file.endsWith(".js") || strictlyChecked(file));
 const runtimeChecks = (file) =>
-  file.endsWith(".js") &&
-  !/^(?:browser|packages\/[^/]+)\/vendor\//.test(file) &&
-  !readFileSync(path.join(root, file), "utf8").startsWith("// @ts-check");
+  file.endsWith(".js") && !vendored(file) && !strictlyChecked(file);
 
 function typecheck(config, reports = () => true) {
   const result = spawnSync(
@@ -226,7 +239,9 @@ function typecheck(config, reports = () => true) {
       "--pretty",
       "false",
     ],
-    { cwd: root, encoding: "utf8" },
+    // The strict program checks every runtime module and reports the few it owns, so
+    // its output runs to megabytes.
+    { cwd: root, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
   );
   if (result.error) throw result.error;
   if (result.signal) throw new Error(`${config}: tsc ended on ${result.signal}`);
@@ -247,15 +262,19 @@ export async function buildOutputs() {
   const paths = await compilerPaths();
   if (!(await readFile(path.join(root, compilerPathsFile))).equals(paths))
     throw new Error("Stale compiler paths; run pnpm run build:browser");
+  const lit = await litTypes();
+  if (!(await readFile(path.join(root, litTypesFile))).equals(lit))
+    throw new Error("Stale Lit types; run pnpm run build:browser");
   const contractPath = path.join(root, typeRoot, "contract.d.ts");
   const protocol = await protocolOutputs();
   if ((await readFile(contractPath, "utf8")) !== protocol.contract)
     throw new Error("Stale protocol types; run pnpm run build:browser");
-  typecheck("tsconfig.json");
+  typecheck("tsconfig.json", strictChecks);
   typecheck("tsconfig.runtime.json", runtimeChecks);
 
   const outputs = new Map([
     [compilerPathsFile, paths],
+    [litTypesFile, lit],
     [baselineName, Buffer.from(protocol.baseline)],
   ]);
   const result = await build({
@@ -359,16 +378,15 @@ export async function buildOutputs() {
   checkModule(moduleLitFile.text, litPath);
   outputs.set(`${assets}/${litPath}`, Buffer.from(moduleLitFile.contents));
   outputs.set(`${assets}/${sharedLitPath}`, Buffer.from(await litFacade()));
-  const packageRoots = [
-    ...new Set([
-      ...bundledPackages(result.metafile, root),
-      ...bundledPackages(initialLit.metafile, root),
-    ]),
-  ];
-  outputs.set(
-    `${assets}/vendor/browser-runtime.LICENSES.txt`,
-    Buffer.from(licenseNotices("browser-runtime", packageRoots)),
-  );
+  // Each served bundle's notices, named after it; both builds of Lit hold one Lit.
+  for (const [name, metafile] of [
+    ["signals-core", result.metafile],
+    ["lit", initialLit.metafile],
+  ])
+    outputs.set(
+      `${assets}/vendor/${name}.LICENSES.txt`,
+      Buffer.from(licenseNotices(name, bundledPackages(metafile, root))),
+    );
   for (const producer of [initialOutputs, styleOutputs, registryOutputs, vendorOutputs])
     for (const [name, bytes] of await producer()) outputs.set(name, bytes);
   for (const [name, bytes] of await kernelOf(outputs))
@@ -461,6 +479,7 @@ async function main(args) {
   if (args.length > 1 || (args.length && args[0] !== "--check")) throw new Error(usage);
   if (args[0] !== "--check") {
     await writeFile(path.join(root, compilerPathsFile), await compilerPaths());
+    await writeFile(path.join(root, litTypesFile), await litTypes());
     const { contract } = await protocolOutputs();
     await writeFile(path.join(root, typeRoot, "contract.d.ts"), contract);
     // The modules generated from the registry are the typecheck's inputs too.

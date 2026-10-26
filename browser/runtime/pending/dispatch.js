@@ -10,8 +10,8 @@ import { saidNow } from "../presence.js";
 import { recordInteraction } from "../interaction-log.js";
 import { messageText } from "../thread/messages.js";
 
-/** @typedef {import("../../framework/domain.js").PendingCommand} PendingCommand */
-/** @typedef {import("../../framework/domain.js").Event} Event */
+/** @typedef {import("../../types/domain.js").PendingCommand} PendingCommand */
+/** @typedef {import("../../types/domain.js").Event} Event */
 /** @typedef {import("../framework/application.js").WidgetDescriptor} WidgetDescriptor */
 /** @typedef {ReturnType<typeof import("../framework/application.js").createSemanticApplication>} Application */
 /** @typedef {ReturnType<ReturnType<Application["selectWidget"]>["read"]>["actions"][string]["undo"][number]} UndoCandidate */

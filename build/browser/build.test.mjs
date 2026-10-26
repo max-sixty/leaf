@@ -30,21 +30,21 @@ test("compiler paths discover package modules and type the framework's bundles",
     await writeFile(destination, text);
   };
   const config = JSON.parse(
-    await readFile(new URL("../../browser/framework/tsconfig.json", import.meta.url)),
+    await readFile(new URL("../../browser/types/tsconfig.json", import.meta.url)),
   );
   config.compilerOptions.types = [];
   config.compilerOptions.noUncheckedSideEffectImports = true;
   config.include = ["imports.ts"];
-  await put("browser/framework/tsconfig.json", JSON.stringify(config));
+  await put("browser/types/tsconfig.json", JSON.stringify(config));
   await put(
-    "browser/framework/signals-core.d.ts",
+    "browser/types/signals-core.d.ts",
     "export declare const count: (value: number) => number;\n",
   );
   await put("browser/vendor/signals-core.js", "export const count = 1;\n");
   await put("packages/playground/vendor/lf-playground-initial.js", "void 0;\n");
   await put("packages/playwright/widgets/lf-trace.js", "export const trace = 1;\n");
   await put(
-    "browser/framework/imports.ts",
+    "browser/types/imports.ts",
     `
 import { count } from "/vendor/signals-core.js";
 import "/vendor/lf-playground-initial.js";
@@ -62,13 +62,13 @@ count("wrong");
       [
         path.join(root, "node_modules/typescript/bin/tsc"),
         "--project",
-        path.join(scratch, "browser/framework/tsconfig.json"),
+        path.join(scratch, "browser/types/tsconfig.json"),
         "--pretty",
         "false",
       ],
       { encoding: "utf8" },
     );
-  await put("browser/framework/tsconfig.paths.json", await compilerPaths(scratch));
+  await put("browser/types/tsconfig.paths.json", await compilerPaths(scratch));
   const missing = check();
   assert.equal(missing.status, 1, missing.stdout + missing.stderr);
   assert.match(missing.stdout, /Cannot find module '\/vendor\/lf-future.js'/);
@@ -80,7 +80,7 @@ count("wrong");
 
   await put("packages/future/vendor/lf-future.js", "export const future = 2;\n");
   await put("packages/future/widgets/lf-future.js", "export const widget = 3;\n");
-  await put("browser/framework/tsconfig.paths.json", await compilerPaths(scratch));
+  await put("browser/types/tsconfig.paths.json", await compilerPaths(scratch));
   const discovered = check();
   assert.equal(discovered.status, 0, discovered.stdout + discovered.stderr);
 });
@@ -92,9 +92,11 @@ test("locked source reproduces the complete committed output", async () => {
   const lit = exportsOf(read("lit.js"));
   for (const name of ["LitElement", "html", "classMap", "property", "staticHtml"])
     assert.ok(lit.includes(name), name);
-  const notices = read("browser-runtime.LICENSES.txt");
-  for (const name of ["lit-html", "@preact/signals-core"])
-    assert.ok(notices.includes(`===== ${name} `), name);
+  for (const [bundle, name] of [
+    ["lit", "lit-html"],
+    ["signals-core", "@preact/signals-core"],
+  ])
+    assert.ok(read(`${bundle}.LICENSES.txt`).includes(`===== ${name} `), name);
 });
 
 test("checking stale output refuses it without changing any bytes", async (context) => {
@@ -106,7 +108,7 @@ test("checking stale output refuses it without changing any bytes", async (conte
     await writeFile(destination, bytes);
   }
   await checkOutputs(outputs, scratch);
-  const paths = "browser/framework/tsconfig.paths.json";
+  const paths = "browser/types/tsconfig.paths.json";
   await writeFile(path.join(scratch, paths), "{}\n");
   await assert.rejects(checkOutputs(outputs, scratch), /tsconfig\.paths\.json/);
   assert.equal(await readFile(path.join(scratch, paths), "utf8"), "{}\n");

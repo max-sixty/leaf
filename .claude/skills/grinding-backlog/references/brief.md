@@ -54,7 +54,7 @@ The other agents and Max's own sessions share this Mac (18 cores).
   ran the tests you meant (the count in pytest's summary).
 - Run only the tests that cover what you change: named test files or `-k` selections,
   plus `pnpm run test:runtime` when you touch `browser/runtime` and `pnpm run check`
-  when you touch `browser/framework/`, `browser/runtime/framework/`, `worker/src/`, or
+  when you touch `browser/types/`, `browser/runtime/framework/`, `worker/src/`, or
   the bundle lock. Never run
   `uv run pytest tests`, a whole browser test directory, `--run-main`,
   `--run-nightly`, `tests/browser` or `tests/journeys` as a whole.

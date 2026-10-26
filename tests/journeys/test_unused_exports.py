@@ -49,7 +49,7 @@ BUNDLED = re.compile(r"(^|/)vendor/|^dist/kernel/")
 # served path, so a read resolves to the bundle.
 UNCHECKED = re.compile(
     r"^build/(?!browser/)[^/]+/"
-    r"|^browser/framework/(?:contract|lit|signals-core)\.d\.ts$"
+    r"|^browser/types/(?:contract|lit|signals-core)\.d\.ts$"
 )
 # An escape is consumed whole, so `"\ndefine(…)"` in a Python string reads `define`.
 WORD = re.compile(r"\\[a-z]|([A-Za-z_$][\w$]*)")

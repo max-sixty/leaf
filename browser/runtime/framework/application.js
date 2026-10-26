@@ -1,4 +1,3 @@
-// @ts-check
 /** One semantic root for accepted state, authored values, and ordered local attempts.
  *
  * DOM capture transfers typed initial values; transport transfers complete admitted
@@ -37,24 +36,24 @@ import {
 import { PENDING } from "../thread/identity.js";
 import { queueOffers } from "../queues.js";
 
-/** @typedef {import("../../framework/domain.js").AuthoredMap} AuthoredMap */
-/** @typedef {import("../../framework/domain.js").Thread} Thread */
-/** @typedef {import("../../framework/domain.js").Event} Event */
-/** @typedef {import("../../framework/domain.js").Command} Command */
-/** @typedef {import("../../framework/domain.js").LocalMessage} LocalMessage */
-/** @typedef {import("../../framework/domain.js").LocalEdit} LocalEdit */
-/** @typedef {import("../../framework/domain.js").ThreadGesture} ThreadGesture */
-/** @typedef {import("../../framework/domain.js").ActionSpec} ActionSpec */
-/** @typedef {import("../../framework/domain.js").PendingProjection} PendingProjection */
-/** @typedef {import("../../framework/domain.js").ProjectionEntry} ProjectionEntry */
-/** @typedef {import("../../framework/domain.js").ContentVersion} ContentVersion */
-/** @typedef {import("../../framework/contract.js").ServedObligation} ServedObligation */
-/** @typedef {import("../../framework/contract.js").ServedQueueRow} ServedQueueRow */
-/** @typedef {import("../../framework/contract.js").ServedState} ServedState */
-/** @typedef {import("../../framework/contract.js").ServedSubject} ServedSubject */
-/** @typedef {import("../../framework/contract.js").ServedTodo} ServedTodo */
-/** @typedef {import("../../framework/contract.js").ServedView} ServedView */
-/** @typedef {import("../../framework/contract.js").ServedWorkflow} ServedWorkflow */
+/** @typedef {import("../../types/domain.js").AuthoredMap} AuthoredMap */
+/** @typedef {import("../../types/domain.js").Thread} Thread */
+/** @typedef {import("../../types/domain.js").Event} Event */
+/** @typedef {import("../../types/domain.js").Command} Command */
+/** @typedef {import("../../types/domain.js").LocalMessage} LocalMessage */
+/** @typedef {import("../../types/domain.js").LocalEdit} LocalEdit */
+/** @typedef {import("../../types/domain.js").ThreadGesture} ThreadGesture */
+/** @typedef {import("../../types/domain.js").ActionSpec} ActionSpec */
+/** @typedef {import("../../types/domain.js").PendingProjection} PendingProjection */
+/** @typedef {import("../../types/domain.js").ProjectionEntry} ProjectionEntry */
+/** @typedef {import("../../types/domain.js").ContentVersion} ContentVersion */
+/** @typedef {import("../../types/contract.js").ServedObligation} ServedObligation */
+/** @typedef {import("../../types/contract.js").ServedQueueRow} ServedQueueRow */
+/** @typedef {import("../../types/contract.js").ServedState} ServedState */
+/** @typedef {import("../../types/contract.js").ServedSubject} ServedSubject */
+/** @typedef {import("../../types/contract.js").ServedTodo} ServedTodo */
+/** @typedef {import("../../types/contract.js").ServedView} ServedView */
+/** @typedef {import("../../types/contract.js").ServedWorkflow} ServedWorkflow */
 /** @template T @typedef {import("./snapshot.js").Immutable<T>} Immutable */
 
 /* The lifecycle of one unresolved gesture, from the turn that makes it to the

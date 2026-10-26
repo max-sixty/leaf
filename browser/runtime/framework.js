@@ -1,4 +1,3 @@
-// @ts-check
 /** Internal framework facade. Content modules import runtime/widget-api.js. */
 export {
   AsyncDirective,

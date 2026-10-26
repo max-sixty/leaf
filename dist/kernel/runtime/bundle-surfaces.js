@@ -3698,13 +3698,15 @@ var MessageView = class {
 	#editor = null;
 	#kept = false;
 	#stopKept = null;
+	#dated = true;
 	constructor(commands) {
 		this.#commands = commands;
 		this.node = document.createElement("div");
 	}
-	present(model, { arrived = false, headerControls = nothing } = {}) {
+	present(model, { arrived = false, dated = this.#dated, headerControls = nothing } = {}) {
 		const prior = this.#model;
 		this.#model = model;
+		this.#dated = dated;
 		if (!prior) {
 			this.node.classList.add("lf-msg");
 			this.node.dataset.message = model.key;
@@ -3775,7 +3777,7 @@ var MessageView = class {
 		render$1(html`
         <b>${model.by}</b
         ><span class="lf-msg-meta"
-          ><time datetime=${model.timestamp}>${model.age}</time>${model.unread ? html`<span class="lf-msg-new"><span class="lf-quiet">New</span></span>` : nothing}
+          >${dated ? html`<time datetime=${model.timestamp}>${model.age}</time>` : nothing}${model.unread ? html`<span class="lf-msg-new"><span class="lf-quiet">New</span></span>` : nothing}
           ${receipt}
           ${model.leaves ? html`<span class="lf-msg-leaves">${model.leaves}</span>` : nothing}
           ${model.failure ? html`<span class="lf-msg-failure">${FAILURE_LABEL}</span>` : nothing}
@@ -5477,11 +5479,24 @@ var Transcript = class Transcript {
 		const spoke = model.messages.findLastIndex(({ author }) => author === "user");
 		this.#pendingOpen = pendingRanges.some((range) => range.expanded);
 		const lead = rangeState.find((range) => range.kind === "message")?.message ?? model.messages[0];
+		const workingAt = model.working ? workingPlace(rangeState, model.working.after) : -1;
+		const dated = /* @__PURE__ */ new Set();
+		let above = null;
+		for (const [at, range] of rangeState.entries()) {
+			const shown = range.kind === "message" ? [range.message] : range.expanded ? range.messages : [];
+			if (range.kind !== "message") above = null;
+			for (const message of shown) {
+				if (message.age !== above) dated.add(message.key);
+				above = message.age;
+			}
+			if (range.summary?.pending || at === workingAt) above = null;
+		}
 		for (const message of model.messages) {
 			let view = this.#messages.get(message.key);
 			if (!view) this.#messages.set(message.key, view = new MessageView(this.#messageCommands));
 			view.present(message, {
 				arrived,
+				dated: dated.has(message.key),
 				headerControls: notice && message === lead ? notice : nothing
 			});
 			keeps(view.node, "data-lf-append-tail", message.provisional && message === model.messages.at(-1) ? "" : null);
@@ -5496,7 +5511,6 @@ var Transcript = class Transcript {
 		const checkpoints = /* @__PURE__ */ new Map();
 		const faces = /* @__PURE__ */ new Map();
 		const transcript = [];
-		const workingAt = model.working ? workingPlace(rangeState, model.working.after) : -1;
 		let working = null;
 		const facing = /* @__PURE__ */ new Map();
 		const face = (node, reading, controls) => {

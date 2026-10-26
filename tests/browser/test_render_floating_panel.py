@@ -3383,7 +3383,7 @@ def test_on_me_groups_by_the_plan_and_on_claude_heads_with_its_progress(browser,
     """While the agent's plan gives the user a step, On me groups by it until the user
     picks another grouping: under each goal the items its steps name, in step order,
     and those no goal names last; a goal holding one item has no heading, its card
-    saying what the item is and the goal's name. On Claude, which replaced
+    saying the goal's name before the item's place. On Claude, which replaced
     the Plan tab, is headed at its foot by the plan's progress, which discloses the
     goal and its steps over the list; a step waiting on the user turns the view to On
     me, and focus with it."""
@@ -3404,10 +3404,10 @@ def test_on_me_groups_by_the_plan_and_on_claude_heads_with_its_progress(browser,
     view = page.locator(panel_view("queue"))
     expect(page.get_by_role("combobox", name="Group On me")).to_have_value("plan")
     # Each goal holds one item, so neither stands under a heading: each card says
-    # its group's name where its place would be.
+    # its group's name before its place, and no kind.
     expect(view.locator(".lf-fp-on-group")).to_have_count(0)
-    expect(view.locator(".lf-fp-on-kind")).to_have_text(
-        ["Options · Ship the migration", "Options · Not in the plan"]
+    expect(view.locator(".lf-fp-on-place")).to_have_text(
+        ["Ship the migration · Ask", "Not in the plan · Ask"]
     )
 
     tabs = page.locator(".lf-fp-filters button")

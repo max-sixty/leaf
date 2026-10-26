@@ -6451,11 +6451,11 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const key = queueItemKey(item);
 		const opened = openItem === key;
 		const stop = queueStop(item);
-		const kind = item.owner === "user" ? says === "kind" ? "" : stop.noun : agentNoun(item);
-		const where = group ?? (says === "place" ? "" : onMe.place(item));
+		const kind = item.owner === "user" ? stop.noun : agentNoun(item);
+		const where = says === "place" ? "" : onMe.place(item);
 		const walked = leads && queueTab === "you" && walkedStop() === stop.key;
 		if (card) {
-			const about = [kind, where].filter(Boolean);
+			const about = [.../* @__PURE__ */ new Set([group, where])].filter(Boolean);
 			return html`<section
         class="lf-fp-on-item"
         data-card
@@ -6465,7 +6465,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
         ?data-walked=${walked}
         style=${seatHeights.has(key) ? `min-height: ${seatHeights.get(key)}px` : ""}
       >
-        ${about.length ? html`<p class="lf-fp-on-kind">${about.join(" · ")}</p>` : nothing}${message ? html`${title ? html`<h3 class="lf-fp-on-title">${heading}</h3>` : nothing}
+        ${about.length ? html`<p class="lf-fp-on-place">${about.join(" · ")}</p>` : nothing}${message ? html`${title ? html`<h3 class="lf-fp-on-title">${heading}</h3>` : nothing}
                 <div
                   class="lf-fp-asked lf-fp-outlet"
                   data-thread=${thread.key}
@@ -6611,7 +6611,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		}] : []], (item, group) => group.key === "done" ? onItemCard(item, "done", { card: true }) : onItemCard(item, listOf(item), {
 			card: true,
 			says: group.headed ? says : null,
-			group: group.headed || grouping === "kind" ? null : group.title,
+			group: group.headed ? null : group.title,
 			leads: group.leads.has(item),
 			also: carrying.get(queueItemKey(item))
 		})))}`;

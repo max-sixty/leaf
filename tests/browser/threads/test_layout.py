@@ -5,6 +5,7 @@ styles."""
 import io
 import json
 import re
+from datetime import datetime, timedelta
 
 import pytest
 from interact_support import append_carried_log_record
@@ -116,6 +117,54 @@ def test_thread_actions_share_consistently_sized_message_headers(
             geometry
         )
         assert geometry["bodyLeft"] == geometry["headLeft"], geometry
+
+
+@pytest.mark.parametrize("surface", ["panel", "margin"])
+def test_a_message_says_its_age_only_where_it_changes(browser, serve, surface):
+    """A thread says each message's age only where that age, as displayed, differs
+    from the message above, the first always saying it: three messages written on one
+    day three days ago read one age, and a reply written now reads its own."""
+    url = serve(PANEL_PAGE)
+    then = datetime.now().astimezone() - timedelta(days=3)
+    root = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Is the retry bounded?",
+            "ts": then.isoformat(),
+            **({"anchor": {"section": "lede"}} if surface == "margin" else {}),
+        },
+    )["id"]
+    for at, (author, text) in enumerate(
+        [("agent", "Yes, three tries."), ("user", "Then park it after.")], start=1
+    ):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": author,
+                **({"agent": "Claude"} if author == "agent" else {}),
+                "parent": root,
+                "revision": 1,
+                "text": text,
+                "ts": (then + timedelta(minutes=at)).isoformat(),
+            },
+        )
+    append_agent_reply(serve.page_dir, root, "Parked after the third.")
+    page = open_page(browser, url)
+    if surface == "panel":
+        card = open_panel_thread(page, root)
+    else:
+        page.locator(".lf-margin-marker").first.click()
+        card = page.locator(".lf-margin-preview .lf-page-thread")
+        expect(card).to_be_visible()
+    ages = card.locator(".lf-msg-head")
+    expect(ages).to_have_count(4)
+    assert ages.evaluate_all(
+        "heads => heads.map((head) => head.querySelector('time')?.textContent ?? null)"
+    ) == ["3d ago", None, None, "just now"]
 
 
 # Where a message's words may run to, and the thread's inset before its words.
@@ -863,9 +912,18 @@ def test_a_stuck_card_head_keeps_the_name_and_lets_its_annotations_scroll_out(
     """Reading down a long reply keeps its writer and time at the top while the
     edited annotation leaves with the reply's first line."""
     url = serve(PANEL_PAGE)
-    root = panel_comment(
-        serve.page_dir, "Explain with examples?", {"section": "how-store"}
-    )
+    # Asked an hour before the answer, so the answer's head says an age of its own.
+    root = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Explain with examples?",
+            "anchor": {"section": "how-store"},
+            "ts": (datetime.now().astimezone() - timedelta(hours=1)).isoformat(),
+        },
+    )["id"]
     answer = thread_model.post_reply(
         serve.page_dir, {"responds": root}, LANDING_WORDS * 8
     )["id"]

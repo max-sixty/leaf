@@ -1246,6 +1246,55 @@ def test_tab_onto_a_seat_under_the_pinned_file_name_brings_it_out(browser, serve
     assert read["top"] >= read["head"], read
 
 
+def test_a_diff_conversation_s_reply_rests_as_a_press_that_c_opens(browser, serve):
+    """A conversation in a diff ends in a Reply press, one control high and with no
+    frame or microphone, rather than an open field. A press opens the field, which
+    rests again once the user leaves it empty, and `c` from the conversation opens it
+    with the caret in it."""
+    datum = json.dumps([LONG_DIFF_PATH, "new", 3], separators=(",", ":"))
+    page = open_page(
+        browser,
+        serve(
+            leaf_page("Seated", f"<h1>Seated</h1>{long_diff('patch')}"),
+            events=[
+                {
+                    "kind": "comment",
+                    "author": "user",
+                    "revision": 1,
+                    "text": "Why this value?",
+                    "anchor": {"section": "patch", "datum": datum},
+                }
+            ],
+        ),
+    )
+    resized(page, 1280, 720)
+    thread = page.locator("lf-diff .lf-diff-thread-outlet .lf-page-thread")
+    reply = thread.get_by_role("textbox", name="Reply", exact=True)
+    face = """field => {
+      const box = field.parentElement;
+      return {
+        height: field.getBoundingClientRect().height,
+        frame: getComputedStyle(box).borderTopColor,
+        mic: getComputedStyle(box.querySelector('.lf-compose-dictate')).display,
+      };
+    }"""
+    resting = {"height": 24, "frame": "rgba(0, 0, 0, 0)", "mic": "none"}
+    expect(reply).to_be_visible()
+    assert reply.evaluate(face) == resting
+    reply.click()
+    expect(reply).to_be_focused()
+    opened = reply.evaluate(face)
+    assert opened["height"] > resting["height"] and opened["mic"] != "none", opened
+    page.keyboard.press("Escape")
+    expect(reply).not_to_be_focused()
+    assert reply.evaluate(face) == resting
+    thread.locator(".lf-msg-body").first.click()
+    page.keyboard.press("c")
+    expect(reply).to_be_focused()
+    reached = reply.evaluate(face)
+    assert (reached["height"], reached["mic"]) == (opened["height"], opened["mic"])
+
+
 def test_a_diff_in_a_pane_pins_the_file_name_at_the_pane_top_and_lands_below_it(
     browser, serve
 ):

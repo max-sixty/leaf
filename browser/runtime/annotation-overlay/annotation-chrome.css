@@ -213,6 +213,11 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     --lf-shape-stroke: var(--focus-ring-w);
     outline: var(--focus-ring);
   }
+  /* A clip that leaves no room outside the target (visual-mark-paint.js) takes the
+     band just inside its edge, as a control packed into a list does (theme.css). */
+  .lf-visual-mark.lf-visual-mark-inset {
+    outline-offset: calc(-1 * var(--lf-shape-stroke));
+  }
   .lf-visual-mark.lf-visual-mark-action:not(
       .lf-visual-mark-pending,
       .lf-visual-mark-hover,

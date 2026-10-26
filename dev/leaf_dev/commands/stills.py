@@ -599,6 +599,14 @@ def image_in_page(page: Page) -> None:
     page.locator("#bg-image-preview").scroll_into_view_if_needed()
 
 
+def thread_picture(page: Page) -> None:
+    """The gallery's pasted screenshot, a white page, in its message in the panel."""
+    open_thread(page, "2be2443f0bb6cc49fc86b52f340e6073")
+    picture = page.locator(".lf-fp-view[data-view=thread] .lf-message-media img").first
+    picture.evaluate("image => image.decode()")
+    picture.scroll_into_view_if_needed()
+
+
 def image_preview(page: Page) -> None:
     """Inspect the gallery's pasted screenshot through the shared image viewer."""
     open_thread(page, "2be2443f0bb6cc49fc86b52f340e6073")
@@ -1624,6 +1632,12 @@ STATES = (
         "developer/feature-gallery",
         image_in_page,
         region="#bg-image-preview",
+    ),
+    State(
+        "thread-picture",
+        "developer/feature-gallery",
+        thread_picture,
+        region=".lf-fp-opened",
     ),
     State("image-preview", "developer/feature-gallery", image_preview),
     State(

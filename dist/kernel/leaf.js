@@ -229,7 +229,7 @@ var AttachedMediaShelf = class extends LitElement {
             <span class="lf-composer-media-item lf-composer-drawing">
               <button
                 type="button"
-                class="lf-media-open lf-composer-media-open"
+                class="lf-media-open lf-composer-media-open lf-media-frame"
                 data-lf-media-canvas
                 aria-label=${`Inspect drawing, ${strokes} ${strokes === 1 ? "stroke" : "strokes"}`}
                 title="Inspect drawing"
@@ -283,7 +283,7 @@ var AttachedMediaShelf = class extends LitElement {
             </p>` : html`<span class="lf-composer-media-item">
               <button
                 type="button"
-                class="lf-media-open lf-composer-media-open"
+                class="lf-media-open lf-composer-media-open lf-media-frame"
                 data-lf-media-url=${url}
                 aria-label=${`View attached image ${index + 1}`}
               >

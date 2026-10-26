@@ -1,3 +1,4 @@
+// @ts-check
 /** Mechanical presentation proof for immutable semantic publications.
  *
  * The semantic owner supplies an opaque document token and monotonically increasing

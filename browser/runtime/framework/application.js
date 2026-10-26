@@ -1,3 +1,4 @@
+// @ts-check
 /** One semantic root for accepted state, authored values, and ordered local attempts.
  *
  * DOM capture transfers typed initial values; transport transfers complete admitted

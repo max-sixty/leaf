@@ -204,11 +204,12 @@ async function protocolOutputs() {
 }
 
 // Two programs type-check the browser code, and each file has one checker.
-// `tsconfig.json` holds to strict mode the framework's modules, by path, and the
-// runtime modules that opt in with a leading `// @ts-check` (`strictlyChecked`); it
-// includes every runtime module so that each of those is checked there.
-// `tsconfig.runtime.json` checks without it the rest of the runtime's modules, `leaf.js`, the kernel's and packages' widget
-// modules, and the render checks pages import from `/checks/`. The `paths` both share
+// `tsconfig.json` holds the runtime modules that opt in with a leading `// @ts-check`
+// to strict mode; it includes every runtime module so that each one opting in is
+// checked there. Every framework module must opt in (`frameworkOptsIn`).
+// `tsconfig.runtime.json` checks without it the rest of the runtime's modules,
+// `leaf.js`, the kernel's and packages' widget modules, and the render checks pages
+// import from `/checks/`. The `paths` both share
 // resolve the rooted paths a page serves, a package's `vendor/` and `widgets/` among
 // them, and map the framework's bundles, `/vendor/lit.js` and `/vendor/signals-core.js`,
 // to declarations of the packages they bundle, so no declaration file ships in the
@@ -216,18 +217,34 @@ async function protocolOutputs() {
 // `runtime-globals.d.ts` declares what the classic scripts hang on `<html>` and
 // `window`, the events the runtime dispatches with a detail, and the runtime's own
 // elements by tag. tsc checks a JavaScript file wherever an import reaches it,
-// with the options of the program it is in, and has no per-file opt-out, so each
-// program checks the other's files and the vendored third-party bundles too. A
-// diagnostic there is not that program's to report, and the build drops it.
-const strictlyChecked = (file) =>
-  /^browser\/(?:types\/|runtime\/framework(?:\.js$|\/))/.test(file) ||
-  (file.endsWith(".js") &&
-    readFileSync(path.join(root, file), "utf8").startsWith("// @ts-check"));
-const vendored = (file) => /^(?:browser|packages\/[^/]+)\/vendor\//.test(file);
-const strictChecks = (file) =>
-  !vendored(file) && (!file.endsWith(".js") || strictlyChecked(file));
+// with the options of the program it is in, and has no per-file opt-out, so the
+// runtime program also reaches the strict program's files and the vendored
+// third-party bundles. A diagnostic there is not the runtime program's to report, and
+// the build drops it.
+const strict = (file) =>
+  readFileSync(path.join(root, file), "utf8").startsWith("// @ts-check");
 const runtimeChecks = (file) =>
-  file.endsWith(".js") && !vendored(file) && !strictlyChecked(file);
+  file.endsWith(".js") &&
+  !/^(?:browser|packages\/[^/]+)\/vendor\//.test(file) &&
+  !strict(file);
+
+/** Refuse a framework module that doesn't opt into the strict program, since the
+ * framework's types are strict wherever it puts a module. */
+async function frameworkOptsIn() {
+  const modules = [
+    `${assets}/runtime/framework.js`,
+    ...(
+      await readdir(path.join(root, assets, "runtime/framework"), { recursive: true })
+    )
+      .filter((name) => name.endsWith(".js"))
+      .map((name) => `${assets}/runtime/framework/${name}`),
+  ];
+  const lax = modules.filter((file) => !strict(file));
+  if (lax.length)
+    throw new Error(
+      `Start each framework module with \`// @ts-check\`, so the strict program checks it:\n${lax.join("\n")}`,
+    );
+}
 
 function typecheck(config, reports = () => true) {
   const result = spawnSync(
@@ -239,9 +256,7 @@ function typecheck(config, reports = () => true) {
       "--pretty",
       "false",
     ],
-    // The strict program checks every runtime module and reports the few it owns, so
-    // its output runs to megabytes.
-    { cwd: root, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
+    { cwd: root, encoding: "utf8" },
   );
   if (result.error) throw result.error;
   if (result.signal) throw new Error(`${config}: tsc ended on ${result.signal}`);
@@ -269,7 +284,8 @@ export async function buildOutputs() {
   const protocol = await protocolOutputs();
   if ((await readFile(contractPath, "utf8")) !== protocol.contract)
     throw new Error("Stale protocol types; run pnpm run build:browser");
-  typecheck("tsconfig.json", strictChecks);
+  await frameworkOptsIn();
+  typecheck("tsconfig.json");
   typecheck("tsconfig.runtime.json", runtimeChecks);
 
   const outputs = new Map([

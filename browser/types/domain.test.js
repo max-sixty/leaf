@@ -1,3 +1,4 @@
+// @ts-check
 /** Compile-only regression for the contracts that unchecked JS previously erased.
  *
  * Nothing runs it: the type check reads it, and every runtime function it calls

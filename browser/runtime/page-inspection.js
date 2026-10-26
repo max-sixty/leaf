@@ -4,7 +4,7 @@
  * pretending it follows later edits or resizes. Closing releases the request. Nothing
  * here changes authored content, starts a website session, or polls for updates.
  * This module is loaded only by the page menu's inspection gesture. */
-import { html, nothing, render } from "/vendor/browser-runtime.js";
+import { html, nothing, render } from "/runtime/framework.js";
 import { chromeForeground } from "./chrome.js";
 import { offlineInteractive, pageUrl } from "./context.js";
 import { copyControl } from "./copy-control.js";

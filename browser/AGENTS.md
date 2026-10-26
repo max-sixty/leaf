@@ -510,8 +510,9 @@ through `readPart` selectors that return exactly what it draws, so it reruns onl
 that answer changes (`semantic-state.js`).
 
 Test what one module decides on its own under `tests/runtime/`
-(`pnpm run test:runtime`). The browser framework's TypeScript and its module tests live
-in `framework/`, which `build/browser/` compiles into `vendor/`. `pnpm run
-check:browser` type-checks the runtime and widget modules, strictly where a module is
-marked `// @ts-check`. Declare a new global, event detail or runtime element tag in
-`framework/runtime-globals.d.ts`.
+(`pnpm run test:runtime`). The browser framework, `runtime/framework.js` and the
+modules behind it, is JavaScript a page runs as written. `pnpm run check:browser`
+type-checks the runtime and widget modules, strictly where a module is marked
+`// @ts-check`, as each framework module is; `framework/` holds the check's
+configuration and the declarations it reads. Declare a new global, event detail or
+runtime element tag in `framework/runtime-globals.d.ts`.

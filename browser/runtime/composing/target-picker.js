@@ -5,7 +5,7 @@ import { bindings, bindingEnabled, cycledRow } from "../keyboard/bindings.js";
 import { el, LAYOUT, searchField } from "../widget-elements.js";
 import { iconElement } from "../icons.js";
 import { coarsePointer } from "../pointer.js";
-import { html, nothing, render, signal } from "/vendor/browser-runtime.js";
+import { html, nothing, render, signal } from "/runtime/framework.js";
 
 import {
   contextAround,

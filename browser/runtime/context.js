@@ -175,7 +175,7 @@ export const runtime = {
   },
   // The layer's `registry.json`, which fills this once it loads (registry.js).
   registry:
-    /** @type {import("../framework/application.ts").SemanticDocument["registry"] & Record<string, any>} */ ({}),
+    /** @type {import("./framework/application.js").SemanticDocument["registry"] & Record<string, any>} */ ({}),
   get statePhase() {
     return part.phase();
   },

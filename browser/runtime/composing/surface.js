@@ -49,7 +49,7 @@
    the selection composer (composing/selection.js) from them and its own bar commands.
    Its constructor binds no document listeners; mount installs the selection gesture
    lifecycle and field-focus tracking after all capabilities have been composed. */
-import { signal } from "/vendor/browser-runtime.js";
+import { signal } from "/runtime/framework.js";
 import { addressableWord } from "../addressable-names.js";
 import {
   anchoringIsReady,

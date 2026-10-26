@@ -14,7 +14,6 @@
     "moduleResolution": "Bundler",
     "strict": true,
     "allowJs": true,
-    "allowImportingTsExtensions": true,
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
     "noEmit": true,
@@ -22,5 +21,5 @@
     "verbatimModuleSyntax": true,
     "skipLibCheck": false
   },
-  "include": ["*.ts", "../runtime/**/*.js"]
+  "include": ["*.d.ts", "domain.test.js", "../runtime/**/*.js"]
 }

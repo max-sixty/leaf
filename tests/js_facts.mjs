@@ -136,13 +136,7 @@ function resolve(file, specifier) {
     join(path, "index.ts"),
     join(path, "index.js"),
   ].find((candidate) => existsSync(candidate) && statSync(candidate).isFile());
-  if (!found) return null;
-  // A committed bundle compiled from one module of this tree names it in its trailer
-  // (`build/browser/build.mjs`), and reading the bundle reads that module.
-  const source =
-    /(^|\/)vendor\//.test(found) &&
-    /^\/\/ Generated from (\S+) by \S+\.\n?$/m.exec(readFileSync(found, "utf8"));
-  return source ? source[1] : relative(".", found);
+  return found ? relative(".", found) : null;
 }
 
 // The string a specifier spells, or null where it is computed.

@@ -63,6 +63,8 @@ export function readTimeline(host) {
         lane: index,
         at,
         end: end === at ? null : end,
+        // The index of the step it starts on, once the steps are known.
+        step: 0,
       };
     }),
   }));

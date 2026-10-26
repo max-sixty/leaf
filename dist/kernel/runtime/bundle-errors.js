@@ -1,6 +1,6 @@
-import { AsyncDirective, Directive, PartType, Z, directive, html, isElementName, nothing, render, x as x$1 } from "./bundle-browser-runtime.js";
+import { Z, x as x$1 } from "./bundle-signals-core.js";
 import { CARET_KEYS, PRESSES, WORKS, canPlaceFocus, cancelRender, closeLayer, controlNavigationKeys, excludedByInert, focusRevision, focused, handBack, isNativeLayer, keeps, keepsText, move, nativeLayerHolding, nativeLayerKind, nextRender, onCurrentLocation, releaseFocus, renderedParent, renderedUnder, shadowHost, sizeObserver, takesLetters, under, upFrom } from "./bundle-dom-move.js";
-import { runtime } from "./bundle-context.js";
+import { AsyncDirective, Directive, PartType, directive, html, isElementName, nothing, render, runtime } from "./bundle-context.js";
 
 //#region runtime/arrivals.js
 const watches$1 = /* @__PURE__ */ new Set();

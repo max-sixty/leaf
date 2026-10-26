@@ -158,7 +158,7 @@ import { pointerAt, restorePointer } from "./pointer.js";
 
 import { LayerRefused, admitReading, reportPageError } from "./layer-client.js";
 import { projectView, readApplication } from "./semantic-state.js";
-import { batch, effect, signal } from "/vendor/browser-runtime.js";
+import { batch, effect, signal } from "/runtime/framework.js";
 
 import { ADDRESSABLE, anchoringIsReady, fragmentTarget } from "./anchor-resolution.js";
 import { scrollToFragment } from "./anchor-travel.js";

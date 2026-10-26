@@ -92,7 +92,7 @@ import { whenDocumentPresented } from "../semantic-state.js";
 import { retainUserIntent } from "../user-intent.js";
 import { offer } from "../widget-elements.js";
 import { raiseError } from "../errors.js";
-import { signal } from "/vendor/browser-runtime.js";
+import { signal } from "/runtime/framework.js";
 
 // What a message's view answers by opening its rewrite, as a press on its Edit control.
 export const OPEN_MESSAGE_EDIT = "lf-open-message-edit";

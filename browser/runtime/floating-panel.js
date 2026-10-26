@@ -160,7 +160,7 @@ import {
   render,
   repeat,
   signal,
-} from "/vendor/browser-runtime.js";
+} from "/runtime/framework.js";
 import { el, reveal } from "./widget-elements.js";
 import { iconElement, iconTemplate } from "./icons.js";
 import { copyControl } from "./copy-control.js";

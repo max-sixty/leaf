@@ -8,9 +8,9 @@
    resolves only in `present`, when the receipt is presented. */
 import { applicationState, readApplication } from "../semantic-state.js";
 
-/** @typedef {import("../../framework/domain.ts").Event} Event */
-/** @typedef {import("../../framework/domain.ts").PendingCommand} PendingCommand */
-/** @typedef {import("../../framework/domain.ts").Command} Command */
+/** @typedef {import("../../framework/domain.js").Event} Event */
+/** @typedef {import("../../framework/domain.js").PendingCommand} PendingCommand */
+/** @typedef {import("../../framework/domain.js").Command} Command */
 /** @typedef {NonNullable<ReturnType<typeof applicationState.entry>>} Entry */
 /** @typedef {{
  * event: Command, admitted: Event | null,

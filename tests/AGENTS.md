@@ -147,8 +147,8 @@ start a module where none does.
 File-side fixtures live in `interact_support.py`, browser fixtures in
 `render_harness.py`, and reusable browser cases in `render_cases_*.py`.
 `tests/runtime/*.test.mjs` tests what one runtime module decides on its own, in the
-document `tests/runtime/dom.mjs` sets up; `browser/framework/application.test.mjs` tests
-how the publisher combines those results. Both build server state with `served.mjs`,
+document `tests/runtime/dom.mjs` sets up; `framework-application.test.mjs` there tests
+how the framework's publisher combines those results. Both build server state with `served.mjs`,
 which calls the server's own `served_records.py`. A fixture carries every field the
 server sends and changes only the fields the
 case is about. `fixtures/pages/` holds full-page regressions under

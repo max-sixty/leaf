@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { effect } from "@preact/signals-core";
+import { effect } from "/vendor/signals-core.js";
 import {
   createPresentationCoordinator,
   createPresentationSchedule,
   describeFailure,
-} from "./presentation.ts";
+} from "../../browser/runtime/framework/presentation.js";
 
 // Present `value` and settle its ticket with `proof` at once.
 const presented = (handle, value, proof) => {

@@ -131,8 +131,8 @@ browser assets and the packages into a page's layer.
 
 - `bin/leaf`, `pyproject.toml`, `uv.lock`: the launcher and its uv project.
 - `src/leaf/`: the CLI, server and event model (`src/AGENTS.md`).
-- `browser/`: the browser runtime, registry and theme, with the framework's
-  TypeScript under `browser/framework/`
+- `browser/`: the browser runtime, registry and theme, with the type check's
+  configuration and declarations under `browser/framework/`
   (`browser/AGENTS.md`; `browser/runtime/keyboard/AGENTS.md`
   for commands, bindings and scopes).
 - `packages/`: the bundled packages (`packages/AGENTS.md`).
@@ -342,8 +342,9 @@ through: each takes minutes to over an hour and slows every session on the host.
 Before widening your selection or its parallelism, check CPU, memory pressure and
 other running suites, and on a busy host keep to focused checks.
 
-The TypeScript in `worker/src/` and `browser/framework/`, and the lock every committed
-bundle is built from, have gates the suite and pre-commit don't reach.
+The TypeScript in `worker/src/`, the browser runtime's type check
+(`browser/framework/`), and the lock every committed bundle is built from, have gates
+the suite and pre-commit don't reach.
 `pnpm run check` runs them, and both
 landing paths run them too. The website's delivery checks (the site build, the
 Worker's dry-run deploy, `leaf-dev verify-site website-worker`) run on a pull

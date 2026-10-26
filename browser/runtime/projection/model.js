@@ -6,13 +6,13 @@
    state, or delivery state. Authored snapshots have the same shape captured by
    projection/authored.js: a map from widget id to `{state, specs}`. */
 
-/** @typedef {import("../../framework/domain.ts").ProjectionEntry} ProjectionEntry */
-/** @typedef {import("../../framework/domain.ts").ClassifiedEntry} ClassifiedEntry */
-/** @typedef {import("../../framework/domain.ts").AuthoredMap} AuthoredMap */
-/** @typedef {import("../../framework/domain.ts").ActionValue} ActionValue */
-/** @typedef {import("../../framework/domain.ts").UnitValue} UnitValue */
-/** @typedef {import("../../framework/domain.ts").PositionValue} PositionValue */
-/** @typedef {import("../../framework/domain.ts").Projection} Projection */
+/** @typedef {import("../../framework/domain.js").ProjectionEntry} ProjectionEntry */
+/** @typedef {import("../../framework/domain.js").ClassifiedEntry} ClassifiedEntry */
+/** @typedef {import("../../framework/domain.js").AuthoredMap} AuthoredMap */
+/** @typedef {import("../../framework/domain.js").ActionValue} ActionValue */
+/** @typedef {import("../../framework/domain.js").UnitValue} UnitValue */
+/** @typedef {import("../../framework/domain.js").PositionValue} PositionValue */
+/** @typedef {import("../../framework/domain.js").Projection} Projection */
 // A state coordinate, `[owner, unit, verb]`, as the key the folds index it by. The
 // server sends the tuple (`projection.py`); the browser keys and reads it back here.
 /** @param {string} owner @param {string} unit @param {string} verb */
@@ -21,7 +21,7 @@ export const stateCoordinate = (owner, unit, verb) =>
 /** @param {string} key @returns {[string, string, string]} */
 export const coordinateOf = (key) => JSON.parse(key);
 
-/** @param {{detail: Record<string, unknown>}} event @param {import("../../framework/domain.ts").StateRecord} record */
+/** @param {{detail: Record<string, unknown>}} event @param {import("../../framework/domain.js").StateRecord} record */
 export function foldedValue(event, record) {
   const value = event.detail.value;
   // An attribute record is a set, which the server's value lists sorted
@@ -55,7 +55,7 @@ const compareProjected = (a, b) => {
    revealing the newest surviving local action, the newest durable action the server
    says `stands`, or authored state in that order. A verb has one writer, so a
    coordinate a local gesture reaches never holds an agent's report. */
-/** @param {import("../../framework/domain.ts").ProjectionInput} input @returns {Projection} */
+/** @param {import("../../framework/domain.js").ProjectionInput} input @returns {Projection} */
 export function foldProjection({
   entries = [],
   actionIds = [],
@@ -298,12 +298,12 @@ export function rankAt({ value, ranks }, container, index, unit) {
 export function foldWidgetStates(authoredSnapshots, projection) {
   // structuredClone creates a mutable owned graph. Its library type preserves the
   // source's readonly modifiers, so remove them only at this native-copy boundary.
-  /** @param {import("../../framework/snapshot.ts").Immutable<import("../../framework/domain.ts").AuthoredWidget["state"]>} state */
+  /** @param {import("../framework/snapshot.js").Immutable<import("../../framework/domain.js").AuthoredWidget["state"]>} state */
   const copyState = (state) =>
-    /** @type {import("../../framework/domain.ts").AuthoredWidget["state"]} */ (
+    /** @type {import("../../framework/domain.js").AuthoredWidget["state"]} */ (
       structuredClone(state)
     );
-  /** @type {Map<string, {state: import("../../framework/domain.ts").AuthoredWidget["state"], entries: ProjectionEntry[], specs: ReadonlyMap<string, import("../../framework/domain.ts").ActionSpec>}>} */
+  /** @type {Map<string, {state: import("../../framework/domain.js").AuthoredWidget["state"], entries: ProjectionEntry[], specs: ReadonlyMap<string, import("../../framework/domain.js").ActionSpec>}>} */
   const states = new Map(
     [...authoredSnapshots].map(([id, authored]) => [
       id,
@@ -360,7 +360,7 @@ export function foldWidgetStates(authoredSnapshots, projection) {
    can make an empty recorded value an answer, but cannot invent custom state after
    undo removes its action. Python's projection.obligation_value owns the same reading;
    the shared obligation-value cases exercise both runtimes. */
-/** @param {import("../../framework/snapshot.ts").Immutable<Pick<import("../../framework/domain.ts").AuthoredWidget, "state" | "specs">>} widget
+/** @param {import("../framework/snapshot.js").Immutable<Pick<import("../../framework/domain.js").AuthoredWidget, "state" | "specs">>} widget
  * @param {string} verb @param {boolean} answered @param {string | undefined} [unit] */
 export function obligationValue(widget, verb, answered, unit) {
   const complete = widget.state[verb];

@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * One immutable snapshot publication primitive, independent of Leaf's folds.
  *
@@ -17,36 +18,49 @@
  * their supplied immutable root, and subscriber callbacks run untracked so notifying
  * a consumer cannot make its reads dependencies of the publisher.
  */
-import { computed, signal, untracked as signalUntracked } from "@preact/signals-core";
+import {
+  computed,
+  signal,
+  untracked as signalUntracked,
+} from "/vendor/signals-core.js";
 
-export type Immutable<T> =
-  T extends ReadonlyMap<infer K, infer V>
-    ? ReadonlyMap<Immutable<K>, Immutable<V>>
-    : T extends ReadonlySet<infer V>
-      ? ReadonlySet<Immutable<V>>
-      : T extends object
-        ? { readonly [K in keyof T]: Immutable<T[K]> }
-        : T;
+/**
+ * @template T
+ * @typedef {T extends ReadonlyMap<infer K, infer V>
+ *   ? ReadonlyMap<Immutable<K>, Immutable<V>>
+ *   : T extends ReadonlySet<infer V>
+ *     ? ReadonlySet<Immutable<V>>
+ *     : T extends object
+ *       ? { readonly [K in keyof T]: Immutable<T[K]> }
+ *       : T} Immutable
+ */
 
-interface ApplicationSnapshot {
-  readonly document: unknown;
-  readonly authoritative: unknown;
-  readonly unresolved: readonly unknown[];
-  readonly effective: unknown;
-  readonly semanticEpoch: number;
-}
+/**
+ * @typedef {{
+ *   readonly document: unknown;
+ *   readonly authoritative: unknown;
+ *   readonly unresolved: readonly unknown[];
+ *   readonly effective: unknown;
+ *   readonly semanticEpoch: number;
+ * }} ApplicationSnapshot
+ */
 
-interface SnapshotReading<T> {
-  read(): T;
-  subscribe(listener: (value: T, round?: object) => unknown): () => void;
-}
+/**
+ * @template T
+ * @typedef {{
+ *   read(): T;
+ *   subscribe(listener: (value: T, round?: object) => unknown): () => void;
+ * }} SnapshotReading
+ */
 
 export { signalUntracked as untracked };
 
 // Publications take ownership of mutable producer values; previously secured
 // subtrees retain identity and need no further traversal.
-const secured = new WeakSet<object>();
-function immutable<T>(value: T): Immutable<T> {
+/** @type {WeakSet<object>} */
+const secured = new WeakSet();
+/** @template T @param {T} value @returns {Immutable<T>} */
+function immutable(value) {
   if (value !== null && typeof value === "object" && !secured.has(value)) {
     if (value instanceof Map) {
       for (const [key, child] of value) {
@@ -70,10 +84,11 @@ function immutable<T>(value: T): Immutable<T> {
     Object.freeze(value);
     secured.add(value);
   }
-  return value as Immutable<T>;
+  return /** @type {Immutable<T>} */ (value);
 }
 
-const plain = (value: object) => {
+/** @param {object} value */
+const plain = (value) => {
   const proto = Object.getPrototypeOf(value);
   return proto === Object.prototype || proto === null;
 };
@@ -84,8 +99,13 @@ const plain = (value: object) => {
  * its entries in order, an object by its keys in any order); anything else by identity.
  * Returns `prior` itself when the two are equal, and `next` itself when nothing in it
  * could be shared, so neither input is copied or mutated needlessly.
+ *
+ * @template T
+ * @param {unknown} prior
+ * @param {T} next
+ * @returns {T}
  */
-export function share<T>(prior: unknown, next: T): T {
+export function share(prior, next) {
   if (Object.is(prior, next)) return next;
   if (
     prior === null ||
@@ -101,17 +121,20 @@ export function share<T>(prior: unknown, next: T): T {
       prior.length === next.length &&
       children.every((child, index) => child === prior[index])
     )
-      return prior as T;
-    return (
+      return /** @type {T} */ (prior);
+    return /** @type {T} */ (
       children.every((child, index) => child === next[index]) ? next : children
-    ) as T;
+    );
   }
   if (next instanceof Map) {
     if (!(prior instanceof Map)) return next;
     const priorKeys = [...prior.keys()];
     const entries = [...next].map(
       ([key, child]) =>
-        [key, prior.has(key) ? share(prior.get(key), child) : child] as const,
+        /** @type {const} */ ([
+          key,
+          prior.has(key) ? share(prior.get(key), child) : child,
+        ]),
     );
     if (
       priorKeys.length === entries.length &&
@@ -119,10 +142,10 @@ export function share<T>(prior: unknown, next: T): T {
         ([key, child], index) => key === priorKeys[index] && child === prior.get(key),
       )
     )
-      return prior as T;
-    return (
+      return /** @type {T} */ (prior);
+    return /** @type {T} */ (
       entries.every(([key, child]) => child === next.get(key)) ? next : new Map(entries)
-    ) as T;
+    );
   }
   if (next instanceof Set) {
     if (!(prior instanceof Set)) return next;
@@ -132,8 +155,10 @@ export function share<T>(prior: unknown, next: T): T {
       priorMembers.length === members.length &&
       members.every((child, index) => child === priorMembers[index])
     )
-      return prior as T;
-    return (members.every((child) => next.has(child)) ? next : new Set(members)) as T;
+      return /** @type {T} */ (prior);
+    return /** @type {T} */ (
+      members.every((child) => next.has(child)) ? next : new Set(members)
+    );
   }
   if (
     !plain(next) ||
@@ -143,8 +168,8 @@ export function share<T>(prior: unknown, next: T): T {
     prior instanceof Set
   )
     return next;
-  const before = prior as Record<string, unknown>;
-  const after = next as Record<string, unknown>;
+  const before = /** @type {Record<string, unknown>} */ (prior);
+  const after = /** @type {Record<string, unknown>} */ (next);
   const keys = Object.keys(after);
   const children = keys.map((key) =>
     Object.hasOwn(before, key) ? share(before[key], after[key]) : after[key],
@@ -155,10 +180,10 @@ export function share<T>(prior: unknown, next: T): T {
       (key, index) => Object.hasOwn(before, key) && children[index] === before[key],
     )
   )
-    return prior as T;
+    return /** @type {T} */ (prior);
   if (keys.every((key, index) => children[index] === after[key])) return next;
-  const copy: Record<string, unknown> =
-    Object.getPrototypeOf(next) === null ? Object.create(null) : {};
+  /** @type {Record<string, unknown>} */
+  const copy = Object.getPrototypeOf(next) === null ? Object.create(null) : {};
   // Defined, not assigned: a JSON field named `__proto__` is an own property, and
   // assigning it would set the copy's prototype instead.
   keys.forEach((key, index) =>
@@ -169,29 +194,42 @@ export function share<T>(prior: unknown, next: T): T {
       configurable: true,
     }),
   );
-  return copy as T;
+  return /** @type {T} */ (copy);
 }
 
-export function createApplicationPublisher<S extends ApplicationSnapshot>(initial: S) {
+/** @template {ApplicationSnapshot} S @param {S} initial */
+export function createApplicationPublisher(initial) {
   const root = signal(immutable(initial));
   return Object.freeze({
-    read: (): Immutable<S> => root.value,
+    /** @returns {Immutable<S>} */
+    read: () => root.value,
     // The root without subscribing or collecting, for the owner computing what it
     // publishes next.
-    peek: (): Immutable<S> => root.peek(),
-    publish(candidate: S): Immutable<S> {
+    /** @returns {Immutable<S>} */
+    peek: () => root.peek(),
+    /** @param {S} candidate @returns {Immutable<S>} */
+    publish(candidate) {
       root.value = immutable(share(root.peek(), candidate));
       return root.peek();
     },
-    select<T>(derive: (snapshot: Immutable<S>) => T): SnapshotReading<Immutable<T>> {
-      let prior: unknown;
+    /**
+     * @template T
+     * @param {(snapshot: Immutable<S>) => T} derive
+     * @returns {SnapshotReading<Immutable<T>>}
+     */
+    select(derive) {
+      /** @type {unknown} */
+      let prior;
       const selected = computed(() => {
         const value = root.value;
         return signalUntracked(() => (prior = immutable(share(prior, derive(value)))));
       });
-      const reading: SnapshotReading<Immutable<T>> = Object.freeze({
-        read: (): Immutable<T> => selected.value,
-        subscribe: (listener: (value: Immutable<T>) => void) =>
+      /** @type {SnapshotReading<Immutable<T>>} */
+      const reading = Object.freeze({
+        /** @returns {Immutable<T>} */
+        read: () => selected.value,
+        /** @param {(value: Immutable<T>) => void} listener */
+        subscribe: (listener) =>
           selected.subscribe((value) => signalUntracked(() => listener(value))),
       });
       return reading;

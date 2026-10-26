@@ -1,8 +1,7 @@
-import { html, nothing, render } from "./bundle-browser-runtime.js";
 import { closeLayer, currentLocationIn, focusDestination, handBack, openLayer, openerOf } from "./bundle-dom-move.js";
 import { requestJson, sessionIsActive } from "./bundle-layer-client.js";
 import { closeControl, closeNativeLayer, el, showNativeLayer } from "./bundle-errors.js";
-import { offlineInteractive, pageUrl } from "./bundle-context.js";
+import { html, nothing, offlineInteractive, pageUrl, render } from "./bundle-context.js";
 import { chromeForeground } from "./bundle-chrome.js";
 import { copyControl } from "./bundle-copy-control.js";
 import { readCurrentUserView } from "./bundle-user-view2.js";

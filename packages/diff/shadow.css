@@ -445,6 +445,10 @@ pre[data-overflow=wrap] .lf-diff-rows {
 [data-separator] svg {
   display: none;
 }
+:is([data-separator-wrapper], [data-no-newline] > span) {
+  display: block;
+  font: var(--t-6) / var(--code-line) var(--sans);
+}
 .lf-diff-frame {
   position: absolute;
   inset: 0;

@@ -1666,6 +1666,8 @@ main {
 @property --lf-top { syntax: "<length>"; inherits: true; initial-value: 0px; }
 @property --raise-2-drop { syntax: "<length>"; inherits: true; initial-value: 0px; }
 @property --raise-2-blur { syntax: "<length>"; inherits: true; initial-value: 0px; }
+@property --raise-3-drop { syntax: "<length>"; inherits: true; initial-value: 0px; }
+@property --raise-3-blur { syntax: "<length>"; inherits: true; initial-value: 0px; }
 @property --rail-hang { syntax: "<length>"; inherits: true; initial-value: 0px; }
 @property --lf-top-start { syntax: "<length>"; inherits: false; initial-value: 0px; }
 @property --lf-landing-room-start { syntax: "<length>"; inherits: false; initial-value: 0px; }

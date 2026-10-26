@@ -364,6 +364,33 @@ card (`dev/AGENTS.md`, "Commands with consequences outside `.tmp/`"). Run `wt se
 Worktrunk asks to approve the project commands, ask the user to run
 `wt config approvals add`.
 
+## Weigh what a change adds
+
+Whoever writes or reviews a change asks whether what it adds is worth what later
+changes and users pay for it, by the bar "Regular maintenance" sets for code already
+there. Size says little: a two-line selector can reach every page.
+
+- **What it adds**: a mode, branch or special case; one more member of a set,
+  allowlist or tolerance; a wait, retry or timer; a public option; room reserved for a
+  state that may not come; a second statement of a rule with an owner; a reliance on a
+  dependency's internals.
+- **What it buys**: a behavior a user sees, a request the maintainer made, or a
+  measured cost. A green test buys what the test protects, so name that.
+- **Where its cost lands**: read the change's reach rather than its claim, such as a
+  selector's or guard's scope against the condition it names, what else inherits from
+  or sits in the box it changes, and how often a guard fires on a correct setup. Then
+  compare who pays with who gains: a cost paid in every state or on every page to fix
+  one transition usually outweighs it.
+- **The cheaper change**: a platform or dependency primitive, the fix in the owner
+  rather than a caller, the stale copy deleted, or the gap left open with an issue.
+  When `git log -L` shows earlier changes compensating for the same gap, ask whether
+  the mechanism is the wrong primitive and the cheaper change its general form.
+
+Keep an addition whose benefit is concrete when no cheaper change buys it, as with a
+fix in a primitive every caller gains from; otherwise make the cheaper change, or ask
+for it in review. When the fix for a finding would add another branch, flag or
+condition, first ask whether the finding is about the approach.
+
 ## Regular maintenance
 
 Whenever a survey, a review or the nightly sweep reads a file, look for code that

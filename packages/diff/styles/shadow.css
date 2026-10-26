@@ -551,6 +551,14 @@ pre[data-overflow="wrap"] .lf-diff-rows {
 [data-separator] svg {
   display: none;
 }
+/* A separator's label describes the source rather than quoting it, so it takes the
+   chrome's face, as the path does the reverse. The row keeps the source's face,
+   so its inset measures the code column in the code's `ch`; the label is a block so
+   its line box holds only its own face and the row stays one source line tall. */
+:is([data-separator-wrapper], [data-no-newline] > span) {
+  display: block;
+  font: var(--t-6) / var(--code-line) var(--sans);
+}
 /* A sibling carries the viewport's ring above its positioned rows without
    scrolling with them. Unlike a parent's :has() pseudo-element, its selector
    also invalidates reliably in Firefox when focus moves into a source row. */

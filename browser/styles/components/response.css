@@ -316,14 +316,8 @@ button.lf-media-open {
    removal a press the image's height, a frame and a divider for one picture. Every
    shelf wears it, so a surface states only where its shelf stands. An image stands at
    the shelf's height in its own proportions, from three quarters as wide as tall, so a
-   tall screenshot is more than a sliver, up to twice as wide. */
-.lf-media-frame,
-.lf-composer-media-item > .lf-composer-media-open {
-  border-radius: var(--r);
-  box-shadow:
-    0 0 0 1px var(--lf-ring, var(--border-2)),
-    var(--raise-1);
-}
+   tall screenshot is more than a sliver, up to twice as wide. Its button frames
+   the picture (`.lf-media-frame`, reading.css). */
 .lf-composer-media-item:not(.lf-composer-drawing) > .lf-composer-media-open {
   height: var(--lf-media-h);
   min-height: 0;
@@ -354,13 +348,6 @@ button.lf-media-open {
   }
   .lf-composer-media-item > .lf-corner-mark {
     transition: opacity var(--lf-motion-disclosure);
-  }
-}
-/* A forced palette drops the ring, so a picture takes a system edge, which leaves the
-   focus ring to a focused picture. */
-@media (forced-colors: active) {
-  .lf-composer-media-item > .lf-composer-media-open:not([data-lf-focus-visible]) {
-    outline: 1px solid CanvasText;
   }
 }
 /* A rewrite's pictures are its message's (`sentMedia`, input.js), each a paragraph

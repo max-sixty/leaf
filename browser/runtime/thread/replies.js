@@ -255,16 +255,12 @@ export function replyControlDestination(node) {
 // A thread's reply draft has several views, and sending claims its exact generation.
 // A second view pressing Send afterwards reads the generation as
 // spent and refuses on its own — in this tab and in any other showing the page, which is
-// further than a hold kept in this document's memory reached. A send returns its
-// flight, which says whether the log took it; nothing when nothing was sent.
+// further than a hold kept in this document's memory reached. A send returns the
+// message it drew; nothing when nothing was sent.
 function sendReply(draftCtx, key, text, owns, actions) {
-  let flight = null;
-  const sent = sendMessage(
-    draftCtx,
-    owns,
-    (attempt) => (flight = actions.reply(key, text, { attempt })),
+  return sendMessage(draftCtx, owns, (attempt) =>
+    actions.reply(key, text, { attempt }),
   );
-  return sent && { flight };
 }
 
 // One reply row: its native editor, wired once to the thread's draft, send, and typing
@@ -310,15 +306,14 @@ function wireReply(
     },
     // The new turn is drawn above the box; the landing shows it with the box the user
     // sent from, read before the send draws, around wherever the send left them
-    // current location. A view whose box stays for the next turn lands the send itself (`sent`),
-    // told whether the log takes it.
+    // current location. A view whose box stays for the next turn lands the send itself
+    // (`sent`).
     send: (_text, raw, owns) => {
       const { actions, landSent, sending, sent } = composition.binding;
       const land = sendLanding(input);
       sending?.();
-      const reply = sendReply(draftCtx, key, raw, owns, actions);
-      if (!reply) return;
-      if (sent) return sent(reply.flight);
+      if (!sendReply(draftCtx, key, raw, owns, actions)) return;
+      if (sent) return sent();
       landSent(closestAcross(input, THREAD));
       land(focused());
     },

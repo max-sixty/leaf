@@ -21,8 +21,6 @@
     --lf-fp-view-height: calc(100dvh - var(--lf-foot-room) - 160px);
   }
   .lf-floating-panel {
-    --lf-motion-panel-ease: cubic-bezier(0.23, 1, 0.32, 1);
-    --lf-motion-panel-resize: 300ms;
     --lf-motion-panel-fold-ease: cubic-bezier(0.77, 0, 0.175, 1);
     --lf-motion-panel-fold: 280ms;
     --lf-motion-view-in: 90ms;
@@ -428,9 +426,6 @@
   .lf-floating-panel:is([data-writing], [data-drafted]) .lf-fp-field .lf-compose-submit {
     display: grid;
   }
-  .lf-floating-panel:is([data-drafted], [data-search]) .lf-fp-quick {
-    display: none;
-  }
   .lf-fp-field .lf-compose-dictate {
     display: grid;
   }
@@ -438,13 +433,12 @@
     display: none;
   }
   .lf-fp-quick {
-    flex: 0 1 auto;
-    min-width: 0;
+    flex: none;
     display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    align-items: center;
-    gap: 2px;
+    width: max(var(--lf-fp-aim), calc(16px + 4px + 2ch + 14px));
+  }
+  .lf-fp-quick > .lf-fp-chip {
+    flex: 1;
   }
   .lf-fp-chip {
     position: relative;
@@ -452,22 +446,15 @@
     align-items: center;
     justify-content: center;
     gap: 4px;
-    min-width: var(--lf-fp-aim);
     min-height: var(--lf-line);
     padding: 0 7px;
     color: var(--lf-fp-muted);
     font-variant-numeric: tabular-nums;
   }
-  .lf-fp-chip:hover,
-  .lf-fp-chip[aria-pressed=true] {
+  .lf-fp-chip:hover {
     color: var(--ink);
   }
-  .lf-fp-chip[aria-pressed=true] {
-    background: var(--lf-fp-faint);
-  }
-  .lf-fp-on-user,
-  .lf-fp-threads {
-    min-width: calc(16px + 4px + 2ch + 14px);
+  .lf-fp-on-user {
     justify-content: flex-start;
   }
   .lf-fp-on-user[data-due] .lf-fp-num {
@@ -529,14 +516,6 @@
     text-underline-offset: 2px;
     text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
   }
-  .lf-fp-exit-seat {
-    flex: none;
-    display: flex;
-    width: var(--lf-fp-aim);
-  }
-  .lf-floating-panel[data-drafted] .lf-fp-exit-seat {
-    width: auto;
-  }
   .lf-floating-panel[data-rest=mark] {
     --lf-fp-fold-pad-inline: calc((var(--lf-fp-folded) - var(--lf-fp-aim)) / 2);
     --lf-fp-fold-pad-block: calc((var(--lf-fp-folded) - var(--lf-line)) / 2);
@@ -547,7 +526,6 @@
     .lf-fp-field,
     .lf-fp-row-notice,
     .lf-fp-quick,
-    .lf-fp-exit-seat,
     .lf-fp-opened {
       display: none;
     }
@@ -1099,7 +1077,7 @@
   .lf-fp-on-item {
     padding: 10px 8px 12px;
   }
-  .lf-fp-on-done {
+  .lf-fp-ended {
     margin: 0 8px;
     padding-top: 10px;
     border-top: 1px solid var(--lf-fp-faint);
@@ -1291,7 +1269,7 @@
       opacity: 0;
       translate: 0 6px;
     }
-    transition: opacity var(--lf-motion-disclosure) linear, translate var(--lf-motion-menu-slide) var(--lf-motion-panel-ease);
+    transition: opacity var(--lf-motion-disclosure) linear, translate var(--lf-motion-menu-slide) var(--lf-motion-box-ease);
   }
   .lf-fp-menu[data-level=versions] {
     width: min(360px, calc(100vw - 32px));
@@ -1553,6 +1531,10 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
 }
 @scope (.lf-chrome) {
+  :is(.lf-floating-panel, .lf-margin-preview) {
+    --lf-motion-box-ease: cubic-bezier(0.23, 1, 0.32, 1);
+    --lf-motion-box-resize: 300ms;
+  }
   .lf-foreground {
     position: absolute;
     inset: 0 auto auto 0;
@@ -1889,6 +1871,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     max-height: none;
   }
   .lf-media-viewer .pswp__img {
+    border-radius: 0;
     outline: 1px solid var(--border-2);
     box-shadow: var(--raise-2);
   }

@@ -1124,6 +1124,30 @@ def test_a_prompt_reopens_the_acknowledged_move_it_carries_into_the_new_turn(
     assert activity["obligations"][0]["condition"] is None
 
 
+def test_a_compaction_sends_the_agent_back_to_the_skill(claimed, capsys):
+    """A compaction can drop the leaf skill, whose rules, such as putting every
+    question for the user on On me, the agent follows while it holds a page. The
+    SessionStart after one names the skill to read again; no other start or prompt
+    does."""
+
+    def start_context(source: str) -> str:
+        hooks_model.cmd_hook(
+            "claude-code",
+            {"hook_event_name": "SessionStart", "session_id": "s1", "source": source},
+        )
+        out = capsys.readouterr().out
+        return json.loads(out)["hookSpecificOutput"]["additionalContext"] if out else ""
+
+    skill = str(schema_model.SKILL_FILE)
+    assert schema_model.SKILL_FILE.is_file()
+    assert skill in start_context("compact")
+    assert skill not in start_context("resume")
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
+    )
+    assert skill not in capsys.readouterr().out
+
+
 def test_agent_sees_the_complete_interaction_recovery(claimed, capsys, snapshot):
     """The real hook and CLI outputs, from the move's arrival through settlement:
     the Stop hook's watch wakes the session, and the prompt hook of the turn that

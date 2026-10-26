@@ -54,6 +54,21 @@ clips them, so it can't stand in. Recheck with the `browser` case of
 `test_cards_laid_across_align_their_titles_whatever_chips_open_them` in
 `tests/browser/widgets/test_obligations.py`, extended to its `all` row.
 
+### A restyle skipped under a nested container in Chromium
+
+Playwright Chromium 153.0.8010.12 left the visual review's case buttons in the
+wide layout's padding (`14px 4px`, not `10px 8px`) when the window crossed the
+review's 58rem container query, while the case list between them was an
+inline-size container, as the theme makes a pane's body. On 2026-10-25,
+narrowing `visual-review-gallery` from 1200px to 880px reproduced it on every
+crossing; Firefox 155 took the narrow padding. `.lf-vr-case-list` in
+`packages/visual-review/styles/theme.css` declares `container-type: normal`,
+since nothing in the list queries it. Recheck by deleting that declaration,
+narrowing the page with `leaf-dev probe` and reading a case button's computed
+padding; `test_page_fixture_renders[visual-review-gallery]` in
+`tests/journeys/test_render_gate.py` reads the same difference in its resize
+journey.
+
 ### Contents spine lens
 
 `packages/default/widgets/lf-toc.js` uses a paused animation updated on scroll
@@ -153,6 +168,20 @@ on 2026-10-09. On 2026-10-10, typing into an already focused offscreen native
 editor also revealed its frame without a JavaScript reveal call.
 Reproduce by focusing the parent, then invoking native focus or reveal from a
 child message handler; separately type into an offscreen focused child editor.
+
+### A selection written during focus in WebKit
+
+Playwright WebKit 26.6 revealed an editor's selection written inside its
+`focus` event, before the platform finished its focus steps, although the focus
+call prevented scrolling, and the reveal crossed a sample's frame: on
+2026-10-25 the containing page scrolled 1,386px to a sample's editor. Chromium
+153 kept the page still. `LeafEditorView` in `browser/runtime/editor-view.js`
+writes the caret after native focus returns when its own `focus()` moved focus,
+and inside the focus event only for arrivals that bypass it, such as Tab;
+whether WebKit reveals those across a frame is unverified. Recheck
+`test_sample_editor_focus_preserves_outer_scroll_and_the_caret[webkit_browser]`
+in `tests/journeys/test_render_controls.py` with the focus listener writing the
+selection on every arrival (`#focusing` never set).
 
 ### Sample document admission and native navigation
 
@@ -275,6 +304,20 @@ including wide tables; scale, rotation and CSS zoom remain unsupported by that
 correction. Chromium 153 and WebKit 26.6 included transforms.
 Recheck a fixed box anchored to a translated target by comparing their left
 edges before removing the compensation; test other transforms separately.
+
+### A `left`-inset anchored control after a resize in Firefox
+
+`.lf-heading-link` in `browser/styles/components/integration.css` carries its
+place in its `right` inset because Playwright Firefox 155, on 2026-10-25, left
+a `left`-inset link where its heading had stood before the window widened, as
+commit 00e03385c records without a reproduction. The same day, a `left` form of
+the current arithmetic followed its heading in Firefox 155 when
+`leaf-dev probe --firefox` narrowed `release-notes`, `review-a-plan`,
+`live-progress` and a one-heading page to 440px and widened them to 1200px, so
+the gap is unconfirmed. The `right` form costs nothing else. Recheck by
+swapping in the `left` form and comparing the link's box after that resize with
+a fresh page's at the same width across the corpus; if none differ, drop this
+entry and the reason in the stylesheet.
 
 ### Native reveal bounded to its scroller
 

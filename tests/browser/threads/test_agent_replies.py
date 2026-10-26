@@ -20,6 +20,7 @@ from render_cases_interaction import (
     panel_comment,
 )
 from render_harness import (
+    expect_on_me,
     holding,
     leaf_page,
     open_page,
@@ -173,7 +174,7 @@ def test_a_message_obligation_opens_its_question_and_accepts_an_answer(
         )
     page = open_page(browser, url)
     mark = page.locator(".lf-fp-on-user")
-    expect(mark).to_have_attribute("aria-label", "On me: 1")
+    expect_on_me(page, 1)
     mark.click()
     row = page.locator('.lf-fp-on-item[data-list="you"]')
     expect(row).to_contain_text(question)
@@ -195,7 +196,7 @@ def test_a_message_obligation_opens_its_question_and_accepts_an_answer(
     write(reply, "02:00–02:40 UTC on Thursday")
     with sending(page, "the maintenance window"):
         page.keyboard.press("ControlOrMeta+Enter")
-    expect(mark).to_have_attribute("aria-label", "On me")
+    expect_on_me(page, 0)
     assert any(
         event["kind"] == "reply"
         and event["author"] == "user"
@@ -214,7 +215,7 @@ def test_a_thread_task_stays_on_me_until_done(browser, serve):
     assert todo["subject"] == {"kind": "thread", "id": root}
     page = open_page(browser, url)
     mark = page.locator(".lf-fp-on-user")
-    expect(mark).to_have_attribute("aria-label", "On me: 1")
+    expect_on_me(page, 1)
     mark.click()
     row = page.locator(f'.lf-fp-on-item[data-obligation="{todo["id"]}"]')
     expect(row).to_contain_text("Try the build on your phone")
@@ -223,15 +224,15 @@ def test_a_thread_task_stays_on_me_until_done(browser, serve):
     write(reply, "Which phone should I use?")
     with sending(page, "the device clarification"):
         page.keyboard.press("ControlOrMeta+Enter")
-    expect(mark).to_have_attribute("aria-label", "On me: 1")
-    mark.click()
+    expect_on_me(page, 1)
+    page.locator(".lf-fp-controls .lf-fp-back", has_text="On me").click()
     with sending(page, "the completed phone check"):
         row.get_by_role("button", name="Done", exact=True).click()
-    expect(mark).to_have_attribute("aria-label", "On me")
+    expect_on_me(page, 0)
     expect(row.locator(".lf-fp-said")).to_have_text("Done")
     with sending(page, "undo the phone check"):
         row.get_by_role("button", name="Undo", exact=True).click()
-    expect(mark).to_have_attribute("aria-label", "On me: 1")
+    expect_on_me(page, 1)
     expect(row.get_by_role("button", name="Done", exact=True)).to_be_visible()
 
 
@@ -257,7 +258,7 @@ def test_a_thread_heads_with_the_task_it_holds_on_me(browser, serve):
     line.get_by_role("button", name="Done", exact=True).click()
     holding(page, held, 1, "the thread's Done")
     expect(line).to_have_count(0)
-    expect(mark).to_have_attribute("aria-label", "On me")
+    expect_on_me(page, 0)
     page.unroute("**/api/event")
     for route in held:
         route.continue_()
@@ -996,9 +997,9 @@ def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(
         },
     )
     page = open_page(browser, url)
-    # Nobody's turn: the thread's row says it is open and no more.
+    # The unread reply is the row's mark, with no turn owed by either participant.
     status = thread_row(page, root).locator(".lf-fp-value")
-    expect(status).to_have_text(re.compile(r"^(Open)?$"))
+    expect(status).to_have_text("")
     card = open_panel_thread(page, root)
     receipt = page.locator(
         f'.lf-fp-view .lf-msg[data-event="{board["id"]}"] .lf-msg-sending'
@@ -1012,7 +1013,7 @@ def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(
     expect(page.locator("#fb-done > #fb-cache")).to_be_visible()
     expect(receipt).to_have_text("Sent")
     status = thread_row(page, root).locator(".lf-fp-value")
-    expect(status).to_have_text(re.compile(r"^(Open)?$"))
+    expect(status).to_have_text("")
     card = open_panel_thread(page, root)
 
     [moved] = [

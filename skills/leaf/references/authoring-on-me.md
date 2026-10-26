@@ -16,10 +16,12 @@ question gives. Where you can't yet say what an option does, find out before you
 
 Each option is a result the user can pick, so its title says what choosing it does to
 the subject, keeping today's behavior included: “Generate shared types” and “Keep
-handwritten types”, rather than “Accept” and “Not now”. A compact title can be the
-whole option. The user should be able to compare the options down the group without
-reading their prose, as through `small.tag` labels for the facts they weigh, such as
-effort or risk. Add words only for a consequence that no title or label shows.
+handwritten types”, rather than “Accept” and “Not now”. Where the options differ only
+in a value, such as how long captures are kept, say once above them what that value
+costs, and each title can be the whole option. The user should be able to compare the
+options down the group without reading their prose, as through `small.tag` labels for
+the facts they weigh, such as effort or risk. Add words only for a consequence that no
+title or label shows.
 Order the options by the subject, such as from today's behavior to the largest
 change, and keep that one order wherever the question lists them, including a
 comparison table and lettered names, so the user matches each option to its row by

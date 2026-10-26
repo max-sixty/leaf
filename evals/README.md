@@ -67,7 +67,7 @@ unobserved. The judge follows the requested output's scope.
 
 For the goal, task/model/viewport selection, sampling, improvement loop and
 acceptance decisions, use the
-[grinding playbook](../.claude/skills/grinding-ui/SKILL.md).
+[hill-climbing playbook](../.claude/skills/hill-climb-ui/SKILL.md).
 This section describes the commands that execute a selected experiment.
 
 `evals/workflows/eval.yaml` owns viewport presets and the default. Case definitions

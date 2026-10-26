@@ -90,8 +90,9 @@ without `touch` and a scope row whose `run` is neither `exit` nor `touch: false`
 a control of the row's own beside what it changes.
 
 The comment field has one primary action, Dictate while empty and Send once it has
-words. Suggest and reactions share an anchored Other responses picker, reached by its
-button, Tab from the field, or the contextual reaction command. Opening the picker
+words. Suggest and reactions share an anchored Other responses picker, reached by the
+⋯ beside Dictate while the field is empty, Tab from the field, or the contextual
+reaction command. Opening the picker
 keeps the field in place on desktop and touch surfaces alike.
 
 A command that should leave the user where they are declares `retainCurrentLocation`: the

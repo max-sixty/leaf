@@ -149,7 +149,6 @@
   font-variant-numeric: tabular-nums;
 }
 .lf-worktree-stats {
-  grid-column: -2;
   display: inline-flex;
   flex-wrap: wrap;
   align-items: baseline;

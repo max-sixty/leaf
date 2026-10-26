@@ -44,8 +44,15 @@ the website's prose to a visitor.
 
 Visible copy is personal, not technical: it speaks of the user, the agent and the page,
 never of the machinery between them. Say what the user did (“Moved to Done”) or what the
-agent did (“Claude replied”), not that something was sent, logged, stored or retried. Name the machinery only where the user must act
-on it, as an unreachable server asks them to keep the tab open.
+agent did (“Claude replied”), not that something was sent, logged, stored or retried.
+Name the machinery only where the user must act on it, as an unreachable server asks
+them to keep the tab open.
+
+Where a label speaks for the agent's side, such as where the agent stands with the
+user's update, the agent says it, as it would in conversation (“Got it”), rather than
+a narrator describing the agent from outside (“Waiting for Claude”, “Delivered to
+Claude”). The user is talking with the agent, and a narrator puts a third party
+between them.
 
 Name an update's kind where it is known: a **comment**, **reply**, **choice**
 or **reaction**; in protocol text a widget's is an **action**, after its

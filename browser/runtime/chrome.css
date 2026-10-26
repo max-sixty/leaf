@@ -1173,7 +1173,8 @@
     padding: 0 8px 10px;
   }
   .lf-fp-on-item[data-card] {
-    display: block;
+    display: flex;
+    flex-direction: column;
     padding: 10px 8px 12px;
   }
   .lf-fp-ended {
@@ -1210,6 +1211,10 @@
     gap: 6px;
     margin-top: 9px;
     min-height: var(--lf-fp-press);
+  }
+  .lf-fp-on-item[data-card] > .lf-fp-answers {
+    margin-top: auto;
+    padding-top: 9px;
   }
   .lf-fp-show {
     margin-inline-start: auto;

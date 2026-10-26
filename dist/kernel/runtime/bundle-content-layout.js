@@ -1,10 +1,9 @@
-import { Z } from "./bundle-signals-core.js";
-import { PRESSES, WORKS, afterScript, keeps, layoutPx, move, nativeLayerHolding, nextFrame, nextRender, renderedParent, shadowHost, sizeObserver, under, upFrom } from "./bundle-dom-move.js";
+import { PRESSES, WORKS, keeps, layoutPx, move, nativeLayerHolding, nextFrame, nextRender, renderedParent, shadowHost, sizeObserver, under, upFrom } from "./bundle-dom-move.js";
 import { clamp, clippedContents, headerCuts, hostIn, inUi, nearObserver, nearWindow, overlaps, registry, scrollContainer, scrollsContent, shownParts, skipped, tagsDeclaring, uiInside, watchArrivals } from "./bundle-geometry.js";
 import { TEXT_BLOCK, anchorKey, documentChanged, isElementName, marks } from "./bundle-context.js";
 import { PRESSABLE, layoutChanged, repaintPage } from "./bundle-errors.js";
 import { atScrollEnd, compoundReadingRegionId, registerReadingRegion, scrollToEnd } from "./bundle-reading-regions.js";
-import { chromeRoot } from "./bundle-element-frame.js";
+import { chromeRoot, pageControlsChanged } from "./bundle-page-controls.js";
 import { DATUM, authoredScope, blockAt, closestAcross, contextAround, cut, elementById, elementReading, excerptWords, fileModelsPassage, findQuote, inChrome, layoutBox, leafSurface, neighbourhood, pageDocument, pageQueryAll, pageText, quoteFrom, rangeOf, readingFrom, segmentsIn, settledAway, spanIn, textNodesUnder } from "./bundle-passages.js";
 import { fragmentId } from "./bundle-initial-render.js";
 
@@ -1252,71 +1251,6 @@ function pointBand(box, point) {
 }
 
 //#endregion
-//#region runtime/page-controls.js
-const EMPTY = Object.freeze([]);
-const PAGE_CONTROL_RANK = Object.freeze({
-	session: 10,
-	claimant: 15,
-	preview: 20,
-	layer: 30,
-	inspection: 32,
-	share: 35,
-	leaves: 40,
-	latest: 50,
-	map: 70,
-	commands: 75,
-	blanket: 80,
-	versions: 90,
-	keyboard: 95,
-	exit: 120
-});
-const GROUPS = Object.freeze([
-	"page",
-	"navigate",
-	"annotate",
-	"about",
-	"keys"
-]);
-const rows = /* @__PURE__ */ new Map();
-let sequence = 0;
-const revision = Z(0);
-const read = (value) => typeof value === "function" ? value() : value;
-function registerPageControl(row) {
-	if (!row.key || !Number.isFinite(row.rank) || !row.label || !row.group) throw new TypeError(`Page control ${row.key} needs a key, a numeric rank, a label and a group`);
-	if (rows.has(row.key)) throw new TypeError(`Page control ${row.key} is registered`);
-	rows.set(row.key, Object.freeze({
-		...row,
-		sequence: sequence++
-	}));
-	pageControlsChanged();
-}
-function pageControls() {
-	revision.value;
-	return [...rows.values()].sort((a, b) => a.rank - b.rank || a.sequence - b.sequence).filter((row) => read(row.offered) ?? true).map((row) => {
-		const group = read(row.group);
-		if (!GROUPS.includes(group)) throw new TypeError(`Page control ${row.key} is in group ${group}, not one of ${GROUPS.join(", ")}`);
-		return Object.freeze({
-			key: row.key,
-			label: read(row.label),
-			value: read(row.value) ?? "",
-			title: read(row.title) ?? "",
-			shortcut: read(row.shortcut) ?? EMPTY,
-			group,
-			copies: read(row.copies) ?? "",
-			urgent: read(row.urgent) ?? null,
-			exit: Boolean(row.exit),
-			icon: read(row.icon) ?? null,
-			disabled: Boolean(read(row.disabled)),
-			press: row.press ?? null
-		});
-	});
-}
-const pageControlsChanged = () => afterScript(tell);
-function tell() {
-	revision.value = revision.peek() + 1;
-}
-
-//#endregion
 //#region runtime/content-layout.js
 let marginContentLayoutOpen = false;
 let readFinished = null;
@@ -1390,4 +1324,4 @@ function openMarginContentLayout({ onRead }) {
 }
 
 //#endregion
-export { ADDRESSABLE, PAGE_CONTROL_RANK, addressableLabel, addressableName, addressableSays, addressableWord, addressedElements, aimTargetAt, aimTargets, anchorAt, anchorBox, anchorElement, anchorFor, anchorForPassage, anchorForRange, anchorName, anchorReaches, anchorReading, anchorView, anchoringIsReady, annotationAt, boundedBlockOf, carriedAnchor, commitPoint, cutFrames, datumAimTarget, datumLabel, declaredName, designPressAt, exactTarget, followingItsEnd, fragmentTarget, headerLevels, holdArrivingBounds, isAddressable, leadingTitle, lightSeat, livePoint, nameAnchor, nameable, openMarginContentLayout, pageControls, pageControlsChanged, passageBoxes, passageGeometry, placePoints, pointBand, pointInto, projectedDatum, railStands, rangeGeometry, refreshAnchorView, registerPageControl, registerVisualParts, resolveAnchor, resolvedInMessage, revealAddressed, scheduleMarginContentLayout, scrollsWith, sectionLabel, sectionOf, setAnchoringReady, settleMarginContentLayout, targetElement, targetParts, targetPlace, targetRange, targetSegments, targetSurface, unclaimedVisualGesture, visualAt, visualPartLabel, visualPartProblems, visualParts, visualSelector, widgetWord };
+export { ADDRESSABLE, addressableLabel, addressableName, addressableSays, addressableWord, addressedElements, aimTargetAt, aimTargets, anchorAt, anchorBox, anchorElement, anchorFor, anchorForPassage, anchorForRange, anchorName, anchorReaches, anchorReading, anchorView, anchoringIsReady, annotationAt, boundedBlockOf, carriedAnchor, commitPoint, cutFrames, datumAimTarget, datumLabel, declaredName, designPressAt, exactTarget, followingItsEnd, fragmentTarget, headerLevels, holdArrivingBounds, isAddressable, leadingTitle, lightSeat, livePoint, nameAnchor, nameable, openMarginContentLayout, passageBoxes, passageGeometry, placePoints, pointBand, pointInto, projectedDatum, railStands, rangeGeometry, refreshAnchorView, registerVisualParts, resolveAnchor, resolvedInMessage, revealAddressed, scheduleMarginContentLayout, scrollsWith, sectionLabel, sectionOf, setAnchoringReady, settleMarginContentLayout, targetElement, targetParts, targetPlace, targetRange, targetSegments, targetSurface, unclaimedVisualGesture, visualAt, visualPartLabel, visualPartProblems, visualParts, visualSelector, widgetWord };

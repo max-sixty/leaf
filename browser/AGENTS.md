@@ -181,7 +181,7 @@ representative desktop viewport.
 - **Leaf's controls are few, and each shows a symbol rather than a word where a
   familiar symbol says what it does.** The words on Leaf's controls compete with the
   page's own words for the reader's attention, and a symbol is smaller and quieter.
-  Draw it from `runtime/icons.js` and give the control its name as tooltip and
+  Draw it from `runtime/icon-paths.js` and give the control its name as tooltip and
   accessible name, without the word beside the symbol. One control whose symbol follows
   its state, such as play turning to pause, replaces a button for each state. A word
   stays where a symbol would leave the reader guessing, as in the rows of the leaf's

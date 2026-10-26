@@ -38,6 +38,7 @@ directory; the remaining states still run. Only complete pairs enter the
 comparison. Arm construction, browser setup failures, and interrupts end the command.
 """
 
+import re
 import tempfile
 import traceback
 from collections.abc import Callable
@@ -459,6 +460,21 @@ def seat_held_news(page: Page) -> None:
     held_news(page, thread)
 
 
+def on_me(page: Page) -> None:
+    """On me, opened from the floating panel's On me mark."""
+    page.locator(".lf-fp-on-user").click()
+    expect(page.locator(".lf-fp-view[data-view=queue]")).to_be_visible()
+
+
+def on_agent(page: Page) -> None:
+    """The On view turned to the agent's tab."""
+    on_me(page)
+    page.locator(".lf-fp-filters button").filter(
+        has_text=re.compile(r"^\s*On (?!me)")
+    ).first.click()
+    expect(page.locator(".lf-fp-view[data-view=queue]")).to_be_visible()
+
+
 def call_tree(page: Page) -> None:
     """The CallDiff root and its unchanged landmarks beside added and removed calls."""
     page.get_by_role("tab", name="CallDiff", exact=True).click()
@@ -597,6 +613,14 @@ def image_in_page(page: Page) -> None:
     """An authored image in the reading flow, before its viewer opens."""
     page.get_by_role("tab", name="Threads", exact=True).click()
     page.locator("#bg-image-preview").scroll_into_view_if_needed()
+
+
+def thread_picture(page: Page) -> None:
+    """The gallery's pasted screenshot, a white page, in its message in the panel."""
+    open_thread(page, "2be2443f0bb6cc49fc86b52f340e6073")
+    picture = page.locator(".lf-fp-view[data-view=thread] .lf-message-media img").first
+    picture.evaluate("image => image.decode()")
+    picture.scroll_into_view_if_needed()
 
 
 def image_preview(page: Page) -> None:
@@ -1625,6 +1649,12 @@ STATES = (
         image_in_page,
         region="#bg-image-preview",
     ),
+    State(
+        "thread-picture",
+        "developer/feature-gallery",
+        thread_picture,
+        region=".lf-fp-opened",
+    ),
     State("image-preview", "developer/feature-gallery", image_preview),
     State(
         "image-preview-dark", "developer/feature-gallery", image_preview, scheme="dark"
@@ -2284,6 +2314,11 @@ STATES = (
         viewport=(390, 500),
         touch=True,
     ),
+    State("on-me", "corpus", on_me),
+    State("on-me-dark", "corpus", on_me, scheme="dark"),
+    State("on-agent", "corpus", on_agent),
+    State("hub-on-me", "command-hub", on_me),
+    State("hub-on-agent", "command-hub", on_agent),
     State("hub", "command-hub", at_rest),
     State("hub-workers", "command-hub", hub_workers),
     State("sort", "rust-sort", at_rest),

@@ -2357,7 +2357,7 @@ def _thread(page_dir):
             "parent": root,
             "revision": 1,
             "text": "Forty is what the slowest device we ship on can hold.",
-            "markup": '<lf-ask id="forty-enough">Is forty enough?</lf-ask>',
+            "markup": f'<lf-ask id="forty-enough-{root}">Is forty enough?</lf-ask>',
         },
     )
     return root, reply["id"]

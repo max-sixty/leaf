@@ -1,22 +1,22 @@
-import { aimLayer, mountTargetPaint, paintSet, targetTraceLayer, target_paint_exports } from "./runtime/bundle-target-paint.js";
-import { LitElement, Z, bareReaction, bindQueuedWork, carriesObligation, d, hasUnread, html, itemNoun, itemOutcome, keyed, noChange, nothing, observeQueuedWork, ref, render, repeat, sameAnchor, threadCounts, threadKey, threadNames, x } from "./runtime/bundle-browser-runtime.js";
-import { CARET_KEYS, MODIFIER_KEYS, PRESSES, TEXT_BOX, TEXT_FIELD, WORKS, afterScript, afterSettling, byRenderedOrder, cancelRender, closeLayer, currentLocationIn, declareReading, deepFocus, drawn, focusDestination, focused, handBack, holdFocus, holdRendering, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, nextFrame, nextRender, observePreparations, onCurrentLocation, onPressAway, onUserInput, openLayer, openerOf, release, releaseFocus, renderedOrder, renderedUnder, renderingState, rove, selectsAll, shadowHost, sizeObserver, takesLetters, typesText, under, upFrom } from "./runtime/bundle-dom-move.js";
+import { aimLayer, boxMotion, liftReach, mountTargetPaint, paintSet, targetTraceLayer, target_paint_exports } from "./runtime/bundle-box-motion.js";
+import { LitElement, Z, bareReaction, bindQueuedWork, carriesObligation, d, html, isNews, itemNoun, itemOutcome, keyed, live, noChange, nothing, observeQueuedWork, ref, render, repeat, sameAnchor, threadCounts, threadKey, threadNames, x } from "./runtime/bundle-browser-runtime.js";
+import { CARET_KEYS, MODIFIER_KEYS, PRESSES, TEXT_BOX, TEXT_FIELD, WORKS, afterScript, byRenderedOrder, cancelRender, closeLayer, currentLocationIn, declareReading, deepFocus, drawn, focusDestination, focused, handBack, holdFocus, holdRendering, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, nextFrame, nextRender, observePreparations, onCurrentLocation, onPressAway, onUserInput, openLayer, openerOf, release, releaseFocus, renderedOrder, renderedUnder, renderingState, rove, selectsAll, shadowHost, sizeObserver, takesLetters, typesText, under, upFrom } from "./runtime/bundle-dom-move.js";
 import { PAGE_PAINT_ATTRIBUTE, pagePresented, pageUpgraded, reportPageError, setRuntimeRootStyle, uploadMedia } from "./runtime/bundle-layer-client.js";
-import { EVERYTHING, LAYOUT, LINK, PRESS, PRESSABLE, advertisesKeys, allBindings, annotationSheets, announce, bindingEnabled, bindings, buttonCommand, chromeSheet, claimsEsc, clamp, clampedRow, clippedContents, closeControl, closeNativeLayer, coarsePointer, commandDeclarationsWithin, commandPresentations, commandRoutes, commandScope, commandsWithin, contextBindings, contextScopes, cycledRow, decisionControls, decisionFor, declareOccluder, declareWindowChrome, declaredBindings, descriptionOf, dismissError, dismissErrors, dismissPopoversOutside, dragHeld, el, errorsReading, holdingError, hostIn, iconElement, iconTemplate, inUi, intersect, keys, labelOf, landingBand, layoutWindow, live, liveEl, marksSheet, merge, mountRepaint, nativeLayers, nativeModalAdmits, notice, noticeReading, offer, offered, overlaps, overlapsAcross, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, pointerAt, pressIsKeyboardActivation, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, reflectFirstScopes, reflectKeys, registry, repaint, repaintPage, reveal, routedCommand, rowArrows, savedReadingSettled, saying, scopeRefs, scopesAt, scopesFor, scrollGlides, scrolling, searchField, seeErrors, seenRect, setNoticeContext, setQuickShortcuts, showNativeLayer, shownBox, shownParts, shownRect, spell, spokenBinding, stackLevel, startsAt, submitBindings, submitLabel, tagsDeclaring, titleOf, underOccluder, union, watchCommandAvailability, watchScrollEnds, watchScrolls, whileConnected, windowChromeBoxes, word } from "./runtime/bundle-errors.js";
+import { EVERYTHING, LAYOUT, LINK, PRESS, PRESSABLE, advertisesKeys, allBindings, annotationSheets, announce, bindingEnabled, bindings, buttonCommand, chromeSheet, claimsEsc, clamp, clampedRow, clippedContents, closeControl, closeNativeLayer, coarsePointer, commandDeclarationsWithin, commandPresentations, commandRoutes, commandScope, commandsWithin, contextBindings, contextScopes, cycledRow, decisionControls, decisionFor, declareOccluder, declareWindowChrome, declaredBindings, descriptionOf, dismissError, dismissErrors, dismissPopoversOutside, dragHeld, el, errorsReading, holdingError, hostIn, iconElement, iconTemplate, inUi, intersect, keys, labelOf, landingBand, layoutWindow, live as live$1, liveEl, marksSheet, merge, mountRepaint, nativeLayers, nativeModalAdmits, notice, noticeReading, offer, offered, overlaps, overlapsAcross, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, pointerAt, pressIsKeyboardActivation, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, reflectFirstScopes, reflectKeys, registry, repaint, repaintPage, reveal, routedCommand, rowArrows, savedReadingSettled, saying, scopeRefs, scopesAt, scopesFor, scrollGlides, scrolling, searchField, seeErrors, seenRect, setNoticeContext, setQuickShortcuts, showNativeLayer, shownBox, shownParts, shownRect, spell, spokenBinding, stackLevel, startsAt, submitBindings, submitLabel, tagsDeclaring, titleOf, underOccluder, union, watchCommandAvailability, watchScrollEnds, watchScrolls, whileConnected, windowChromeBoxes, word } from "./runtime/bundle-errors.js";
 import { DELIVERY, PRESENTATION_DOM, SHARE_ROOT, WEBSITE_DELIVERY, agentName, annotationMode, applicationPresenter, applicationState, documentChanged, offlineInteractive, readPart, runtime, runtimeResource, shareUrl, whenApplicationPresented } from "./runtime/bundle-context.js";
 import { JUST_NOW, PRESENTATION, UPGRADE, afterPresentation, ago, atScrollEnd, effectiveScroller, markPagePresented, markPageUpgraded, moveScrollerBy, pageReadiness, pageScroller, reachScrollers, readingRegionFor, registerReadingRegion, scrollChainOf, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, settlePageInterface, shortAgo, syncLayoutRegion, userReadingRegion, whenArrived } from "./runtime/bundle-reading-regions.js";
 import { activeCommandLabel, availableCommandRoutes, dispatchKey, executeCommand, innermostStance, invokePress, keyReady, onSampleNotice, registerSampleCommand, sampleNotice, userIn } from "./runtime/bundle-dispatch.js";
 import { commandSteps, createAnchorTravel, createVersionController, initializeServedDocument, keepPageRulesOffLayer, mountHistory, paintCoreControls, readPlace, returnPlace, versionPicker, versionsReading } from "./runtime/bundle-version.js";
 import { chromeForeground, chromeRoot } from "./runtime/bundle-chrome.js";
 import { COLLAPSE, LEAF_SURFACE, TEXT_BLOCK, authoredScope, blockAt, closestAcross, contextAround, elementById, elementFromPointAcross, elementOver, excerptWords, findText, inChrome, leafSurface, pageDocument, pageParts, pageQueryAll, pageRange, pageReadingVersion, pageText, pageWords, programmaticSelection, quoteFrom, rangeOf, says, segmentBlock, selectEnds, selectionBackward, showsWords } from "./runtime/bundle-passages.js";
-import { ADDRESSABLE, PAGE_CONTROL_RANK, addressableSays, addressableWord, aimTargetAt, aimTargets, anchorFor, anchoringIsReady, annotationAt, designPressAt, elementFrame, exactTarget, fragmentTarget, holdArrivingBounds, isAddressable, lightSeat, livePoint, openMarginContentLayout, pageControls, pageControlsChanged, placePoints, pointInto, railStands, registerPageControl, resolveAnchor, resolvedInMessage, revealAddressed, scheduleMarginContentLayout, sectionLabel, sectionOf, setAnchoringReady, targetElement, targetParts, targetPlace, targetRange, targetSegments, unclaimedVisualGesture, visualAt, visualParts, visualSelector } from "./runtime/bundle-content-layout.js";
+import { ADDRESSABLE, PAGE_CONTROL_RANK, addressableLabel, addressableSays, addressableWord, aimTargetAt, aimTargets, anchorFor, anchoringIsReady, annotationAt, designPressAt, elementFrame, exactTarget, fragmentTarget, holdArrivingBounds, isAddressable, lightSeat, livePoint, openMarginContentLayout, pageControls, pageControlsChanged, placePoints, pointInto, railStands, registerPageControl, resolveAnchor, resolvedInMessage, revealAddressed, scheduleMarginContentLayout, sectionLabel, sectionOf, setAnchoringReady, targetElement, targetParts, targetPlace, targetRange, targetSegments, unclaimedVisualGesture, visualAt, visualParts, visualSelector } from "./runtime/bundle-content-layout.js";
 import { fragmentId } from "./runtime/bundle-initial-render.js";
-import { DESIGN_MODE_KEY, ELEMENTS, PAGE_DRAFT, THREAD, allButCommandReference, allThreads, anchorLabel, answeredInWords, beginWalk, bringBackSurfaceOf, createPassageSelection, createWritingResume, currentLocationOrigin, currentLocationThreadId, declareSide, declareThreadParts, designName, dismissReply, draftHasContent, drawnThreadId, focusedThreadTarget, followBoxGrowth, heldObligation, heldThread, holdToRead, isExternalPageLink, landingPlace, landingRoom, leftThePage, listWalkPosition, loadDraft, messageHolding, messageReading, mirrorDraft, obligationEntry, obligationHolding, obligationPlace, obligationsIn, onReadingInterrupted, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, placeKeeper, placeOf, quoteReading, readBoxPlace, readObligations, readThreads, readingBlock, readingIsContinuous, releaseReplies, rememberWriting, replyAvailable, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, restrictUserIntent, retainUserIntent, rowWalk, saveDraft, scrollIntoReadingBand, scrollIntoView, scrollThreadIntoView, selectionAnchor, sendMessage, settleThread, showHeld, showReturnTurn, snapSelection, stepFrom, subjectPlace, tabStore, tellDraft, threadAttention, threadHeading, threadList, threadName, threadTodos, touchPresses, upgradeWidgets, walkOrigin, walkPosition, walkPositionLabel, workflowStep } from "./runtime/bundle-surfaces.js";
+import { DESIGN_MODE_KEY, ELEMENTS, PAGE_DRAFT, THREAD, allButCommandReference, allThreads, anchorLabel, answeredInWords, beginWalk, bringBackSurfaceOf, createPassageSelection, createWritingResume, currentLocationOrigin, currentLocationThreadId, declareSide, declareThreadParts, designName, dismissReply, draftHasContent, drawnThreadId, focusedThreadTarget, followBoxGrowth, heldObligation, heldThread, holdToRead, isExternalPageLink, landingPlace, landingRoom, leftThePage, listWalkPosition, loadDraft, messageHolding, messageReading, mirrorDraft, obligationEntry, obligationHolding, obligationPlace, obligationsIn, onReadingInterrupted, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, placeKeeper, placeOf, quoteReading, readBoxPlace, readObligations, readThreads, readingBlock, readingIsContinuous, releaseReplies, rememberWriting, replyAvailable, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, restrictUserIntent, retainUserIntent, rowWalk, saveDraft, scrollIntoReadingBand, scrollIntoView, scrollThreadIntoView, selectionAnchor, sendMessage, settleThread, showHeld, showReturnTurn, snapSelection, stepFrom, subjectPlace, tabStore, tellDraft, threadAttention, threadHeading, threadList, threadName, threadTodos, todoLabel, touchPresses, upgradeWidgets, userChoice, walkOrigin, walkPosition, walkPositionLabel, workflowLabel, workflowStep } from "./runtime/bundle-surfaces.js";
 import { copyControl } from "./runtime/bundle-copy-control.js";
 import { DISCLOSE, DISCLOSURE_SELECTOR, disclosed, setChildren, watchDisclosures } from "./runtime/bundle-abort.js";
 import { motionEasing, motionPlays, motionTime, playMotion, reducedMotion, scrollBehavior } from "./runtime/bundle-motion.js";
 import { mediaViewer, readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "./runtime/bundle-media.js";
-import { DRAWING_COORDINATE_LIMIT, LeafElement, MAX_DRAWING_FRAME_DEPTH, MAX_DRAWING_POINTS, MAX_DRAWING_SAYS_LENGTH, MAX_DRAWING_STROKES, acceptData, beginRead, composerOpen, composerQuote, createReactionController, createSelectionComposer, createThreadLanding, currentLocationThread, declareThreadKeys, fabBar, fabInput, fabOptionsTrigger, inPageOrder, leavesBox, mountApplication, notifyDataSubscribers, obligationEnding, obligationWord, ownedObligationControl, paintBarReactions, pendingAbout, pendingAnchor, pendingDrawing, queueItemKey, queueTitle, reactionAvailable, reactionTokens, readPlan, readQueues, sendReaction, textField, threadInput } from "./runtime/bundle-answer.js";
+import { DRAWING_COORDINATE_LIMIT, LeafElement, MAX_DRAWING_FRAME_DEPTH, MAX_DRAWING_POINTS, MAX_DRAWING_SAYS_LENGTH, MAX_DRAWING_STROKES, acceptData, beginRead, composerOpen, composerQuote, createReactionController, createSelectionComposer, createThreadLanding, currentLocationThread, declareThreadKeys, fabBar, fabInput, fabOptionsTrigger, inPageOrder, leavesBox, mountApplication, notifyDataSubscribers, obligationEnding, obligationWord, ownedObligationControl, paintBarReactions, partOver, pendingAbout, pendingAnchor, pendingDrawing, queueItemKey, queueTitle, reactionAvailable, reactionTokens, readPlan, readQueues, sendReaction, textField, threadInput } from "./runtime/bundle-answer.js";
 import { KINDS, annotationItems, clearContributionControls, contributionHost, contributionItemKey, contributionReceipts, contributionSource, entryControls, registerContribution, spokenSubject, visibleContributionEntryLabel } from "./runtime/bundle-margin-model.js";
 import { visibleTargetParts } from "./runtime/bundle-visible-target-parts.js";
 import { pageImage, pageRenderer } from "./runtime/bundle-page-image2.js";
@@ -229,7 +229,7 @@ var AttachedMediaShelf = class extends LitElement {
             <span class="lf-composer-media-item lf-composer-drawing">
               <button
                 type="button"
-                class="lf-media-open lf-composer-media-open"
+                class="lf-media-open lf-composer-media-open lf-media-frame"
                 data-lf-media-canvas
                 aria-label=${`Inspect drawing, ${strokes} ${strokes === 1 ? "stroke" : "strokes"}`}
                 title="Inspect drawing"
@@ -283,7 +283,7 @@ var AttachedMediaShelf = class extends LitElement {
             </p>` : html`<span class="lf-composer-media-item">
               <button
                 type="button"
-                class="lf-media-open lf-composer-media-open"
+                class="lf-media-open lf-composer-media-open lf-media-frame"
                 data-lf-media-url=${url}
                 aria-label=${`View attached image ${index + 1}`}
               >
@@ -3485,13 +3485,13 @@ declareSide((node) => {
 	}
 	return null;
 });
-const same$3 = (left, right) => left.length === right.length && left.every((node, index) => node === right[index]);
+const same$2 = (left, right) => left.length === right.length && left.every((node, index) => node === right[index]);
 const authoredDetails = (element, value) => (value ?? "").split(/\s+/).filter(Boolean).map((id) => element.getRootNode().getElementById?.(id)).filter(Boolean);
 const written = (element) => element.getAttribute("aria-details") === "";
 function name(element, record) {
 	if (!written(element)) record.authored = element.getAttribute("aria-details");
 	const wanted = [...authoredDetails(element, record.authored), ...record.notes];
-	if (written(element) && same$3(element.ariaDetailsElements ?? [], wanted)) return;
+	if (written(element) && same$2(element.ariaDetailsElements ?? [], wanted)) return;
 	element.ariaDetailsElements = wanted;
 }
 function shelve(element, note) {
@@ -4441,6 +4441,15 @@ function queueStop(item) {
 		noun: nounOf(item, stop)
 	};
 }
+const ON_ME_GROUPINGS = Object.freeze([
+	"place",
+	"kind",
+	"plan"
+]);
+const chosenGrouping = userChoice("lf-on-me-grouping", ON_ME_GROUPINGS);
+const groupingLabel = (grouping) => grouping === "plan" ? `By ${agentName()}` : grouping === "kind" ? "By kind" : "By place";
+const namedIn = (step) => [...step.item ? [step.item.id] : [], ...step.steps.flatMap(namedIn)];
+const givesUser = (step) => step.owner === "user" || step.steps.some(givesUser);
 function createQueueWalk({ arriveAtRecord, arriveAtThread, threadHere, threadPlace, prepareNavigationStep, arrive, readableDestination, announce, actions }) {
 	const stopElement = (stop) => stop.kind === "obligation" ? stop.thread !== null ? threadPlace(stop.thread) : obligationPlace(stop.obligation).node : stop.thread !== null ? threadPlace(stop.thread) : subjectPlace(stop.subject);
 	const pagePlace = (stop) => {
@@ -4448,10 +4457,71 @@ function createQueueWalk({ arriveAtRecord, arriveAtThread, threadHere, threadPla
 		return at?.isConnected && !inChrome(at) ? at : null;
 	};
 	const inWalkOrder = (items) => byRenderedOrder(items, (item) => pagePlace(queueStop(item)));
-	function stops() {
+	const grouping = () => chosenGrouping.read() ?? ((readPlan()?.steps ?? []).some(givesUser) ? "plan" : "place");
+	const itemHeading = (item) => {
+		const at = pagePlace(queueStop(item));
+		return at ? partOver(at) : null;
+	};
+	const itemPlace = (item) => {
+		const heading = itemHeading(item);
+		return heading ? addressableLabel(heading) : "";
+	};
+	const heldOnMe = () => {
+		const reading = readQueues();
+		return [...reading.on_user, ...reading.done.filter((item) => item.owner === "user")];
+	};
+	function onMeGroups(items, by = grouping()) {
+		const keyed = new Map([...heldOnMe(), ...items].map((item) => [queueItemKey(item), item]));
+		const basis = inWalkOrder([...keyed.values()]);
+		const goals = by === "plan" ? readPlan()?.steps ?? [] : [];
+		const named = goals.map(namedIn);
+		const groupOf = (item) => {
+			if (by === "kind") return queueStop(item).noun;
+			if (by !== "plan") return itemHeading(item);
+			const at = named.findIndex((ids) => ids.includes(item.id));
+			return at < 0 ? goals.length : at;
+		};
+		const order = /* @__PURE__ */ new Map();
+		if (by === "plan") for (let at = 0; at <= goals.length; at += 1) order.set(at, at);
+		for (const item of basis) {
+			const group = groupOf(item);
+			if (!order.has(group)) order.set(group, order.size);
+		}
+		const stops = /* @__PURE__ */ new Map();
+		basis.forEach((item, at) => {
+			const key = queueStop(item).key;
+			if (!stops.has(key)) stops.set(key, {
+				at,
+				items: []
+			});
+			stops.get(key).items.push(item);
+		});
+		const shown = new Set(items.map(queueItemKey));
+		const groups = /* @__PURE__ */ new Map();
+		const leads = /* @__PURE__ */ new Set();
+		for (const stop of stops.values()) {
+			const listed = stop.items.filter((item) => shown.has(queueItemKey(item)));
+			if (!listed.length) continue;
+			leads.add(listed[0]);
+			const group = stop.items.map(groupOf).reduce((first, next) => order.get(next) < order.get(first) ? next : first);
+			const rank = by === "plan" && group < goals.length ? Math.min(...stop.items.map((item) => named[group].indexOf(item.id)).filter((at) => at >= 0)) : stop.at;
+			if (!groups.has(group)) groups.set(group, []);
+			groups.get(group).push({
+				rank,
+				items: listed
+			});
+		}
+		return [...groups.entries()].sort(([a], [b]) => order.get(a) - order.get(b)).map(([group, held]) => ({
+			key: by === "plan" ? `goal:${group}` : by === "kind" ? `kind:${group}` : group ?? "place",
+			title: by === "plan" ? group < goals.length ? goals[group].title ?? `Goal ${group + 1}` : "Not in the plan" : by === "kind" ? group : group ? addressableLabel(group) : "The whole page",
+			items: held.sort((a, b) => a.rank - b.rank).flatMap((stop) => stop.items),
+			leads
+		}));
+	}
+	function stopsAmong(items) {
 		const list = [];
 		const listed = /* @__PURE__ */ new Set();
-		for (const item of inWalkOrder(readQueues().on_user)) {
+		for (const item of items) {
 			const stop = queueStop(item);
 			const at = stop.kind === "obligation" && obligationPlace(stop.obligation).node || stop.key;
 			if (listed.has(at)) continue;
@@ -4463,9 +4533,10 @@ function createQueueWalk({ arriveAtRecord, arriveAtThread, threadHere, threadPla
 		}
 		return list;
 	}
+	const stops = () => stopsAmong(onMeGroups(readQueues().on_user).flatMap((group) => group.items));
 	function stopsWithin(region) {
 		const held = new Set(obligationsIn(region).map((item) => item.id));
-		return stops().filter((stop) => stop.kind === "obligation" && held.has(stop.id));
+		return stopsAmong(inWalkOrder(readQueues().on_user)).filter((stop) => stop.kind === "obligation" && held.has(stop.id));
 	}
 	const stopsOf = (region) => region ? stopsWithin(region) : stops();
 	function currentLocationStop(list, origin = currentLocationOrigin()) {
@@ -4638,7 +4709,12 @@ function createQueueWalk({ arriveAtRecord, arriveAtThread, threadHere, threadPla
 		mount,
 		arriveAtItem,
 		arrivesAt,
-		inWalkOrder,
+		onMe: Object.freeze({
+			groups: onMeGroups,
+			grouping,
+			choose: (value) => chosenGrouping.write(value),
+			place: itemPlace
+		}),
 		nextWithin
 	};
 }
@@ -4655,7 +4731,7 @@ let lastWalk = null;
 const statusContextReading = () => context.value;
 const stanceWords = (scope) => (scope ? word(scope.says ?? scope.title) : null) ?? null;
 const shownWalk = ({ walk }) => walk?.shown ? walk : null;
-const same$2 = (a, b) => a.goTo === b.goTo && a.stance === b.stance && shownWalk(a)?.text === shownWalk(b)?.text && shownWalk(a)?.target === shownWalk(b)?.target;
+const same$1 = (a, b) => a.goTo === b.goTo && a.stance === b.stance && shownWalk(a)?.text === shownWalk(b)?.text && shownWalk(a)?.target === shownWalk(b)?.target;
 function paintStatusContext(goToStatus) {
 	const position = walkPosition();
 	const goTo = goToStatus();
@@ -4675,497 +4751,7 @@ function paintStatusContext(goToStatus) {
 		stance: stanceWords(innermostStance()?.scope)
 	});
 	setNoticeContext(Boolean(goTo));
-	if (!same$2(next, context.peek())) context.value = next;
-}
-
-//#endregion
-//#region runtime/box-motion.js
-const near = (a, b) => Math.abs(a - b) < .5;
-const boxOf = (rect) => ({
-	left: rect.left,
-	top: rect.top,
-	right: rect.right,
-	bottom: rect.bottom
-});
-const width = (box) => box.right - box.left;
-const height = (box) => box.bottom - box.top;
-const same$1 = (a, b) => [
-	"left",
-	"top",
-	"right",
-	"bottom"
-].every((side) => near(a[side], b[side]));
-const between = (from, to, progress) => Object.fromEntries(Object.keys(to).map((side) => [side, from[side] + (to[side] - from[side]) * progress]));
-const shifted = (box, dx, dy) => ({
-	left: box.left + dx,
-	top: box.top + dy,
-	right: box.right + dx,
-	bottom: box.bottom + dy
-});
-const insetOf = ([top, right, bottom, left], radius = 0) => `inset(${top}px ${right}px ${bottom}px ${left}px round ${radius}px)`;
-const clipFrame = (sides, radius = 0) => ({
-	clipPath: `inset(var(--lf-box-cut) round ${radius}px)`,
-	"--lf-box-cut": sides.map((side) => `${side}px`).join(" ")
-});
-const radiusOf = (style) => Number.parseFloat(style.borderTopLeftRadius) || 0;
-const paints = (style) => !/^(transparent|rgba\(.*,\s*0\))$/.test(style.backgroundColor) || style.backgroundImage !== "none" || style.boxShadow !== "none" || [
-	"Top",
-	"Right",
-	"Bottom",
-	"Left"
-].some((side) => Number.parseFloat(style[`border${side}Width`]) > 0);
-const rings = (style) => style.outlineStyle !== "none" && Number.parseFloat(style.outlineWidth) > 0;
-function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], observer, theirs }) {
-	let rests = null;
-	let motions = /* @__PURE__ */ new Map();
-	let running = [];
-	let shapeUntil = 1;
-	let rtl = false;
-	let streamFrom = /* @__PURE__ */ new Map();
-	const interpolate = (from, to, progress) => {
-		const rect = between(from, to, progress);
-		const shape = Math.min(1, progress / shapeUntil);
-		const w = width(from) + (width(to) - width(from)) * shape;
-		const h = height(from) + (height(to) - height(from)) * shape;
-		if (rtl) rect.left = rect.right - w;
-		else rect.right = rect.left + w;
-		rect.top = rect.bottom - h;
-		return rect;
-	};
-	const translations = /* @__PURE__ */ new Map();
-	const restoreTranslations = (keep = /* @__PURE__ */ new Set()) => {
-		for (const [element, { value, priority }] of translations) {
-			if (keep.has(element)) continue;
-			element.style.setProperty("translate", value, priority);
-			translations.delete(element);
-		}
-	};
-	let observed = /* @__PURE__ */ new Set();
-	let wholes = /* @__PURE__ */ new WeakSet();
-	const insideWhole = (node) => {
-		for (let up = node.parentElement; up && up !== root; up = up.parentElement) if (wholes.has(up)) return true;
-		return false;
-	};
-	function carriedBy(progress) {
-		const offsets = /* @__PURE__ */ new Map();
-		const offset = (carrier) => {
-			if (!offsets.has(carrier)) {
-				const { from, to, carries: edge } = motions.get(carrier);
-				const now = between(from, to, progress);
-				offsets.set(carrier, [now[edge] - to[edge], now.top - to.top]);
-			}
-			return offsets.get(carrier);
-		};
-		return (element) => {
-			for (let up = element; up && up !== root; up = up.parentElement) if (motions.get(up)?.carries) return offset(up);
-			return [0, 0];
-		};
-	}
-	function read(element, into, carried) {
-		const style = getComputedStyle(element);
-		if (style.display === "contents") {
-			for (const child of element.children) read(child, into, carried);
-			return;
-		}
-		if (!element.checkVisibility()) return;
-		if (style.positionAnchor.startsWith("--")) return;
-		const [dx, dy] = carried(element);
-		const part = {
-			element,
-			style,
-			box: shifted(boxOf(element.getBoundingClientRect()), -dx, -dy),
-			window: style.position === "fixed",
-			parts: []
-		};
-		part.scrolls = /auto|scroll/.test(`${style.overflowX} ${style.overflowY}`);
-		part.whole = element !== root && element.localName.includes("-") || element instanceof SVGElement || part.scrolls || element.childElementCount === 0 || [...element.childNodes].some((node) => node.nodeType === Node.TEXT_NODE && node.data.trim());
-		if (!part.whole) for (const child of element.children) read(child, part.parts, carried);
-		part.holdsWindow = part.parts.some((inner) => inner.window || inner.holdsWindow);
-		if (part.whole) wholes.add(element);
-		into.push(part);
-	}
-	function drawn(progress, carried) {
-		const at = /* @__PURE__ */ new Map();
-		for (const [element, rest] of rests) {
-			const moving = motions.get(element);
-			if (moving?.revealed && progress < 1) continue;
-			at.set(element, moving ? (element === box ? interpolate : between)(moving.from, moving.to, progress) : shifted(rest, ...carried(element)));
-		}
-		return at;
-	}
-	const arrived = /* @__PURE__ */ new Set();
-	let watching = 0;
-	const watch = () => {
-		watching ||= nextRender(() => {
-			watching = 0;
-			const parts = /* @__PURE__ */ new Set([
-				box,
-				...rests?.keys() ?? [],
-				...arrived
-			]);
-			arrived.clear();
-			for (const element of observed) if (!parts.has(element)) observer.unobserve(element);
-			for (const element of parts) if (!observed.has(element)) observer.observe(element);
-			observed = parts;
-		});
-	};
-	new MutationObserver((records) => {
-		for (const record of records) for (const node of record.type === "childList" ? record.addedNodes : [record.target]) if (node instanceof Element && !insideWhole(node)) arrived.add(node);
-		watch();
-	}).observe(root, {
-		subtree: true,
-		childList: true,
-		attributeFilter: ["hidden"]
-	});
-	function follow({ duration, easing }, compact = false) {
-		const progress = running[0]?.effect.getComputedTiming().progress ?? 1;
-		const carried = carriedBy(progress);
-		const parts = [];
-		wholes = /* @__PURE__ */ new WeakSet();
-		read(root, parts, carried);
-		const next = /* @__PURE__ */ new Map();
-		const note = (part) => {
-			next.set(part.element, part.box);
-			part.parts.forEach(note);
-		};
-		parts.forEach(note);
-		watch();
-		if (!(theirs() === "send" && [...streamFrom].some(([scroller, then]) => {
-			const content = scroller.firstElementChild;
-			if (!content || motions.get(content)?.stream && progress < 1) return false;
-			return !near(content.getBoundingClientRect().top - carried(content)[1], then.top);
-		})) && rests?.size === next.size && [...next].every(([element, at]) => rests.has(element) && same$1(rests.get(element), at))) return;
-		for (const animation of running) animation.cancel();
-		running = [];
-		if (!next.has(box)) {
-			restoreTranslations();
-			rests = null;
-			motions = /* @__PURE__ */ new Map();
-			return;
-		}
-		const was = motionPlays() && rests ? drawn(progress, carried) : null;
-		const gesture = theirs();
-		const framed = new Set([...motions].filter(([, moving]) => moving.frames).map(([element]) => element));
-		const before = rests;
-		const streamed = /* @__PURE__ */ new Map();
-		if (progress < 1) {
-			for (const [element, moving] of motions) if (moving.stream) streamed.set(element, between(moving.from, moving.to, progress));
-		}
-		motions = /* @__PURE__ */ new Map();
-		rests = next;
-		const space = boxOf(room.getBoundingClientRect());
-		const outline = (at, grow, radius) => [[
-			at.top - space.top - grow,
-			space.right - at.right - grow,
-			space.bottom - at.bottom - grow,
-			at.left - space.left - grow
-		], radius + grow];
-		const boxAt = rests.get(box);
-		const boxRadius = radiusOf(getComputedStyle(box));
-		for (const [layer, reach] of surface()) keeps(layer, "style", `clip-path: ${insetOf(...outline(boxAt, reach, boxRadius))}`);
-		if (!was?.has(box)) {
-			restoreTranslations();
-			return;
-		}
-		const boxFrom = was.get(box);
-		shapeUntil = compact ? .55 : 1;
-		rtl = getComputedStyle(box).direction === "rtl";
-		const start = (element, keyframes) => running.push(playMotion(element, keyframes, {
-			duration,
-			easing
-		}));
-		const contour = (from, to, grow, radius, compact = false) => {
-			const frames = [clipFrame(...outline(from, grow, radius))];
-			if (compact) frames.push({
-				...clipFrame(...outline(interpolate(from, to, shapeUntil), grow, radius)),
-				offset: shapeUntil
-			});
-			frames.push(clipFrame(...outline(to, grow, radius)));
-			return frames;
-		};
-		const hold = (element, property, value) => start(element, [{ [property]: value }, { [property]: value }]);
-		const translated = /* @__PURE__ */ new Set();
-		const move = (element, dx, dy) => {
-			const [carriedX, carriedY] = carriedBy(0)(element.parentElement);
-			dx -= carriedX;
-			dy -= carriedY;
-			if (!translations.has(element)) translations.set(element, {
-				value: element.style.getPropertyValue("translate"),
-				priority: element.style.getPropertyPriority("translate")
-			});
-			translated.add(element);
-			element.style.setProperty("translate", "var(--lf-box-carry)");
-			start(element, [{ "--lf-box-carry": `${dx}px ${dy}px` }, { "--lf-box-carry": "0px 0px" }]);
-		};
-		const cutFrom = (element, cut, radius = 0) => start(element, [clipFrame(cut, radius), clipFrame([
-			0,
-			0,
-			0,
-			0
-		], radius)]);
-		function carry(part, from) {
-			const dx = from.left - part.box.left;
-			const dy = from.top - part.box.top;
-			const [carriedX, carriedY] = carriedBy(0)(part.element.parentElement);
-			if (near(dx, carriedX) && near(dy, carriedY)) return;
-			motions.set(part.element, {
-				from,
-				to: part.box,
-				carries: "left"
-			});
-			move(part.element, dx, dy);
-		}
-		function carryContent(part, from) {
-			const to = part.box;
-			if (part.scrolls && !part.element.matches(TEXT_FIELD)) {
-				grow(part, from);
-				if (gesture === "send") streamContent(part);
-				return;
-			}
-			let dx = rtl ? from.right - to.right : from.left - to.left;
-			let dy = from.top - to.top;
-			const end = width(to) - width(from);
-			const foot = height(to) - height(from);
-			const cut = rtl ? [
-				0,
-				0,
-				foot,
-				end
-			] : [
-				0,
-				end,
-				foot,
-				0
-			];
-			if (!part.element.matches(TEXT_FIELD) || !((rtl ? dx <= 0 : dx >= 0) && dy >= 0) && gesture !== "typing") {
-				motions.set(part.element, {
-					from,
-					to,
-					carries: rtl ? "right" : "left"
-				});
-				move(part.element, dx, dy);
-				cutFrom(part.element, cut, radiusOf(part.style));
-				return;
-			}
-			motions.set(part.element, {
-				from,
-				to
-			});
-			dx = rtl ? Math.min(0, dx) : Math.max(0, dx);
-			dy = Math.max(0, dy);
-			start(part.element, [{
-				"--lf-field-carry": `${dx}px ${dy}px`,
-				"--lf-field-cut": cut.map((side) => `${side}px`).join(" ")
-			}, {
-				"--lf-field-carry": "0px 0px",
-				"--lf-field-cut": "0px 0px 0px 0px"
-			}]);
-		}
-		function grow(part, from) {
-			const to = part.box;
-			motions.set(part.element, {
-				from,
-				to
-			});
-			cutFrom(part.element, [
-				from.top - to.top,
-				to.right - from.right,
-				to.bottom - from.bottom,
-				from.left - to.left
-			].map((inset) => Math.max(0, inset)), radiusOf(part.style));
-		}
-		function reveal(part, frame, siblings) {
-			const to = part.box;
-			if (part.holdsWindow) {
-				motions.set(part.element, {
-					from: to,
-					to,
-					revealed: true
-				});
-				for (const inner of part.parts) reveal(inner, frame, siblings);
-				return;
-			}
-			const carriedTo = shifted(to, ...carriedBy(0)(part.element.parentElement));
-			const side = (inset, beyond) => beyond ? 0 : Math.max(0, inset);
-			const from = [
-				side(frame.from.top - carriedTo.top, to.top < frame.to.top - .5),
-				side(carriedTo.right - frame.from.right, to.right > frame.to.right + .5),
-				side(carriedTo.bottom - frame.from.bottom, to.bottom > frame.to.bottom + .5),
-				side(frame.from.left - carriedTo.left, to.left < frame.to.left - .5)
-			];
-			const end = [
-				0,
-				0,
-				0,
-				0
-			];
-			const overlaps = (a, b, low, high) => a[low] < b[high] && b[low] < a[high];
-			for (const sibling of siblings) {
-				const moving = motions.get(sibling.element);
-				if (!moving || moving.revealed) continue;
-				const { from: then, to: at } = moving;
-				const across = overlaps(at, to, "top", "bottom");
-				const along = overlaps(at, to, "left", "right");
-				[
-					along && {
-						then: then.bottom - carriedTo.top,
-						rest: at.bottom - to.top
-					},
-					across && {
-						then: carriedTo.right - then.left,
-						rest: to.right - at.left
-					},
-					along && {
-						then: carriedTo.bottom - then.top,
-						rest: to.bottom - at.top
-					},
-					across && {
-						then: then.right - carriedTo.left,
-						rest: at.right - to.left
-					}
-				].forEach((reach, index) => {
-					if (reach && reach.rest <= .5 && reach.then > from[index]) {
-						from[index] = reach.then;
-						end[index] = reach.rest;
-					}
-				});
-			}
-			if (from.every((inset) => near(inset, 0))) return;
-			motions.set(part.element, {
-				from: to,
-				to,
-				revealed: true
-			});
-			start(part.element, [clipFrame(from), clipFrame(end)]);
-		}
-		function rise(part, frame, siblings) {
-			const to = part.box;
-			const dy = boxFrom.top - boxAt.top;
-			if (dy < .5) return reveal(part, frame, siblings);
-			motions.set(part.element, {
-				from: shifted(to, 0, dy),
-				to,
-				carries: "left"
-			});
-			move(part.element, 0, dy);
-			const first = Math.max(0, to.bottom + dy - boxFrom.top);
-			if (first < .5) return;
-			const clear = 1 - Math.max(0, boxFrom.top - to.bottom) / dy;
-			const frames = [clipFrame([
-				0,
-				0,
-				first,
-				0
-			])];
-			if (clear > 0 && clear < 1) frames.push({
-				...clipFrame([
-					0,
-					0,
-					0,
-					0
-				]),
-				offset: clear
-			});
-			frames.push(clipFrame([
-				0,
-				0,
-				0,
-				0
-			]));
-			start(part.element, frames);
-		}
-		function streamContent(part) {
-			const content = part.element.firstElementChild;
-			if (!content) return;
-			const then = streamed.get(content) ?? streamFrom.get(part.element);
-			if (!then) return;
-			const [cx, cy] = carriedBy(0)(content);
-			const now = shifted(boxOf(content.getBoundingClientRect()), -cx, -cy);
-			const dy = then.top - now.top;
-			if (Math.abs(dy) < .5) return;
-			motions.set(content, {
-				from: shifted(now, 0, dy),
-				to: now,
-				stream: true
-			});
-			move(content, 0, dy);
-		}
-		function streamWithin(part) {
-			if (part.scrolls) streamContent(part);
-			else part.parts.forEach(streamWithin);
-		}
-		function place(part, frame, siblings = []) {
-			const { element, style, box: to } = part;
-			const from = was.get(element);
-			if (!from) return gesture === "send" ? rise(part, frame, siblings) : reveal(part, frame, siblings);
-			const rest = before.get(element);
-			const sized = !framed.has(element) && near(width(rest), width(to)) && near(height(rest), height(to));
-			let within = frame;
-			if (element !== box && element !== root) {
-				const carries = gesture !== null;
-				if (sized && !part.holdsWindow) {
-					if (!carries) return reveal(part, frame, siblings);
-					carry(part, from);
-					if (gesture === "send") streamWithin(part);
-					return;
-				}
-				if (part.whole) return carries ? carryContent(part, from) : grow(part, from);
-				if (!same$1(from, to)) within = {
-					from,
-					to
-				};
-				if (!sized && rings(style)) {
-					const offset = Number.parseFloat(style.outlineOffset);
-					const reach = Number.parseFloat(style.outlineWidth) + offset;
-					const radius = radiusOf(style);
-					keeps(ringLayer, "style", `background: ${style.outlineColor}`);
-					hold(element, "outlineColor", "transparent");
-					for (const [layer, grown] of [[ringLayer, reach], [ringFill, offset]]) start(layer, contour(from, to, grown, radius));
-				} else if (!sized && paints(style) && !part.holdsWindow) carries ? carryContent(part, from) : grow(part, from);
-				if (!same$1(from, to)) motions.set(element, {
-					...motions.get(element),
-					from,
-					to,
-					frames: true
-				});
-			}
-			const placed = [...part.parts].sort((a, b) => Number(!was.has(a.element)) - Number(!was.has(b.element)));
-			for (const inner of placed) place(inner, within, part.parts);
-		}
-		for (const part of parts) place(part, {
-			from: boxFrom,
-			to: boxAt
-		});
-		restoreTranslations(translated);
-		if (running.length === 0 && same$1(boxFrom, boxAt)) return;
-		motions.set(box, {
-			from: boxFrom,
-			to: boxAt
-		});
-		for (const [layer, reach] of surface()) start(layer, contour(boxFrom, boxAt, reach, boxRadius, compact));
-		hold(box, "backgroundColor", "transparent");
-		hold(box, "overflow", "visible");
-		const animations = running;
-		animations.at(-1).onfinish = () => {
-			if (running === animations) restoreTranslations();
-		};
-	}
-	return {
-		follow,
-		stream() {
-			const carried = carriedBy(running[0]?.effect.getComputedTiming().progress ?? 1);
-			streamFrom = /* @__PURE__ */ new Map();
-			for (const element of rests?.keys() ?? []) {
-				const content = element.firstElementChild;
-				if (!content || !/auto|scroll/.test(getComputedStyle(element).overflowY)) continue;
-				const [dx, dy] = carried(content);
-				streamFrom.set(element, shifted(boxOf(content.getBoundingClientRect()), -dx, -dy));
-			}
-		},
-		forget() {
-			rests = null;
-		}
-	};
+	if (!same$1(next, context.peek())) context.value = next;
 }
 
 //#endregion
@@ -5215,12 +4801,12 @@ var FloatingPanel = class extends LeafElement {
 	}
 };
 customElements.define("leaf-floating-panel", FloatingPanel);
-function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPresentation, observeFeedback, firstUnread, afterReadingPass, obligations: obligationView, queueActions, arrivesAt, inWalkOrder, withdraw, settlement, placedAt, openThreadSubject, atLastResort, annotationsHidden }) {
+function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPresentation, observeFeedback, firstUnread, afterReadingPass, obligations: obligationView, queueActions, arrivesAt, onMe, withdraw, settlement, placedAt, openThreadSubject, atLastResort, annotationsHidden }) {
 	const host = new FloatingPanel();
 	host.className = "lf-ui lf-floating-panel";
-	const ease = () => motionEasing("--lf-motion-panel-ease", host);
+	const ease = () => motionEasing("--lf-motion-box-ease", host);
 	const foldEase = () => motionEasing("--lf-motion-panel-fold-ease", host);
-	const resizeMs = () => motionTime("--lf-motion-panel-resize", host);
+	const resizeMs = () => motionTime("--lf-motion-box-resize", host);
 	const foldMs = () => motionTime("--lf-motion-panel-fold", host);
 	const viewResizeMs = () => motionTime("--lf-motion-disclosure", host);
 	const fadeMs = () => motionTime("--lf-motion-view-in", host);
@@ -5601,7 +5187,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		return queues.phase === "ready" ? queues.on_user.length : 0;
 	};
 	const threadStatus = (thread, { headed }) => [
-		hasUnread(thread) && "New",
+		isNews(thread) && "New",
 		thread.resolved ? !headed && "Resolved" : threadAttention(thread)?.label,
 		draftHasContent(replyContext(thread.key)) && "Draft"
 	].filter(Boolean).join(" · ");
@@ -5632,7 +5218,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			draw: () => onView(),
 			controls: () => queueControls(),
 			nominate: (_route, collection, parts) => nominateAsked(collection, parts),
-			rows: ".lf-fp-on-item"
+			rows: ".lf-fp-on-item[data-card], .lf-fp-on-line"
 		},
 		leaves: {
 			title: () => "All pages",
@@ -5839,50 +5425,22 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		root: host,
 		box: card,
 		room: ground,
-		surface: () => {
-			const lift = getComputedStyle(ground);
-			const shadowReach = ["--raise-2-drop", "--raise-2-blur"].map((token) => Number.parseFloat(lift.getPropertyValue(token))).reduce((reach, part) => reach + part);
-			return [
-				[ground, shadowReach],
-				[ring, 1],
-				[fill, 0]
-			];
-		},
+		surface: () => [
+			[ground, liftReach(ground, 2)],
+			[ring, 1],
+			[fill, 0]
+		],
 		ring: [fieldRing, fieldFill],
-		observer: follow,
-		theirs: () => gesture
+		observer: follow
 	});
-	let gesture = null;
-	let gestures = 0;
-	const beginGesture = (event) => {
-		if (![
-			"keydown",
-			"pointerdown",
-			"input",
-			"touchstart",
-			"click"
-		].includes(event.type)) return;
-		gesture = event.type === "input" ? "typing" : "press";
-		const own = ++gestures;
-		afterSettling(() => {
-			if (gestures === own) gesture = null;
-		});
-	};
-	onUserInput(beginGesture);
 	function streamSend() {
-		if (gesture === null) return;
-		gesture = "send";
 		following.stream();
 	}
-	window.addEventListener("click", beginGesture, {
-		capture: true,
-		passive: true
-	});
 	function followBox() {
 		const box = card.getBoundingClientRect();
 		setRuntimeRootStyle(document.documentElement, "--lf-panel-reach", layoutPx(box.height > 0 ? ground.getBoundingClientRect().bottom - box.top : 0));
 		const compact = host.dataset.rest === "mark";
-		const duration = compact ? foldMs() : performance.now() < viewMovingUntil && gesture !== "send" ? viewResizeMs() : resizeMs();
+		const duration = compact ? foldMs() : performance.now() < viewMovingUntil && following.theirs() !== "send" ? viewResizeMs() : resizeMs();
 		following.follow({
 			duration,
 			easing: compact ? foldEase() : ease()
@@ -6096,6 +5654,8 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const reading = [before, after].some((route) => route?.thread);
 		if (after?.view !== "queue") {
 			seated = null;
+			openItem = null;
+			planShown = false;
 			seatHeights.clear();
 		}
 		const changed = (before ? routeKey(before) : null) !== (after ? routeKey(after) : null);
@@ -6122,7 +5682,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			return;
 		}
 		const arriving = stage.querySelector(".lf-fp-view:not([data-leaving])");
-		if (arriving && gesture !== "send") playMotion(arriving, [{ opacity: 0 }, { opacity: 1 }], {
+		if (arriving && following.theirs() !== "send") playMotion(arriving, [{ opacity: 0 }, { opacity: 1 }], {
 			duration: fadeMs(),
 			delay: leaving ? outMs() : 0,
 			easing: "linear"
@@ -6446,7 +6006,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
         type="button"
         class="lf-fp-face lf-fp-thread"
         data-key=${thread.key}
-        ?data-unread=${hasUnread(thread)}
+        ?data-unread=${isNews(thread)}
         ?data-resolved=${thread.resolved}
         ?data-yours=${threadAttention(thread)?.kind === "needs_user"}
         @click=${() => open({
@@ -6597,20 +6157,33 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	}
 	let queueTab = "you";
 	let seated = null;
+	let openItem = null;
 	const seatHeights = /* @__PURE__ */ new Map();
+	let planShown = false;
 	const QUEUE_TABS = Object.freeze({
 		you: "user",
 		agent: "agent"
 	});
-	const queueTabs = () => readPlan()?.steps.length || queueTab === "plan" ? [...Object.keys(QUEUE_TABS), "plan"] : Object.keys(QUEUE_TABS);
+	const AGENT_LAYOUTS = Object.freeze(["list", "summary"]);
+	const agentLayout = userChoice("lf-on-agent-layout", AGENT_LAYOUTS);
+	const layoutOf = () => agentLayout.read() ?? "list";
 	const chooseQueueTab = (tab) => {
 		if (tab === queueTab) return false;
 		queueTab = tab;
 		seated = null;
+		openItem = null;
 		seatHeights.clear();
 		refit();
+		fromTop = true;
 		return true;
 	};
+	let fromTop = false;
+	function showFromTop() {
+		if (!fromTop) return;
+		fromTop = false;
+		const view = shownView();
+		if (view && trail.value.at(-1)?.view === "queue") moveScrollerBy(view, -view.scrollTop);
+	}
 	function openOnMe() {
 		if (chooseQueueTab("you") && showing({ view: "queue" })) paint();
 		else open({ view: "queue" });
@@ -6631,9 +6204,9 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			done: []
 		};
 		return {
-			you: inWalkOrder(reading.on_user),
-			agent: inWalkOrder(reading.on_agent),
-			done: inWalkOrder(reading.done.filter((item) => item.owner === QUEUE_TABS[queueTab]))
+			you: reading.on_user,
+			agent: reading.on_agent,
+			done: reading.done.filter((item) => item.owner === QUEUE_TABS[queueTab])
 		};
 	};
 	const answerGesture = (item) => {
@@ -6641,7 +6214,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		if (!id) return null;
 		return runtime.undo.find(({ event }) => event.id === id || event.attempt === id)?.event ?? null;
 	};
-	const tabLabel = (tab) => tab === "plan" ? "Plan" : tab === "agent" ? `On ${agentName()}` : "On me";
+	const tabLabel = (tab) => tab === "agent" ? `On ${agentName()}` : "On me";
 	const walkedStop = () => {
 		const { walk } = statusContextReading();
 		return walk?.shown && walk.kind === "queue" ? walk.target : null;
@@ -6658,6 +6231,22 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			within: view
 		});
 	}
+	const chooser = ({ label, values, name, current, choose }) => html`<span class="lf-fp-chooser" title=${`${label}: ${name(current)}`}
+      >${iconTemplate("arrange", "lf-action-icon")}<select
+        aria-label=${label}
+        .value=${live(current)}
+        @change=${(event) => {
+		choose(event.target.value);
+		refit();
+		fromTop = true;
+		paint();
+	}}
+      >
+        ${values.map((value) => html`<option value=${value} ?selected=${value === current}>
+              ${name(value)}
+            </option>`)}
+      </select></span
+    >`;
 	const PLAN_STATES = Object.freeze({
 		open: "Not started",
 		working: "Under way",
@@ -6671,17 +6260,13 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		failed: "cross",
 		dropped: "subtract"
 	});
-	const planItemIds = (steps) => steps.flatMap((step) => [...step.item ? [step.item.id] : [], ...planItemIds(step.steps)]);
-	function planPlace(id) {
-		for (const goal of readPlan()?.steps ?? []) {
-			const counted = goal.steps.filter((step) => step.state !== "dropped");
-			const index = counted.findIndex((step) => step.item?.id === id || planItemIds(step.steps).includes(id));
-			if (index < 0) continue;
-			const place = `step ${index + 1} of ${counted.length}`;
-			return goal.title ? `${goal.title} · ${place}` : capital(place);
-		}
-		return null;
-	}
+	const planProgress = () => {
+		const goals = readPlan()?.steps ?? [];
+		return goals.length ? {
+			done: goals.reduce((sum, goal) => sum + goal.done, 0),
+			total: goals.reduce((sum, goal) => sum + goal.total, 0)
+		} : null;
+	};
 	function planStep(step) {
 		const mark = PLAN_MARKS[step.state];
 		return html`<li class="lf-fp-plan-step" data-state=${step.state}>
@@ -6711,7 +6296,68 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
             ${goal.steps.map(planStep)}
           </ol>
         </section>`);
-	function onItemCard(item, list) {
+	const planHead = ({ done, total }) => html`<button
+      type="button"
+      class="lf-fp-face lf-fp-plan-head"
+      aria-expanded=${String(planShown)}
+      @click=${() => {
+		planShown = !planShown;
+		refit();
+		fromTop = planShown;
+		paint();
+	}}
+    >
+      Plan ${done} of ${total}<span
+        class="lf-fp-plan-bar"
+        style=${`--lf-fp-plan-done: ${total ? 100 * done / total : 0}%`}
+      ></span>
+    </button>`;
+	const agentNoun = (item) => item.kind === "todo" ? "To-do" : capital(itemNoun(item));
+	const workOn = (item) => item.kind === "todo" ? {
+		word: todoLabel(item.todo.running),
+		line: item.todo.running?.text ?? "",
+		since: item.todo.running?.ts ?? item.todo.ts
+	} : {
+		word: workflowLabel(item.workflow),
+		line: workflowStep(item.workflow),
+		since: item.workflow?.ts ?? null
+	};
+	let fitting = false;
+	function toggleItem(key) {
+		if (openItem) seatHeights.delete(openItem);
+		openItem = openItem === key ? null : key;
+		fitting = true;
+		paint();
+	}
+	function forgetOpened(items) {
+		if (openItem && !items.some((item) => queueItemKey(item) === openItem)) openItem = null;
+	}
+	function foldItem() {
+		const key = openItem;
+		toggleItem(key);
+		const line = shownView()?.querySelector(`.lf-fp-on-item[data-key="${CSS.escape(key)}"] .lf-fp-on-line`);
+		if (line) focusDestination(line, "return");
+	}
+	function fitOpened() {
+		if (!fitting) return;
+		fitting = false;
+		const view = shownView();
+		if (!view || room === null || trail.value.at(-1)?.view !== "queue") return;
+		const foot = view.getBoundingClientRect().bottom - Number.parseFloat(getComputedStyle(view).paddingBottom);
+		const card = view.querySelector(".lf-fp-on-item[data-open]");
+		const end = (card ?? view.lastElementChild)?.getBoundingClientRect().bottom;
+		const change = end === void 0 ? 0 : card ? Math.max(0, end - foot) : Math.min(0, end - foot);
+		if (change) {
+			room = Math.max(0, room + change);
+			viewMovingUntil = performance.now() + viewResizeMs();
+			paint();
+		}
+		if (card) scrollIntoView(card, {
+			block: "nearest",
+			within: view
+		});
+	}
+	function onItemCard(item, list, { card = false, says = null, group = null, leads = true } = {}) {
 		const record = carriesObligation(item) ? item.obligation : null;
 		const thread = item.thread ? threadByKey(item.thread) : null;
 		const inWords = record !== null && answeredInWords(record);
@@ -6751,12 +6397,10 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
         </button>` : nothing;
 		let answers;
 		let discussHere = true;
-		if (list === "done" && !record) answers = html`<span class="lf-fp-said"
-        >${[itemOutcome(item), shortAgo(item.ended)].filter(Boolean).join(" ")}</span
-      >`;
-		else if (list !== "you" && !answered) answers = html`<span class="lf-fp-said"
-        >${item.todo?.running?.text ?? workflowStep(item.workflow)}</span
-      >`;
+		if (list === "done" && !record) answers = card ? html`<span class="lf-fp-said"
+            >${[itemOutcome(item), shortAgo(item.ended)].filter(Boolean).join(" ")}</span
+          >` : nothing;
+		else if (list !== "you" && !answered) answers = html`<span class="lf-fp-said">${workOn(item).line}</span>`;
 		else if (answered) {
 			discussHere = false;
 			answers = html`<span class="lf-fp-said">${obligationEnding(record)}</span>${gesture ? html`<button
@@ -6798,27 +6442,107 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
       </button>`;
 		} else answers = nothing;
 		const key = queueItemKey(item);
+		const opened = openItem === key;
 		const stop = queueStop(item);
-		const about = queueTab === "you" ? [stop.noun, planPlace(item.id)].filter(Boolean) : [];
+		const kind = item.owner === "user" ? says === "kind" ? "" : stop.noun : agentNoun(item);
+		const where = group ?? (says === "place" ? "" : onMe.place(item));
+		const walked = leads && queueTab === "you" && walkedStop() === stop.key;
+		if (card) {
+			const about = [kind, where].filter(Boolean);
+			return html`<section
+        class="lf-fp-on-item"
+        data-card
+        data-list=${list}
+        data-key=${key}
+        data-obligation=${record?.id ?? nothing}
+        ?data-walked=${walked}
+        style=${seatHeights.has(key) ? `min-height: ${seatHeights.get(key)}px` : ""}
+      >
+        ${about.length ? html`<p class="lf-fp-on-kind">${about.join(" · ")}</p>` : nothing}${message ? html`${title ? html`<h3 class="lf-fp-on-title">${heading}</h3>` : nothing}
+                <div
+                  class="lf-fp-asked lf-fp-outlet"
+                  data-thread=${thread.key}
+                  data-message=${message.key}
+                ></div>` : prompt ? html`<h3 class="lf-fp-on-title">${heading}</h3>
+                  <p class="lf-fp-prompt">${prompt}</p>` : html`<p class="lf-fp-prompt">${heading}</p>`}
+        <div class="lf-fp-answers">
+          ${answers}${discussHere ? discuss : nothing}${show}
+        </div>
+      </section>`;
+		}
+		let end = nothing;
+		if (list === "agent") {
+			const work = workOn(item);
+			end = html`<span class="lf-fp-value"
+        >${work.word}${work.since ? html` <span class="lf-fp-age">${shortAgo(work.since)}</span>` : nothing}</span
+      >`;
+		} else if (list === "done" && !record) end = html`<span class="lf-fp-value"
+        >${itemOutcome(item)}${item.ended ? html` <span class="lf-fp-age">${shortAgo(item.ended)}</span>` : nothing}</span
+      >`;
+		else if (answered && !opened) end = html`<span class="lf-fp-value">${obligationEnding(record)}</span>`;
+		else if (where) end = html`<span class="lf-fp-value">${where}</span>`;
+		const name = heading || (thread ? threadHeading(thread) : queueTitle(item));
 		return html`<section
       class="lf-fp-on-item"
       data-list=${list}
       data-key=${key}
       data-obligation=${record?.id ?? nothing}
-      ?data-walked=${queueTab === "you" && walkedStop() === stop.key}
-      style=${seatHeights.has(key) ? `min-height: ${seatHeights.get(key)}px` : ""}
+      ?data-open=${opened}
+      ?data-walked=${walked}
+      style=${opened && seatHeights.has(key) ? `min-height: ${seatHeights.get(key)}px` : ""}
     >
-      ${about.length ? html`<p class="lf-fp-on-kind">${about.join(" · ")}</p>` : nothing}${message ? html`${title ? html`<h3 class="lf-fp-on-title">${heading}</h3>` : nothing}
-              <div
-                class="lf-fp-asked lf-fp-outlet"
-                data-thread=${thread.key}
-                data-message=${message.key}
-              ></div>` : prompt ? html`<h3 class="lf-fp-on-title">${heading}</h3>
-                <p class="lf-fp-prompt">${prompt}</p>` : html`<p class="lf-fp-prompt">${heading}</p>`}
-      <div class="lf-fp-answers">
-        ${answers}${discussHere ? discuss : nothing}${show}
-      </div>
+      <button
+        type="button"
+        class="lf-fp-face lf-fp-item lf-fp-on-line"
+        aria-expanded=${String(opened)}
+        ?data-resolved=${!opened && (list === "done" || Boolean(answered))}
+        @click=${() => toggleItem(key)}
+      >
+        <span class="lf-fp-value lf-fp-on-noun">${kind}</span
+        ><span class="lf-fp-on-says"
+          ><span class="lf-fp-label">${name}</span>${end}</span
+        >
+      </button>
+      ${opened ? html`<div class="lf-fp-on-body">
+              ${message ? html`<div
+                      class="lf-fp-asked lf-fp-outlet"
+                      data-thread=${thread.key}
+                      data-message=${message.key}
+                    ></div>` : prompt ? html`<p class="lf-fp-prompt">${prompt}</p>` : nothing}
+              <div class="lf-fp-answers">
+                ${answers}${discussHere ? discuss : nothing}${show}
+              </div>
+            </div>` : nothing}
     </section>`;
+	}
+	function groupedItems(groups, line) {
+		const rows = [];
+		let running = false;
+		for (const group of groups) {
+			const headed = group.headed !== false;
+			if (rows.length && (headed || !running)) rows.push({
+				key: `rule:${queueItemKey(group.items[0])}`,
+				rule: true
+			});
+			running = !headed;
+			if (headed) rows.push({
+				key: group.key,
+				group
+			});
+			for (const item of group.items) rows.push({
+				key: queueItemKey(item),
+				item,
+				group
+			});
+		}
+		return html`<div class="lf-fp-on-list">
+      ${repeat(rows, (row) => row.key, (row) => row.rule ? html`<hr class="lf-fp-on-rule" />` : row.item ? line(row.item, row.group) : html`<h3 class="lf-label lf-fp-on-group">
+                  <span class="lf-fp-label">${row.group.title}</span
+                  ><span class="lf-fp-count"
+                    >${row.group.count ?? row.group.items.length}</span
+                  >
+                </h3>`)}
+    </div>`;
 	}
 	declareSide((node) => {
 		const part = [
@@ -6833,26 +6557,81 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		return record ? obligationPlace(record).node : null;
 	}, { beside: true });
 	function onView() {
-		if (queueTab === "plan") {
-			const cards = planCards();
-			return cards.length ? cards : html`<p class="lf-fp-empty">No plan.</p>`;
-		}
 		const lists = queueLists();
+		return queueTab === "agent" ? workView(lists) : onMeView(lists);
+	}
+	function onMeView(lists) {
 		const all = [
 			...lists.you,
 			...lists.agent,
 			...lists.done
 		];
 		const byKey = new Map(all.map((item) => [queueItemKey(item), item]));
-		const current = lists[queueTab].map(queueItemKey);
+		const current = lists.you.map(queueItemKey);
 		seated = [...(seated ?? []).filter((key) => byKey.has(key)), ...current.filter((key) => !(seated ?? []).includes(key))];
 		const listOf = (item) => lists.you.includes(item) ? "you" : lists.agent.includes(item) ? "agent" : "done";
-		const items = inWalkOrder(seated.map((key) => byKey.get(key)));
+		const items = seated.map((key) => byKey.get(key));
+		const grouping = onMe.grouping();
+		const says = grouping === "plan" ? null : grouping;
 		const finished = lists.done.filter((item) => !seated.includes(queueItemKey(item)));
-		return html`${items.length ? repeat(items, queueItemKey, (item) => onItemCard(item, listOf(item))) : html`<p class="lf-fp-empty">
-            Nothing waiting on ${queueTab === "you" ? "me" : agentName()}.
-          </p>`}${finished.length ? html`<h3 class="lf-fp-ended">Done</h3>
-            ${repeat(finished, queueItemKey, (item) => onItemCard(item, "done"))}` : nothing}`;
+		const waits = (item) => lists.you.includes(item);
+		const groups = onMe.groups(items).map((group) => ({
+			...group,
+			headed: group.items.length > 1,
+			count: group.items.filter(waits).length
+		}));
+		return html`${items.length ? nothing : html`<p class="lf-fp-empty">Nothing waiting on me.</p>`}${keyed(grouping, groupedItems([...groups, ...finished.length ? [{
+			key: "done",
+			title: "Done",
+			items: finished
+		}] : []], (item, group) => group.key === "done" ? onItemCard(item, "done", { card: true }) : onItemCard(item, listOf(item), {
+			card: true,
+			says: group.headed ? says : null,
+			group: group.headed || grouping === "kind" ? null : group.title,
+			leads: group.leads.has(item)
+		})))}`;
+	}
+	function workView(lists) {
+		const inHand = lists.agent.filter((item) => item.live);
+		const queued = lists.agent.filter((item) => !item.live);
+		const groups = [
+			{
+				key: "in-hand",
+				title: "In hand",
+				items: inHand
+			},
+			{
+				key: "queued",
+				title: "Queued",
+				items: queued
+			},
+			{
+				key: "done",
+				title: "Done",
+				items: lists.done
+			}
+		].filter((group) => group.items.length);
+		forgetOpened([...lists.agent, ...lists.done]);
+		return html`${planShown ? planCards() : nothing}${layoutOf() === "summary" ? workSummary(inHand, queued, lists.done) : html`${inHand.length || queued.length ? nothing : html`<p class="lf-fp-empty">Nothing waiting on ${agentName()}.</p>`}${groupedItems(groups, (item, group) => onItemCard(item, group.key === "done" ? "done" : "agent"))}`}`;
+	}
+	function workSummary(inHand, queued, done) {
+		const agent = agentName();
+		const work = inHand.map(workOn);
+		const since = work.map((each) => each.since).filter(Boolean).toSorted()[0];
+		const longest = since ? shortAgo(since) : "";
+		const held = inHand.length ? `${agent} has ${inHand.length} in hand${longest && longest !== "now" ? `, the longest for ${longest}` : ""}` : "";
+		const waiting = queued.length ? `${queued.length} queued` : "";
+		const first = held && waiting ? `${held}, and ${waiting}.` : held ? `${held}.` : waiting ? `${agent} has ${waiting}.` : `Nothing is on ${agent}.`;
+		const now = work.find((each) => each.line && each.line !== each.word)?.line;
+		const progress = planProgress();
+		const [last] = done;
+		return html`<div class="lf-fp-work-summary">
+      <p>${first}${now ? ` Now: “${now}”.` : ""}</p>
+      ${progress ? html`<p>Plan: ${progress.done} of ${progress.total} steps.</p>` : nothing}${last ? html`<p>
+              Last done:
+              ${excerptWords(queueTitle(last), 60)}${last.ended ? `, ${ago(last.ended)}` : ""}.
+            </p>` : nothing}
+    </div>`;
 	}
 	function pagesView() {
 		const rows = leavesRows(runtime.state);
@@ -6929,12 +6708,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	}
 	function onTabs(current) {
 		const lists = queueLists();
-		const lead = Object.keys(QUEUE_TABS);
-		return tabs([
-			...lead,
-			"threads",
-			...queueTabs().filter((tab) => !lead.includes(tab))
-		], current, (tab) => tab === "threads" ? "Threads" : tabLabel(tab), onTab, (tab) => tab === "plan" ? null : tab === "threads" ? openCount() : lists[tab].length);
+		return tabs([...Object.keys(QUEUE_TABS), "threads"], current, (tab) => tab === "threads" ? "Threads" : tabLabel(tab), onTab, (tab) => tab === "threads" ? openCount() : lists[tab].length);
 	}
 	function onTab(tab) {
 		if (tab === "threads") {
@@ -6973,7 +6747,23 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		};
 	}
 	function queueControls() {
-		return { crumb: onTabs(queueTab) };
+		const progress = queueTab === "agent" ? planProgress() : null;
+		return {
+			crumb: onTabs(queueTab),
+			aux: queueTab === "you" ? chooser({
+				label: "Group On me",
+				values: ON_ME_GROUPINGS,
+				name: groupingLabel,
+				current: onMe.grouping(),
+				choose: onMe.choose
+			}) : html`${progress ? planHead(progress) : nothing}${chooser({
+				label: `Show On ${agentName()} as`,
+				values: AGENT_LAYOUTS,
+				name: capital,
+				current: layoutOf(),
+				choose: agentLayout.write
+			})}`
+		};
 	}
 	function threadControls(route) {
 		const thread = threadOf(route);
@@ -7074,20 +6864,25 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		}
 		landReader();
 		seatOnItems();
+		fitOpened();
+		showFromTop();
 		landWalked();
 	}
 	const asked = /* @__PURE__ */ new WeakSet();
 	function seatOnItems() {
 		if (!showing({ view: "queue" })) return;
 		let draw = false;
-		for (const card of stage.querySelectorAll(".lf-fp-view:not([data-leaving]) .lf-fp-on-item[data-key]")) {
+		for (const card of stage.querySelectorAll(".lf-fp-view:not([data-leaving]) .lf-fp-on-item:is([data-card], [data-open])")) {
 			const outlet = card.querySelector(".lf-fp-asked:empty");
 			if (outlet) {
 				draw ||= !asked.has(outlet);
 				asked.add(outlet);
 			} else if (!seatHeights.has(card.dataset.key)) seatHeights.set(card.dataset.key, card.getBoundingClientRect().height);
 		}
-		if (draw) present({ release: true });
+		if (draw) present({ release: true }).then(() => {
+			fitting = true;
+			paint();
+		});
 	}
 	function landReader() {
 		const top = trail.value.at(-1);
@@ -7181,6 +6976,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		rove(listed, listed.includes(focused()) ? focused() : listed.find((row) => row.getAttribute("tabindex") === "0") ?? listed[0]);
 		render(top ? headTemplate(top) : nothing, head);
 		render(top ? controlsTemplate(top) : nothing, controls);
+		keeps(controls, "data-named", top?.view === "queue" ? "" : null);
 		move(row, expand, leaf);
 		const heading = top ? shows(top) : null;
 		for (const drawing of [controls, replyOutlet]) {
@@ -7371,6 +7167,11 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			}
 		};
 		if (!trail.value.length) return null;
+		if (trail.value.at(-1).view === "queue" && currentLocationIn(host) && shownView()?.querySelector(".lf-fp-on-item[data-open]")) return {
+			root: host,
+			title: "fold item",
+			out: foldItem
+		};
 		return {
 			root: host,
 			title: `close ${titleOf(trail.value.at(-1)).toLowerCase()}`,
@@ -8142,7 +7943,6 @@ function createObligationView({ prepareNavigationStep, arrive, openPageThread, f
 		const target = record && arrivalFocus(record);
 		if (target) focusForNavigation(target, "return");
 	}
-	const HEADING = "h1,h2,h3,h4,h5,h6";
 	function arrivalRegion(item, context, currentLocation) {
 		const declared = context && registry[context.localName]?.["x-awaits"]?.encloses;
 		if (declared && context === currentLocation) return context;
@@ -8157,10 +7957,9 @@ function createObligationView({ prepareNavigationStep, arrive, openPageThread, f
 			const from = seenBy(block);
 			return from && !inChrome(block) && showsWords(block) && !under(item, block) && block.parentElement && under(item, block.parentElement) && from.compareDocumentPosition(block) & Node.DOCUMENT_POSITION_PRECEDING;
 		});
-		const heading = before.findLast((block) => block.matches(HEADING));
 		return [
 			declared ? context : null,
-			heading,
+			partOver(item),
 			closestAcross(item, "p,li,h1,h2,h3,h4,h5,h6,td,th,pre,blockquote,dd,dt,figcaption,summary") ?? before.at(-1)
 		].find(fits) ?? item;
 	}
@@ -9230,7 +9029,7 @@ function createGoToSequence({ doors, hintChrome, openPageMap, directDestinations
 			...destinations.map((destination) => ({
 				...destination,
 				touch: false,
-				when: () => atGoToTargets() && live(destination),
+				when: () => atGoToTargets() && live$1(destination),
 				run: (binding) => {
 					setGoToSequence(false);
 					if (destination.run) destination.run(binding);
@@ -9474,7 +9273,7 @@ function place(press) {
 		press: (held) => {
 			const current = presses.get(press.id);
 			if (current.row.retainCurrentLocation && held) returnPlace(held);
-			if (live(current.row)) invokePress(current);
+			if (live$1(current.row)) invokePress(current);
 		}
 	});
 	return press.id;
@@ -9494,7 +9293,7 @@ function placeStanceExit() {
 		offered: () => Boolean(stance),
 		disabled: () => stance?.disabled ?? true,
 		press: () => {
-			if (stance && live(stance.press.row)) invokePress(stance.press);
+			if (stance && live$1(stance.press.row)) invokePress(stance.press);
 		}
 	});
 }
@@ -9509,7 +9308,7 @@ function paintTouchControls() {
 	const nextStance = held ? {
 		label: title[0].toUpperCase() + title.slice(1),
 		icon: held.exit.icon ?? "cross",
-		disabled: !live(held.exit),
+		disabled: !live$1(held.exit),
 		press: {
 			id: held.exit.id,
 			row: held.exit,
@@ -9523,7 +9322,7 @@ function paintTouchControls() {
 		const next = shown.has(id) ? {
 			label: word(press.words),
 			shortcut: binding ? [spell(binding)] : [],
-			disabled: !live(press.row)
+			disabled: !live$1(press.row)
 		} : void 0;
 		if (same(next, faces.get(id))) continue;
 		changed = true;
@@ -9656,7 +9455,7 @@ function captureCommandReferenceCatalog() {
 		const inScope = userIn(scope) || scope.liveInCommandReference;
 		return {
 			scope,
-			rows: scope.rows.filter(({ row }) => !inScope || (row.commandReferenceWhen ? row.commandReferenceWhen() : live(row))).map(({ row, sequence: prefix }) => {
+			rows: scope.rows.filter(({ row }) => !inScope || (row.commandReferenceWhen ? row.commandReferenceWhen() : live$1(row))).map(({ row, sequence: prefix }) => {
 				const sequence = [...word(prefix) ?? []];
 				const declared = [...allBindings(row)];
 				const shownBindings = declared.filter(bindingEnabled);
@@ -10718,7 +10517,7 @@ floatingPanel = createFloatingPanel({
 	obligations: { choicesOf: items.choicesOf },
 	queueActions: app.queueActions,
 	arrivesAt: (item) => queueWalk.arrivesAt(item),
-	inWalkOrder: (items) => queueWalk.inWalkOrder(items),
+	onMe: queueWalk.onMe,
 	withdraw: app.withdraw,
 	settlement: app.settlement,
 	placedAt: anchorPlacement.placedAt,

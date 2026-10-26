@@ -199,10 +199,13 @@ function leadingTitle(container) {
 	}
 	return null;
 }
+function declaredName(element) {
+	const attribute = registry[element.localName]?.["x-name"];
+	return attribute && element.getAttribute(attribute)?.trim() || "";
+}
 function addressableName(element) {
 	if (!element) return "";
-	const attribute = registry[element.localName]?.["x-name"];
-	const declared = attribute && element.getAttribute(attribute)?.trim();
+	const declared = declaredName(element);
 	if (declared) return declared;
 	const title = leadingTitle(element);
 	return title ? elementReading(title, "wrote") : "";
@@ -1689,4 +1692,4 @@ function openMarginContentLayout({ onRead }) {
 }
 
 //#endregion
-export { ADDRESSABLE, PAGE_CONTROL_RANK, addressableLabel, addressableName, addressableSays, addressableWord, addressedElements, aimTargetAt, aimTargets, anchorAt, anchorBox, anchorElement, anchorFor, anchorForPassage, anchorForRange, anchorName, anchorReaches, anchorReading, anchorView, anchoringIsReady, annotationAt, boundedBlockOf, carriedAnchor, commitPoint, cutFrames, datumAimTarget, datumLabel, designPressAt, elementFrame, exactTarget, followingItsEnd, fragmentTarget, headerLevels, holdArrivingBounds, isAddressable, leadingTitle, lightSeat, livePoint, localScrollBy, marks, nameAnchor, nameable, openMarginContentLayout, pageControls, pageControlsChanged, passageBoxes, passageGeometry, placePoints, pointBand, pointInto, projectedDatum, railStands, rangeGeometry, refreshAnchorView, registerPageControl, registerVisualParts, resolveAnchor, resolvedInMessage, revealAddressed, scheduleMarginContentLayout, scrollAxes, scrollsWith, sectionLabel, sectionOf, setAnchoringReady, settleMarginContentLayout, targetElement, targetParts, targetPlace, targetRange, targetSegments, targetSurface, unclaimedVisualGesture, visualAt, visualPartLabel, visualPartProblems, visualParts, visualSelector, widgetWord };
+export { ADDRESSABLE, PAGE_CONTROL_RANK, addressableLabel, addressableName, addressableSays, addressableWord, addressedElements, aimTargetAt, aimTargets, anchorAt, anchorBox, anchorElement, anchorFor, anchorForPassage, anchorForRange, anchorName, anchorReaches, anchorReading, anchorView, anchoringIsReady, annotationAt, boundedBlockOf, carriedAnchor, commitPoint, cutFrames, datumAimTarget, datumLabel, declaredName, designPressAt, elementFrame, exactTarget, followingItsEnd, fragmentTarget, headerLevels, holdArrivingBounds, isAddressable, leadingTitle, lightSeat, livePoint, localScrollBy, marks, nameAnchor, nameable, openMarginContentLayout, pageControls, pageControlsChanged, passageBoxes, passageGeometry, placePoints, pointBand, pointInto, projectedDatum, railStands, rangeGeometry, refreshAnchorView, registerPageControl, registerVisualParts, resolveAnchor, resolvedInMessage, revealAddressed, scheduleMarginContentLayout, scrollAxes, scrollsWith, sectionLabel, sectionOf, setAnchoringReady, settleMarginContentLayout, targetElement, targetParts, targetPlace, targetRange, targetSegments, targetSurface, unclaimedVisualGesture, visualAt, visualPartLabel, visualPartProblems, visualParts, visualSelector, widgetWord };

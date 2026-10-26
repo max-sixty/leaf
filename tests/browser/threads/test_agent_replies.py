@@ -628,7 +628,10 @@ def test_pending_progress_is_the_threads_working_message_and_never_unread(
     panel_settled(page, view="queue")
     page.locator(".lf-fp-filters button").filter(has_text="On Codex").click()
     card = page.locator('.lf-fp-on-item[data-list="agent"]')
-    expect(card.locator(".lf-fp-said")).to_have_text("Trying a lighter weight.")
+    card.locator(".lf-fp-on-line").click()
+    expect(card.locator(".lf-fp-answers .lf-fp-said")).to_have_text(
+        "Trying a lighter weight."
+    )
     # Nothing counts unread.
     expect(thread_row(page, root)).not_to_have_attribute("data-unread", "")
     page.locator(".lf-fp-close").click()
@@ -638,7 +641,9 @@ def test_pending_progress_is_the_threads_working_message_and_never_unread(
             response.url.endswith("/api/interaction")
             and response.ok
             and any(
-                entry["type"] == "reply_visible" and entry.get("input_id") == root
+                entry["type"] == "reply_visible"
+                and entry.get("input_id") == root
+                and entry["presentation_kind"] == "working_words"
                 for entry in response.request.post_data_json["entries"]
             )
         )
@@ -997,9 +1002,9 @@ def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(
         },
     )
     page = open_page(browser, url)
-    # Nobody's turn: the thread's row says it is open and no more.
+    # The unread reply is news, with no turn owed by either participant.
     status = thread_row(page, root).locator(".lf-fp-value")
-    expect(status).to_have_text(re.compile(r"^(Open)?$"))
+    expect(status).to_have_text("New")
     card = open_panel_thread(page, root)
     receipt = page.locator(
         f'.lf-fp-view .lf-msg[data-event="{board["id"]}"] .lf-msg-sending'
@@ -1013,7 +1018,7 @@ def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(
     expect(page.locator("#fb-done > #fb-cache")).to_be_visible()
     expect(receipt).to_have_text("Sent")
     status = thread_row(page, root).locator(".lf-fp-value")
-    expect(status).to_have_text(re.compile(r"^(Open)?$"))
+    expect(status).to_have_text("")
     card = open_panel_thread(page, root)
 
     [moved] = [

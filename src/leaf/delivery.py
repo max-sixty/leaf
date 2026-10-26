@@ -285,6 +285,11 @@ _DELIVERED_EVENT = {
                 "it was made on wrote them.",
                 {"type": "object", "additionalProperties": STRING},
             ),
+            "names": described(
+                "The name of each element in `says`, by id, in the gesture's own "
+                "document: its declared name or leading title, else its words.",
+                {"type": "object", "additionalProperties": STRING},
+            ),
             "was": described(
                 "On the user's rewrite of their own message, the words it replaced.",
                 STRING,
@@ -562,6 +567,9 @@ def batch_data(
         # does not read is not read for its words at all.
         if registry is not None and (says := words.says(event)):
             entry["says"] = says
+            entry["names"] = {
+                identity: words.name(event, identity) for identity in says
+            }
         if revision := revisions.get(event["id"]):
             # The thread's digest already reads the new wording; the agent answering
             # a revision needs to see what it replaced, and whether those words are a

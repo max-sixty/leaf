@@ -36,6 +36,9 @@ Events keep their stored fields and log order, and add:
 - `subject`: the page, thread, or widget the event changes.
 - `says`: the words of what the user pressed, such as each picked option, as the
   page they pressed on wrote them. A later rewording does not change them.
+- `names`: the same elements by id, named by their declared name or leading title,
+  with their full words used when neither is present. An option's title names the
+  choice separately from its tag labels and explanation.
 - `threads`: every thread the event belongs to. The event appears once in the batch
   however many threads it is in.
 - `was`: on the user's rewrite of their own message, the words it replaced.

@@ -3,7 +3,7 @@
 // the browser paints what has arrived well before that. Delivery places this script
 // after the head's canonical link, so the page root that link declares is in the
 // document when it runs, and before the bootstrap and the theme (`compose_document`).
-/** @typedef {import("../framework/contract.js").AuthoredAllocations} Allocations */
+/** @typedef {import("../types/contract.js").AuthoredAllocations} Allocations */
 (() => {
   const root = document.documentElement;
   // A page-wide allocation `body` states (`$authored`), or null where it states none.

@@ -2,7 +2,7 @@
    module: composing/selection.js builds its response button with an icon as it
    evaluates. */
 
-import { html, render } from "/vendor/browser-runtime.js";
+import { html, render } from "/runtime/framework.js";
 
 import { PLAY, PAUSE } from "./motion-icon-paths.js";
 

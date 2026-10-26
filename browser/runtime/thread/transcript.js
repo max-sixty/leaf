@@ -37,7 +37,7 @@
      interpolation, it goes in the same frame. */
 import { setChildren } from "../dom-children.js";
 import { focusDestination, focused } from "../focus.js";
-import { html, render, nothing } from "/vendor/browser-runtime.js";
+import { html, render, nothing } from "/runtime/framework.js";
 import { MessageView } from "./messages.js";
 import { keeps, keepsHidden } from "../keeps.js";
 import { renderMarkdown } from "../markdown.js";

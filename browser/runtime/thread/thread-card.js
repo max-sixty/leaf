@@ -36,7 +36,7 @@ import {
   currentLocationTouches,
   currentLocationIn,
 } from "../focus.js";
-import { html, render, nothing, share, signal } from "/vendor/browser-runtime.js";
+import { html, render, nothing, share, signal } from "/runtime/framework.js";
 import { turns, threadKey } from "./model.js";
 import { anchorLabel, messageReading, threadSummary } from "./messages.js";
 import { generatedElement, offer, measure } from "../widget-elements.js";

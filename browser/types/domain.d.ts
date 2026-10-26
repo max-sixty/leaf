@@ -12,7 +12,7 @@ import type {
   WidgetKind,
 } from "./contract.js";
 export type { Event, BrowserCommand };
-import type { Immutable } from "./snapshot.ts";
+import type { Immutable } from "../runtime/framework/snapshot.js";
 export type StateRecord = NonNullable<ServedVerb["record"]>;
 export interface ActionSpec {
   unit: string;

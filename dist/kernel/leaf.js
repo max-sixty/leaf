@@ -1,9 +1,9 @@
 import { aimLayer, boxMotion, liftReach, mountTargetPaint, paintSet, targetTraceLayer, target_paint_exports } from "./runtime/bundle-box-motion.js";
-import { LitElement, Z, bareReaction, bindQueuedWork, carriesObligation, d, html, isNews, itemNoun, itemOutcome, keyed, live, noChange, nothing, observeQueuedWork, ref, render, repeat, sameAnchor, threadCounts, threadKey, threadNames, x } from "./runtime/bundle-browser-runtime.js";
+import { Z, bindQueuedWork, d, observeQueuedWork, x } from "./runtime/bundle-signals-core.js";
 import { CARET_KEYS, MODIFIER_KEYS, PRESSES, TEXT_BOX, TEXT_FIELD, WORKS, afterScript, byRenderedOrder, cancelRender, closeLayer, currentLocationIn, declareReading, deepFocus, drawn, focusDestination, focused, handBack, holdFocus, holdRendering, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, nextFrame, nextRender, observePreparations, onCurrentLocation, onPressAway, onUserInput, openLayer, openerOf, release, releaseFocus, renderedOrder, renderedUnder, renderingState, rove, selectsAll, shadowHost, sizeObserver, takesLetters, typesText, under, upFrom } from "./runtime/bundle-dom-move.js";
 import { PAGE_PAINT_ATTRIBUTE, pagePresented, pageUpgraded, reportPageError, setRuntimeRootStyle, uploadMedia } from "./runtime/bundle-layer-client.js";
-import { EVERYTHING, LAYOUT, LINK, PRESS, PRESSABLE, advertisesKeys, allBindings, annotationSheets, announce, bindingEnabled, bindings, buttonCommand, chromeSheet, claimReleaseClick, claimsEsc, clamp, clampedRow, clippedContents, closeControl, closeNativeLayer, coarsePointer, commandDeclarationsWithin, commandPresentations, commandRoutes, commandScope, commandsWithin, contextBindings, contextScopes, cycledRow, decisionControls, decisionFor, declareOccluder, declareWindowChrome, declaredBindings, descriptionOf, dismissError, dismissErrors, dismissPopoversOutside, dragHeld, el, errorsReading, holdingError, hostIn, iconElement, iconTemplate, inUi, intersect, keys, labelOf, landingBand, layoutWindow, live as live$1, liveEl, marksSheet, merge, mountRepaint, nativeLayers, nativeModalAdmits, notice, noticeReading, offer, offered, overlaps, overlapsAcross, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, pointerAt, pressIsKeyboardActivation, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, reflectFirstScopes, reflectKeys, registry, repaint, repaintPage, reveal, routedCommand, rowArrows, savedReadingSettled, saying, scopeRefs, scopesAt, scopesFor, scrollGlides, scrolling, searchField, seeErrors, seenRect, setNoticeContext, setQuickShortcuts, showNativeLayer, shownBox, shownParts, shownRect, spell, spokenBinding, stackLevel, startsAt, submitBindings, submitLabel, tagsDeclaring, titleOf, underOccluder, union, watchCommandAvailability, watchScrollEnds, watchScrolls, whileConnected, windowChromeBoxes, word } from "./runtime/bundle-errors.js";
-import { PRESENTATION_DOM, SHARE_ROOT, WEBSITE_DELIVERY, agentName, annotationMode, applicationPresenter, applicationState, documentChanged, offlineInteractive, readPart, runtime, runtimeResource, shareUrl, whenApplicationPresented } from "./runtime/bundle-context.js";
+import { EVERYTHING, LAYOUT, LINK, PRESS, PRESSABLE, advertisesKeys, allBindings, annotationSheets, announce, bindingEnabled, bindings, buttonCommand, chromeSheet, claimReleaseClick, claimsEsc, clamp, clampedRow, clippedContents, closeControl, closeNativeLayer, coarsePointer, commandDeclarationsWithin, commandPresentations, commandRoutes, commandScope, commandsWithin, contextBindings, contextScopes, cycledRow, decisionControls, decisionFor, declareOccluder, declareWindowChrome, declaredBindings, descriptionOf, dismissError, dismissErrors, dismissPopoversOutside, dragHeld, el, errorsReading, holdingError, hostIn, iconElement, iconTemplate, inUi, intersect, keys, labelOf, landingBand, layoutWindow, live, liveEl, marksSheet, merge, mountRepaint, nativeLayers, nativeModalAdmits, notice, noticeReading, offer, offered, overlaps, overlapsAcross, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, pointerAt, pressIsKeyboardActivation, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, reflectFirstScopes, reflectKeys, registry, repaint, repaintPage, reveal, routedCommand, rowArrows, savedReadingSettled, saying, scopeRefs, scopesAt, scopesFor, scrollGlides, scrolling, searchField, seeErrors, seenRect, setNoticeContext, setQuickShortcuts, showNativeLayer, shownBox, shownParts, shownRect, spell, spokenBinding, stackLevel, startsAt, submitBindings, submitLabel, tagsDeclaring, titleOf, underOccluder, union, watchCommandAvailability, watchScrollEnds, watchScrolls, whileConnected, windowChromeBoxes, word } from "./runtime/bundle-errors.js";
+import { LitElement, PRESENTATION_DOM, SHARE_ROOT, WEBSITE_DELIVERY, agentName, annotationMode, applicationPresenter, applicationState, bareReaction, carriesObligation, documentChanged, html, isNews, itemNoun, itemOutcome, keyed, live as live$1, noChange, nothing, offlineInteractive, readPart, ref, render, repeat, runtime, runtimeResource, sameAnchor, shareUrl, threadCounts, threadKey, threadNames, whenApplicationPresented } from "./runtime/bundle-context.js";
 import { JUST_NOW, PRESENTATION, UPGRADE, afterPresentation, ago, atScrollEnd, effectiveScroller, markPagePresented, markPageUpgraded, moveScrollerBy, pageReadiness, pageScroller, reachScrollers, readingRegionFor, registerReadingRegion, scrollChainOf, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, settlePageInterface, shortAgo, syncLayoutRegion, userReadingRegion, whenArrived } from "./runtime/bundle-reading-regions.js";
 import { activeCommandLabel, availableCommandRoutes, dispatchKey, executeCommand, innermostStance, invokePress, keyReady, onSampleNotice, registerSampleCommand, sampleNotice, userIn } from "./runtime/bundle-dispatch.js";
 import { commandSteps, createAnchorTravel, createVersionController, initializeServedDocument, keepPageRulesOffLayer, mountHistory, paintCoreControls, readPlace, returnPlace, versionPicker, versionsReading } from "./runtime/bundle-version.js";
@@ -6236,7 +6236,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	const chooser = ({ label, values, name, current, choose }) => html`<span class="lf-fp-chooser" title=${`${label}: ${name(current)}`}
       >${iconTemplate("arrange", "lf-action-icon")}<select
         aria-label=${label}
-        .value=${live(current)}
+        .value=${live$1(current)}
         @change=${(event) => {
 		choose(event.target.value);
 		refit();
@@ -9066,7 +9066,7 @@ function createGoToSequence({ doors, hintChrome, openPageMap, directDestinations
 			...destinations.map((destination) => ({
 				...destination,
 				touch: false,
-				when: () => atGoToTargets() && live$1(destination),
+				when: () => atGoToTargets() && live(destination),
 				run: (binding) => {
 					setGoToSequence(false);
 					if (destination.run) destination.run(binding);
@@ -9310,7 +9310,7 @@ function place(press) {
 		press: (held) => {
 			const current = presses.get(press.id);
 			if (current.row.retainCurrentLocation && held) returnPlace(held);
-			if (live$1(current.row)) invokePress(current);
+			if (live(current.row)) invokePress(current);
 		}
 	});
 	return press.id;
@@ -9330,7 +9330,7 @@ function placeStanceExit() {
 		offered: () => Boolean(stance),
 		disabled: () => stance?.disabled ?? true,
 		press: () => {
-			if (stance && live$1(stance.press.row)) invokePress(stance.press);
+			if (stance && live(stance.press.row)) invokePress(stance.press);
 		}
 	});
 }
@@ -9345,7 +9345,7 @@ function paintTouchControls() {
 	const nextStance = held ? {
 		label: title[0].toUpperCase() + title.slice(1),
 		icon: held.exit.icon ?? "cross",
-		disabled: !live$1(held.exit),
+		disabled: !live(held.exit),
 		press: {
 			id: held.exit.id,
 			row: held.exit,
@@ -9359,7 +9359,7 @@ function paintTouchControls() {
 		const next = shown.has(id) ? {
 			label: word(press.words),
 			shortcut: binding ? [spell(binding)] : [],
-			disabled: !live$1(press.row)
+			disabled: !live(press.row)
 		} : void 0;
 		if (same(next, faces.get(id))) continue;
 		changed = true;
@@ -9492,7 +9492,7 @@ function captureCommandReferenceCatalog() {
 		const inScope = userIn(scope) || scope.liveInCommandReference;
 		return {
 			scope,
-			rows: scope.rows.filter(({ row }) => !inScope || (row.commandReferenceWhen ? row.commandReferenceWhen() : live$1(row))).map(({ row, sequence: prefix }) => {
+			rows: scope.rows.filter(({ row }) => !inScope || (row.commandReferenceWhen ? row.commandReferenceWhen() : live(row))).map(({ row, sequence: prefix }) => {
 				const sequence = [...word(prefix) ?? []];
 				const declared = [...allBindings(row)];
 				const shownBindings = declared.filter(bindingEnabled);

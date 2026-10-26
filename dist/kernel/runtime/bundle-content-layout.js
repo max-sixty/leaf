@@ -1,7 +1,7 @@
-import { Z, anchorKey, isElementName } from "./bundle-browser-runtime.js";
+import { Z } from "./bundle-signals-core.js";
 import { PRESSES, WORKS, afterScript, keeps, layoutPx, move, nativeLayerHolding, nextFrame, nextRender, renderedParent, shadowHost, sizeObserver, under, upFrom } from "./bundle-dom-move.js";
 import { PRESSABLE, clamp, clippedContents, headerCuts, hostIn, inUi, layoutChanged, nearObserver, nearWindow, overlaps, registry, repaintPage, scrollContainer, scrollsContent, shownParts, skipped, tagsDeclaring, uiInside, watchArrivals } from "./bundle-errors.js";
-import { documentChanged } from "./bundle-context.js";
+import { anchorKey, documentChanged, isElementName } from "./bundle-context.js";
 import { atScrollEnd, compoundReadingRegionId, registerReadingRegion, scrollToEnd } from "./bundle-reading-regions.js";
 import { chromeRoot } from "./bundle-element-frame.js";
 import { DATUM, TEXT_BLOCK, authoredScope, blockAt, closestAcross, contextAround, cut, elementById, elementReading, excerptWords, fileModelsPassage, findQuote, inChrome, layoutBox, leafSurface, neighbourhood, pageDocument, pageQueryAll, pageText, quoteFrom, rangeOf, readingFrom, segmentsIn, settledAway, spanIn, textNodesUnder } from "./bundle-passages.js";

@@ -214,6 +214,7 @@ export {
 } from "./presentation.js";
 export { quietWord } from "./declared-words.js";
 export { copyBlock } from "./code-copy.js";
+export { copyControl } from "./copy-control.js";
 export { retainUserIntent } from "./user-intent.js";
 // Whether a press is the plain one a control claims: the primary button, no modifier;
 // and whether a click came from the keyboard rather than a pointer.

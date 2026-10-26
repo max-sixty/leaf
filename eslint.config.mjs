@@ -1326,7 +1326,7 @@ export default [
     rules: publicRuntimeBoundary,
   },
   {
-    // Initial sources are compiled to self-contained scripts. Sharing these pure SVG paths
+    // Initial sources are compiled to self-contained scripts. Sharing the icon table
     // and the time axis's geometry adds no private runtime dependency to the package
     // shipped to a page.
     files: ["packages/*/initial/*.js"],
@@ -1341,7 +1341,7 @@ export default [
                 ? {
                     ...pattern,
                     regex:
-                      "^\\.{1,2}/(?:.*/)?runtime/(?!(?:motion-icon-paths|time-axis)\\.js$)",
+                      "^\\.{1,2}/(?:.*/)?runtime/(?!(?:icon-paths|time-axis)\\.js$)",
                   }
                 : pattern,
           ),

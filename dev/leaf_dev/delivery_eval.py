@@ -16,7 +16,6 @@ from pathlib import Path
 from leaf.event_log import read_events
 from leaf.harness import ClaudeCodeHarness
 from leaf.thread import successful_replies
-
 from leaf_dev import ROOT
 from leaf_dev.arms import LiveChild, LiveSession, PageClient, run_leaf, scratch
 from leaf_dev.commands.response_times import distribution, page_timings
@@ -35,7 +34,11 @@ def comments(case: str) -> list[dict]:
         else [
             dict(comment, name=str(n + 1), injection=injection)
             for n, (comment, injection) in enumerate(
-                zip(DEFINITION["comments"], inputs["injection"], strict=False)
+                zip(
+                    inputs.get("comments", DEFINITION["comments"]),
+                    inputs["injection"],
+                    strict=False,
+                )
             )
         ]
     )

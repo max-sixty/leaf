@@ -17,9 +17,10 @@ server answers its API requests.
 
 Every `leaf` command a build runs comes from the Leaf its caller hands it. `leaf-dev
 site` hands it an installation prepared from this checkout (`leaf_dev.commands.distribution`)
-beside its output, so each page vendors the compiled kernel.
-The website's container image installs the same tree, so a revision a hosted session
-writes captures the layer the published revisions were built from. The suite and
+beside its output, so each page runs the compiled kernel, which the live shell
+publishes beside each revision. The website's container image installs the same tree,
+so a revision a hosted session writes captures the layer the published revisions were
+built from and runs the same runtime. The suite and
 `refresh-previews` serve the site with this checkout's adapter, which refuses pages
 another Leaf vendored, so they build with the checkout's own Leaf; the suite's browser
 probes also import source modules a compiled kernel no longer has.
@@ -53,6 +54,14 @@ from pathlib import Path
 from urllib.parse import unquote, urljoin, urlsplit
 
 import click
+from leaf_website import (
+    SITE_MANIFEST,
+    SITE_ORIGIN,
+    initial_state,
+    published_page,
+    site_metadata,
+)
+
 from leaf.files import latest_revision, list_revisions
 from leaf.live_shell import write_live_shell
 from leaf.schema import (
@@ -63,14 +72,6 @@ from leaf.schema import (
     VENDORED_FILES,
 )
 from leaf.structure import FRAME_ANCESTORS_CSP
-from leaf_website import (
-    SITE_MANIFEST,
-    SITE_ORIGIN,
-    initial_state,
-    published_page,
-    site_metadata,
-)
-
 from leaf_dev import LEAF_COMMAND, ROOT, docs
 from leaf_dev.arms import environment
 from leaf_dev.commands.distribution import prepare
@@ -78,6 +79,7 @@ from leaf_dev.docs import catalog_preview, media_url, product_route, product_sou
 from leaf_dev.example_data import catalog_sources, document_metadata
 from leaf_dev.leaf_assets import pinned_assets
 from leaf_dev.page_fixtures import (
+    fixture_environment,
     package_selection_args,
     prepare_page,
     read_fixture,
@@ -210,7 +212,7 @@ def leaf(
     done = subprocess.run(
         [*command, *args],
         cwd=ROOT,
-        env=env,
+        env=fixture_environment(env),
         capture_output=True,
         text=True,
         input=input_text,

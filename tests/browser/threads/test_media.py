@@ -6,10 +6,6 @@ import re
 from itertools import pairwise
 
 import pytest
-from leaf import event_log as events_model
-from leaf import exporting as exporting_model
-from leaf import media as media_model
-from leaf.render_checks import rendered
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import live_url, panel_comment
@@ -34,6 +30,10 @@ from browser.threads import (
     open_capture_area,
     paste_image,
 )
+from leaf import event_log as events_model
+from leaf import exporting as exporting_model
+from leaf import media as media_model
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -438,9 +438,9 @@ def test_touch_capture_attaches_on_lift_and_a_tap_or_cancel_attaches_nothing(
     browser, serve
 ):
     """A finger's drag is the whole gesture: lifting it attaches the area, and the
-    attachment's ✕ takes a bad one back. A tap draws no area, so it leaves capture
-    standing over the area it showed; the ✕, Enter on it, or Escape leave with
-    nothing attached."""
+    attachment's ✕ takes a bad one back. Capture opens with no area, and the field
+    asks for a drag. A tap draws no area, so it leaves capture standing with none; the
+    ✕, Enter on it, or Escape leave with nothing attached."""
     page = capture_page(browser, serve, touch=True)
     touch = page.context.new_cdp_session(page)
     # Retain the native event so the assertion reads its final cancellation state.
@@ -466,7 +466,9 @@ def test_touch_capture_attaches_on_lift_and_a_tap_or_cancel_attaches_nothing(
     before_media = sorted((serve.page_dir / "media").iterdir())
     surface = open_capture_area(page, touch=True)
     selection = surface.locator(".lf-region-selection")
-    shown = selection.bounding_box()
+    expect(page.locator(".lf-fp-field leaf-text")).to_have_attribute(
+        "placeholder", re.compile("^Drag an area to capture")
+    )
     # The panel's row offers only the way out; lifting a drag attaches.
     expect(page.get_by_role("button", name="Attach capture", exact=True)).to_have_count(
         0
@@ -474,7 +476,7 @@ def test_touch_capture_attaches_on_lift_and_a_tap_or_cancel_attaches_nothing(
     touch_area(3, 2)
     rendered(page)
     expect(surface).to_be_visible()
-    assert selection.bounding_box() == shown
+    expect(selection).to_be_hidden()
     page.get_by_role("button", name="Cancel capture", exact=True).tap()
     expect(surface).to_be_hidden()
     assert page.evaluate("captureTouchStarts.at(-2).defaultPrevented"), (
@@ -506,7 +508,24 @@ def test_touch_capture_attaches_on_lift_and_a_tap_or_cancel_attaches_nothing(
     expect(attachment).to_be_visible()
     image = Image.open(serve.page_dir / attachment.get_attribute("src").lstrip("/"))
     assert image.size == (360, 260)
+    # Which element each part of the removal tap reached, for the reading below.
+    page.evaluate("""() => {
+        window.removalTap = [];
+        const named = node => node instanceof Element
+            ? `${node.localName}.${[...node.classList].join('.')}`
+              + (node.isConnected ? '' : ' (removed)')
+            : String(node);
+        for (const type of ['touchstart', 'pointerdown', 'click'])
+            window.addEventListener(type, event => removalTap.push(
+                `${type} on ${named(event.composedPath()[0])}`
+                + (event.defaultPrevented ? ' (prevented)' : '')),
+                {capture: true});
+    }""")
     page.get_by_role("button", name="Remove attached image 1", exact=True).tap()
+    # Removal is synchronous in the click, so the shelf is empty as the tap returns,
+    # with the drag's timers still held. An image here with the click on the ✕ says
+    # the click did not remove it; a click elsewhere, or none, says the tap missed.
+    assert attachment.count() == 0, page.evaluate("removalTap")
     # The next press began while drag timers were held; let its native activation
     # finish before reading the result.
     page.clock.resume()
@@ -517,11 +536,16 @@ def test_touch_capture_attaches_on_lift_and_a_tap_or_cancel_attaches_nothing(
 
 
 def test_the_keyboard_moves_resizes_and_attaches_the_area(browser, serve):
-    """Arrows move the area and Shift with an arrow resizes it, 10 pixels a press,
-    and Enter attaches it, so capture needs no drag."""
+    """The first arrow draws the preset area, then arrows move it and Shift with an
+    arrow resizes it, 10 pixels a press, and Enter attaches it, so capture needs no
+    drag. Enter before any area attaches nothing."""
     page = capture_page(browser, serve)
     surface = open_capture_area(page)
     selection = surface.locator(".lf-region-selection")
+    page.keyboard.press("Enter")
+    expect(surface).to_be_visible()
+    page.keyboard.press("ArrowLeft")
+    expect(selection).to_be_visible()
     shown = selection.bounding_box()
     for key in ("ArrowRight", "ArrowDown", "Shift+ArrowRight", "Shift+ArrowUp"):
         page.keyboard.press(key)
@@ -611,14 +635,13 @@ def test_capture_temporarily_owns_page_input_without_leaving_draw_mode(browser, 
     for attach in (False, True):
         surface = open_capture_area(page)
         selection = surface.locator(".lf-region-selection")
-        shown = selection.bounding_box()
         box = control.bounding_box()
         left, top = box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
-        # A click draws no area: it attaches nothing and keeps the area it showed.
+        # A click draws no area: it attaches nothing and leaves capture standing.
         page.mouse.click(left, top)
         rendered(page)
         expect(surface).to_be_visible()
-        assert selection.bounding_box() == shown
+        expect(selection).to_be_hidden()
         expect(control).not_to_be_checked()
         expect(page.locator(".lf-drawing-mark")).to_have_count(0)
         expect(page.locator(".lf-fab-input")).to_be_hidden()

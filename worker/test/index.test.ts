@@ -36,6 +36,7 @@ vi.mock("@cloudflare/containers", () => ({
 
 import { getContainer } from "@cloudflare/containers";
 import worker, { LeafWebsiteSession, type Env } from "../src/index";
+import { activeCookie } from "../src/routing";
 
 const RELEASE = "a".repeat(64);
 const LAYER = "edge-layer";
@@ -145,10 +146,8 @@ const startupReport = (overrides: Record<string, unknown> = {}) => ({
   presentedMs: 310,
   ...overrides,
 });
-const cookieKey = (root: string) =>
-  root === "/" ? "root" : `page-${root.slice(1).replaceAll("/", "_")}`;
 const activeMarker = (root: string, release = RELEASE) =>
-  `__Host-leaf-active-${cookieKey(root)}=${release}`;
+  activeCookie(true, root, release).split(";", 1)[0];
 const containerId = (sessionId: string) => `${RELEASE}:${sessionId}`;
 
 function environment(overrides: Partial<Env> = {}): Env {
@@ -391,7 +390,10 @@ describe("product-site delivery", () => {
             Cookie: `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board")}`,
             "Content-Type": "text/plain;charset=UTF-8",
           },
-          body: JSON.stringify(startupReport()),
+          // Widgets can upgrade while the first state response remains pending.
+          body: JSON.stringify(
+            startupReport({ firstStateResponseMs: 300_001, presentedMs: 300_031 }),
+          ),
         }),
         environment(),
       );
@@ -405,10 +407,10 @@ describe("product-site delivery", () => {
         reference: "318445474579",
         route: "/examples/triage-board",
         currentRelease: RELEASE,
-        presentedMs: 310,
+        presentedMs: 300_031,
         firstContentfulPaintMs: 115,
         upgradedMs: 180,
-        firstStateResponseMs: 280,
+        firstStateResponseMs: 300_001,
       });
     } finally {
       logged.mockRestore();
@@ -1096,11 +1098,11 @@ describe("product-site delivery", () => {
     }
   });
 
-  it("requires bounded nullable upgrade and first-state response timings", async () => {
+  it("requires nullable nonnegative integer upgrade and first-state response timings", async () => {
     const logged = vi.spyOn(console, "log").mockImplementation(() => undefined);
     try {
       for (const field of ["upgradedMs", "firstStateResponseMs"]) {
-        for (const value of [undefined, -1, 1.5, 300_001, "310"]) {
+        for (const value of [undefined, -1, 1.5, "310"]) {
           const response = await worker.fetch(
             new Request("https://leaf.page/api/performance", {
               method: "POST",
@@ -1178,7 +1180,7 @@ describe("product-site delivery", () => {
     expect(response.headers.get("Leaf-Session")).toBe("passive");
     expect(await response.json()).toMatchObject({ reading: "published" });
     expect(response.headers.get("Set-Cookie")).toBe(
-      `__Host-leaf-active-${cookieKey("/examples/triage-board")}=; Path=/; Secure; ` +
+      "__Host-leaf-active-page-examples%2Ftriage-board=; Path=/; Secure; " +
         "HttpOnly; SameSite=Lax; Max-Age=0",
     );
   });
@@ -1695,7 +1697,7 @@ describe("product-site delivery", () => {
     expect(response.headers.get("Leaf-Session")).toBe("active");
     expect(response.headers.get("Leaf-Session-Reference")).toBe("610422516507");
     expect(response.headers.get("Set-Cookie")).toBe(
-      `__Host-leaf-active-page-examples_triage-board=${RELEASE}; Path=/; Secure; HttpOnly; SameSite=Lax`,
+      `__Host-leaf-active-page-examples%2Ftriage-board=${RELEASE}; Path=/; Secure; HttpOnly; SameSite=Lax`,
     );
   });
 
@@ -1742,27 +1744,33 @@ describe("product-site delivery", () => {
       expect(response.headers.get("Leaf-Session")).toBe("active");
       expect(response.headers.get("Leaf-Session-Reference")).toBe(reference);
       expect(response.headers.get("Set-Cookie")).toBe(
-        `__Host-leaf-active-page-examples_triage-board=${RELEASE}; Path=/; Secure; HttpOnly; SameSite=Lax`,
+        `__Host-leaf-active-page-examples%2Ftriage-board=${RELEASE}; Path=/; Secure; HttpOnly; SameSite=Lax`,
       );
     }
   });
 
-  it("serves the requested historical revision from the release manifest", async () => {
-    const env = environment();
+  it.each([
+    ["", { "Leaf-View-Revision": "1" }],
+    ["?revision=1", { "Leaf-View-Revision": "2" }],
+  ])(
+    "serves the requested historical revision from the release manifest: %s",
+    async (query, headers) => {
+      const env = environment();
 
-    const response = await worker.fetch(
-      new Request("https://leaf.page/examples/triage-board/api/state", {
-        headers: { "Leaf-View-Revision": "1" },
-      }),
-      env,
-    );
+      const response = await worker.fetch(
+        new Request(`https://leaf.page/examples/triage-board/api/state${query}`, {
+          headers,
+        }),
+        env,
+      );
 
-    expect(response.status).toBe(200);
-    expect(vi.mocked(env.ASSETS.fetch).mock.calls[1][0].url).toBe(
-      "https://leaf.page/_leaf/state/examples--triage-board--r1.json",
-    );
-    expect(getContainer).not.toHaveBeenCalled();
-  });
+      expect(response.status).toBe(200);
+      expect(vi.mocked(env.ASSETS.fetch).mock.calls[1][0].url).toBe(
+        "https://leaf.page/_leaf/state/examples--triage-board--r1.json",
+      );
+      expect(getContainer).not.toHaveBeenCalled();
+    },
+  );
 
   it("rejects a historical revision absent from the release manifest", async () => {
     const response = await worker.fetch(
@@ -1953,7 +1961,7 @@ describe("website page agent", () => {
       const session = new LeafWebsiteSession(ctx as never, environment());
       const responses: Record<
         string,
-        { status: number; headers: Record<string, string>; chunks: string[] }
+        { headers: Record<string, string>; chunks: string[] }
       > = {};
       const blobs = new Map<string, Uint8Array>();
       for (const [path, body] of [
@@ -1974,7 +1982,7 @@ describe("website page agent", () => {
           await crypto.subtle.digest("SHA-256", bytes),
         ).toString("hex");
         blobs.set(digest, bytes);
-        responses[path] = { status: 200, headers: {}, chunks: [digest] };
+        responses[path] = { headers: {}, chunks: [digest] };
       }
       const publication = {
         root: "/examples/triage-board",
@@ -2288,50 +2296,6 @@ describe("website page agent", () => {
     );
 
     expect(response.status).toBe(403);
-  });
-
-  it("immediately directs Codex websocket probes to its HTTP fallback", async () => {
-    const env = environment();
-    const upstream = vi.fn(async () => new Response("ok"));
-    vi.stubGlobal("fetch", upstream);
-    const logged = vi.spyOn(console, "log").mockImplementation(() => undefined);
-    const handler = LeafWebsiteSession.outboundByHost["api.openai.com"];
-
-    try {
-      const response = await handler(
-        new Request("https://api.openai.com/v1/responses", {
-          headers: {
-            Upgrade: "websocket",
-            "x-codex-turn-metadata": JSON.stringify({
-              request_kind: "turn",
-              thread_id: "app-thread",
-              turn_id: "app-turn",
-              workspace: "private workspace",
-            }),
-          },
-        }),
-        env,
-        { containerId: "user-container", className: "LeafWebsiteSession" },
-      );
-
-      expect(response.status).toBe(426);
-      expect(await response.text()).toBe("use the Responses HTTP transport");
-      expect(env.SOURCE_AGENT_RATE_LIMITER.limit).not.toHaveBeenCalled();
-      expect(upstream).not.toHaveBeenCalled();
-      expect(logged).toHaveBeenCalledOnce();
-      expect(logged.mock.calls[0][0]).toMatchObject({
-        component: "leaf-agent",
-        event: "model_transport_http_fallback",
-        containerId: "user-container",
-        requestKind: "turn",
-        threadId: "app-thread",
-        turnId: "app-turn",
-      });
-      expect(JSON.stringify(logged.mock.calls)).not.toContain("private");
-    } finally {
-      logged.mockRestore();
-      vi.unstubAllGlobals();
-    }
   });
 
   it("caps model calls from one user container", async () => {

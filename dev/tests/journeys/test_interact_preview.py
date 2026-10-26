@@ -13,6 +13,7 @@ in a `main` module runs nowhere near the change that breaks it.
 
 import json
 import os
+import re
 import shlex
 import shutil
 import socket
@@ -37,12 +38,13 @@ from interact_support import (
     stamp,
     wait_for,
 )
+from leaf_dev.commands import preview
+from leaf_dev.page_fixtures import read_fixture, record_run_context
+
 from leaf import cli as cli_model
 from leaf import codex_adapter, hosting, leases, server, service, state
 from leaf.harness import claim_harness
 from leaf.interaction_log import read_interactions
-from leaf_dev.commands import preview
-from leaf_dev.page_fixtures import read_fixture, record_run_context
 
 from ..model.test_interact_preview import _ScriptedChanges
 
@@ -373,10 +375,12 @@ def test_preview_publishes_companion_edits_at_its_existing_url(
             return fetch(urlsplit(url)._replace(path=path).geturl(), token=None)
 
         def resource(revision):
+            # Beneath the runtime the preview's server runs, which its document names.
+            document = at("/")[1].decode()
+            runtime = re.search(r'data-lf-runtime-identity="([0-9a-f]+)"', document)[1]
             return (
-                "/revisions/"
-                + revision_path(page, revision).stem
-                + "/page/widgets/lf-reading.js"
+                f"/revisions/{revision_path(page, revision).stem}/{runtime}"
+                "/page/widgets/lf-reading.js"
             )
 
         first = latest_revision(page)
@@ -675,7 +679,7 @@ from leaf.service import PageTransaction, claim_page
 from leaf.session import cmd_waiting
 page = Path(sys.argv[1])
 claim_page(page)
-cmd_waiting(page, "Review this page")
+cmd_waiting(page)
 watch = subprocess.Popen([sys.executable, "-m", "leaf", "wait", str(page)],
                          stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 try:
@@ -699,7 +703,7 @@ try:
     assert "leaf wait" in reason and "no delivery adapter" not in reason
 finally:
     with PageTransaction(page) as held:
-        held.set_status("idle", "")
+        held.set_status("idle")
     output, errors = watch.communicate(timeout=30)
     assert watch.returncode == 2, (output, errors)
 """
@@ -830,7 +834,7 @@ def test_user_preview_restart_keeps_feedback_and_authored_progress(
     reply = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             comment["answer"]["ref"],

@@ -1,4 +1,4 @@
-"""Two live previews, using the canonical arm builder and preview lifecycle.
+"""Serve a base runtime beside this checkout's as two live previews.
 
 The baseline is an immutable full source arm; the candidate watches this checkout.
 Both read the candidate's authored source unless --authored selects each arm's own
@@ -14,11 +14,12 @@ from pathlib import Path
 from threading import Thread
 
 import click
-from leaf.harness import session_harness
 
+from leaf.harness import session_harness
 from leaf_dev import ROOT
 from leaf_dev.arms import base_ref, build_arm, run_directory
 from leaf_dev.commands.preview import authored_source
+from leaf_dev.example_data import named_source
 
 
 @click.command()
@@ -39,6 +40,8 @@ def compare(example, source, base, authored, user):
     directory = run_directory(ROOT / ".tmp" / "compare")
     baseline = directory / "baseline"
     build_arm(base_ref(base), baseline, paths=(".",))
+    if authored and source == ROOT / "examples" / "corpus.html":
+        named_source("corpus", root=baseline)
     sources = {
         "baseline": baseline / source.relative_to(ROOT) if authored else source,
         "candidate": source,

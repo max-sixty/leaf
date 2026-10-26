@@ -43,7 +43,7 @@ assert:
       Pass only if the reply reads the pointer with `leaf delivery read 3fa1c2d9`
       then reads `leaf delivery read 3fa1c2d9 --part 2`, confirms with
       `leaf delivery ack 3fa1c2d9`, and writes
-      `leaf response reply 3fa1c2d9:0:7c41d0e2`, confirming the layout will be kept,
+      `leaf thread reply 3fa1c2d9:0:7c41d0e2`, confirming the layout will be kept,
       before finishing the current implementation turn. Replying after the requested
       implementation is finished is valid if it happens before the current turn's
       final chat response. Fail if it waits for another turn, starts
@@ -54,7 +54,7 @@ assert:
   - type: llm-rubric
     metric: handoff
     value: |
-      Pass if the agent sets the page to waiting and hands over its URL after
+      Pass if the agent leaves the page available for feedback and hands over its URL after
       answering the comment and finishing the work. Re-running `leaf server start`
-      is optional. Fail if it adds a separate `leaf codex start` to prepare this
+      is optional. Fail if it adds a separate adapter-start command to prepare this
       ordinary handoff, or keeps the turn open to run or poll `leaf wait`.

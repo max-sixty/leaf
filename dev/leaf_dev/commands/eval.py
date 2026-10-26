@@ -33,8 +33,8 @@ from pathlib import Path
 
 import click
 import yaml
-from leaf.harness import ClaudeCodeHarness
 
+from leaf.harness import ClaudeCodeHarness
 from leaf_dev import ROOT
 from leaf_dev.arms import (
     HARNESSES,
@@ -282,7 +282,9 @@ def prepare(
                                 viewports,
                             )
                         else:
-                            work = scratch / "work" / label
+                            # One flat directory per label: a nested one would
+                            # sit inside the plain arm's ("claude-code/base").
+                            work = scratch / "work" / label.replace("/", "--")
                             work.mkdir(parents=True)
                             configured, skill = native_provider(harness, payload, work)
                             if skill is not None and not instructions:

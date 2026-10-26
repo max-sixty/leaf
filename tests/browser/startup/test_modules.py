@@ -7,9 +7,6 @@ from urllib.parse import urlparse
 import pytest
 from click.testing import CliRunner
 from interact_support import append_carried_log_record, response_reference
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf.render_checks import wait_until_ready
 from leaf_dev.example_data import patch_manifest
 from playwright.sync_api import expect
 from render_cases_interaction import SUGGESTION_PAGE
@@ -24,8 +21,9 @@ from render_harness import (
     consume_browser_errors,
     holding,
     open_page,
+    open_threads,
     page_comment,
-    panel_settled,
+    panel_view,
     primed,
     refuse,
     round_trip,
@@ -37,6 +35,10 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
+from leaf import cli as cli_model
+from leaf import data as data_model
+from leaf.render_checks import wait_until_ready
+from leaf.runtime_selection import serving_runtime
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -95,13 +97,12 @@ Two classic models.</pre></lf-code>
         == "none"
     )
     expect(page.locator(PANEL)).to_be_visible()
-    expect(page.locator(".lf-fp-threads")).to_be_enabled()
+    expect(page.locator(".lf-fp-on-user")).to_be_enabled()
     expect(page.locator("#gate-code .lf-code-line")).to_have_count(0)
     expect(page.locator("#draft-ops .lf-draft-body")).to_have_count(0)
 
-    rows = page.locator(".lf-fp-view[data-view='threads'] .lf-fp-thread")
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    rows = page.locator(f"{panel_view('threads')} .lf-fp-thread")
+    open_threads(page)
     expect(rows).to_have_count(0)
     write(page_comment(page), "General comment during startup")
     page.keyboard.press("ControlOrMeta+Enter")
@@ -112,8 +113,7 @@ Two classic models.</pre></lf-code>
     expect(page.locator(".lf-composer")).to_be_hidden()
 
     page.evaluate("window.lfReleaseRegistry()")
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    open_threads(page)
     expect(rows).to_have_count(2)
     expect(page.locator("#gate-code .lf-code-line")).to_have_count(2)
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
@@ -131,8 +131,7 @@ Two classic models.</pre></lf-code>
     write(page.locator(".lf-composer leaf-text"), "Still anchored?")
     page.keyboard.press("ControlOrMeta+Enter")
 
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    open_threads(page)
     expect(rows).to_have_count(3)
     # The comment on the code's words found them: its quote is no detached one.
     rows.filter(has_text="Still anchored?").click()
@@ -154,7 +153,9 @@ def _asked(context):
 
     def record(request):
         path = urlparse(request.url).path
-        paths.append(re.sub(r"^/revisions/r\d+-[0-9a-f]+", "", path))
+        paths.append(
+            re.sub(r"^/revisions/r\d+-[0-9a-f]+/[0-9a-f]+|^/[0-9a-f]+", "", path)
+        )
 
     context.on("request", record)
     return paths
@@ -380,7 +381,7 @@ def test_a_widget_a_reply_carries_arrives_with_its_module(browser, serve):
     replied = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(d, "c-store"),
@@ -424,8 +425,7 @@ def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serv
         ),
         serve(LONG_PAGE),
     )
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    open_threads(page)
     page.evaluate(
         "() => { window.__lfWidgetApi().then((markdown) => markdown.loadMarkdown()); }"
     )
@@ -466,9 +466,8 @@ def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serv
     marked[0].continue_()
     page.unroute("**/vendor/markdown-it.esm.js")
 
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
-    rows = page.locator(".lf-fp-view[data-view='threads'] .lf-fp-thread")
+    open_threads(page)
+    rows = page.locator(f"{panel_view('threads')} .lf-fp-thread")
     expect(rows.filter(has_text="Older")).to_have_count(1)
     expect(rows.filter(has_text="Newest")).to_have_count(1)
 
@@ -476,7 +475,7 @@ def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serv
 def test_the_public_widget_api_can_load_before_boot_registers_page_keys(browser, serve):
     """Importing capabilities does not start a half-constructed browser application."""
     url = serve(SUGGESTION_PAGE)
-    boot = (serve.page_dir / "leaf.js").read_text()
+    boot = serving_runtime().resources({})["/leaf.js"].data.decode()
     context = browser.new_context()
     context.route(
         "**/leaf.js",

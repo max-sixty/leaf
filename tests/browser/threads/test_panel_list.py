@@ -4,8 +4,6 @@ import re
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf import thread as thread_model
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import (
     PANEL_PAGE,
@@ -23,6 +21,8 @@ from render_harness import (
 )
 
 from browser.threads import claim_for_codex, open_panel_thread, thread_row
+from leaf import thread as thread_model
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -36,7 +36,7 @@ def test_thread_rows_name_action_in_existing_status(browser, serve):
     resized(page, 1440, 900)
     asked = thread_row(page, PHOTO_THREAD)
     expect(asked.locator(".lf-fp-label")).to_have_text("Workshop room photo")
-    expect(asked.locator(".lf-fp-value")).to_have_text("My turn to answer")
+    expect(asked.locator(".lf-fp-value")).to_have_text("New · My turn to answer")
     line = asked.evaluate(
         """row => {
           const label = row.querySelector('.lf-fp-label').getBoundingClientRect();
@@ -185,6 +185,6 @@ def test_a_thread_nobody_picked_up_reads_its_opening_words(browser, serve):
     )["id"]
     page = open_page(browser, url)
     row = thread_row(page, root)
-    expect(row.locator(".lf-fp-value")).to_have_text("Waiting for pickup")
+    expect(row.locator(".lf-fp-value")).to_have_text("Waiting for delivery")
     expect(row.locator(".lf-fp-label")).to_have_text(opening)
     assert not take_browser_errors(page)

@@ -8,16 +8,8 @@ from urllib.parse import urljoin, urlparse
 import pytest
 from click.testing import CliRunner
 from interact_support import (
-    append_carried_log_record,
     wait_for,
 )
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf import files as files_model
-from leaf import hosting as hosting_model
-from leaf import user_views as user_views_model
-from leaf.render_checks import rendered, wait_until_ready
-from leaf.served_state.reading import page_reading, source_readings
 from playwright.sync_api import expect
 from render_cases_interaction import (
     live_url,
@@ -28,15 +20,15 @@ from render_cases_navigation import (
 from render_harness import (
     FEATURE_GALLERY,
     LONG_PAGE,
-    TOKEN,
     _traffic,
     consume_browser_errors,
     holding,
     leaf_page,
     open_page,
+    open_threads,
     page_comment,
     panel_menu,
-    panel_settled,
+    panel_view,
     refuse,
     round_trip,
     select_words,
@@ -46,6 +38,13 @@ from render_harness import (
     watched,
     write,
 )
+
+from leaf import cli as cli_model
+from leaf import event_log as events_model
+from leaf import files as files_model
+from leaf import user_views as user_views_model
+from leaf.render_checks import rendered, wait_until_ready
+from leaf.served_state.reading import page_reading, source_readings
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -66,8 +65,8 @@ def test_the_gallery_embeds_an_ordinary_stamped_page(browser, serve):
     expect(frame.locator("#bg-choice-ask h3")).to_have_text(
         "Which map should the sample team carry?"
     )
-    frame.locator(".lf-fp-threads").click()
-    expect(frame.locator('.lf-fp-view[data-view="threads"]')).to_be_visible()
+    open_threads(frame)
+    expect(frame.locator(panel_view("threads"))).to_be_visible()
     frame.goto(frame.url)
     wait_until_ready(frame)
     assert urlparse(frame.url).path == "/versions/v2.html"
@@ -390,38 +389,6 @@ def test_offline_reaction_waits_for_its_saved_state(browser, serve):
     ]
 
 
-def test_a_page_hears_again_when_its_server_comes_back(browser, serve):
-    """A server is stopped and started under an open tab whenever its layer is
-    re-vendored, and the tab finds the new one on its own: its freshness read fails
-    with the old server, and the browser keeps asking. The page says the server is
-    gone while it is, and reads again when the server comes back, because the last
-    thing it knew about the server is from before the silence."""
-    url = serve(LONG_PAGE)
-    page = open_page(browser, url)
-    status = page.locator(".lf-fp-leaf")
-    offline = re.compile("Server offline")
-    port = serve.httpd.server_address[1]
-    next(server for server in serve.servers if server.httpd is serve.httpd).close()
-    expect(status).to_have_attribute("aria-label", offline)
-
-    server = hosting_model.TemporaryPageServer(
-        serve.page_dir, token=TOKEN, port=port
-    ).start()
-    serve.servers.append(server)
-    append_carried_log_record(
-        serve.page_dir,
-        {"kind": "comment", "author": "user", "revision": 1, "text": "Back."},
-    )
-    told(page)
-    expect(status).not_to_have_attribute("aria-label", offline)
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
-    expect(page.locator(".lf-fp-thread", has_text="Back.")).to_have_count(1)
-    # The requests that failed while the server was down are the one thing the
-    # console may hold; a page fault of the runtime's own would say something else.
-    consume_browser_errors(page, "net::ERR")
-
-
 def test_thread_timestamps_age_without_new_state(browser, serve):
     page = open_page(browser, serve(LONG_PAGE, comments=1))
     [comment] = [
@@ -477,23 +444,41 @@ def test_failed_clock_paints_do_not_starve_other_widgets_or_restart_polling(
     page = open_page(browser, serve(LONG_PAGE))
     page.evaluate(
         """async () => {
-          const {watchProjection, clockValue} = await window.__lfWidgetApi();
+          const {LeafElement, noChange, clockValue} = await window.__lfWidgetApi();
           window.clockVersion = 0;
+          const probes = [];
           for (const stage of ['read', 'paint', 'async']) {
-            watchProjection(document.body, () => {
-              const version = clockValue(() => {
-                if (stage === 'read' && window.clockVersion)
-                  throw new Error('read broke');
-                return window.clockVersion;
-              });
-              if (!version) return;
-              if (stage === 'async') return Promise.reject(new Error('async broke'));
-              throw new Error('paint broke');
-            }).refresh();
+            const tag = `lf-clock-${stage}`;
+            customElements.define(tag, class extends LeafElement {
+              render() {
+                const version = clockValue(() => {
+                  if (stage === 'read' && window.clockVersion)
+                    throw new Error('read broke');
+                  return window.clockVersion;
+                });
+                this.failing = version && stage === 'async';
+                if (!version || this.failing) return noChange;
+                throw new Error('paint broke');
+              }
+              async getUpdateComplete() {
+                const result = await super.getUpdateComplete();
+                if (this.failing) throw new Error('async broke');
+                return result;
+              }
+            });
+            const probe = document.createElement(tag);
+            document.body.append(probe);
+            probes.push(probe);
           }
-          watchProjection(document.body, () => {
-            window.healthyClock = clockValue(() => window.clockVersion);
-          }).refresh();
+          customElements.define('lf-clock-healthy', class extends LeafElement {
+            render() {
+              window.healthyClock = clockValue(() => window.clockVersion);
+              return noChange;
+            }
+          });
+          const healthy = document.createElement('lf-clock-healthy');
+          document.body.append(healthy);
+          await Promise.all([...probes, healthy].map(probe => probe.updateComplete));
           window.clockVersion = 1;
         }"""
     )
@@ -514,7 +499,7 @@ def test_failed_clock_paints_do_not_starve_other_widgets_or_restart_polling(
         if e["kind"] == "error"
     ]
     # Each failure is reported, through whichever route met it: the clock's tick, the
-    # paint's own rule (`readingPaint`), or the page's error handler.
+    # element's render boundary, or the page's error handler.
     assert {error.splitlines()[0].rsplit(": ", 1)[-1] for error in errors} == {
         "read broke",
         "paint broke",
@@ -733,7 +718,7 @@ customElements.define('lf-probe',class extends HTMLElement {connectedCallback(){
     )
     expect(page.locator("body")).to_have_attribute("data-lf-upgraded", "1")
     page.evaluate(
-        """async()=>{const host=document.querySelector('lf-probe');host.shadowRoot.append(document.createTextNode('Broken author words'));const {textNodesUnder}=await window.__lfWidgetApi();[...textNodesUnder(document.body)];}"""
+        """async()=>{const host=document.querySelector('lf-probe');host.shadowRoot.append(document.createTextNode('Broken author words'));const {textNodesUnder}=await window.__lfCheckApi();[...textNodesUnder(document.body)];}"""
     )
     assert page.evaluate("document.documentElement.hasAttribute('data-lf-interactive')")
     expect(
@@ -748,7 +733,6 @@ customElements.define('lf-probe',class extends HTMLElement {connectedCallback(){
     page.keyboard.press("c")
     write(page_comment(page), "Still usable.")
     expect(page_comment(page)).to_have_js_property("value", "Still usable.")
-    page.close()
 
 
 @pytest.mark.parametrize("answer", ["ready", "offline"])
@@ -798,4 +782,3 @@ def test_first_history_answer_keeps_an_open_quote_draft(browser, serve, answer, 
     expect(page.get_by_role("status").filter(has_text="Draft kept")).to_have_count(0)
     if answer == "offline":
         consume_browser_errors(page, "net::ERR_INTERNET_DISCONNECTED")
-    page.close()

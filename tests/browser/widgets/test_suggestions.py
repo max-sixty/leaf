@@ -5,7 +5,6 @@ import re
 
 import pytest
 from interact_support import append_command
-from leaf import event_log as events_model
 from playwright.sync_api import expect
 from render_cases_interaction import (
     COLLAPSED_PAGE,
@@ -26,6 +25,7 @@ from render_harness import (
     leaf_page,
     margins_laid_out,
     open_page,
+    painted_words,
     panel_field,
     panel_menu,
     refuse,
@@ -37,6 +37,7 @@ from render_harness import (
 )
 
 from browser.widgets import expect_accept_all
+from leaf import event_log as events_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -143,18 +144,9 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve, reduced_moti
     # move off the card when that is the nearest room that covers no words.
     in_card_row = page.locator("[data-lf-margin-for='sug-in-card']")
     expect(in_card_row).to_have_attribute("data-lf-place", "pin")
-    stands_by = """row => {
+    stands_by = """(row, words) => {
       const edges = ({left, top, right, bottom}) => ({left, top, right, bottom});
       const change = row.lfTarget;
-      const words = [];
-      for (const node of [change, ...change.querySelectorAll('*')])
-        for (const text of node.childNodes)
-          if (text.nodeType === Node.TEXT_NODE && text.data.trim()) {
-            const range = document.createRange();
-            range.selectNodeContents(text);
-            words.push(...[...range.getClientRects()]
-              .filter((b) => b.width > 2 && b.height > 2).map(edges));
-          }
       const entries = [...row.querySelectorAll('.lf-margin-entry')]
         .filter((entry) => entry.checkVisibility())
         .map((entry) => edges(entry.getBoundingClientRect()));
@@ -171,7 +163,7 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve, reduced_moti
         inPage: r.right <= document.body.getBoundingClientRect().right,
       };
     }"""
-    placed = in_card_row.evaluate(stands_by)
+    placed = in_card_row.evaluate(stands_by, painted_words(page, "#sug-in-card"))
     assert placed == {
         "covers": 0,
         "touches": True,
@@ -186,7 +178,9 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve, reduced_moti
     )
     assert root_overflow(page) == 0
     for widget in ("sug-refill", "sug-in-card"):
-        placed = page.locator(f"[data-lf-margin-for='{widget}']").evaluate(stands_by)
+        placed = page.locator(f"[data-lf-margin-for='{widget}']").evaluate(
+            stands_by, painted_words(page, f"#{widget}")
+        )
         assert placed == {
             "covers": 0,
             "touches": True,
@@ -396,7 +390,7 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
     # move is one control against the other.
     box = "el => [el.offsetLeft, el.offsetTop, el.offsetWidth, el.offsetHeight]"
     before = accept.evaluate(box)
-    # The verb is discovery chrome; at rest the margin entry is the canonical circle.
+    # The verb is discovery chrome; at rest the margin entry is its icon alone.
     expect(accept.locator(".lf-margin-entry-icon")).to_have_attribute(
         "data-lf-icon", "check"
     )
@@ -614,7 +608,8 @@ def test_a_widget_naming_its_own_words_does_not_read_the_runtimes(browser, serve
             )
 
 
-def test_a_decided_change_folds_away_rather_than_vanishing(browser, serve):
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_decided_change_folds_away_rather_than_vanishing(engine, request, serve):
     """A decision may move the page; it may not teleport it.
 
     A block change is a struck old paragraph stacked over a tinted new one, and
@@ -631,8 +626,15 @@ def test_a_decided_change_folds_away_rather_than_vanishing(browser, serve):
     what the test proves is the shape of the motion and not how long the run took.
 
     An inline change is the test below: it has nothing to follow, and folding one would
-    be the harm rather than the fix."""
-    page = open_page(browser, serve(SHORT_SUGGESTION), init_script=HOLD_MOTION)
+    be the harm rather than the fix.
+
+    Firefox, which interpolates neither `calc-size()` nor `display`, folds from the
+    slot's measured height and keeps the retired slot drawn without the animation."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(SHORT_SUGGESTION),
+        init_script=HOLD_MOTION,
+    )
     old = page.locator("#sug lf-old")
     after = page.locator("#after")
     tall = old.evaluate("el => el.getBoundingClientRect().height")

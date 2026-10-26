@@ -17,9 +17,9 @@ from collections import deque
 from contextlib import ExitStack
 from pathlib import Path
 
-from leaf.codex import private_app_server
 from websockets.exceptions import ConnectionClosed
 
+from leaf.codex import private_app_server
 from leaf_dev.codex_task import Task, trust_plugin_hooks
 
 
@@ -105,7 +105,10 @@ def records_for(message: dict, session: str, final: str) -> list[dict]:
                 else {
                     "type": "tool_result",
                     "tool_use_id": item["id"],
-                    "content": json.dumps(item.get("result") or item.get("error")),
+                    # A result's content parts are the shape a Claude Code tool
+                    # result carries, so readers of either trace read them alike.
+                    "content": (item.get("result") or {}).get("content")
+                    or json.dumps(item.get("result") or item.get("error")),
                     "is_error": item["status"] != "completed",
                 }
             )

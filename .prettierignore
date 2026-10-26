@@ -1,12 +1,12 @@
 # Bundled JavaScript keeps the compiler's layout and minification.
-skills/leaf/assets/vendor/
-skills/leaf/kernel/**/*.js
-skills/leaf/packages/**/vendor/
+browser/vendor/
+dist/kernel/**/*.js
+packages/**/vendor/
 # Corpus markup is assembled verbatim; its registry uses multiline JSON arrays.
 examples/corpus.html
 examples/corpus.page/registry.json
 # Compiler paths keep the browser build's generated JSON layout.
-build/browser/tsconfig.paths.json
+browser/types/tsconfig.paths.json
 # Package locks, Tend workflows, recorded test output and the protocol baseline
 # keep their producers' bytes.
 **/pnpm-lock.yaml

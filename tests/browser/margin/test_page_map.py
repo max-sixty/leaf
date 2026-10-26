@@ -7,9 +7,6 @@ import pytest
 from axe_playwright_python.sync_playwright import Axe
 from click.testing import CliRunner
 from interact_support import append_carried_log_record
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATION_PAGE, PANEL_PAGE, REPORT_PAGE, live_url
 from render_cases_navigation import CHIPS, _publish, address_code, go_to_address
@@ -25,6 +22,7 @@ from render_harness import (
     open_page,
     panel_control,
     panel_settled,
+    panel_view,
     regions_side_by_side,
     resized,
     scroll_settled,
@@ -37,6 +35,9 @@ from browser.margin import (
     COMMENT_ON_OBLIGATION,
     DENSE_SUGGESTIONS_PAGE,
 )
+from leaf import cli as cli_model
+from leaf import event_log as events_model
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -145,7 +146,7 @@ PAGE_MAP_EVENTS = [
 ]
 
 
-def test_the_standing_obligation_marks_its_selected_margin_reading(browser, serve):
+def test_the_current_obligation_marks_its_selected_margin_reading(browser, serve):
     """The page and margin projections identify the same selected obligation."""
     page = open_page(browser, serve(OBLIGATION_PAGE))
     resized(page, 1440, 900)
@@ -160,7 +161,7 @@ def test_the_standing_obligation_marks_its_selected_margin_reading(browser, serv
     expect(first_marker).to_have_attribute("data-lf-target-selected", "")
     assert first_marker.evaluate(
         "marker => getComputedStyle(marker).borderTopColor"
-    ) == first.evaluate("ask => getComputedStyle(ask).outlineColor")
+    ) == first.evaluate("ask => getComputedStyle(ask, '::after').outlineColor")
     page.keyboard.press("m")
     expect(page.locator("#bracket-decision")).to_be_focused()
     expect(first_marker).not_to_have_attribute(
@@ -409,7 +410,7 @@ def test_page_map_preserves_opaque_contribution_identity_and_relation_targets(
     assert page.evaluate("() => window.lfIdentityActivations") == ["c", "b:c"]
 
 
-def test_page_map_keyed_reconciliation_preserves_user_standing(browser, serve):
+def test_page_map_keyed_reconciliation_preserves_user_current_location(browser, serve):
     """A synchronous inventory reorder retains its control, query, scroll, and scope."""
     fixture = leaf_page(
         "Keyed Page Map",
@@ -678,9 +679,7 @@ def test_the_chrome_names_an_obligation_by_its_question(browser, serve):
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     panel_settled(page, view="queue")
-    row = page.locator(
-        '.lf-fp-view[data-view="queue"]:not([data-leaving]) .lf-fp-on-item'
-    ).first
+    row = page.locator(f"{panel_view('queue')} .lf-fp-on-item").first
     # The card names the Ask by its question; its options stand below as answers.
     expect(row.locator(".lf-fp-on-title, .lf-fp-prompt").first).to_have_text(
         "Which jobs are worth starting?"
@@ -1092,6 +1091,8 @@ def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve, ope
         "min-height", "44px"
     )
     assert page.evaluate("() => document.scrollingElement.scrollTop") == before
+    # Contrast is read on the sheet at rest, once its opening fade has ended.
+    dialog.evaluate("d => Promise.all(d.getAnimations().map((a) => a.finished))")
 
     result = Axe().run(
         page,
@@ -1222,7 +1223,7 @@ def test_a_live_version_retargets_an_open_margin_preview(browser, serve):
     close = page.locator(".lf-margin-preview-close")
     close.focus()
     expect(close).to_be_focused()
-    # The card's thread, which the user stands in, marks its element.
+    # The card's thread, which the user is located in, marks its element.
     mark = page.locator('.lf-visual-mark-here[data-for="bracket"]')
     expect(mark).to_be_visible()
 

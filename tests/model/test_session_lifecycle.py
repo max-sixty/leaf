@@ -20,6 +20,7 @@ from interact_support import (
     wait_for,
     write_record,
 )
+
 from leaf import codex as codex_model
 from leaf import event_log as events_model
 from leaf import files as files_model
@@ -54,7 +55,7 @@ def test_session_end_releases_the_page_and_its_session_server_retires(claimed):
     assert hosting_model.start_server(
         claimed, harness=harness_model.session_harness()
     )  # a real detached server to clean up
-    session_model.cmd_waiting(claimed, "")
+    session_model.cmd_waiting(claimed)
     hooks_model.cmd_hook(
         "claude-code", {"hook_event_name": "SessionEnd", "session_id": "s1"}
     )
@@ -348,47 +349,39 @@ def test_reconnect_notices_respect_intent_and_the_exact_page_owner(page_dir, cap
         (page_dir / "events.jsonl").write_bytes(events)
         (page_dir / "preview.json").unlink(missing_ok=True)
 
-    # An eligible outage is the positive control, but a fresh startup still has
-    # no resumed page to reconnect; the following resume sees it.
+    # Retained ownership and current health decide recovery, whichever native
+    # SessionStart source brought the same session back to its page.
     record_claim(page_dir, id="reconnect-control")
     write_record(page_dir / "service.json", service)
-    hooks_model.cmd_hook(
-        "claude-code",
-        {
-            "hook_event_name": "SessionStart",
-            "session_id": "reconnect-control",
-            "source": "startup",
-        },
-    )
-    assert capsys.readouterr().out == ""
-    hooks_model.cmd_hook(
-        "claude-code",
-        {
-            "hook_event_name": "SessionStart",
-            "session_id": "reconnect-control",
-            "source": "resume",
-        },
-    )
-    assert (
-        f"leaf server start {shlex.quote(str(page_dir.resolve()))}"
-        in json.loads(capsys.readouterr().out)["hookSpecificOutput"][
-            "additionalContext"
-        ]
-    )
+    for source in ("startup", "compact", "resume"):
+        hooks_model.cmd_hook(
+            "claude-code",
+            {
+                "hook_event_name": "SessionStart",
+                "session_id": "reconnect-control",
+                "source": source,
+            },
+        )
+        assert (
+            f"leaf server start {shlex.quote(str(page_dir.resolve()))}"
+            in json.loads(capsys.readouterr().out)["hookSpecificOutput"][
+                "additionalContext"
+            ]
+        ), source
 
 
 def test_session_end_cannot_release_a_page_claimed_by_its_successor(page_dir):
     serving(page_dir, 41000, "session")
     record_claim(page_dir, id="predecessor")
     record_claim(page_dir, id="successor")
-    session_model.cmd_waiting(page_dir, "successor is reviewing")
+    session_model.cmd_waiting(page_dir)
     hooks_model.cmd_hook(
         "claude-code", {"hook_event_name": "SessionEnd", "session_id": "predecessor"}
     )
     assert service_model.page_claim(page_dir)["id"] == "successor"
     assert service_model.claim_is_active(service_model.page_claim(page_dir))
     assert read_record(page_dir / "service.json")["enabled"] is True
-    assert declared(page_dir)["detail"] == "successor is reviewing"
+    assert declared(page_dir)["state"] == "waiting"
     assert server_model.running_server(page_dir)
 
 
@@ -457,7 +450,7 @@ def test_cold_session_end_does_not_wait_for_a_page_transaction(claimed):
             [
                 sys.executable,
                 "-S",
-                str(PLUGIN_ROOT / "skills/leaf/scripts/leaf/state.py"),
+                str(PLUGIN_ROOT / "src/leaf/state.py"),
             ],
             input=json.dumps({"hook_event_name": "SessionEnd", "session_id": "s1"}),
             text=True,

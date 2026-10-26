@@ -10,8 +10,6 @@ from interact_support import (
     append_command,
     declare_work,
 )
-from leaf import render_checks as render_checks_model
-from leaf.leases import release_lease, take_lease, waiter_lease_path
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
@@ -23,15 +21,16 @@ from render_harness import (
     leaf_page,
     nudge,
     open_page,
+    open_threads,
     panel_field,
-    panel_settled,
     refuse,
     told,
     watched,
     write,
 )
 
-from browser.threads import open_threads
+from leaf import render_checks as render_checks_model
+from leaf.leases import release_lease, take_lease, waiter_lease_path
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -42,8 +41,7 @@ OFFLINE = re.compile(r"^Server offline")
 def test_a_quiet_page_reads_only_freshness_and_hears_changes(browser, serve):
     """Quiet freshness looks do not rebuild state; an external append does."""
     page = open_page(browser, serve(LONG_PAGE))
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    open_threads(page)
     asked = _traffic(page).asked
     page.wait_for_timeout(3000)
     assert _traffic(page).asked == asked, "a quiet page asked for state on a timer"
@@ -387,14 +385,23 @@ def test_a_pending_offline_paint_does_not_block_a_recovery_read(browser, serve):
     page = open_page(browser, serve(LONG_PAGE))
     page.evaluate(
         """async () => {
-          const {watchProjection, clockValue} = await window.__lfWidgetApi();
+          const {LeafElement, noChange, clockValue} = await window.__lfWidgetApi();
           window.probeVersion = 0;
           window.probePaints = 0;
-          watchProjection(document.body, () => {
-            clockValue(() => window.probeVersion);
-            window.probePaints += 1;
-            return new Promise(() => {});
-          }).refresh();
+          customElements.define('lf-pending-paint', class extends LeafElement {
+            render() {
+              clockValue(() => window.probeVersion);
+              window.probePaints += 1;
+              return noChange;
+            }
+            // A drawing that never finishes.
+            getUpdateComplete() {
+              return new Promise(() => {});
+            }
+          });
+          const probe = document.createElement('lf-pending-paint');
+          document.body.append(probe);
+          await new Promise((resolve) => setTimeout(resolve));
           window.probeVersion = 1;
         }"""
     )
@@ -418,8 +425,7 @@ def test_a_page_whose_read_failed_asks_again_on_its_own(browser, serve):
     spacing a failed exchange has always had. Without that a page would sit under
     an offline status until something else happened to it."""
     page = open_page(browser, serve(LONG_PAGE))
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    open_threads(page)
     page.route("**/api/state*", refuse)
     with page.expect_event(
         "requestfailed", predicate=lambda request: "/api/state" in request.url

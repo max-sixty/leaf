@@ -1,0 +1,292 @@
+{
+  "lf-playground": {
+    "description": "A preview with controls, where the user compares candidates, tunes a configuration, and sends it.",
+    "x-instructions": "Holds one `lf-playground-preview` and one `lf-playground-output`.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "contract": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*(?:/[a-z0-9][a-z0-9-]*)*$"
+      },
+      "submit-label": {
+        "type": "string",
+        "minLength": 1
+      },
+      "restated": {
+        "type": "boolean"
+      }
+    },
+    "required": ["id"],
+    "additionalProperties": false,
+    "x-content": "members",
+    "x-upgrade": true,
+    "x-awaits": {
+      "value": "choose",
+      "answered": {
+        "choose": {}
+      }
+    },
+    "x-state": {
+      "choose": {
+        "contract": { "field": "values", "attribute": "contract" },
+        "detail": {
+          "type": "object",
+          "properties": {
+            "values": {
+              "type": "object",
+              "minProperties": 1,
+              "propertyNames": {
+                "pattern": "^[a-z0-9][a-z0-9-]*$"
+              },
+              "additionalProperties": {}
+            },
+            "instruction": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": ["values", "instruction"],
+          "additionalProperties": false
+        },
+        "unit": "widget"
+      }
+    },
+    "x-example": "<lf-ask id=\"notification-ask\"> <h2>Which deployment notification should we build?</h2> <lf-playground id=\"notification-playground\" submit-label=\"Create notification\" data-width=\"available\" > <lf-playground-control name=\"radius\" label=\"Corner radius\" kind=\"range\" value=\"10\" min=\"0\" max=\"24\" step=\"1\" unit=\"px\" ></lf-playground-control> <lf-playground-control name=\"compact\" label=\"Compact spacing\" kind=\"toggle\" value=\"false\" ></lf-playground-control> <lf-playground-preset label=\"Compact\"> <lf-playground-setting for=\"radius\" value=\"4\"></lf-playground-setting> <lf-playground-setting for=\"compact\" value=\"true\"></lf-playground-setting> </lf-playground-preset> <lf-playground-preview> <lf-playground-control name=\"format\" label=\"Notification\" kind=\"choice\" value=\"banner\" > <lf-playground-choice value=\"banner\" label=\"Banner\"> <article class=\"notification-candidate\"> <h3>Checkout deployed</h3> <p>Review the deployment run.</p> </article> </lf-playground-choice> <lf-playground-choice value=\"status strip\" label=\"Status strip\"> <article class=\"notification-candidate\"> Checkout \u00b7 deployed \u00b7 18 checks passed </article> </lf-playground-choice> </lf-playground-control> </lf-playground-preview> <lf-playground-output> Build the <lf-playground-value for=\"format\"></lf-playground-value> notification with <lf-playground-value for=\"radius\"></lf-playground-value> corners and compact spacing set to <lf-playground-value for=\"compact\"></lf-playground-value>. Replace the notification component and show me its browser test. </lf-playground-output> </lf-playground> </lf-ask>",
+    "x-initial": "/vendor/lf-playground-initial.js"
+  },
+  "lf-playground-control": {
+    "description": "One typed input in a playground.",
+    "x-instructions": "Use a stable `name` for the submitted field and a `label` for the control. Write its initial `value` as a string: a finite number for range, true or false for toggle, one child's value for choice, a six-digit hex color for color, or any text for text. A range needs `max`; `min` defaults to 0 and `step` to 1. A range's `unit` is appended to its value in its CSS custom property and in `lf-playground-value`, while its data attribute and submitted value stay plain numbers. A text control's custom property is a quoted CSS string. Only a choice control contains `lf-playground-choice` children. To select among visible candidates, put their markup in those children and this control in `lf-playground-preview`; the candidate is its own selector. A control that is a direct child of `lf-playground` stands in the rail; one inside `lf-playground-preview` stands where it is written.",
+    "x-name": "label",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "name": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "label": {
+        "type": "string",
+        "minLength": 1
+      },
+      "kind": {
+        "enum": ["range", "toggle", "choice", "color", "text"]
+      },
+      "appearance": {
+        "const": "select"
+      },
+      "value": {
+        "type": "string"
+      },
+      "min": {
+        "type": "string",
+        "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$"
+      },
+      "max": {
+        "type": "string",
+        "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$"
+      },
+      "step": {
+        "type": "string",
+        "pattern": "^(?:0\\.[0-9]*[1-9][0-9]*|[1-9][0-9]*(?:\\.[0-9]+)?)$"
+      },
+      "unit": {
+        "type": "string"
+      },
+      "placeholder": {
+        "type": "string"
+      }
+    },
+    "required": ["name", "label", "kind", "value"],
+    "allOf": [
+      {
+        "if": { "required": ["appearance"] },
+        "then": { "properties": { "kind": { "const": "choice" } } }
+      },
+      {
+        "if": {
+          "properties": {
+            "kind": {
+              "const": "range"
+            }
+          },
+          "required": ["kind"]
+        },
+        "then": {
+          "properties": {
+            "value": {
+              "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$"
+            }
+          },
+          "required": ["max"]
+        }
+      },
+      {
+        "if": {
+          "properties": {
+            "kind": {
+              "const": "toggle"
+            }
+          },
+          "required": ["kind"]
+        },
+        "then": {
+          "properties": {
+            "value": {
+              "enum": ["true", "false"]
+            }
+          }
+        }
+      },
+      {
+        "if": {
+          "properties": {
+            "kind": {
+              "const": "color"
+            }
+          },
+          "required": ["kind"]
+        },
+        "then": {
+          "properties": {
+            "value": {
+              "pattern": "^#[0-9a-fA-F]{6}$"
+            }
+          }
+        }
+      }
+    ],
+    "additionalProperties": false,
+    "x-unique": { "name": "lf-playground" },
+    "x-owners": ["lf-playground"],
+    "x-within": ["lf-playground-preview"],
+    "x-content": "members",
+    "x-upgrade": false
+  },
+  "lf-playground-choice": {
+    "description": "One selectable value, optionally containing the preview itself.",
+    "x-instructions": "Use value for the submitted value and label for the radio label. Put candidate markup inside the choice when the user should choose the preview itself; its interactive content stays separate from the radio label. Place that choice control inside lf-playground-preview, without repeating it in the rail.",
+    "x-name": "label",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "value": {
+        "type": "string",
+        "minLength": 1
+      },
+      "label": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "required": ["value", "label"],
+    "additionalProperties": false,
+    "x-unique": { "value": "lf-playground-control" },
+    "x-owners": ["lf-playground-control"],
+    "x-content": "markup",
+    "x-upgrade": false
+  },
+  "lf-playground-preset": {
+    "description": "A named partial playground configuration the user can apply at once.",
+    "x-instructions": "A control the preset has no setting for keeps its current value.",
+    "x-name": "label",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "label": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "required": ["label"],
+    "additionalProperties": false,
+    "x-owners": ["lf-playground"],
+    "x-content": "members",
+    "x-upgrade": false
+  },
+  "lf-playground-setting": {
+    "description": "One control value applied by a playground preset.",
+    "x-instructions": "Set for to a control in the same playground and write value in that control's authored string form.",
+    "type": "object",
+    "properties": {
+      "for": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "value": {
+        "type": "string"
+      }
+    },
+    "required": ["for", "value"],
+    "additionalProperties": false,
+    "x-refers": {
+      "for": { "tag": "lf-playground-control", "key": "name" }
+    },
+    "x-unique": { "for": "lf-playground-preset" },
+    "x-owners": ["lf-playground-preset"],
+    "x-content": "empty",
+    "x-upgrade": false
+  },
+  "lf-playground-preview": {
+    "description": "The live preview the user operates in a playground, such as the candidates being compared.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      }
+    },
+    "additionalProperties": false,
+    "x-owners": ["lf-playground"],
+    "x-content": "markup",
+    "x-upgrade": false
+  },
+  "lf-playground-output": {
+    "description": "The task instruction displayed by a playground and sent with the chosen configuration.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      }
+    },
+    "additionalProperties": false,
+    "x-owners": ["lf-playground"],
+    "x-content": "markup",
+    "x-upgrade": true
+  },
+  "lf-playground-value": {
+    "description": "A live scalar value embedded in a playground instruction.",
+    "x-instructions": "Set for to a control in the enclosing playground. Numeric values already include the control's unit.",
+    "type": "object",
+    "properties": {
+      "for": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      }
+    },
+    "required": ["for"],
+    "additionalProperties": false,
+    "x-refers": {
+      "for": { "tag": "lf-playground-control", "key": "name" }
+    },
+    "x-owners": ["lf-playground-output"],
+    "x-within": ["lf-playground-output"],
+    "x-content": "empty",
+    "x-inline": true,
+    "x-upgrade": false
+  }
+}

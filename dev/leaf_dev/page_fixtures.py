@@ -10,21 +10,21 @@ content inputs in their callers.
 
 import functools
 import json
+import os
 import shutil
+import subprocess
+import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Protocol
 
-from leaf.delivery import record_receipt
 from leaf.event_log import read_events
 from leaf.interaction_log import append_interactions
 from leaf.media import media_name
 from leaf.revision_artifact import Resource, capture_artifact, capture_local_resource
 from leaf.schema import MEDIA_DIR, MEDIA_TYPES
-from leaf.service import PageTransaction
 from leaf.structure import SourceDocument
-
 from leaf_dev import ROOT, docs
 from leaf_dev.example_data import (
     data_operations,
@@ -46,6 +46,8 @@ class PageFixture:
     data: tuple[dict, ...]
     versions: tuple[Path, ...]
     seed: Path | None
+    runtime: Path
+    env: dict[str, str] | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -145,9 +147,21 @@ def authored_markup(path: Path, assets: Path | None = None) -> str:
     return docs.compose(path, markup, assets=assets)
 
 
-def composition_inputs(path: Path) -> list[Path]:
-    """The files besides `path` and the asset pin that `authored_markup` reads."""
-    return docs.inputs(path) if path.parent == docs.DOCS else []
+def composition_inputs(path: Path) -> tuple[list[Path], list[Path]]:
+    """Composition inputs besides `path` and the asset pin, including discovery trees."""
+    from leaf_dev.commands import corpus
+
+    if root := corpus.source_root(path):
+        return corpus.composition_inputs(root)
+    return (docs.inputs(path) if path.parent == docs.DOCS else []), []
+
+
+def refresh_composition(source: Path) -> None:
+    """Materialize a generated fixture before reading its markup and companions."""
+    from leaf_dev.commands import corpus
+
+    if root := corpus.source_root(source):
+        corpus.generate(root)
 
 
 def read_fixture(
@@ -156,7 +170,8 @@ def read_fixture(
     """Read authored companions using the runtime that will consume produced data.
 
     Source and runtime are independent: a paired preview can share one authored input
-    while each arm supplies its own package producer and matching data contract.
+    while each arm supplies its own package producer and matching data contract, and
+    acknowledges the seed with its own Leaf (`_acknowledge_seed`).
     """
     seed = seed_log(source)
     files = page_files(source)
@@ -168,11 +183,33 @@ def read_fixture(
         data=tuple(data_operations(source, runtime=runtime, env=env)),
         versions=tuple(example_versions(source)),
         seed=seed if seed.is_file() else None,
+        runtime=runtime,
+        env=env,
     )
 
 
+@functools.cache
+def _configuration_home() -> tempfile.TemporaryDirectory:
+    """Keep one empty configuration directory alive for this builder process."""
+    return tempfile.TemporaryDirectory(prefix="leaf-fixture-config-")
+
+
+def fixture_environment(base: dict[str, str] | None = None) -> dict[str, str]:
+    """Build authored fixtures without the developer's personal configuration.
+
+    Each CLI runner applies this at its subprocess boundary, including site templates
+    and preview refreshes outside prepare_page. Keep identities and state selected by
+    the runner; only configuration is empty. This also works with older comparison
+    arms, whose CLI need not know any current theme-selection options.
+    """
+    return {
+        **(os.environ if base is None else base),
+        "XDG_CONFIG_HOME": _configuration_home().name,
+    }
+
+
 def package_selection_args(packages) -> list[str]:
-    """Render one package selection, including the explicit empty layer."""
+    """The source's explicit content packages, including an empty selection."""
     return [arg for package in packages for arg in ("--package", package)] or [
         "--no-packages"
     ]
@@ -285,12 +322,32 @@ def _seed_log(fixture: PageFixture, page: Path) -> None:
         log.write(fixture.seed.read_text(encoding="utf-8"))
 
 
+# Run by the fixture's runtime, so its own admission writes the receipt: another
+# Leaf refuses a page vendored at a different protocol, and would write the receipt
+# in its own shape rather than the page's.
+ACKNOWLEDGE_SEED = """
+import sys
+from pathlib import Path
+from leaf.delivery import record_receipt
+from leaf.service import PageTransaction
+
+with PageTransaction(Path(sys.argv[1])) as transaction:
+    if transaction.events:
+        record_receipt(transaction, transaction.events[-1]["seq"])
+"""
+
+
 def _acknowledge_seed(fixture: PageFixture, page: Path) -> None:
     if fixture.seed is None:
         return
-    with PageTransaction(page) as transaction:
-        if transaction.events:
-            record_receipt(transaction, transaction.events[-1]["seq"])
+    subprocess.run(
+        [
+            *("uv", "run", "-q", "--no-dev", "--project", str(fixture.runtime)),
+            *("python", "-c", ACKNOWLEDGE_SEED, str(page)),
+        ],
+        env=fixture.env,
+        check=True,
+    )
 
 
 def prepare_page(
@@ -355,7 +412,7 @@ def prepare_page(
     if seed_log:
         _acknowledge_seed(fixture, page)
     if final_status is not None:
-        run_leaf("status", str(page), final_status)
+        run_leaf("page", "close" if final_status == "idle" else "open", str(page))
     return PreparedPage(
         data_sources=len({operation["source"] for operation in fixture.data}),
         versions=len(fixture.versions),

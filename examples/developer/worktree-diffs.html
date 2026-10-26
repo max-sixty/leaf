@@ -1,0 +1,935 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>Expandable worktree diffs</title>
+    <meta
+      name="description"
+      content="Review supplied worktrees in expandable rows, with contextual diffs, paths, commit details and optional agent commentary."
+    />
+    <style>
+      #worktree-example-intro h1 {
+        font-size: 32px;
+        letter-spacing: -0.025em;
+        margin: 0 0 8px;
+      }
+      #worktree-example-intro {
+        margin-bottom: 24px;
+      }
+      #worktree-example-intro p {
+        font: 14px/1.55 var(--sans);
+        color: var(--muted);
+        margin: 0;
+        max-width: 75ch;
+      }
+      .worktree-example-status {
+        color: var(--muted);
+        display: block;
+        margin-top: 4px;
+        font-size: 12px;
+      }
+      .worktree-example-cases {
+        margin-top: 32px;
+      }
+      .worktree-example-cases > summary {
+        font: 14px var(--sans);
+        color: var(--muted);
+      }
+      .worktree-example-cases section {
+        margin-block-start: 24px;
+      }
+      .worktree-example-cases h2 {
+        font-size: 20px;
+      }
+      .worktree-example-cases > p {
+        font: 13px var(--sans);
+      }
+      @media (max-width: 600px) {
+        #worktree-example-intro h1 {
+          font-size: 26px;
+        }
+        #worktree-example-intro {
+          margin-bottom: 20px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="layout-column">
+      <header id="worktree-example-intro" class="worktree-example-intro">
+        <h1>Worktree diffs</h1>
+        <p>
+          Open a worktree to read its changes. Keep several open to compare them. These
+          paths, commits and patches are illustrative snapshots.
+        </p>
+      </header>
+      <section id="worktree-example-try" aria-label="Four worktrees">
+        <lf-worktree-diffs id="worktree-example-workbench">
+          <lf-worktree
+            id="worktree-example-worktree-0"
+            label="retain-drafts"
+            branch="codex/retain-drafts"
+            path="/Users/maximilian/workspace/leaf.retain-drafts"
+            head="c8ebd603a4646f4c771bc7076a2ba4830b2def29"
+            status="changed"
+            files="2"
+            additions="7"
+            deletions="1"
+            open
+          >
+            <p id="worktree-example-commit-0">
+              <strong>Keep reply drafts keyed by thread</strong>
+              <span class="worktree-example-status"
+                >2 modified · 1 untracked (excluded)</span
+              >
+            </p>
+            <details id="worktree-example-snapshot-0">
+              <summary>Snapshot details · main merge-base → working tree</summary>
+              <dl>
+                <dt>Repository</dt>
+                <dd><code>/Users/maximilian/workspace/leaf</code></dd>
+                <dt>Current commit</dt>
+                <dd><code>c8ebd603a4646f4c771bc7076a2ba4830b2def29</code></dd>
+                <dt>Comparison base</dt>
+                <dd><code>6f6d349144225c431962eb2ddab1cf55a82b6707</code></dd>
+                <dt>Captured</dt>
+                <dd>22 Oct 2026, 10:00 PT · illustrative snapshot</dd>
+                <dt>Scope</dt>
+                <dd>
+                  Tracked changes from the merge-base, including staged and unstaged
+                  edits. Untracked files excluded.
+                </dd>
+              </dl>
+            </details>
+            <aside id="worktree-example-note-0">
+              <p>
+                <strong>Agent commentary.</strong> Keep the reply draft when switching
+                threads. Restore it by thread identity, so a reply never appears in the
+                wrong composer.
+              </p>
+            </aside>
+            <lf-diff id="worktree-example-patch-0">
+              <pre>
+diff --git a/runtime/drafts.js b/runtime/drafts.js
+index 7e24c4f..6b21e75 100644
+--- a/runtime/drafts.js
++++ b/runtime/drafts.js
+@@ -5,7 +5,7 @@ export function saveDraft(thread, text) {
+ }
+&#32;
+ export function draft(thread) {
+-  return activeDraft;
++  return drafts.get(thread.id) ?? "";
+ }
+&#32;
+ export function clearDraft(thread) {
+diff --git a/tests/drafts.test.js b/tests/drafts.test.js
+index 003e396..8eb2121 100644
+--- a/tests/drafts.test.js
++++ b/tests/drafts.test.js
+@@ -3,3 +3,9 @@ import { openThread, typeReply } from "./helpers.js";
+ test("opens a composer", () =&gt; {
+   expect(openThread("a").draft).toBe("");
+ });
++
++test("keeps each thread draft", () =&gt; {
++  typeReply("a", "Keep this text");
++  openThread("b");
++  expect(openThread("a").draft).toBe("Keep this text");
++});
+</pre>
+            </lf-diff>
+          </lf-worktree>
+          <lf-worktree
+            id="worktree-example-worktree-1"
+            label="file-navigation"
+            branch="codex/file-navigation"
+            path="/Users/maximilian/workspace/leaf.file-navigation"
+            head="e1550c3bc496aebce09c28eb0e14a45a8e9708ac"
+            status="changed"
+            files="2"
+            additions="3"
+            deletions="2"
+          >
+            <p id="worktree-example-commit-1">
+              <strong>Preserve the selected file after filtering</strong>
+              <span class="worktree-example-status">1 staged · 1 modified</span>
+            </p>
+            <details id="worktree-example-snapshot-1">
+              <summary>Snapshot details · main merge-base → working tree</summary>
+              <dl>
+                <dt>Repository</dt>
+                <dd><code>/Users/maximilian/workspace/leaf</code></dd>
+                <dt>Current commit</dt>
+                <dd><code>e1550c3bc496aebce09c28eb0e14a45a8e9708ac</code></dd>
+                <dt>Comparison base</dt>
+                <dd><code>6f6d349144225c431962eb2ddab1cf55a82b6707</code></dd>
+                <dt>Captured</dt>
+                <dd>22 Oct 2026, 10:00 PT · illustrative snapshot</dd>
+                <dt>Scope</dt>
+                <dd>
+                  Tracked changes from the merge-base, including staged and unstaged
+                  edits. Untracked files excluded.
+                </dd>
+              </dl>
+            </details>
+            <aside id="worktree-example-note-1">
+              <p>
+                <strong>Agent commentary.</strong> Keep the selected file visible after
+                filtering. The diff owns file identity; the navigator uses the same key.
+              </p>
+            </aside>
+            <lf-diff id="worktree-example-patch-1">
+              <pre>
+diff --git a/widgets/file-tree.js b/widgets/file-tree.js
+index 1f64b19..b7ca4fe 100644
+--- a/widgets/file-tree.js
++++ b/widgets/file-tree.js
+@@ -1,3 +1,3 @@
+ function select(file) {
+-  activePath = file.path;
++  navigateToDatum(target, file.key);
+ }
+diff --git a/widgets/diff.js b/widgets/diff.js
+index 9db353a..e392d0b 100644
+--- a/widgets/diff.js
++++ b/widgets/diff.js
+@@ -1 +1,2 @@
+-const selected = files[0];
++const selected = files.find(file =&gt; file.key === current)
++  ?? files[0];
+</pre>
+            </lf-diff>
+          </lf-worktree>
+          <lf-worktree
+            id="worktree-example-worktree-2"
+            label="compact-summary"
+            branch="codex/compact-summary"
+            path="/Users/maximilian/workspace/worktrunk.compact-summary"
+            head="243bd04ef5473061535abd2391bf9a26c6c5f0fa"
+            status="changed"
+            files="1"
+            additions="1"
+            deletions="1"
+          >
+            <p id="worktree-example-commit-2">
+              <strong>Show added and removed line counts</strong>
+              <span class="worktree-example-status">1 modified</span>
+            </p>
+            <details id="worktree-example-snapshot-2">
+              <summary>Snapshot details · main merge-base → working tree</summary>
+              <dl>
+                <dt>Repository</dt>
+                <dd><code>/Users/maximilian/workspace/worktrunk</code></dd>
+                <dt>Current commit</dt>
+                <dd><code>243bd04ef5473061535abd2391bf9a26c6c5f0fa</code></dd>
+                <dt>Comparison base</dt>
+                <dd><code>214d8e109fd9abcdac34c52735a359ed64b96c57</code></dd>
+                <dt>Captured</dt>
+                <dd>22 Oct 2026, 10:00 PT · illustrative snapshot</dd>
+                <dt>Scope</dt>
+                <dd>
+                  Tracked changes from the merge-base, including staged and unstaged
+                  edits. Untracked files excluded.
+                </dd>
+              </dl>
+            </details>
+
+            <lf-diff id="worktree-example-patch-2">
+              <pre>
+diff --git a/src/summary.rs b/src/summary.rs
+index 0f0860f..9374881 100644
+--- a/src/summary.rs
++++ b/src/summary.rs
+@@ -1,3 +1,3 @@
+ fn summary(added: usize, removed: usize) -&gt; String {
+-    format!("{} lines", added - removed)
++    format!("+{added} -{removed}")
+ }
+</pre>
+            </lf-diff>
+          </lf-worktree>
+          <lf-worktree
+            id="worktree-example-worktree-3"
+            label="docs-wording"
+            branch="codex/docs-wording"
+            path="/Users/maximilian/workspace/leaf.docs-wording"
+            head="fd2d11d6a89297dd9101a6dddf55977c8bdc33fd"
+            status="clean"
+            files="0"
+            additions="0"
+            deletions="0"
+          >
+            <p id="worktree-example-commit-3">
+              <strong>Clarify page authoring examples</strong>
+              <span class="worktree-example-status">Clean</span>
+            </p>
+            <details id="worktree-example-snapshot-3">
+              <summary>Snapshot details · main merge-base → working tree</summary>
+              <dl>
+                <dt>Repository</dt>
+                <dd><code>/Users/maximilian/workspace/leaf</code></dd>
+                <dt>Current commit</dt>
+                <dd><code>fd2d11d6a89297dd9101a6dddf55977c8bdc33fd</code></dd>
+                <dt>Comparison base</dt>
+                <dd><code>6f6d349144225c431962eb2ddab1cf55a82b6707</code></dd>
+                <dt>Captured</dt>
+                <dd>22 Oct 2026, 10:00 PT · illustrative snapshot</dd>
+                <dt>Scope</dt>
+                <dd>
+                  Tracked changes from the merge-base, including staged and unstaged
+                  edits. Untracked files excluded.
+                </dd>
+              </dl>
+            </details>
+            <aside id="worktree-example-note-3">
+              <p>
+                <strong>Agent commentary.</strong> No changes relative to the supplied
+                base. Keep this worktree visible so the set is accounted for.
+              </p>
+            </aside>
+            <p>No changes against this base.</p>
+          </lf-worktree>
+        </lf-worktree-diffs>
+      </section>
+      <details id="worktree-example-cases" class="worktree-example-cases">
+        <summary>Try other sets · one, two, eight, or empty</summary>
+        <p>
+          These examples use the same widget. The larger set includes a binary change, a
+          long branch name, and an unavailable snapshot.
+        </p>
+        <section id="worktree-example-single-case">
+          <h2>One worktree</h2>
+          <lf-worktree-diffs id="worktree-example-single-workbench">
+            <lf-worktree
+              id="worktree-example-single-worktree-0"
+              label="retain-drafts"
+              branch="codex/retain-drafts"
+              path="/Users/maximilian/workspace/leaf.retain-drafts"
+              head="c8ebd603a4646f4c771bc7076a2ba4830b2def29"
+              status="changed"
+              files="2"
+              additions="7"
+              deletions="1"
+              open
+            >
+              <p id="worktree-example-single-commit-0">
+                <strong>Keep reply drafts keyed by thread</strong>
+                <span class="worktree-example-status"
+                  >2 modified · 1 untracked (excluded)</span
+                >
+              </p>
+              <details id="worktree-example-single-snapshot-0">
+                <summary>Snapshot details · main merge-base → working tree</summary>
+                <dl>
+                  <dt>Repository</dt>
+                  <dd><code>/Users/maximilian/workspace/leaf</code></dd>
+                  <dt>Current commit</dt>
+                  <dd><code>c8ebd603a4646f4c771bc7076a2ba4830b2def29</code></dd>
+                  <dt>Comparison base</dt>
+                  <dd><code>6f6d349144225c431962eb2ddab1cf55a82b6707</code></dd>
+                  <dt>Captured</dt>
+                  <dd>22 Oct 2026, 10:00 PT · illustrative snapshot</dd>
+                  <dt>Scope</dt>
+                  <dd>
+                    Tracked changes from the merge-base, including staged and unstaged
+                    edits. Untracked files excluded.
+                  </dd>
+                </dl>
+              </details>
+              <aside id="worktree-example-single-note-0">
+                <p>
+                  <strong>Agent commentary.</strong> Keep the reply draft when switching
+                  threads. Restore it by thread identity, so a reply never appears in
+                  the wrong composer.
+                </p>
+              </aside>
+              <lf-diff id="worktree-example-single-patch-0">
+                <pre>
+diff --git a/runtime/drafts.js b/runtime/drafts.js
+index 7e24c4f..6b21e75 100644
+--- a/runtime/drafts.js
++++ b/runtime/drafts.js
+@@ -5,7 +5,7 @@ export function saveDraft(thread, text) {
+ }
+&#32;
+ export function draft(thread) {
+-  return activeDraft;
++  return drafts.get(thread.id) ?? "";
+ }
+&#32;
+ export function clearDraft(thread) {
+diff --git a/tests/drafts.test.js b/tests/drafts.test.js
+index 003e396..8eb2121 100644
+--- a/tests/drafts.test.js
++++ b/tests/drafts.test.js
+@@ -3,3 +3,9 @@ import { openThread, typeReply } from "./helpers.js";
+ test("opens a composer", () =&gt; {
+   expect(openThread("a").draft).toBe("");
+ });
++
++test("keeps each thread draft", () =&gt; {
++  typeReply("a", "Keep this text");
++  openThread("b");
++  expect(openThread("a").draft).toBe("Keep this text");
++});
+</pre>
+              </lf-diff>
+            </lf-worktree>
+          </lf-worktree-diffs>
+        </section>
+        <section id="worktree-example-pair-case">
+          <h2>Two worktrees</h2>
+          <lf-worktree-diffs id="worktree-example-pair-workbench">
+            <lf-worktree
+              id="worktree-example-pair-worktree-0"
+              label="retain-drafts"
+              branch="codex/retain-drafts"
+              path="/Users/maximilian/workspace/leaf.retain-drafts"
+              head="c8ebd603a4646f4c771bc7076a2ba4830b2def29"
+              status="changed"
+              files="2"
+              additions="7"
+              deletions="1"
+            >
+              <p id="worktree-example-pair-commit-0">
+                <strong>Keep reply drafts keyed by thread</strong>
+                <span class="worktree-example-status"
+                  >2 modified · 1 untracked (excluded)</span
+                >
+              </p>
+              <details id="worktree-example-pair-snapshot-0">
+                <summary>Snapshot details · main merge-base → working tree</summary>
+                <dl>
+                  <dt>Repository</dt>
+                  <dd><code>/Users/maximilian/workspace/leaf</code></dd>
+                  <dt>Current commit</dt>
+                  <dd><code>c8ebd603a4646f4c771bc7076a2ba4830b2def29</code></dd>
+                  <dt>Comparison base</dt>
+                  <dd><code>6f6d349144225c431962eb2ddab1cf55a82b6707</code></dd>
+                  <dt>Captured</dt>
+                  <dd>22 Oct 2026, 10:00 PT · illustrative snapshot</dd>
+                  <dt>Scope</dt>
+                  <dd>
+                    Tracked changes from the merge-base, including staged and unstaged
+                    edits. Untracked files excluded.
+                  </dd>
+                </dl>
+              </details>
+              <aside id="worktree-example-pair-note-0">
+                <p>
+                  <strong>Agent commentary.</strong> Keep the reply draft when switching
+                  threads. Restore it by thread identity, so a reply never appears in
+                  the wrong composer.
+                </p>
+              </aside>
+              <lf-diff id="worktree-example-pair-patch-0">
+                <pre>
+diff --git a/runtime/drafts.js b/runtime/drafts.js
+index 7e24c4f..6b21e75 100644
+--- a/runtime/drafts.js
++++ b/runtime/drafts.js
+@@ -5,7 +5,7 @@ export function saveDraft(thread, text) {
+ }
+&#32;
+ export function draft(thread) {
+-  return activeDraft;
++  return drafts.get(thread.id) ?? "";
+ }
+&#32;
+ export function clearDraft(thread) {
+diff --git a/tests/drafts.test.js b/tests/drafts.test.js
+index 003e396..8eb2121 100644
+--- a/tests/drafts.test.js
++++ b/tests/drafts.test.js
+@@ -3,3 +3,9 @@ import { openThread, typeReply } from "./helpers.js";
+ test("opens a composer", () =&gt; {
+   expect(openThread("a").draft).toBe("");
+ });
++
++test("keeps each thread draft", () =&gt; {
++  typeReply("a", "Keep this text");
++  openThread("b");
++  expect(openThread("a").draft).toBe("Keep this text");
++});
+</pre>
+              </lf-diff>
+            </lf-worktree>
+            <lf-worktree
+              id="worktree-example-pair-worktree-1"
+              label="file-navigation"
+              branch="codex/file-navigation"
+              path="/Users/maximilian/workspace/leaf.file-navigation"
+              head="e1550c3bc496aebce09c28eb0e14a45a8e9708ac"
+              status="changed"
+              files="2"
+              additions="3"
+              deletions="2"
+            >
+              <p id="worktree-example-pair-commit-1">
+                <strong>Preserve the selected file after filtering</strong>
+                <span class="worktree-example-status">1 staged · 1 modified</span>
+              </p>
+              <details id="worktree-example-pair-snapshot-1">
+                <summary>Snapshot details · main merge-base → working tree</summary>
+                <dl>
+                  <dt>Repository</dt>
+                  <dd><code>/Users/maximilian/workspace/leaf</code></dd>
+                  <dt>Current commit</dt>
+                  <dd><code>e1550c3bc496aebce09c28eb0e14a45a8e9708ac</code></dd>
+                  <dt>Comparison base</dt>
+                  <dd><code>6f6d349144225c431962eb2ddab1cf55a82b6707</code></dd>
+                  <dt>Captured</dt>
+                  <dd>22 Oct 2026, 10:00 PT · illustrative snapshot</dd>
+                  <dt>Scope</dt>
+                  <dd>
+                    Tracked changes from the merge-base, including staged and unstaged
+                    edits. Untracked files excluded.
+                  </dd>
+                </dl>
+              </details>
+              <aside id="worktree-example-pair-note-1">
+                <p>
+                  <strong>Agent commentary.</strong> Keep the selected file visible
+                  after filtering. The diff owns file identity; the navigator uses the
+                  same key.
+                </p>
+              </aside>
+              <lf-diff id="worktree-example-pair-patch-1">
+                <pre>
+diff --git a/widgets/file-tree.js b/widgets/file-tree.js
+index 1f64b19..b7ca4fe 100644
+--- a/widgets/file-tree.js
++++ b/widgets/file-tree.js
+@@ -1,3 +1,3 @@
+ function select(file) {
+-  activePath = file.path;
++  navigateToDatum(target, file.key);
+ }
+diff --git a/widgets/diff.js b/widgets/diff.js
+index 9db353a..e392d0b 100644
+--- a/widgets/diff.js
++++ b/widgets/diff.js
+@@ -1 +1,2 @@
+-const selected = files[0];
++const selected = files.find(file =&gt; file.key === current)
++  ?? files[0];
+</pre>
+              </lf-diff>
+            </lf-worktree>
+          </lf-worktree-diffs>
+        </section>
+        <section id="worktree-example-many-case">
+          <h2>Eight worktrees</h2>
+          <lf-worktree-diffs id="worktree-example-many-workbench">
+            <lf-worktree
+              id="worktree-example-many-worktree-0"
+              label="retain-drafts"
+              branch="codex/retain-drafts"
+              path="/Users/maximilian/workspace/leaf.retain-drafts"
+              head="c8ebd603a4646f4c771bc7076a2ba4830b2def29"
+              status="changed"
+              files="2"
+              additions="7"
+              deletions="1"
+            >
+              <p id="worktree-example-many-commit-0">
+                <strong>Keep reply drafts keyed by thread</strong>
+                <span class="worktree-example-status"
+                  >2 modified · 1 untracked (excluded)</span
+                >
+              </p>
+              <details id="worktree-example-many-snapshot-0">
+                <summary>Snapshot details · main merge-base → working tree</summary>
+                <dl>
+                  <dt>Repository</dt>
+                  <dd><code>/Users/maximilian/workspace/leaf</code></dd>
+                  <dt>Current commit</dt>
+                  <dd><code>c8ebd603a4646f4c771bc7076a2ba4830b2def29</code></dd>
+                  <dt>Comparison base</dt>
+                  <dd><code>6f6d349144225c431962eb2ddab1cf55a82b6707</code></dd>
+                  <dt>Captured</dt>
+                  <dd>22 Oct 2026, 10:00 PT · illustrative snapshot</dd>
+                  <dt>Scope</dt>
+                  <dd>
+                    Tracked changes from the merge-base, including staged and unstaged
+                    edits. Untracked files excluded.
+                  </dd>
+                </dl>
+              </details>
+              <aside id="worktree-example-many-note-0">
+                <p>
+                  <strong>Agent commentary.</strong> Keep the reply draft when switching
+                  threads. Restore it by thread identity, so a reply never appears in
+                  the wrong composer.
+                </p>
+              </aside>
+              <lf-diff id="worktree-example-many-patch-0">
+                <pre>
+diff --git a/runtime/drafts.js b/runtime/drafts.js
+index 7e24c4f..6b21e75 100644
+--- a/runtime/drafts.js
++++ b/runtime/drafts.js
+@@ -5,7 +5,7 @@ export function saveDraft(thread, text) {
+ }
+&#32;
+ export function draft(thread) {
+-  return activeDraft;
++  return drafts.get(thread.id) ?? "";
+ }
+&#32;
+ export function clearDraft(thread) {
+diff --git a/tests/drafts.test.js b/tests/drafts.test.js
+index 003e396..8eb2121 100644
+--- a/tests/drafts.test.js
++++ b/tests/drafts.test.js
+@@ -3,3 +3,9 @@ import { openThread, typeReply } from "./helpers.js";
+ test("opens a composer", () =&gt; {
+   expect(openThread("a").draft).toBe("");
+ });
++
++test("keeps each thread draft", () =&gt; {
++  typeReply("a", "Keep this text");
++  openThread("b");
++  expect(openThread("a").draft).toBe("Keep this text");
++});
+</pre>
+              </lf-diff>
+            </lf-worktree>
+            <lf-worktree
+              id="worktree-example-many-worktree-1"
+              label="file-navigation"
+              branch="codex/file-navigation"
+              path="/Users/maximilian/workspace/leaf.file-navigation"
+              head="e1550c3bc496aebce09c28eb0e14a45a8e9708ac"
+              status="changed"
+              files="2"
+              additions="3"
+              deletions="2"
+            >
+              <p id="worktree-example-many-commit-1">
+                <strong>Preserve the selected file after filtering</strong>
+                <span class="worktree-example-status">1 staged · 1 modified</span>
+              </p>
+              <details id="worktree-example-many-snapshot-1">
+                <summary>Snapshot details · main merge-base → working tree</summary>
+                <dl>
+                  <dt>Repository</dt>
+                  <dd><code>/Users/maximilian/workspace/leaf</code></dd>
+                  <dt>Current commit</dt>
+                  <dd><code>e1550c3bc496aebce09c28eb0e14a45a8e9708ac</code></dd>
+                  <dt>Comparison base</dt>
+                  <dd><code>6f6d349144225c431962eb2ddab1cf55a82b6707</code></dd>
+                  <dt>Captured</dt>
+                  <dd>22 Oct 2026, 10:00 PT · illustrative snapshot</dd>
+                  <dt>Scope</dt>
+                  <dd>
+                    Tracked changes from the merge-base, including staged and unstaged
+                    edits. Untracked files excluded.
+                  </dd>
+                </dl>
+              </details>
+              <aside id="worktree-example-many-note-1">
+                <p>
+                  <strong>Agent commentary.</strong> Keep the selected file visible
+                  after filtering. The diff owns file identity; the navigator uses the
+                  same key.
+                </p>
+              </aside>
+              <lf-diff id="worktree-example-many-patch-1">
+                <pre>
+diff --git a/widgets/file-tree.js b/widgets/file-tree.js
+index 1f64b19..b7ca4fe 100644
+--- a/widgets/file-tree.js
++++ b/widgets/file-tree.js
+@@ -1,3 +1,3 @@
+ function select(file) {
+-  activePath = file.path;
++  navigateToDatum(target, file.key);
+ }
+diff --git a/widgets/diff.js b/widgets/diff.js
+index 9db353a..e392d0b 100644
+--- a/widgets/diff.js
++++ b/widgets/diff.js
+@@ -1 +1,2 @@
+-const selected = files[0];
++const selected = files.find(file =&gt; file.key === current)
++  ?? files[0];
+</pre>
+              </lf-diff>
+            </lf-worktree>
+            <lf-worktree
+              id="worktree-example-many-worktree-2"
+              label="compact-summary"
+              branch="codex/compact-summary"
+              path="/Users/maximilian/workspace/worktrunk.compact-summary"
+              head="243bd04ef5473061535abd2391bf9a26c6c5f0fa"
+              status="changed"
+              files="1"
+              additions="1"
+              deletions="1"
+            >
+              <p id="worktree-example-many-commit-2">
+                <strong>Show added and removed line counts</strong>
+                <span class="worktree-example-status">1 modified</span>
+              </p>
+              <details id="worktree-example-many-snapshot-2">
+                <summary>Snapshot details · main merge-base → working tree</summary>
+                <dl>
+                  <dt>Repository</dt>
+                  <dd><code>/Users/maximilian/workspace/worktrunk</code></dd>
+                  <dt>Current commit</dt>
+                  <dd><code>243bd04ef5473061535abd2391bf9a26c6c5f0fa</code></dd>
+                  <dt>Comparison base</dt>
+                  <dd><code>214d8e109fd9abcdac34c52735a359ed64b96c57</code></dd>
+                  <dt>Captured</dt>
+                  <dd>22 Oct 2026, 10:00 PT · illustrative snapshot</dd>
+                  <dt>Scope</dt>
+                  <dd>
+                    Tracked changes from the merge-base, including staged and unstaged
+                    edits. Untracked files excluded.
+                  </dd>
+                </dl>
+              </details>
+
+              <lf-diff id="worktree-example-many-patch-2">
+                <pre>
+diff --git a/src/summary.rs b/src/summary.rs
+index 0f0860f..9374881 100644
+--- a/src/summary.rs
++++ b/src/summary.rs
+@@ -1,3 +1,3 @@
+ fn summary(added: usize, removed: usize) -&gt; String {
+-    format!("{} lines", added - removed)
++    format!("+{added} -{removed}")
+ }
+</pre>
+              </lf-diff>
+            </lf-worktree>
+            <lf-worktree
+              id="worktree-example-many-worktree-3"
+              label="docs-wording"
+              branch="codex/docs-wording"
+              path="/Users/maximilian/workspace/leaf.docs-wording"
+              head="fd2d11d6a89297dd9101a6dddf55977c8bdc33fd"
+              status="clean"
+              files="0"
+              additions="0"
+              deletions="0"
+            >
+              <p id="worktree-example-many-commit-3">
+                <strong>Clarify page authoring examples</strong>
+                <span class="worktree-example-status">Clean</span>
+              </p>
+              <details id="worktree-example-many-snapshot-3">
+                <summary>Snapshot details · main merge-base → working tree</summary>
+                <dl>
+                  <dt>Repository</dt>
+                  <dd><code>/Users/maximilian/workspace/leaf</code></dd>
+                  <dt>Current commit</dt>
+                  <dd><code>fd2d11d6a89297dd9101a6dddf55977c8bdc33fd</code></dd>
+                  <dt>Comparison base</dt>
+                  <dd><code>6f6d349144225c431962eb2ddab1cf55a82b6707</code></dd>
+                  <dt>Captured</dt>
+                  <dd>22 Oct 2026, 10:00 PT · illustrative snapshot</dd>
+                  <dt>Scope</dt>
+                  <dd>
+                    Tracked changes from the merge-base, including staged and unstaged
+                    edits. Untracked files excluded.
+                  </dd>
+                </dl>
+              </details>
+              <aside id="worktree-example-many-note-3">
+                <p>
+                  <strong>Agent commentary.</strong> No changes relative to the supplied
+                  base. Keep this worktree visible so the set is accounted for.
+                </p>
+              </aside>
+              <p>No changes against this base.</p>
+            </lf-worktree>
+            <lf-worktree
+              id="worktree-example-many-worktree-4"
+              label="theme-icons"
+              branch="codex/theme-icons"
+              path="/Users/maximilian/workspace/leaf.theme-icons"
+              head="7239fe1a28d2d206f915c9875977a9be2b404014"
+              status="changed"
+              files="1"
+              additions="0"
+              deletions="0"
+              binary-files="1"
+            >
+              <p id="worktree-example-many-commit-4">
+                <strong>Refresh the application mark</strong>
+                <span class="worktree-example-status">1 modified</span>
+              </p>
+              <details id="worktree-example-many-snapshot-4">
+                <summary>Snapshot details · main merge-base → working tree</summary>
+                <dl>
+                  <dt>Repository</dt>
+                  <dd><code>/Users/maximilian/workspace/leaf</code></dd>
+                  <dt>Current commit</dt>
+                  <dd><code>7239fe1a28d2d206f915c9875977a9be2b404014</code></dd>
+                  <dt>Comparison base</dt>
+                  <dd><code>6f6d349144225c431962eb2ddab1cf55a82b6707</code></dd>
+                  <dt>Captured</dt>
+                  <dd>22 Oct 2026, 10:00 PT · illustrative snapshot</dd>
+                  <dt>Scope</dt>
+                  <dd>
+                    Tracked changes from the merge-base, including staged and unstaged
+                    edits. Untracked files excluded.
+                  </dd>
+                </dl>
+              </details>
+              <aside id="worktree-example-many-note-4">
+                <p>
+                  <strong>Agent commentary.</strong> The supplied snapshot has a binary
+                  change. Line counts describe only text.
+                </p>
+              </aside>
+              <p>
+                <code>assets/mark.png</code> changed. Binary content has no line count.
+              </p>
+            </lf-worktree>
+            <lf-worktree
+              id="worktree-example-many-worktree-5"
+              label="retry-reconnect"
+              branch="codex/retry-reconnect"
+              path="/Users/maximilian/workspace/leaf.retry-reconnect"
+              head="f5275181a57c3010e3773b646acd818513c21c36"
+              status="changed"
+              files="1"
+              additions="1"
+              deletions="1"
+            >
+              <p id="worktree-example-many-commit-5">
+                <strong>Back off repeated reconnect attempts</strong>
+                <span class="worktree-example-status">1 modified</span>
+              </p>
+              <details id="worktree-example-many-snapshot-5">
+                <summary>Snapshot details · main merge-base → working tree</summary>
+                <dl>
+                  <dt>Repository</dt>
+                  <dd><code>/Users/maximilian/workspace/leaf</code></dd>
+                  <dt>Current commit</dt>
+                  <dd><code>f5275181a57c3010e3773b646acd818513c21c36</code></dd>
+                  <dt>Comparison base</dt>
+                  <dd><code>6f6d349144225c431962eb2ddab1cf55a82b6707</code></dd>
+                  <dt>Captured</dt>
+                  <dd>22 Oct 2026, 10:00 PT · illustrative snapshot</dd>
+                  <dt>Scope</dt>
+                  <dd>
+                    Tracked changes from the merge-base, including staged and unstaged
+                    edits. Untracked files excluded.
+                  </dd>
+                </dl>
+              </details>
+
+              <lf-diff id="worktree-example-many-patch-5">
+                <pre>
+diff --git a/runtime/reconnect.js b/runtime/reconnect.js
+index a939cf9..fcb8367 100644
+--- a/runtime/reconnect.js
++++ b/runtime/reconnect.js
+@@ -1 +1 @@
+-const delay = 1000;
++const delay = nextBackoff(attempt);
+</pre>
+              </lf-diff>
+            </lf-worktree>
+            <lf-worktree
+              id="worktree-example-many-worktree-6"
+              label="preserve-selection-across-streamed-document-updates"
+              branch="codex/preserve-selection-across-streamed-document-updates"
+              path="/Users/maximilian/workspace/leaf.preserve-selection-across-streamed-document-updates"
+              head="171dedea105282ad085989622bc0d35c88126de2"
+              status="changed"
+              files="1"
+              additions="1"
+              deletions="1"
+            >
+              <p id="worktree-example-many-commit-6">
+                <strong>Preserve selection across document updates</strong>
+                <span class="worktree-example-status">1 modified</span>
+              </p>
+              <details id="worktree-example-many-snapshot-6">
+                <summary>Snapshot details · main merge-base → working tree</summary>
+                <dl>
+                  <dt>Repository</dt>
+                  <dd><code>/Users/maximilian/workspace/leaf</code></dd>
+                  <dt>Current commit</dt>
+                  <dd><code>171dedea105282ad085989622bc0d35c88126de2</code></dd>
+                  <dt>Comparison base</dt>
+                  <dd><code>6f6d349144225c431962eb2ddab1cf55a82b6707</code></dd>
+                  <dt>Captured</dt>
+                  <dd>22 Oct 2026, 10:00 PT · illustrative snapshot</dd>
+                  <dt>Scope</dt>
+                  <dd>
+                    Tracked changes from the merge-base, including staged and unstaged
+                    edits. Untracked files excluded.
+                  </dd>
+                </dl>
+              </details>
+              <aside id="worktree-example-many-note-6">
+                <p>
+                  <strong>Agent commentary.</strong> This deliberately long branch tests
+                  identity wrapping without hiding the totals.
+                </p>
+              </aside>
+              <lf-diff id="worktree-example-many-patch-6">
+                <pre>
+diff --git a/runtime/selection.js b/runtime/selection.js
+index dd0ac91..2f292a3 100644
+--- a/runtime/selection.js
++++ b/runtime/selection.js
+@@ -1 +1 @@
+-replace(document);
++reconcile(document, { preserveSelection: true });
+</pre>
+              </lf-diff>
+            </lf-worktree>
+            <lf-worktree
+              id="worktree-example-many-worktree-7"
+              label="keyboard-routes"
+              branch="codex/keyboard-routes"
+              path="/Users/maximilian/workspace/leaf.keyboard-routes"
+              head="5bd75b8ace5ecbc5d96cd70a90a37411c9542117"
+              status="unavailable"
+            >
+              <p id="worktree-example-many-commit-7">
+                <strong>Make every control reachable by keyboard</strong>
+                <span class="worktree-example-status">Status unavailable</span>
+              </p>
+              <details id="worktree-example-many-snapshot-7">
+                <summary>Snapshot details · main merge-base → working tree</summary>
+                <dl>
+                  <dt>Repository</dt>
+                  <dd><code>/Users/maximilian/workspace/leaf</code></dd>
+                  <dt>Current commit</dt>
+                  <dd><code>5bd75b8ace5ecbc5d96cd70a90a37411c9542117</code></dd>
+                  <dt>Comparison base</dt>
+                  <dd><code>6f6d349144225c431962eb2ddab1cf55a82b6707</code></dd>
+                  <dt>Captured</dt>
+                  <dd>22 Oct 2026, 10:00 PT · illustrative snapshot</dd>
+                  <dt>Scope</dt>
+                  <dd>
+                    Tracked changes from the merge-base, including staged and unstaged
+                    edits. Untracked files excluded.
+                  </dd>
+                </dl>
+              </details>
+
+              <p>
+                The worktree is in the supplied set, but its diff was not captured. Its
+                change size is unknown.
+              </p>
+            </lf-worktree>
+          </lf-worktree-diffs>
+        </section>
+        <section id="worktree-example-empty-case">
+          <h2>Empty set</h2>
+          <lf-worktree-diffs id="worktree-example-empty-workbench"> </lf-worktree-diffs>
+        </section>
+      </details>
+    </main>
+  </body>
+</html>

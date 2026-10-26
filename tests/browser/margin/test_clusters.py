@@ -7,9 +7,6 @@ import re
 import pytest
 from click.testing import CliRunner
 from interact_support import append_carried_log_record, newest_move
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf import render_checks as render_checks_model
 from playwright.sync_api import expect
 from render_cases_interaction import (
     PANEL_PAGE,
@@ -43,6 +40,9 @@ from browser.margin import (
     _unfold,
     _unfold_suggestion_undo,
 )
+from leaf import cli as cli_model
+from leaf import event_log as events_model
+from leaf import render_checks as render_checks_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -110,8 +110,8 @@ def test_obligation_binding_badges_follow_the_visible_margin_entries(
         }"""
     )
     assert len(geometry["controls"]) == 2, geometry
-    # Inside the window across too: where the pin stands folded, obligation travel standing at
-    # it opens it leftward from its toggle.
+    # Inside the window across too: where the pin stands folded, navigating to that obligation
+    # opens it leftward from its toggle.
     for control in geometry["controls"]:
         assert 0 <= control["x"] < control["right"] <= width, geometry
     # Above the window's foot, and clear of the floating panel standing over it.
@@ -147,7 +147,7 @@ def test_obligation_binding_badges_follow_the_visible_margin_entries(
 # Where the margin's rows stand: in the rail (1440), as pins over the page (700), and as
 # pins one of which folds its actions behind `…` (390). At 1200 every row stands in the
 # rail, as at 1440.
-MARGIN_POSTURE_WIDTHS = [1440, 700, 390]
+MARGIN_PLACEMENT_WIDTHS = [1440, 700, 390]
 
 
 def test_suggestion_actions_stay_reachable_through_a_decision_and_its_undo(
@@ -157,7 +157,7 @@ def test_suggestion_actions_stay_reachable_through_a_decision_and_its_undo(
     undone, in every posture its row takes. Each undo returns the page to where it
     started, so one page walks every posture."""
     page = open_page(browser, serve(MARGIN_ACTIONS_PAGE))
-    for width in MARGIN_POSTURE_WIDTHS:
+    for width in MARGIN_PLACEMENT_WIDTHS:
         # Let go of the pin the last width left unfolded, so it folds back.
         page.mouse.move(0, 0)
         page.evaluate(RELEASE_FOCUS)
@@ -353,6 +353,7 @@ def test_a_margin_entry_carries_a_suggestion_through_its_whole_lifecycle(
             "start",
             str(serve.page_dir),
             newest_move(serve.page_dir, "s-replace"),
+            "--text",
             "applying the selected route",
         ],
     )
@@ -501,7 +502,7 @@ def test_a_print_preview_leaves_the_clusters_as_it_found_them(browser, serve):
     """Paper takes every injected control out of the page, so the one
     contributor-visibility reading a margin render is built on comes back empty there
     and folds every cluster to nothing. That is a reading of the medium rather than of
-    the page: news arriving while the user stands in the print preview leaves the
+    the page: news arriving while the user is located in the print preview leaves the
     margin entries where they were, and reaches them when the screen comes back.
 
     The shape is read as markup rather than as visibility, because on paper nothing in

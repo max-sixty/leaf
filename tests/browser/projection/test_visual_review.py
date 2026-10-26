@@ -1,14 +1,17 @@
 """Visual review keeps readable evidence and stable controls in its dashboard."""
 
+import json
+
 import pytest
 from interact_support import append_carried_log_record
-from leaf import data as data_model
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
+from render_cases_navigation import source_revision
 from render_harness import (
     CORPUS_SOURCES,
     example_media,
+    expect_on_me,
+    expect_panel_says,
     leaf_page,
     open_page,
     resized,
@@ -18,6 +21,9 @@ from render_harness import (
     told,
     undo,
 )
+
+from leaf import data as data_model
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 VISUAL_REVIEW_GALLERY = next(
@@ -35,8 +41,11 @@ def test_visual_review_controls_keep_keyboard_navigation_local(browser, serve):
     widget.locator('.lf-vr-case-button[aria-current="true"]').click()
     page.keyboard.press("n")
     expect(case).not_to_have_attribute("data-lf-datum", first)
+    # The walk says where it stands among the cases, as every walk does.
+    expect_panel_says(page, "Case 2 of")
     page.keyboard.press("Shift+n")
     expect(case).to_have_attribute("data-lf-datum", first)
+    expect_panel_says(page, "Case 1 of")
     with sending(page, "approve the selected comparison"):
         page.keyboard.press("a")
     expect(case.get_by_role("checkbox", name="Looks right")).to_be_checked()
@@ -61,7 +70,7 @@ def test_visual_review_cases_are_independent_on_me_obligations(browser, serve):
     widget = page.locator("#visual-review-run")
     case = widget.locator(SELECTED)
     count = page.locator(".lf-fp-on-user")
-    expect(count).to_have_attribute("aria-label", "On me: 3")
+    expect_on_me(page, 3)
     first = "open-mobile-package-catalog"
     second = "keep-mobile-destinations"
     third = "check-desktop-navigation"
@@ -77,9 +86,9 @@ def test_visual_review_cases_are_independent_on_me_obligations(browser, serve):
     with sending(page, "approve one independent case"):
         page.keyboard.press("a")
     expect(case.get_by_role("checkbox", name="Looks right")).to_be_checked()
-    expect(count).to_have_attribute("aria-label", "On me: 2")
+    expect_on_me(page, 2)
     undo(page)
-    expect(count).to_have_attribute("aria-label", "On me: 3")
+    expect_on_me(page, 3)
     expect(case.get_by_role("checkbox", name="Looks right")).not_to_be_checked()
 
     # The On me row uses the same destination, even while another case is shown.
@@ -99,7 +108,7 @@ def test_visual_review_cases_are_independent_on_me_obligations(browser, serve):
     expect(case).to_have_attribute("data-lf-datum", first)
     with sending(page, "hand feedback on this case to the agent"):
         page.keyboard.press("Enter")
-    expect(count).to_have_attribute("aria-label", "On me: 2")
+    expect_on_me(page, 2)
     case.get_by_role("checkbox", name="Looks right").focus()
     page.keyboard.press("m")
     expect(case).to_have_attribute("data-lf-datum", second)
@@ -119,7 +128,7 @@ def test_on_me_materializes_a_frozen_review_at_its_requested_case(browser, serve
     )
     page = open_page(browser, url)
     count = page.locator(".lf-fp-on-user")
-    expect(count).to_have_attribute("aria-label", "On me: 6")
+    expect_on_me(page, 6)
     count.click()
     card = page.locator(
         '.lf-fp-on-item[data-obligation="widget:reply-review:keep-mobile-destinations"]'
@@ -168,9 +177,11 @@ def test_visual_review_keeps_the_dashboard_stable_while_inspecting(
     for button in buttons.all():
         button.click()
         assert case.evaluate(reading) == baseline
-        case.get_by_role("button", name="More inspection").click()
+        case.get_by_role("button", name="Capture details").click()
         details = case.locator(".lf-vr-details")
         expect(details).to_be_visible()
+        expect(details.get_by_role("checkbox")).to_have_count(0)
+        expect(details.locator(".lf-vr-provenance")).to_contain_text("Capture")
         assert case.evaluate(reading) == baseline
         bounds = details.bounding_box()
         assert (
@@ -181,35 +192,7 @@ def test_visual_review_keeps_the_dashboard_stable_while_inspecting(
         assert root_overflow(page) == 0
 
 
-def test_visual_review_discloses_focus_without_distorting_unsupported_browsers(
-    browser, serve
-):
-    page = open_page(
-        browser,
-        serve(VISUAL_REVIEW_GALLERY),
-        init_script="""
-      const supports = CSS.supports.bind(CSS);
-      CSS.supports = (property, value) =>
-        property === 'object-view-box' ? false : supports(property, value);
-    """,
-    )
-    case = page.locator(SELECTED)
-    expect(case.locator("lf-shot")).to_have_attribute("data-lf-shot-focus", "true")
-    expect(case.locator("lf-shot")).to_have_attribute("data-lf-shot-crop", "false")
-    image = case.locator(".lf-shotframe img").first.evaluate("""node => ({
-      renderedRatio: node.getBoundingClientRect().width / node.getBoundingClientRect().height,
-      naturalRatio: node.naturalWidth / node.naturalHeight,
-      objectViewBox: getComputedStyle(node).objectViewBox,
-    })""")
-    assert image["renderedRatio"] == pytest.approx(image["naturalRatio"], rel=0.01)
-    assert image["objectViewBox"] == "none"
-    case.get_by_role("button", name="More inspection").click()
-    expect(case.locator(".lf-vr-provenance")).to_contain_text(
-        "20, 100 · 350 × 640 CSS px"
-    )
-
-
-def test_visual_review_ignores_a_late_load_from_detached_evidence(browser, serve):
+def test_visual_review_ignores_a_late_load_from_superseded_evidence(browser, serve):
     authored = leaf_page(
         "visual review replacement",
         '<lf-visual-review id="visual-run" source="docs-run"></lf-visual-review>',
@@ -270,7 +253,24 @@ def test_visual_review_ignores_a_late_load_from_detached_evidence(browser, serve
     )
     context = browser.new_context(viewport={"width": 1200, "height": 900})
     held = []
-    context.route("**/media/slow-*.svg", lambda route: held.append(route))
+    context.route("**/media/111111111111111*.svg", lambda route: held.append(route))
+    # Pending images stay off-document while the current evidence remains readable.
+    # Wait for their native load callbacks before asserting a stale load had no effect.
+    context.add_init_script("""(() => {
+      window.delayedEvidence = [];
+      const source = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'src');
+      Object.defineProperty(HTMLImageElement.prototype, 'src', {
+        ...source,
+        set(value) {
+          if (value.includes('/media/111111111111111')) {
+            const evidence = {loaded: false};
+            window.delayedEvidence.push(evidence);
+            this.addEventListener('load', () => evidence.loaded = true, {once: true});
+          }
+          source.set.call(this, value);
+        },
+      });
+    })();""")
     page = None
     try:
         page = open_page(browser, url, context=context)
@@ -278,19 +278,26 @@ def test_visual_review_ignores_a_late_load_from_detached_evidence(browser, serve
             serve.page_dir,
             "docs-run",
             run(
-                "/media/slow-before.svg",
-                "/media/slow-after.svg",
+                "/media/1111111111111110.svg",
+                "/media/1111111111111111.svg",
                 viewport_width=900,
             ),
         )
         told(page)
-        expect(page.locator("#visual-run lf-shot img")).to_have_count(2)
-        page.evaluate(
-            "window.oldVisualReviewImages = [...document.querySelectorAll('#visual-run lf-shot img')]"
+        # The case's article follows its case by id into the run it now shows.
+        case = page.locator('#visual-run [data-lf-datum="changed"]')
+        expect(case).to_have_attribute(
+            "data-lf-source-revision", source_revision(serve.page_dir, "docs-run")
         )
-        expect(page.locator("#visual-run lf-shot img").first).to_have_js_property(
-            "naturalWidth", 0
-        )
+        expect(case).to_have_attribute("data-lf-identity", "changed")
+        assert json.loads(case.get_attribute("data-lf-origin"))["path"] == ["cases", 0]
+        shot = page.locator("#visual-run lf-shot")
+        expect(shot).to_have_attribute("before", "/media/1111111111111110.svg")
+        images = shot.locator("img")
+        expect(images).to_have_count(2)
+        page.wait_for_function("() => window.delayedEvidence.length >= 2")
+        # Replacement evidence stays on screen until both new images have loaded.
+        expect(images.first).to_have_attribute("src", "/media/3cf0e3efe80c6b01.png")
         assert len(held) == 2
 
         data_model.cmd_data_set(
@@ -305,6 +312,7 @@ def test_visual_review_ignores_a_late_load_from_detached_evidence(browser, serve
         told(page)
         host = page.locator("#visual-run .lf-vr-capture")
         expect(host.locator("lf-shot img")).to_have_count(2)
+        expect(shot).to_have_attribute("before", "/media/3cf0e3efe80c6b01.png")
         expect(host.locator("lf-shot img").first).to_have_js_property(
             "naturalWidth", 780
         )
@@ -317,9 +325,11 @@ def test_visual_review_ignores_a_late_load_from_detached_evidence(browser, serve
         while held:
             held.pop(0).fulfill(content_type="image/svg+xml", body=stale_svg)
         page.wait_for_function(
-            "() => window.oldVisualReviewImages.every(image => image.naturalWidth === 1800)"
+            "() => window.delayedEvidence.every(evidence => evidence.loaded)"
         )
         rendered(page)
+        expect(images.first).to_have_attribute("src", "/media/3cf0e3efe80c6b01.png")
+        expect(images.first).to_have_js_property("naturalWidth", 780)
         assert host.locator("lf-shot").bounding_box() == shown
     finally:
         while held:
@@ -333,7 +343,14 @@ def test_visual_review_preserves_capture_reading_when_returning_to_a_case(
     page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
     resized(page, 1366, 700)
     widget = page.locator("#visual-review-run")
-    capture = widget.locator(SELECTED).locator(".lf-vr-capture")
+    case = widget.locator(SELECTED)
+    case.get_by_role("button", name="Pair", exact=True).click()
+    case.get_by_role("button", name="Image options").click()
+    case.get_by_role("checkbox", name="Full frame").check()
+    page.keyboard.press("Escape")
+    case.get_by_role("button", name="Image options").click()
+    case.get_by_role("button", name="100%", exact=True).click()
+    capture = case.locator(".lf-shotviewport").first
     assert capture.evaluate("node => node.scrollHeight > node.clientHeight")
     capture.hover()
     page.mouse.wheel(0, 180)

@@ -124,10 +124,7 @@ function resolve(file, specifier) {
   const path = specifier.startsWith(".")
     ? join(dirname(file), specifier)
     : specifier.startsWith("/checks/")
-      ? join(
-          "skills/leaf/scripts/leaf/render-checks",
-          specifier.slice("/checks/".length),
-        )
+      ? join("src/leaf/render-checks", specifier.slice("/checks/".length))
       : served(specifier);
   if (!path) return null;
   const found = [
@@ -139,13 +136,7 @@ function resolve(file, specifier) {
     join(path, "index.ts"),
     join(path, "index.js"),
   ].find((candidate) => existsSync(candidate) && statSync(candidate).isFile());
-  if (!found) return null;
-  // A committed bundle compiled from one module of this tree names it in its trailer
-  // (`build/browser/build.mjs`), and reading the bundle reads that module.
-  const source =
-    /(^|\/)vendor\//.test(found) &&
-    /^\/\/ Generated from (\S+) by \S+\.\n?$/m.exec(readFileSync(found, "utf8"));
-  return source ? source[1] : relative(".", found);
+  return found ? relative(".", found) : null;
 }
 
 // The string a specifier spells, or null where it is computed.
@@ -305,7 +296,23 @@ function imports() {
       if (statement.exported) take(source, "*");
       else if (target) stars.push(target);
     }
-    for (const node of dynamic) use(spelled(node.source), node);
+    for (const node of dynamic) {
+      // Rejection and cleanup handlers keep the fulfilled namespace. Follow the
+      // promise before reading its value; these methods aren't module exports.
+      let promise = node;
+      while (true) {
+        const member = parents.get(promise);
+        const call = parents.get(member);
+        if (
+          member?.object !== promise ||
+          call?.callee !== member ||
+          !["catch", "finally"].includes(method(call))
+        )
+          break;
+        promise = call;
+      }
+      use(spelled(node.source), promise);
+    }
     for (const { source, qualifier } of types) {
       let name = qualifier;
       while (name?.type === "TSQualifiedName") name = name.left;

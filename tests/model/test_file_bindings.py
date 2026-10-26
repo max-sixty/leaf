@@ -16,6 +16,7 @@ from interact_support import (
     lock_contention,
     running_http_server,
 )
+
 from leaf.cli import cli
 from leaf.file_bindings import (
     BINDINGS,
@@ -38,6 +39,11 @@ def test_explicit_cli_binding_and_lossless_save(page_dir, tmp_path):
         cli, ["file", "bind", str(page_dir), "notes", str(target)]
     )
     assert result.exit_code == 0, result.output
+    assert json.loads(result.output) == {
+        "binding": "notes",
+        "path": str(target.resolve()),
+        "bytes": target.stat().st_size,
+    }
     assert BINDINGS.read(page_dir / "files.json") == {
         "bindings": {"notes": str(target.resolve())}
     }
@@ -62,7 +68,8 @@ def test_explicit_cli_binding_and_lossless_save(page_dir, tmp_path):
 def test_file_saves_preserve_special_permission_bits(page_dir, tmp_path):
     target = tmp_path / "executable"
     target.write_text("original\n")
-    snapshot = bind_file(page_dir, "executable", target)
+    bind_file(page_dir, "executable", target)
+    snapshot = read_file(page_dir, "executable")
     for mode in (0o2755, 0o6755, 0o1755):
         target.chmod(mode)
         assert stat.S_IMODE(target.stat().st_mode) == mode
@@ -72,6 +79,36 @@ def test_file_saves_preserve_special_permission_bits(page_dir, tmp_path):
         )
         assert target.read_text() == text
         assert stat.S_IMODE(target.stat().st_mode) == mode
+
+
+def test_cli_unbinding_revokes_open_editor_access_only_for_its_grant(
+    server, page_dir, tmp_path
+):
+    target = tmp_path / "notes.txt"
+    target.write_text("saved work\n")
+    bind_file(page_dir, "notes", target)
+    original = read_file(page_dir, "notes")
+    bind_file(page_dir, "other", target)
+    state_url = f"{server}/api/state"
+    assert set(json.loads(fetch(state_url)[1])["files"]) == {"notes", "other"}
+    before = page_reading(page_dir)
+
+    for _ in range(2):
+        result = CliRunner().invoke(cli, ["file", "unbind", str(page_dir), "notes"])
+        assert result.exit_code == 0, result.output
+        assert json.loads(result.output) == {"binding": "notes", "bound": False}
+    assert page_reading(page_dir) != before
+    assert set(json.loads(fetch(state_url)[1])["files"]) == {"other"}
+    url = f"{server}/api/files/notes"
+    assert fetch(url) == (200, b"null")
+    posted = json.dumps(
+        {"revision": original["revision"], "text": "old draft\n"}
+    ).encode()
+    status, raw = fetch(url, data=posted, headers={"Origin": server})
+    assert status == 400
+    assert json.loads(raw)["error"] == "No file is bound as 'notes'."
+    assert target.read_text() == "saved work\n"
+    assert read_file(page_dir, "other") == original
 
 
 def test_only_bound_supported_files_can_be_read_or_saved(page_dir, tmp_path):
@@ -91,7 +128,8 @@ def test_only_bound_supported_files_can_be_read_or_saved(page_dir, tmp_path):
         read_file(page_dir, str(target))
     with pytest.raises(FileBindingError):
         bind_file(page_dir, "../notes", target)
-    snapshot = bind_file(page_dir, "notes", target)
+    bind_file(page_dir, "notes", target)
+    snapshot = read_file(page_dir, "notes")
     for body in (
         {},
         {"revision": snapshot["revision"], "text": 5},
@@ -125,8 +163,10 @@ def test_rebinding_cannot_apply_an_old_buffer_to_an_identical_other_file(
     first, second = tmp_path / "first.txt", tmp_path / "second.txt"
     first.write_text("same\n")
     second.write_text("same\n")
-    original = bind_file(page_dir, "notes", first)
-    rebound = bind_file(page_dir, "notes", second)
+    bind_file(page_dir, "notes", first)
+    original = read_file(page_dir, "notes")
+    bind_file(page_dir, "notes", second)
+    rebound = read_file(page_dir, "notes")
     assert rebound["revision"] != original["revision"]
     with pytest.raises(StaleFileError):
         save_file(
@@ -179,7 +219,8 @@ def test_http_file_door_requires_key_origin_and_current_revision(
 ):
     target = tmp_path / "notes.txt"
     target.write_text("hello\n")
-    original = bind_file(page_dir, "notes", target)
+    bind_file(page_dir, "notes", target)
+    original = read_file(page_dir, "notes")
     url = f"{server}/api/files/notes"
     assert fetch(url, token=None)[0] == 401
     assert json.loads(fetch(url)[1]) == original
@@ -203,6 +244,13 @@ def test_http_file_door_requires_key_origin_and_current_revision(
         == 403
     )
     assert fetch(url, data=b"[]", headers={"Origin": server})[0] == 400
+    # A tab from before a restart under another runtime saves nothing: the answer
+    # names this server's runtime, which the tab refuses and reloads on.
+    status, raw = fetch(
+        url, data=posted, headers={"Origin": server, "Leaf-Runtime": "0123456789abcdef"}
+    )
+    assert status == 200 and "layer" in json.loads(raw), raw
+    assert target.read_text() == "hello\n"
     status, raw = fetch(url, data=posted, headers={"Origin": server})
     assert status == 200, raw
     assert json.loads(raw) == read_file(page_dir, "notes")

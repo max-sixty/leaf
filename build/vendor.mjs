@@ -2,7 +2,7 @@
  * The third-party bundles Leaf ships outside the browser framework.
  *
  * Nothing builds them at install time, so they are tracked. The files under
- * `skills/leaf/assets/vendor/` and each package's own `vendor/` are page payload:
+ * `browser/vendor/` and each package's own `vendor/` are page payload:
  * `page init` copies them into a page directory and a user's browser runs them. A
  * vendored library is payload of the package whose widget draws with it, not of the
  * layer: Pele and Pierre reach a page only when it selects `diagram` or `diff`.
@@ -34,8 +34,8 @@ import { patchTransitions } from "./webawesome/transition-patch.mjs";
 import { bundledPackages, checkModule, licenseNotices } from "./browser/shipped.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
-const assets = "skills/leaf/assets";
-const packageVendor = (name) => `skills/leaf/packages/${name}/vendor`;
+const assets = "browser";
+const packageVendor = (name) => `packages/${name}/vendor`;
 const input = (file) => path.join(root, "build", file);
 
 /** The installed version of a package, which is the one the lock resolved. */
@@ -136,7 +136,7 @@ const bundles = {
   // document's origin is opaque, so every request is cross-origin and Leaf's server
   // answers it `Access-Control-Allow-Origin: *`, which a credentialed request may not
   // read: the child's own icon.svg mask failed with a CORS error in every capture.
-  // Compare with the document's origin, `self.origin`, instead (SnapDOM 3.3.6).
+  // Compare with the document's origin, `self.origin`, instead (SnapDOM 3.3.7).
   snapdom: () => ({
     out: `${assets}/vendor/snapdom.esm.js`,
     entry: 'export { snapdom } from "@zumer/snapdom";\n',
@@ -151,8 +151,8 @@ const bundles = {
               'y.origin===self.origin?"include":"omit"',
               "SnapDOM credentials origin",
             ),
-            'D.warnedReconcile||(D.warnedReconcile=!0,console.warn("[SnapDOM] Some text may wrap differently in the capture. Pass { reconcile: true } to fix it (about 2x slower)."))',
-            "D.warnedReconcile=!0",
+            'O.warnedReconcile||(O.warnedReconcile=!0,console.warn("[SnapDOM] Some text may wrap differently in the capture. Pass { reconcile: true } to fix it (about 2x slower)."))',
+            "O.warnedReconcile=!0",
             "SnapDOM reconcile console warning",
           ),
       },
@@ -323,15 +323,15 @@ const bundles = {
     adapt: [
       {
         file: /pele\/dist\/pele\.js$/,
-        // Pele 1.6.0 consumes every HTML-looking label tag, discarding unsupported
+        // Pele consumes every HTML-looking label tag, discarding unsupported
         // tags such as a literal <img> code sample. Consume only the formatting
         // tags its tokenizer recognizes; other characters stay in its text buffer
         // and the SVG builder escapes them. Breaks are handled before this scan.
         edit: (source) =>
           seam(
             source,
-            "h&&(l(),o=m?o&~h|r&h:o|h),i+=p[0].length;continue",
-            "if(h){l();o=m?o&~h|r&h:o|h;i+=p[0].length;continue}",
+            "if(b||o_.has(m)){c+=u[0].length;continue}",
+            "if(b){c+=u[0].length;continue}",
             "Pele literal unsupported label tags",
           ),
       },
@@ -478,9 +478,14 @@ const bundles = {
       'export { diffArrays } from "diff/lib/diff/array.js";\n',
   }),
 
+  blazediff: () => ({
+    out: `${packageVendor("default")}/blazediff.js`,
+    entry: 'export { default } from "@blazediff/core";\n',
+  }),
+
   // DBSCAN groups screenshot fragments by their original neighborhoods.
   "density-clustering": () => ({
-    out: `${assets}/vendor/density-clustering.esm.js`,
+    out: `${packageVendor("default")}/density-clustering.esm.js`,
     entry: 'export { default as DBSCAN } from "density-clustering/lib/DBSCAN.js";\n',
   }),
 
@@ -506,8 +511,9 @@ const bundles = {
   // Parsing is needed before a metadata row appears; static rendering waits for
   // textual evidence to open. Independent builds keep the shared public barrel
   // from hoisting the renderer into the parser's eager dependency graph.
-  // Pierre's static renderer uses the shared Leaf syntax engine: Shiki binds to
-  // `syntax.esm.js`, and Pierre's theme registry binds to Leaf's theme shim.
+  // Pierre's static renderer reads Leaf's syntax module for grammars, Shiki core
+  // and the token theme. Its grammar and core imports are made static below so
+  // offline exports can inline them without bundling Shiki's full catalogs.
   // The unused WASM import carries no binary or separate module.
   pierre: () => ({
     out: `${packageVendor("default")}/pierre-diffs.esm.js`,
@@ -521,53 +527,35 @@ const bundles = {
     },
     adapt: [
       {
-        file: /@pierre\/diffs\/dist\/managers\/ResizeManager\.js$/,
-        // Leaf seats wrapping conversations in Pierre's code grid. Its column
-        // widths can change those conversations' height, including the observed
-        // code/gutter boxes. Apply them in Leaf's next frame, outside ResizeObserver
-        // delivery, so readiness includes the resulting layout. The manager lookup
-        // at delivery drops retired nodes, so a file
-        // removed before that frame receives no writes. This is Leaf's integration
-        // adaptation, not an upstream backport.
-        edit: (source) => {
-          source = seam(
-            source,
-            "\t\tif (columnCount > 1 && !disableAnnotations) {",
-            `		// Pierre's code and gutter have no inline padding or border: their CSS
-		// widths are the content widths the observer will report. Initialize
-		// through the same update path before a wrapping conversation paints.
-		// No layout box has zero content width, as in ResizeObserver's reading;
-		// computed width can be "auto" while a file's ancestor is hidden.
-		const columnInlineSize = element => element == null || !element.getClientRects().length
-			? 0 : parseFloat(getComputedStyle(element).width);
-		this.applyColumnUpdates(new Map([...new Set(this.observedNodes.values())]
-			.filter(item => item.type === "code")
-			.map(item => [item, {
-				codeInlineSize: columnInlineSize(item.codeElement),
-				numberInlineSize: columnInlineSize(item.numberElement)
-			}])));
-		if (columnCount > 1 && !disableAnnotations) {`,
-            "Pierre initial column sizing",
-          );
-          return (
-            'import {nextFrame as leafNextFrame} from "/runtime/widget-api.js";\n' +
-            seam(
-              source,
-              "new ResizeObserver(ResizeManager.handleSharedResizeEntries)",
-              "new ResizeObserver((entries) => leafNextFrame(() => ResizeManager.handleSharedResizeEntries(entries)))",
-              "Pierre resize delivery phase",
-            )
-          );
-        },
-      },
-      {
-        file: /@pierre\/diffs\/dist\/highlighter\/shared_highlighter\.js$/,
+        file: /@pierre\/diffs\/dist\/highlighter\/backends\/shiki\.js$/,
         edit: (source) =>
           seam(
             source,
             'import("shiki/wasm")',
             "Promise.resolve({default: undefined})",
             "Pierre unused WASM import",
+          ),
+      },
+      {
+        file: /@pierre\/diffs\/dist\/highlighter\/languages\/resolveLanguage\.js$/,
+        edit: (source) =>
+          'import { bundledLanguages } from "shiki/langs";\n' +
+          seam(
+            source,
+            'const { bundledLanguages } = await import("shiki/langs");',
+            "",
+            "Pierre shared grammar catalog",
+          ),
+      },
+      {
+        file: /@pierre\/diffs\/dist\/highlighter\/themes\/themeResolver\.js$/,
+        edit: (source) =>
+          'import * as leafShikiCore from "shiki/core";\n' +
+          seam(
+            source,
+            'createCachedLoader(() => import("shiki/core"))',
+            "createCachedLoader(() => Promise.resolve(leafShikiCore))",
+            "Pierre shared Shiki core",
           ),
       },
     ],
@@ -578,7 +566,7 @@ const bundles = {
       js: `/*! @pierre/diffs ${version("@pierre/diffs")} — Apache-2.0 — licenses: pierre-diffs.LICENSES.txt */`,
     },
     plugins: [
-      bindTo(/^shiki$/, "./syntax.esm.js"),
+      bindTo(/^shiki(?:\/(?:core|langs))?$/, "./syntax.esm.js"),
       {
         name: "leaf-pierre-shims",
         setup(builder) {
@@ -618,47 +606,6 @@ const bundles = {
             'this.#searchMode !== "hide-non-matches"',
             "Trees empty search-result visibility",
           ),
-      },
-      {
-        file: /@pierre\/trees\/dist\/render\/FileTreeView\.js$/,
-        // Retain is a persistent filter, not a transient search mode: rows keep
-        // ordinary pointer focus and tree navigation while the field owns match
-        // navigation. Blur and activation keep the query; Escape dismisses it.
-        edit: (source) => {
-          source = seam(
-            source,
-            'if (searchBlurBehavior === "retain" && !searchInputUserInteractedRef.current) return;',
-            'if (searchBlurBehavior === "retain") return;',
-            "Trees retained search on blur",
-          );
-          source = seam(
-            source,
-            "if (plan.closeSearch) controller.closeSearch();",
-            'if (plan.closeSearch && searchBlurBehavior !== "retain") controller.closeSearch();',
-            "Trees retained search on pointer activation",
-          );
-          source = seam(
-            source,
-            "if (controller.isSearchOpen()) event.preventDefault();",
-            'if (controller.isSearchOpen() && frame.searchBlurBehavior !== "retain") event.preventDefault();',
-            "Trees retained-filter row focus",
-          );
-          source = seam(
-            source,
-            "const flowRowFrame = {\n\t\tcontextHoverPath:",
-            "const flowRowFrame = {\n\t\tsearchBlurBehavior,\n\t\tcontextHoverPath:",
-            "Trees retained-filter row policy",
-          );
-          // A retained filter is hosted navigation: yield Enter to the exact
-          // control's declared command instead of swallowing it in the model.
-          // Search arrows and Escape keep their ordinary upstream behavior.
-          return seam(
-            source,
-            'if (isSearchOpen) {\n\t\t\tif (event.key === "Escape")',
-            'if (isSearchOpen && (event.key === "Escape" || searchBlurBehavior !== "retain" || getActiveTreeElement(rootRef.current) === searchInputRef.current)) {\n\t\t\tif (event.key === "Enter" && searchBlurBehavior === "retain") return;\n\t\t\tif (event.key === "Escape")',
-            "Trees retained-search Enter delegation",
-          );
-        },
       },
       {
         file: /@pierre\/trees\/dist\/utils\/cssWrappers\.js$/,
@@ -717,6 +664,25 @@ const bundles = {
       {
         file: /webawesome\/dist\/chunks\/chunk\.ZAVDMBWV\.js$/,
         edit: patchTransitions,
+      },
+      // A radio group's arrow moves focus to the next radio in its row, which the user
+      // already sees. Leaf places focus without scrolling (focus.js, `focusDestination`),
+      // and the focused-control landing margin made the native scroll move the chooser
+      // under the arrow wherever a landing had left it at the window's top edge.
+      {
+        file: /webawesome\/dist\/chunks\/chunk\.7YHRZ7G7\.js$/,
+        edit: (source) =>
+          seam(
+            seam(
+              source,
+              "radios[index].focus();",
+              "radios[index].focus({ preventScroll: true });",
+              "Web Awesome radio group arrow focus",
+            ),
+            'radios[index].shadowRoot.querySelector("button").focus();',
+            'radios[index].shadowRoot.querySelector("button").focus({ preventScroll: true });',
+            "Web Awesome radio button arrow focus",
+          ),
       },
     ],
     platform: "browser",

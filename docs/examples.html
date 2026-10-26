@@ -65,7 +65,7 @@
       .developer-gallery-link:is(:hover, [data-lf-focus]) .developer-gallery-open span {
         transform: translate(2px, -2px);
       }
-      .developer-gallery-link[data-lf-focus] {
+      .developer-gallery-link[data-lf-focus-visible] {
         outline: var(--focus-ring);
         outline-offset: var(--focus-ring-gap);
       }
@@ -148,10 +148,10 @@
       .example-link:is(:hover, [data-lf-focus]) .example-open span {
         transform: translate(2px, -2px);
       }
-      .example-link[data-lf-focus] {
+      .example-link[data-lf-focus-visible] {
         outline: none;
       }
-      .example-link[data-lf-focus] .example-preview {
+      .example-link[data-lf-focus-visible] .example-preview {
         outline: var(--focus-ring);
         outline-offset: var(--focus-ring-gap);
       }
@@ -341,6 +341,21 @@
               </span>
             </a>
           </li>
+          <li>
+            <a class="example-link" href="/examples/motion-playground/">
+              <span class="example-preview"><img alt="" loading="lazy" /></span>
+              <span class="example-caption">
+                <span class="example-index">Panel motion</span>
+                <span class="example-title" role="heading" aria-level="3"
+                  >Choose the animation</span
+                >
+                <span class="example-description"></span>
+                <span class="example-open"
+                  >Open full page <span aria-hidden="true">↗</span></span
+                >
+              </span>
+            </a>
+          </li>
         </ul>
       </section>
 
@@ -472,6 +487,40 @@
                 <span class="example-index">Animated explainer</span>
                 <span class="example-title" role="heading" aria-level="3"
                   >Explain Rust's 2016 merge sort</span
+                >
+                <span class="example-description"></span>
+                <span class="example-open"
+                  >Open full page <span aria-hidden="true">↗</span></span
+                >
+              </span>
+            </a>
+          </li>
+
+          <li>
+            <a class="example-link" href="/examples/lost-update/">
+              <span class="example-preview">
+                <img alt="" loading="lazy" />
+              </span>
+              <span class="example-caption">
+                <span class="example-index">Step-through explainer</span>
+                <span class="example-title" role="heading" aria-level="3"
+                  >Step through a race between two jobs</span
+                >
+                <span class="example-description"></span>
+                <span class="example-open"
+                  >Open full page <span aria-hidden="true">↗</span></span
+                >
+              </span>
+            </a>
+          </li>
+
+          <li>
+            <a class="example-link" href="/examples/dynamic-widgets/">
+              <span class="example-preview"><img alt="" loading="lazy" /></span>
+              <span class="example-caption">
+                <span class="example-index">Advanced · early experiment</span>
+                <span class="example-title" role="heading" aria-level="3"
+                  >From a request to a widget</span
                 >
                 <span class="example-description"></span>
                 <span class="example-open"

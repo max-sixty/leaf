@@ -3,7 +3,6 @@
 import re
 
 import pytest
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
@@ -15,9 +14,12 @@ from render_harness import (
     wait_for_revision,
 )
 
-pytestmark = pytest.mark.shifts_unsurveyed
+from leaf.render_checks import rendered
 
 
+# A live revision that puts a tab set above this one moves it 430px down the window
+# (issue #4036, "Keep what a live revision adds above the reader from moving it").
+@pytest.mark.shifts_unsurveyed
 @pytest.mark.parametrize(
     "placement",
     # Directly in main beside other blocks, and inside one; alone in main is the

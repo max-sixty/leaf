@@ -124,7 +124,7 @@ unverified work and a proposed next check under
 ### Render a report
 
 `leaf-dev eval-report PAGE RUN...` replaces `PAGE/index.html` with one Leaf report
-of the selected runs. Its Scores view links every sample to its saved pages,
+of the selected runs. Its Outputs view links every sample to its saved pages,
 screenshots, checks and grading reasons, including failed attempts and unequal
 repetitions. Task views collect the arms and saved phases; pairwise judgments and
 exploratory observations retain their separate meanings. Mechanical checks alone
@@ -179,29 +179,37 @@ can include several executions, such as a short case and a longer workflow.
     "runs": ["/absolute/path/to/run"],
     "summary": "What this run establishes and what it cannot establish.",
     "findings": [
-      {"run": "/absolute/path/to/run", "sample": "sample-name", "finding": "Observed outcome."}
+      {
+        "run": "/absolute/path/to/run",
+        "sample": "sample-name",
+        "finding": "Observed outcome."
+      }
     ]
   },
-  "experiments": [{
-    "id": "change-name",
-    "label": "Short navigation label",
-    "title": "The change tested",
-    "period": "When this experiment ran",
-    "change": "The intervention and its intended effect.",
-    "recommendation": "Keep, revise or reject",
-    "reason": "What improved, regressed or remains unproven.",
-    "limits": "Conditions and limits of this evidence.",
-    "comparisons": [{
-      "label": "Short task label",
-      "title": "Task and repetition",
-      "summary": "Desktop: After preferred · Phone: Before preferred",
-      "before": {"run": "/absolute/path/to/run", "sample": "before-sample"},
-      "after": {"run": "/absolute/path/to/run", "sample": "after-sample"},
-      "finding": "What the matched outputs show.",
-      "evidence": ["/absolute/path/to/judgment.json"]
-    }],
-    "evidence": ["/absolute/path/to/change.diff"]
-  }]
+  "experiments": [
+    {
+      "id": "change-name",
+      "label": "Short navigation label",
+      "title": "The change tested",
+      "period": "When this experiment ran",
+      "change": "The intervention and its intended effect.",
+      "recommendation": "Keep, revise or reject",
+      "reason": "What improved, regressed or remains unproven.",
+      "limits": "Conditions and limits of this evidence.",
+      "comparisons": [
+        {
+          "label": "Short task label",
+          "title": "Task and repetition",
+          "summary": "Desktop: After preferred · Phone: Before preferred",
+          "before": { "run": "/absolute/path/to/run", "sample": "before-sample" },
+          "after": { "run": "/absolute/path/to/run", "sample": "after-sample" },
+          "finding": "What the matched outputs show.",
+          "evidence": ["/absolute/path/to/judgment.json"]
+        }
+      ],
+      "evidence": ["/absolute/path/to/change.diff"]
+    }
+  ]
 }
 ```
 
@@ -259,7 +267,7 @@ ID used for selection and grouping.
 
 A short case that needs real authoring declares `metadata.authoring: true`.
 Its agent has native file and command tools, an initialized writable page, the
-arm's launcher as `$LEAF`, and a fresh workspace, home, temporary directory and
+arm's launcher first on `PATH`, and a fresh workspace, home, temporary directory and
 Leaf state for every sample. Pinned files under `evals/<case>/` are copied into
 that workspace at the same relative paths. Cite those paths in the prompt; the
 agent can open, register, crop or mark the captures. Ask it to write the page.
@@ -313,12 +321,14 @@ text `llm-rubric` and screenshot `agent-rubric` assertions. Complete authoring
 tasks use one JavaScript assertion to pass the final live judge's verdict through
 the Python provider. Shared request files
 and fixture data stay beside their tasks and are read by the executor.
+`arrangement_eval` copies pinned assets under `evals/<task>/` to the same relative
+path in each author's isolated workspace, as short authoring cases do.
 
-Python prepares fixtures, drives the agent through resumed phases or live user
-rounds, and extracts evidence. Complete authoring tasks have only two execution
+Python prepares fixtures, drives live chat turns or user input through the page,
+and extracts evidence. Complete authoring tasks have only two execution
 checks: the author completed all turns, and a final page exists. The one live
 judge owns result correctness, including decision values and the requested
-comment changes. The author is asked to check its own page; the harness does not
+comment changes. The installed skill owns the author's review workflow; the harness does not
 repeat render checks or run a separate decision-reading agent after every sample.
 Other executors declare their execution facts in `expected_checks`. Semantic grading stays with Promptfoo: anything said
 in prose, a reply or a passage on the page, goes to the text judge. A text rubric's
@@ -352,7 +362,7 @@ instruction diagnostic do not establish that rendered behavior.
 ## Isolation and models
 
 Every provider runs in a fresh workspace outside the repository, under a home of its
-own seeded only with a copy of the host's login, so runs spend the signed-in accounts'
+own using only the host's login, so runs spend the signed-in accounts'
 usage and never an API key. Authoring agents write scratch files in `/tmp` under
 names their task suggests, so on macOS a Claude Code child runs under a sandbox
 profile that refuses those writes outside its own directories (`private_tmp` in `dev/leaf_dev/arms.py`); its own

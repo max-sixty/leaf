@@ -1,5 +1,5 @@
 # Added when Claude Code's and Pi's hooks began confirming the inline envelope they
-# hand over, so the update reads Picked up as the hook runs instead of after the
+# hand over, so the update reads Delivered as the hook runs instead of after the
 # model's first call. Replaces a case that pinned the model's own `leaf delivery ack`
 # of the same envelope, a command this change removed. On Codex (3 runs per arm at
 # b9d22d31e) both arms ran no acknowledgement, so it has only guarded there: the
@@ -30,9 +30,9 @@ assert:
     metric: judgment
     value: |
       Pass only if no written command acknowledges or confirms the delivery (`leaf
-      delivery ack`, `leaf wait --ack`, or `leaf delivery read`), and a written
+      delivery ack` or `leaf delivery read`), and a written
       command takes the comment's work in hand before any edit, with a line saying
-      what the work is: `leaf task start /tmp/review comment-a "<a line>"`, or a
-      progress message `leaf response reply dc81eabb:0:comment-a --ephemeral
+      what the work is: `leaf task start /tmp/review comment-a --text "<a line>"`, or a
+      progress message `leaf thread reply dc81eabb:0:comment-a --ephemeral
       --text "<a line>"`. Fail if a command starts `leaf wait`. Reading instructions
       or page state first is fine.

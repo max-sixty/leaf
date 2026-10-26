@@ -36,6 +36,13 @@ import pytest
 import yaml
 from click.testing import CliRunner
 from conftest import CLAUDE_IDENTITY, LEAF_COMMAND, collect_app_server_error
+from pytest_regtest.snapshot_handler import (
+    BaseSnapshotHandler,
+    SnapshotHandlerRegistry,
+)
+from websockets.sync.server import serve as serve_websocket
+from websockets.sync.server import unix_serve as serve_unix_websocket
+
 from leaf import cli as cli_model
 from leaf import codex as codex_model
 from leaf import codex_adapter as codex_adapter_model
@@ -71,21 +78,12 @@ from leaf.revision_artifact import active_enclosing
 from leaf.served_state import page as served_page
 from leaf.validation import composition as composition_model
 from leaf.validation import instances as validation_model
-from pytest_regtest.snapshot_handler import (
-    BaseSnapshotHandler,
-    SnapshotHandlerRegistry,
-)
-from websockets.sync.server import serve as serve_websocket
-from websockets.sync.server import unix_serve as serve_unix_websocket
 
 ROOT = Path(__file__).parent.parent
 # The checkout and the payload a harness installs are one tree now; PLUGIN_ROOT still
 # names the role a path plays — "what a harness runs" — for the tests built on that.
 PLUGIN_ROOT = ROOT
-# The payload's manifests, hooks and launcher hang off PLUGIN_ROOT; the six product parts
-# sit one skill directory below it. Both are wanted often enough to be worth naming, and
-# spelled by hand the two are one plausible typo apart — a glob a level short matches
-# nothing and reports nothing.
+# The skill contains agent instructions; application resources belong to the plugin.
 SKILL_ROOT = PLUGIN_ROOT / "skills" / "leaf"
 COMMAND_HUB_PACKAGE = ROOT / "tests" / "fixtures" / "packages" / "work"
 # The complete shipped vocabulary, in the order `page init` composes it for an example.
@@ -97,7 +95,7 @@ SHIPPED_PACKAGES = [
     schema_model.ASSETS,
     schema_model.DEFAULT_PACKAGE,
     *(
-        SKILL_ROOT / "packages" / name
+        schema_model.BUNDLED_PACKAGES / name
         for name in json.loads(
             (ROOT / "examples" / "layer.json").read_text(encoding="utf-8")
         )
@@ -804,7 +802,13 @@ ROUTE_ANSWERS = {
     r"/api/event": ("EventAnswer", "Refusal", "LayerAnswer"),
     r"/api/samples": ("SampleAnswer", "Refusal", "LayerAnswer"),
     r"/api/media": ("MediaAnswer", "Refusal", "LayerAnswer"),
-    r"/api/files/[^/]+": ("FileSnapshot", "null", "StaleFile", "Refusal"),
+    r"/api/files/[^/]+": (
+        "FileSnapshot",
+        "null",
+        "StaleFile",
+        "Refusal",
+        "LayerAnswer",
+    ),
 }
 
 
@@ -832,7 +836,7 @@ def served_thread(browser: dict) -> dict:
 def served_obligations(browser: dict, *, page: bool = False) -> dict:
     """The obligation records the one view `browser` serves for what the page asks, by
     the selections `obligations.collection` makes: the frozen threads' obligations, or
-    with `page` the document's and its sign-off. The records the user's updates publish
+    with `page` the document's obligations. The records the user's updates publish
     are `served_updates`."""
     [view] = browser["views"].values()
     return collection(
@@ -1214,7 +1218,7 @@ def activity_reading(page_dir, now: str | None = None) -> dict:
 
 def owed_answers(page_dir):
     """The answers the page's agent owes (`activity.obligations`), as the hooks and
-    `leaf status idle` read them: each the workflow of the input its record names, with
+    `leaf page close` read them: each the workflow of the input its record names, with
     the record's id as `obligation` and the owed `answer`."""
     from leaf.served_state.context import read_page
 
@@ -1403,6 +1407,7 @@ SHELVED = '<p id="log-daily">Logs roll over at midnight.</p>'
 def deciding_verb(outcomes):
     """The one verb whose `outcome` settles which of a holder's slots retire."""
     return {
+        "decides": True,
         "detail": {
             "type": "object",
             "properties": {"outcome": {"enum": outcomes}},
@@ -1457,7 +1462,7 @@ def trial_family(root: Path) -> None:
     # add_test_widget frames every tag as a card. The slots draw no box of their own;
     # clearing their paragraph margins keeps a retired sibling from leaving a margin
     # trapped against the holder's frame. Geometry is not this family's subject.
-    with (package / "theme.css").open("a") as theme:
+    with (package / "widgets.css").open("a") as theme:
         theme.write(
             "\nlf-current, lf-proposed "
             "{ display: block; margin: 0; padding: 0; border: none; "
@@ -1774,15 +1779,11 @@ def neighbour_page(directory, title=None, dead=False, published=True, port=59999
     return server_model.page_url("127.0.0.1", port, server_model.host_key())
 
 
-def _status(page_dir, *args):
-    return CliRunner().invoke(cli_model.cli, ["status", str(page_dir), *args])
-
-
 def declare_idle(page_dir):
-    """Write the page's `idle` declaration directly, past `leaf status idle`'s refusal
+    """Write the page's `idle` declaration directly, past `leaf page close`'s refusal
     over unanswered moves, for a test whose subject is what an idle page does."""
     with service_model.PageTransaction(page_dir) as page:
-        return page.set_status("idle", "")
+        return page.set_status("idle")
 
 
 def declared(page_dir):
@@ -1798,18 +1799,17 @@ def status_and_stream(page_dir):
     return declared(page_dir), service_model.read_stream(page_dir)
 
 
-def declare(page_dir, state="waiting", detail="", *, ts=None, **voice):
+def declare(page_dir, state="waiting", *, ts=None, **voice):
     """Seed the agent's declaration as the log holds it, a `status` event, for a test
-    of how a page reads it: `state` with `detail`, dated `ts` (now by default) and
+    of how a page reads it: `state`, dated `ts` (now by default) and
     spoken in `voice` (`agent`, `session`). Raw, so a test can date it in the past;
-    `leaf status` is the command an agent runs."""
+    `leaf page open` is the command an agent runs."""
     return append_carried_log_record(
         page_dir,
         {
             "kind": "status",
             "author": "agent",
             "state": state,
-            "detail": detail,
             **({"ts": ts} if ts else {}),
             **voice,
         },
@@ -1905,7 +1905,7 @@ def newest_move(page_dir, widget):
 def _start(page_dir, item, line):
     """`leaf task start`: take a move or task in hand with the status's line."""
     return CliRunner().invoke(
-        cli_model.cli, ["task", "start", str(page_dir), str(item), line]
+        cli_model.cli, ["task", "start", str(page_dir), str(item), "--text", line]
     )
 
 
@@ -1933,7 +1933,8 @@ def working(page_dir, line, subject="page"):
     )
     if task is None:
         opened = CliRunner().invoke(
-            cli_model.cli, ["task", "open", str(page_dir), subject, line[:80]]
+            cli_model.cli,
+            ["task", "create", str(page_dir), subject, "--title", line[:80]],
         )
         assert opened.exit_code == 0, opened.output
         task = json.loads(opened.output.splitlines()[-1])
@@ -1979,8 +1980,41 @@ def comment_once_served():
         thread.join(timeout=STATED_TIMEOUT)
 
 
+class ContextRecord:
+    """Claude Code's transcript, as tests stand it in (`Harness.entered_context`):
+    every inline handover a hook printed reached the model's context, except those
+    into the turns a test has `dropped`, as Escape during a prompt hook drops them."""
+
+    def __init__(self):
+        self.dropped: set[str] = set()
+
+    def entered(self, harness) -> set[str]:
+        from leaf.delivery import pickup_receipts
+        from leaf.event_log import read_events
+
+        return {
+            event_id
+            for page in service_model.owned_pages(harness.session)
+            for pickup in pickup_receipts(read_events(page), phase="opened")
+            if pickup["session"] == harness.session
+            for event_id in pickup["events"]
+            if pickup["turn"] not in self.dropped
+        }
+
+
 @pytest.fixture
-def claimed(page_dir, monkeypatch):
+def context_record(monkeypatch):
+    record = ContextRecord()
+    monkeypatch.setattr(
+        harness_model.ClaudeCodeHarness,
+        "entered_context",
+        lambda harness, payload: record.entered(harness),
+    )
+    return record
+
+
+@pytest.fixture
+def claimed(page_dir, monkeypatch, context_record):
     """A page claimed by session s1, the way Claude Code's environment claims one:
     it puts the session id and its pid into every Bash tool call."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s1")
@@ -2021,11 +2055,18 @@ def codex_program(tmp_path_factory):
     `CodexHarness.lifetime` looks for above a leaf: a copy of this interpreter wearing that
     name. The name has to be the executable's own, because what a process reports
     is what the kernel loaded — a `#!` script and a symlink both wear the
-    interpreter's, and a copy of /bin/sh is killed on sight on macOS, where that
-    binary's signature is the system's. A framework Python's sys.executable is
-    a launcher that re-execs Python.app, so copy the running binary itself."""
+    interpreter's. A framework Python's sys.executable is a launcher that re-execs
+    Python.app, so copy the running binary itself.
+
+    macOS kills a copy on exec, silently and with SIGKILL, when its signature no
+    longer holds at the new path. A framework build's Python.app binary is signed
+    as part of its bundle, so a copy without the bundle's Info.plist fails that
+    check. Signing the copy ad hoc makes it valid wherever it lies, whichever
+    Python runs the suite."""
     program = tmp_path_factory.mktemp("codex-program") / "codex"
     shutil.copy(psutil.Process().exe(), program)
+    if sys.platform == "darwin":
+        subprocess.run(["codesign", "--force", "--sign", "-", program], check=True)
     return program
 
 
@@ -2078,9 +2119,13 @@ def under_codex(spawn, codex_program):
     pid by accident. It also keeps the command's own status, where the `| cat`
     that produced the shape in the wild would report the pipeline's last exit.
     PYTHONHOME because a copied interpreter has no prefix beside it to find its
-    own standard library in."""
+    own standard library in. It is the copy's alone: the runner drops it before
+    the shell, so the command gets the environment the test gave it, and a
+    Python below it on another base, such as a prepared installation's, still
+    finds its own."""
     runner = (
-        "import subprocess, sys; "
+        "import os, subprocess, sys; "
+        "os.environ.pop('PYTHONHOME'); "
         "sys.exit(subprocess.run(['/bin/sh', '-c', sys.argv[-1]]).returncode)"
     )
 
@@ -2269,7 +2314,7 @@ def published(page_dir):
 
 def comment(page_dir, *args):
     """Open a thread, with the posted event on stdout for the caller to read."""
-    return CliRunner().invoke(cli_model.cli, ["thread", "open", str(page_dir), *args])
+    return CliRunner().invoke(cli_model.cli, ["thread", "create", str(page_dir), *args])
 
 
 DRAFTED = PAGE.replace(
@@ -2325,7 +2370,7 @@ def add_test_widget(package: Path, tag: str, *, upgrade: bool = False) -> dict:
     declaration = element_declaration(tag, upgrade=upgrade)
     registry[tag] = declaration
     registry_path.write_text(json.dumps(registry, indent=2))
-    with (package / "theme.css").open("a") as theme:
+    with (package / "widgets.css").open("a") as theme:
         theme.write(
             f"\n:scope:is({tag}) {{\n"
             "  display: block;\n"
@@ -2552,8 +2597,8 @@ def consume_pending_input(session_id):
 def claim_and_wait_command(page: Path) -> str:
     """Explicit ownership handoff followed by its ordinary observing wait."""
     return (
-        shlex.join([*LEAF_COMMAND, "page", "claim", str(page)])
-        + " && "
+        shlex.join([*LEAF_COMMAND, "page", "claim", str(page), "--manual-delivery"])
+        + " >/dev/null && "
         + shlex.join([*LEAF_COMMAND, "wait", str(page)])
     )
 
@@ -2618,7 +2663,7 @@ def continued(output: str | dict) -> str:
 
 def printed(output: str) -> tuple[dict, dict, list[dict]]:
     """Read the one delivery a wait printed, for a harness whose wait is its watcher
-    (a bare shell, a Codex watcher): its reader confirms it with `wait --ack`."""
+    (a bare shell, a Codex watcher): its reader confirms it with `delivery ack`."""
     payload = json.loads(output)
     assert payload["format"] == delivery_model.DELIVERY.format
     assert payload["acknowledge"] is not None
@@ -2628,7 +2673,7 @@ def printed(output: str) -> tuple[dict, dict, list[dict]]:
 
 @pytest.fixture
 def codex_loop(monkeypatch):
-    """A Codex task running its own `leaf wait`/`leaf wait --ack` loop, the harness
+    """A Codex task running its own `leaf wait` loop, the harness
     session whose wait prints each delivery for its reader to confirm. This process,
     and every command it spawns, carries the task's identity in place of Claude
     Code's. Call the value with a page to record the task's claim on it: a claim
@@ -2651,7 +2696,7 @@ def freeze_events(page_dir: Path, events: list[dict]) -> dict:
             [stored[event["id"]] for event in events],
         )
     return delivery_model.freeze_delivery(
-        [batch], acknowledge=session_model.wait_acknowledgement(None)
+        [batch], acknowledge=session_model.wait_acknowledgement(None, page_dir)
     )
 
 
@@ -2874,7 +2919,7 @@ def _interaction_prompt_evidence(page, value):
 
 def _watched(page_dir):
     """A claimed page this session watches, so only its debts reach the hooks."""
-    session_model.cmd_waiting(page_dir, "")
+    session_model.cmd_waiting(page_dir)
     session = service_model.page_claim(page_dir)
     lease = leases_model.take_lease(
         leases_model.waiter_lease_path(page_dir, session["id"])

@@ -1,32 +1,36 @@
-$ leaf thread reply /page --text Answer
+$ leaf thread reply --text Answer
 exit: 2
-{"error": "Missing argument 'THREAD'.", "findings": [], "usage": "leaf thread reply [OPTIONS] PAGE THREAD"}
+{"error": "Missing argument 'REFERENCE_OR_PAGE'.", "findings": [], "usage": "leaf thread reply [OPTIONS] REFERENCE_OR_PAGE [MESSAGE]"}
 
 $ leaf thread reply /page user-1 --text Answer
 exit: 1
-{"error": "thread 'user-1' currently requires a response; `leaf response reply <answer.ref>` with the `answer.ref` that `leaf wait /page` delivers for user-1 answers it", "findings": [{"code": "owed-response", "severity": "error", "values": {"thread": "user-1", "answer": "`leaf response reply <answer.ref>` with the `answer.ref` that `leaf wait /page` delivers for user-1"}}]}
+{"error": "thread 'user-1' currently requires a response; `leaf thread reply <answer.ref>` with the `answer.ref` that `leaf wait /page` delivers for user-1 answers it", "findings": [{"code": "owed-response", "severity": "error", "values": {"thread": "user-1", "answer": "`leaf thread reply <answer.ref>` with the `answer.ref` that `leaf wait /page` delivers for user-1"}}]}
 
-$ leaf thread reply /page --text Answer
-exit: 2
-{"error": "Missing argument 'THREAD'.", "findings": [], "usage": "leaf thread reply [OPTIONS] PAGE THREAD"}
+$ leaf thread reply /page --text Answer --done
+exit: 1
+{"error": "invalid delivery id '/page'", "findings": []}
 
 $ leaf thread reply /page user-1 --text Answer
 exit: 1
-{"error": "thread 'user-1' currently requires a response; `leaf response reply response-ref` answers it", "findings": [{"code": "owed-response", "severity": "error", "values": {"thread": "user-1", "answer": "`leaf response reply response-ref`"}}]}
+{"error": "thread 'user-1' currently requires a response; `leaf thread reply response-ref` answers it", "findings": [{"code": "owed-response", "severity": "error", "values": {"thread": "user-1", "answer": "`leaf thread reply response-ref`"}}]}
 
-$ leaf response reply response-ref --text Answer --done
+$ leaf thread reply response-ref --text Answer --done
 exit: 0
 {"kind": "reply", "parent": "user-1"}
 
-$ leaf response reply response-ref --text Answer --done
+$ leaf thread reply response-ref --text Answer --done
 exit: 0
 {"kind": "reply", "parent": "user-1"}
 
-$ leaf thread reply /page user-1 --text Follow-up
+$ leaf thread reply /page user-1 --text Follow-up --done
+exit: 2
+{"error": "use an answer reference with --done; use `leaf thread reply <answer.ref>`", "findings": [], "usage": "leaf thread reply [OPTIONS] REFERENCE_OR_PAGE [MESSAGE]"}
+
+$ leaf thread reply /page user-1 --text Follow-up --obligation
 exit: 0
 {"kind": "reply", "parent": "user-1"}
 
-$ leaf response reply not-a-response-ref --text Answer --done
+$ leaf thread reply not-a-response-ref --text Answer --done
 exit: 1
 {"error": "invalid delivery id 'not-a-response-ref'", "findings": []}
 

@@ -38,7 +38,7 @@ import type {
   ServedEventAnswer,
   ServedSampleAnswer,
   ServedState,
-} from "../../build/browser/contract.js";
+} from "../../browser/types/contract.js";
 import {
   CHUNK_BYTES,
   PageStore,
@@ -78,9 +78,9 @@ export interface Env {
 }
 
 const siteRelease = z.string().check(z.regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/));
-const startupTime = z.nullable(
-  z.number().check(z.int(), z.nonnegative(), z.maximum(300_000)),
-);
+// A slow state response is still startup evidence. Bound the request body below,
+// not the duration the browser can observe while its upgraded page waits.
+const startupTime = z.nullable(z.number().check(z.int(), z.nonnegative()));
 const startupReportSchema = z.strictObject({
   loadId: z.string().check(z.regex(/^[0-9a-f]{32}$/)),
   release: siteRelease,
@@ -543,7 +543,9 @@ async function staticState(
   route: PageRoute,
   reference: string,
 ): Promise<Response> {
-  const viewRevision = request.headers.get("Leaf-View-Revision");
+  const viewRevision =
+    new URL(request.url).searchParams.get("revision") ||
+    request.headers.get("Leaf-View-Revision");
   const statePath = viewRevision === null ? route.state : route.states[viewRevision];
   if (statePath === undefined) {
     return new Response("unknown page revision", { status: 400 });
@@ -771,8 +773,8 @@ export default {
         });
         // Accepted page events are already durable; active Codex turn identity
         // belongs to the running process.
-        // TODO: a dispatch does not yet survive its container (TODO.md, "Make a
-        // leaf.page dispatch survive its container").
+        // TODO: a dispatch does not yet survive its container (issue #4080,
+        // "Make a leaf.page dispatch survive its container").
         ctx.waitUntil(dispatchAgentTask(env, params));
       }
     }

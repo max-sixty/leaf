@@ -7,8 +7,8 @@ import sys
 from pathlib import Path
 
 from jsonschema import Draft202012Validator
-from leaf.structure import SourceDocument
 
+from leaf.structure import SourceDocument
 from leaf_dev import ROOT
 from leaf_dev.leaf_assets import pinned_copy
 
@@ -42,29 +42,41 @@ _DATA_COMPANION = Draft202012Validator(
 NAMED_SOURCE_DIRS = (ROOT / "examples", ROOT / "examples" / "developer", TEST_PAGES)
 
 
-def named_source(name: str) -> Path:
+def named_source(name: str, *, root: Path = ROOT) -> Path:
     """The one authored source a name picks out of `NAMED_SOURCE_DIRS`; a ValueError
-    says why a name picks none, or several."""
+    says why a name picks none, or several. The generated corpus is built on demand."""
     name = name.removesuffix(".html")
+    if name == "corpus":
+        from leaf_dev.commands.corpus import generate
+
+        return generate(root)
+    directories = [root / path.relative_to(ROOT) for path in NAMED_SOURCE_DIRS]
     found = [
-        path for root in NAMED_SOURCE_DIRS if (path := root / f"{name}.html").is_file()
+        path
+        for directory in directories
+        if (path := directory / f"{name}.html").is_file()
     ]
     if len(found) > 1:
         raise ValueError(f"{name} names more than one source: {found}")
     if not found:
         available = sorted(
-            path.stem for root in NAMED_SOURCE_DIRS for path in root.glob("*.html")
+            {"corpus"}
+            | {
+                path.stem
+                for directory in directories
+                for path in directory.glob("*.html")
+            }
         )
         raise ValueError(f"no source named {name}; available: {', '.join(available)}")
     return found[0]
 
 
-def regression_sources() -> list[Path]:
+def regression_sources(root: Path = ROOT) -> list[Path]:
     """Full-page regression inputs that are neither examples nor website routes."""
-    return sorted(TEST_PAGES.glob("*.html"))
+    return sorted((root / "tests" / "fixtures" / "pages").glob("*.html"))
 
 
-def catalog_sources() -> list[Path]:
+def catalog_sources(root: Path = ROOT) -> list[Path]:
     """The authored catalog owns its selection and order; commented cards are omitted.
 
     HTML comments deliberately contribute no links. Keeping this reading with the
@@ -73,10 +85,10 @@ def catalog_sources() -> list[Path]:
     """
 
     document = SourceDocument(
-        (ROOT / "docs" / "examples.html").read_text(encoding="utf-8")
+        (root / "docs" / "examples.html").read_text(encoding="utf-8")
     )
     return [
-        ROOT
+        root
         / "examples"
         / f"{link.attrs['href'].removeprefix('/examples/').strip('/')}.html"
         for link in document.tree.select("a.example-link")

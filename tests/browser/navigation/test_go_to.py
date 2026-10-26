@@ -4,8 +4,6 @@ the links and new tabs they open."""
 import re
 
 import pytest
-from leaf import event_log as events_model
-from leaf.render_checks import one_frame, rendered
 from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATIONS_PAGE
 from render_cases_navigation import (
@@ -14,7 +12,6 @@ from render_cases_navigation import (
     CONTROL_LABEL_PAGE,
     CROWDED_PAGE,
     FOOTED_PAGE,
-    NOTED_PAGE,
     _publish,
     address_code,
     address_codes,
@@ -25,14 +22,15 @@ from render_harness import (
     leaf_page,
     open_page,
     opened_tab,
-    panel_control,
+    panel_view,
     resized,
-    sending,
     shown,
 )
 
 from browser.navigation import expect_walk_position
 from browser.threads import open_panel_thread
+from leaf import event_log as events_model
+from leaf.render_checks import one_frame, rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -154,7 +152,7 @@ def test_opened_tab_replaces_the_native_target_with_one_it_can_control(
 
 
 def test_a_link_hint_leaves_a_newer_gesture_where_it_is(browser, serve):
-    """A link hint's trip may wait on what holds its destination. A press made
+    """A link hint's navigation step may wait on what holds its destination. A press made
     meanwhile is the user's newer word: neither the landing nor the hint's focus
     takes them back from it."""
     page = open_page(
@@ -551,7 +549,7 @@ def test_the_g_chord_opens_an_empty_page_map(browser, serve):
 def test_the_g_chord_selects_a_visible_tab_hint(browser, serve):
     """A tab can be selected from elsewhere on the page through its generated hint.
 
-    Arrow keys serve a user already standing in the tab strip. The page-level route
+    Arrow keys serve a user already focused in the tab strip. The page-level route
     names every visible tab, then selects and focuses the requested one so its
     local keyboard pattern is immediately available."""
     page = open_page(browser, serve(CONTROL_LABEL_PAGE))
@@ -718,7 +716,7 @@ def test_global_destinations_switch_from_a_covering_workspace(
     resized(page, 420, 800)
 
     def view(name):
-        return page.locator(f'.lf-fp-view[data-view="{name}"]:not([data-leaving])')
+        return page.locator(panel_view(name))
 
     page.keyboard.press("g")
     page.keyboard.press("Shift+l")
@@ -759,31 +757,3 @@ def test_global_destinations_switch_from_a_covering_workspace(
     page.keyboard.press("Escape")
     expect(versions).to_have_count(0)
     expect(page.locator(PANEL)).to_have_attribute("data-open", "thread")
-
-
-def test_signoff_uses_its_visible_button_and_g_l_never_falls_through(browser, serve):
-    """Approval is a button action; a dead sequence destination cannot turn into it."""
-    html = NOTED_PAGE.replace(
-        "</head>",
-        '<meta name="lf-review" content="sign-off">\n</head>',
-    )
-    page = open_page(browser, serve(html))
-
-    # All pages is conditional. With no neighbouring leaf, its sequence must not be
-    # reinterpreted as a page action carrying the same final key.
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+l")
-    rendered(page)
-    assert not [
-        e for e in events_model.read_events(serve.page_dir) if e["kind"] == "done"
-    ]
-
-    approve = panel_control(page, "approval")
-    expect(approve).to_contain_text("Approve version")
-    expect(approve).not_to_have_attribute("aria-keyshortcuts", re.compile(".+"))
-    approve.focus()
-    with sending(page, "the approval"):
-        page.keyboard.press("Enter")
-    expect(page.locator(".lf-fp-row-notice")).to_have_text(re.compile(r"✓ v1 approved"))
-    done = [e for e in events_model.read_events(serve.page_dir) if e["kind"] == "done"]
-    assert [event["version"] for event in done] == [1], done

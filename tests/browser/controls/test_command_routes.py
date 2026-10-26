@@ -4,14 +4,14 @@ disabled and overridden routes, and the targets offered native controls get."""
 import re
 
 import pytest
-from leaf.render_checks import rendered
-from leaf.schema import ELEMENT_ID
 from playwright.sync_api import expect
 from render_cases_interaction import SEATED_OBLIGATION_LAYER
 from render_cases_navigation import go_to_address
 from render_harness import leaf_page, open_page
 
 from browser.navigation import offered_routes
+from leaf.render_checks import rendered
+from leaf.schema import ELEMENT_ID
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -597,7 +597,7 @@ def test_context_commands_keep_widget_assigned_aliases_and_source_lifetime(
     expect(result).to_have_text("Action 11 applied")
     page.keyboard.press("?")
     unbound = page.locator(
-        '.lf-command-reference tr[data-lf-command="probe.action-11"]'
+        '.lf-command-reference [role=row][data-lf-command="probe.action-11"]'
     )
     expect(unbound.locator(".lf-command-reference-command")).to_have_attribute(
         "data-lf-available", "true"
@@ -706,7 +706,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     expect(result).to_have_text("Applied 1")
     page.keyboard.press("?")
     reference_action = page.locator(
-        '.lf-command-reference tr[data-lf-command="probe.escape"] '
+        '.lf-command-reference [role=row][data-lf-command="probe.escape"] '
         ".lf-command-reference-command"
     )
     expect(reference_action).to_have_attribute("data-lf-available", "true")
@@ -715,7 +715,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     expect(page.locator("#question")).to_be_focused()
     page.keyboard.press("Tab")
     expect(
-        page.get_by_role("button", name="Apply operation", exact=True)
+        page.locator("#probe").get_by_role("button", name="Apply operation", exact=True)
     ).to_be_focused()
     page.keyboard.press("x")
     expect(result).to_have_text("Applied 3")
@@ -759,23 +759,25 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     )
     result = page.locator("#probe output")
     page.locator("#outside").focus()
-    for standing in ["outside", "question"]:
+    for current_location in ["outside", "question"]:
         page.keyboard.press("?")
         for command_id, title in [
             ("probe.apply", "Apply operation"),
             ("probe.apply.context", "Neighbour operation"),
         ]:
             row = page.locator(
-                f'.lf-command-reference tr[data-lf-command="{command_id}"]'
+                f'.lf-command-reference [role=row][data-lf-command="{command_id}"]'
             )
             expect(row).to_have_count(1)
             expect(row).to_contain_text(title)
             expect(row.locator(".lf-command-reference-command")).to_have_attribute(
                 "data-lf-available",
-                str(standing == "question" and command_id == "probe.apply").lower(),
+                str(
+                    current_location == "question" and command_id == "probe.apply"
+                ).lower(),
             )
         page.keyboard.press("Escape")
-        if standing == "outside":
+        if current_location == "outside":
             page.keyboard.press("m")
             expect(page.locator("#question")).to_be_focused()
     page.keyboard.press("1")
@@ -785,7 +787,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     expect(result).to_have_text("Applied 1")
     page.keyboard.press("Tab")
     expect(
-        page.get_by_role("button", name="Apply operation", exact=True)
+        page.locator("#probe").get_by_role("button", name="Apply operation", exact=True)
     ).to_be_focused()
     page.keyboard.press("F8")
     expect(result).to_have_text("Applied 2")
@@ -828,7 +830,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     expect(result).to_have_text("Applied 1")
     page.keyboard.press("?")
     reference_row = page.locator(
-        '.lf-command-reference tr[data-lf-command="probe.guarded"]'
+        '.lf-command-reference [role=row][data-lf-command="probe.guarded"]'
     )
     expect(reference_row).to_contain_text("Guarded operation")
     expect(reference_row.locator(".lf-command-reference-command")).to_have_count(0)

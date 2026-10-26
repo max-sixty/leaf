@@ -5,6 +5,7 @@ import json
 import math
 import re
 from datetime import datetime, timedelta
+from itertools import pairwise
 
 import pytest
 from interact_support import (
@@ -14,16 +15,6 @@ from interact_support import (
     declare_idle,
     wait_for,
 )
-from leaf import anchor_capture as anchor_capture_model
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf import passages as passages_model
-from leaf import service as service_model
-from leaf import structure as structure_model
-from leaf.render_checks import rendered, wait_until_ready
-from leaf.render_gate.scheme import collect_page_exceptions
-from leaf.served_state import context as served_context
-from leaf.validation import composition as validation_model
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -78,8 +69,10 @@ from render_harness import (
     judge_watches,
     leaf_page,
     open_page,
-    pane_posture,
+    open_threads,
+    pane_scroll_behavior,
     panel_settled,
+    panel_view,
     regions_side_by_side,
     resized,
     round_trip,
@@ -90,6 +83,7 @@ from render_harness import (
     selection_field,
     sending,
     stamp_page,
+    stored_draft,
     stored_draft_text,
     told,
     wait_for_revision,
@@ -97,6 +91,16 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
+from leaf import anchor_capture as anchor_capture_model
+from leaf import data as data_model
+from leaf import event_log as events_model
+from leaf import passages as passages_model
+from leaf import service as service_model
+from leaf import structure as structure_model
+from leaf.render_checks import rendered, wait_until_ready
+from leaf.render_gate.scheme import collect_page_exceptions
+from leaf.served_state import context as served_context
+from leaf.validation import composition as validation_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -279,12 +283,16 @@ def test_an_aimed_comment_keeps_its_place_with_on_me_open(browser, serve, width)
     resized(page, width, 900)
 
     target = page.locator("#lq-keep")
-    target.hover()
+    # The expanded queue covers the center; keep the pointer on the exposed start,
+    # where the comment press below also lands.
+    target.hover(position={"x": 12, "y": 12})
     page.keyboard.down("Alt")
     expect(page.locator(".lf-aim")).to_have_attribute("data-for", "lq-keep")
     # Open by script so the pointer remains parked on the target while the view arrives.
     page.locator(".lf-fp-on-user").evaluate("node => node.click()")
     panel_settled(page, view="queue")
+    expect(page.locator(".lf-aim")).to_be_visible()
+    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "lq-keep")
     aligned = page.evaluate(
         """() => {
           const target = document.getElementById('lq-keep').getBoundingClientRect();
@@ -1607,7 +1615,9 @@ def test_a_margin_label_covers_the_target_trace(browser, serve, monkeypatch):
     told(page)
 
     marker = page.locator('[data-lf-margin-for="jobs"] > .lf-margin-marker')
-    expect(marker).to_have_attribute("aria-label", re.compile(r"^Waiting for pickup,"))
+    expect(marker).to_have_attribute(
+        "aria-label", re.compile(r"^Waiting for delivery,")
+    )
     marker.hover()
     label = marker.locator(":scope > .lf-margin-entry-label")
     trace = page.locator('.lf-target-trace[data-for="jobs"]')
@@ -1868,7 +1878,9 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     page.keyboard.press("?")
     reference = page.locator(".lf-command-reference")
     expect(reference).to_be_visible()
-    expect(reference.locator('tr[data-lf-command="aim.comment"]')).to_have_count(0)
+    expect(
+        reference.locator('[role=row][data-lf-command="aim.comment"]')
+    ).to_have_count(0)
     page.keyboard.press("Escape")
     expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
 
@@ -2381,7 +2393,7 @@ def test_design_mode_leaves_the_chrome_working(browser, serve):
     expect(page.locator(".lf-inspect")).to_be_hidden()
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    panel = page.locator('.lf-fp-view[data-view="threads"]')
+    panel = page.locator(panel_view("threads"))
     panel_settled(page, view="threads")
     expect(panel).to_be_visible()
     panel.hover()
@@ -2394,7 +2406,7 @@ def test_design_mode_leaves_the_chrome_working(browser, serve):
     assert comments() == seeded, "a press on the chrome posted a comment"
     exit_mode.click()
     expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode")
-    page.locator(".lf-fp-threads").click()
+    open_threads(page)
     expect(panel).to_be_visible()
 
 
@@ -2761,7 +2773,7 @@ def test_a_generic_package_gets_nested_hits_and_can_narrow_a_paint_surface(
 def test_a_registered_visual_rebuilds_same_bounds_geometry_on_update(browser, serve):
     """The package's update signal rebuilds a contour even when its box does not move.
 
-    The contour is the one standing in the part's thread raises; at rest a thread draws
+    The contour is the one entering the part's thread raises; at rest a thread draws
     nothing on its element."""
     url = serve(
         GENERIC_VISUAL_PAGE,
@@ -3123,7 +3135,7 @@ def test_a_visual_part_mark_follows_its_drawn_svg_shape(browser, serve):
     )
     told(page)
     expect(diamond).to_have_class(re.compile(r"\blf-mark-el\b"))
-    # Standing in the thread raises the contour; at rest the thread draws none.
+    # Located in the thread raises the contour; at rest the thread draws none.
     page.keyboard.press("t")
     expect(page.locator(".lf-page-thread")).to_be_focused()
     expect(diamond).to_have_class(re.compile(r"\blf-projected-mark\b"))
@@ -3160,7 +3172,7 @@ def test_a_visual_part_mark_follows_its_drawn_svg_shape(browser, serve):
     )
     page.evaluate(
         """() => {
-          window.__lfStandingContour = document.querySelector(
+          window.__lfCurrentLocationContour = document.querySelector(
             '.lf-visual-mark-shape > g > *'
           );
         }"""
@@ -3180,7 +3192,7 @@ def test_a_visual_part_mark_follows_its_drawn_svg_shape(browser, serve):
         "() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))"
     )
     assert page.evaluate(
-        """() => window.__lfStandingContour === document.querySelector(
+        """() => window.__lfCurrentLocationContour === document.querySelector(
           '.lf-visual-mark-shape > g > *'
         )"""
     )
@@ -3371,7 +3383,7 @@ def test_a_held_aim_in_a_pane_paints_in_the_frame_its_target_scrolls(browser, se
         ),
     )
     resized(page, 1280, 720)
-    pane_posture(page, page.locator("#aim-pane"), "bounded")
+    pane_scroll_behavior(page, page.locator("#aim-pane"), "bounded")
     target = page.locator("#pane-target").bounding_box()
     page.mouse.move(target["x"] + 40, target["y"] + 130)
     page.keyboard.down("Alt")
@@ -3414,7 +3426,7 @@ graph LR
         ),
     )
     resized(page, 1280, 720)
-    pane_posture(page, page.locator("#aim-pane"), "bounded")
+    pane_scroll_behavior(page, page.locator("#aim-pane"), "bounded")
     if subject == "words":
         page.locator("#pane-words").hover()
         page.keyboard.down("Alt")
@@ -3559,12 +3571,12 @@ def test_the_chrome_keeps_its_presses_while_the_page_is_armed(browser, serve):
     from a user who happens to be holding the key — and there is nothing in the layer
     to aim at anyway, since an anchor names an element of the page."""
     page = open_page(browser, serve(LONG_PAGE))
-    comments = page.locator(".lf-fp-threads")
-    comments.hover()
+    on_me = page.locator(".lf-fp-on-user")
+    on_me.hover()
     page.keyboard.down("Alt")
-    comments.click()
+    on_me.click()
     page.keyboard.up("Alt")
-    panel_settled(page, view="threads")
+    panel_settled(page, view="queue")
     expect(page.locator(".lf-composer")).to_be_hidden()
 
 
@@ -3845,13 +3857,13 @@ def test_a_withheld_draft_restores_editing_and_deliberate_dismissal(browser, ser
     judge_watches()
     assert _draft_in_view(page, words)
     assert draft_key(page, context) == saved
-    draft = json.loads(stored_draft_text(page, context))
-    assert draft["anchor"] == {"section": "bg-contents"}
+    draft = page.evaluate("([read, ctx]) => read(ctx)", [stored_draft(page), context])
+    assert draft["payload"]["anchor"] == {"section": "bg-contents"}
     assert draft["text"] == words
     page.keyboard.press("Escape")
     rendered(page)
     assert not page.locator(".lf-fab-input").is_visible()
-    assert json.loads(stored_draft_text(page, context))["text"] == words
+    assert stored_draft_text(page, context) == words
 
 
 @pytest.mark.parametrize("reopen", ["resume", "reload", "withheld", "comment"])
@@ -4061,7 +4073,7 @@ def test_a_scroll_carries_paint_over_targets_and_writes_it_once_settled(
     page = open_page(browser, serve(source, events=events if mode == "ink" else []))
     resized(page, 1280, 720)
     if scroller == "pane":
-        pane_posture(page, page.locator("#design-pane"), "bounded")
+        pane_scroll_behavior(page, page.locator("#design-pane"), "bounded")
     _paint_mode(page, mode, "finding" if scroller == "pane" else "Paragraph 3")
     if mode == "design":
         named = ["pane-target", "pane-later"] if scroller == "pane" else ["p3", "p4"]
@@ -4161,7 +4173,7 @@ def test_saved_ink_is_cut_where_its_pane_cuts_what_it_marks(browser, serve):
         browser, serve(DESIGN_PANE_PAGE, events=[_drawn_on("pane-target")])
     )
     resized(page, 1280, 720)
-    pane_posture(page, page.locator("#design-pane"), "bounded")
+    pane_scroll_behavior(page, page.locator("#design-pane"), "bounded")
     mark = page.locator(".lf-drawing-posted")
     expect(mark).to_have_count(1)
     page.evaluate("() => document.querySelector('#design-pane > div').scrollBy(0, 150)")
@@ -4203,7 +4215,7 @@ def test_design_paint_in_a_pane_paints_in_the_frame_its_target_scrolls(
         ),
     )
     resized(page, 1280, 720)
-    pane_posture(page, page.locator("#design-pane"), "bounded")
+    pane_scroll_behavior(page, page.locator("#design-pane"), "bounded")
     _design_mode(page)
     target = page.locator("#pane-target").bounding_box()
     page.mouse.move(target["x"] + 40, target["y"] + 130)
@@ -5411,3 +5423,84 @@ def test_native_textarea_defaults_never_supply_design_passage_context(browser, s
     fields.nth(0).press("End")
     fields.nth(0).press_sequentially(" still editable")
     expect(fields.nth(0)).to_have_value("Changed live value. still editable")
+
+
+@pytest.mark.parametrize("shift, placement", [(0, "right-start"), (250, "left-start")])
+def test_a_side_comment_grows_down_from_the_line_it_was_opened_on(
+    browser, serve, shift, placement
+):
+    """Beside a passage, a draft that wraps keeps what the user has written where they
+    wrote it: the field's top holds and its foot, with Send, moves down a line per wrap,
+    as in an editor. Enter sends, so a hand on the keys never chases Send. (#1159 held
+    the foot and raised the words above it; the user chose this instead.)"""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Side comment growth",
+                '<div style="height: 240px"></div>'
+                f'<p id="passage" style="position:relative;left:{shift}px">'
+                "This passage has room beside it for a response.</p>"
+                '<div style="height: 700px"></div>',
+            )
+        ),
+    )
+    resized(page, 1440, 900)
+    page.locator("#passage").click(modifiers=["Alt"])
+    field = open_compact_comment(page)
+    bar = page.locator(".lf-fab-bar")
+    assert bar.get_attribute("data-lf-placement") == placement
+    resting = page.evaluate(SIDE_COMMENT)
+
+    # Word by word until the field has wrapped twice, reading every keystroke's result.
+    readings = [resting]
+    words = iter(("the words keep coming as the user writes " * 12).split())
+    while len({round(reading["height"]) for reading in readings}) < 3:
+        page.keyboard.type(next(words) + " ")
+        rendered(page)
+        readings.append(page.evaluate(SIDE_COMMENT))
+    for reading in readings:
+        assert reading["top"] == pytest.approx(resting["top"], abs=0.5), reading
+        assert reading["field"] == pytest.approx(resting["field"], abs=0.5), reading
+        assert reading["scrolled"] == 0, reading
+    for before, after in pairwise(readings):
+        assert after["bottom"] >= before["bottom"] - 0.5, (before, after)
+    grown = readings[-1]
+    assert grown["bottom"] > resting["bottom"] + 30, (resting, grown)
+    assert grown["send"] > resting["send"] + 30, (resting, grown)
+
+    write(field, "Short again")
+    rendered(page)
+    shortened = page.evaluate(SIDE_COMMENT)
+    assert shortened["top"] == pytest.approx(resting["top"], abs=0.5), shortened
+    assert shortened["bottom"] == pytest.approx(resting["bottom"], abs=0.5), shortened
+
+    # A restored draft opens from the same line, its lines under it.
+    write(field, "First line\nSecond line\nThird line")
+    page.reload()
+    rendered(page)
+    # Startup recovery has already reopened the editor at its saved passage.
+    field = open_compact_comment(page)
+    expect(field).to_have_js_property("value", "First line\nSecond line\nThird line")
+    rendered(page)
+    restored = page.evaluate(SIDE_COMMENT)
+    assert restored["top"] == pytest.approx(resting["top"], abs=1), restored
+    assert restored["bottom"] > resting["bottom"] + 30, restored
+
+
+def test_design_mode_survives_the_reload_a_new_version_brings(browser, serve):
+    """A version landing mid-batch reloads the document, and a user put out of the
+    mode by news they never asked for is a mode error the page made — so the mode is
+    this tab's working state, kept the way the panel's open state is."""
+    page = open_page(browser, serve(REPLAYED_PAGE))
+    page.keyboard.press("l")
+    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+    page.reload()
+    wait_until_ready(page)
+    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+    expect(page.locator('.lf-legend-box[data-for="approach"]')).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
+    page.reload()
+    wait_until_ready(page)
+    expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")

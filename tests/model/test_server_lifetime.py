@@ -1,5 +1,5 @@
-"""A page server's lifetime: `server start`, `stop` and `run`, persistent, session and
-background-job lifetimes, the reaper that retires a server, and restarts across a
+"""A page server's lifetime: `server start`, `stop` and `run`, persistent, session,
+background-job and desktop-app lifetimes, the reaper that retires a server, and restarts across a
 re-vendor."""
 
 import http.client
@@ -33,6 +33,7 @@ from interact_support import (
     wait_for,
     write_record,
 )
+
 from leaf import cli as cli_model
 from leaf import harness as harness_model
 from leaf import hooks as hooks_model
@@ -78,9 +79,9 @@ def reaper_retires(page: Path, monkeypatch) -> bool:
         controlled.setattr(
             server_model,
             "page_changes",
-            lambda _page: SimpleNamespace(
-                mark=lambda: None,
-                wait=lambda _mark, seconds: next_check(seconds),
+            lambda _page: (
+                SimpleNamespace(wait=lambda _mark, seconds: next_check(seconds)),
+                None,
             ),
         )
         controlled.setattr(server_model, "os", SimpleNamespace(_exit=retire))
@@ -310,6 +311,76 @@ def test_a_claim_takes_the_job_lifetime_only_for_the_jobs_own_session(
         service_model.claim_page(page_dir)
 
 
+def test_a_desktop_app_sessions_server_lives_as_long_as_the_app_session(
+    page_dir, tmp_path, monkeypatch, dead_pid
+):
+    """The Claude desktop app stops a session's process to update, and resumes it
+    only when the user opens the session, so a claim naming the process takes the
+    page down while the user reads it in another window. The app's record of the
+    session is the lifetime instead: the page stays served through the SessionEnd
+    of the process's stop, comes back to the same generation when the session
+    resumes, and retires once the record names another session or the user
+    archives it."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    record = (
+        tmp_path
+        / "Library/Application Support/Claude/claude-code-sessions/acct/org"
+        / "local_one.json"
+    )
+    record.parent.mkdir(parents=True)
+    app = {"cliSessionId": "app-session", "isArchived": False}
+    cleanup_model.write_json(record, app)
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "app-session")
+    monkeypatch.setenv("CLAUDE_CODE_HOST_SESSION_ID", "local_one")
+    monkeypatch.setenv("CLAUDE_PID", str(dead_pid))
+    assert service_model.claim_page(page_dir)
+    assert hosting_model.start_server(page_dir, harness=harness_model.session_harness())
+    generation = service_model.page_claim(page_dir)["generation"]
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "SessionEnd", "session_id": "app-session"}
+    )
+    assert not reaper_retires(page_dir, monkeypatch)
+    assert server_model.running_server(page_dir)
+    assert (
+        cleanup_model.ensure_session(
+            "app-session", harness_model.session_harness().lifetime()
+        )["generation"]
+        == generation
+    )
+    assert service_model.claim_is_active(service_model.page_claim(page_dir))
+
+    cleanup_model.write_json(record, {**app, "cliSessionId": "after-clear"})
+    assert not service_model.claim_is_active(service_model.page_claim(page_dir))
+    cleanup_model.write_json(record, {**app, "isArchived": True})
+    assert reaper_retires(page_dir, monkeypatch)
+    wait_for(
+        lambda: server_model.running_server(page_dir),
+        lambda running: not running,
+        failure="the app session's server stayed up after it was archived",
+    )
+
+
+def test_a_claim_takes_the_app_lifetime_only_for_the_apps_own_session(
+    page_dir, tmp_path, monkeypatch
+):
+    """CLAUDE_CODE_HOST_SESSION_ID is inherited, so a session started under an app
+    session's shell tool names the app's record while being a process of its own;
+    so does a session whose app keeps no record."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    record = (
+        tmp_path
+        / "Library/Application Support/Claude/claude-code-sessions/acct/org"
+        / "local_one.json"
+    )
+    record.parent.mkdir(parents=True)
+    cleanup_model.write_json(record, {"cliSessionId": "the-app", "isArchived": False})
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "nested")
+    monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
+    for host in ("local_one", "local_unrecorded"):
+        monkeypatch.setenv("CLAUDE_CODE_HOST_SESSION_ID", host)
+        assert harness_model.session_harness().lifetime() == {"pid": os.getpid()}
+
+
 def test_a_server_exits_when_its_session_is_hard_killed(
     page_dir, session_process, managed_server
 ):
@@ -382,7 +453,7 @@ def test_server_start_forwards_flags_and_returns_service_output(page_dir):
     to the service it spawns and the account comes back from there, so the
     lifetime a flag declared and the refusal a running server earns are both that
     process's own words, carried out with its exit status."""
-    persistent = start_server_command(page_dir, "--persistent")
+    persistent = start_server_command(page_dir, "--lifetime", "persistent")
     assert persistent.returncode == 0, persistent.stderr
     assert json.loads(persistent.stdout)["lifetime"] == "persistent"
     assert read_record(page_dir / "service.json")["lifetime"] == "persistent"
@@ -525,7 +596,7 @@ def test_a_sessionless_server_ignores_a_stale_claim_and_requires_explicit_stop(
 def test_server_run_persistent_declines_the_claim_a_harness_session_offers(
     page_dir, spawn
 ):
-    """`--persistent` from inside a harness is the bare-shell statement made
+    """`--lifetime persistent` from inside a harness is the bare-shell statement made
     explicit: the launch declines the claim it could have made, so the server
     records the persistent lifetime and the page stays nobody's — no watcher
     thread to stop it when the harness pid goes, no SessionEnd reaper. The harness is
@@ -537,7 +608,8 @@ def test_server_run_persistent_declines_the_claim_a_harness_session_offers(
             *LEAF_COMMAND,
             "server",
             "run",
-            "--persistent",
+            "--lifetime",
+            "persistent",
             str(page_dir),
         ],
         stdout=subprocess.PIPE,
@@ -562,7 +634,7 @@ def test_server_run_temporary_uses_the_browser_harness_boundary(page_dir, spawn)
     and no claim for this test's harness session to watch.
     """
     process = spawn(
-        [*LEAF_COMMAND, "server", "run", "--temporary", str(page_dir)],
+        [*LEAF_COMMAND, "server", "run", "--lifetime", "temporary", str(page_dir)],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
@@ -587,7 +659,7 @@ def test_server_run_persistent_refuses_to_adopt_a_session_server(page_dir):
     way out named, exactly as a stated `--host` is — not silently ignored."""
     serving(page_dir, 1, "session")
     result = CliRunner().invoke(
-        cli_model.cli, ["server", "run", "--persistent", str(page_dir)]
+        cli_model.cli, ["server", "run", "--lifetime", "persistent", str(page_dir)]
     )
     assert result.exit_code != 0
     assert "server stop" in result.output
@@ -676,7 +748,7 @@ def test_a_persistent_server_outlives_a_session_that_picks_the_page_up(
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "later")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     assert service_model.claim_page(page_dir)
-    session_model.cmd_waiting(page_dir, "")
+    session_model.cmd_waiting(page_dir)
     # Without this the hook would skip the page for the wrong reason and the test
     # would pass with the bug in: the persistent check has to be what spares it.
     assert page_dir in service_model.owned_pages("later")

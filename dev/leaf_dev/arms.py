@@ -45,14 +45,20 @@ from pathlib import Path
 from typing import IO, NamedTuple, Self
 
 import click
+
 from leaf.codex import APP_SERVER_ENV
 from leaf.delivery import opened_input_ids
 from leaf.harness import IDENTITY_VARIABLES, ClaudeCodeHarness, CodexHarness
 from leaf.render_gate import browser as browser_model
-
+from leaf.render_gate import command as render_command_model
 from leaf_dev import ROOT
 from leaf_dev.browser import shell_executable
-from leaf_dev.page_fixtures import prepare_page, read_fixture, record_run_context
+from leaf_dev.page_fixtures import (
+    fixture_environment,
+    prepare_page,
+    read_fixture,
+    record_run_context,
+)
 
 # The uv project names this package's `pyproject.toml` as a workspace member, so uv
 # needs that file to read the lock. The package itself stays out: the launcher never
@@ -68,6 +74,10 @@ PAYLOAD = (
     "bin",
     "hooks",
     "skills",
+    "src",
+    "browser",
+    "packages",
+    "dist",
     "package.json",
     "leaf-distribution.json",
     "pyproject.toml",
@@ -99,31 +109,44 @@ def run_directory(parent: Path) -> Path:
     return Path(tempfile.mkdtemp(prefix="run-", dir=parent))
 
 
-def environment(**extra: str) -> dict[str, str]:
+def environment(*, payload: Path | None = None, **extra: str) -> dict[str, str]:
     """This process's environment without the agent session it may be running in.
 
     A harness run from a Claude Code or Codex session inherits that session's
     identity: its id, job directory, effort level and App Server endpoint. A `leaf`
     command would sign events as that session, and a child would use its transport
-    and settings. An inherited LEAF_HOST_LAUNCHER would override the arm's launcher.
+    and settings. Inherited LEAF and LEAF_HOST_LAUNCHER would point at the parent's
+    launcher instead of the arm's.
     `CLAUDE_CONFIG_DIR` stays, since it names where the login lives. Nor does PATH
     keep `uv run`'s environment or the bin directory of a Leaf tree, such as the
     one the session's harness added for its own Leaf plugin: the `leaf` in either
     would shadow the launcher a child harness puts on PATH for the arm's plugin.
+    When supplied, `payload` puts that arm's bin directory first on the clean PATH.
 
     A child names the pinned headless shell as its browser through
     LEAF_BROWSER_EXECUTABLE (`shell_executable`), unless that variable is already
     set. It outranks CHROME_PATH and CHROME_BIN, which hosts set for other tools
     (GitHub's runner image sets CHROME_BIN to its Chrome), so leaf-dev's children
-    draw with the build `headless_shell` drives, as the suite's fixture arranges."""
+    draw with the build `headless_shell` drives, as the suite's fixture arranges.
+    It also pins `page check --render` to the fixed desktop window
+    (LEAF_RENDER_VIEWPORT), unless that variable is set, so a judged page's verdict
+    doesn't depend on the window of whichever browser last viewed it."""
     env = {
         key: value
         for key, value in os.environ.items()
-        if key not in (*IDENTITY_VARIABLES, APP_SERVER_ENV, "LEAF_HOST_LAUNCHER")
+        if key
+        not in (
+            *IDENTITY_VARIABLES,
+            APP_SERVER_ENV,
+            "LEAF",
+            "LEAF_HOST_LAUNCHER",
+            "CODEX_INTERNAL_ORIGINATOR_OVERRIDE",
+        )
         and not (key.startswith("CLAUDE") and key != "CLAUDE_CONFIG_DIR")
     }
     if browser_model.VARIABLE not in env:
         env[browser_model.VARIABLE] = shell_executable()
+    env.setdefault(render_command_model.PIN_VARIABLE, "fixed")
     venv = os.environ.get("VIRTUAL_ENV")
     env["PATH"] = os.pathsep.join(
         entry
@@ -131,6 +154,8 @@ def environment(**extra: str) -> dict[str, str]:
         if not (venv and entry == str(Path(venv) / "bin"))
         and not (Path(entry).parent / "skills" / "leaf").is_dir()
     )
+    if payload is not None:
+        env["PATH"] = os.pathsep.join((str(payload / "bin"), env["PATH"]))
     return {**env, **extra}
 
 
@@ -142,7 +167,7 @@ def run_leaf(
     timeout: float | None = None,
     input_text: str | None = None,
 ) -> subprocess.CompletedProcess:
-    """Run an arm's launcher under a state home of its own."""
+    """Run an arm's launcher under its state home, without personal configuration."""
     proc = subprocess.run(
         [str(arm / "bin/leaf"), *args],
         input=input_text,
@@ -150,7 +175,7 @@ def run_leaf(
         text=True,
         check=False,
         timeout=timeout,
-        env=environment(XDG_STATE_HOME=str(state)),
+        env=fixture_environment(environment(XDG_STATE_HOME=str(state))),
     )
     if check and proc.returncode:
         raise click.ClickException(
@@ -161,11 +186,18 @@ def run_leaf(
 
 @contextmanager
 def serving(arm: Path, state: Path, page: Path):
-    """Serve `page` with the arm's `leaf server run --temporary` under the state home
+    """Serve `page` with the arm's `leaf server run --lifetime temporary` under the state home
     `state`, and yield the tokened URL it prints. Retirement joins the owned process
     through its active requests and sample cleanup before the caller reuses its page."""
     server = subprocess.Popen(
-        [str(arm / "bin" / "leaf"), "server", "run", "--temporary", str(page)],
+        [
+            str(arm / "bin" / "leaf"),
+            "server",
+            "run",
+            "--lifetime",
+            "temporary",
+            str(page),
+        ],
         env=environment(XDG_STATE_HOME=str(state)),
         stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL,
@@ -181,15 +213,13 @@ def serving(arm: Path, state: Path, page: Path):
 
 def build_source(arm: Path, state: Path, source: Path, page: Path) -> None:
     """Build the authored `source` into the page directory `page` with the arm's own
-    launcher under the state home `state`. The checkout is an arm too: `ROOT` runs
-    its working tree. Developer pages use the same compiled kernel as the website.
+    launcher under the state home `state`. Callers select a prepared installation
+    before building, then use that same installation to serve or check the page.
     """
-    from leaf_dev.commands.distribution import cached_installation
-
     prepare_page(
         page,
         read_fixture(source, runtime=arm, env=environment(XDG_STATE_HOME=str(state))),
-        partial(run_leaf, cached_installation(arm), state, check=True),
+        partial(run_leaf, arm, state, check=True),
     )
     record_run_context(page, purpose="automated", run=state, authored_source=source)
 
@@ -211,7 +241,10 @@ served_page: ContextVar[ServedPage] = ContextVar("served_page")
 @contextmanager
 def serving_source(arm: Path, source: Path, scratch: Path):
     """Build `source` into a page under `scratch` (`build_source`), serve it
-    (`serving`), and yield the address."""
+    (`serving`), and yield the address, all using one prepared installation."""
+    from leaf_dev.commands.distribution import cached_installation
+
+    arm = cached_installation(arm)
     state, page = scratch / "state", scratch / "page"
     build_source(arm, state, source, page)
     with serving(arm, state, page) as address:
@@ -376,15 +409,14 @@ def install_codex_plugin(
 
 
 def codex_home(path: Path, config: str = "") -> Path:
-    """Make `path` a Codex home holding a copy of the host's login and `config` as its
+    """Make `path` a Codex home sharing the host's login and holding `config` as its
     `config.toml`, so a Codex child run with `CODEX_HOME=path` reads none of the
     host's settings, plugins, hooks or task history. Codex still reads the user's
-    `~/.agents/skills`, which `CODEX_HOME` does not move."""
+    `~/.agents/skills`, which `CODEX_HOME` does not move. Keep one credential file:
+    a child refreshing a copied login would leave the host's refresh token stale."""
     path.mkdir(mode=0o700)
     host = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
-    auth = path / "auth.json"
-    shutil.copyfile(host / "auth.json", auth)
-    auth.chmod(0o600)
+    (path / "auth.json").symlink_to((host / "auth.json").resolve())
     (path / "config.toml").write_text(config)
     return path
 

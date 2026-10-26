@@ -21,6 +21,10 @@ from interact_support import (
     state_json,
     suggested,
 )
+from model.test_interact_anchors import (
+    declare_part_prefixes,
+)
+
 from leaf import cli as cli_model
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
@@ -28,9 +32,6 @@ from leaf import files as files_model
 from leaf import structure as structure_model
 from leaf.events import build_threads
 from leaf.registry import storage as registry_storage
-from model.test_interact_anchors import (
-    declare_part_prefixes,
-)
 
 
 def test_a_visual_admits_the_parts_its_prefixes_begin(page_dir):
@@ -157,11 +158,6 @@ def test_an_agent_reply_can_move_a_thread_to_its_revised_visual(page_dir):
             "attention": None,
         }
     ]
-    transcript = CliRunner().invoke(
-        cli_model.cli, ["page", "transcript", str(page_dir)]
-    )
-    assert transcript.exit_code == 0, transcript.output
-    assert "> § flow · node:A" in transcript.output
 
     checked = CliRunner().invoke(cli_model.cli, ["page", "check", str(page_dir)])
     assert checked.exit_code == 0, checked.output

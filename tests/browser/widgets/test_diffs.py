@@ -5,9 +5,6 @@ import json
 import re
 
 import pytest
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
 from leaf_dev.example_data import patch_manifest
 from playwright.sync_api import expect
 from render_cases_widgets import (
@@ -24,6 +21,7 @@ from render_cases_widgets import (
 from render_harness import (
     RELEASE_FOCUS,
     consume_browser_errors,
+    displayed,
     holding,
     leaf_page,
     open_page,
@@ -41,6 +39,9 @@ from browser.widgets import (
     _bound_diff,
     expect_walk_says,
 )
+from leaf import data as data_model
+from leaf import event_log as events_model
+from leaf.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -58,6 +59,154 @@ LONG_DIFF_PATCH = (
 
 def long_diff(id):
     return f'<lf-diff id="{id}"><pre>{LONG_DIFF_PATCH}</pre></lf-diff>'
+
+
+def test_a_rewrite_reads_its_deletions_above_its_additions(browser, serve):
+    """A change of 4 lines into 19 reads as git wrote it, its old lines above its new.
+    Pierre re-splits such a change to pair similar lines, which in Leaf's unified
+    view set the old function between the new one's 11th and 12th lines."""
+    old = [
+        "def upload(client, job, payload):",
+        '    response = client.post("/objects", json=payload, timeout=10)',
+        "    response.raise_for_status()",
+        '    return response.json()["object_id"]',
+    ]
+    new = [
+        '"""Upload one artifact."""',
+        "",
+        "import time",
+        "",
+        "",
+        "def upload(client, job, payload, max_attempts=2):",
+        '    key = f"upload:{job.tenant_id}:{job.id}"',
+        "    for attempt in range(max_attempts):",
+        "        try:",
+        "            response = client.post(",
+        '                "/objects", json=payload,',
+        '                headers={"Idempotency-Key": key}, timeout=10,',
+        "            )",
+        "            response.raise_for_status()",
+        '            return response.json()["object_id"]',
+        "        except TimeoutError:",
+        "            if attempt + 1 == max_attempts:",
+        "                raise",
+        "            time.sleep(0.5 * 2**attempt)",
+    ]
+    path = "src/uploader.py"
+    patch = (
+        (
+            f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
+            f"@@ -1,{len(old)} +1,{len(new)} @@\n"
+            + "".join(f"-{line}\n" for line in old)
+            + "".join(f"+{line}\n" for line in new)
+        )
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page("Rewrite", f'<lf-diff id="rewrite"><pre>{patch}</pre></lf-diff>')
+        ),
+    )
+    page.wait_for_function("() => document.querySelector('lf-diff.lf-rendered')")
+    sides = page.evaluate("""() => [
+      ...document.querySelector('#rewrite').shadowRoot.querySelectorAll('[data-lf-datum]'),
+    ].map(row => JSON.parse(row.dataset.lfDatum)).filter(d => d.length === 3)
+      .map(([, side, line]) => `${side}${line}`)""")
+    assert sides == [f"old{n}" for n in range(1, 5)] + [
+        f"new{n}" for n in range(1, 20)
+    ], sides
+
+
+def _patch_file(path, start, lines):
+    """One file's section of a patch whose single hunk, at `start`, adds `lines`."""
+    return (
+        f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
+        f"@@ -{start},1 +{start},{len(lines) + 1} @@\n context\n"
+        + "".join(f"+{line}\n" for line in lines)
+    )
+
+
+FIRST_PAINT_PAGE = leaf_page(
+    "Diff first paint",
+    "<h1>Diffs</h1>"
+    # Code scrolls: a hunk below the first line draws a separator, and four-digit line
+    # numbers widen the gutter.
+    + '<lf-diff id="code"><pre>'
+    + _patch_file("src/app.py", 1200, ["x = 1", "y = 2"])
+    + _patch_file("src/util.py", 1, ["z = 3"])
+    + "</pre></lf-diff>"
+    # Prose wraps at the drawing's column: words, runs of spaces, and words longer
+    # than the column by every count up to a few columns, so a column more or less
+    # than the drawing's changes some row's lines at either width.
+    + '<lf-diff id="prose"><pre>'
+    + _patch_file(
+        "docs/guide.md",
+        1,
+        [
+            (
+                "A paragraph kept on one source line, long enough to wrap at every "
+                "width the page is read at, with words of several lengths to break at."
+            ),
+            "Spaces    run    between    these    words    before    the    line    "
+            * 3,
+            "https://example.com/" + "a" * 160,
+            *("a" * length for length in range(30, 150)),
+        ],
+    )
+    + _patch_file("notes.txt", 1, ["Plain text wraps too, " * 8])
+    + "</pre></lf-diff>"
+    + '<lf-diff id="folded" collapsed><pre>'
+    + _patch_file("src/app.py", 1, ["x = 1"])
+    + _patch_file("src/util.py", 1, ["z = 3"])
+    + "</pre></lf-diff><p id='after'>After the diffs.</p>",
+)
+
+
+@pytest.mark.parametrize(
+    "viewport, touch", [((1280, 900), False), ((390, 844), True)], ids=["wide", "touch"]
+)
+def test_an_inline_patch_first_paints_at_the_height_it_draws_at(
+    browser, serve, viewport, touch
+):
+    """An inline patch's first paint holds the height its drawing lands at, so nothing
+    after it moves when it upgrades: each file's frame and name row, a row per line
+    and hunk separator, and each prose row as many lines as it wraps to at the column
+    the drawing gives it. Under a finger the name rows stand at a finger's reach."""
+    context = browser.new_context(
+        viewport={"width": viewport[0], "height": viewport[1]},
+        has_touch=touch,
+        is_mobile=touch,
+    )
+    page = context.new_page()
+    boot = []
+    page.route("**/leaf.js", lambda route: boot.append(route))
+    heights = "() => [...document.querySelectorAll('lf-diff')].map(d => [d.id, d.getBoundingClientRect().height])"
+    try:
+        with page.expect_request("**/leaf.js"):
+            page.goto(serve(FIRST_PAINT_PAGE), wait_until="commit")
+        displayed(page)
+        assert boot, "the runtime was not held"
+        first = page.evaluate(heights)
+        boot.pop().continue_()
+        wait_until_ready(page)
+        page.wait_for_function(
+            "() => [...document.querySelectorAll('lf-diff')].every(d => d.matches('.lf-rendered'))"
+        )
+        drawn = page.evaluate(heights)
+    finally:
+        for route in boot:
+            route.continue_()
+        page.unroute_all(behavior="wait")
+        context.close()
+    moved = [
+        (id, before, after)
+        for (id, before), (_, after) in zip(first, drawn, strict=True)
+        if abs(after - before) >= 1
+    ]
+    assert not moved, moved
 
 
 def test_diff_wraps_prose_by_default_and_accepts_an_overflow_choice(browser, serve):
@@ -104,6 +253,29 @@ def test_diff_wraps_prose_by_default_and_accepts_an_overflow_choice(browser, ser
         "forced-wrap": False,
         "forced-scroll": True,
     }, modes
+    for medium in ("screen", "print"):
+        page.emulate_media(media=medium)
+        alignment = page.locator("#prose .lf-diff-line-comment").evaluate_all(
+            """buttons => buttons.map(button => {
+              const source = button.nextElementSibling;
+              const range = document.createRange();
+              range.selectNodeContents(button);
+              const number = range.getBoundingClientRect();
+              range.selectNodeContents(source);
+              const text = range.getBoundingClientRect();
+              const row = button.parentElement.getBoundingClientRect();
+              const marker = getComputedStyle(source, '::before');
+              return {top: Math.abs(number.top - text.top),
+                gap: row.left + parseFloat(marker.left) - number.right,
+                hit: button.getBoundingClientRect().height, height: row.height};
+            })"""
+        )
+        assert max(row["height"] for row in alignment) > 38, alignment
+        assert all(
+            row["top"] < 1 and row["gap"] >= 2 and row["hit"] == row["height"]
+            for row in alignment
+        ), (medium, alignment)
+    page.emulate_media(media="screen")
     prose_line = page.locator('lf-diff#prose [data-lf-datum=\'["README.md","new",1]\']')
     prose_line.hover()
     page.locator("lf-diff#prose .lf-diff-line-comment").last.click()
@@ -128,8 +300,8 @@ PINNED_IN_BOX = """async (id) => {
 
 
 def test_any_box_that_scrolls_starts_the_sticky_header_slot_again(browser, serve):
-    """A diff's file header pins at the top of the box that scrolls it, whoever made the
-    box scroll: a page rule, an inline style, `overflow: hidden`, and a column's sticky
+    """A diff's file header pins at the top of its declared scroll box, whether a
+    page rule, an inline style, `overflow: hidden`, or a column's sticky
     sidebar each start `--lf-top` again, where each pinned the header the root's slot
     below the box's top. The root keeps its slot though a page rule makes it scroll,
     and a page's sticky box keeps the slot it met though another rule makes it scroll,
@@ -142,10 +314,10 @@ def test_any_box_that_scrolls_starts_the_sticky_header_slot_again(browser, serve
             leaf_page(
                 "Scrolling boxes",
                 f'<aside class="sidebar" id="side">{long_diff("in-side")}</aside>'
-                f'<h1>Scrolling boxes</h1><div id="box">{long_diff("in-box")}</div>'
-                '<div id="inline" style="max-height: 320px; overflow: auto">'
+                f'<h1>Scrolling boxes</h1><div id="box" class="scroll">{long_diff("in-box")}</div>'
+                '<div id="inline" class="scroll" style="max-height: 320px; overflow: auto">'
                 f"{long_diff('in-inline')}</div>"
-                '<div id="hidden" style="max-height: 320px; overflow: hidden">'
+                '<div id="hidden" class="scroll" style="max-height: 320px; overflow: hidden">'
                 f"{long_diff('in-hidden')}</div>"
                 '<div id="panel" class="tall"><p>Panel.</p></div>'
                 + "<p>Filler.</p>"
@@ -419,7 +591,7 @@ def test_a_diff_refresh_keeps_a_selection_in_unchanged_lines(browser, serve):
     """A change in another hunk does not take the passage the reader selected, in a
     raw patch and in a manifest: a change in place, one that inserts a line, and a hunk
     added before the kept lines, which moves them down the listing while each keeps its
-    own gutter row."""
+    own numbered control."""
     url = two_diff_page(serve)
     for _, source, value in DIFF_FORMS:
         data_model.cmd_data_set(serve.page_dir, source, value(MULTI_HUNK_PATCH))
@@ -474,24 +646,23 @@ def diff_refresh_keeps_selection(page, serve, diff, source, value, edit):
       const widget = document.querySelector(diff);
       const entry = widget.fileEntries[0];
       return entry.lines.map(line => {
-        const {gutterRow} = widget.threadPair(line.node);
+        const row = line.node.parentElement;
+        const comment = row.querySelector('.lf-diff-line-comment');
         const number = String(line.side === 'old' ? line.oldLine : line.newLine);
         return {
           datum: line.node.dataset.lfDatum,
-          commentInPairedGutter: line.comment.isConnected && line.comment.parentElement === gutterRow,
-          column: gutterRow.dataset.columnNumber,
-          label: gutterRow.querySelector('[data-line-number-content]').textContent,
+          commentInRow: comment.isConnected && comment.nextElementSibling === line.node,
+          label: comment.textContent,
           expected: number,
-          lineTypeMatches: gutterRow.dataset.lineType === line.node.dataset.lineType,
-          commentCount: gutterRow.querySelectorAll('.lf-diff-line-comment').length,
+          lineTypeMatches: row.dataset.lineType === line.node.dataset.lineType,
+          commentCount: row.querySelectorAll('.lf-diff-line-comment').length,
         };
       });
     }""",
         diff,
     )
     assert all(
-        gutter["commentInPairedGutter"]
-        and gutter["column"] == gutter["expected"]
+        gutter["commentInRow"]
         and gutter["label"] == gutter["expected"]
         and gutter["lineTypeMatches"]
         and gutter["commentCount"] == 1
@@ -709,7 +880,7 @@ def test_a_diff_refresh_leaves_an_inline_reply_to_its_thread_owner(
     data_model.cmd_data_set(serve.page_dir, "review-patch", value(next_patch))
     told(page)
     rendered(page)
-    # The editor the user stands in. Chromium leaves an editor carried through a hidden
+    # The editor the user is located in. Chromium leaves an editor carried through a hidden
     # node unmatched by its own native `:focus-within` (notes/browser-support.md).
     current = page.locator(".lf-thread-reply leaf-text:focus")
     expect(current).to_have_js_property("value", draft)
@@ -896,6 +1067,18 @@ def test_print_wraps_diff_lines_and_keeps_file_headers_in_place(browser, serve):
     page.emulate_media(media="print")
     printed = page.evaluate(DIFF_CLIPPING)
     on_paper = page.evaluate(DIFF_ROW_PLACEMENT)
+    numbers = page.locator("lf-diff .lf-diff-line-comment").evaluate_all(
+        """buttons => buttons.map(button => ({
+          number: button.textContent,
+          visible: button.checkVisibility(),
+          plus: getComputedStyle(button, '::before').display,
+        }))"""
+    )
+    assert len(numbers) == printed["rows"]
+    assert all(
+        number["visible"] and number["number"].isdigit() and number["plus"] == "none"
+        for number in numbers
+    ), numbers
     page.emulate_media(media="screen")
     assert printed["rows"] == cut["rows"], (printed, cut)
     assert printed["cut"] == 0, f"paper clipped a diff line: {printed}"
@@ -1127,7 +1310,7 @@ def test_a_diff_in_a_pane_pins_the_file_name_at_the_pane_top_and_lands_below_it(
     # (theme.css), where outset on the body the workspace body clipped its right and
     # lower runs.
     # The selected row retargets document focus to this host. Leave it first so
-    # focusing the host itself publishes a new standing and its pane band.
+    # focusing the host itself publishes a new location and its pane band.
     host = page.locator("lf-diff")
     host.evaluate("node => { node.blur(); node.focus(); }")
     expect(host).to_have_attribute("data-lf-focus", "")
@@ -1249,7 +1432,7 @@ def test_a_diff_hunk_landing_preserves_sideways_reading_outside_its_shadow_tree(
 def test_a_backward_hunk_step_from_the_diff_itself_opens_one_file_and_lands_in_it(
     browser, serve
 ):
-    """The mirror of the first `]` above, from the same standing: nothing focused inside
+    """The mirror of the first `]` above, from the same current location: nothing focused inside
     the diff. That is where an in-page link to the diff's own id leaves a user, since
     `focusDestination` focuses the host, and the diff's keys answer there because the
     scope climb starts at the focused node itself.
@@ -1290,7 +1473,7 @@ def test_a_backward_hunk_step_from_the_diff_itself_opens_one_file_and_lands_in_i
             "() => document.querySelector('lf-diff').shadowRoot.activeElement"
         )
         is None
-    ), "the standing this test is about is nothing focused inside the diff"
+    ), "the current location in this test has no focus inside the diff"
 
     page.keyboard.press("[")
     page.wait_for_function(
@@ -1391,7 +1574,7 @@ def test_a_file_row_says_its_whole_path_to_the_keyboard_and_a_held_finger(
     browser, serve
 ):
     """A file's row gives way from its folders, and its title reaches only a pointer
-    resting on it. The keyboard standing on the row, and a finger held on it, read the
+    resting on it. The keyboard location on the row, and a finger held on it, read the
     whole path in a box under the row, a folded file's too, over the next file's row.
     Releasing the hold folds the file, as a tap does. Touch focus keeps the path
     visible until it leaves. A row that shows its whole path at the width it has
@@ -1448,17 +1631,17 @@ def test_a_file_row_says_its_whole_path_to_the_keyboard_and_a_held_finger(
 
     page.keyboard.press("Shift")  # keyboard modality, so the focus below is visible
     head.focus()
-    standing = head.evaluate(read)
-    assert standing == {
+    focused = head.evaluate(read)
+    assert focused == {
         "open": True,
         "word": whole,
         "shown": True,
         "below": True,
         "fits": True,
         "onTop": True,
-    }, standing
+    }, focused
     page.keyboard.press("Enter")
-    assert head.evaluate(read) == {**standing, "open": False}
+    assert head.evaluate(read) == {**focused, "open": False}
     page.keyboard.press("Enter")
     head.evaluate("head => head.blur()")
 

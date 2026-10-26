@@ -21,13 +21,14 @@ import shutil
 import time
 from pathlib import Path
 
-from leaf.media import media_name
 from PIL import Image
 
+from leaf.media import media_name
 from leaf_dev import ROOT
 from leaf_dev.arms import (
     blocks,
     completed,
+    environment,
     instruction_context,
     run_agent,
     run_leaf,
@@ -38,8 +39,10 @@ from leaf_dev.eval_cases import definition
 from leaf_dev.leaf_assets import pinned_copy
 
 
-def capture_evidence(page: Path, inputs: Path | None, shots: Path) -> dict:
-    """Give the visual judge original captures and actual page media, without traces."""
+def capture_evidence(
+    page: Path, inputs: Path | None, screens: Path, shots: Path
+) -> dict:
+    """Keep the judge's captures, page media and rendered screens after scratch exits."""
     sources, media = {}, {}
     shots.mkdir(parents=True, exist_ok=True)
     if inputs is not None and inputs.is_dir():
@@ -70,7 +73,22 @@ def capture_evidence(page: Path, inputs: Path | None, shots: Path) -> dict:
             for name, source_digest in source_hashes.items()
             if source_digest == digest
         ]
-    return {"inputs": sources, "media": media, "exact_inputs": exact_inputs}
+    rendered = []
+    if screens.is_dir():
+        shutil.copytree(screens, shots / "screens")
+        rendered = [str(path) for path in sorted((shots / "screens").rglob("*.png"))]
+    return {
+        "inputs": sources,
+        "media": media,
+        "exact_inputs": exact_inputs,
+        "screens": rendered,
+    }
+
+
+def leaf_command(call: dict) -> str:
+    """The command line a tool call ran: a shell's `command`, or the arguments of
+    Codex's `leaf` MCP tool, which runs a Leaf command without a shell."""
+    return str(call.get("command") or " ".join(map(str, call.get("args", []))))
 
 
 def check_log(trace: list[dict]) -> list[dict]:
@@ -89,7 +107,7 @@ def check_log(trace: list[dict]) -> list[dict]:
         if block.get("type") != "tool_use":
             continue
         entry = {"tool": block["name"], "input": block["input"]}
-        if "page check" in str(block["input"].get("command", "")):
+        if "page check" in leaf_command(block["input"]):
             output = results.get(block["id"])
             if isinstance(output, list):
                 output = "\n".join(part.get("text", "") for part in output)
@@ -100,7 +118,7 @@ def check_log(trace: list[dict]) -> list[dict]:
 
 def render_captures(check: dict, shots: Path) -> tuple[dict, dict]:
     """Retain the check's exact captures before its isolated state is removed."""
-    screens = (check["browser"] or {}).get("screens")
+    screens = (check.get("browser") or {}).get("screens")
     captures, widths = {}, {}
     if screens is not None:
         shots.mkdir(parents=True, exist_ok=True)
@@ -154,7 +172,7 @@ def execute(
         request = definition("authoring_eval")["prompt"].format(
             prompt=prompt, page=page, cwd=cwd, payload=payload
         )
-        (evidence / "prompt.txt").write_text(request)
+        (evidence / "prompt-1.txt").write_text(request)
         try:
             trace = run_agent(
                 cwd,
@@ -165,15 +183,23 @@ def execute(
                 out=evidence / "stream.jsonl",
                 err=evidence / "err.txt",
                 dirs=[payload],
-                env={"LEAF": str(payload / "bin/leaf"), "XDG_STATE_HOME": str(state)},
+                env={
+                    "PATH": environment(payload=payload)["PATH"],
+                    "XDG_STATE_HOME": str(state),
+                },
                 harness=harness,
             )
             plain = run_leaf(payload, state, "page", "check", str(page))
             (evidence / "check-plain.txt").write_text(plain.stdout + plain.stderr)
             check = run_leaf(payload, state, "page", "check", str(page), "--render")
             (evidence / "check.txt").write_text(check.stdout + check.stderr)
-            captures, widths = render_captures(
-                json.loads(check.stdout), (shots or evidence / "screens") / "render"
+            captures, widths = (
+                render_captures(
+                    json.loads(check.stdout),
+                    (shots or evidence / "screens") / "render",
+                )
+                if check.stdout
+                else ({}, {})
             )
             document = page / "index.html"
             output = document.read_text() if document.is_file() else ""
@@ -215,7 +241,11 @@ def execute(
                     "setup_seconds": setup_seconds,
                     "input_media": inputs,
                     **(
-                        {"capture_evidence": capture_evidence(page, images, shots)}
+                        {
+                            "capture_evidence": capture_evidence(
+                                page, images, state / "leaf" / "screens", shots
+                            )
+                        }
                         if shots is not None
                         else {}
                     ),

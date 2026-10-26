@@ -24,7 +24,11 @@ its lease at `<slot>.lock` beside it.
 
 A product document is served as builders read it, with the parts other sources own
 composed in (`page_fixtures.authored_markup`), and an edit to one of those owners
-refreshes it like an edit to the document.
+refreshes it like an edit to the document. A corpus preview follows the original
+sources and regenerates their composition before refreshing its page.
+
+Changes to the watcher's Python, schemas or dependencies need an explicit restart;
+the current preview stays served until then.
 
 The preview vendors from a cached compiled installation, shared with the suite and
 developer probes. Runtime and compiler edits prepare a new kernel; authored-page edits
@@ -33,13 +37,12 @@ reuse it. The source checkout remains the owner of its watched inputs and proven
 While it runs, `watchfiles` reports edits. Initialization decides whether the layer
 actually changed; identical saves leave the browser and server alone. A source or
 `.page/` companion edit is stamped into the live page at the same URL; a layer edit
-(a vendored file, the runtime's Python, its lock)
 re-vendors through `page init`, which mints a new layer generation the browser follows
 into a fresh document. A refused update is printed and retried after the next edit.
 Fixture history, literal data seeds and earlier versions initialize a fresh slot.
 Live updates follow current markup, page-owned files, captured data files, media
-and the runtime; restarting preserves the page's history and current seed data,
-while captures continue following their authored companion declarations.
+and the browser runtime. Restarting a user preview preserves its history and current
+seed data, while captures continue following their authored companion declarations.
 
     uv run leaf-dev preview [EXAMPLE] [--source FILE] [--runtime CHECKOUT]
         [--slot NAME] [--user] [--export]
@@ -66,12 +69,12 @@ from pathlib import Path
 from typing import NamedTuple
 
 import click
+
 from leaf.file_changes import FileChanges
 from leaf.locations import canonical_path
 from leaf.publishing import authored_digest, authored_files, write_authored_files
 from leaf.refusals import Refused
 from leaf.schema import BROWSER_DIRS, VENDORED_FILES
-
 from leaf_dev import ROOT
 from leaf_dev.commands.distribution import (
     COMPILER_INPUTS,
@@ -91,6 +94,7 @@ from leaf_dev.page_fixtures import (
     DEFAULT_PACKAGES,
     authored_markup,
     composition_inputs,
+    fixture_environment,
     import_referenced_media,
     media_source,
     package_selection_args,
@@ -98,6 +102,7 @@ from leaf_dev.page_fixtures import (
     read_fixture,
     record_run_context,
     refresh_captures,
+    refresh_composition,
     source_manifest,
     source_manifest_candidates,
     source_packages,
@@ -112,6 +117,32 @@ WATCH_INTERVAL_MS = 250
 # starts apart while the port is occupied; repeat diagnostics only when they change.
 REVIVE_INTERVAL_SECS = 1
 STOP_SIGNALS = (signal.SIGINT, signal.SIGTERM)
+
+
+def worker_inputs(runtime: Path) -> list[Path]:
+    """Inputs loaded by Python, which a server restart alone cannot refresh."""
+    from leaf.layer import payload_python_inputs
+
+    return [
+        *payload_python_inputs(runtime),
+        *(
+            path
+            for path in runtime.joinpath("dev/leaf_dev").rglob("*.py")
+            if path.is_file()
+        ),
+        runtime / "dev/pyproject.toml",
+    ]
+
+
+def worker_identity(runtime: Path) -> str:
+    from leaf.layer import files_identity
+
+    return files_identity(
+        {
+            str(path.relative_to(runtime)): path.read_bytes()
+            for path in sorted(worker_inputs(runtime))
+        }
+    )
 
 
 class LeafFailed(RuntimeError):
@@ -131,6 +162,7 @@ def leaf(launcher: Path, runtime: Path, *args, input_text: str | None = None) ->
     result = subprocess.run(
         [str(launcher), *args],
         cwd=runtime,
+        env=fixture_environment(),
         check=False,
         input=input_text,
         stdout=subprocess.PIPE,
@@ -467,6 +499,7 @@ def refresh_preview(
     them. A refused stamp restores the previous mutable inputs as well.
     """
     try:
+        refresh_composition(source)
         launcher = cached_installation(runtime) / "bin/leaf"
         fixture = read_fixture(source, runtime=launcher.parent.parent)
         incoming = incoming_files(source)
@@ -531,9 +564,8 @@ def refresh_preview(
                     str(page),
                     "--text",
                     "Updated in the checkout",
-                    "--from-directory",
+                    "--replace",
                     str(candidate),
-                    "--if-source",
                     authored_digest(previous),
                 )
         else:
@@ -588,7 +620,7 @@ def watch_paths(source: Path, runtime: Path, roots: list[Path]) -> Watched:
     from leaf.layer import input_paths, payload_server_inputs
 
     runtime = runtime.resolve()
-    scripts = runtime / "skills" / "leaf" / "scripts"
+    scripts = runtime / "src"
     resolved_roots = {root.resolve() for root in roots}
     # The layer reading follows a link inside a package as well as one at its root,
     # so a vendored file can resolve outside every package root.
@@ -600,12 +632,14 @@ def watch_paths(source: Path, runtime: Path, roots: list[Path]) -> Watched:
     layer = {
         *(str(path) for path in package),
         *(str(path) for path in payload_server_inputs(runtime)),
+        *(str(path) for path in worker_inputs(runtime)),
         *(str(compiler_root() / path) for path in COMPILER_INPUTS),
     }
     manifest = source_manifest(source)
     companions = page_files(source)
     media = media_source(source)
     lock = assets_lock(source)
+    composed, composed_trees = composition_inputs(source)
     page = {
         path.resolve()
         for path in (
@@ -616,7 +650,8 @@ def watch_paths(source: Path, runtime: Path, roots: list[Path]) -> Watched:
                 for spec in data_companion(source).get("$captures", {}).values()
                 if "asset" not in spec
             ),
-            *composition_inputs(source),
+            *composed,
+            *composed_trees,
             companions,
             *companions.rglob("*"),
             *source_manifest_candidates(source),
@@ -632,11 +667,18 @@ def watch_paths(source: Path, runtime: Path, roots: list[Path]) -> Watched:
         )
     }
     discovering = {
+        *(path.resolve() for path in composed_trees),
         companions,
         source.parent / "media",
         *([manifest.parent / "media"] if manifest is not None else []),
     }
-    trees = {*resolved_roots, scripts, *(path.parent for path in package), *discovering}
+    trees = {
+        *resolved_roots,
+        scripts,
+        runtime / "dev/leaf_dev",
+        *(path.parent for path in package),
+        *discovering,
+    }
     # Discovery subscriptions stay at the parent even after a missing directory
     # arrives, so rebuilding does not discard events collected during refresh.
     holders = (trees - discovering) | {tree.parent for tree in discovering}
@@ -759,9 +801,12 @@ def serve_preview(
     from leaf.files import read_json
     from leaf.layer import layer_inputs
     from leaf.server import PREVIEW
+    from leaf.themes import with_theme
 
+    loaded = worker_identity(runtime)
     # Fixture progress is distinct from the page's own authored inputs: an agent
     # may have revised those while this watcher was absent.
+    refresh_composition(source)
     state = {
         "authored": authored_digest(incoming_files(source)),
     }
@@ -810,9 +855,8 @@ def serve_preview(
         )
         with service.starting() as url:
             pass
-        roots = layer_inputs(
-            tuple(read_json(page / "registry.json")["$layer"]["packages"])
-        )
+        layer = read_json(page / "registry.json")["$layer"]
+        roots = layer_inputs(with_theme(tuple(layer["packages"]), layer["theme"]))
         watched = watch_paths(source, runtime, roots)
         changes = watch_changes(watched)
         if handshake is not None and not handshake.announce({"url": url}):
@@ -860,13 +904,24 @@ def serve_preview(
                         continue
                     if not reported & current.paths:
                         continue
+            try:
+                changed = worker_identity(runtime) != loaded
+            except OSError as error:
+                refused(error)
+                continue
+            if changed:
+                print(
+                    "Leaf Python, schemas or dependencies changed; restart this preview. The current page remains served.",
+                    file=sys.stderr,
+                    flush=True,
+                )
+                continue
             refreshed = refresh_preview(source, page, launcher, runtime, state, service)
             # Init can commit a selection even when the following source stamp
             # refuses. Follow the installed layer after every attempt, so that
             # its newly selected packages remain observable while source is fixed.
-            roots = layer_inputs(
-                tuple(read_json(page / "registry.json")["$layer"]["packages"])
-            )
+            layer = read_json(page / "registry.json")["$layer"]
+            roots = layer_inputs(with_theme(tuple(layer["packages"]), layer["theme"]))
             try:
                 rebuilt = watch_paths(source, runtime, roots)
             except (ValueError, OSError) as error:

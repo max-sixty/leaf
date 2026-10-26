@@ -12,44 +12,45 @@ import time
 import pytest
 from interact_support import ROOT, STATED_TIMEOUT
 
-SERVER = ROOT / "skills" / "leaf" / "scripts" / "leaf" / "codex_tool.py"
+SERVER = ROOT / "src" / "leaf" / "codex_tool.py"
 
 # Stands in for Leaf behind the plugin's launcher, which runs a host's launcher in
 # its place: it says where it ran, for which thread, with which words and stdin.
 HOST_LAUNCHER = """#!/bin/sh
 if [ "$1" = wait ]; then echo $$ > wait.pid; exec sleep 600; fi
-printf '%s|%s|%s|%s' "$PWD" "$CODEX_THREAD_ID" "$*" "$(cat)"
+printf '%s|%s|%s|%s|%s' "$PWD" "$CODEX_THREAD_ID" "$*" "$(cat)" "$CODEX_INTERNAL_ORIGINATOR_OVERRIDE"
 echo refused >&2
 exit 3
 """
 
 
 @pytest.fixture
-def server(tmp_path, monkeypatch):
+def server(tmp_path, monkeypatch, spawn):
     """The MCP server as Codex starts it, after the handshake, with a stand-in
     for Leaf behind the launcher."""
     launcher = tmp_path / "host-leaf"
     launcher.write_text(HOST_LAUNCHER)
     launcher.chmod(0o700)
     monkeypatch.setenv("LEAF_HOST_LAUNCHER", str(launcher))
-    process = subprocess.Popen(
+    monkeypatch.setenv("CODEX_INTERNAL_ORIGINATOR_OVERRIDE", "Codex Desktop")
+    manifest = json.loads((ROOT / ".codex-plugin" / "plugin.json").read_text())
+    # MCP inherits its platform defaults plus the plugin's declared variables.
+    # HOME and PATH are the only platform defaults this stand-in needs.
+    forwarded = {"HOME", "PATH", *manifest["mcpServers"]["leaf"]["env_vars"]}
+    # `spawn` ends it as Codex does, by closing the stdin it reads.
+    process = spawn(
         [sys.executable, "-I", str(SERVER)],
+        env={key: value for key, value in os.environ.items() if key in forwarded},
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         text=True,
     )
-    try:
-        session = Session(process)
-        assert session.request(
-            0, "initialize", {"protocolVersion": "2025-06-18", "capabilities": {}}
-        )["capabilities"] == {"tools": {}}
-        session.send({"method": "notifications/initialized"})
-        yield session
-    finally:
-        process.kill()
-        process.wait()
-        process.stdin.close()
-        process.stdout.close()
+    session = Session(process)
+    assert session.request(
+        0, "initialize", {"protocolVersion": "2025-06-18", "capabilities": {}}
+    )["capabilities"] == {"tools": {}}
+    session.send({"method": "notifications/initialized"})
+    return session
 
 
 class Session:
@@ -96,7 +97,10 @@ def test_a_call_runs_leaf_where_and_for_whom_codex_says(server, tmp_path):
     assert answer["id"] == 1
     assert answer["result"] == {
         "content": [
-            {"type": "text", "text": f"{tmp_path}|codex-thread|page claim page|text"},
+            {
+                "type": "text",
+                "text": f"{tmp_path}|codex-thread|page claim page|text|Codex Desktop",
+            },
             {"type": "text", "text": "refused\n"},
             {"type": "text", "text": "exit status 3"},
         ],

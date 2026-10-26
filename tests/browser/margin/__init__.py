@@ -2,8 +2,6 @@
 modules share."""
 
 import pytest
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import SUGGESTION_PAGE
 from render_harness import (
@@ -17,6 +15,9 @@ from render_harness import (
     suggestion_control,
     write,
 )
+
+from leaf import event_log as events_model
+from leaf.render_checks import rendered
 
 COMMENT_ON_OBLIGATION = {
     "kind": "comment",
@@ -54,6 +55,7 @@ ACTION_ON_OBLIGATION = {
             "unit": "widget",
             "record": {"kind": "attribute", "attr": "chosen"},
             "creates": None,
+            "decides": False,
             "detail": {
                 "type": "object",
                 "properties": {
@@ -351,8 +353,8 @@ def send_anchored_comment(page, text):
 
 
 # Where a card and its reply stand: the card's edges, the first turn's top, the reply's
-# edges and scroll (its first line stands at its top only while it is unscrolled), and
-# The visible action's top, beside the window's foot the card stops at.
+# edges and scroll (its first line stands at its top only while it is unscrolled), the
+# visible action's top, and the window's head and foot the card stops at.
 CARD_AND_REPLY = """async () => {
   const card = document.querySelector('.lf-margin-preview');
   const box = card.getBoundingClientRect();
@@ -365,6 +367,7 @@ CARD_AND_REPLY = """async () => {
           send: card.querySelector('.lf-thread-reply .lf-compose-field > button:not([hidden])')
             .getBoundingClientRect().top,
           placement: card.dataset.lfThreadPlacement,
+          head: geometry.shownWindow({gap: 8}).top,
           foot: geometry.shownWindow({gap: 8}).bottom};
 }"""
 

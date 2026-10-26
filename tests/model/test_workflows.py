@@ -28,6 +28,7 @@ from interact_support import (
     serving,
     state_json,
 )
+
 from leaf import activity as activity_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
@@ -315,7 +316,7 @@ def test_unrelated_agent_update_does_not_clear_an_open_user_obligation(page_dir)
     assert owed["message"] == question["id"]
     assert thread["attention"] == {
         "kind": "needs_user",
-        "reason": "widget",
+        "reason": "obligation",
         "workflow": None,
     }
 
@@ -774,7 +775,7 @@ def test_fresh_exact_reply_supersedes_an_older_workflow_condition():
         "response": None,
     }
     present = {
-        "status": {"state": "idle", "ts": now.isoformat(), "detail": ""},
+        "status": {"state": "idle", "ts": now.isoformat()},
         "claim_session": "session-1",
         "claim_turn": "turn-1",
         "cursor": 0,
@@ -884,10 +885,10 @@ def test_a_widget_reply_does_not_settle_newer_thread_input(page_dir):
 
 
 def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(
-    claimed, capsys
+    claimed, printing, capsys
 ):
     page_dir = claimed
-    session_model.cmd_waiting(page_dir, "")
+    session_model.cmd_waiting(page_dir)
     session = service_model.page_claim(page_dir)
     lease = leases_model.take_lease(
         leases_model.waiter_lease_path(page_dir, session["id"])

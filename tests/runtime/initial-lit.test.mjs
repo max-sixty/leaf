@@ -60,11 +60,11 @@ test("classic Lit and the mapped module facade are the same instance", () => {
       import { registerHooks } from "node:module";
       registerHooks({ resolve(specifier, context, next) {
         const resolved = next(specifier, context);
-        if (resolved.url.endsWith("/assets/vendor/lit.js")) return next("/vendor/lit-shared.js", context);
+        if (resolved.url.endsWith("/browser/vendor/lit.js")) return next("/vendor/lit-shared.js", context);
         return resolved;
       }});
       assert.equal(document.documentElement.lfInitial.lit, undefined);
-      new Function(readFileSync("skills/leaf/assets/vendor/lit-initial.js", "utf8"))();
+      new Function(readFileSync("browser/vendor/lit-initial.js", "utf8"))();
       const early = document.documentElement.lfInitial.lit;
       const live = await import("/vendor/lit-shared.js");
       assert.equal(globalThis.litHtmlVersions.length, 1);
@@ -76,13 +76,40 @@ test("classic Lit and the mapped module facade are the same instance", () => {
   );
 });
 
+test("removing repeated chrome rows does not leave accumulating markers", () => {
+  const host = document.createElement("div");
+  document.body.append(host);
+  try {
+    const draw = (items) =>
+      live.render(
+        live.html`${live.repeat(
+          items,
+          (item) => item,
+          (item) => live.html`<span>${item}</span>`,
+        )}`,
+        host,
+      );
+    draw(["first", "second"]);
+    draw([]);
+    const emptySize = host.childNodes.length;
+    for (let index = 0; index < 20; index += 1) {
+      draw(["first", "second"]);
+      draw([]);
+    }
+    assert.equal(host.childNodes.length, emptySize);
+  } finally {
+    host.remove();
+  }
+});
+
 test("the initial dependency graph follows producer imports", async () => {
   const outputs = await initialOutputs();
   const dependencies = JSON.parse(
-    outputs.get("skills/leaf/assets/vendor/initial-dependencies.json"),
+    outputs.get("browser/vendor/initial-dependencies.json"),
   );
   assert.deepEqual(dependencies, {
     "/vendor/lf-toc-initial.js": ["/vendor/lit-initial.js"],
     "/vendor/lf-activity-initial.js": ["/vendor/lit-initial.js"],
+    "/vendor/lf-timeline-initial.js": ["/vendor/lit-initial.js"],
   });
 });

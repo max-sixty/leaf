@@ -5,7 +5,6 @@ import re
 
 import pytest
 from interact_support import append_carried_log_record, append_command
-from leaf import thread as thread_model
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, SEATED_OBLIGATION_PAGE, panel_comment
 from render_harness import (
@@ -21,13 +20,15 @@ from browser.threads import (
     open_panel_thread,
     summarize_thread,
 )
+from leaf import thread as thread_model
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
 def show_held_news(card):
     """Show what the card holds behind its notice, by a press that leaves focus where
-    the user stands."""
+    the user is located."""
     notice = card.locator(".lf-thread-news")
     expect(notice).to_be_visible()
     notice.evaluate("node => node.click()")
@@ -473,14 +474,116 @@ def test_progress_disclosure_keeps_its_words_visible_beside_margin_paging(
     expect(originals[0]).to_be_in_viewport()
 
 
+@pytest.mark.parametrize("engine", ["browser", "webkit_browser"])
+def test_a_summary_folds_its_messages_where_they_stand(request, serve, engine):
+    """A summary arriving over messages the user is reading, closed and opened again,
+    then retracted, leaves them where they stand: a frame in one keeps the document it
+    loaded, and words the user selected in another stay selected. Moving a message
+    reloaded its frame in WebKit, which lacks `moveBefore`, and lost the selection in
+    every engine. The checkpoint groups its messages for assistive technology by
+    `aria-owns`, since it no longer contains them. Its toggle takes a press while those
+    words stay selected."""
+    url = serve(SEATED_OBLIGATION_PAGE)
+    root = panel_comment(serve.page_dir, "Which job first?", {"section": "jobs"})
+    framed = append_agent_reply(
+        serve.page_dir,
+        root,
+        "Here is the plan.",
+        '<iframe title="Plan" srcdoc="<p>The plan</p>"></iframe>',
+    )
+    worded = append_agent_reply(serve.page_dir, root, "The mounts take an hour.")
+    edited = append_agent_reply(serve.page_dir, root, "The camera takes two.")
+    append_user_reply(serve.page_dir, root, "Keep the latest visible.")
+
+    page = open_page(request.getfixturevalue(engine), url)
+    card = page.locator(f'#jobs .lf-page-thread[data-thread="{root}"]')
+    frame = card.locator(f'.lf-msg[data-event="{framed["id"]}"] iframe')
+    expect(frame).to_be_attached()
+    frame.evaluate("""frame => new Promise(loaded => {
+      const settle = () => {
+        frame.contentWindow.lfKept = true;
+        window.lfFrameLoads = 0;
+        frame.addEventListener("load", () => window.lfFrameLoads++);
+        loaded();
+      };
+      if (frame.contentDocument?.readyState === "complete") settle();
+      else frame.addEventListener("load", settle, {once: true});
+    })""")
+    words = card.locator(f'.lf-msg[data-event="{worded["id"]}"] .lf-msg-text')
+    words.evaluate("""node => {
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      getSelection().removeAllRanges();
+      getSelection().addRange(range);
+    }""")
+
+    def kept():
+        assert frame.evaluate(
+            "frame => [frame.contentWindow.lfKept, window.lfFrameLoads]"
+        ) == [True, 0]
+
+    summary = summarize_thread(
+        serve.page_dir, framed["id"], edited["id"], "Mounts first, then the camera."
+    )
+    told(page)
+    show_held_news(card)
+    checkpoint = card.locator(f'[data-summary-id="{summary["id"]}"]')
+    toggle = checkpoint.locator(".lf-summary-expand")
+    expect(toggle).to_have_attribute("aria-expanded", "true")
+    kept()
+    selected = page.evaluate("getSelection().toString()")
+    assert selected.strip() == "The mounts take an hour."
+    covered = [
+        card.locator(f'.lf-msg[data-event="{message["id"]}"]')
+        for message in (framed, worded, edited)
+    ]
+    owned = checkpoint.evaluate("node => node.getAttribute('aria-owns').split(' ')")
+    assert owned == [message.evaluate("node => node.id") for message in covered]
+
+    # A press, with those words still selected, folds and unfolds them: the guard that
+    # takes a drag ending on a control for the selection's mouseup once asked the whole
+    # card, so a selection anywhere in it deadened the toggle. Show and Hide leave their
+    # toggle under the user's aim: the thread landing it brought the thread's head back
+    # into view and lifted the toggle 20px.
+    toggle.scroll_into_view_if_needed()
+    stood = toggle.evaluate("node => node.getBoundingClientRect().top")
+    toggle.click()
+    for message in covered:
+        expect(message).to_be_hidden()
+    rendered(page)
+    assert toggle.evaluate("node => node.getBoundingClientRect().top") == stood
+    toggle.click()
+    expect(covered[0]).to_be_visible()
+    rendered(page)
+    assert toggle.evaluate("node => node.getBoundingClientRect().top") == stood
+    kept()
+
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "edit",
+            "author": "agent",
+            "agent": "Codex",
+            "session": "pytest-summary",
+            "message": edited["id"],
+            "text": "The camera takes three.",
+        },
+    )
+    told(page)
+    show_held_news(card)
+    expect(checkpoint).to_have_count(0)
+    expect(covered[2]).to_contain_text("The camera takes three.")
+    kept()
+
+
 def test_a_summary_gathering_the_message_the_user_is_on_keeps_them_on_it(
     browser, serve
 ):
-    """A checkpoint arriving over the message the user stands in opens around it.
+    """A checkpoint arriving over the message the user is located in opens around it.
 
-    The message moves into the checkpoint's originals, and the user, on a link in it,
-    moves with it rather than dropping to the page. The summary waits behind the
-    thread's notice until the user shows it."""
+    The message stays where it stood, now under the checkpoint, and the user stays on a
+    link in it rather than dropping to the page. The summary waits behind the thread's
+    notice until the user shows it."""
     url = serve(PANEL_PAGE)
     root = panel_comment(
         serve.page_dir, "Start with the measured constraint.", {"section": "how-store"}
@@ -505,10 +608,10 @@ def test_a_summary_gathering_the_message_the_user_is_on_keeps_them_on_it(
     )
     told(page)
     show_held_news(card)
-    checkpoint = card.locator(f'[data-summary-id="{summary["id"]}"]')
+    expect(card.locator(f'[data-summary-id="{summary["id"]}"]')).to_be_visible()
     expect(
-        checkpoint.locator(
-            f'.lf-summary-originals > .lf-msg[data-event="{held["id"]}"]'
+        card.locator(
+            f'.lf-msg[data-event="{held["id"]}"][data-lf-summary="{summary["id"]}"]'
         )
     ).to_be_visible()
     expect(link).to_be_focused()
@@ -573,7 +676,9 @@ def test_a_root_summary_keeps_thread_actions_outside_its_fold(
     assert alignment["labelLines"] <= 1.1, alignment
     assert alignment["disclosureRight"] <= alignment["contentRight"] + 0.5, alignment
     expect(card.get_by_role("button", name="Close thread")).to_have_count(0)
-    root_message = checkpoint.locator(f'.lf-msg[data-event="{root}"]')
+    root_message = card.locator(
+        f'.lf-msg[data-event="{root}"][data-lf-summary="{summary["id"]}"]'
+    )
     expect(root_message.locator(":scope > .lf-msg-head")).to_be_hidden()
     expect(root_message.locator(":scope > .lf-msg-body")).to_be_hidden()
     activate(checkpoint.locator(".lf-summary-expand"))
@@ -635,11 +740,11 @@ def test_a_later_summary_replaces_its_overlap_and_an_edit_restores_originals(
     card = open_margin_card(page, root)
     old_checkpoint = card.locator(f'[data-summary-id="{old["id"]}"]')
     expect(old_checkpoint).to_be_visible()
-    # The user stands on the summary they opened: a message takes no focus in a card.
+    # The user is located on the summary they opened: a message takes no focus in a card.
     opened = old_checkpoint.locator(".lf-summary-expand")
     opened.click()
     expect(opened).to_be_focused()
-    standing = card.locator(f'.lf-msg[data-event="{second["id"]}"]')
+    selected_message = card.locator(f'.lf-msg[data-event="{second["id"]}"]')
 
     replacement = summarize_thread(
         serve.page_dir,
@@ -658,7 +763,7 @@ def test_a_later_summary_replaces_its_overlap_and_an_edit_restores_originals(
     expect(checkpoint.locator(".lf-summary-expand")).to_have_attribute(
         "aria-expanded", "true"
     )
-    expect(standing).to_be_visible()
+    expect(selected_message).to_be_visible()
     expect(checkpoint.locator(".lf-summary-text")).to_have_text(
         "All three constraints now form one decision."
     )

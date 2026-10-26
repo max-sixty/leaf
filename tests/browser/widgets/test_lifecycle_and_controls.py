@@ -5,7 +5,6 @@ import re
 
 import pytest
 from interact_support import append_command
-from leaf.render_checks import wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import CHIP_PAGE
 from render_cases_layout import rings_drawn
@@ -14,6 +13,7 @@ from render_harness import ROOT, displayed, leaf_page, open_page, told
 from browser.widgets import (
     _bound_diff,
 )
+from leaf.render_checks import wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -84,10 +84,16 @@ customElements.define('lf-source-stage', class extends HTMLElement {
             page.goto(url, wait_until="commit")
         displayed(page)
         fallback = page.locator("#document").evaluate(face)
+        typography = ("font", "size", "line", "color")
         for widget_id in ("code", "diagram", "diff"):
             widget = page.locator(f"#{widget_id}")
             expect(widget).not_to_have_class(re.compile("lf-rendered"))
-            assert widget.evaluate(face) == fallback
+            actual = widget.evaluate(face)
+            # Packages own layout: an inline diff clips its reserved first-paint
+            # box. The shared source primitive supplies the readable type.
+            assert {key: actual[key] for key in typography} == {
+                key: fallback[key] for key in typography
+            }, widget_id
         assert len(boot) == 1, "the preview runtime was not held before widget upgrade"
     finally:
         for route in boot:
@@ -114,7 +120,7 @@ customElements.define('lf-source-stage', class extends HTMLElement {
         assert fallback["color"] != reference["color"], fallback
         assert fallback["overflow"] == "auto", fallback
         widget.get_by_role("button", name="Draw source").click()
-        expect(widget).to_have_class("lf-rendered")
+        expect(widget).to_have_class(re.compile(r"\blf-rendered\b"))
         drawings[widget_id] = widget.evaluate(face)
         references[widget_id] = reference
     assert drawings == references
@@ -441,7 +447,7 @@ def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
     draws it on the row its picks give up, and getComputedStyle(activeElement) reports
     'no ring' for a control whose ring is perfectly fine. Where nothing else claims one,
     the shared rule is what draws it, and that case is asserted on a request press in
-    projection/test_standing.py, which is where the layer has a control no widget rings."""
+    projection/test_current_location.py, which is where the layer has a control no widget rings."""
     page = open_page(browser, serve(CHIP_PAGE))
     state = """() => lfUnwatched(() => {
       // Whatever a control spends on saying it is live: the layer's wash, its own ink
@@ -523,5 +529,5 @@ def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
     page.keyboard.press("Tab")
     drawn = rings_drawn(page)
     assert any(ring["here"] and ring["sample"] and ring["rule"] for ring in drawn), (
-        f"no ring rule draws a focus ring where the keyboard is standing: {drawn}"
+        f"no ring rule draws a focus ring at the current keyboard location: {drawn}"
     )

@@ -4,7 +4,7 @@ alone, the reading keys' steps, and the comparison's one door."""
 import re
 
 import pytest
-from leaf import event_log as events_model
+from leaf_dev.browser import slow_cpu
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_navigation import KEYS_PAGE, SMOOTH_LONG_PAGE, _publish
@@ -17,6 +17,8 @@ from render_harness import (
     open_page,
     round_trip,
 )
+
+from leaf import event_log as events_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -115,7 +117,9 @@ def test_global_shortcuts_leave_other_browser_navigation_keys_alone(browser, ser
     Observe `defaultPrevented` on real key events instead of asserting that Chrome
     happened to scroll: scrolling depends on viewport and focus geometry, while
     canceling the event is the runtime decision under test. `?` is the positive
-    control proving this observer sees a key the dispatcher intentionally consumes."""
+    control proving the capture observer sees a key the dispatcher intentionally
+    consumes. Observe the navigation keys in bubble, after focused content has had
+    a chance to cancel them."""
     page = open_page(browser, serve(KEYS_PAGE))
     keys = [
         " ",
@@ -136,7 +140,10 @@ def test_global_shortcuts_leave_other_browser_navigation_keys_alone(browser, ser
           pageContent.focus();
           window.lfObservedKeys = {};
           document.addEventListener("keydown", event => {
-            if (keys.includes(event.key))
+            if (event.key === "?") window.lfObservedKeys["?"] = event.defaultPrevented;
+          }, {capture: true});
+          document.addEventListener("keydown", event => {
+            if (keys.includes(event.key) && event.key !== "?")
               window.lfObservedKeys[event.key] = event.defaultPrevented;
           });
         }""",
@@ -325,9 +332,7 @@ def test_the_reading_page_step_never_paints_behind_where_it_started(browser, ser
     floored clock flicks on none of either. The injection buys the record, not the wait,
     which is still the destination's."""
     page = open_page(browser, serve(SMOOTH_LONG_PAGE))
-    page.context.new_cdp_session(page).send(
-        "Emulation.setCPUThrottlingRate", {"rate": 20}
-    )
+    slow_cpu(page, 20)
     step = page.evaluate(
         "() => { const s = getComputedStyle(document.scrollingElement); return ("
         " document.scrollingElement.clientHeight - parseFloat(s.scrollPaddingTop)"

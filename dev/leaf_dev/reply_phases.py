@@ -19,21 +19,36 @@ server's clock. The harness's record splits that span into phases (`turn_phases`
   returned, each naming its calls; and `idle`, from a turn's end to the next turn's
   start, as where the agent waits on a background task before replying.
 
-`reply_breakdown` sums them into the two numbers a reply budget reads: the whole
-reply, and Leaf's share of it, delivery plus the time Leaf's own commands took,
-which each `leaf` command records in the page it acted on
-(`leaf.interaction_log.record_command`). The rest is the harness's other work, the
-model, the agent's own reads and edits, and idle time. It also groups the model phases into the model calls the
-harness made, each with the calls it issued, since a model call is the unit a
-shorter reply would have to save.
+`reply_breakdown` attributes the whole reply, the time a reply budget reads, to
+where it went, each moment once:
+
+- Leaf's share: delivery, the time Leaf's own commands took, which each `leaf`
+  command records in the page it acted on (`leaf.interaction_log.record_command`),
+  and Leaf's hooks where the harness times them;
+- `harness`: the part of each model phase before the harness sent the request, as
+  its other hooks ran, where the record has the request;
+- the model's `wait`, from the request, or the phase's start where the record has
+  none, to the response's first output, and its `generation`, from that output to
+  the phase's end, reasoning included; model time without a first output stays
+  unsplit;
+- the agent's own reads and edits (`otherTools`), the harness's busy time and idle
+  time.
+
+It also groups the model phases into the model calls the harness made, each with
+its parts, its output tokens where the harness reports them, and the calls it
+issued, which say what a slow reply spent its time on.
 
 The records are the journey's normalized form, each stamped `received_at`:
 `assistant` and `user` records whose content holds `tool_use` and `tool_result`
 parts; a `model_response` where each model response ended, at its last tool call or
-after the calls it started returned, as the harness reports it; and `turn_start` and
-`turn_end` where the harness began and finished a turn. A harness that streams its
-session stamps a record when the journey hears it; Claude Code's transcript stamps
-each record itself (`claude_code_records`).
+after the calls it started returned, as the harness reports it, with the response's
+`outputTokens` where reported; `turn_start` and `turn_end` where the harness began
+and finished a turn; and, where the harness reports them, a `request` where it sent
+the model a request, a `first_output` where a response's first output arrived, and
+a `leaf_hook` where one of Leaf's hooks ended, with its `ms`. A harness that streams
+its session stamps a record when the journey hears it; Claude Code's transcript
+stamps each record itself (`claude_code_records`), and its debug log each request,
+first byte and hook (`claude_code_debug_records`).
 """
 
 import json
@@ -244,22 +259,34 @@ def reply_breakdown(
     picked_up: str | None,
     replied: str,
 ) -> dict | None:
-    """The whole reply, Leaf's share of it, and its model calls, in milliseconds,
-    from the session's `records` and the `leaf_command` records of the session's `leaf`
-    commands (`command_spans`). Leaf's share is the time delivery or a command
-    covered, each moment once. The tool time that isn't Leaf's is the agent's own
-    reads and edits. A model call is the run of model phases that the same
+    """Where the whole reply went, in milliseconds (the module's header lists the
+    parts), from the session's `records` and the `leaf_command` records of the
+    session's `leaf` commands (`command_spans`). Leaf's share is the time delivery,
+    a command or one of Leaf's hooks covered, each moment once; `leafHooksMs` is the
+    hooks' time beyond delivery and the commands, which the harness and tool parts
+    leave out. A model call is the run of model phases that the same
     `model_response` is the first to follow: they were one response, whose tool
-    calls ran while it still streamed. Each call names the tool calls it led to.
-    Returns None for a comment never picked up."""
+    calls ran while it still streamed, so a later phase of a call is generation.
+    Each call names the tool calls it led to. Returns None for a comment never
+    picked up."""
     if picked_up is None:
         return None
     phases = _phases(records, admitted, picked_up, replied)
-    ends = sorted(
-        instant(record["received_at"])
+
+    def times(kind: str) -> list[float]:
+        return sorted(
+            instant(record["received_at"])
+            for record in records
+            if record["type"] == kind
+        )
+
+    requests, outputs = times("request"), times("first_output")
+    tokens = {
+        instant(record["received_at"]): record.get("outputTokens")
         for record in records
         if record["type"] == "model_response"
-    )
+    }
+    ends = sorted(tokens)
 
     def ms(seconds: float) -> int:
         return round(seconds * 1000)
@@ -269,49 +296,89 @@ def reply_breakdown(
             sum(until - since for phase, since, until, _ in phases if phase in kinds)
         )
 
+    took = next(
+        (until for phase, _, until, _ in phases if phase == "busy"), instant(admitted)
+    )
+    spans = command_spans(commands, took, instant(replied))
+    hooks = [
+        (end - record["ms"] / 1000, end)
+        for record in records
+        if record["type"] == "leaf_hook"
+        and took <= (end := instant(record["received_at"])) <= instant(replied)
+    ]
+
+    def uncovered(since: float, until: float, by: list[tuple[float, float]]) -> float:
+        """The seconds of [since, until] that none of `by` covers."""
+        inside = [
+            (max(a, since), min(b, until)) for a, b in by if a < until and b > since
+        ]
+        return (until - since) - covered(inside)
+
+    def free(since: float, until: float) -> float:
+        """The seconds of [since, until] none of Leaf's hooks took."""
+        return uncovered(since, until, hooks)
+
+    harness = wait = generation = unsplit = 0.0
     model_calls: list[dict] = []
     response: float | None = None
     for phase, since, until, calls in phases:
         if phase == "model":
             ended = next((at for at in ends if at >= until), None)
             if model_calls and ended is not None and ended == response:
-                model_calls[-1]["ms"] += ms(until - since)
+                call = model_calls[-1]
+                if "generationMs" in call:
+                    call["generationMs"] += ms(free(since, until))
+                    generation += free(since, until)
+                else:
+                    unsplit += free(since, until)
             else:
-                model_calls.append({"ms": ms(until - since), "calls": []})
+                call = {"ms": 0}
+                sent = next((at for at in requests if since < at <= until), None)
+                start = sent if sent is not None else since
+                first = next((at for at in outputs if start < at <= until), None)
+                if sent is not None:
+                    call["harnessMs"] = ms(free(since, sent))
+                    harness += free(since, sent)
+                if first is None:
+                    unsplit += free(start, until)
+                else:
+                    call["waitMs"] = ms(free(start, first))
+                    call["generationMs"] = ms(free(first, until))
+                    wait += free(start, first)
+                    generation += free(first, until)
+                if ended is not None and tokens[ended] is not None:
+                    call["outputTokens"] = tokens[ended]
+                call["calls"] = []
+                model_calls.append(call)
+            call["ms"] += ms(until - since)
             response = ended
         elif phase == "tool" and model_calls:
             model_calls[-1]["calls"].extend(call[:SHOWN] for call in calls)
-    delivery = total("delivery")
-    took = next(
-        (until for phase, _, until, _ in phases if phase == "busy"), instant(admitted)
-    )
-    spans = command_spans(commands, took, instant(replied))
-    leaf_commands = ms(covered(spans))
-    # The tool time Leaf's commands didn't cover, phase by phase.
-    other_tools = sum(
-        (until - since)
-        - covered(
-            [
-                (max(a, since), min(b, until))
-                for a, b in spans
-                if a < until and b > since
-            ]
-        )
-        for phase, since, until, _ in phases
-        if phase == "tool"
-    )
     delivering = [
         (since, until) for phase, since, until, _ in phases if phase == "delivery"
     ]
+    # The tool time Leaf's commands and hooks didn't cover, phase by phase.
+    other_tools = sum(
+        uncovered(since, until, spans + hooks)
+        for phase, since, until, _ in phases
+        if phase == "tool"
+    )
+    leaf = covered(spans + hooks + delivering)
+    produced = [call["outputTokens"] for call in model_calls if "outputTokens" in call]
     return {
         "wholeMs": ms(instant(replied) - instant(admitted)),
-        "leafMs": ms(covered(spans + delivering)),
+        "leafMs": ms(leaf),
         "busyMs": total("busy"),
-        "deliveryMs": delivery,
-        "leafCommandsMs": leaf_commands,
+        "deliveryMs": total("delivery"),
+        "leafCommandsMs": ms(covered(spans)),
+        "leafHooksMs": ms(leaf - covered(spans + delivering)),
+        "harnessMs": ms(harness),
+        "modelMs": ms(wait + generation + unsplit),
+        "waitMs": ms(wait),
+        "generationMs": ms(generation),
         "otherToolsMs": ms(other_tools),
-        "modelMs": total("model"),
         "idleMs": total("idle"),
+        "outputTokens": sum(produced) if produced else None,
         "modelCalls": model_calls,
         "phases": turn_phases(records, admitted, picked_up, replied),
     }
@@ -325,7 +392,24 @@ def claude_code_transcript(session: str) -> list[dict] | None:
     found = sorted(Path(config).glob(f"projects/*/{session}.jsonl"))
     if not found:
         return None
-    return [json.loads(line) for line in found[0].read_text().splitlines()]
+    return transcript_records(found[0])
+
+
+def transcript_records(path: Path) -> list[dict]:
+    """The records of the Claude Code transcript at `path`, one JSON object a line.
+    Lines split only at the newline Claude Code writes after each record: its strings
+    can hold U+2028 and U+2029 raw, which `splitlines` would split on. A record it
+    is still writing is no record yet, so the bytes after the last newline, which
+    can end inside a character, are left out."""
+    written, _, _ = path.read_bytes().rpartition(b"\n")
+    return [json.loads(line) for line in written.decode().split("\n") if line]
+
+
+def ends_turn(record: dict) -> bool:
+    """Whether a Claude Code transcript record ends a turn: a `turn_duration` record
+    ends one once its Stop hooks let it stop, and an interruption's record
+    (`interruptedMessageId`) ends one that writes none."""
+    return record.get("subtype") == "turn_duration" or "interruptedMessageId" in record
 
 
 def claude_code_records(native: list[dict]) -> list[dict]:
@@ -334,13 +418,14 @@ def claude_code_records(native: list[dict]) -> list[dict]:
     where each response's last record was written: Claude Code writes a response's
     content blocks as records of their own, sharing its message id. Claude Code marks
     its own turns: the input that starts one carries `turnPosition`, which a
-    compaction's summary copies from the turn before without starting one; a
-    `turn_duration` record ends a turn once its Stop hooks let it stop, and an
-    interruption's record (`interruptedMessageId`) ends one that writes none."""
+    compaction's summary copies from the turn before without starting one, and
+    `ends_turn` says which records end one. A response's records carry its usage,
+    whose output the `model_response` keeps: the response's whole output, thinking
+    included, by its last record."""
     records = []
-    responses: dict[str, str] = {}
+    responses: dict[str, dict] = {}
     for record in native:
-        if record.get("subtype") == "turn_duration" or "interruptedMessageId" in record:
+        if ends_turn(record):
             records.append({"type": "turn_end", "received_at": record["timestamp"]})
         if record.get("type") not in ("user", "assistant") or "message" not in record:
             continue
@@ -354,8 +439,52 @@ def claude_code_records(native: list[dict]) -> list[dict]:
             {"type": record["type"], "message": {"content": content}, "received_at": at}
         )
         if record["type"] == "assistant" and "id" in message:
-            responses[message["id"]] = at
-    records.extend(
-        {"type": "model_response", "received_at": at} for at in responses.values()
-    )
+            responses[message["id"]] = {"type": "model_response", "received_at": at}
+            if (usage := message.get("usage")) is not None:
+                responses[message["id"]]["outputTokens"] = usage["output_tokens"]
+    records.extend(responses.values())
     return sorted(records, key=lambda record: instant(record["received_at"]))
+
+
+# Claude Code's debug log: a request it sent, with its source; the first byte of a
+# stream, with how long after its request it came; and a plugin hook it ran, with
+# the hook event and how long it took.
+REQUEST_LINE = re.compile(r"^(\S+) \[DEBUG\] \[API REQUEST\] \S+ .*source=(\S+)")
+FIRST_BYTE_LINE = re.compile(
+    r"^(\S+) \[DEBUG\] \[API:timing\] first byte after (\d+)ms"
+)
+LEAF_HOOK_LINE = re.compile(
+    r"^(\S+) \[DEBUG\] Hooks: (\S+) .*\(plugin leaf@[^)]*\) finished with status "
+    r"\d+ \((\d+)ms\)"
+)
+MAIN_THREAD = "repl_main_thread"
+# How far apart, in seconds, a first byte's stated request and a logged one may be.
+SAME_REQUEST = 0.02
+
+
+def claude_code_debug_records(log: str) -> list[dict]:
+    """The main thread's requests and their first outputs, and Leaf's hooks, from
+    Claude Code's debug log (`--debug-file`), stamped with the time Claude Code
+    wrote on each line. Requests of other sources, such as a prompt suggestion,
+    run beside the main thread's, so a first byte is the main thread's where the
+    request it says it answers is one of the main thread's."""
+    records, sent = [], []
+    for line in log.splitlines():
+        if match := REQUEST_LINE.match(line):
+            if match[2] == MAIN_THREAD:
+                sent.append(instant(match[1]))
+                records.append({"type": "request", "received_at": match[1]})
+        elif match := FIRST_BYTE_LINE.match(line):
+            asked = instant(match[1]) - int(match[2]) / 1000
+            if any(abs(at - asked) <= SAME_REQUEST for at in sent):
+                records.append({"type": "first_output", "received_at": match[1]})
+        elif match := LEAF_HOOK_LINE.match(line):
+            records.append(
+                {
+                    "type": "leaf_hook",
+                    "event": match[2],
+                    "ms": int(match[3]),
+                    "received_at": match[1],
+                }
+            )
+    return records

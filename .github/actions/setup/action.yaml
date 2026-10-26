@@ -14,6 +14,14 @@ runs:
     - uses: taiki-e/install-action@v2
       with:
         tool: worktrunk@0.80.0
+    - name: Use Ubuntu archive mirrors
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        # Azure's mirror can keep transferring too slowly to trigger apt's
+        # inactivity timeout. Keep the runner's Ubuntu archive fallbacks.
+        # https://github.com/actions/runner-images/issues/12949
+        sudo sed -i '/azure\.archive\.ubuntu\.com/d' /etc/apt/apt-mirrors.txt
     - name: Prepare development dependencies
       shell: bash
       run: wt -y setup

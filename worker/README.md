@@ -98,8 +98,8 @@ builds the site, so rerun `leaf-dev site` after a change.
 
 For a quicker check of the agent alone, `uv run leaf-dev journey website-adapter` runs
 one real agent turn against the adapter on this machine, without the Worker, container
-limits, credential proxy or Docker. It uses a temporary `CODEX_HOME` seeded with copies
-of the host's Codex login and the website's Codex config. It prints the container's
+limits, credential proxy or Docker. It uses a temporary `CODEX_HOME` with the
+website's Codex config and shares the host's Codex login. It prints the container's
 records and keeps them, with the plugin install's output, under
 `.tmp/verify-site/run-*/` (`website-adapter.log`, `plugin-install.log`). In its JSON
 result, `sinceSendMs.responseVisible` is when the
@@ -535,13 +535,13 @@ containing user text.
 The outbound model handler adds `model_request_started`, `model_response_headers`,
 `model_response_first_byte`, `model_response_first_output`, and
 `model_response_completed` or `model_request_failed`, each with Codex's thread and turn
-ids, a per-request id, status, and byte count. `model_transport_http_fallback` records
-Codex falling back from its WebSocket probe to HTTP.
+ids, a per-request id, status, and byte count. The hosted Codex provider uses HTTP
+directly (`codex-config.toml`).
 
 When a hosted turn cannot answer, the user's update gets a failure receipt: a reply
 carrying `failure` in its thread for a message, or a failed pickup for an answer to an
 ask, which leaves the answer in force and lets the user answer again
-(`fail_answer` in `skills/leaf/scripts/leaf/thread.py`). The receipt's `failure` field holds one of three codes, and
+(`fail_answer` in `src/leaf/thread.py`). The receipt's `failure` field holds one of three codes, and
 `worker/leaf_website/__init__.py` declares the words the user reads for each in
 `FAILURE_RECEIPTS`:
 

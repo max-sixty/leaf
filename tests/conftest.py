@@ -3,6 +3,7 @@
 import ast
 import contextlib
 import inspect
+import itertools
 import json
 import os
 import re
@@ -18,6 +19,11 @@ from typing import NamedTuple
 import psutil
 import pytest
 from click.testing import CliRunner
+from leaf_dev import LEAF_COMMAND as SOURCE_LEAF_COMMAND
+from leaf_dev.browser import shell_executable, use_linux_fonts
+from leaf_dev.page_fixtures import package_selection_args
+from playwright.sync_api import Frame, Page, sync_playwright
+
 from leaf import cli as cli_model
 from leaf import codex as codex_model
 from leaf import codex_adapter as codex_adapter_model
@@ -28,10 +34,7 @@ from leaf import machine as machine_model
 from leaf import state as cleanup_model
 from leaf.registry.schema import schema_error, with_leaf_resources
 from leaf.render_gate import browser as browser_model
-from leaf_dev import LEAF_COMMAND as SOURCE_LEAF_COMMAND
-from leaf_dev.browser import shell_executable, use_linux_fonts
-from leaf_dev.page_fixtures import package_selection_args
-from playwright.sync_api import Frame, Page, sync_playwright
+from leaf.render_gate import command as render_command_model
 
 __all__ = ["LEAF_COMMAND"]
 
@@ -256,8 +259,8 @@ def compiled_pages(request, monkeypatch, isolated_session):
         monkeypatch.setattr(layer_model, "KERNEL", request.path.parent / "no-kernel")
         return
     installation = request.getfixturevalue("compiled_installation")
-    monkeypatch.setattr(layer_model, "ASSETS", installation / "skills/leaf/assets")
-    monkeypatch.setattr(layer_model, "KERNEL", installation / "skills/leaf/kernel")
+    monkeypatch.setattr(layer_model, "ASSETS", installation / "browser")
+    monkeypatch.setattr(layer_model, "KERNEL", installation / "dist/kernel")
     monkeypatch.setattr(layer_model, "PLUGIN_ROOT", installation)
     monkeypatch.setenv("LEAF_HOST_LAUNCHER", str(installation / "bin/leaf"))
     original_command = LEAF_COMMAND[:]
@@ -499,6 +502,8 @@ CLAUDE_IDENTITY = harness_model.ClaudeCodeHarness.identity_variables
 # The Claude Code sessions `isolated_session` marks as hooked: the worker's own
 # and the id lifecycle fixtures claim under (`record_claim`).
 HOOKED_SESSIONS = (f"pytest-{os.getpid()}", "s1")
+# The tests this worker has isolated so far (`isolated_session`).
+_SESSIONS = itertools.count()
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -541,19 +546,32 @@ def isolated_session(tmp_path_factory, monkeypatch):
     The state home is the fixture's value, for `_no_page_outlives_its_test`:
     the sweep takes its root from here rather than from the environment, which
     it would read before this fixture sets it and after `monkeypatch` unsets it
-    (tests/AGENTS.md, "Processes and servers")."""
-    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path_factory.mktemp("state")))
-    monkeypatch.setenv("CODEX_HOME", str(tmp_path_factory.mktemp("codex")))
+    (tests/AGENTS.md, "Processes and servers").
+
+    The directories are named by a count rather than by `mktemp`'s numbering, which
+    finds the next number by reading every entry in the worker's base directory: a
+    run's tests fill it, so each test's three lookups grew with the tests before it,
+    1.3 worker-minutes of a push run in October 2026."""
+    home = tmp_path_factory.mktemp(f"session{next(_SESSIONS)}", numbered=False)
+    for name in ("state", "config", "codex", "claude"):
+        (home / name).mkdir()
+    monkeypatch.setenv("XDG_STATE_HOME", str(home / "state"))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(home / "config"))
+    monkeypatch.setenv("CODEX_HOME", str(home / "codex"))
     monkeypatch.delenv(codex_model.APP_SERVER_ENV, raising=False)
     monkeypatch.delenv("LEAF_HOST_LAUNCHER", raising=False)
+    monkeypatch.delenv("CODEX_INTERNAL_ORIGINATOR_OVERRIDE", raising=False)
     for name in (*harness_model.IDENTITY_VARIABLES, *machine_model.SANDBOX_REMEDIES):
         monkeypatch.delenv(name, raising=False)
     # Claude Code's session registry, where a live turn is read
     # (`harness.claude_code_session_records`): empty, so no session of the developer's
     # answers for a test's.
-    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path_factory.mktemp("claude")))
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(home / "claude"))
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", f"pytest-{os.getpid()}")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
+    # A test's own browser reports its window to the pages it opens, so `page check
+    # --render` reads the fixed window unless a test unsets this.
+    monkeypatch.setenv(render_command_model.PIN_VARIABLE, "fixed")
     # A Claude Code session whose harness runs Leaf's hooks, as the plugin installs
     # them, supplying capability evidence to hook transport and turn activity.
     for session in HOOKED_SESSIONS:

@@ -31,6 +31,13 @@ from interact_support import (
     state_json,
     suggest,
 )
+from model.test_interact_document import (
+    _drop_x_between_a_and_b,
+    _move,
+    _todo_order,
+    _write_board,
+)
+
 from leaf import agent_state as agent_state_model
 from leaf import cli as cli_model
 from leaf import data as data_model
@@ -39,12 +46,6 @@ from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import revision_artifact as artifact_model
 from leaf import revisioning as revisioning_model
-from model.test_interact_document import (
-    _drop_x_between_a_and_b,
-    _move,
-    _todo_order,
-    _write_board,
-)
 
 
 def test_check_accepts_a_valid_page(page_dir):
@@ -169,36 +170,32 @@ def test_the_captured_executable_digest_separates_code_from_content(page_dir):
     redeclared = activate()
 
     files_model.replace_files(
-        [(page_dir / "leaf.js", b"// re-vendored runtime", False)]
+        [(page_dir / "widgets" / "lf-options.js", b"// re-vendored widget", False)]
     )
     revendored = activate()
     assert revendored.executable != redeclared.executable
 
     # `$layer` records where a vendoring run came from rather than what it
     # installed: the fingerprint identifies the composed layer independently of
-    # its epoch, the producer names the checkout that built it, and the epoch
-    # itself is a fresh token every `page init` mints. None of the three says
-    # what this document would have to evaluate, so a restamp on its own leaves
-    # the digest alone.
+    # its epoch, and the producer names the checkout that built it. Neither says
+    # what this document would have to evaluate, so a restamp of them leaves the
+    # digest alone.
     layer_path = page_dir / "registry.json"
     vendored = json.loads(layer_path.read_text())
     vendored["$layer"] = {
         **vendored["$layer"],
         "fingerprint": "sha256:" + "b" * 64,
         "producer": {"commit": "abcdef1", "dirty": True},
-        "generation": "0123456789abcdef0123456789abcdef",
     }
     files_model.replace_files([(layer_path, json.dumps(vendored).encode(), False)])
     restamped = activate()
     assert restamped.digest != revendored.digest
     assert restamped.executable == revendored.executable
 
-    # Vendoring writes that epoch into `runtime/layer-generation.js`, which every
-    # document evaluates, so a real re-vendor reaches the digest through the
-    # module rather than through the stamp beside it.
-    files_model.replace_files(
-        [(page_dir / "runtime" / "layer-generation.js", b"// re-vendored epoch", False)]
-    )
+    # The epoch is what a tab speaks to the server (`runtime/layer-client.js`), so a
+    # re-vendor's new one gives the document a new executable.
+    vendored["$layer"]["generation"] = "0123456789abcdef0123456789abcdef"
+    files_model.replace_files([(layer_path, json.dumps(vendored).encode(), False)])
     reissued = activate()
     assert reissued.executable != restamped.executable
 
@@ -307,9 +304,10 @@ def test_a_tone_the_layer_cannot_paint_is_refused_where_the_author_can_still_fix
     )
     status, findings = check_findings(page_dir)
     assert status == 1
-    assert [(f.code, f.at, f.values["known"]) for f in findings] == [
-        ("unknown-word", "<lf-column>", ["ok", "warn", "danger"])
+    assert [(f.code, f.at, f.values["keyword"]) for f in findings] == [
+        ("attribute-schema", "<lf-column>", "enum")
     ]
+    assert "['ok', 'warn', 'danger']" in findings[0].values["reason"]
 
     # The list is the layer's, so a layer that adds one accepts it with no widget
     # touched — which is the point of $tones over an enum on each widget.
@@ -374,7 +372,7 @@ def test_tabs_validate_and_compose(page_dir):
     tabs = """<lf-tabs id="ws">
   <lf-tab id="ws-ingest" label="Ingest"><p>Pipeline notes.</p></lf-tab>
   <lf-tab id="ws-search" label="Search">
-    <dl id="k-lat" class="panel"><dt></dt><dd><strong>118 ms</strong></dd></dl>
+    <dl id="k-lat" class="metric"><dt></dt><dd><strong>118 ms</strong></dd></dl>
   </lf-tab>
 </lf-tabs>
 <lf-options>"""
@@ -549,34 +547,6 @@ def test_withdrawing_an_unanswered_suggestion_needs_no_consent(page_dir):
     assert check(page_dir).exit_code == 0
 
 
-def test_check_owns_the_lf_meta_vocabulary(page_dir):
-    # The sign-off declaration: valid on its one value, rejected on a misspelled
-    # value or name — either would silently declare nothing in the browser.
-    signoff = PAGE.replace(
-        "<title>t</title>",
-        '<title>t</title>\n<meta name="lf-review" content="sign-off">',
-    )
-    (page_dir / "index.html").write_text(signoff)
-    assert check(page_dir).exit_code == 0
-
-    (page_dir / "index.html").write_text(signoff.replace("sign-off", "approve"))
-    status, findings = check_findings(page_dir)
-    assert status == 1
-    assert found(
-        findings,
-        "meta-content",
-        name="lf-review",
-        allowed=["sign-off"],
-        found="approve",
-    )
-
-    (page_dir / "index.html").write_text(signoff.replace("lf-review", "lf-signoff"))
-    status, findings = check_findings(page_dir)
-    assert status == 1
-    # The finding names the known vocabulary.
-    assert found(findings, "unknown-meta", name="lf-signoff", known=["lf-review"])
-
-
 def test_check_rejects_duplicate_ids(page_dir):
     result = check(page_dir)
     assert result.exit_code == 0, result.output
@@ -673,7 +643,14 @@ def test_publishing_records_typed_settlements_for_provisional_agent_facts(page_d
     report_id = json.loads(sent.output)["id"]
     opened = CliRunner().invoke(
         cli_model.cli,
-        ["task", "open", str(page_dir), "rollout-card", "Check the rollout"],
+        [
+            "task",
+            "create",
+            str(page_dir),
+            "rollout-card",
+            "--title",
+            "Check the rollout",
+        ],
     )
     assert opened.exit_code == 0, opened.output
     task = json.loads(opened.output)
@@ -789,7 +766,7 @@ def test_user_added_words_do_not_become_liveness_coordinates(page_dir):
 
 def test_user_state_survives_without_source_copying(page_dir):
     """An unchanged authored choice needs no transcription into a later revision.
-    Validation stays quiet while state and the transcript preserve the answer."""
+    Validation stays quiet while state preserves the answer."""
 
     def write(a=""):
         opts = OPTIONS.format(
@@ -825,11 +802,7 @@ def test_user_state_survives_without_source_copying(page_dir):
     result = check(page_dir)
     assert result.exit_code == 0
     assert "record behind the log" not in result.output
-
-    result = CliRunner().invoke(cli_model.cli, ["page", "transcript", str(page_dir)])
-    assert result.exit_code == 0, result.output
-    assert "record behind the log" not in result.output
-    assert "g1" in result.output and "o-shim" in result.output
+    assert state_json(page_dir)["state"][0]["detail"] == {"value": ["o-shim"]}
 
 
 def test_check_reports_a_measurement_whose_source_ran_again(page_dir):

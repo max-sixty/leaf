@@ -1,49 +1,22 @@
 """Whole journeys through a served page, with the helpers several of them share."""
 
 from browser.threads import open_panel_thread
-from leaf import event_log as events_model
 from playwright.sync_api import expect
-from render_harness import PANEL, panel_menu, panel_settled
+from render_harness import PANEL, open_threads, panel_menu, panel_settled, panel_view
 
-THREADS_VIEW = '.lf-fp-view[data-view="threads"]:not([data-leaving])'
+from leaf import event_log as events_model
 
 
 def listed_threads(page):
-    """The keys of every thread the panel's Threads view lists, open and resolved, read
-    by opening Threads under each filter; Threads is put away after."""
-    if page.locator(PANEL).get_attribute("data-open") != "threads":
-        page.locator(".lf-fp-threads").click()
-        panel_settled(page, view="threads")
-    keys = []
-    for name in ("Open", "Resolved"):
-        page.locator(".lf-fp-filters button").filter(has_text=name).click()
-        keys += page.locator(f"{THREADS_VIEW} .lf-fp-thread").evaluate_all(
-            "rows => rows.map(row => row.dataset.key)"
-        )
+    """The keys of every thread the panel's Threads view lists, the open ones and then
+    those under Resolved; Threads is put away after."""
+    open_threads(page)
+    keys = page.locator(f"{panel_view('threads')} .lf-fp-thread").evaluate_all(
+        "rows => rows.map(row => row.dataset.key)"
+    )
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
     return keys
-
-
-# Where the panel says a passing notice: the empty field's placeholder, the line over a
-# focused field, or, over an open view, the leaf's peek (floating-panel.js).
-_SAYS = """() => [document.querySelector('.lf-fp-field leaf-text')?.getAttribute('placeholder'),
-  ...[...document.querySelectorAll('.lf-fp-context, .lf-fp-peek')].map((n) => n.textContent)]
-  .filter(Boolean).join(' | ')"""
-
-
-def expect_panel_says(page, words, shown=True):
-    """Wait until the panel says `words` in a passing notice, wherever it says one, or,
-    with `shown` false, until it no longer does."""
-    page.wait_for_function(
-        f"([words, shown]) => ({_SAYS})().includes(words) === shown",
-        arg=[words, shown],
-    )
-
-
-def panel_says(page):
-    """Everything the panel says in passing now, joined."""
-    return page.evaluate(_SAYS)
 
 
 def detached_threads(page, thread_ids):

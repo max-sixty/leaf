@@ -1,4 +1,6 @@
 # Complete task; diagnostic contexts retain the original fixed checks.
+# healthy-release contrasts an automatic rollout with a rollback decision: Codex
+# base 0/2, conditional rollback guidance 2/2 with the same snapshot time and rubric.
 description: Release rollout dashboard
 metadata:
   purpose: Compose and revise a dashboard; inspect its rendered output against the
@@ -45,3 +47,35 @@ variants:
         - leaf
       harnesses:
         - claude-code
+  healthy-release:
+    description: dashboard/healthy-release
+    metadata:
+      purpose: A healthy rollout monitor explains progress without manufacturing an operator decision.
+      tags: [monitoring, authoring]
+      executor: null
+      scenario: null
+      conditions: [leaf]
+    vars:
+      now: "2026-10-08T08:55:00-07:00"
+      prompt: |
+        Make a compact Leaf monitor for release 4.12 that I can glance at between
+        other work. At 15:55 UTC it serves 50% of eu-west traffic. Its error rate is
+        0.32%, against a 0.31% baseline and a 0.8% runbook limit. Checkout and login
+        synthetics pass. The deployment controller will advance to 100% at 16:00
+        if those checks still pass; it pauses automatically if they fail. Priya is
+        on call. Release 4.11 remains available as the rollback target.
+
+        Use the monitoring package. The page directory is unavailable here;
+        reply with the proposed HTML and any data bindings it needs.
+    assert:
+      - type: llm-rubric
+        metric: current-state-and-action
+        value: |
+          The reader can identify the rollout's current stage, healthy checks,
+          next automatic step and pause condition. The page does not ask the
+          operator to approve continuation or choose rollback while the supplied
+          runbook is proceeding normally. Rollback information and an optional
+          operator-initiated route are allowed; an unanswered decision or approval
+          requirement created merely because rollback is available fails.
+          Judge the information and decisions offered, not the Layout or widgets
+          used for the status and supporting evidence.

@@ -5,9 +5,6 @@ import re
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf.render_checks import rendered, wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATION_PAGE, panel_comment
 from render_cases_navigation import source_revision
@@ -41,6 +38,9 @@ from browser.threads import (
     seated_page,
     to_window_foot,
 )
+from leaf import data as data_model
+from leaf import event_log as events_model
+from leaf.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -514,7 +514,7 @@ def test_resolving_a_long_page_thread_by_its_button_leaves_the_page_still(
 def test_settling_a_long_diff_thread_by_key_keeps_it_in_view(browser, serve):
     """A diff thread folds into its outlet's Resolved disclosure when resolved and
     comes back out when reopened, and nothing landed it either way: the summary the
-    user stood on went above the window, and the reopened thread with it."""
+    user was located on went above the window, and the reopened thread with it."""
     url, root = seated_thread(serve, "diff", 12)
     page = open_page(browser, url)
     thread = page.locator(f'.lf-page-thread[data-thread="{root}"]')
@@ -820,13 +820,13 @@ def test_a_reply_box_left_by_tab_returns_to_the_diff_with_its_history(
     expect(box).to_have_js_property("value", "Half a thought")
 
 
-@pytest.mark.parametrize("standing", ["close", "marker"])
+@pytest.mark.parametrize("focus_route", ["close", "marker"])
 def test_a_user_on_a_thread_returning_to_the_diff_goes_with_it(
-    browser, serve, standing
+    browser, serve, focus_route
 ):
-    """The user stands on the margin card's Close, or on the thread's margin marker,
+    """The user focuses the margin card's Close, or on the thread's margin marker,
     when the patch comes back and the thread takes its seat on the diff line again.
-    The node they stood on goes with the margin's copy of the thread; they land on
+    The node they focused goes with the margin's copy of the thread; they land on
     the thread where it now stands."""
     url, root = seated_thread(serve, "diff", 2)
     page = open_page(browser, url)
@@ -838,7 +838,7 @@ def test_a_user_on_a_thread_returning_to_the_diff_goes_with_it(
     told(page)
     expect(inline).to_have_count(0)
     marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
-    if standing == "close":
+    if focus_route == "close":
         marker.click()
         close = page.locator(".lf-margin-preview-close")
         close.focus()

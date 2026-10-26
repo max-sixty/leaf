@@ -6,30 +6,20 @@ from datetime import datetime, timedelta
 
 import pytest
 from click.testing import CliRunner
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf.event_log import read_events
-from leaf.passages import page_passages, section_span
-from leaf.render_checks import wait_until_ready
-from leaf.structure import SourceDocument
-from model_folds import leaf_page
 from playwright.sync_api import expect
 from render_cases_interaction import COMMAND_HUB_EXAMPLE, live_url
 from render_harness import (
     open_page,
-    page_registry,
     refuse,
-    sending,
-    stamp_page,
     ticked,
     told,
-    wait_for_revision,
-    write,
 )
 
-pytestmark = pytest.mark.shifts_unsurveyed
+from leaf import cli as cli_model
+from leaf import data as data_model
+from leaf.event_log import read_events
 
-from browser.threads import open_panel_thread
+pytestmark = pytest.mark.shifts_unsurveyed
 
 
 @pytest.mark.watch_shifts
@@ -117,126 +107,3 @@ def test_atlas_report_waits_behind_a_stationary_refresh_control(browser, serve):
     ticked(page)
     expect(heard).to_have_text("10m ago")
     expect(observed).to_have_text("10m ago")
-
-
-@pytest.mark.parametrize("owner", ["atlas", "private"])
-def test_work_status_is_a_generated_browser_passage(browser, serve, owner):
-    """Mutable generated status has exact browser anchors without authored context."""
-    if owner == "atlas":
-        plan, task = "lf-atlas-plan", "lf-atlas-task"
-        package = COMMAND_HUB_EXAMPLE.parent / "command-hub.page"
-        packages = (package, "diff")
-    else:
-        plan, task, packages = "lf-test-plan", "lf-test-task", None
-    source = leaf_page(
-        "Status words",
-        f'<{plan} id="plan"><{task} id="goal" status="blocked">'
-        f"<strong>Current goal</strong> Waiting on brackets.</{task}></{plan}>",
-    )
-    page = open_page(browser, live_url(serve(source, packages=packages)))
-
-    def check_generated_status(markup, status, *, reported=False):
-        registry = page_registry(page)
-        file_reading = page_passages(SourceDocument(markup), registry)
-        lo, hi = section_span(file_reading.owner, "goal")
-        file_words = file_reading.text[lo:hi]
-        assert status not in file_words, file_words
-        line = page.locator('#goal > [data-lf-said="status"]')
-        expect(line).to_have_count(1)
-        expect(line).to_have_text(status)
-        assert page.locator("#goal").aria_snapshot().count(status) == 1
-        if reported:
-            assert status not in page.locator("#goal > .lf-quiet").inner_text()
-        else:
-            expect(page.locator("#goal > .lf-quiet")).to_have_count(0)
-        captured = line.evaluate("""async el => {
-          const {says} = await window.__lfWidgetApi();
-          const {anchorForRange, resolveAnchor} = await window.__lfCheckApi();
-          const range = document.createRange(); range.selectNodeContents(el);
-          const anchor = anchorForRange(range);
-          const resolved = resolveAnchor(anchor);
-          return {words: says(el), anchor, kind: resolved?.kind, exact: resolved?.exact};
-        }""")
-        assert captured == {
-            "words": status,
-            "anchor": {"section": "goal", "quote": status},
-            "kind": "passage",
-            "exact": True,
-        }
-
-    def comment_on_status(status):
-        page.locator('#goal > [data-lf-said="status"]').evaluate("""el => {
-          const range = document.createRange(); range.selectNodeContents(el);
-          const selection = getSelection(); selection.removeAllRanges();
-          selection.addRange(range);
-          document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
-        }""")
-        page.keyboard.press("c")
-        write(page.locator(".lf-composer leaf-text"), f"Discuss {status} status")
-        with sending(page, f"the comment on generated {status} status"):
-            page.keyboard.press("ControlOrMeta+Enter")
-        [comment] = [
-            event
-            for event in read_events(serve.page_dir)
-            if event["kind"] == "comment"
-            and event["text"] == f"Discuss {status} status"
-        ]
-        assert comment["anchor"] == {"section": "goal", "quote": status}
-        page.keyboard.press("Escape")
-        return comment
-
-    def check_thread_quotes(comments):
-        # Resolve the admitted historical coordinates, not a newly recaptured range.
-        resolved = page.evaluate(
-            """async anchors => {
-          const {resolveAnchor} = await window.__lfCheckApi();
-          return anchors.map(anchor => {
-            const found = resolveAnchor(anchor);
-            return {quote: anchor.quote, exact: found?.exact ?? false};
-          });
-        }""",
-            [comment["anchor"] for comment in comments],
-        )
-        assert resolved == [
-            {
-                "quote": comment["anchor"]["quote"],
-                "exact": comment["anchor"]["quote"] == "active",
-            }
-            for comment in comments
-        ]
-
-    check_generated_status(source, "blocked")
-    blocked = comment_on_status("blocked")
-    reported = CliRunner().invoke(
-        cli_model.cli,
-        ["page", "report", str(serve.page_dir), "goal", "status", "value=active"],
-    )
-    assert reported.exit_code == 0, reported.output
-    told(page)
-    check_generated_status(source, "active", reported=True)
-    active = comment_on_status("active")
-    check_thread_quotes([blocked, active])
-    revised = source.replace('status="blocked"', 'status="active"')
-    revision = stamp_page(serve.page_dir, revised, "The goal is active")
-    wait_for_revision(page, revision["revision"])
-    check_generated_status(revised, "active")
-    check_thread_quotes([blocked, active])
-    page.reload()
-    wait_until_ready(page)
-    check_generated_status(revised, "active")
-    check_thread_quotes([blocked, active])
-    # Each thread's view quotes what it was about, the one whose words the revision
-    # took away detached.
-    for comment, said, detached in (
-        (blocked, "“blocked”", True),
-        (active, "“active”", False),
-    ):
-        quote = open_panel_thread(page, comment["id"]).locator(".lf-quote")
-        expect(quote).to_have_text(said)
-        assert ("detached" in quote.get_attribute("class").split()) is detached
-    assert [
-        event for event in read_events(serve.page_dir) if event["kind"] == "comment"
-    ] == [blocked, active]
-    assert not [
-        event for event in read_events(serve.page_dir) if event["kind"] == "reanchor"
-    ]

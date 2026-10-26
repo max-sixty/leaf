@@ -1,0 +1,326 @@
+{
+  "$data": {
+    "contracts": {
+      "unified-diff": {
+        "description": "A unified patch, either as one text value or as a file manifest whose patch fields Leaf delivers separately on demand.",
+        "instructions": {
+          "producer": "Pipe the exact Git patch, with Git's default `a/` and `b/` prefixes, through this package's producer script into the source:\n\n```bash\ngit diff <base>...<head> | leaf package run diff patch_manifest.py | leaf data set \"$PAGE\" <source-id>\n```\n\nThe script keys each file by its destination path. A file `lf-diff` can't present shows its refusal on the page and reports it to you as the page's error."
+        },
+        "records": {
+          "items": "files",
+          "key": "path",
+          "deferred": "patch"
+        },
+        "schema": {
+          "type": ["string", "object"],
+          "properties": {
+            "files": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "patch": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": ["path", "patch"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": ["files"],
+          "additionalProperties": false
+        }
+      },
+      "calldiff": {
+        "description": "CallDiff's native JSON diff result, including trees, statuses and optional source coordinates.",
+        "instructions": {
+          "producer": "Pipe CallDiff 0.5.0 or newer with `--format json` directly into the source:\n\n```bash\ncalldiff diff <base> <head> --entry <entry> --format json | leaf data set \"$PAGE\" <source-id>\n```\n\nKeep the native JSON object intact. Locations are included in the structured trees even without `--locs`."
+        },
+        "schema": {
+          "type": "object",
+          "properties": {
+            "mode": {
+              "const": "diff"
+            },
+            "from": {
+              "type": "string"
+            },
+            "to": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "trees": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "entry": {
+                    "type": "string"
+                  },
+                  "tree": {
+                    "$ref": "#/$defs/node"
+                  }
+                },
+                "required": ["entry", "tree"]
+              }
+            }
+          },
+          "required": ["mode", "from", "to", "trees"],
+          "$defs": {
+            "node": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "status": {
+                  "enum": ["same", "added", "removed"]
+                },
+                "kind": {
+                  "enum": ["call", "branch"]
+                },
+                "file": {
+                  "type": "string"
+                },
+                "line": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "endLine": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "children": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/node"
+                  }
+                }
+              },
+              "required": ["key", "label", "status", "children"]
+            }
+          }
+        }
+      }
+    }
+  },
+  "lf-diff": {
+    "description": "A unified patch with per-file navigation and commentable source lines.",
+    "x-instructions": "Without `source`, write the exact Git patch in the `<pre>` at column 0, HTML-escaped (& before < and >), or entity text in the patch will change silently. Keep Git's file headers and metadata, and make each hunk's `@@` counts match its lines. Keep the leading space on context lines, and write a context line that is only a space as `&#32;` so HTML parsing keeps it. With `source`, bind a page-owned patch feed or files manifest and leave the `<pre>` empty. Add `collapsed` to start every file closed. Use view=\"file\" beside a separate file navigator to show one file at a time without a second file listing; datum navigation selects and opens its file. Markdown and plain-text files wrap by default; other files scroll sideways. Set `overflow=\"wrap\"` or `overflow=\"scroll\"` to choose one mode for every file in the widget. An inline patch reserves the height it draws at; leave `data-height` off it, and give one only to a `source` diff, whose patch arrives after first paint.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "source": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]*$"
+      },
+      "collapsed": {
+        "type": "boolean"
+      },
+      "view": {
+        "enum": ["patch", "file"]
+      },
+      "overflow": {
+        "enum": ["wrap", "scroll"]
+      }
+    },
+    "required": ["id"],
+    "additionalProperties": false,
+    "x-content": "data",
+    "x-space": "wide",
+    "x-data": {
+      "document": {
+        "contract": "unified-diff",
+        "source": "source",
+        "property": "value"
+      }
+    },
+    "x-output": {
+      "files": {
+        "contract": "file-list"
+      }
+    },
+    "x-upgrade": true,
+    "x-shadow": true,
+    "x-thread-surface": true,
+    "x-height": true,
+    "x-initial": "/vendor/lf-diff-initial.js",
+    "x-example": "<lf-diff id=\"mount-diff\"><pre>\ndiff --git a/feeders/mount.py b/feeders/mount.py\n--- a/feeders/mount.py\n+++ b/feeders/mount.py\n@@ -1,2 +1,2 @@\n def bracket():\n-    return \"plastic\"\n+    return \"steel\"\n</pre></lf-diff>"
+  },
+  "$diff": {
+    "widgets": {
+      "lf-diff": {
+        "role": "patch"
+      }
+    }
+  },
+  "lf-call-diff": {
+    "description": "A commentable call-tree diff, linked to the `lf-diff` that holds its patch.",
+    "x-instructions": "Set `diff` to the id of the `lf-diff` holding the exact patch. Keep the unchanged items in the tree as landmarks. In a large repository, give each widget one file or entry point. Don't copy the output into markup, add attribute reads as calls, or draw separate before and after diagrams.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "source": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]*$"
+      },
+      "diff": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      }
+    },
+    "required": ["id", "source", "diff"],
+    "additionalProperties": false,
+    "x-content": "empty",
+    "x-data": {
+      "document": {
+        "contract": "calldiff",
+        "source": "source",
+        "property": "value"
+      }
+    },
+    "x-refers": {
+      "diff": {
+        "via": "$diff.widgets",
+        "where": {
+          "role": "patch"
+        }
+      }
+    },
+    "x-upgrade": true,
+    "x-height": true,
+    "x-example": "<lf-call-diff id=\"request-calls\" data-height=\"480\" source=\"request-call-diff\" diff=\"request-patch\"></lf-call-diff>"
+  },
+  "lf-worktree-diffs": {
+    "description": "A supplied set of expandable worktree snapshots, with aggregate change totals and independent diff readers.",
+    "x-instructions": "Supply `lf-worktree` members in review order; the collection lists unavailable snapshots apart from its totals.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      }
+    },
+    "required": ["id"],
+    "additionalProperties": false,
+    "x-content": "members",
+    "x-space": "wide",
+    "x-upgrade": true,
+    "x-initial": "/vendor/lf-worktree-diffs-initial.js",
+    "x-patch": "members",
+    "x-example": "<lf-worktree-diffs id=\"review-worktrees\"><lf-worktree id=\"draft-worktree\" label=\"retain-drafts\" path=\"/workspace/leaf.retain-drafts\" branch=\"fix/retain-drafts\" head=\"c8ebd603f87d4c9db1ce17bf134b76567d8a409c\" status=\"changed\" files=\"1\" additions=\"1\" deletions=\"1\" open><p>Preserve a composer draft while switching threads.</p><lf-diff id=\"draft-patch\"><pre>\ndiff --git a/draft.js b/draft.js\n--- a/draft.js\n+++ b/draft.js\n@@ -1 +1 @@\n-clearDraft();\n+saveDraft();\n</pre></lf-diff></lf-worktree></lf-worktree-diffs>"
+  },
+  "lf-worktree": {
+    "description": "One worktree snapshot inside lf-worktree-diffs, an expandable row whose summary Leaf writes from its attributes and whose body holds the evidence authored directly inside it.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "label": {
+        "type": "string",
+        "minLength": 1
+      },
+      "path": {
+        "type": "string",
+        "minLength": 1
+      },
+      "branch": {
+        "type": "string",
+        "minLength": 1
+      },
+      "head": {
+        "type": "string",
+        "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$"
+      },
+      "status": {
+        "enum": ["changed", "clean", "unavailable"]
+      },
+      "files": {
+        "type": "string",
+        "pattern": "^(0|[1-9][0-9]*)$"
+      },
+      "additions": {
+        "type": "string",
+        "pattern": "^(0|[1-9][0-9]*)$"
+      },
+      "deletions": {
+        "type": "string",
+        "pattern": "^(0|[1-9][0-9]*)$"
+      },
+      "binary-files": {
+        "type": "string",
+        "pattern": "^(0|[1-9][0-9]*)$"
+      },
+      "open": {
+        "type": "boolean"
+      }
+    },
+    "required": ["id", "label", "path", "status"],
+    "allOf": [
+      {
+        "if": {
+          "properties": {
+            "status": {
+              "enum": ["changed", "clean"]
+            }
+          }
+        },
+        "then": {
+          "required": ["files", "additions", "deletions"]
+        }
+      },
+      {
+        "if": {
+          "properties": {
+            "status": {
+              "const": "clean"
+            }
+          }
+        },
+        "then": {
+          "properties": {
+            "files": {
+              "const": "0"
+            },
+            "additions": {
+              "const": "0"
+            },
+            "deletions": {
+              "const": "0"
+            },
+            "binary-files": {
+              "const": "0"
+            }
+          }
+        }
+      }
+    ],
+    "additionalProperties": false,
+    "x-owners": ["lf-worktree-diffs"],
+    "x-content": "markup",
+    "x-name": "label",
+    "x-upgrade": true,
+    "x-initial": "/vendor/lf-worktree-initial.js",
+    "x-patch": "members"
+  }
+}

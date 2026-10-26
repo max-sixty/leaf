@@ -23,14 +23,14 @@ import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
-const GENERATED = "skills/leaf/assets/runtime/marks.js";
+const GENERATED = "browser/runtime/marks.js";
 // The `data-lf-` names Python writes only for itself: the export's fallback style
 // hides a page until its bootstrap replaces the document, and the inlined annotation
 // sheet is named for the suite to find.
 const PYTHON_ONLY = new Set(["data-lf-export-pending", "data-lf-annotation-theme"]);
 
 const registry = JSON.parse(
-  await readFile(new URL("skills/leaf/assets/registry.json", `file://${root}`)),
+  await readFile(new URL("browser/registry.json", `file://${root}`)),
 );
 
 const tracked = (...patterns) =>
@@ -40,16 +40,15 @@ const tracked = (...patterns) =>
       (file) =>
         file &&
         file !== GENERATED &&
-        !file.startsWith("skills/leaf/kernel/") &&
+        !file.startsWith("dist/kernel/") &&
         !file.includes("/vendor/"),
     );
-const python = tracked("skills/leaf/scripts/*.py", "skills/leaf/scripts/*.js");
+const python = tracked("src/*.py", "src/*.js");
 const browser = tracked(
-  "skills/leaf/assets/*.css",
-  "skills/leaf/assets/*.js",
-  "skills/leaf/packages/*.css",
-  "skills/leaf/packages/*.js",
-  "build/browser/*.ts",
+  "browser/*.css",
+  "browser/*.js",
+  "packages/*.css",
+  "packages/*.js",
 );
 
 // Each `data-lf-` name the files spell, as markup or a selector writes it or as an

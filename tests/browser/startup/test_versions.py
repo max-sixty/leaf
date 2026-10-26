@@ -5,8 +5,6 @@ import re
 
 import pytest
 from interact_support import append_command
-from leaf import event_log as events_model
-from leaf.render_checks import wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_cases_navigation import (
@@ -21,13 +19,14 @@ from render_cases_navigation import (
     actions,
 )
 from render_harness import (
-    PANEL,
     RELEASE_FOCUS,
     compare_with,
     draft_control,
     open_page,
+    open_threads,
     panel_menu,
     panel_settled,
+    panel_view,
     round_trip,
     told,
     undo,
@@ -37,6 +36,8 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
+from leaf import event_log as events_model
+from leaf.render_checks import wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -46,13 +47,10 @@ DRAG_HELD = "async () => (await window.__lfCheckApi()).dragHeld()"
 
 def expect_resolved(page, thread_id, resolved=True):
     """Read whether the panel's Threads lists the thread `thread_id` under Resolved."""
-    if page.locator(PANEL).get_attribute("data-open") != "threads":
-        page.locator(".lf-fp-threads").click()
-        panel_settled(page, view="threads")
-    page.locator(".lf-fp-filters button").filter(has_text="Resolved").click()
+    open_threads(page)
     expect(
         page.locator(
-            f".lf-fp-view[data-view='threads'] .lf-fp-thread[data-key='{thread_id}']"
+            f"{panel_view('threads')} .lf-fp-ended ~ .lf-fp-thread[data-key='{thread_id}']"
         )
     ).to_have_count(1 if resolved else 0)
 
@@ -253,6 +251,51 @@ def test_the_diff_marks_a_card_the_author_relocated(browser, serve):
     assert not page.evaluate(
         "document.getElementById('card-x-note').classList.contains('lf-ins-block')"
     ), "the card's passenger marked as its own move"
+
+
+def test_a_comparison_reads_nothing_from_a_server_running_another_runtime(
+    browser, serve
+):
+    """A comparison asks the server for the older version's reading. Right after a
+    restart under another Leaf, that server's runtime is not this tab's, and its state
+    is not this tab's code to read, so the comparison refuses it rather than mark the
+    page with it: the comparison fails, and the tab asks its source whether to reload,
+    as for any refused answer.
+
+    Only the comparison's answer names another runtime here, so the tab's other reads
+    are admitted and may take down the wait the refusal raised; the failed comparison
+    stands in the Errors list either way."""
+    url = serve(JOURNEY_V1)
+    _publish(serve.page_dir, 2, _card_done(JOURNEY_V1), "moved the card to Done")
+    page = open_page(browser, url.replace("v1.html", "v2.html"))
+    asked = []
+
+    def another_runtime(route):
+        response = route.fetch()
+        route.fulfill(
+            response=response,
+            headers={**response.headers, "Leaf-Runtime": "0123456789abcdef"},
+        )
+
+    def source(route):
+        asked.append(route.request.url)
+        route.continue_()
+
+    page.route("**/api/view*", another_runtime)
+    page.route("**/registry.json", source)
+    compare_with(page)
+    # Compare starts an asynchronous read. Wait for its refusal before opening the
+    # menu, whose rows deliberately stay as they were when it opened.
+    expect(page.locator(".lf-fp-field leaf-text")).to_have_attribute(
+        "placeholder", re.compile("Couldn't load v1")
+    )
+    menu = panel_menu(page)
+    menu.locator('.lf-fp-item[data-row="errors"]').click()
+    expect(
+        menu.locator(".lf-fp-error-words b").filter(has_text="Couldn't load v1")
+    ).to_have_count(1)
+    expect(page.locator("main .lf-ins-block")).to_have_count(0)
+    assert asked, "the refused reading asked no source whether it moved"
 
 
 def test_the_diff_marks_the_card_the_author_reordered_and_no_other(browser, serve):

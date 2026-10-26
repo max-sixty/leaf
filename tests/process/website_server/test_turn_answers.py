@@ -22,13 +22,13 @@ from interact_support import (
     running_http_server,
 )
 from interact_support import append_carried_log_record as append_event
+
 from leaf.codex import delivery_records
 from leaf.delivery import current_responses
 from leaf.event_log import read_events
 from leaf.hosting import LeafHTTPServer
 from leaf.service import PageTransaction, read_stream
 from leaf.state import session_record
-
 from process.website_server import (
     accept_in_turn,
     get,
@@ -305,7 +305,7 @@ def test_an_unanswered_widget_gesture_is_receipted_on_its_thread(page_dir, monke
         },
     )
     with website_server.PageTransaction(page_dir) as page:
-        page.set_status("idle", "")
+        page.set_status("idle")
     harness = website_server.WebsiteCodexHarness("codex")
     monkeypatch.setattr(
         harness, "_send", lambda *a, **k: {"turn": {"id": "app-server-turn"}}

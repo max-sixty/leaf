@@ -61,8 +61,8 @@ floating panel's view of its thread or on its card at its passage, which the pag
 records itself (`shown_reply`); `sinceSendMs` reads those from the
 send. Where the journey runs the agent itself, its record of the session (Claude
 Code's transcript, Codex's App Server notifications, Pi's RPC events) also splits each
-reply (`reply`, `reply_phases.reply_breakdown`) into the whole reply, Leaf's share of
-it, and the model calls it took, so a slow reply shows where it went.
+reply (`reply`, `reply_phases.reply_breakdown`): it attributes the whole reply to
+Leaf, the harness and the model, so a slow reply shows where it went.
 
 The release ask, a small page change and each session's first comment, reaches the
 harness in one of two cases (`--case`, a harness target's option): `waiting`, idle
@@ -102,7 +102,10 @@ from urllib.parse import urljoin
 
 import click
 import psutil
-from leaf import thread_titles
+from playwright.sync_api import BrowserContext, Locator, Page
+from playwright.sync_api import TimeoutError as PlaywrightTimeout
+
+from leaf import inference, thread_titles
 from leaf.delivery import pickup_receipts
 from leaf.event_log import read_events
 from leaf.events import build_threads
@@ -114,9 +117,6 @@ from leaf.service import page_claim
 from leaf.structure import SourceDocument
 from leaf.thread import successful_replies
 from leaf.todos import start_reading
-from playwright.sync_api import BrowserContext, Locator, Page
-from playwright.sync_api import TimeoutError as PlaywrightTimeout
-
 from leaf_dev import ROOT
 from leaf_dev.arms import PAYLOAD, PageClient, extract_payload, run_directory, run_leaf
 from leaf_dev.browser import DESKTOP, headless_shell
@@ -153,7 +153,7 @@ VISIBLE_REPLY_PATIENCE = 30_000
 VISIBLE_MESSAGE_PATIENCE = 2
 # How long the page server gets to title the thread after the turn ends: as long as
 # it asks again after a refusal, then the last request's own limit.
-TITLE_PATIENCE = thread_titles.RETRY_FOR + thread_titles.TIMEOUT
+TITLE_PATIENCE = thread_titles.RETRY_FOR + inference.TIMEOUT
 # How long a harness journey's step waits for the session, and how long a session
 # must stay idle with a step's outcome before the step counts it settled.
 STEP_LIMIT = 300
@@ -173,7 +173,7 @@ CASES = ("waiting", "working")
 def samples_path() -> Path:
     """Where this machine keeps every sample, one JSON line each, outside any
     checkout so runs from every worktree accumulate. A stopgap until a store CI can
-    write to too (`TODO.md`, "Keep the agent journey's samples")."""
+    write to too (issue #4048, "Keep the agent journey's samples")."""
     state = os.environ.get("XDG_STATE_HOME") or Path.home() / ".local" / "state"
     return Path(state) / "leaf-dev" / "journey.jsonl"
 
@@ -649,17 +649,12 @@ def await_reply_shown(end: BrowserEnd, answer: dict) -> dict:
     return shown
 
 
-def run_journey(
-    end: HttpEnd | BrowserEnd,
-    version: str,
-    records: Callable[[], list[dict]] | None = None,
-    commands: Callable[[], list[dict]] | None = None,
-) -> dict:
+def run_journey(end: HttpEnd | BrowserEnd, version: str) -> dict:
     """Tell the agent that release `version` passed its checks and ask it to record
     that, at the user's `end`, then require a published revision naming the release
     and an answer, and in a browser a reload presenting it. Return the journey's
-    reading of the ask, its reply broken down (`reply_breakdown`) where `records`
-    reads the session and `commands` the page's `leaf_command` records.
+    reading of the ask; a harness's user breaks its reply down once the session
+    ends (`User.sample`).
 
     The page check finds the release's short hash in the authored board markup:
     where on the board the agent records it is the agent's call.
@@ -676,14 +671,6 @@ def run_journey(
     comment = end.reading(
         profile, recorded_steps(events, answered_comment, published), answer
     )
-    if records is not None:
-        comment["reply"] = reply_breakdown(
-            records(),
-            commands(),
-            answered_comment["ts"],
-            pickup_at(events, answered_comment["id"], "opened"),
-            answer["ts"],
-        )
     print(json.dumps(comment, indent=2), file=sys.stderr)
     print(
         f"✓ the agent published revision {published['revision']} and replied: "
@@ -1162,9 +1149,7 @@ class User:
         `case`: in the working one, while the user's turn runs its command."""
         if self.case == "working":
             self.terminal.work()
-        self.release_reading = run_journey(
-            self.end, self.version, self.records, self.commands
-        )
+        self.release_reading = run_journey(self.end, self.version)
         self.ids["release"] = self.release_reading["comment"]["eventIds"][-1]
 
     def release_alone(self) -> None:
@@ -1237,8 +1222,11 @@ class User:
     def sample(self) -> dict:
         """The journey's reading: the user's end, the release ask's, and each step's
         duration and the timings of the comments it sent (`end.reading`), each marked
-        with the permission prompts answered during its step."""
-        events = self.events() if self.profiles else []
+        with the permission prompts answered during its step. Each reply is broken
+        down here, from the session's whole record: the call that replied ends after
+        the reply does, and a record read while the session writes it can end in a
+        partial line."""
+        events = self.events() if self.profiles or self.records else []
         comments = {}
         for name, profile in self.profiles.items():
             comment = next(e for e in events if e["id"] == self.ids[name])
@@ -1257,6 +1245,17 @@ class User:
                 )
             comments[name] = reading
         release = self.release_reading
+        if self.records is not None and "release" in self.ids:
+            asked = next(e for e in events if e["id"] == self.ids["release"])
+            answer = deployment_answer(events, asked["id"])
+            reply = reply_breakdown(
+                self.records(),
+                self.commands(),
+                asked["ts"],
+                pickup_at(events, asked["id"], "opened"),
+                answer["ts"],
+            )
+            release = {**release, "comment": {**release["comment"], "reply": reply}}
         for step in self.steps:
             for name in step["comments"]:
                 if "approved" in step:

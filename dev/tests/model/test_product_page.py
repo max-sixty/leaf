@@ -3,11 +3,12 @@
 import html
 
 import pytest
-from leaf.structure import SourceDocument
 from leaf_dev import declared_records, docs
 from leaf_dev.commands import record_demo
 from leaf_dev.example_data import document_metadata
 from model.test_product_page import DOCS, EXAMPLES
+
+from leaf.structure import SourceDocument
 
 
 def test_catalog_descriptions_follow_example_metadata(tmp_path, monkeypatch):

@@ -10,7 +10,9 @@ import signal
 import subprocess
 import sys
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
@@ -20,6 +22,7 @@ from interact_support import (
     append_carried_log_record,
     claim_and_wait_command,
     lock_contention,
+    neighbour_page,
     page_state,
     record_claim,
     release_codex_command,
@@ -28,6 +31,7 @@ from interact_support import (
     wait_for,
     woken,
 )
+
 from leaf import cli as cli_model
 from leaf import harness as harness_model
 from leaf import hooks as hooks_model
@@ -35,6 +39,7 @@ from leaf import layer as layer_model
 from leaf import leases as leases_model
 from leaf import machine as machine_model
 from leaf import presence as presence_model
+from leaf import server as server_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as cleanup_model
@@ -209,6 +214,114 @@ def test_a_claim_records_where_the_session_is_working(page_dir, tmp_path, monkey
     assert context in read_interactions(page_dir, types=("event",))
 
 
+def test_a_page_names_its_claimant_as_the_harness_does_now(page_dir, monkeypatch):
+    """Which session a page's comments reach is told by the name its harness shows,
+    read when asked: Claude Code names a session after its first prompt and
+    `/rename` changes it, so a name kept in the claim would go stale. Codex keeps
+    its names in an index it appends to, whose last line for a thread holds its
+    name now. A session whose harness record is gone has no name."""
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s1")
+    monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
+    assert service_model.claim_page(page_dir)
+    assert presence_model.presence(page_dir, [])["session_name"] is None
+
+    record = harness_model.claude_code_sessions() / f"{os.getpid()}.json"
+    record.parent.mkdir(parents=True, exist_ok=True)
+    for name in ("Fix the build", "Ship the release notes"):
+        cleanup_model.write_json(
+            record,
+            {
+                "pid": os.getpid(),
+                "sessionId": "s1",
+                "status": "busy",
+                "statusUpdatedAt": int(time.time() * 1000),
+                "name": name,
+            },
+        )
+        assert presence_model.presence(page_dir, [])["session_name"] == name
+    record.unlink()
+    assert presence_model.presence(page_dir, [])["session_name"] is None
+
+    index = Path(os.environ["CODEX_HOME"]) / "session_index.jsonl"
+    index.write_text(
+        '{"id": "t1", "thread_name": "Draft the plan"}\n'
+        '{"id": "t2", "thread_name": "Other work"}\n'
+        '{"id": "t1", "thread_name": "Review the plan"}\n'
+        '{"id": "t1", "thread_n',
+        encoding="utf-8",
+    )
+    assert harness_model.CodexHarness("t1", "Codex").session_name() == "Review the plan"
+    assert harness_model.CodexHarness("t3", "Codex").session_name() is None
+
+
+def test_page_list_names_each_page_and_the_session_holding_it(dead_pid):
+    """`leaf page list` is how a session finds the machine's pages and which session
+    each one's comments reach. A claimed page is listed with its claimant even
+    while nothing serves it, since that is when "who holds it" matters most; a page
+    nothing claimed is listed only while it serves, by its row."""
+    pages = cleanup_model.state_home() / "pages"
+    held, stopped, unclaimed = pages / "held", pages / "stopped", pages / "unclaimed"
+    url = neighbour_page(held, title="Held page", port=59001)
+    record_claim(held, id="s1", cwd="/work/held")
+    registry = harness_model.claude_code_sessions()
+    registry.mkdir(parents=True, exist_ok=True)
+    cleanup_model.write_json(
+        registry / f"{os.getpid()}.json",
+        {
+            "pid": os.getpid(),
+            "sessionId": "s1",
+            "status": "idle",
+            "statusUpdatedAt": int(time.time() * 1000),
+            "name": "Fix the build",
+        },
+    )
+    neighbour_page(stopped, title="Stopped page", dead=True)
+    record_claim(stopped, id="s2", pid=dead_pid, cwd="/work/stopped")
+    neighbour_page(unclaimed, title="Unclaimed page", port=59002)
+
+    listed = CliRunner().invoke(cli_model.cli, ["page", "list"])
+    assert listed.exit_code == 0, listed.output
+    lines = [json.loads(line) for line in listed.output.splitlines()]
+    assert lines == [
+        {
+            "page": str(held.resolve()),
+            "title": "Held page",
+            "url": url,
+            "on_user": 0,
+            "threads": {"open": 0, "unread": 0},
+            "harness": "claude-code",
+            "claim_session": "s1",
+            "session_name": "Fix the build",
+            "session_cwd": "/work/held",
+            "session_alive": True,
+        },
+        {
+            "page": str(stopped.resolve()),
+            "title": "Stopped page",
+            "url": None,
+            "on_user": None,
+            "threads": None,
+            "harness": "claude-code",
+            "claim_session": "s2",
+            "session_name": None,
+            "session_cwd": "/work/stopped",
+            "session_alive": False,
+        },
+        {
+            "page": str(unclaimed.resolve()),
+            "title": "Unclaimed page",
+            "url": server_model.page_url("127.0.0.1", 59002, server_model.host_key()),
+            "on_user": 0,
+            "threads": {"open": 0, "unread": 0},
+            "harness": None,
+            "claim_session": None,
+            "session_name": None,
+            "session_cwd": None,
+            "session_alive": None,
+        },
+    ]
+
+
 @pytest.mark.skipif(not shutil.which("sandbox-exec"), reason="macOS's sandbox")
 def test_a_session_whose_shell_is_sandboxed_claims_its_page(page_dir, monkeypatch):
     """Claude Code's and Codex's macOS sandboxes refuse their commands any signal
@@ -267,16 +380,14 @@ def test_a_sandbox_refusal_says_to_run_outside_it(
 
 
 def test_a_sandbox_that_hides_the_session_says_to_claim_outside_it(
-    page_dir, monkeypatch
+    page_dir, monkeypatch, dead_pid
 ):
     """Claude Code's Linux sandbox runs each command in a process namespace of its
     own, so CLAUDE_PID names no process the command can see, and the claim cannot
     take there at all. The refusal says so where the harness declares its sandbox,
     since the agent's fix is to rerun the command outside it."""
-    gone = subprocess.Popen(["true"])
-    gone.wait()
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "namespaced")
-    monkeypatch.setenv("CLAUDE_PID", str(gone.pid))
+    monkeypatch.setenv("CLAUDE_PID", str(dead_pid))
     monkeypatch.setenv("SANDBOX_RUNTIME", "1")
     refused = CliRunner().invoke(cli_model.cli, ["page", "claim", str(page_dir)])
     assert refused.exit_code == 1, refused.output
@@ -376,7 +487,7 @@ cli_model.cli()
         second_out, second_err = second.communicate(timeout=STATED_TIMEOUT)
         assert second.returncode == 0, f"{second_out}{second_err}"
         idled = subprocess.run(
-            [*LEAF_COMMAND, "status", page, "idle"],
+            [*LEAF_COMMAND, "page", "close", page],
             capture_output=True,
             text=True,
             check=False,
@@ -434,11 +545,11 @@ def test_hook_remedies_follow_the_harness_not_the_display_name(
     waited = under_codex(claim_and_wait_command(page), env, finished=finished)
     release_codex_command(page, waited, finished)
     assert waited.wait(timeout=STATED_TIMEOUT) == 0
-    session_model.cmd_waiting(page, "")
+    session_model.cmd_waiting(page)
 
     hooks_model.cmd_hook("codex", {"hook_event_name": "Stop", "session_id": "w1"})
     reason = json.loads(capsys.readouterr().out)["reason"]
-    assert "leaf codex start" in reason and str(page) in reason
+    assert "leaf page claim" in reason and str(page) in reason
     assert service_model.page_claim(page)["agent"] == "Indexer"
 
 
@@ -459,7 +570,7 @@ def test_wait_lease_is_exact_and_excludes_another_wait(
     for name in identity_names:
         monkeypatch.delenv(name, raising=False)
     serving(page_dir, 1)
-    session_model.cmd_waiting(page_dir, "comment on the prototype")
+    session_model.cmd_waiting(page_dir)
     # Ownership is acquired explicitly before taking the session wait lease.
     if not identity_names:
         record_claim(page_dir, id="past-session")
@@ -513,7 +624,7 @@ def test_a_sigterm_its_handler_takes_inside_a_finalizer_still_ends_the_wait(
     for name in harness_model.IDENTITY_VARIABLES:
         monkeypatch.delenv(name, raising=False)
     serving(page_dir, 1)
-    session_model.cmd_waiting(page_dir, "comment on the prototype")
+    session_model.cmd_waiting(page_dir)
     waiter = spawn_probe(
         spawn,
         page_dir,

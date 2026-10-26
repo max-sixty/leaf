@@ -15,27 +15,28 @@ from interact_support import (
     record_claim,
     working,
 )
-from leaf import cli as cli_model
-from leaf import delivery as delivery_model
-from leaf import event_log as events_model
-from leaf import render_checks as render_checks_model
-from leaf import service as service_model
-from leaf import state as cleanup_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_layout import token_colour
 from render_cases_navigation import TAB_AND_DOT, TAB_TONE, live_watcher
 from render_harness import (
     LONG_PAGE,
-    PANEL,
     open_page,
+    open_threads,
     panel_settled,
+    panel_view,
     shown,
     ticked,
     told,
 )
 
 from browser.threads import open_panel_thread
+from leaf import cli as cli_model
+from leaf import delivery as delivery_model
+from leaf import event_log as events_model
+from leaf import render_checks as render_checks_model
+from leaf import service as service_model
+from leaf import state as cleanup_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -62,15 +63,11 @@ def workflow_of(scope, message):
 
 
 def thread_row_says(page, thread, resolved=False):
-    """Open the panel's Threads at Open, or Resolved, and return what `thread`'s row says
-    of where it stands, beside its name."""
-    if page.locator(PANEL).get_attribute("data-open") != "threads":
-        page.locator(".lf-fp-threads").click()
-        panel_settled(page, view="threads")
-    page.locator(".lf-fp-filters button").filter(
-        has_text="Resolved" if resolved else "Open"
-    ).click()
-    return page.locator(f'.lf-fp-thread[data-key="{thread}"] .lf-fp-value')
+    """Open the panel's Threads and return what `thread`'s row says of where it stands,
+    beside its name, among the open threads or, where `resolved`, under Resolved."""
+    open_threads(page)
+    state = "[data-resolved]" if resolved else ":not([data-resolved])"
+    return page.locator(f'.lf-fp-thread[data-key="{thread}"]{state} .lf-fp-value')
 
 
 def test_the_page_dates_a_claim_by_the_clock_that_wrote_it(browser, serve):
@@ -152,17 +149,15 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     with service_model.PageTransaction(d) as transaction:
         delivery_model.record_pickup(transaction, [comments[0]])
     told(page)
-    expect(held_workflow).to_have_text("Picked up")
+    expect(held_workflow).to_have_text("Delivered")
     expect(held_workflow).to_have_attribute("data-identity-probe", "kept")
 
     # The agent finishes the earlier task and waits on the user.
     end_work(d)
-    latent_waiting = CliRunner().invoke(
-        cli_model.cli, ["status", str(d), "waiting", "review the answer"]
-    )
+    latent_waiting = CliRunner().invoke(cli_model.cli, ["page", "open", str(d)])
     assert latent_waiting.exit_code == 0, latent_waiting.output
     told(page)
-    expect(held_workflow).to_have_text("Picked up")
+    expect(held_workflow).to_have_text("Delivered")
 
     cleanup_model.close_session_turn("s")
     told(page)
@@ -171,7 +166,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
 
     def start(item, line):
         started = CliRunner().invoke(
-            cli_model.cli, ["task", "start", str(d), item, line]
+            cli_model.cli, ["task", "start", str(d), item, "--text", line]
         )
         assert started.exit_code == 0, started.output
         told(page)
@@ -303,7 +298,7 @@ def test_the_leaf_and_all_pages_say_the_served_activity(browser, serve, other_le
     page.locator("body").focus()
     page.keyboard.press("g")
     page.keyboard.press("Shift+l")
-    this_page = page.locator(".lf-fp-view[data-view=leaves] .lf-fp-page").first
+    this_page = page.locator(f"{panel_view('leaves')} .lf-fp-page").first
     expect(this_page).to_contain_text("This page")
     # The row names the page; what its agent is doing is said whole on hover.
     expect(this_page).to_have_attribute(
@@ -330,8 +325,8 @@ def test_an_unpicked_move_says_it_is_waiting_after_the_short_grace(browser, serv
     )
     page = open_page(browser, url)
     workflow = workflow_of(open_panel_thread(page, comment["id"]), comment["id"])
-    expect(workflow).to_have_text("Waiting for pickup")
-    expect(workflow).to_have_attribute("title", "Waiting for pickup")
+    expect(workflow).to_have_text("Waiting for delivery")
+    expect(workflow).to_have_attribute("title", "Waiting for delivery")
 
 
 def test_a_message_workflow_changes_phase_in_place_and_then_stands_still(
@@ -378,7 +373,7 @@ def test_a_message_workflow_changes_phase_in_place_and_then_stands_still(
     with service_model.PageTransaction(d) as transaction:
         delivery_model.record_pickup(transaction, [comment])
     told(page)
-    expect(workflow).to_have_text("Picked up")
+    expect(workflow).to_have_text("Delivered")
     active = CliRunner().invoke(
         cli_model.cli,
         [
@@ -386,6 +381,7 @@ def test_a_message_workflow_changes_phase_in_place_and_then_stands_still(
             "start",
             str(d),
             comment["id"],
+            "--text",
             "comparing the replacement against every narrow thread surface",
         ],
     )

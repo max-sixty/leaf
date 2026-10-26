@@ -1,7 +1,7 @@
 import { Z, bindQueuedWork } from "./bundle-signals-core.js";
 import { CARET_KEYS, TEXT_FIELD, afterScript, cancelRender, caretAtKey, carriedFrom, currentLocationIn, currentLocationNodes, currentLocationTouches, deepFocus, drawn as drawn$2, focusDestination, focused, holdCurrentLocation, holdFocus, inputCount, keeps, keepsHidden, layoutPx, move, nextFrame, nextRender, onCurrentLocation, onPress, onPressAway, readCaret, recentPlaceInput, renderedOrder, renderedParent, renderedUnder, ringBox, selectsAll, sizeObserver, takesLetters, under, upFrom } from "./bundle-dom-move.js";
 import { PAGE_PAINT_ATTRIBUTE, admitResponse, pagePresented, randomId, reportPageError, revealLayer, sameLayer } from "./bundle-layer-client.js";
-import { PRESS, adoptRegistry, announce, bindings, checked, clampedRow, clippedContents, clippingAxes, commandScope, cycledRow, declarationFor, declareCommandReadiness, descriptionOf, el, elementDeclarations, elementsDeclaring, exhibits, generatedElement, growthAfterIsSeen, growthIsSeen, headerInset, holdStatus, iconElement, iconTemplate, inUi, inWindowChrome, keys, landingBand, loadShadowRules, measure, nearestScrollBy, notice, offer, offered, paintKeys, passErrorsAt, placeBox, placeHolder, plainPress, pointerAt, pressIsKeyboardActivation, projectCommandScope, raiseError, registry as registry$1, repaint, seenRect, shownBox, shownRect, shownWindow, skipped, slotTop, stuckBox, tagsDeclaring, titleOf, tokenEntry, touchPresses as touchPresses$1, union, userScrollport, visibleBand, watchArrivals, watchCommandScopes, watchOwner, whenNone } from "./bundle-errors.js";
+import { PRESS, adoptRegistry, announce, bindings, checked, claimReleaseClick, clampedRow, clippedContents, clippingAxes, commandScope, cycledRow, declarationFor, declareCommandReadiness, descriptionOf, el, elementDeclarations, elementsDeclaring, exhibits, generatedElement, growthAfterIsSeen, growthIsSeen, headerInset, holdStatus, iconElement, iconTemplate, inUi, inWindowChrome, keys, landingBand, loadShadowRules, measure, nearestScrollBy, notice, offer, offered, paintKeys, passErrorsAt, placeBox, placeHolder, plainPress, pointerAt, projectCommandScope, raiseError, registry as registry$1, repaint, seenRect, shownBox, shownRect, shownWindow, skipped, slotTop, stuckBox, tagsDeclaring, titleOf, tokenEntry, touchPresses as touchPresses$1, union, userScrollport, visibleBand, watchArrivals, watchCommandScopes, watchOwner, whenNone } from "./bundle-errors.js";
 import { PENDING, applicationState, attachApplicationPresentation, editable, html, isElementName, isReaction, keyed, lastMovedAt, messageKey, moved, nothing, offlineInteractive, pageClaimed, pendingForParent, readApplication, readPart, render as render$1, repeat, runtime, runtimeModule, runtimeResource, sameAnchor, seatRoot, share, threadKey, threadNames, turns, whenApplicationPresented, whenDocumentPresented, whenWidgetsPresented } from "./bundle-context.js";
 import { ago, aimedTop, atScrollEnd, claimReachStop, containingReadingRegionFor, effectiveScroller, moveScrollerBy, pageReadingRegion, pageScroller, placeKept, reachScrollers, reachable, readingRegionFor, readingRegions, releaseReachStop, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, shortAgo, shownRegionBounds, startScroll } from "./bundle-reading-regions.js";
 import { chromeForeground, chromeRoot } from "./bundle-chrome.js";
@@ -3593,7 +3593,6 @@ const HOLDS_WORD = "lf-holds-word";
 const HOLDER = `.${HOLDS_WORD}`;
 function holdToRead() {
 	let hold = null;
-	let released = null;
 	const holderIn = (event) => event.composedPath().find((node) => node instanceof Element && node.matches(HOLDER));
 	const read = (holder) => {
 		if (hold.reading === holder) return;
@@ -3611,7 +3610,7 @@ function holdToRead() {
 		read(null);
 		hold = null;
 		if (!holder) return;
-		released = holder;
+		claimReleaseClick();
 		holder.focus({
 			preventScroll: true,
 			focusVisible: false
@@ -3626,7 +3625,6 @@ function holdToRead() {
 		}));
 	};
 	document.addEventListener("pointerdown", (event) => {
-		released = null;
 		if (hold) read(null);
 		hold = null;
 		if (!event.isPrimary || !plainPress(event)) return;
@@ -3646,12 +3644,6 @@ function holdToRead() {
 	}, { capture: true });
 	document.addEventListener("pointerup", (event) => end(event, true), { capture: true });
 	document.addEventListener("pointercancel", (event) => end(event, false), { capture: true });
-	document.addEventListener("click", (event) => {
-		if (!released || !event.isTrusted || pressIsKeyboardActivation(event)) return;
-		released = null;
-		event.preventDefault();
-		event.stopImmediatePropagation();
-	}, { capture: true });
 	document.addEventListener("contextmenu", (event) => {
 		if (hold) event.preventDefault();
 	}, { capture: true });

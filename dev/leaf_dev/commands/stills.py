@@ -82,6 +82,14 @@ def at_rest(page: Page) -> None:
     """The page as it loads."""
 
 
+def worktree_summaries(page: Page) -> None:
+    """Close the initially open worktree so the list's summary columns stand together."""
+    page.locator("#worktree-example-worktree-0 > details > summary").click()
+    expect(
+        page.locator("#worktree-example-worktree-0 > details")
+    ).not_to_have_attribute("open")
+
+
 def plan_execution(page: Page) -> None:
     """The execution step with its security qualification in view."""
     page.locator("#plan-execute > h3").evaluate(
@@ -1360,6 +1368,13 @@ def trace_timeline_by_keyboard(page: Page) -> None:
     )
 
 
+def authored_timeline_step(page: Page) -> None:
+    """A step reached by Tab, with the timeline's playhead on it."""
+    page.locator("#race-before .lf-timeline-step").first.click()
+    page.keyboard.press("Tab")
+    page.keyboard.press("Space")
+
+
 @dataclass(frozen=True)
 class State:
     name: str
@@ -1372,6 +1387,28 @@ class State:
 
 
 STATES = (
+    State("authored-timeline", "lost-update", at_rest, region="#race-before"),
+    State(
+        "authored-timeline-keyboard",
+        "lost-update",
+        authored_timeline_step,
+        region="#race-before",
+    ),
+    State(
+        "authored-timeline-dark",
+        "lost-update",
+        authored_timeline_step,
+        scheme="dark",
+        region="#race-before",
+    ),
+    State(
+        "authored-timeline-phone",
+        "lost-update",
+        at_rest,
+        viewport=(390, 900),
+        touch=True,
+        region="#race-before",
+    ),
     State(
         "native-code",
         "developer/feature-gallery",
@@ -1682,6 +1719,27 @@ STATES = (
     State("diff-file-threads", "developer/diff-thread-gallery", at_rest),
     State("diff-long-lines", "developer/diff-thread-gallery", diff_long_lines),
     State("worktree-diffs", "developer/worktree-diffs", at_rest),
+    State(
+        "worktree-summaries",
+        "developer/worktree-diffs",
+        worktree_summaries,
+        region="#worktree-example-workbench",
+    ),
+    State(
+        "worktree-summaries-dark",
+        "developer/worktree-diffs",
+        worktree_summaries,
+        scheme="dark",
+        region="#worktree-example-workbench",
+    ),
+    State(
+        "worktree-summaries-phone",
+        "developer/worktree-diffs",
+        worktree_summaries,
+        viewport=(390, 844),
+        touch=True,
+        region="#worktree-example-workbench",
+    ),
     State("diff-file-reply", "developer/diff-thread-gallery", diff_file_reply),
     State(
         "diff-file-resolved-closed",

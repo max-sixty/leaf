@@ -136,7 +136,7 @@ const bundles = {
   // document's origin is opaque, so every request is cross-origin and Leaf's server
   // answers it `Access-Control-Allow-Origin: *`, which a credentialed request may not
   // read: the child's own icon.svg mask failed with a CORS error in every capture.
-  // Compare with the document's origin, `self.origin`, instead (SnapDOM 3.3.6).
+  // Compare with the document's origin, `self.origin`, instead (SnapDOM 3.3.7).
   snapdom: () => ({
     out: `${assets}/vendor/snapdom.esm.js`,
     entry: 'export { snapdom } from "@zumer/snapdom";\n',
@@ -151,8 +151,8 @@ const bundles = {
               'y.origin===self.origin?"include":"omit"',
               "SnapDOM credentials origin",
             ),
-            'D.warnedReconcile||(D.warnedReconcile=!0,console.warn("[SnapDOM] Some text may wrap differently in the capture. Pass { reconcile: true } to fix it (about 2x slower)."))',
-            "D.warnedReconcile=!0",
+            'O.warnedReconcile||(O.warnedReconcile=!0,console.warn("[SnapDOM] Some text may wrap differently in the capture. Pass { reconcile: true } to fix it (about 2x slower)."))',
+            "O.warnedReconcile=!0",
             "SnapDOM reconcile console warning",
           ),
       },
@@ -330,8 +330,8 @@ const bundles = {
         edit: (source) =>
           seam(
             source,
-            "b&&(f(),o=h?o&~b|r&b:o|b,s=h?s&~b|r&b:s|b),c+=u[0].length;continue",
-            "if(b){f();o=h?o&~b|r&b:o|b;s=h?s&~b|r&b:s|b;c+=u[0].length;continue}",
+            "if(b||o_.has(m)){c+=u[0].length;continue}",
+            "if(b){c+=u[0].length;continue}",
             "Pele literal unsupported label tags",
           ),
       },

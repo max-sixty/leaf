@@ -1,8 +1,9 @@
-import { W, Z, x } from "./bundle-signals-core.js";
+import { J, W, Z, d, x } from "./bundle-signals-core.js";
 import { PRESSES, TEXT_BOX, deepFocus, drawn, focusDestination, focused, inputCount, keeps, move, nextAnimation, nextRender, onCurrentLocation, onUserInput, readCaret, renderingState, sizeObserver, typesText, under, upFrom } from "./bundle-dom-move.js";
-import { LayerRefused, PAGE_PAINT_ATTRIBUTE, admitReading, reportPageError, runtimeRootState } from "./bundle-layer-client.js";
-import { PRESSABLE, ariaShortcuts, bindings, buttonCommand, clippedPlace, commandAvailable, commandRoutes, decisionFor, el, frameFor, holdingError, labelOf, landingBand, layoutChanged, live, notice, placeBox, placeHolder, pointerAt, presented, pruneScopedElements, raiseError, registry, repaint, restorePointer, reveal, savedReadingSettled, shownBox, skipped, spell, tagsDeclaring, word } from "./bundle-errors.js";
-import { LIVE_ROOT, PRESENTATION_DOM, TEXT_BLOCK, applicationPresenter, applicationState, foldWidgetStates, layerRoot, obligationValue, pageUrl, projectView, projectionOrigins, projectionRegionsPresented, readApplication, readPart, revisionLabel, runtime, watchPresentation } from "./bundle-context.js";
+import { LayerRefused, PAGE_PAINT_ATTRIBUTE, admitReading, reportPageError, requestJson, runtimeRootState, setRuntimeRootAttribute } from "./bundle-layer-client.js";
+import { clippedPlace, decisionFor, frameFor, landingBand, placeBox, placeHolder, presented, registry, shownBox, skipped, tagsDeclaring, watchOwner } from "./bundle-geometry.js";
+import { LIVE_ROOT, PRESENTATION_DOM, TEXT_BLOCK, applicationPresenter, applicationState, foldWidgetStates, layerRoot, obligationValue, offlineData, offlineInteractive, pageUrl, projectView, projectionOrigins, projectionRegionsPresented, readApplication, readPart, revisionLabel, runtime, watchPresentation, whenApplicationRegionsPresented } from "./bundle-context.js";
+import { PRESSABLE, ariaShortcuts, bindings, buttonCommand, commandAvailable, commandRoutes, el, holdingError, labelOf, layoutChanged, live, notice, pointerAt, pruneScopedElements, raiseError, repaint, restorePointer, reveal, savedReadingSettled, spell, word } from "./bundle-errors.js";
 import { chosenSince, containingReadingRegionFor, effectiveScroller, moveScrollerBy, onReadingInput, pageScroller, placeKept, readingRegionFor, readingRegions, recentReadingRegion, regionScrollBehavior, regionsSettled, scrollChainOf, scrollChoices, scrollLimit, scrollersOf, shownRegionBounds, stopScroll, unconcealedReadingRegions, watchReadingRegionTransitions } from "./bundle-reading-regions.js";
 import { alignInlineText, authored, authoredScope, closestAcross, elementById, inChrome, pageDocument, pageQueryAll, pageRange, rangeOf, readingFrom, renderRetired, selectEnds, selectionBackward, textNodesUnder, wrote } from "./bundle-passages.js";
 import { ADDRESSABLE, PAGE_CONTROL_RANK, addressedElements, anchoringIsReady, fragmentTarget, livePoint, registerPageControl, resolveAnchor, revealAddressed, sectionOf, settleMarginContentLayout, targetElement, targetPlace, targetSegments } from "./bundle-content-layout.js";
@@ -786,18 +787,18 @@ function createAnchorTravel({ anchors, refreshThread, focusForNavigation, thread
 		const where = segment ? rangeOf([segment]) : targetElement(placement) ?? targetPlace(placement);
 		return livePoint(targetElement(placement) ?? targetPlace(placement), placement?.point) ?? where;
 	};
-	async function scrollToThread(id, { part = null, focus = true, presented = null, intent } = {}) {
+	async function scrollToThread(id, { part = null, focus = true, presented = null, intent, history = true } = {}) {
 		const mayArrive = retainTravel(intent);
 		const anchor = threadNamed(id)?.anchor;
 		const status = anchors.placedAt(id)?.status;
 		const hydrating = anchor?.datum && status !== "outdated" || anchor?.visual;
 		const destination = threadDestination(id);
 		const landing = () => threadDestination(id);
-		const departure = prepareNavigationStep({
+		const departure = history ? prepareNavigationStep({
 			landing,
 			intent: mayArrive
-		});
-		if (destination || hydrating) departure.plan(destination);
+		}) : null;
+		if (destination || hydrating) departure?.plan(destination);
 		if (hydrating) {
 			const source = sectionOf(anchor);
 			const hydration = source && revealAddressed(source, anchor.visual ?? anchor.datum);
@@ -2183,4 +2184,185 @@ function createVersionController({ compositionInput, openThread, refreshThread, 
 }
 
 //#endregion
-export { claimTraversals, commandSteps, comparisonBase, comparisonChanges, createAnchorTravel, createProjectionPresentation, createVersionController, initializeServedDocument, inlineComparison, keepPageRulesOffLayer, mountHistory, paintCoreControls, pushEntry, readPlace, referencedProjection, replaceEntry, requireReference, returnPlace, selfComparison, servedElements, shallowSigs, toggleInlineComparison, versionPicker, versionsReading };
+//#region runtime/data.js
+function acceptData(candidate, taken) {
+	return applicationState.acceptData(candidate, taken);
+}
+const joined = /* @__PURE__ */ new Set();
+async function notifyDataSubscribers() {
+	const version = runtime.data.version;
+	deliveries.value += 1;
+	await whenApplicationRegionsPresented([...joined], () => runtime.data.version === version);
+	if (version !== null && runtime.data.version === version) setRuntimeRootAttribute(document.body, PAGE_PAINT_ATTRIBUTE.dataVersion, version);
+}
+const declaredInput = (element, input) => {
+	const declaration = registry[element.localName]?.["x-data"]?.[input];
+	if (!declaration) throw new Error(`<${element.localName}> input ${input} is not declared by this widget`);
+	return declaration;
+};
+const outputObservers = /* @__PURE__ */ new Set();
+function observeOutputs(observe) {
+	outputObservers.add(observe);
+	return () => outputObservers.delete(observe);
+}
+const outputOwners = /* @__PURE__ */ new WeakMap();
+const outputKeys = /* @__PURE__ */ new WeakMap();
+let outputSequence = 0;
+function outputKey(element) {
+	if (!outputKeys.has(element)) outputKeys.set(element, `output:${++outputSequence}`);
+	return outputKeys.get(element);
+}
+function publishOutput(element, output, value) {
+	const declaration = registry[element.localName]?.["x-output"]?.[output];
+	if (!declaration) throw new Error(`publishOutput(${element.localName}, ${output}) output is not declared by this widget`);
+	if (!element.id) throw new Error("publishOutput requires a widget id");
+	let owner = outputOwners.get(element);
+	if (!owner) {
+		owner = {
+			values: /* @__PURE__ */ new Map(),
+			connected: false
+		};
+		outputOwners.set(element, owner);
+		watchOwner(element, {
+			connect() {
+				owner.connected = true;
+				for (const [name, reading] of owner.values) applicationState.publishOutput(outputKey(element), name, reading);
+			},
+			disconnect() {
+				owner.connected = false;
+				for (const name of owner.values.keys()) applicationState.publishOutput(outputKey(element), name, null);
+			}
+		});
+	}
+	const reading = value === null ? null : {
+		contract: declaration.contract,
+		value: structuredClone(value)
+	};
+	for (const observe of outputObservers) observe({
+		element,
+		output,
+		contract: declaration.contract,
+		value: reading === null ? null : reading.value
+	});
+	owner.values.set(output, reading);
+	if (owner.connected) applicationState.publishOutput(outputKey(element), output, reading);
+}
+function inputBinding(element, declaration) {
+	const source = declaration.source ? element.getAttribute(declaration.source) : null;
+	const widget = declaration.reference && element.getAttribute(declaration.reference);
+	if (source && widget) throw new Error(`<${element.localName}> input binds both an external source and widget output`);
+	if (declaration.reference) requireReference("data", element, declaration.reference);
+	const selected = applicationState.select((root) => {
+		if (source) return Object.hasOwn(root.data.sources, source) ? root.data.sources[source] : null;
+		if (!widget) return null;
+		const producer = referencedProjection(element, declaration.reference, widget);
+		if (!producer) return null;
+		const key = outputKey(producer);
+		const outputs = Object.hasOwn(root.outputs, key) ? root.outputs[key] : null;
+		return outputs && Object.hasOwn(outputs, declaration.output) ? outputs[declaration.output] : null;
+	});
+	const snapshot = (reading, input) => source ? {
+		source,
+		...reading,
+		origin: {
+			input,
+			source,
+			contract: declaration.contract,
+			revision: reading.revision
+		}
+	} : {
+		...reading,
+		origin: { derived: [{ widget }] }
+	};
+	return {
+		source,
+		widget,
+		selected,
+		snapshot
+	};
+}
+const supplied = /* @__PURE__ */ new WeakMap();
+const suppliedSnapshot = (value) => supplied.get(value);
+const bindsInput = (element, { source, reference }) => Boolean(source && element.getAttribute(source) || reference && element.getAttribute(reference));
+const dataRead = applicationState.select((root) => root.data.version !== null || root.phase === "offline");
+function awaitsData(element) {
+	return Object.values(registry[element.localName]?.["x-data"] ?? {}).some((declaration) => declaration.source && element.getAttribute(declaration.source)) && !dataRead.read();
+}
+function dataReader(element, input, accepted) {
+	const declaration = declaredInput(element, input);
+	const { source, widget, selected, snapshot } = inputBinding(element, declaration);
+	let stopAccepted;
+	const delivered = J(() => {
+		deliveries.value;
+		return d(selected.read);
+	}, {
+		watched() {
+			let seen = d(selected.read);
+			stopAccepted = selected.subscribe((now) => {
+				if (now === seen) return;
+				seen = now;
+				accepted();
+			});
+		},
+		unwatched() {
+			stopAccepted?.();
+			stopAccepted = null;
+		}
+	});
+	let reported = null;
+	let copied = {
+		store: null,
+		value: null
+	};
+	return () => {
+		const sourceStore = widget ? selected.read() : delivered.value;
+		const incompatible = sourceStore && sourceStore.contract !== declaration.contract;
+		if (incompatible && reported !== sourceStore) {
+			reported = sourceStore;
+			reportPageError(`${source ? `data source ${source}` : `widget output ${widget}.${declaration.output}`} carries contract ${sourceStore.contract}; <${element.localName}> input ${input} requires ${declaration.contract}`);
+		}
+		if (incompatible || !sourceStore || !Object.hasOwn(sourceStore, "value")) return null;
+		if (sourceStore !== copied.store) {
+			copied = {
+				store: sourceStore,
+				value: structuredClone(snapshot(sourceStore, input))
+			};
+			const { value } = copied.value;
+			if (value !== null && typeof value === "object") supplied.set(value, copied.value);
+		}
+		return copied.value;
+	};
+}
+const deliveries = Z(0);
+function joinDataDelivery(region) {
+	joined.add(region);
+	return () => joined.delete(region);
+}
+async function loadDeferred(value, key) {
+	const manifest = supplied.get(value);
+	if (!manifest?.source) throw new Error(`loadDeferred(${key}) needs a source value Leaf delivered`);
+	const { source, revision } = manifest;
+	const current = () => {
+		const reading = runtime.data.sources[source];
+		return reading?.revision === revision && reading.contract === manifest.contract && Object.hasOwn(reading, "value");
+	};
+	if (!current()) throw new Error(`source ${source} revision ${revision} changed before loading deferred ${key}`);
+	if (offlineInteractive) {
+		const records = registry.$data.contracts[manifest.contract].records;
+		const item = offlineData().sources[source].value[records.items].find((item) => item[records.key] === key);
+		if (!item) throw new Error(`unknown record key '${key}' in data source '${source}'`);
+		if (!Object.hasOwn(item, records.deferred)) throw new Error(`record '${key}' in data source '${source}' has no deferred field '${records.deferred}'`);
+		return structuredClone(item[records.deferred]);
+	}
+	const params = new URLSearchParams({
+		source,
+		source_revision: revision,
+		key
+	});
+	const answer = await requestJson(pageUrl(`api/deferred?${params}`), {}, "deferred value");
+	if (!current()) throw new Error(`source ${source} revision ${revision} changed while loading deferred ${key}`);
+	return structuredClone(answer.value);
+}
+
+//#endregion
+export { acceptData, awaitsData, bindsInput, claimTraversals, commandSteps, comparisonBase, comparisonChanges, createAnchorTravel, createProjectionPresentation, createVersionController, dataReader, initializeServedDocument, inlineComparison, joinDataDelivery, keepPageRulesOffLayer, loadDeferred, mountHistory, notifyDataSubscribers, observeOutputs, paintCoreControls, publishOutput, pushEntry, readPlace, referencedProjection, replaceEntry, requireReference, returnPlace, selfComparison, servedElements, shallowSigs, suppliedSnapshot, toggleInlineComparison, versionPicker, versionsReading };

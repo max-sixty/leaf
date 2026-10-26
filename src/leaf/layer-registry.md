@@ -24,6 +24,13 @@ readings.
 
 Each layer records its identities under `$layer`:
 
+- `packages` records content-package selections. `theme` is the separately selected
+  personal theme, `{name, source}` with `source` explicit or default, or null.
+  The theme composes after the content packages. Re-vendoring preserves the captured
+  choice until `--theme` replaces it or `--no-theme` / `--no-packages` clears it. User catalogue
+  changes affect new pages; `themes.py` owns selection and `package-themes.md`
+  documents its authoring interface.
+
 - `generation`, a fresh epoch whenever the fingerprint, the server identity or the
   package selection changes. It is recorded in the registry, a served document names
   the generation of the revision it shows, event requests carry it, and contract

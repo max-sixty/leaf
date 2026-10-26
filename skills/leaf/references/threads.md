@@ -24,6 +24,13 @@ the `id` of its opening comment, in the record the command prints.
 `leaf page state <page> <message>`, `leaf thread reply`, `edit` and `resolve` take
 the id of any message in the thread.
 
+Link directly to a thread by adding `thread=<message-id>` to the page URL's query
+parameters, preserving any existing access parameters: `?thread=<message-id>`, or
+`&thread=<message-id>` when a query is already present. Use a URL without a fragment
+to open the thread; an authored `#element-id` takes precedence and reaches that
+passage. The link opens the thread's usual card or reader, including a page-level
+thread with no anchor. Input during startup cancels the automatic opening.
+
 When the user comments on repeated words that the surrounding text cannot tell
 apart, Leaf keeps the quote but not which copy they meant. The comment has
 `anchor.detached: true`, and Threads keeps it with the quote it was about.

@@ -83,6 +83,15 @@ customElements.define(
           run: () => this.#go(steps - 1, true),
         },
       ]);
+      for (const row of drawing.rows)
+        commands(row, "On a timeline step", [
+          {
+            id: "timeline.step",
+            title: "Go to step",
+            keys: ["Enter", " "],
+            run: () => row.click(),
+          },
+        ]);
       const events = new Map(model.events.map((event) => [event.id, event]));
       const describe = (event) => `${model.lanes[event.lane].label}: ${event.label}`;
       this.#parts = registerVisualParts(

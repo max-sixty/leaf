@@ -135,7 +135,7 @@
   --lf-pin-edge: var(--paper);
   border: 2px solid var(--lf-pin-edge);
   background: var(--lf-pin-face, var(--pin-fill));
-  --lf-entry-ink: #fff;
+  --lf-entry-ink: var(--pin-ink);
   box-shadow: var(--raise-1);
 }
 .lf-margin-cluster[data-lf-place="pin"]
@@ -163,6 +163,7 @@
 }
 .lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry[data-lf-turn="user"] {
   --lf-pin-face: var(--pin-on-user);
+  --lf-entry-ink: var(--pin-on-user-ink);
 }
 .lf-margin-receipt {
   color: var(--ink-2);

@@ -121,8 +121,10 @@ session writes neither field. Every reading
 names an agent's event through `schema.agent_name`, and the browser shows that name as
 served.
 
-Admission stamps `attention`, whether the event changes what is owed: obligations or
-to-dos on the user, pending answers, and work the agent has in hand and its inputs. `workflows.obligation_reading` compares those readings before and
+Admission stamps `attention` when the event changes obligations or
+to-dos on the user, pending answers, work the agent has in hand and its inputs, or
+widget input whose active `x-state` verb declares `attention: true` (`$state`).
+`workflows.attention_reading` compares those readings before and
 after the gesture, and the decision survives later replies, versions and to-do endings,
 so a cancellation delivered to the agent stays input after the work it withdrew ends.
 Reports and errors always carry attention, and agent messages never do. A user's edit

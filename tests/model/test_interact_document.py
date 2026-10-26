@@ -4329,7 +4329,18 @@ def test_projected_verbatim_includes_generated_children():
             "x-verbatim": True,
             "x-state": {
                 "add": {
-                    "detail": {"type": "object"},
+                    "detail": {
+                        "type": "object",
+                        "properties": {
+                            "item": {
+                                "type": "string",
+                                "pattern": f"^{schema_model.ELEMENT_ID}$",
+                            },
+                            "text": {"type": "string", "minLength": 1},
+                        },
+                        "required": ["item", "text"],
+                        "additionalProperties": False,
+                    },
                     "unit": "item",
                     "creates": {"child": "lf-item", "words": "text"},
                 }

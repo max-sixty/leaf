@@ -12,6 +12,7 @@ in a `main` module runs nowhere near the change that breaks it.
 """
 
 import json
+import os
 import shlex
 import shutil
 import socket
@@ -34,7 +35,7 @@ from interact_support import (
     wait_for,
 )
 from leaf_dev import arms, page_fixtures
-from leaf_dev.commands import preview
+from leaf_dev.commands import preview, record_demo, site
 from leaf_dev.page_fixtures import prepare_page, read_fixture
 
 from leaf import cli as cli_model
@@ -42,6 +43,46 @@ from leaf import codex_adapter, leases, server, service, session
 from leaf.interaction_log import read_interactions
 from leaf.media import media_name
 from leaf.structure import SourceDocument
+
+
+def test_developer_fixtures_do_not_capture_the_developers_personal_theme(tmp_path):
+    from leaf.packages import cmd_package_install
+    from leaf.registry.storage import layer_metadata
+
+    personal = tmp_path / "personal"
+    personal.mkdir()
+    (personal / "theme.css").write_text(":root { --accent: #814b07; }")
+    cmd_package_install(personal)
+    config = Path(os.environ["XDG_CONFIG_HOME"]) / "leaf/themes.toml"
+    config.parent.mkdir(parents=True)
+    config.write_text('themes = ["personal"]\ndefault = "personal"\n')
+    ordinary = tmp_path / "ordinary"
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(ordinary)])
+    assert result.exit_code == 0, result.output
+    assert layer_metadata(ordinary)["theme"]["name"] == "personal"
+
+    runners = {
+        "arm": partial(
+            arms.run_leaf, ROOT, Path(os.environ["XDG_STATE_HOME"]), check=True
+        ),
+        "preview": partial(preview.leaf, ROOT / "bin/leaf", ROOT),
+        "site": site.checkout_leaf(),
+    }
+    for name, run in runners.items():
+        page = tmp_path / name
+        run(
+            "page",
+            "init",
+            *page_fixtures.package_selection_args(("diagram",)),
+            str(page),
+        )
+        assert layer_metadata(page)["packages"] == ["diagram"]
+        assert layer_metadata(page)["theme"] is None
+
+    page = tmp_path / "demo"
+    with record_demo.demo_session(tmp_path / "demo-run"):
+        record_demo.cmd_init(page)
+        assert layer_metadata(page)["theme"] is None
 
 
 def test_automated_page_producers_record_the_run_before_input(tmp_path, serve, request):

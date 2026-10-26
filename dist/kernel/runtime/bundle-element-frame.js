@@ -1,5 +1,5 @@
 import { renderedParent } from "./bundle-dom-move.js";
-import { shownBox } from "./bundle-errors.js";
+import { shownBox } from "./bundle-geometry.js";
 
 //#region runtime/chrome.js
 const chromeRoot = document.createElement("div");

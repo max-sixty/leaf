@@ -2967,7 +2967,11 @@ export function createFloatingPanel({
     const listOf = (item) =>
       lists.you.includes(item) ? "you" : lists.agent.includes(item) ? "agent" : "done";
     const items = inWalkOrder(seated.map((key) => byKey.get(key)));
-    const finished = lists.done.filter((item) => !seated.includes(queueItemKey(item)));
+    // A record a card carries is drawn on that card, ended or not, and not in Done too.
+    const held = new Set(seated.flatMap((key) => carrying.get(key) ?? []));
+    const finished = lists.done.filter(
+      (item) => !seated.includes(queueItemKey(item)) && !held.has(item.id),
+    );
     return html`${
       items.length
         ? repeat(items, queueItemKey, (item) =>

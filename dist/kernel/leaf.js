@@ -6884,7 +6884,8 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		seated = [...(seated ?? []).filter((key) => byKey.has(key)), ...current.filter((key) => !(seated ?? []).includes(key) && !carried.has(byKey.get(key).id))];
 		const listOf = (item) => lists.you.includes(item) ? "you" : lists.agent.includes(item) ? "agent" : "done";
 		const items = inWalkOrder(seated.map((key) => byKey.get(key)));
-		const finished = lists.done.filter((item) => !seated.includes(queueItemKey(item)));
+		const held = new Set(seated.flatMap((key) => carrying.get(key) ?? []));
+		const finished = lists.done.filter((item) => !seated.includes(queueItemKey(item)) && !held.has(item.id));
 		return html`${items.length ? repeat(items, queueItemKey, (item) => onItemCard(item, listOf(item), carrying.get(queueItemKey(item)))) : html`<p class="lf-fp-empty">
             Nothing waiting on ${queueTab === "you" ? "me" : agentName()}.
           </p>`}${finished.length ? html`<h3 class="lf-fp-ended">Done</h3>

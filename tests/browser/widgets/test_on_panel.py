@@ -729,3 +729,30 @@ def test_an_answer_about_two_decisions_stays_on_the_card_that_carried_it(
     expect(on_card(page, "widget:ship").locator(".lf-fp-asked")).to_have_count(0)
     expect(view.locator(".lf-fp-asked")).to_have_count(1)
     expect(carrier.locator(".lf-fp-asked")).to_contain_text("Previews added")
+
+
+def test_a_carried_answer_the_agent_ends_stays_on_its_card_not_in_done(browser, serve):
+    """Once the user answers a decision on its card, the agent may end the question it
+    carries as settled (`waiting`). The open view keeps the question on that card and
+    lists it in Done no second time, so its message is drawn once."""
+    url = serve(TWO_DECISIONS_PAGE)
+    _, reply = thread_about_the_timeline(serve.page_dir)
+    page = open_page(browser, url)
+    view = open_on_me(page)
+    carrier = on_card(page, "widget:timeline")
+    carrier.get_by_role("button", name="Land it").click()
+    told(page)
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "todo_end",
+            "author": "agent",
+            "agent": "Claude",
+            "todo": f"message:{reply}",
+            "outcome": "done",
+            "detail": "The pick settles it.",
+        },
+    )
+    told(page)
+    expect(view.locator(".lf-fp-asked")).to_have_count(1)
+    expect(carrier.locator(".lf-fp-asked")).to_contain_text("Previews added")

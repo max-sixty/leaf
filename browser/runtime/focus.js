@@ -1349,16 +1349,24 @@ export function release() {
   released();
   if (letGoes === before) letGo();
 }
-// A landing on the page is the user going on to it, a `move`.
+// A landing on the page is the user going on to it, a `move`. It leaves them at nothing,
+// beside what they let go of rather than anywhere else, and each reader `onLetGo` names
+// hears that node once the landing is done (current-target.js, `walkOrigin`).
+const letGoReaders = new Set();
+export const onLetGo = (read) => {
+  letGoReaders.add(read);
+  return () => letGoReaders.delete(read);
+};
 export function letGo() {
   letGoes++;
+  const from = focused();
   const block = readingBlock();
-  if (!block?.isConnected) {
-    releaseFocus();
-    return;
+  if (!block?.isConnected) releaseFocus();
+  else {
+    focusDestination(block, "move");
+    block.blur();
   }
-  focusDestination(block, "move");
-  block.blur();
+  if (from && from !== document.body) for (const read of letGoReaders) read(from);
 }
 
 // Handing the user back when a layer closes with them inside it. The closer names where,

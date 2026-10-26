@@ -1311,36 +1311,30 @@ def test_the_obligation_walk_starts_from_where_the_user_is(browser, serve):
     halfway down and press `d` and you were taken back past everything you had read,
     and so was anyone who had just selected a paragraph to comment on.
 
-    With focus in the chrome, the walk measures from what they are reading, which the
-    last walk's landing scroll put in front of them. The panel's On me mark is no place:
-    pressing it opens On me and leaves the focus in the panel, so a walk measured from
-    the focus after it would restart on every press, and the ring is gone from the page
-    by then, the user being in the panel. A selected passage now enters its comment field immediately;
-    while that field stands, letters are text rather than page-navigation keys."""
+    Reading an obligation is being at it without being on it, so the walk arrives
+    there. The panel's On me mark is no place: pressing it opens On me and leaves the
+    focus in the panel, which holds the user's place on the page, so the walk after it
+    steps on from the obligation they stood on rather than restarting. A selected
+    passage now enters its comment field immediately; while that field stands, letters
+    are text rather than page-navigation keys."""
     page = open_page(browser, serve(OBLIGATIONS_PAGE))
 
     # A window short enough that reading down the page leaves the top of it behind,
     # which is the whole of what the user has to do to be somewhere.
     resized(page, 900, 400)
 
-    # Scrolled to the change with nothing selected and nothing focused: the decision after
-    # it, not the question above it. They are located *in* that suggestion, which is
-    # why it is the decision they step off rather than the one they step to.
-    page.locator("#refill-now").evaluate("el => el.scrollIntoView({block: 'center'})")
+    # Scrolled to the change with nothing selected and nothing focused: the change
+    # itself, not the question above it nor the decision after it.
+    page.locator("#refill-was").evaluate("el => el.scrollIntoView({block: 'start'})")
     page.keyboard.press("m")
-    expect(page.locator("#t-baffles-decision")).to_have_attribute(
-        "data-lf-obligation", "1"
-    )
-    # The walk scrolls to the obligation it arrived at, and the next walk measures from what
-    # that scroll leaves in front of the user, so the scroll has to have landed.
+    expect(page.locator("#sug-refill")).to_have_attribute("data-lf-obligation", "1")
     scroll_settled(page)
 
-    # The mark's press opens On me and takes the focus into the panel, so the walk
-    # after it measures from the current location in the page and steps on rather
-    # than restarting — the panel being no place to measure from.
+    # The mark's press opens On me and takes the focus into the panel, which holds the
+    # suggestion as the user's place, so the walk steps on rather than restarting.
     panel_control(page, "queue").click()
     page.keyboard.press("m")
-    expect(page.locator("#t-bath-decision")).to_have_attribute(
+    expect(page.locator("#t-baffles-decision")).to_have_attribute(
         "data-lf-obligation", "1"
     )
 

@@ -217,12 +217,11 @@ let goToSequence;
 let floatingPanel;
 const navigation = createNavigation({
   placedAt: (id) => anchorPlacement.placedAt(id),
-  heldPlace: () => floatingPanel?.heldPlace() ?? null,
   threadDestinations: {
     openPageThread: (...args) => app.threadDestinations.openPageThread(...args),
     scrollToThread: (id, options) => anchorTravel.scrollToThread(id, options),
-    threadHere: () => app.threadDestinations.threadHere(),
-    threadAtCurrentLocation: () => app.threadDestinations.threadAtCurrentLocation(),
+    threadAtCurrentLocation: (node) =>
+      app.threadDestinations.threadAtCurrentLocation(node),
     threadPlace: (...args) => app.threadDestinations.threadPlace(...args),
   },
 });
@@ -441,7 +440,6 @@ const queueWalk = createQueueWalk({
   actions: app.queueActions,
   arriveAtRecord: items.arriveAtRecord,
   arriveAtThread: navigation.arriveAtThread,
-  threadHere: () => app.threadDestinations.threadHere(),
   threadPlace: (id) => app.threadDestinations.threadPlace(id),
   prepareNavigationStep: anchorTravel.prepareNavigationStep,
   arrive: anchorTravel.arrive,

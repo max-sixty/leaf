@@ -51,7 +51,9 @@ keep the browser's order.
   messages such as a widget's thread box (`x-thread-seat`), keep focus.
 - A selected destination (a thread, an obligation, a heading) steps back to the document
   through `letGo` (`focus.js`), landing on the visible block rather than on the control
-  that opened it. Page Map returns focus to whatever opened it.
+  that opened it. Page Map returns focus to whatever opened it. Leaving a walk's stop
+  leaves the user at it rather than on it, so the walk's next press returns there
+  (`current-target.js`).
 
 Go-to, target hints, page search, reactions and the command reference own the keyboard
 while active and handle their own exit. Escape closes a surface even if it was open

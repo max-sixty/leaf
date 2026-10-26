@@ -5,19 +5,19 @@
 Before writing a view's words, decide what it shows. Ask what the user would otherwise
 have to picture from a description, and put that thing on the page in its own form:
 
-- An existing interface is a screenshot, cropped or marked so the eye lands on the
-  point, with crops cutting through background rather than text. Capture a panel,
-  card or menu with enough of the page around it to hold its whole shadow. A visual
+- Show an existing interface in a screenshot, cropped or marked to highlight the
+  relevant detail, with crops cutting through background rather than text. Capture a
+  panel, card or menu with enough surrounding page to include its whole shadow. A visual
   change between two versions is an `lf-shot` before-and-after pair, and captures
   that vary along other axes go in a table of captures (`authoring-evidence.md`,
   "Source files and media").
-- A behavior, such as an interaction, a motion or a process over time, runs: in a live
+- Show a behavior, such as an interaction, motion or process over time, in a live
   sample the user operates (`live-samples.md`), or in `lf-motion` from the `motion`
-  package, for authored animations or video recordings. The package’s authoring
+  package for authored animations or video recordings. The package’s authoring
   instructions cover both forms and their evidence limits.
-- A proposal or mechanism nothing can show yet is drawn: where things sit, what
-  contains, calls or feeds what, how a state changes, today beside the proposal, and
-  alternatives in one frame at one scale.
+- Draw a proposal or mechanism that cannot yet be demonstrated. Show positions,
+  containment, calls, data flow or state changes, with the current design beside the
+  proposal and alternatives in one frame at one scale.
 - Numbers whose shape is the point, such as a trend, a ranking or groups on one scale,
   are an `lf-chart`, even when they compare the same measures across items. Label the
   values the argument cites, and put exact values in a table below it when readers
@@ -53,8 +53,8 @@ reachable; another level should reveal substantial content of its own.
 The title names the page, and the lede under it states the finding. A section that
 reaches a finding states it in its heading, short enough to scan in an `lf-toc`; put
 qualifications in the first sentence. A `<summary>` and an option's `<strong>` do the
-same. "What we learned" promises a finding and withholds it. Use a plain label only where there is no finding, as over a list, table or board
-that speaks for itself. A panel's heading (`section.panel`, as on a dashboard) is
+same. "What we learned" does not state the finding. Use a plain label only where there is
+no finding, such as a list, table or board that needs no explanation. A panel's heading (`section.panel`, as on a dashboard) is
 set in small capitals, which read as a region's name and not as a sentence, so name
 the region there in a few words and state its finding in the panel's first line.
 
@@ -117,8 +117,8 @@ extend beside it. Compose the page from these:
   a header across the top, such as one shared with a site's other pages, they are page
   tabs instead.
 
-Leaf's panel takes its own room at the window's foot, and comment markers go in the
-margin or over their targets, so leave room for neither. The reader hides markers with
+Leaf reserves space for its panel at the bottom of the window. Comment markers appear
+in the margin or over their targets. Page CSS needs no extra spacing for either. The reader hides markers with
 `o`, or the leaf's menu → Annotations → Hide annotations, to read what's under one.
 
 ## Contents navigation
@@ -152,8 +152,8 @@ within that treatment. Reserve page CSS for task-specific arrangement, visualiza
 or a particular design the user requests. An added card surface should express a
 grouping or interaction the task needs; wrapping already styled elements just for
 polish adds visual weight without meaning. A box page CSS makes opaque, such as a
-sticky bar, paints `background: var(--lf-ground)`: the surface it stands on, which a
-card or a playground's preview sets for what it holds.
+sticky bar, uses `background: var(--lf-ground)` to match its containing surface.
+Cards and playground previews set this property for their contents.
 
 When page CSS reveals controls while a container is hovered or focused, include
 `:has([data-lf-control-active])` in the condition if it contains a code block.

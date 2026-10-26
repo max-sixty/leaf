@@ -33,8 +33,9 @@ holds previous runs and findings.
 - **Decide.** Keep, revise or undo the candidate by its rendered result, working
   interactions and authoring effort, with a judge's score as one input. A repair that
   stops a refusal or a wrong reading from occurring is proved by a test that fails on
-  the old code, and by counting the mechanism in each sample; three authors per arm
-  usually separate a mechanism but not minutes.
+  the old code, and by counting occurrences of the failure in each sample. Three
+  authors per arm can usually show whether the failure recurs, but cannot reliably
+  establish a difference in elapsed time.
 - **Continue** from the result: a rejected candidate can suggest another repair, and a
   successful one can expose the next weakness.
 

@@ -115,7 +115,7 @@ between bounded steps.
 
 Unless the user sets the page's shape or depth, a Leaf page is a short sequence
 of visually distinct, self-contained views. Each view makes one point, shows one
-state or offers one move, so the user takes it in at a glance and moves on.
+state or offers one action, so the user can understand it at a glance.
 `references/page-authoring.md`, "Reading cost", owns what stays visible and what
 goes in a disclosure. Read it when choosing that presentation.
 

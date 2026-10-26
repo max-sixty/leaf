@@ -80,20 +80,22 @@ representative desktop viewport.
   in another tab, grow the reply field as typing does, in a card as in the floating
   panel, and a refused turn gives its room back as it folds: what the user is about to
   send shows whole before the layout holds (the user's choice, 25 October 2026).
-- **What takes turns in a place doesn't size it.** Where several modes share one seat,
-  as the comment field, page search, Threads' search, a thread's reply and the seated
-  comment box share the floating panel's field, the place sets the box from a theme
-  token and each occupant fills it. Only content grows it, such as typed words, or a
-  gesture that asks for room, such as More room. A label's words (`data-room`, below)
-  and a widget's first paint (`keeps-first-box`) are cases of the same rule. A
-  one-line control's face is the line (`--lf-line`, theme.css) and a finger's floor its
-  reach (surfaces.css); a control that brings its own height instead, from its type or
-  the floor, sizes every place it is seated in. Check:
+- **Shared containers determine control dimensions.** When several modes share a
+  container, that container sets its dimensions from a theme token and each mode's
+  controls fill it. For example, the comment field, page search, Threads' search,
+  a thread's reply and the seated comment box share the floating panel's field.
+  The container grows only for content, such as typed words, or an explicit action,
+  such as More room. Changing labels (`data-room`, below) and rendering a widget
+  after its first paint (`keeps-first-box`) follow the same sizing rule. A
+  one-line control's visible height is `--lf-line` (theme.css); its touch target meets
+  the minimum size set by surfaces.css. A control that instead derives its visible
+  height from its font or the touch-target minimum changes the height of every
+  container that holds it. Check:
   `test_whatever_the_field_holds_the_row_keeps_its_line`
-  compares the row with its token in each mode; that a place still contains its
-  occupant proves nothing, since a grown place always does. `tests/swap_watch.js`,
-  which the browser fixture runs on every test, fails a flex row whose height follows
-  an occupant that took another's seat in it.
+  compares the row's height with its token in each mode. Checking only that controls
+  fit inside the row would miss a row that grew to fit them. `tests/swap_watch.js`,
+  which the browser fixture runs on every test, fails the test if a flex row's height
+  changes to match a replacement child control.
 - **A runtime region whose contents rearrange inside it declares `data-lf-reflow`**
   on the box that owns the space: `text` where its labels may rewrap while its controls
   stay put, as in a message header, and `append` where it grows only at its end, as a

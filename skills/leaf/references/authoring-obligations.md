@@ -1,11 +1,13 @@
-# Decisions
+# Obligations
 
-Put every decision waiting on the user on their list, On me. A widget records a
-structured answer; a thread message with `--obligation` requests an answer in words. Recommending an answer doesn't make the decision. `conversation-loop.md`,
-"The On lists", covers everything the user is asked for, including questions in the
-conversation and actions outside the page.
+An obligation is what waits on the user, and every one goes on their list, On me. A
+widget records a structured answer; a thread message with `--obligation` requests an
+answer in words. Recommending an answer doesn't make the decision; the user does.
+`conversation-loop.md`, "The On lists", covers everything the user is asked for,
+including questions in the conversation and actions outside the page. This file covers
+the ones the user answers, the questions and choices you put to them.
 
-## What a decision holds
+## What an obligation holds
 
 The user should be able to decide as well as you could from what the question tells
 them. Say why the choice arises, what each option leads to in a case the user can
@@ -20,7 +22,7 @@ whole option. The user should be able to compare the options down the group with
 reading their prose, as through `small.tag` labels for the facts they weigh, such as
 effort or risk. Add words only for a consequence that no title or label shows.
 Order the options by the subject, such as from today's behavior to the largest
-change, and keep that one order wherever the decision lists them, including a
+change, and keep that one order wherever the question lists them, including a
 comparison table and lettered names, so the user matches each option to its row by
 position. The recommended option stays where that order puts it; its `recommended`
 label marks your advice. Prose that recommends or discusses an option names it by
@@ -34,7 +36,7 @@ beside the change, with a fault marked where it goes wrong, a wording as it woul
 appear, or a code change's text or effect before and after. A change they would
 neither see nor picture, such as a refactor, needs only words. Each option holds its
 own picture, so nothing pairs it with another option's; a picture of both answers at
-once, such as an `lf-shot` pair, belongs to the group. Vary only what the decision
+once, such as an `lf-shot` pair, belongs to the group. Vary only what the choice
 changes, and show today in the option that keeps it, or above the options where none
 does.
 
@@ -52,15 +54,15 @@ Each widget puts one obligation on On me and records its answer. A choice can ho
 partial answer before the user presses Done, and an empty selection can be a complete
 answer.
 
-Write decisions the user can answer independently in page order. If a later one depends
+Write obligations the user can answer independently in page order. If a later one depends
 on an earlier answer, pose it in the next turn rather than writing every branch.
 
-When the user decides several proposals independently, give each its own decision with
-accept and reject options, beside that proposal's case. One decision can accept a batch
+When the user decides several proposals independently, give each its own options to
+accept or reject it, beside that proposal's case. One choice can accept a batch
 of clear-cut proposals if it says why each is clear-cut. Use `multiple` only when the
 picks depend on each other, such as a limit on how many.
 
-On me lists only what still needs the user. Retire a document decision or question
+On me lists only what still needs the user. Retire an obligation on the document
 once it stops mattering, by removing its widget in a new version or marking it
 `restated` (`authoring-revisions.md`). For a conversational obligation, use
 `leaf task end` as "The On lists" describes. A request the user made stays open until you
@@ -70,23 +72,23 @@ put on the user is work for them to do, such as trying a build, not a question.
 
 ## On the page
 
-Make each decision on the document answerable where On me takes the user, without
-reading earlier content. Pressing `m` brings that decision to the top of the window,
-leaving preceding prose out of view. So the decision opens with a heading that asks
+Make each obligation on the document answerable where On me takes the user, without
+reading earlier content. Pressing `m` brings that obligation to the top of the window,
+leaving preceding prose out of view. So the question opens with a heading that asks
 its question, and holds its explanation, its evidence, the current state and the
 answering control, inside the answering widget or an enclosing `lf-ask`. Build that
-self-contained decision around the material the user judges; backing detail goes after
+self-contained question around the material the user judges; backing detail goes after
 it.
 
-On a quick-answer page, open with the decision and put its backing in a disclosure after
+On a quick-answer page, open with the question and put its backing in a disclosure after
 it; the first screen shows the goal, the current state and what the user can do next. On
-a record or system page, put each decision in the part of the page it decides: a
-decision about one entry goes with that entry, and one that turns on a claim contains
-the claim and its evidence. Only a decision about the whole record comes last.
+a record or system page, put each question in the part of the page it decides: a
+question about one entry goes with that entry, and one that turns on a claim contains
+the claim and its evidence. Only a question about the whole record comes last.
 
 Keep the question, its evidence and the options on screen together, so the user
 compares the options without scrolling between them and always sees which one they
-are reading. Where a table, chart or playground inside the decision, or the pictures in
+are reading. Where a table, chart or playground inside the question, or the pictures in
 its options, can't be read at the prose's width, give that block, or the `lf-options`,
 its own `data-width` (`page-layout.md`, "Bounds and widths"). Size an option's picture
 by the difference the user weighs between the options rather than by the capture: crop
@@ -97,7 +99,7 @@ picture that links its original keeps the detail a click away.
 
 The `lf-ask`, `lf-options` and `lf-option` entries give their markup and presentation.
 
-## One decision in its section and on a board
+## One answer in its section and on a board
 
 When the user answers proposals beside their cases and also needs every answer in one
 view to compare or rearrange, keep each answer in its section's `lf-options` and add a
@@ -126,16 +128,16 @@ A drop on the board answers through the group, so the page holds one answer, whi
 Undo and `restated` take back in both views. When a revision writes the user's pick
 into the group, move the card to that pick's column too. A card that shows an answer
 keeps the order you wrote it in; where the order within a column is itself the user's
-call, ask for it as its own decision.
+call, ask for it as its own question.
 
 ## Permission
 
-When the user must permit an action, ask for it as a decision whose options keep
+When the user must permit an action, ask for it as a question whose options keep
 things as they are and take the action, so declining is an answer too. Put the exact
 action and the evidence the user needs in the `lf-ask` heading and prose:
 
 ```html
-<lf-ask id="publish-report-decision">
+<lf-ask id="publish-report-question">
   <h2>Publish this report to the team workspace?</h2>
   <p>The report shown above, including the revised cost estimate.</p>
   <lf-options id="publish-report" choose>

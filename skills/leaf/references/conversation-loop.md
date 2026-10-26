@@ -176,7 +176,7 @@ The user's **On me** list holds everything waiting on them: each decision your w
 leaves to them, whether or not your next step depends on it, and each answer,
 permission, review, or outside action you need. That includes every option you
 present for their judgment, not only the one you recommend. Ask each as a direct
-question by a route in the table below, grouped as `authoring-decisions.md` says, and keep
+question by a route in the table below, grouped as `authoring-obligations.md` says, and keep
 it until the user decides or you withdraw it. A question written in prose, a heading,
 a status line or chat isn't on On me; only the routes in the table put it there.
 Information they may comment on but need not decide is not an obligation.
@@ -192,9 +192,9 @@ help.
 
 | Request                                                                         | Register it                                                                                                                       | What answers it                                                                       |
 | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| A decision or input recorded by a widget                                        | Author a decision widget (`authoring-decisions.md`); optional `lf-ask` frames its question and evidence                           | The widget's declared answer; a multiple-choice widget also needs the user's Done     |
+| A decision or input recorded by a widget                                        | Author a widget that records it (`authoring-obligations.md`); optional `lf-ask` frames its question and evidence                  | The widget's declared answer; a multiple-choice widget also needs the user's Done     |
 | A conversational answer                                                         | `--obligation` on `thread create` or `thread reply` (`threads.md`)                                                                | The user's next message there or a settling reaction                                  |
-| Permission for a stated action                                                  | A decision with the action and an option keeping things as they are (`authoring-decisions.md`, "Permission")                      | The user's pick and its row in On me                                                  |
+| Permission for a stated action                                                  | Options to take the action or keep things as they are (`authoring-obligations.md`, "Permission")                                  | The user's pick and its row in On me                                                  |
 | An action neither route records, such as trying a build or connecting a browser | `leaf task create <page> <id> --title "<direct question naming the action>" --on user`, on its thread, widget, section, or `page` | The user's Done; end it yourself when their action is established or no longer needed |
 
 Generally pass `--obligation` when a message hands the next move to the user,
@@ -223,7 +223,7 @@ leaf page state <page> | jq '{source, obligations, todos, queues}'
 reply or a version, and your to-dos. Read them as given rather than rebuilding them
 from events. A row names its obligation or to-do by `id`, and in `also` the other
 obligations the user answers at the same place: an answer of yours in a thread about a
-decision rides on the decision's row. An obligation's record in
+widget's question rides on that widget's row. An obligation's record in
 `obligations` holds its `prompt`, its `answer` once given, its `status` and its
 `next_actor`, and a widget's obligation takes its answer from the widget's state; a
 to-do's record in `todos` holds its `title` and the start `running` on it.

@@ -1216,12 +1216,17 @@
           "description": "The thread it stands in, or null.",
           "type": ["string", "null"]
         },
+        "also": {
+          "description": "The other obligations the user answers at the same place, each a view's `obligations` entry: the further records a thread's reply answers, and on an obligation's row those of a thread about it.",
+          "type": "array",
+          "items": { "type": "string" }
+        },
         "live": {
           "description": "Whether the agent has it in hand now: an update it is at work on whose work has not gone quiet or stopped.",
           "type": "boolean"
         }
       },
-      "required": ["kind", "id", "owner", "subject", "thread", "live"]
+      "required": ["kind", "id", "owner", "subject", "thread", "also", "live"]
     },
     "TodoRow": {
       "description": "An agent to-do's row in On <agent> (`served_state.queues`).",

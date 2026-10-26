@@ -451,7 +451,9 @@ export class MessageView {
         <b>${model.by}</b
         ><span class="lf-msg-meta"
           ><time datetime=${model.timestamp}>${model.age}</time>${
-            model.unread ? html`<span class="lf-msg-new">New</span>` : nothing
+            model.unread
+              ? html`<span class="lf-msg-new"><span class="lf-quiet">New</span></span>`
+              : nothing
           }
           ${receipt}
           ${

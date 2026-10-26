@@ -50,10 +50,10 @@ def test_the_type_scale_follows_root_font_size_with_rounded_key_badges(browser, 
     before = sizes()
     assert before == {
         "prose": 17,
-        "code": 12.5,
+        "code": 13.5,
         "badge": 19,
         "dense": 14,
-        "dense-code": 12,
+        "dense-code": 13,
         "dense-badge": 18,
     }
     page.add_style_tag(content=":root { font-size: 20px; }")

@@ -2858,7 +2858,7 @@ def test_concurrent_page_init_serializes_creation(tmp_path, monkeypatch):
     # uncontended; the second is the one taker that can find it held.
     second_waiting = lock_contention(monkeypatch, page, by="second-init")
 
-    def paused_init(page_dir, selected):
+    def paused_init(page_dir, selected, *, theme=None):
         creator = threading.current_thread().name
         creations.append(creator)
         if creator == "first-init":
@@ -2866,7 +2866,7 @@ def test_concurrent_page_init_serializes_creation(tmp_path, monkeypatch):
             assert release_first.wait(STATED_TIMEOUT), "the first init was never let go"
         else:
             second_entered.set()
-        original_init(page_dir, selected)
+        original_init(page_dir, selected, theme=theme)
 
     def initialize():
         try:
@@ -2880,16 +2880,18 @@ def test_concurrent_page_init_serializes_creation(tmp_path, monkeypatch):
     first.start()
     try:
         wait_for(
-            first_entered.is_set,
+            lambda: first_entered.is_set() or bool(errors),
             bool,
             failure="the first init never began creating the page",
         )
+        assert errors == []
         second.start()
         wait_for(
-            lambda: second_waiting.is_set() or second_entered.is_set(),
+            lambda: second_waiting.is_set() or second_entered.is_set() or bool(errors),
             bool,
             failure="the second init neither waited on the page lock nor began creating",
         )
+        assert errors == []
         assert not second_entered.is_set(), (
             "the second init began creating while the first held the page"
         )

@@ -106,7 +106,10 @@ customElements.define(
         if (rendering !== this.rendering || !this.isConnected) return;
         /** @type {HTMLElement} */
         this.figure = this.figure ?? this.build(preview);
-        const label = this.getAttribute("label") ?? this.getAttribute("source");
+        const label =
+          this.getAttribute("label") ??
+          this.getAttribute("source") ??
+          this.getAttribute("for");
         keepsText(this.caption, snapshot ? label : `${label} · no data`);
         const drawnPre = listing.querySelector("pre");
         if (!this.pre) {
@@ -195,7 +198,7 @@ customElements.define(
       this.preview = document.createElement(preview === "html" ? "iframe" : "div");
       this.preview.className = "lf-text-document-preview";
       if (preview === "html") {
-        this.preview.title = `${this.getAttribute("label") ?? this.getAttribute("source")} preview`;
+        this.preview.title = `${this.getAttribute("label") ?? this.getAttribute("source") ?? this.getAttribute("for")} preview`;
         this.preview.setAttribute("sandbox", "allow-scripts");
       }
       rendered.append(this.preview);

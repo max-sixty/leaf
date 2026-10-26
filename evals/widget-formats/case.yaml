@@ -1,0 +1,58 @@
+# Retained format comparison: one task request per condition, authored in native
+# Leaf HTML, an isomorphic JSON tree compiled to Leaf HTML, or Adaptive Cards JSON.
+# The first two isolate serialization; Adaptive Cards tests a real card ecosystem.
+# Selected before seeing pilot author outputs.
+description: widget-formats
+metadata:
+  purpose: Compare direct Leaf markup, equivalent JSON-to-Leaf composition, and an
+    established JSON card runtime on small tasks all three can express.
+  authoring: true
+  conditions:
+    - leaf
+    - json
+    - adaptive
+  tags:
+    - format
+    - authoring
+vars:
+  prompt: file://widget-formats/status.md
+assert:
+  - type: llm-rubric
+    metric: task-fit
+    value: |
+      Judge the authored page against the user's status-board request. It must show
+      the current rollout status, the supplied measurements, the next
+      checkpoint, and the one blocker without changing their meaning. EU remains
+      paused while other regions continue; no resume decision has been made. The
+      blocker and next action should be explicit and grouped or labeled. Judge
+      content and semantic organization, not visual prominence, file format or
+      particular element names. Do not infer working interaction from source alone.
+variants:
+  choice:
+    vars:
+      prompt: file://widget-formats/choice.md
+    assert:
+      - type: llm-rubric
+        metric: task-fit
+        value: |
+          Judge the authored page against the user's choice request. The three
+          options, their stated tradeoffs, and the recommendation must be
+          represented accurately. The page must offer one clear route to choose
+          exactly one option. Score the visible content and choice affordance
+          only. Do not infer that a control works or fails from the presence or
+          absence of custom JavaScript; browser use scores the action outcome.
+  form:
+    vars:
+      prompt: file://widget-formats/form.md
+    assert:
+      - type: llm-rubric
+        metric: task-fit
+        value: |
+          Judge the authored page against the user's incident-intake request. It
+          must present all supplied incident facts and allow the user to enter a
+          short title, choose a severity, describe customer impact, and submit
+          those values for local review. The page must identify that submission
+          records a draft and sends nothing. Score content and field/submit
+          affordances only. Do not infer that a control works or fails from the
+          presence or absence of custom JavaScript; browser use scores the
+          submitted values and visible result.

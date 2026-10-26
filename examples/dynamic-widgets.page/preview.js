@@ -88,6 +88,11 @@ addEventListener('DOMContentLoaded', () => {
   });
   const receive = (event) => {
     if (event.source !== frame.contentWindow) return;
+    if (event.data?.type === "dynamic-widget-height") {
+      const height = event.data.height;
+      if (Number.isFinite(height) && height > 0)
+        frame.style.height = `${Math.ceil(height)}px`;
+    }
     if (event.data?.type === "widget-ready") {
       settled = true;
       clearTimeout(timeout);

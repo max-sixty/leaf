@@ -114,8 +114,67 @@ def select_cases(globs: tuple[str, ...]) -> list[str]:
     ]
 
 
+def preflight_formats(conditions: tuple[str, ...]) -> None:
+    """Fail before authoring if a format adapter or its dependencies cannot run."""
+    with tempfile.TemporaryDirectory(prefix="leaf-format-preflight-") as temporary:
+        work = Path(temporary)
+        if "json" in conditions:
+            source, target = work / "spec.json", work / "leaf.html"
+            source.write_text(
+                json.dumps(
+                    {
+                        "root": "page",
+                        "elements": {
+                            "page": {
+                                "type": "html",
+                                "props": {},
+                                "children": [],
+                            }
+                        },
+                    }
+                )
+            )
+            command = [
+                sys.executable,
+                str(ROOT / "evals/widget-formats/compile.py"),
+                str(source),
+                str(target),
+            ]
+            result = subprocess.run(
+                command, capture_output=True, text=True, check=False
+            )
+            if result.returncode or not target.is_file():
+                raise click.ClickException(
+                    f"JSON-to-Leaf compiler setup failed: {result.stdout}{result.stderr}"
+                )
+        if "adaptive" in conditions:
+            source, target = work / "card.json", work / "card.html"
+            source.write_text(
+                json.dumps(
+                    {
+                        "type": "AdaptiveCard",
+                        "version": "1.5",
+                        "body": [{"type": "TextBlock", "text": "Preflight"}],
+                    }
+                )
+            )
+            command = [
+                "node",
+                str(ROOT / "evals/widget-formats/adaptive-render.mjs"),
+                str(source),
+                str(target),
+            ]
+            result = subprocess.run(
+                command, capture_output=True, text=True, check=False
+            )
+            if result.returncode or not target.is_file():
+                raise click.ClickException(
+                    f"Adaptive Cards renderer setup failed: {result.stdout}{result.stderr}"
+                )
+
+
 def native_provider(
-    harness: str, payload: Path, work: Path
+    harness: str, payload: Path, work: Path, model: str | None = None
 ) -> tuple[dict, Path | None]:
     """A read-only native agent and its explicitly invocable installed skill."""
     if harness == ClaudeCodeHarness.name:
@@ -170,7 +229,7 @@ def native_provider(
     return {
         "id": "openai:codex-app-server",
         "config": {
-            "model": MODELS["codex"],
+            "model": model or MODELS["codex"],
             "codex_path_override": str(codex),
             "model_reasoning_effort": "medium",
             "working_dir": str(work),
@@ -206,6 +265,7 @@ def workflow_provider(
     samples: Path,
     screenshots: Path,
     viewports: tuple[str, ...],
+    model: str | None = None,
 ) -> dict:
     """The Python provider that hands one complete task to its declared executor."""
     return {
@@ -218,6 +278,7 @@ def workflow_provider(
                 "CLAUDE_CONFIG_DIR", str(Path.home() / ".claude")
             ),
             "harness": harness,
+            "model": model or MODELS[harness],
             "condition": condition,
             "payload": str(payload),
             "samples": str(samples),
@@ -239,6 +300,7 @@ def prepare(
     conditions: tuple[str, ...],
     samples: Path,
     viewports: tuple[str, ...] = DEFAULT_VIEWPORTS,
+    model: str | None = None,
 ) -> dict:
     """One test per selected address and condition, run on each column it applies to."""
     definitions = catalog()
@@ -257,7 +319,7 @@ def prepare(
         for condition in conditions:
             if condition not in metadata.get("conditions", ["leaf"]):
                 continue
-            columns = arms if condition == "leaf" else {"html": arms["candidate"]}
+            columns = arms if condition == "leaf" else {condition: arms["candidate"]}
             labels = []
             for harness in harnesses:
                 if harness not in metadata.get("harnesses", HARNESSES):
@@ -280,11 +342,14 @@ def prepare(
                                 samples,
                                 screenshots,
                                 viewports,
+                                model,
                             )
                         else:
                             work = scratch / "work" / label
                             work.mkdir(parents=True)
-                            configured, skill = native_provider(harness, payload, work)
+                            configured, skill = native_provider(
+                                harness, payload, work, model
+                            )
                             if skill is not None and not instructions:
                                 skills[label] = str(skill)
                             if instructions:
@@ -370,7 +435,10 @@ def prepare(
                     prompt = f"It is now {now}.\n\n{prompt}"
                 sample["vars"] = {
                     **sample["vars"],
-                    "prompt": ("" if instructions else SKILL_PREFIX) + prompt,
+                    "prompt": (
+                        "" if instructions or condition == "adaptive" else SKILL_PREFIX
+                    )
+                    + prompt,
                 }
                 if authoring:
                     for assertion in sample["assert"]:
@@ -387,7 +455,21 @@ def prepare(
                                 "value": f"context.providerResponse.metadata?.checks?.[{json.dumps(check)}] === true",
                                 "metric": check,
                             }
-                            for check in ("completed", "page-valid")
+                            for check in (
+                                "completed",
+                                *(
+                                    ("format-valid",)
+                                    if condition in {"json", "adaptive"}
+                                    else ()
+                                ),
+                                "page-valid",
+                                *(
+                                    ("interaction-proven",)
+                                    if address.split("/")[-1] in {"choice", "form"}
+                                    and task == "widget-formats"
+                                    else ()
+                                ),
+                            )
                         ),
                         *sample["assert"],
                     ]
@@ -480,8 +562,12 @@ def describe(base: str | None, head: str, globs: tuple[str, ...]) -> str:
     help="The harness the motivating failure came from, or the one you work in.",
 )
 @click.option(
+    "--model",
+    help="Codex author model for this run; all selected conditions use the same model.",
+)
+@click.option(
     "--condition",
-    type=click.Choice(["leaf", "html", "both"]),
+    type=click.Choice(["leaf", "html", "json", "adaptive", "both", "formats"]),
     default="leaf",
     show_default=True,
 )
@@ -498,6 +584,7 @@ def eval(
     args: tuple[str, ...],
     base: str | None,
     harness: str,
+    model: str | None,
     condition: str,
     viewports: tuple[str, ...],
 ):
@@ -509,7 +596,19 @@ def eval(
     split = next((i for i, arg in enumerate(args) if arg.startswith("-")), len(args))
     globs, promptfoo_args = args[:split], args[split:]
     cases = select_cases(globs)
-    conditions = ("leaf", "html") if condition == "both" else (condition,)
+    if model is not None:
+        if harness != "codex":
+            raise click.BadParameter(
+                "--model currently requires --harness codex", param_hint="--model"
+            )
+    conditions = (
+        ("leaf", "html")
+        if condition == "both"
+        else ("leaf", "json", "adaptive")
+        if condition == "formats"
+        else (condition,)
+    )
+    preflight_formats(conditions)
     # Only the Leaf condition runs on more than the working tree.
     if base is not None and "leaf" in conditions:
         base = base_ref(base)
@@ -550,10 +649,11 @@ def eval(
             conditions,
             out / "samples",
             viewports,
+            model,
         )
         config["description"] = describe(
             commits.get("base"), commits["candidate"], globs
-        )
+        ) + (f" [{model}]" if model else "")
         config_file = out / "promptfooconfig.json"
         config_file.write_text(json.dumps(config, indent=2) + "\n")
         # Promptfoo resolves the agent SDK packages from the config's directory.

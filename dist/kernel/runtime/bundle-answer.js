@@ -4668,13 +4668,16 @@ function createStateApplication({ prepareActivation, acceptData, notifyDataSubsc
 				presentedNewsReading = semanticNewsReading(readApplication());
 				const reading = observeSemanticNews(observedSemanticNews, presentedNewsReading);
 				observedSemanticNews = reading.observed;
-				if (reading.news.length) {
+				if (reading.news.length) announce(semanticNewsNotice(reading.news));
+				const shown = reading.news.filter((item) => item.kind !== "agent_content");
+				if (shown.length) {
 					const format = (value) => semanticNewsNotice(currentSemanticNews(value, presentedNewsReading, observedSemanticNews));
-					notice(format(reading.news), {
+					notice(format(shown), {
 						background: true,
+						announce: false,
 						group: {
 							key: "semantic-news",
-							value: reading.news,
+							value: shown,
 							combine: combineSemanticNews,
 							format
 						}

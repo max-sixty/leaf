@@ -4159,7 +4159,8 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
 
     The first read reaches panel and version rendering before malformed projection data
     rejects it. That candidate does not announce the reply or leave a version behind;
-    a complete retry announces the reply once with the agent recorded on the message.
+    a complete retry announces the reply once, to the live region, with the agent
+    recorded on the message.
     The rejected reply must also leave the visible thread until that retry.
     """
     url = serve(TWIN_V1)
@@ -4247,7 +4248,8 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
     page.unroute("**/api/state*")
     nudge(d)
     told(page)
-    expect(field).to_have_attribute("placeholder", re.compile("Codex replied"))
+    expect(page.locator(".lf-live")).to_have_text("Codex replied")
+    expect(field).not_to_have_attribute("placeholder", re.compile("replied"))
     view = open_panel_thread(page, root["id"])
     expect(view.locator(".lf-msg.agent .lf-msg-body")).to_have_text("this one does")
 

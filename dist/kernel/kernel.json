@@ -192,7 +192,7 @@
     "runtime/shadow-tree.js": "df7f8149ce36e9c0b55ead231dbef6a2b8ce8448b21fe0b32898de596c82032b",
     "runtime/shadow.js": "06dd340ccadb2d68da39bc9da45df8f66ea6134f1891ec6fb68c7271be98cb5c",
     "runtime/shown-answer.js": "516d3a309af2805ad3466645cb7330f35b168e95715d1124747299d6869a3fcb",
-    "runtime/state-application.js": "e4feef7e9b296c9b2de39239b3e1d65df64c48723092d5ce706ef6a7f9c98683",
+    "runtime/state-application.js": "7d7cfabc3b4b8c33198568059c5a47732876a88cb12a1034d8592657355ce104",
     "runtime/state-feed.js": "b59d52345f43f50795aee72054c65b55b8fb8d1130d98e2bc40321e871f93d70",
     "runtime/storage.js": "fb2a542169601dcb379ec4a3df086441a635116f99ded2661467d6685647418d",
     "runtime/stylesheets.js": "2795753625ac64cd202acec6ce57396d934d36e2b1fa8275ed7ad9ae6f2e0b6e",

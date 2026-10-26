@@ -639,13 +639,19 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     min-width: min-content;
     overflow: hidden;
   }
-  /* An unread reply's New stands with the time: never cut, so its track keeps its
-     whole width, and with a gap of its own. */
-  .lf-margin-thread .lf-thread-transcript .lf-msg-meta:has(> .lf-msg-new) {
-    grid-template-columns: max-content max-content;
+  /* An unread reply's dot hangs before the name, in the transcript's gutter, so the
+     name stays over the words and nothing moves when the reply reads. The head clips
+     sideways and sticks, so it reaches into the gutter by the dot and the head's own
+     gap, and holds the dot there, where it sticks with the name. */
+  .lf-margin-thread .lf-thread-transcript .lf-msg-head:has(> .lf-msg-meta > .lf-msg-new) {
+    --lf-msg-new-room: calc(6px + var(--sp-2));
+    margin-inline-start: calc(-1 * var(--lf-msg-new-room));
+    padding-inline-start: var(--lf-msg-new-room);
   }
   .lf-margin-thread .lf-thread-transcript .lf-msg-meta > .lf-msg-new {
-    margin-inline-start: var(--sp-2);
+    position: absolute;
+    inset-inline-start: 0;
+    inset-block-start: calc(50% - 3px);
   }
   /* Each annotation carries its own gap, so one cut to nothing takes its gap too. */
   .lf-margin-thread .lf-thread-transcript .lf-msg-meta > :not(time, .lf-msg-new) {
@@ -724,8 +730,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     .lf-margin-thread .lf-thread-transcript .lf-msg-meta {
       overflow: clip visible;
     }
+    /* A flex item stacks by its z-index unpositioned, so the metadata leaves the head
+       to hold the unread dot. */
     .lf-margin-thread .lf-thread-transcript .lf-msg-head > :is(b, .lf-msg-meta) {
-      position: relative;
       z-index: 1;
       background-color: var(--lf-msg-ground);
     }

@@ -52,7 +52,10 @@ the subject, keeping today's behavior included: “Generate shared types” and 
 handwritten types”, rather than “Accept” and “Not now”. A compact title can be the
 whole option. The user should be able to compare the options down the group without
 reading their prose, as through `small.tag` labels for the facts they weigh, such as
-effort or risk. Add words only for a consequence that no title or label shows.
+effort or risk. Keep each label to a word or two, such as “2 days” rather than
+“about two days of work”, so a card's labels fit on one line beside its pick mark.
+Where cards stand side by side, labels that wrap push that card's title below its
+neighbours'. Add words only for a consequence that no title or label shows.
 Order the options by the subject, such as from today's behavior to the largest
 change, and keep that one order wherever the decision lists them, including a
 comparison table and lettered names, so the user matches each option to its row by

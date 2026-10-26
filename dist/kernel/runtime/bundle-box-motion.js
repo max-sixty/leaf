@@ -1,5 +1,6 @@
 import { TEXT_FIELD, afterSettling, atLayoutPrecision, cancelRender, keeps, layoutPx, move, nextRender, onUserInput } from "./bundle-dom-move.js";
-import { el, hasArea, headerCuts, intersect, nearObserver, nearWindow, paintClips, scrollsContent, shownBox } from "./bundle-errors.js";
+import { hasArea, headerCuts, intersect, nearObserver, nearWindow, paintClips, scrollsContent, shownBox } from "./bundle-geometry.js";
+import { el } from "./bundle-errors.js";
 import { contentRides } from "./bundle-reading-regions.js";
 import { inChrome } from "./bundle-passages.js";
 import { anchorAt, anchorBox, anchorElement, anchorReaches, anchorReading, cutFrames, nameAnchor, scrollsWith } from "./bundle-content-layout.js";

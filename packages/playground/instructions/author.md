@@ -247,10 +247,15 @@ structured data only subscribes; one without its own instruction keeps
 
 Keep native editors mounted and avoid writing their value when it already matches.
 The playground owns tab persistence, presets, Reset, instruction copying and submission;
-views draw the values they receive. When a page adds contributor state, redeclare the
-complete `lf-playground` entry in `page/registry.json` with an exact schema for
-`detail.values`. An instruction provider describes the configuration as a task that
-makes sense without the preview.
+views draw the values they receive. For a structured configuration, set that
+playground's `contract` attribute to a named `$data.contracts` entry in
+`page/registry.json`. Its `schema` describes the complete `values` object: scalar
+controls and contributor slices, required names and any bounds. Each instance can
+select a different contract. Admission validates that schema before recording a
+submission; an unbound playground uses the package's open values schema.
+The `data-explorer` example shows a scalar limit beside structured filter rows.
+An instruction provider describes the configuration as a task that makes sense
+without the preview.
 
 When both candidates draw from shared state, keep dynamic rows under stable keys, apply
 each add, remove, reorder or edit once, and derive both candidates' rows and counts from

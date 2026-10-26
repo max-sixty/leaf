@@ -305,7 +305,7 @@ def test_reduced_motion_reaches_declared_shadow_stages(
     }
     package = tmp_path / ".leaf"
     package.mkdir()
-    (package / "shadow.css").write_text("""
+    (package / "widget-shadow.css").write_text("""
 .pulse { animation: package-pulse 30s linear infinite; }
 .pulse::before { content: 'Activity'; animation: package-pulse 30s linear infinite; }
 @keyframes package-pulse { from { opacity: .25; } to { opacity: 1; } }

@@ -237,32 +237,37 @@ def test_a_page_with_no_revision_reads_its_candidate_vocabulary(page_dir):
         assert vocabulary["lf-local"] == declaration
 
 
-@pytest.mark.parametrize("active_obligation", [True, False])
-def test_late_gesture_wakes_for_the_active_vocabulary(page_dir, active_obligation):
-    """An old tab validates under its capture and changes the current page's debt."""
+@pytest.mark.parametrize("active_attention", [True, False])
+@pytest.mark.parametrize("declaration", ["obligation", "attention"])
+def test_late_gesture_wakes_for_the_active_vocabulary(
+    page_dir, active_attention, declaration
+):
+    """An old tab validates under its capture and changes the current page's obligations and requested input."""
     from leaf.state import write_json
 
     layer = deepcopy(registry_storage.load_registry(page_dir))
     awaits = layer["lf-options"].pop("x-awaits")
 
-    def publish_choice(has_obligation):
+    def publish_choice(needs_attention):
         vocabulary = deepcopy(layer)
-        if has_obligation:
+        if needs_attention and declaration == "obligation":
             vocabulary["lf-options"]["x-awaits"] = awaits
+        elif needs_attention:
+            vocabulary["lf-options"]["x-state"]["choose"]["attention"] = True
         write_json(page_dir / "registry.json", vocabulary)
         group = (
             '<lf-options id="choice" choose>'
             '<lf-option id="first">First</lf-option>'
             '<lf-option id="second">Second</lf-option></lf-options>'
         )
-        if has_obligation:
+        if needs_attention and declaration == "obligation":
             group = '<lf-ask id="ask"><h2>Which one?</h2>' + group + "</lf-ask>"
         (page_dir / "index.html").write_text(model.leaf_page("Choice", group))
         publish(page_dir)
 
-    publish_choice(not active_obligation)
+    publish_choice(not active_attention)
     original = files_model.latest_revision(page_dir)
-    publish_choice(active_obligation)
+    publish_choice(active_attention)
     assert files_model.latest_revision(page_dir) > original
 
     action = append_command(
@@ -276,10 +281,12 @@ def test_late_gesture_wakes_for_the_active_vocabulary(page_dir, active_obligatio
             "detail": {"value": ["first"]},
         },
     )
-    assert action["attention"] is active_obligation
-    assert ("answer" in action["meaning"]) is not active_obligation
+    assert action["attention"] is active_attention
+    assert ("answer" in action["meaning"]) is (
+        not active_attention and declaration == "obligation"
+    )
     assert service_model.unacknowledged(events_model.read_events(page_dir), 0) == (
-        [action] if active_obligation else []
+        [action] if active_attention else []
     )
 
 

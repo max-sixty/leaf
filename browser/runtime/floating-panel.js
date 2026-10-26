@@ -185,7 +185,12 @@ import {
   workflowLabel,
   workflowStep,
 } from "./thread/workflow.js";
-import { messageReading, threadHeading, threadName } from "./thread/messages.js";
+import {
+  messageReading,
+  messageText,
+  threadHeading,
+  threadName,
+} from "./thread/messages.js";
 import { drawnThreadId, THREAD } from "./thread/selectors.js";
 import { declareThreadParts } from "./thread/focus.js";
 import { quoteReading, threadTodos } from "./thread/thread-card.js";
@@ -2203,8 +2208,8 @@ export function createFloatingPanel({
   // Done, each row saying New and Draft where they hold. The user chose this on 25
   // October, with Threads becoming the On view's tab, over Open, Unread, Drafts and
   // Resolved filters, which a second row of tabs would have had to hold. A search reads
-  // every thread's name, its messages and the words it is about, as its head quotes them
-  // (`quoteReading`), and lists the matches as one list.
+  // every thread's name, its messages and summaries as they read, and the words it is
+  // about, as its head quotes them (`quoteReading`), and lists matches as one list.
   function shownThreads() {
     const words = query.trim().toLowerCase();
     const shown = words
@@ -2212,7 +2217,8 @@ export function createFloatingPanel({
           [
             threadName(thread),
             quoteReading(thread, { placedAt })?.label ?? "",
-            ...thread.msgs.map((m) => m.text ?? ""),
+            ...thread.msgs.map(messageText),
+            ...thread.summaries.map(messageText),
           ]
             .join(" ")
             .toLowerCase()

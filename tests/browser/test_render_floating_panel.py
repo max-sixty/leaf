@@ -19,6 +19,7 @@ from interact_support import (
     working,
 )
 from leaf_dev.browser import panel_tab
+from leaf_dev.panel_paint import ink_box, settled
 from model_folds import leaf_page
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -88,17 +89,6 @@ def floating(browser, url):
     page = open_page(browser, url)
     expect(page.locator(".lf-floating-panel")).to_be_visible()
     return page
-
-
-def settled(page):
-    """Wait until layout has started the panel's motion and that motion has finished,
-    so a box read is where it rests."""
-    rendered(page)
-    page.wait_for_function(
-        "() => ['.lf-floating-panel', '.lf-fp-ground'].every(s =>"
-        " !document.querySelector(s).getAnimations({subtree: true}).some(a =>"
-        " Number.isFinite(a.effect?.getComputedTiming().endTime)))"
-    )
 
 
 def field(page):
@@ -1376,6 +1366,33 @@ def test_threads_search_finds_a_thread_by_the_words_it_quotes(browser, serve):
     page.keyboard.press("Escape")
     expect(field(page)).to_have_js_property("value", "Keep my page comment")
     assert field(page).evaluate("(el, original) => el === original", editor)
+
+
+def test_threads_search_reads_rendered_messages_and_summaries(browser, serve):
+    """Words in formatted prose, embedded questions and a summary find the thread
+    that shows them, even before the reader opens it."""
+    from browser.threads import summarize_thread
+
+    url = serve(AGENDA_PAGE)
+    root = panel_comment(serve.page_dir, "Where should we meet?")
+    reply = thread_model.post_reply(
+        serve.page_dir,
+        {"responds": root},
+        "The **room** photo.",
+        '<lf-ask id="crop">Should I reshoot it wider?</lf-ask>',
+    )
+    summarize_thread(serve.page_dir, root, reply["id"], "A **wider** view would help.")
+    page = floating(browser, url)
+    rows = threads_rows(page)
+    page.get_by_role("button", name="Find a thread or message").click()
+    search = page.locator("input.lf-fp-search")
+    for words in ("room photo", "reshoot", "wider view"):
+        search.fill(words)
+        expect(rows.locator(".lf-fp-label")).to_have_text(["Where should we meet?"])
+    rows.click()
+    view = page.locator(panel_view("thread"))
+    expect(view.locator(".lf-summary-text")).to_have_text("A wider view would help.")
+    expect(view.locator("#crop")).to_have_text("Should I reshoot it wider?")
 
 
 def test_keys_in_threads_act_on_threads(browser, serve):
@@ -3175,17 +3192,13 @@ def test_the_folded_leaf_keeps_its_badge_and_face_through_motion(browser, serve)
     assert max(channel[1] for channel in difference.getextrema()) <= 8
 
 
-def test_the_leaf_paints_inside_its_moving_focus_ring(browser, serve):
-    """The mark stays visible through pointer motion and inside its keyboard ring.
-
-    Held animations and computed geometry conceal compositor translation advancing
-    ahead of the painted clip, so read the pixels without seeking the animations.
-    Firefox screencasts can omit the entire panel, also before this repair; see
-    browser-support.md. This strict all-frame regression runs in Chromium.
-    """
+def test_the_leaf_paints_inside_its_focus_ring_after_folding(browser, serve):
+    """Pointer and keyboard folds finish with a visible mark at the control's
+    centre, inside its keyboard ring. Motion sampling lives in bench-panel-motion;
+    receiving an intermediate screencast frame is not a functional guarantee."""
     from io import BytesIO
 
-    from PIL import Image, ImageChops, ImageColor
+    from PIL import Image, ImageColor
 
     page = floating(browser, serve(leaf_page("fold", '<h1 id="title">Fold</h1>')))
     page.emulate_media(reduced_motion="no-preference")
@@ -3194,18 +3207,11 @@ def test_the_leaf_paints_inside_its_moving_focus_ring(browser, serve):
       ring: getComputedStyle(node).outlineColor,
       mark: getComputedStyle(node.querySelector('.lf-dot')).backgroundColor
     })""")
+    # Authored words can share the mark's colour; only the panel's pixels count.
+    page.locator("#title").evaluate(
+        "(node, colour) => node.style.color = colour", colours["mark"]
+    )
     colours = {name: ImageColor.getrgb(value) for name, value in colours.items()}
-    viewport = page.viewport_size
-
-    def ink_box(image, colour):
-        difference = ImageChops.difference(image, Image.new("RGB", image.size, colour))
-        channels = [
-            channel.point(lambda value: 255 if value < 30 else 0)
-            for channel in difference.split()
-        ]
-        return ImageChops.darker(
-            ImageChops.darker(*channels[:2]), channels[2]
-        ).getbbox()
 
     for route, action in (
         ("pointer", ".lf-fp-minimize"),
@@ -3223,49 +3229,40 @@ def test_the_leaf_paints_inside_its_moving_focus_ring(browser, serve):
             colours["ring"] = ImageColor.getrgb(
                 leaf.evaluate("node => getComputedStyle(node).outlineColor")
             )
-        before = leaf.bounding_box()
-        frames = []
-        with page.screencast.start(
-            on_frame=lambda frame, frames=frames: frames.append(frame),
-            quality=100,
-            size=viewport,
-        ):
-            if route == "keyboard":
-                page.keyboard.press(action)
-            else:
-                page.locator(action).hover()
-                page.mouse.down()
-                # A press may settle before its click activates the control.
-                one_frame(page)
-                page.mouse.up()
-            one_frame(page)
-            settled(page)
+        if route == "keyboard":
+            page.keyboard.press(action)
+        else:
+            page.locator(action).click()
+        settled(page)
         expect(leaf).to_be_focused()
-        after = leaf.bounding_box()
-        ends = sorted(box["x"] + box["width"] / 2 for box in (before, after))
-        centers = []
-        for frame in frames:
-            pixels = Image.open(BytesIO(frame["data"])).convert("RGB")
-            pixels = pixels.crop(
-                (0, viewport["height"] - 70, viewport["width"], viewport["height"])
+        expect(page.locator(".lf-floating-panel")).to_have_attribute(
+            "data-rest", "mark" if action in (".", ".lf-fp-minimize") else "row"
+        )
+        box = leaf.bounding_box()
+        top = page.viewport_size["height"] - 70
+        pixels = (
+            Image.open(BytesIO(page.screenshot()))
+            .convert("RGB")
+            .crop((0, top, page.viewport_size["width"], page.viewport_size["height"]))
+        )
+        box["y"] -= top
+        mark = ink_box(pixels, colours["mark"])
+        assert mark is not None, (route, action)
+        mark_center = ((mark[0] + mark[2]) / 2, (mark[1] + mark[3]) / 2)
+        assert mark_center == pytest.approx(
+            (box["x"] + box["width"] / 2, box["y"] + box["height"] / 2), abs=2
+        ), (route, action, mark, box)
+        if route == "keyboard":
+            ring = ink_box(pixels, colours["ring"])
+            assert ring is not None, action
+            assert ring[0] <= mark[0] < mark[2] <= ring[2], (action, mark, ring)
+            assert ring[1] <= mark[1] < mark[3] <= ring[3], (action, mark, ring)
+            ring_center = ((ring[0] + ring[2]) / 2, (ring[1] + ring[3]) / 2)
+            assert mark_center == pytest.approx(ring_center, abs=2), (
+                action,
+                mark,
+                ring,
             )
-            mark = ink_box(pixels, colours["mark"])
-            assert mark is not None, (route, action)
-            mark_center = ((mark[0] + mark[2]) / 2, (mark[1] + mark[3]) / 2)
-            if route == "keyboard":
-                ring = ink_box(pixels, colours["ring"])
-                assert ring is not None, action
-                ring_center = ((ring[0] + ring[2]) / 2, (ring[1] + ring[3]) / 2)
-                assert mark_center == pytest.approx(ring_center, abs=2), (
-                    action,
-                    mark,
-                    ring,
-                )
-            centers.append(mark_center[0])
-        intermediate = {
-            center for center in centers if ends[0] + 2 < center < ends[1] - 2
-        }
-        assert intermediate, (route, action, ends, centers)
 
 
 def test_a_new_line_past_the_field_s_height_scrolls_into_view(browser, serve):
@@ -3533,6 +3530,21 @@ def test_versions_travel_opens_in_the_panel(browser, serve):
     keys = row.locator(".lf-binding-sequence")
     expect(keys.locator("kbd.lf-key-badge")).to_have_text(["g", "V"])
     expect(keys).to_have_attribute("aria-label", "g then V")
+    # Versions has an arrow after its shortcut; direct actions do not. Both
+    # shortcuts end in one column, with copy icons and arrows in the next one.
+    ends = page.locator(".lf-fp-menu .lf-binding-sequence:visible").evaluate_all(
+        "nodes => nodes.map(node => node.getBoundingClientRect().right)"
+    )
+    assert len(ends) >= 2
+    assert max(ends) - min(ends) <= 0.5, ends
+    icons = page.locator(
+        ".lf-fp-end > :is(.lf-fp-chevron, .lf-fp-copy-icon):visible"
+    ).evaluate_all(
+        "nodes => nodes.map(node => {const box = node.getBoundingClientRect(); "
+        "return box.x + box.width / 2;})"
+    )
+    assert len(icons) >= 2
+    assert max(icons) - min(icons) <= 0.5, icons
     row.click()
     expect(view).to_be_visible()
     page.keyboard.press("Escape")

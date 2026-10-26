@@ -1,5 +1,6 @@
 import { carriedFrom, deepFocus, focusDestination, focused, inputCount, nextRender, onCurrentLocation, renderedParent, renderedUnder, ringBox } from "./bundle-dom-move.js";
-import { clippingAxes, iconElement, landingBand, nearestScrollBy, notice, offer, placeBox, placeHolder, raiseError, seenRect, shownWindow, visibleBand } from "./bundle-errors.js";
+import { clippingAxes, landingBand, nearestScrollBy, placeBox, placeHolder, seenRect, shownWindow, visibleBand } from "./bundle-geometry.js";
+import { iconElement, notice, offer, raiseError } from "./bundle-errors.js";
 import { pageScroller, reachable, scrollersOf, startScroll } from "./bundle-reading-regions.js";
 import { localScrollBy, scrollAxes } from "./bundle-element-frame.js";
 

@@ -1027,7 +1027,7 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         "hooks/codex.json",
         "hooks/scripts/background-watch.py",
         "skills/leaf/SKILL.md",
-        "skills/leaf/references/authoring-obligations.md",
+        "skills/leaf/references/authoring-on-me.md",
         "skills/leaf/references/authoring-evidence.md",
         "skills/leaf/references/authoring-revisions.md",
         "skills/leaf/references/codex-watcher.md",

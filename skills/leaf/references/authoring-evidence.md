@@ -110,7 +110,7 @@ vary along named axes, such as the moment in an interaction, the case, the windo
 or the colour scheme, put them in a `<table>` with one linked capture per cell, a
 `<th scope="col">` naming each column's value and a `<th scope="row">` naming each
 row's, so each axis is labelled once. Put captures of each option's outcome inside that
-option instead (`authoring-obligations.md`). Place captures the
+option instead (`authoring-on-me.md`). Place captures the
 reader compares side by side or one above the other, so whatever moved shows as a
 misalignment.
 

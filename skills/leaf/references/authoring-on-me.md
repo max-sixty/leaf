@@ -1,19 +1,18 @@
-# Obligations
+# On me
 
-An obligation is what waits on the user, and every one goes on their list, On me. A
-widget records a structured answer; a thread message with `--obligation` requests an
-answer in words. Recommending an answer doesn't make the decision; the user does.
-`conversation-loop.md`, "The On lists", covers everything the user is asked for,
-including questions in the conversation and actions outside the page. This file covers
-the ones the user answers, the questions and choices you put to them.
+On me is the user's list of everything waiting on them. This file covers the questions
+and choices you put there for the user to answer. A widget records a structured answer;
+a thread message with `--obligation` asks for an answer in words. Recommending an answer
+doesn't make the decision; the user does. `conversation-loop.md`, "The On lists", covers
+the rest of the list, such as to-dos you give the user, and the agent's own list.
 
-## What an obligation holds
+## What a question holds
 
-The user should be able to decide as well as you could from what the question tells
-them. Say why the choice arises, what each option leads to in a case the user can
-picture, and what each costs, including the one you recommend, so they could reach
-your recommendation or turn it down for reasons the question gives. Where you can't
-yet say what an option does, find out before you ask.
+Make each question self-contained, so the user can decide from it alone, without
+recalling the conversation or reading your notes. Say why the choice arises, what each
+option leads to in a case the user can picture, and what each costs, including the one
+you recommend, so they could reach your recommendation or turn it down for reasons the
+question gives. Where you can't yet say what an option does, find out before you ask.
 
 Each option is a result the user can pick, so its title says what choosing it does to
 the subject, keeping today's behavior included: “Generate shared types” and “Keep
@@ -49,12 +48,13 @@ How to build an alternative waits for the user's pick.
 
 Let the user answer in the form the answer takes: a widget wherever it is a choice or
 an edit, and a thread message with `--obligation` for a conversational answer. An
-`lf-ask` holding no widget can also put an open question directly on the page.
-Each widget puts one obligation on On me and records its answer. A choice can hold a
+`lf-ask` with no other widget inside is itself a question on the page, which the user
+answers in words by commenting on it.
+Each widget that asks puts one question on On me and records its answer. A choice can hold a
 partial answer before the user presses Done, and an empty selection can be a complete
 answer.
 
-Write obligations the user can answer independently in page order. If a later one depends
+Write questions the user can answer independently in page order. If a later one depends
 on an earlier answer, pose it in the next turn rather than writing every branch.
 
 When the user decides several proposals independently, give each its own options to
@@ -62,9 +62,9 @@ accept or reject it, beside that proposal's case. One choice can accept a batch
 of clear-cut proposals if it says why each is clear-cut. Use `multiple` only when the
 picks depend on each other, such as a limit on how many.
 
-On me lists only what still needs the user. Retire an obligation on the document
+On me lists only what still needs the user. Retire a question on the document
 once it stops mattering, by removing its widget in a new version or marking it
-`restated` (`authoring-revisions.md`). For a conversational obligation, use
+`restated` (`authoring-revisions.md`). For a question asked in a thread message, use
 `leaf task end` as "The On lists" describes. A request the user made stays open until you
 answer it or they withdraw it; deciding something else, however related, doesn't
 answer it. To retire one yourself, say what changed to make it unnecessary. A to-do you
@@ -72,8 +72,8 @@ put on the user is work for them to do, such as trying a build, not a question.
 
 ## On the page
 
-Make each obligation on the document answerable where On me takes the user, without
-reading earlier content. Pressing `m` brings that obligation to the top of the window,
+Make each question on the document answerable where On me takes the user, without
+reading earlier content. Pressing `m` brings that question to the top of the window,
 leaving preceding prose out of view. So the question opens with a heading that asks
 its question, and holds its explanation, its evidence, the current state and the
 answering control, inside the answering widget or an enclosing `lf-ask`. Build that

@@ -50,7 +50,7 @@ more than the presence of a particular widget.
 Both Leaf document authors retired the user's Wednesday capacity request to Mei
 Tanaka's team after recording Redis as the store choice. Whether that assessment
 still matters for the unselected alternative is ambiguous; retiring it is not itself
-proof of an error. The decisions reference (`authoring-obligations.md`) now requires explicit accounting:
+proof of an error. The On me reference (`authoring-on-me.md`) now requires explicit accounting:
 keep an unanswered request open or explain why changed circumstances make it
 unnecessary. An independent decision does not silently answer or retire it.
 

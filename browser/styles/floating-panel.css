@@ -1549,8 +1549,10 @@
     overflow: hidden;
   }
   /* A line of answers is a button's height even where it holds only words, so the Undo
-     a reading brings an answer later moves nothing beside it. */
+     a reading brings an answer later moves nothing beside it. Its minimum sizes the
+     content, leaving any card spacing outside the line a button fills. */
   .lf-fp-answers {
+    box-sizing: content-box;
     display: flex;
     flex-wrap: wrap;
     align-items: center;

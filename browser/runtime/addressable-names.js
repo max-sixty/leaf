@@ -7,7 +7,7 @@
 import { isElementName } from "./registry-contract.js";
 import { registry } from "./registry.js";
 import { authoredScope, elementReading } from "./passages.js";
-import { TEXT_BLOCK } from "./passage-facts.js";
+import { TEXT_BLOCK } from "./kernel-facts.js";
 import { uiInside, upFrom } from "./shadow.js";
 import { excerptWords } from "./words.js";
 

@@ -1611,7 +1611,7 @@ _TEXT = {
         lambda v: "a module import must name a relative or absolute local URL"
     ),
     "module-type": _captured(
-        lambda v: "a module dependency must have JavaScript MIME type"
+        lambda v: "a module dependency must be JavaScript or JSON"
     ),
     "module-outside-page": _captured(
         lambda v: "module imports may use /page/ or a public layer entry point"

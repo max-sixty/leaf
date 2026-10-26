@@ -38,6 +38,7 @@ directory; the remaining states still run. Only complete pairs enter the
 comparison. Arm construction, browser setup failures, and interrupts end the command.
 """
 
+import re
 import tempfile
 import traceback
 from collections.abc import Callable
@@ -457,6 +458,21 @@ def seat_held_news(page: Page) -> None:
     thread = page.locator("#goal-parser .lf-page-thread")
     thread.scroll_into_view_if_needed()
     held_news(page, thread)
+
+
+def on_me(page: Page) -> None:
+    """On me, opened from the floating panel's On me mark."""
+    page.locator(".lf-fp-on-user").click()
+    expect(page.locator(".lf-fp-view[data-view=queue]")).to_be_visible()
+
+
+def on_agent(page: Page) -> None:
+    """The On view turned to the agent's tab."""
+    on_me(page)
+    page.locator(".lf-fp-filters button").filter(
+        has_text=re.compile(r"^\s*On (?!me)")
+    ).first.click()
+    expect(page.locator(".lf-fp-view[data-view=queue]")).to_be_visible()
 
 
 def call_tree(page: Page) -> None:
@@ -2298,6 +2314,11 @@ STATES = (
         viewport=(390, 500),
         touch=True,
     ),
+    State("on-me", "corpus", on_me),
+    State("on-me-dark", "corpus", on_me, scheme="dark"),
+    State("on-agent", "corpus", on_agent),
+    State("hub-on-me", "command-hub", on_me),
+    State("hub-on-agent", "command-hub", on_agent),
     State("hub", "command-hub", at_rest),
     State("hub-workers", "command-hub", hub_workers),
     State("sort", "rust-sort", at_rest),

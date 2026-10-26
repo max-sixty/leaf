@@ -557,49 +557,51 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     scrollbar-width: thin;
     scrollbar-color: color-mix(in srgb, var(--ink) 12%, var(--paper)) transparent;
     scroll-padding-block: var(--focus-ring-room);
-    /* Room past its edges for what is drawn beyond a box: a focus ring, which a
-       rewrite reaching the reply box's edges draws outside itself as the reply box
-       does, and an open progress group's border. It is taken from the card's inset,
-       so the words keep their width and place and nothing scrolls sideways. */
-    --lf-transcript-room: max(var(--focus-ring-room), var(--lf-group-ring-end));
+    /* The room above the heads is where their slot starts (`--lf-top-start`,
+       theme.css), held open by a row before the first message, not padding: Firefox
+       (155 and 158, 2026-10-25) sticks a box in a subgrid scroller at the scroller's
+       edge, ignoring its padding, which stood the stuck head that room above the
+       actions' line. */
+    --lf-top-start: var(--lf-transcript-room);
+    --lf-top: var(--lf-top-start);
     padding-inline: calc(var(--lf-thread-text-inset) + var(--lf-transcript-room))
       var(--lf-transcript-room);
-    padding-block-start: var(--lf-transcript-room);
     padding-block-end: var(--lf-transcript-room);
     margin-inline: calc(-1 * var(--lf-transcript-room));
     margin-block-start: calc(-1 * var(--lf-transcript-room));
     margin-block-end: calc(-1 * var(--lf-transcript-room));
   }
-  /* The field stands at the card's inset; words stand one inset inside it. */
+  .lf-margin-thread .lf-thread-transcript::before {
+    content: "";
+    grid-column: 1 / -1;
+    block-size: var(--lf-transcript-room);
+  }
+  /* The field stands at the card's inset; words stand one inset inside it. The
+     transcript keeps room past its edges for what is drawn beyond a box: a focus ring,
+     which a rewrite reaching the reply box's edges draws outside itself as the reply
+     box does, and an open progress group's border. It is taken from the card's inset,
+     so the words keep their width and place and nothing scrolls sideways. Once
+     anything is scrolled away, what stands on the heads' line covers the room above
+     it, the stuck head and the actions each over its own track
+     (`--lf-thread-room-cover`, thread-preview.js); at the top a ring still has it. */
   .lf-margin-thread .lf-page-thread {
+    --lf-transcript-room: max(var(--focus-ring-room), var(--lf-group-ring-end));
     padding: 0;
     background: var(--paper);
   }
   .lf-margin-thread .lf-page-thread::after {
     /* Share the transcript's grid track without reserving reading space. The
-       author stays crisp while words fade into its moving lower edge, and the
-       transcript's ring room above the stuck author stays paper once anything is
-       scrolled away (thread-preview.js, `paintContinuation`). Between the two the
-       author paints its own ground, and nothing paints over it, since a message
-       riding a send (box-motion.js) stacks its author under this layer. */
-    --lf-thread-fade-cover: calc(
-      var(--lf-thread-fade-band, 0px) + var(--lf-thread-fade-top, 0px)
-    );
+       author stays crisp while words fade into its moving lower edge. */
     content: "";
     position: absolute;
-    inset: calc(-1 * var(--lf-thread-fade-band, 0px)) 0 auto;
+    inset: var(--lf-thread-fade-top, 0px) 0 auto;
     grid-column: 1 / -1;
     grid-row: 2;
     align-self: start;
-    height: calc(var(--lf-thread-fade-cover) + var(--lf-thread-fade-height, 0px));
+    height: var(--lf-thread-fade-height, 0px);
     border-radius: 0;
     outline: none;
-    background: linear-gradient(
-      var(--paper) var(--lf-thread-fade-band, 0px),
-      transparent var(--lf-thread-fade-band, 0px) var(--lf-thread-fade-cover),
-      var(--paper) var(--lf-thread-fade-cover),
-      transparent
-    );
+    background: linear-gradient(var(--paper), transparent);
     pointer-events: none;
     /* Keep the action strip above the fade without putting its ground above
        a focused message control's ring. */
@@ -652,17 +654,18 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
      Every head uses the shared message row's height and alignment, so the actions
      neither change the opening message's gap nor cover the next line. A head occupies
      the shared track before the actions; bodies span both without adding to the
-     card's width. A head covers only its own message, so
-     the words under it take its height as their `--lf-top` and `scroll-margin`
-     (theme.css, at `--lf-top`): a reveal lands them below it and the runtime's reading
-     counts what it covers as hidden, while a whole message lands flush with its own
-     head. The card draws no reactions, so a head keeps a control's room only where it
-     draws one, the user's Edit; an agent's keeps none for a trigger under a finger. */
+     card's width. A head sticks at the slot (`--lf-top`) and covers only its own
+     message, so the words under it take the slot past its height as their `--lf-top`,
+     and its height as their `scroll-margin` below the landing band (theme.css, at
+     `--lf-top`): a reveal lands them below it and the runtime's reading counts what it
+     covers as hidden, while a whole message lands flush with its own head. The card
+     draws no reactions, so a head keeps a control's room only where it draws one, the
+     user's Edit; an agent's keeps none for a trigger under a finger. */
   .lf-margin-thread .lf-thread-transcript .lf-msg-body {
-    --lf-top: var(--lf-msg-head-height);
+    --lf-top: calc(var(--lf-transcript-room) + var(--lf-msg-head-height));
   }
   .lf-margin-thread .lf-thread-transcript .lf-msg-body * {
-    scroll-margin-top: calc(var(--lf-top) + var(--focus-ring-landing));
+    scroll-margin-top: calc(var(--lf-msg-head-height) + var(--focus-ring-landing));
   }
   /* A head row narrower than its words, as when the actions row holds a notice of
      news (thread-card.js), gives up room in one order: first the annotations after the
@@ -716,6 +719,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     align-items: center;
     gap: 4px;
     min-height: var(--lf-msg-head-height);
+    /* Its ground reaches up over the room above the line without moving the line. */
+    margin-block-start: calc(-1 * var(--lf-thread-room-cover, 0px));
+    padding-block-start: var(--lf-thread-room-cover, 0px);
     padding-inline-start: var(--sp-2);
     background: var(--paper);
   }
@@ -728,9 +734,14 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   .lf-margin-thread .lf-thread-transcript .lf-msg-head {
     position: sticky;
     --lf-head-inset: 0px;
-    inset-block-start: 0;
+    inset-block-start: var(--lf-top);
     z-index: 1;
     background-color: var(--lf-msg-ground);
+    /* Paper over the room above it: a shadow, since the head clips what it holds and
+       anchors its control at its middle, and one that paints beneath the head's own
+       controls and their rings. Paper rather than the message's ground, which an
+       arriving message tints. */
+    box-shadow: 0 calc(-1 * var(--lf-thread-room-cover, 0px)) var(--paper);
   }
   .lf-margin-thread
     .lf-thread-transcript
@@ -793,6 +804,16 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     }
   }
   @media (forced-colors: active) {
+    /* Forced colours drop shadows, so the head keeps its cover by opting out of them
+       for its own ground and shadow, in the system's colour; what it holds keeps them. */
+    .lf-margin-thread .lf-thread-transcript .lf-msg-head {
+      forced-color-adjust: none;
+      background-color: Canvas;
+      box-shadow: 0 calc(-1 * var(--lf-thread-room-cover, 0px)) Canvas;
+    }
+    .lf-margin-thread .lf-thread-transcript .lf-msg-head > * {
+      forced-color-adjust: auto;
+    }
     .lf-margin-preview-fill {
       background: Canvas;
     }

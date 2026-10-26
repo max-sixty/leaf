@@ -29,7 +29,7 @@
    the turn the user was reading, even when it is not the latest one. A thread opened
    for reading, on a card or in the panel's view, shows its first unread turn, else
    its latest (`showReturnTurn`). */
-import { seenRect, stuckBox, userScrollport } from "../geometry.js";
+import { seenRect, slotTop, stuckBox, userScrollport } from "../geometry.js";
 import { focused } from "../focus.js";
 import { scrollBehavior } from "../motion.js";
 import { whenDocumentPresented } from "../semantic-state.js";
@@ -125,13 +125,13 @@ export function showReturnTurn(transcript, thread) {
   const start = thread?.msgs.find((message) => message.id === unread)?.key;
   const turn = returnTurn(transcript, start ?? null);
   if (!turn) return;
-  // Measured from the box's content edge, below the focus-ring room its padding keeps
-  // over the heads: a turn landed in that room would start where read tracking sees
-  // nothing of it (geometry.js, `seenRect`), and never read.
+  // Measured from where the heads stick, below the focus-ring room the box keeps over
+  // them: a turn landed in that room would start where read tracking sees nothing of it
+  // (geometry.js, `seenRect`), and never read.
   const over =
     scroller.getBoundingClientRect().top +
     scroller.clientTop +
-    parseFloat(getComputedStyle(scroller).paddingTop) -
+    slotTop(scroller) -
     turn.getBoundingClientRect().top;
   // A turn only a little taller than its room still shows its head at the end.
   // Keep its trailing reference and metadata there; align to the head only when

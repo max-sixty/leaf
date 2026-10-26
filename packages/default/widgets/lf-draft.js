@@ -35,10 +35,14 @@
  * drawing drafts in a sent message's face, which the editor already wore, since drafts
  * would lose their document type, chosen by the user on 2026-10-23.
  *
- * The editor reads as an ordinary text box: its words stand in the field until Save
- * or Discard, and the field's own undo walks them back. Save submits one absolute edit
- * through the shared send generation; Discard and Escape close the editor, throwing away
- * its changes, as a message rewrite's do. Pointer Discard returns the frame
+ * The editor reads as an ordinary text box: its words stand in the field until Save,
+ * Discard or a press away from the draft, and the field's own undo walks them back.
+ * Save submits one absolute edit through the shared send generation, and a press away
+ * saves as Save does (focus.js, `onPressAway`), so a tap elsewhere on a phone keeps what
+ * was typed without finding the check mark first. Discard and Escape close the editor,
+ * throwing away its changes, as a message rewrite's do. Rejected: saving at each pause
+ * in the typing, as a form does, since every save is an edit delivered to the agent,
+ * which would read half-written words. Pointer Discard returns the frame
  * over a short native size interpolation; its words and Edit focus return at once.
  * Keyboard discarding and reduced motion are instant; reopening cancels the effect.
  * A saved edit is withdrawn with the page's undo (`z`), and the log keeps every version for the agent. Rejected: Escape setting
@@ -51,9 +55,11 @@
  * tab's open editor shows the same words. An active editor defers authoritative
  * projection until it closes. Another tab's settlement closes its matching editor
  * without taking focus from an unrelated place. A refused save reopens the retained
- * source with Retry. Print keeps the saved reading and omits controls.
+ * source with Retry, and takes the focus only from this draft or from nowhere. Print keeps the saved reading and omits controls.
  */
 import {
+  addressableLabel,
+  addressableWord,
   commandScope,
   motion,
   returnDuration,
@@ -86,6 +92,7 @@ import {
   retainUserIntent,
   scrollIntoView,
   focused,
+  onPressAway,
   PRESSABLE,
 } from "/runtime/widget-api.js";
 
@@ -133,6 +140,7 @@ customElements.define(
     #recovered = false;
     #returnMotion = null;
     #cancelSize = null;
+    #stopPressAway = null;
 
     setup() {
       this.#body = this.querySelector(":scope > .lf-markdown-body");
@@ -203,6 +211,8 @@ customElements.define(
           this.#resumeProjection = this.controller.defer();
         return () => {
           this.#returnMotion?.cancel();
+          this.#stopPressAway?.();
+          this.#stopPressAway = null;
           stopDraft?.();
           this.#resumeProjection?.();
           this.#resumeProjection = null;
@@ -346,13 +356,19 @@ customElements.define(
       return Boolean(this.controller.read().actions.edit?.available);
     }
 
+    // The draft as the rest of the chrome names it, never by its id.
+    #named() {
+      const label = addressableLabel(this);
+      return label ? `“${label}”` : `the ${addressableWord(this)}`;
+    }
+
     #dispatch(text, attempt) {
       return this.controller.dispatch({
         kind: "action",
         verb: "edit",
         detail: { value: text },
         ...(attempt && { attempt }),
-        says: `Edited “${this.id}”`,
+        says: `Edited ${this.#named()}`,
       });
     }
 
@@ -373,7 +389,7 @@ customElements.define(
       // same unsent edit.
       const effective = this.controller.read().state.edit.value;
       editor.value = seed ?? loadEdit(this.id) ?? effective;
-      editor.setAttribute("aria-label", `Edit ${this.id}`);
+      editor.setAttribute("aria-label", `Edit ${this.#named()}`);
       editor.addEventListener("input", () => {
         saveEdit(this.id, editor.value);
         if (this.#failed) {
@@ -387,6 +403,11 @@ customElements.define(
       this.#editor = editor;
       commands(editor, this.#commandScope);
       this.#body.after(editor);
+      // Its toolbar stands inside the draft, so Discard and Copy are no press away.
+      this.#stopPressAway = onPressAway(
+        (path) => !path.includes(this),
+        () => void this.#commit(),
+      );
       this.#paintTools();
       // A pointer is already on visible words. Opening their editor preserves that
       // place before handing the clicked caret across; the Edit control instead reveals
@@ -415,6 +436,8 @@ customElements.define(
           returnDuration(),
         );
       if (discard) clearEdit(this.id);
+      this.#stopPressAway?.();
+      this.#stopPressAway = null;
       // Only where the user was in it. A close this tab's own gesture made
       // has focus in the box that is going, and the draft's one persistent control is
       // where it lands so a keyboard user isn't dropped back at the page top; a close
@@ -472,7 +495,14 @@ customElements.define(
         // with the stale pre-send snapshot.
         if (stored !== null) {
           this.#failed = true;
-          this.#open(stored);
+          // A press away may have taken the user on to another place, such as the
+          // next draft's editor, which keeps the focus.
+          const here = focused(document);
+          this.#open(
+            stored,
+            undefined,
+            !here || here === document.body || this.contains(here),
+          );
         }
       }
     }

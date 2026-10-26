@@ -2,7 +2,7 @@ import { SVG_NS, boxMotion, dropStand, liftReach, paintGeometry, paintShape, pai
 import { Z, bareReaction, html, render, sameAnchor, turns } from "./bundle-browser-runtime.js";
 import { TEXT_FIELD, afterScript, cancelAnimation, cancelRender, closeLayer, currentLocationIn, declareRelease, drawn, focusDestination, focused, handBack, holdFocus, inputCount, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, nativeLayerHolding, nextAnimation, nextRender, onCurrentLocation, onPressAway, onUserInput, pressLed, renderedOrder, renderedUnder, roomPx, rove, sizeObserver, tabStops, under } from "./bundle-dom-move.js";
 import { setRuntimeRootAttribute } from "./bundle-layer-client.js";
-import { LAYOUT, PRESS, clamp, closeControl, coarsePointer, cycledRow, el, generatedElement, hostIn, iconElement, keys, notice, offer, paintKeys, repaint, rightCover, rowArrows, seenRect, shownBox, shownWindow, skipped, union, watchRoom } from "./bundle-errors.js";
+import { LAYOUT, PRESS, clamp, closeControl, coarsePointer, cycledRow, el, generatedElement, hostIn, iconElement, keys, notice, offer, paintKeys, repaint, rightCover, rowArrows, seenRect, shownBox, shownWindow, skipped, slotTop, union, watchRoom } from "./bundle-errors.js";
 import { whenDocumentPresented } from "./bundle-context.js";
 import { atScrollEnd, effectiveScroller, moveScrollerBy, readingRegionFor, registerReadingRegion, scrollToEnd } from "./bundle-reading-regions.js";
 import { chromeForeground, chromeRoot } from "./bundle-chrome.js";
@@ -359,7 +359,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 			paintContinuation: (above) => {
 				let edge = 0;
 				let height = above ? 12 : 0;
-				const room = parseFloat(getComputedStyle(transcript).paddingTop);
+				const room = slotTop(transcript);
 				if (above) {
 					const top = transcript.getBoundingClientRect().top + transcript.clientTop + room;
 					for (const head of transcript.querySelectorAll(".lf-msg-head")) {
@@ -375,7 +375,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 				const card = transcript.parentElement;
 				card.style.setProperty("--lf-thread-fade-top", layoutPx(edge));
 				card.style.setProperty("--lf-thread-fade-height", layoutPx(height));
-				card.style.setProperty("--lf-thread-fade-band", layoutPx(above ? room : 0));
+				card.style.setProperty("--lf-thread-room-cover", layoutPx(above ? room : 0));
 			}
 		});
 	}

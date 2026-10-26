@@ -880,6 +880,8 @@ export class ThreadView {
       {
         onChange: replyChanged,
         editLast: this.#rewrites.editLast,
+        // A margin card moves with the send it presents (thread-preview.js).
+        sending: () => this.#marginControls?.sending?.(),
       },
     );
   }

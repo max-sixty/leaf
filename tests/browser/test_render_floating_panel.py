@@ -274,6 +274,55 @@ def test_a_send_moves_the_panel_s_view_as_one_stream(browser, serve):
     assert max(replied) - min(replied) < 1, f"the stream came apart: {replied}"
 
 
+def test_a_send_into_a_full_thread_view_starts_where_the_view_stood(browser, serve):
+    """A two-line reply sent into a thread whose view is at its cap empties the field,
+    which lowers the box's top, while the view scrolls to the new turn. At the motion's
+    first frame the thread's name and every turn stand where they stood: the turns ride
+    inside the view while the view itself is carried with the box's top, and neither
+    carry counts the other's distance."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Is the window long enough?")
+    for turn in range(8):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent" if turn % 2 == 0 else "user",
+                **({"agent": "Claude"} if turn % 2 == 0 else {}),
+                "parent": root,
+                "revision": 1,
+                "text": f"Turn {turn}. "
+                + "Forty-eight hours covers the first cohort. " * 6,
+            },
+        )
+    page = floating(browser, url)
+    page.emulate_media(reduced_motion="no-preference")
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    view = page.locator(panel_view("thread"))
+    expect(view).to_be_visible()
+    assert view.evaluate("box => box.scrollHeight > box.clientHeight + 100")
+    write(field(page), "And the mobile cohort too.\nAnd the weekend shift.")
+    settled(page)
+    read = """() => [document.querySelector('.lf-fp-title'),
+        ...document.querySelectorAll('.lf-fp-view[data-view=thread] .lf-msg')]
+        .map(node => node.getBoundingClientRect().top)"""
+    stood = page.evaluate(read)
+    page.evaluate("() => {" + HOLD_MOTION + "}")
+    with sending(page, "the reply"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    page.wait_for_function(
+        "n => document.querySelectorAll('.lf-fp-view[data-view=thread] .lf-msg').length"
+        " === n",
+        arg=len(stood),
+    )
+    rendered(page)
+    drawn = page.evaluate(read)
+    page.evaluate("() => window.__lfHeld.splice(0).forEach(motion => motion.finish())")
+    settled(page)
+    assert drawn[: len(stood)] == pytest.approx(stood, abs=1), (stood, drawn)
+
+
 def test_c_in_an_open_thread_returns_to_its_reply(browser, serve):
     """Located anywhere in the thread open in the panel, `c` comments on that thread:
     from the view an Escape left the user on, and from a message in it, the caret

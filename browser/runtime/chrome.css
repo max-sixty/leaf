@@ -21,8 +21,6 @@
     --lf-fp-view-height: calc(100dvh - var(--lf-foot-room) - 160px);
   }
   .lf-floating-panel {
-    --lf-motion-panel-ease: cubic-bezier(0.23, 1, 0.32, 1);
-    --lf-motion-panel-resize: 300ms;
     --lf-motion-panel-fold-ease: cubic-bezier(0.77, 0, 0.175, 1);
     --lf-motion-panel-fold: 280ms;
     --lf-motion-view-in: 90ms;
@@ -1385,7 +1383,7 @@
       opacity: 0;
       translate: 0 6px;
     }
-    transition: opacity var(--lf-motion-disclosure) linear, translate var(--lf-motion-menu-slide) var(--lf-motion-panel-ease);
+    transition: opacity var(--lf-motion-disclosure) linear, translate var(--lf-motion-menu-slide) var(--lf-motion-box-ease);
   }
   .lf-fp-menu[data-level=versions] {
     width: min(360px, calc(100vw - 32px));
@@ -1648,6 +1646,10 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
 }
 @scope (.lf-chrome) {
+  :is(.lf-floating-panel, .lf-margin-preview) {
+    --lf-motion-box-ease: cubic-bezier(0.23, 1, 0.32, 1);
+    --lf-motion-box-resize: 300ms;
+  }
   .lf-foreground {
     position: absolute;
     inset: 0 auto auto 0;

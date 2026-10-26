@@ -700,7 +700,7 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 	for (const type of [
 		"keydown",
 		"pointerdown",
-		"beforeinput"
+		"lf-before-edit"
 	]) root.addEventListener(type, noteFieldScrolls, {
 		capture: true,
 		passive: true
@@ -858,6 +858,7 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 			top: from + (to - from) * progress
 		});
 		streams = /* @__PURE__ */ new Map();
+		const moved = motions;
 		motions = /* @__PURE__ */ new Map();
 		rests = next;
 		const scrolledFrom = fieldScrolls;
@@ -953,11 +954,14 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 				cutFrom(part.element, cut(), radiusOf(part.style));
 				return;
 			}
+			const gaveUp = part.element.scrollHeight <= part.element.clientHeight && !emptied ? scrolledFrom.get(part.element) ?? 0 : 0;
+			const left = (moved.get(part.element)?.gaveUp ?? 0) * (1 - progress);
+			dy -= gaveUp + left;
 			motions.set(part.element, {
 				from,
-				to
+				to,
+				gaveUp: gaveUp + left
 			});
-			if (part.element.scrollHeight <= part.element.clientHeight && !emptied) dy -= scrolledFrom.get(part.element) ?? 0;
 			const reach = Math.max(0, rtl ? dx : -dx, -dy);
 			if (reach > 0) hold(part.element, "overflow", "visible");
 			start(part.element, [{

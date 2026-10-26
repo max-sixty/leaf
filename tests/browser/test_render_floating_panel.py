@@ -4972,6 +4972,17 @@ def test_lines_removed_below_the_field_s_cap_leave_the_rest_in_place(browser, se
     assert field(page).evaluate("box => box.scrollHeight <= box.clientHeight")
     page.evaluate(SEEK_MOTION, 0)
     assert field(page).evaluate(where, shown) == pytest.approx(stood, abs=1)
+    # Another line deleted midway carries on from where the lines are drawn.
+    page.evaluate(SEEK_MOTION, 60)
+    midway = field(page).evaluate(where, shown)
+    page.keyboard.press("Shift+ArrowUp")
+    page.keyboard.press("Backspace")
+    page.wait_for_function(
+        "() => document.querySelector('.lf-fp-ground').getAnimations()"
+        ".some(motion => motion.playState === 'running')"
+    )
+    page.evaluate(SEEK_MOTION, 0)
+    assert field(page).evaluate(where, shown) == pytest.approx(midway, abs=1)
     page.evaluate("() => document.getAnimations().forEach(motion => motion.play())")
     settled(page)
     assert field(page).evaluate(where, shown) > stood + 20

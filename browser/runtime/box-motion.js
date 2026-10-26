@@ -232,13 +232,14 @@ export function boxMotion({
   let streams = new Map();
   let stopStreaming = new AbortController();
   // How far each editor had scrolled its words before the change being read: taken at
-  // each reading, and again as each gesture begins, ahead of what it changes, since a
-  // field scrolls as it is typed in without changing size.
+  // each reading, again as each press or key begins, and as the field opens an edit
+  // (`lf-before-edit`, composing/text-field.js), since a field scrolls as it is typed
+  // in without changing size, and paste or dictation edit it with no key.
   let fieldScrolls = new Map();
   const noteFieldScrolls = () => {
     for (const field of fieldScrolls.keys()) fieldScrolls.set(field, field.scrollTop);
   };
-  for (const type of ["keydown", "pointerdown", "beforeinput"])
+  for (const type of ["keydown", "pointerdown", "lf-before-edit"])
     root.addEventListener(type, noteFieldScrolls, { capture: true, passive: true });
   function rebase() {
     const at = boxOf(root.getBoundingClientRect());
@@ -458,6 +459,7 @@ export function boxMotion({
       for (const [scroller, { child, from, to }] of streams)
         streamed.set(scroller, { child, top: from + (to - from) * progress });
     streams = new Map();
+    const moved = motions;
     motions = new Map();
     rests = next;
     const scrolledFrom = fieldScrolls;
@@ -598,12 +600,15 @@ export function boxMotion({
         cutFrom(part.element, cut(), radiusOf(part.style));
         return;
       }
-      motions.set(part.element, { from, to });
       // A field the change lets stop scrolling, as deleting lines below its cap does,
       // moves its words by the scroll it gave up as well as by its edge, and the cut
-      // keeps what that scroll hid out of sight until the outline reaches it.
+      // keeps what that scroll hid out of sight until the outline reaches it. Its box
+      // follows the edge, so a change mid-tween carries on what is left of that scroll.
       const fits = part.element.scrollHeight <= part.element.clientHeight;
-      if (fits && !emptied) dy -= scrolledFrom.get(part.element) ?? 0;
+      const gaveUp = fits && !emptied ? (scrolledFrom.get(part.element) ?? 0) : 0;
+      const left = (moved.get(part.element)?.gaveUp ?? 0) * (1 - progress);
+      dy -= gaveUp + left;
+      motions.set(part.element, { from, to, gaveUp: gaveUp + left });
       const reach = Math.max(0, rtl ? dx : -dx, -dy);
       if (reach > 0) hold(part.element, "overflow", "visible");
       start(part.element, [

@@ -715,7 +715,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     expect(page.locator("#question")).to_be_focused()
     page.keyboard.press("Tab")
     expect(
-        page.get_by_role("button", name="Apply operation", exact=True)
+        page.locator("#probe").get_by_role("button", name="Apply operation", exact=True)
     ).to_be_focused()
     page.keyboard.press("x")
     expect(result).to_have_text("Applied 3")
@@ -787,7 +787,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     expect(result).to_have_text("Applied 1")
     page.keyboard.press("Tab")
     expect(
-        page.get_by_role("button", name="Apply operation", exact=True)
+        page.locator("#probe").get_by_role("button", name="Apply operation", exact=True)
     ).to_be_focused()
     page.keyboard.press("F8")
     expect(result).to_have_text("Applied 2")

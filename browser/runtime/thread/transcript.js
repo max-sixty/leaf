@@ -37,14 +37,14 @@
      interpolation, it goes in the same frame. */
 import { setChildren } from "../dom-children.js";
 import { focusDestination, focused } from "../focus.js";
-import { html, render, nothing } from "/vendor/browser-runtime.js";
+import { html, render, nothing } from "/runtime/framework.js";
 import { MessageView } from "./messages.js";
 import { keeps, keepsHidden } from "../keeps.js";
 import { renderMarkdown } from "../markdown.js";
 import { summaryRanges, withPendingProgress, workingPlace } from "./summary-ranges.js";
 import { growthAfterIsSeen, growthIsSeen, seenRect } from "../geometry.js";
 import { scrollThreadIntoView } from "./reply-landing.js";
-import { foldBlock } from "../motion.js";
+import { foldBlock, motionPlays } from "../motion.js";
 
 // The names a reader finds a drawn message by (messages.js), which a folding one gives up.
 const MESSAGE_NAMES = ["data-message", "data-event", "data-attempt"];
@@ -159,9 +159,12 @@ export class Transcript {
     return this.#messages.get(key)?.node ?? null;
   }
 
-  // The folds of messages leaving, while they play (`#folding`).
-  get folds() {
-    return [...this.#folding.values()].flatMap(({ played }) => played ?? []);
+  // The drawn messages `model` no longer holds, which leave as it is presented.
+  leaving(model) {
+    const wanted = new Set(model.messages.map(({ key }) => key));
+    return [...this.#messages].flatMap(([key, { node }]) =>
+      wanted.has(key) || !node.isConnected ? [] : [node],
+    );
   }
 
   // The checkpoint a summary stands in.
@@ -258,6 +261,7 @@ export class Transcript {
       if (wanted.has(key)) continue;
       const { node } = view;
       if (
+        motionPlays() &&
         !this.#folding.has(key) &&
         node.parentNode === this.node &&
         node.checkVisibility()

@@ -76,7 +76,6 @@
  * panels stack as labeled sections; authored content is never replaced, so
  * there is no failSoft. */
 import {
-  afterScript,
   agentName,
   PRESS,
   obligationsIn,
@@ -105,13 +104,12 @@ import {
   preserveReadingRegions,
   pushEntry,
   registerReadingRegion,
-  removeRuntimeRootStyle,
+  registerRootHeader,
   replaceEntry,
   restorePlace,
   scrollBehavior,
   scrollIntoReadingBand,
   selectableOffered,
-  setRuntimeRootStyle,
   sizeObserver,
   tabStore,
   focusDestination,
@@ -130,18 +128,6 @@ import {
   repeat,
   ref,
 } from "/runtime/widget-api.js";
-
-// The sets whose strip stands over the whole document as its sticky header
-// (`#declareHeader`): the page tabs' row, or a page's parts listed in a row over the
-// open part.
-const covering = new Set();
-const paintRootHeader = () => {
-  const root = document.documentElement;
-  if ([...covering].some((set) => set.isConnected))
-    setRuntimeRootStyle(root, "--lf-root-headers", "var(--lf-tabstrip-h)");
-  else removeRuntimeRootStyle(root, "--lf-root-headers");
-};
-const syncRootHeader = () => afterScript(paintRootHeader);
 
 const PLACE_KEY = "lf-tabs-place:";
 const substantiveChildren = (owner) =>
@@ -170,7 +156,7 @@ export class TabSet extends LeafElement {
   #root = false;
   #contextObserver = null;
   #strip = null;
-  #covering = false;
+  #stopHeader = null;
   #side = false;
   #pageFlow = false;
   #revealMotion = null;
@@ -335,9 +321,8 @@ export class TabSet extends LeafElement {
         stripSize.disconnect();
         this.#contextObserver?.disconnect();
         this.#contextObserver = null;
-        this.#covering = false;
-        covering.delete(this);
-        syncRootHeader();
+        this.#stopHeader?.();
+        this.#stopHeader = null;
       };
     });
   }
@@ -628,8 +613,8 @@ export class TabSet extends LeafElement {
   }
 
   // A page-flow strip sticks at the window's top over the whole document, so it is a
-  // sticky header of the root: its stated height (`--lf-tabstrip-h`, theme.css) joins
-  // the root's `scroll-padding` as `--lf-root-headers`, and every landing arrives
+  // sticky header of the root: its border-box height joins the root landing inset
+  // through registerRootHeader, and every landing arrives
   // below it. What the strip stands over inside its panels stacks through `--lf-top`
   // (the package theme). A set that stops being the page's strip withdraws it only
   // where no other set has become that strip. A page's list of parts is that header
@@ -639,11 +624,9 @@ export class TabSet extends LeafElement {
   #declareHeader() {
     const over = !this.#parts || Boolean(this.#active.value && this.#listOver());
     const header = this.#pageFlow && over && Boolean(this.#strip?.isConnected);
-    if (header === this.#covering) return;
-    this.#covering = header;
-    if (header) covering.add(this);
-    else covering.delete(this);
-    syncRootHeader();
+    if (header === Boolean(this.#stopHeader)) return;
+    this.#stopHeader?.();
+    this.#stopHeader = header ? registerRootHeader(this.#strip) : null;
   }
 
   // Whether a page's list of parts stands over the open part rather than beside it.

@@ -160,7 +160,7 @@ import {
   render,
   repeat,
   signal,
-} from "/vendor/browser-runtime.js";
+} from "/runtime/framework.js";
 import { el, reveal } from "./widget-elements.js";
 import { iconElement, iconTemplate } from "./icons.js";
 import { copyControl } from "./copy-control.js";
@@ -178,13 +178,19 @@ import { readThreads } from "./thread/state.js";
 import { isNews, threadCounts } from "./thread/model.js";
 import { LeafElement } from "./leaf-element.js";
 import { afterScript } from "./rendering.js";
+import { claimReleaseClick } from "./pointer.js";
 import {
   threadAttention,
   todoLabel,
   workflowLabel,
   workflowStep,
 } from "./thread/workflow.js";
-import { messageReading, threadHeading, threadName } from "./thread/messages.js";
+import {
+  messageReading,
+  messageText,
+  threadHeading,
+  threadName,
+} from "./thread/messages.js";
 import { drawnThreadId, THREAD } from "./thread/selectors.js";
 import { declareThreadParts } from "./thread/focus.js";
 import { quoteReading, threadTodos } from "./thread/thread-card.js";
@@ -869,7 +875,9 @@ export function createFloatingPanel({
   // comment takes it. The comment opens as the press completes, since the press is
   // still one away from whatever comment box stands open on the page, which goes as it
   // completes (composing/surface.js, `standDown`). WebKit does not deliver a click
-  // after this cancelled touch pointerdown, so the release owns the handoff. A Tab
+  // after this cancelled touch pointerdown, so the release owns the handoff, and claims
+  // the click other engines deliver after it, which would land on the comment box the
+  // release opened under the pointer, as on its Other responses. A Tab
   // through the row, or the runtime putting the caret there, writes on the page.
   let pressedWords = null;
   const quotedWords = () =>
@@ -892,7 +900,9 @@ export function createFloatingPanel({
   field.addEventListener("pointerup", (event) => {
     const words = pressedWords;
     pressedWords = null;
-    if (words && event.composedPath().includes(general?.input)) words.comment();
+    if (!words || !event.composedPath().includes(general?.input)) return;
+    claimReleaseClick();
+    words.comment();
   });
   field.addEventListener("pointercancel", () => {
     pressedWords = null;
@@ -2198,8 +2208,8 @@ export function createFloatingPanel({
   // Done, each row saying New and Draft where they hold. The user chose this on 25
   // October, with Threads becoming the On view's tab, over Open, Unread, Drafts and
   // Resolved filters, which a second row of tabs would have had to hold. A search reads
-  // every thread's name, its messages and the words it is about, as its head quotes them
-  // (`quoteReading`), and lists the matches as one list.
+  // every thread's name, its messages and summaries as they read, and the words it is
+  // about, as its head quotes them (`quoteReading`), and lists matches as one list.
   function shownThreads() {
     const words = query.trim().toLowerCase();
     const shown = words
@@ -2207,7 +2217,8 @@ export function createFloatingPanel({
           [
             threadName(thread),
             quoteReading(thread, { placedAt })?.label ?? "",
-            ...thread.msgs.map((m) => m.text ?? ""),
+            ...thread.msgs.map(messageText),
+            ...thread.summaries.map(messageText),
           ]
             .join(" ")
             .toLowerCase()

@@ -7,7 +7,8 @@ resending (`workflows.handed_over`). Each source owns completion: conversational
 requests take a reply, tasks take explicit Done, widgets take their declared answer.
 A browser view serves these lists and `page state` prints them, so their counts and
 membership agree. The browser places its own unresolved sends against the served
-lists (`browser/framework/application.ts`, `localQueues`); it never selects them again.
+lists (`browser/runtime/framework/application.js`, `localQueues`); it never selects
+them again.
 
 On me holds records whose next actor is the user. On <agent> holds the open update
 records the agent owes, then the agent's to-dos. A widget's obligation becomes the

@@ -1287,8 +1287,10 @@
   --ok: light-dark(#3f7d4e, #7fb98c);
   --warn: light-dark(#b4741a, #d8a95c);
   --danger: light-dark(#b4402f, #d98b7a);
-  --pin-fill: light-dark(var(--accent), #4d74a8);
+  --pin-fill: light-dark(#2f5480, #4d74a8);
+  --pin-ink: #fff;
   --pin-on-user: light-dark(#2f7d45, #2d8047);
+  --pin-on-user-ink: #fff;
   --r-s: 3px;
   --r: 6px;
   --r-l: 12px;
@@ -1320,7 +1322,8 @@
   --col-pad: 24px;
   --page-pad-start: 72px;
   --page-pad-end: 96px;
-  --pane-bar-pad: 10px 14px;
+  --pane-bar-pad-block: 10px;
+  --pane-bar-pad: var(--pane-bar-pad-block) 14px;
   --pane-inset: 14px;
   --wide: calc(109 * 0.61 * var(--code-size) + 10px);
   --wide-page-max: 1600px;
@@ -1331,15 +1334,15 @@
   --figure-margin-block: 22px;
   --callout-margin-block: 18px;
   --hr-margin-block: 40px;
-  --t-6: 11.5px;
-  --t-working-label: 13px;
-  --t-5: 14px;
-  --t-4: 17px;
-  --t-3: 20px;
-  --t-2: 24px;
-  --t-1: 31px;
-  --code-size: 13.5px;
-  --code-line: 20px;
+  --t-6: 0.71875rem;
+  --t-working-label: 0.8125rem;
+  --t-5: 0.875rem;
+  --t-4: 1.0625rem;
+  --t-3: 1.25rem;
+  --t-2: 1.5rem;
+  --t-1: 1.9375rem;
+  --code-size: 0.84375rem;
+  --code-line: 1.25rem;
   --msg-font: max(var(--entry-floor), var(--t-5)) / 1.5 var(--sans);
   --code-inline-size: 82%;
   --code-inline-pad: 1px 5px;
@@ -1746,21 +1749,22 @@ p {
 .density-working {
   --lf-density: working;
   --page-pad-start: 28px;
-  --t-1: 22px;
-  --t-2: 18px;
-  --t-3: 15.5px;
-  --t-4: 14px;
-  --t-5: 12.5px;
-  --t-6: 10.5px;
-  --t-working-label: 12px;
+  --t-1: 1.375rem;
+  --t-2: 1.125rem;
+  --t-3: 0.96875rem;
+  --t-4: 0.875rem;
+  --t-5: 0.78125rem;
+  --t-6: 0.65625rem;
+  --t-working-label: 0.75rem;
   --sp-1: 3px;
   --sp-2: 6px;
   --sp-3: 10px;
   --sp-4: 14px;
   --sp-5: 18px;
-  --code-size: 13px;
-  --code-line: 18px;
-  --pane-bar-pad: 6px 12px;
+  --code-size: 0.8125rem;
+  --code-line: 1.125rem;
+  --pane-bar-pad-block: 6px;
+  --pane-bar-pad: var(--pane-bar-pad-block) 12px;
   --pane-inset: 12px;
   --h2-start: 18px;
   --h3-start: 12px;
@@ -1816,6 +1820,9 @@ details {
   padding-block: 8px;
   margin: var(--details-margin-block) 0;
   --lf-block-frame: trim;
+}
+details::details-content {
+  grid-column: 1 / -1;
 }
 summary {
   cursor: pointer;
@@ -2394,9 +2401,18 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
 }
 :where([data-lf-reading-role=pane]) > :not(header, footer) {
   --lf-pane-top: var(--pane-inset);
-  padding: var(--lf-pane-top) var(--pane-inset) var(--pane-inset);
+  padding: var(--lf-pane-top) var(--pane-inset) calc(var(--pane-inset) + var(--lf-end-room));
   container-type: inline-size;
   --lf-block-frame: 1;
+}
+:where([data-lf-reading-role=pane]):not(:has(> footer)) > :not(header, footer) {
+  --lf-end-room: inherit;
+}
+@container not style(--lf-end-room: 0px) {
+  :where([data-lf-reading-role=pane]) > footer {
+    --lf-end-room: inherit;
+    padding-block-end: calc(var(--pane-bar-pad-block) + var(--lf-end-room));
+  }
 }
 .lf-motion-preview {
   box-sizing: border-box;

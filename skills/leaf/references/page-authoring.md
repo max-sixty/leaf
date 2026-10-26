@@ -124,8 +124,8 @@ fills the window from the title's left edge; a dashboard whose detail the reader
 read on down uses `layout-sidebar` with its regions side by side. Let the working
 surface lead, with supporting reading below it or in later parts.
 
-Leaf's panel takes its own room at the window's foot, and comment markers go in the
-margin or over their targets, so leave room for neither. The reader hides markers with
+Leaf reserves space for its panel at the bottom of the window. Comment markers appear
+in the margin or over their targets. Page CSS needs no extra spacing for either. The reader hides markers with
 `o`, or the leaf's menu → Annotations → Hide annotations, to read what's under one.
 Use page CSS for the task's arrangement or visualization, or a design the user
 requests. Let the content supply the hierarchy; give a card surface a grouping or
@@ -162,8 +162,8 @@ within that treatment. Reserve page CSS for task-specific arrangement, visualiza
 or a particular design the user requests. An added card surface should express a
 grouping or interaction the task needs; wrapping already styled elements just for
 polish adds visual weight without meaning. A box page CSS makes opaque, such as a
-sticky bar, paints `background: var(--lf-ground)`: the surface it stands on, which a
-card or a playground's preview sets for what it holds.
+sticky bar, uses `background: var(--lf-ground)` to match its containing surface.
+Cards and playground previews set this property for their contents.
 
 When page CSS reveals controls while a container is hovered or focused, include
 `:has([data-lf-control-active])` in the condition if it contains a code block.

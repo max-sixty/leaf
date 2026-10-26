@@ -35,8 +35,8 @@ where they differ. The idiom's classes use theme tokens, so the drawing follows 
 and dark schemes; an SVG file added with `leaf page media` can't. Use the
 `<figcaption>` for what the drawing can't show.
 
-Use `lf-chart` for quantities, not Mermaid's charts. A few numbers the sentence can
-carry belong in prose.
+Use `lf-chart` for quantities, not Mermaid's charts. Keep a few numbers in prose
+when a sentence explains them clearly.
 
 Use `lf-timeline` for an order of events between actors that you describe, such as a
 race between two jobs, rather than drawing one in `svg.drawing`: it places every label
@@ -100,17 +100,17 @@ Run `leaf page media <page> <file>…`, naming each file as its own argument as 
 such as `shots/*.png` does, and use each printed `/media/…` `path` for images, video
 and audio; never inline media bytes. To let the reader zoom into an image, link it
 to its own media URL: `<a href="/media/…"><img src="/media/…" alt="…"></a>`.
-The theme edges every image with a hairline ring and a slight lift, so a capture
-whose edge is the page's colour still shows where it ends. For an image meant to sit
-on the page without one, such as a badge or a transparent logo, give it
+The theme gives every image a thin outline and shadow, so its boundary remains visible
+when the image and page have the same background colour. To remove that treatment,
+for example from a badge or transparent logo, give the image
 `box-shadow: none; border-radius: 0` in the page's CSS.
 
 Keep each capture in its own image file; never join captures into one. Where captures
 vary along named axes, such as the moment in an interaction, the case, the window width
 or the colour scheme, put them in a `<table>` with one linked capture per cell, a
 `<th scope="col">` naming each column's value and a `<th scope="row">` naming each
-row's, so each axis is labelled once. Captures that show what each option of a decision
-gives stand in their options instead (`authoring-decisions.md`). Place captures the
+row's, so each axis is labelled once. Put captures of decision outcomes inside their corresponding options instead
+(`authoring-decisions.md`). Place captures the
 reader compares side by side or one above the other, so whatever moved shows as a
 misalignment.
 
@@ -144,7 +144,7 @@ Every pair starts in **Slider**, followed by **Pair** and **Pixels** in the shar
 header. Before and After label the header, or each frame when stacked. Pair keeps
 the captures at the same scale; clicking either image opens its original. Fit places them beside one another or stacks
 them, whichever draws them larger, so short wide captures stack and tall narrow ones sit
-side by side; stacked frames fit together on screen, or in a bounded comparison's room. At 100%, both panes stay visible and scrolling either image moves
+side by side; stacked frames fit together within the screen or the comparison's height limit. At 100%, both panes stay visible and scrolling either image moves
 the other to the same location. This scale uses CSS pixels when capture metadata
 supplies the pixel ratio, or bitmap pixels otherwise. The **…** menu offers Fit,
 100%, the Changed pixels color key and, for a pair with focus metadata, Full frame to inspect

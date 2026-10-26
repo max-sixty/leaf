@@ -937,7 +937,10 @@ def test_align_current_item_from_the_menu_on_touch_reserves_z(browser, serve):
     control = panel_control(page, ALIGN_ROW, at="navigate")
     expect(control).to_be_enabled()
     press_visible(page, control, touch=True)
-    _expect_aligned(page, "#align-ask")
+    # Returning focus from the menu can align before the current-location paint
+    # supplies its scroll margin, just as activation from the command reference does.
+    # Both landings must clear the pinned band.
+    _expect_aligned(page, "#align-ask", exact_margin=False)
     page.locator("#align-heading").focus()
     page.keyboard.press("g")
     expect(page.locator(CHIPS).first).to_be_visible()

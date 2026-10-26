@@ -4,7 +4,7 @@ import { CARET_KEYS, MODIFIER_KEYS, PRESSES, TEXT_BOX, TEXT_FIELD, WORKS, afterS
 import { PAGE_PAINT_ATTRIBUTE, pagePresented, pageUpgraded, reportPageError, setRuntimeRootStyle, uploadMedia } from "./runtime/bundle-layer-client.js";
 import { annotationSheets, chromeSheet, clamp, clippedContents, closeNativeLayer, decisionFor, declareOccluder, declareWindowChrome, dismissPopoversOutside, hostIn, inUi, intersect, landingBand, layoutWindow, marksSheet, nativeLayers, nativeModalAdmits, overlaps, overlapsAcross, presented, registry, scrollGlides, scrolling, seenRect, showNativeLayer, shownBox, shownParts, shownRect, stackLevel, startsAt, tagsDeclaring, underOccluder, union, watchScrollEnds, watchScrolls, whileConnected, windowChromeBoxes } from "./runtime/bundle-geometry.js";
 import { LitElement, PRESENTATION_DOM, SHARE_ROOT, WEBSITE_DELIVERY, agentName, annotationMode, applicationPresenter, applicationState, bareReaction, carriesObligation, documentChanged, html, isNews, itemNoun, itemOutcome, keyed, live, noChange, nothing, offlineInteractive, readPart, ref, render, repeat, runtime, runtimeResource, sameAnchor, shareUrl, threadCounts, threadKey, threadNames, whenApplicationPresented } from "./runtime/bundle-context.js";
-import { EVERYTHING, LAYOUT, LINK, PRESS, PRESSABLE, advertisesKeys, allBindings, announce, bindingEnabled, bindings, buttonCommand, claimReleaseClick, claimsEsc, clampedRow, closeControl, coarsePointer, commandDeclarationsWithin, commandPresentations, commandRoutes, commandScope, commandsWithin, contextBindings, contextScopes, cycledRow, decisionControls, declaredBindings, descriptionOf, dismissError, dismissErrors, dragHeld, el, errorsReading, holdingError, iconElement, iconTemplate, keys, labelOf, live as live$1, liveEl, merge, mountRepaint, notice, noticeReading, offer, offered, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, pointerAt, pressIsKeyboardActivation, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, reflectFirstScopes, reflectKeys, repaint, repaintPage, reveal, routedCommand, rowArrows, savedReadingSettled, saying, scopeRefs, scopesAt, scopesFor, searchField, seeErrors, setNoticeContext, setQuickShortcuts, spell, spokenBinding, submitBindings, submitLabel, titleOf, watchCommandAvailability, word } from "./runtime/bundle-errors.js";
+import { EVERYTHING, LAYOUT, LINK, PRESS, PRESSABLE, advertisesKeys, allBindings, announce, bindingEnabled, bindings, buttonCommand, claimReleaseClick, claimsEsc, clampedRow, closeControl, coarsePointer, commandDeclarationsWithin, commandPresentations, commandRoutes, commandScope, commandsWithin, contextBindings, contextScopes, cycledRow, decisionControls, declaredBindings, descriptionOf, dismissError, dismissErrors, dragHeld, el, errorsReading, holdingError, iconElement, iconTemplate, keys, labelOf, live as live$1, liveEl, merge, mountRepaint, notice, noticeReading, offer, offered, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, pointerAt, pressIsKeyboardActivation, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, reflectFirstScopes, reflectKeys, repaint, repaintPage, reveal, routedCommand, rowArrows, savedReadingSettled, saying, scopeRefs, scopesAt, scopesFor, searchField, seeErrors, setNoticeContext, setQuickShortcuts, spell, spokenBinding, submitBindings, titleOf, watchCommandAvailability, word } from "./runtime/bundle-errors.js";
 import { JUST_NOW, PRESENTATION, UPGRADE, afterPresentation, ago, atScrollEnd, effectiveScroller, markPagePresented, markPageUpgraded, moveScrollerBy, pageReadiness, pageScroller, reachScrollers, readingRegionFor, registerReadingRegion, scrollChainOf, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, settlePageInterface, shortAgo, userReadingRegion, whenArrived } from "./runtime/bundle-reading-regions.js";
 import { activeCommandLabel, availableCommandRoutes, dispatchKey, executeCommand, innermostStance, invokePress, keyReady, onSampleNotice, registerSampleCommand, sampleNotice, userIn } from "./runtime/bundle-dispatch.js";
 import { acceptData, claimTraversals, commandSteps, createAnchorTravel, createVersionController, initializeServedDocument, keepPageRulesOffLayer, mountHistory, notifyDataSubscribers, paintCoreControls, readPlace, replaceEntry, returnPlace, versionPicker, versionsReading } from "./runtime/bundle-data.js";
@@ -336,6 +336,9 @@ function createCompositionInputs({ uploadMedia, inputHint }) {
 		const field = document.createElement("div");
 		field.className = "lf-compose-field";
 		ta.before(field);
+		const oneLine = ta.getAttribute("aria-multiline") === "false";
+		const sendBindings = () => oneLine ? ["Enter", "Mod+Enter"] : submitBindings();
+		const sendKey = () => spell(sendBindings()[0]);
 		const visibleHint = document.createElement("span");
 		visibleHint.className = "lf-compose-placeholder";
 		visibleHint.slot = "placeholder";
@@ -477,7 +480,7 @@ function createCompositionInputs({ uploadMedia, inputHint }) {
 		const paint = (contextualHint) => {
 			const currentLocation = focused() === ta;
 			const advertising = advertisesKeys();
-			const sendKeys = advertising ? submitLabel() : "";
+			const sendKeys = advertising ? sendKey() : "";
 			const suffix = !advertising ? "" : currentLocation ? sendKeys : contextualHint?.box === ta ? contextualHint.label : "";
 			const status = dictationStatus();
 			const word = status || label();
@@ -513,7 +516,7 @@ function createCompositionInputs({ uploadMedia, inputHint }) {
 			keepsHidden(cover, !error);
 			const action = sendLabel();
 			keeps(sendBtn, "aria-label", action);
-			const newline = sendKeys === spell("Enter") ? ` · ${spell("Shift+Enter")} new line` : "";
+			const newline = sendKeys === spell("Enter") && !oneLine ? ` · ${spell("Shift+Enter")} new line` : "";
 			keeps(sendBtn, "title", sendKeys ? `${action} (${sendKeys})${newline}` : action);
 			keeps(sendBtn, "aria-disabled", !canSend());
 			if (altBtn) keeps(altBtn, "aria-disabled", !canSend());
@@ -717,13 +720,13 @@ function createCompositionInputs({ uploadMedia, inputHint }) {
 		}, { capture: true });
 		keys(ta, "In a text box", [{
 			id: "text.send",
-			keys: submitBindings,
-			label: submitLabel,
+			keys: sendBindings,
+			label: sendKey,
 			title: sends,
 			run: () => pressed(send)
 		}, ...rows]);
 		ta.addEventListener("lf-edit-return", (event) => {
-			if (submitBindings().includes("Enter")) event.preventDefault();
+			if (sendBindings().includes("Enter")) event.preventDefault();
 		});
 		let composing = false;
 		ta.addEventListener("compositionstart", () => composing = true);
@@ -6435,17 +6438,23 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
               >
                 Reply
               </button>` : nothing}`;
-		} else if (choices?.length) answers = html`${choices.map((choice) => html`<button
-            type="button"
-            class="lf-fp-face lf-fp-answer"
-            aria-pressed=${String(choice.chosen)}
-            @click=${() => {
-			choice.press();
-			paint();
-		}}
-          >
-            ${capital(choice.label)}
-          </button>`)}`;
+		} else if (choices?.length) answers = html`${choices.map((choice) => {
+			const told = Boolean(choice.description || choice.recommended);
+			return html`<button
+          type="button"
+          class="lf-fp-face lf-fp-answer"
+          ?data-told=${told}
+          aria-pressed=${String(choice.chosen)}
+          @click=${() => {
+				choice.press();
+				paint();
+			}}
+        >
+          ${told ? html`<span class="lf-fp-choice-name">${capital(choice.label)}</span>${choice.recommended ? html` <span class="lf-fp-choice-tag">recommended</span>` : nothing}${choice.description ? html`<span class="lf-fp-choice-says"
+                          >${choice.description}</span
+                        >` : nothing}` : capital(choice.label)}
+        </button>`;
+		})}`;
 		else if (item.offers?.done) answers = html`<button
         type="button"
         class="lf-fp-face lf-fp-answer"
@@ -7932,9 +7941,11 @@ function createObligationView({ prepareNavigationStep, arrive, openPageThread, f
 	function choicesOf(item) {
 		const source = sourceNode(item);
 		if (!source) return null;
-		return actionsFor(source, sourceOwner(item)).map(({ id, label, control }) => Object.freeze({
+		return actionsFor(source, sourceOwner(item)).map(({ id, label, description, recommended, control }) => Object.freeze({
 			id,
 			label,
+			description,
+			recommended,
 			chosen: control.getAttribute("aria-pressed") === "true" || control.getAttribute("aria-checked") === "true" || control.localName === "input" && control.checked,
 			press: () => presentedActionControl(control).click()
 		}));
@@ -8247,7 +8258,7 @@ function createCommandHints({ presentedControl }) {
 			routedControls.add(control);
 		}
 		withdrawRoutes(new Set(routes.map(({ control }) => control)));
-		const visualRoutes = routes.filter(({ bindingBadge }) => bindingBadge !== void 0);
+		const visualRoutes = advertisesKeys() ? routes.filter(({ bindingBadge }) => bindingBadge !== void 0) : [];
 		hasRoutes = visualRoutes.length > 0;
 		if (!visualRoutes.length) {
 			restoreBindingBadges();

@@ -59,7 +59,7 @@ from leaf.shown_answers import shown_widget
 from leaf.todos import todo_error
 from leaf.validation.instances import attribute_slot_errors
 from leaf.work import widget_seat_error
-from leaf.workflows import agent_inputs, obligation_reading
+from leaf.workflows import agent_inputs, attention_reading
 
 
 def event_record_error(contract: dict, event: dict) -> Finding | None:
@@ -838,7 +838,7 @@ def _reanchor_error(view, event: dict, events: list) -> Finding | None:
 
 def settled_attention(event: dict, contract: dict) -> bool | None:
     """The attention an event's kind and author decide alone, or None for the
-    user's input, which needs attention only when it changes what the agent owes.
+    user's input, which needs attention when it changes work or requests it.
 
     A report or an error always wakes the agent; the agent's own events and the
     user's bookkeeping never do.
@@ -897,7 +897,7 @@ def admitted_event(view, events: list, event: dict) -> dict:
         active_registry = view.registry(revisions[-1] if revisions else None)
         before = AdmissionReadings(view, events, active_registry)
         after = AdmissionReadings(view, [*events, candidate], active_registry)
-        attention = obligation_reading(before) != obligation_reading(after)
+        attention = attention_reading(before) != attention_reading(after)
     event = {**event, "attention": attention}
     return event
 

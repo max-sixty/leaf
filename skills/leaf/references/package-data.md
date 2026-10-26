@@ -47,6 +47,11 @@ detail field holding the moved element. A verb with no record declares its own c
 naming what the verb's state is about, by element id or by data key, as a playground's
 submitted settings do.
 
+For an optional command the agent should act on, such as Archive, declare
+`attention: true` on its user verb (`$state.attention` in the registry). Changes to
+that verb's state reach the agent without putting a question on the user's On me list.
+Use `x-awaits` below when the widget instead asks the user for an answer.
+
 Only one widget records each attribute. A member's `value` record can't use the same
 attribute as an `attribute` record on a widget around it; `page check` refuses that in
 the markup, and Leaf refuses a move that would put the member under such a widget.

@@ -199,6 +199,7 @@ VERB_SCHEMA = {
             ]
         },
         "writer": {"const": "agent"},
+        "attention": {"const": True},
         "creates": ACTION_CREATES,
         # The effect owns the payload; `text` adds a required non-empty detail.text.
         "text": {"const": True},

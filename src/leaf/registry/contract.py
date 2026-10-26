@@ -412,7 +412,9 @@ def state_definition(origin: str, entry: dict, spec: dict) -> dict:
     Later declarations may reuse a verb's name with different meaning or types.
     Recorded definitions distinguish those new operations from history, while
     descriptive schema annotations remain free to change. A verb's `text` flag
-    is not recorded: all it changes is the required `text` in `detail`.
+    is not recorded: all it changes is the required `text` in `detail`. Its
+    `attention` declaration changes delivery, not the state operation; admission
+    records that decision separately on the event.
     """
     from copy import deepcopy
 

@@ -15,6 +15,7 @@ from interact_support import (
     declare,
     declare_idle,
     declare_work,
+    record_claim,
     working,
 )
 from leaf_dev.browser import panel_tab
@@ -271,6 +272,55 @@ def test_a_send_moves_the_panel_s_view_as_one_stream(browser, serve):
     replied = offsets(2)
     assert replied[0] > 10, f"the view grew in place: {replied}"
     assert max(replied) - min(replied) < 1, f"the stream came apart: {replied}"
+
+
+def test_a_send_into_a_full_thread_view_starts_where_the_view_stood(browser, serve):
+    """A two-line reply sent into a thread whose view is at its cap empties the field,
+    which lowers the box's top, while the view scrolls to the new turn. At the motion's
+    first frame the thread's name and every turn stand where they stood: the turns ride
+    inside the view while the view itself is carried with the box's top, and neither
+    carry counts the other's distance."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Is the window long enough?")
+    for turn in range(8):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent" if turn % 2 == 0 else "user",
+                **({"agent": "Claude"} if turn % 2 == 0 else {}),
+                "parent": root,
+                "revision": 1,
+                "text": f"Turn {turn}. "
+                + "Forty-eight hours covers the first cohort. " * 6,
+            },
+        )
+    page = floating(browser, url)
+    page.emulate_media(reduced_motion="no-preference")
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    view = page.locator(panel_view("thread"))
+    expect(view).to_be_visible()
+    assert view.evaluate("box => box.scrollHeight > box.clientHeight + 100")
+    write(field(page), "And the mobile cohort too.\nAnd the weekend shift.")
+    settled(page)
+    read = """() => [document.querySelector('.lf-fp-title'),
+        ...document.querySelectorAll('.lf-fp-view[data-view=thread] .lf-msg')]
+        .map(node => node.getBoundingClientRect().top)"""
+    stood = page.evaluate(read)
+    page.evaluate("() => {" + HOLD_MOTION + "}")
+    with sending(page, "the reply"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    page.wait_for_function(
+        "n => document.querySelectorAll('.lf-fp-view[data-view=thread] .lf-msg').length"
+        " === n",
+        arg=len(stood),
+    )
+    rendered(page)
+    drawn = page.evaluate(read)
+    page.evaluate("() => window.__lfHeld.splice(0).forEach(motion => motion.finish())")
+    settled(page)
+    assert drawn[: len(stood)] == pytest.approx(stood, abs=1), (stood, drawn)
 
 
 def test_c_in_an_open_thread_returns_to_its_reply(browser, serve):
@@ -605,9 +655,10 @@ def test_the_on_view_is_titled_by_its_tab_with_that_list_s_done_under_it(
 ):
     """The On view has no name of its own: its title is the open tab's, On me or On
     Claude, which the tabs beside it already show, so the title names the view to
-    assistive tech alone. Under each list stands what left it. A reply the agent sent
-    leaves its list, so it stands under On Claude, said as sent. The On me tab turns
-    the view back to the user's list, and the ✕ in the mark's seat closes it."""
+    assistive tech alone. Under each list stands what left it, under Done. A reply the
+    agent sent leaves its list, so it stands under On Claude's Done, said as sent. The
+    On me tab turns the view back to the user's list, and the ✕ in the mark's seat
+    closes it."""
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, "Is the window long enough?")
     append_carried_log_record(
@@ -634,15 +685,19 @@ def test_the_on_view_is_titled_by_its_tab_with_that_list_s_done_under_it(
     expect(page.locator(".lf-fp-filters button")).to_have_text(
         ["On me 0", "On Claude 0", "Threads 1"]
     )
-    expect(page.locator(".lf-fp-ended")).to_have_count(0)
+    expect(page.locator(".lf-fp-on-group")).to_have_count(0)
     page.locator(".lf-fp-filters button", has_text="On Claude").click()
     expect(title).to_have_text("On Claude")
     expect(page.locator(".lf-fp-empty")).to_have_text("Nothing waiting on Claude.")
-    expect(page.locator(".lf-fp-ended")).to_have_text("Done")
+    expect(page.locator(".lf-fp-on-group")).to_have_text(
+        re.compile(r"^\s*Done\s*1\s*$")
+    )
     sent = page.locator(".lf-fp-on-item")
     expect(sent).to_have_count(1)
     expect(sent).to_contain_text("Forty-eight hours covers the first cohort.")
-    expect(sent.locator(".lf-fp-said")).to_have_text(re.compile(r"^Sent"))
+    expect(sent.locator(".lf-fp-on-says > .lf-fp-value")).to_have_text(
+        re.compile(r"^Sent")
+    )
     # The On me tab turns the open view back to the user's list, and the ✕ closes it.
     panel_tab(page, "On me").click()
     expect(title).to_have_text("On me")
@@ -3315,12 +3370,14 @@ def test_obligations_are_answered_where_they_are_read_on_me(browser, serve):
     expect(view).to_have_count(0)
 
 
-def test_the_plan_has_its_own_tab_and_an_item_says_its_place_in_it(browser, serve):
-    """While the agent has a plan, the On view adds a Plan tab beside the two lists,
-    drawing the goal with its steps in order, and a step waiting on the user is a way
-    to On me. On me keeps every item it lists, and one the plan names says its goal
-    and step after its kind, over its question, counted as the goal counts, without
-    dropped steps, and still says it once answered."""
+def test_on_me_groups_by_the_plan_and_on_claude_heads_with_its_progress(browser, serve):
+    """While the agent's plan gives the user a step, On me groups by it until the user
+    picks another grouping: under each goal the items its steps name, in step order,
+    and those no goal names last; a goal holding one item has no heading, its card
+    saying what the item is and the goal's name. On Claude, which replaced
+    the Plan tab, is headed at its foot by the plan's progress, which discloses the
+    goal and its steps over the list; a step waiting on the user turns the view to On
+    me, and focus with it."""
     url = serve(OBLIGATION_PAGE)
     steps = [
         {"depth": 0, "title": "Ship the migration", "state": "working"},
@@ -3335,38 +3392,128 @@ def test_the_plan_has_its_own_tab_and_an_item_says_its_place_in_it(browser, serv
     assert written.exit_code == 0, written.output
     page = floating(browser, url)
     page.locator(".lf-fp-on-user").click()
-    cards = page.locator(f"{panel_view('queue')} .lf-fp-on-item")
-    expect(cards).to_have_count(2)
-    expect(cards.first.locator(".lf-fp-on-kind")).to_have_text(
-        "Options · Ship the migration · step 2 of 3"
+    view = page.locator(panel_view("queue"))
+    expect(page.get_by_role("combobox", name="Group On me")).to_have_value("plan")
+    # Each goal holds one item, so neither stands under a heading: each card says
+    # its group's name where its place would be.
+    expect(view.locator(".lf-fp-on-group")).to_have_count(0)
+    expect(view.locator(".lf-fp-on-kind")).to_have_text(
+        ["Options · Ship the migration", "Options · Not in the plan"]
     )
-    expect(cards.nth(1).locator(".lf-fp-on-kind")).to_have_text("Options")
-    settled(page)
-    answers = cards.first.locator(".lf-fp-answers").bounding_box()
-    with sending(page, "the answer"):
-        cards.first.locator(".lf-fp-answer", has_text="Shim").click()
-    expect(cards.first.locator(".lf-fp-said")).to_have_text(re.compile("^Answered"))
-    expect(cards.first.locator(".lf-fp-on-kind")).to_have_text(
-        "Options · Ship the migration · step 2 of 3"
-    )
-    assert cards.first.locator(".lf-fp-answers").bounding_box()["y"] == answers["y"]
-    with sending(page, "the undo"):
-        cards.first.get_by_role("button", name="Undo").click()
 
     tabs = page.locator(".lf-fp-filters button")
-    expect(tabs).to_have_text(["On me 2", "On Claude 0", "Threads 0", "Plan"])
-    tabs.nth(3).click()
-    expect(page.locator(".lf-fp-title")).to_have_text("Plan")
+    expect(tabs).to_have_text(["On me 2", "On Claude 0", "Threads 0"])
+    tabs.nth(1).click()
+    expect(page.locator(".lf-fp-title")).to_have_text("On Claude")
+    head = page.locator(".lf-fp-plan-head")
+    expect(head).to_have_text("Plan 1 of 3")
+    expect(page.locator(".lf-fp-plan-goal")).to_have_count(0)
+    head.click()
+    expect(head).to_have_attribute("aria-expanded", "true")
     expect(page.locator(".lf-fp-plan-goal")).to_have_text(
         re.compile(r"Ship the migration\s*1 of 3")
     )
     plan_steps = page.locator(".lf-fp-plan > .lf-fp-plan-steps > .lf-fp-plan-step")
     expect(plan_steps).to_have_count(4)
     expect(plan_steps.nth(0).get_by_role("img")).to_have_accessible_name("Done")
-    # The step waiting on the user turns the view to On me, and focus with it.
     plan_steps.nth(2).locator(".lf-fp-plan-tag").click()
     expect(page.locator(".lf-fp-title")).to_have_text("On me")
     expect(tabs.nth(0)).to_be_focused()
+
+
+def test_only_an_open_thread_says_new_in_threads(browser, serve):
+    """Threads says New, and marks the row with the news dot, only on an open thread
+    the user hasn't read, as the On me mark's dot counts: a resolved thread's unread
+    message, under the Resolved heading, says nothing new."""
+    url = serve(LONG_PAGE)
+    panel_comment(serve.page_dir, "Is the window long enough?", author="agent")
+    closed = panel_comment(serve.page_dir, "Is the room booked?", author="agent")
+    thread_model.cmd_resolve(serve.page_dir, closed)
+    page = floating(browser, url)
+    open_threads(page)
+    view = page.locator(panel_view("threads"))
+    open_row = view.locator(".lf-fp-thread:not([data-resolved])")
+    expect(open_row.locator(".lf-fp-value")).to_contain_text("New")
+    expect(open_row).to_have_attribute("data-unread", "")
+    resolved = view.locator(".lf-fp-thread[data-resolved]")
+    expect(resolved).to_contain_text("Is the room booked?")
+    expect(resolved.locator(".lf-fp-value")).not_to_contain_text("New")
+    expect(resolved).not_to_have_attribute("data-unread", "")
+
+
+def test_on_claude_lists_its_work_in_hand_queued_and_done_or_says_it(browser, serve):
+    """On Claude is the agent's work list: what it has in hand, what is queued behind
+    that, and what it finished, a line each with its stage and how long it has stood
+    there. The chooser at its foot shows the same work as a summary instead, a choice
+    the browser keeps across a reload."""
+    url = serve(LONG_PAGE)
+    page_dir = serve.page_dir
+    record_claim(page_dir)
+
+    def task(*args):
+        done = CliRunner().invoke(cli_model.cli, ["task", *args])
+        assert done.exit_code == 0, done.output
+        return json.loads(done.output.strip().splitlines()[-1])
+
+    drafting = task(
+        "create", str(page_dir), "page", "--title", "Draft the release note"
+    )
+    task("create", str(page_dir), "page", "--title", "Check the rollout")
+    tidied = task("create", str(page_dir), "page", "--title", "Tidy the wording")
+    task("end", str(page_dir), tidied["id"], "done")
+    task(
+        "start",
+        str(page_dir),
+        drafting["id"],
+        "--text",
+        "Drafting the note's first line",
+    )
+    page = floating(browser, url)
+    page.locator(".lf-fp-on-user").click()
+    page.locator(".lf-fp-filters button", has_text="On Claude").click()
+    view = page.locator(panel_view("queue"))
+    expect(view.locator(".lf-fp-on-group")).to_have_text(
+        [
+            re.compile(r"^\s*In hand\s*1\s*$"),
+            re.compile(r"^\s*Queued\s*1\s*$"),
+            re.compile(r"^\s*Done\s*1\s*$"),
+        ]
+    )
+    lines = view.locator(".lf-fp-on-line")
+    expect(lines.locator(".lf-fp-label")).to_have_text(
+        ["Draft the release note", "Check the rollout", "Tidy the wording"]
+    )
+    expect(lines.locator(".lf-fp-on-says > .lf-fp-value")).to_have_text(
+        [
+            re.compile(r"^Working \S+$"),
+            re.compile(r"^To-do open \S+$"),
+            re.compile(r"^Done \S+$"),
+        ]
+    )
+    # A press opens the work in hand, saying what its last step wrote.
+    lines.first.click()
+    expect(view.locator(".lf-fp-answers .lf-fp-said")).to_have_text(
+        "Drafting the note's first line"
+    )
+
+    chooser = page.get_by_role("combobox", name="Show On Claude as")
+    expect(chooser).to_have_value("list")
+    chooser.select_option("summary")
+    summary = view.locator(".lf-fp-work-summary")
+    expect(summary).to_contain_text(
+        "Claude has 1 in hand, and 1 queued. Now: “Drafting the note's first line”."
+    )
+    expect(summary).to_contain_text("Last done: Tidy the wording")
+    expect(view.locator(".lf-fp-on-line")).to_have_count(0)
+
+    page.reload()
+    wait_until_ready(page)
+    page.locator(".lf-fp-on-user").click()
+    page.locator(".lf-fp-filters button", has_text="On Claude").click()
+    expect(page.get_by_role("combobox", name="Show On Claude as")).to_have_value(
+        "summary"
+    )
+    expect(view.locator(".lf-fp-work-summary")).to_be_visible()
 
 
 def test_versions_travel_opens_in_the_panel(browser, serve):

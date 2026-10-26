@@ -1,5 +1,7 @@
 """On me in the floating panel: the cards that name each open and answered obligation, their
-identity and order, and what an answered one says."""
+identity, grouping and order, and what an answered one says."""
+
+import re
 
 import pytest
 from interact_support import append_carried_log_record
@@ -25,7 +27,7 @@ from render_harness import (
 )
 
 from browser.navigation import expect_walk_position
-from leaf.render_checks import wait_until_ready
+from leaf.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -501,6 +503,165 @@ def test_on_me_lists_its_cards_in_the_order_m_walks_them(browser, serve):
     for step in (1, 2, 3):
         page.keyboard.press("m")
         expect(cards.nth((first + step) % 3)).to_have_attribute("data-walked", "")
+
+
+GROUPED_PAGE = leaf_page(
+    "grouped asks",
+    '<h1 id="title">Release</h1>'
+    '<section><h2 id="impl">Implementation</h2>'
+    '<lf-ask id="exit-ask"><h3>Which exit code?</h3>'
+    '<lf-options id="exit" choose><lf-option id="e75">75</lf-option>'
+    '<lf-option id="e124">124</lf-option></lf-options></lf-ask>'
+    '<p id="reap">Reap every process under the sandbox user.</p></section>'
+    '<section><h2 id="rollout">Rollout</h2>'
+    '<lf-ask id="runner-ask"><h3>Include self-hosted runners?</h3>'
+    '<lf-options id="runners" choose><lf-option id="r-yes">Yes</lf-option>'
+    '<lf-option id="r-no">No</lf-option></lf-options></lf-ask></section>',
+)
+
+
+def put_fork_todo(page_dir):
+    """A to-do on the user about the Implementation section's paragraph."""
+    append_carried_log_record(
+        page_dir,
+        {
+            "kind": "todo",
+            "author": "agent",
+            "agent": "Agent",
+            "session": "grouped",
+            "owner": "user",
+            "subject": {"kind": "element", "id": "reap"},
+            "title": "Try the sandboxed run on a fork",
+        },
+    )
+
+
+def test_the_chosen_grouping_orders_on_me_and_the_m_walk_alike(browser, serve):
+    """With no plan, On me groups its cards by the part of the page each item stands
+    in, under its heading, and its cards leave that part unsaid. The chooser at its
+    foot regroups the list by what each item is, the cards then naming their part
+    instead, and the browser keeps the choice across a reload. Either way `m` steps
+    through the items in the order the list shows them, rather than in page order."""
+    url = serve(GROUPED_PAGE)
+    put_fork_todo(serve.page_dir)
+    page = open_page(browser, url)
+    resized(page, 1440, 900)
+    view = open_on_me(page)
+    chooser = page.get_by_role("combobox", name="Group On me")
+    expect(chooser).to_have_value("place")
+    # A group of two has a heading; the card alone in its group says its name.
+    groups = view.locator(".lf-fp-on-group")
+    expect(groups).to_have_text([re.compile(r"^\s*Implementation\s*2\s*$")])
+    cards = view.locator(".lf-fp-on-item")
+    expect(cards.locator(".lf-fp-prompt")).to_have_text(
+        [
+            "Which exit code?",
+            "Try the sandboxed run on a fork",
+            "Include self-hosted runners?",
+        ]
+    )
+    expect(cards.locator(".lf-fp-on-kind")).to_have_text(
+        ["Options", "To-do", "Options · Rollout"]
+    )
+    # Its choices stand on the card, answered with one press.
+    expect(
+        on_card(page, "widget:exit").get_by_role("button", name="75")
+    ).to_be_visible()
+
+    chooser.select_option("kind")
+    expect(groups).to_have_text([re.compile(r"^\s*Options\s*2\s*$")])
+    page.reload()
+    wait_until_ready(page)
+    view = open_on_me(page)
+    expect(page.get_by_role("combobox", name="Group On me")).to_have_value("kind")
+    cards = view.locator(".lf-fp-on-item")
+    expect(cards.locator(".lf-fp-prompt")).to_have_text(
+        [
+            "Which exit code?",
+            "Include self-hosted runners?",
+            "Try the sandboxed run on a fork",
+        ]
+    )
+    expect(cards.locator(".lf-fp-on-kind")).to_have_text(
+        ["Implementation", "Rollout", "To-do · Implementation"]
+    )
+
+    def walked():
+        expect(view.locator(".lf-fp-on-item[data-walked]")).to_have_count(1)
+        return cards.evaluate_all(
+            "cards => cards.findIndex((card) => card.hasAttribute('data-walked'))"
+        )
+
+    page.keyboard.press("m")
+    first = walked()
+    for step in (1, 2, 3):
+        page.keyboard.press("m")
+        expect(cards.nth((first + step) % 3)).to_have_attribute("data-walked", "")
+
+
+TABBED_PAGE = leaf_page(
+    "tabbed asks",
+    '<h1 id="title">Every plan</h1><lf-tabs id="plans">'
+    '<lf-tab id="tab-first" label="First plan">'
+    '<header><h1 id="first-title">Move the runs into one sandbox</h1></header>'
+    '<section><h2 id="first-context">What needs to change</h2>'
+    "<p>The checkout stays fixed.</p></section>"
+    '<section><lf-ask id="first-ask"><h3>Include self-hosted runners?</h3>'
+    '<lf-options id="first-q" choose><lf-option id="first-yes">Yes</lf-option>'
+    '<lf-option id="first-no">No</lf-option></lf-options></lf-ask></section></lf-tab>'
+    '<lf-tab id="tab-second" label="Second plan">'
+    '<lf-ask id="second-ask"><h3>Ship on Tuesday?</h3>'
+    '<lf-options id="second-q" choose><lf-option id="second-yes">Yes</lf-option>'
+    '<lf-option id="second-no">No</lf-option></lf-options></lf-ask></lf-tab>'
+    "</lf-tabs>",
+)
+
+
+def test_on_me_places_an_item_by_its_tab_s_title_or_label(browser, serve):
+    """By place names the part of the page an item stands in from where it stands on:
+    in a tab whose page keeps its title in a header, that title heads its untitled
+    last section too, rather than the title of the page holding the tabs; and in a tab
+    with no heading over the item, selected or not, the tab's own label names it."""
+    page = open_page(browser, serve(TABBED_PAGE))
+    resized(page, 1440, 900)
+    view = open_on_me(page)
+    expect(view.locator(".lf-fp-on-kind")).to_have_text(
+        ["Options · Move the runs into one sandbox", "Options · Second plan"]
+    )
+
+
+def test_an_answer_in_on_me_keeps_its_groups_and_the_m_walk_in_one_order(
+    browser, serve
+):
+    """An item answered in On me keeps its seat, and the groups keep their order, read
+    from everything On me has held rather than from what remains, so the list and the
+    `m` walk, which steps over the answered item, still agree. Grouped by kind, the
+    first question answered leaves Options above To-do, as the walk goes; its group
+    keeps its heading, two cards still under it, and counts what still waits."""
+    url = serve(GROUPED_PAGE)
+    put_fork_todo(serve.page_dir)
+    page = open_page(browser, url)
+    resized(page, 1440, 900)
+    view = open_on_me(page)
+    page.get_by_role("combobox", name="Group On me").select_option("kind")
+    exit_code = on_card(page, "widget:exit")
+    exit_code.get_by_role("button", name="75").click()
+    round_trip(page)
+    expect(exit_code.locator(".lf-fp-said")).to_contain_text("Answered: 75")
+    groups = view.locator(".lf-fp-on-group")
+    expect(groups).to_have_text([re.compile(r"^\s*Options\s*1\s*$")])
+    runners = on_card(page, "widget:runners")
+    # Where the first `m` lands depends on the reading position, so it may take a
+    # second; read the ring only once the press's repaint has landed.
+    for _ in range(2):
+        page.keyboard.press("m")
+        rendered(page)
+        if runners.get_attribute("data-walked") is not None:
+            break
+    expect(runners).to_have_attribute("data-walked", "")
+    expect_walk_position(page, "1 of 2 waiting on me · Options")
+    page.keyboard.press("m")
+    expect_walk_position(page, "2 of 2 waiting on me · To-do")
 
 
 def test_an_item_arriving_above_takes_its_walk_place_and_moves_no_card_read(

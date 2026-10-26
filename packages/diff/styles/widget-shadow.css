@@ -282,8 +282,11 @@
 .lf-diff-file:has(> .lf-diff-file-actions > *) {
   --lf-diff-head-h: var(--lf-diff-head-pressed);
 }
-.lf-diff-file:has(> .lf-diff-file-actions > *) > :is(.lf-diff-fold, .lf-diff-metadata) {
-  margin-top: calc(-1 * (var(--lf-diff-action-h) + var(--lf-diff-action-top)));
+/* On screen the file's head rises beside its bar of presses; paper drops the bar. */
+@media screen {
+  .lf-diff-file:has(> .lf-diff-file-actions > *) > :is(.lf-diff-fold, .lf-diff-metadata) {
+    margin-top: calc(-1 * (var(--lf-diff-action-h) + var(--lf-diff-action-top)));
+  }
 }
 .lf-diff-file-actions {
   position: relative;
@@ -384,7 +387,7 @@
   opacity: 1;
 }
 .lf-diff-filtered {
-  display: none !important;
+  display: none;
 }
 /* The filter field is not listed here. It is a vendored text field, whose Tab stop and
    ringed box are both inside its own shadow root, so a rule on this host would reach
@@ -616,9 +619,6 @@ pre[data-overflow="wrap"] .lf-diff-rows {
   .lf-diff-line-comment::before {
     display: none;
   }
-  .lf-diff-file > :is(.lf-diff-fold, .lf-diff-metadata) {
-    margin-top: 0 !important;
-  }
   :scope:host(.lf-rendered) .lf-diff-file > details > summary {
     padding-right: 10px;
   }
@@ -651,15 +651,11 @@ pre[data-overflow="wrap"] .lf-diff-rows {
     display: inline;
   }
   .lf-diff-filtered {
-    display: block !important;
+    display: block;
   }
   [data-line] {
-    white-space: pre-wrap !important;
-    overflow-wrap: anywhere !important;
-  }
-  code[data-code] {
-    overflow-x: visible !important;
-    container-type: normal;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
   }
   .lf-diff-rows {
     width: 100%;

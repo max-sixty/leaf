@@ -135,7 +135,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     max-width: var(--lf-float-w, calc(100vw - 16px));
   }
   .lf-fab-bar[data-lf-margin-raised] {
-    display: none !important;
+    display: none;
   }
   /* A floating surface anchored in the page's plane (floating.js) shows wherever its
      placement puts it, its anchor scrolled away or not. */
@@ -204,9 +204,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     --lf-shape-stroke: var(--mark-contour-w);
     outline: var(--lf-shape-stroke) solid var(--lf-shape-ink);
     outline-offset: var(--focus-ring-gap);
-    /* This layer is above the target's children. Keep its interior physically unable
-       to paint over them, including under package and page-local theme rules. */
-    background: none !important;
+    /* This layer is above the target's children, so its interior paints nothing over
+       them. */
+    background: none;
   }
   .lf-visual-mark.lf-visual-mark-focus {
     --lf-shape-ink: var(--accent);

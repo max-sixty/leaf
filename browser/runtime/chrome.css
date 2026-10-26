@@ -1619,12 +1619,11 @@ html[data-lf-draw-mode] body {
 html[data-lf-region-capture] main,
 html[data-lf-region-capture] main *,
 html[data-lf-draw-mode] main,
-html[data-lf-draw-mode] main * {
+html[data-lf-draw-mode] main :not([data-lf-runtime], [data-lf-runtime] *) {
   cursor: crosshair !important;
 }
-html[data-lf-draw-mode] main [data-lf-runtime],
-html[data-lf-draw-mode] main [data-lf-runtime] * {
-  cursor: auto !important;
+:where(html[data-lf-draw-mode] main [data-lf-runtime]) {
+  cursor: auto;
 }
 .lf-react-mark {
   text-align: center;
@@ -1750,11 +1749,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     --lf-shape-stroke: var(--target-trace-w);
     --lf-shape-dash: none;
   }
-  .lf-shaped {
-    border: 0 !important;
-    border-radius: 0 !important;
-    background: none !important;
-  }
   .lf-target-trace-shape {
     display: block;
     width: 100%;
@@ -1866,6 +1860,10 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     height: 100%;
     overflow: hidden;
   }
+  .lf-shaped {
+    border: 0;
+    background: none;
+  }
   .lf-drawings {
     pointer-events: none;
   }
@@ -1888,9 +1886,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
   .lf-drawing-mark.lf-drawing-parked path {
     stroke-dasharray: 7 6;
-  }
-  .lf-fab-bar .lf-composer > :not(.lf-compose-field, .lf-composer-media) {
-    display: none !important;
   }
   .lf-live {
     position: fixed;

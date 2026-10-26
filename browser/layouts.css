@@ -263,16 +263,9 @@
       }
     }
   }
-  /* The pane role's grammar (theme.css owns its look): which row each child stands in,
-   * and a body held to the pane's width. Not a page Layout, but it resets what a widget
-   * sets on the box it arranges, so it shares their tier. */
-  [data-lf-reading-role="pane"] {
-    display: grid;
-    grid-template-rows: auto 1fr auto;
-    grid-template-columns: minmax(0, 1fr);
-    min-width: 0;
-    --lf-block-frame: 1;
-  }
+  /* The pane role's grammar (its box: theme.css): which row each child stands in, and
+   * a body held to the pane's width. Not a page Layout, but it resets what a widget
+   * sets on the children it arranges, so it shares their tier. */
   [data-lf-reading-role="pane"] > header {
     grid-row: 1;
     margin: 0;

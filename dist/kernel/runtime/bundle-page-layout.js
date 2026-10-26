@@ -626,7 +626,10 @@ sheet.replaceSync(`
     fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round;
     stroke-linejoin: round; overflow: visible; user-select: none;
     -webkit-user-select: none; }
-  /* Code with no fence lines takes the message's padding at its ends instead. */
+  /* A fence's line, while the caret is away from it, stands for the sent pre's padding,
+     and code with no fence lines takes that padding at its ends instead. A field that
+     edits in place reads its display's padding over this (\`readFaces\`). */
+  .lf-face-fence-open, .lf-face-fence-close { line-height: var(--pre-pad-block); }
   .lf-md-code-bare.lf-md-code-first { padding-block-start: var(--pre-pad-block); }
   .lf-md-code-bare.lf-md-code-last { padding-block-end: calc(var(--pre-pad-block) + 8px); }
 `);

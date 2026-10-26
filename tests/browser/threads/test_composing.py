@@ -135,6 +135,12 @@ def test_a_refused_reply_folds_away_while_its_card_holds_still(browser, serve, s
           node.querySelector('.lf-thread-reply').getBoundingClientRect().bottom,
         ]""")
 
+    # A margin card follows the send with its own motion (box-motion.js), which ends
+    # before the card is read where it stands.
+    page.wait_for_function(
+        "() => !document.querySelector('.lf-margin-preview')?.getAnimations({subtree: true})"
+        ".some(a => Number.isFinite(a.effect?.getComputedTiming().endTime))"
+    )
     before = stands()
     route = held.pop()
     route.fulfill(

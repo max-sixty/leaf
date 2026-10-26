@@ -250,7 +250,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
      it is about, it moves with the words (floating.js), and passes under the floating
      panel the way they do. Its insets are its placement's alone:
      floating.js writes the edges that hold it and clears the others, so an edge the
-     stylesheet set would stretch a card held by its foot. */
+     stylesheet set would stretch a card held by its foot. The card paints nothing
+     itself: its face (`.lf-margin-preview-card`) holds the thread, and its surface
+     (`.lf-margin-preview-ground`) draws its ring, fill and shadow. */
   .lf-margin-preview {
     position: fixed;
     pointer-events: auto;
@@ -262,17 +264,57 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     max-width: var(--lf-thread-width, min(var(--thread-card), calc(100vw - 16px)));
     max-height: var(--lf-thread-max-height, calc(100vh - var(--lf-head-room) - 16px));
     box-sizing: border-box;
-    overflow: hidden;
-    scroll-padding-block: var(--focus-ring-room);
     margin: 0;
-    padding: var(--lf-comment-inset);
-    border: 1px solid var(--border-2);
-    border-radius: var(--r-l);
-    background: var(--paper);
+    padding: 0;
+    border: 0;
     color: var(--ink);
-    box-shadow: var(--raise-3);
     display: flex;
     flex-direction: column;
+  }
+  /* The face fills the card. Its border is the surface's ring, which shows through it,
+     and its own paper, the fill's colour at rest, makes the card read as painted to a
+     contrast checker, which reads no clipped layer; while the card moves its motion
+     lets the surface's fill show instead (box-motion.js). */
+  .lf-margin-preview-card {
+    box-sizing: border-box;
+    min-height: 0;
+    /* It only clips, so nothing scrolls it, and its motion letting what it carries
+       stand past its edge changes no scroll container (box-motion.js). */
+    overflow: clip;
+    padding: var(--lf-comment-inset);
+    border: 1px solid transparent;
+    border-radius: var(--r-l);
+    background: var(--paper) padding-box;
+    display: flex;
+    flex-direction: column;
+  }
+  /* The surface: a layer behind the face reaching far past the card on every side, so
+     the outline it is cut to can travel anywhere the card can go, with one soft shadow
+     cast at the height of what stands over the page for a task of its own. The card's
+     motion cuts it to the outline grown by that shadow's reach, its ring to the outline
+     and its fill a pixel inside, and, while the card moves, a ring a part of it wears,
+     the reply field's focus ring, in that ring's colour (runtime/box-motion.js). Until
+     then each is cut to nothing. */
+  .lf-margin-preview-ground {
+    position: absolute;
+    inset: -100vmax;
+    z-index: -1;
+    pointer-events: none;
+    filter: drop-shadow(var(--raise-3));
+  }
+  .lf-margin-preview-ground,
+  .lf-margin-preview-ground > * {
+    clip-path: inset(50%);
+  }
+  .lf-margin-preview-ground > * {
+    position: absolute;
+    inset: 0;
+  }
+  .lf-margin-preview-ring {
+    background: var(--border-2);
+  }
+  .lf-margin-preview-fill {
+    background: var(--paper);
   }
   /* Open before its first placement lands (thread-preview.js, `placeThreadPreview`),
      the card has no spot yet, so it is not seen or pressed where it happens to lie. */
@@ -297,8 +339,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
      nothing outside it is free. It used to ring and tint the thread 13px inside the
      card's own border, a frame in a frame with the reply field a third box inside
      that. The reply field keeps its box, since that is the thing typed into. The ring is
-     still the thread's focus; the card only carries it. */
-  .lf-margin-preview:has(.lf-page-thread[data-lf-focus-visible]) {
+     still the thread's focus; the card's face only carries it, and its surface while the
+     card moves. */
+  .lf-margin-preview-card:has(.lf-page-thread[data-lf-focus-visible]) {
     outline: var(--focus-ring);
     outline-offset: calc(-1 * var(--focus-ring-w));
   }
@@ -389,13 +432,15 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   .lf-margin-preview > .lf-surface-grip {
     z-index: 1;
   }
-  :is(
-    .lf-margin-preview:is(:has(> .lf-surface-grip:hover), [data-lf-carried]),
-    .lf-fab-bar:is(:has(> .lf-surface-grip:hover), [data-lf-carried])
-      .lf-fab-input:not([data-lf-focus])
-  ) {
+  .lf-fab-bar:is(:has(> .lf-surface-grip:hover), [data-lf-carried])
+    .lf-fab-input:not([data-lf-focus]) {
     border-color: color-mix(in srgb, var(--accent) 55%, var(--border-2));
     transition: border-color 0.1s 0.15s;
+  }
+  .lf-margin-preview:is(:has(> .lf-surface-grip:hover), [data-lf-carried])
+    .lf-margin-preview-ring {
+    background: color-mix(in srgb, var(--accent) 55%, var(--border-2));
+    transition: background-color 0.1s 0.15s;
   }
   [data-lf-carried],
   [data-lf-carried] * {
@@ -545,17 +590,29 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   }
   .lf-margin-thread .lf-page-thread::after {
     /* Share the transcript's grid track without reserving reading space. The
-       author stays crisp while words fade into its moving lower edge. */
+       author stays crisp while words fade into its moving lower edge, and the
+       transcript's ring room above the stuck author stays paper once anything is
+       scrolled away (thread-preview.js, `paintContinuation`). Between the two the
+       author paints its own ground, and nothing paints over it, since a message
+       riding a send (box-motion.js) stacks its author under this layer. */
+    --lf-thread-fade-cover: calc(
+      var(--lf-thread-fade-band, 0px) + var(--lf-thread-fade-top, 0px)
+    );
     content: "";
     position: absolute;
-    inset: var(--lf-thread-fade-top, 0px) 0 auto;
+    inset: calc(-1 * var(--lf-thread-fade-band, 0px)) 0 auto;
     grid-column: 1 / -1;
     grid-row: 2;
     align-self: start;
-    height: var(--lf-thread-fade-height, 0px);
+    height: calc(var(--lf-thread-fade-cover) + var(--lf-thread-fade-height, 0px));
     border-radius: 0;
     outline: none;
-    background: linear-gradient(var(--paper), transparent);
+    background: linear-gradient(
+      var(--paper) var(--lf-thread-fade-band, 0px),
+      transparent var(--lf-thread-fade-band, 0px) var(--lf-thread-fade-cover),
+      var(--paper) var(--lf-thread-fade-cover),
+      transparent
+    );
     pointer-events: none;
     /* Keep the action strip above the fade without putting its ground above
        a focused message control's ring. */
@@ -749,9 +806,11 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     }
   }
   @media (forced-colors: active) {
-    .lf-margin-preview {
-      border: 1px solid CanvasText;
-      box-shadow: none;
+    .lf-margin-preview-fill {
+      background: Canvas;
+    }
+    .lf-margin-preview-ring {
+      background: CanvasText;
     }
   }
 }

@@ -3548,13 +3548,14 @@ function proseReading(message) {
 	return reading;
 }
 function messageText(message) {
+	if (message.body?.kind === "authored") return message.body.text;
 	if (message.token) return `${tokenEntry(message.token)?.glyph ?? ""} ${message.token}`.trim();
 	return message.suggestion ? message.text ?? "" : proseReading(message).plainText;
 }
 function threadName(thread) {
 	if (thread.title != null) return thread.title;
 	const { root } = thread;
-	return labelWords(root.body.kind === "authored" ? root.body.text : messageText(root)) || (root.drawing ? "Drawing" : "");
+	return labelWords(messageText(root)) || (root.drawing ? "Drawing" : "");
 }
 const titlePending = (thread) => thread.title == null && thread.attention?.kind === "waiting" && thread.attention.reason === "workflow" && pageClaimed();
 const threadHeading = (thread) => titlePending(thread) ? html`<span class="lf-thread-name-pending">Generating thread name…</span

@@ -1368,6 +1368,35 @@ def test_threads_search_finds_a_thread_by_the_words_it_quotes(browser, serve):
     assert field(page).evaluate("(el, original) => el === original", editor)
 
 
+def test_threads_search_reads_rendered_messages_and_summaries(browser, serve):
+    """Words in formatted prose, embedded questions and a summary find the thread
+    that shows them, even before the reader opens it."""
+    from browser.threads import summarize_thread
+
+    url = serve(AGENDA_PAGE)
+    root = panel_comment(serve.page_dir, "Where should we meet?")
+    reply = thread_model.post_reply(
+        serve.page_dir,
+        {"responds": root},
+        "The **room** photo.",
+        '<lf-ask id="crop">Should I reshoot it wider?</lf-ask>',
+    )
+    summarize_thread(
+        serve.page_dir, root, reply["id"], "A **wider** view would help."
+    )
+    page = floating(browser, url)
+    rows = threads_rows(page)
+    page.get_by_role("button", name="Find a thread or message").click()
+    search = page.locator("input.lf-fp-search")
+    for words in ("room photo", "reshoot", "wider view"):
+        search.fill(words)
+        expect(rows.locator(".lf-fp-label")).to_have_text(["Where should we meet?"])
+    rows.click()
+    view = page.locator(panel_view("thread"))
+    expect(view.locator(".lf-summary-text")).to_have_text("A wider view would help.")
+    expect(view.locator("#crop")).to_have_text("Should I reshoot it wider?")
+
+
 def test_keys_in_threads_act_on_threads(browser, serve):
     """Go to Threads lands in its list, where `/` finds threads and d and u page
     the list rather than the page under it."""

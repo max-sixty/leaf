@@ -54,6 +54,19 @@ a narrator describing the agent from outside (“Waiting for Claude”, “Deliv
 Claude”). The user is talking with the agent, and a narrator puts a third party
 between them.
 
+So every visible line has one speaker, and its presentation says which:
+
+- **The user**: their own acts and turn, in the first person where it tells their
+  side from the agent's (“Moved to Done”, “My turn to answer”).
+- **The agent**: what the agent says, its own sentence or where it stands with the
+  user's words (“Got it”, “running the browser suite”).
+- **Leaf**: what Leaf itself observes or needs, about the connection, the page or the
+  agent's session, such as an agent that stopped without answering or a server it
+  can't reach.
+
+Leaf's words never take the agent's presentation, so nothing Leaf reports reads as
+the agent speaking. Where a line can't be put in the agent's voice, it is Leaf's.
+
 Name an update's kind where it is known: a **comment**, **reply**, **choice**
 or **reaction**; in protocol text a widget's is an **action**, after its
 event kind. Don't call an update a *move* or *feedback*, or an *input* as a count noun;

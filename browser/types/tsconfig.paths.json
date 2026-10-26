@@ -1,8 +1,11 @@
 {
   "compilerOptions": {
     "paths": {
-      "/vendor/browser-runtime.js": [
-        "./index.ts"
+      "/vendor/lit.js": [
+        "./lit.d.ts"
+      ],
+      "/vendor/signals-core.js": [
+        "./signals-core.d.ts"
       ],
       "/vendor/*": [
         "../vendor/*",

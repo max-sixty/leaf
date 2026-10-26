@@ -1,6 +1,5 @@
-import { isElementName } from "./bundle-browser-runtime.js";
 import { canPlaceFocus, cancelRender, closeLayer, excludedByInert, focused, handBack, isNativeLayer, move, nativeLayerHolding, nativeLayerKind, nextRender, releaseFocus, renderedParent, renderedUnder, shadowHost, sizeObserver, under, upFrom } from "./bundle-dom-move.js";
-import { runtime } from "./bundle-context.js";
+import { isElementName, runtime } from "./bundle-context.js";
 
 //#region runtime/arrivals.js
 const watches$1 = /* @__PURE__ */ new Set();

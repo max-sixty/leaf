@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createSemanticApplication } from "./application.ts";
-import { createPresentationCoordinator } from "./presentation.ts";
+import { createSemanticApplication } from "../../browser/runtime/framework/application.js";
+import { createPresentationCoordinator } from "../../browser/runtime/framework/presentation.js";
 import {
   servedGestureSequence,
   servedObligationRow,
   servedReading,
   servedThread,
   servedWorkflow,
-} from "../../tests/served.mjs";
+} from "../served.mjs";
 
 // An operation definition as composition stamps one into `$states`. The browser only
 // compares definitions, so a fixture's need only differ where the operations do.

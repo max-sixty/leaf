@@ -1,7 +1,7 @@
-import { AsyncDirective, Directive, PartType, Z, directive, html, nothing, render, x as x$1 } from "./bundle-browser-runtime.js";
+import { Z, x as x$1 } from "./bundle-signals-core.js";
 import { CARET_KEYS, PRESSES, WORKS, controlNavigationKeys, focusRevision, keeps, keepsText, nextRender, onCurrentLocation, renderedParent, sizeObserver, takesLetters, under } from "./bundle-dom-move.js";
 import { shownBox, tagsDeclaring } from "./bundle-geometry.js";
-import { runtime } from "./bundle-context.js";
+import { AsyncDirective, Directive, PartType, directive, html, nothing, render, runtime } from "./bundle-context.js";
 
 //#region runtime/pointer.js
 let x = -1;

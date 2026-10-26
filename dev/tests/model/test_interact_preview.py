@@ -379,6 +379,13 @@ def test_a_preview_reads_its_watched_inputs_from_the_files_that_exist_now(tmp_pa
     added_script.unlink()
     assert str(added_script) not in watched().paths
 
+    # Python loads schema data at import time too; changing it needs both the
+    # server's refresh and a fresh watcher, just like changing a Python module.
+    schema = scripts / "state.schema.json"
+    schema.write_text("{}")
+    assert str(schema) in watched().paths
+    assert schema in preview.worker_inputs(runtime)
+
     versions = source.parent / "versions"
     versions.mkdir()
     version = versions / "page.v1.html"
@@ -1312,10 +1319,8 @@ def test_resumed_preview_follows_capture_bindings_and_files_without_replaying_se
         service.stop()
 
 
-def test_preview_keeps_watching_after_an_invalid_capture_companion(
-    tmp_path, monkeypatch, capsys
-):
-    """An interrupted JSON save refuses one refresh, then its repair reaches the page."""
+def test_preview_keeps_watching_after_unreadable_inputs(tmp_path, monkeypatch, capsys):
+    """Unreadable runtime inputs or incomplete captures leave the last page serving."""
     from leaf.data import read_data
     from leaf.registry.storage import load_registry
 
@@ -1333,6 +1338,17 @@ def test_preview_keeps_watching_after_an_invalid_capture_companion(
     page = tmp_path / "page"
 
     def edits():
+        output = capsys.readouterr().out
+        url = next(line for line in output.splitlines() if line.startswith("http://"))
+
+        def unavailable(_runtime):
+            raise OSError("runtime input temporarily unavailable")
+
+        with monkeypatch.context() as unreadable:
+            unreadable.setattr(preview, "worker_identity", unavailable)
+            yield {str(captured)}
+            assert "runtime input temporarily unavailable" in capsys.readouterr().err
+            assert fetch(url)[0] == 200
         companion.write_text("{")
         yield {str(companion)}
         assert (

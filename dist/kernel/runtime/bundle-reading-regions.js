@@ -1,4 +1,4 @@
-import { J, Z } from "./bundle-browser-runtime.js";
+import { J, Z } from "./bundle-signals-core.js";
 import { LENT_REACH_STOP, TEXT_BOX, afterScript, deepFocus, keeps, nextFrame, nextRender, onCurrentLocation, pressing, renderedParent, renderedUnder, renderingState, sizeObserver, tabStops, under, upFrom, wearsLentStop } from "./bundle-dom-move.js";
 import { PAGE_PAINT_ATTRIBUTE, pagePresented, reportPageError, setRuntimeRootAttribute } from "./bundle-layer-client.js";
 import { landingBand, scrollsBy, shadowRootsIn, shownRect, skipped, userScrollport, watchArrivals, whileConnected } from "./bundle-geometry.js";

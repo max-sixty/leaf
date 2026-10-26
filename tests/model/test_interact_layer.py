@@ -1966,7 +1966,16 @@ def test_identical_init_preserves_the_installed_layer(tmp_path):
     } == files
 
 
-@pytest.mark.parametrize("input_name", ["server.py", "pyproject.toml", "uv.lock"])
+@pytest.mark.parametrize(
+    "input_name",
+    [
+        "src/server.py",
+        "src/state.schema.json",
+        "browser/registry.json",
+        "pyproject.toml",
+        "uv.lock",
+    ],
+)
 def test_server_inputs_require_a_transition_without_browser_changes(
     tmp_path, monkeypatch, input_name
 ):
@@ -1977,14 +1986,20 @@ def test_server_inputs_require_a_transition_without_browser_changes(
     script.write_text("# original\n")
     for name in ("pyproject.toml", "uv.lock"):
         (payload / name).write_text("# original\n")
+    for name in ("src/state.schema.json", "browser/registry.json"):
+        path = payload / name
+        path.parent.mkdir(exist_ok=True)
+        path.write_text("{}\n")
     monkeypatch.setattr(layer_model, "PLUGIN_ROOT", payload)
     runner = CliRunner()
     page = tmp_path / "page"
     first_init = runner.invoke(cli_model.cli, ["page", "init", str(page)])
     assert first_init.exit_code == 0, first_init.output
     first = interact_files.read_json(page / "registry.json")["$layer"]
-    target = script if input_name == "server.py" else payload / input_name
-    target.write_text("# changed\n")
+    target = payload / input_name
+    target.write_text(
+        '{"changed": true}\n' if target.suffix == ".json" else "# changed\n"
+    )
     second_init = runner.invoke(cli_model.cli, ["page", "init", str(page)])
     assert second_init.exit_code == 0, second_init.output
     second = interact_files.read_json(page / "registry.json")["$layer"]

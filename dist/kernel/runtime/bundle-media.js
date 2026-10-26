@@ -1,7 +1,6 @@
-import { html, render } from "./bundle-browser-runtime.js";
 import { closeLayer, focusDestination, handBack, keeps, keepsHidden, keepsText, openLayer, openerOf } from "./bundle-dom-move.js";
 import { closeNativeLayer, nativeLayers, showNativeLayer } from "./bundle-geometry.js";
-import { offlineInteractive, pageUrl, runtimeResource } from "./bundle-context.js";
+import { html, offlineInteractive, pageUrl, render, runtimeResource } from "./bundle-context.js";
 import { closeControl, keys, offered, paintKeys, plainPress } from "./bundle-errors.js";
 import { says } from "./bundle-passages.js";
 import { foldDuration, reducedMotion } from "./bundle-motion.js";

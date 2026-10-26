@@ -11,7 +11,10 @@
 // only when the page asks for it, and `core-independent-of-overlay` keeps every other
 // owner from reaching it. Site-absolute `/vendor/` and `/checks/` specifiers, which the
 // browser resolves and Node does not, are excluded by name; every other unresolvable
-// specifier is a missing module and an error.
+// specifier is a missing module and an error. So is the framework's facade by its
+// served path, `/runtime/framework.js`: like Lit beneath it, the framework is a
+// dependency every owner may hold, not one of the owners whose routes these rules
+// read. Its own modules, under `framework/`, are checked as any owner is.
 
 import fs from "node:fs";
 
@@ -217,7 +220,14 @@ export default {
   options: {
     moduleSystems: ["es6"],
     // /checks probes are supplied by the Python server, outside the runtime graph.
-    exclude: { path: [`^${assets}(?!runtime/)`, "^/vendor/", "^/checks/"] },
+    exclude: {
+      path: [
+        `^${assets}(?!runtime/)`,
+        "^/vendor/",
+        "^/checks/",
+        "^/runtime/framework\\.js$",
+      ],
+    },
     // Resolve as the browser does: a specifier names its file exactly. Without this,
     // `./repaint` finds `repaint.js` and passes here while the browser 404s it.
     enhancedResolveOptions: { extensions: [] },

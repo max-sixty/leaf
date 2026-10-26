@@ -3331,10 +3331,22 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 		const thread = allThreads().find((candidate) => candidate.id === id);
 		return thread && replyAvailable(thread) ? id : null;
 	};
-	const threadFocusTarget = (id, { part = null } = {}) => surfaceFocusTarget(id, { part }) ?? preview?.focusTarget(id, { part }) ?? null;
+	const addressedPart = (thread, id, part) => ({
+		part,
+		message: part === "message" ? thread.msgs.find((message) => message.id === id)?.key ?? null : null
+	});
+	const threadFocusTarget = (id, { part = null } = {}) => {
+		const thread = threadNamed(id);
+		const candidates = [
+			thread && presentation?.owner.isConnected ? presentation.reader.destination(thread.key, addressedPart(thread, id, part)) : null,
+			surfaceFocusTarget(id, { part }),
+			preview?.focusTarget(id, { part })
+		].filter(Boolean);
+		return candidates.find(presented) ?? candidates[0] ?? null;
+	};
 	const DECLINED = Symbol("declined");
 	const UNDRAWN = Symbol("undrawn");
-	async function openPageThread(id, { part = null, focus = true, travel = true, scroll = true, intent = retainUserIntent(), origin = null, returning = false } = {}) {
+	async function openPageThread(id, { part = null, focus = true, travel = true, history = true, scroll = true, intent = retainUserIntent(), origin = null, returning = false } = {}) {
 		if (!intent()) return null;
 		const navigationStep = travel && scroll;
 		const selected = presentation?.owner.isConnected ? presentation : null;
@@ -3349,8 +3361,7 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 			const cancelled = aborted(abort.signal);
 			const whileCurrent = (work) => Promise.race([work, cancelled]);
 			const request = {
-				message: part === "message" ? thread.msgs.find((message) => message.id === id)?.key ?? null : null,
-				part,
+				...addressedPart(thread, id, part),
 				focus,
 				last,
 				signal: abort.signal,
@@ -3358,7 +3369,7 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 			};
 			const mayPresent = () => !abort.signal.aborted && presentation === selected && selected.owner.isConnected && (focus === false ? intent.available() : intent());
 			const arriving = restrictUserIntent(intent, mayPresent);
-			const departure = focus !== false && navigationStep ? prepareNavigationStep({
+			const departure = focus !== false && navigationStep && history ? prepareNavigationStep({
 				landing: () => selected.reader.destination(thread.key, request),
 				intent: arriving
 			}) : null;
@@ -3409,7 +3420,8 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 					if (!await scrollToThread(id, {
 						part: localPart,
 						focus,
-						intent
+						intent,
+						history
 					})) return null;
 				} else if (focus === false) {
 					await reveal$1(surfaceFocusTarget(id, { part: localPart }), intent).ready;
@@ -3446,7 +3458,8 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 						part: part ?? "thread",
 						focus,
 						presented: opened.presented,
-						intent
+						intent,
+						history
 					})) return null;
 				} else {
 					if (!await opened.presented || !mayPresent()) return null;

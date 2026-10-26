@@ -20,6 +20,7 @@ from render_harness import (
     LONG_PAGE,
     PANEL,
     CutOff,
+    expect_open_threads,
     holding,
     leaf_page,
     open_page,
@@ -41,13 +42,6 @@ from leaf import event_log as events_model
 from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
-
-
-def expect_open_threads(page, count):
-    """The panel's Threads mark counts `count` open threads."""
-    expect(page.locator(".lf-fp-threads")).to_have_attribute(
-        "aria-label", re.compile(rf"^Threads, {count} open\b")
-    )
 
 
 def test_inline_settlement_retains_focus_when_its_controls_are_replaced(browser, serve):
@@ -673,7 +667,7 @@ def test_r_settles_the_thread_shown_for_the_element_the_user_stands_on(
         expect(card.locator(f'.lf-page-thread[data-thread="{root}"]')).to_be_visible()
 
     arrive()
-    page.locator(".lf-fp-threads").focus()
+    page.locator(".lf-fp-on-user").focus()
     page.keyboard.press("r")
     rendered(page)
     expect(card).to_be_visible()

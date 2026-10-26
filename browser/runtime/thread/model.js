@@ -138,8 +138,9 @@ export const discussed = (thread) => !bareReaction(thread);
  * @param {Pick<Thread, "unread">} thread */
 export const hasUnread = (thread) => thread.unread.length > 0;
 /**
- * What the panel's Threads mark counts of the threads it lists: those still open, and
- * those holding words the user hasn't read. A page's served row counts the same way
+ * What the panel counts of the threads it lists: those still open, which Threads' tab
+ * says, and those holding words the user hasn't read, which the On me mark's dot says.
+ * A page's served row counts the same way
  * (`served_state.thread.thread_counts`); tests/thread_count_cases.json holds both.
  * @param {readonly Pick<Thread, "bare_reaction" | "resolved" | "unread">[]} threads
  */

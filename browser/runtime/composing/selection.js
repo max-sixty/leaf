@@ -85,7 +85,9 @@ import { iconElement } from "../icons.js";
 // bordered button beside the field, which kept 40px of a 294px bar from the words
 // and ended a sent card's message short of its Reply field, over hiding that button
 // at the first key, which widened the field under the caret, and over no button at
-// all, which left a mouse or finger no way to Suggest or a reaction.
+// all, which left a mouse or finger no way to Suggest or a reaction. It replaces
+// #4124's ⋯ over the field's end, in the head row the floating frame reserves, which
+// only the floating presentation had.
 export const fabBar = el("div", "lf-ui lf-fab-bar lf-target-paint");
 fabBar.dataset.lfRuntime = ""; // Leaf's own when seated in a widget (passages.js, leafSurface)
 fabBar.setAttribute("role", "group");

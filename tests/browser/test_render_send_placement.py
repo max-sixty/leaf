@@ -524,6 +524,37 @@ def test_a_right_edge_passage_reopens_a_usable_card_without_moving_typing(
     assert card["right"] <= boundary["right"] + 1
 
 
+def test_send_opens_the_card_a_reopen_shows(browser, serve):
+    """The card Send opens from a one-line comment is the card its margin marker
+    reopens: the same width, at least the card's minimum, at the same place."""
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900}, reduced_motion="reduce"
+    )
+    page = open_page(browser, serve(PAGE), context=context)
+    FIRST_LINE.open(page, False)
+    expect(page.locator(".lf-fab-bar")).to_have_attribute(
+        "data-lf-placement", re.compile(".+")
+    )
+    page.keyboard.insert_text("Keep the runner fixed.")
+    rendered(page)
+    page.keyboard.press("Enter")
+    card = page.locator(".lf-margin-preview")
+    expect(card).to_have_css("opacity", "1")
+    expect(card).not_to_have_attribute("data-lf-grows", "")
+    rendered(page)
+    sent = page.evaluate(RECT, ".lf-margin-preview")
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    expect(card).to_be_hidden()
+    page.locator(".lf-margin-marker").click()
+    expect(card).to_have_css("opacity", "1")
+    rendered(page)
+    reopened = page.evaluate(RECT, ".lf-margin-preview")
+    minimum = page.evaluate("async () => (await window.__lfOverlayApi()).cardMinimum()")
+    assert reopened["right"] - reopened["left"] >= minimum - 0.5, (reopened, minimum)
+    assert sent == pytest.approx(reopened, abs=0.5), (sent, reopened)
+
+
 @pytest.mark.parametrize(
     "region,route",
     # Each scrolling arrangement once; the two routes alternate between them, since

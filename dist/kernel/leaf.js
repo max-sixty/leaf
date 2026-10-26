@@ -5183,12 +5183,6 @@ const listed = (entry) => !entry.exit && !HELD_ELSEWHERE.includes(entry.key);
 let copyRefused = false;
 const canCopy = () => !copyRefused && Boolean(navigator.clipboard?.writeText);
 const groupOf = (entry) => entry.group === "keys" && !advertisesKeys() ? "navigate" : entry.copies && !canCopy() ? "about" : entry.group;
-const FILTERS = Object.freeze([
-	"open",
-	"unread",
-	"drafts",
-	"resolved"
-]);
 const capital = (word) => word[0].toUpperCase() + word.slice(1);
 const coarse = () => matchMedia("(pointer: coarse)").matches;
 function passing() {
@@ -5335,9 +5329,8 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	field.append(editorSeat, searchSurface, fieldMode, fieldActions);
 	const rowNoticeSeat = el("div", "lf-fp-row-notice");
 	const quick = el("div", "lf-fp-quick");
-	const exitSeat = el("div", "lf-fp-exit-seat");
 	const responseSeat = el("div", "lf-fp-response");
-	row.append(leaf, field, responseSeat, rowNoticeSeat, quick, exitSeat);
+	row.append(leaf, field, responseSeat, rowNoticeSeat, quick);
 	const CONNECTING = {
 		tone: "",
 		summary: "Connecting…",
@@ -5381,7 +5374,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	let menuRoom = null;
 	let menuFade = null;
 	let menuDrawn = false;
-	let filter = "open";
 	let query = "";
 	let searching = false;
 	let pageSearch = null;
@@ -5415,6 +5407,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	}
 	let writing = false;
 	let drafted = false;
+	let seatHeld = false;
 	let postureMoved = true;
 	let landing = null;
 	const drawnTurns = () => outletOf()?.querySelectorAll(".lf-msg[data-message]").length ?? 0;
@@ -5559,10 +5552,9 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			hintAside: () => passingAside(key, replyInput()),
 			accessibleName: () => `Reply to ${threadTitle(key)}`,
 			sending: streamSend,
-			sent: (flight) => {
+			sent: () => {
 				room = null;
 				rewriting = false;
-				releaseField();
 				landing = {
 					key,
 					after: drawnTurns(),
@@ -5570,7 +5562,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 				};
 				waiting = null;
 				queueMicrotask(paint);
-				holdRefused(flight);
 			}
 		});
 		return replyOptions.get(key);
@@ -5612,27 +5603,19 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const queues = readQueues();
 		return queues.phase === "ready" ? queues.on_user.length : 0;
 	};
-	const threadStatus = (thread, shownBy) => {
-		const state = thread.resolved ? "Resolved" : threadAttention(thread)?.label;
-		const said = {
-			unread: "New",
-			resolved: "Resolved",
-			drafts: "Draft"
-		}[shownBy];
-		return [
-			hasUnread(thread) && "New",
-			state,
-			draftHasContent(replyContext(thread.key)) && "Draft"
-		].filter((word) => word && word !== said).join(" · ");
-	};
+	const threadStatus = (thread, { headed }) => [
+		hasUnread(thread) && "New",
+		thread.resolved ? !headed && "Resolved" : threadAttention(thread)?.label,
+		draftHasContent(replyContext(thread.key)) && "Draft"
+	].filter(Boolean).join(" · ");
 	const rows = () => pageControls();
 	const VIEWS = Object.freeze({
 		threads: {
 			title: () => "Threads",
+			quiet: true,
 			draw: () => threadsView(),
 			controls: () => threadsControls(),
-			rows: ".lf-fp-thread",
-			mark: "threads"
+			rows: ".lf-fp-thread"
 		},
 		thread: {
 			key: (route) => `thread:${route.thread}`,
@@ -5644,8 +5627,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			draw: (route) => threadView(route.thread),
 			controls: (route) => threadControls(route),
 			nominate: (route, collection, parts) => nominateThread(route, collection, parts),
-			over: ["threads", "queue"],
-			mark: "threads"
+			over: ["threads", "queue"]
 		},
 		queue: {
 			title: () => tabLabel(queueTab),
@@ -5653,8 +5635,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			draw: () => onView(),
 			controls: () => queueControls(),
 			nominate: (_route, collection, parts) => nominateAsked(collection, parts),
-			rows: ".lf-fp-on-item",
-			mark: "onUser"
+			rows: ".lf-fp-on-item"
 		},
 		leaves: {
 			title: () => "All pages",
@@ -5851,7 +5832,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		landReader();
 		fitAnswer();
 		stood = openView()?.offsetHeight ?? null;
-		stoodAt = openView()?.getBoundingClientRect().top ?? null;
 		followBox();
 	});
 	const follow = sizeObserver(() => {
@@ -5931,7 +5911,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	let room = null;
 	let drawnTop = null;
 	let stood = null;
-	let stoodAt = null;
 	let rewriting = false;
 	const holdThread = (height) => {
 		if (!trail.value.at(-1)?.thread || room !== null || height === null) return false;
@@ -5986,42 +5965,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		}
 		paint();
 	});
-	function holdRefused(flight) {
-		const route = trail.value.at(-1);
-		let cleared = null;
-		nextRender(() => {
-			cleared = replyInput()?.getBoundingClientRect().height ?? null;
-		});
-		Promise.resolve(flight).then((sent) => {
-			const view = openView();
-			if (sent || trail.value.at(-1) !== route || !view || stoodAt === null) return;
-			holdField(replyInput(), cleared);
-			const height = view.offsetHeight + view.getBoundingClientRect().top - stoodAt;
-			if (holdThread(height)) paint();
-		});
-	}
-	let fieldHold = null;
-	function holdField(input, height) {
-		releaseField();
-		if (!input || height === null) return;
-		if (input.getBoundingClientRect().height <= height + .5) return;
-		const release = new AbortController();
-		fieldHold = {
-			input,
-			release
-		};
-		input.style.setProperty("max-height", layoutPx(height));
-		for (const type of ["pointerdown", "beforeinput"]) input.addEventListener(type, releaseField, {
-			capture: true,
-			signal: release.signal
-		});
-	}
-	function releaseField() {
-		if (!fieldHold) return;
-		fieldHold.release.abort();
-		fieldHold.input.style.removeProperty("max-height");
-		fieldHold = null;
-	}
 	function holdRoom() {
 		const top = trail.value.at(-1);
 		if (!top || top.thread || room !== null || refitting) return false;
@@ -6161,7 +6104,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const changed = (before ? routeKey(before) : null) !== (after ? routeKey(after) : null);
 		if (changed) {
 			room = null;
-			releaseField();
 			rewriting = false;
 			pressed = null;
 			quoteExpanded = false;
@@ -6491,46 +6433,40 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	}
 	function shownThreads() {
 		const words = query.trim().toLowerCase();
-		const shown = threads().filter((thread) => {
-			if (words) return [
-				threadName(thread),
-				quoteReading(thread, { placedAt })?.label ?? "",
-				...thread.msgs.map((m) => m.text ?? "")
-			].join(" ").toLowerCase().includes(words);
-			if (filter === "unread") return hasUnread(thread);
-			if (filter === "drafts") return draftHasContent(replyContext(thread.key));
-			if (filter === "resolved") return thread.resolved;
-			return !thread.resolved;
-		});
+		const shown = words ? threads().filter((thread) => [
+			threadName(thread),
+			quoteReading(thread, { placedAt })?.label ?? "",
+			...thread.msgs.map((m) => m.text ?? "")
+		].join(" ").toLowerCase().includes(words)) : threads();
 		return inPageOrder(shown, placedAt);
 	}
 	function threadsView() {
 		const shown = shownThreads();
-		const empty = query.trim() ? "Nothing matches." : {
-			open: "No open threads. Comment below to start one.",
-			unread: "All caught up.",
-			drafts: "No drafts.",
-			resolved: "No resolved threads."
-		}[filter];
-		return html`<div class="lf-fp-list">
-      ${shown.length ? repeat(shown, (thread) => thread.key, (thread) => html`<button
-                  type="button"
-                  class="lf-fp-face lf-fp-thread"
-                  data-key=${thread.key}
-                  ?data-unread=${hasUnread(thread)}
-                  ?data-resolved=${thread.resolved}
-                  ?data-yours=${threadAttention(thread)?.kind === "needs_user"}
-                  @click=${() => open({
+		const searched = Boolean(query.trim());
+		const listed = searched ? shown : shown.filter((thread) => !thread.resolved);
+		const resolved = searched ? [] : shown.filter((thread) => thread.resolved);
+		const row = (thread, headed) => html`<button
+        type="button"
+        class="lf-fp-face lf-fp-thread"
+        data-key=${thread.key}
+        ?data-unread=${hasUnread(thread)}
+        ?data-resolved=${thread.resolved}
+        ?data-yours=${threadAttention(thread)?.kind === "needs_user"}
+        @click=${() => open({
 			view: "thread",
 			thread: thread.key
 		})}
-                >
-                  <span class="lf-fp-news-mark" aria-hidden="true"></span>
-                  <span class="lf-fp-label">${threadHeading(thread)}</span>
-                  <span class="lf-fp-value"
-                    >${threadStatus(thread, query.trim() ? null : filter)}</span
-                  >
-                </button>`) : inventoried() ? html`<p class="lf-fp-empty">${empty}</p>` : nothing}
+      >
+        <span class="lf-fp-news-mark" aria-hidden="true"></span>
+        <span class="lf-fp-label">${threadHeading(thread)}</span>
+        <span class="lf-fp-value">${threadStatus(thread, { headed })}</span>
+      </button>`;
+		return html`<div class="lf-fp-list">
+      ${listed.length ? repeat(listed, (thread) => thread.key, (thread) => row(thread, false)) : inventoried() ? html`<p class="lf-fp-empty">
+                ${searched ? "Nothing matches." : "No open threads. Comment below to start one."}
+              </p>` : nothing}
+      ${resolved.length ? html`<h3 class="lf-fp-ended">Resolved</h3>
+              ${repeat(resolved, (thread) => thread.key, (thread) => row(thread, true))}` : nothing}
       ${inventoried() ? nothing : html`<p class="lf-fp-empty">
               ${readThreads().phase === "offline" ? "Current threads are unavailable while the server is offline." : "Loading current threads…"}
             </p>`}
@@ -6681,6 +6617,13 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	function openOnMe() {
 		if (chooseQueueTab("you") && showing({ view: "queue" })) paint();
 		else open({ view: "queue" });
+	}
+	function pressMark() {
+		if (!onUserCount() && newCount()) {
+			query = "";
+			refit();
+			open({ view: "threads" });
+		} else openOnMe();
 	}
 	const queueLists = () => {
 		documentChanged();
@@ -6911,7 +6854,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const finished = lists.done.filter((item) => !seated.includes(queueItemKey(item)));
 		return html`${items.length ? repeat(items, queueItemKey, (item) => onItemCard(item, listOf(item))) : html`<p class="lf-fp-empty">
             Nothing waiting on ${queueTab === "you" ? "me" : agentName()}.
-          </p>`}${finished.length ? html`<h3 class="lf-fp-on-done">Done</h3>
+          </p>`}${finished.length ? html`<h3 class="lf-fp-ended">Done</h3>
             ${repeat(finished, queueItemKey, (item) => onItemCard(item, "done"))}` : nothing}`;
 	}
 	function pagesView() {
@@ -6987,34 +6930,53 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
       </div>
       <div class="lf-fp-aux">${aux}</div>`;
 	}
-	function threadsControls() {
-		const news = newCount();
-		return { aux: html`${tabs(FILTERS, filter, capital, (name) => {
-			filter = name;
+	function onTabs(current) {
+		const lists = queueLists();
+		const lead = Object.keys(QUEUE_TABS);
+		return tabs([
+			...lead,
+			"threads",
+			...queueTabs().filter((tab) => !lead.includes(tab))
+		], current, (tab) => tab === "threads" ? "Threads" : tabLabel(tab), onTab, (tab) => tab === "plan" ? null : tab === "threads" ? openCount() : lists[tab].length);
+	}
+	function onTab(tab) {
+		if (tab === "threads") {
 			query = "";
-			paint();
-		}, (name) => name === "unread" ? news : name === "open" ? openCount() : null)}<button
-          type="button"
-          class="lf-fp-face lf-fp-icon-btn"
-          aria-label="Find a thread or message"
-          aria-pressed=${String(searching)}
-          @click=${() => {
-			if (!searching) {
-				findThreads();
-				return;
-			}
-			closeThreadSearch();
-		}}
-        >
-          ${iconTemplate("search", "lf-action-icon")}
-        </button>` };
+			open({ view: "threads" }, {
+				replace: true,
+				focus: false
+			});
+			return;
+		}
+		const turned = chooseQueueTab(tab);
+		if (!showing({ view: "queue" })) open({ view: "queue" }, {
+			replace: true,
+			focus: false
+		});
+		else if (turned) paint();
+	}
+	function threadsControls() {
+		return {
+			crumb: onTabs("threads"),
+			aux: html`<button
+        type="button"
+        class="lf-fp-face lf-fp-icon-btn"
+        aria-label="Find a thread or message"
+        aria-pressed=${String(searching)}
+        @click=${() => {
+				if (!searching) {
+					findThreads();
+					return;
+				}
+				closeThreadSearch();
+			}}
+      >
+        ${iconTemplate("search", "lf-action-icon")}
+      </button>`
+		};
 	}
 	function queueControls() {
-		const lists = queueLists();
-		return { crumb: tabs(queueTabs(), queueTab, tabLabel, (tab) => {
-			chooseQueueTab(tab);
-			paint();
-		}, (tab) => tab === "plan" ? null : lists[tab].length) };
+		return { crumb: onTabs(queueTab) };
 	}
 	function threadControls(route) {
 		const thread = threadOf(route);
@@ -7259,8 +7221,23 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const input = fieldInput();
 		if (input) syncInput(input);
 		keeps(host, "data-writing", writing ? "" : null);
+		const exit = search === threadSearch ? {
+			label: "Close search",
+			press: closeThreadSearch,
+			disabled: false,
+			icon: null
+		} : top && !search ? {
+			label: "Close",
+			press: close,
+			disabled: false,
+			icon: null
+		} : rows().find((entry) => entry.exit) ?? null;
 		const words = Boolean(draftOf(input));
-		if (postureMoved || !words) drafted = words;
+		if (postureMoved || !words) {
+			drafted = words;
+			seatHeld = Boolean(exit);
+		}
+		if (exit) seatHeld = true;
 		postureMoved = false;
 		keeps(host, "data-drafted", drafted ? "" : null);
 		keeps(host, "data-words", words ? "" : null);
@@ -7287,60 +7264,23 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const currentLocation = search ? null : olderVersion();
 		keepsHidden(rowNoticeSeat, !currentLocation);
 		render(currentLocation ? rowNoticeTemplate(currentLocation) : nothing, rowNoticeSeat);
-		const exit = search === threadSearch ? {
-			label: "Close search",
-			press: closeThreadSearch,
-			disabled: false,
-			icon: null
-		} : top && !search ? {
-			label: "Close",
-			press: close,
-			disabled: false,
-			icon: null
-		} : rows().find((entry) => entry.exit) ?? null;
-		render(exit ? html`<button
-            type="button"
-            class=${`lf-fp-face lf-fp-chip lf-fp-exit${exit.press === close ? " lf-fp-close" : ""}`}
-            aria-label=${exit.label}
-            title=${exit.label}
-            ?disabled=${exit.disabled}
-            @mousedown=${(event) => event.preventDefault()}
-            @click=${() => exit.press()}
-          >
-            ${iconTemplate(exit.icon ?? "cross", "lf-action-icon")}
-          </button>` : nothing, exitSeat);
-		const pressedMark = viewOf(top)?.mark;
-		const onUserName = onUser ? `On me: ${onUser}` : "On me";
-		const threadsName = inventoried() ? `Threads, ${openCount()} open${news ? `, ${news} with news` : ""}` : "Threads";
+		const newsName = news ? `${news} ${news === 1 ? "thread" : "threads"} with news` : "";
+		const onUserName = [onUser ? `On me: ${onUser}` : "On me", newsName].filter(Boolean).join(", ");
+		keepsHidden(quick, search ? !exit : drafted && !seatHeld);
 		render(html`<button
-          type="button"
-          class="lf-fp-face lf-fp-chip lf-fp-on-user"
-          aria-pressed=${String(pressedMark === "onUser")}
-          ?data-due=${onUser > 0}
-          aria-label=${onUserName}
-          title=${onUserName}
-          @click=${openOnMe}
-        >
-          ${iconTemplate("inbox", "lf-action-icon")}<span class="lf-fp-num"
-            >${onUser || ""}</span
-          ></button
-        ><button
-          type="button"
-          class="lf-fp-face lf-fp-chip lf-fp-threads"
-          aria-pressed=${String(pressedMark === "threads")}
-          aria-label=${threadsName}
-          title=${threadsName}
-          @click=${() => {
-			filter = news && pressedMark !== "threads" ? "unread" : "open";
-			query = "";
-			refit();
-			open({ view: "threads" });
-		}}
-        >
-          ${iconTemplate("comment", "lf-action-icon")}<span class="lf-fp-num"
-            >${openCount() || ""}</span
-          ><span class="lf-fp-news" ?hidden=${!news}></span>
-        </button>`, quick);
+        type="button"
+        class=${`lf-fp-face lf-fp-chip ${exit ? `lf-fp-exit${exit.press === close ? " lf-fp-close" : ""}` : "lf-fp-on-user"}`}
+        ?data-due=${!exit && onUser > 0}
+        aria-label=${exit ? exit.label : onUserName}
+        title=${exit ? exit.label : onUserName}
+        ?disabled=${Boolean(exit?.disabled)}
+        @mousedown=${exit ? (event) => event.preventDefault() : nothing}
+        @click=${exit ? () => exit.press() : pressMark}
+      >
+        ${exit ? iconTemplate(exit.icon ?? "cross", "lf-action-icon") : html`${iconTemplate("inbox", "lf-action-icon")}<span class="lf-fp-num"
+                  >${onUser || ""}</span
+                ><span class="lf-fp-news" ?hidden=${!news}></span>`}
+      </button>`, quick);
 	}
 	function olderVersion() {
 		const { latest } = versionsReading();
@@ -7549,7 +7489,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		threads: {
 			shows: () => showing({ view: "threads" }),
 			press: () => {
-				filter = "open";
 				query = "";
 				refit();
 				open({ view: "threads" });
@@ -7568,7 +7507,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			press: () => versionsShown() ? putVersionsAway() : showMenuAt({ view: "versions" })
 		}
 	});
-	function showForSample({ thread, status }) {
+	function showForSample({ thread }) {
 		const wanted = thread ? threadByKey(thread) : null;
 		if (thread && !wanted) return Promise.resolve(false);
 		const top = trail.value.at(-1);
@@ -7582,7 +7521,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			focus: false
 		});
 		else {
-			filter = status === "resolved" ? "resolved" : "open";
 			query = "";
 			refit();
 			open({ view: "threads" }, {
@@ -10543,10 +10481,7 @@ if (validationEntry) {
 	validationEntry.lfObserveWidgetPreparations = observePreparations;
 	validationEntry.lfNativeLayers = nativeLayers;
 }
-const recoverComposer = retainUserIntent({
-	since: 0,
-	available: () => window === window.top || document.hasFocus()
-});
+const recoverComposer = retainUserIntent({ since: 0 });
 const overlaySelected = annotationMode === "overlay";
 const annotationRenderer = overlaySelected ? await import("./runtime/bundle-annotation-overlay.js") : null;
 if (validationEntry && annotationRenderer) validationEntry.lfFloatingSelections = annotationRenderer.floatingSelections;
@@ -10899,7 +10834,7 @@ layout = createPageLayout({
 if (document.documentElement.lfSample) {
 	let viewOperation;
 	onSampleNotice("cancel-view", () => viewOperation?.abort());
-	registerSampleCommand("thread", async ({ id, surface, status }) => {
+	registerSampleCommand("thread", async ({ id, surface }) => {
 		viewOperation?.abort();
 		viewOperation = new AbortController();
 		const { signal } = viewOperation;
@@ -10909,10 +10844,7 @@ if (document.documentElement.lfSample) {
 			if (!intent()) return false;
 			if (surface === "panel") {
 				let shown = null;
-				const show = () => shown = floatingPanel.showForSample({
-					thread: id,
-					status
-				});
+				const show = () => shown = floatingPanel.showForSample({ thread: id });
 				if (!intent.handoff(show)) return false;
 				return await shown && intent.available();
 			}

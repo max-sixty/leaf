@@ -40,7 +40,7 @@ keep the browser's order.
 - The document is the base. In a live sample, one more Escape returns focus to the
   containing page.
 - Draw and Design are page modes; surfaces opened inside them close first.
-- A surface's own state, such as a Threads filter, clears before the surface closes.
+- A surface's own state, such as Threads' search, clears before the surface closes.
   Page-side selections, targets, margin clusters and the page composer coexist beside a view the
   floating panel opens, and focus decides which answers first.
 - A composer, reply box or find box returns to its container: an element comment's

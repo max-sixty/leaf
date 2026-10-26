@@ -613,8 +613,9 @@ def with_one_obligation(html):
 
 
 def toggle_queue(page, open=True):
-    """Open or close the panel's On me view from its mark and wait for it to stand."""
-    page.locator(".lf-fp-on-user").click()
+    """Open the panel's On me view from its mark, or close it from the same seat, where
+    its ✕ stands while the view does, and wait for it to stand or go."""
+    page.locator(".lf-fp-on-user" if open else ".lf-fp-close").click()
     panel_settled(page, open=open, view="queue" if open else None)
 
 

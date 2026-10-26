@@ -126,16 +126,19 @@ open a new thread for a different subject. Don't resolve a thread to get rid of 
 anchor you removed: Leaf leaves a resolved thread's anchor as it was, so if the user
 reopens it, it points at something the page no longer shows.
 
-Every answer declares what it leaves the thread with:
+Every answer declares whose move it leaves:
 
-- `--done`: it delivers what the message asked for.
-- `--todo "<what you owe>"`: it promises work it does not deliver, and opens that
-  to-do on the thread under the reply's id until `leaf task end <page> <reply-id>`
+- `--obligation`: the user's. It leaves them a decision, or something to try or
+  review before making one, or asks them for an answer or permission. It creates
+  `message:<its id>` on On me until their next reply or a settling reaction answers
+  it, or they resolve the thread, so the answer stays on their list even where the
+  decision it informs is already there. A widget in `--markup` can instead register
+  the answer it captures ([The On lists](conversation-loop.md#the-on-lists)).
+- `--todo "<what you owe>"`: yours. It promises work it does not deliver, and opens
+  that to-do on the thread under the reply's id until `leaf task end <page> <reply-id>`
   ([Long-running work](conversation-loop.md#long-running-work)).
-- `--obligation`: the message needs the user's answer, decision, permission or review.
-  It creates `message:<its id>` on On me until their next reply or a settling
-  reaction answers it. A widget in `--markup` can instead register the answer it
-  captures ([The On lists](conversation-loop.md#the-on-lists)).
+- `--done`: nobody's. It delivers what the message asked for and leaves the user
+  nothing to decide.
 
 ```bash
 leaf thread reply <answer.ref> --obligation --text "Which store should own it?"

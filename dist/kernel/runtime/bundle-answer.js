@@ -6,7 +6,7 @@ import { PRESENTATION_DOM, agentLabel, annotationMode, applicationPresenter, app
 import { activityTransitionDue, ago, markStateApplied, moveScrollerBy, observeServerNow, observeWorkingGrace, reachScrollers, readingRegionFor, saidNow, settlePageInterface, tickClock } from "./bundle-reading-regions.js";
 import { comparisonBase, comparisonChanges, createProjectionPresentation, inlineComparison, referencedProjection, requireReference, toggleInlineComparison } from "./bundle-version.js";
 import { closestAcross, elementById, excerptWords, inChrome, labelWords, leafSurface, pageParts, pageReadingVersion, quoteFrom, textNodesUnder } from "./bundle-passages.js";
-import { addressableLabel, addressableWord, anchorForRange, anchoringIsReady, commitPoint, livePoint, sectionOf, targetSegments, visualPartLabel, widgetWord } from "./bundle-content-layout.js";
+import { addressableLabel, addressableWord, anchorForRange, anchoringIsReady, commitPoint, declaredName, livePoint, sectionOf, targetSegments, visualPartLabel, widgetWord } from "./bundle-content-layout.js";
 import { HOLDS_WORD, HeldNews, MessageView, SAYS_IN, THREAD, ThreadView, Transcript, allButCommandReference, allThreads, alreadyShown, anchorLabel, answeredInWords, authoredHolder, beginThreadSeats, beginWalk, bringBackSurfaceOf, claimed, clearDraft, commitThreadSeats, completeReadingReturn, createReplyView, declareSide, dismissReplyAt, draftContexts, drawnThreadId, fitsWhole, focusThread, focusedThreadTarget, heldOut, heldThread, holdReplyCompositions, holdThreadPlace, importWidgets, isPageWidgetWorkflow, isWorkflowProgress, keepRefusedWords, listWalkPosition, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, messageHolding, messageReading, messageText, mountFirstMessage, newsNotice, obligationHolding, obligationPlace, openMessageEditIn, pageCommand, pageScope, pageSelection, placeOf as placeOf$1, placePageThreads as placePageThreads$1, placedMarkdownTokens, prepareAuthoredMessage, readObligations, readThreads, readingReturn, registerWritingDestination, rememberWriting, renderMarginThread, renderSeats, renderSurfaces, replyAvailable, replyDraftContext, replyThreadKey, restrictUserIntent, retainThreadSeats, retainUserIntent, revealHeld, saveDraft, scrollIntoReadingBand, scrollIntoView, sendLanding, sendMessage, settleAcceptedDrafts, showHeld, showHeldThread, strongestWorkflow, surfaceFocusTarget, threadDraft, threadIdNamed, threadList, threadName, threadNamed, threadPart, threadReading, threadReplyInput, threadRewrites, threadState, todoLabel, transferDraft, watchDraft, watchDrafts, watchThreadSurfaces, wholeThread, workflowLabel } from "./bundle-surfaces.js";
 import { aborted, authoredStates, commitWidgetDescriptors, descriptorStillMatches, failSoft, failSoftUnreported, once, orderChildren, placesFailure, quoted as quoted$1, reportFailure, setChildren, widgetDescriptor } from "./bundle-abort.js";
 import { scrollBehavior } from "./bundle-motion.js";
@@ -1907,6 +1907,21 @@ function pageOutline() {
 		outline
 	};
 	return outline;
+}
+const HEADERS = "header, hgroup";
+const headed = (heading) => {
+	const at = upFrom(heading);
+	return at?.matches(HEADERS) ? upFrom(at) : at;
+};
+function partOver(node, outline = pageOutline()) {
+	const heads = /* @__PURE__ */ new Map();
+	for (const heading of outline) if (renderedOrder(heading, node) < 0) heads.set(headed(heading), heading);
+	for (let at = upFrom(node); at; at = upFrom(at)) {
+		const heading = heads.get(at);
+		if (heading) return heading;
+		if (declaredName(at)) return at;
+	}
+	return null;
 }
 const subjectLabel = (target) => addressableLabel(target) || addressableWord(target);
 function outlineSubjectFor(target, peers = [target], outline = pageOutline()) {
@@ -6172,4 +6187,4 @@ function obligationEnding(item) {
 }
 
 //#endregion
-export { DRAWING_COORDINATE_LIMIT, LeafEditorView, LeafElement, MAX_DRAWING_FRAME_DEPTH, MAX_DRAWING_POINTS, MAX_DRAWING_SAYS_LENGTH, MAX_DRAWING_STROKES, acceptData, answerWords, beginRead, composerOpen, composerQuote, consumeAnnotations, createReactionController, createSelectionComposer, createThreadLanding, currentLocationThread, currentProjection, declareThreadKeys, fabBar, fabInput, fabOptionsTrigger, inPageOrder, landInThread, leavesBox, loadDeferred, mountApplication, navigateToDatum, notifyDataSubscribers, obligationActions, obligationEnding, obligationWord, ownedObligationControl, paintBarReactions, pendingAbout, pendingAnchor, pendingDrawing, placePageThreads, publishOutput, queueActions, queueItemKey, queueTitle, reactionAvailable, reactionTokens, readPlan, readQueues, registerThreadPresentation, sendReaction, textField, threadActions, threadBox, threadInput, widgetController, wireInput };
+export { DRAWING_COORDINATE_LIMIT, LeafEditorView, LeafElement, MAX_DRAWING_FRAME_DEPTH, MAX_DRAWING_POINTS, MAX_DRAWING_SAYS_LENGTH, MAX_DRAWING_STROKES, acceptData, answerWords, beginRead, composerOpen, composerQuote, consumeAnnotations, createReactionController, createSelectionComposer, createThreadLanding, currentLocationThread, currentProjection, declareThreadKeys, fabBar, fabInput, fabOptionsTrigger, inPageOrder, landInThread, leavesBox, loadDeferred, mountApplication, navigateToDatum, notifyDataSubscribers, obligationActions, obligationEnding, obligationWord, ownedObligationControl, paintBarReactions, partOver, pendingAbout, pendingAnchor, pendingDrawing, placePageThreads, publishOutput, queueActions, queueItemKey, queueTitle, reactionAvailable, reactionTokens, readPlan, readQueues, registerThreadPresentation, sendReaction, textField, threadActions, threadBox, threadInput, widgetController, wireInput };

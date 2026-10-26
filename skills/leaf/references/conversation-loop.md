@@ -64,8 +64,9 @@ Housekeeping such as re-vendoring, restarting the server, or merging needs
 no to-do.
 
 When the work runs to several steps, some of which may wait on the user, write your plan
-before you start the first step, so the user can follow it in the panel's Plan tab: the
-goal, its steps in order, the one under way, and those waiting on them.
+before you start the first step, so the user can follow it in the panel's list of your
+work, under the plan's progress, and see On me grouped by its goals: the goal, its steps
+in order, the one under way, and those waiting on them.
 `leaf task plan <page>` reads the whole outline from stdin as a JSON list of steps: the
 goal at depth 0, each step one deeper than the step it belongs to, and each either a
 `title` with a `state` (`open`, `working`, `done` or `dropped`) or the `item` it names:

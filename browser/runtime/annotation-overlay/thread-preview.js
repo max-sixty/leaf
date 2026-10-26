@@ -40,6 +40,7 @@ import { cancelRender, nextRender, sizeObserver } from "../rendering.js";
 import { spokenSubject } from "../contribution-model.js";
 import { labelWords } from "../words.js";
 import { THREAD_CARD } from "./margin-layout.js";
+import { slotTop } from "../geometry.js";
 import {
   focusDestination,
   holdFocus,
@@ -313,16 +314,12 @@ export function createThreadPreview({
           // A head sticks only while its own message is under it. Follow its real
           // lower edge as the next message pushes it away; between messages the
           // transcript's edge is the cut. A declared head height cannot say this.
-          // The scroll clip includes focus-ring room above the message heads, where
-          // a head sticks, so words scrolled past it would show in that room above
-          // the stuck name. Once anything is scrolled away the room is covered too
-          // (`--lf-thread-fade-band`); at the top a message's ring still has it.
-          // Rejected: sticking the heads on the scroller's edge (`--lf-top-start`),
-          // which lifts a stuck name off the line the card's actions stand on, and
-          // lays its ground over the ring of the message beneath it.
+          // The scroll clip includes focus-ring room above where the heads stick, which
+          // the heads and the actions cover once anything is scrolled away
+          // (`--lf-thread-room-cover`); at the top a message's ring still has it.
           let edge = 0;
           let height = above ? 12 : 0;
-          const room = parseFloat(getComputedStyle(transcript).paddingTop);
+          const room = slotTop(transcript);
           if (above) {
             const top =
               transcript.getBoundingClientRect().top + transcript.clientTop + room;
@@ -341,7 +338,7 @@ export function createThreadPreview({
           const card = transcript.parentElement;
           card.style.setProperty("--lf-thread-fade-top", layoutPx(edge));
           card.style.setProperty("--lf-thread-fade-height", layoutPx(height));
-          card.style.setProperty("--lf-thread-fade-band", layoutPx(above ? room : 0));
+          card.style.setProperty("--lf-thread-room-cover", layoutPx(above ? room : 0));
         },
       });
   }

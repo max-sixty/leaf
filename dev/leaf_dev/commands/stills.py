@@ -1263,6 +1263,13 @@ def playground_controls(page: Page) -> None:
     page.locator(".lf-playground-controls").scroll_into_view_if_needed()
 
 
+def playground_instruction(page: Page) -> None:
+    """The playground's instruction opened over the page, with its copy."""
+    page.get_by_role("button", name="Show instruction").click()
+    expect(page.locator("lf-playground-output")).to_be_visible()
+    page.mouse.move(0, 0)
+
+
 def playground_tall_stage(page: Page) -> None:
     """The last alert's controls, pressed far down a stage taller than the window."""
     control = page.locator("lf-playground-preview lf-playground-control").last
@@ -1857,6 +1864,8 @@ STATES = (
         touch=True,
     ),
     State("playground-controls", "notification-playground", playground_controls),
+    State("playground-instruction", "notification-playground", playground_instruction),
+    State("playground-inline-end", "motion-playground", page_end),
     State("playground-tall-stage", "alert-thresholds", playground_tall_stage),
     State("playground-short-window", "data-explorer", page_end, viewport=(844, 390)),
     State(

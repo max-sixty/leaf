@@ -501,10 +501,6 @@ leaf-text.lf-fab-input,
 .lf-msg-text blockquote[data-lf-gap] {
   padding-block: 0;
 }
-/* The draft keeps a fence's lines, so the code stands a code line in from each end. */
-.lf-msg-text pre:has(> [data-lf-gap]) {
-  padding-block: var(--code-line);
-}
 .lf-msg-text :is([data-lf-gap="1"], pre:has(> [data-lf-gap="1"])) {
   margin-block-start: var(--lf-msg-line);
 }

@@ -66,7 +66,7 @@ import { closestAcross, elementById, inChrome } from "../passages.js";
 
 import { notice } from "../notifications.js";
 import { sentDrawing } from "./drawing-record.js";
-import { DRAFT_FORMAT } from "../protocol.js";
+import { DRAFT_FORMAT } from "../kernel-facts.js";
 import { commitPoint } from "../pointed-place.js";
 import { beginWalk, listWalkPosition } from "../walk-position.js";
 import { textField } from "./text-field.js";

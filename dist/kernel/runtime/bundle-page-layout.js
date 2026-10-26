@@ -2,7 +2,7 @@ import { Z, bindQueuedWork, d, q, x } from "./bundle-signals-core.js";
 import { TEXT_FIELD, afterScript, byRenderedOrder, canPlaceFocus, closeLayer, composedParentNode, deepFocus, drawn, focusDestination, focused, frameVisibility, handBack, holdFocus, holdRendering, inputCount, isNativeLayer, keeps, keepsHidden, move, nextRender, onCurrentLocation, onFrameVisibility, onUserInput, openLayer, openerOf, readSampleVisibility, renderedOrder, renderedParent, renderedUnder, shadowHost, sizeObserver, takesLetters, under, upFrom, whenLeft } from "./bundle-dom-move.js";
 import { admitResponse, completeData, countTraffic, dataHeaders, layerHeaders, postEvent, randomId, recordInteraction, removeRuntimeRootStyle, reportCarried, reportPageError, sameLayer, sessionIsActive, setRuntimeRootStyle, watchPendingTraffic } from "./bundle-layer-client.js";
 import { clamp, clippedContents, clipsPastSurfaces, closeNativeLayer, growthIsSeen, hasArea, intersect, layoutWindow, matchesWhen, placeBox, placeHolder, presented, registry, seenRect, shadowRootsIn, showNativeLayer, shownWindow, tagsDeclaring, union, watchOwner, watchRoom, whenNone, whileConnected } from "./bundle-geometry.js";
-import { LitElement, PENDING, PRESENTATION_DOM, actionForWidget, agentLabel, anchorKey, annotationMode, applicationPresenter, applicationState, attachApplicationPresentation, attachWidgetPresentation, discussed, documentChanged, editable, isMessageEvent, isThreadEvent, moved, offlineInteractive, offlineState, pageUrl, presentDocument, projectionOrigins, queueWidgetUpdate, reactionsAt, readApplication, readPart, render, runtime, setPresentationFailureReporter, stateCoordinate, threadKey, tokenChoices, turns, watchPresentation, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented } from "./bundle-context.js";
+import { DRAFT_FORMAT, LitElement, PENDING, PRESENTATION_DOM, actionForWidget, agentLabel, anchorKey, annotationMode, applicationPresenter, applicationState, attachApplicationPresentation, attachWidgetPresentation, discussed, documentChanged, drawingSchema, editable, isMessageEvent, isThreadEvent, moved, offlineInteractive, offlineState, pageUrl, presentDocument, projectionOrigins, queueWidgetUpdate, reactionsAt, readApplication, readPart, render, runtime, setPresentationFailureReporter, stateCoordinate, threadKey, tokenChoices, turns, watchPresentation, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented } from "./bundle-context.js";
 import { PRESS, TEXT_ENTRY, announce, claimsEsc, cycledRow, el, generatedElement, holdingError, iconElement, keys, notice, offer, paintKeys, paintKeysWithin, raiseError, repaint, responseAction, reveal as reveal$1, rowArrows, savedReadingSettled, saying } from "./bundle-errors.js";
 import { activityTransitionDue, ago, markStateApplied, moveScrollerBy, observeServerNow, observeWorkingGrace, reachScrollers, readingRegionFor, saidNow, settlePageInterface, syncLayoutRegion, tickClock } from "./bundle-reading-regions.js";
 import { awaitsData, bindsInput, comparisonBase, comparisonChanges, createProjectionPresentation, dataReader, inlineComparison, joinDataDelivery, suppliedSnapshot, toggleInlineComparison } from "./bundle-data.js";
@@ -259,125 +259,6 @@ async function deliverBookkeeping(event, applyState) {
 }
 
 //#endregion
-//#region runtime/composing/drawing-schema.js
-const drawingSchema = {
-	"type": "object",
-	"properties": {
-		"strokes": {
-			"type": "array",
-			"minItems": 1,
-			"maxItems": 32,
-			"items": {
-				"type": "array",
-				"minItems": 2,
-				"maxItems": 256,
-				"items": {
-					"type": "array",
-					"minItems": 2,
-					"maxItems": 2,
-					"prefixItems": [{
-						"type": "number",
-						"minimum": -33554432,
-						"maximum": 33554432
-					}, {
-						"type": "number",
-						"minimum": -33554432,
-						"maximum": 33554432
-					}],
-					"items": false
-				}
-			}
-		},
-		"box": {
-			"type": "array",
-			"minItems": 2,
-			"maxItems": 2,
-			"prefixItems": [{
-				"type": "number",
-				"exclusiveMinimum": 0,
-				"maximum": 33554432
-			}, {
-				"type": "number",
-				"exclusiveMinimum": 0,
-				"maximum": 33554432
-			}],
-			"items": false
-		},
-		"frame": {
-			"type": "object",
-			"properties": {
-				"root": {
-					"type": "string",
-					"maxLength": 128,
-					"pattern": "^[A-Za-z][A-Za-z0-9_.:-]*$"
-				},
-				"path": {
-					"type": "array",
-					"maxItems": 32,
-					"items": {
-						"type": "object",
-						"properties": {
-							"tag": {
-								"type": "string",
-								"maxLength": 128,
-								"pattern": "^[A-Za-z][A-Za-z0-9_.:-]*$"
-							},
-							"index": {
-								"type": "integer",
-								"minimum": 0,
-								"maximum": 65535
-							},
-							"siblings": {
-								"type": "integer",
-								"minimum": 1,
-								"maximum": 65536
-							},
-							"shadow": { "type": "boolean" }
-						},
-						"required": [
-							"tag",
-							"index",
-							"siblings"
-						],
-						"additionalProperties": false
-					}
-				}
-			},
-			"required": ["root", "path"],
-			"additionalProperties": false
-		},
-		"says": {
-			"type": "string",
-			"minLength": 1,
-			"maxLength": 500
-		},
-		"viewport": {
-			"type": "array",
-			"minItems": 2,
-			"maxItems": 2,
-			"prefixItems": [{
-				"type": "number",
-				"exclusiveMinimum": 0,
-				"maximum": 33554432
-			}, {
-				"type": "number",
-				"exclusiveMinimum": 0,
-				"maximum": 33554432
-			}],
-			"items": false
-		},
-		"scheme": { "enum": ["light", "dark"] }
-	},
-	"required": [
-		"strokes",
-		"box",
-		"viewport",
-		"scheme"
-	],
-	"additionalProperties": false
-};
-
-//#endregion
 //#region runtime/composing/drawing-record.js
 const FIELDS = drawingSchema.properties;
 const MAX_DRAWING_STROKES = FIELDS.strokes.maxItems;
@@ -389,10 +270,6 @@ function sentDrawing(drawing) {
 	const { at, ...sent } = drawing;
 	return sent;
 }
-
-//#endregion
-//#region runtime/protocol.js
-const DRAFT_FORMAT = "leaf-draft/17";
 
 //#endregion
 //#region runtime/editor-view.js
@@ -629,7 +506,10 @@ sheet.replaceSync(`
     fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round;
     stroke-linejoin: round; overflow: visible; user-select: none;
     -webkit-user-select: none; }
-  /* Code with no fence lines takes the message's padding at its ends instead. */
+  /* A fence's line, while the caret is away from it, stands for the sent pre's padding,
+     and code with no fence lines takes that padding at its ends instead. A field that
+     edits in place reads its display's padding over this (\`readFaces\`). */
+  .lf-face-fence-open, .lf-face-fence-close { line-height: var(--pre-pad-block); }
   .lf-md-code-bare.lf-md-code-first { padding-block-start: var(--pre-pad-block); }
   .lf-md-code-bare.lf-md-code-last { padding-block-end: calc(var(--pre-pad-block) + 8px); }
 `);
@@ -1079,11 +959,31 @@ var LeafText = class extends HTMLElement {
 					return false;
 				}),
 				this.#history.of(history()),
+				EditorState.transactionFilter.of((tr) => {
+					if (!tr.docChanged || !this.#oneLine) return tr;
+					const breaks = [];
+					tr.changes.iterChanges((_fromA, _toA, fromB, _toB, inserted) => {
+						const text = inserted.toString();
+						for (let at = text.indexOf("\n"); at !== -1; at = text.indexOf("\n", at + 1)) breaks.push({
+							from: fromB + at,
+							to: fromB + at + 1,
+							insert: " "
+						});
+					});
+					return breaks.length ? [tr, {
+						changes: breaks,
+						sequential: true
+					}] : tr;
+				}),
 				invertedEffects.of((tr) => tr.effects.filter((effect) => effect.is(ownerStep)).map(({ value }) => ownerStep.of({
 					run: value.back,
 					back: value.run
 				}))),
 				keymap.of([
+					{
+						key: "Shift-Enter",
+						run: () => this.#oneLine
+					},
 					{
 						key: "Enter",
 						run: (view) => this.dispatchEvent(new Event("lf-edit-return", { cancelable: true })) && insertNewline(view)
@@ -1136,7 +1036,6 @@ var LeafText = class extends HTMLElement {
 		const wanted = {
 			...this.#contentAttributes(),
 			role: "textbox",
-			"aria-multiline": "true",
 			contenteditable: "plaintext-only",
 			...this.#readOnly && { "aria-readonly": "true" }
 		};
@@ -1240,11 +1139,15 @@ var LeafText = class extends HTMLElement {
 		if (this.#view) this.#view.dispatch(spec);
 		else this.#model = this.#model.update(spec).state;
 	}
+	get #oneLine() {
+		return this.getAttribute("aria-multiline") === "false";
+	}
 	#contentAttributes() {
 		const attributes = {
 			spellcheck: "true",
 			autocorrect: "on",
-			autocapitalize: "sentences"
+			autocapitalize: "sentences",
+			"aria-multiline": String(!this.#oneLine)
 		};
 		if (this.placeholder) attributes["aria-placeholder"] = this.placeholder;
 		const label = this.getAttribute("aria-label");

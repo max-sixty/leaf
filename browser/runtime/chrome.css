@@ -1415,6 +1415,14 @@
 }
 
 /* browser/styles/chrome.css */
+.lf-ui {
+  box-sizing: border-box;
+}
+.lf-ui *,
+.lf-ui *::before,
+.lf-ui *::after {
+  box-sizing: border-box;
+}
 @layer lf-reset {
   button.lf-ui {
     appearance: none;

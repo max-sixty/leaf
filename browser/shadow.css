@@ -9,12 +9,6 @@
     transition: none !important;
   }
 }
-:where(:root) .lf-ui,
-:where(:root) .lf-ui *,
-:where(:root) .lf-ui *::before,
-:where(:root) .lf-ui *::after {
-  box-sizing: border-box;
-}
 :where(:root) :is(.lf-ui-face, .button, .field) {
   font-family: var(--sans);
   font-size: var(--t-5);

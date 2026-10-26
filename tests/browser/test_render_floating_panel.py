@@ -1324,16 +1324,18 @@ def test_threads_search_finds_a_thread_by_the_words_it_quotes(browser, serve):
 
 
 def test_keys_in_threads_act_on_threads(browser, serve):
-    """In Threads, `/` opens Threads' own search, where it opened the page's search
-    over the list, and d and u page the list rather than the page under it."""
+    """Go to Threads lands in its list, where `/` finds threads and d and u page
+    the list rather than the page under it."""
     url = serve(AGENDA_PAGE)
     agenda_threads(serve.page_dir)
     for n in range(12):
         panel_comment(serve.page_dir, f"Question {n} about the room")
     page = floating(browser, url)
     resized(page, 1440, 500)
-    rows = threads_rows(page)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
     view = page.locator(panel_view("threads"))
+    rows = view.locator(".lf-fp-thread")
     expect(view).to_be_focused()
     assert view.evaluate("box => box.scrollHeight > box.clientHeight")
     document = "() => document.scrollingElement.scrollTop"

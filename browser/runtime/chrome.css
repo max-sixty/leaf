@@ -2002,6 +2002,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     max-height: none;
   }
   .lf-media-viewer .pswp__img {
+    border-radius: 0;
     outline: 1px solid var(--border-2);
     box-shadow: var(--raise-2);
   }

@@ -238,8 +238,8 @@ import {
 } from "./focus.js";
 import { rowWalk } from "./walk-position.js";
 import { excerptWords } from "./words.js";
-import { afterSettling, holdRendering, nextRender, sizeObserver } from "./rendering.js";
-import { boxMotion } from "./box-motion.js";
+import { holdRendering, nextRender, sizeObserver } from "./rendering.js";
+import { boxMotion, liftReach } from "./box-motion.js";
 import { scrollIntoView } from "./landing-scroll.js";
 import { moveScrollerBy, SCROLL_SLACK, scrollLimit, scrollToEnd } from "./scrolling.js";
 import { showReturnTurn } from "./thread/reply-landing.js";
@@ -340,9 +340,9 @@ export function createFloatingPanel({
   // The panel's durations and curves, which its stylesheet declares on it and says why
   // each is what it is (floating-panel.css, "The panel's motion"), read live as every
   // `--lf-motion-*` is.
-  const ease = () => motionEasing("--lf-motion-panel-ease", host);
+  const ease = () => motionEasing("--lf-motion-box-ease", host);
   const foldEase = () => motionEasing("--lf-motion-panel-fold-ease", host);
-  const resizeMs = () => motionTime("--lf-motion-panel-resize", host);
+  const resizeMs = () => motionTime("--lf-motion-box-resize", host);
   const foldMs = () => motionTime("--lf-motion-panel-fold", host);
   const viewResizeMs = () => motionTime("--lf-motion-disclosure", host);
   const fadeMs = () => motionTime("--lf-motion-view-in", host);
@@ -1266,51 +1266,21 @@ export function createFloatingPanel({
     // window: a layer over the whole window that paints nothing left every word under
     // it unmeasured by a contrast checker. Its cut moves with the ring's, so it holds
     // the ring every frame.
-    surface: () => {
-      const lift = getComputedStyle(ground);
-      const shadowReach = ["--raise-2-drop", "--raise-2-blur"]
-        .map((token) => Number.parseFloat(lift.getPropertyValue(token)))
-        .reduce((reach, part) => reach + part);
-      return [
-        [ground, shadowReach],
-        [ring, 1],
-        [fill, 0],
-      ];
-    },
+    surface: () => [
+      [ground, liftReach(ground, 2)],
+      [ring, 1],
+      [fill, 0],
+    ],
     ring: [fieldRing, fieldFill],
     observer: follow,
-    theirs: () => gesture,
   });
-  // The user's key, press or typing owns what it sets going until that rendering
-  // settles (rendering.js, `afterSettling`): changes to the box meanwhile are theirs,
-  // and what changes it after, such as an answer arriving, is news. News landing before
-  // the gesture's rendering settles, a reading back within a frame or two, is taken as
-  // theirs. Typing is told apart, since the field it types in must not move under it.
-  let gesture = null;
-  let gestures = 0;
-  // Activation is a new gesture too: a held press can settle before its click.
-  const beginGesture = (event) => {
-    if (
-      !["keydown", "pointerdown", "input", "touchstart", "click"].includes(event.type)
-    )
-      return;
-    gesture = event.type === "input" ? "typing" : "press";
-    const own = ++gestures;
-    afterSettling(() => {
-      if (gestures === own) gesture = null;
-    });
-  };
-  onUserInput(beginGesture);
   // A send is the user's change joining the stream the box shows (box-motion.js,
   // "send"): the box reads where that stream stands before the send draws, and the
   // readings until the send's rendering settles carry it from there on the box's own
   // tween.
   function streamSend() {
-    if (gesture === null) return;
-    gesture = "send";
     following.stream();
   }
-  window.addEventListener("click", beginGesture, { capture: true, passive: true });
   function followBox() {
     // How far the box reaches up from the window's foot, which the root's
     // `scroll-padding-bottom` keeps every landing clear of (theme.css), so `m`, `t`, a
@@ -1326,7 +1296,7 @@ export function createFloatingPanel({
     const compact = host.dataset.rest === "mark";
     const duration = compact
       ? foldMs()
-      : performance.now() < viewMovingUntil && gesture !== "send"
+      : performance.now() < viewMovingUntil && following.theirs() !== "send"
         ? viewResizeMs()
         : resizeMs();
     following.follow({ duration, easing: compact ? foldEase() : ease() }, compact);
@@ -1729,7 +1699,7 @@ export function createFloatingPanel({
     }
     // A view a send opens rises with the box as the stream does (`streamSend`).
     const arriving = stage.querySelector(".lf-fp-view:not([data-leaving])");
-    if (arriving && gesture !== "send")
+    if (arriving && following.theirs() !== "send")
       playMotion(arriving, [{ opacity: 0 }, { opacity: 1 }], {
         duration: fadeMs(),
         delay: leaving ? outMs() : 0,

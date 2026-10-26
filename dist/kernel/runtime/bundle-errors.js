@@ -79,7 +79,6 @@ const spell = (binding) => {
 };
 const softKeyboard = () => coarsePointer.matches;
 const submitBindings = () => softKeyboard() ? ["Mod+Enter"] : ["Enter", "Mod+Enter"];
-const submitLabel = () => spell(submitBindings()[0]);
 const advertisesKeys = () => !coarsePointer.matches;
 const spokenBinding = (binding) => {
 	const { key, mods } = parsed(binding);
@@ -250,6 +249,7 @@ function decisionControls(commands, where = "an obligation") {
 			const contribution = route ?? row;
 			const control = word(contribution.control ?? row.control);
 			const label = titleOf(contribution);
+			const description = descriptionOf(route?.description !== void 0 ? route : row);
 			const bindingBadge = word(contribution.bindingBadge !== void 0 ? contribution.bindingBadge : row.bindingBadge) ?? null;
 			const active = route ? [route.binding, ...contextBindings(route)].filter(Boolean) : allBindings(row);
 			if (control == null) continue;
@@ -261,6 +261,8 @@ function decisionControls(commands, where = "an obligation") {
 				source,
 				control,
 				label,
+				description,
+				recommended: Boolean(contribution.recommended ?? row.recommended),
 				bindingBadge,
 				intrinsicBindings: active,
 				command: Object.freeze({
@@ -1440,4 +1442,4 @@ function dismissErrors() {
 }
 
 //#endregion
-export { EVERYTHING, LAYOUT, LINK, PRESS, PRESSABLE, TEXT_ENTRY, advertisesKeys, allBindings, announce, answers, ariaShortcuts, bindingEnabled, bindingEnabledFor, bindings, buttonCommand, checked, claimReleaseClick, claimsEsc, clampedRow, closeControl, coarsePointer, commandAvailable, commandBinding, commandDeclarationsWithin, commandEntries, commandPresentations, commandReady, commandRoutes, commandScope, commandsOn, commandsWithin, contextBindings, contextScopes, controlAvailabilityOutput, cycledRow, decisionControls, declareCommandReadiness, declaredBindings, descriptionOf, dismissError, dismissErrors, dragHeld, dragging, el, elementDirective, errorsReading, generated, generatedElement, holdStatus, holdingError, hoveringPointer, iconElement, iconTemplate, isCommandScope, keys, labelOf, layoutChanged, live, liveEl, measure, merge, motionPreview, mountRepaint, nativeActivationAt, nativeClaimAt, notice, noticeReading, offer, offered, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, plainPress, pointerAt, pressIsKeyboardActivation, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, reachedForWords, referencedCommandEntry, reflectFirstScopes, reflectKeys, relabel, repaint, repaintPage, responseAction, restorePointer, reveal, routedCommand, rowArrows, savedReadingSettled, saying, scopeAvailable, scopeIdentity, scopeRefs, scopesAt, scopesFor, searchField, seeErrors, selectableOffer, selectableOffered, setNoticeContext, setQuickShortcuts, spell, spokenBinding, submitBindings, submitLabel, titleOf, touchPresses, watchCommandAvailability, watchCommandScopes, word, worksInside };
+export { EVERYTHING, LAYOUT, LINK, PRESS, PRESSABLE, TEXT_ENTRY, advertisesKeys, allBindings, announce, answers, ariaShortcuts, bindingEnabled, bindingEnabledFor, bindings, buttonCommand, checked, claimReleaseClick, claimsEsc, clampedRow, closeControl, coarsePointer, commandAvailable, commandBinding, commandDeclarationsWithin, commandEntries, commandPresentations, commandReady, commandRoutes, commandScope, commandsOn, commandsWithin, contextBindings, contextScopes, controlAvailabilityOutput, cycledRow, decisionControls, declareCommandReadiness, declaredBindings, descriptionOf, dismissError, dismissErrors, dragHeld, dragging, el, elementDirective, errorsReading, generated, generatedElement, holdStatus, holdingError, hoveringPointer, iconElement, iconTemplate, isCommandScope, keys, labelOf, layoutChanged, live, liveEl, measure, merge, motionPreview, mountRepaint, nativeActivationAt, nativeClaimAt, notice, noticeReading, offer, offered, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, plainPress, pointerAt, pressIsKeyboardActivation, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, reachedForWords, referencedCommandEntry, reflectFirstScopes, reflectKeys, relabel, repaint, repaintPage, responseAction, restorePointer, reveal, routedCommand, rowArrows, savedReadingSettled, saying, scopeAvailable, scopeIdentity, scopeRefs, scopesAt, scopesFor, searchField, seeErrors, selectableOffer, selectableOffered, setNoticeContext, setQuickShortcuts, spell, spokenBinding, submitBindings, titleOf, touchPresses, watchCommandAvailability, watchCommandScopes, word, worksInside };

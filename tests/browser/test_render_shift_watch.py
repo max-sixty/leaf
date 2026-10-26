@@ -4508,6 +4508,35 @@ def test_cancelled_native_translation_credits_its_return_to_layout(
         assert not errors, errors
 
 
+@pytest.mark.parametrize("ending", ["cancel", "finish"])
+def test_ending_an_animation_after_its_target_detaches(browser, ending):
+    """A removed surface has no presentation for the motion watch to sample."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><section id="surface"><div id="words">Words</div></section>'
+        )
+    )
+    paint(page)
+    page.evaluate("""() => {
+      window.motion = words.animate(
+        [{translate: '20px 0px'}, {translate: '0px 0px'}], {duration: 1000});
+      motion.pause();
+      motion.currentTime = 500;
+    }""")
+    paint(page)
+    page.evaluate(
+        """ending => {
+      surface.remove();
+      motion[ending]();
+    }""",
+        ending,
+    )
+    paint(page)
+    judge_watches()
+
+
 FRAMES = """count => new Promise((done) => {
   const next = () => (--count ? requestAnimationFrame(next) : done());
   requestAnimationFrame(next);

@@ -296,7 +296,23 @@ function imports() {
       if (statement.exported) take(source, "*");
       else if (target) stars.push(target);
     }
-    for (const node of dynamic) use(spelled(node.source), node);
+    for (const node of dynamic) {
+      // Rejection and cleanup handlers keep the fulfilled namespace. Follow the
+      // promise before reading its value; these methods aren't module exports.
+      let promise = node;
+      while (true) {
+        const member = parents.get(promise);
+        const call = parents.get(member);
+        if (
+          member?.object !== promise ||
+          call?.callee !== member ||
+          !["catch", "finally"].includes(method(call))
+        )
+          break;
+        promise = call;
+      }
+      use(spelled(node.source), promise);
+    }
     for (const { source, qualifier } of types) {
       let name = qualifier;
       while (name?.type === "TSQualifiedName") name = name.left;

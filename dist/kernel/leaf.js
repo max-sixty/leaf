@@ -9748,7 +9748,7 @@ var otherPayloadLines = (relation, provenance) => [
   ...provenance.dirty !== void 0 ? [`${relation} dirty: ${provenance.dirty}`] : [],
   ...payloadDateLines(provenance).map((line) => `${relation} ${line}`)
 ];
-var servedBy = (state) => state.leaf ? ` \xB7 served by ${shortCommit(state.leaf)}${payloadAge(state.leaf) ? ` \xB7 ${payloadAge(state.leaf)}` : ""}` : "";
+var servedBy = (identity) => identity.served_by ? ` \xB7 served by ${shortCommit(identity.served_by)}${payloadAge(identity.served_by) ? ` \xB7 ${payloadAge(identity.served_by)}` : ""}` : "";
 if (SHARE_ROOT)
   registerPageControl({
     key: "share",
@@ -9764,17 +9764,15 @@ var preview = () => (
 );
 function previewLabel() {
   const identity = pageIdentity();
-  const state = { layer: identity.layer, leaf: identity.served_by };
-  const producer = state.layer.producer ?? {};
+  const producer = identity.layer.producer ?? {};
   const kind = preview().interaction === "user" ? "User" : "Preview";
   const stem = `${kind} \xB7 ${preview().checkout}${producer.commit ? `@${producer.commit}` : ""}`;
   const age = payloadAge(producer);
-  return `${producer.commit && producer.dirty ? `${stem}+` : stem}${age ? ` \xB7 ${age}` : ""}${servedBy(state)}`;
+  return `${producer.commit && producer.dirty ? `${stem}+` : stem}${age ? ` \xB7 ${age}` : ""}${servedBy(identity)}`;
 }
 function previewDiagnostics() {
   const identity = pageIdentity();
-  const state = { layer: identity.layer, leaf: identity.served_by };
-  const producer = state.layer.producer ?? {};
+  const producer = identity.layer.producer ?? {};
   const { example, checkout, interaction, started } = identity.preview;
   return [
     "Leaf preview",
@@ -9784,11 +9782,11 @@ function previewDiagnostics() {
     ...producer.commit ? [`commit: ${producer.commit}`] : [],
     ...producer.dirty !== void 0 ? [`dirty: ${producer.dirty}`] : [],
     ...payloadDateLines(producer),
-    ...state.leaf ? otherPayloadLines("served by", state.leaf) : [],
+    ...identity.served_by ? otherPayloadLines("served by", identity.served_by) : [],
     `started: ${started}`,
     ...runtimeLines(),
-    `layer generation: ${state.layer.generation}`,
-    ...state.layer.fingerprint ? [`layer fingerprint: ${state.layer.fingerprint}`] : [],
+    `layer generation: ${identity.layer.generation}`,
+    ...identity.layer.fingerprint ? [`layer fingerprint: ${identity.layer.fingerprint}`] : [],
     ...runtime.currentRevision ? [`revision: ${runtime.currentRevision}`] : [],
     `event sequence: ${runtime.lastEventSeq ?? 0}`,
     `url: ${identity.url}`
@@ -9807,36 +9805,33 @@ function runtimeLines() {
   const { delivery } = pageIdentity();
   return delivery.runtime ? [`runtime: ${delivery.runtime}`] : [];
 }
-function layerIdentity(state) {
-  const producer = state.layer.producer ?? {};
-  const fingerprint = state.layer.fingerprint;
+function layerIdentity(identity) {
+  const producer = identity.layer.producer ?? {};
+  const fingerprint = identity.layer.fingerprint;
   if (producer.commit) return shortCommit(producer);
   return fingerprint ? `sha256:${fingerprint.replace(/^sha256:/, "").slice(0, 12)}` : null;
 }
 var layerShown = () => {
   const identity = pageIdentity();
-  const state = { layer: identity.layer, leaf: identity.served_by };
-  return Boolean(state.layer && !identity.preview && layerIdentity(state));
+  return Boolean(identity.layer && !identity.preview && layerIdentity(identity));
 };
 function layerNamed() {
   const identity = pageIdentity();
-  const state = { layer: identity.layer, leaf: identity.served_by };
-  const age = payloadAge(state.layer.producer ?? {});
-  return `Leaf ${layerIdentity(state)}${age ? ` \xB7 ${age}` : ""}${servedBy(state)}`;
+  const age = payloadAge(identity.layer.producer ?? {});
+  return `Leaf ${layerIdentity(identity)}${age ? ` \xB7 ${age}` : ""}${servedBy(identity)}`;
 }
 function layerDiagnostics() {
   const identity = pageIdentity();
-  const state = { layer: identity.layer, leaf: identity.served_by };
-  const producer = state.layer.producer ?? {};
-  const fingerprint = state.layer.fingerprint;
+  const producer = identity.layer.producer ?? {};
+  const fingerprint = identity.layer.fingerprint;
   return [
     "Leaf layer",
     ...producer.commit ? [`commit: ${producer.commit}`] : [],
     ...producer.dirty !== void 0 ? [`dirty: ${producer.dirty}`] : [],
     ...payloadDateLines(producer),
-    ...state.leaf ? otherPayloadLines("served by", state.leaf) : [],
+    ...identity.served_by ? otherPayloadLines("served by", identity.served_by) : [],
     ...fingerprint ? [`fingerprint: ${fingerprint}`] : [],
-    `generation: ${state.layer.generation}`,
+    `generation: ${identity.layer.generation}`,
     ...runtimeLines(),
     ...runtime.currentRevision ? [`revision: ${runtime.currentRevision}`] : [],
     `url: ${identity.url}`

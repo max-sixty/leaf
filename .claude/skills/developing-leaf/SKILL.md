@@ -203,12 +203,16 @@ to the user carries the fragment of the section it is about and stays running.
 
 ## Preview a page
 
-`uv run leaf-dev preview <example>` serves a live page that follows source and runtime
+`uv run leaf-dev preview <example>` serves a live page that follows source and browser-runtime
 edits at one URL. `--source <file>` serves any HTML file instead of a shipped example,
 and `--export` writes one file that opens offline. A desktop Codex `--user` preview
 detaches and returns its URL; every other preview runs in the foreground like a dev
 server, so start it as a long-running command (`run_in_background` in Claude Code). The
 `dev/leaf_dev/commands/preview.py` header covers slots and restarts; `--help` lists the flags.
+
+Python, schema and dependency edits require restarting the preview; its log says when.
+For a user preview, stop its page server and rerun the same preview command to keep its
+URL and comments. A plain preview starts fresh on restart.
 
 A plain preview has no claim, so presses on it reach only the page's log; use it for
 screenshots and browser checks. `--user` claims the page so the user's comments reach

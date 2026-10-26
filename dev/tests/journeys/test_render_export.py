@@ -990,16 +990,14 @@ def test_exporting_an_example_leaves_the_live_preview_untouched(
         live_server.wait(timeout=STATED_TIMEOUT)
 
 
-@pytest.mark.parametrize("user", [False, True])
-@pytest.mark.parametrize("change", ["protocol", "python", "dependencies"])
-def test_preview_follows_loaded_code_change_at_existing_url(
-    tmp_path, preview_slot, spawn, user, change
+def test_preview_resumes_loaded_code_changes_without_losing_feedback(
+    tmp_path, preview_slot, spawn
 ):
-    """A fresh Python contract keeps the URL, feedback and claim across updates."""
+    """Python edits keep the old page serving until an explicit restart."""
     from urllib.parse import urlsplit
 
     source, runtime, directory, process, url, log = watching(
-        tmp_path, preview_slot, spawn, user=user
+        tmp_path, preview_slot, spawn, user=True
     )
     state_url = urlsplit(url)._replace(path="/api/state").geturl()
     event_url = urlsplit(url)._replace(path="/api/event").geturl()
@@ -1017,118 +1015,50 @@ def test_preview_follows_loaded_code_change_at_existing_url(
     )
     assert status == 200, body
     feedback = (directory / "events.jsonl").read_bytes()
-    claim = service_model.page_claim(directory)
-    import psutil
+    assert b"Keep this feedback through the update" in feedback
+    status, body = fetch(state_url, token=None)
+    assert status == 200, body
+    old_grace = json.loads(body)["working_grace_ms"]
 
-    def worker_pid():
-        return next(
-            child.pid
-            for child in [
-                psutil.Process(process.pid),
-                *psutil.Process(process.pid).children(recursive=True),
-            ]
-            if "leaf_dev.commands.preview" in child.cmdline()
-            and Path(child.cmdline()[0]).name.startswith("python")
-        )
+    edited = runtime / "src/leaf/served_state/page.py"
+    original = edited.read_text()
+    updated = original.replace("WORKING_GRACE // timedelta(milliseconds=1)", "12345")
+    assert updated != original
+    edited.write_text(updated)
 
-    pid = worker_pid()
-    title = "Rollout"
-    for iteration in range(2):
-        if change == "dependencies":
-            manifest = runtime / "dev/pyproject.toml"
-            manifest.write_text(
-                manifest.read_text().replace(
-                    '"pyyaml>=6",' if iteration == 0 else '"platformdirs>=4",',
-                    '"pyyaml>=6",\n    "platformdirs>=4",'
-                    if iteration == 0
-                    else '"platformdirs>=4.1",',
-                )
-            )
-        if change == "protocol":
-            edited = runtime / "browser/registry.json"
-            facts = json.loads(edited.read_text())
-            facts["$events"]["protocol"] += 1
-            expected = facts["$events"]["protocol"]
-            content = json.dumps(facts)
-        else:
-            edited = runtime / "src/leaf/served_state/page.py"
-            former = (
-                "WORKING_GRACE // timedelta(milliseconds=1)"
-                if iteration == 0
-                else str(12344 + iteration)
-            )
-            expected = 12345 + iteration
-            content = edited.read_text().replace(
-                f'"working_grace_ms": {former}',
-                f'"working_grace_ms": {expected}',
-            )
-            assert content != edited.read_text()
-        updated = edited.with_suffix(".next")
-        updated.write_text(content)
-        updated.replace(edited)
-        if change == "protocol":
-            wait_for(
-                lambda: json.loads((directory / "registry.json").read_text())[
-                    "$events"
-                ]["protocol"],
-                lambda value, expected=expected: value == expected,
-                timeout=COMPOSITE_TIMEOUT,
-                failure="the preview did not adopt the changed protocol",
-            )
-        else:
+    def restart_requested(text):
+        assert process.poll() is None, text
+        return "restart this preview" in text
 
-            def grace():
-                from urllib.error import URLError
+    wait_for(
+        log.read_text,
+        restart_requested,
+        timeout=STATED_TIMEOUT,
+        failure="the preview did not request a restart for its changed Python code",
+    )
+    assert _reachable(url)
+    status, body = fetch(state_url, token=None)
+    assert status == 200, body
+    assert json.loads(body)["working_grace_ms"] == old_grace
 
-                try:
-                    status, body = fetch(state_url, token=None)
-                except (URLError, ConnectionError):
-                    return None
-                return (
-                    json.loads(body).get("working_grace_ms") if status == 200 else None
-                )
+    # The same command resumes a user preview; no process identity is a contract.
+    result = CliRunner().invoke(cli_model.cli, ["server", "stop", str(directory)])
+    assert result.exit_code == 0, result.output
+    process.wait(timeout=STATED_TIMEOUT)
+    restarted, restarted_url = start_preview(
+        spawn, process.args, tmp_path / "restarted.log"
+    )
+    assert restarted_url == url
+    status, body = fetch(state_url, token=None)
+    assert status == 200, body
+    assert json.loads(body)["working_grace_ms"] == 12345
+    assert (directory / "events.jsonl").read_bytes().startswith(feedback)
 
-            wait_for(
-                grace,
-                lambda value, expected=expected: value == expected,
-                timeout=COMPOSITE_TIMEOUT,
-                failure="the preview kept running its former Python code",
-            )
-        wait_for(
-            lambda: _reachable(url),
-            bool,
-            timeout=STATED_TIMEOUT,
-            failure=f"the updated preview stopped serving at {url}",
-        )
-        new_title = f"Updated rollout {iteration}"
-        source.write_text(source.read_text().replace(title, new_title))
-        title = new_title
-        wait_for(
-            lambda: (directory / "index.html").read_text(),
-            lambda value, title=title: title in value,
-            timeout=COMPOSITE_TIMEOUT,
-            failure="the preview did not publish a source edit after the code change",
-        )
-        assert (directory / "events.jsonl").read_bytes().startswith(feedback)
-        assert service_model.page_claim(directory) == claim
-        assert process.poll() is None, log.read_text()
-        assert worker_pid() == pid
-        if change == "dependencies":
-            subprocess.run(
-                [psutil.Process(pid).cmdline()[0], "-c", "import platformdirs"],
-                check=True,
-                timeout=STATED_TIMEOUT,
-            )
-        assert leases_model.lock_is_held(preview_model.preview_lease(directory))
-        contender = subprocess.run(
-            [
-                sys.executable,
-                *preview_model.worker_arguments(source, directory, runtime, user),
-            ],
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=STATED_TIMEOUT,
-        )
-        assert contender.returncode != 0
-        assert "another preview is serving" in contender.stderr
+    source.write_text(source.read_text().replace("Rollout", "Updated rollout"))
+    wait_for(
+        lambda: (directory / "index.html").read_text(),
+        lambda text: "Updated rollout" in text,
+        timeout=COMPOSITE_TIMEOUT,
+        failure="the restarted preview did not resume authored-page updates",
+    )
+    assert restarted.poll() is None

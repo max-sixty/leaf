@@ -386,6 +386,13 @@ def test_a_preview_reads_its_watched_inputs_from_the_files_that_exist_now(tmp_pa
     added_script.unlink()
     assert str(added_script) not in watched().paths
 
+    # Python loads schema data at import time too; changing it needs both the
+    # server's refresh and a fresh watcher, just like changing a Python module.
+    schema = scripts / "state.schema.json"
+    schema.write_text("{}")
+    assert str(schema) in watched().paths
+    assert schema in preview.worker_inputs(runtime)
+
     versions = source.parent / "versions"
     versions.mkdir()
     version = versions / "page.v1.html"
@@ -893,71 +900,6 @@ def test_an_abandoned_handoff_does_not_disable_the_server_it_reuses(
     assert server.running_server(page) == before
 
 
-@pytest.mark.parametrize(
-    ("claimed", "interruption"),
-    [(True, "stop"), (False, "stop"), (True, "successor")],
-)
-def test_preview_continuation_respects_ownership_changes_during_refresh(
-    page_dir, tmp_path, monkeypatch, claimed, interruption
-):
-    """A runtime refresh cannot undo a stop or reclaim a successor's page."""
-    from leaf.harness import ClaudeCodeHarness
-    from leaf.hosting import cmd_stop
-    from leaf.refusals import Refused
-
-    if not claimed:
-        monkeypatch.delenv("CLAUDE_CODE_SESSION_ID")
-    original = preview.PreviewService(page_dir, user=True)
-    with original.starting() as url:
-        pass
-    source = tmp_path / "fixture.html"
-    source.write_bytes((page_dir / "index.html").read_bytes())
-    preview.mark_preview(
-        source,
-        page_dir,
-        ROOT,
-        True,
-        preview.authored_digest(preview.incoming_files(source)),
-    )
-
-    def interrupt_refresh(*_args):
-        if interruption == "stop":
-            cmd_stop(page_dir)
-        else:
-            with service.PageTransaction(page_dir) as page:
-                page.take_claim(ClaudeCodeHarness("successor", "Claude"))
-        return False
-
-    # Arrange the external action at the refresh boundary; real serving and claim
-    # owners decide whether the resumed watcher can publish anything afterward.
-    monkeypatch.setattr(preview, "refresh_preview", interrupt_refresh)
-    monkeypatch.setattr(preview, "cached_installation", lambda _runtime: ROOT)
-    monkeypatch.setattr(
-        preview,
-        "watch_changes",
-        lambda watched: _ScriptedChanges((item for item in ()), watched),
-    )
-    try:
-        with pytest.raises(Refused):
-            preview.serve_preview(
-                source,
-                page_dir,
-                ROOT / "bin/leaf",
-                ROOT,
-                True,
-                continuation={"address": {}, "claim": original.claim},
-            )
-        if interruption == "stop":
-            assert not server.read_service(page_dir)["enabled"]
-            assert server.running_server(page_dir) is None
-        else:
-            assert service.page_claim(page_dir)["id"] == "successor"
-            assert server.running_server(page_dir)["url"] == url
-            assert fetch(url)[0] == 200
-    finally:
-        cmd_stop(page_dir)
-
-
 @pytest.mark.parametrize("failure", [RuntimeError, KeyboardInterrupt])
 @pytest.mark.parametrize("handoff", ["preview", "start", "run"])
 def test_failed_delivery_preserves_the_existing_preview(
@@ -1356,10 +1298,8 @@ def test_resumed_preview_follows_capture_bindings_and_files_without_replaying_se
         service.stop()
 
 
-def test_preview_keeps_watching_after_an_invalid_capture_companion(
-    tmp_path, monkeypatch, capsys
-):
-    """An interrupted JSON save refuses one refresh, then its repair reaches the page."""
+def test_preview_keeps_watching_after_unreadable_inputs(tmp_path, monkeypatch, capsys):
+    """Unreadable runtime inputs or incomplete captures leave the last page serving."""
     from leaf.data import read_data
     from leaf.registry.storage import load_registry
 
@@ -1377,6 +1317,17 @@ def test_preview_keeps_watching_after_an_invalid_capture_companion(
     page = tmp_path / "page"
 
     def edits():
+        output = capsys.readouterr().out
+        url = next(line for line in output.splitlines() if line.startswith("http://"))
+
+        def unavailable(_runtime):
+            raise OSError("runtime input temporarily unavailable")
+
+        with monkeypatch.context() as unreadable:
+            unreadable.setattr(preview, "worker_identity", unavailable)
+            yield {str(captured)}
+            assert "runtime input temporarily unavailable" in capsys.readouterr().err
+            assert fetch(url)[0] == 200
         companion.write_text("{")
         yield {str(companion)}
         assert (

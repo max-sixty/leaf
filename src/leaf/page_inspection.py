@@ -16,11 +16,10 @@ by JavaScript, including widget template strings, are outside it. Browser views
 retain their own revision, viewport and freshness; only a matching artifact digest
 lets one describe the inspected source. Inspection never activates the candidate,
 opens a browser, alters a disclosure, or makes a measurement a pass/fail verdict.
-Revision comparisons name changed captured sources and CSS deltas beside their
-text diffs. Non-UTF-8 downloads keep byte counts and digests without a text diff.
+Revision comparisons name changed captured sources and metric deltas. The revision
+directories retain the files for an author who needs their full text diff.
 """
 
-from difflib import unified_diff
 from pathlib import Path
 
 from .files import latest_revision, list_revisions
@@ -32,7 +31,6 @@ from .revision_artifact import (
     RevisionArtifact,
     capture_artifact,
     css_dependencies,
-    javascript_imports,
     read_artifact,
     read_revision,
     resolve_dependency,
@@ -91,7 +89,7 @@ def inspect_artifact(artifact: RevisionArtifact, revision: int | None) -> dict:
             }
         )
 
-    def refer(path, *, document, mime="text/css"):
+    def refer(path, *, document):
         pending = [path]
         visited = set()
         while pending:
@@ -100,7 +98,7 @@ def inspect_artifact(artifact: RevisionArtifact, revision: int | None) -> dict:
                 continue
             visited.add(target)
             resource = artifact.resources[target]
-            if resource.mime != mime:
+            if resource.mime != "text/css":
                 continue
             references.setdefault(target, set()).add(document)
             pending.extend(resource_dependencies(target, resource.data, resource.mime))
@@ -126,21 +124,6 @@ def inspect_artifact(artifact: RevisionArtifact, revision: int | None) -> dict:
                     "bytes": len(body),
                 }
             )
-            for _, _, specifier in javascript_imports(body, "/index.html"):
-                refer(
-                    resolve_dependency(specifier, "/index.html", module=True),
-                    document=name,
-                    mime="application/javascript",
-                )
-        for script in authoring.external_scripts:
-            if script_kind(script["attrs"]) in {"module", "classic"}:
-                refer(
-                    resolve_dependency(
-                        script["attrs"]["src"], "/index.html", module=True
-                    ),
-                    document=name,
-                    mime="application/javascript",
-                )
         for sheet in authoring.style_blocks:
             add_source(
                 sheet["css"], "index.html", sheet["line"], "style", "page", [name]
@@ -177,7 +160,6 @@ def inspect_artifact(artifact: RevisionArtifact, revision: int | None) -> dict:
                     "line": 1,
                     "kind": "file",
                     "owner": owner,
-                    "documents": sorted(references.get(path, ())),
                     "bytes": len(resource.data),
                 }
             )
@@ -262,7 +244,7 @@ def inspection_views(page_dir: Path, artifact_digest: str) -> dict:
 
 
 def compare_artifacts(before: RevisionArtifact, after: RevisionArtifact) -> list[dict]:
-    """Changed captured sources, with textual diffs for authored HTML, CSS and JS.
+    """Changed captured sources and their byte counts and digests.
 
     This compares source inputs only. Browser geometry has an independent runtime,
     event position and interaction state and is deliberately not subtracted here.
@@ -294,32 +276,6 @@ def compare_artifacts(before: RevisionArtifact, after: RevisionArtifact) -> list
             if right
             else None,
         }
-        if (right or left).mime in {"text/html", "text/css", "application/javascript"}:
-            try:
-                old_lines = (
-                    left.data.decode("utf-8").splitlines(keepends=True) if left else []
-                )
-                new_lines = (
-                    right.data.decode("utf-8").splitlines(keepends=True)
-                    if right
-                    else []
-                )
-            except UnicodeDecodeError:
-                change["diff_unavailable"] = (
-                    "Source is not UTF-8 text; byte counts and digests describe the change."
-                )
-            else:
-                change["diff"] = "".join(
-                    line
-                    if line.endswith("\n")
-                    else f"{line}\n\\ No newline at end of file\n"
-                    for line in unified_diff(
-                        old_lines,
-                        new_lines,
-                        fromfile=f"before{path}",
-                        tofile=f"after{path}",
-                    )
-                )
         changes.append(change)
     return changes
 

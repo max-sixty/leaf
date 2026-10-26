@@ -112,6 +112,10 @@
     },
   };
   const input = (event) => {
+    // Firefox can send an inaccessible foreign wheel object to an arriving
+    // sandboxed window. It is not this realm's Event and reaches no document.
+    // Reject it before reading fields or handing it to the input subscribers.
+    if (!(event instanceof Event)) return;
     if (event.type === "blur" && event.target !== window) return;
     if (event.type !== "blur" && event.type !== "wheel") stayed();
     inputs++;

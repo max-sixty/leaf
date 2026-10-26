@@ -47,13 +47,13 @@ const otherPayloadLines = (relation, provenance) => [
   ...(provenance.dirty !== undefined ? [`${relation} dirty: ${provenance.dirty}`] : []),
   ...payloadDateLines(provenance).map((line) => `${relation} ${line}`),
 ];
-// Where another Leaf serves the page (`state.leaf`), whose runtime the page runs, it
+// Where another Leaf serves the page (`identity.served_by`), whose runtime the page runs, it
 // stands beside the Leaf that vendored the page's layer with its age, so whoever meets
 // a problem can tell how far apart the two are (AGENTS.md, "Pages across Leaf
 // updates").
-const servedBy = (state) =>
-  state.leaf
-    ? ` · served by ${shortCommit(state.leaf)}${payloadAge(state.leaf) ? ` · ${payloadAge(state.leaf)}` : ""}`
+const servedBy = (identity) =>
+  identity.served_by
+    ? ` · served by ${shortCommit(identity.served_by)}${payloadAge(identity.served_by) ? ` · ${payloadAge(identity.served_by)}` : ""}`
     : "";
 
 if (SHARE_ROOT)
@@ -72,17 +72,15 @@ if (SHARE_ROOT)
 const preview = () => /** @type {any} */ (runtime.state)?.preview ?? null;
 function previewLabel() {
   const identity = pageIdentity();
-  const state = { layer: identity.layer, leaf: identity.served_by };
-  const producer = state.layer.producer ?? {};
+  const producer = identity.layer.producer ?? {};
   const kind = preview().interaction === "user" ? "User" : "Preview";
   const stem = `${kind} · ${preview().checkout}${producer.commit ? `@${producer.commit}` : ""}`;
   const age = payloadAge(producer);
-  return `${producer.commit && producer.dirty ? `${stem}+` : stem}${age ? ` · ${age}` : ""}${servedBy(state)}`;
+  return `${producer.commit && producer.dirty ? `${stem}+` : stem}${age ? ` · ${age}` : ""}${servedBy(identity)}`;
 }
 function previewDiagnostics() {
   const identity = pageIdentity();
-  const state = { layer: identity.layer, leaf: identity.served_by };
-  const producer = state.layer.producer ?? {};
+  const producer = identity.layer.producer ?? {};
   const { example, checkout, interaction, started } = identity.preview;
   return [
     "Leaf preview",
@@ -92,12 +90,12 @@ function previewDiagnostics() {
     ...(producer.commit ? [`commit: ${producer.commit}`] : []),
     ...(producer.dirty !== undefined ? [`dirty: ${producer.dirty}`] : []),
     ...payloadDateLines(producer),
-    ...(state.leaf ? otherPayloadLines("served by", state.leaf) : []),
+    ...(identity.served_by ? otherPayloadLines("served by", identity.served_by) : []),
     `started: ${started}`,
     ...runtimeLines(),
-    `layer generation: ${state.layer.generation}`,
-    ...(state.layer.fingerprint
-      ? [`layer fingerprint: ${state.layer.fingerprint}`]
+    `layer generation: ${identity.layer.generation}`,
+    ...(identity.layer.fingerprint
+      ? [`layer fingerprint: ${identity.layer.fingerprint}`]
       : []),
     ...(runtime.currentRevision ? [`revision: ${runtime.currentRevision}`] : []),
     `event sequence: ${runtime.lastEventSeq ?? 0}`,
@@ -126,9 +124,9 @@ function runtimeLines() {
 // this reads the provenance captured by `page init` rather than a live package or
 // server version. Pages built outside Git retain a stable identity through the
 // composed layer fingerprint.
-function layerIdentity(state) {
-  const producer = state.layer.producer ?? {};
-  const fingerprint = state.layer.fingerprint;
+function layerIdentity(identity) {
+  const producer = identity.layer.producer ?? {};
+  const fingerprint = identity.layer.fingerprint;
   if (producer.commit) return shortCommit(producer);
   return fingerprint
     ? `sha256:${fingerprint.replace(/^sha256:/, "").slice(0, 12)}`
@@ -136,28 +134,25 @@ function layerIdentity(state) {
 }
 const layerShown = () => {
   const identity = pageIdentity();
-  const state = { layer: identity.layer, leaf: identity.served_by };
-  return Boolean(state.layer && !identity.preview && layerIdentity(state));
+  return Boolean(identity.layer && !identity.preview && layerIdentity(identity));
 };
 function layerNamed() {
   const identity = pageIdentity();
-  const state = { layer: identity.layer, leaf: identity.served_by };
-  const age = payloadAge(state.layer.producer ?? {});
-  return `Leaf ${layerIdentity(state)}${age ? ` · ${age}` : ""}${servedBy(state)}`;
+  const age = payloadAge(identity.layer.producer ?? {});
+  return `Leaf ${layerIdentity(identity)}${age ? ` · ${age}` : ""}${servedBy(identity)}`;
 }
 function layerDiagnostics() {
   const identity = pageIdentity();
-  const state = { layer: identity.layer, leaf: identity.served_by };
-  const producer = state.layer.producer ?? {};
-  const fingerprint = state.layer.fingerprint;
+  const producer = identity.layer.producer ?? {};
+  const fingerprint = identity.layer.fingerprint;
   return [
     "Leaf layer",
     ...(producer.commit ? [`commit: ${producer.commit}`] : []),
     ...(producer.dirty !== undefined ? [`dirty: ${producer.dirty}`] : []),
     ...payloadDateLines(producer),
-    ...(state.leaf ? otherPayloadLines("served by", state.leaf) : []),
+    ...(identity.served_by ? otherPayloadLines("served by", identity.served_by) : []),
     ...(fingerprint ? [`fingerprint: ${fingerprint}`] : []),
-    `generation: ${state.layer.generation}`,
+    `generation: ${identity.layer.generation}`,
     ...runtimeLines(),
     ...(runtime.currentRevision ? [`revision: ${runtime.currentRevision}`] : []),
     `url: ${identity.url}`,

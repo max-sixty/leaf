@@ -2,7 +2,7 @@ import { Z, bindQueuedWork, d, q, x } from "./bundle-signals-core.js";
 import { TEXT_FIELD, afterScript, byRenderedOrder, canPlaceFocus, closeLayer, composedParentNode, deepFocus, drawn, focusDestination, focused, frameVisibility, handBack, holdFocus, holdRendering, inputCount, isNativeLayer, keeps, keepsHidden, move, nextRender, onCurrentLocation, onFrameVisibility, onUserInput, openLayer, openerOf, readSampleVisibility, renderedOrder, renderedParent, renderedUnder, shadowHost, sizeObserver, takesLetters, under, upFrom, whenLeft } from "./bundle-dom-move.js";
 import { admitResponse, completeData, countTraffic, dataHeaders, layerHeaders, postEvent, randomId, recordInteraction, removeRuntimeRootStyle, reportCarried, reportPageError, sameLayer, sessionIsActive, setRuntimeRootStyle, watchPendingTraffic } from "./bundle-layer-client.js";
 import { clamp, clippedContents, clipsPastSurfaces, closeNativeLayer, growthIsSeen, hasArea, intersect, layoutWindow, matchesWhen, placeBox, placeHolder, presented, registry, seenRect, shadowRootsIn, showNativeLayer, shownWindow, tagsDeclaring, union, watchOwner, watchRoom, whenNone, whileConnected } from "./bundle-geometry.js";
-import { LitElement, PENDING, PRESENTATION_DOM, actionForWidget, agentLabel, anchorKey, annotationMode, applicationPresenter, applicationState, attachApplicationPresentation, attachWidgetPresentation, discussed, documentChanged, editable, isMessageEvent, isThreadEvent, moved, offlineInteractive, offlineState, pageUrl, presentDocument, projectionOrigins, queueWidgetUpdate, reactionsAt, readApplication, readPart, render, runtime, setPresentationFailureReporter, stateCoordinate, threadKey, tokenChoices, turns, watchPresentation, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented } from "./bundle-context.js";
+import { LitElement, PENDING, PRESENTATION_DOM, actionForWidget, anchorKey, annotationMode, applicationPresenter, applicationState, attachApplicationPresentation, attachWidgetPresentation, discussed, documentChanged, editable, isMessageEvent, isThreadEvent, moved, offlineInteractive, offlineState, pageUrl, presentDocument, projectionOrigins, queueWidgetUpdate, reactionsAt, readApplication, readPart, render, runtime, setPresentationFailureReporter, stateCoordinate, threadKey, tokenChoices, turns, watchPresentation, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented } from "./bundle-context.js";
 import { PRESS, TEXT_ENTRY, announce, claimsEsc, cycledRow, el, generatedElement, holdingError, iconElement, keys, notice, offer, paintKeys, paintKeysWithin, raiseError, repaint, responseAction, reveal as reveal$1, rowArrows, savedReadingSettled, saying } from "./bundle-errors.js";
 import { activityTransitionDue, ago, markStateApplied, moveScrollerBy, observeServerNow, observeWorkingGrace, reachScrollers, readingRegionFor, saidNow, settlePageInterface, syncLayoutRegion, tickClock } from "./bundle-reading-regions.js";
 import { awaitsData, bindsInput, comparisonBase, comparisonChanges, createProjectionPresentation, dataReader, inlineComparison, joinDataDelivery, suppliedSnapshot, toggleInlineComparison } from "./bundle-data.js";
@@ -4436,8 +4436,7 @@ function semanticNewsReading(root) {
 	return {
 		obligations: view.obligations,
 		thread: view.thread,
-		workflows: state.workflows,
-		activity: state.activity
+		workflows: state.workflows
 	};
 }
 function unreadContent(threadView) {
@@ -4458,7 +4457,8 @@ function userObligations(items) {
 		];
 		held.set(JSON.stringify(key), {
 			source: item.id,
-			thread: item.thread
+			thread: item.thread,
+			message: item.message
 		});
 	}
 	return held;
@@ -4481,20 +4481,16 @@ function responseFailures(workflows) {
 	}
 	return failures;
 }
-const agentAvailable = (activity) => activity.held && ["listening", "working"].includes(activity.kind);
 function observeSemanticNews(prior, reading) {
 	const content = unreadContent(reading.thread);
 	const obligations = userObligations(reading.obligations);
 	const failures = responseFailures(reading.workflows);
-	const available = agentAvailable(reading.activity);
 	const first = prior === null;
 	const observed = {
 		content: new Set(prior?.content),
 		failures: new Set(prior?.failures),
 		obligations: new Set(obligations.keys()),
-		obligationEpisodes: new Map(prior?.obligationEpisodes),
-		available,
-		availabilityEpisode: prior?.availabilityEpisode ?? 0
+		obligationEpisodes: new Map(prior?.obligationEpisodes)
 	};
 	const news = [];
 	for (const { thread, message, version } of content) {
@@ -4528,13 +4524,6 @@ function observeSemanticNews(prior, reading) {
 			...obligation
 		});
 	}
-	if (available && !prior?.available) {
-		observed.availabilityEpisode += 1;
-		if (!first) news.push({
-			kind: "agent_available",
-			key: `agent-available:${observed.availabilityEpisode}`
-		});
-	}
 	return {
 		observed,
 		news
@@ -4555,7 +4544,6 @@ function currentSemanticNews(news, reading, observed) {
 				}] : [];
 			}
 			case "user_obligation": return obligations.has(item.sourceKey) && item.episode === observed.obligationEpisodes.get(item.sourceKey) ? [item] : [];
-			case "agent_available": return agentAvailable(reading.activity) && item.key === `agent-available:${observed.availabilityEpisode}` ? [item] : [];
 			default: throw new Error(`Unknown semantic news kind ${item.kind}`);
 		}
 	});
@@ -4569,14 +4557,15 @@ function semanticNewsNotice(news) {
 	const byKind = (kind) => news.filter((item) => item.kind === kind);
 	const content = byKind("agent_content");
 	const failures = byKind("response_failure");
-	const obligations = byKind("user_obligation");
-	const availability = byKind("agent_available");
+	let obligations = byKind("user_obligation");
 	const clauses = [];
 	if (content.length === 1) {
 		const { message } = content[0];
 		const { agent } = message;
 		const verb = message.kind === "reply" ? "reply" : "comment";
-		clauses.push(message.edited ? `${agent} edited a ${verb}` : `${agent} ${verb === "reply" ? "replied" : "commented"}`);
+		const asks = !message.edited && obligations.some((item) => item.message === message.id);
+		if (asks) obligations = obligations.filter((item) => item.message !== message.id);
+		clauses.push(message.edited ? `${agent} edited a ${verb}` : asks ? `${agent} asked` : `${agent} ${verb === "reply" ? "replied" : "commented"}`);
 	} else if (content.length) {
 		const replies = content.filter(({ message }) => message.kind === "reply");
 		const threads = new Set(content.map((item) => item.thread)).size;
@@ -4586,9 +4575,8 @@ function semanticNewsNotice(news) {
 		const count = failures.filter((item) => item.condition === condition).length;
 		if (count) clauses.push(count === 1 ? `Response ${condition}` : `${plural(count, "response")} ${condition}`);
 	}
-	if (obligations.length) clauses.push(obligations.length === 1 ? "Input needed" : `${obligations.length} waiting on me`);
-	if (availability.length) clauses.push(`${agentLabel()} active on this page`);
-	return clauses.join("; ");
+	if (obligations.length) clauses.push(obligations.length === 1 ? "New on me" : `${obligations.length} new on me`);
+	return clauses.join(" · ");
 }
 
 //#endregion

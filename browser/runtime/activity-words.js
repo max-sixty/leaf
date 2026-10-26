@@ -131,7 +131,6 @@ function statusWords({
   age,
   agent,
   dated,
-  shortDate,
   detail,
   detailSource,
   handling,
@@ -179,7 +178,7 @@ function statusWords({
       : [invite, invite, ""];
   if (kind === "stalled")
     return [
-      shortDate,
+      dated,
       [
         dated,
         ...(detail ? [": ", { text: detail, source: detailSource }] : []),
@@ -290,7 +289,6 @@ export function pageStatus(state, { reach = "reached", fault = null } = {}) {
     age,
     agent,
     dated: facts.left ? ended : checkedIn,
-    shortDate: facts.left ? ended : checkedIn,
     detail,
     detailSource: activity.detail_source,
     handling: {
@@ -430,8 +428,13 @@ export function leafRow(entry) {
   // on: three pages waiting rendered as three identical rows, and which to go to
   // first is the whole question the panel was opened to answer.
   const stated = (word) => word + (detail ? " — " + detail : "");
-  // The status's two silences, dated the same way and worded for a row.
-  const silence = `${facts.left ? "Left" : "Quiet"}${facts.silentSince ? ` (${facts.silentSince})` : ""}`;
+  // The status's two silences in the status's own words, less the agent's name.
+  const since = facts.silentSince ? ` ${facts.silentSince}` : "";
+  const silence = facts.left
+    ? `Turn ended${since}`
+    : since
+      ? `Last checked in${since}`
+      : "No check-in";
   const work = facts.work.replace(/^./, (letter) => letter.toUpperCase());
   const primary =
     kind === "working"

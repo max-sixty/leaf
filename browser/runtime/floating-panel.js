@@ -710,7 +710,7 @@ export function createFloatingPanel({
         words: annotationsHidden() ? `${stance} · ${HIDDEN}` : stance,
       };
     if (!key) return { says: "status", words: hiddenLead() + status().summary };
-    return { says: "turn", words: "Reply…" };
+    return { says: "turn", words: "Reply" };
   }
   // The reply the open thread's field takes, then whose turn it is, so a field too
   // narrow for both, as on a phone, still says Reply. The agent's own line, a to-do's

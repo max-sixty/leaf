@@ -396,16 +396,16 @@ test("a leaves row says each kind in a row's words, with the updates still waiti
   );
   assert.equal(
     row({ kind: "stalled", detail: "revising", ts: minutesAgo(20) }),
-    "Quiet (20m ago) — revising",
+    "Last checked in 20m ago — revising",
   );
   assert.equal(
     row({ kind: "stalled", detail: "", ts: minutesAgo(5), dropped: true }),
-    "Left (5m ago)",
+    "Turn ended 5m ago",
   );
   assert.equal(row({ kind: "away" }), "Away");
   assert.equal(
     row({ kind: "away", dropped: true, ts: minutesAgo(5), counts: { overdue: 1 } }),
-    "Left (5m ago)",
+    "Turn ended 5m ago",
   );
   assert.equal(row({ kind: "unheld" }), "No session");
   assert.equal(row({ kind: "closed" }), "Closed");

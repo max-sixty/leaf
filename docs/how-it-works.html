@@ -1665,7 +1665,9 @@ flowchart TD
                 </li>
                 <li><a href="#stages">Stages of an update</a></li>
                 <li><a href="#progress-on-lists">On me and the agent’s list</a></li>
+                <li><a href="#panel-line">What the panel's line says</a></li>
                 <li><a href="#updates-silence">Status readings</a></li>
+                <li><a href="#updates-notices">Notices</a></li>
                 <li>
                   <a href="#progress-map">Where the agent&#x27;s messages appear</a>
                 </li>
@@ -1673,7 +1675,6 @@ flowchart TD
                   <a href="#progress-when">When the agent says what it is doing</a>
                 </li>
                 <li><a href="#progress-plan">The work plan</a></li>
-                <li><a href="#updates-notices">Notices</a></li>
               </ul>
             </nav>
           </details>
@@ -1920,6 +1921,66 @@ flowchart TD
             </p>
           </section>
 
+          <section id="panel-line">
+            <h2>What the panel's line says</h2>
+            <p id="panel-line-lede">
+              The panel's comment field, while empty, is Leaf's one line of words about
+              the page. It says one thing at a time, the first of these that applies:
+            </p>
+            <table id="panel-line-order">
+              <thead>
+                <tr>
+                  <th>Reading</th>
+                  <th>Example</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr id="panel-line-error">
+                  <td>An error about no particular box, until the user next types</td>
+                  <td><em>Couldn't load v3</em></td>
+                </tr>
+                <tr id="panel-line-destination">
+                  <td>Where words go, while the caret is in the field</td>
+                  <td><em>Comment on the page</em>, <em>Reply in this thread</em></td>
+                </tr>
+                <tr id="panel-line-selection">
+                  <td>
+                    Words selected on the page, which a press on the field comments on
+                  </td>
+                  <td><em>“the queue fills”</em></td>
+                </tr>
+                <tr id="panel-line-notice">
+                  <td>
+                    A <a href="#updates-notices">notice</a>, or a walk's position while
+                    the user stays on its stop
+                  </td>
+                  <td><em>Claude replied</em>, <em>Thread 2 of 5</em></td>
+                </tr>
+                <tr id="panel-line-stance">
+                  <td>The mode the user is in, which the ✕ at the row's end leaves</td>
+                  <td><em>In Draw mode</em></td>
+                </tr>
+                <tr id="panel-line-status">
+                  <td>The page's <a href="#updates-silence">status</a></td>
+                  <td><em>Claude working — running the browser suite</em></td>
+                </tr>
+              </tbody>
+            </table>
+            <p id="panel-line-thread">
+              With a thread open, the field is that thread's reply box. It says
+              <em>Reply</em> and whose turn it is, such as
+              <em>Reply · My turn to answer</em>; a notice takes that place for its four
+              seconds, and a walk's position stands at the line's end.
+            </p>
+            <p id="panel-line-grammar">
+              A middle dot joins separate facts, as in
+              <em>In Draw mode · Claude replied</em>, and a dash attaches a detail to
+              the fact before it. Words the user is writing hide the line, while screen
+              readers still hear notices and changes of status. The leaf and the tab's
+              icon keep the status's colour throughout, and the leaf's menu holds the
+              status's full sentence. A folded panel shows notices beside the leaf.
+            </p>
+          </section>
           <section id="updates-silence">
             <h2>Status readings</h2>
             <p id="updates-silence-lede">
@@ -2058,6 +2119,58 @@ flowchart TD
                 <tr id="updates-reading-closed">
                   <td>Page closed</td>
                   <td>The agent wrote <code>leaf page close …</code>.</td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+          <section id="updates-notices">
+            <h2>Notices</h2>
+            <p id="updates-notices-lede">
+              A notice stands in the panel's line for four seconds and is announced to
+              screen readers. Simultaneous news shares one notice, such as
+              <em>Claude replied · New on me</em>. Opening a page announces only unread
+              agent messages, not its existing activity. The agent starting or stopping
+              work is no notice: the status in the same line says it.
+            </p>
+            <table id="updates-notice-kinds">
+              <thead>
+                <tr>
+                  <th>Notice</th>
+                  <th>When</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr id="updates-notice-content">
+                  <td>
+                    Claude replied, Claude commented, Claude asked, Claude edited a
+                    reply, 3 replies in 2 threads
+                  </td>
+                  <td>
+                    An agent message the user hasn't read arrives, or one is edited. A
+                    message holding a question or decision for the user reads
+                    <em>asked</em>.
+                  </td>
+                </tr>
+                <tr id="updates-notice-input">
+                  <td>New on me, 2 new on me</td>
+                  <td>
+                    Something new waits on the user that no announced message holds,
+                    such as a decision a revision adds or a to-do the agent gives them.
+                  </td>
+                </tr>
+                <tr id="updates-notice-failure">
+                  <td>Response failed, Response interrupted</td>
+                  <td>
+                    The harness reports that a response failed or was interrupted.
+                  </td>
+                </tr>
+                <tr id="updates-notice-version">
+                  <td>Updated to v4</td>
+                  <td>A new revision replaces the page in place.</td>
+                </tr>
+                <tr id="updates-notice-gesture">
+                  <td>Moved to Done — sent, Undid: Moved to Done — sent</td>
+                  <td>The log accepted the user's gesture, or its undo.</td>
                 </tr>
               </tbody>
             </table>
@@ -2219,59 +2332,6 @@ EOF</code></pre>
                 the plan references; a plain step creates no such obligation.
               </p>
             </details>
-          </section>
-
-          <section id="updates-notices">
-            <h2>Notices</h2>
-            <p id="updates-notices-lede">
-              The panel briefly announces replies, requests for input, and revisions in
-              its empty comment field, with the same announcements for screen readers.
-              Simultaneous events share a notice, such as
-              <em>Claude replied; Input needed</em>. Opening a page announces only
-              unread agent messages, not its existing activity.
-            </p>
-            <table id="updates-notice-kinds">
-              <thead>
-                <tr>
-                  <th>Notice</th>
-                  <th>When</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr id="updates-notice-content">
-                  <td>
-                    Claude replied, Claude commented, Claude edited a reply, 3 replies
-                    in 2 threads
-                  </td>
-                  <td>
-                    An agent message the user hasn't read arrives, or one is edited.
-                  </td>
-                </tr>
-                <tr id="updates-notice-input">
-                  <td>Input needed, 2 waiting on me</td>
-                  <td>
-                    A new obligation waits on the user: a decision or a question, on the
-                    page or in a thread.
-                  </td>
-                </tr>
-                <tr id="updates-notice-failure">
-                  <td>Response failed, Response interrupted</td>
-                  <td>
-                    The harness reports that a response failed or was interrupted.
-                  </td>
-                </tr>
-                <tr id="updates-notice-active">
-                  <td>Agent active on this page</td>
-                  <td>
-                    An agent starts watching or working on the page after none was.
-                  </td>
-                </tr>
-                <tr id="updates-notice-version">
-                  <td>Updated to v4</td>
-                  <td>A new revision replaces the page in place.</td>
-                </tr>
-              </tbody>
-            </table>
           </section>
         </lf-tab>
 

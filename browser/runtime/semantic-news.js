@@ -1,9 +1,13 @@
 /* Meaningful news from complete, accepted page readings.
 
-   The server owns thread content, user obligations, response conditions, and page
-   activity. This module compares those readings after presentation. It remembers
-   which source versions were observed, not a second account of what the page
-   currently means.
+   The server owns thread content, user obligations and response conditions. This
+   module compares those readings after presentation. It remembers which source
+   versions were observed, not a second account of what the page currently means.
+
+   The agent's activity is no news here: the page's status says it in the same seat a
+   notice would take, and page-status.js announces a change of its kind. Removed on 26
+   October 2026: "Claude active on this page", which stood for four seconds in front of
+   the status line that named the agent's work.
 
    New agent content is the server's `unread` reading, the same one the floating panel
    paints: a version is news the first time this tab sees it unread, and
@@ -11,7 +15,6 @@
    not read is news on the first reading too, since it arrived while they were away.
    Every other kind of news is a change between readings, so the first reading
    establishes it without announcing it. */
-import { agentLabel } from "./semantic-state.js";
 import { moved } from "./thread/model.js";
 
 const identity = (record) => record.attempt ?? record.id;
@@ -28,7 +31,6 @@ export function semanticNewsReading(root) {
     obligations: view.obligations,
     thread: view.thread,
     workflows: state.workflows,
-    activity: state.activity,
   };
 }
 
@@ -47,15 +49,20 @@ function unreadContent(threadView) {
     .sort((a, b) => moved(a.message).seq - moved(b.message).seq);
 }
 
-// What the page asks of the user. An update handed back to them is news through its
-// failed response (`responseFailures`), not a second time as an obligation.
+// What the page asks of the user, with the agent message that holds each, if any. An
+// update handed back to them is news through its failed response (`responseFailures`),
+// not a second time as an obligation.
 function userObligations(items) {
   const held = new Map();
   for (const item of items) {
     if (item.next_actor !== "user" || item.source.kind === "update") continue;
     const key =
       item.thread === null ? ["page", item.id] : ["thread", item.thread, item.id];
-    held.set(JSON.stringify(key), { source: item.id, thread: item.thread });
+    held.set(JSON.stringify(key), {
+      source: item.id,
+      thread: item.thread,
+      message: item.message,
+    });
   }
   return held;
 }
@@ -83,22 +90,16 @@ function responseFailures(workflows) {
   return failures;
 }
 
-const agentAvailable = (activity) =>
-  activity.held && ["listening", "working"].includes(activity.kind);
-
 export function observeSemanticNews(prior, reading) {
   const content = unreadContent(reading.thread);
   const obligations = userObligations(reading.obligations);
   const failures = responseFailures(reading.workflows);
-  const available = agentAvailable(reading.activity);
   const first = prior === null;
   const observed = {
     content: new Set(prior?.content),
     failures: new Set(prior?.failures),
     obligations: new Set(obligations.keys()),
     obligationEpisodes: new Map(prior?.obligationEpisodes),
-    available,
-    availabilityEpisode: prior?.availabilityEpisode ?? 0,
   };
   const news = [];
 
@@ -136,14 +137,6 @@ export function observeSemanticNews(prior, reading) {
         ...obligation,
       });
   }
-  if (available && !prior?.available) {
-    observed.availabilityEpisode += 1;
-    if (!first)
-      news.push({
-        kind: "agent_available",
-        key: `agent-available:${observed.availabilityEpisode}`,
-      });
-  }
   return { observed, news };
 }
 
@@ -167,11 +160,6 @@ export function currentSemanticNews(news, reading, observed) {
           item.episode === observed.obligationEpisodes.get(item.sourceKey)
           ? [item]
           : [];
-      case "agent_available":
-        return agentAvailable(reading.activity) &&
-          item.key === `agent-available:${observed.availabilityEpisode}`
-          ? [item]
-          : [];
       default:
         throw new Error(`Unknown semantic news kind ${item.kind}`);
     }
@@ -185,23 +173,31 @@ export function combineSemanticNews(older, newer) {
 const plural = (count, singular, pluralForm = `${singular}s`) =>
   `${count} ${count === 1 ? singular : pluralForm}`;
 
+// One clause per fact, joined by the middle dot the panel's line joins every fact with.
+// A single new message that holds something the user owes says so in its verb
+// ("Claude asked"), since the question and the message are one piece of news; what
+// else is new on the user's list is counted by the list's name.
 export function semanticNewsNotice(news) {
   if (!news.length) return "";
   const byKind = (kind) => news.filter((item) => item.kind === kind);
   const content = byKind("agent_content");
   const failures = byKind("response_failure");
-  const obligations = byKind("user_obligation");
-  const availability = byKind("agent_available");
+  let obligations = byKind("user_obligation");
   const clauses = [];
 
   if (content.length === 1) {
     const { message } = content[0];
     const { agent } = message;
     const verb = message.kind === "reply" ? "reply" : "comment";
+    const asks =
+      !message.edited && obligations.some((item) => item.message === message.id);
+    if (asks) obligations = obligations.filter((item) => item.message !== message.id);
     clauses.push(
       message.edited
         ? `${agent} edited a ${verb}`
-        : `${agent} ${verb === "reply" ? "replied" : "commented"}`,
+        : asks
+          ? `${agent} asked`
+          : `${agent} ${verb === "reply" ? "replied" : "commented"}`,
     );
   } else if (content.length) {
     const replies = content.filter(({ message }) => message.kind === "reply");
@@ -223,8 +219,7 @@ export function semanticNewsNotice(news) {
   }
   if (obligations.length)
     clauses.push(
-      obligations.length === 1 ? "Input needed" : `${obligations.length} waiting on me`,
+      obligations.length === 1 ? "New on me" : `${obligations.length} new on me`,
     );
-  if (availability.length) clauses.push(`${agentLabel()} active on this page`);
-  return clauses.join("; ");
+  return clauses.join(" · ");
 }

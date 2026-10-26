@@ -4045,7 +4045,7 @@ const appendWords = (parts, words, step = false) => {
 	const head = textOf(parts);
 	parts.push({ text: after(head, words, step).slice(head.length) });
 };
-function statusWords({ age, agent, dated, shortDate, detail, detailSource, handling, invite, kind, listening, overdue, saved, work }) {
+function statusWords({ age, agent, dated, detail, detailSource, handling, invite, kind, listening, overdue, saved, work }) {
 	if (kind === "closed") return [
 		"Page closed",
 		"Page closed",
@@ -4081,7 +4081,7 @@ function statusWords({ age, agent, dated, shortDate, detail, detailSource, handl
 		""
 	];
 	if (kind === "stalled") return [
-		shortDate,
+		dated,
 		[
 			dated,
 			...detail ? [": ", {
@@ -4157,7 +4157,6 @@ function pageStatus(state, { reach = "reached", fault = null } = {}) {
 		age,
 		agent,
 		dated: facts.left ? ended : checkedIn,
-		shortDate: facts.left ? ended : checkedIn,
 		detail,
 		detailSource: activity.detail_source,
 		handling: {
@@ -4266,7 +4265,8 @@ function leafRow(entry) {
 	const { kind, counts, detail } = entry.activity;
 	const facts = activityFacts(entry);
 	const stated = (word) => word + (detail ? " — " + detail : "");
-	const silence = `${facts.left ? "Left" : "Quiet"}${facts.silentSince ? ` (${facts.silentSince})` : ""}`;
+	const since = facts.silentSince ? ` ${facts.silentSince}` : "";
+	const silence = facts.left ? `Turn ended${since}` : since ? `Last checked in${since}` : "No check-in";
 	const work = facts.work.replace(/^./, (letter) => letter.toUpperCase());
 	const primary = kind === "working" ? stated(work) : kind === "listening" ? facts.listening ? "Listening" : "Awaits" : kind === "stalled" ? stated(silence) : kind === "away" ? counts.overdue ? silence : "Away" : kind === "unheld" ? "No session" : "Closed";
 	const line = facts.waiting.length ? `${primary} · ${facts.waiting.join(" · ")}` : primary;
@@ -5047,7 +5047,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		};
 		return {
 			says: "turn",
-			words: "Reply…"
+			words: "Reply"
 		};
 	}
 	function turnWords(thread) {

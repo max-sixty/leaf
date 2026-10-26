@@ -20,9 +20,7 @@ def said(page):
     return expect(panel_field(page))
 
 
-def test_new_reply_and_user_question_share_one_notice_without_moving_focus(
-    browser, serve
-):
+def test_a_reply_asking_the_user_is_one_notice_without_moving_focus(browser, serve):
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "What should change?")
     page = open_page(browser, url)
@@ -40,7 +38,8 @@ def test_new_reply_and_user_question_share_one_notice_without_moving_focus(
         markup='<lf-ask id="route-answers">Does this answer your question?</lf-ask>',
     )
     told(page)
-    notice = re.compile(r".+ replied; Input needed")
+    # One fact: the question is the reply, not a second clause beside it.
+    notice = re.compile(r".+ asked(?! ·)")
     said(page).to_have_attribute("placeholder", notice)
     expect(page.locator(".lf-live")).to_have_text(notice)
     expect(toggle).to_be_focused()
@@ -155,21 +154,15 @@ def test_initial_history_and_repeated_stage_readings_are_quiet(browser, serve):
     assert "replied" not in page.locator(".lf-live").text_content()
 
 
-def test_page_availability_announces_once_while_work_stage_changes_remain_quiet(
-    browser, serve
-):
+def test_the_agent_starting_work_is_said_by_the_status_not_a_notice(browser, serve):
+    """The status line names the agent's work in the seat a notice would take, so no
+    notice stands in front of it, and a later step changes only the status."""
     url = serve(PANEL_PAGE)
     declare_idle(serve.page_dir)
     page = open_page(browser, url)
-    available = re.compile(r".+ active on this page")
-    said(page).not_to_have_attribute("placeholder", available)
 
-    working(serve.page_dir, "Checking the page")
-    told(page)
-    said(page).to_have_attribute("placeholder", available)
-    expect(page.locator(".lf-live")).to_have_text(available)
-    said(page).not_to_have_attribute("placeholder", available)
-
-    working(serve.page_dir, "Using a tool")
-    told(page)
-    said(page).not_to_have_attribute("placeholder", available)
+    for line in ("Checking the page", "Using a tool"):
+        working(serve.page_dir, line)
+        told(page)
+        said(page).to_have_attribute("data-says", "status")
+        said(page).to_have_attribute("placeholder", re.compile(f"working — {line}"))

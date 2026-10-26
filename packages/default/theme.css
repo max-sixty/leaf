@@ -2662,24 +2662,23 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
 }
 :scope:is(lf-sample) {
   --lf-sample-word: "quoted";
+  --lf-sample-prefix: "quoted · ";
 }
-:scope:is(lf-sample)[interactive] {
-  --lf-sample-word: "interactive sample";
-}
-:scope:is(lf-sample)[data-lf-sample-live] {
-  --lf-sample-word: "live sample";
+:scope:is(lf-sample):is([interactive], [data-lf-sample-live]) {
+  --lf-sample-word: none;
+  --lf-sample-prefix: "";
 }
 :scope:is(lf-sample)::before {
   content: var(--lf-sample-word);
 }
 :scope:is(lf-sample)[label]::before {
-  content: var(--lf-sample-word) " · " attr(label);
+  content: var(--lf-sample-prefix) attr(label);
 }
 :scope:is(lf-sample):has(> [data-lf-said=label])::before {
   content: none;
 }
 :scope:is(lf-sample) > [data-lf-said=label]::before {
-  content: var(--lf-sample-word) " · ";
+  content: var(--lf-sample-prefix);
 }
 .lf-sample-view {
   position: static;

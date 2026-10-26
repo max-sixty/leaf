@@ -1363,6 +1363,11 @@ def live_sample_embedded(page: Page) -> None:
     sample.scroll_into_view_if_needed()
 
 
+def interactive_sample(page: Page) -> None:
+    """An interactive sample, whose widgets use this page's state, under its note."""
+    page.locator("#bg-inline-sample").scroll_into_view_if_needed()
+
+
 def live_sample_full_view(page: Page) -> None:
     """The same practice frame promoted into its native full-view dialog."""
     live_sample_embedded(page)
@@ -1553,6 +1558,12 @@ STATES = (
         "developer/feature-gallery",
         live_sample_full_view,
         region="#bg-live-sample .lf-sample-view",
+    ),
+    State(
+        "interactive-sample",
+        "developer/feature-gallery",
+        interactive_sample,
+        region="#bg-inline-sample",
     ),
     State(
         "trace-comparison-header",

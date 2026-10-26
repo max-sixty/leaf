@@ -121,15 +121,15 @@ behavior. A compound widget may own reading regions without being a pane.
 | Term | Identity criterion |
 |---|---|
 | **Chrome** | Interface the runtime draws outside authored content, rooted at the one `.lf-chrome` container |
-| **Leaf panel** | Leaf's chrome (`floating-panel.js`): one box floating at the window's foot. Its **row** holds the leaf, the comment field, and the On me and Threads marks with their counts; **folded**, it is the leaf alone in the window's corner |
+| **Leaf panel** | Leaf's chrome (`floating-panel.js`): one box floating at the window's foot. Its **row** holds the leaf, the comment field, and one **seat** at its end: the **On me mark**, with its count and a dot while a thread holds a reply the user hasn't read, or, while a view or stance stands, the ✕ that closes it; **folded**, it is the leaf alone in the window's corner |
 | **Leaf** | The mark at the row's start, coloured by the agent's state; a press opens the leaf's menu, or unfolds a folded panel |
 | **Leaf's menu** | The small menu above the leaf of the page's other controls (`page-controls.js`), one line each with its shortcut. A row ending in a chevron opens its list in the menu's place: Navigate, Annotations, About this page, Versions |
 | **Comment field** | The panel's one box for writing: a page comment, or a reply while a thread is open. Search uses the same seat with a persistent **Search page** or **Search threads** label and keeps the comment draft and caret. Outside search, the empty field says the agent's status, a passing notice or a walk's position where a placeholder would; in an open thread it says the reply, with a walk's position at its end |
-| **View** | What opens above the row and covers the page beneath it: Threads, a thread, the On view (one tab per list, On me and On *agent*) or All pages. Escape or a press on the page puts it away |
+| **View** | What opens above the row and covers the page beneath it: a thread, the On view (tabs On me, On *agent*, Threads and the plan) or All pages. Escape or a press on the page puts it away |
 
 A view takes no width from the page and leaves it live. A thread about a passage opens
-as a **thread card** beside its words, and in the panel only where nothing on the page
-draws it. A comment on selected words is written in the **anchored comment box**, which
+as a **thread card** beside its words, and in the panel where nothing on the page
+draws it or the user moves it there with the card's **Open in panel**. A comment on selected words is written in the **anchored comment box**, which
 opens beside them and becomes their thread card on Send.
 
 ## Page Map and the margin
@@ -180,7 +180,7 @@ the headings over the document's height.
 | **Tally** | `lf-tally`: how many of a region's obligations are still open and whose turn each is, “2 of 8 to answer · 1 on Claude”, with an optional Next on me that walks the region's obligations waiting on the user |
 | **Resend** | An update a harness handed back to the user to send again: its obligation stays in On me, next actor the user, until they do |
 | **Done** | The control with which the user ends a to-do the agent gave them (`todo_end`). A widget may also call its own submit control Done |
-| **Done items** | The items that left either list, under a Done heading at the foot of the On view |
+| **Done items** | The items that left either list, under a Done heading at the foot of the On view; resolved threads stand likewise under Resolved at the foot of Threads |
 | **Navigation step** | One move to a destination, such as a thread's passage, an obligation, or the element a followed fragment link names. It clears any surface hiding the destination, then stays put if the user already sees it, or moves and adds a history entry (`history.js`) |
 | **Navigation group** | Consecutive navigation steps, each starting where the last landed, that share one history entry, so Back returns to where the first began |
 | **Current location** | The destination the user is at, directly or through a control inside it: a thread on the page or in the panel, an obligation, or authored page content. A panel thread's title and its messages are one destination; chrome controls, margin rows, comment notes and contents links are not destinations |
@@ -205,8 +205,7 @@ route* is any keyboard path to an action, including Tab to a native control. A r
 
 The **command reference** is the keyboard help: the searchable catalog of all
 commands, including pointer and platform ones with no key, opened by `?` or Keyboard
-shortcuts in the leaf's menu. The menu's rows show their own shortcuts; Leaf's panel
-shows no other key hints but the one that enters an open thread's reply.
+shortcuts in the leaf's menu.
 
 ## Related terms
 

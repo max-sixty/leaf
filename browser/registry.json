@@ -175,7 +175,7 @@
     "contracts": {}
   },
   "$events": {
-    "protocol": 26,
+    "protocol": 27,
     "draft": {
       "description": "The selection composer's submission payload, kept beside its words in the shared draft generation (`runtime/drafts.js`): the anchor and the revision it was captured on, whether it is a suggestion or about design, its drawing, and when it was last touched. A draft's drawing adds `at`, the matrix that stands it in its anchor's section, which the comment leaves out: here `properties` beside a `leaf:` reference add to the object it names, as the build writes it in for the protocol baseline (`build/browser/contract-types.mjs`). Its `format`, `leaf-draft/<since>`, names the protocol at which this payload's shape last changed; the composer reads only its current format.",
       "since": 17,
@@ -496,6 +496,12 @@
             }
           },
           "text": "This action owes no answer of its own."
+        },
+        {
+          "when": {
+            "required": ["waiting"]
+          },
+          "text": "Your questions in `waiting`, asked in a thread about this widget, still wait on the user. Judge from each one's `text` whether this action answers it: end one it settles with `leaf task end <page> <id> done --text \"<what answered it>\"`, and leave one that still needs the user."
         }
       ],
       "undo": [
@@ -517,7 +523,7 @@
     "answering": {
       "reply": [
         {
-          "text": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even a read: `leaf thread reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. Then do the work, put the result on the page with what shows it (captures, a figure, the numbers), and answer with `leaf thread reply <answer.ref> --done --file reply.md`: what changed, in a sentence or two, linking the section that shows it. If the event asks for no work, answer it with that reply at once. The reply checks your saved page edit and makes it live before posting. Mark an answer that promises work beyond this turn `--todo \"<what you owe>\"` instead of `--done`. When your reply needs the user's answer, decision, permission or review, add `--obligation` to put the message on On me until they answer. Omit it for progress or information that needs no response. A widget in `--markup` can register the answer it captures instead (`references/threads.md`).",
+          "text": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even a read: `leaf thread reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. Then do the work, put the result on the page with what shows it (captures, a figure, the numbers), and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`: what changed, in a sentence or two, linking the section that shows it. If the event asks for no work, answer it with that reply at once. The reply checks your saved page edit and makes it live before posting. The declaration says whose move your answer leaves, which delivering what was asked doesn't settle. `--obligation` when it is the user's: it leaves them a decision, or something to try or review before making one, or asks them for an answer or permission. That puts your answer on their On me list until they reply or resolve the thread, even where the decision itself is already there. `--todo \"<what you owe>\"` when it is yours, promising work beyond this turn. `--done` when it leaves nobody a move. A widget in `--markup` can register the answer it captures instead of `--obligation` (`references/threads.md`).",
           "when": {
             "properties": {
               "answer": {
@@ -531,7 +537,7 @@
           }
         },
         {
-          "text": "Leaf posts your opening message in the thread as your progress line and your final message as the reply, unless an explicit reply already answered this input. Before your first tool call, tell the user briefly the answer or what you are about to do; later working messages stay in Codex. End with the answer, or what changed and where it shows. For widgets, a message awaiting the user (`--obligation`), work promised beyond this turn (`--todo`), a title or moving the thread, reply explicitly with `leaf thread reply <answer.ref>` (`references/threads.md`); it posts at once, and your final message is then not posted.",
+          "text": "Leaf posts your opening message in the thread as your progress line and your final message as the reply, unless an explicit reply already answered this input. Before your first tool call, tell the user briefly the answer or what you are about to do; later working messages stay in Codex. End with the answer, or what changed and where it shows. A final message leaves the user no move, so where your answer leaves them one, such as a decision or something to try or review before making one, answer with `leaf thread reply <answer.ref> --obligation` instead: it puts the answer on their On me list even where the decision itself is already there. Reply explicitly too for widgets, work promised beyond this turn (`--todo`), a title or moving the thread (`references/threads.md`); an explicit reply posts at once, and your final message is then not posted.",
           "when": {
             "properties": {
               "answer": {
@@ -1871,7 +1877,7 @@
     "x-example": "<figure id=\"sidebar-width\">\n  <svg class=\"drawing\" viewBox=\"0 0 320 120\" role=\"img\" aria-labelledby=\"sidebar-width-t\">\n    <title id=\"sidebar-width-t\">The sidebar takes 240px left of the column</title>\n    <rect class=\"frame\" x=\"4\" y=\"4\" width=\"312\" height=\"112\" rx=\"6\"/>\n    <rect class=\"box hot\" x=\"16\" y=\"20\" width=\"72\" height=\"84\" rx=\"3\"/>\n    <rect class=\"line\" x=\"104\" y=\"24\" width=\"180\" height=\"6\" rx=\"3\"/>\n    <rect class=\"line soft\" x=\"104\" y=\"38\" width=\"150\" height=\"6\" rx=\"3\"/>\n    <text class=\"strong\" x=\"52\" y=\"66\" text-anchor=\"middle\">240</text>\n  </svg>\n  <figcaption>In a narrow window the sidebar returns to the column.</figcaption>\n</figure>"
   },
   "table": {
-    "description": "Rows of one shape compared column by column, such as runs per configuration. Columns size to their content, and a table wider than the measure wraps its cells, or scrolls inside itself once they can wrap no further, so set no widths on it. Put identifiers such as test names and paths in `<code>`, which can break inside a cell; a bare identifier is one unbreakable word that holds its column wide and squeezes the others. `page check --render` warns when a table scrolls sideways while one of its cells wraps. A bare `<th>` is a column heading, drawn as a small muted label; `<th scope=\"row\">` names a row, in bold at the body's size. Add a `<caption>` when the section's heading doesn't say what the columns mean. For a few headline figures, put each figure in its own `dl` inside a `layout-tiles` block instead, and for alternatives the user picks between, use `lf-options`.",
+    "description": "Rows of one shape compared column by column, such as runs per configuration. Columns size to their content, and a table wider than the measure wraps its cells, or scrolls inside itself once they can wrap no further, so set no widths or wrapping on it or its cells. Put identifiers such as test names and paths in `<code>`, which can break inside a cell; a bare identifier is one unbreakable word that holds its column wide and squeezes the others. `page check --render` warns when a table scrolls sideways while one of its cells wraps. A bare `<th>` is a column heading, drawn as a small muted label; `<th scope=\"row\">` names a row, in bold at the body's size. Add a `<caption>` when the section's heading doesn't say what the columns mean. For a few headline figures, put each figure in its own `dl` inside a `layout-tiles` block instead, and for alternatives the user picks between, use `lf-options`.",
     "x-example": "<table id=\"tiers\">\n  <caption>Ceilings per plan, and what each is counted against.</caption>\n  <thead><tr><th>Plan</th><th class=\"num\">A minute</th><th>Counted against</th></tr></thead>\n  <tbody>\n    <tr><th scope=\"row\">Free</th><td class=\"num\">60</td><td>the token</td></tr>\n    <tr><th scope=\"row\">Team</th><td class=\"num\">600</td><td>the token</td></tr>\n  </tbody>\n</table>"
   },
   "td.num": {

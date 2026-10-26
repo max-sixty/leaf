@@ -64,8 +64,9 @@ Housekeeping such as re-vendoring, restarting the server, or merging needs
 no to-do.
 
 When the work runs to several steps, some of which may wait on the user, write your plan
-before you start the first step, so the user can follow it in the panel's Plan tab: the
-goal, its steps in order, the one under way, and those waiting on them.
+before you start the first step, so the user can follow it in the panel's list of your
+work, under the plan's progress, and see On me grouped by its goals: the goal, its steps
+in order, the one under way, and those waiting on them.
 `leaf task plan <page>` reads the whole outline from stdin as a JSON list of steps: the
 goal at depth 0, each step one deeper than the step it belongs to, and each either a
 `title` with a `state` (`open`, `working`, `done` or `dropped`) or the `item` it names:
@@ -196,9 +197,10 @@ help.
 | Permission for a stated action                                                  | A decision with the action and an option keeping things as they are (`authoring-decisions.md`, "Permission")                      | The user's pick and its row in On me                                                  |
 | An action neither route records, such as trying a build or connecting a browser | `leaf task create <page> <id> --title "<direct question naming the action>" --on user`, on its thread, widget, section, or `page` | The user's Done; end it yourself when their action is established or no longer needed |
 
-Generally pass `--obligation` when a message hands the next move to the user.
+Generally pass `--obligation` when a message hands the next move to the user,
+including an answer that informs a decision already on On me.
 Progress and information that need no response create no obligation. When a widget
-already captures the same answer, its obligation is sufficient.
+in the message's markup captures the same answer, its obligation is sufficient.
 
 Obligation ids are `message:<message>` for an explicit message request,
 `widget:<widget-id>` for a widget, `lf-ask` included,
@@ -219,7 +221,9 @@ leaf page state <page> | jq '{source, obligations, todos, queues}'
 
 `queues.on_user` is On me. `queues.on_agent` is your list: the updates you owe a
 reply or a version, and your to-dos. Read them as given rather than rebuilding them
-from events. A row names its obligation or to-do by `id`. An obligation's record in
+from events. A row names its obligation or to-do by `id`, and in `also` the other
+obligations the user answers at the same place: an answer of yours in a thread about a
+decision rides on the decision's row. An obligation's record in
 `obligations` holds its `prompt`, its `answer` once given, its `status` and its
 `next_actor`, and a widget's obligation takes its answer from the widget's state; a
 to-do's record in `todos` holds its `title` and the start `running` on it.

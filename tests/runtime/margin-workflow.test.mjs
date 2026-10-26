@@ -58,7 +58,7 @@ test("a reply streaming paints the working face under its own word", () => {
 });
 
 test("template contribution hosts paint the retained-host contract and are found on their surface", async () => {
-  const { html, render } = await import("/vendor/browser-runtime.js");
+  const { html, render } = await import("/runtime/framework.js");
   const root = document.createElement("section");
   document.body.append(root);
   const imperative = document.createElement("button");

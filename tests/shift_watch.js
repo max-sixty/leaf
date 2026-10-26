@@ -39,8 +39,9 @@
 // Controls and declared regions keep their actual boxes. Runtime-declared
 // bounded reflow retains its historical ownership, stationary-boundary and clipping
 // proof. An append region may carry following content inside its stationary
-// scrollport by its measured suffix growth: new children, the existing ones retaining
-// their boxes, or, where none joins, its last child growing at its foot where that
+// scrollport or floating container by its measured suffix growth: new children,
+// the existing ones retaining their boxes, or, where none joins, its last child
+// growing at its foot where that
 // child declares itself the growing tail (`data-lf-append-tail`), as a thread's
 // working message and a reply still streaming do, or that tail giving way to the
 // children joining in its place, as the working message does to the answer. A
@@ -2140,8 +2141,9 @@
   // Append declarations own a source, not all motion in a container. The retained
   // prefix proves that growth came after the old children; unchanged old boxes keep
   // a fold or a rewritten message from borrowing that growth. Only its normal-flow
-  // followers in the same stationary runtime scrollport may be carried by it. A
-  // scrollport sized to what it holds grows at its foot with that growth, keeping
+  // followers in the same stationary runtime scrollport or floating container may
+  // be carried by it. A container sized to what it holds grows at its foot with
+  // that growth, keeping
   // every other edge, and counts as stationary.
   //
   // A scrollport that declares it stands on its foot (`data-lf-rises`), as the floating
@@ -2206,8 +2208,14 @@
       lift = () => 0;
       const readings = around.map(({ at }) => paintAt(source, at));
       if (!readings.every((paint) => paint?.reflow === "append")) return [];
+      // A floating container owns its following controls even when it clips
+      // without scrolling, or temporarily exposes its contents during motion.
+      const containsAppend = (owner, at) => {
+        const paint = paintAt(owner, at);
+        return paint?.scrollportY || ["fixed", "absolute"].includes(paint?.position);
+      };
       const port = ancestryAt(source, first).find(
-        (owner) => owner !== source && paintAt(owner, first)?.scrollportY,
+        (owner) => owner !== source && containsAppend(owner, first),
       );
       const rise =
         port && around.every(({ at }) => paintAt(port, at)?.rises) ? headRise(port) : 0;
@@ -2289,7 +2297,7 @@
         !around.every(
           ({ at }) =>
             ancestryAt(source, at).includes(port) &&
-            paintAt(port, at)?.scrollportY &&
+            containsAppend(port, at) &&
             ancestryAt(port, at).some((owner) => paintAt(owner, at)?.runtime) &&
             ancestryAt(source, at)
               .slice(1, ancestryAt(source, at).indexOf(port) + 1)

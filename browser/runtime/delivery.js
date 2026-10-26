@@ -14,7 +14,7 @@ import { holdingError, raiseError } from "./errors.js";
 const RETRY_MS = 2000;
 const retryPause = () => new Promise((resolve) => setTimeout(resolve, RETRY_MS));
 
-/** @typedef {import("../framework/contract.js").ServedEventAnswer} EventAnswer */
+/** @typedef {import("../types/contract.js").ServedEventAnswer} EventAnswer */
 // What an /api/event answer says, read the same way by both senders: accepted, with
 // the state that shows the event, or refused for good (`final`, event_endpoint.py).
 // An answer that is neither is incomplete.

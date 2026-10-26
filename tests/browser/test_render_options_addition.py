@@ -26,6 +26,7 @@ from render_harness import (
     holding,
     http_error_console,
     open_page,
+    open_threads,
     round_trip,
     sending,
     shown,
@@ -463,7 +464,7 @@ def test_an_arrival_cannot_hide_an_obligation_draft(browser, serve):
     ]
     action = next(e for e in events_model.read_events(d) if e["kind"] == "action")
     assert action["detail"] == {"option": added.get_attribute("id"), "text": draft}
-    page.locator(".lf-fp-threads").click()
+    open_threads(page)
     expect(page.locator(f'.lf-fp-thread[data-key="{external["id"]}"]')).to_have_count(1)
 
 

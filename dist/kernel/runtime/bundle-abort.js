@@ -1,8 +1,7 @@
-import { authoredRank, isElementName, render } from "./bundle-browser-runtime.js";
 import { move, watchCurrentLocationIn } from "./bundle-dom-move.js";
 import { PAGE_PAINT_ATTRIBUTE, reportPageError } from "./bundle-layer-client.js";
 import { PRESS, SHADOW_LEADING_CSS, annotationMarkSheets, elementDeclarations, exhibits, marksSheet, paintKeysWithin, recordedWidgetSelector, rowArrows, shadowRules, stateSpecs, watchArrivalsIn, watchLayers } from "./bundle-errors.js";
-import { readPart, runtime } from "./bundle-context.js";
+import { authoredRank, isElementName, readPart, render, runtime } from "./bundle-context.js";
 import { elementById, elementReading, inChrome, watchPassageRoot } from "./bundle-passages.js";
 import { initialOrigin, initialParent, initialSource } from "./bundle-initial-render.js";
 import { diffArrays } from "/vendor/jsdiff.esm.js";

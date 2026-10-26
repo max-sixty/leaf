@@ -1,6 +1,6 @@
 /* Leaf runtime boot and application composition root. */
 import { registerSampleCommand, onSampleNotice } from "./runtime/sample-child.js";
-import "/vendor/browser-runtime.js";
+import "/runtime/framework.js";
 import "./runtime/interaction-log.js";
 // Restored panels and the first keyboard gesture share the ordinary synchronous
 // control routes, so their controls must be upgraded before those routes mount.
@@ -169,13 +169,7 @@ if (validationEntry) {
 
 // Automatic recovery belongs to this arrival. A press made while its presentation
 // waits owns the page; recovery must not capture a fresh focus intent after that wait.
-// A page framed in another holds no user until they enter it: its body reads as where
-// they stand only because the focus is elsewhere in the tab, and focusing anything in
-// it would take them from the page they are working in.
-const recoverComposer = retainUserIntent({
-  since: 0,
-  available: () => window === window.top || document.hasFocus(),
-});
+const recoverComposer = retainUserIntent({ since: 0 });
 
 // This declaration belongs to the executable document lifetime. The revision capture
 // includes it in executable identity, so selecting another presentation retires this
@@ -392,6 +386,7 @@ app = mountApplication({
     pageMapDialogContains: (...args) => pageMapDialog.pageMapDialogContains(...args),
     renderPageMapDialog: (...args) => pageMapDialog.renderPageMapDialog(...args),
     scrollThreadIntoView,
+    openInPanel: (id) => floatingPanel?.openThread(id),
     goToObligation: (...args) => items.goToObligation(...args),
   },
   state: {
@@ -466,7 +461,7 @@ floatingPanel = createFloatingPanel({
   obligations: { choicesOf: items.choicesOf },
   queueActions: app.queueActions,
   arrivesAt: (item) => queueWalk.arrivesAt(item),
-  inWalkOrder: (items) => queueWalk.inWalkOrder(items),
+  onMe: queueWalk.onMe,
   withdraw: app.withdraw,
   settlement: app.settlement,
   placedAt: anchorPlacement.placedAt,
@@ -582,7 +577,7 @@ layout = createPageLayout({
 if (document.documentElement.lfSample) {
   let viewOperation;
   onSampleNotice("cancel-view", () => viewOperation?.abort());
-  registerSampleCommand("thread", async ({ id, surface, status }) => {
+  registerSampleCommand("thread", async ({ id, surface }) => {
     viewOperation?.abort();
     viewOperation = new AbortController();
     const { signal } = viewOperation;
@@ -595,8 +590,7 @@ if (document.documentElement.lfSample) {
       if (!intent()) return false;
       if (surface === "panel") {
         let shown = null;
-        const show = () =>
-          (shown = floatingPanel.showForSample({ thread: id, status }));
+        const show = () => (shown = floatingPanel.showForSample({ thread: id }));
         if (!intent.handoff(show)) return false;
         return (await shown) && intent.available();
       }

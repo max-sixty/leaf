@@ -3,7 +3,7 @@
 // the browser paints what has arrived well before that. Delivery places this script
 // after the head's canonical link, so the page root that link declares is in the
 // document when it runs, and before the bootstrap and the theme (`compose_document`).
-/** @typedef {import("../framework/contract.js").AuthoredAllocations} Allocations */
+/** @typedef {import("../types/contract.js").AuthoredAllocations} Allocations */
 (() => {
   const root = document.documentElement;
   // A page-wide allocation `body` states (`$authored`), or null where it states none.
@@ -112,6 +112,10 @@
     },
   };
   const input = (event) => {
+    // Firefox can send an inaccessible foreign wheel object to an arriving
+    // sandboxed window. It is not this realm's Event and reaches no document.
+    // Reject it before reading fields or handing it to the input subscribers.
+    if (!(event instanceof Event)) return;
     if (event.type === "blur" && event.target !== window) return;
     if (event.type !== "blur" && event.type !== "wheel") stayed();
     inputs++;

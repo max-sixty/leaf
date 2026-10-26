@@ -1,6 +1,6 @@
-import { AsyncDirective, Directive, PartType, Z, directive, html, isElementName, nothing, render, x as x$1 } from "./bundle-browser-runtime.js";
-import { CARET_KEYS, PRESSES, WORKS, canPlaceFocus, cancelRender, closeLayer, controlNavigationKeys, focusRevision, focused, handBack, isNativeLayer, keeps, keepsText, move, nativeLayerHolding, nativeLayerKind, nextRender, onCurrentLocation, releaseFocus, renderedParent, renderedUnder, shadowHost, sizeObserver, takesLetters, under, upFrom } from "./bundle-dom-move.js";
-import { runtime } from "./bundle-context.js";
+import { Z, x as x$1 } from "./bundle-signals-core.js";
+import { CARET_KEYS, PRESSES, WORKS, canPlaceFocus, cancelRender, closeLayer, controlNavigationKeys, excludedByInert, focusRevision, focused, handBack, isNativeLayer, keeps, keepsText, move, nativeLayerHolding, nativeLayerKind, nextRender, onCurrentLocation, releaseFocus, renderedParent, renderedUnder, shadowHost, sizeObserver, takesLetters, under, upFrom } from "./bundle-dom-move.js";
+import { AsyncDirective, Directive, PartType, directive, html, isElementName, nothing, render, runtime } from "./bundle-context.js";
 
 //#region runtime/arrivals.js
 const watches$1 = /* @__PURE__ */ new Set();
@@ -306,6 +306,19 @@ const coarsePointer = matchMedia("(pointer: coarse)");
 const hoveringPointer = matchMedia("(hover: hover)");
 const pressIsKeyboardActivation = (event) => event.type === "click" && !event.detail;
 const plainPress = (event) => event.button === 0 && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
+let releaseClaimed = false;
+const claimReleaseClick = () => {
+	releaseClaimed = true;
+};
+document.addEventListener("pointerdown", () => {
+	releaseClaimed = false;
+}, { capture: true });
+document.addEventListener("click", (event) => {
+	if (!releaseClaimed || !event.isTrusted || pressIsKeyboardActivation(event)) return;
+	releaseClaimed = false;
+	event.preventDefault();
+	event.stopImmediatePropagation();
+}, { capture: true });
 function restorePointer(point) {
 	if (x !== -1 || y !== -1 || !Number.isFinite(point?.x) || !Number.isFinite(point?.y)) return;
 	x = point.x;
@@ -668,13 +681,6 @@ const refuseShadowRoot = (root) => refusedRoots.add(root);
 const declaredRoot = (host) => host.shadowRoot && registry[host.localName]?.["x-shadow"] && isStage(host.shadowRoot) && !refusedRoots.has(host.shadowRoot) ? host.shadowRoot : null;
 const shadowRootsIn = (root) => liveStages().filter((stage) => root.contains(stage.host) && declaredRoot(stage.host) === stage);
 const pageShadowRoots = () => shadowRootsIn(document);
-function excludedByInert(node) {
-	for (let owner = node; owner; owner = renderedParent(owner)) {
-		if (owner.inert) return true;
-		if (nativeLayerKind(owner) === "modal") break;
-	}
-	return false;
-}
 const renderedChildren = (node) => node.localName === "slot" ? node.assignedNodes({ flatten: true }) : (node.shadowRoot ?? node).childNodes;
 const hostIn = (node, root) => {
 	let at = node;
@@ -1689,6 +1695,10 @@ const insetAt = (at, scroller, slot, padding) => {
 	return (Number.parseFloat(getComputedStyle(scroller)[padding]) || 0) + inset;
 };
 const TOP = ["--lf-top", "paddingTop"];
+function slotTop(scroller) {
+	const style = getComputedStyle(scroller);
+	return (Number.parseFloat(style.paddingTop) || 0) + (Number.parseFloat(style.getPropertyValue("--lf-top")) || 0);
+}
 const FOOT = ["--lf-bottom", "paddingBottom"];
 const edgeInset = (el, scroller, edge) => !scrollContainer(scroller) || el === scroller ? 0 : insetAt(slotHolder(el, scroller), scroller, ...edge);
 const headerInset = (el, scroller) => edgeInset(el, scroller, TOP);
@@ -2176,7 +2186,7 @@ const ICONS = {
 	change: "<path d=\"M3 5.25h8.5M9.25 3l2.25 2.25L9.25 7.5M13 10.75H4.5M6.75 8.5 4.5 10.75 6.75 13\"/>",
 	check: "<path d=\"m3 8.25 3.15 3.15L13 4.75\"/>",
 	comment: "<path d=\"M3 3.25h10v7H7.25L4 12.75v-2H3z\"/>",
-	copy: "<path d=\"M3 6h7v7H3zM6 6V3h7v7h-3\"/>",
+	copy: "<rect x=\"6\" y=\"6\" width=\"7\" height=\"7\" rx=\"1.25\"/><path d=\"M10 6V4.25C10 3.56 9.44 3 8.75 3h-4.5C3.56 3 3 3.56 3 4.25v4.5C3 9.44 3.56 10 4.25 10H6\"/>",
 	cross: "<path d=\"m4 4 8 8M12 4l-8 8\"/>",
 	dot: "<circle cx=\"8\" cy=\"8\" r=\"1.5\" fill=\"currentColor\" stroke=\"none\"/>",
 	down: "<path d=\"m4 6.25 4 4 4-4\"/>",
@@ -2193,6 +2203,7 @@ const ICONS = {
 	pause: PAUSE,
 	play: PLAY,
 	previous: "<path d=\"m10 3.5-4.5 4.5 4.5 4.5\"/>",
+	arrange: "<path d=\"M3 4.5h10M3 8h7M3 11.5h4\"/>",
 	all: "<path d=\"M3 4h6M3 8h6M3 12h6M12 8v4M10 10h4\"/>",
 	pickup: "<path d=\"M8 2.75v6.5M5.5 6.75 8 9.25l2.5-2.5M3 10.5v2h10v-2\"/>",
 	question: "<path d=\"M5.6 6.1a2.5 2.5 0 1 1 3.1 2.45c-.7.2-.7.8-.7 1.2\"/><circle cx=\"8\" cy=\"12.35\" r=\".7\" fill=\"currentColor\" stroke=\"none\"/>",
@@ -2588,4 +2599,4 @@ function dismissErrors() {
 }
 
 //#endregion
-export { EVERYTHING, LAYOUT, LINK, PRESS, PRESSABLE, SAID, SHADOW_LEADING_CSS, TEXT_ENTRY, UI_MARKS, adoptRegistry, advertisesKeys, allBindings, annotationMarkSheets, annotationSheets, announce, answers, ariaShortcuts, bindingEnabled, bindingEnabledFor, bindings, buttonCommand, checked, chromeSharedClasses, chromeSheet, claimsEsc, clamp, clampedRow, clippedContents, clippedPlace, clippingAxes, clipsPastSurfaces, closeControl, closeNativeLayer, coarsePointer, commandAvailable, commandBinding, commandDeclarationsWithin, commandEntries, commandPresentations, commandReady, commandRoutes, commandScope, commandsOn, commandsWithin, contextBindings, contextScopes, controlAvailabilityOutput, cycledRow, decisionControls, decisionFor, declarationFor, declareCommandReadiness, declareOccluder, declareWindowChrome, declaredBindings, declaredRoot, descriptionOf, dismissError, dismissErrors, dismissPopoversOutside, dragHeld, dragging, el, elementDeclarations, elementDirective, elementsDeclaring, errorsReading, excludedByInert, exhibits, frameFor, frameView, generated, generatedElement, growthAfterIsSeen, growthIsSeen, hasArea, headerCuts, headerInset, holdStatus, holdingError, hostIn, hoveringPointer, iconElement, iconTemplate, inBaseLayer, inUi, inWindowChrome, intersect, isCommandScope, keys, labelOf, landingBand, landingInsets, layerFact, layoutChanged, layoutWindow, live, liveEl, loadShadowRules, marksSheet, matchesWhen, measure, merge, motionPreview, mountRepaint, nativeActivationAt, nativeClaimAt, nativeLayers, nativeModalAdmits, nearObserver, nearWindow, nearestScrollBy, notice, noticeReading, offer, offered, overIn, overlaps, overlapsAcross, pageShadowRoots, paintClips, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, placeBox, placeHolder, plainPress, pointerAt, presented, pressIsKeyboardActivation, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, reachedForWords, recordedWidgetSelector, referencedCommandEntry, reflectFirstScopes, reflectKeys, refuseShadowRoot, registry, relabel, renderedChildren, repaint, repaintPage, responseAction, restorePointer, reveal, rightCover, routedCommand, rowArrows, savedReadingSettled, saying, scopeAvailable, scopeIdentity, scopeRefs, scopesAt, scopesFor, scrollContainer, scrollGlides, scrolling, scrollsBy, scrollsContent, searchField, seeErrors, seenRect, selectableOffer, selectableOffered, setNoticeContext, setQuickShortcuts, shadowRootsIn, shadowRules, shellRight, showNativeLayer, shownBand, shownBox, shownExtent, shownParts, shownRect, shownWindow, skipped, spell, spokenBinding, stackLevel, startsAt, stateSpecs, stuckBox, submitBindings, tagsDeclaring, titleOf, tokenEntry, touchPresses, uiInside, underOccluder, union, userScrollport, visibleBand, watchArrivals, watchArrivalsIn, watchCommandAvailability, watchCommandScopes, watchLayers, watchOwner, watchRoom, watchScrollEnds, watchScrolls, whenNone, whileConnected, windowChromeBoxes, word, worksInside };
+export { EVERYTHING, LAYOUT, LINK, PRESS, PRESSABLE, SAID, SHADOW_LEADING_CSS, TEXT_ENTRY, UI_MARKS, adoptRegistry, advertisesKeys, allBindings, annotationMarkSheets, annotationSheets, announce, answers, ariaShortcuts, bindingEnabled, bindingEnabledFor, bindings, buttonCommand, checked, chromeSharedClasses, chromeSheet, claimReleaseClick, claimsEsc, clamp, clampedRow, clippedContents, clippedPlace, clippingAxes, clipsPastSurfaces, closeControl, closeNativeLayer, coarsePointer, commandAvailable, commandBinding, commandDeclarationsWithin, commandEntries, commandPresentations, commandReady, commandRoutes, commandScope, commandsOn, commandsWithin, contextBindings, contextScopes, controlAvailabilityOutput, cycledRow, decisionControls, decisionFor, declarationFor, declareCommandReadiness, declareOccluder, declareWindowChrome, declaredBindings, declaredRoot, descriptionOf, dismissError, dismissErrors, dismissPopoversOutside, dragHeld, dragging, el, elementDeclarations, elementDirective, elementsDeclaring, errorsReading, exhibits, frameFor, frameView, generated, generatedElement, growthAfterIsSeen, growthIsSeen, hasArea, headerCuts, headerInset, holdStatus, holdingError, hostIn, hoveringPointer, iconElement, iconTemplate, inBaseLayer, inUi, inWindowChrome, intersect, isCommandScope, keys, labelOf, landingBand, landingInsets, layerFact, layoutChanged, layoutWindow, live, liveEl, loadShadowRules, marksSheet, matchesWhen, measure, merge, motionPreview, mountRepaint, nativeActivationAt, nativeClaimAt, nativeLayers, nativeModalAdmits, nearObserver, nearWindow, nearestScrollBy, notice, noticeReading, offer, offered, overIn, overlaps, overlapsAcross, pageShadowRoots, paintClips, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, placeBox, placeHolder, plainPress, pointerAt, presented, pressIsKeyboardActivation, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, reachedForWords, recordedWidgetSelector, referencedCommandEntry, reflectFirstScopes, reflectKeys, refuseShadowRoot, registry, relabel, renderedChildren, repaint, repaintPage, responseAction, restorePointer, reveal, rightCover, routedCommand, rowArrows, savedReadingSettled, saying, scopeAvailable, scopeIdentity, scopeRefs, scopesAt, scopesFor, scrollContainer, scrollGlides, scrolling, scrollsBy, scrollsContent, searchField, seeErrors, seenRect, selectableOffer, selectableOffered, setNoticeContext, setQuickShortcuts, shadowRootsIn, shadowRules, shellRight, showNativeLayer, shownBand, shownBox, shownExtent, shownParts, shownRect, shownWindow, skipped, slotTop, spell, spokenBinding, stackLevel, startsAt, stateSpecs, stuckBox, submitBindings, tagsDeclaring, titleOf, tokenEntry, touchPresses, uiInside, underOccluder, union, userScrollport, visibleBand, watchArrivals, watchArrivalsIn, watchCommandAvailability, watchCommandScopes, watchLayers, watchOwner, watchRoom, watchScrollEnds, watchScrolls, whenNone, whileConnected, windowChromeBoxes, word, worksInside };

@@ -18,13 +18,26 @@ commit message; hold its claims to the standard the diff is held to.
 
 ## Review threshold
 
-Apply `AGENTS.md`'s **Stage** and **Fix the underlying issue** sections to the
-verdict. Once a change moves Leaf toward a coherent architecture and its claimed
-path works, the review is done. Reserve findings for architectural seams,
-cross-runtime invariants, public surface traps, regressions on the claimed path,
-or a central claim or test that is false. Omit bounded edge cases, exhaustive
-same-pattern cleanup, minor simplification, and prose or test polish unless they
-expose one of those problems.
+Apply `AGENTS.md`'s **Stage** and **Fix the underlying issue** sections and
+`/developing-leaf`'s **Weigh what a change adds** to the verdict; most of Tend's own
+pull requests land on this review alone. Once a change moves Leaf toward a coherent
+architecture, its claimed path works and what it adds is worth keeping, the review
+is done. Reserve findings for architectural seams, cross-runtime invariants, public
+surface traps, regressions anywhere the change reaches, additions that cost more
+than they buy, or a central claim or test that is false or that nothing has shown.
+Omit bounded edge cases, exhaustive same-pattern cleanup, minor simplification, and
+prose or test polish unless they expose one of those problems. Those findings ask a
+change to cover more or read better; a finding that it adds more than it buys is
+none of them.
+
+The verdict rests on that weighing. Weigh the change before searching it for
+defects, and revisit the weighing when a defect shows a cost it missed: on Tend's own
+pull request a defect found in an addition gets fixed and the addition lands, so for
+an addition the weighing rejects, the rejection is the finding, not its defect. State
+in the session what the change adds that later changes must hold, what that buys, who
+pays its cost and who gains beyond the claimed case, and the cheapest other change
+you can name that buys the same. Where that change keeps what this one must and costs
+materially less, it is the finding: withhold approval and name it.
 
 In shipped text (the references, `--help`, UI strings, `SKILL.md`, and the agent
 instructions in the `AGENTS.md` files and `/developing-leaf`), these prose defects
@@ -38,8 +51,7 @@ A diff that settles its symptom without reaching the underlying issue is an
 architectural seam: name the issue, and withhold approval unless the change meets the
 deferral condition in **Fix the underlying issue**. A fix for a red test that moves
 the interface beyond what the breaking change meant to, or gives up that change's
-intent without the issue **Reading a red suite** requires, is a regression on the
-claimed path.
+intent without the issue **Reading a red suite** requires, is a regression.
 
 ## Review test selection
 
@@ -55,6 +67,13 @@ failure. Where a test itself is at issue, `tests/AGENTS.md` says
 which boundary it belongs at. For a change that can alter browser startup, apply
 `AGENTS.md`'s **Working on the repository** performance rule to the candidate and base
 profiles from CI.
+
+A CI repair that changes what a page draws, such as its CSS, layout or a widget's
+rendering, names in its description the states it changes on screen. Before the
+verdict, its review captures each of them on the base and the head with
+`uv run leaf-dev stills --state NAME`, adding a state to its `STATES` where none
+reaches the surface, looks at the crops, and weighs what changed against every
+state that pays for it. Without captures it can read, the review withholds approval.
 
 ## Reading a red suite
 
@@ -187,10 +206,9 @@ and its lane's next passing run closes it.
 ## Leave backlog issues to the maintainer
 
 An issue labelled `backlog` is an item on the maintainer's prioritised backlog
-(`TODO.md` says how it is kept), not a report awaiting triage. `tend-triage`
-skips an issue opened with that label. When one reaches you another way, such as
-an unread notification, take no action, post nothing, and acknowledge the
-notification.
+(`TODO.md` says how it is kept), not a report awaiting triage. When one reaches
+you, whether through triage or an unread notification, take no action, post
+nothing, and acknowledge the notification.
 
 ## Nightly: model and harness releases
 

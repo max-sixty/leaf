@@ -38,6 +38,7 @@ directory; the remaining states still run. Only complete pairs enter the
 comparison. Arm construction, browser setup failures, and interrupts end the command.
 """
 
+import re
 import tempfile
 import traceback
 from collections.abc import Callable
@@ -61,6 +62,7 @@ from leaf_dev.arms import (
 from leaf_dev.browser import (
     BESIDE,
     DESKTOP,
+    go_to_threads,
     headless_shell,
     load,
     scroll_settled,
@@ -78,6 +80,14 @@ OPEN_CARD = "() => document.querySelector('.lf-margin-preview:not([hidden])')"
 
 def at_rest(page: Page) -> None:
     """The page as it loads."""
+
+
+def plan_execution(page: Page) -> None:
+    """The execution step with its security qualification in view."""
+    page.locator("#plan-execute > h3").evaluate(
+        "element => element.scrollIntoView({block: 'start', behavior: 'instant'})"
+    )
+    scroll_settled(page)
 
 
 def captured_source(page: Page) -> None:
@@ -271,6 +281,12 @@ def diff_filter(page: Page) -> None:
     settle(page)
 
 
+def diff_separator(page: Page) -> None:
+    """A hunk separator's label between the source lines around it."""
+    page.locator("#pr-key-hunk [data-separator]").first.scroll_into_view_if_needed()
+    settle(page)
+
+
 def playground_text(page: Page) -> None:
     """A playground's native text control with the shared field face and focus."""
     field = page.get_by_role("textbox", name="Notification title", exact=True)
@@ -292,15 +308,9 @@ def panel_status_hover(page: Page) -> None:
     page.locator(".lf-fp-leaf").hover()
 
 
-def open_threads(page: Page) -> None:
-    """The floating panel's Threads view, listing every open thread."""
-    page.locator(".lf-fp-threads").click()
-    page.locator(".lf-fp-filters button", has_text="Open").click()
-
-
 def open_thread(page: Page, key: str) -> None:
     """The thread `key`, opened from Threads in the floating panel's view."""
-    open_threads(page)
+    go_to_threads(page)
     page.locator(f'.lf-fp-thread[data-key="{key}"]').click()
     expect(page.locator(".lf-fp-view[data-view=thread] .lf-msg").first).to_be_visible()
 
@@ -308,7 +318,7 @@ def open_thread(page: Page, key: str) -> None:
 def floating_thread(page: Page) -> None:
     """The floating panel with a thread opened from Threads: the thread's title over
     its view, and under it, on the row, the way back, Show on page, Resolve and Close."""
-    open_threads(page)
+    go_to_threads(page)
     page.locator(".lf-fp-thread", has_text="One reconnect in forty").click()
     expect(page.locator(".lf-fp-view[data-view=thread]")).to_be_visible()
 
@@ -458,10 +468,19 @@ def seat_held_news(page: Page) -> None:
     held_news(page, thread)
 
 
-def threads_panel(page: Page) -> None:
-    """Threads, opened from the floating panel's thread mark."""
-    page.locator(".lf-fp-threads").click()
-    expect(page.locator(".lf-fp-view[data-view=threads]")).to_be_visible()
+def on_me(page: Page) -> None:
+    """On me, opened from the floating panel's On me mark."""
+    page.locator(".lf-fp-on-user").click()
+    expect(page.locator(".lf-fp-view[data-view=queue]")).to_be_visible()
+
+
+def on_agent(page: Page) -> None:
+    """The On view turned to the agent's tab."""
+    on_me(page)
+    page.locator(".lf-fp-filters button").filter(
+        has_text=re.compile(r"^\s*On (?!me)")
+    ).first.click()
+    expect(page.locator(".lf-fp-view[data-view=queue]")).to_be_visible()
 
 
 def call_tree(page: Page) -> None:
@@ -529,8 +548,7 @@ def retained_quote(page: Page) -> None:
     sample = page.locator("#bg-retained-quote-sample")
     sample.scroll_into_view_if_needed()
     child = sample.frame_locator("iframe")
-    child.locator(".lf-fp-threads").click()
-    child.locator(".lf-fp-filters button", has_text="Open").click()
+    go_to_threads(page, child)
     child.locator('.lf-fp-thread[data-key="bg-retained-quote-thread"]').click()
     expect(child.locator(".lf-fp-view[data-view=thread] .lf-msg").first).to_be_visible()
 
@@ -603,6 +621,14 @@ def image_in_page(page: Page) -> None:
     """An authored image in the reading flow, before its viewer opens."""
     page.get_by_role("tab", name="Threads", exact=True).click()
     page.locator("#bg-image-preview").scroll_into_view_if_needed()
+
+
+def thread_picture(page: Page) -> None:
+    """The gallery's pasted screenshot, a white page, in its message in the panel."""
+    open_thread(page, "2be2443f0bb6cc49fc86b52f340e6073")
+    picture = page.locator(".lf-fp-view[data-view=thread] .lf-message-media img").first
+    picture.evaluate("image => image.decode()")
+    picture.scroll_into_view_if_needed()
 
 
 def image_preview(page: Page) -> None:
@@ -740,8 +766,8 @@ def card_reply_long(page: Page) -> None:
 def panel_reply_long(page: Page) -> None:
     """The last open thread, opened from Threads in the floating panel, with a reply
     of two wrapped paragraphs in the panel's field, its reply box."""
-    open_threads(page)
-    page.locator(".lf-fp-thread").last.click()
+    go_to_threads(page)
+    page.locator(".lf-fp-thread:not([data-resolved])").last.click()
     expect(page.locator(".lf-fp-view[data-view=thread]")).to_be_visible()
     page.locator(".lf-fp-field leaf-text").click()
     page.keyboard.insert_text(LONG_DRAFT)
@@ -827,10 +853,10 @@ def into_the_body(page: Page) -> None:
     page.evaluate("() => scrollTo(0, 2 * innerHeight)")
 
 
-def plan_disclosure(page: Page) -> None:
-    """The plan's first disclosure, between the prose of two steps."""
+def plan_caveat(page: Page) -> None:
+    """The plan's network caveat, visible between the prose of two steps."""
     page.locator("#plan-network").evaluate(
-        "details => details.scrollIntoView({block: 'center'})"
+        "node => node.scrollIntoView({block: 'center'})"
     )
 
 
@@ -954,7 +980,10 @@ def code_copy_by_pointer(page: Page) -> None:
 def code_copy_by_keyboard(page: Page) -> None:
     """Code's corner control focused from the keyboard."""
     code_note(page)
-    page.keyboard.press("Tab")
+    # After `scrollIntoView`, Chromium's Tab continues from the view but Firefox's from
+    # the top of the document, which scrolls the block away; Shift only marks the
+    # keyboard as the latest input.
+    page.keyboard.press("Shift")
     page.locator("lf-code .lf-code-copy").first.get_by_role("button").focus()
 
 
@@ -1518,6 +1547,12 @@ STATES = (
         region="#pr-key-hunk .lf-diff-tools",
     ),
     State(
+        "diff-separator",
+        "pr-walkthrough",
+        diff_separator,
+        region="#pr-key-hunk .lf-diff-rows",
+    ),
+    State(
         "diff-filter-phone-dark",
         "pr-walkthrough",
         diff_filter,
@@ -1621,6 +1656,12 @@ STATES = (
         "developer/feature-gallery",
         image_in_page,
         region="#bg-image-preview",
+    ),
+    State(
+        "thread-picture",
+        "developer/feature-gallery",
+        thread_picture,
+        region=".lf-fp-opened",
     ),
     State("image-preview", "developer/feature-gallery", image_preview),
     State(
@@ -1851,7 +1892,8 @@ STATES = (
     ),
     State("gallery-multiline-passage", "developer/feature-gallery", multiline_passage),
     State("plan", "review-a-plan", at_rest),
-    State("plan-disclosure", "review-a-plan", plan_disclosure, region="#plan-network"),
+    State("plan-execution", "review-a-plan", plan_execution, region="#plan-execute"),
+    State("plan-caveat", "review-a-plan", plan_caveat, region="#plan-network"),
     State("page-search", "review-a-plan", page_search, region=".lf-floating-panel"),
     State(
         "accepted-page-search",
@@ -1940,13 +1982,13 @@ STATES = (
         "plan-card-reply-large", "review-a-plan", card_reply_large, viewport=(1440, 600)
     ),
     State("plan-card-beside", "review-a-plan", card_by_pointer, viewport=BESIDE),
-    State("plan-panel", "review-a-plan", threads_panel),
-    State("plan-panel-dark", "review-a-plan", threads_panel, scheme="dark"),
+    State("plan-panel", "review-a-plan", go_to_threads),
+    State("plan-panel-dark", "review-a-plan", go_to_threads, scheme="dark"),
     State(
         "plan-panel-keyboard-dark", "review-a-plan", panel_by_keyboard, scheme="dark"
     ),
     State("plan-panel-keyboard", "review-a-plan", panel_by_keyboard),
-    State("plan-panel-beside", "review-a-plan", threads_panel, viewport=BESIDE),
+    State("plan-panel-beside", "review-a-plan", go_to_threads, viewport=BESIDE),
     State("plan-go-to", "review-a-plan", go_to, viewport=(1024, 768)),
     State("plan-narrow", "review-a-plan", at_rest, viewport=(360, 740)),
     State("plan-touch", "review-a-plan", at_rest, viewport=(390, 844), touch=True),
@@ -1976,7 +2018,7 @@ STATES = (
     State(
         "plan-panel-touch",
         "review-a-plan",
-        threads_panel,
+        go_to_threads,
         viewport=(390, 844),
         touch=True,
     ),
@@ -2281,6 +2323,11 @@ STATES = (
         viewport=(390, 500),
         touch=True,
     ),
+    State("on-me", "corpus", on_me),
+    State("on-me-dark", "corpus", on_me, scheme="dark"),
+    State("on-agent", "corpus", on_agent),
+    State("hub-on-me", "command-hub", on_me),
+    State("hub-on-agent", "command-hub", on_agent),
     State("hub", "command-hub", at_rest),
     State("hub-workers", "command-hub", hub_workers),
     State("sort", "rust-sort", at_rest),

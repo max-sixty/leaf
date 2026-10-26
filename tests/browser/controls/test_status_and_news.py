@@ -27,6 +27,7 @@ from render_cases_layout import (
 from render_harness import (
     LONG_PAGE,
     consume_browser_errors,
+    expect_open_threads,
     http_error_console,
     nudge,
     open_page,
@@ -189,9 +190,10 @@ def test_the_poll_leaves_the_panel_where_it_was(browser, serve):
     url = serve(html, comments=9)
     d = serve.page_dir
     page = open_page(browser, url, pin=True)
-    threads = "document.querySelector('.lf-fp-threads').getAttribute('aria-label')"
     on_me = "document.querySelector('.lf-fp-on-user').getAttribute('aria-label')"
-    page.wait_for_function(f"() => {threads}.startsWith('Threads, 9 open')")
+    # What the mark counts, less the news its name goes on to say.
+    owing = f"{on_me}.split(', ')[0]"
+    expect_open_threads(page, 9)
     page_at_rest(page)
     owed = int(page.evaluate(f"() => {on_me}").removeprefix("On me: "))
 
@@ -216,17 +218,18 @@ def test_the_poll_leaves_the_panel_where_it_was(browser, serve):
 
     for what, drive, arrived in [
         (
-            "a tenth comment arrives",
+            "an agent's comment arrives, dotting the mark with news",
             lambda: append_carried_log_record(
                 d,
                 {
                     "kind": "comment",
-                    "author": "user",
+                    "author": "agent",
+                    "agent": "Claude",
                     "revision": 1,
                     "text": "A tenth.",
                 },
             ),
-            f"() => {threads}.startsWith('Threads, 10 open')",
+            f"() => {on_me}.endsWith('1 thread with news')",
         ),
         (
             "a new version is published",
@@ -236,12 +239,12 @@ def test_the_poll_leaves_the_panel_where_it_was(browser, serve):
         (
             "another tab decides two of the three pending suggestions",
             lambda: decide("sug-refill", "sug-thistle"),
-            f"() => {on_me} === 'On me: {owed - 2}'",
+            f"() => {owing} === 'On me: {owed - 2}'",
         ),
         (
             "another tab decides the last one",
             lambda: decide("sug-in-card"),
-            f"() => {on_me} === '{'On me: ' + str(owed - 3) if owed > 3 else 'On me'}'",
+            f"() => {owing} === '{'On me: ' + str(owed - 3) if owed > 3 else 'On me'}'",
         ),
     ]:
         page.evaluate(DEFINE_BOXES)

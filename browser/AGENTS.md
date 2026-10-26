@@ -74,6 +74,12 @@ representative desktop viewport.
   ancestors or siblings, and typing may grow a field but never moves it. Check:
   `tests/shift_watch.js`, run on every browser test outside a module marked
   `shifts_unsurveyed` (`tests/AGENTS.md`, "Browser errors").
+- **Stability is owed to the common path.** Every hold costs code on each later
+  change, so a rare path the user reads at a glance moves what is on screen rather
+  than carry a mechanism of its own. Words a refused send hands back, and a draft typed
+  in another tab, grow the reply field as typing does, in a card as in the floating
+  panel, and a refused turn gives its room back as it folds: what the user is about to
+  send shows whole before the layout holds (the user's choice, 25 October 2026).
 - **What takes turns in a place doesn't size it.** Where several modes share one seat,
   as the comment field, page search, Threads' search, a thread's reply and the seated
   comment box share the floating panel's field, the place sets the box from a theme
@@ -183,7 +189,7 @@ representative desktop viewport.
   heights, `--raise-1` to `--raise-3` (`styles/theme.css`). Check:
   `test_every_lift_names_one_of_the_theme_s_heights_cast_in_the_scheme_s_ink`.
 - **Every surface paints a thread's `unread` and `attention` from one value**, so the
-  Threads toggle, filters, panel, margin entry and Page Map change together. Green marks
+  On me mark's dot, Threads, panel, margin entry and Page Map change together. Green marks
   the user's turn; other thread controls stay blue. Marking read never moves the user.
 
 ### Motion
@@ -421,6 +427,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | The thread id a drawn thread carries                                                                  | `thread/selectors.js` `drawnThreadId`                                              |
 | The draft a thread holds: its reply box or a rewrite                                                  | `drafts.js` `replyContext`, `rewriteContext`, `threadDraft`                        |
 | Which obligations a region of the page holds                                                          | `obligations/place.js` `obligationsIn`                                             |
+| What names the part of the page a node stands in: its heading, or a named region                      | `thread/placement.js` `partOver`                                                   |
 
 ### Facts both runtimes know
 
@@ -503,8 +510,9 @@ through `readPart` selectors that return exactly what it draws, so it reruns onl
 that answer changes (`semantic-state.js`).
 
 Test what one module decides on its own under `tests/runtime/`
-(`pnpm run test:runtime`). The browser framework's TypeScript and its module tests live
-in `framework/`, which `build/browser/` compiles into `vendor/`. `pnpm run
-check:browser` type-checks the runtime and widget modules, strictly where a module is
-marked `// @ts-check`. Declare a new global, event detail or runtime element tag in
-`framework/runtime-globals.d.ts`.
+(`pnpm run test:runtime`). The browser framework, `runtime/framework.js` and the
+modules behind it, is JavaScript a page runs as written. `pnpm run check:browser`
+type-checks the runtime and widget modules, strictly where a module is marked
+`// @ts-check`, which the build requires of every framework module; `types/` holds the
+check's configuration and the declarations it reads. Declare a new global, event detail or runtime element tag in
+`types/runtime-globals.d.ts`.

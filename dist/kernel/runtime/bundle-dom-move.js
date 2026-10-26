@@ -1,4 +1,4 @@
-import { Z, cancelWork, enqueueWork, runWork } from "./bundle-browser-runtime.js";
+import { Z, cancelWork, enqueueWork, runWork } from "./bundle-signals-core.js";
 
 //#region runtime/frame-visibility.js
 const child = document.documentElement.lfSample;
@@ -412,6 +412,13 @@ function nativeLayerHolding(node) {
 	for (let at = node; at; at = renderedParent(at)) if (isNativeLayer(at)) return at;
 	return null;
 }
+function excludedByInert(node) {
+	for (let owner = node; owner; owner = renderedParent(owner)) {
+		if (owner.inert) return true;
+		if (nativeLayerKind(owner) === "modal") break;
+	}
+	return false;
+}
 
 //#endregion
 //#region runtime/focus.js
@@ -425,7 +432,7 @@ function* renderedElements(node) {
 }
 const SEQUENTIAL = `${TAB_STOP}, iframe, audio[controls], video[controls]`;
 const tabStops = (root) => [...renderedElements(root)].filter((node) => node.matches(SEQUENTIAL) && node.tabIndex >= 0 && !node.shadowRoot?.delegatesFocus && !node.matches(":disabled") && !node.inert && node.checkVisibility({ visibilityProperty: true }));
-const canPlaceFocus = () => !document.documentElement.lfSample || document.hasFocus();
+const canPlaceFocus = () => window === window.top || document.hasFocus();
 const CAUSES = /* @__PURE__ */ new Set([
 	"move",
 	"step",
@@ -892,7 +899,7 @@ function ringBox(node) {
 	for (let box = renderedParent(node); box instanceof Element; box = renderedParent(box)) if (getComputedStyle(box).getPropertyValue("--lf-wears-ring") === "1") return box;
 	return node;
 }
-const drawn = (node) => node?.isConnected && node.checkVisibility({ visibilityProperty: true });
+const drawn = (node) => node?.isConnected && !excludedByInert(node) && node.checkVisibility({ visibilityProperty: true });
 const dropped = () => {
 	const at = deepFocus();
 	if (at && at !== document.body) return null;
@@ -1162,4 +1169,4 @@ function move(parent, node, before) {
 document.documentElement.lfInitial.move = move;
 
 //#endregion
-export { CARET_KEYS, LENT_REACH_STOP, MODIFIER_KEYS, PRESSES, TAB_STOP, TEXT_BOX, TEXT_FIELD, WORKS, afterScript, afterSettling, atLayoutPrecision, byRenderedOrder, canPlaceFocus, cancelAnimation, cancelRender, caretAtKey, carriedFrom, closeLayer, composedParentNode, controlNavigationKeys, currentLocationIn, currentLocationNodes, currentLocationTouches, declareReading, declareRelease, deepFocus, drawn, focusDestination, focusRevision, focused, frameVisibility, handBack, holdCurrentLocation, holdFocus, holdRendering, inputCount, inputInFrame, isNativeLayer, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, nativeLayerHolding, nativeLayerKind, nextAnimation, nextFrame, nextRender, observePreparations, onCurrentLocation, onFrameVisibility, onPress, onPressAway, onUserInput, openLayer, openerOf, pressLed, pressing, readCaret, readSampleVisibility, recentPlaceInput, recoveredLabelFocus, release, releaseFocus, renderedOrder, renderedParent, renderedUnder, renderingState, ringBox, roomPx, rove, selectsAll, shadowHost, sizeObserver, tabStops, takesLetters, typesText, under, upFrom, watchCurrentLocationIn, watchFrame, wearsLentStop, whenLeft };
+export { CARET_KEYS, LENT_REACH_STOP, MODIFIER_KEYS, PRESSES, TAB_STOP, TEXT_BOX, TEXT_FIELD, WORKS, afterScript, afterSettling, atLayoutPrecision, byRenderedOrder, canPlaceFocus, cancelAnimation, cancelRender, caretAtKey, carriedFrom, closeLayer, composedParentNode, controlNavigationKeys, currentLocationIn, currentLocationNodes, currentLocationTouches, declareReading, declareRelease, deepFocus, drawn, excludedByInert, focusDestination, focusRevision, focused, frameVisibility, handBack, holdCurrentLocation, holdFocus, holdRendering, inputCount, inputInFrame, isNativeLayer, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, nativeLayerHolding, nativeLayerKind, nextAnimation, nextFrame, nextRender, observePreparations, onCurrentLocation, onFrameVisibility, onPress, onPressAway, onUserInput, openLayer, openerOf, pressLed, pressing, readCaret, readSampleVisibility, recentPlaceInput, recoveredLabelFocus, release, releaseFocus, renderedOrder, renderedParent, renderedUnder, renderingState, ringBox, roomPx, rove, selectsAll, shadowHost, sizeObserver, tabStops, takesLetters, typesText, under, upFrom, watchCurrentLocationIn, watchFrame, wearsLentStop, whenLeft };

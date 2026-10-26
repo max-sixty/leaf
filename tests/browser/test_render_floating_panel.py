@@ -4537,7 +4537,7 @@ def test_a_comment_on_words_where_the_page_draws_no_margin_is_written_in_the_row
 def test_a_sample_shows_its_threads_in_its_panel(browser, serve):
     """A live sample's host asking for the panel (`surface: "panel"`) shows the thread
     it names in the child's panel, or its Threads with none named. A narrow Full view
-    keeps the filters, search and Close reachable inside the child's panel."""
+    keeps resolved threads, search and Close reachable inside the child's panel."""
     url = serve(
         titled_page(
             "A sample's threads",
@@ -4546,7 +4546,9 @@ def test_a_sample_shows_its_threads_in_its_panel(browser, serve):
 <button id="show-thread" type="button">Show the thread</button>
 <button id="show-threads" type="button">Show Threads</button>
 <script id="history" type="application/json">
-[{"id":"question","kind":"comment","author":"user","text":"Can we schedule lunch?"}]
+[{"id":"question","kind":"comment","author":"user","text":"Can we schedule lunch?"},
+ {"id":"answered","kind":"comment","author":"user","text":"Is the room booked?"},
+ {"id":"settled","kind":"resolve","author":"user","parent":"answered"}]
 </script>
 <lf-sample id="sample" window>
   <template id="sample-page" data-sample data-sample-events="history">
@@ -4585,15 +4587,29 @@ def test_a_sample_shows_its_threads_in_its_panel(browser, serve):
     button = close.bounding_box()
     assert bounds["x"] <= button["x"]
     assert button["x"] + button["width"] <= bounds["x"] + bounds["width"]
-    filters = child.get_by_role("group", name="Show", exact=True)
-    filters.get_by_role("button", name="Resolved", exact=True).click()
-    filters.get_by_role("button", name=re.compile(r"^Open")).click()
+    threads = child.locator(panel_view("threads"))
+    expect(threads.locator(".lf-fp-thread:not([data-resolved])")).to_contain_text(
+        "Can we schedule lunch?"
+    )
+    expect(threads.get_by_role("heading", name="Resolved", exact=True)).to_be_visible()
+    resolved = threads.locator(".lf-fp-ended ~ .lf-fp-thread[data-resolved]")
+    expect(resolved).to_contain_text("Is the room booked?")
+    resolved.click()
+    expect(reader.locator(".lf-msg")).to_contain_text("Is the room booked?")
+    expect(child.get_by_role("button", name="Reopen", exact=True)).to_be_visible()
+    child.locator(".lf-fp-controls .lf-fp-back", has_text="Threads").click()
+    expect(threads).to_be_visible()
     child.get_by_role("button", name="Find a thread or message", exact=True).click()
     search = child.get_by_role("searchbox", name="Find a thread or message")
     assert search.bounding_box()["width"] > 0
     search.fill("schedule")
     expect(child.locator(".lf-fp-thread")).to_have_count(1)
+    expect(child.locator(".lf-fp-thread")).to_contain_text("Can we schedule lunch?")
+    search.fill("booked")
+    expect(child.locator(".lf-fp-thread")).to_have_count(1)
+    expect(child.locator(".lf-fp-thread")).to_contain_text("Is the room booked?")
     child.get_by_role("button", name="Close search", exact=True).click()
+    expect(threads.locator(".lf-fp-thread")).to_have_count(2)
     close.click()
     expect(child.locator(panel_view("threads"))).to_have_count(0)
 

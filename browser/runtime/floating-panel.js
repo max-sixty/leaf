@@ -185,7 +185,12 @@ import {
   workflowLabel,
   workflowStep,
 } from "./thread/workflow.js";
-import { messageReading, threadHeading, threadName } from "./thread/messages.js";
+import {
+  messageReading,
+  messageText,
+  threadHeading,
+  threadName,
+} from "./thread/messages.js";
 import { drawnThreadId, THREAD } from "./thread/selectors.js";
 import { declareThreadParts } from "./thread/focus.js";
 import { quoteReading, threadTodos } from "./thread/thread-card.js";
@@ -264,30 +269,23 @@ const prefs = () => document.documentElement.lfChrome;
 const GROUPS = Object.freeze({
   navigate: "Navigate",
   annotate: "Annotations",
-  about: "About this page",
 });
 // Rows held elsewhere, so the menu and its groups leave them out: by the menu's foot.
 const FOLD = "panel.floating.fold";
 const HELD_ELSEWHERE = Object.freeze(["keyboard", `command:${FOLD}`]);
 // A row the menu or a group lists: neither held elsewhere nor a stance's way out, at the
 // row's end.
-const listed = (entry) => !entry.exit && !HELD_ELSEWHERE.includes(entry.key);
+const listed = (entry) =>
+  !entry.exit && !HELD_ELSEWHERE.includes(entry.key) && (!entry.copies || canCopy());
 // A browser offers the clipboard only to a secure context (https or localhost), so a
 // page read over plain http from another machine has none to copy with; and one that
-// offers it may still refuse a write, after which the page copies nothing more by a
-// press (`copyItem`).
+// offers it may still refuse a write, after which the menu drops its copy shortcuts
+// (`copyItem`).
 let copyRefused = false;
 const canCopy = () => !copyRefused && Boolean(navigator.clipboard?.writeText);
-// Where a row stands in the menu: in its group; a keyboard's convenience (`keys`) under
-// Navigate only where no keyboard is there to reach it, so a finger still can; and a row
-// that copies a text, such as the page's link, under About where no clipboard is there to
-// copy it with, since About shows its text to select.
+// Keyboard conveniences also stand under Navigate where a finger needs them.
 const groupOf = (entry) =>
-  entry.group === "keys" && !advertisesKeys()
-    ? "navigate"
-    : entry.copies && !canCopy()
-      ? "about"
-      : entry.group;
+  entry.group === "keys" && !advertisesKeys() ? "navigate" : entry.group;
 const capital = (word) => word[0].toUpperCase() + word.slice(1);
 const coarse = () => matchMedia("(pointer: coarse)").matches;
 // What passes in the panel's one seat for words that pass: a notice while one shows,
@@ -1826,13 +1824,7 @@ export function createFloatingPanel({
         ? keySequenceTemplate(keySequenceModel(entry.shortcut))
         : nothing
     }`;
-  // A row of the menu whose press copies a text, such as the page's link, is Leaf's copy
-  // control worn by the row (copy-control.js): one press copies, the menu goes, and the
-  // field says whether the copy took, as it says any passing notice. What the text is,
-  // which a field to select it would say beneath it, is the row's hover name. Where no
-  // clipboard is offered, the row stands in About instead, its text there to select
-  // (`groupOf`); where the clipboard refuses the copy, the row moves there for good and
-  // About opens on the text, so the user can still take it.
+  // Copy shortcuts close on success; a refusal opens About's selectable text.
   const copyItems = new Map();
   function copyItem(entry) {
     let copy = copyItems.get(entry.key);
@@ -1844,7 +1836,11 @@ export function createFloatingPanel({
       copy.addEventListener("wa-copy", () => putAwayThen(() => {}));
       copy.addEventListener("wa-error", () => {
         copyRefused = true;
-        showMenuAt({ view: "group", group: "about" });
+        putAwayThen(() =>
+          rows()
+            .find((row) => row.key === "inspection")
+            .press(),
+        );
       });
       copyItems.set(entry.key, copy);
     }
@@ -2024,52 +2020,8 @@ export function createFloatingPanel({
   function groupList(group) {
     return rows()
       .filter((entry) => groupOf(entry) === group && listed(entry))
-      .map((entry) => (entry.copies ? copyRow(entry) : rowFor(entry)));
+      .map(rowFor);
   }
-  // A row of a group whose press copies a text, which stands in About only where the
-  // clipboard is missing or refused (`groupOf`), shows that text for the user to select
-  // as well, with Leaf's copy control beside it (copy-control.js), which shows on its own
-  // face whether the copy took. Where no clipboard is offered (`canCopy`) the control
-  // stands down and the text is there to select; the view stays open across a press, so the
-  // text is still there if the copy failed. Its value, which a one-line row would end
-  // with, says beneath it what the text is. A text of several lines, such as a preview's
-  // diagnostics, shows its first few, and selecting it takes the whole.
-  const copies = new Map();
-  function copyFor(entry) {
-    if (!copies.has(entry.key))
-      copies.set(
-        entry.key,
-        copyControl("lf-fp-copy-press", {
-          label: `Copy ${entry.label}`,
-          success: `${capital(entry.label)} copied`,
-          error: `${capital(entry.label)} not copied · select it to copy`,
-        }),
-      );
-    const copy = copies.get(entry.key);
-    copy.value = entry.copies;
-    copy.disabled = entry.disabled;
-    keepsHidden(copy, !canCopy());
-    return copy;
-  }
-  function copyRow(entry) {
-    const field = `lf-fp-copy-${entry.key}`;
-    return html`<div class="lf-fp-copy" role="none">
-      <label class="lf-fp-copy-label" for=${field}>${capital(entry.label)}</label>
-      <textarea
-        id=${field}
-        class="lf-fp-face lf-fp-copy-text"
-        readonly
-        wrap="off"
-        spellcheck="false"
-        rows=${Math.min(entry.copies.split("\n").length, 3)}
-        .value=${entry.copies}
-        @focus=${(event) => event.target.select()}
-      ></textarea
-      >${copyFor(entry)}
-      ${entry.value ? html`<p class="lf-fp-copy-note">${entry.value}</p>` : nothing}
-    </div>`;
-  }
-
   // Where the agent's latest save failed its check, first what the check found, which
   // its error points here to read (version.js, `holdFailedSave`); then the versions
   // the picker lists, the one shown marked, each a press that travels there and says
@@ -2203,8 +2155,8 @@ export function createFloatingPanel({
   // Done, each row saying New and Draft where they hold. The user chose this on 25
   // October, with Threads becoming the On view's tab, over Open, Unread, Drafts and
   // Resolved filters, which a second row of tabs would have had to hold. A search reads
-  // every thread's name, its messages and the words it is about, as its head quotes them
-  // (`quoteReading`), and lists the matches as one list.
+  // every thread's name, its messages and summaries as they read, and the words it is
+  // about, as its head quotes them (`quoteReading`), and lists matches as one list.
   function shownThreads() {
     const words = query.trim().toLowerCase();
     const shown = words
@@ -2212,7 +2164,8 @@ export function createFloatingPanel({
           [
             threadName(thread),
             quoteReading(thread, { placedAt })?.label ?? "",
-            ...thread.msgs.map((m) => m.text ?? ""),
+            ...thread.msgs.map(messageText),
+            ...thread.summaries.map(messageText),
           ]
             .join(" ")
             .toLowerCase()
@@ -2943,20 +2896,40 @@ export function createFloatingPanel({
             : nothing
         }`;
     } else if (choices?.length)
-      answers = html`${choices.map(
-        (choice) =>
-          html`<button
-            type="button"
-            class="lf-fp-face lf-fp-answer"
-            aria-pressed=${String(choice.chosen)}
-            @click=${() => {
-              choice.press();
-              paint();
-            }}
-          >
-            ${capital(choice.label)}
-          </button>`,
-      )}`;
+      // A choice that says more than its name, what choosing it gives and whether the
+      // page advises it, stands on a line of its own with those words under its name,
+      // two lines at most, so the user can answer here without Show. Rejected: the
+      // option's whole card, whose tags and picture let one choice fill a phone's
+      // screen, and its name alone, which left the user picking blind on a phone.
+      answers = html`${choices.map((choice) => {
+        const told = Boolean(choice.description || choice.recommended);
+        return html`<button
+          type="button"
+          class="lf-fp-face lf-fp-answer"
+          ?data-told=${told}
+          aria-pressed=${String(choice.chosen)}
+          @click=${() => {
+            choice.press();
+            paint();
+          }}
+        >
+          ${
+            told
+              ? html`<span class="lf-fp-choice-name">${capital(choice.label)}</span>${
+                    choice.recommended
+                      ? html` <span class="lf-fp-choice-tag">recommended</span>`
+                      : nothing
+                  }${
+                    choice.description
+                      ? html`<span class="lf-fp-choice-says"
+                          >${choice.description}</span
+                        >`
+                      : nothing
+                  }`
+              : capital(choice.label)
+          }
+        </button>`;
+      })}`;
     else if (item.offers?.done)
       answers = html`<button
         type="button"
@@ -3754,8 +3727,7 @@ export function createFloatingPanel({
     if (!menuFade) render(menuOpen.value ? menuTemplate() : nothing, menu);
     // A copy control the menu keeps for its next showing leaves the list the render just
     // took down, which it would otherwise hold whole, rows and all, as its parent.
-    for (const copy of [...copyItems.values(), ...copies.values()])
-      if (!copy.isConnected) copy.remove();
+    for (const copy of copyItems.values()) if (!copy.isConnected) copy.remove();
     if (!menuFade) {
       keeps(
         menu,

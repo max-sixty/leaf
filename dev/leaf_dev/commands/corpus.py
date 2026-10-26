@@ -47,6 +47,7 @@ DEVELOPER_SOURCES = (
     "visual-review-gallery",
     "playwright-trace-gallery",
     "motion",
+    "playground",
 )
 
 

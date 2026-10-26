@@ -1,4 +1,4 @@
-/* @noformat Generated from registry.json, state.schema.json and schema.VERB_SCHEMA by build/browser/contract-types.mjs. */
+/* @noformat Generated from kernel-registry.json, state.schema.json and schema.VERB_SCHEMA by build/browser/contract-types.mjs. */
 export type MessageKind = "comment" | "reply";
 export type UndoableKind = "todo_end" | "resolve" | "unresolve" | "action";
 export type WidgetKind = "action" | "report";
@@ -80,5 +80,5 @@ export type ServedFileSnapshot = { "label": string; "text": string; "revision": 
 export type ServedStaleFile = { "error": string; "current": ServedFileSnapshot; };
 export type ServedRefusal = { "error": string; };
 export type ServedLayerAnswer = { "layer": string; };
-export type ServedVerb = { "detail"?: { [key: string]: unknown; }; "unit": string; "record"?: { "kind": "attribute"; "attr": string; } | { "kind": "position"; "within": string; } | { "kind": "body"; } | { "kind": "value"; "attr": string; }; "writer"?: "agent"; "creates"?: { "child": string; "words": string; }; "decides"?: true; "contract"?: { "field": string; "attribute": string; }; "text"?: true; };
+export type ServedVerb = { "detail"?: { [key: string]: unknown; }; "unit": string; "record"?: { "kind": "attribute"; "attr": string; } | { "kind": "position"; "within": string; } | { "kind": "body"; } | { "kind": "value"; "attr": string; }; "writer"?: "agent"; "attention"?: true; "creates"?: { "child": string; "words": string; }; "decides"?: true; "contract"?: { "field": string; "attribute": string; }; "text"?: true; };
 export type ServedState = ServedReading & { "others": ReadonlyArray<{ "page_key": string; "url": string; "title": string; "session_cwd": string | null; "activity": { [key: string]: unknown; }; }>; "reading": string; "leaf"?: ServedProvenance; "release"?: string; };

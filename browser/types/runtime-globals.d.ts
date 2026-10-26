@@ -34,6 +34,7 @@ type LeafInitialRenderer = (
   tools: {
     tabStore: LeafStore;
     offer: LeafInitial["offer"];
+    selectableOffer: LeafInitial["selectableOffer"];
     offerElement: LeafInitial["offerElement"];
     generatedElement: LeafInitial["generatedElement"];
     keeps: LeafInitial["keepsAttribute"];
@@ -86,6 +87,8 @@ interface LeafInitial {
     inputType?: string,
     pressable?: boolean,
   ): K extends keyof HTMLElementTagNameMap ? HTMLElementTagNameMap[K] : HTMLElement;
+  selectableOffer(role: string, cls?: string, label?: string): HTMLSpanElement;
+  selectableOfferElement(node: Element, role: string, cls?: string): void;
   offerElement<T extends Element>(node: T, cls?: string, pressable?: boolean): T;
   generatedElement<T extends Element>(node: T, options: { says: boolean | "echo" }): T;
   origin(node: Node): Node | undefined;

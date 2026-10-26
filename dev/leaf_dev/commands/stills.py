@@ -82,6 +82,14 @@ def at_rest(page: Page) -> None:
     """The page as it loads."""
 
 
+def worktree_summaries(page: Page) -> None:
+    """Close the initially open worktree so the list's summary columns stand together."""
+    page.locator("#worktree-example-worktree-0 > details > summary").click()
+    expect(
+        page.locator("#worktree-example-worktree-0 > details")
+    ).not_to_have_attribute("open")
+
+
 def plan_execution(page: Page) -> None:
     """The execution step with its security qualification in view."""
     page.locator("#plan-execute > h3").evaluate(
@@ -296,6 +304,15 @@ def playground_text(page: Page) -> None:
     expect(field).to_have_value("Deployment ready")
 
 
+def page_about(page: Page) -> None:
+    """The page's identity and captured diagnostics in the menu's inspection dialog."""
+    page.locator(".lf-fp-leaf").click()
+    page.locator('.lf-fp-item[data-row="inspection"]').click()
+    expect(page.locator(".lf-inspection-dialog")).to_contain_text(
+        re.compile(r"Source captured for r\d+")
+    )
+
+
 def panel_leaf(page: Page) -> None:
     """The floating panel's leaf, which opens the page's menu, with its keyboard focus
     paint."""
@@ -472,6 +489,21 @@ def on_me(page: Page) -> None:
     """On me, opened from the floating panel's On me mark."""
     page.locator(".lf-fp-on-user").click()
     expect(page.locator(".lf-fp-view[data-view=queue]")).to_be_visible()
+
+
+def on_me_choice(page: Page) -> None:
+    """A described choice card in On me, before answering."""
+    on_me(page)
+    card = page.locator('.lf-fp-on-item[data-obligation="widget:decision-dedupe"]')
+    card.scroll_into_view_if_needed()
+
+
+def on_me_choice_answered(page: Page) -> None:
+    """The result and Undo replacing a described choice on its retained card."""
+    on_me_choice(page)
+    card = page.locator('.lf-fp-on-item[data-obligation="widget:decision-dedupe"]')
+    card.locator(".lf-fp-answer").first.click()
+    expect(card.locator(".lf-fp-said")).to_contain_text("Answered:")
 
 
 def on_agent(page: Page) -> None:
@@ -1255,6 +1287,13 @@ def playground_controls(page: Page) -> None:
     page.locator(".lf-playground-controls").scroll_into_view_if_needed()
 
 
+def playground_instruction(page: Page) -> None:
+    """The playground's instruction opened over the page, with its copy."""
+    page.get_by_role("button", name="Show instruction").click()
+    expect(page.locator("lf-playground-output")).to_be_visible()
+    page.mouse.move(0, 0)
+
+
 def playground_tall_stage(page: Page) -> None:
     """The last alert's controls, pressed far down a stage taller than the window."""
     control = page.locator("lf-playground-preview lf-playground-control").last
@@ -1360,6 +1399,13 @@ def trace_timeline_by_keyboard(page: Page) -> None:
     )
 
 
+def authored_timeline_step(page: Page) -> None:
+    """A step reached by Tab, with the timeline's playhead on it."""
+    page.locator("#race-before .lf-timeline-step").first.click()
+    page.keyboard.press("Tab")
+    page.keyboard.press("Space")
+
+
 @dataclass(frozen=True)
 class State:
     name: str
@@ -1372,6 +1418,44 @@ class State:
 
 
 STATES = (
+    State("page-about", "review-a-plan", page_about, region=".lf-inspection-dialog"),
+    State(
+        "page-about-dark",
+        "review-a-plan",
+        page_about,
+        scheme="dark",
+        region=".lf-inspection-dialog",
+    ),
+    State(
+        "page-about-phone",
+        "review-a-plan",
+        page_about,
+        viewport=(390, 844),
+        touch=True,
+        region=".lf-inspection-dialog",
+    ),
+    State("authored-timeline", "lost-update", at_rest, region="#race-before"),
+    State(
+        "authored-timeline-keyboard",
+        "lost-update",
+        authored_timeline_step,
+        region="#race-before",
+    ),
+    State(
+        "authored-timeline-dark",
+        "lost-update",
+        authored_timeline_step,
+        scheme="dark",
+        region="#race-before",
+    ),
+    State(
+        "authored-timeline-phone",
+        "lost-update",
+        at_rest,
+        viewport=(390, 900),
+        touch=True,
+        region="#race-before",
+    ),
     State(
         "native-code",
         "developer/feature-gallery",
@@ -1682,6 +1766,27 @@ STATES = (
     State("diff-file-threads", "developer/diff-thread-gallery", at_rest),
     State("diff-long-lines", "developer/diff-thread-gallery", diff_long_lines),
     State("worktree-diffs", "developer/worktree-diffs", at_rest),
+    State(
+        "worktree-summaries",
+        "developer/worktree-diffs",
+        worktree_summaries,
+        region="#worktree-example-workbench",
+    ),
+    State(
+        "worktree-summaries-dark",
+        "developer/worktree-diffs",
+        worktree_summaries,
+        scheme="dark",
+        region="#worktree-example-workbench",
+    ),
+    State(
+        "worktree-summaries-phone",
+        "developer/worktree-diffs",
+        worktree_summaries,
+        viewport=(390, 844),
+        touch=True,
+        region="#worktree-example-workbench",
+    ),
     State("diff-file-reply", "developer/diff-thread-gallery", diff_file_reply),
     State(
         "diff-file-resolved-closed",
@@ -1799,6 +1904,8 @@ STATES = (
         touch=True,
     ),
     State("playground-controls", "notification-playground", playground_controls),
+    State("playground-instruction", "notification-playground", playground_instruction),
+    State("playground-inline-end", "motion-playground", page_end),
     State("playground-tall-stage", "alert-thresholds", playground_tall_stage),
     State("playground-short-window", "data-explorer", page_end, viewport=(844, 390)),
     State(
@@ -2327,6 +2434,18 @@ STATES = (
     State("on-me-dark", "corpus", on_me, scheme="dark"),
     State("on-agent", "corpus", on_agent),
     State("hub-on-me", "command-hub", on_me),
+    State("hub-choice", "command-hub", on_me_choice),
+    State("hub-choice-answered", "command-hub", on_me_choice_answered),
+    State(
+        "hub-choice-answered-dark", "command-hub", on_me_choice_answered, scheme="dark"
+    ),
+    State(
+        "hub-choice-answered-touch",
+        "command-hub",
+        on_me_choice_answered,
+        viewport=(390, 844),
+        touch=True,
+    ),
     State("hub-on-agent", "command-hub", on_agent),
     State("hub", "command-hub", at_rest),
     State("hub-workers", "command-hub", hub_workers),

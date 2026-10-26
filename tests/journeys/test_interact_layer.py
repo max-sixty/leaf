@@ -37,7 +37,7 @@ from leaf import event_log as events_model
 from leaf import files as interact_files
 from leaf import layer as layer_model
 from leaf import packages as packages_model
-from leaf import schema as schema_model
+from leaf.state import kernel_registry
 
 
 def test_an_installed_payload_is_complete_and_launches_outside_the_checkout(
@@ -588,7 +588,7 @@ def test_init_revendors_a_page_an_earlier_leaf_left_behind(page_dir):
 
     revendored = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
     assert revendored.exit_code == 0, revendored.output
-    kernel = json.loads((schema_model.ASSETS / "registry.json").read_text())
+    kernel = kernel_registry()
     vendored = json.loads((page_dir / "registry.json").read_text())
     assert vendored["$events"]["kinds"] == kernel["$events"]["kinds"]
     recovered = check(page_dir)
@@ -766,7 +766,7 @@ def test_package_init_starts_one_checked_upgraded_widget(tmp_path, monkeypatch):
         '<lf-risk-note id="risk-note"><strong>Risk note</strong> The retry budget '
         "is three attempts before manual review.</lf-risk-note>"
     )
-    assert (package_root / "theme.css").read_bytes() == b""
+    assert (package_root / "widgets.css").read_bytes() == b""
     module = (package_root / "widgets" / "lf-risk-note.js").read_text()
     checked = runner.invoke(cli_model.cli, ["package", "check", str(package)])
     assert checked.exit_code == 0, checked.output

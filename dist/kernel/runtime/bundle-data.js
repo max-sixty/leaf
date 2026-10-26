@@ -2,11 +2,12 @@ import { J, W, Z, d, x } from "./bundle-signals-core.js";
 import { PRESSES, TEXT_BOX, deepFocus, drawn, focusDestination, focused, inputCount, keeps, move, nextAnimation, nextRender, onCurrentLocation, onUserInput, readCaret, renderingState, sizeObserver, typesText, under, upFrom } from "./bundle-dom-move.js";
 import { LayerRefused, PAGE_PAINT_ATTRIBUTE, admitReading, reportPageError, requestJson, runtimeRootState, setRuntimeRootAttribute } from "./bundle-layer-client.js";
 import { clippedPlace, decisionFor, frameFor, landingBand, placeBox, placeHolder, presented, registry, shownBox, skipped, tagsDeclaring, watchOwner } from "./bundle-geometry.js";
-import { LIVE_ROOT, PRESENTATION_DOM, applicationPresenter, applicationState, foldWidgetStates, layerRoot, obligationValue, offlineData, offlineInteractive, pageUrl, projectView, projectionOrigins, projectionRegionsPresented, readApplication, readPart, revisionLabel, runtime, watchPresentation, whenApplicationRegionsPresented } from "./bundle-context.js";
+import { LIVE_ROOT, PRESENTATION_DOM, TEXT_BLOCK, applicationPresenter, applicationState, foldWidgetStates, layerRoot, obligationValue, offlineData, offlineInteractive, pageUrl, projectView, projectionOrigins, projectionRegionsPresented, readApplication, readPart, revisionLabel, runtime, watchPresentation, whenApplicationRegionsPresented } from "./bundle-context.js";
 import { PRESSABLE, ariaShortcuts, bindings, buttonCommand, commandAvailable, commandRoutes, el, holdingError, labelOf, layoutChanged, live, notice, pointerAt, pruneScopedElements, raiseError, repaint, restorePointer, reveal, savedReadingSettled, spell, word } from "./bundle-errors.js";
 import { chosenSince, containingReadingRegionFor, effectiveScroller, moveScrollerBy, onReadingInput, pageScroller, placeKept, readingRegionFor, readingRegions, recentReadingRegion, regionScrollBehavior, regionsSettled, scrollChainOf, scrollChoices, scrollLimit, scrollersOf, shownRegionBounds, stopScroll, unconcealedReadingRegions, watchReadingRegionTransitions } from "./bundle-reading-regions.js";
-import { TEXT_BLOCK, alignInlineText, authored, authoredScope, closestAcross, elementById, inChrome, pageDocument, pageQueryAll, pageRange, rangeOf, readingFrom, renderRetired, selectEnds, selectionBackward, textNodesUnder, wrote } from "./bundle-passages.js";
-import { ADDRESSABLE, PAGE_CONTROL_RANK, addressedElements, anchoringIsReady, fragmentTarget, livePoint, registerPageControl, resolveAnchor, revealAddressed, sectionOf, settleMarginContentLayout, targetElement, targetPlace, targetSegments } from "./bundle-content-layout.js";
+import { PAGE_CONTROL_RANK, registerPageControl } from "./bundle-page-controls.js";
+import { alignInlineText, authored, authoredScope, closestAcross, elementById, inChrome, pageDocument, pageQueryAll, pageRange, rangeOf, readingFrom, renderRetired, selectEnds, selectionBackward, textNodesUnder, wrote } from "./bundle-passages.js";
+import { ADDRESSABLE, addressedElements, anchoringIsReady, fragmentTarget, livePoint, resolveAnchor, revealAddressed, sectionOf, settleMarginContentLayout, targetElement, targetPlace, targetSegments } from "./bundle-content-layout.js";
 import { authoredBody, initialOrigin, restoreInitialSource, unmarkedCopy } from "./bundle-initial-render.js";
 import { restrictUserIntent, retainUserIntent, scrollIntoView } from "./bundle-copy-control.js";
 import { PAGE_SCOPE, blocksOnScreen, captureDraftEditing, capturePlace, draftEditingDestination, draftEditingStands, focusedInView, formatDeclaredMarkdown, hasLandmark, heldThreadId, inlineMarkdownFragment, isPagePaint, openingPassage, pageReadingBlock, pageScopes, paintMarkdown, passageBlock, patchDocument, placeNode, placeOf, placeOffset, preloadWidgets, prepareDeclaredMarkdown, rawOffsetFits, reindexPassageOwners, rememberPassageParts, renderQuiet, replyDestination, restoreDraftEditing, restorePlace, restoreReplyEditing, tabStore, textBlocks, threadNamed } from "./bundle-surfaces.js";
@@ -787,18 +788,18 @@ function createAnchorTravel({ anchors, refreshThread, focusForNavigation, thread
 		const where = segment ? rangeOf([segment]) : targetElement(placement) ?? targetPlace(placement);
 		return livePoint(targetElement(placement) ?? targetPlace(placement), placement?.point) ?? where;
 	};
-	async function scrollToThread(id, { part = null, focus = true, presented = null, intent } = {}) {
+	async function scrollToThread(id, { part = null, focus = true, presented = null, intent, history = true } = {}) {
 		const mayArrive = retainTravel(intent);
 		const anchor = threadNamed(id)?.anchor;
 		const status = anchors.placedAt(id)?.status;
 		const hydrating = anchor?.datum && status !== "outdated" || anchor?.visual;
 		const destination = threadDestination(id);
 		const landing = () => threadDestination(id);
-		const departure = prepareNavigationStep({
+		const departure = history ? prepareNavigationStep({
 			landing,
 			intent: mayArrive
-		});
-		if (destination || hydrating) departure.plan(destination);
+		}) : null;
+		if (destination || hydrating) departure?.plan(destination);
 		if (hydrating) {
 			const source = sectionOf(anchor);
 			const hydration = source && revealAddressed(source, anchor.visual ?? anchor.datum);

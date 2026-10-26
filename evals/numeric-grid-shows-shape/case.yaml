@@ -19,8 +19,70 @@ assert:
   - type: llm-rubric
     metric: judgment
     value: |
-      Pass only if the HTML leads with an `lf-chart` that plots the three groups
-      against the five weeks, making their shared rise and fall visible. The exact
+      Pass only if the HTML leads with a chart that plots the three groups on
+      shared axes against the five weeks, making their shared rise and fall visible.
+      Any chart implementation can qualify; a list of values cannot. The exact
       measurements remain available in a table below the chart, preferably inside
       `<details>`. Fail if the table is the primary presentation, or if the chart
       omits a group or the five-week sequence.
+variants:
+  traffic-mix:
+    # Added after ordinary Leaf reports repeatedly described useful experiences
+    # without showing them. Unlike the complete configuration tasks, this request
+    # names an exploratory goal but no control or presentation form. Native page
+    # authoring tests the result; the source rubric cannot prove browser operation,
+    # which was checked separately on the retained samples. On 2026-10-24 both HEAD
+    # and an experimental authoring frame passed 1/1, choosing calculators and charts
+    # without a requested form; live probes confirmed the meaningful controls worked.
+    metadata:
+      authoring: true
+      purpose: "Choose a useful way to explore changing assumptions in an ordinary decision page."
+      tags:
+        - authoring
+        - charts
+        - drawing
+    vars:
+      prompt: |
+        Help me choose between these two deployments and make the page useful when
+        our traffic mix changes again.
+
+        We serve interactive requests and bulk requests. In a fixed-load benchmark,
+        deployment A's mean latency was 80 ms for interactive requests and 900 ms
+        for bulk requests. Deployment B's means were 140 ms and 350 ms respectively.
+        Interactive requests used to be 70% of our traffic and are now 95%. The
+        plausible range for the next quarter is 50% to 99% interactive requests;
+        the remainder is bulk requests. Both deployments meet our other requirements.
+
+        For this decision, estimate overall mean latency by weighting those measured
+        means by request share. Only the traffic mix changes in this estimate. These
+        measurements do not establish tail latency or behavior under different load,
+        queuing or concurrency. We care about the lower overall mean, and want to
+        understand when that choice would change.
+
+        Write the decision page in the initialized Leaf page directory.
+    assert:
+      - type: llm-rubric
+        metric: explores-changing-mix
+        value: |
+          The page lets the reader investigate how changing traffic mix affects the
+          choice, rather than only read a recommendation for today's mix. Pass for a
+          meaningful input that changes the visible means or comparison for both
+          deployments, or a continuous comparison across the plausible range whose
+          values and marked crossover make clear when each deployment wins. A chart
+          can answer this without controls. No particular control, chart library or
+          widget is required. A fixed table of only the old and current mix is not
+          enough. The useful comparison and its assumptions should be easy to inspect
+          together; decorative controls, unexplained numbers, or long repeated
+          descriptions do not suffice.
+          Judge the submitted implementation, not promises to add the exploration.
+      - type: llm-rubric
+        metric: preserves-model-and-decision
+        value: |
+          The comparison uses request-weighted means: A = 80p + 900(1-p),
+          B = 140p + 350(1-p), where p is interactive share. At 70%, A is 326 ms
+          and B 203 ms; at 95%, A is 121 ms and B 150.5 ms. The crossover is about
+          90.164% interactive, with B better below and A above. The page need not print
+          every check value or the formula if its visible outputs and recommendation
+          are correct. It clearly presents this as a fixed-load mean estimate, without
+          inferring tail, queueing, concurrency or changed-load performance. Fail on
+          materially wrong arithmetic, inverted recommendations, or erased limits.

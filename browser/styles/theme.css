@@ -356,7 +356,8 @@
   /* A pane's insets: its header and footer's, and its body's on every side. Tokens
      rather than numbers in the pane rules, so a density restates them and the rules
      keep the zero specificity a package restyling a pane relies on. */
-  --pane-bar-pad: 10px 14px;
+  --pane-bar-pad-block: 10px;
+  --pane-bar-pad: var(--pane-bar-pad-block) 14px;
   --pane-inset: 14px;
   /* How wide a block with `x-space: wide` may stand, from the prose's start edge
      (layouts.css, "Breakouts"): one number for the whole vocabulary, because a width per
@@ -1404,7 +1405,8 @@ p {
   --sp-5: 18px;
   --code-size: 0.8125rem;
   --code-line: 1.125rem;
-  --pane-bar-pad: 6px 12px;
+  --pane-bar-pad-block: 6px;
+  --pane-bar-pad: var(--pane-bar-pad-block) 12px;
   --pane-inset: 12px;
   --h2-start: 18px;
   --h3-start: 12px;
@@ -1480,6 +1482,12 @@ details {
   padding-block: 8px;
   margin: var(--details-margin-block) 0;
   --lf-block-frame: trim;
+}
+/* A disclosure arranged in columns gives its evidence the whole row. Keep this
+   native pseudo-element rule outside package scopes: Firefox computes scoped
+   ::details-content declarations but does not use them for grid placement. */
+details::details-content {
+  grid-column: 1 / -1;
 }
 summary {
   cursor: pointer;
@@ -2484,9 +2492,21 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
  * that pads a pane body another way sets `--lf-pane-top` with it. */
 :where([data-lf-reading-role="pane"]) > :not(header, footer) {
   --lf-pane-top: var(--pane-inset);
-  padding: var(--lf-pane-top) var(--pane-inset) var(--pane-inset);
+  padding: var(--lf-pane-top) var(--pane-inset)
+    calc(var(--pane-inset) + var(--lf-end-room));
   container-type: inline-size;
   --lf-block-frame: 1;
+}
+
+/* Only the last region owns the clearance; a footer already stands below the body. */
+:where([data-lf-reading-role="pane"]):not(:has(> footer)) > :not(header, footer) {
+  --lf-end-room: inherit;
+}
+@container not style(--lf-end-room: 0px) {
+  :where([data-lf-reading-role="pane"]) > footer {
+    --lf-end-room: inherit;
+    padding-block-end: calc(var(--pane-bar-pad-block) + var(--lf-end-room));
+  }
 }
 
 /* Board motion carries a compact card label without duplicating its live

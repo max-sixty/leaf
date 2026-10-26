@@ -80,20 +80,22 @@ representative desktop viewport.
   in another tab, grow the reply field as typing does, in a card as in the floating
   panel, and a refused turn gives its room back as it folds: what the user is about to
   send shows whole before the layout holds (the user's choice, 25 October 2026).
-- **What takes turns in a place doesn't size it.** Where several modes share one seat,
-  as the comment field, page search, Threads' search, a thread's reply and the seated
-  comment box share the floating panel's field, the place sets the box from a theme
-  token and each occupant fills it. Only content grows it, such as typed words, or a
-  gesture that asks for room, such as More room. A label's words (`data-room`, below)
-  and a widget's first paint (`keeps-first-box`) are cases of the same rule. A
-  one-line control's face is the line (`--lf-line`, theme.css) and a finger's floor its
-  reach (surfaces.css); a control that brings its own height instead, from its type or
-  the floor, sizes every place it is seated in. Check:
+- **Shared containers determine control dimensions.** When several modes share a
+  container, that container sets its dimensions from a theme token and each mode's
+  controls fill it. For example, the comment field, page search, Threads' search,
+  a thread's reply and the seated comment box share the floating panel's field.
+  The container grows only for content, such as typed words, or an explicit action,
+  such as More room. Changing labels (`data-room`, below) and rendering a widget
+  after its first paint (`keeps-first-box`) follow the same sizing rule. A
+  one-line control's visible height is `--lf-line` (theme.css); its touch target meets
+  the minimum size set by surfaces.css. A control that instead derives its visible
+  height from its font or the touch-target minimum changes the height of every
+  container that holds it. Check:
   `test_whatever_the_field_holds_the_row_keeps_its_line`
-  compares the row with its token in each mode; that a place still contains its
-  occupant proves nothing, since a grown place always does. `tests/swap_watch.js`,
-  which the browser fixture runs on every test, fails a flex row whose height follows
-  an occupant that took another's seat in it.
+  compares the row's height with its token in each mode. Checking only that controls
+  fit inside the row would miss a row that grew to fit them. `tests/swap_watch.js`,
+  which the browser fixture runs on every test, fails the test if a flex row's height
+  changes to match a replacement child control.
 - **A runtime region whose contents rearrange inside it declares `data-lf-reflow`**
   on the box that owns the space: `text` where its labels may rewrap while its controls
   stay put, as in a message header, and `append` where it grows only at its end, as a
@@ -179,7 +181,7 @@ representative desktop viewport.
 - **Leaf's controls are few, and each shows a symbol rather than a word where a
   familiar symbol says what it does.** The words on Leaf's controls compete with the
   page's own words for the reader's attention, and a symbol is smaller and quieter.
-  Draw it from `runtime/icons.js` and give the control its name as tooltip and
+  Draw it from `runtime/icon-paths.js` and give the control its name as tooltip and
   accessible name, without the word beside the symbol. One control whose symbol follows
   its state, such as play turning to pause, replaces a button for each state. A word
   stays where a symbol would leave the reader guessing, as in the rows of the leaf's
@@ -245,7 +247,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Annotation inventory and controls                                                                           | `annotation-inventory.js`, `annotation-view.js`, `contributions.js`, `contribution-controls.js`, `inline-contributions.js`                                                |
 | Annotation records and Page Map                                                                             | `margin-model.js`, `margin-map-model.js`, `page-map-dialog.js`, `pointed-place.js`                                                                                        |
 | Pins, marks and floating placement (loaded only when `body` keeps the default `data-annotations="overlay"`) | `annotation-overlay/`                                                                                                                                                     |
-| Passages and target identity                                                                                | `passages.js`, `passage-facts.js`, `text-alignment.js`, `anchor-coordinate.js`, `resolved-target.js`, `anchor-resolution.js`, `addressable-names.js`                      |
+| Passages and target identity                                                                                | `passages.js`, `kernel-facts.js`, `text-alignment.js`, `anchor-coordinate.js`, `resolved-target.js`, `anchor-resolution.js`, `addressable-names.js`                       |
 | Anchor placement, decoration and travel                                                                     | `anchor-placement.js`, `anchor-note-view.js`, `anchor-controls.js`, `anchor-travel.js`, `target-paint.js`, `target-paint-geometry.js`, `visual-parts.js`, `indication.js` |
 | Page status and what a user copies about the page                                                           | `page-status.js`, `page-about.js`, `heading-links.js`                                                                                                                     |
 | Neighboring pages                                                                                           | `live-leaves.js`                                                                                                                                                          |
@@ -431,13 +433,16 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 
 ### Facts both runtimes know
 
-A fact Python and the browser both use, such as an event kind or the languages a page
-can highlight, has one home. Either one runtime owns it and sends it to the other as
-data, as the server sends its state in `/api/state`, whose type the build generates from
-`served_state/state.schema.json`, or the registry declares it and the build generates
-the browser's copy, as `build/registry.mjs` writes `runtime/syntax-languages.js` from
-`$languages`. Where runtime code must spell a value, a generated type such as
-`ServedWorkKind` makes a misspelling fail the type check. Where only a literal can carry
+A fact Python and the browser both use, such as an event kind or how a page reads as
+text, has one home. Either one runtime owns it and sends it to the other as data, as
+the server sends its state in `/api/state`, whose type the build generates from
+`served_state/state.schema.json`, or the kernel registry
+(`runtime/kernel-registry.json`) declares it and both read the serving Leaf's copy:
+the browser imports it as a JSON module through `runtime/kernel-facts.js`, so no build
+stands between an edit and either reader. Only a fact the registry can't settle alone
+is generated, as `build/vendor.mjs` writes `runtime/syntax-languages.js` from
+`$languages` and the grammars it bundles. Where runtime code must spell a value, a
+generated type such as `ServedWorkKind` makes a misspelling fail the type check. Where only a literal can carry
 the fact, as in a stylesheet's attribute selector, a check holds the spelling to the
 declaration (`build/registry.test.mjs`). An algorithm both runtimes run shares a case
 file that holds both to the same answers (`tests/*_cases.json`). A parity fixture, or a

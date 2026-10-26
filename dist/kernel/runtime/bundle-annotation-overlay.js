@@ -6,7 +6,7 @@ import { clamp, hostIn, rightCover, seenRect, shownBox, shownWindow, skipped, sl
 import { bareReaction, html, render, sameAnchor, turns, whenDocumentPresented } from "./bundle-context.js";
 import { LAYOUT, PRESS, closeControl, coarsePointer, cycledRow, el, generatedElement, iconElement, keys, notice, offer, paintKeys, repaint, rowArrows } from "./bundle-errors.js";
 import { atScrollEnd, effectiveScroller, moveScrollerBy, pageScroller, placeKept, readingRegionFor, registerReadingRegion, scrollToEnd } from "./bundle-reading-regions.js";
-import { chromeForeground, chromeRoot } from "./bundle-element-frame.js";
+import { chromeForeground, chromeRoot } from "./bundle-page-controls.js";
 import { blockAt, closestAcross, elementFromPointAcross, inChrome, labelWords, pageRange, pageWords, quoteFrom, rangeOf, segmentsIn } from "./bundle-passages.js";
 import { exactTarget, passageGeometry, pointBand, rangeGeometry, targetElement, targetParts, targetRange, targetSegments, targetSurface, visualAt } from "./bundle-content-layout.js";
 import { retainUserIntent } from "./bundle-copy-control.js";

@@ -6,7 +6,7 @@ Document-bound events also carry `revision`, and an agent's event posted from a 
 session carries that session's `agent` and `session`. An `id` is an opaque string
 matched whole. The append door mints eight hex characters unique within the page's log,
 so an id is not a global identifier. Each kind's record schema is `$events.kinds` in
-`../../browser/registry.json`; this table says what each kind means:
+`../../browser/runtime/kernel-registry.json`; this table says what each kind means:
 
 | Kind                                         | Author          | Door                                                                            | Fields                                                                                                                                                                 | Meaning                                                                                                                                                                                       |
 | -------------------------------------------- | --------------- | ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -121,8 +121,10 @@ session writes neither field. Every reading
 names an agent's event through `schema.agent_name`, and the browser shows that name as
 served.
 
-Admission stamps `attention`, whether the event changes what is owed: obligations or
-to-dos on the user, pending answers, and work the agent has in hand and its inputs. `workflows.obligation_reading` compares those readings before and
+Admission stamps `attention` when the event changes obligations or
+to-dos on the user, pending answers, work the agent has in hand and its inputs, or
+widget input whose active `x-state` verb declares `attention: true` (`$state`).
+`workflows.attention_reading` compares those readings before and
 after the gesture, and the decision survives later replies, versions and to-do endings,
 so a cancellation delivered to the agent stays input after the work it withdrew ends.
 Reports and errors always carry attention, and agent messages never do. A user's edit
@@ -290,7 +292,7 @@ the agent's `todo_end` can retire a question unanswered (`obligations.settle_by_
 widgets', frozen widgets', message requests and user-owned tasks, with a record beside
 them for each update the user handed over (`workflows.handed_over`), read after the
 widget obligations it depends on. `obligations.py` owns a record's statuses
-and its next actor. `$keys["x-awaits"]` in the kernel registry says when a widget's
+and its next actor. `$keys["x-awaits"]` in `browser/registry.json` says when a widget's
 obligation exists and what its id is, and `Obligation` in
 `served_state/state.schema.json` lists the served fields. `obligations.collection`
 selects `all`, `user` and `unanswered` from it. To-dos are separate records, and no

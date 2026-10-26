@@ -163,7 +163,7 @@ arrives. Each `source.kind` adds its own facts:
 
 - A bound-data record's obligation names the owning widget in `source.id` and the
   record key in `source.unit`.
-- For a widget declaring `x-awaits.reply`, such as an `lf-ask` holding no widget, the
+- For a widget declaring `x-awaits.reply`, such as an `lf-ask` holding no other widget, the
   user's next message in its thread or comment on it is its `answer.value` (`{text}`,
   or `{token}` for a settling reaction); `answeredInWords(obligation)` says whether an
   obligation is one. When the agent ends it with `leaf task end`, `status` is

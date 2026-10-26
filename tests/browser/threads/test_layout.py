@@ -2,11 +2,13 @@
 under zoom and short windows, and the chrome's rules staying apart from page and package
 styles."""
 
+import io
 import json
 import re
 
 import pytest
 from interact_support import append_carried_log_record
+from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import (
     PANEL_PAGE,
@@ -689,7 +691,7 @@ def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser,
                 heads: [...box.querySelectorAll('.lf-msg-head')]
                   .map(head => head.getBoundingClientRect().toJSON()),
                 top: box.getBoundingClientRect().top + box.clientTop
-                  + parseFloat(getComputedStyle(box).paddingTop)};
+                  + parseFloat(getComputedStyle(box).getPropertyValue('--lf-top'))};
             }"""
         )
         cdp = page.context.new_cdp_session(page)
@@ -769,6 +771,84 @@ def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser,
             assert cue["heads"][0]["bottom"] <= cue["top"], cue
             assert cue["fade_top"] == pytest.approx(cue["top"], abs=1), cue
         assert cue["fade_bottom"] <= cue["heads"][1]["top"] + 1, cue
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_words_scrolled_past_a_card_head_show_nowhere_above_it(engine, request, serve):
+    """Wherever the card's transcript is scrolled, its stuck head stands on the line
+    of the card's actions, and the focus-ring room above that line shows no words.
+    Firefox stuck a head at its subgrid scroller's edge, past the room, so the name
+    stood 6px above the actions and words showed over Resolve; in Chromium they
+    showed above the name."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(
+        serve.page_dir, "Opening turn. " + LANDING_WORDS, {"section": "how-store"}
+    )
+    for turn in range(1, 8):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent" if turn % 2 else "user",
+                "parent": root,
+                "text": f"Turn {turn}. " + LANDING_WORDS,
+            },
+        )
+    page = open_page(request.getfixturevalue(engine), url)
+    resized(page, 1200, 600)
+    page.locator('[data-lf-margin-for="how-store"] .lf-margin-marker').click()
+    transcript = page.locator(
+        f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]'
+        " > .lf-thread-transcript"
+    )
+    expect(transcript).to_be_visible()
+    rendered(page)
+    travel = transcript.evaluate("box => box.scrollHeight - box.clientHeight")
+    # Through the first messages, including where one pushes the last one's head off.
+    assert travel > 300, travel
+    for scroll in range(0, 300, 7):
+        transcript.evaluate("(box, y) => { box.scrollTop = y; }", scroll)
+        rendered(page)
+        reading = transcript.evaluate(
+            """box => {
+              const controls = box.parentElement
+                .querySelector(':scope > .lf-margin-thread-controls');
+              const edge = box.getBoundingClientRect().top + box.clientTop;
+              const head = [...box.querySelectorAll('.lf-msg-head')]
+                .find(head => head.getBoundingClientRect().bottom > edge + 1);
+              const at = head.getBoundingClientRect();
+              const card = box.parentElement.getBoundingClientRect();
+              return {edge, head: at.top, left: card.left, right: card.right,
+                pushed: at.bottom >= head.parentElement.getBoundingClientRect().bottom - 1,
+                line: controls.getBoundingClientRect().top
+                  + parseFloat(getComputedStyle(controls).paddingTop),
+                // The focus-ring room, which the transcript's landings also keep.
+                ring: parseFloat(getComputedStyle(box).scrollPaddingTop)};
+            }"""
+        )
+        # A head the next message pushes off rises with it; every other stands on the
+        # actions' line or below it.
+        assert reading["pushed"] or reading["head"] >= reading["line"] - 0.5, (
+            scroll,
+            reading,
+        )
+        assert reading["line"] - reading["edge"] >= reading["ring"], reading
+        room = min(reading["line"], reading["head"]) - reading["edge"]
+        if room < 1:
+            continue
+        band = Image.open(
+            io.BytesIO(
+                page.screenshot(
+                    clip={
+                        "x": reading["left"],
+                        "y": reading["edge"],
+                        "width": reading["right"] - reading["left"],
+                        "height": room,
+                    }
+                )
+            )
+        ).convert("L")
+        assert band.getextrema()[1] - band.getextrema()[0] < 40, (scroll, reading)
 
 
 @pytest.mark.parametrize(("width", "touch"), [(1200, False), (311, True)])

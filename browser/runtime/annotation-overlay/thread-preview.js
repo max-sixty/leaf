@@ -40,6 +40,7 @@ import { cancelRender, nextRender } from "../rendering.js";
 import { spokenSubject } from "../contribution-model.js";
 import { labelWords } from "../words.js";
 import { THREAD_CARD } from "./margin-layout.js";
+import { slotTop } from "../geometry.js";
 import {
   focusDestination,
   holdFocus,
@@ -270,14 +271,15 @@ export function createThreadPreview({
           // A head sticks only while its own message is under it. Follow its real
           // lower edge as the next message pushes it away; between messages the
           // transcript's edge is the cut. A declared head height cannot say this.
+          // The scroll clip includes focus-ring room above where the heads stick, which
+          // the heads and the actions cover once anything is scrolled away
+          // (`--lf-thread-room-cover`); at the top a message's ring still has it.
           let edge = 0;
           let height = above ? 12 : 0;
+          const room = slotTop(transcript);
           if (above) {
-            // The scroll clip includes focus-ring room above the message heads.
             const top =
-              transcript.getBoundingClientRect().top +
-              transcript.clientTop +
-              parseFloat(getComputedStyle(transcript).paddingTop);
+              transcript.getBoundingClientRect().top + transcript.clientTop + room;
             for (const head of transcript.querySelectorAll(".lf-msg-head")) {
               const box = head.getBoundingClientRect();
               if (!box.height || box.bottom <= top) continue;
@@ -293,6 +295,7 @@ export function createThreadPreview({
           const card = transcript.parentElement;
           card.style.setProperty("--lf-thread-fade-top", layoutPx(edge));
           card.style.setProperty("--lf-thread-fade-height", layoutPx(height));
+          card.style.setProperty("--lf-thread-room-cover", layoutPx(above ? room : 0));
         },
       });
   }

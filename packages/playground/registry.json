@@ -79,6 +79,9 @@
       "kind": {
         "enum": ["range", "toggle", "choice", "color", "text"]
       },
+      "appearance": {
+        "const": "select"
+      },
       "value": {
         "type": "string"
       },
@@ -103,6 +106,10 @@
     },
     "required": ["name", "label", "kind", "value"],
     "allOf": [
+      {
+        "if": { "required": ["appearance"] },
+        "then": { "properties": { "kind": { "const": "choice" } } }
+      },
       {
         "if": {
           "properties": {

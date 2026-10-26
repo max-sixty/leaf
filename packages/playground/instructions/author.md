@@ -67,6 +67,13 @@ wiring substitute handlers onto copied DOM.
 
 ## Controls, samples, and output
 
+A choice control shows radio buttons by default, so alternatives and their labels can
+be compared directly. `appearance="select"` favors scanning current settings across
+many items, at the cost of opening menus to compare alternatives. Choose by whether
+the alternatives or the current values carry the decision. The same
+`lf-playground-choice` children provide the select's values and labels; presets, Reset
+and the submitted values work the same.
+
 Keep the configuration the user is choosing apart from the cases used to inspect it.
 Controls and presets describe what to build. Give preview cases and inspection settings
 their own labeled controls, with page-local state outside the playground's submitted

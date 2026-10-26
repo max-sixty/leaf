@@ -294,11 +294,11 @@ compatibility refusal rather than falling back to the installed plugin.
 
 A page that explains how a Leaf widget, verb or event flow behaves lets the user try it
 in a live sample (`<root>/skills/leaf/references/live-samples.md`) holding only the
-demonstrated page and an `lf-activity` feed of its own log. The prose above the sample
-lists the gestures to try, in an order that exercises each verb the page explains, undo
-included. Before handoff, drive the sample using only what that prose says, and read
-each line the feed prints; a probe that knows more than the prose proves only that the
-sample works.
+demonstrated page and an `lf-activity` feed of its own log. Make the next gesture and
+its visible result clear as the user tries the sample, including Undo. Guidance beside
+the relevant step lets the user learn by operating the page. Before handoff, operate
+the sample using only its visible guidance and read each line the feed prints, so the
+review checks whether the user can work it without the author's knowledge.
 
 ## Keep authoring a page fast
 

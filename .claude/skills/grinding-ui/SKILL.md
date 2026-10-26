@@ -39,9 +39,18 @@ holds previous runs and findings.
   successful one can expose the next weakness.
 
 With no run limit, complete one cycle and report. Spend a cycle on repairs and fresh
-comparisons; record provenance briefly rather than re-auditing earlier runs. At
-handoff, make the retained changes and their comparison evidence clear, including
-unsuccessful experiments.
+comparisons; record provenance briefly rather than re-auditing earlier runs. Choose
+its scope to leave time for a change and its confirmation: saved-page probes and
+focused fresh-author tasks give faster feedback on a local hypothesis, while full
+multi-turn workflows test the whole exchange.
+
+For longer runs, keep the standard eval report current. Lead with the latest run's
+scope, the changes tested, matched before/after outputs and the keep, revise or reject
+judgment, including unsuccessful experiments. A current-state pass without a baseline
+doesn't establish improvement. Keep earlier experiments as supporting history and
+exploration distinct from scored comparisons; `evals/README.md`, "Render a report",
+owns the format and commands. At handoff, review each page the user can open, including
+linked demonstrations, through `/developing-leaf`, "Author or revise a page".
 
 ## What the comparisons should reveal
 

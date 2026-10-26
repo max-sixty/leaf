@@ -22,8 +22,6 @@ from model_folds import leaf_page
 from playwright.sync_api import expect
 from render_cases_interaction import (
     HOLD_MOTION,
-    LIVE_V1,
-    LIVE_V2,
     live_url,
     panel_comment,
 )
@@ -1326,16 +1324,18 @@ def test_threads_search_finds_a_thread_by_the_words_it_quotes(browser, serve):
 
 
 def test_keys_in_threads_act_on_threads(browser, serve):
-    """In Threads, `/` opens Threads' own search, where it opened the page's search
-    over the list, and d and u page the list rather than the page under it."""
+    """Go to Threads lands in its list, where `/` finds threads and d and u page
+    the list rather than the page under it."""
     url = serve(AGENDA_PAGE)
     agenda_threads(serve.page_dir)
     for n in range(12):
         panel_comment(serve.page_dir, f"Question {n} about the room")
     page = floating(browser, url)
     resized(page, 1440, 500)
-    rows = threads_rows(page)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
     view = page.locator(panel_view("threads"))
+    rows = view.locator(".lf-fp-thread")
     expect(view).to_be_focused()
     assert view.evaluate("box => box.scrollHeight > box.clientHeight")
     document = "() => document.scrollingElement.scrollTop"
@@ -3506,10 +3506,13 @@ def test_a_failed_save_is_an_error_until_the_next_valid_one(browser, serve):
     passed, and that stands as an error: the field says it and Errors in the leaf's
     menu lists it, and Versions says what the check found. It leaves both with the next
     valid save."""
-    page = open_page(browser, live_url(serve(LIVE_V1)))
-    (serve.page_dir / "index.html").write_text(LIVE_V2.replace("</main>", ""))
+    first = titled_page("Save status", '<p id="saved-text">First valid save.</p>')
+    second = first.replace("First valid save.", "Next valid save.")
+    page = open_page(browser, live_url(serve(first)))
+    (serve.page_dir / "index.html").write_text(second.replace("</main>", ""))
     told(page)
     expect(field(page)).to_have_attribute("data-says", "error")
+    expect(page.locator("#saved-text")).to_have_text("First valid save.")
     expect(field(page)).to_have_attribute(
         "placeholder", re.compile(r"^Latest edit not shown")
     )
@@ -3521,8 +3524,9 @@ def test_a_failed_save_is_an_error_until_the_next_valid_one(browser, serve):
     expect(failed.locator(".lf-fp-failed-error")).not_to_be_empty()
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
-    (serve.page_dir / "index.html").write_text(LIVE_V2)
+    (serve.page_dir / "index.html").write_text(second)
     told(page)
+    expect(page.locator("#saved-text")).to_have_text("Next valid save.")
     expect(field(page)).not_to_have_attribute("data-says", "error")
     page.locator(".lf-fp-leaf").click()
     expect(page.locator('.lf-fp-menu [data-row="errors"]')).to_have_count(0)
@@ -4533,7 +4537,7 @@ def test_a_comment_on_words_where_the_page_draws_no_margin_is_written_in_the_row
 def test_a_sample_shows_its_threads_in_its_panel(browser, serve):
     """A live sample's host asking for the panel (`surface: "panel"`) shows the thread
     it names in the child's panel, or its Threads with none named. A narrow Full view
-    keeps the filters, search and Close reachable inside the child's panel."""
+    keeps resolved threads, search and Close reachable inside the child's panel."""
     url = serve(
         titled_page(
             "A sample's threads",
@@ -4542,7 +4546,9 @@ def test_a_sample_shows_its_threads_in_its_panel(browser, serve):
 <button id="show-thread" type="button">Show the thread</button>
 <button id="show-threads" type="button">Show Threads</button>
 <script id="history" type="application/json">
-[{"id":"question","kind":"comment","author":"user","text":"Can we schedule lunch?"}]
+[{"id":"question","kind":"comment","author":"user","text":"Can we schedule lunch?"},
+ {"id":"answered","kind":"comment","author":"user","text":"Is the room booked?"},
+ {"id":"settled","kind":"resolve","author":"user","parent":"answered"}]
 </script>
 <lf-sample id="sample" window>
   <template id="sample-page" data-sample data-sample-events="history">
@@ -4581,15 +4587,29 @@ def test_a_sample_shows_its_threads_in_its_panel(browser, serve):
     button = close.bounding_box()
     assert bounds["x"] <= button["x"]
     assert button["x"] + button["width"] <= bounds["x"] + bounds["width"]
-    filters = child.get_by_role("group", name="Show", exact=True)
-    filters.get_by_role("button", name="Resolved", exact=True).click()
-    filters.get_by_role("button", name=re.compile(r"^Open")).click()
+    threads = child.locator(panel_view("threads"))
+    expect(threads.locator(".lf-fp-thread:not([data-resolved])")).to_contain_text(
+        "Can we schedule lunch?"
+    )
+    expect(threads.get_by_role("heading", name="Resolved", exact=True)).to_be_visible()
+    resolved = threads.locator(".lf-fp-ended ~ .lf-fp-thread[data-resolved]")
+    expect(resolved).to_contain_text("Is the room booked?")
+    resolved.click()
+    expect(reader.locator(".lf-msg")).to_contain_text("Is the room booked?")
+    expect(child.get_by_role("button", name="Reopen", exact=True)).to_be_visible()
+    child.locator(".lf-fp-controls .lf-fp-back", has_text="Threads").click()
+    expect(threads).to_be_visible()
     child.get_by_role("button", name="Find a thread or message", exact=True).click()
     search = child.get_by_role("searchbox", name="Find a thread or message")
     assert search.bounding_box()["width"] > 0
     search.fill("schedule")
     expect(child.locator(".lf-fp-thread")).to_have_count(1)
+    expect(child.locator(".lf-fp-thread")).to_contain_text("Can we schedule lunch?")
+    search.fill("booked")
+    expect(child.locator(".lf-fp-thread")).to_have_count(1)
+    expect(child.locator(".lf-fp-thread")).to_contain_text("Is the room booked?")
     child.get_by_role("button", name="Close search", exact=True).click()
+    expect(threads.locator(".lf-fp-thread")).to_have_count(2)
     close.click()
     expect(child.locator(panel_view("threads"))).to_have_count(0)
 

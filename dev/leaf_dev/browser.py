@@ -212,12 +212,13 @@ def panel_tab(page: Page | FrameLocator, name: str):
 def threads_tab(page: Page | FrameLocator):
     """Stand On or Threads open and return the Threads tab at its foot. From the row the
     On me mark opens On, or Threads itself while nothing waits on the user but a reply
-    they have not read; another view standing open is closed first, by the seat's Close.
+    they have not read; another view, stance or search is closed first by its exit.
     `page` may be a live sample's frame."""
     host = page.locator(".lf-floating-panel")
     if host.get_attribute("data-open") not in ("queue", "threads"):
-        if host.get_attribute("data-open") is not None:
-            page.locator(".lf-fp-close").click()
+        exit_control = page.locator(".lf-fp-exit")
+        if exit_control.count():
+            exit_control.click()
         page.locator(ON_ME_MARK).click()
     return panel_tab(page, "Threads")
 

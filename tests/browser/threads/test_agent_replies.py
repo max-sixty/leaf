@@ -997,9 +997,9 @@ def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(
         },
     )
     page = open_page(browser, url)
-    # Nobody's turn: the thread's row says it is open and no more.
+    # The unread reply is news, with no turn owed by either participant.
     status = thread_row(page, root).locator(".lf-fp-value")
-    expect(status).to_have_text(re.compile(r"^(Open)?$"))
+    expect(status).to_have_text("New")
     card = open_panel_thread(page, root)
     receipt = page.locator(
         f'.lf-fp-view .lf-msg[data-event="{board["id"]}"] .lf-msg-sending'
@@ -1013,7 +1013,7 @@ def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(
     expect(page.locator("#fb-done > #fb-cache")).to_be_visible()
     expect(receipt).to_have_text("Sent")
     status = thread_row(page, root).locator(".lf-fp-value")
-    expect(status).to_have_text(re.compile(r"^(Open)?$"))
+    expect(status).to_have_text("")
     card = open_panel_thread(page, root)
 
     [moved] = [

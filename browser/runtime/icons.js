@@ -2,7 +2,7 @@
    A base module: composing/selection.js builds its response button with an icon as it
    evaluates. */
 
-import { html } from "/vendor/browser-runtime.js";
+import { html } from "/runtime/framework.js";
 
 import { iconMarkup } from "./icon-paths.js";
 

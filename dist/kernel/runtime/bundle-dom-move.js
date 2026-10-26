@@ -1,4 +1,4 @@
-import { Z, cancelWork, enqueueWork, runWork } from "./bundle-browser-runtime.js";
+import { Z, cancelWork, enqueueWork, runWork } from "./bundle-signals-core.js";
 
 //#region runtime/frame-visibility.js
 const child = document.documentElement.lfSample;

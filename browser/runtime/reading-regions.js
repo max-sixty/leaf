@@ -422,7 +422,7 @@ const pageGeometry = () => ({
   band: landingBand(pageScroller)?.top ?? 0,
 });
 // A band that moves with the window's width shifts the page. One that moves without
-// it, as a page tab strip arriving does (`--lf-root-headers`, lf-tabs.js), comes with
+// it, as a page tab strip arriving does (`--lf-root-headers`, page-layout.js), comes with
 // the content that moved it, whose owner keeps the reader's place across it, so it is
 // taken as seen wherever it is read: no size need change with it, and left unseen it
 // would read as unsettled, recording nothing, until the window next changed.

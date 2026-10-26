@@ -9,8 +9,9 @@ For decisions on the document, make each understandable and answerable where On 
 reading earlier content. Pressing `m` brings that decision to the top of the window,
 leaving preceding prose out of view. So the decision opens with a heading that asks
 its question, and holds the current state, the evidence that bears on the answer and
-the answering control, inside the answering widget or an enclosing `lf-ask`. Compose
-the explanation there first; backing detail goes after it.
+the answering control, inside the answering widget or an enclosing `lf-ask`. Build
+that self-contained decision around the material the user judges; backing detail goes
+after it.
 
 On a quick-answer page, open with the decision and put its backing in a disclosure after
 it; the first screen shows the goal, the current state and what the user can do next. On
@@ -92,7 +93,7 @@ board whose cards show those answers, rather than asking twice. Give each option
 `value` naming the answer it gives, in words every section shares, and the board one
 column per value with that `value`, plus one column without a value for proposals not
 yet answered or answered in the user's own words. Each card's `shows` names its
-section's group, and the card stands in the column of that group's pick:
+section's group, and the card appears in the column matching that group's selected value:
 
 ```html
 <lf-options id="rail-choice" choose>

@@ -33,15 +33,25 @@ holds previous runs and findings.
 - **Decide.** Keep, revise or undo the candidate by its rendered result, working
   interactions and authoring effort, with a judge's score as one input. A repair that
   stops a refusal or a wrong reading from occurring is proved by a test that fails on
-  the old code, and by counting the mechanism in each sample; three authors per arm
-  usually separate a mechanism but not minutes.
+  the old code, and by counting occurrences of the failure in each sample. Three
+  authors per arm can usually show whether the failure recurs, but cannot reliably
+  establish a difference in elapsed time.
 - **Continue** from the result: a rejected candidate can suggest another repair, and a
   successful one can expose the next weakness.
 
 With no run limit, complete one cycle and report. Spend a cycle on repairs and fresh
-comparisons; record provenance briefly rather than re-auditing earlier runs. At
-handoff, make the retained changes and their comparison evidence clear, including
-unsuccessful experiments.
+comparisons; record provenance briefly rather than re-auditing earlier runs. Choose
+its scope to leave time for a change and its confirmation: saved-page probes and
+focused fresh-author tasks give faster feedback on a local hypothesis, while full
+multi-turn workflows test the whole exchange.
+
+For longer runs, keep the standard eval report current. Lead with the latest run's
+scope, the changes tested, matched before/after outputs and the keep, revise or reject
+judgment, including unsuccessful experiments. A current-state pass without a baseline
+doesn't establish improvement. Keep earlier experiments as supporting history and
+exploration distinct from scored comparisons; `evals/README.md`, "Render a report",
+owns the format and commands. At handoff, review each page the user can open, including
+linked demonstrations, through `/developing-leaf`, "Author or revise a page".
 
 ## What the comparisons should reveal
 

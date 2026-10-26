@@ -28,6 +28,8 @@
     pause: '<path d="M5 3v10M11 3v10"/>',
     play: '<path d="m5 3 7 5-7 5z"/>',
     previous: '<path d="m10 3.5-4.5 4.5 4.5 4.5"/>',
+    // How a list is arranged: its lines, shortening, the choosers' symbol.
+    arrange: '<path d="M3 4.5h10M3 8h7M3 11.5h4"/>',
     all: '<path d="M3 4h6M3 8h6M3 12h6M12 8v4M10 10h4"/>',
     pickup: '<path d="M8 2.75v6.5M5.5 6.75 8 9.25l2.5-2.5M3 10.5v2h10v-2"/>',
     question: '<path d="M5.6 6.1a2.5 2.5 0 1 1 3.1 2.45c-.7.2-.7.8-.7 1.2"/><circle cx="8" cy="12.35" r=".7" fill="currentColor" stroke="none"/>',
@@ -230,7 +232,19 @@
         control.classList.add(`lf-playground-${kind}`);
         const heading = node("span", "lf-playground-control-label", label);
         control.prepend(heading);
-        if (kind === "choice") {
+        if (kind === "choice" && control.getAttribute("appearance") === "select") {
+          const input = offer("select", "lf-playground-input");
+          input.name = `${host.id}-${name}`;
+          input.setAttribute("aria-label", label);
+          for (const choice of choicesByName.get(name)) {
+            const option = node("option", "", choice.getAttribute("label"));
+            option.value = choice.getAttribute("value");
+            input.append(option);
+            choice.remove();
+          }
+          inputs.set(name, input);
+          control.append(input);
+        } else if (kind === "choice") {
           const group = node("div", "lf-playground-input lf-playground-choices");
           group.setAttribute("role", "radiogroup");
           group.setAttribute("aria-label", label);
@@ -360,7 +374,7 @@ Undo choice`;
     const setInput = (control, value) => {
       const name = control.getAttribute("name"), kind = control.getAttribute("kind"), input = inputs.get(name);
       if (!input) return;
-      if (kind === "choice")
+      if (Array.isArray(input))
         for (const radio of input) radio.checked = radio.value === value;
       else if (kind === "toggle") input.checked = value;
       else input.value = value;
@@ -369,7 +383,7 @@ Undo choice`;
     };
     const readInput = (control) => {
       const kind = control.getAttribute("kind"), input = inputs.get(control.getAttribute("name"));
-      return kind === "choice" ? input.find((radio) => radio.checked)?.value : kind === "toggle" ? input.checked : input.value;
+      return Array.isArray(input) ? input.find((radio) => radio.checked)?.value : kind === "toggle" ? input.checked : input.value;
     };
     const text = (element, value) => {
       if (element.textContent !== value) element.textContent = value;

@@ -28,6 +28,8 @@
     pause: '<path d="M5 3v10M11 3v10"/>',
     play: '<path d="m5 3 7 5-7 5z"/>',
     previous: '<path d="m10 3.5-4.5 4.5 4.5 4.5"/>',
+    // How a list is arranged: its lines, shortening, the choosers' symbol.
+    arrange: '<path d="M3 4.5h10M3 8h7M3 11.5h4"/>',
     all: '<path d="M3 4h6M3 8h6M3 12h6M12 8v4M10 10h4"/>',
     pickup: '<path d="M8 2.75v6.5M5.5 6.75 8 9.25l2.5-2.5M3 10.5v2h10v-2"/>',
     question: '<path d="M5.6 6.1a2.5 2.5 0 1 1 3.1 2.45c-.7.2-.7.8-.7 1.2"/><circle cx="8" cy="12.35" r=".7" fill="currentColor" stroke="none"/>',

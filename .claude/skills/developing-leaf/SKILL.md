@@ -11,7 +11,7 @@ absolute launcher; a bare `leaf` may run the installed plugin instead.
 
 Before writing words the user sees, such as a label, status line or placeholder, or
 naming anything they operate or an identifier for one, read `references/glossary.md`,
-Leaf's canonical vocabulary and the voice its visible copy speaks in. A control may
+Leaf's canonical vocabulary and guidance for visible text. A control may
 need no words at all (`<root>/browser/AGENTS.md`, "Visual grammar").
 
 ## Take a backlog item
@@ -84,8 +84,8 @@ fixes how many tiles share a row overrides every page that needs another number.
 check may report what it sees, as the render check names where a tile row wraps, and
 leave the decision to the agent.
 
-`page check` and its render checks hold Leaf's contracts on every page: each widget
-upgrades, nothing a user needs is clipped out of reach, every control can be pressed.
+`page check` and its render checks enforce Leaf's page contracts: they report widget
+initialization failures and unintended clipping of content or controls.
 A rare authoring mistake costs one fix, or a clearer line in the instruction the agent
 misread, so prefer widening a general check to adding one for a particular mistake.
 Add a narrow check, or a note a command prints, only where agents get something wrong
@@ -110,12 +110,12 @@ evidence, report the observation without making it a requirement, and say what w
 checked and what was not. When a markup contract changes, update its reader,
 validation, dependent layout rules and instructions together.
 
-Data one Leaf module writes for another over a channel only Leaf writes is not input:
-the browser reading the server's answer, the Worker reading the manifest its build
-wrote. The reader uses it directly, and the producer's tests hold its shape. Data a
-person or agent can write on the way is input, even when Leaf code sent it: a request
-the browser posts, a file an agent edits, the answer of leaf.page's container, whose
-agent a visitor steers.
+Data passed between Leaf modules over a channel only Leaf can write needs no input
+validation. This includes the server's answer to the browser and the build manifest
+the Worker reads. The reader uses that data directly, and the producer's tests verify
+its shape. Data a person or agent can modify is input, even when Leaf code sent it:
+a request the browser posts, a file an agent edits, or the answer from leaf.page's
+container, where a visitor directs the agent.
 
 ## Explore an open design
 
@@ -203,11 +203,15 @@ is about and stays running.
 
 ## Preview a page
 
-`uv run leaf-dev preview <example>` serves a live page that follows source and runtime
+`uv run leaf-dev preview <example>` serves a live page that follows source and browser-runtime
 edits at one URL; `--source <file>` serves any HTML file. Its module header
 (`dev/leaf_dev/commands/preview.py`) covers slots, restarts and which previews detach.
 Start one that stays in the foreground as a long-running command (`run_in_background`
 in Claude Code).
+
+Python, schema and dependency edits require restarting the preview; its log says when.
+For a user preview, stop its page server and rerun the same preview command to keep its
+URL and comments. A plain preview starts fresh on restart.
 
 Drive only plain previews, since every click this session drives on a `--user`
 preview arrives as an unanswered update, and start a `--user` preview only from the
@@ -290,11 +294,11 @@ compatibility refusal rather than falling back to the installed plugin.
 
 A page that explains how a Leaf widget, verb or event flow behaves lets the user try it
 in a live sample (`<root>/skills/leaf/references/live-samples.md`) holding only the
-demonstrated page and an `lf-activity` feed of its own log. The prose above the sample
-lists the gestures to try, in an order that exercises each verb the page explains, undo
-included. Before handoff, drive the sample using only what that prose says, and read
-each line the feed prints; a probe that knows more than the prose proves only that the
-sample works.
+demonstrated page and an `lf-activity` feed of its own log. Make the next gesture and
+its visible result clear as the user tries the sample, including Undo. Guidance beside
+the relevant step lets the user learn by operating the page. Before handoff, operate
+the sample using only its visible guidance and read each line the feed prints, so the
+review checks whether the user can work it without the author's knowledge.
 
 ## Keep authoring a page fast
 

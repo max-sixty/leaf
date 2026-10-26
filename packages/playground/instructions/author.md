@@ -32,7 +32,7 @@ Supporting qualifications can go behind a disclosure when they interrupt the tas
 `lf-gloss` opens on hover, focus or a tap without moving the page.
 
 An A/B comparison mounts both candidates in the preview with the same configuration and
-starting content. When candidates stand side by side, align their names, notes and
+starting content. When candidates appear side by side, align their names, notes and
 drawings in rows, so each candidate's name starts level with the others' however many
 lines it wraps to. Each drawing keeps its own height.
 
@@ -67,6 +67,13 @@ wiring substitute handlers onto copied DOM.
 
 ## Controls, samples, and output
 
+A choice control shows radio buttons by default, so alternatives and their labels can
+be compared directly. `appearance="select"` favors scanning current settings across
+many items, at the cost of opening menus to compare alternatives. Choose by whether
+the alternatives or the current values carry the decision. The same
+`lf-playground-choice` children provide the select's values and labels; presets, Reset
+and the submitted values work the same.
+
 Keep the configuration the user is choosing apart from the cases used to inspect it.
 Controls and presets describe what to build. Give preview cases and inspection settings
 their own labeled controls, with page-local state outside the playground's submitted
@@ -76,8 +83,8 @@ keeps the case, and every candidate shows the same case. When editing the data i
 the task, the data belongs in the configuration.
 
 Offer presets when combinations of several parameters make useful starting points for
-further tuning. Design each as one look whose parts read together on every surface they
-change, rather than taking each control's best value separately. A preset sets every
+further tuning. Choose each preset's values together so they produce a consistent appearance on every
+surface they change, rather than optimizing each control separately. A preset sets every
 control its look depends on, since a control it leaves out keeps the user's last value.
 Before handoff, look at each preset in both themes on every surface it changes, and
 rework or drop any you would not ship.
@@ -249,10 +256,15 @@ structured data only subscribes; one without its own instruction keeps
 
 Keep native editors mounted and avoid writing their value when it already matches.
 The playground owns tab persistence, presets, Reset, instruction copying and submission;
-views draw the values they receive. When a page adds contributor state, redeclare the
-complete `lf-playground` entry in `page/registry.json` with an exact schema for
-`detail.values`. An instruction provider describes the configuration as a task that
-makes sense without the preview.
+views draw the values they receive. For a structured configuration, set that
+playground's `contract` attribute to a named `$data.contracts` entry in
+`page/registry.json`. Its `schema` describes the complete `values` object: scalar
+controls and contributor slices, required names and any bounds. Each instance can
+select a different contract. Admission validates that schema before recording a
+submission; an unbound playground uses the package's open values schema.
+The `data-explorer` example shows a scalar limit beside structured filter rows.
+An instruction provider describes the configuration as a task that makes sense
+without the preview.
 
 When both candidates draw from shared state, keep dynamic rows under stable keys, apply
 each add, remove, reorder or edit once, and derive both candidates' rows and counts from

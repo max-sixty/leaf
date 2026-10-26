@@ -15,9 +15,11 @@ from interact_support import (
     declare,
     declare_idle,
     declare_work,
+    record_claim,
     working,
 )
 from leaf_dev.browser import panel_tab
+from leaf_dev.panel_paint import ink_box, settled
 from model_folds import leaf_page
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -87,17 +89,6 @@ def floating(browser, url):
     page = open_page(browser, url)
     expect(page.locator(".lf-floating-panel")).to_be_visible()
     return page
-
-
-def settled(page):
-    """Wait until layout has started the panel's motion and that motion has finished,
-    so a box read is where it rests."""
-    rendered(page)
-    page.wait_for_function(
-        "() => ['.lf-floating-panel', '.lf-fp-ground'].every(s =>"
-        " !document.querySelector(s).getAnimations({subtree: true}).some(a =>"
-        " Number.isFinite(a.effect?.getComputedTiming().endTime)))"
-    )
 
 
 def field(page):
@@ -271,6 +262,55 @@ def test_a_send_moves_the_panel_s_view_as_one_stream(browser, serve):
     replied = offsets(2)
     assert replied[0] > 10, f"the view grew in place: {replied}"
     assert max(replied) - min(replied) < 1, f"the stream came apart: {replied}"
+
+
+def test_a_send_into_a_full_thread_view_starts_where_the_view_stood(browser, serve):
+    """A two-line reply sent into a thread whose view is at its cap empties the field,
+    which lowers the box's top, while the view scrolls to the new turn. At the motion's
+    first frame the thread's name and every turn stand where they stood: the turns ride
+    inside the view while the view itself is carried with the box's top, and neither
+    carry counts the other's distance."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Is the window long enough?")
+    for turn in range(8):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent" if turn % 2 == 0 else "user",
+                **({"agent": "Claude"} if turn % 2 == 0 else {}),
+                "parent": root,
+                "revision": 1,
+                "text": f"Turn {turn}. "
+                + "Forty-eight hours covers the first cohort. " * 6,
+            },
+        )
+    page = floating(browser, url)
+    page.emulate_media(reduced_motion="no-preference")
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    view = page.locator(panel_view("thread"))
+    expect(view).to_be_visible()
+    assert view.evaluate("box => box.scrollHeight > box.clientHeight + 100")
+    write(field(page), "And the mobile cohort too.\nAnd the weekend shift.")
+    settled(page)
+    read = """() => [document.querySelector('.lf-fp-title'),
+        ...document.querySelectorAll('.lf-fp-view[data-view=thread] .lf-msg')]
+        .map(node => node.getBoundingClientRect().top)"""
+    stood = page.evaluate(read)
+    page.evaluate("() => {" + HOLD_MOTION + "}")
+    with sending(page, "the reply"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    page.wait_for_function(
+        "n => document.querySelectorAll('.lf-fp-view[data-view=thread] .lf-msg').length"
+        " === n",
+        arg=len(stood),
+    )
+    rendered(page)
+    drawn = page.evaluate(read)
+    page.evaluate("() => window.__lfHeld.splice(0).forEach(motion => motion.finish())")
+    settled(page)
+    assert drawn[: len(stood)] == pytest.approx(stood, abs=1), (stood, drawn)
 
 
 def test_c_in_an_open_thread_returns_to_its_reply(browser, serve):
@@ -605,9 +645,10 @@ def test_the_on_view_is_titled_by_its_tab_with_that_list_s_done_under_it(
 ):
     """The On view has no name of its own: its title is the open tab's, On me or On
     Claude, which the tabs beside it already show, so the title names the view to
-    assistive tech alone. Under each list stands what left it. A reply the agent sent
-    leaves its list, so it stands under On Claude, said as sent. The On me tab turns
-    the view back to the user's list, and the ✕ in the mark's seat closes it."""
+    assistive tech alone. Under each list stands what left it, under Done. A reply the
+    agent sent leaves its list, so it stands under On Claude's Done, said as sent. The
+    On me tab turns the view back to the user's list, and the ✕ in the mark's seat
+    closes it."""
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, "Is the window long enough?")
     append_carried_log_record(
@@ -634,15 +675,19 @@ def test_the_on_view_is_titled_by_its_tab_with_that_list_s_done_under_it(
     expect(page.locator(".lf-fp-filters button")).to_have_text(
         ["On me 0", "On Claude 0", "Threads 1"]
     )
-    expect(page.locator(".lf-fp-ended")).to_have_count(0)
+    expect(page.locator(".lf-fp-on-group")).to_have_count(0)
     page.locator(".lf-fp-filters button", has_text="On Claude").click()
     expect(title).to_have_text("On Claude")
     expect(page.locator(".lf-fp-empty")).to_have_text("Nothing waiting on Claude.")
-    expect(page.locator(".lf-fp-ended")).to_have_text("Done")
+    expect(page.locator(".lf-fp-on-group")).to_have_text(
+        re.compile(r"^\s*Done\s*1\s*$")
+    )
     sent = page.locator(".lf-fp-on-item")
     expect(sent).to_have_count(1)
     expect(sent).to_contain_text("Forty-eight hours covers the first cohort.")
-    expect(sent.locator(".lf-fp-said")).to_have_text(re.compile(r"^Sent"))
+    expect(sent.locator(".lf-fp-on-says > .lf-fp-value")).to_have_text(
+        re.compile(r"^Sent")
+    )
     # The On me tab turns the open view back to the user's list, and the ✕ closes it.
     panel_tab(page, "On me").click()
     expect(title).to_have_text("On me")
@@ -1321,6 +1366,33 @@ def test_threads_search_finds_a_thread_by_the_words_it_quotes(browser, serve):
     page.keyboard.press("Escape")
     expect(field(page)).to_have_js_property("value", "Keep my page comment")
     assert field(page).evaluate("(el, original) => el === original", editor)
+
+
+def test_threads_search_reads_rendered_messages_and_summaries(browser, serve):
+    """Words in formatted prose, embedded questions and a summary find the thread
+    that shows them, even before the reader opens it."""
+    from browser.threads import summarize_thread
+
+    url = serve(AGENDA_PAGE)
+    root = panel_comment(serve.page_dir, "Where should we meet?")
+    reply = thread_model.post_reply(
+        serve.page_dir,
+        {"responds": root},
+        "The **room** photo.",
+        '<lf-ask id="crop">Should I reshoot it wider?</lf-ask>',
+    )
+    summarize_thread(serve.page_dir, root, reply["id"], "A **wider** view would help.")
+    page = floating(browser, url)
+    rows = threads_rows(page)
+    page.get_by_role("button", name="Find a thread or message").click()
+    search = page.locator("input.lf-fp-search")
+    for words in ("room photo", "reshoot", "wider view"):
+        search.fill(words)
+        expect(rows.locator(".lf-fp-label")).to_have_text(["Where should we meet?"])
+    rows.click()
+    view = page.locator(panel_view("thread"))
+    expect(view.locator(".lf-summary-text")).to_have_text("A wider view would help.")
+    expect(view.locator("#crop")).to_have_text("Should I reshoot it wider?")
 
 
 def test_keys_in_threads_act_on_threads(browser, serve):
@@ -3120,17 +3192,13 @@ def test_the_folded_leaf_keeps_its_badge_and_face_through_motion(browser, serve)
     assert max(channel[1] for channel in difference.getextrema()) <= 8
 
 
-def test_the_leaf_paints_inside_its_moving_focus_ring(browser, serve):
-    """The mark stays visible through pointer motion and inside its keyboard ring.
-
-    Held animations and computed geometry conceal compositor translation advancing
-    ahead of the painted clip, so read the pixels without seeking the animations.
-    Firefox screencasts can omit the entire panel, also before this repair; see
-    browser-support.md. This strict all-frame regression runs in Chromium.
-    """
+def test_the_leaf_paints_inside_its_focus_ring_after_folding(browser, serve):
+    """Pointer and keyboard folds finish with a visible mark at the control's
+    centre, inside its keyboard ring. Motion sampling lives in bench-panel-motion;
+    receiving an intermediate screencast frame is not a functional guarantee."""
     from io import BytesIO
 
-    from PIL import Image, ImageChops, ImageColor
+    from PIL import Image, ImageColor
 
     page = floating(browser, serve(leaf_page("fold", '<h1 id="title">Fold</h1>')))
     page.emulate_media(reduced_motion="no-preference")
@@ -3139,18 +3207,11 @@ def test_the_leaf_paints_inside_its_moving_focus_ring(browser, serve):
       ring: getComputedStyle(node).outlineColor,
       mark: getComputedStyle(node.querySelector('.lf-dot')).backgroundColor
     })""")
+    # Authored words can share the mark's colour; only the panel's pixels count.
+    page.locator("#title").evaluate(
+        "(node, colour) => node.style.color = colour", colours["mark"]
+    )
     colours = {name: ImageColor.getrgb(value) for name, value in colours.items()}
-    viewport = page.viewport_size
-
-    def ink_box(image, colour):
-        difference = ImageChops.difference(image, Image.new("RGB", image.size, colour))
-        channels = [
-            channel.point(lambda value: 255 if value < 30 else 0)
-            for channel in difference.split()
-        ]
-        return ImageChops.darker(
-            ImageChops.darker(*channels[:2]), channels[2]
-        ).getbbox()
 
     for route, action in (
         ("pointer", ".lf-fp-minimize"),
@@ -3168,49 +3229,40 @@ def test_the_leaf_paints_inside_its_moving_focus_ring(browser, serve):
             colours["ring"] = ImageColor.getrgb(
                 leaf.evaluate("node => getComputedStyle(node).outlineColor")
             )
-        before = leaf.bounding_box()
-        frames = []
-        with page.screencast.start(
-            on_frame=lambda frame, frames=frames: frames.append(frame),
-            quality=100,
-            size=viewport,
-        ):
-            if route == "keyboard":
-                page.keyboard.press(action)
-            else:
-                page.locator(action).hover()
-                page.mouse.down()
-                # A press may settle before its click activates the control.
-                one_frame(page)
-                page.mouse.up()
-            one_frame(page)
-            settled(page)
+        if route == "keyboard":
+            page.keyboard.press(action)
+        else:
+            page.locator(action).click()
+        settled(page)
         expect(leaf).to_be_focused()
-        after = leaf.bounding_box()
-        ends = sorted(box["x"] + box["width"] / 2 for box in (before, after))
-        centers = []
-        for frame in frames:
-            pixels = Image.open(BytesIO(frame["data"])).convert("RGB")
-            pixels = pixels.crop(
-                (0, viewport["height"] - 70, viewport["width"], viewport["height"])
+        expect(page.locator(".lf-floating-panel")).to_have_attribute(
+            "data-rest", "mark" if action in (".", ".lf-fp-minimize") else "row"
+        )
+        box = leaf.bounding_box()
+        top = page.viewport_size["height"] - 70
+        pixels = (
+            Image.open(BytesIO(page.screenshot()))
+            .convert("RGB")
+            .crop((0, top, page.viewport_size["width"], page.viewport_size["height"]))
+        )
+        box["y"] -= top
+        mark = ink_box(pixels, colours["mark"])
+        assert mark is not None, (route, action)
+        mark_center = ((mark[0] + mark[2]) / 2, (mark[1] + mark[3]) / 2)
+        assert mark_center == pytest.approx(
+            (box["x"] + box["width"] / 2, box["y"] + box["height"] / 2), abs=2
+        ), (route, action, mark, box)
+        if route == "keyboard":
+            ring = ink_box(pixels, colours["ring"])
+            assert ring is not None, action
+            assert ring[0] <= mark[0] < mark[2] <= ring[2], (action, mark, ring)
+            assert ring[1] <= mark[1] < mark[3] <= ring[3], (action, mark, ring)
+            ring_center = ((ring[0] + ring[2]) / 2, (ring[1] + ring[3]) / 2)
+            assert mark_center == pytest.approx(ring_center, abs=2), (
+                action,
+                mark,
+                ring,
             )
-            mark = ink_box(pixels, colours["mark"])
-            assert mark is not None, (route, action)
-            mark_center = ((mark[0] + mark[2]) / 2, (mark[1] + mark[3]) / 2)
-            if route == "keyboard":
-                ring = ink_box(pixels, colours["ring"])
-                assert ring is not None, action
-                ring_center = ((ring[0] + ring[2]) / 2, (ring[1] + ring[3]) / 2)
-                assert mark_center == pytest.approx(ring_center, abs=2), (
-                    action,
-                    mark,
-                    ring,
-                )
-            centers.append(mark_center[0])
-        intermediate = {
-            center for center in centers if ends[0] + 2 < center < ends[1] - 2
-        }
-        assert intermediate, (route, action, ends, centers)
 
 
 def test_a_new_line_past_the_field_s_height_scrolls_into_view(browser, serve):
@@ -3315,12 +3367,14 @@ def test_obligations_are_answered_where_they_are_read_on_me(browser, serve):
     expect(view).to_have_count(0)
 
 
-def test_the_plan_has_its_own_tab_and_an_item_says_its_place_in_it(browser, serve):
-    """While the agent has a plan, the On view adds a Plan tab beside the two lists,
-    drawing the goal with its steps in order, and a step waiting on the user is a way
-    to On me. On me keeps every item it lists, and one the plan names says its goal
-    and step after its kind, over its question, counted as the goal counts, without
-    dropped steps, and still says it once answered."""
+def test_on_me_groups_by_the_plan_and_on_claude_heads_with_its_progress(browser, serve):
+    """While the agent's plan gives the user a step, On me groups by it until the user
+    picks another grouping: under each goal the items its steps name, in step order,
+    and those no goal names last; a goal holding one item has no heading, its card
+    saying what the item is and the goal's name. On Claude, which replaced
+    the Plan tab, is headed at its foot by the plan's progress, which discloses the
+    goal and its steps over the list; a step waiting on the user turns the view to On
+    me, and focus with it."""
     url = serve(OBLIGATION_PAGE)
     steps = [
         {"depth": 0, "title": "Ship the migration", "state": "working"},
@@ -3335,38 +3389,128 @@ def test_the_plan_has_its_own_tab_and_an_item_says_its_place_in_it(browser, serv
     assert written.exit_code == 0, written.output
     page = floating(browser, url)
     page.locator(".lf-fp-on-user").click()
-    cards = page.locator(f"{panel_view('queue')} .lf-fp-on-item")
-    expect(cards).to_have_count(2)
-    expect(cards.first.locator(".lf-fp-on-kind")).to_have_text(
-        "Options · Ship the migration · step 2 of 3"
+    view = page.locator(panel_view("queue"))
+    expect(page.get_by_role("combobox", name="Group On me")).to_have_value("plan")
+    # Each goal holds one item, so neither stands under a heading: each card says
+    # its group's name where its place would be.
+    expect(view.locator(".lf-fp-on-group")).to_have_count(0)
+    expect(view.locator(".lf-fp-on-kind")).to_have_text(
+        ["Options · Ship the migration", "Options · Not in the plan"]
     )
-    expect(cards.nth(1).locator(".lf-fp-on-kind")).to_have_text("Options")
-    settled(page)
-    answers = cards.first.locator(".lf-fp-answers").bounding_box()
-    with sending(page, "the answer"):
-        cards.first.locator(".lf-fp-answer", has_text="Shim").click()
-    expect(cards.first.locator(".lf-fp-said")).to_have_text(re.compile("^Answered"))
-    expect(cards.first.locator(".lf-fp-on-kind")).to_have_text(
-        "Options · Ship the migration · step 2 of 3"
-    )
-    assert cards.first.locator(".lf-fp-answers").bounding_box()["y"] == answers["y"]
-    with sending(page, "the undo"):
-        cards.first.get_by_role("button", name="Undo").click()
 
     tabs = page.locator(".lf-fp-filters button")
-    expect(tabs).to_have_text(["On me 2", "On Claude 0", "Threads 0", "Plan"])
-    tabs.nth(3).click()
-    expect(page.locator(".lf-fp-title")).to_have_text("Plan")
+    expect(tabs).to_have_text(["On me 2", "On Claude 0", "Threads 0"])
+    tabs.nth(1).click()
+    expect(page.locator(".lf-fp-title")).to_have_text("On Claude")
+    head = page.locator(".lf-fp-plan-head")
+    expect(head).to_have_text("Plan 1 of 3")
+    expect(page.locator(".lf-fp-plan-goal")).to_have_count(0)
+    head.click()
+    expect(head).to_have_attribute("aria-expanded", "true")
     expect(page.locator(".lf-fp-plan-goal")).to_have_text(
         re.compile(r"Ship the migration\s*1 of 3")
     )
     plan_steps = page.locator(".lf-fp-plan > .lf-fp-plan-steps > .lf-fp-plan-step")
     expect(plan_steps).to_have_count(4)
     expect(plan_steps.nth(0).get_by_role("img")).to_have_accessible_name("Done")
-    # The step waiting on the user turns the view to On me, and focus with it.
     plan_steps.nth(2).locator(".lf-fp-plan-tag").click()
     expect(page.locator(".lf-fp-title")).to_have_text("On me")
     expect(tabs.nth(0)).to_be_focused()
+
+
+def test_only_an_open_thread_says_new_in_threads(browser, serve):
+    """Threads says New, and marks the row with the news dot, only on an open thread
+    the user hasn't read, as the On me mark's dot counts: a resolved thread's unread
+    message, under the Resolved heading, says nothing new."""
+    url = serve(LONG_PAGE)
+    panel_comment(serve.page_dir, "Is the window long enough?", author="agent")
+    closed = panel_comment(serve.page_dir, "Is the room booked?", author="agent")
+    thread_model.cmd_resolve(serve.page_dir, closed)
+    page = floating(browser, url)
+    open_threads(page)
+    view = page.locator(panel_view("threads"))
+    open_row = view.locator(".lf-fp-thread:not([data-resolved])")
+    expect(open_row.locator(".lf-fp-value")).to_contain_text("New")
+    expect(open_row).to_have_attribute("data-unread", "")
+    resolved = view.locator(".lf-fp-thread[data-resolved]")
+    expect(resolved).to_contain_text("Is the room booked?")
+    expect(resolved.locator(".lf-fp-value")).not_to_contain_text("New")
+    expect(resolved).not_to_have_attribute("data-unread", "")
+
+
+def test_on_claude_lists_its_work_in_hand_queued_and_done_or_says_it(browser, serve):
+    """On Claude is the agent's work list: what it has in hand, what is queued behind
+    that, and what it finished, a line each with its stage and how long it has stood
+    there. The chooser at its foot shows the same work as a summary instead, a choice
+    the browser keeps across a reload."""
+    url = serve(LONG_PAGE)
+    page_dir = serve.page_dir
+    record_claim(page_dir)
+
+    def task(*args):
+        done = CliRunner().invoke(cli_model.cli, ["task", *args])
+        assert done.exit_code == 0, done.output
+        return json.loads(done.output.strip().splitlines()[-1])
+
+    drafting = task(
+        "create", str(page_dir), "page", "--title", "Draft the release note"
+    )
+    task("create", str(page_dir), "page", "--title", "Check the rollout")
+    tidied = task("create", str(page_dir), "page", "--title", "Tidy the wording")
+    task("end", str(page_dir), tidied["id"], "done")
+    task(
+        "start",
+        str(page_dir),
+        drafting["id"],
+        "--text",
+        "Drafting the note's first line",
+    )
+    page = floating(browser, url)
+    page.locator(".lf-fp-on-user").click()
+    page.locator(".lf-fp-filters button", has_text="On Claude").click()
+    view = page.locator(panel_view("queue"))
+    expect(view.locator(".lf-fp-on-group")).to_have_text(
+        [
+            re.compile(r"^\s*In hand\s*1\s*$"),
+            re.compile(r"^\s*Queued\s*1\s*$"),
+            re.compile(r"^\s*Done\s*1\s*$"),
+        ]
+    )
+    lines = view.locator(".lf-fp-on-line")
+    expect(lines.locator(".lf-fp-label")).to_have_text(
+        ["Draft the release note", "Check the rollout", "Tidy the wording"]
+    )
+    expect(lines.locator(".lf-fp-on-says > .lf-fp-value")).to_have_text(
+        [
+            re.compile(r"^Working \S+$"),
+            re.compile(r"^To-do open \S+$"),
+            re.compile(r"^Done \S+$"),
+        ]
+    )
+    # A press opens the work in hand, saying what its last step wrote.
+    lines.first.click()
+    expect(view.locator(".lf-fp-answers .lf-fp-said")).to_have_text(
+        "Drafting the note's first line"
+    )
+
+    chooser = page.get_by_role("combobox", name="Show On Claude as")
+    expect(chooser).to_have_value("list")
+    chooser.select_option("summary")
+    summary = view.locator(".lf-fp-work-summary")
+    expect(summary).to_contain_text(
+        "Claude has 1 in hand, and 1 queued. Now: “Drafting the note's first line”."
+    )
+    expect(summary).to_contain_text("Last done: Tidy the wording")
+    expect(view.locator(".lf-fp-on-line")).to_have_count(0)
+
+    page.reload()
+    wait_until_ready(page)
+    page.locator(".lf-fp-on-user").click()
+    page.locator(".lf-fp-filters button", has_text="On Claude").click()
+    expect(page.get_by_role("combobox", name="Show On Claude as")).to_have_value(
+        "summary"
+    )
+    expect(view.locator(".lf-fp-work-summary")).to_be_visible()
 
 
 def test_versions_travel_opens_in_the_panel(browser, serve):
@@ -3386,6 +3530,21 @@ def test_versions_travel_opens_in_the_panel(browser, serve):
     keys = row.locator(".lf-binding-sequence")
     expect(keys.locator("kbd.lf-key-badge")).to_have_text(["g", "V"])
     expect(keys).to_have_attribute("aria-label", "g then V")
+    # Versions has an arrow after its shortcut; direct actions do not. Both
+    # shortcuts end in one column, with copy icons and arrows in the next one.
+    ends = page.locator(".lf-fp-menu .lf-binding-sequence:visible").evaluate_all(
+        "nodes => nodes.map(node => node.getBoundingClientRect().right)"
+    )
+    assert len(ends) >= 2
+    assert max(ends) - min(ends) <= 0.5, ends
+    icons = page.locator(
+        ".lf-fp-end > :is(.lf-fp-chevron, .lf-fp-copy-icon):visible"
+    ).evaluate_all(
+        "nodes => nodes.map(node => {const box = node.getBoundingClientRect(); "
+        "return box.x + box.width / 2;})"
+    )
+    assert len(icons) >= 2
+    assert max(icons) - min(icons) <= 0.5, icons
     row.click()
     expect(view).to_be_visible()
     page.keyboard.press("Escape")

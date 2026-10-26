@@ -1,5 +1,5 @@
-import { html, render } from "./bundle-browser-runtime.js";
 import { afterScript, focusDestination, focused, keeps, keepsText } from "./bundle-dom-move.js";
+import { html, render } from "./bundle-context.js";
 import { commandAvailable, commandBinding, commandRoutes, controlAvailabilityOutput, elementDirective, iconTemplate, isCommandScope, offer, pressIsKeyboardActivation, projectCommandScope, watchCommandAvailability } from "./bundle-errors.js";
 import { excerptWords } from "./bundle-passages.js";
 import { HOLDS_WORD, progressFace, threadAttention, workflowLabel } from "./bundle-surfaces.js";

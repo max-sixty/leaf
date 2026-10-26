@@ -38,6 +38,7 @@ directory; the remaining states still run. Only complete pairs enter the
 comparison. Arm construction, browser setup failures, and interrupts end the command.
 """
 
+import re
 import tempfile
 import traceback
 from collections.abc import Callable
@@ -79,6 +80,22 @@ OPEN_CARD = "() => document.querySelector('.lf-margin-preview:not([hidden])')"
 
 def at_rest(page: Page) -> None:
     """The page as it loads."""
+
+
+def worktree_summaries(page: Page) -> None:
+    """Close the initially open worktree so the list's summary columns stand together."""
+    page.locator("#worktree-example-worktree-0 > details > summary").click()
+    expect(
+        page.locator("#worktree-example-worktree-0 > details")
+    ).not_to_have_attribute("open")
+
+
+def plan_execution(page: Page) -> None:
+    """The execution step with its security qualification in view."""
+    page.locator("#plan-execute > h3").evaluate(
+        "element => element.scrollIntoView({block: 'start', behavior: 'instant'})"
+    )
+    scroll_settled(page)
 
 
 def captured_source(page: Page) -> None:
@@ -459,6 +476,21 @@ def seat_held_news(page: Page) -> None:
     held_news(page, thread)
 
 
+def on_me(page: Page) -> None:
+    """On me, opened from the floating panel's On me mark."""
+    page.locator(".lf-fp-on-user").click()
+    expect(page.locator(".lf-fp-view[data-view=queue]")).to_be_visible()
+
+
+def on_agent(page: Page) -> None:
+    """The On view turned to the agent's tab."""
+    on_me(page)
+    page.locator(".lf-fp-filters button").filter(
+        has_text=re.compile(r"^\s*On (?!me)")
+    ).first.click()
+    expect(page.locator(".lf-fp-view[data-view=queue]")).to_be_visible()
+
+
 def call_tree(page: Page) -> None:
     """The CallDiff root and its unchanged landmarks beside added and removed calls."""
     page.get_by_role("tab", name="CallDiff", exact=True).click()
@@ -829,10 +861,10 @@ def into_the_body(page: Page) -> None:
     page.evaluate("() => scrollTo(0, 2 * innerHeight)")
 
 
-def plan_disclosure(page: Page) -> None:
-    """The plan's first disclosure, between the prose of two steps."""
+def plan_caveat(page: Page) -> None:
+    """The plan's network caveat, visible between the prose of two steps."""
     page.locator("#plan-network").evaluate(
-        "details => details.scrollIntoView({block: 'center'})"
+        "node => node.scrollIntoView({block: 'center'})"
     )
 
 
@@ -1343,6 +1375,13 @@ def trace_timeline_by_keyboard(page: Page) -> None:
     )
 
 
+def authored_timeline_step(page: Page) -> None:
+    """A step reached by Tab, with the timeline's playhead on it."""
+    page.locator("#race-before .lf-timeline-step").first.click()
+    page.keyboard.press("Tab")
+    page.keyboard.press("Space")
+
+
 @dataclass(frozen=True)
 class State:
     name: str
@@ -1355,6 +1394,28 @@ class State:
 
 
 STATES = (
+    State("authored-timeline", "lost-update", at_rest, region="#race-before"),
+    State(
+        "authored-timeline-keyboard",
+        "lost-update",
+        authored_timeline_step,
+        region="#race-before",
+    ),
+    State(
+        "authored-timeline-dark",
+        "lost-update",
+        authored_timeline_step,
+        scheme="dark",
+        region="#race-before",
+    ),
+    State(
+        "authored-timeline-phone",
+        "lost-update",
+        at_rest,
+        viewport=(390, 900),
+        touch=True,
+        region="#race-before",
+    ),
     State(
         "native-code",
         "developer/feature-gallery",
@@ -1665,6 +1726,27 @@ STATES = (
     State("diff-file-threads", "developer/diff-thread-gallery", at_rest),
     State("diff-long-lines", "developer/diff-thread-gallery", diff_long_lines),
     State("worktree-diffs", "developer/worktree-diffs", at_rest),
+    State(
+        "worktree-summaries",
+        "developer/worktree-diffs",
+        worktree_summaries,
+        region="#worktree-example-workbench",
+    ),
+    State(
+        "worktree-summaries-dark",
+        "developer/worktree-diffs",
+        worktree_summaries,
+        scheme="dark",
+        region="#worktree-example-workbench",
+    ),
+    State(
+        "worktree-summaries-phone",
+        "developer/worktree-diffs",
+        worktree_summaries,
+        viewport=(390, 844),
+        touch=True,
+        region="#worktree-example-workbench",
+    ),
     State("diff-file-reply", "developer/diff-thread-gallery", diff_file_reply),
     State(
         "diff-file-resolved-closed",
@@ -1877,7 +1959,8 @@ STATES = (
     ),
     State("gallery-multiline-passage", "developer/feature-gallery", multiline_passage),
     State("plan", "review-a-plan", at_rest),
-    State("plan-disclosure", "review-a-plan", plan_disclosure, region="#plan-network"),
+    State("plan-execution", "review-a-plan", plan_execution, region="#plan-execute"),
+    State("plan-caveat", "review-a-plan", plan_caveat, region="#plan-network"),
     State("page-search", "review-a-plan", page_search, region=".lf-floating-panel"),
     State(
         "accepted-page-search",
@@ -2307,6 +2390,11 @@ STATES = (
         viewport=(390, 500),
         touch=True,
     ),
+    State("on-me", "corpus", on_me),
+    State("on-me-dark", "corpus", on_me, scheme="dark"),
+    State("on-agent", "corpus", on_agent),
+    State("hub-on-me", "command-hub", on_me),
+    State("hub-on-agent", "command-hub", on_agent),
     State("hub", "command-hub", at_rest),
     State("hub-workers", "command-hub", hub_workers),
     State("sort", "rust-sort", at_rest),

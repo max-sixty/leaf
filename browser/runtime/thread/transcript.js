@@ -44,7 +44,7 @@ import { renderMarkdown } from "../markdown.js";
 import { summaryRanges, withPendingProgress, workingPlace } from "./summary-ranges.js";
 import { growthAfterIsSeen, growthIsSeen, seenRect } from "../geometry.js";
 import { scrollThreadIntoView } from "./reply-landing.js";
-import { foldBlock } from "../motion.js";
+import { foldBlock, motionPlays } from "../motion.js";
 
 // The names a reader finds a drawn message by (messages.js), which a folding one gives up.
 const MESSAGE_NAMES = ["data-message", "data-event", "data-attempt"];
@@ -261,6 +261,7 @@ export class Transcript {
       if (wanted.has(key)) continue;
       const { node } = view;
       if (
+        motionPlays() &&
         !this.#folding.has(key) &&
         node.parentNode === this.node &&
         node.checkVisibility()

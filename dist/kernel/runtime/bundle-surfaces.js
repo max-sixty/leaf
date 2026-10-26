@@ -11,7 +11,7 @@ import { ADDRESSABLE, addressableWord, aimTargetAt, anchorBox, anchorForPassage,
 import { initialOrigin, initialSource } from "./bundle-initial-render.js";
 import { alreadyShown, copyControl, fitsWhole, passOn, restrictUserIntent, retainUserIntent, scrollIntoReadingBand, scrollIntoView } from "./bundle-copy-control.js";
 import { aborted, commitWidgetDescriptors, dataBody, rememberAuthoredParents, setChildren, stageAuthoredStates, stageWidgetDescriptors } from "./bundle-abort.js";
-import { flashDuration, foldBlock, motion, scrollBehavior } from "./bundle-motion.js";
+import { flashDuration, foldBlock, motion, motionPlays, scrollBehavior } from "./bundle-motion.js";
 import { isCanonicalMediaUrl, readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "./bundle-media.js";
 
 //#region runtime/user-place.js
@@ -5442,7 +5442,7 @@ var Transcript = class Transcript {
 		for (const [key, view] of this.#messages) {
 			if (wanted.has(key)) continue;
 			const { node } = view;
-			if (!this.#folding.has(key) && node.parentNode === this.node && node.checkVisibility()) {
+			if (motionPlays() && !this.#folding.has(key) && node.parentNode === this.node && node.checkVisibility()) {
 				const names = MESSAGE_NAMES.map((name) => [name, node.getAttribute(name)]);
 				for (const [name] of names) node.removeAttribute(name);
 				node.inert = true;

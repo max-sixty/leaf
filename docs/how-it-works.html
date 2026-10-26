@@ -44,71 +44,6 @@
       figure.fig.small svg {
         max-width: 360px;
       }
-      /* The Pages tab's cascade figure: each tier a band, highest first, outlined in
-         the colour of whoever writes it. The two roots sit side by side and stack on a
-         narrow window. */
-      .cascade {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
-        gap: var(--sp-4);
-        align-items: start;
-        --lf-holds-edge: 1;
-      }
-      .cascade-title {
-        margin: 0 0 var(--sp-2);
-        font: 600 var(--t-5) / 1.4 var(--sans);
-      }
-      .cascade ol {
-        list-style: none;
-        margin: 0;
-        padding: 0;
-        display: grid;
-        gap: 4px;
-      }
-      .cascade li {
-        display: grid;
-        grid-template-columns: 1fr auto;
-        gap: 2px var(--sp-2);
-        margin: 0;
-        padding: 8px 12px;
-        border: 1px solid var(--band);
-        border-radius: var(--r);
-        background: var(--band-tint);
-        font: var(--t-5) / 1.45 var(--sans);
-      }
-      .cascade li.leaf {
-        --band: var(--muted);
-        --band-tint: var(--field);
-      }
-      .cascade li.page {
-        --band: var(--accent);
-        --band-tint: var(--accent-tint);
-      }
-      .cascade li.pkg {
-        --band: var(--ok);
-        --band-tint: var(--ok-tint);
-      }
-      .cascade .tier {
-        font-weight: 600;
-      }
-      .cascade .by {
-        color: var(--muted);
-        text-align: end;
-      }
-      .cascade .what {
-        grid-column: 1 / -1;
-        color: var(--muted);
-      }
-      .cascade-note {
-        margin: var(--sp-2) 0 0;
-        font: var(--t-5) / 1.45 var(--sans);
-        color: var(--muted);
-      }
-      .cascade li.internal {
-        padding-block: 3px;
-        color: var(--muted);
-        opacity: 0.85;
-      }
       /* "Which rule wins": a band per rule in tier order, the card beside them. Each
          switch turns on a rule in the tier it names (lf-base, lf-theme, or the page's
          unlayered sheet), so the card shows what the real cascade picks; the
@@ -207,6 +142,16 @@
         --try-says: "Padding 32px, from the page's <style>";
       }
 
+      /* Native diagrams share caption spacing; the package owns their layout. */
+      .diagram-figure {
+        margin-block: var(--sp-4);
+        font: 15px/1.5 var(--sans);
+      }
+      .diagram-figure figcaption {
+        margin-top: var(--sp-3);
+        color: var(--muted);
+        font: 14px/1.5 var(--sans);
+      }
       /* A Layout's class name reads as one word, so it holds its line. */
       #layouts-table td:first-child code {
         white-space: nowrap;
@@ -279,24 +224,6 @@
         }
       }
 
-      #arch svg {
-        max-width: 400px;
-        margin-inline: auto;
-        font-size: 14px;
-      }
-      #arch .actor {
-        fill: var(--ink);
-        font-weight: 600;
-        font-size: 16px;
-      }
-      #arch .link {
-        fill: none;
-        stroke: var(--muted);
-        stroke-width: 1.2;
-      }
-      #arch .arrowhead {
-        fill: var(--muted);
-      }
       .revision-pair {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -337,9 +264,6 @@
         .revision-pair {
           grid-template-columns: minmax(0, 1fr);
         }
-        .record-flow .record {
-          padding: var(--sp-2);
-        }
       }
       .topic-outline {
         margin-block: var(--sp-3) var(--sp-5);
@@ -354,257 +278,6 @@
         display: block;
         color: var(--muted);
       }
-      .decision-flow {
-        margin: var(--sp-4) 0;
-      }
-      .decision-flow figcaption {
-        margin-block-end: var(--sp-3);
-      }
-      .decision-flow ol {
-        padding-inline-start: 1.6rem;
-      }
-      .decision-flow li {
-        padding: var(--sp-2) 0 var(--sp-2) var(--sp-2);
-        border-inline-start: 2px solid var(--rule);
-      }
-      .decision-flow li + li {
-        margin-block-start: var(--sp-2);
-      }
-      .decision-flow li > strong {
-        display: block;
-      }
-      .decision-flow li p {
-        margin-block: var(--sp-1) 0;
-      }
-      .decision-flow .turn-continues {
-        color: var(--warn-ink);
-        font-weight: 600;
-      }
-      .decision-flow .turn-ends {
-        color: var(--ok-ink);
-        font-weight: 600;
-      }
-      /* State and Progress diagrams reflow their nodes instead of shrinking text. */
-      .coherence-map {
-        max-width: 48rem;
-        margin: var(--sp-4) auto;
-        font: var(--t-5) / 1.5 var(--sans);
-      }
-      .coherence-map p {
-        margin: var(--sp-1) 0 0;
-      }
-      .coherence-map strong {
-        color: var(--ink);
-      }
-      .coherence-grid {
-        display: grid;
-        gap: var(--sp-3);
-      }
-      .coherence-grid.two {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-      }
-      .coherence-node {
-        min-width: 0;
-        padding: var(--sp-3);
-        border: 1px solid var(--rule);
-        border-radius: var(--r);
-        background: var(--field);
-      }
-      .coherence-node.result {
-        border-color: var(--ok);
-        background: var(--ok-tint);
-      }
-      .coherence-map .coherence-connector {
-        margin: var(--sp-3) 0;
-        text-align: center;
-        color: var(--muted);
-      }
-      .coherence-route {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-        align-items: center;
-        gap: var(--sp-3);
-        padding-block: var(--sp-3);
-      }
-      .coherence-route + .coherence-route {
-        border-top: 1px solid var(--rule);
-      }
-      .coherence-route > div {
-        min-width: 0;
-      }
-      .coherence-arrow {
-        color: var(--muted);
-        font-size: 1.35rem;
-      }
-      .coherence-map code {
-        overflow-wrap: anywhere;
-      }
-      .coherence-map figcaption {
-        margin-top: var(--sp-3);
-        color: var(--muted);
-      }
-      .coherence-decisions {
-        margin: 0;
-        padding-inline-start: 1.5em;
-      }
-      .coherence-decisions li {
-        padding: var(--sp-3);
-        border-bottom: 1px solid var(--rule);
-      }
-      .coherence-decisions li strong {
-        display: block;
-      }
-      .coherence-decisions li span {
-        display: block;
-        margin-top: var(--sp-1);
-        color: var(--ok-ink);
-      }
-      .coherence-decisions li span::before {
-        content: "→ ";
-      }
-      @media (width < 600px) {
-        .coherence-grid.two {
-          grid-template-columns: minmax(0, 1fr);
-        }
-        .coherence-route {
-          grid-template-columns: minmax(0, 1fr);
-          gap: var(--sp-2);
-        }
-        .coherence-arrow {
-          justify-self: center;
-          rotate: 90deg;
-        }
-      }
-
-      /* Runtime diagrams reflow their nodes; labels keep their reading size on phones. */
-      #runtime .runtime-flow {
-        margin: 1.25rem 0;
-        font: 15px/1.45 var(--sans);
-      }
-      #runtime .runtime-flow :is(strong, span) {
-        display: block;
-      }
-      #runtime .runtime-flow strong {
-        color: var(--ink);
-      }
-      #runtime .runtime-flow figcaption {
-        margin-top: 0.8rem;
-        color: var(--muted);
-        font: 14px/1.5 var(--sans);
-      }
-      #runtime .runtime-inputs {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1fr);
-        align-items: center;
-        gap: 0.6rem;
-      }
-      #runtime .runtime-inputs > div,
-      #runtime .runtime-current,
-      #runtime .runtime-output,
-      #runtime .runtime-freshness > div:not(.runtime-conditional) {
-        min-width: 0;
-        padding: 0.8rem;
-        border: 1px solid var(--rule);
-        border-radius: var(--r);
-        background: var(--field);
-      }
-      #runtime .runtime-inputs > div {
-        align-self: stretch;
-      }
-      #runtime .runtime-inputs span,
-      #runtime .runtime-output span,
-      #runtime .runtime-freshness span {
-        color: var(--muted);
-      }
-      #runtime .runtime-plus {
-        font-size: 22px;
-        text-align: center;
-      }
-      #runtime .runtime-connector {
-        text-align: center;
-        color: var(--muted);
-        font: 24px/1.5 var(--sans);
-      }
-      #runtime .runtime-current {
-        background: var(--ok-tint);
-        border-color: var(--ok);
-      }
-      #runtime .runtime-current,
-      #runtime .runtime-output {
-        text-align: center;
-      }
-      #runtime .runtime-current :is(strong, span) {
-        color: var(--ok-ink);
-      }
-      #runtime .runtime-freshness {
-        max-width: 24rem;
-        margin-inline: auto;
-        text-align: center;
-      }
-      #runtime .runtime-conditional {
-        padding: 0.5rem;
-        color: var(--muted);
-      }
-      #runtime .runtime-conditional span {
-        font-size: 24px;
-        line-height: 1;
-      }
-      #runtime .runtime-sequence {
-        margin: 1rem 0;
-        padding-left: 1.7rem;
-      }
-      #runtime .runtime-sequence > li {
-        border-left: 2px solid var(--rule);
-        padding: 0 0 1.15rem 0.8rem;
-        margin: 0;
-      }
-      #runtime .runtime-sequence > li:last-child {
-        padding-bottom: 0;
-      }
-      #runtime .runtime-sequence > li::marker {
-        font: 600 16px/1.5 var(--sans);
-        color: var(--accent);
-      }
-      #runtime .runtime-sequence p {
-        margin: 0.25rem 0;
-      }
-      #runtime .runtime-status {
-        display: block;
-        margin-top: 0.4rem;
-        color: var(--muted);
-        font: 14px/1.5 var(--sans);
-      }
-      #runtime .runtime-delivery {
-        display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-        margin: 0;
-        padding: 0;
-        list-style: none;
-      }
-      #runtime .runtime-delivery > li {
-        position: relative;
-        min-width: 0;
-        margin: 0;
-        padding: 0.8rem 1rem 0.8rem 0.6rem;
-        border-block: 1px solid var(--rule);
-      }
-      #runtime .runtime-delivery > li:not(:last-child)::after {
-        content: "→";
-        position: absolute;
-        right: -0.35rem;
-        top: 50%;
-        transform: translateY(-50%);
-        color: var(--muted);
-      }
-      #runtime .runtime-delivery > li + li {
-        padding-left: 1rem;
-      }
-      #runtime .runtime-delivery span {
-        color: var(--muted);
-      }
-      #runtime .runtime-paint-order {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-      }
       #runtime .runtime-table {
         width: 100%;
         table-layout: fixed;
@@ -618,58 +291,8 @@
       #runtime .runtime-table th:first-child {
         width: 29%;
       }
-      #runtime .runtime-branches {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 1rem;
-        margin-block: 1rem;
-      }
-      #runtime .runtime-branches > div {
-        padding: 0.8rem 1rem;
-        border-top: 2px solid var(--accent);
-        background: var(--field);
-      }
-      #runtime .runtime-branches strong {
-        color: var(--muted);
-        font: 14px/1.5 var(--sans);
-      }
-      #runtime .runtime-branches h3 {
-        margin: 0.35rem 0;
-      }
-      #runtime .runtime-branches p {
-        margin: 0;
-      }
-      @media (width <= 540px) {
-        #runtime .runtime-inputs,
-        #runtime .runtime-delivery,
-        #runtime .runtime-branches {
-          grid-template-columns: minmax(0, 1fr);
-        }
-        #runtime .runtime-inputs {
-          gap: 0.2rem;
-        }
-        #runtime .runtime-inputs > div {
-          text-align: center;
-        }
-        #runtime .runtime-delivery > li,
-        #runtime .runtime-delivery > li + li {
-          border: 0;
-          border-left: 2px solid var(--rule);
-          margin-left: 0.5rem;
-          padding: 0.6rem 0.8rem 1.5rem;
-        }
-        #runtime .runtime-delivery > li:last-child {
-          padding-bottom: 0.6rem;
-        }
-        #runtime .runtime-delivery > li:not(:last-child)::after {
-          content: "↓";
-          left: -0.55rem;
-          right: auto;
-          top: auto;
-          bottom: -0.35rem;
-          transform: none;
-          font-size: 20px;
-        }
+      #styles-reach-table td:first-child code {
+        white-space: nowrap;
       }
     </style>
   </head>
@@ -714,88 +337,21 @@
               brings page updates into that session; the agent answers through Leaf
               commands and edits to the page’s files.
             </p>
-            <figure id="arch">
-              <svg
-                class="drawing"
-                viewBox="0 0 340 390"
-                role="img"
-                aria-labelledby="architecture-title architecture-description"
-              >
-                <title id="architecture-title">The agent, Leaf, and the browser</title>
-                <desc id="architecture-description">
-                  The agent sends page edits and replies to Leaf, and receives delivered
-                  updates. Leaf sends the page and current state to the browser, which
-                  sends comments and choices back. Leaf keeps the page files and event
-                  log.
-                </desc>
-                <defs>
-                  <marker
-                    id="architecture-arrow"
-                    viewBox="0 0 8 8"
-                    refX="7"
-                    refY="4"
-                    markerWidth="6"
-                    markerHeight="6"
-                    orient="auto-start-reverse"
-                  >
-                    <path class="arrowhead" d="M0,0 L8,4 L0,8 Z" />
-                  </marker>
-                </defs>
-                <g id="architecture-agent">
-                  <rect class="box" x="30" y="1" width="280" height="60" rx="6" />
-                  <text class="actor" x="170" y="27" text-anchor="middle">
-                    Agent session
-                  </text>
-                  <text x="170" y="48" text-anchor="middle">
-                    in Claude Code, Codex, or Pi
-                  </text>
-                </g>
-                <path
-                  class="link"
-                  d="M50,61 V148"
-                  marker-end="url(#architecture-arrow)"
-                />
-                <text x="64" y="96">Page edits</text>
-                <text x="64" y="116">and replies</text>
-                <path
-                  class="link"
-                  d="M290,148 V63"
-                  marker-end="url(#architecture-arrow)"
-                />
-                <text x="276" y="96" text-anchor="end">Delivered</text>
-                <text x="276" y="116" text-anchor="end">updates</text>
-                <g id="architecture-leaf">
-                  <rect class="box hot" x="30" y="150" width="280" height="96" rx="6" />
-                  <text class="actor" x="170" y="177" text-anchor="middle">Leaf</text>
-                  <text x="170" y="198" text-anchor="middle">
-                    Commands and page server
-                  </text>
-                  <rect class="box" x="48" y="210" width="244" height="26" rx="3" />
-                  <text x="170" y="228" text-anchor="middle">
-                    Page files + event log
-                  </text>
-                </g>
-                <path
-                  class="link"
-                  d="M50,246 V328"
-                  marker-end="url(#architecture-arrow)"
-                />
-                <text x="64" y="280">Page +</text>
-                <text x="64" y="300">current state</text>
-                <path
-                  class="link"
-                  d="M290,328 V248"
-                  marker-end="url(#architecture-arrow)"
-                />
-                <text x="276" y="280" text-anchor="end">Comments</text>
-                <text x="276" y="300" text-anchor="end">+ choices</text>
-                <g id="architecture-user">
-                  <rect class="box" x="30" y="330" width="280" height="58" rx="6" />
-                  <text class="actor" x="170" y="364" text-anchor="middle">
-                    User in the browser
-                  </text>
-                </g>
-              </svg>
+            <figure id="arch" class="diagram-figure">
+              <lf-diagram id="agent-browser-architecture" data-height="370" parts="all">
+                <pre>
+flowchart TD
+  accTitle: The agent, Leaf, and the browser
+  accDescr: The agent edits the page and replies through Leaf. Leaf delivers browser updates to the agent, serves the page and current state, and records the user's comments and choices in the event log.
+  Agent["Agent session&lt;br/&gt;Claude Code, Codex or Pi"]
+  Leaf["Leaf&lt;br/&gt;Commands and page server&lt;br/&gt;Page files and event log"]
+  Browser["User in the browser"]
+  Agent --&gt;|Edits and replies| Leaf
+  Leaf --&gt;|Delivered updates| Agent
+  Leaf --&gt;|Page and state| Browser
+  Browser --&gt;|Comments and choices| Leaf
+</pre>
+              </lf-diagram>
             </figure>
             <p id="architecture-browser">
               Leaf’s Python code serves the page, records actions, and computes shared
@@ -1383,55 +939,28 @@ leaf task end ./review &lt;todo-id&gt; done --text "The load check is recorded o
                   update needing an answer enters the current turn instead. An update
                   needing no answer waits for the next turn.
                 </p>
-                <figure id="turn-end-check" class="decision-flow">
+                <figure id="turn-end-check" class="diagram-figure">
+                  <lf-diagram id="turn-end-decision" data-height="663" parts="all">
+                    <pre>
+flowchart TD
+  accTitle: Checks before a turn ends
+  accDescr: Check in order, taking the first match. A new update needing an answer with no later watcher is delivered into this turn. Otherwise an already extended turn ends. Otherwise an unanswered update not started this turn, or an open page with no watcher, continues the turn. All other turns end.
+  New["New answer needed&lt;br/&gt;No later watcher&lt;br/&gt;Deliver update; continue"]
+  Extended["Turn already extended&lt;br/&gt;End turn"]
+  Pending["Delivered update unanswered&lt;br/&gt;Not started in this turn&lt;br/&gt;Name update; continue"]
+  Watching["Page open, no watcher&lt;br/&gt;Arrange delivery; continue"]
+  End([End turn])
+  New --&gt;|otherwise| Extended
+  Extended --&gt;|otherwise| Pending
+  Pending --&gt;|otherwise| Watching
+  Watching --&gt;|otherwise| End
+</pre>
+                  </lf-diagram>
                   <figcaption>
-                    <strong>Checks before a turn ends.</strong> Read down the list. The
-                    first matching condition determines the result.
+                    <strong>Checks before a turn ends.</strong> Take the first matching
+                    condition. Follow “otherwise” only when it does not apply. A
+                    continued turn is checked again when the agent next tries to end it.
                   </figcaption>
-                  <ol>
-                    <li>
-                      <strong
-                        >A new update needs an answer, and nothing watches after the
-                        turn.</strong
-                      >
-                      <p>
-                        <span class="turn-continues">Continue the turn.</span> Leaf
-                        delivers that update into this turn. When the agent next tries
-                        to end, the checks run again.
-                      </p>
-                    </li>
-                    <li>
-                      <strong>Leaf already extended this turn.</strong>
-                      <p>
-                        <span class="turn-ends">End the turn.</span> The reminder does
-                        not keep extending it.
-                      </p>
-                    </li>
-                    <li>
-                      <strong
-                        >A delivered update is unanswered and this turn has not started
-                        it.</strong
-                      >
-                      <p>
-                        <span class="turn-continues">Continue the turn.</span> Leaf
-                        names the unanswered update.
-                      </p>
-                    </li>
-                    <li>
-                      <strong>The page is still open and no watcher runs.</strong>
-                      <p>
-                        <span class="turn-continues">Continue the turn.</span> Leaf asks
-                        the agent to arrange delivery between turns.
-                      </p>
-                    </li>
-                    <li>
-                      <strong>None of the conditions above applies.</strong>
-                      <p>
-                        <span class="turn-ends">End the turn.</span> Any remaining work
-                        has been started, and the page is watched or closed.
-                      </p>
-                    </li>
-                  </ol>
                 </figure>
                 <ul id="turn-end-rules">
                   <li id="turn-end-claim">
@@ -1782,12 +1311,124 @@ leaf task end ./review &lt;todo-id&gt; done --text "The load check is recorded o
             <summary>In this topic</summary>
             <nav aria-label="Pages sections">
               <ul>
+                <li><a href="#responsibilities">Who is responsible for what</a></li>
                 <li><a href="#pages-parts">Parts of a page</a></li>
                 <li><a href="#layer">Runtime and packages</a></li>
                 <li><a href="#widgets">Widgets</a></li>
               </ul>
             </nav>
           </details>
+          <section id="responsibilities">
+            <h2>Who is responsible for what</h2>
+            <p id="responsibilities-lede">
+              The user sets the goal and preferences. The author composes the page;
+              packages supply its visual language and widget behavior. Leaf core keeps
+              the shared record of what the user does.
+            </p>
+            <figure id="ownership-anatomy" class="diagram-figure">
+              <lf-diagram id="ownership-architecture" data-height="719" parts="all">
+                <pre>
+flowchart TD
+  accTitle: Ownership boundaries in a Leaf page
+  accDescr: The user gives the author a goal and selects a theme. Within the authored page, the author owns content and layout, and the widget package owns controls and action meaning. Theme inputs style both. Widgets send actions to Leaf core, which owns the record, current state and Undo.
+  User([User])
+  Theme["Theme package&lt;br/&gt;Color, type and spacing"]
+  subgraph Page["Authored page"]
+    Content["Page author&lt;br/&gt;Content and layout"]
+    Widget["Widget package&lt;br/&gt;Controls&lt;br/&gt;Action meaning"]
+    Content -->|places and configures| Widget
+  end
+  Core["Leaf core&lt;br/&gt;Record, state and Undo"]
+  User -->|goal| Page
+  User -->|theme preference| Theme
+  Theme -.->|visual inputs| Page
+  Widget -->|actions| Core
+  Core -->|current state| Widget
+</pre>
+              </lf-diagram>
+              <figcaption id="responsibilities-example">
+                Ownership architecture. The author places widgets inside the page; each
+                package owns its widget’s behavior. Theme inputs style the page and its
+                controls. Leaf core owns the record behind them.
+              </figcaption>
+            </figure>
+            <p id="ownership-example-link">
+              <a href="#options-demo">Try the separate example: a release review.</a>
+              Choose an audience and undo a choice to see these responsibilities at
+              work.
+            </p>
+            <details id="responsibilities-interfaces">
+              <summary>Each owner’s authoring interface</summary>
+              <table id="responsibilities-table">
+                <thead>
+                  <tr>
+                    <th>Owner</th>
+                    <th>Responsibility</th>
+                    <th>Interface</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>User</td>
+                    <td>Goals, preferences, decisions, and edits.</td>
+                    <td>
+                      Instructions to the agent, actions on the page, and named personal
+                      themes with a default. Theme colors can follow the browser's
+                      color-scheme preference.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Page author</td>
+                    <td>
+                      Content, initial values, package selection, and composition.
+                    </td>
+                    <td>
+                      Semantic HTML, declared widget attributes, data bindings, page
+                      CSS, and optional page modules.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Widget package</td>
+                    <td>
+                      Domain meaning, controls, and rendering within the allotted box.
+                    </td>
+                    <td>
+                      Registry declarations, browser modules, scoped styles, and author
+                      instructions. The package connects its controls to Leaf's state,
+                      commands, and annotation APIs.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Theme package</td>
+                    <td>Reusable visual choices and presentation idioms.</td>
+                    <td>
+                      Theme inputs and explicit page-wide styles, independently of
+                      whether the package declares widgets. It may include
+                      <code>controls.css</code> for generated controls.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Leaf kernel</td>
+                    <td>
+                      Shared state, event admission, Undo, and interaction services.
+                    </td>
+                    <td>
+                      The registry contract and public module APIs. Core interprets
+                      declarations; packages supply each widget's domain behavior.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </details>
+            <p id="responsibilities-limits">
+              These are contribution boundaries, not a sandbox: package and page scripts
+              run in the same document. CSS scope limits where selectors match, but
+              inheritance and nested content still connect their presentation. The
+              <a href="#styles">Styles topic</a> describes the current cascade and its
+              explicit access to generated controls; the
+              <a href="/extending/">extension guide</a> describes package checks.
+            </p>
+          </section>
           <section id="pages-parts">
             <h2>Parts of a page</h2>
             <p id="scaffold">
@@ -1845,28 +1486,97 @@ leaf task end ./review &lt;todo-id&gt; done --text "The load check is recorded o
           <section id="layer">
             <h2>Runtime and packages</h2>
             <p>
-              Each page directory contains its own copy of Leaf's runtime and selected
-              packages. This validated composition is called its
-              <em>layer</em>. <code>page init</code> builds it. Each revision captures
-              the layer it uses. Updating the installed plugin does not rewrite those
-              captured bytes; serving a captured revision still requires a compatible
-              page protocol. The
-              <a
-                href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/packages.md#package-contract"
-                >package contract</a
-              >
-              defines how packages are combined and replaced.
+              Packages connect through declared inputs, outputs and actions. A release
+              review can use one package to read a patch and another to navigate its
+              files, without either package knowing the other’s implementation.
             </p>
-            <p id="what-is-customizable">
-              Leaf's core, called the kernel, supplies the browser runtime, shared
-              controls, and collaboration protocol. Packages supply reusable elements,
-              JavaScript modules, styles, and authoring instructions. The default
-              package provides common widgets and structural elements; optional packages
-              add capabilities such as diagrams and diffs. Project packages use the same
-              format and can replace or extend the page's selected layer. The
-              <a href="/extending/">extension guide</a> lists the bundled packages and
-              demonstrates a small custom package.
-            </p>
+            <h3 id="package-data-flow">Data connects widgets</h3>
+            <figure id="package-data-diagram" class="diagram-figure">
+              <lf-diagram id="package-data-contract" data-height="285" parts="all">
+                <pre>
+flowchart TD
+  accTitle: A typed output connects independent widgets
+  accDescr: The author supplies a patch. The Diff widget publishes its changed files using the file-list contract. The page binds a File tree widget to that output, without either widget knowing the other's implementation.
+  Patch["Author supplies a patch"] --> Diff["Diff widget"]
+  Diff -->|files: file-list| Tree["File tree widget"]
+</pre>
+              </lf-diagram>
+              <figcaption id="package-shared-contract">
+                The page connects these widgets with <code>for="release-patch"</code>.
+                The producer and consumer agree on the <code>file-list</code> value’s
+                shape. The file tree can also read a stored source with that contract. A
+                published output is a browser-local derivation, not a decision in the
+                page’s log.
+              </figcaption>
+            </figure>
+            <h3 id="package-action-flow">Actions enter the shared record</h3>
+            <figure id="package-action-diagram" class="diagram-figure">
+              <lf-diagram id="package-action-contract" data-height="398" parts="all">
+                <pre>
+flowchart TD
+  accTitle: A choice is drawn immediately and recorded by Leaf
+  accDescr: The user's choice starts two paths. The browser draws it before the next frame, while Leaf validates the action and appends it to the log. Shared state then reconciles the browser's selection.
+  Choose["Choose Canary clients"]
+  Choose --&gt; Draw["Browser&lt;br/&gt;Draw now"]
+  Choose --&gt; Admit["Leaf&lt;br/&gt;Admit action"]
+  Admit --&gt; State["Shared state"]
+  Draw --&gt; Reconcile["Browser&lt;br/&gt;Reconcile choice"]
+  State --&gt; Reconcile
+</pre>
+              </lf-diagram>
+              <figcaption id="package-action-widget">
+                The package declares <code>choose</code> and the schema for its selected
+                IDs. The browser shows what the gesture decides while admission
+                completes; a refused action restores the server’s state. Undo withdraws
+                the admitted action, and the widget draws the resulting selection.
+                Packages share these guarantees.
+              </figcaption>
+            </figure>
+            <details id="package-contract-details">
+              <summary>
+                Independent capabilities, validation and captured packages
+              </summary>
+              <p id="what-is-customizable">
+                Leaf's core, called the kernel, supplies the browser runtime, shared
+                controls, and collaboration protocol. Packages supply reusable elements,
+                JavaScript modules, styles, and authoring instructions. The default
+                package provides common widgets and structural elements; optional
+                packages add capabilities such as diagrams and diffs. Project packages
+                use the same format and can replace or extend the page's selected layer.
+                The
+                <a href="/extending/">extension guide</a> lists the bundled packages and
+                demonstrates a small custom package.
+              </p>
+              <p id="package-contract-boundaries">
+                A package declares capabilities independently: what an action records,
+                whether it decides a proposed change, which typed data it consumes or
+                publishes, and where its styles apply. Ordinary data fields do not
+                acquire decision meaning from their names. Two occurrences of the same
+                widget can select different input contracts without replacing the
+                widget's declaration. Leaf validates lasting input where it enters the
+                event log; the render check validates the outputs a widget actually
+                publishes during the check. The
+                <a
+                  href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/package-data.md"
+                  >state and data contract</a
+                >
+                defines those interfaces.
+              </p>
+              <p id="package-captured-layer">
+                Each page directory contains a validated composition of its selected
+                packages: its <em>layer</em>. <code>page init</code> builds the
+                registry, theme and package modules, and each revision captures the
+                layer it uses. The Leaf serving, checking or exporting the page supplies
+                the browser runtime. Updating that runtime leaves captured content and
+                decisions intact; the public package interface must still speak a
+                compatible page protocol. The
+                <a
+                  href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/packages.md#package-contract"
+                  >package contract</a
+                >
+                defines how packages are combined and replaced.
+              </p>
+            </details>
           </section>
           <section id="widgets">
             <h2>Widgets</h2>
@@ -1876,43 +1586,42 @@ leaf task end ./review &lt;todo-id&gt; done --text "The load check is recorded o
               feed shows the same page history, including actions in other examples.
             </p>
             <figure id="options-demo">
+              <h3>Example page: a release review</h3>
               <p id="options-practice">
-                Choose an importer strategy, then one job. Open
+                Choose a rollout audience, then one follow-up job. Open
                 <strong>Show activity</strong> to inspect both selections. Choose
                 <strong>Undo</strong> in the page’s leaf menu to withdraw the job
                 choice, then press <strong>Activity changed</strong> in the feed. The
-                strategy remains selected.
+                rollout audience remains selected.
               </p>
-              <lf-sample id="spec-options-frame" label="Practice: options" interactive>
-                <p>I'd migrate in stages, which keeps the rollback boundary small.</p>
+              <lf-sample
+                id="spec-options-frame"
+                label="Example: release review"
+                interactive
+              >
+                <p>Start with canary clients; expand after the error rate settles.</p>
                 <lf-options id="spec-options" choose>
                   <lf-option id="so-rewrite"
-                    ><small class="tag">effort: high</small
-                    ><small class="tag">risk: med</small
-                    ><strong>Rewrite the importer</strong> A clean slate on the new
-                    schema; the old importer keeps running until parity.</lf-option
+                    ><small class="tag ok">recommended</small
+                    ><strong>Canary clients</strong> Start with a small group and
+                    compare its error rate before expanding.</lf-option
                   >
                   <lf-option id="so-shim"
-                    ><small class="tag">effort: low</small
-                    ><small class="tag">risk: high</small
-                    ><strong>Shim the old schema</strong> Fastest to ship; every future
-                    field pays the translation tax.</lf-option
+                    ><strong>All clients</strong> Enable the release for everyone once
+                    the checks pass.</lf-option
                   >
                   <lf-option id="so-stage"
-                    ><small class="tag">effort: med</small
-                    ><small class="tag">risk: low</small
-                    ><small class="tag ok">recommended</small
-                    ><strong>Migrate in stages</strong> New fields land on the new
-                    schema while reads fall back, table by table.</lf-option
+                    ><strong>Hold the release</strong> Gather more evidence before
+                    enabling it for any clients.</lf-option
                   >
                 </lf-options>
                 <h3>Which job should start first?</h3>
                 <lf-options id="spec-jobs" choose>
-                  <lf-option id="sj-backfill">Backfill last month's rows</lf-option>
-                  <lf-option id="sj-contract"
-                    >Contract tests against the old schema</lf-option
+                  <lf-option id="sj-backfill">Prepare the rollback flag</lf-option>
+                  <lf-option id="sj-contract">Add a concurrency test</lf-option>
+                  <lf-option id="sj-fallback"
+                    >Set up the error-rate comparison</lf-option
                   >
-                  <lf-option id="sj-fallback">A read fallback behind a flag</lf-option>
                 </lf-options>
                 <h3>Recorded actions</h3>
                 <lf-activity id="options-activity"></lf-activity>
@@ -1983,64 +1692,98 @@ leaf task end ./review &lt;todo-id&gt; done --text "The load check is recorded o
                 <li><a href="#styles-overrides">Styles and overrides</a></li>
                 <li><a href="#styles-try-title">Which rule wins</a></li>
                 <li><a href="#styles-tiers">The tiers</a></li>
-                <li><a href="#styles-packages">Writing a package&#x27;s styles</a></li>
+                <li><a href="#styles-packages">Nested widgets</a></li>
               </ul>
             </nav>
           </details>
           <section id="styles-overrides">
             <h2>Styles and overrides</h2>
             <p id="styles-lede">
-              A page’s <code>&lt;style&gt;</code> changes that page; a theme package
-              shares styles across pages. Theme packages declare no widgets. Their
-              ordinary rules override Leaf’s defaults and Layouts, and the page’s rules
-              override the theme. Generated controls require the explicit access below;
-              shadow trees have their own tiers.
+              The user chooses the visual direction. A theme supplies shared colors,
+              type and reusable styles; widget packages draw their own controls; the
+              author arranges the page and makes local adjustments.
             </p>
-            <table id="styles-recipes">
-              <thead>
-                <tr>
-                  <th>To change</th>
-                  <th>Write</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr id="recipe-face">
-                  <td>Leaf's colors</td>
-                  <td><code>:root { --accent: teal; }</code></td>
-                </tr>
-                <tr id="recipe-layout">
-                  <td>A Layout's width</td>
-                  <td><code>:root { --col: 46rem; }</code></td>
-                </tr>
-                <tr id="recipe-widget">
-                  <td>A widget</td>
-                  <td><code>lf-card { padding: 8px; }</code></td>
-                </tr>
-                <tr id="recipe-controls">
-                  <td>Controls Leaf or a widget builds</td>
-                  <td>
-                    <code
-                      >&lt;style data-controls&gt;lf-board .lf-grip { color: teal;
-                      }&lt;/style&gt;</code
-                    >
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-            <p id="styles-controls">
-              A Layout reads tokens such as <code>--col</code>,
-              <code>--sidebar</code> and <code>--page-pad-start</code>, and any other
-              rule changes it too, such as <code>main { padding-top: 28px; }</code>.
-            </p>
-            <p id="styles-controls-leaf">
-              A bare <code>button</code> or <code>input</code> rule styles the page’s
-              own controls. To reach controls Leaf or a widget builds, a page marks its
-              stylesheet <code>data-controls</code>; a theme package puts those rules in
-              <code>controls.css</code>. Widget packages already style their own
-              controls through <code>theme.css</code>. Leaf’s panel and thread cards
-              also inherit theme inputs such as <code>--accent</code> and
-              <code>--sans</code> from <code>:root</code>.
-            </p>
+            <figure id="styles-capture" class="diagram-figure">
+              <lf-diagram id="styles-theme-capture" data-height="370" parts="all">
+                <pre>
+flowchart TD
+  accTitle: A page captures its selected theme
+  accDescr: The author selects Editorial from the user's themes. Leaf captures that theme in the release-review page, and the export carries the same theme. Changing the user's default later changes neither existing copy.
+  Themes["User's themes&lt;br/&gt;Editorial · Dense"] -->|select Editorial| Page["Release review&lt;br/&gt;Captured: Editorial"]
+  Page -->|export| Export["Exported review&lt;br/&gt;Same Editorial theme"]
+</pre>
+              </lf-diagram>
+              <figcaption>
+                <strong>A page keeps the theme it was made with.</strong>
+                <code>leaf theme list</code> shows the user’s named themes. Changing the
+                default later leaves this page and its export intact.
+              </figcaption>
+            </figure>
+            <details id="styles-theme-selection">
+              <summary>Choosing a theme and honoring browser preferences</summary>
+              <p id="styles-user-preference">
+                <code>leaf theme list</code> exposes the user's named themes and their
+                author instructions. <code>page init --theme NAME</code> selects one; a
+                new page otherwise uses the user's default. Re-initializing keeps the
+                captured choice unless explicitly changed. The author follows the user's
+                request first, then the task and the theme's instructions.
+              </p>
+              <p id="styles-platform-preferences">
+                The default theme supports light and dark schemes. Authors preserve
+                supported platform preferences when composing a page; an explicit visual
+                comparison may need a fixed appearance, declared with
+                <code>color-scheme</code>. CSS precedence determines which rule wins,
+                not who has authority over the work.
+              </p>
+            </details>
+            <details id="styles-adjustments">
+              <summary>Make a local adjustment: colors, width or controls</summary>
+              <table id="styles-recipes">
+                <thead>
+                  <tr>
+                    <th>To change</th>
+                    <th>Write</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr id="recipe-face">
+                    <td>Leaf's colors</td>
+                    <td><code>:root { --accent: teal; }</code></td>
+                  </tr>
+                  <tr id="recipe-layout">
+                    <td>A Layout's width</td>
+                    <td><code>:root { --col: 46rem; }</code></td>
+                  </tr>
+                  <tr id="recipe-widget">
+                    <td>A widget</td>
+                    <td><code>lf-card { padding: 8px; }</code></td>
+                  </tr>
+                  <tr id="recipe-controls">
+                    <td>Controls Leaf or a widget builds</td>
+                    <td>
+                      <code
+                        >&lt;style data-controls&gt;lf-board .lf-grip { color: teal;
+                        }&lt;/style&gt;</code
+                      >
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              <p id="styles-controls">
+                A Layout reads tokens such as <code>--col</code>,
+                <code>--sidebar</code> and <code>--page-pad-start</code>, and any other
+                rule changes it too, such as <code>main { padding-top: 28px; }</code>.
+              </p>
+              <p id="styles-controls-leaf">
+                A bare <code>button</code> or <code>input</code> rule styles the page’s
+                own controls. To reach controls Leaf or a widget builds, a page marks
+                its stylesheet <code>data-controls</code>; a package puts those rules in
+                <code>controls.css</code>. Widget packages already style their own
+                controls through <code>widgets.css</code>. Leaf’s panel and thread cards
+                also inherit theme inputs such as <code>--accent</code> and
+                <code>--sans</code> from <code>:root</code>.
+              </p>
+            </details>
 
             <h3 id="styles-try-title">Which rule wins</h3>
             <p id="styles-try-lede">
@@ -2095,133 +1838,189 @@ leaf task end ./review &lt;todo-id&gt; done --text "The load check is recorded o
             </p>
 
             <h3 id="styles-tiers">The tiers</h3>
-            <figure id="cascade-figure">
-              <div class="cascade">
-                <div class="cascade-root" id="cascade-document">
-                  <p class="cascade-title">The page's document</p>
-                  <ol>
-                    <li class="page">
-                      <span class="tier">The page's <code>&lt;style&gt;</code></span>
-                      <span class="by">Page</span>
-                      <span class="what"
-                        >Your page's rules, unlayered. Leaf's panel, cards and marks are
-                        unlayered too and come after yours, so they win a tie.</span
-                      >
-                    </li>
-                    <li class="page">
-                      <span class="tier">The page's <code>@layer</code> blocks</span>
-                      <span class="by">Page</span>
-                      <span class="what"
-                        >Declared after Leaf's tiers, so above them, as a CSS framework
-                        such as Tailwind writes them.</span
-                      >
-                    </li>
-                    <li class="leaf internal">
-                      <span class="tier"><code>lf-state</code></span>
-                      <span class="by">Leaf</span>
-                    </li>
-                    <li class="pkg">
-                      <span class="tier"><code>lf-controls</code></span>
-                      <span class="by">Theme packages</span>
-                      <span class="what"
-                        >Each theme package’s <code>controls.css</code>, explicitly
-                        styling generated controls.</span
-                      >
-                    </li>
-                    <li class="pkg">
-                      <span class="tier"><code>lf-theme</code></span>
-                      <span class="by">Theme packages</span>
-                      <span class="what"
-                        >Each theme package’s <code>theme.css</code> and
-                        <code>shadow.css</code>, in the page’s package order.</span
-                      >
-                    </li>
-                    <li class="leaf">
-                      <span class="tier"><code>lf-layouts</code></span>
-                      <span class="by">Leaf</span>
-                      <span class="what"
-                        >The Layout classes, such as <code>layout-column</code>.</span
-                      >
-                    </li>
-                    <li class="pkg">
-                      <span class="tier"><code>lf-base</code></span>
-                      <span class="by">Leaf and widget packages</span>
-                      <span class="what"
-                        >Leaf's theme, then each widget package's
-                        <code>theme.css</code> and <code>shadow.css</code>. A widget
-                        package's rules reach only its own widgets.</span
-                      >
-                    </li>
-                    <li class="leaf internal">
-                      <span class="tier"><code>lf-reset</code></span>
-                      <span class="by">Leaf</span>
-                    </li>
-                  </ol>
-                </div>
-                <div class="cascade-root" id="cascade-shadow">
-                  <p class="cascade-title">A widget's shadow tree</p>
-                  <ol>
-                    <li class="leaf internal">
-                      <span class="tier">Marks</span>
-                      <span class="by">Leaf</span>
-                    </li>
-                    <li class="leaf internal">
-                      <span class="tier"><code>lf-state</code></span>
-                      <span class="by">Leaf</span>
-                    </li>
-                    <li class="pkg">
-                      <span class="tier"><code>lf-theme</code></span>
-                      <span class="by">Theme packages</span>
-                      <span class="what"
-                        >Each theme package's <code>shadow.css</code>.</span
-                      >
-                    </li>
-                    <li class="pkg">
-                      <span class="tier"><code>lf-shadow</code></span>
-                      <span class="by">Leaf and widget packages</span>
-                      <span class="what"
-                        >Leaf's and each widget package's <code>shadow.css</code>.</span
-                      >
-                    </li>
-                    <li class="pkg">
-                      <span class="tier"><code>lf-base</code></span>
-                      <span class="by">Widget packages</span>
-                      <span class="what"
-                        >Defaults the widget module adopts with
-                        <code>inBaseLayer()</code>.</span
-                      >
-                    </li>
-                  </ol>
-                  <p class="cascade-note">
-                    Page rules and Layouts stop at the shadow root. Inherited tokens
-                    such as
-                    <code>--accent</code> cross it, as does a part the widget exports
-                    with <code>::part</code>.
-                  </p>
-                </div>
-              </div>
+            <figure id="cascade-figure" class="diagram-figure">
+              <h4 id="cascade-document">The page’s document</h4>
+              <lf-diagram id="cascade-document-order" data-height="728" parts="all">
+                <pre>
+flowchart TD
+  accTitle: CSS precedence in the page document
+  accDescr: For normal declarations, unlayered page rules have the highest precedence, then the page's own layers, lf-state, lf-controls, lf-theme, lf-layouts, lf-base and lf-reset. Each arrow points from a higher tier to a lower tier.
+  Page["Page rules · unlayered"] --> Layers["Page's own layers"]
+  Layers --> State["lf-state · Leaf"]
+  State --> Controls["lf-controls · packages"]
+  Controls --> Theme["lf-theme · packages"]
+  Theme --> Layout["lf-layouts · Leaf"]
+  Layout --> Base["lf-base · Leaf and widgets"]
+  Base --> Reset["lf-reset · Leaf"]
+</pre>
+              </lf-diagram>
+              <h4 id="cascade-shadow">A widget’s shadow tree</h4>
+              <lf-diagram id="cascade-shadow-order" data-height="449" parts="all">
+                <pre>
+flowchart TD
+  accTitle: CSS precedence inside a widget's shadow tree
+  accDescr: For normal declarations, Leaf's marks have the highest precedence, then lf-state, lf-theme, lf-shadow and lf-base. Page rules and Layouts do not enter the shadow tree.
+  Marks["Marks · Leaf"] --> State["lf-state · Leaf"]
+  State --> Theme["lf-theme · theme packages"]
+  Theme --> Shadow["lf-shadow · Leaf and widgets"]
+  Shadow --> Base["lf-base · widget defaults"]
+</pre>
+              </lf-diagram>
               <figcaption>
-                <strong>The tiers, highest first.</strong> The narrow rows are Leaf's
-                own and need no overriding: <code>lf-state</code> hides what a decision
-                removed, <code>lf-reset</code> clears the browser's form-control styles,
-                and marks are the highlights Leaf draws over a widget.
+                <strong>Normal declarations, highest precedence first.</strong>
+                Leaf’s <code>lf-state</code> hides what a decision removed;
+                <code>lf-reset</code> clears the browser’s form-control styles; marks
+                are the highlights Leaf draws. <code>!important</code> reverses the
+                layer order.
               </figcaption>
             </figure>
+            <details id="cascade-sheets">
+              <summary>Which styles contribute to each tier?</summary>
+              <p>
+                A page’s unlayered rules come first. Leaf’s panel, cards and marks are
+                also unlayered and appear later, winning a tie. The page’s own
+                <code>@layer</code> blocks follow Leaf’s layers, so they outrank them.
+              </p>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Tier</th>
+                    <th>Contributions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><code>lf-controls</code></td>
+                    <td>
+                      Each package’s <code>controls.css</code> explicitly styles
+                      generated controls.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>lf-theme</code></td>
+                    <td>
+                      <code>theme.css</code> and <code>theme-shadow.css</code>, in
+                      package order. Only the latter enters shadow trees.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>lf-layouts</code></td>
+                    <td>Leaf’s Layout classes, such as <code>layout-column</code>.</td>
+                  </tr>
+                  <tr>
+                    <td><code>lf-shadow</code></td>
+                    <td>
+                      Leaf’s shared shadow rules and each package’s
+                      <code>widget-shadow.css</code>.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>lf-base</code></td>
+                    <td>
+                      In the document: Leaf’s theme, then packages’
+                      <code>widgets.css</code> and <code>widget-shadow.css</code>. In a
+                      shadow tree: defaults the widget adopts with
+                      <code>inBaseLayer()</code>.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              <p>
+                Page rules and Layouts stop at the shadow root. Inherited inputs such as
+                <code>--accent</code> cross it. A widget can also expose a part for
+                styling with <code>::part</code>.
+              </p>
+            </details>
 
-            <h3 id="styles-packages">Writing a package's styles</h3>
+            <h3 id="styles-packages">A nested widget owns its interior</h3>
             <p id="styles-widget-package">
-              A widget package styles its own widgets in its <code>theme.css</code>,
-              where <code>:scope</code> names the widget itself and ordinary selectors
-              name what it contains, and reaches nothing outside them. Its
-              <code>shadow.css</code> reaches the private parts inside each widget's
-              shadow tree. A theme package's <code>shadow.css</code> reaches the same
-              parts from the tier above. The
-              <a
-                href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/packages.md#styles-and-composition"
-                >package reference</a
-              >
-              lists the supported tokens.
+              Put a choice inside a release review: the review package can arrange the
+              choice's box, while the default package styles its Options widget inside.
+              Shared theme inputs, such as color and type, flow through both.
             </p>
+            <figure id="styles-scope" class="diagram-figure">
+              <lf-diagram id="styles-nested-boundary" data-height="484" parts="all">
+                <pre>
+flowchart TD
+  accTitle: Nested widgets retain their own styling boundaries
+  accDescr: Shared theme inputs inherit through the review widget and its nested Options widget. The review package styles its own heading and evidence and arranges the nested widget's host box. The default package alone styles the Options interior.
+  Theme["Shared theme inputs&lt;br/&gt;Color, type and spacing"]
+  subgraph Review["Review widget"]
+    Content["Review package&lt;br/&gt;Heading and evidence"]
+    subgraph Host["Nested widget host"]
+      Options["Default package&lt;br/&gt;Options interior"]
+    end
+    Content -->|arranges| Host
+  end
+  Theme -.->|inherit through both| Review
+</pre>
+              </lf-diagram>
+              <figcaption>
+                <strong>The boundary stops selectors, not inheritance.</strong>
+                Each package’s <code>widgets.css</code> styles its own content.
+                Review-package rules may arrange the nested host, but stop before its
+                interior. The theme’s colors and type reach both widgets.
+              </figcaption>
+            </figure>
+            <p id="styles-scope-limit">
+              These are styling boundaries, not a security sandbox. Page and theme rules
+              deliberately have wider reach; packages run in the same document. A
+              widget's presentation depends on its allotted box and supported theme
+              inputs, so it can move between page layouts.
+            </p>
+            <details id="styles-stylesheet-roles">
+              <summary>Choose a stylesheet by where its rules should reach</summary>
+              <p id="styles-independent-contributions">
+                A package can contribute widget, theme and control styles independently.
+                Declaring a widget does not change the reach of its other sheets.
+              </p>
+              <table id="styles-reach-table">
+                <thead>
+                  <tr>
+                    <th>Stylesheet</th>
+                    <th>Reaches</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><code>widgets.css</code></td>
+                    <td>The package's widgets in the page document.</td>
+                  </tr>
+                  <tr>
+                    <td><code>widget-shadow.css</code></td>
+                    <td>The same scope, plus its widgets' declared shadow trees.</td>
+                  </tr>
+                  <tr>
+                    <td><code>theme.css</code></td>
+                    <td>The page document, across package boundaries.</td>
+                  </tr>
+                  <tr>
+                    <td><code>theme-shadow.css</code></td>
+                    <td>The page document and every declared shadow tree.</td>
+                  </tr>
+                  <tr>
+                    <td><code>controls.css</code></td>
+                    <td>Explicit styling of generated controls in the document.</td>
+                  </tr>
+                </tbody>
+              </table>
+              <p id="styles-scope-details">
+                In a widget sheet, <code>:scope</code> names the widget and ordinary
+                selectors name what it contains. The boundary applies to foreign widgets
+                declared by another package or by the page. Widgets from the same
+                package can share their compound structure. Shadow trees form a further
+                browser boundary: document selectors do not enter them, but inherited
+                inputs and public <code>::part</code> selectors can.
+              </p>
+              <p id="styles-package-reference">
+                The
+                <a
+                  href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/packages.md#styles-and-composition"
+                  >package reference</a
+                >
+                defines the stylesheet roles and supported inputs.
+              </p>
+            </details>
           </section></lf-tab
         >
         <lf-tab id="layout" label="Layout"
@@ -3625,76 +3424,28 @@ leaf task end ./review &lt;todo-id&gt; done --text "The load check is recorded o
                 <a href="#progress-on-lists">On me and the agent’s list</a> defines list
                 membership and completion.
               </p>
-              <figure
-                id="ontology-graph"
-                class="coherence-map"
-                aria-label="Sources of workflows, obligations and to-dos, and how they determine attention"
-              >
-                <div class="coherence-node" id="relations-conversation">
-                  <strong
-                    >Threads hold messages and anchor to a passage, widget or
-                    page.</strong
-                  >
-                  <p>
-                    A user message or widget action is an update. Work associated with a
-                    thread contributes to that thread’s attention.
-                  </p>
-                </div>
-                <div class="coherence-route" id="relations-workflow-route">
-                  <div id="relations-update">
-                    <strong>An unsettled update</strong>
-                    <p>A user message or completed widget gesture</p>
-                  </div>
-                  <span class="coherence-arrow" aria-hidden="true">→</span>
-                  <div class="coherence-node" id="relations-workflow">
-                    <strong>Workflow</strong>
-                    <p>Tracks delivery and work stage.</p>
-                  </div>
-                </div>
-                <div class="coherence-route" id="relations-obligation-route">
-                  <div id="relations-obligation-sources">
-                    <strong>A request for an answer</strong>
-                    <ul>
-                      <li>A widget question or decision</li>
-                      <li>An update handed to the agent</li>
-                    </ul>
-                  </div>
-                  <span class="coherence-arrow" aria-hidden="true">→</span>
-                  <div class="coherence-node" id="relations-obligation">
-                    <strong>Obligation</strong>
-                    <p>Records the answer owed, its value and its next actor.</p>
-                  </div>
-                </div>
-                <div class="coherence-route" id="relations-todo-route">
-                  <div id="relations-commitment">
-                    <strong>An explicit assignment or promise</strong>
-                    <p>Separate work for the user or agent</p>
-                  </div>
-                  <span class="coherence-arrow" aria-hidden="true">→</span>
-                  <div class="coherence-node" id="relations-todo">
-                    <strong>To-do</strong>
-                    <p>Keeps that work owed until explicitly ended.</p>
-                  </div>
-                </div>
-                <p class="coherence-connector">
-                  ↓ Workflows, obligations and to-dos determine
-                </p>
-                <div class="coherence-grid two">
-                  <div class="coherence-node result" id="relations-attention">
-                    <strong>Thread attention</strong>
-                    <p>
-                      Whose move this thread awaits, from the records attached to it.
-                    </p>
-                  </div>
-                  <div class="coherence-node result" id="relations-lists">
-                    <strong>On me · On agent · Done</strong>
-                    <p>Outstanding and completed work across the page.</p>
-                  </div>
-                </div>
+              <figure id="ontology-graph" class="diagram-figure">
+                <lf-diagram id="ontology-records-diagram" data-height="596" parts="all">
+                  <pre>
+flowchart TD
+  accTitle: Work records determine attention
+  accDescr: An update has a workflow, an answer request creates an obligation, and an assignment or promise creates a to-do. These records determine whose move is next and which work is finished, supplying thread attention and the page's work lists.
+  subgraph Records["Record creation"]
+    direction LR
+    Update["Update"] --&gt; Workflow["Workflow"]
+    Request["Answer&lt;br/&gt;request"] --&gt; Obligation["Obligation"]
+    Promise["Promise&lt;br/&gt;or task"] --&gt; Todo["To-do"]
+  end
+  Records --&gt;|records| Reading["Whose move is next?&lt;br/&gt;Which work is finished?"]
+  Reading --&gt; Views["Thread attention&lt;br/&gt;On me · On agent · Done"]
+</pre>
+                </lf-diagram>
                 <figcaption>
-                  The page-wide lists include widget decisions alongside other
-                  obligations. The same records supply each thread’s attention and the
-                  page’s lists.
+                  Threads hold messages and anchor to a passage, widget or page.
+                  Workflows track an update’s delivery and work stage; obligations track
+                  the answer owed and its next actor; to-dos keep a promise owed until
+                  explicitly ended. The same records supply each thread’s attention and
+                  the page-wide lists, including widget decisions.
                 </figcaption>
               </figure>
             </section>
@@ -3723,65 +3474,35 @@ leaf task end ./review &lt;todo-id&gt; done --text "The load check is recorded o
             <section id="data-home">
               <h2>Page files and history</h2>
               <p id="data-directory">
-                A page directory holds its HTML, captured runtime and dependencies,
+                A page directory holds its HTML, captured package dependencies,
                 revisions, event log, media, and external data. Copying it preserves the
                 page and recorded decisions. Session ownership and browser drafts live
                 elsewhere. The diagram shows the durable inputs to current state.
               </p>
-              <figure
-                id="data-flow"
-                class="coherence-map"
-                aria-label="Who writes each durable input, and who reads the result"
-              >
-                <div class="coherence-route" id="files-source-route">
-                  <div>
-                    <strong>Agent edits source</strong>
-                    <p>HTML and page dependencies</p>
-                  </div>
-                  <span class="coherence-arrow" aria-hidden="true">→</span>
-                  <div class="coherence-node">
-                    <strong>Immutable revisions</strong>
-                    <p>
-                      Leaf captures valid changed inputs under <code>revisions/</code>.
-                    </p>
-                  </div>
-                </div>
-                <div class="coherence-route" id="files-event-route">
-                  <div>
-                    <strong>User gestures and agent commands</strong>
-                    <p>Both use the same event admission.</p>
-                  </div>
-                  <span class="coherence-arrow" aria-hidden="true">→</span>
-                  <div class="coherence-node">
-                    <strong>Append-only event log</strong>
-                    <p><code>events.jsonl</code> records accepted actions.</p>
-                  </div>
-                </div>
-                <div class="coherence-route" id="files-data-route">
-                  <div>
-                    <strong>Any process</strong>
-                    <p>Publishes with <code>leaf data set</code></p>
-                  </div>
-                  <span class="coherence-arrow" aria-hidden="true">→</span>
-                  <div class="coherence-node">
-                    <strong>Current external values</strong>
-                    <p>Publications under <code>data/</code> are replaced whole.</p>
-                  </div>
-                </div>
-                <p class="coherence-connector">
-                  ↓ Read the captured markup, recorded actions and current values
-                </p>
-                <div class="coherence-node result" id="files-current-reading">
-                  <strong>Current state</strong>
-                  <p>
-                    Leaf supplies the shared reading to the browser and to the agent’s
-                    <code>leaf page state</code> command.
-                  </p>
-                </div>
+              <figure id="data-flow" class="diagram-figure">
+                <lf-diagram id="page-stores-diagram" data-height="646" parts="all">
+                  <pre>
+flowchart TD
+  accTitle: Durable inputs become current state
+  accDescr: Agent edits become revisions, accepted actions append to the event log, and data publications replace values. Those durable stores supply captured markup, recorded actions and external values to the shared reading used by the browser and page state command.
+  subgraph Stores["Inputs and storage"]
+    direction LR
+    Edits["Edit"] --&gt; Revisions["Revisions"]
+    Actions["Action"] --&gt; Log["Event log"]
+    Publish["Data set"] --&gt; Values["Values"]
+  end
+  Stores --&gt; Inputs["Captured markup&lt;br/&gt;Recorded actions&lt;br/&gt;External values"]
+  Inputs --&gt; State["Current state"]
+  State --&gt; Readers["Browser&lt;br/&gt;leaf page state"]
+</pre>
+                </lf-diagram>
                 <figcaption>
-                  These stores travel with the page directory. View state and drafts
-                  remain in the browser; session claims and delivery coordination remain
-                  in the machine’s state home.
+                  Leaf captures valid changed source under <code>revisions/</code> and
+                  admits gestures and commands through the same door into
+                  <code>events.jsonl</code>. Any process can publish whole values with
+                  <code>leaf data set</code>. These stores travel with the page
+                  directory. View state and drafts remain in the browser; session claims
+                  and delivery coordination remain in the machine’s state home.
                 </figcaption>
               </figure>
               <p id="data-bookkeeping-lede">
@@ -4383,39 +4104,23 @@ leaf task end ./review &lt;todo-id&gt; done --text "The load check is recorded o
                 its start before Leaf reports that the work stopped.
               </li>
             </ul>
-            <figure
-              id="updates-decision"
-              class="coherence-map"
-              aria-label="Ordered conditions for the page's base activity status"
-            >
-              <ol class="coherence-decisions">
-                <li id="status-rule-closed">
-                  <strong>The page is idle</strong><span>Page closed</span>
-                </li>
-                <li id="status-rule-unheld">
-                  <strong>The owning session has stopped</strong><span>No session</span>
-                </li>
-                <li id="status-rule-working">
-                  <strong>Work is still active</strong><span>Claude working</span>
-                </li>
-                <li id="status-rule-stale">
-                  <strong>The agent takes input, but its start is stale</strong
-                  ><span>Turn ended · last checked in</span>
-                </li>
-                <li id="status-rule-awaits">
-                  <strong>The agent takes input</strong><span>Claude awaits</span>
-                </li>
-                <li id="status-rule-nudge">
-                  <strong>Input has stalled</strong
-                  ><span>Nudge Claude in terminal</span>
-                </li>
-                <li id="status-rule-away">
-                  <strong>Otherwise</strong><span>Claude away</span>
-                </li>
-              </ol>
+            <figure id="updates-decision" class="diagram-figure">
+              <lf-diagram id="updates-decision-diagram" data-height="914" parts="all">
+                <pre>
+flowchart TD
+  accTitle: Activity status by first matching condition
+  accDescr: Test each rule from top to bottom and stop at the first match. Otherwise continue to the next rule. An idle page is closed, a stopped owner has no session, active work is working, stale input is turn ended or last checked in, available input is awaits, stalled input needs a terminal nudge, otherwise the agent is away.
+  Idle["Page idle&lt;br/&gt;Status: Page closed"] --&gt;|otherwise| Owner["Owner stopped&lt;br/&gt;Status: No session"]
+  Owner --&gt;|otherwise| Work["Work active&lt;br/&gt;Status: Working"]
+  Work --&gt;|otherwise| Stale["Takes input, start stale&lt;br/&gt;Status: Turn ended /&lt;br/&gt;last checked in"]
+  Stale --&gt;|otherwise| Input["Takes input&lt;br/&gt;Status: Awaits"]
+  Input --&gt;|otherwise| Stalled["Input stalled&lt;br/&gt;Nudge in terminal"]
+  Stalled --&gt;|otherwise| Away["Status: Away"]
+</pre>
+              </lf-diagram>
               <figcaption>
-                Read from the top: the first matching condition determines the base
-                status. The table below shows its wording and the activity detail
+                The first matching condition determines the base status. The table below
+                shows its wording, including the agent’s name, and the activity detail
                 supplied by each harness.
               </figcaption>
             </figure>
@@ -5376,37 +5081,22 @@ EOF</code></pre>
               controls, sends updates, and keeps the page current. Its inputs meet in
               one read-only state.
             </p>
-            <figure
-              id="browser-flow"
-              class="runtime-flow"
-              aria-label="Three inputs combine into current state, which renderers draw"
-            >
-              <div class="runtime-inputs">
-                <div><strong>Document</strong><span>Authored initial values</span></div>
-                <span class="runtime-plus" aria-hidden="true">+</span>
-                <div>
-                  <strong>Server reading</strong><span>Latest recorded state</span>
-                </div>
-                <span class="runtime-plus" aria-hidden="true">+</span>
-                <div>
-                  <strong>Pending updates</strong
-                  ><span>This tab’s gestures, in order</span>
-                </div>
-              </div>
-              <div class="runtime-connector" aria-hidden="true">↓</div>
-              <div class="runtime-current">
-                <strong>Current state</strong
-                ><span>Widget values · threads · obligations · On lists</span>
-              </div>
-              <div class="runtime-connector" aria-hidden="true">↓</div>
-              <div class="runtime-output">
-                <strong>Renderers</strong
-                ><span>Widgets · threads · Leaf panel · page marks</span>
-              </div>
-              <figcaption id="browser-one-reading">
-                Each input change produces one state. Renderers read it through
-                selectors and repaint only when something they read changes; none
-                reconstructs state from another renderer’s output.
+            <figure id="browser-flow" class="diagram-figure">
+              <lf-diagram id="browser-flow-diagram" data-height="369" parts="all">
+                <pre>
+flowchart TD
+  accTitle: One state feeds every renderer
+  accDescr: Authored initial values, the server's reading and this tab's pending gestures combine into one current state. Renderers select the parts they read and draw the interface.
+  Inputs["Authored initial values&lt;br/&gt;Server’s recorded state&lt;br/&gt;This tab’s pending gestures"] --&gt; State["Current state&lt;br/&gt;Values · threads · obligations"]
+  State --&gt;|selectors| Renderers["Widgets · threads&lt;br/&gt;Leaf panel · page marks"]
+</pre>
+              </lf-diagram>
+              <figcaption>
+                <span id="browser-one-reading"
+                  >Each input change produces one state. Renderers read it through
+                  selectors and repaint only when something they read changes; none
+                  reconstructs state from another renderer’s output.</span
+                >
               </figcaption>
             </figure>
             <p id="browser-server-folds">
@@ -5424,24 +5114,32 @@ EOF</code></pre>
               <a href="#loading-stages">Page loading</a> distinguishes usable controls
               from the arrival of saved state.
             </p>
-            <ol class="runtime-sequence" id="runtime-start-sequence">
-              <li id="browser-startup-receipt">
-                <strong>Before first paint</strong>
-                <p>
-                  Small scripts reserve element geometry and panel space, capture early
-                  key presses, and provide a startup-failure notice. Late-arriving
-                  controls do not shift the page.
-                </p>
-              </li>
-              <li id="browser-startup-upgrade">
-                <strong>Initialize and upgrade</strong>
-                <p>
-                  Start the state request, restore control arrangements and load the
-                  registry. Capture each element’s authored values before its module
-                  changes the DOM, then import modules for the tags the page uses.
-                </p>
-              </li>
-            </ol>
+            <figure id="runtime-start-sequence" class="diagram-figure">
+              <lf-diagram
+                id="runtime-start-sequence-diagram"
+                data-height="440"
+                parts="all"
+              >
+                <pre>
+flowchart TD
+  accTitle: Prepare the page before controls arrive
+  accDescr: Before first paint reserve geometry and capture early keys. Then start the state request, load the registry, capture authored values and upgrade the page's elements.
+  Reserve["Before first paint&lt;br/&gt;Reserve space · capture keys"] --&gt; Prepare["Start state request&lt;br/&gt;Restore arrangements&lt;br/&gt;Load registry"]
+  Prepare --&gt; Capture["Capture authored values"]
+  Capture --&gt; Upgrade["Import widget modules&lt;br/&gt;Upgrade elements"]
+</pre>
+              </lf-diagram>
+              <figcaption>
+                <span id="browser-startup-receipt"
+                  >Early scripts reserve element and panel geometry and provide a
+                  startup-failure notice, so late controls do not shift the page.</span
+                >
+                <span id="browser-startup-upgrade"
+                  >Each element’s authored values are captured before its module changes
+                  the DOM.</span
+                >
+              </figcaption>
+            </figure>
           </section>
 
           <section id="loading">
@@ -5453,39 +5151,44 @@ EOF</code></pre>
                 availability is independent; <a href="#progress">Progress</a> describes
                 whether the agent has received or started work.
               </p>
-              <ol id="loading-stage-table" class="runtime-sequence">
-                <li id="loading-document">
-                  <strong>HTML and styles arrive</strong>
-                  <p>
-                    Text, links and scrolling work. The panel appears when JavaScript
-                    starts.
-                  </p>
-                </li>
-                <li id="loading-javascript">
-                  <strong>JavaScript initializes the interface</strong>
-                  <p>Widgets and comment controls are being prepared.</p>
-                  <span class="runtime-status">Panel: Loading…</span>
-                </li>
-                <li id="loading-comments">
-                  <strong>Comment controls are ready</strong>
-                  <p>
-                    New comments and drawings appear immediately and remain Sending
-                    until accepted. Choices that change saved state wait for the
-                    server’s current reading.
-                  </p>
-                  <span class="runtime-status">Panel: Loading saved state…</span>
-                </li>
-                <li id="loading-state">
-                  <strong>Saved state arrives</strong>
-                  <p>
-                    Saved threads and choices join the page, preserving new comments and
-                    drafts. Saved choices can now change.
-                  </p>
-                  <span class="runtime-status"
-                    >Panel: normal status; each comment keeps its delivery status</span
+              <figure id="loading-stage-table" class="diagram-figure">
+                <lf-diagram
+                  id="loading-stage-table-diagram"
+                  data-height="419"
+                  parts="all"
+                >
+                  <pre>
+flowchart TD
+  accTitle: The interface and saved state load together
+  accDescr: HTML and styles allow reading and scrolling. Widget initialization and the state request overlap. Comments are ready once the interface initializes; saved choices and threads are usable once both paths complete.
+  Document["HTML and styles&lt;br/&gt;Read and scroll"]
+  Document --&gt; Widgets["Initialize&lt;br/&gt;widgets"]
+  Document --&gt; Request["Request&lt;br/&gt;saved state"]
+  Widgets --&gt; Comments["Comments&lt;br/&gt;ready"]
+  Request --&gt; State["State&lt;br/&gt;received"]
+  Comments --&gt; Ready["Saved choices and threads"]
+  State --&gt; Ready
+</pre>
+                </lf-diagram>
+                <figcaption>
+                  <span id="loading-document"
+                    >The panel appears when JavaScript starts.</span
                   >
-                </li>
-              </ol>
+                  <span id="loading-javascript"
+                    >Interface initialization and the state request overlap.</span
+                  >
+                  <span id="loading-comments"
+                    >New comments and drawings appear immediately and remain Sending
+                    until accepted; choices that change saved state wait for the current
+                    reading.</span
+                  >
+                  <span id="loading-state"
+                    >Saved threads and choices join the page without losing new comments
+                    or drafts. The panel then shows normal status; each comment keeps
+                    its own delivery status.</span
+                  >
+                </figcaption>
+              </figure>
               <p id="loading-order">
                 A pending state request remains Loading saved state; a failed read shows
                 Offline. <a href="#browser-offline">Connection failures</a> describes
@@ -5504,23 +5207,27 @@ EOF</code></pre>
               >). Sent words leave the input but remain in the draft store until
               accepted.
             </p>
-            <figure
-              id="runtime-delivery-flow"
-              class="runtime-flow"
-              aria-label="An accepted gesture is drawn locally, sent to the server, then replaced by the presented server state"
-            >
-              <ol class="runtime-delivery">
-                <li><strong>Gesture</strong><span>Draw its local result</span></li>
-                <li><strong>Send in order</strong><code>POST /api/event</code></li>
-                <li>
-                  <strong>Server accepts</strong
-                  ><span>Response: record + current state</span>
-                </li>
-                <li>
-                  <strong>Present state</strong
-                  ><span>Then release the pending entry</span>
-                </li>
-              </ol>
+            <figure id="runtime-delivery-flow" class="diagram-figure">
+              <lf-diagram
+                id="runtime-delivery-flow-diagram"
+                data-height="512"
+                parts="all"
+              >
+                <pre>
+flowchart TD
+  accTitle: A gesture reaches the shared record
+  accDescr: Draw a gesture's local result immediately, send it in order, receive the accepted record and state, then release the pending entry only after that state is presented.
+  Gesture["Gesture&lt;br/&gt;Draw its local result"] --&gt; Send["Send in order&lt;br/&gt;POST /api/event"]
+  Send --&gt; Accepted["Server accepts&lt;br/&gt;Record + current state"]
+  Accepted --&gt; Presented["Present server state"]
+  Presented --&gt; Release["Release pending entry"]
+</pre>
+              </lf-diagram>
+              <figcaption>
+                The local result stays visible until every renderer showing it has drawn
+                the server’s version. The table below covers connection failures and
+                refusals.
+              </figcaption>
             </figure>
             <table class="runtime-table" id="runtime-delivery-outcomes">
               <thead>
@@ -5564,19 +5271,23 @@ EOF</code></pre>
 
           <section id="browser-freshness">
             <h2>Freshness checks and state reads</h2>
-            <figure
-              class="runtime-flow"
-              id="runtime-freshness-flow"
-              aria-label="A freshness check triggers a state read only when its token changes"
-            >
-              <div class="runtime-freshness">
-                <div><code>GET /api/news</code><span>Check freshness</span></div>
-                <div class="runtime-conditional">
-                  Token changed<br /><span aria-hidden="true">↓</span>
-                </div>
-                <div><code>GET /api/state</code><span>Read current state</span></div>
-              </div>
-              <figcaption>Finite requests; no long-lived connection.</figcaption>
+            <figure id="runtime-freshness-flow" class="diagram-figure">
+              <lf-diagram
+                id="runtime-freshness-flow-diagram"
+                data-height="234"
+                parts="all"
+              >
+                <pre>
+flowchart TD
+  accTitle: A changed freshness token triggers a state read
+  accDescr: A finite news request checks freshness. A changed token triggers a state request; an unchanged token keeps the current reading without another state request.
+  News["Check freshness&lt;br/&gt;GET /api/news"] --&gt;|token changed| Read["Read current state&lt;br/&gt;GET /api/state"]
+</pre>
+              </lf-diagram>
+              <figcaption>
+                An unchanged token keeps the current reading. These are finite requests,
+                with no long-lived connection.
+              </figcaption>
             </figure>
             <table class="runtime-table" id="runtime-read-policy">
               <thead>
@@ -5628,16 +5339,20 @@ EOF</code></pre>
               reports stay outside state, so a slow or failed paint cannot change the
               facts.
             </p>
-            <figure id="browser-drawing-order" class="runtime-flow">
-              <ol class="runtime-delivery runtime-paint-order">
-                <li><strong>Page marks</strong><span>May add text</span></li>
-                <li>
-                  <strong>Threads</strong><span>Locate passages in that text</span>
-                </li>
-                <li>
-                  <strong>Obligations</strong><span>May live inside those threads</span>
-                </li>
-              </ol>
+            <figure id="browser-drawing-order" class="diagram-figure">
+              <lf-diagram
+                id="browser-drawing-order-diagram"
+                data-height="326"
+                parts="all"
+              >
+                <pre>
+flowchart TD
+  accTitle: Presentation follows the DOM it needs
+  accDescr: Page marks may add text; threads locate passages in that text; obligations may live inside those threads. These presentation dependencies establish the drawing order.
+  Marks["Page marks&lt;br/&gt;May add text"] --&gt; Threads["Threads&lt;br/&gt;Locate passages in that text"]
+  Threads --&gt; Obligations["Obligations&lt;br/&gt;May live inside those threads"]
+</pre>
+              </lf-diagram>
               <figcaption>
                 Presentation dependencies set this order once. Code publishes a change;
                 it does not schedule individual renderers.
@@ -5725,23 +5440,27 @@ EOF</code></pre>
                 modules and inline module scripts. Each install pairs the revision with
                 its corresponding state.
               </p>
-              <div class="runtime-branches" id="runtime-install-paths">
-                <div>
-                  <strong>Identity unchanged</strong>
-                  <h3>Patch the document</h3>
-                  <p>
-                    Keep unchanged nodes; changed elements recapture authored values.
-                    Prose, styles and media can update this way.
-                  </p>
-                </div>
-                <div>
-                  <strong>Identity changed</strong>
-                  <h3>Load a fresh document</h3>
-                  <p>
-                    The new executable graph starts with the new document and its state.
-                  </p>
-                </div>
-              </div>
+              <figure id="runtime-install-paths" class="diagram-figure">
+                <lf-diagram
+                  id="runtime-install-paths-diagram"
+                  data-height="204"
+                  parts="all"
+                >
+                  <pre>
+flowchart LR
+  accTitle: Executable identity chooses the revision path
+  accDescr: A revision with the same executable identity patches the document, preserving unchanged nodes. A changed identity starts a fresh document with the new executable graph and current state.
+  Same["Same&lt;br/&gt;identity"] --&gt; Patch["Patch the&lt;br/&gt;document"]
+  Changed["Changed&lt;br/&gt;identity"] --&gt; Fresh["Load a fresh&lt;br/&gt;document"]
+</pre>
+                </lf-diagram>
+                <figcaption>
+                  Prose, styles and media can update through a patch, keeping unchanged
+                  nodes. Changed elements recapture authored values. A fresh document
+                  starts the new executable graph with its corresponding state. Both
+                  paths preserve the browser-owned state described below.
+                </figcaption>
+              </figure>
             </div>
             <details id="runtime-revision-continuity">
               <summary>What both paths preserve</summary>

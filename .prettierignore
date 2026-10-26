@@ -6,7 +6,7 @@ packages/**/vendor/
 examples/corpus.html
 examples/corpus.page/registry.json
 # Compiler paths keep the browser build's generated JSON layout.
-browser/framework/tsconfig.paths.json
+browser/types/tsconfig.paths.json
 # Package locks, Tend workflows, recorded test output and the protocol baseline
 # keep their producers' bytes.
 **/pnpm-lock.yaml

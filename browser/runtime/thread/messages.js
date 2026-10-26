@@ -13,7 +13,7 @@
    admission and later descriptor paints never replay the cue.
    The fragment is captured inertly before its first upgrade; presentation waits for
    preparation before capturing typed authored state. */
-import { html, keyed, render, nothing } from "/vendor/browser-runtime.js";
+import { html, keyed, render, nothing } from "/runtime/framework.js";
 import { generatedElement, offered } from "../widget-elements.js";
 import {
   loadMarkdown,

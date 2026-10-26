@@ -6,8 +6,8 @@
  * a runtime module names them, so a page loads one Lit, and each runtime module a
  * vendor module imports stays an entry at its own URL. The kernel also leaves native
  * package widgets, whose absolute URLs resolve through the revision's import map.
- * It compiles in the framework `build/browser/build.mjs` commits as native modules,
- * since only runtime modules import it. The website publishes each revision with the
+ * It compiles in the framework's signals (`vendor/signals-core.js`), which only the
+ * runtime imports, with the framework. The website publishes each revision with the
  * runtime a prepared installation serves beside its captured layer, and compiles that
  * kernel again with the widgets while preserving authored module locations. Neither
  * build runs on a user's machine.
@@ -42,7 +42,7 @@ import { fileURLToPath } from "node:url";
 import { build } from "rolldown";
 import { parse } from "acorn";
 
-import { frameworkPaths, inFramework } from "./browser/build.mjs";
+import { signalsPath } from "./browser/build.mjs";
 
 export const runtimeEntries = [
   "leaf.js",
@@ -68,12 +68,13 @@ function layerPath(path, assetRoot) {
 
 /** Whether a layer module is served as committed rather than compiled into the kernel.
  *
- * Page modules and vendor modules always are; installations also keep package widgets
- * native. The framework is not: the kernel absorbs it with the runtime it imports.
+ * Page modules and vendor modules always are, but for the framework's signals, which
+ * the kernel absorbs with the framework; installations also keep package widgets
+ * native.
  */
 function native(local, assetRoot) {
   if (local.startsWith("page/")) return true;
-  if (local.startsWith("vendor/")) return !inFramework(local);
+  if (local.startsWith("vendor/")) return local !== signalsPath;
   return !assetRoot && local.startsWith("widgets/");
 }
 
@@ -216,8 +217,7 @@ export async function bundleRuntime(layerRoot, entries, outputRoot, assetRoot) {
     await rm(destination, { force: true });
     await writeFile(destination, file.code);
   }
-  for (const path of frameworkPaths)
-    await rm(join(outputRoot, path), { force: true, recursive: true });
+  await rm(join(outputRoot, signalsPath), { force: true });
   const graph = result.nativeImports;
   for (const output of result.output)
     graph.set(

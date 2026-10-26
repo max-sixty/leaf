@@ -160,7 +160,7 @@ import {
   render,
   repeat,
   signal,
-} from "/vendor/browser-runtime.js";
+} from "/runtime/framework.js";
 import { el, reveal } from "./widget-elements.js";
 import { iconElement, iconTemplate } from "./icons.js";
 import { copyControl } from "./copy-control.js";
@@ -178,6 +178,7 @@ import { readThreads } from "./thread/state.js";
 import { isNews, threadCounts } from "./thread/model.js";
 import { LeafElement } from "./leaf-element.js";
 import { afterScript } from "./rendering.js";
+import { claimReleaseClick } from "./pointer.js";
 import {
   threadAttention,
   todoLabel,
@@ -869,7 +870,9 @@ export function createFloatingPanel({
   // comment takes it. The comment opens as the press completes, since the press is
   // still one away from whatever comment box stands open on the page, which goes as it
   // completes (composing/surface.js, `standDown`). WebKit does not deliver a click
-  // after this cancelled touch pointerdown, so the release owns the handoff. A Tab
+  // after this cancelled touch pointerdown, so the release owns the handoff, and claims
+  // the click other engines deliver after it, which would land on the comment box the
+  // release opened under the pointer, as on its Other responses. A Tab
   // through the row, or the runtime putting the caret there, writes on the page.
   let pressedWords = null;
   const quotedWords = () =>
@@ -892,7 +895,9 @@ export function createFloatingPanel({
   field.addEventListener("pointerup", (event) => {
     const words = pressedWords;
     pressedWords = null;
-    if (words && event.composedPath().includes(general?.input)) words.comment();
+    if (!words || !event.composedPath().includes(general?.input)) return;
+    claimReleaseClick();
+    words.comment();
   });
   field.addEventListener("pointercancel", () => {
     pressedWords = null;
@@ -2525,6 +2530,7 @@ export function createFloatingPanel({
   // The item standing open, by its key, and the height its card first stood at, which
   // it keeps while open, so an answer that shortens it moves nothing below.
   let openItem = null;
+  const carrying = new Map(); // what each card in the open On me view carries (`also`)
   const seatHeights = new Map();
   // Whether the plan's steps stand over On <agent>'s list.
   let planShown = false;
@@ -2819,7 +2825,7 @@ export function createFloatingPanel({
   function onItemCard(
     item,
     list,
-    { card = false, says = null, group = null, leads = true } = {},
+    { card = false, says = null, group = null, leads = true, also = item.also } = {},
   ) {
     const record = carriesObligation(item) ? item.obligation : null;
     const thread = item.thread ? threadByKey(item.thread) : null;
@@ -2846,6 +2852,21 @@ export function createFloatingPanel({
         ? messageReading(asking, { reactions: [], workflows: [] }).body.plainText
         : record?.prompt?.text;
     const prompt = said && said.trim() !== title.trim() ? said : "";
+    // The other questions the user answers at this card's place (`also`): further
+    // messages its thread's reply answers, and on an obligation's card those asked in a
+    // thread about it, so an answer about a decision rides on the decision. Each reads
+    // as its message, as a question asked in words does above.
+    const carried = (also ?? []).flatMap((id) => {
+      const other = readObligations().all.find((candidate) => candidate.id === id);
+      const where = other?.thread ? threadByKey(other.thread) : null;
+      const asked = where?.msgs.find((candidate) => candidate.id === other.message);
+      return asked ? [{ record: other, thread: where, message: asked }] : [];
+    });
+    const conversation = thread ?? carried[0]?.thread ?? null;
+    // A carried question still waiting once the card's own is answered.
+    const waiting = carried.find(
+      ({ record: other }) => other.status === "open" && other.next_actor === "user",
+    );
     // Where the thread's name stands for the item, it reads as Threads names the thread
     // (`threadHeading`).
     const heading =
@@ -2856,11 +2877,11 @@ export function createFloatingPanel({
         ? obligationView.choicesOf(record)
         : null;
     const gesture = answered ? answerGesture(record) : null;
-    const discuss = thread
+    const discuss = conversation
       ? html`<button
           type="button"
           class="lf-fp-face lf-fp-quiet"
-          @click=${() => open({ view: "thread", thread: thread.key })}
+          @click=${() => open({ view: "thread", thread: conversation.key })}
         >
           Discuss
         </button>`
@@ -2908,6 +2929,16 @@ export function createFloatingPanel({
                 @click=${() => withdraw(gesture)}
               >
                 Undo
+              </button>`
+            : nothing
+        }${
+          waiting
+            ? html`<button
+                type="button"
+                class="lf-fp-face lf-fp-answer"
+                @click=${() => open({ view: "thread", thread: waiting.thread.key })}
+              >
+                Reply
               </button>`
             : nothing
         }`;
@@ -2983,7 +3014,17 @@ export function createFloatingPanel({
               ? html`<h3 class="lf-fp-on-title">${heading}</h3>
                   <p class="lf-fp-prompt">${prompt}</p>`
               : html`<p class="lf-fp-prompt">${heading}</p>`
-        }
+        }${carried.map(({ thread: where, message: asked }) =>
+          presentation?.primary !== false
+            ? html`<div
+                class="lf-fp-asked lf-fp-outlet"
+                data-thread=${where.key}
+                data-message=${asked.key}
+              ></div>`
+            : html`<p class="lf-fp-prompt">
+                ${messageReading(asked, { reactions: [], workflows: [] }).body.plainText}
+              </p>`,
+        )}
         <div class="lf-fp-answers">
           ${answers}${discussHere ? discuss : nothing}${show}
         </div>
@@ -3136,16 +3177,43 @@ export function createFloatingPanel({
     // since. They stand in the walk's groups and order, one joining included, so `m`
     // reaches them down the list; one joining above the card being read moves nothing
     // on screen, since the view's scroll anchoring holds that card where it was.
+    // A card carries the records it carried when the view opened or since (`also`)
+    // until the view closes, so where answering a decision leaves a thread's answer
+    // about it on a row of its own, the answer stays on the card the user pressed,
+    // which offers its reply, rather than moving to a card of its own.
+    // A record stays on the card that first carried it, though a later reading moves it
+    // to another, as a thread about two decisions moves to the second once the first is
+    // answered.
+    if (seated === null) carrying.clear();
+    for (const item of lists.you) {
+      const key = queueItemKey(item);
+      const elsewhere = new Set(
+        [...carrying].flatMap(([other, ids]) => (other === key ? [] : ids)),
+      );
+      carrying.set(key, [
+        ...new Set([
+          ...(carrying.get(key) ?? []),
+          ...(item.also ?? []).filter((id) => !elsewhere.has(id)),
+        ]),
+      ]);
+    }
+    const carried = new Set((seated ?? []).flatMap((key) => carrying.get(key) ?? []));
     seated = [
       ...(seated ?? []).filter((key) => byKey.has(key)),
-      ...current.filter((key) => !(seated ?? []).includes(key)),
+      ...current.filter(
+        (key) => !(seated ?? []).includes(key) && !carried.has(byKey.get(key).id),
+      ),
     ];
     const listOf = (item) =>
       lists.you.includes(item) ? "you" : lists.agent.includes(item) ? "agent" : "done";
     const items = seated.map((key) => byKey.get(key));
     const grouping = onMe.grouping();
     const says = grouping === "plan" ? null : grouping;
-    const finished = lists.done.filter((item) => !seated.includes(queueItemKey(item)));
+    // A record a card carries is drawn on that card, ended or not, and not in Done too.
+    const held = new Set(seated.flatMap((key) => carrying.get(key) ?? []));
+    const finished = lists.done.filter(
+      (item) => !seated.includes(queueItemKey(item)) && !held.has(item.id),
+    );
     // A group counts what still waits in it; the cards answered here keep their seats,
     // so a group keeps its heading, or its want of one, while the view stands. Only a
     // group of two or more cards has a heading: a card alone in its group stands in its
@@ -3154,7 +3222,7 @@ export function createFloatingPanel({
     // over every item, as the corpus's parts each holding one item gave, spent the room
     // the items need and grouped nothing.
     const waits = (item) => lists.you.includes(item);
-    const groups = onMe.groups(items).map((group) => ({
+    const groups = onMe.groups(items, grouping, held).map((group) => ({
       ...group,
       headed: group.items.length > 1,
       count: group.items.filter(waits).length,
@@ -3178,6 +3246,7 @@ export function createFloatingPanel({
                 says: group.headed ? says : null,
                 group: group.headed || grouping === "kind" ? null : group.title,
                 leads: group.leads.has(item),
+                also: carrying.get(queueItemKey(item)),
               }),
       ),
     )}`;

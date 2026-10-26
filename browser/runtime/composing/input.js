@@ -67,7 +67,7 @@ import {
   render as renderHint,
   effect,
   untracked,
-} from "/vendor/browser-runtime.js";
+} from "/runtime/framework.js";
 import "./text-field.js";
 import { followBoxGrowth, readBoxPlace } from "../thread/reply-landing.js";
 import { focusDestination, focused } from "../focus.js";
@@ -619,6 +619,8 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     let visibilityQueued = false;
     const paintSubmitVisibility = () => {
       visibilityQueued = false;
+      // Whether the box holds a draft, which a control in its corner may read.
+      keeps(field, "data-words", hasContent(draftValue()) ? "" : null);
       if (mic) {
         const shown = dictationPhase() !== "idle" || !hasContent(draftValue());
         keepsHidden(mic, !shown);

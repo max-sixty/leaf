@@ -97,12 +97,13 @@ import { answeredInWords, readObligations } from "./obligations/model.js";
 import { obligationsIn, obligationPlace, subjectPlace } from "./obligations/place.js";
 import { readPlan, readQueues, queueItemKey } from "./queue-api.js";
 import { carriesObligation, itemNoun } from "./queues.js";
+import { heldThread } from "./thread/focus.js";
 import { drawnThreadId } from "./thread/selectors.js";
 import { partOver } from "./thread/placement.js";
 import { addressableLabel } from "./addressable-names.js";
 import { userChoice } from "./storage.js";
 import { agentName } from "./semantic-state.js";
-import { effect, untracked } from "/vendor/browser-runtime.js";
+import { effect, untracked } from "/runtime/framework.js";
 import { retainUserIntent } from "./user-intent.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";
 
@@ -243,10 +244,16 @@ export function createQueueWalk({
   // item it holds comes in page order. A group's items stand by their steps' order in
   // a goal, else in page order. Items arrived at in one place, such as a thread's
   // question and a to-do on that thread, are one stop of the walk, so they stand
-  // together in the first of their groups.
-  function onMeGroups(items, by = grouping()) {
+  // together in the first of their groups. A list leaves out of that order what it
+  // draws on another item's card (`carried`, record ids), so a question a decision's
+  // card carries, standing on a row of its own once the decision is answered, moves no
+  // group while the card holds it.
+  function onMeGroups(items, by = grouping(), carried = new Set()) {
     const keyed = new Map(
-      [...heldOnMe(), ...items].map((item) => [queueItemKey(item), item]),
+      [...heldOnMe().filter((item) => !carried.has(item.id)), ...items].map((item) => [
+        queueItemKey(item),
+        item,
+      ]),
     );
     const basis = inWalkOrder([...keyed.values()]);
     const goals = by === "plan" ? (readPlan()?.steps ?? []) : [];
@@ -353,19 +360,29 @@ export function createQueueWalk({
   // list's obligations holding their place, as `obligationHolding` reads obligations, so
   // a to-do the user ended leaves them on the one its subject stands in, or the
   // innermost widget an action was handed back on, in page order the last that holds
-  // them. Being in
+  // them; failing those, the thread drawn with their place (`threadHere`). A thread
+  // drawn beside an obligation, such as the card a thread about it opens, is one place
+  // with it, so standing at the obligation is being on the obligation, and a thread stop
+  // of its own is still the next one along rather than the one they are on. Being in
   // a thread that holds an open obligation is not being on that obligation. `origin` names
   // the user's place unless a walk supplies its own starting point. A reading
   // in the viewport can start a walk but does not select a task to finish or count.
   function currentLocationStop(list, origin = currentLocationOrigin()) {
-    const held = threadHere();
-    const thread = drawnThreadId(held);
-    if (thread) {
-      const stop = list.find(
-        (candidate) => candidate.kind === "thread" && candidate.id === thread,
-      );
-      if (stop) return stop;
-    }
+    const threadStop = (thread) =>
+      (thread &&
+        list.find(
+          (candidate) => candidate.kind === "thread" && candidate.id === thread,
+        )) ||
+      null;
+    return (
+      threadStop(drawnThreadId(heldThread())) ??
+      placeStop(list, origin) ??
+      threadStop(drawnThreadId(threadHere()))
+    );
+  }
+
+  // The obligation or subject stop holding the user's place, if any.
+  function placeStop(list, origin) {
     if (origin?.kind !== "current-location") return null;
     const { place: here } = origin;
     if (!here) return null;
@@ -479,7 +496,7 @@ export function createQueueWalk({
   const doneTodo = () => doneAt(currentLocationStop(stops()));
 
   // The user's Done on a to-do on them: their `todo_end`, through the one append door.
-  // The to-do leaves On me in the turn they press it (`application.ts`).
+  // The to-do leaves On me in the turn they press it (`framework/application.js`).
   function endTodo(id) {
     return actions.done(queueItemKey({ kind: "todo", id }));
   }

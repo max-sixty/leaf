@@ -37,7 +37,7 @@
      interpolation, it goes in the same frame. */
 import { setChildren } from "../dom-children.js";
 import { focusDestination, focused } from "../focus.js";
-import { html, render, nothing } from "/vendor/browser-runtime.js";
+import { html, render, nothing } from "/runtime/framework.js";
 import { MessageView } from "./messages.js";
 import { keeps, keepsHidden } from "../keeps.js";
 import { renderMarkdown } from "../markdown.js";
@@ -159,9 +159,12 @@ export class Transcript {
     return this.#messages.get(key)?.node ?? null;
   }
 
-  // The folds of messages leaving, while they play (`#folding`).
-  get folds() {
-    return [...this.#folding.values()].flatMap(({ played }) => played ?? []);
+  // The drawn messages `model` no longer holds, which leave as it is presented.
+  leaving(model) {
+    const wanted = new Set(model.messages.map(({ key }) => key));
+    return [...this.#messages].flatMap(([key, { node }]) =>
+      wanted.has(key) || !node.isConnected ? [] : [node],
+    );
   }
 
   // The checkpoint a summary stands in.

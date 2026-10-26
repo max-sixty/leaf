@@ -17,6 +17,7 @@ from render_harness import (
     LONG_PAGE,
     consume_browser_errors,
     example_media,
+    expect_panel_says,
     holding,
     http_error_console,
     leaf_page,
@@ -1600,4 +1601,5 @@ def test_a_refused_rewrite_puts_the_resolved_thread_back(browser, serve):
     expect(settle).to_have_accessible_name("Reopen")
     expect(thread).to_be_visible()
     expect(message.locator(".lf-msg-kept")).to_have_text("unsaved edit")
+    expect_panel_says(page, "Couldn't save edit — Please retry.")
     page.unroute_all(behavior="wait")

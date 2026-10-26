@@ -617,6 +617,7 @@ def test_an_acknowledgement_neither_waits_for_nor_holds_up_a_gesture(browser, se
     )
     page.unroute("**/api/event")
     held[1].abort()
+    round_trip(page)
     told(page)
     _expect_news(page, False)
     assert _read_events(serve.page_dir) == []

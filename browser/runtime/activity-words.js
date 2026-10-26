@@ -7,7 +7,7 @@
 import { JUST_NOW, ago } from "./presence.js";
 import { itemNoun } from "./queues.js";
 
-/** @type {Record<import("../framework/contract.js").ServedActivity["kind"], string>} */
+/** @type {Record<import("../types/contract.js").ServedActivity["kind"], string>} */
 const TONE = {
   working: "working",
   listening: "listening",
@@ -17,7 +17,7 @@ const TONE = {
   closed: "",
 };
 // Every step the server may report (`ServedWorkKind`) has its words here.
-/** @type {Record<import("../framework/contract.js").ServedWorkKind, string>} */
+/** @type {Record<import("../types/contract.js").ServedWorkKind, string>} */
 const WORK_WORDS = {
   working: "working",
   thinking: "thinking",

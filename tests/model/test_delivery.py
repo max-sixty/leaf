@@ -1144,3 +1144,63 @@ def test_every_delivery_an_eval_pastes_is_the_envelope_leaf_writes():
             with_leaf_resources(delivery_model.DELIVERY.schema), envelope
         )
         assert error is None, f"{case}: {error}"
+
+
+def test_a_pick_carries_the_questions_still_waiting_about_its_decision(page_dir):
+    """An action on a decision carries, in `waiting`, the agent's questions that still
+    wait on the user in a thread about that decision, so the agent can judge which the
+    pick settles; a question in a thread elsewhere stays out."""
+    source = PAGE.replace(
+        "</section>",
+        '</section><section id="ship-ask"><h2>Ship on Friday?</h2>'
+        '<lf-options id="permit" choose><lf-option id="publish">Publish</lf-option>'
+        '<lf-option id="hold">Keep it private</lf-option></lf-options></section>'
+        '<p id="aside">An aside.</p>',
+    )
+    (page_dir / "index.html").write_text(source)
+    publish(page_dir)
+
+    def asked(anchor):
+        root = append_carried_log_record(
+            page_dir,
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": "Show me.",
+                "anchor": {"section": anchor},
+            },
+        )
+        return append_carried_log_record(
+            page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "agent": "Claude",
+                "revision": 1,
+                "parent": root["id"],
+                "responds": root["id"],
+                "text": "Try it before choosing.",
+                "obligation": True,
+            },
+        )["id"]
+
+    about = asked("ship-ask")
+    asked("aside")
+    pick = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "permit",
+            "action": "choose",
+            "detail": {"value": ["publish"]},
+        },
+    )
+    [batch] = freeze_events(page_dir, [pick])["batches"]
+    [event] = batch["events"]
+    assert event["waiting"] == [
+        {"id": f"message:{about}", "text": "Try it before choosing."}
+    ]
+    assert any("`waiting`" in batch["handling"][clause] for clause in event["handling"])

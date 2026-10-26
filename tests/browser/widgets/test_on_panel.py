@@ -917,4 +917,3 @@ def test_a_carried_answer_the_agent_ends_stays_on_its_card_not_in_done(browser, 
     told(page)
     expect(view.locator(".lf-fp-asked")).to_have_count(1)
     expect(carrier.locator(".lf-fp-asked")).to_contain_text("Previews added")
-

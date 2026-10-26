@@ -2,13 +2,20 @@
 under zoom and short windows, and the chrome's rules staying apart from page and package
 styles."""
 
+import io
 import json
 import re
 
 import pytest
 from interact_support import append_carried_log_record
+from PIL import Image
 from playwright.sync_api import expect
-from render_cases_interaction import PANEL_PAGE, live_url, panel_comment
+from render_cases_interaction import (
+    PANEL_PAGE,
+    THREAD_DIFF_PAGE,
+    live_url,
+    panel_comment,
+)
 from render_harness import (
     LONG_PAGE,
     displayed,
@@ -110,6 +117,49 @@ def test_thread_actions_share_consistently_sized_message_headers(
             geometry
         )
         assert geometry["bodyLeft"] == geometry["headLeft"], geometry
+
+
+# Where a message's words may run to, and the thread's inset before its words.
+WORDS_END = """message => {
+  const words = message.querySelector('.lf-msg-text');
+  const end = words.getBoundingClientRect().right
+    - parseFloat(getComputedStyle(words).paddingInlineEnd);
+  const inset = parseFloat(
+    getComputedStyle(message).getPropertyValue('--lf-thread-text-inset'));
+  return {end, inset};
+}"""
+
+
+@pytest.mark.parametrize("surface", ["panel", "seat"])
+def test_the_user_s_words_end_where_the_agent_s_do(browser, serve, surface):
+    """The user's own message runs to the thread's column, as the agent's under it
+    does, keeping at its end only the inset its words start with, where its rewrite's
+    frame stands. In the panel the user's lines stopped 86px short of the agent's, and
+    41px in a thread on the page, the room Send takes in the field they were typed in,
+    so every message the user sent wrapped narrower than the reply under it."""
+    words = (
+        "Check that these balance robust interfaces with code simplicity, deferring "
+        "to standards and the browser wherever they can, and keeping the code simple."
+    )
+    url = serve(PANEL_PAGE if surface == "panel" else THREAD_DIFF_PAGE)
+    root = panel_comment(
+        serve.page_dir, words, None if surface == "panel" else {"section": "cd-q"}
+    )
+    append_agent_reply(serve.page_dir, root, words)
+    page = open_page(browser, url)
+    resized(page, 1280, 900)
+    if surface == "panel":
+        thread = open_panel_thread(page, root)
+    else:
+        thread = page.locator("#cd-q .lf-page-thread").first
+    user, agent = thread.locator(".lf-msg.user"), thread.locator(".lf-msg.agent")
+    expect(agent).to_contain_text("Check that these")
+    rendered(page)
+    mine, theirs = user.evaluate(WORDS_END), agent.evaluate(WORDS_END)
+    assert theirs["end"] - mine["end"] == pytest.approx(mine["inset"], abs=0.5), (
+        mine,
+        theirs,
+    )
 
 
 def test_opening_message_reactions_does_not_reflow_the_thread(browser, serve):
@@ -679,9 +729,15 @@ CARD_TOP_AUTHORS = """transcript => {
   };
   const named = messages.find(shown);
   const head = named?.querySelector(':scope > .lf-msg-head').getBoundingClientRect();
-  const under = document.elementFromPoint(x, (head?.bottom ?? box.top) + 6)
+  const sampleY = (head?.bottom ?? box.top) + 6;
+  const under = document.elementFromPoint(x, sampleY)
     ?.closest('.lf-msg');
+  const next = messages[messages.indexOf(named) + 1];
+  const endGap = named && next &&
+    named.getBoundingClientRect().bottom <= head.bottom + 0.5 &&
+    next.getBoundingClientRect().top > sampleY && shown(next);
   return {named: messages.indexOf(named), under: messages.indexOf(under),
+          endGap,
           row: head ? head.top - box.top < head.height : false,
           scrolled: transcript.scrollTop > 0};
 }"""
@@ -724,7 +780,11 @@ def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser,
     assert latest["y"] + latest["height"] <= shown["y"] + shown["height"] + 1
     landed = transcript.evaluate(CARD_TOP_AUTHORS)
     assert landed["scrolled"] and landed["named"] > 0 and landed["row"], landed
-    assert landed["under"] == landed["named"], landed
+    # At the scroll limit a sliver of the previous author can precede a clear gap,
+    # with the next turn's own visible name below it (the known edge from #1763).
+    assert landed["under"] == landed["named"] or (
+        landed["under"] == -1 and landed["endGap"]
+    ), landed
     assert not transcript.evaluate("box => box.hasAttribute('data-lf-more-below')")
 
     def continuation():
@@ -736,7 +796,8 @@ def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser,
                 paint: style.backgroundImage,
                 heads: [...box.querySelectorAll('.lf-msg-head')]
                   .map(head => head.getBoundingClientRect().toJSON()),
-                top: box.getBoundingClientRect().top + box.clientTop};
+                top: box.getBoundingClientRect().top + box.clientTop
+                  + parseFloat(getComputedStyle(box).getPropertyValue('--lf-top'))};
             }"""
         )
         cdp = page.context.new_cdp_session(page)
@@ -816,6 +877,89 @@ def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser,
             assert cue["heads"][0]["bottom"] <= cue["top"], cue
             assert cue["fade_top"] == pytest.approx(cue["top"], abs=1), cue
         assert cue["fade_bottom"] <= cue["heads"][1]["top"] + 1, cue
+
+
+@pytest.mark.parametrize("forced", [False, True])
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_words_scrolled_past_a_card_head_show_nowhere_above_it(
+    engine, forced, request, serve
+):
+    """Wherever the card's transcript is scrolled, its stuck head stands on the line
+    of the card's actions, and the focus-ring room above that line shows no words,
+    in forced colours too, which drop shadows. Firefox stuck a head at its subgrid
+    scroller's edge, past the room, so the name stood 6px above the actions and words
+    showed over Resolve; in Chromium they showed above the name."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(
+        serve.page_dir, "Opening turn. " + LANDING_WORDS, {"section": "how-store"}
+    )
+    for turn in range(1, 8):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent" if turn % 2 else "user",
+                "parent": root,
+                "text": f"Turn {turn}. " + LANDING_WORDS,
+            },
+        )
+    page = open_page(request.getfixturevalue(engine), url)
+    resized(page, 1200, 600)
+    if forced:
+        page.emulate_media(forced_colors="active")
+    page.locator('[data-lf-margin-for="how-store"] .lf-margin-marker').click()
+    transcript = page.locator(
+        f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]'
+        " > .lf-thread-transcript"
+    )
+    expect(transcript).to_be_visible()
+    rendered(page)
+    travel = transcript.evaluate("box => box.scrollHeight - box.clientHeight")
+    # Through the first messages, including where one pushes the last one's head off.
+    assert travel > 300, travel
+    for scroll in range(0, 300, 7):
+        transcript.evaluate("(box, y) => { box.scrollTop = y; }", scroll)
+        rendered(page)
+        reading = transcript.evaluate(
+            """box => {
+              const controls = box.parentElement
+                .querySelector(':scope > .lf-margin-thread-controls');
+              const edge = box.getBoundingClientRect().top + box.clientTop;
+              const head = [...box.querySelectorAll('.lf-msg-head')]
+                .find(head => head.getBoundingClientRect().bottom > edge + 1);
+              const at = head.getBoundingClientRect();
+              const card = box.parentElement.getBoundingClientRect();
+              return {edge, head: at.top, left: card.left, right: card.right,
+                pushed: at.bottom >= head.parentElement.getBoundingClientRect().bottom - 1,
+                line: controls.getBoundingClientRect().top
+                  + parseFloat(getComputedStyle(controls).paddingTop),
+                // The focus-ring room, which the transcript's landings also keep.
+                ring: parseFloat(getComputedStyle(box).scrollPaddingTop)};
+            }"""
+        )
+        # A head the next message pushes off rises with it; every other stands on the
+        # actions' line or below it.
+        assert reading["pushed"] or reading["head"] >= reading["line"] - 0.5, (
+            scroll,
+            reading,
+        )
+        assert reading["line"] - reading["edge"] >= reading["ring"], reading
+        room = min(reading["line"], reading["head"]) - reading["edge"]
+        if room < 1:
+            continue
+        band = Image.open(
+            io.BytesIO(
+                page.screenshot(
+                    clip={
+                        "x": reading["left"],
+                        "y": reading["edge"],
+                        "width": reading["right"] - reading["left"],
+                        "height": room,
+                    }
+                )
+            )
+        ).convert("L")
+        assert band.getextrema()[1] - band.getextrema()[0] < 40, (scroll, reading)
 
 
 @pytest.mark.parametrize(("width", "touch"), [(1200, False), (311, True)])

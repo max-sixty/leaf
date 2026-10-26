@@ -29,7 +29,7 @@
    The first unread destination belongs to this reading too. Its Go-to route (`g u`)
    and Next unread at the head of the floating panel's view of a thread, which goes to
    that thread's first, share the same exact-message arrival. Ordinary `u` remains
-   paired with `d` in whichever reading region the user stands in. */
+   paired with `d` in whichever reading region the user is in. */
 import { nextRender, sizeObserver } from "../rendering.js";
 import { signal } from "/vendor/browser-runtime.js";
 import {
@@ -178,6 +178,7 @@ export function createReadTracking({ markRead, openThread }) {
     keys: ["u"],
     title: "first unread",
     touch: false,
+    travels: true,
     when: () => actionableUnread().length > 0,
     run: () => void firstUnread(),
   };

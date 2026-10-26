@@ -56,7 +56,7 @@ export { placeKeeper } from "./user-place.js";
 export { under } from "./shadow.js";
 // Putting the user on an element, saying what moved them there; holding their place,
 // caret included, across a move or re-render of the node they stand on, by key in a
-// list; where they stand and whether it is in a scope; recording where a layer opened
+// list; their current location and whether it is in a scope; recording where a layer opened
 // from and handing them back as it closes; running something once they move off an
 // element; and a group's roving Tab stop. TEXT_FIELD is the tag of the box a widget offers for the user to write
 // Markdown in; TEXT_BOX matches it and any native textarea.
@@ -66,11 +66,11 @@ export {
   focused,
   handBack,
   holdFocus,
-  onStanding,
+  onCurrentLocation,
   openLayer,
   openerOf,
   rove,
-  standingIn,
+  currentLocationIn,
   whenLeft,
 } from "./focus.js";
 export { TEXT_BOX, TEXT_FIELD } from "./control-selectors.js";
@@ -81,6 +81,8 @@ export { answeredInWords, readObligations } from "./obligations/model.js";
 export { obligationsIn } from "./obligations/place.js";
 export { comparisonChanges } from "./version.js";
 export { answerWords } from "./obligations/answer.js";
+// A view's reading and writing of another widget's answer (x-shows).
+export { shownAnswer } from "./shown-answer.js";
 export {
   readWork,
   workRole,
@@ -113,7 +115,7 @@ export { showNativeLayer, closeNativeLayer } from "./keyboard/layer-stack.js";
 export { isNativeLayer } from "./shadow-tree.js";
 export { HOLDS_WORD } from "./held-word.js";
 // `rowArrows(node)` is the `[back, ahead]` arrow pair along a row, in its text direction.
-export { PRESS, labelOf, rowArrows } from "./keyboard/bindings.js";
+export { PRESS, cycledRow, labelOf, rowArrows } from "./keyboard/bindings.js";
 export {
   commandScope,
   commandsOn,
@@ -154,14 +156,6 @@ export {
   renderMarkdown,
 } from "./markdown.js";
 export { isCanonicalMediaUrl, scopedMediaUrl } from "./media.js";
-// Where two images differ, gathered into regions or as pixels (image-difference.js).
-export {
-  compareImagePixels,
-  compareImages,
-  countAreas,
-  describeDifference,
-  differenceKind,
-} from "./image-difference.js";
 export { atScrollEnd, pageScroller, scrollLimit } from "./scrolling.js";
 export { fitsWhole, scrollIntoReadingBand, scrollIntoView } from "./landing-scroll.js";
 // The user's place as a landmark, and the history entries a widget adds.
@@ -170,7 +164,7 @@ export { claimTraversals, pushEntry, replaceEntry } from "./history.js";
 export {
   compoundReadingRegionId,
   preserveReadingRegions,
-  readingPosture,
+  regionScrollBehavior,
   registerReadingRegion,
   scrollerFor,
   showReadingSubject,
@@ -187,6 +181,7 @@ export { revisionLabel } from "./context.js";
 export { loadDeferred, publishOutput } from "./data.js";
 export { boundFile } from "./file-api.js";
 export { generate } from "./llm-api.js";
+export { connection } from "./http-api.js";
 export { clearDraft, loadDraft, saveDraft, sendDraft, watchDraft } from "./drafts.js";
 export {
   declarationFor,
@@ -195,6 +190,7 @@ export {
   matchesWhen,
 } from "./registry.js";
 export {
+  flashDuration,
   foldDuration,
   returnDuration,
   foldBlock,
@@ -212,9 +208,9 @@ export {
   PRESENTATION,
   afterPresentation,
   deferredArrival,
+  whileInterfaceConnected,
 } from "./presentation.js";
 export { quietWord } from "./declared-words.js";
-export { projectData } from "./application.js";
 export { copyBlock } from "./code-copy.js";
 export { retainUserIntent } from "./user-intent.js";
 // Whether a press is the plain one a control claims: the primary button, no modifier;
@@ -251,6 +247,8 @@ export {
   PRESSABLE,
   dragging,
   el,
+  generated,
+  generatedElement,
   layoutChanged,
   measure,
   motionPreview,
@@ -277,3 +275,5 @@ export { landInThread } from "./application.js";
 export { threadInput } from "./thread/landing.js";
 // What the page calls its agent, as On <agent> names it, for `lf-tally`'s words.
 export { agentName } from "./semantic-state.js";
+// The time axis the Playwright timeline and lf-timeline both draw on.
+export { assignRows, axisTicks, textWidth } from "./time-axis.js";

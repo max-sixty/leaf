@@ -33,7 +33,7 @@ import {
   registerContribution,
   says,
   notice,
-  standingIn,
+  currentLocationIn,
 } from "/runtime/widget-api.js";
 import { renderRetired, textNodesUnder } from "../runtime/passages.js";
 import { shownParts } from "../runtime/geometry.js";
@@ -305,7 +305,7 @@ customElements.define(
 
     #refreshMargin({ immediate = false, focus = null } = {}) {
       if (!this.#margin) return;
-      const held = standingIn(this.#margin);
+      const held = currentLocationIn(this.#margin);
       this.#margin.update({
         immediate,
         focus: focus ?? (held ? this.#focusKey() : null),
@@ -543,10 +543,10 @@ customElements.define(
     //
     // Chosen before the decision and played after it, so the state the rest of the
     // page reads is true from the first frame — the log has it, the panel's count has
-    // it, a second tab converging on it has it — while the pixels catch up. The
-    // animation's display outranks the rule that hides the slot for exactly as long as
-    // its pixels fold. The browser supplies its intrinsic size and releases every
-    // override when the effect ends or Undo cancels it.
+    // it, a second tab converging on it has it — while the pixels catch up. `foldBlock`
+    // keeps the slot drawn over the rule that hides it for exactly as long as its
+    // pixels fold, starts from its intrinsic size and releases every override when the
+    // effect ends or Undo cancels it.
     #fold(outcome) {
       const going = /** @type {HTMLElement | null} */ (
         this.querySelector(outcome === "accept" ? ":scope > lf-old" : ":scope > lf-new")
@@ -635,7 +635,10 @@ customElements.define(
       // until that adapter applies the new state: the next complete reading can hand
       // focus directly to its semantic replacement instead of losing the user's place
       // when this draw removes it first.
-      if (standingIn(this.#margin) && outcomeOf(state) !== this.#presentedOutcome)
+      if (
+        currentLocationIn(this.#margin) &&
+        outcomeOf(state) !== this.#presentedOutcome
+      )
         return nothing;
       this.#refreshMargin();
       return nothing;

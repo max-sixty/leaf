@@ -679,7 +679,7 @@ from leaf.service import PageTransaction, claim_page
 from leaf.session import cmd_waiting
 page = Path(sys.argv[1])
 claim_page(page)
-cmd_waiting(page, "Review this page")
+cmd_waiting(page)
 watch = subprocess.Popen([sys.executable, "-m", "leaf", "wait", str(page)],
                          stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 try:
@@ -703,7 +703,7 @@ try:
     assert "leaf wait" in reason and "no delivery adapter" not in reason
 finally:
     with PageTransaction(page) as held:
-        held.set_status("idle", "")
+        held.set_status("idle")
     output, errors = watch.communicate(timeout=30)
     assert watch.returncode == 2, (output, errors)
 """
@@ -834,7 +834,7 @@ def test_user_preview_restart_keeps_feedback_and_authored_progress(
     reply = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             comment["answer"]["ref"],

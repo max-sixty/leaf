@@ -54,7 +54,7 @@ import {
   createTargetPicker,
   targetPickerHintLayer,
 } from "./runtime/composing/target-picker.js";
-import { createStandingTarget } from "./runtime/composing/standing.js";
+import { createCurrentTarget } from "./runtime/composing/current-target.js";
 import {
   createReactionController,
   reactionTokens,
@@ -79,10 +79,10 @@ import {
   createThreadLanding,
   declareThreadKeys,
   scrollThreadIntoView,
-  standingThread,
+  currentLocationThread,
 } from "./runtime/thread/landing.js";
 import { createFloatingPanel } from "./runtime/floating-panel.js";
-import { standingThreadId } from "./runtime/thread/focus.js";
+import { currentLocationThreadId } from "./runtime/thread/focus.js";
 import { createPageMapDialog } from "./runtime/page-map-dialog.js";
 import { createObligationView } from "./runtime/obligations/view.js";
 import { createQueueWalk } from "./runtime/queue-walk.js";
@@ -95,13 +95,7 @@ import { createDesignMode, inspectEl, legendRoot } from "./runtime/design.js";
 import { createPageLayout } from "./runtime/page-layout.js";
 import { restoreUserView } from "./runtime/restore-state.js";
 import { createVersionController } from "./runtime/version.js";
-import {
-  isSignoffDeclared,
-  loadIcon,
-  mountPageStatus,
-  paintApproval,
-  stateSignoff,
-} from "./runtime/page-status.js";
+import { loadIcon, mountPageStatus } from "./runtime/page-status.js";
 import "./runtime/page-about.js";
 
 import { nativeLayers } from "./runtime/keyboard/layer-stack.js";
@@ -116,7 +110,7 @@ import {
 import { windowChromeBoxes } from "./runtime/geometry.js";
 // The page's own keyboard parts join the register as this module evaluates; every other
 // owner contributes its own as it is constructed below.
-import { declareStanding } from "./runtime/keyboard/page.js";
+import { declareCurrentLocation } from "./runtime/keyboard/page.js";
 import { mountKeyboard } from "./runtime/keyboard/controller.js";
 import { paintCoreControls } from "./runtime/keyboard/control-keys.js";
 import { paintTouchControls } from "./runtime/keyboard/touch-controls.js";
@@ -132,7 +126,7 @@ import {
 } from "./runtime/keyboard/scopes.js";
 import { watchDisclosures } from "./runtime/keyboard/disclosure.js";
 import { mountRepaint, repaint, repaintPage } from "./runtime/repaint.js";
-import { openResidency } from "./runtime/content-layout.js";
+import { openMarginContentLayout } from "./runtime/content-layout.js";
 import {
   createNavigation,
   placeThreadEdge,
@@ -222,7 +216,7 @@ const navigation = createNavigation({
     openPageThread: (...args) => app.threadDestinations.openPageThread(...args),
     scrollToThread: (id, options) => anchorTravel.scrollToThread(id, options),
     threadHere: () => app.threadDestinations.threadHere(),
-    threadAtStanding: () => app.threadDestinations.threadAtStanding(),
+    threadAtCurrentLocation: () => app.threadDestinations.threadAtCurrentLocation(),
     threadPlace: (...args) => app.threadDestinations.threadPlace(...args),
   },
 });
@@ -235,7 +229,7 @@ const visualMarkPaint = annotationRenderer?.createVisualMarkPaint();
 const anchorPaint = annotationRenderer?.createAnchorPaint({
   targetPaint: visualMarkPaint,
   pointer: pointerAt,
-  standingThreadId,
+  currentLocationThreadId,
   rowThread: () => floatingPanel?.hoveredThread() ?? null,
   threadRow: (id) => floatingPanel?.threadRow(id) ?? null,
   marginThread: () => app?.overlay?.pointedThread() ?? null,
@@ -268,7 +262,6 @@ aim = createAim({
   marginTargetAt: (...args) => app.overlay?.marginTargetAt(...args),
   refreshAim: () => pageGeometry.refreshAim(),
   commentOnTarget: (...args) => responseSurface.commentOnTarget(...args),
-  standDown: (...args) => responseSurface.standDown(...args),
   drawModeActive: () => drawing.drawModeActive(),
   designMode,
   targetPicker: {
@@ -328,16 +321,17 @@ const version = createVersionController({
   readAndApply: (...args) => app.readAndApply(...args),
   syncLayout: () => layout.syncLayout(),
   // The chrome the reader stands in: a margin card or entry, and the panel's thread.
-  captureRetainedStanding: () => ({
-    margin: app?.overlay?.captureStanding() ?? null,
-    panel: floatingPanel.captureStanding(),
+  captureRetainedCurrentLocation: () => ({
+    margin: app?.overlay?.captureCurrentLocation() ?? null,
+    panel: floatingPanel.captureCurrentLocation(),
   }),
-  restoreRetainedStanding: ({ margin, panel }) => {
-    const panelShown = floatingPanel.restoreStanding(panel);
-    return (app?.overlay?.restoreStanding(margin) ?? false) || panelShown;
+  restoreRetainedCurrentLocation: ({ margin, panel }) => {
+    const panelShown = floatingPanel.restoreCurrentLocation(panel);
+    return (app?.overlay?.restoreCurrentLocation(margin) ?? false) || panelShown;
   },
-  captureObligationStanding: () => items.captureStanding(),
-  restoreObligationStanding: (standing) => items.restoreStanding(standing),
+  captureObligationCurrentLocation: () => items.captureCurrentLocation(),
+  restoreObligationCurrentLocation: (currentLocation) =>
+    items.restoreCurrentLocation(currentLocation),
   versions: { press: () => floatingPanel.doors.versions.press() },
 });
 
@@ -392,14 +386,13 @@ app = mountApplication({
     pageMapDialogContains: (...args) => pageMapDialog.pageMapDialogContains(...args),
     renderPageMapDialog: (...args) => pageMapDialog.renderPageMapDialog(...args),
     scrollThreadIntoView,
+    openInPanel: (id) => floatingPanel?.openThread(id),
     goToObligation: (...args) => items.goToObligation(...args),
   },
   state: {
     prepareActivation: (state) => version.prepareActivation(state),
     acceptData,
     notifyDataSubscribers,
-    isSignoffDeclared,
-    stateSignoff,
   },
 });
 if (offlineInteractive) applicationState.setHostAvailable(false);
@@ -411,7 +404,7 @@ declareReading(landingPlace);
 
 // The let-go's external readings stand by now, so the scope is declared before anything
 // reads the register.
-declareStanding({
+declareCurrentLocation({
   pageState: () =>
     Boolean(
       responseSurface.fabAnchorAt() ||
@@ -432,7 +425,7 @@ pageMapDialog = createPageMapDialog({
 items = createObligationView({
   focusForNavigation,
   presentedControl: app.overlay?.presentedControl,
-  prepareTrip: anchorTravel.prepareTrip,
+  prepareNavigationStep: anchorTravel.prepareNavigationStep,
   arrive: anchorTravel.arrive,
   openPageThread: app.threadDestinations.openPageThread,
   announce,
@@ -444,7 +437,7 @@ const queueWalk = createQueueWalk({
   arriveAtThread: navigation.arriveAtThread,
   threadHere: () => app.threadDestinations.threadHere(),
   threadPlace: (id) => app.threadDestinations.threadPlace(id),
-  prepareTrip: anchorTravel.prepareTrip,
+  prepareNavigationStep: anchorTravel.prepareNavigationStep,
   arrive: anchorTravel.arrive,
   readableDestination: anchorTravel.readableDestination,
   announce,
@@ -453,9 +446,9 @@ const commandHints = createCommandHints({
   presentedControl: (control) => app.overlay?.presentedControl(control) ?? control,
 });
 
-const standingTarget = createStandingTarget({
+const currentTarget = createCurrentTarget({
   isObligationControl: (node) => node?.matches?.(OBLIGATION_CONTROL),
-  standingIn: items.standingIn,
+  currentLocationIn: items.currentLocationIn,
 });
 
 floatingPanel = createFloatingPanel({
@@ -468,12 +461,14 @@ floatingPanel = createFloatingPanel({
   obligations: { choicesOf: items.choicesOf },
   queueActions: app.queueActions,
   arrivesAt: (item) => queueWalk.arrivesAt(item),
-  inWalkOrder: (items) => queueWalk.inWalkOrder(items),
+  onMe: queueWalk.onMe,
   withdraw: app.withdraw,
   settlement: app.settlement,
   placedAt: anchorPlacement.placedAt,
   openThreadSubject: (id, options) =>
     app.threadDestinations.openThreadSubject(id, options),
+  atLastResort: (key) => app.threadDestinations.atLastResort(key),
+  annotationsHidden: () => annotationRenderer?.annotationsHidden() ?? false,
 });
 // The page's general comment box is the floating panel's field.
 const generalComment = floatingPanel.pageComment;
@@ -485,10 +480,11 @@ responseSurface = createResponseSurface({
   createPlacement: annotationRenderer?.createFloatingResponsePlacement,
   landIn: landing.landIn,
   threadHere: () => app.threadDestinations.threadHere(),
-  threadAtStanding: () => app.threadDestinations.threadAtStanding(),
-  replyThreadAtStanding: () => app.threadDestinations.replyThreadAtStanding(),
+  threadAtCurrentLocation: () => app.threadDestinations.threadAtCurrentLocation(),
+  replyThreadAtCurrentLocation: () =>
+    app.threadDestinations.replyThreadAtCurrentLocation(),
   threadTarget: (id) => app.threadDestinations.threadTarget(id),
-  standingTarget,
+  currentTarget,
   markAt: anchorPaint?.markAt,
   scrollToElement: anchorTravel.scrollToElement,
   scrollToRange: anchorTravel.scrollToRange,
@@ -502,6 +498,7 @@ responseSurface = createResponseSurface({
   setReact: (...args) => reactions.setReact(...args),
   openPageThread: app.threadDestinations.openPageThread,
   drawModeActive: () => drawing.drawModeActive(),
+  captureActive: () => regionCapture.active(),
   refreshThread: app.refreshThread,
   dismissThreadView: () => app.overlay?.inlineThreadView.dismiss(),
   pageComment: generalComment,
@@ -526,8 +523,8 @@ reactions = createReactionController({
   showFab: responseSurface.showFab,
   showFabOptions: responseSurface.showFabOptions,
   updateFab: responseSurface.updateFab,
-  standingThread,
-  standingTarget,
+  currentLocationThread,
+  currentTarget,
 });
 targets = createTargetPicker({
   scrollToRange: anchorTravel.scrollToRange,
@@ -580,7 +577,7 @@ layout = createPageLayout({
 if (document.documentElement.lfSample) {
   let viewOperation;
   onSampleNotice("cancel-view", () => viewOperation?.abort());
-  registerSampleCommand("thread", async ({ id, surface, status }) => {
+  registerSampleCommand("thread", async ({ id, surface }) => {
     viewOperation?.abort();
     viewOperation = new AbortController();
     const { signal } = viewOperation;
@@ -593,8 +590,7 @@ if (document.documentElement.lfSample) {
       if (!intent()) return false;
       if (surface === "panel") {
         let shown = null;
-        const show = () =>
-          (shown = floatingPanel.showForSample({ thread: id, status }));
+        const show = () => (shown = floatingPanel.showForSample({ thread: id }));
         if (!intent.handoff(show)) return false;
         return (await shown) && intent.available();
       }
@@ -635,15 +631,15 @@ goToSequence = createGoToSequence({
   placeThreadEdge,
   stopGlide,
 });
-const standingPainters = {
+const currentLocationPainters = {
   markHere: items.markHere,
-  paintStanding: anchorPaint?.paintStanding,
+  paintCurrentLocation: anchorPaint?.paintCurrentLocation,
   paintSelectedMarginEntries: () =>
     app.overlay?.paintSelectedMarginEntries([
-      { kind: "on-me", target: items.standingIn() },
+      { kind: "on-me", target: items.currentLocationIn() },
       {
         kind: "comment",
-        target: anchorPlacement.placedAt(standingThreadId())?.place,
+        target: anchorPlacement.placedAt(currentLocationThreadId())?.place,
       },
     ]),
   paintTouchControls,
@@ -681,9 +677,7 @@ if (!offlineInteractive) {
   );
   document.body.append(chromeRoot);
   version.mount();
-  mountPageStatus({
-    approveVersion: () => app.post({ kind: "done", version: runtime.currentStamp }),
-  });
+  mountPageStatus();
   floatingPanel.mount(chromeForeground);
   responseSurface.mount();
   holdToRead();
@@ -715,7 +709,7 @@ if (!offlineInteractive) {
   });
   watchDisclosures(document);
   mountRepaint({
-    ...standingPainters,
+    ...currentLocationPainters,
     reflectFirstScopes,
     reflectKeys,
     syncLayout: layout.syncLayout,
@@ -725,7 +719,7 @@ if (!offlineInteractive) {
   document.adoptedStyleSheets = [...document.adoptedStyleSheets, chromeSheet];
   chromeRoot.append(mediaViewer);
   document.body.append(chromeRoot);
-  // Exports retain image inspection, but no page controls. Their other standing is
+  // Exports retain image inspection, but no page controls. Their other current location is
   // what a widget's own box shows, such as an options group's addition field.
   mountRepaint({ paintInputs: inputs.paintInputs, reflectFirstScopes, reflectKeys });
 }
@@ -791,7 +785,6 @@ async function presentPage() {
     return;
   }
   paintKeys();
-  paintApproval();
   repaint();
   app.overlay?.flushLayout();
   landFragment();
@@ -822,8 +815,8 @@ async function startPage() {
   ]);
   if (!upgraded) return;
   app.watchThreadSurfaces();
-  // Initial layout and later residency share prepaint's synchronous computation.
-  openResidency({ onRead: annotationRenderer?.syncMarginResidency });
+  // Initial layout and later margin content layout share prepaint's synchronous computation.
+  openMarginContentLayout({ onRead: annotationRenderer?.syncMarginContentLayout });
   if (!offlineInteractive) {
     layout.syncLayout();
     items.buildBulkAnswers();

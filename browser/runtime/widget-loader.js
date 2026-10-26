@@ -2,6 +2,7 @@
  * imports, and initial presentation. */
 import { paintDeclaredWords, watchExternalLinks } from "./declared-words.js";
 import { watchCodeBlocks } from "./code-copy.js";
+import { watchHeadingLinks } from "./heading-links.js";
 import { watchVideos } from "./video-controls.js";
 import { reachScrollers } from "./reach.js";
 import { adoptRegistry, registry, tagsDeclaring } from "./registry.js";
@@ -193,6 +194,7 @@ async function installDocument(scope) {
     commitWidgetDescriptors(descriptors);
     watchExternalLinks();
     watchCodeBlocks();
+    watchHeadingLinks();
     watchVideos();
     await importWidgets(scope);
     await settle(presentation, scope, [scope], whenApplicationPresented);
@@ -201,7 +203,7 @@ async function installDocument(scope) {
   }
 }
 
-// The same lifecycle for a revision patched into the document a user is standing in.
+// The same lifecycle for a revision patched into the document a user is in.
 // What arrives is scattered through the page rather than being one subtree, so each step
 // takes the nodes it applies to. The pre-upgrade readings belong to each arrival, before
 // insertion hands a widget's children to its controller, so `patch` makes them as it goes

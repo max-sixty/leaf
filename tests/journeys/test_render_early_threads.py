@@ -14,7 +14,8 @@ from render_harness import (
     holding,
     http_error_console,
     leaf_page,
-    panel_settled,
+    open_threads,
+    panel_view,
     round_trip,
     select_words,
     stored_draft_text,
@@ -197,9 +198,8 @@ def test_an_early_anchored_send_merges_history_and_keeps_its_seen_revision(
     # Threads lists the saved conversation beside the two the tab sent early.
     # Draw mode's steps stand in the marks' place until the user leaves it.
     page.locator('.lf-fp-exit[aria-label="Exit Draw mode"]').click()
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
-    rows = page.locator('.lf-fp-view[data-view="threads"] .lf-fp-thread')
+    open_threads(page)
+    rows = page.locator(f"{panel_view('threads')} .lf-fp-thread")
     expect(rows).to_have_count(3)
     expect(rows.filter(has_text=words)).to_have_count(1)
     expect(rows.filter(has_text=drawing_words)).to_have_count(1)

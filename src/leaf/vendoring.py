@@ -30,7 +30,7 @@ from .layer import (
     payload_server_fingerprint,
 )
 from .leases import lock_is_held, page_locked
-from .locations import located, locations_overlap, path_is_within, path_location
+from .locations import first_overlap, located, path_is_within, path_location
 from .refusals import Refused
 from .registry.storage import RegistryError, layer_metadata, layer_packages
 from .schema import (
@@ -128,7 +128,7 @@ def renew_layer(page_dir: Path, harness: Harness | None) -> Finding | None:
     `leaf page init` the refusal names. That re-vendor keeps the page's log, and so
     its threads and decisions, and its source, so it asks nothing of the agent's
     judgment, and the first Leaf to act for the page's session makes it instead: a
-    write command naming the page (`cli.resolve_dir`) or a prompt or Stop hook
+    write command naming the page (`cli.page_argument`) or a prompt or Stop hook
     (`hook_transport.read_plans`). Only the session holding the page renews it, or
     any caller while no live session does: another session may still run the Leaf
     that vendored the page, which a re-vendor would lock out of it, and its own
@@ -367,16 +367,7 @@ def _refuse_input_destination_overlap(roots: list[Path], page_target: Path) -> N
         *(page_target / name for name in PAGE_OWNED_FILES),
         *(page_target / sub for sub in PAGE_OWNED_DIRS),
     ]
-    located_destinations = located(destinations)
-    if overlap := next(
-        (
-            (package, destination)
-            for package, package_at in located(input_paths(roots))
-            for destination, destination_at in located_destinations
-            if locations_overlap(package_at, destination_at)
-        ),
-        None,
-    ):
+    if overlap := first_overlap(located(input_paths(roots)), located(destinations)):
         package, destination = overlap
         raise Refused(
             f"package {package} overlaps page destination "

@@ -9,9 +9,18 @@
    on its message there. Where none of
    those shows it, the primary is asked again with `request.last` set, which says
    nothing else will show the thread, so the floating panel takes any thread then; a
-   second refusal leaves the thread unopened. A thread about an element an agent sent
+   second refusal leaves the thread unopened. The primary holds such a thread only until
+   the page can draw it again, as when a wider window shows the passage a narrow one hid:
+   once a thread pass has drawn every surface, it goes back to the page, and the user in
+   it goes with it, a reply they are writing carried with its caret and undo history
+   (`returnToPage`). A thread about an element an agent sent
    in a message has no drawing beside its subject: `openThreadSubject` opens that
    message and lands on the element there.
+   A route shows one thread at a time: the primary taking a thread closes the page's
+   card, and the page drawing one has the floating panel put away its view of any
+   thread as it declines (floating-panel.js, `reveal`), so the reply the field holds
+   and a walk's position name the thread the user arrived at. The user chose this on
+   23 October 2026, after a `t` walk left the panel's thread open under a card.
    A compact preview keeps held widget arrivals held until its own release gesture.
    The optional preview supplies physical
    opening, placement proof, current focus node and target accompaniment; it owns
@@ -34,7 +43,7 @@
 
    Held identity is the focused Thread across shadow roots. An unheld conversation
    drawn with its page target, by the preview accompanying the target or by a widget's
-   seat beside it, is the current conversation while the user stands at that target,
+   seat beside it, is the current conversation while the user is at that target,
    so every thread key reaches it from there (`threadHere`); when focus returns to the
    body, a visible accompanying preview remains the current conversation. Canonical page targets always come from anchor
    placement, independently of whichever view draws a Thread. */
@@ -42,7 +51,7 @@ import { aborted } from "../abort.js";
 import { threadDraft } from "../drafts.js";
 import { focused } from "../focus.js";
 import { restrictUserIntent, retainUserIntent } from "../user-intent.js";
-import { replyAvailable } from "./replies.js";
+import { replyAvailable, replyThreadKey } from "./replies.js";
 import { allThreads, threadIdNamed, threadNamed } from "./state.js";
 import { heldThread } from "./focus.js";
 import { showHeld, showHeldThread } from "./held-news.js";
@@ -62,11 +71,14 @@ export function createThreadDestinations({
   threadIdsAt,
   scrollToThread,
   arrive,
-  prepareTrip,
+  prepareNavigationStep,
   preview = null,
 }) {
   let presentation = null;
   let opening = null;
+  // The keys of the threads the primary was handed as the last resort (`request.last`),
+  // which nothing on the page drew when they were asked for.
+  const lastResort = new Set();
   function register(owner, open, reader) {
     if (presentation) throw new Error("The page already has a Thread presentation");
     const registration = { owner, open, reader };
@@ -87,7 +99,7 @@ export function createThreadDestinations({
   };
   // The thread the user is at, the one every thread key acts on: the thread they hold,
   // else the one conversation drawn with the place they stand at, which is one place
-  // with it (glossary, Standing target). The preview accompanying the place draws one,
+  // with it (glossary, Current target). The preview accompanying the place draws one,
   // and a widget may seat its threads beside it, as lf-diff does under a line; where
   // several are drawn there, the user is at none of them. Chrome standing at no place
   // is at none. Returning to the page can leave a margin card open with focus on the
@@ -107,15 +119,15 @@ export function createThreadDestinations({
   };
   // Discussion identity precedes the view that realizes it: where no thread is shown,
   // the first thread at the place. Reply availability narrows an editable destination
-  // without erasing the user's standing thread.
-  const threadAtStanding = () => {
+  // without erasing the user's current location thread.
+  const threadAtCurrentLocation = () => {
     const here = drawnThreadId(threadHere());
     if (here) return here;
     const active = focused();
     return (active && threadIdsAt(active)[0]) ?? null;
   };
-  const replyThreadAtStanding = () => {
-    const id = threadAtStanding();
+  const replyThreadAtCurrentLocation = () => {
+    const id = threadAtCurrentLocation();
     const thread = allThreads().find((candidate) => candidate.id === id);
     return thread && replyAvailable(thread) ? id : null;
   };
@@ -134,15 +146,15 @@ export function createThreadDestinations({
       part = null,
       focus = true,
       travel = true,
-      flash = true,
       scroll = true,
       intent = retainUserIntent(),
       origin = null,
+      returning = false,
     } = {},
   ) {
     if (!intent()) return null;
-    // A trip moves the page, so a destination that may move no scroller takes none.
-    const trip = travel && scroll;
+    // A navigation step moves the page, so a destination that may move no scroller takes none.
+    const navigationStep = travel && scroll;
     const selected = presentation?.owner.isConnected ? presentation : null;
     const thread = threadNamed(id);
     if (selected && (!thread || !discussed(thread))) return null;
@@ -180,17 +192,23 @@ export function createThreadDestinations({
         (focus === false ? intent.available() : intent());
       const arriving = restrictUserIntent(intent, mayPresent);
       const departure =
-        focus !== false && trip
-          ? prepareTrip({
+        focus !== false && navigationStep
+          ? prepareNavigationStep({
               landing: () => selected.reader.destination(thread.key, request),
               intent: arriving,
             })
           : null;
+      if (last) lastResort.add(thread.key);
+      else lastResort.delete(thread.key);
       const result = selected.open(thread.key, request);
+      if (result === false) lastResort.delete(thread.key);
       // A reader that declines at once is answered at once, so the page's own drawing
       // of the thread opens in the task of the gesture that asked for it (`onPage`), as
       // a walk's card does, rather than after a wait that no longer belongs to it.
       if (result === false && !drawn) return mayPresent() ? DECLINED : null;
+      // The reader shows the thread, so the card standing beside another thread's
+      // passage goes, in the same task, and one thread stands open.
+      if (result !== false && preview) intent.handoff(preview.close);
       return taken(result);
       // The reader takes the thread: its layout, then its drawing of it.
       async function taken(result) {
@@ -223,7 +241,7 @@ export function createThreadDestinations({
                 current && {
                   where: current,
                   focus: current,
-                  scroll: trip ? [{ at: current, block: "nearest" }] : [],
+                  scroll: navigationStep ? [{ at: current, block: "nearest" }] : [],
                 }
               );
             },
@@ -241,7 +259,7 @@ export function createThreadDestinations({
       if (part === "message") showHeld(id);
       const openSurface = async () => {
         if (preview) intent.handoff(preview.close);
-        if (trip) {
+        if (navigationStep) {
           if (!(await scrollToThread(id, { part: localPart, focus, intent })))
             return null;
         } else if (focus === false) {
@@ -272,12 +290,12 @@ export function createThreadDestinations({
       if (showHeldThread(id) && surfaceFocusTarget(id, { part: localPart }))
         return openSurface();
       // A card stands beside its passage while the passage is drawn
-      // (`commentAttachment`), and a card with nowhere to stand never places. A trip
-      // reveals the passage as it arrives. A thread opened where the user stands reveals
+      // (`commentAttachment`), and a card with nowhere to stand never places. A navigation step
+      // reveals the passage as it arrives. A thread opened where the user is reveals
       // it here, opening the tab or disclosure that holds it, unless the caller keeps
       // every scroller still, since a tab switch scrolls its strip. A passage that stays
       // hidden leaves the thread to the primary reader.
-      const place = preview && !trip ? threadTarget(id) : null;
+      const place = preview && !navigationStep ? threadTarget(id) : null;
       const placeDrawn = () => visibleTargetParts(place).length > 0;
       if (place && scroll && !placeDrawn()) {
         await reveal(place, intent).ready;
@@ -289,7 +307,7 @@ export function createThreadDestinations({
           opened = preview.open(id, { origin });
         });
       if (opened) {
-        if (trip) {
+        if (navigationStep) {
           if (
             !(await scrollToThread(id, {
               part: part ?? "thread",
@@ -330,15 +348,54 @@ export function createThreadDestinations({
       return DECLINED;
     }
 
-    const asked = selected ? inPrimary(false) : DECLINED;
+    // A thread coming back from the primary's last resort (`returnToPage`) is drawn on
+    // the page first, and the primary is asked only once the page shows it, so it puts
+    // its view away as it declines, handing on the reply being written there.
+    const asked = selected && !returning ? inPrimary(false) : DECLINED;
     const first = asked instanceof Promise ? await asked : asked;
     if (first !== DECLINED && first !== UNDRAWN) return first;
     const shown = await onPage();
+    if (returning) {
+      if (!shown || shown === DECLINED) return null;
+      if (selected) await inPrimary(false);
+      return shown;
+    }
     if (shown !== DECLINED) return shown;
     // Only a reader that declined is asked again; one that took the thread has shown it.
     if (!selected || first !== DECLINED) return null;
     const last = await inPrimary(true);
     return last === DECLINED || last === UNDRAWN ? null : last;
+  }
+
+  // A thread the primary holds as the last resort goes back to the page once the page
+  // can draw it, which each thread pass asks once it has drawn every surface. The page
+  // draws it first, and only then does the primary put its view away, so a page that
+  // still has nowhere to show it leaves the view standing. The user goes with the thread
+  // from where they were in the view: from its reply box, the row itself, carried to the
+  // card with its caret and undo history (replies.js, `releaseReplies`), or from the
+  // thread to the card's. A user elsewhere stays there, and every scroller stays still,
+  // since the user has not moved.
+  async function returnToPage() {
+    const selected = presentation?.owner.isConnected ? presentation : null;
+    if (!selected) return;
+    for (const key of [...lastResort]) {
+      const thread = allThreads().find((each) => threadKey(each) === key);
+      // A view the user has put away holds nothing to give back.
+      const drawing = selected.reader.destination(key, { part: "thread" });
+      if (!thread || !drawing?.checkVisibility()) {
+        lastResort.delete(key);
+        continue;
+      }
+      await openPageThread(thread.id, {
+        part: "thread",
+        focus:
+          replyThreadKey(focused()) !== key &&
+          drawnThreadId(heldThread()) === thread.id,
+        travel: false,
+        scroll: false,
+        returning: true,
+      });
+    }
   }
 
   // Where a thread about an element an agent sent in a message goes to its subject: the
@@ -397,11 +454,15 @@ export function createThreadDestinations({
     openPageThread,
     openThreadSubject,
     openThreadDraft,
+    returnToPage,
+    // Whether the primary holds the thread `key` names as the last resort, so the page
+    // drew it nowhere it could be shown.
+    atLastResort: (key) => lastResort.has(key),
     holdsThreadDraft: (context) => Boolean(threadHolding(context)),
     threadFocusTarget,
     threadHere,
-    threadAtStanding,
-    replyThreadAtStanding,
+    threadAtCurrentLocation,
+    replyThreadAtCurrentLocation,
     threadTarget,
     threadPlace,
   };

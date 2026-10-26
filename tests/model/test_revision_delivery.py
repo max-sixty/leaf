@@ -149,7 +149,7 @@ def test_initial_producers_are_captured_once_and_called_after_each_complete_host
     }
     resources = {
         "/runtime/prepaint.js": Resource(
-            b"window.prepaint = true;", "application/javascript"
+            b'window.prepaint = "</script>";', "application/javascript"
         ),
         "/vendor/initial-dependencies.json": Resource(
             b'{"/vendor/lit-producer.js":["/vendor/lit-initial.js"]}',
@@ -194,6 +194,7 @@ def test_initial_producers_are_captured_once_and_called_after_each_complete_host
     ]
     assert delivered.count("<lf-early data-lf-arriving") == 2
     assert delivered.count('window.initial = "<\\/script>";') == 1
+    assert delivered.count('window.prepaint = "<\\/script>";') == 1
     assert (
         delivered.index("window.prepaint")
         < delivered.index("window.initial")
@@ -876,3 +877,11 @@ def test_an_authored_override_holds_only_where_it_means_something():
     assert soup.find(id="feed").attrs["data-lf-bound"] == "end"
     for page in (soup.find("main"), soup.find("body")):
         assert not {"data-lf-space", "data-lf-bound"} & set(page.attrs), page.attrs
+
+
+def test_exhibit_paint_follows_the_occurrence_condition():
+    registry = {"lf-sample": {"x-exhibit": {"when": {"interactive": [False]}}}}
+    source = '<lf-sample id="quote"></lf-sample><lf-sample id="working" interactive></lf-sample>'
+    tree = SourceDocument(mark_declared(source, registry, {})).tree
+    assert "data-lf-exhibit" in tree.find(id="quote").attrs
+    assert "data-lf-exhibit" not in tree.find(id="working").attrs

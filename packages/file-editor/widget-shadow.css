@@ -16,7 +16,8 @@
 :scope:host(lf-file-editor) .lf-file-editor-name {
   flex: 1;
   min-width: 0;
-  overflow-wrap: anywhere;
+  overflow: auto;
+  white-space: nowrap;
   font: 600 0.9rem var(--mono);
 }
 :scope:host(lf-file-editor) .lf-file-editor-status {
@@ -45,7 +46,7 @@
   margin-inline: -0.3rem;
   padding: 0 0.3rem;
   border: 0;
-  border-radius: 4px;
+  border-radius: var(--r);
   background: none;
   font: inherit;
   cursor: pointer;

@@ -13,7 +13,7 @@ from render_harness import (
     leaf_page,
     margins_laid_out,
     open_page,
-    pane_posture,
+    pane_scroll_behavior,
     resized,
     scroll_settled,
 )
@@ -65,7 +65,7 @@ def test_a_keyboard_arrival_brings_its_card_once_its_row_is_shown(browser, serve
     root = answered_comment(serve.page_dir, "Ask discussion", {"section": "work"})
     page = open_page(browser, url)
     resized(page, 1280, 720)
-    pane_posture(page, page.locator("#pin-pane"), "bounded")
+    pane_scroll_behavior(page, page.locator("#pin-pane"), "bounded")
     margins_laid_out(page)
     row = page.locator('[data-lf-margin-for="work"]')
     expect(row).to_be_hidden()
@@ -90,7 +90,7 @@ def test_a_pin_in_a_pane_scrolls_with_it_and_leaves_with_its_target(browser, ser
     neighbour."""
     page = open_page(browser, serve(PANE_PIN_PAGE, events=[_comment_on("pane-top")]))
     resized(page, 1280, 720)
-    pane_posture(page, page.locator("#pin-pane"), "bounded")
+    pane_scroll_behavior(page, page.locator("#pin-pane"), "bounded")
     margins_laid_out(page)
     row = page.locator('.lf-margin-lane [data-lf-margin-for="pane-top"]')
     expect(row).to_have_attribute("data-lf-place", "pin")
@@ -130,7 +130,7 @@ def test_rows_follow_a_pane_and_a_shadow_scroller_in_every_engine(
     browser = request.getfixturevalue(engine)
     page = open_page(browser, serve(PANE_PIN_PAGE, events=[_comment_on("pane-top")]))
     resized(page, 1280, 720)
-    pane_posture(page, page.locator("#pin-pane"), "bounded")
+    pane_scroll_behavior(page, page.locator("#pin-pane"), "bounded")
     page.evaluate(
         """async () => {
           const {contributionEntry, registerContribution} = await window.__lfWidgetApi();
@@ -197,7 +197,7 @@ def test_marks_stand_on_a_widened_table_in_every_engine(request, serve, engine):
     over the column beside it, and the Alt outline 300px left of the table. In each
     engine the pin stands on the header it marks and keeps that place through a
     scroll, the outline Alt raises after the scroll stands on the table, and a code
-    block's Copy, which CSS anchors alone, shows in the block's corner."""
+    block's Copy, which CSS anchors alone, stands on the block's top border."""
     browser = request.getfixturevalue(engine)
     comment = _comment_on("grid", quote="Caret in the field")
     page = open_page(browser, serve(WIDENED_TABLE_PAGE, events=[comment]))
@@ -233,7 +233,9 @@ def test_marks_stand_on_a_widened_table_in_every_engine(request, serve, engine):
     corner = copy.bounding_box()
     inset = code["x"] + code["width"] - corner["x"] - corner["width"]
     assert 0 <= inset <= 8, (corner, code)
-    assert 0 <= corner["y"] - code["y"] <= 8, (corner, code)
+    # Its toolbar's middle lies on the block's top border.
+    middle = corner["y"] + corner["height"] / 2
+    assert middle == pytest.approx(code["y"], abs=1), (corner, code)
 
 
 def test_a_pin_in_a_pane_paints_in_the_frame_its_target_scrolls(browser, serve):
@@ -251,7 +253,7 @@ def test_a_pin_in_a_pane_paints_in_the_frame_its_target_scrolls(browser, serve):
         ),
     )
     resized(page, 1280, 720)
-    pane_posture(page, page.locator("#pin-pane"), "bounded")
+    pane_scroll_behavior(page, page.locator("#pin-pane"), "bounded")
     margins_laid_out(page)
     target = page.locator("#pane-top").bounding_box()
     page.mouse.move(target["x"] + 40, target["y"] + 5)
@@ -275,7 +277,7 @@ def test_a_pin_in_a_pane_rides_an_anchored_carrier_through_boxes_that_scroll_not
     )
     page = open_page(browser, serve(source, events=[_comment_on("pane-top")]))
     resized(page, 1280, 720)
-    pane_posture(page, page.locator("#pin-pane"), "bounded")
+    pane_scroll_behavior(page, page.locator("#pin-pane"), "bounded")
     margins_laid_out(page)
     row = page.locator('[data-lf-margin-for="pane-top"]')
     expect(row).to_have_attribute("data-lf-place", "pin")
@@ -297,7 +299,7 @@ def test_a_bounded_region_reflows_its_margin_without_resizing_the_page(
     )
     page = open_page(browser, serve(source, events=[_comment_on("pane-top")]))
     resized(page, 1280, 720)
-    pane_posture(page, page.locator("#pin-pane"), "bounded")
+    pane_scroll_behavior(page, page.locator("#pin-pane"), "bounded")
     margins_laid_out(page)
     page.locator('[data-lf-margin-for="pane-top"] button').first.focus()
     rendered(page)
@@ -378,7 +380,7 @@ def test_a_pin_in_a_pane_takes_one_seat_at_every_scroll(browser, serve):
     page = open_page(browser, serve(SEATED_PANE_PAGE))
     resized(page, 1024, 600)
     body = page.locator("#seat-pane > div")
-    pane_posture(page, page.locator("#seat-pane"), "bounded")
+    pane_scroll_behavior(page, page.locator("#seat-pane"), "bounded")
     row = page.locator('.lf-margin-lane [data-lf-margin-for="seat-ask"]')
     expect(row).to_have_attribute("data-lf-place", "pin")
 
@@ -712,7 +714,7 @@ def test_a_pane_row_withheld_at_load_stands_once_its_target_scrolls_in(browser, 
     at the off-screen place an unanchored row would wait in."""
     page = open_page(browser, serve(PANE_PIN_PAGE, events=[_comment_on("pane-end")]))
     resized(page, 1280, 720)
-    pane_posture(page, page.locator("#pin-pane"), "bounded")
+    pane_scroll_behavior(page, page.locator("#pin-pane"), "bounded")
     margins_laid_out(page)
     row = page.locator('.lf-margin-cluster[data-lf-margin-for="pane-end"]')
     expect(row).to_have_class(re.compile(r"\blf-withheld\b"))
@@ -975,4 +977,3 @@ def test_a_quoted_passage_scrolled_out_of_its_pane_withholds_its_row(
     # frame or two rather than at some later pass.
     page.locator("#pane").evaluate("pane => { pane.scrollTop = 0; }")
     expect(row).to_have_class(re.compile(r"\blf-withheld\b"))
-    context.close()

@@ -101,6 +101,9 @@ def validate_widget_relations(
         )
         validate_deciding_verb(tag, entry, path)
         validate_widget_retirement(tag, entry, declarations, path)
+    # A view relation joins two declarations, each held to its own attributes above.
+    for tag, entry in declarations.items():
+        _validate_shown_answers(tag, entry, declarations, path)
 
 
 def _validate_widget_structure(
@@ -241,6 +244,39 @@ def _validate_widget_structure(
     return properties, said
 
 
+def _validate_shown_answers(tag: str, entry: dict, declarations: dict, path) -> None:
+    """Hold both sides of a view relation (`shown_answers.py`) to attributes that
+    exist. A misnamed one would leave a view that places nothing and an answer no
+    view can read, with nothing on the page saying so.
+
+    The view names its widget through a plain reference, and its compound owners
+    carry the attribute naming the answer they hold. An answer read by member
+    (`x-awaits.key`) is a set of members, which the key names one by one, so the
+    key is unique among the members of one widget."""
+    if shows := entry.get("x-shows"):
+        reference = entry["x-refers"].get(shows["attr"])
+        if reference is None or reference:
+            raise registry_error("shows-reference", path, tag, attr=shows["attr"])
+        if lacking := sorted(
+            owner
+            for owner in entry["x-owners"]
+            if shows["value"] not in declarations[owner].get("properties", {})
+        ):
+            raise registry_error(
+                "shows-value", path, tag, attr=shows["value"], owners=lacking
+            )
+    awaits = entry.get("x-awaits") or {}
+    if key := awaits.get("key"):
+        spec = entry.get("x-state", {}).get(awaits["value"], {})
+        keyed = [
+            member
+            for member, declared in declarations.items()
+            if declared.get("x-unique", {}).get(key) == tag
+        ]
+        if (spec.get("record") or {}).get("kind") != "attribute" or not keyed:
+            raise registry_error("awaits-key", path, tag, key=key)
+
+
 def _validate_prepaint(tag: str, entry: dict, prepaint: str, path) -> None:
     """Hold an x-prepaint to what delivery can write into every occurrence: one plain
     element that only a module will take out again.
@@ -283,6 +319,12 @@ def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -
             for condition in awaits.get("answered", {}).values()
         ),
         ("x-thread-seat", entry.get("x-thread-seat", {}).get("when", {})),
+        (
+            "x-exhibit",
+            entry["x-exhibit"]["when"]
+            if isinstance(entry.get("x-exhibit"), dict)
+            else {},
+        ),
     ]
     for declaration, condition in conditions:
         for attr, values in condition.items():

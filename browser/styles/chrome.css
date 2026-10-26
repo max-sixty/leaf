@@ -26,24 +26,17 @@
    choice on one baseline with one type, border, corner and elevation; the bar keeps its
    DOM owner and accessible name while its contents change. */
 /* Page-attached chrome is absolute against the initial containing block, not against
-   body. Body is the page shell and may move or narrow, as a margin resident moves it;
+   body. Body is the page shell and may move or narrow, as margin content moves it;
    the document coordinate system does neither, and root scrolling still carries
    absolute chrome with the passage it stands beside. */
 /* Shared vocabulary. This sheet is adopted after the theme and every package, so a
    shared face stated here would outrank each component's own rule. The vocabulary's
    faces are therefore stated page-side (the margin entries in theme.css; .lf-key-badge,
    .lf-ui, .lf-btn and the aim floor in shadow.css, which also reaches
-   widget trees). What stays here is paint the runtime lays over the page, which has to
-   beat page and widget alike, and the `box-sizing` reset. test_interact_layer.py holds
-   that no selector is dressed for one property both here and page-side. */
-.lf-ui {
-  box-sizing: border-box;
-}
-.lf-ui *,
-.lf-ui *::before,
-.lf-ui *::after {
-  box-sizing: border-box;
-}
+   widget trees, and `.lf-ui`'s `box-sizing` reset in components/surfaces.css). What
+   stays here is paint the runtime lays over the page, which has to beat page and
+   widget alike. test_interact_layer.py holds that no selector is dressed for one
+   property both here and page-side. */
 /* Clearing the UA's form-control face lives in a layer, so any unlayered choice of
    face outranks it whatever its specificity: a control wearing .lf-ui takes the chrome
    face from its own class, and lf-draft's editor states the document's face unlayered
@@ -162,7 +155,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
 .lf-ins-block {
   background: var(--add-tint);
   box-shadow: 0 0 0 4px var(--add-tint);
-  border-radius: 2px;
+  border-radius: var(--r-s);
 }
 /* A marked block becomes one inline text diff when its Change disclosure opens
    (version.js): the block wash steps back so the insertion highlight marks only new
@@ -182,7 +175,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   background: var(--del-tint);
   color: var(--danger-ink);
 }
-/* The unanswered decision the user is standing in (markHere), worn by the decision
+/* The unanswered decision the user is in (markHere), worn by the decision
    rather than whichever control has focus. Unanswered and not open: a widget whose seat
    holds a thread waiting on the agent has left the user's list. One decision wears it at
    a time; a widget a page styles boxless hangs it on its contents' boxes (shownParts).
@@ -203,15 +196,16 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     opacity: 0.5;
   }
 }
-@keyframes lf-runtime-4f3c2a8d-flash {
-  /* The target owns its resting fill, including transparency and focus paint.
-     An omitted endpoint lets the browser interpolate to that underlying value. */
-  from {
-    background-color: var(--hi-tint);
-  }
-}
 /* Everything below is private to the chrome: no widget or page class can match it. */
 @scope (.lf-chrome) {
+  /* The tween a floating box's change of layout travels on (runtime/box-motion.js),
+     the floating panel's and the margin card's alike, which their scripts read off the
+     box: the Codex panel's one strong ease-out, at a length the user singled out as the
+     panel's best motion for a box growing as the words do (15 October). */
+  :is(.lf-floating-panel, .lf-margin-preview) {
+    --lf-motion-box-ease: cubic-bezier(0.23, 1, 0.32, 1);
+    --lf-motion-box-resize: 300ms;
+  }
   /* The foreground dialog (chrome.js) is an empty box at the document's origin, so what
      it holds positions against the window or that origin and never reads its size. Left
      to the browser's dialog face, it drew an empty bordered square where the page ends. */
@@ -237,12 +231,17 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     pointer-events: none;
     overflow: hidden;
     color: var(--ink);
+    --lf-region-dim: rgb(0 0 0 / 40%);
   }
-  /* The box is the exact crop; its outline paints outside those pixels. */
+  /* The box is the exact crop; its outline paints outside those pixels. Until a drag
+     or an arrow key draws one, the whole window wears the dim around it. */
   .lf-region-selection {
     position: absolute;
     outline: 1px solid var(--accent);
-    box-shadow: 0 0 0 100vmax rgb(0 0 0 / 40%);
+    box-shadow: 0 0 0 100vmax var(--lf-region-dim);
+  }
+  .lf-region-capture:has(> .lf-region-selection[hidden]) {
+    background: var(--lf-region-dim);
   }
 
   /* The layer is the runtime's, not the document's, so it never prints. */
@@ -398,13 +397,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     color: var(--muted-2);
     font: 500 var(--t-6)/1.25 var(--sans);
   }
-  /* Direct navigation cues the same bounded box it revealed: a short card, one
-     message, the reply row, or an oversized editor. */
-  .lf-msg.flash,
-  .lf-thread-reply.flash,
-  .lf-thread-reply leaf-text.flash {
-    animation: lf-runtime-4f3c2a8d-flash var(--lf-motion-flash) ease-out;
-  }
 
   .lf-quote {
     margin: 0 0 12px;
@@ -435,17 +427,8 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     gap: 5px;
   }
   .lf-quote-expand::before {
-    content: "▸";
     inline-size: 1em;
     text-align: center;
-  }
-  .lf-quote-expand[aria-expanded="true"]::before {
-    content: "▾";
-  }
-  /* A border image outset into the inline margin draws the rail and takes no room. */
-  .lf-msg.lf-unread {
-    border-image: linear-gradient(var(--accent), var(--accent)) 0 0 0 1 / 0 0 0 2px / 0
-      0 0 6px;
   }
 
   .lf-thread-action {
@@ -572,16 +555,39 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     margin: 0;
     background: var(--card);
     border: 1px solid var(--border-2);
-    border-radius: var(--r);
+    border-radius: var(--r-l);
     box-shadow: var(--raise-3);
     padding: 14px 18px;
+    /* Its column stands while a closing reference fades out, after `.open` has gone. */
+    flex-direction: column;
   }
   .lf-command-reference.open {
     display: flex;
-    flex-direction: column;
   }
   .lf-command-reference::backdrop {
     background: color-mix(in srgb, var(--ink) 24%, transparent);
+  }
+  /* The reference and the Page Map fade in and out in a disclosure's time, standing
+     where they open. A closed one stays drawn in the top layer while it fades
+     (`overlay`, `display`), taking no presses; a browser that can't transition those
+     hides it at once. */
+  :is(.lf-command-reference, .lf-page-map-dialog),
+  :is(.lf-command-reference, .lf-page-map-dialog)::backdrop {
+    opacity: 0;
+    transition:
+      opacity var(--lf-motion-disclosure) linear,
+      display var(--lf-motion-disclosure) allow-discrete,
+      overlay var(--lf-motion-disclosure) allow-discrete;
+  }
+  :is(.lf-command-reference:not(.open), .lf-page-map-dialog:not([open])) {
+    pointer-events: none;
+  }
+  :is(.lf-command-reference.open, .lf-page-map-dialog[open]),
+  :is(.lf-command-reference.open, .lf-page-map-dialog[open])::backdrop {
+    opacity: 1;
+    @starting-style {
+      opacity: 0;
+    }
   }
   .lf-media-viewer {
     position: fixed;
@@ -664,6 +670,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     max-height: none;
   }
   .lf-media-viewer .pswp__img {
+    border-radius: 0;
     outline: 1px solid var(--border-2);
     box-shadow: var(--raise-2);
   }
@@ -701,22 +708,40 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-command-reference-close {
     flex: none;
   }
+  /* The setting's help is the command rows' description: on its label's line, cut
+     short, shown while the pointer is over the setting or it holds focus, read by a
+     screen reader as the checkbox's description. Without hover it shows at rest
+     under the label. */
   .lf-command-reference-preference {
     display: grid;
-    grid-template-columns: auto 1fr;
-    align-items: center;
+    grid-template-columns: auto auto minmax(0, 1fr);
+    align-items: baseline;
     column-gap: 8px;
     row-gap: 2px;
     margin: 4px 0 12px;
     flex: none;
   }
   .lf-command-reference-preference input {
+    align-self: center;
     margin: 0;
   }
   .lf-command-reference-preference small {
-    grid-column: 2;
+    overflow: hidden;
     color: var(--muted);
     font-size: var(--t-6);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    opacity: 0;
+  }
+  .lf-command-reference-preference:is(:hover, :focus-within) small {
+    opacity: 1;
+  }
+  @media (hover: none) {
+    .lf-command-reference-preference small {
+      grid-column: 2 / -1;
+      white-space: normal;
+      opacity: 1;
+    }
   }
   .lf-search-field {
     width: 100%;
@@ -745,10 +770,13 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-command-reference-meta-box > [aria-hidden] {
     visibility: hidden;
   }
+  /* The results reach 10px into the dialog's padding, so a row's wash (6px beyond its
+     words) and its focus ring outside that keep their room inside the scroller. */
   .lf-command-reference-results {
-    --lf-command-key-column: 104px;
     min-height: 0;
     overflow-y: auto;
+    margin-inline: -10px;
+    padding-inline: 10px;
   }
   .lf-command-reference-empty {
     padding: 20px 0 8px;
@@ -756,110 +784,146 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     text-align: center;
   }
   .lf-command-reference h3 {
-    margin: 12px 0 4px;
+    margin: 16px 0 4px;
   }
-  .lf-command-reference table {
-    display: table;
-    width: 100%;
-    table-layout: fixed;
-    border-collapse: collapse;
+  /* The reference is a list a reader scans for a command and then reads its keys, so
+     each key sits beside the words it runs, as a menu or Gmail's `?` sets it: the
+     command, then its keys 10px after, then its description. Two layouts were
+     rejected. In a table whose key column was a fixed 104px, a lone key stood some 80px
+     from its command, the longest lists still wrapped, and the table wore the
+     document's data-table rule, a hairline under every cell. Keys at the row's end, as
+     a wide command palette sets them, stood 300px away. Rows share no column, so one long
+     binding list (`⇥ / ⇧⇥ / ← / → / ↑ / ↓`) widens only its own row. Rows part by
+     their own room, and a section by the space above its heading.
+
+     A description stays out of sight at rest, as references set none and palettes set
+     theirs small and on the title's line: it shows, on its row's one line and cut short
+     there, for the row the pointer is over, the row selected from the search, and the
+     row holding focus. So nothing below moves when it appears. It stays in the
+     accessibility tree, so a screen reader reads it as its command's description.
+     Without hover, a finger has no route to a hidden one, so there each description
+     shows at rest under its command. */
+  .lf-command-reference-row:not([hidden]) {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, max-content) auto minmax(0, 1fr);
+    grid-template-areas: "action key desc";
+    align-items: center;
+    column-gap: 10px;
+    margin-inline: -6px;
+    padding-inline: 6px;
+    border-radius: var(--r);
   }
-  .lf-command-reference-key-column {
-    width: var(--lf-command-key-column);
+  .lf-command-reference-row > * {
+    min-width: 0;
+    padding-block: 4px;
   }
-  .lf-command-reference th {
-    padding: 0;
-    text-align: left;
+  .lf-command-reference-row.lf-sequence-command > * {
+    padding-top: 10px;
   }
-  .lf-command-reference td {
-    padding: 3px 0;
-    vertical-align: top;
+  .lf-command-reference-action {
+    grid-area: action;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 8px;
   }
-  /* A walk lands a command's row (command-reference.js), and the command's ring stands
-     past the row's edge, so the row keeps the ring's room as a landing's margin. */
-  .lf-command-reference tr[data-lf-command] {
+  .lf-command-reference-key {
+    grid-area: key;
+  }
+  /* A walk lands a command's row (command-reference.js), and the row's ring stands
+     past its edge, so the row keeps the ring's room as a landing's margin. */
+  .lf-command-reference-row {
     scroll-margin-block: var(--focus-ring-landing);
   }
-  .lf-command-reference tr.lf-sequence-command td {
-    padding-top: 8px;
-    border-top: 1px solid var(--rule);
-  }
-  .lf-command-reference td:first-child {
-    padding-right: 8px;
+  .lf-command-reference-description {
+    grid-area: desc;
+    overflow: hidden;
+    color: var(--muted);
+    font-size: var(--t-6);
     white-space: nowrap;
+    text-overflow: ellipsis;
+    opacity: 0;
+  }
+  .lf-command-reference-row:is(
+      :hover,
+      [aria-selected="true"],
+      :has(.lf-command-reference-command[data-lf-focus])
+    )
+    .lf-command-reference-description {
+    opacity: 1;
+  }
+  @media (hover: none) {
+    .lf-command-reference-row:not([hidden]) {
+      grid-template-areas: "action key ." "desc desc desc";
+    }
+    .lf-command-reference-description {
+      padding-top: 0;
+      opacity: 1;
+      white-space: normal;
+    }
+    /* Up into the slack of its command's aim floor, which centers one line in 44px. */
+    .lf-command-reference-row:has(.lf-command-reference-command)
+      .lf-command-reference-description {
+      margin-top: calc((1lh - var(--aim-floor)) / 2);
+    }
+  }
+  .lf-command-reference .lf-binding-sequence {
+    flex-wrap: wrap;
+    max-width: 100%;
   }
   .lf-command-reference .lf-binding-sequence > kbd {
-    max-width: calc(var(--lf-command-key-column) - 8px);
+    max-width: 100%;
     height: auto;
     min-height: var(--lf-key-badge-size);
     padding-block: 1px;
     line-height: 1.3;
     white-space: normal;
   }
-  .lf-command-reference-binding-matches .lf-command-reference-action-main {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 8px;
-  }
-  .lf-command-reference-binding-matches .lf-command-reference-command {
-    flex: 1;
-    width: auto;
-  }
   .lf-command-reference-scope {
     flex: none;
     color: var(--muted);
     font-size: var(--t-6);
   }
-  .lf-command-reference-description {
-    display: none;
-    margin-top: 2px;
-    color: var(--muted);
-    font-size: var(--t-6);
-  }
-  @media (hover: none) {
-    .lf-command-reference-description {
-      display: block;
-    }
-  }
-  @media (max-width: 640px) {
-    .lf-command-reference-binding-matches .lf-command-reference-action-main {
-      display: block;
-    }
-    .lf-command-reference-binding-matches .lf-command-reference-command {
-      width: 100%;
-    }
-    .lf-command-reference-binding-matches .lf-command-reference-scope {
-      display: block;
-      margin-top: 1px;
-    }
-  }
+  /* A row's command is its one control: the button stretches over the row, so a press
+     on its keys or description runs it too, and the row wears its wash and focus ring. */
   .lf-command-reference-command {
-    width: 100%;
-    margin: -3px -6px;
-    padding: 3px 6px;
+    flex: none;
+    margin: 0;
+    padding: 0;
     border: 0;
-    border-radius: 4px;
     background: transparent;
     color: inherit;
     font: inherit;
     text-align: left;
     cursor: pointer;
   }
-  .lf-command-reference-command:is(:hover, [data-lf-focus]),
-  .lf-command-reference-command[data-lf-selected="true"] {
+  .lf-command-reference-command::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+  }
+  .lf-command-reference-row:has(
+    .lf-command-reference-command:is(:hover, [data-lf-focus], [data-lf-selected="true"])
+  ) {
     background: var(--chip);
   }
   .lf-command-reference-command[data-lf-focus-visible] {
+    outline: none;
+  }
+  .lf-command-reference-row:has(.lf-command-reference-command[data-lf-focus-visible]) {
     outline: var(--focus-ring);
     outline-offset: 1px;
   }
-  .lf-page-map-head {
+  .lf-page-map-head,
+  .lf-inspection-head {
     display: flex;
     align-items: center;
     gap: 8px;
   }
-  .lf-page-map-head > strong {
+  .lf-page-map-head > strong,
+  .lf-inspection-head > strong {
     flex: 1;
   }
   .lf-page-map-action {
@@ -889,8 +953,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     background: color-mix(in srgb, var(--lf-entry-tint, var(--chip)) 92%, var(--ink));
   }
   .lf-page-map-action .lf-margin-kind {
-    width: 16px;
-    height: 16px;
     align-self: center;
   }
   .lf-page-map-action-label {
@@ -925,7 +987,8 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
   /* The sheet's top belongs to the window, so narrowing its list never carries the
      search or Close under the user's aim. The same top bounds its scrolling room. */
-  .lf-page-map-dialog {
+  .lf-page-map-dialog,
+  .lf-inspection-dialog {
     --lf-page-map-top: max(10dvh, calc(var(--lf-safe-top) + 12px));
     position: fixed;
     inset: var(--lf-page-map-top) 0 auto;
@@ -937,20 +1000,63 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     margin: 0 auto;
     padding: 14px;
     border: 1px solid var(--border-2);
-    border-radius: 12px;
+    border-radius: var(--r-l);
     background: var(--paper);
     color: var(--ink);
     box-shadow: var(--raise-3);
+    /* Its column stands while a closing sheet fades out, after [open] has gone. */
+    flex-direction: column;
   }
   /* The sheet's one scroller takes the room its head and search leave inside the
      window bounds. Said on [open] so the author sheet leaves the UA's display:none
      intact for a dialog that is shut. */
-  .lf-page-map-dialog[open] {
+  .lf-page-map-dialog[open],
+  .lf-inspection-dialog[open] {
     display: flex;
-    flex-direction: column;
   }
-  .lf-page-map-dialog::backdrop {
+  .lf-page-map-dialog::backdrop,
+  .lf-inspection-dialog::backdrop {
     background: color-mix(in srgb, var(--ink) 26%, transparent);
+  }
+  .lf-inspection-body {
+    overflow: auto;
+    min-height: 0;
+    overflow-wrap: anywhere;
+    overscroll-behavior: contain;
+    padding: var(--focus-ring-room);
+    scroll-padding: var(--focus-ring-room);
+  }
+  .lf-inspection-body h2 {
+    font-size: var(--t-4);
+    margin-block: 18px 8px;
+  }
+  .lf-inspection-body h3 {
+    font-size: var(--t-5);
+  }
+  .lf-inspection-body details {
+    margin-block: 10px;
+  }
+  .lf-inspection-body summary {
+    cursor: pointer;
+    padding-block: 4px;
+  }
+  .lf-inspection-body pre {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font-size: var(--t-6);
+  }
+  .lf-inspection-metrics {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px 20px;
+  }
+  .lf-inspection-metrics dt {
+    color: var(--muted);
+    font-size: var(--t-6);
+  }
+  .lf-inspection-metrics dd {
+    margin: 0;
+    font-variant-numeric: tabular-nums;
   }
   .lf-page-map-search {
     width: 100%;
@@ -984,12 +1090,10 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
 
   @media (forced-colors: active) {
-    .lf-page-map-dialog {
+    .lf-page-map-dialog,
+    .lf-inspection-dialog {
       border: 1px solid CanvasText;
       box-shadow: none;
-    }
-    .lf-page-map-action[data-lf-focus-visible] {
-      outline: 2px solid Highlight;
     }
   }
   .lf-binding-sequence {
@@ -1054,7 +1158,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   :is(.lf-target-picker-hints, .lf-go-to-hints) .lf-key-hint.lf-in {
     transform: translate(-50%, 0);
   }
-  /* The hint the keyboard is browsing is where the user is standing in this mode, so
+  /* The hint the keyboard is browsing is where the user is in this mode, so
      it wears the layer's band — cast as a shadow, since a chip in a layer nothing can
      focus has no outline state to hang it on. */
   :is(.lf-target-picker-hints, .lf-go-to-hints) .lf-key-hint.lf-current {
@@ -1128,7 +1232,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     text-overflow: ellipsis;
     white-space: nowrap;
     padding: 1px 6px;
-    border-radius: 3px;
+    border-radius: var(--r-s);
     font-size: var(--t-6);
     line-height: 1.5;
     background: var(--accent);
@@ -1142,7 +1246,8 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     /* The sheet the Map opens in stands over the whole window and is sized to it, so
        its compact shape belongs to the window rather than to the rail: it asks the
        window, and this is the block that asks it. */
-    .lf-page-map-dialog {
+    .lf-page-map-dialog,
+    .lf-inspection-dialog {
       inset-inline: 8px;
       width: calc(100vw - 16px);
       margin-inline: 0;
@@ -1157,9 +1262,9 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     }
   }
 
-  /* Windows high-contrast mode suppresses the shadow used by text fields. Restore a
-     platform-colour outline for every focused chrome control instead of freezing the
-     product palette with forced-color-adjust. */
+  /* A forced palette keeps the chrome's states in platform colours rather than freezing
+     the product palette with forced-color-adjust. The focus ring needs nothing here:
+     --focus-ring is Highlight in a forced palette (theme.css). */
   @media (forced-colors: active) {
     .lf-dot {
       background: CanvasText !important;
@@ -1168,11 +1273,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
       border-color: Highlight;
       background: Highlight;
       color: HighlightText;
-    }
-    :scope [data-lf-focus-visible] {
-      outline: var(--focus-ring-w) solid Highlight !important;
-      outline-offset: 2px !important;
-      box-shadow: none !important;
     }
     :scope :is([aria-pressed="true"], [aria-checked="true"], [aria-current]) {
       border-color: Highlight !important;

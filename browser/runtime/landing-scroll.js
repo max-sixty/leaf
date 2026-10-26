@@ -33,7 +33,7 @@
  * it fits, and any of it along one where it does not: a box longer than its room never
  * shows whole, and moving one partly in view takes the user from what they see of it to
  * an edge they did not ask for. "Seen" is `seenRect`'s. A landing that follows the user,
- * such as entering a reply or standing back on a thread, asks it before moving anything.
+ * such as entering a reply or returning to a thread, asks it before moving anything.
  * Navigation does not: `nearest` stays the native alignment (rect.js,
  * `nearestScrollBy`), which fills the band with a tall destination partly in view, so a
  * fold the user goes to opens from its start.
@@ -43,7 +43,7 @@
  * layout first, as opening a disclosure hands a region to a scroller of its own, and
  * the keeper's restore for that change runs before the motion ends.
  *
- * A destination the user stands on is measured by the box that wears its focus ring
+ * A destination the user is on is measured by the box that wears its focus ring
  * (focus.js, `ringBox`), with its own margins, the ring's room: a playground's choice
  * rings its radio and words together, and a landing that measured the radio left the
  * face's ring cut at its pane's foot. Where that box is longer than its room, the
@@ -66,7 +66,7 @@
  * fits the room. Its own scroll margin already reserves the outline's gap.
  */
 import { localScrollBy, scrollAxes } from "./element-frame.js";
-import { deepFocus, onStanding, ringBox } from "./focus.js";
+import { deepFocus, onCurrentLocation, ringBox } from "./focus.js";
 import {
   landingBand,
   placeBox,
@@ -312,7 +312,11 @@ export function scrollIntoView(
       const byY = inside
         ? placementBy(where, "nearest", box, topMargin(where, box, start))
         : 0;
-      if (byX || byY) land(box, localScrollBy(box, { x: byX, y: byY }), "instant");
+      // Only a box that will move is asked to, as a first tab's ring room at its
+      // strip's start moves nothing: a call that moves nothing still reads as a
+      // scroll the gesture made (tests/shift_watch.js, "Scrolls a gesture makes").
+      const by = localScrollBy(box, { x: byX, y: byY });
+      if (by.left || by.top) land(box, by, "instant");
     }
     if (
       box === within ||
@@ -325,7 +329,7 @@ export function scrollIntoView(
 }
 
 // A Tab's arrival (see the header), read once the browser's own reveal has moved.
-onStanding((node, cause) => {
+onCurrentLocation((node, cause) => {
   if (cause !== "step" || !node) return;
   nextRender(() => {
     if (deepFocus() !== node) return;

@@ -16,7 +16,7 @@ from leaf.schema import ELEMENT_ID
 from leaf.structure import SourceDocument
 
 # ---------- anchors written without a browser ----------
-# `leaf thread open` writes an anchor by reading the mapped revision; the runtime
+# `leaf thread create` writes an anchor by reading the mapped revision; the runtime
 # resolves it against the DOM that revision becomes. Nothing static can check that those
 # two readings agree, and every way they can come apart — a widget's upgrade, an
 # attribute rendered as text, the space a block boundary stands for — only exists
@@ -24,7 +24,7 @@ from leaf.structure import SourceDocument
 
 
 def written_anchors(page_dir, html, limit=40):
-    """Anchors `leaf thread open` would write for windows over a page's own prose. A
+    """Anchors `leaf thread create` would write for windows over a page's own prose. A
     window the page says twice, or one crossing a fence, is refused on purpose —
     skipping those here is that refusal, and what survives is exactly what the command
     promises to place."""
@@ -324,8 +324,8 @@ graph LR
 """,
 )
 # A drawing wider than the column on purpose — six nodes across lay out near 1150px
-# against 720 — and a board beside it, so what the assertions turn on is which kind each
-# widget declares rather than that both are widgets.
+# against 720 — and a board beside it held to `wide` by its own `data-width`, so what the
+# assertions turn on is the width each declares rather than that both are widgets.
 WIDE_DIAGRAM_PAGE = leaf_page(
     "wide diagram",
     """
@@ -340,7 +340,7 @@ graph LR
   C -->|no| L[login]
   H --> O[write response]
 </pre></lf-diagram>
-<lf-board id="plan">
+<lf-board id="plan" data-width="wide">
   <lf-column id="d1" label="Todo"><lf-card id="dk1"><strong>One</strong></lf-card></lf-column>
   <lf-column id="d2" label="Doing"></lf-column>
   <lf-column id="d3" label="Done"></lf-column>
@@ -536,6 +536,9 @@ BAD_CHARTS = {
     "bad-mark": '{ariaLabel: "merged", marks: [Plot.barz([{n: 1}], {y: "n"})]}',
     "bad-drawn": 'Plot.plot({ariaLabel: "merged", marks: [Plot.ruleY([0])]})',
     "bad-height": '{ariaLabel: "merged", height: 200, marks: [Plot.ruleY([0])]}',
+    "bad-offset": (
+        '{ariaLabel: "merged", marks: [Plot.text([{n: 1}], {y: "n", text: "n", dy: (d) => d.n})]}'
+    ),
 }
 # A chart an agent sent in a reply, which upgrades inside a panel nobody has opened yet.
 MESSAGE_CHART = """{
@@ -610,9 +613,9 @@ DRAWING_PLACEMENT = """() => {
              rail: acts.getBoundingClientRect().left,
              small: at('small'), flow: at('flow') };
 }"""
-# A widget that declares width beside one that doesn't, so what the assertions turn on is
-# the declaration and not the tag: both are widgets, both hold more than the column shows
-# comfortably, and only one of them is entitled to more of the window than the prose gets.
+# Widgets that declare each width beside one that declares none, so what the assertions
+# turn on is the declaration and not the tag: the board takes all the room, the diff the
+# capped width from the prose's edge, and the code block keeps the column.
 WIDE_AND_NARROW_PAGE = leaf_page(
     "room",
     """
@@ -628,7 +631,7 @@ WIDE_AND_NARROW_PAGE = leaf_page(
   <lf-column id="col-review" label="Review"></lf-column>
   <lf-column id="col-done" label="Done"></lf-column>
 </lf-board>
-<lf-diff id="patch"><pre>
+<lf-diff id="wide-patch"><pre>
 diff --git a/feeders/mount.py b/feeders/mount.py
 --- a/feeders/mount.py
 +++ b/feeders/mount.py
@@ -637,6 +640,10 @@ diff --git a/feeders/mount.py b/feeders/mount.py
 -    return "plastic"
 +    return "steel"
 </pre></lf-diff>
+<lf-code id="patch" language="python"><pre>
+def bracket():
+    return "steel"
+</pre></lf-code>
 """,
 )
 
@@ -687,7 +694,7 @@ def _filler(name, count):
 
 
 # Bound to a feed rather than written inline, because that is the form a review arrives in
-# and the only one whose lines are commentable data: `projectData` labels each retained row by file,
+# and the only one whose lines are commentable data: its marks label each retained row by file,
 # side and source line, which is the coordinate a remark on a line is recorded at.
 # Prose either side of it so the patch has somewhere to be scrolled from and somewhere to
 # be scrolled to — a page whose whole diff fits on screen proves nothing about a header
@@ -861,6 +868,7 @@ ROOM_GEOMETRY = (
     + SHELL_BOX
     + """,
              board: box('sprint'), diff: box('patch'), prose: box('prose'),
+             widePatch: box('wide-patch'),
              note: box('note'), later: box('later') };
 }"""
 )
@@ -985,7 +993,7 @@ FRAMED_SCROLLER_PAGE = FRAMED_WIDE_PAGE.replace(
 )
 
 
-# How far the exhibit stands into the room a margin resident states it takes
+# How far the exhibit stands into the room margin content states it takes
 # (`--lf-taken-l`, `--lf-taken-r`, layouts.css), on both edges, since a room read too
 # wide spends itself on whichever side is free. The room the page states comes with it,
 # so a test waiting for the box to be read again has the reading it is waiting to see
@@ -1243,7 +1251,7 @@ SCROLLED = "() => document.scrollingElement.scrollTop > 0"
 WHERE_I_STAND_PAGE = leaf_page(
     "where i stand",
     """
-<h1 id="t">Standing</h1>
+<h1 id="t">Current location</h1>
 <p id="p1">A first passage, with a <a href="https://example.invalid/spec">link into the
 spec</a> so the walk has somewhere to stand that is not a decision.</p>
 <lf-ask id="shape-decision"><h2>Which material?</h2>

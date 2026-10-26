@@ -78,13 +78,8 @@ import {
   pendingAbout,
 } from "./selection.js";
 
-import {
-  closeCommandReference,
-  commandReferenceOpen,
-} from "../keyboard/command-reference.js";
-
 import { paintBarReactions, reactionAvailable } from "../reactions.js";
-import { threadInput, standingThread } from "../thread/landing.js";
+import { threadInput, currentLocationThread } from "../thread/landing.js";
 import { replyDraftContext } from "../thread/replies.js";
 import { activeCommandLabel } from "../keyboard/dispatch.js";
 import { pageCommand, pageRung, pageScope } from "../keyboard/register.js";
@@ -116,12 +111,13 @@ import {
   focusDestination,
   focused,
   closeLayer,
-  standingIn,
+  currentLocationIn,
+  onPressAway,
 } from "../focus.js";
 import { commandScope, projectCommandScope } from "../keyboard/scopes.js";
 import { under, upFrom } from "../shadow.js";
 import { nativeLayers } from "../keyboard/layer-stack.js";
-import { heldObligation } from "../standing-target.js";
+import { heldObligation } from "../current-target.js";
 
 import { coarsePointer, pointerAt, pressIsKeyboardActivation } from "../pointer.js";
 import { anchorLabel } from "../thread/messages.js";
@@ -135,10 +131,10 @@ export function createResponseSurface({
   rememberSelection,
   landIn,
   threadHere,
-  threadAtStanding,
-  replyThreadAtStanding,
+  threadAtCurrentLocation,
+  replyThreadAtCurrentLocation,
   threadTarget,
-  standingTarget,
+  currentTarget,
   markAt,
   scrollToElement,
   scrollToRange,
@@ -152,6 +148,7 @@ export function createResponseSurface({
   setReact,
   openPageThread,
   drawModeActive,
+  captureActive,
   refreshThread,
   dismissThreadView,
   pageComment,
@@ -163,7 +160,6 @@ export function createResponseSurface({
   drawingEdits,
   createPlacement = null,
 }) {
-  const hideReference = () => closeCommandReference(false);
   const hasOtherResponses = (anchor) =>
     reactionTokens().length > 0 || Boolean(anchor?.quote && !designModeActive());
 
@@ -354,7 +350,7 @@ export function createResponseSurface({
   // An element response exits to its subject, or the declared proxy representing it
   // where the subject cannot take focus. Resolve that structural parent from the current
   // anchor, so c from an obligation and an aimed press on the same obligation unwind alike.
-  // There is no saved pre-command focus: standing on an option comments on its obligation,
+  // There is no saved pre-command focus: being on an option comments on its obligation,
   // and closing returns to the obligation itself. A drawing's proxy is the fallback, not
   // the parent, even for a user who pressed it: focused, its face stands at the
   // window's head, away from the drawing it is about (chrome.css). A quoted selection clears to
@@ -362,7 +358,7 @@ export function createResponseSurface({
   const returnPlaces = (anchor) =>
     anchor && !anchor.quote ? [anchorTargetAt(anchor), visualActionAnchor(anchor)] : [];
   // Putting the bar away is closing a layer (focus.js, `closeLayer`): `showFab(null)`
-  // moves no focus, and the closer names where a user who stood in the bar lands, read
+  // moves no focus, and the closer names where a user who was in the bar lands, read
   // before it goes. `putAwayFab` hands them back to the bar's subject; `letGoOfFab` lets
   // them go onto the page, from the bar or from that subject.
   function landingFromBar(toPage) {
@@ -441,7 +437,7 @@ export function createResponseSurface({
       // screen. `e` still needs the durable anchor so it can extend that existing item;
       // in that route the floating bar is never painted and placement is deliberately
       // skipped. Every route that actually shows the bar keeps the geometry gate. The gate
-      // is for opening: the bar already standing on this anchor, placed again, is
+      // is for opening: the bar already being on this anchor, placed again, is
       // withheld rather than put away (standFab).
       if (usesPlacement && !placement.place({ reveal })) {
         if (same && placement.stands()) placement.withhold();
@@ -510,7 +506,7 @@ export function createResponseSurface({
   // enough to open it: the physical presenter owns its attachment and measure, so
   // this asks only whether any of it is seen, not whether a landing would show more
   // (landing-scroll.js, `alreadyShown`, which a short subject cut by an edge is not).
-  // Only stale standing or a resumed draft whose subject is wholly out of view needs
+  // Only a stale current location or a resumed draft whose subject is wholly out of view needs
   // travel (including revealing a closed ancestor), before placement measures it.
   function bringForward(addressable) {
     if (addressable && !seenRect(addressable, new Map()))
@@ -534,7 +530,7 @@ export function createResponseSurface({
       // A browser command or touch handle can replace the visual target while its
       // selectionchange is held out above. Re-read once the explicit activation is
       // complete so that real later selection is not discarded with the focus collapse.
-      observeSelection();
+      selectionChanged();
     });
   }
   // Focusing text entry collapses a native page selection. Hold that browser-authored
@@ -595,8 +591,8 @@ export function createResponseSurface({
   };
   function commentOnOfferedSelection(settled = offeredSelection) {
     const selection = anchoringIsReady() ? pageSelection() : null;
-    const standing = selection ? selectionAnchor(selection) : null;
-    commentOnSelection(hasQuote(standing) ? standing : settled);
+    const currentLocation = selection ? selectionAnchor(selection) : null;
+    commentOnSelection(hasQuote(currentLocation) ? currentLocation : settled);
   }
   const commentOnSelection = (anchor) => {
     offerSelection(null);
@@ -839,7 +835,12 @@ export function createResponseSurface({
     // in-progress branch until the compatibility mouseup has been and gone.
     const releasePress = () =>
       setTimeout(() => {
+        if (!actionPress) return;
         actionPress = false;
+        // Native selectionchange may have coalesced the focus collapse and a later
+        // passage while this press held observation. Read the live selection when
+        // the handoff ends, through the same guards as a native notification.
+        selectionChanged();
       });
     // Opening or acting in chrome is a route away from the page, not a new selection
     // gesture. Keep the native touch passage verbatim while focus moves
@@ -881,35 +882,47 @@ export function createResponseSurface({
   // Selections made from the keyboard (shift-arrows, ⌘A) deserve the same response bar. Typing in
   // a box never does, whatever is selected elsewhere.
 
-  // Floating chrome getting out of the way of a press somewhere else, which is a fact about
-  // the press rather than about who receives it: the aim takes a press away from the page
-  // (see claimPress) and must not take this with it, or the command reference stays up over
-  // the composer that press just opened. Hence one function, called from both.
-  function standDown(target) {
-    // A native modal owns its press; the composer behind it remains inert.
-    if (nativeLayers().some((layer) => layer.kind === "modal")) return;
-    const visual = visualAt(target);
+  // The response surface getting out of the way of a press away from it (focus.js,
+  // `onPressAway`), which is a fact about the press rather than about who receives it, so
+  // a press the aim or a design mode claims from the page puts it away too. A press on
+  // the visual the bar stands for keeps it, as does a stroke in a draw mode or a capture's
+  // drag, which go on into the draft the composer holds. A native modal owns its press,
+  // the command reference's included, which goes by its own light dismissal
+  // (`closedby`), and the composer behind it stays inert.
+  function pressedAway(path) {
+    if (
+      drawModeActive() ||
+      captureActive() ||
+      nativeLayers().some((layer) => layer.kind === "modal")
+    )
+      return false;
+    // The node pressed, not the widget host a shadow tree retargets it to: core controls
+    // seated in a widget surface stay inside their own composer or reaction layer.
+    const [target] = path;
+    // A release outside the document can begin its path at window, which has no
+    // visual place to compare with the open composer.
+    const visual = target?.nodeType === Node.ELEMENT_NODE ? visualAt(target) : null;
     const sameVisual =
       visual &&
       !fabAnchor.value?.quote &&
       fabAnchor.value?.section === visual.id &&
       fabAnchor.value?.visual === visual.part?.id;
-    if (
+    return (
       !sameVisual &&
       !target.closest?.(".lf-fab-bar, .lf-react-surface, .lf-composer") &&
       !reactionContextContains(target)
-    ) {
-      if (composerOpen) composer.hideComposer();
-      letGoOfFab();
-      // The armed react press goes with the bar it was armed on.
-      setReact(false);
-    }
-    if (commandReferenceOpen() && !target.closest?.(".lf-command-reference"))
-      hideReference();
+    );
   }
-  // Document listeners see a shadow-tree press retargeted to its host. Read the
-  // composed origin so core controls seated in a widget surface remain inside their
-  // own composer/reaction layer instead of being dismissed before `click` can fire.
+  // The press goes away as it completes, after its own focus change has placed the user
+  // where it landed, so the bar lets go only of a user it still holds: one who pressed
+  // its subject, or anything else that takes focus, stays there.
+  function standDown() {
+    if (composerOpen) composer.hideComposer();
+    if (fabAnchor.value)
+      closeLayer(() => showFab(null), fabBar.contains(fabFocused()) && letGo);
+    // The armed react press goes with the bar it was armed on.
+    setReact(false);
+  }
 
   // What a plain click on the page means, decided once. Design mode explicitly changes the
   // grammar, and a visible mark opens its thread. Unadorned authored content keeps the
@@ -954,6 +967,39 @@ export function createResponseSurface({
     wireInput,
     drawingEdits,
   });
+
+  function selectionChanged() {
+    const automatic = programmaticSelection(getSelection());
+    if (primaryPointerPressed && selectionPressIntent?.()) {
+      rememberPointerSelection();
+      if (coarsePointer.matches && pointerSelecting && !selectionGestureClaimed)
+        rememberSelection();
+      reflectSelection();
+      return;
+    }
+    // Focus and action handoffs own the captured target while the browser collapses
+    // its selection. Outside those handoffs, observe the browser's live passage;
+    // only the completed page gesture above/below may replace the composer.
+    if (takesLetters(focused())) {
+      offerSelection(null);
+      return;
+    }
+    if (actionPress || targetActivation) return;
+    const selection = pageSelection();
+    if (coarsePointer.matches && selection && !automatic) rememberSelection(selection);
+    observeSelection();
+    // A bare selected passage only stands while the browser still holds it.
+    // Focusing Comment captures that passage, and a written draft keeps it even
+    // after focus moves elsewhere; neither belongs to the native selection now.
+    if (
+      !selection &&
+      fabAnchor.value?.quote &&
+      !fabHoldsCapturedPassage() &&
+      !composer.composerHolds()
+    )
+      putAwayFab();
+    reflectSelection();
+  }
 
   function mount() {
     composer.mount();
@@ -1016,39 +1062,7 @@ export function createResponseSurface({
     });
     document.addEventListener("pointerup", finishPointerSelection);
     document.addEventListener("pointercancel", finishPointerSelection);
-    document.addEventListener("selectionchange", () => {
-      const automatic = programmaticSelection(getSelection());
-      if (primaryPointerPressed && selectionPressIntent?.()) {
-        rememberPointerSelection();
-        if (coarsePointer.matches && pointerSelecting && !selectionGestureClaimed)
-          rememberSelection();
-        reflectSelection();
-        return;
-      }
-      // Focus and action handoffs own the captured target while the browser collapses
-      // its selection. Outside those handoffs, observe the browser's live passage;
-      // only the completed page gesture above/below may replace the composer.
-      if (takesLetters(focused())) {
-        offerSelection(null);
-        return;
-      }
-      if (actionPress || targetActivation) return;
-      const selection = pageSelection();
-      if (coarsePointer.matches && selection && !automatic)
-        rememberSelection(selection);
-      observeSelection();
-      // A bare selected passage only stands while the browser still holds it.
-      // Focusing Comment captures that passage, and a written draft keeps it even
-      // after focus moves elsewhere; neither belongs to the native selection now.
-      if (
-        !selection &&
-        fabAnchor.value?.quote &&
-        !fabHoldsCapturedPassage() &&
-        !composer.composerHolds()
-      )
-        putAwayFab();
-      reflectSelection();
-    });
+    document.addEventListener("selectionchange", selectionChanged);
     document.addEventListener("mouseup", (ev) => {
       if (drawModeActive()) return;
       const selectedOnPage = pointerSelecting && selectionPressIntent?.();
@@ -1117,9 +1131,7 @@ export function createResponseSurface({
         scheduleSelectionUpdate();
       } else observeSelection();
     });
-    document.addEventListener("mousedown", (ev) => {
-      if (!drawModeActive()) standDown(ev.composedPath()[0]);
-    });
+    onPressAway(pressedAway, standDown);
     document.addEventListener("click", (ev) => {
       if (drawModeActive()) return;
       const target = ev.composedPath()[0];
@@ -1179,8 +1191,8 @@ export function createResponseSurface({
   }
 
   // ---------- where "comment" goes ----------
-  // The thread the user is standing in, and the box it is written in. Three
-  // containers hold one and the user can stand in any of them: the panel's thread, a
+  // The thread the user is in, and the box it is written in. Three
+  // containers hold one and the user can enter any of them: the panel's thread, a
   // thread seated on the page (x-thread-seat), and each thread inside that seat.
   // They are one question — a press meaning "say something about this" belongs to the box
   // of the thread the user is already in — so they get one reading rather than a
@@ -1188,14 +1200,14 @@ export function createResponseSurface({
   //
   // One of the three is in the chrome, which is not the exception it looks like: page scope
   // already crosses there. A page key that takes the user somewhere owes them an answer
-  // once they are standing there.
+  // once they are there.
   //
   // One live aim and then one climb, rather than four cases. A selection outranks
-  // position; a captured target does too until the user stands elsewhere. The draft
+  // position; a captured target does too until the user is elsewhere. The draft
   // keeps its words independently of which target the next press names. Below the
   // aim, the answer walks
-  // outward from where they are standing — the nearest thread's box, then the nearest
-  // addressable element, then the page, which is what is left when they are standing
+  // outward from where they are — the nearest thread's box, then the nearest
+  // addressable element, then the page, which is what is left when they are
   // nowhere in it. An element anchor answers in its own word (a figure, a card), the way
   // the panel names one. Every destination is a box to write in and says so in the same
   // sentence; the word is what varies.
@@ -1209,7 +1221,7 @@ export function createResponseSurface({
         box: null,
         go: commentOnOfferedSelection,
       };
-    const here = standingTarget();
+    const here = currentTarget();
     const anchor = fabAnchorAt();
     // The thread the user is at continues where it is about what they stand on: they
     // are in it, or its target lies within the element they stand at — the obligation holding
@@ -1219,23 +1231,23 @@ export function createResponseSurface({
     // takes a thread of its own, and a selection still starts one on its words.
 
     const inline = threadHere();
-    const threadId = threadAtStanding();
-    const replyId = replyThreadAtStanding();
+    const threadId = threadAtCurrentLocation();
+    const replyId = replyThreadAtCurrentLocation();
     const target = threadId && threadTarget(threadId);
     const inlineBox =
       inline &&
       (!here ||
-        standingIn(inline) ||
+        currentLocationIn(inline) ||
         (target && under(target, heldObligation() ?? here.element))) &&
       threadInput(inline);
     const said =
-      standingThread() ?? (inlineBox ? { held: inline, box: inlineBox } : null);
+      currentLocationThread() ?? (inlineBox ? { held: inline, box: inlineBox } : null);
     const subject =
       threadId &&
       (!here || (target && under(target, heldObligation() ?? here.element)));
     const replySubject = subject && replyId;
     // A captured passage outranks the focus it preceded, but a kept draft is not a
-    // standing target. Read both page and thread standing before choosing the aim.
+    // current target. Read both page and thread location before choosing the aim.
     // After the user lands elsewhere, Comment names that new place;
     // commentOnTarget carries the old words without replacing a destination's
     // independent draft.
@@ -1297,14 +1309,14 @@ export function createResponseSurface({
 
   // c goes where commenting happens: a live selection gets the composer (what the floating
   // button does), an element click's pending 💬 gets that, an open thread the user is
-  // standing in gets its own reply box, the item they are standing in gets the box
+  // being in gets its own reply box, the item they are in gets the box
   // belonging to it, and otherwise the page's general box, the floating panel's field. c
   // names and focuses the box directly; g T independently names the list. Never the panel's collapse: c doubled as the toggle once, so with the panel
   // standing open the key that promised “comment” answered “close”. Backing out is
   // whatever the box is standing in.
   //
-  // Standing outranks the page; a live selection or a newly captured target outranks
-  // standing. The draft stored on an earlier target supplies words, not that priority.
+  // Current location outranks the page; a live selection or a newly captured target outranks
+  // current location. The draft stored on an earlier target supplies words, not that priority.
   pageCommand({
     id: "comment.create",
     touch: false,
@@ -1312,6 +1324,8 @@ export function createResponseSurface({
     // The surfaces name the destination in front of the user rather than the capability:
     // "Comment" covered all four and so promised none of them.
     title: () => commentDestination().title,
+    // It goes to the destination it names, revealing a box off screen.
+    travels: true,
     // A selection made before the anchor pass has run can't be quoted yet, and commenting
     // on the page instead is not what the user asked for — so the press waits, and the
     // row's own liveness is where that is said rather than a refusal inside run that no
@@ -1399,7 +1413,6 @@ export function createResponseSurface({
     showFabOptions,
     hasPageSelectionTarget,
     updateFab,
-    standDown,
     fabAnchorAt,
     seatFab,
     restoreFab,

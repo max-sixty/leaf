@@ -1,20 +1,40 @@
-/* Decorate the authored native disclosure before first paint. Its evidence stays
- * where the author put it, so a revision can patch prose while retaining the
- * nested diff reader. Native disclosure and revision carry own the open state. */
-document.documentElement.lfInitial.register("lf-worktree", (host) => {
+/* Build the worktree's native disclosure before first paint. The author writes the
+ * evidence directly in the host; it moves whole into the disclosure's authored body,
+ * where a revision patches prose while retaining the nested diff reader. The host's
+ * `open` sets the first state, and a reader's toggle, kept by host id, outlasts a
+ * revision that rebuilds the row.
+ *
+ * Leaf owns the disclosure rather than decorating one the author writes: a summary
+ * written into the author's `details` stood among their elements, where the page's
+ * rules read its structure. A shadow root holding the disclosure around a slot was
+ * rejected because initial drawings get no shadow stage, so the summary would
+ * appear only at upgrade. */
+document.documentElement.lfInitial.register("lf-worktree", (host, tools) => {
   const node = (tag, className, text) => {
     const result = document.createElement(tag);
     result.className = className;
     if (text !== undefined) result.textContent = text;
     return result;
   };
-  const details = host.querySelector(":scope > details");
-  details.classList.add("lf-worktree-disclosure");
+  const body = tools.authoredBody(node("div", "lf-worktree-body"));
+  const details = node("details", "lf-worktree-disclosure");
+  const key = `worktree:${host.id}`;
+  const kept = tools.tabStore.get(key);
+  details.open = kept === null ? host.hasAttribute("open") : kept === "open";
+  details.addEventListener("toggle", () =>
+    tools.tabStore.set(
+      key,
+      details.open === host.hasAttribute("open")
+        ? null
+        : details.open
+          ? "open"
+          : "closed",
+    ),
+  );
   // Like lf-diff's file summary, this native disclosure names evidence. It is
   // content, not an apparatus-only offer: it must remain visible on paper.
-  const summary = node("summary", "lf-worktree-summary");
-  summary.dataset.lfGen = "1";
-  summary.dataset.lfSaid = "";
+  const summary = node("summary", "lf-worktree-summary lf-disclosure-marker");
+  tools.generatedElement(summary, { says: true });
   const identity = node("span", "lf-worktree-identity");
   const label = node("strong", "lf-worktree-label", host.getAttribute("label"));
   const branch = host.getAttribute("branch");
@@ -48,12 +68,12 @@ document.documentElement.lfInitial.register("lf-worktree", (host) => {
   }
   summary.append(identity, state, stats);
   const path = node("div", "lf-worktree-path");
-  path.dataset.lfGen = "1";
-  path.dataset.lfSaid = "";
+  tools.generatedElement(path, { says: true });
   path.append(
     node("span", "", "Worktree"),
     node("code", "", host.getAttribute("path")),
   );
-  details.prepend(summary, path);
+  details.append(summary, path, body);
+  host.append(details);
   return { details };
 });

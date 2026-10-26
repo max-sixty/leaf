@@ -161,12 +161,11 @@ def test_each_harness_registration_names_its_harness():
         )
 
 
-def test_every_carrying_hook_has_time_to_confirm_what_it_hands_over():
-    """A hook confirms an inline delivery only within CONFIRM_WITHIN of starting,
-    which holds only while every harness whose hooks carry input gives its prompt
-    and Stop hooks at least twice that: the rest covers uv's start, the imports,
-    and the receipt after the clock stops."""
-    floor = 2 * hook_transport_model.CONFIRM_WITHIN
+def test_every_carrying_hook_has_the_timeout_leaf_counts_on():
+    """Every harness whose hooks carry input gives its prompt and Stop hooks
+    HOOK_TIMEOUT_S, the time Leaf counts on: a hook confirms an inline delivery
+    only within half of it (CONFIRM_WITHIN), and a turn-end watch gives the Stop
+    hook all of it to close the turn before waking for pending input."""
     for harness in REGISTRATIONS:
         for event in (
             "UserPromptSubmit",
@@ -179,14 +178,17 @@ def test_every_carrying_hook_has_time_to_confirm_what_it_hands_over():
                 for hook in registration["hooks"]
                 if not hook.get("asyncRewake")
             ]
-            assert hook["timeout"] >= floor, (harness, event)
+            assert hook["timeout"] == hook_transport_model.HOOK_TIMEOUT_S, (
+                harness,
+                event,
+            )
     # Pi's extension runs the hook itself and bounds it with its own copy.
     [timeout] = re.findall(
         r"const HOOK_TIMEOUT_MS = ([\d_]+);?$",
         (PLUGIN_ROOT / "hooks" / "pi.ts").read_text(),
         re.MULTILINE,
     )
-    assert int(timeout.replace("_", "")) >= floor * 1000
+    assert int(timeout.replace("_", "")) == hook_transport_model.HOOK_TIMEOUT_S * 1000
 
 
 def test_the_registered_watch_hook_wakes_the_session(claimed, tmp_path):
@@ -198,7 +200,7 @@ def test_the_registered_watch_hook_wakes_the_session(claimed, tmp_path):
     env = os.environ | {"CLAUDE_PLUGIN_ROOT": str(PLUGIN_ROOT)}
     leases_model.mark_hooks("s1")  # its harness runs Leaf's hooks
     serving(claimed, 1)
-    session_model.cmd_waiting(claimed, "")
+    session_model.cmd_waiting(claimed)
     cleanup_model.close_session_turn("s1")
     append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "hi"}

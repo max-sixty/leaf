@@ -1,9 +1,10 @@
 /* What the page says between notices about where the keyboard has the user: the Go-to
  * filter's word while a `g` sequence holds one, a walk's position ("1 of 3 threads")
- * after a list walk, and the title of the stance the user stands in ("In Draw mode",
- * dispatch.js, `innermostStance`). The floating panel reads this signal for its empty
- * field, where a stance heads the current walk or Go-to words in the page status's
- * place (floating-panel.js, `fieldReading`). A retired walk's retained reading has
+ * after a list walk, and what the stance the user is in says, its `says` or else its
+ * title ("In Draw mode", "To-do · Try the build"; dispatch.js, `innermostStance`).
+ * The floating panel reads this signal for its empty field, where a stance heads the
+ * current walk or Go-to words in the page status's place (floating-panel.js,
+ * `fieldReading`). A retired walk's retained reading has
  * `shown: false` and is not displayed. Painted in the repaint frame (repaint.js), since
  * these readings follow focus, the sequence's state and the register. A walk's reading
  * also names the stop it stands on (`target`, its owner's key), so a list that shows
@@ -18,14 +19,14 @@ const EMPTY = Object.freeze({ goTo: null, walk: null, stance: null });
 const context = signal(EMPTY);
 let lastWalk = null;
 export const statusContextReading = () => context.value;
+const stanceWords = (scope) => (scope ? word(scope.says ?? scope.title) : null) ?? null;
 
 const shownWalk = ({ walk }) => (walk?.shown ? walk : null);
 const same = (a, b) =>
   a.goTo === b.goTo &&
   a.stance === b.stance &&
   shownWalk(a)?.text === shownWalk(b)?.text &&
-  shownWalk(a)?.target === shownWalk(b)?.target &&
-  shownWalk(a)?.boundary === shownWalk(b)?.boundary;
+  shownWalk(a)?.target === shownWalk(b)?.target;
 
 /** Read the context again, `goToStatus` the Go-to sequence's word or null. */
 export function paintStatusContext(goToStatus) {
@@ -35,13 +36,14 @@ export function paintStatusContext(goToStatus) {
     lastWalk = Object.freeze({
       kind: position.kind,
       target: position.target,
+      position: position.position,
+      total: position.total,
       text: position.text,
-      boundary: position.boundary,
     });
   const next = Object.freeze({
     goTo,
     walk: lastWalk ? Object.freeze({ ...lastWalk, shown: Boolean(position) }) : null,
-    stance: word(innermostStance()?.scope.title) ?? null,
+    stance: stanceWords(innermostStance()?.scope),
   });
   setNoticeContext(Boolean(goTo));
   if (!same(next, context.peek())) context.value = next;

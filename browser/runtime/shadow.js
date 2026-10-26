@@ -3,9 +3,9 @@
 import { isStage, liveStages } from "./arrivals.js";
 import { registry } from "./registry.js";
 import {
+  excludedByInert,
   byRenderedOrder,
   composedParentNode,
-  nativeLayerKind,
   renderedOrder,
   renderedParent,
   renderedUnder,
@@ -14,6 +14,7 @@ import {
   upFrom,
 } from "./shadow-tree.js";
 export {
+  excludedByInert,
   byRenderedOrder,
   composedParentNode,
   renderedOrder,
@@ -61,17 +62,6 @@ export const shadowRootsIn = (root) =>
     (stage) => root.contains(stage.host) && declaredRoot(stage.host) === stage,
   );
 export const pageShadowRoots = () => shadowRootsIn(document);
-// Explicit inertness excludes a node through its composed ancestry. An open native
-// modal escapes inherited inertness outside itself, but an inert modal or descendant
-// remains excluded. Read node kind rather than realm-specific Element: a sample asks
-// this of the frame its containing document holds too.
-export function excludedByInert(node) {
-  for (let owner = node; owner; owner = renderedParent(owner)) {
-    if (owner.inert) return true;
-    if (nativeLayerKind(owner) === "modal") break;
-  }
-  return false;
-}
 // Geometry walks the children that paint here: a host's shadow tree and a slot's
 // assigned (or fallback) content, rather than the separate light-DOM ownership tree.
 export const renderedChildren = (node) =>
@@ -100,8 +90,8 @@ export const overIn = (el, selector, frame) => {
   const near = el.closest(selector);
   return near && (!frame || under(near, frame)) ? near : null;
 };
-// A label a widget declared as the page speaking (relabel), which the anchor pass reads
-// over the chrome it sits in.
+// A label a widget declared as the page speaking (generatedElement), which the anchor
+// pass reads over the chrome it sits in.
 export const SAID = "[data-lf-said]";
 // The pair `uiInside` weighs, the nearer deciding. The passage walk reads the same pair one
 // element at a time on its way down (passages.js, `chromeMark`).

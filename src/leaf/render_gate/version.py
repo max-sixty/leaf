@@ -20,10 +20,7 @@ from .readings import (
 )
 from .scheme import _render_scheme
 
-RENDER_VIEWPORTS = (
-    RENDER_VIEWPORT,
-    {"width": 540, "height": 720},
-)
+PHONE_VIEWPORT = {"width": 540, "height": 720}
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,7 +48,9 @@ def _viewport_label(viewport: dict) -> str:
     return f"{viewport['width']}x{viewport['height']}"
 
 
-def _findings_with_viewports(findings: list[tuple[Finding, str]]) -> list[Finding]:
+def _findings_with_viewports(
+    findings: list[tuple[Finding, str]], desktop: dict
+) -> list[Finding]:
     """Name the viewports of viewport-specific findings without duplicating universal
     ones."""
     viewports_by_finding = {}
@@ -61,7 +60,7 @@ def _findings_with_viewports(findings: list[tuple[Finding, str]]) -> list[Findin
             viewports.append(viewport)
     # A finding at both fixed viewports is universal: the margin widths render in one
     # scheme only, so a dark finding never reaches them.
-    fixed = {_viewport_label(viewport) for viewport in RENDER_VIEWPORTS}
+    fixed = {_viewport_label(viewport) for viewport in (desktop, PHONE_VIEWPORT)}
     return [
         finding if fixed <= set(viewports) else finding.but(viewports=tuple(viewports))
         for finding, viewports in viewports_by_finding.items()
@@ -71,6 +70,7 @@ def _findings_with_viewports(findings: list[tuple[Finding, str]]) -> list[Findin
 def _render_version_attempt(
     browser,
     url: str,
+    desktop: dict,
     served_timeout_ms: int | None = None,
     *,
     implementations=None,
@@ -83,15 +83,17 @@ def _render_version_attempt(
     placed no matching page host, a widget upgraded into a box of no usable size,
     an element showing words with no box for a mark to hang on, so a comment anchored
     there would outline nothing and the On me walk would travel to the top of the page,
-    words the user can read and can't select — each in both color schemes at wide and
-    compact viewports, because the dark theme and responsive layout are real CSS nobody
-    otherwise renders — plus, in one scheme at
+    words the user can read and can't select — each in both color schemes at the
+    `desktop` viewport and a phone's, because the dark theme and responsive layout are
+    real CSS nobody otherwise renders — plus, in one scheme at
     each viewport, a word the registry promised that never reached
     the page (a declaration is scheme-blind), an attribute a module left on a
     widget that its entry never declared (a file's reading sees one writer, and this is
     the other), a version that authors widget state the log replays over, a widget whose
     render() is relative, so a read's replay of the sender's own gesture moves the
-    page again (none of the three is CSS), a settled holder whose mark or still-showing
+    page again (none of the three is CSS), a block a comparison of the version with
+    itself marks, because a module wrote words there without marking them, a settled
+    holder whose mark or still-showing
     slot words disagree with the log's decision (read once: the palettes carry no
     geometry between them), and an SVG paint token that does not resolve to valid paint
     in that scheme. Once per version, on the settled desktop page in the light scheme,
@@ -100,7 +102,8 @@ def _render_version_attempt(
     360px to 1920px (`readings.sweep`), the geometry that moves with the window: the
     page scrolling sideways, content set past the column and out into the margin, a
     horizontal scrollbar with no room below what it scrolls, a control clipped out of
-    reach, words drawn on top of other words. There it also reads, as advice naming
+    reach, a box cutting off its own content where no scroll reaches it, words drawn on
+    top of other words. There it also reads, as advice naming
     the widths it spans, whether a drawing's fit to its box shrinks its labels past
     reading, and whether a table scrolls sideways with a cell in it wrapped. That pass
     also finds each width where the page's margin content changes (a sidebar,
@@ -113,14 +116,14 @@ def _render_version_attempt(
     render reads the geometry first at the size it loaded at, before it opens a
     thread: a widget can lay itself out by the window it first met, and a page's own
     rules can lay it out differently in the dark scheme. The light phone render then
-    sweeps down from 540px at its 720px height, since a widget can size by the
-    window's height (a file editor clips its body at 60vh, a trace stage fills the
-    window): a short window can cut off what a tall one shows, and a page's own rules
-    can do the reverse.
+    sweeps down from 540px at its own 720px height, which the desktop's need not
+    share, since a widget can size by the window's height (a file editor clips its body
+    at 60vh, a trace stage fills the window): a short window can cut off what a tall
+    one shows, and a page's own rules can do the reverse.
 
     One implementation with two callers — `page check --render` on the page an agent
     just wrote, and the render suite on the shipped examples
-    (the tests/test_render_*.py modules) — so the gate and the suite hold one set of
+    (the tests/*/test_render_*.py modules) — so the gate and the suite hold one set of
     invariants. Returns the reading, ResizeObserver notices, and whether every reading
     completed. `browser` is a live Playwright browser; nothing here imports
     playwright at module level, so the module stays importable without it."""
@@ -137,8 +140,8 @@ def _render_version_attempt(
     advice = []
     changes = []
     arrangement = []
-    desktop, phone = RENDER_VIEWPORTS
-    fixed = {viewport["width"] for viewport in RENDER_VIEWPORTS}
+    phone = PHONE_VIEWPORT
+    fixed = {desktop["width"], phone["width"]}
     steps = sorted({*SWEEP_WIDTHS, *fixed}, reverse=True)
 
     def sample(page, registry):
@@ -199,24 +202,25 @@ def _render_version_attempt(
                 page.close()
         raise
     reading = RenderReading(
-        [*_findings_with_viewports(failures), *swept_faults(samples), *advice],
+        [*_findings_with_viewports(failures, desktop), *swept_faults(samples), *advice],
         changes,
         arrangement,
     )
-    return reading, _findings_with_viewports(notices), all(completed)
+    return reading, _findings_with_viewports(notices, desktop), all(completed)
 
 
 def render_version(
     browser,
     url: str,
     served_timeout_ms: int | None = None,
+    desktop: dict = RENDER_VIEWPORT,
     *,
     implementations=None,
     declaration_sources=None,
 ) -> RenderReading:
-    """Read a version, confirming a complete attempt that reports a ResizeObserver
-    loop notice. Advice is the first attempt's: it refuses nothing, so a
-    confirmation has nothing to say about it.
+    """Read a version at the `desktop` window and a phone's, confirming a complete
+    attempt that reports a ResizeObserver loop notice. Advice is the first attempt's:
+    it refuses nothing, so a confirmation has nothing to say about it.
 
     Chrome can emit the notice once under load, while a layout feedback loop emits it
     on every rendering. The unit here is the whole color-scheme and viewport gate,
@@ -239,6 +243,7 @@ def render_version(
             return _render_version_attempt(
                 browser,
                 url,
+                desktop,
                 served_timeout_ms=served_timeout_ms,
                 implementations=implementations,
                 declaration_sources=declaration_sources,

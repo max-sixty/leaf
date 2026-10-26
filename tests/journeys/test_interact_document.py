@@ -304,9 +304,10 @@ def test_a_tone_the_layer_cannot_paint_is_refused_where_the_author_can_still_fix
     )
     status, findings = check_findings(page_dir)
     assert status == 1
-    assert [(f.code, f.at, f.values["known"]) for f in findings] == [
-        ("unknown-word", "<lf-column>", ["ok", "warn", "danger"])
+    assert [(f.code, f.at, f.values["keyword"]) for f in findings] == [
+        ("attribute-schema", "<lf-column>", "enum")
     ]
+    assert "['ok', 'warn', 'danger']" in findings[0].values["reason"]
 
     # The list is the layer's, so a layer that adds one accepts it with no widget
     # touched — which is the point of $tones over an enum on each widget.
@@ -371,7 +372,7 @@ def test_tabs_validate_and_compose(page_dir):
     tabs = """<lf-tabs id="ws">
   <lf-tab id="ws-ingest" label="Ingest"><p>Pipeline notes.</p></lf-tab>
   <lf-tab id="ws-search" label="Search">
-    <dl id="k-lat" class="panel"><dt></dt><dd><strong>118 ms</strong></dd></dl>
+    <dl id="k-lat" class="metric"><dt></dt><dd><strong>118 ms</strong></dd></dl>
   </lf-tab>
 </lf-tabs>
 <lf-options>"""
@@ -546,34 +547,6 @@ def test_withdrawing_an_unanswered_suggestion_needs_no_consent(page_dir):
     assert check(page_dir).exit_code == 0
 
 
-def test_check_owns_the_lf_meta_vocabulary(page_dir):
-    # The sign-off declaration: valid on its one value, rejected on a misspelled
-    # value or name — either would silently declare nothing in the browser.
-    signoff = PAGE.replace(
-        "<title>t</title>",
-        '<title>t</title>\n<meta name="lf-review" content="sign-off">',
-    )
-    (page_dir / "index.html").write_text(signoff)
-    assert check(page_dir).exit_code == 0
-
-    (page_dir / "index.html").write_text(signoff.replace("sign-off", "approve"))
-    status, findings = check_findings(page_dir)
-    assert status == 1
-    assert found(
-        findings,
-        "meta-content",
-        name="lf-review",
-        allowed=["sign-off"],
-        found="approve",
-    )
-
-    (page_dir / "index.html").write_text(signoff.replace("lf-review", "lf-signoff"))
-    status, findings = check_findings(page_dir)
-    assert status == 1
-    # The finding names the known vocabulary.
-    assert found(findings, "unknown-meta", name="lf-signoff", known=["lf-review"])
-
-
 def test_check_rejects_duplicate_ids(page_dir):
     result = check(page_dir)
     assert result.exit_code == 0, result.output
@@ -670,7 +643,14 @@ def test_publishing_records_typed_settlements_for_provisional_agent_facts(page_d
     report_id = json.loads(sent.output)["id"]
     opened = CliRunner().invoke(
         cli_model.cli,
-        ["task", "open", str(page_dir), "rollout-card", "Check the rollout"],
+        [
+            "task",
+            "create",
+            str(page_dir),
+            "rollout-card",
+            "--title",
+            "Check the rollout",
+        ],
     )
     assert opened.exit_code == 0, opened.output
     task = json.loads(opened.output)
@@ -786,7 +766,7 @@ def test_user_added_words_do_not_become_liveness_coordinates(page_dir):
 
 def test_user_state_survives_without_source_copying(page_dir):
     """An unchanged authored choice needs no transcription into a later revision.
-    Validation stays quiet while state and the transcript preserve the answer."""
+    Validation stays quiet while state preserves the answer."""
 
     def write(a=""):
         opts = OPTIONS.format(
@@ -822,11 +802,7 @@ def test_user_state_survives_without_source_copying(page_dir):
     result = check(page_dir)
     assert result.exit_code == 0
     assert "record behind the log" not in result.output
-
-    result = CliRunner().invoke(cli_model.cli, ["page", "transcript", str(page_dir)])
-    assert result.exit_code == 0, result.output
-    assert "record behind the log" not in result.output
-    assert "g1" in result.output and "o-shim" in result.output
+    assert state_json(page_dir)["state"][0]["detail"] == {"value": ["o-shim"]}
 
 
 def test_check_reports_a_measurement_whose_source_ran_again(page_dir):

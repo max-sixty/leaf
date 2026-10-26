@@ -31,6 +31,7 @@ from render_harness import (
     leaf_page,
     open_page,
     panel_settled,
+    panel_view,
     post_event,
     resized,
     round_trip,
@@ -117,7 +118,7 @@ customElements.define("lf-conditional", class extends LeafElement {
         ),
     )
     expect(page.locator(".lf-fp-on-user")).to_have_attribute("aria-label", "On me")
-    view = page.locator('.lf-fp-view[data-view="queue"]:not([data-leaving])')
+    view = page.locator(panel_view("queue"))
     items = ".lf-fp-on-item[data-key^='[\"widget\"']"
 
     for phase, count in (("open", 1), ("closed", 0)):

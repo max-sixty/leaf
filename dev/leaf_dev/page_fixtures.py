@@ -12,13 +12,14 @@ import functools
 import json
 import os
 import shutil
+import subprocess
 import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Protocol
 
-from leaf.event_log import append_event, read_events
+from leaf.event_log import read_events
 from leaf.interaction_log import append_interactions
 from leaf.media import media_name
 from leaf.revision_artifact import Resource, capture_artifact, capture_local_resource
@@ -45,6 +46,8 @@ class PageFixture:
     data: tuple[dict, ...]
     versions: tuple[Path, ...]
     seed: Path | None
+    runtime: Path
+    env: dict[str, str] | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -167,7 +170,8 @@ def read_fixture(
     """Read authored companions using the runtime that will consume produced data.
 
     Source and runtime are independent: a paired preview can share one authored input
-    while each arm supplies its own package producer and matching data contract.
+    while each arm supplies its own package producer and matching data contract, and
+    acknowledges the seed with its own Leaf (`_acknowledge_seed`).
     """
     seed = seed_log(source)
     files = page_files(source)
@@ -179,6 +183,8 @@ def read_fixture(
         data=tuple(data_operations(source, runtime=runtime, env=env)),
         versions=tuple(example_versions(source)),
         seed=seed if seed.is_file() else None,
+        runtime=runtime,
+        env=env,
     )
 
 
@@ -316,25 +322,32 @@ def _seed_log(fixture: PageFixture, page: Path) -> None:
         log.write(fixture.seed.read_text(encoding="utf-8"))
 
 
-def _acknowledge_seed(fixture: PageFixture, page: Path) -> None:
-    """Finish synthetic history through the same fixture seam that supplies it.
+# Run by the fixture's runtime, so its own admission writes the receipt: another
+# Leaf refuses a page vendored at a different protocol, and would write the receipt
+# in its own shape rather than the page's.
+ACKNOWLEDGE_SEED = """
+import sys
+from pathlib import Path
+from leaf.delivery import record_receipt
+from leaf.service import PageTransaction
 
-    The selected arm owns live commands. Using this checkout's admission here would
-    make a cross-protocol comparison refuse the other arm's page before it opens.
-    This receipt is part of the authored history, not input received by an agent.
-    """
+with PageTransaction(Path(sys.argv[1])) as transaction:
+    if transaction.events:
+        record_receipt(transaction, transaction.events[-1]["seq"])
+"""
+
+
+def _acknowledge_seed(fixture: PageFixture, page: Path) -> None:
     if fixture.seed is None:
         return
-    if events := read_events(page):
-        append_event(
-            page,
-            {
-                "kind": "receipt",
-                "author": "page",
-                "attention": False,
-                "through": events[-1]["seq"],
-            },
-        )
+    subprocess.run(
+        [
+            *("uv", "run", "-q", "--no-dev", "--project", str(fixture.runtime)),
+            *("python", "-c", ACKNOWLEDGE_SEED, str(page)),
+        ],
+        env=fixture.env,
+        check=True,
+    )
 
 
 def prepare_page(
@@ -399,7 +412,7 @@ def prepare_page(
     if seed_log:
         _acknowledge_seed(fixture, page)
     if final_status is not None:
-        run_leaf("status", str(page), final_status)
+        run_leaf("page", "close" if final_status == "idle" else "open", str(page))
     return PreparedPage(
         data_sources=len({operation["source"] for operation in fixture.data}),
         versions=len(fixture.versions),

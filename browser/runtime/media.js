@@ -90,7 +90,7 @@ viewerZoom.textContent = "100%";
 const stage = document.createElement("div");
 stage.className = "lf-media-viewer-stage";
 const caption = document.createElement("p");
-caption.className = "lf-media-viewer-caption";
+caption.className = "lf-media-viewer-caption scroll";
 
 let inspector = null;
 let loading = null;

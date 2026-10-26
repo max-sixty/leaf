@@ -3,7 +3,7 @@
 import hashlib
 import re
 from collections.abc import Mapping
-from functools import cached_property
+from functools import cached_property, lru_cache
 from html import escape
 
 import turbohtml
@@ -13,7 +13,6 @@ from .registry.kernel import kernel_authored
 from .resource_urls import ReferenceError, resource_reference
 from .schema import EVENT_ID, MEDIA_DIR
 
-DELIVERY_ENCODING_META = '<meta charset="utf-8" data-lf-runtime>'
 UTF8_BOM = "\ufeff"
 
 # ---------- check: deterministic pre-handover lint ----------
@@ -96,15 +95,6 @@ def allocation_valid(attr: str, value: str) -> bool:
     if isinstance(values, re.Pattern):
         return values.fullmatch(value) is not None
     return value in values
-
-
-# Page-level declarations the runtime reads from <meta name="lf-*"> in the head,
-# name → allowed content values (`$authored` in the kernel registry). A misspelled
-# name or value would silently declare nothing in the browser, so `page check` holds
-# a page to this vocabulary the way the registry holds lf-* elements.
-LF_META = {
-    name: frozenset(values) for name, values in kernel_authored()["meta"].items()
-}
 
 
 # The script types a browser runs as JavaScript, per the HTML standard: no type, or a
@@ -206,8 +196,13 @@ def element_attrs(element) -> dict:
     }
 
 
+@lru_cache(maxsize=4096)
 def _local_resource(value: str) -> tuple[str, str] | None:
-    """Read an attribute candidate; arbitrary prose need not be a valid URL."""
+    """Read an attribute candidate; arbitrary prose need not be a valid URL.
+
+    A pure reading of the value, asked of every attribute a document carries, so it
+    is kept by value: a layer's examples and a page's revisions repeat the same
+    attributes, each of which costs two WHATWG parses."""
     try:
         return resource_reference(value, "/index.html")
     except ReferenceError:
@@ -928,15 +923,3 @@ def page_layout(document: SourceDocument, registry: Mapping):
             if name not in names:
                 names.append(name)
     return " ".join(names) or None
-
-
-def review_mode(document: SourceDocument):
-    """The review decision one document declares, or None."""
-    return next(
-        (
-            meta["content"]
-            for meta in document.authoring.named_metas
-            if meta["name"] == "lf-review"
-        ),
-        None,
-    )

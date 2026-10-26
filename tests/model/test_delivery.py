@@ -66,7 +66,7 @@ def test_each_delivered_event_says_only_what_its_own_case_asks(page_dir, capsys)
     """Shared clauses travel once, and each event names only its applicable rules:
     its kind's, then the answer it owes, and no answer's where it owes none."""
     serving(page_dir, 1)
-    session_model.cmd_waiting(page_dir, "")
+    session_model.cmd_waiting(page_dir)
     page_pick = {
         "kind": "action",
         "author": "user",
@@ -125,8 +125,8 @@ def test_each_delivered_event_says_only_what_its_own_case_asks(page_dir, capsys)
     replying = [c["text"] for c in declared["answering"]["reply"] if "when" not in c]
     # The envelope says once how this explicit wait is acknowledged; individual
     # events carry only their own handling and reply clauses.
-    assert f"leaf wait --ack {envelope['id']}" in envelope["acknowledge"]
-    assert not any("--ack" in text for text in handling.values())
+    assert f"leaf delivery ack {envelope['id']} && leaf wait" in envelope["acknowledge"]
+    assert not any("delivery ack" in text for text in handling.values())
     assert plain[-len(replying) :] == replying
     # A drawn comment is told everything a plain one is, and how to read its drawing.
     assert reading_a_drawing in drawn
@@ -166,7 +166,7 @@ def test_active_handling_survives_a_mutable_layer_edit(page_dir, capsys):
     registry_path.write_text(json.dumps(registry))
 
     serving(page_dir, 1)
-    session_model.cmd_waiting(page_dir, "")
+    session_model.cmd_waiting(page_dir)
     append_carried_log_record(page_dir, comment)
 
     assert service_model.claim_page(page_dir)
@@ -300,7 +300,7 @@ def test_delivery_distinguishes_thread_obligations_from_closing_answered_work(pa
     assert not write("unresolve", parent=question["id"])["attention"]
     assert owed_answers(page_dir) == []
     with service_model.PageTransaction(page_dir) as page:
-        page.set_status("idle", "")
+        page.set_status("idle")
     assert withdrawal in service_model.unacknowledged(
         events_model.read_events(page_dir), newest["seq"]
     )
@@ -343,7 +343,8 @@ def test_delivery_distinguishes_composing_an_obligation_from_changing_input_in_h
     assert (
         CliRunner()
         .invoke(
-            cli_model.cli, ["task", "open", str(page_dir), "choice", "Build the choice"]
+            cli_model.cli,
+            ["task", "create", str(page_dir), "choice", "--title", "Build the choice"],
         )
         .exit_code
         == 0
@@ -367,7 +368,8 @@ def test_delivery_distinguishes_composing_an_obligation_from_changing_input_in_h
     assert (
         CliRunner()
         .invoke(
-            cli_model.cli, ["task", "open", str(page_dir), "draft", "Edit the draft"]
+            cli_model.cli,
+            ["task", "create", str(page_dir), "draft", "--title", "Edit the draft"],
         )
         .exit_code
         == 0
@@ -380,9 +382,11 @@ def test_delivery_distinguishes_composing_an_obligation_from_changing_input_in_h
     assert undone in selected and changed in selected
 
 
-def test_signoff_withdrawals_reports_and_errors_remain_deliverable(page_dir):
+def test_widget_actions_withdrawals_reports_and_errors_remain_deliverable(page_dir):
     source = PAGE.replace(
-        "</head>", '<meta name="lf-review" content="sign-off"></head>'
+        "</section>",
+        '<lf-options id="permit" choose><lf-option id="publish">Publish</lf-option>'
+        '<lf-option id="hold">Keep it private</lf-option></lf-options></section>',
     )
     source = source.replace(
         "</section>",
@@ -390,7 +394,17 @@ def test_signoff_withdrawals_reports_and_errors_remain_deliverable(page_dir):
     )
     (page_dir / "index.html").write_text(source)
     publish(page_dir)
-    done = append_command(page_dir, {"kind": "done", "author": "user", "version": 1})
+    done = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "permit",
+            "action": "choose",
+            "detail": {"value": ["publish"]},
+        },
+    )
     undo = append_command(
         page_dir, {"kind": "undo", "author": "user", "undoes": done["id"]}
     )
@@ -1014,7 +1028,7 @@ def test_a_settling_reaction_wakes_only_when_it_answers_the_agent(
 ):
     serving(page_dir, 1)
     publish(page_dir)
-    session_model.cmd_waiting(page_dir, "")
+    session_model.cmd_waiting(page_dir)
     question = thread_model.cmd_comment(
         page_dir, "", "", "", "One question:", '<lf-ask id="forty">Forty?</lf-ask>'
     )
@@ -1130,3 +1144,63 @@ def test_every_delivery_an_eval_pastes_is_the_envelope_leaf_writes():
             with_leaf_resources(delivery_model.DELIVERY.schema), envelope
         )
         assert error is None, f"{case}: {error}"
+
+
+def test_a_pick_carries_the_questions_still_waiting_about_its_decision(page_dir):
+    """An action on a decision carries, in `waiting`, the agent's questions that still
+    wait on the user in a thread about that decision, so the agent can judge which the
+    pick settles; a question in a thread elsewhere stays out."""
+    source = PAGE.replace(
+        "</section>",
+        '</section><section id="ship-ask"><h2>Ship on Friday?</h2>'
+        '<lf-options id="permit" choose><lf-option id="publish">Publish</lf-option>'
+        '<lf-option id="hold">Keep it private</lf-option></lf-options></section>'
+        '<p id="aside">An aside.</p>',
+    )
+    (page_dir / "index.html").write_text(source)
+    publish(page_dir)
+
+    def asked(anchor):
+        root = append_carried_log_record(
+            page_dir,
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": "Show me.",
+                "anchor": {"section": anchor},
+            },
+        )
+        return append_carried_log_record(
+            page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "agent": "Claude",
+                "revision": 1,
+                "parent": root["id"],
+                "responds": root["id"],
+                "text": "Try it before choosing.",
+                "obligation": True,
+            },
+        )["id"]
+
+    about = asked("ship-ask")
+    asked("aside")
+    pick = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "permit",
+            "action": "choose",
+            "detail": {"value": ["publish"]},
+        },
+    )
+    [batch] = freeze_events(page_dir, [pick])["batches"]
+    [event] = batch["events"]
+    assert event["waiting"] == [
+        {"id": f"message:{about}", "text": "Try it before choosing."}
+    ]
+    assert any("`waiting`" in batch["handling"][clause] for clause in event["handling"])

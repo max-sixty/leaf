@@ -4,10 +4,9 @@ and set `duration` to the study's length in milliseconds. Choose layout and fram
 size for what the reader needs to compare. The shared toolbar stays visible while
 the previews scroll beneath it.
 
-The reader can replay from the beginning, pause or resume, slow playback to half
-or quarter speed, or seek with the timeline. Use these controls rather than adding
-transport buttons or a second clock. Playback starts paused. With reduced motion,
-Play and Replay show the end immediately; manual seeking still reaches every frame.
+The reader can play or pause with one icon button. Play at the end starts again from
+the beginning; to restart mid-study, seek to the beginning and play. Use these controls
+rather than adding transport buttons or a second clock. Playback starts paused.
 
 For recordings, put ordinary `<video muted playsinline>` elements inside the body.
 Include dimensions or an aspect ratio so loading media keeps the page still. Omit
@@ -19,10 +18,14 @@ each video independently, so use frame drawings for comparisons requiring exactl
 the same computed frame. Use `lf-trace` when the reader needs captured checkpoints
 and their inspection tools.
 
-Keep a way to inspect each recording at a readable size when its preview is scaled
-down, such as an Enlarge action or a link to the original media. Check the detail the
-decision depends on at the narrowest view; playback controls alone do not make a
-small recording readable.
+Size the evidence for the movement the reader is judging: its full path, reversal
+and settling must stay visible together at the narrowest view. Use the available
+width before nesting recordings in padded frames. When a recording needs a closer
+view, keep that view on the shared timeline and preserve the moving subject
+throughout the sequence; a native-size scrolling crop can hide the very motion
+being compared. Inspect playback at the delivered sizes, judging the details the
+decision depends on rather than whether every incidental word in a recording is
+readable.
 
 For illustrations, a page module assigns `renderFrame` after
 `customElements.whenDefined('lf-motion')`. It receives milliseconds from zero through

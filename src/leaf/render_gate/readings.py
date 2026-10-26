@@ -244,6 +244,7 @@ def _scheme_findings(context: _SchemeContext) -> list[Finding]:
     unmarkable = evaluate_probe(page, "unmarkableElements")
     missing_threads = []
     retired = []
+    changed = []
     if context.light:
         # x-thread-seat promises one page view per matching instance. A widget in
         # thread chrome already has the thread's reply surface and threadBox
@@ -255,11 +256,16 @@ def _scheme_findings(context: _SchemeContext) -> list[Finding]:
         # yet. Before the widget readings, whose replay is the last.
         if context.replayed and (holders := _retired_holders(context)):
             retired = evaluate_probe(page, "retiredSlots", holders)
+        # Behind the same wait, since a report or a body record repaints words the
+        # comparison reads; and scheme-blind, so the light scheme reads it once.
+        if context.replayed:
+            changed = evaluate_probe(page, "wordsReadAsChanged")
     found = [*context.errors, *_widget_findings(context)]
     found += map(Finding.read, unmarkable)
     found += context.devtools.findings()
     found += map(Finding.read, missing_threads)
     found += map(Finding.read, retired)
+    found += map(Finding.read, changed)
     found += context.unsettled
     return found
 
@@ -371,8 +377,8 @@ def _overflow(overflow: int, misplaced: list) -> dict[tuple[str, str], Finding]:
 # The widths the sweep takes a loaded page through: a version holds at every width from
 # the narrowest phone to a wide desktop window, not only at the gate's fixed viewports. A
 # grid that stacks at one width can leave its narrow track narrower than what it holds
-# just above it, a band neither fixed viewport lands in, and the margin's residents
-# arrive above the desktop viewport.
+# just above it, a band neither fixed viewport lands in, and the margin content
+# arrives above the desktop viewport.
 SWEEP_WIDTHS = range(360, 1921, 40)
 
 
@@ -411,7 +417,7 @@ def sweep(page, widths, open_tags) -> list[tuple[int, dict]]:
 
     Resizes the loaded page rather than rendering it again. Callers walk in steps,
     widest first, so a layout script settles from the width before: a jump from
-    1200px straight to 360px left an lf-shot laid out for the desktop for a frame
+    the desktop's width straight to 360px left an lf-shot laid out for the desktop for a frame
     under load, and the sweep read that frame."""
     height = page.viewport_size["height"]
     readings = []
@@ -475,7 +481,7 @@ def margin_changes(page, readings, height: int) -> list[int]:
 
     For each sweep step across which what stands in the margin differs, the narrowest
     width at which the wider reading holds, found by halving the step on the loaded
-    page. That is where each resident first stands in the margin, with the least room it
+    page. That is where each element first appears in the margin, with the least room it
     will ever have there, so the gate renders the page at each."""
     stepped = sorted((width, reading["margin"]) for width, reading in readings)
     changes = []
@@ -485,7 +491,7 @@ def margin_changes(page, readings, height: int) -> list[int]:
         while high - low > 1:
             middle = (low + high) // 2
             settle_at(page, middle, height)
-            if evaluate_probe(page, "marginResidents") == above:
+            if evaluate_probe(page, "marginContent") == above:
                 high = middle
             else:
                 low = middle
@@ -494,9 +500,9 @@ def margin_changes(page, readings, height: int) -> list[int]:
 
 
 def swept_faults(samples) -> list[Finding]:
-    """Sideways overflow, misplaced boxes, scrollbar collisions, clipped controls and
-    covered words across the gate's geometry samples, with the widths each run spans
-    and what it reads at the narrowest. Each refuses the version, since a control cut
+    """Sideways overflow, misplaced boxes and clipped content, scrollbar collisions,
+    clipped controls and covered words across the gate's geometry samples, with the
+    widths each run spans and what it reads at the narrowest. Each refuses the version, since a control cut
     off at 400px is as far out of reach as one cut off at 540px.
 
     `samples` are (width, `geometryReading`) pairs, several at a width where the gate
@@ -537,7 +543,10 @@ def squeezed_table_advice(readings) -> list[Finding]:
     Advice rather than a failure because the table still scrolls and every word in it
     stays in reach: what costs the reader is prose wrapped a word a line beside a
     scroller, and the remedy (a column fewer, shorter words, an identifier in `<code>`)
-    is a choice of composition only the author can make."""
+    is a choice of composition only the author can make. Its words say what the reader
+    keeps and what hiding a column at the narrow width would take: authors told only
+    the remedies chased the advice for up to eight render checks, hiding columns at
+    phone widths, which a phone reader then missed."""
     return _swept(
         readings,
         lambda reading: {

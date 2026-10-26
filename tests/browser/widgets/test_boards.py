@@ -1,19 +1,28 @@
 """Boards: the column each card announces, keyboard moves that keep the card in view,
-grips, narrow and phone layouts, and releasing a detached board."""
+grips, narrow and phone layouts, releasing a detached board, and cards that show a
+section's answer."""
 
 import re
 
 import pytest
+from interact_support import stamp
 from playwright.sync_api import expect
+from render_cases_interaction import HOLD_MOTION, live_url
 from render_cases_widgets import SQUEEZED_BOARD_PAGE
 from render_harness import (
     BOARD_PAGE,
+    consume_browser_errors,
+    http_error_console,
     leaf_page,
     open_page,
     resized,
     scroll_settled,
     sending,
+    told,
+    undo,
 )
+
+from leaf import event_log as events_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -354,6 +363,85 @@ def test_cancelling_a_keyboard_move_stops_its_scroll(browser, serve):
     expect(grip).to_be_focused()
 
 
+@pytest.mark.parametrize("route", ["keyboard", "reading"])
+def test_reversing_a_move_continues_from_the_painted_card(browser, serve, route):
+    """A superseding move starts where the old animation currently paints."""
+    page = open_page(browser, serve(BOARD_PAGE), init_script=HOLD_MOTION)
+    page.emulate_media(reduced_motion="no-preference")
+    card = page.locator("#card-heater")
+
+    def place(key, column):
+        if route == "keyboard":
+            page.keyboard.press(key)
+        else:
+            card.evaluate(
+                """(el, column) => el.closest('lf-board').controller.dispatch({
+                  kind: 'action', verb: 'move',
+                  detail: {unit: el.id, value: column, rank: '0i'},
+                  says: 'Moved card',
+                })""",
+                column,
+            )
+        expect(page.locator(f"#{column} #card-heater")).to_have_count(1)
+
+    if route == "keyboard":
+        card.locator(".lf-grip").focus()
+        page.keyboard.press("Enter")
+    place("ArrowRight", "col-done")
+    first = card.evaluate(
+        """el => {
+          el.getAnimations()[0].currentTime = 75;
+          const box = el.getBoundingClientRect();
+          return {x: box.x, y: box.y};
+        }"""
+    )
+    place("ArrowLeft", "col-todo")
+    reverse = card.bounding_box()
+    assert abs(reverse["x"] - first["x"]) < 1, (first, reverse)
+    assert abs(reverse["y"] - first["y"]) < 1, (first, reverse)
+    page.keyboard.press("Escape")
+
+
+@pytest.mark.parametrize("cancel", ["Escape", "pointercancel", "touchcancel"])
+def test_cancelling_a_pointer_drag_restores_the_card_without_a_move(
+    browser, serve, cancel
+):
+    """Cancelling tears down the drag; a later release cannot record its old preview."""
+    # Safari uses Sortable's mouse/touch fallback instead of its pointer listeners.
+    context = (
+        browser.new_context(user_agent="Version/26.0 Safari/605.1.15")
+        if cancel == "touchcancel"
+        else None
+    )
+    page = open_page(browser, serve(BOARD_PAGE), context=context)
+    posts = []
+    page.on(
+        "request",
+        lambda request: posts.append(request) if "/api/event" in request.url else None,
+    )
+    grip = page.locator("#card-heater .lf-grip").bounding_box()
+    dest = page.locator("#col-done").bounding_box()
+    page.mouse.move(grip["x"] + grip["width"] / 2, grip["y"] + grip["height"] / 2)
+    page.mouse.down()
+    page.mouse.move(
+        dest["x"] + dest["width"] / 2, dest["y"] + dest["height"] / 2, steps=15
+    )
+    expect(page.locator("#col-done #card-heater")).to_have_count(1)
+    if cancel == "Escape":
+        page.keyboard.press("Escape")
+    else:
+        page.evaluate(
+            "type => document.dispatchEvent(type === 'pointercancel' ? new PointerEvent(type) : new TouchEvent(type))",
+            cancel,
+        )
+    expect(page.locator("#col-todo #card-heater")).to_have_count(1)
+    expect(page.locator(".lf-ghost, .lf-lift, .lf-inhand")).to_have_count(0)
+    page.mouse.up()
+    page.reload()
+    expect(page.locator("#col-todo #card-heater")).to_have_count(1)
+    assert not posts
+
+
 def test_a_board_at_its_floor_scrolls_rather_than_breaking_a_card_s_words(
     browser, serve
 ):
@@ -585,3 +673,90 @@ def test_a_phone_board_gives_its_column_room_and_keeps_the_next_one_discoverable
     with sending(page, "the phone return move"):
         to_lane_0.tap()
     expect(page.locator("#sq-col-0 > #sq-card-0")).to_have_count(1)
+
+
+ANSWERS_BOARD_PAGE = leaf_page(
+    "proposals",
+    """
+<h1 id="t">Proposals</h1>
+<section id="rail-section">
+  <h2>Keep the rail beside the text</h2>
+  <lf-options id="rail" choose>
+    <lf-option id="rail-next" value="next">Next</lf-option>
+    <lf-option id="rail-later" value="later" chosen>Later</lf-option>
+  </lf-options>
+</section>
+<lf-board id="plan">
+  <lf-column id="col-open" label="Undecided"></lf-column>
+  <lf-column id="col-next" label="Next" value="next"></lf-column>
+  <lf-column id="col-later" label="Later" value="later">
+    <lf-card id="card-rail" shows="rail"><strong>Keep the rail</strong></lf-card>
+  </lf-column>
+</lf-board>
+""",
+)
+
+
+def test_a_section_and_a_board_answer_one_decision(browser, serve):
+    """The card shows the section's answer and changes it through the section's own
+    command, so a pick and a drop are one fact at one coordinate, and both views follow
+    its undo, its refusal and a version's retraction (`shown_answers.py`)."""
+    page = open_page(browser, live_url(serve(ANSWERS_BOARD_PAGE)))
+    grip = page.locator("#card-rail .lf-grip")
+
+    def stands(column, option):
+        expect(page.locator(f"#{column} > #card-rail")).to_have_count(1)
+        chosen = page.locator("#rail > lf-option[chosen]")
+        if option:
+            expect(chosen).to_have_attribute("id", option)
+        else:
+            expect(chosen).to_have_count(0)
+
+    def drop(key):
+        grip.focus()
+        for press in ("Enter", key, "Enter"):
+            page.keyboard.press(press)
+
+    def picks():
+        return [
+            (event["widget"], event["action"], event["detail"])
+            for event in events_model.read_events(serve.page_dir)
+            if event["kind"] == "action"
+        ]
+
+    with sending(page, "the pick"):
+        page.locator("#rail-next").click()
+    stands("col-next", "rail-next")
+    with sending(page, "the drop"):
+        drop("ArrowLeft")
+    stands("col-open", None)
+    assert picks() == [
+        ("rail", "choose", {"value": ["rail-next"]}),
+        ("rail", "choose", {"value": []}),
+    ]
+
+    page.locator("#rail-section").scroll_into_view_if_needed()
+    undo(page)
+    stands("col-next", "rail-next")
+
+    (serve.page_dir / "index.html").write_text(
+        ANSWERS_BOARD_PAGE.replace(
+            '<lf-options id="rail" choose>', '<lf-options id="rail" choose restated>'
+        )
+    )
+    assert stamp(serve.page_dir, "Ask again").exit_code == 0
+    told(page)
+    stands("col-later", "rail-later")
+
+    def refuse(route):
+        attempt = route.request.post_data_json["attempt"]
+        body = {"ok": False, "attempt": attempt, "error": "refused", "final": True}
+        route.fulfill(status=400, json=body)
+
+    page.route("**/api/event", refuse)
+    with page.expect_response(lambda response: "/api/event" in response.url):
+        drop("ArrowLeft")
+    stands("col-later", "rail-later")
+    page.unroute("**/api/event")
+    consume_browser_errors(page, http_error_console(400))
+    assert len(picks()) == 2

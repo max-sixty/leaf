@@ -30,7 +30,7 @@ def page(attrs="choose", context=None):
 
 
 def page_obligations(state, revision=1):
-    """The obligations the page's document and sign-off make in view `revision`."""
+    """The obligations the page's document makes in view `revision`."""
     view = state["views"][str(revision)]
     return obligations_model.collection(
         [
@@ -61,27 +61,62 @@ def test_context_changes_prompt_target_without_changing_obligation_identity_or_v
     assert state["todos"] == []
 
 
-def test_an_approval_asks_about_the_version_and_names_no_element_to_go_to():
-    """A sign-off's prompt names no element of the page: the version as a whole is what
-    it asks about, and the chrome presents its approval. It once named `lf-approve`,
-    the id of a chrome button that no longer exists."""
-    document = page().replace(
-        "</head>", '<meta name="lf-review" content="sign-off"></head>'
+def test_a_decision_is_independent_and_survives_revision_until_restated():
+    """A permission is an ordinary decision: it answers its own request, and a
+    completion stamp does not ask again."""
+    permit = (
+        '<lf-options id="permit" choose><lf-option id="publish">Publish</lf-option>'
+        '<lf-option id="hold">Keep it private</lf-option></lf-options>'
     )
-    stamp = {"kind": "note", "author": "agent", "version": 1, "text": "Ready"}
-    state = model.reading(document, [stamp])
-    [approval] = [
-        item
-        for item in page_obligations(state)["all"]
-        if item["source"]["kind"] == "approval"
-    ]
-    assert approval["prompt"] == {"text": "Approve v1?", "target": None}
+    document = model.leaf_page("Permission", permit + OPTIONS.format(attrs="choose"))
+    approved = {
+        "kind": "action",
+        "id": "approval",
+        "widget": "permit",
+        "action": "choose",
+        "detail": {"value": ["publish"]},
+    }
+    state = model.reading(document, [approved])
+    items = {item["id"]: item for item in page_obligations(state)["all"]}
+    assert items["widget:permit"]["status"] == "answered"
+    assert items["widget:permit"]["answer"]["event"]["id"] == "approval"
+    assert items["widget:choice"]["status"] == "open"
+    assert any(
+        item["id"] == "update:approval"
+        for item in state["views"]["1"]["queues"]["on_agent"]
+    )
+
+    # The stamp that records the pick in the markup settles the agent's update.
+    revised = document.replace("Permission", "Permission and progress").replace(
+        '<lf-option id="publish">', '<lf-option id="publish" chosen>'
+    )
+    stamp = {
+        "kind": "note",
+        "author": "agent",
+        "version": 1,
+        "revision": 2,
+        "text": "Published the report.",
+    }
+    state = model.reading({1: document, 2: revised}, [approved, stamp])
+    items = {item["id"]: item for item in page_obligations(state, 2)["all"]}
+    assert items["widget:permit"]["status"] == "answered"
+    assert state["views"]["2"]["queues"]["on_agent"] == []
+
+    state = model.reading(document, [approved, {"kind": "undo", "undoes": "approval"}])
+    items = {item["id"]: item for item in page_obligations(state)["all"]}
+    assert items["widget:permit"]["status"] == "open"
+
+    # Restating asks again, so the new version carries no pick.
+    changed = document.replace('id="permit" choose', 'id="permit" choose restated')
+    state = model.reading(
+        {1: document, 2: changed}, [approved, {**stamp, "restated": ["permit"]}]
+    )
+    items = {item["id"]: item for item in page_obligations(state, 2)["all"]}
+    assert items["widget:permit"]["status"] == "open"
 
 
 def test_obligations_name_their_exact_owning_message_without_conflating_thread_identity():
-    document = page().replace(
-        "</head>", '<meta name="lf-review" content="sign-off"></head>'
-    )
+    document = page()
     events = [
         {
             "kind": "note",
@@ -120,7 +155,6 @@ def test_obligations_name_their_exact_owning_message_without_conflating_thread_i
     }
     assert inventory == {
         "widget:choice": (None, None),
-        "approval:v1": (None, None),
         "widget:root-choice": ("thread", "thread"),
         "widget:later-choice": ("thread", "later"),
         "widget:useful": ("prompt", "prompt"),
@@ -276,7 +310,7 @@ def test_a_pinned_view_reads_its_frozen_threads_under_its_own_registry():
     assert read(1) == (
         [],
         ("widget:typed", "open"),
-        {"kind": "needs_user", "reason": "widget", "workflow": None},
+        {"kind": "needs_user", "reason": "obligation", "workflow": None},
         ["widget:typed"],
     )
 
@@ -526,6 +560,64 @@ def lists(state) -> tuple[list, list, list]:
             and item["source"]["kind"] != "update"
         ),
     )
+
+
+def test_on_me_lists_one_row_for_each_place_the_user_answers_at():
+    """A thread's reply answers every question asked in it, so they share its row, and a
+    thread about a decision is one place with it, so its row rides on the decision's.
+    Each record still settles by its own rule: answering the decision leaves the
+    thread's questions on their own row until the user replies."""
+    document = model.leaf_page(
+        "Questions",
+        '<p id="intro">Context.</p><section id="case"><h2>Which route?</h2>'
+        + OPTIONS.format(attrs="choose")
+        + "</section>",
+    )
+
+    def asked(thread, anchor, *replies):
+        return [
+            {
+                "kind": "comment",
+                "id": thread,
+                "author": "user",
+                "text": "Show me.",
+                "anchor": {"section": anchor},
+            },
+            *(
+                {
+                    "kind": "reply",
+                    "id": reply,
+                    "author": "agent",
+                    "parent": thread,
+                    "responds": thread,
+                    "text": "Try it before choosing.",
+                    "obligation": True,
+                }
+                for reply in replies
+            ),
+        ]
+
+    events = asked("about", "case", "r1", "r2") + asked("aside", "intro", "r3")
+
+    def rows(state):
+        return sorted(
+            (row["id"], row["also"]) for row in state["views"]["1"]["queues"]["on_user"]
+        )
+
+    assert rows(model.reading(document, events)) == [
+        ("message:r3", []),
+        ("widget:choice", ["message:r1", "message:r2"]),
+    ]
+    chosen = {
+        "kind": "action",
+        "widget": "choice",
+        "action": "choose",
+        "detail": {"value": ["a"]},
+    }
+    assert rows(model.reading(document, [*events, chosen])) == [
+        ("message:r1", ["message:r2"]),
+        ("message:r3", []),
+    ]
 
 
 FRAMED = model.leaf_page(

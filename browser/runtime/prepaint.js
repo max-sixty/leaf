@@ -328,6 +328,13 @@
   const sources = new WeakMap();
   const sourceScopes = new WeakSet();
   const sourceShells = new WeakMap();
+  // The box a producer built to hold every authored child of its host, which it then
+  // seats inside boxes of its own, as a disclosure's body sits under the summary the
+  // module writes. The box is the module's and its interior is the page's: render
+  // checks read the boxes around it as the module's layout, and a revision that
+  // reaches the host's members edits inside it (dom-children.js, `patchTree`). A sidebar
+  // page's track has one too, which the Layout's own reading builds (`holdTrack`).
+  const authoredBodies = new WeakMap();
   // Initial geometry writes root attributes and styles before modules exist. Later
   // root writers adopt these registries, so revisions replace only the authored share.
   const runtimeAttributes = new WeakMap();
@@ -409,6 +416,29 @@
     );
     return node;
   };
+  // Words an upgrade wrote, which the page's authored source lacks: the version diff
+  // looks past them, and they are a passage cell of their own. `says` is whether they
+  // are the page speaking (data-lf-said, quotable even inside chrome), a copy of words
+  // the page says elsewhere ("echo", data-lf-echo), or neither; widget-elements.js,
+  // over `relabel`, says why each answer matters and why none is assumed.
+  /**
+   * @template {Element} T
+   * @param {T} node
+   * @param {{says?: boolean | "echo"}} [options]
+   * @returns {T}
+   */
+  const generatedElement = (node, { says } = {}) => {
+    if (typeof says !== "boolean" && says !== "echo")
+      throw new TypeError(
+        `Say whether these words are the page speaking: ` +
+          `true, false, or "echo" for a copy of words it says elsewhere`,
+      );
+    keepsAttribute(node, "data-lf-gen", "1");
+    // Toggling keeps an x-says span's attribute name (declared-words.js) where it stands.
+    node.toggleAttribute("data-lf-said", says === true);
+    node.toggleAttribute("data-lf-echo", says === "echo");
+    return node;
+  };
   const offer = (tag, cls, label, inputType, pressable = false) => {
     const node = document.createElement(tag);
     if (inputType !== undefined) {
@@ -420,6 +450,135 @@
     if (label !== undefined) node.textContent = label;
     return node;
   };
+  // External marks occupy inline room, so the parser seats them before prose paints.
+  // The module runtime adopts this owner and its baselines for subsequent arrivals.
+  // External page links keep native link behavior but make the boundary explicit: the
+  // target opens beside this Leaf, and the visible mark says it will leave the page. A URL
+  // on this page's own origin is still local even when the author wrote it absolutely;
+  // non-web schemes keep their platform meaning.
+  //
+  // The mark is also what a screen reader is told: the link's description names it, and it
+  // carries the words as its label. It stays hidden, so the words are not part of the
+  // link's name, and a description may name a hidden element. Everything the treatment adds
+  // stands inside the link, so the page's own rules about which of a block's children
+  // comes last, or what follows a link, match what the page wrote.
+  const EXTERNAL_LINK_ATTRIBUTES = ["target", "rel", "aria-describedby"];
+  const externalLinkState = new WeakMap();
+  let externalMarkSequence = 0;
+  const opensElsewhere = (href) => {
+    try {
+      const url = href === null ? null : new URL(href, document.baseURI);
+      return (
+        ["http:", "https:"].includes(url?.protocol) && url.origin !== location.origin
+      );
+    } catch {
+      return false;
+    }
+  };
+  const isExternalPageLink = (link) =>
+    link instanceof HTMLAnchorElement && opensElsewhere(link.getAttribute("href"));
+  function externalMark() {
+    const mark = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    mark.setAttribute("class", "lf-ui lf-external-mark");
+    mark.setAttribute("viewBox", "0 0 16 16");
+    mark.setAttribute("aria-hidden", "true");
+    mark.setAttribute("aria-label", "opens in a new tab");
+    const line = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    line.setAttribute(
+      "d",
+      "M6.5 3H4a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V9.5M9 3h4v4M13 3 7.5 8.5",
+    );
+    mark.append(line);
+    return mark;
+  }
+  // The text field draws the same mark after a link it shows (composing/text-field.js).
+  root.lfExternalLink = Object.freeze({ opensElsewhere, mark: externalMark });
+  const linkAttributes = (link) =>
+    Object.fromEntries(
+      EXTERNAL_LINK_ATTRIBUTES.map((name) => [name, link.getAttribute(name)]),
+    );
+  const tokens = (value) => value?.split(/\s+/).filter(Boolean) ?? [];
+  function withToken(value, token, insensitive = false) {
+    const values = tokens(value);
+    const wanted = insensitive ? token.toLowerCase() : token;
+    if (!values.some((value) => (insensitive ? value.toLowerCase() : value) === wanted))
+      values.push(token);
+    return values.join(" ");
+  }
+  function withoutToken(value, token, insensitive = false) {
+    if (value === null) return null;
+    const unwanted = insensitive ? token.toLowerCase() : token;
+    return tokens(value)
+      .filter((value) => (insensitive ? value.toLowerCase() : value) !== unwanted)
+      .join(" ");
+  }
+  function writeLinkAttributes(link, values) {
+    for (const [name, value] of Object.entries(values))
+      keepsAttribute(link, name, value);
+  }
+  function rememberExternalLinkChanges(link, state) {
+    if (!state.painted) return;
+    const current = linkAttributes(link);
+    for (const name of EXTERNAL_LINK_ATTRIBUTES) {
+      if (current[name] === state.painted[name]) continue;
+      let value = current[name];
+      if (name === "rel" && state.addedNoopener)
+        value = withoutToken(value, "noopener", true);
+      if (name === "aria-describedby") value = withoutToken(value, state.markId);
+      state.baseline[name] = value;
+    }
+  }
+  function clearExternalLink(link, state) {
+    rememberExternalLinkChanges(link, state);
+    writeLinkAttributes(link, state.baseline);
+    link
+      .querySelectorAll(':scope > .lf-external-mark[data-lf-gen="1"]')
+      .forEach((node) => node.remove());
+    externalLinkState.delete(link);
+  }
+  function leaveExternalLink(link) {
+    const state = externalLinkState.get(link);
+    if (state) clearExternalLink(link, state);
+  }
+  function renderExternalLink(link) {
+    // SVG links share this selector but not the HTML anchor API, and they have no
+    // dependable inline box in which an HTML text mark could stand.
+    if (!(link instanceof HTMLAnchorElement)) return;
+    if (!isExternalPageLink(link)) {
+      leaveExternalLink(link);
+      return;
+    }
+    let state = externalLinkState.get(link);
+    if (!state) {
+      state = {
+        baseline: linkAttributes(link),
+        painted: null,
+        markId: `lf-external-mark-${++externalMarkSequence}`,
+        addedNoopener: false,
+      };
+      externalLinkState.set(link, state);
+    } else rememberExternalLinkChanges(link, state);
+    /** @type {SVGElement | null} */
+    let mark = link.querySelector(':scope > .lf-external-mark[data-lf-gen="1"]');
+    if (!mark) {
+      mark = generatedElement(externalMark(), { says: false });
+    }
+    // Parsing may yield while this anchor is still open. Keep the mark after any
+    // words the parser (or a later render) has appended since the previous pass.
+    if (mark !== link.lastChild) link.append(mark);
+    // Written on a mark found as well as on one made: a link cloned with its mark, ids
+    // stripped, is a new link to this pass, and its description must name its own mark.
+    keepsAttribute(mark, "id", state.markId);
+    state.addedNoopener = !tokens(state.baseline.rel).some(
+      (value) => value.toLowerCase() === "noopener",
+    );
+    writeLinkAttributes(link, {
+      target: "_blank",
+      rel: withToken(state.baseline.rel, "noopener", true),
+      "aria-describedby": withToken(state.baseline["aria-describedby"], state.markId),
+    });
+    state.painted = linkAttributes(link);
+  }
   // A recording the runtime plays through its own bar (video-controls.js) shows no
   // browser controls from its first paint, which would otherwise draw until that
   // module arrives and then give way to the bar. Traded as the parser inserts each
@@ -457,11 +616,25 @@
       copy.removeAttribute(PLAYER);
       copy.setAttribute("controls", "");
     }
-    const held = source.localName === "template" ? source.content : source;
+    const linkState = externalLinkState.get(source);
+    if (linkState) {
+      rememberExternalLinkChanges(source, linkState);
+      writeLinkAttributes(copy, linkState.baseline);
+    }
+    // A track's children stand in the body the runtime built (`holdTrack`); the page
+    // wrote them in the track.
+    const held =
+      source.localName === "template"
+        ? source.content
+        : (authoredBodies.get(source) ?? source);
     const into = copy.localName === "template" ? copy.content : copy;
     if (source.localName === "template") origins.set(into, origins.get(held) ?? held);
     for (const child of held.childNodes) {
-      if (child.matches?.("[data-lf-prepaint], script[data-lf-initial]")) continue;
+      if (
+        child.matches?.("[data-lf-prepaint], script[data-lf-initial]") ||
+        (linkState && child.matches?.('.lf-external-mark[data-lf-gen="1"]'))
+      )
+        continue;
       into.append(authoredCopy(child, target));
     }
     return copy;
@@ -471,12 +644,12 @@
     const held = source.localName === "template" ? source.content : source;
     for (const child of held.childNodes) rememberSource(child);
   };
-  // Margin residency is initial document geometry, not a widget upgrade. The parser
-  // observer seats authored residents before a frame can paint them in another
-  // posture; content-layout adopts this same computation for subsequent changes.
+  // Margin content layout is initial document geometry, not a widget upgrade. The parser
+  // observer seats authored margin elements before a frame can paint them in another
+  // placement; content-layout adopts this same computation for subsequent changes.
   // The body's authored annotation declaration is the same executable fact the
   // module graph reads, so rail admission needs no second delivery configuration.
-  const POSTURES = {
+  const PLACEMENTS = {
     sidebar: ["left", "--sidebar"],
     map: ["left", "--map"],
     note: ["right", "--note"],
@@ -509,7 +682,10 @@
   // The nearest painted ancestor distinguishes skipped contents from a box the page
   // hides itself. Geometry adopts this same reading with its composed-parent walk.
   const skipped = (element, parent = (node) => node.parentElement) => {
-    if (element.checkVisibility()) return false;
+    if (element.checkVisibility({ contentVisibilityAuto: true })) return false;
+    // A boxed descendant can retain layout while its auto container skips drawing.
+    // Ask the native skip state before any geometry forces that content back.
+    if (element.checkVisibility()) return true;
     let child = element;
     let box = parent(element);
     while (box && !box.checkVisibility()) {
@@ -591,7 +767,7 @@
     const shellWritten =
       parseFloat(body.style.getPropertyValue("--lf-column-shift")) || 0;
     const column = box.getBoundingClientRect();
-    // Inside the shell's border and scrollbar gutters. A resident may stand in its
+    // Inside the shell's border and scrollbar gutters. A margin element may stand in its
     // padding, as the rail does in the strip `data-rail="right"` pads `body` with
     // (annotation-theme.css). The client box is in the shell's own pixels, so it is
     // scaled to the window's by any transform on the shell or around it.
@@ -599,7 +775,7 @@
     const scale = shellRect.width / shellNode.offsetWidth || 1;
     const shellLeft = shellRect.left + shellNode.clientLeft * scale;
     const shell = { left: shellLeft, right: shellLeft + shellNode.clientWidth * scale };
-    // A resident fixed to the window, as the contents map is (toc.css), stands from the
+    // A margin element fixed to the window, as the contents map is (toc.css), stands from the
     // shell's left edge rather than the window's, which differ where the page puts
     // something before the shell, as a page's list of parts does.
     const left = Math.round(shellLeft) ? `${Math.round(shellLeft)}px` : "";
@@ -611,8 +787,8 @@
       right: shell.right - column.right + gridShift,
     };
     const declared = new Map();
-    // A resident a box around it hides (a closed disclosure, a tab not chosen) needs no
-    // room. One the page hides itself stays a resident, since a page may hide it until it
+    // A margin element a box around it hides (a closed disclosure, a tab not chosen) needs no
+    // room. One the page hides itself stays a margin element, since a page may hide it until it
     // stands in the margin.
     for (const aside of box.querySelectorAll("aside")) {
       if (skipped(aside)) continue;
@@ -620,13 +796,13 @@
       const hiddenItself =
         own.display === "none" && aside.parentElement.checkVisibility();
       if (!aside.checkVisibility() && !hiddenItself) continue;
-      const postures = own
-        .getPropertyValue("--lf-resident")
+      const placements = own
+        .getPropertyValue("--lf-margin-content")
         .split(" ")
-        .filter((posture) => posture in POSTURES);
-      if (postures.length) declared.set(postures.join(" "), postures);
+        .filter((placement) => placement in PLACEMENTS);
+      if (placements.length) declared.set(placements.join(" "), placements);
     }
-    const side = (postures) => POSTURES[postures[0]][0];
+    const side = (placements) => PLACEMENTS[placements[0]][0];
     const preferences = [...declared.values()].sort(
       (a, b) => (side(a) === "left" ? 0 : 1) - (side(b) === "left" ? 0 : 1),
     );
@@ -646,7 +822,7 @@
       root.className,
       document.body.dataset.annotations,
       document.body.dataset.rail,
-      ...Object.values(POSTURES).map(([, token]) => need(token)),
+      ...Object.values(PLACEMENTS).map(([, token]) => need(token)),
       need("--rail"),
       preferences.flat().join(" "),
       ...authoredSheets(),
@@ -670,14 +846,14 @@
         granted.push("rail");
         taken.right = need("--rail");
       }
-      for (const postures of preferences)
-        for (const posture of postures) {
-          const [at, token] = POSTURES[posture];
+      for (const placements of preferences)
+        for (const placement of placements) {
+          const [at, token] = PLACEMENTS[placement];
           const wants = { ...taken, [at]: Math.max(taken[at], need(token)) };
           if (wants.left + wants.right > room.left + room.right + 0.5) continue;
           if (!movable && (wants.left > room.left || wants.right > room.right))
             continue;
-          granted.push(posture);
+          granted.push(placement);
           Object.assign(taken, wants);
           break;
         }
@@ -862,21 +1038,69 @@
     }
     return { changed };
   };
-  // Whether each track (`--lf-resident: track`, a sidebar page's `aside`, layouts.css)
-  // stands beside the body, which it says as `data-lf-beside` so the Layout keeps the
-  // block it holds in view only there. Flex wrapping places it, from the window's width,
+  // Whether each track (`--lf-margin-content: track`, a sidebar page's `aside`, layouts.css)
+  // stands beside the body, which it says as `data-lf-beside` so the Layout keeps what
+  // it holds in view only there. Flex wrapping places it, from the window's width,
   // the shares the page gives the track and the body, and the minimum the body's content
   // declares, and no query reads that. A track stands beside the body when one of the
   // other boxes the Layout's box lays out in its flex lines shares its line and stands wholly to
   // one side of it: a box it lays out is a child that draws a box and is not taken
   // out of the flow, or one inside a child that draws none (`display: contents`), and
-  // another track does not count. A track holding one block runs its line's height
-  // (layouts.css), and a line holds its items' margin boxes whatever margins a page gives
-  // them, so a box on the line is level with the track and one on another line, such as
-  // the header, the footer or a stacked body, is above or below it or spans it. Sticking
-  // moves only the block inside the track, so the track's own box is where the flex line
-  // put it. Every box is read before any track is written.
+  // another track does not count. A track runs its line's height (layouts.css), and a
+  // line holds its items' margin boxes whatever margins a page gives them, so a box on
+  // the line is level with the track and one on another line, such as the header, the
+  // footer or a stacked body, is above or below it or spans it. Sticking moves only the
+  // box inside the track, so the track's own box is where the flex line put it. Every
+  // box is read before any track is written.
   const BESIDE = "data-lf-beside";
+  // What a track holds stands in one box the runtime builds inside it, its body
+  // (`data-lf-track-body`), which is what sticks (layouts.css), so one block and several
+  // stick alike. A sticky box stays inside its containing block, and only a box inside
+  // the track has the track, as tall as its flex line, for that block. Rejected
+  // (2026-10): sticking the track itself, a flex item, which the whole flex container
+  // bounds, so at the page's end it stood 40px over a one-line footer at 900×600.
+  //
+  // The body is the track's authored body, as a widget's module builds one
+  // (`authoredBody`): the source copies read through it (`authoredCopy`), and a revision
+  // writes the track's children inside it (dom-children.js, `patchTree`). It draws no
+  // box of its own and says no words, so a passage, a page check and a version
+  // comparison read the blocks as the page wrote them; a page rule naming the track's
+  // children, such as `aside > p`, no longer reaches them (page-layout.md). It is built
+  // as the parser inserts the track, before the first paint, and kept whatever width
+  // the page stands at; on an unscrolled page it stands where its blocks would. Each
+  // reading gathers into it what has arrived in the track since: the parser's later
+  // children, a page module's insertions.
+  const TRACK_BODY = "data-lf-track-body";
+  const holdTrack = (track) => {
+    let body = authoredBodies.get(track);
+    if (!body) {
+      body = document.createElement("div");
+      body.setAttribute(TRACK_BODY, "");
+      authoredBodies.set(track, body);
+    }
+    const seated = body.parentNode === track;
+    // What stands before the body goes to its start, and what follows it to its end, so
+    // the blocks keep the order the track had them in.
+    const lead = [];
+    const rest = [];
+    let past = false;
+    for (const node of track.childNodes)
+      if (node === body) past = true;
+      else (past ? rest : lead).push(node);
+    if (seated && !lead.length && !rest.length) return false;
+    const { move } = root.lfInitial;
+    const first = seated ? body.firstChild : null;
+    if (!seated) move(track, body, null);
+    for (const [node, before] of [
+      ...lead.map((node) => [node, first]),
+      ...rest.map((node) => [node, null]),
+    ]) {
+      // The parent the page wrote it under, as for a widget's children (`parent`).
+      if (!parents.has(node)) parents.set(node, track);
+      move(body, node, before);
+    }
+    return true;
+  };
   const items = (element) => {
     const style = getComputedStyle(element);
     if (style.display === "contents")
@@ -887,7 +1111,7 @@
     return [
       {
         element,
-        track: style.getPropertyValue("--lf-resident").trim() === "track",
+        track: style.getPropertyValue("--lf-margin-content").trim() === "track",
         left,
         right,
         width,
@@ -901,9 +1125,12 @@
     if (!box) return false;
     const tracks = [...box.children].filter(
       (child) =>
-        getComputedStyle(child).getPropertyValue("--lf-resident").trim() === "track",
+        getComputedStyle(child).getPropertyValue("--lf-margin-content").trim() ===
+        "track",
     );
     if (!tracks.length) return false;
+    let changed = false;
+    for (const track of tracks) changed = holdTrack(track) || changed;
     const laid = [...box.children].flatMap((child) => items(child));
     const own = laid.filter((item) => !item.track);
     const readings = tracks.map((track) => {
@@ -920,7 +1147,6 @@
           ),
       ]);
     });
-    let changed = false;
     for (const [track, beside] of readings) {
       if (track.hasAttribute(BESIDE) === beside) continue;
       if (!sourceShells.has(track)) sourceShells.set(track, track.cloneNode(false));
@@ -942,14 +1168,22 @@
         ? main.querySelector(':scope > [data-lf-views="parts"]')
         : null;
     let height = 0;
+    let marked = false;
     for (
       let node = parts?.previousElementSibling;
       node;
       node = node.previousElementSibling
-    )
+    ) {
+      // The parts layout owns this scrolling title surface. Declare it here,
+      // alongside its layout, so reach need not discover it by scanning content.
+      if (!node.classList.contains("scroll")) {
+        node.classList.add("scroll");
+        marked = true;
+      }
       height = Math.max(height, node.getBoundingClientRect().height);
+    }
     const value = height ? `${Math.round(height)}px` : "";
-    if (body.style.getPropertyValue(TITLE) === value) return false;
+    if (body.style.getPropertyValue(TITLE) === value) return marked;
     if (value) setRuntimeRootStyle(body, TITLE, value);
     else removeRuntimeRootStyle(body, TITLE);
     return true;
@@ -973,7 +1207,7 @@
     else removeRuntimeRootStyle(body, HEAD);
     return true;
   };
-  const residency = () => {
+  const marginContentLayout = () => {
     const seated = seat();
     const titled = title();
     const headed = head();
@@ -1005,6 +1239,12 @@
       return parent.insertBefore(node, before);
     },
     fragmentId,
+    externalLinks: {
+      attributes: EXTERNAL_LINK_ATTRIBUTES,
+      matches: isExternalPageLink,
+      arrive: renderExternalLink,
+      leave: leaveExternalLink,
+    },
     keepsAttribute,
     setRuntimeRootAttribute,
     runtimeRootAttributes: (node) => new Set(runtimeAttributes.get(node) ?? []),
@@ -1013,7 +1253,7 @@
     wear,
     runtimeRootStyles: (node) => new Set(runtimeStyles.get(node) ?? []),
     authoredShell: (node) => sourceShells.get(node) ?? sources.get(node) ?? node,
-    residency,
+    marginContentLayout,
     breakouts,
     layoutBox,
     skipped,
@@ -1038,7 +1278,13 @@
         tabStore,
         offer,
         offerElement,
+        generatedElement,
         keeps: keepsAttribute,
+        authoredBody(node) {
+          node.append(...host.childNodes);
+          authoredBodies.set(host, node);
+          return node;
+        },
       });
       if (drawing?.then)
         throw new TypeError(
@@ -1072,8 +1318,12 @@
     },
     offer,
     offerElement,
+    generatedElement,
     origin(node) {
       return origins.get(node);
+    },
+    authoredBody(host) {
+      return authoredBodies.get(host) ?? null;
     },
     parent(node) {
       return parents.has(node) ? parents.get(node) : node.parentElement;
@@ -1148,14 +1398,33 @@
   };
   const initialLayout = () => {
     mark();
-    residency();
+    marginContentLayout();
     if (root.hasAttribute("data-lf-interactive")) trade("controls", PLAYER);
   };
-  const parsing = new MutationObserver(initialLayout);
+  // Dress only links the parser added or is still filling. Unrelated arrivals
+  // must not reparse every URL already on the page.
+  const initialLinks = (records) => {
+    const links = new Set();
+    for (const { target, addedNodes } of records) {
+      const owner = target instanceof Element && target.closest("a");
+      if (owner) links.add(owner);
+      for (const node of addedNodes) {
+        if (!(node instanceof Element)) continue;
+        if (node.matches("a")) links.add(node);
+        for (const link of node.querySelectorAll("a")) links.add(link);
+      }
+    }
+    for (const link of links) if (link.isConnected) renderExternalLink(link);
+  };
+  const parsing = new MutationObserver((records) => {
+    initialLinks(records);
+    initialLayout();
+  });
   parsing.observe(root, { childList: true, subtree: true });
   document.addEventListener(
     "readystatechange",
     () => {
+      initialLinks(parsing.takeRecords());
       initialLayout();
       parsing.disconnect();
     },

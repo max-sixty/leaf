@@ -172,20 +172,11 @@ function statusWords({
       detail || !delivered ? "" : "It hasn't said what it's doing yet.",
     ];
   }
-  // A declared request tells the user what to do. Preserve it on the row when
-  // no pending input supersedes it; a generic attendance label would lose that cue.
-  if (kind === "listening") {
-    const awaits = detail ? `${agent} awaits — ${detail}` : invite;
+  // The stock words say where a comment starts; they report and ask nothing.
+  if (kind === "listening")
     return listening
-      ? [
-          `${agent} listening`,
-          `${agent} is listening${detail ? " — " + detail : ""}.`,
-          detail ? `It asked: ${detail}.` : "",
-        ]
-      : // A request the agent declared asks the user for it; the stock words say only
-        // where a comment starts.
-        [awaits, awaits, "", Boolean(detail)];
-  }
+      ? [`${agent} listening`, `${agent} is listening.`, ""]
+      : [invite, invite, ""];
   if (kind === "stalled")
     return [
       shortDate,
@@ -284,8 +275,8 @@ export function pageStatus(state, { reach = "reached", fault = null } = {}) {
   // and the introduction and its links join the explanation (`statusModel`).
   const onCall = Boolean(publication) && activity.kind !== "working";
   const kind = onCall ? "listening" : activity.kind;
-  // A request the agent declared still stands; the line of work it left does not.
-  const detail = !onCall || activity.kind === "listening" ? activity.detail : "";
+  // The line of work a quiet copy's last session left no longer stands.
+  const detail = onCall ? "" : activity.detail;
   const facts = activityFacts(state);
   // What the user's words do meanwhile. The log takes them with nobody on the other
   // end; the only thing attendance changes is when they are read.
@@ -356,7 +347,7 @@ export function pageStatus(state, { reach = "reached", fault = null } = {}) {
 // left to answer, since only a row or the walk names it by its widget (`obligationWord`).
 const QUEUE_WORDS = Object.freeze({
   widget: ["to answer", "to answer"],
-  approval: ["approval", "approvals"],
+  message: ["to answer", "to answer"],
   resend: ["update to send again", "updates to send again"],
   answer: ["answer", "answers"],
   reply: ["reply", "replies"],
@@ -371,7 +362,7 @@ function queueKinds(items) {
     // A to-do outlasts the turns and the thread that opened it (`todos.py`), so each
     // open one is named, including one on a thread the user has resolved.
     return kind === "todo"
-      ? `${words} (${all.map((row) => row.todo.title).join(" · ")})`
+      ? `${words} (${all.map((row) => row.obligation?.prompt.text ?? row.todo.title).join(" · ")})`
       : words;
   });
 }
@@ -447,8 +438,8 @@ export function leafRow(entry) {
       ? stated(work)
       : kind === "listening"
         ? facts.listening
-          ? stated("Listening")
-          : stated("Awaits")
+          ? "Listening"
+          : "Awaits"
         : kind === "stalled"
           ? stated(silence)
           : kind === "away"

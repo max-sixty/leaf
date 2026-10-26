@@ -1,11 +1,31 @@
 /* What a user who meets a problem copies to say which page and which Leaf they are on:
- * the page's access link, a developer preview's diagnostics, the Leaf version the page
- * runs, and the website's session reference. Each is one row of the page's controls
+ * the page's access link, the agent session its comments reach, a developer preview's
+ * diagnostics, the Leaf version the page runs, and the website's session reference.
+ * Each is one row of the page's controls
  * (page-controls.js) whose press copies its text, derived from the state reading where
  * it is read, so a presentation follows the reading. */
 import { ago } from "./presence.js";
 import { DELIVERY, SHARE_ROOT, runtime, shareUrl } from "./context.js";
 import { PAGE_CONTROL_RANK, registerPageControl } from "./page-controls.js";
+import { retainUserIntent } from "./user-intent.js";
+import { raiseError } from "./errors.js";
+
+registerPageControl({
+  key: "inspection",
+  rank: PAGE_CONTROL_RANK.inspection,
+  label: "Page diagnostics",
+  group: "page",
+  press: () => {
+    const intent = retainUserIntent();
+    void import("./page-inspection.js")
+      .then(({ openPageInspection }) => openPageInspection(intent))
+      .catch((error) =>
+        raiseError(
+          `Page diagnostics could not open: ${error.message}. Open the menu to retry.`,
+        ),
+      );
+  },
+});
 
 // How old a Leaf payload is, so a user who meets a problem can tell whether it
 // predates the fixes since. A payload read from Git carries its commit's date; a harness's
@@ -50,6 +70,40 @@ if (SHARE_ROOT)
     copies: shareUrl,
     group: "page",
   });
+
+// The agent session that holds the page, which the user's comments reach: by the name
+// its harness gives it, or the start of its id where it gives none, and the directory
+// it works in, so a user with several sessions open can tell which one to turn to
+// (`presence.page_list` lists the same for every page). A session that ended still
+// holds the page until another claims it, so the row says so rather than going.
+export function claimantValue(state) {
+  const { session_name: name, claim_session: id, session_cwd: cwd } = state;
+  const where = cwd ? cwd.split("/").findLast(Boolean) : null;
+  return [name || id.slice(0, 8), where, state.session_alive === false && "ended"]
+    .filter(Boolean)
+    .join(" · ");
+}
+export function claimantDiagnostics(state) {
+  return [
+    "Agent session",
+    `agent: ${state.agent}`,
+    ...(state.session_name ? [`name: ${state.session_name}`] : []),
+    `id: ${state.claim_session}`,
+    ...(state.session_cwd ? [`directory: ${state.session_cwd}`] : []),
+    `running: ${state.session_alive !== false}`,
+  ].join("\n");
+}
+const claimed = () => Boolean(/** @type {any} */ (runtime.state)?.claim_session);
+registerPageControl({
+  key: "claimant",
+  rank: PAGE_CONTROL_RANK.claimant,
+  label: "agent session",
+  value: () => (claimed() ? claimantValue(/** @type {any} */ (runtime.state)) : ""),
+  copies: () =>
+    claimed() ? claimantDiagnostics(/** @type {any} */ (runtime.state)) : "",
+  offered: claimed,
+  group: "page",
+});
 
 // The developer preview's identity: which checkout is serving this page. A user preview
 // claims the page, so every press on it, the agent's own screenshots included, comes

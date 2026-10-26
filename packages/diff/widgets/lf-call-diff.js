@@ -11,20 +11,21 @@
  * Comments stay bound to the capture's source revision: callee keys do not identify
  * persistent invocation instances. Rows are keyed by call and placed with setChildren rather than a Lit repeat per root:
  * a capture can move a call under another root, and a row leaving one repeat list
- * for another is recreated, which would drop the focus of a user standing on it. */
+ * for another is recreated, which would drop the focus of a user on it. */
 import {
   announce,
   html,
   iconTemplate,
   render,
   el,
+  generated,
+  generatedElement,
   keeps,
   keepsText,
   LeafElement,
   navigateToDatum,
   nothing,
   offer,
-  projectData,
   setChildLists,
   setChildren,
   plainPress,
@@ -118,7 +119,7 @@ function buildToolbar(owner) {
   // cell — the marker `lf-diff` puts on its own injected stat. It does not stop a drag
   // quoting them: that is `.lf-ui`, which `lf-diff` adds beside it on its line numbers.
   const summary = el("p", "lf-call-summary");
-  summary.dataset.lfGen = "1";
+  generatedElement(summary, { says: false });
   // `offer`, not a bare button: the disclosure control is chrome this widget injected,
   // and `offer` gives it the press markers the theme and the keyboard read.
   const button = offer(
@@ -145,9 +146,9 @@ function buildGroup(owner, key, open) {
   // datum, and its source control beside it rather than around the whole call tree.
   const location = el("div", "lf-call-root-location");
   const summary = buildLine("summary");
-  const body = el("div", "lf-call-group-body lf-text-scroller");
+  const body = el("div", "lf-call-group-body lf-text-scroller scroll");
   group.dataset.callGroup = key;
-  summary.classList.add("lf-call-group-summary");
+  summary.classList.add("lf-call-group-summary", "lf-disclosure-marker");
   group.append(summary, body);
   group.addEventListener("toggle", () => updateDisclosureControl(owner));
   return { body, group, location, summary };
@@ -211,11 +212,21 @@ function renderLine(record, line, owner, count = null) {
       }${
         count === null
           ? ""
-          : html`<span class="lf-call-group-count" data-lf-gen="1">${count}</span>`
+          : html`<span class="lf-call-group-count" ${generated({ says: false })}
+              >${count}</span
+            >`
       }`,
     line,
   );
   return line;
+}
+
+// A drawn row's marks, which make it a datum on a Leaf page (`module-state.md`,
+// "Marking drawn data").
+function mark(node, key, label, path) {
+  keeps(node, "data-lf-datum", key);
+  keeps(node, "data-lf-datum-label", label);
+  keeps(node, "data-lf-origin-path", path ? JSON.stringify(path) : null);
 }
 
 function labelOf(record) {
@@ -227,12 +238,21 @@ function labelOf(record) {
 customElements.define(
   "lf-call-diff",
   class extends LeafElement {
+    // The CallDiff document, set by whoever hosts the widget: Leaf from the bound
+    // source (the registry's `x-data.document.property`), or null while it has none.
+    static properties = { value: { attribute: false } };
+
+    constructor() {
+      super();
+      this.value = null;
+    }
+
     render() {
-      this.show(this.data("document"));
+      this.show(this.value);
       return nothing;
     }
 
-    message(snapshot) {
+    message(value) {
       this.groups = new Map();
       this.rows = new Map();
       /** @type {HTMLElement} */
@@ -241,26 +261,17 @@ customElements.define(
       keeps(node, "class", "lf-call-line lf-call-missing");
       keepsText(node, "Waiting for call-diff data.");
       setChildren(this, [node]);
-      projectData(
-        this,
-        [
-          {
-            node,
-            key: "unavailable",
-            label: "Call-diff data unavailable",
-          },
-        ],
-        { snapshot },
-      );
+      mark(node, "unavailable", "Call-diff data unavailable", null);
+      this.dispatchEvent(new CustomEvent("drawn", { detail: { value } }));
     }
 
-    show(snapshot) {
-      const records = snapshot?.value ? recordsOf(snapshot.value) : [];
+    show(value) {
+      const records = value ? recordsOf(value) : [];
       // Drawn from its data, which lifts the height the page reserved (x-height), and
       // held at that height again while the data is absent.
       this.classList.toggle("lf-rendered", records.length > 0);
       if (!records.length) {
-        this.message(snapshot);
+        this.message(value);
         return;
       }
 
@@ -287,7 +298,7 @@ customElements.define(
         ]),
       );
       const rows = new Map();
-      const datums = records.map((record) => {
+      for (const record of records) {
         const group = groups.get(record.groupKey);
         const node =
           oldRows.get(record.key) ?? (record.root ? group.summary : buildLine());
@@ -298,13 +309,8 @@ customElements.define(
           render(locationLink(record, this), group.location);
         }
         rows.set(record.key, node);
-        return {
-          node,
-          key: record.key,
-          label: labelOf(record),
-          origin: { ...snapshot.origin, path: record.originPath },
-        };
-      });
+        mark(node, record.key, labelOf(record), record.originPath);
+      }
       const placements = [...groups].map(([key, { group, body }]) => {
         const [root, ...children] = groupRows.get(key);
         return {
@@ -316,10 +322,12 @@ customElements.define(
       });
       // Placed at once, a row changing groups, even to a newly arriving root, moves
       // straight across and keeps its controls live; its group opens to show it.
-      const standing = focused(this.getRootNode());
+      const currentLocation = focused(this.getRootNode());
       for (const { group, body, children } of placements)
         if (
-          children.some((node) => node.parentNode !== body && node.contains(standing))
+          children.some(
+            (node) => node.parentNode !== body && node.contains(currentLocation),
+          )
         )
           if (!group.open) group.open = true;
       setChildLists([
@@ -338,7 +346,7 @@ customElements.define(
       ]);
       this.groups = groups;
       this.rows = rows;
-      projectData(this, datums, { snapshot });
+      this.dispatchEvent(new CustomEvent("drawn", { detail: { value } }));
       updateDisclosureControl(this);
     }
   },

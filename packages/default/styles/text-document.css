@@ -89,9 +89,11 @@ html[data-lf-interactive] :scope:is(lf-text-document):not(:has(> *))::before {
   :scope:is(lf-text-document):not([preview])[data-lf-bound] pre {
     block-size: var(--lf-bound, 28rem);
     overflow: auto;
-    --lf-bound-box: 1;
     --lf-holds-height: 1;
     --lf-top: 0px;
+  }
+  :scope:is(lf-text-document):not([preview])[data-lf-bound] {
+    --lf-bound-box: .lf-text-document-listing > pre;
   }
   html[data-lf-interactive] :scope:is(lf-text-document):not(:has(> *)) {
     border: 1px solid var(--code-border);

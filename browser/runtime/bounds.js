@@ -31,9 +31,9 @@
    scrolled back even before its event arrives.
 
    The box that scrolls is the bounded element, unless its widget's theme moves the
-   bound to a box inside it and says so there with `--lf-bound-box: 1` — a captured
-   document scrolls its listing under a caption that stays put. The outermost box
-   declaring it is the scroller, and it is the region's body.
+   bound to a box inside it and names that box with a `--lf-bound-box` selector on
+   the bounded element — a captured document scrolls its listing under a caption
+   that stays put. The first matching box outside nested bounds is the region's body.
 
    A block is held while it stands in the page, whoever painted its bound: delivery
    paints a page's, and a revision patched in arrives painted the same way, while
@@ -41,17 +41,18 @@
    (`holdArrivingBounds` on arrivals.js, started at boot) holds what the page opens
    with, every block added since in the document or a declared shadow root, and any
    element whose bound is painted or taken away in place, and lets go of a block that
-   leaves. Each held block is then watched on its own, for what it holds and for its
-   size. What is registered is what stands in the page.
+   leaves. Each held block is then watched on its own, for what it holds, its size,
+   and its own hidden state. What is registered is what stands in the page.
 
    A block in content the browser skips, a hidden tab's panel or a shut disclosure, is
    left as it stands until it is drawn (geometry.js, `skipped`). Finding its scroller
-   reads the style of every box it holds, and finding its end reads layout, and either
+   reads the bounded element's style, and finding its end reads layout, and either
    question makes the browser style and lay out the hidden subtree first; Chromium has
    left style elsewhere on the page stale after that forced pass. A block first seen
    hidden stands as its own scroller meanwhile. Each skipped sync renews the block's
-   size observation, whose first delivery comes once the block is drawn and asks again,
-   so a log that grew while hidden opens on its newest entry.
+   size observation, whose first delivery comes once the block is drawn and asks again.
+   A bound panel can keep the same box while its hidden attribute changes, so that
+   change also asks again. A log that grew while hidden then opens on its newest entry.
 
    The watch starts before presentation because the first read it takes is the one the
    user sees: an `end` log opens at its end, and a pin taken after the page presents
@@ -76,13 +77,12 @@ const byBox = new WeakMap();
 const THIS_DOCUMENT = `lf-region:bound:${performance.timeOrigin}`;
 let unnamed = 0;
 
-const declaresBound = (box) =>
-  getComputedStyle(box).getPropertyValue("--lf-bound-box").trim() === "1";
-
 function scrollerOf(bounded) {
+  const selector = getComputedStyle(bounded).getPropertyValue("--lf-bound-box").trim();
+  if (!selector) return bounded;
   // A bound nested inside this one owns its own scroller, so the search stops at it.
-  for (const box of bounded.querySelectorAll("*"))
-    if (declaresBound(box) && box.closest(BOUNDED) === bounded) return box;
+  for (const box of bounded.querySelectorAll(selector))
+    if (box.closest(BOUNDED) === bounded) return box;
   return bounded;
 }
 
@@ -126,6 +126,8 @@ function holdBlock(bounded) {
   };
   let stopRegion = null;
   const onScroll = () => {
+    // A hidden tab can reset its scroll position as its contents change.
+    if (bounded.hasAttribute("hidden")) return;
     hold.left = !atEnd(hold.box);
     if (!hold.left) hold.pinned = hold.box.scrollTop;
   };
@@ -154,8 +156,9 @@ function holdBlock(bounded) {
   const sync = (observed) => {
     hold.bound = bounded.getAttribute(BOUND);
     if (!bounded.isConnected || hold.bound === null) return letGo();
-    if (skipped(bounded)) {
+    if (bounded.hasAttribute("hidden") || skipped(bounded)) {
       if (!hold.box) adopt(bounded);
+      hold.pinned = null;
       if (!observed) {
         resize.unobserve(bounded);
         resize.observe(bounded);
@@ -174,7 +177,16 @@ function holdBlock(bounded) {
   hold.sync = () => sync(false);
   const resize = sizeObserver(() => sync(true));
   resize.observe(bounded);
-  new MutationObserver(hold.sync).observe(bounded, {
+  new MutationObserver((records) => {
+    if (
+      records.some(
+        (record) => record.type !== "attributes" || record.target === bounded,
+      )
+    )
+      hold.sync();
+  }).observe(bounded, {
+    attributes: true,
+    attributeFilter: ["hidden"],
     childList: true,
     characterData: true,
     subtree: true,

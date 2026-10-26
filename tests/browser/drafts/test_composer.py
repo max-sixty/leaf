@@ -15,9 +15,11 @@ from render_harness import (
     draft_control,
     example_media,
     expect_error_waits_in_menu,
+    expect_panel_says,
     holding,
     leaf_page,
     open_page,
+    open_threads,
     page_comment,
     panel_control,
     panel_field,
@@ -32,7 +34,6 @@ from render_harness import (
     write,
 )
 
-from browser.drafts import expect_panel_says
 from browser.threads import clear_of_the_panel
 from leaf import event_log as events_model
 from leaf.render_checks import one_frame
@@ -62,8 +63,7 @@ def test_a_single_space_is_message_content_in_every_composer(browser, serve):
             page_comment(page)
             surface = page.locator(".lf-fp-field")
         else:
-            page.locator(".lf-fp-threads").click()
-            panel_settled(page, view="threads")
+            open_threads(page)
             page.locator(".lf-fp-thread").first.click()
             panel_settled(page, view="thread")
             surface = page.locator(".lf-fp-field")
@@ -117,8 +117,7 @@ def test_a_draft_the_chrome_stands_down_says_so_and_keeps_an_address(browser, se
     compose(page, "#p3", kept)
     assert pending_text(page), "the open box left its own passage unmarked"
 
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    open_threads(page)
     expect(page.locator(".lf-composer")).to_be_hidden()
     assert pending_text(page) == "", "a box off screen left its passage marked"
     expect_panel_says(page, "Draft kept — g i resumes writing")
@@ -337,8 +336,7 @@ def test_a_pasted_image_is_a_whole_draft_and_leaves_with_the_send_that_took_it(
     expect(shelf.locator("img")).to_be_visible()
 
     # Put away: the picture is words enough to keep, and to be told about.
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    open_threads(page)
     expect(page.locator(".lf-composer")).to_be_hidden()
     expect_panel_says(page, "Draft kept — g i resumes writing")
     assert "writing.resume" in available_commands(page)

@@ -83,7 +83,7 @@ import {
   arrivals,
   inSeatingOrder,
   packRows,
-  rowPosture,
+  rowPlacement,
   seatRows,
 } from "./margin-placement.js";
 import { clamp, clippingAxes, overlaps, union } from "../rect.js";
@@ -364,7 +364,7 @@ function samePassage(passage, words) {
   );
 }
 
-export function syncMarginResidency(changed) {
+export function syncMarginContentLayout(changed) {
   if (changed) scheduleMarginLayout();
 }
 
@@ -736,6 +736,28 @@ const seats = new WeakMap();
 const folded = new WeakSet();
 export const standsFolded = (row) => folded.has(row);
 
+// Where `part` of `row`, or the row itself, is painted. A carried row's own box reads a
+// frame late after a scroll (`scheduleScrollReading`), so it is read where the row's
+// target now stands, by the offsets the last pass seated the row at (`standsBy`): the
+// place the browser moved it to in the frame that scrolled it. Any other row's box is
+// where it is painted.
+export function paintedBox(part, row) {
+  const box = part.getBoundingClientRect();
+  const by = standsBy.get(row);
+  const target = by && isCarrier(row.parentElement) ? rows.get(row)?.anchor() : null;
+  if (!target?.isConnected || skipped(target)) return box;
+  const whole = shownExtent(target);
+  if (!whole) return box;
+  const own = part === row ? box : row.getBoundingClientRect();
+  const across = row.dataset.lfPlace === "pin" ? whole.right + by.right - own.right : 0;
+  return new DOMRect(
+    box.x + across,
+    box.y + whole.top + by.top - own.top,
+    box.width,
+    box.height,
+  );
+}
+
 function standFolded(row, fold, on) {
   if (folded.has(row) === on) return;
   if (on) folded.add(row);
@@ -976,16 +998,12 @@ export function registerMarginRow(row, options = {}) {
 }
 
 export function unregisterMarginRow(row) {
+  // The projection discards this host. Clear retained references without
+  // repainting a face that will leave the document in the same turn.
   rows.delete(row);
   anchors.delete(row);
-  if (row) {
-    row.classList.toggle("lf-withheld", false);
-    row.removeAttribute("data-lf-place");
-    for (const property of ["--lf-margin-x", "--lf-margin-y"])
-      setStyle(row, property, null);
-    pushes.delete(row);
-    folded.delete(row);
-  }
+  pushes.delete(row);
+  folded.delete(row);
   if (!rows.size) {
     observer?.disconnect();
     observer = null;
@@ -1206,7 +1224,7 @@ export function layoutMarginRows() {
     const level = line ? top : box.top;
     const besideRail = railBeside(scroller);
     const size = stands && besideRail ? railEntrySize() : 0;
-    const place = rowPosture({
+    const place = rowPlacement({
       railStands: stands,
       besideRail,
       blockRight: reach(anchor, box, main, reaches),

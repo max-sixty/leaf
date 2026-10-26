@@ -4,7 +4,9 @@
  * inactive panels with hidden="until-found", so browser find-in-page and
  * fragment navigation still reach them — `beforematch` opens the owning tab,
  * and the runtime's reveal() asks the same via the lf-reveal event when it
- * scrolls to a comment anchor. The open tab is view state for this user,
+ * scrolls to a comment anchor. A page can make a panel itself scroll with CSS,
+ * so the widget declares each panel as a scroll surface; its CSS still decides
+ * whether that panel scrolls. The open tab is view state for this user,
  * remembered per browser tab (`keepView`): switching is reading, not editing, so it
  * never sends an action and no version carries it — this widget doesn't ride the
  * action channel at all. Which tab a set opens on is the runtime's (`openingView`),
@@ -29,8 +31,8 @@
  * stands until the strip is pinned; then it opens the new panel at its start. `list="side"`
  * stands the list beside the panels, a queue beside the item it opens, walked up and
  * down as well as across (theme.css says where it stacks); a side list is a box even as
- * the root set, which keeps the root's history, and Back or Forward there lands the
- * set's start when the user stood below it. Where a side list fills a height it is
+ * the root set, which keeps the root's history, and Back or Forward restores the
+ * entry's viewport after showing its view. Where a side list fills a height it is
  * given, as a full-height workspace's body (theme.css), its list and its open item each
  * scroll on their own. Its panels are reading regions, and so is its list while it
  * scrolls on its own, so reading keys and the user's place follow the list or the item
@@ -80,12 +82,14 @@ import {
   answerWords,
   under,
   backgroundFlash,
+  flashDuration,
   beginWalk,
   capturePlace,
   comparisonChanges,
   claimTraversals,
   commands,
   compoundReadingRegionId,
+  cycledRow,
   elementsDeclaring,
   keepView,
   keeps,
@@ -94,6 +98,7 @@ import {
   frameFor,
   whileConnected,
   offer,
+  generated,
   openingView,
   pageScroller,
   preserveReadingRegions,
@@ -190,7 +195,7 @@ export class TabSet extends LeafElement {
     //
     // A press is a span wearing the role rather than a <button> (see `offer`), which
     // is what makes a drag across the name possible at all.
-    const strip = offer("div", "lf-tabstrip");
+    const strip = offer("div", "lf-tabstrip scroll");
     this.#strip = strip;
     strip.setAttribute("role", "tablist");
     if (down) strip.setAttribute("aria-orientation", "vertical");
@@ -201,6 +206,7 @@ export class TabSet extends LeafElement {
       if (!index || (side && group !== panels[index - 1].getAttribute("group")))
         this.#runs.push({ panel, group, panels: [] });
       this.#runs.at(-1).panels.push(panel);
+      if (!panel.classList.contains("scroll")) panel.classList.add("scroll");
       panel.setAttribute("role", "tabpanel");
       panel.setAttribute("aria-label", panel.getAttribute("label"));
       // The browser found something inside (find-in-page, an anchor jump), or
@@ -217,21 +223,17 @@ export class TabSet extends LeafElement {
     // name and the underline in this same task. Later publication uses LeafElement's
     // tracked render; its unchanged Lit parts retain these exact nodes.
     render(this.render(), strip);
-    // Roving focus per the ARIA tabs pattern: arrows move and activate, and wrap, which
-    // is a fact about this walk and so belongs in the words that name it.
-    const walk = (to) => {
-      const order = [...this.#buttons.values()];
-      // The strip takes no tab stop of its own, so focus inside it — which is the
-      // whole of when this scope holds — is always one of these buttons.
-      const at = order.indexOf(focused());
-      const next = order[to(at, order.length)];
+    // Roving focus per the ARIA tabs pattern: arrows move and activate, and come round
+    // at the ends as every cyclic walk does (`cycledRow`). The strip takes no tab stop
+    // of its own, so focus inside it, which is the whole of when this scope holds, is
+    // always one of these buttons.
+    const tabs = () => [...this.#buttons.values()];
+    const walk = (next) => {
       // The strip is always on screen; focus scrolling a stuck tab back to its place
       // in flow would move the view being left before the switch records it.
       focusDestination(next, "move");
       next.click();
-      beginWalk("tab", "Tab", () =>
-        listWalkPosition([...this.#buttons.values()], focused()),
-      );
+      beginWalk("tab", "Tab", () => listWalkPosition(tabs(), focused()));
     };
     // Across the row, back is the way the names run from.
     const [back, ahead] = rowArrows(this);
@@ -264,10 +266,11 @@ export class TabSet extends LeafElement {
         ],
         title: "walk the tabs",
         repeat: true,
-        run: (binding) =>
-          walk((at, n) =>
-            [ahead, "ArrowDown"].includes(binding) ? (at + 1) % n : (at - 1 + n) % n,
-          ),
+        travels: true,
+        run: (binding) => {
+          const step = [ahead, "ArrowDown"].includes(binding) ? 1 : -1;
+          walk(cycledRow(tabs(), focused(), step));
+        },
       },
       {
         id: "tab.edge",
@@ -277,7 +280,8 @@ export class TabSet extends LeafElement {
           { id: "tab.last", binding: "End", title: "Last tab" },
         ],
         title: "first / last",
-        run: (binding) => walk((at, n) => (binding === "Home" ? 0 : n - 1)),
+        travels: true,
+        run: (binding) => walk(binding === "Home" ? tabs()[0] : tabs().at(-1)),
       },
     ]);
     this.prepend(strip);
@@ -363,8 +367,7 @@ export class TabSet extends LeafElement {
                     ? html`<span
                         class="lf-tab-group"
                         aria-hidden="true"
-                        data-lf-gen="1"
-                        data-lf-said
+                        ${generated({ says: true })}
                         >${run.group}</span
                       >`
                     : nothing
@@ -436,11 +439,11 @@ export class TabSet extends LeafElement {
       tabindex=${panel === this.#active.value ? 0 : -1}
       @click=${(event) =>
         this.#activate(panel, "ordinary", !pressIsKeyboardActivation(event))}
-      ><span class="lf-tab-name" data-lf-gen="1" data-lf-said
+      ><span class="lf-tab-name" ${generated({ says: true })}
         >${panel.getAttribute("label")}${this.#down ? nothing : mark}</span
       >${
         this.#down && panel.hasAttribute("summary")
-          ? html`<span class="lf-tab-summary" data-lf-gen="1" data-lf-said
+          ? html`<span class="lf-tab-summary" ${generated({ says: true })}
               >${panel.getAttribute("summary")}</span
             >`
           : nothing
@@ -497,7 +500,7 @@ export class TabSet extends LeafElement {
       const from = pageScroller.scrollTop;
       if (this.#pageFlow && previous) this.#leave(previous);
       if (this.#root && reason === "ordinary") this.#pushLocation(active);
-      // Whatever opened another view, the entry the user stands on names it, so
+      // Whatever opened another view, the entry the user is on names it, so
       // Back and Forward to that entry return to this view. A fragment already
       // inside it (a link's target) says so and stays.
       else if (
@@ -528,11 +531,11 @@ export class TabSet extends LeafElement {
       // motion's shared gate answers reduced motion and initial presentation.
       if (previous && reason === "reveal") {
         const name = button.querySelector(":scope > .lf-tab-name");
-        this.#revealMotion = backgroundFlash(name, 650);
+        this.#revealMotion = backgroundFlash(name, flashDuration());
       }
       if (switched) this.#open(active, from);
       else if (pinnedBox) scrollIntoReadingBand(this, this, "start", "instant");
-      else if (reason === "history") this.#land();
+
       if (first) {
         const mark = button.querySelector(".lf-tab-mark");
         const last = mark.getBoundingClientRect();
@@ -705,7 +708,10 @@ export class TabSet extends LeafElement {
         if (!this.#root) return null;
         const view = this.#panelForLocation([...this.#buttons.keys()], url.hash);
         return view && view !== this.#active.value
-          ? () => this.#activate(view, "history")
+          ? () => {
+              const placesPage = this.#pageFlow;
+              return this.#activate(view, "history").then(() => placesPage);
+            }
           : null;
       },
       { signal },
@@ -771,16 +777,6 @@ export class TabSet extends LeafElement {
       behavior: "instant",
     });
     if (place) restorePlace(place);
-  }
-
-  // A box's views have no places of their own, and Back or Forward is made from wherever
-  // the user reads: left where it stood, a view shorter than the one it replaced puts
-  // them at the page's end, partway down it. So a traversal lands the set's start, as a
-  // page-flow view without a place lands at its own, and leaves a set already in view
-  // where it is.
-  #land() {
-    if (this.getBoundingClientRect().top < 0)
-      scrollIntoView(this, { block: "start", behavior: "instant" });
   }
 
   #placeKey(panel) {

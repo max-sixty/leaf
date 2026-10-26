@@ -21,13 +21,14 @@ from browser.threads import (
     summarize_thread,
 )
 from leaf import thread as thread_model
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
 def show_held_news(card):
     """Show what the card holds behind its notice, by a press that leaves focus where
-    the user stands."""
+    the user is located."""
     notice = card.locator(".lf-thread-news")
     expect(notice).to_be_visible()
     notice.evaluate("node => node.click()")
@@ -480,7 +481,8 @@ def test_a_summary_folds_its_messages_where_they_stand(request, serve, engine):
     loaded, and words the user selected in another stay selected. Moving a message
     reloaded its frame in WebKit, which lacks `moveBefore`, and lost the selection in
     every engine. The checkpoint groups its messages for assistive technology by
-    `aria-owns`, since it no longer contains them."""
+    `aria-owns`, since it no longer contains them. Its toggle takes a press while those
+    words stay selected."""
     url = serve(SEATED_OBLIGATION_PAGE)
     root = panel_comment(serve.page_dir, "Which job first?", {"section": "jobs"})
     framed = append_agent_reply(
@@ -538,11 +540,22 @@ def test_a_summary_folds_its_messages_where_they_stand(request, serve, engine):
     owned = checkpoint.evaluate("node => node.getAttribute('aria-owns').split(' ')")
     assert owned == [message.evaluate("node => node.id") for message in covered]
 
-    toggle.press("Enter")
+    # A press, with those words still selected, folds and unfolds them: the guard that
+    # takes a drag ending on a control for the selection's mouseup once asked the whole
+    # card, so a selection anywhere in it deadened the toggle. Show and Hide leave their
+    # toggle under the user's aim: the thread landing it brought the thread's head back
+    # into view and lifted the toggle 20px.
+    toggle.scroll_into_view_if_needed()
+    stood = toggle.evaluate("node => node.getBoundingClientRect().top")
+    toggle.click()
     for message in covered:
         expect(message).to_be_hidden()
-    toggle.press("Enter")
+    rendered(page)
+    assert toggle.evaluate("node => node.getBoundingClientRect().top") == stood
+    toggle.click()
     expect(covered[0]).to_be_visible()
+    rendered(page)
+    assert toggle.evaluate("node => node.getBoundingClientRect().top") == stood
     kept()
 
     append_carried_log_record(
@@ -566,7 +579,7 @@ def test_a_summary_folds_its_messages_where_they_stand(request, serve, engine):
 def test_a_summary_gathering_the_message_the_user_is_on_keeps_them_on_it(
     browser, serve
 ):
-    """A checkpoint arriving over the message the user stands in opens around it.
+    """A checkpoint arriving over the message the user is located in opens around it.
 
     The message stays where it stood, now under the checkpoint, and the user stays on a
     link in it rather than dropping to the page. The summary waits behind the thread's
@@ -727,11 +740,11 @@ def test_a_later_summary_replaces_its_overlap_and_an_edit_restores_originals(
     card = open_margin_card(page, root)
     old_checkpoint = card.locator(f'[data-summary-id="{old["id"]}"]')
     expect(old_checkpoint).to_be_visible()
-    # The user stands on the summary they opened: a message takes no focus in a card.
+    # The user is located on the summary they opened: a message takes no focus in a card.
     opened = old_checkpoint.locator(".lf-summary-expand")
     opened.click()
     expect(opened).to_be_focused()
-    standing = card.locator(f'.lf-msg[data-event="{second["id"]}"]')
+    selected_message = card.locator(f'.lf-msg[data-event="{second["id"]}"]')
 
     replacement = summarize_thread(
         serve.page_dir,
@@ -750,7 +763,7 @@ def test_a_later_summary_replaces_its_overlap_and_an_edit_restores_originals(
     expect(checkpoint.locator(".lf-summary-expand")).to_have_attribute(
         "aria-expanded", "true"
     )
-    expect(standing).to_be_visible()
+    expect(selected_message).to_be_visible()
     expect(checkpoint.locator(".lf-summary-text")).to_have_text(
         "All three constraints now form one decision."
     )

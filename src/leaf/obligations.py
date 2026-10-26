@@ -1,4 +1,4 @@
-"""Canonical obligations from widgets, stamped page sign-off and the user's updates.
+"""Canonical obligations from messages, user tasks, widgets and updates.
 
 One record contains its prompt, typed answer, completion and next actor. Its thread
 and exact owning message locate frozen sources without depending on a live renderer.
@@ -8,7 +8,8 @@ input using its data contract's record list and key. Each record owns the stable
 widget-and-unit identity and reads its own action coordinate; replacing that input
 changes membership without changing the answers of retained records.
 The inventory is complete even when a work queue hides a resolved thread or an
-older prompt. To-dos never stand in for these records.
+older prompt. A user-owned to-do publishes an obligation with explicit completion;
+agent-owned to-dos stay work records.
 
 An update the user handed over publishes a record of its own (`update_obligation`),
 built by the fold that decides which updates are handed over and settled
@@ -21,9 +22,10 @@ A widget whose `x-awaits` declares `reply`, such as `lf-ask` holding no widget o
 own, is a question the user answers in words: their next message in the thread
 whose message holds it, a reaction there whose token settles it, or on the page a
 message in a thread anchored inside it. It has no x-state, so its answer is that
-message's text or token. The user chose a question widget over a reply flag
-(`--ask`, which Leaf had), so that only widgets, sign-off and handed-back updates put
-obligations on the user's list, beside the to-dos the agent gives them.
+message's text or token. An agent message carrying `obligation` creates the same
+reply-answered request directly, without a widget. The message owns identity and
+prompt; its thread only locates it. A user to-do instead ends explicitly, so
+discussing the task never claims the work is complete.
 
 A record's `status` is one of four, and this module is their one producer: `open`;
 `answered`, its typed answer in the record; `answered_elsewhere`, a reply-answered
@@ -40,14 +42,12 @@ from typing import TYPE_CHECKING, NamedTuple
 from urllib.parse import quote
 
 from leaf.events import (
-    approvals_in_force,
     awaits_agent,
     is_reaction,
     retractions,
     taken_back,
     unanswered_agent_turn,
 )
-from leaf.files import stamped_version
 from leaf.gesture_words import element_name, element_text
 from leaf.page_memory import Slot
 from leaf.projection import (
@@ -61,8 +61,8 @@ from leaf.projection import (
     projected_action_holders,
     state_projection,
 )
+from leaf.registry.contract import exhibits, matches_when
 from leaf.registry.kernel import verb_writers
-from leaf.structure import review_mode
 from leaf.thread_context import widget_messages
 
 if TYPE_CHECKING:
@@ -141,7 +141,7 @@ def obligation_registrations(
     return {
         unit: ObligationRegistration(
             record["tag"],
-            asking(record["attrs"], declaration.get("when")),
+            matches_when(record["attrs"], declaration.get("when")),
             "restated" in record["attrs"],
             frozenset(
                 verb
@@ -177,62 +177,12 @@ def event_reference(event: dict | None) -> dict | None:
     }
 
 
-def approval_blocking(records: list[dict]) -> list[dict]:
-    """The obligations that keep a version from being approved: each open widget
-    obligation someone still owes, on the page or in a widget an agent sent. The append
-    door refuses a sign-off while one stands, and the browser view serves their ids
-    so the approve control says the same."""
-    return [
-        record
-        for record in records
-        if record["source"]["kind"] == "widget"
-        and record["status"] == "open"
-        and record["next_actor"] is not None
-    ]
-
-
 def collection(records: list[dict]) -> dict:
     """Select obligations from an inventory without deciding membership again."""
     return {
         "all": records,
         "user": [record for record in records if record["next_actor"] == "user"],
         "unanswered": [record for record in records if record["status"] == "open"],
-    }
-
-
-def approval_obligation(document, revision: int, events: list) -> dict | None:
-    """Sign-off for an exact public stamp as one canonical obligation.
-
-    Draft revisions owe none. Only a done event in force for this public version
-    supplies the typed answer; an undo makes the same obligation open again.
-    Approval admission counts widget obligations alone, so this record cannot
-    block its own answer. It asks about the version as a whole, so its prompt names
-    no element of the page to go to: the chrome presents the approval and brings the
-    user to it (page-status.js, `registerApprovalPresentation`).
-    """
-    version = stamped_version(events, revision)
-    if version is None or review_mode(document) != "sign-off":
-        return None
-    approved = next(
-        (
-            event
-            for event in reversed(approvals_in_force(events))
-            if event["version"] == version
-        ),
-        None,
-    )
-    return {
-        "id": f"approval:v{version}",
-        "source": {"kind": "approval", "version": version},
-        "thread": None,
-        "message": None,
-        "prompt": {"text": f"Approve v{version}?", "target": None},
-        "answer": {"value": True, "event": event_reference(approved)}
-        if approved
-        else None,
-        "status": "answered" if approved else "open",
-        "end": None,
-        "next_actor": None if approved else "user",
     }
 
 
@@ -277,20 +227,6 @@ def response_address(record: dict) -> dict:
         else record["thread"],
         "responds": source["id"],
     }
-
-
-def asking(attrs: dict, when: dict) -> bool:
-    """Every attribute `when` names matches a string value or, for a boolean,
-    its presence or absence."""
-    return all(
-        any(
-            (attr in attrs) == value
-            if isinstance(value, bool)
-            else attrs.get(attr) == value
-            for value in values
-        )
-        for attr, values in (when or {}).items()
-    )
 
 
 def replayed_attrs(rec: dict, projection: StateProjection) -> dict:
@@ -351,7 +287,7 @@ def previously_requested(
                 floors=retractions(events, revision) if revision is not None else {},
                 withdrawn=taken_back(events),
             )
-        if asking(replayed_attrs(record, cache[key]), when):
+        if matches_when(replayed_attrs(record, cache[key]), when):
             return True
     return False
 
@@ -382,7 +318,7 @@ def verb_answers(
     while one of its actions stands on the widget.
     """
     condition = answer_verbs(entry)[verb]
-    if not asking(replayed_attrs(rec, projection), condition.get("when")):
+    if not matches_when(replayed_attrs(rec, projection), condition.get("when")):
         return False
     if empty := condition.get("empty"):
         return container_empty(rec, empty, byid, registry, holders)
@@ -457,48 +393,93 @@ def anchors_with_agent(threads: dict, owed: list[dict]) -> list[dict]:
     ]
 
 
-def discussed(records: list[dict], anchors: list[dict], within: dict) -> None:
-    """Hand each open obligation discussed by `anchors` to the agent.
+def discussed_by(anchor: dict, records: list[dict], within: dict) -> list[dict]:
+    """The obligations among `records` a thread anchored at `anchor` is about.
 
     A section is about the innermost obligation whose widget encloses it, answered or not;
     failing one, about every obligation whose widget it encloses; failing those, about
     every obligation whose prompt target (its enclosing widget) is the innermost to
     enclose it. So a note on one obligation's option, or on a part of a frame holding
-    one obligation, leaves its framed sibling with the user, while one on the frame's
-    heading or on a section holding the frame is about them all. `within` is the
-    document's containment (`Passages.enclosing`). A datum identity narrows an
-    owning widget's record obligations to the exact case being discussed.
+    one obligation, leaves its framed sibling out, while one on the frame's heading or on
+    a section holding the frame is about them all. `within` is the document's
+    containment (`Passages.enclosing`). A datum identity narrows an owning widget's
+    record obligations to the exact case being discussed.
     """
+    section = anchor["section"]
+    chain = within.get(section, ())
     items: dict[str, list[dict]] = {}
-    for record in records:
-        items.setdefault(record["source"]["id"], []).append(record)
     framed: dict[str, list[dict]] = {}
     for record in records:
+        items.setdefault(record["source"]["id"], []).append(record)
         framed.setdefault(record["prompt"]["target"], []).append(record)
+    item = next((items[i] for i in reversed(chain) if i in items), None)
+    about = (
+        item
+        if item is not None
+        else [
+            record
+            for record in records
+            if section in within.get(record["source"]["id"], ())
+        ]
+        or next((framed[i] for i in reversed(chain) if i in framed), [])
+    )
+    datum = anchor.get("identity", anchor.get("datum"))
+    return [
+        record
+        for record in about
+        if datum is None
+        or record["source"]["id"] != section
+        or "unit" not in record["source"]
+        or record["source"]["unit"] == datum
+    ]
+
+
+def thread_topics(threads: dict, records: list[dict], within: dict) -> dict[str, list]:
+    """Each thread's id → the page obligations among `records` it is about
+    (`discussed_by`), by the section its anchor names now; a thread with no section
+    is about none."""
+    return {
+        identity: discussed_by(anchor, records, within)
+        if (anchor := thread["anchor"]) and "section" in anchor
+        else []
+        for identity, thread in threads.items()
+    }
+
+
+def waiting_about(
+    widget: str, records: list[dict], threads: dict, within: dict, registry: dict
+) -> list[dict]:
+    """The records among `records` that still wait on the user's words in a thread
+    about an obligation of `widget` (`thread_topics`): the questions the agent asked
+    there, which an answer to that obligation may or may not settle. Each is its `id`
+    and the words that asked it (`prompt.text`)."""
+    page = [
+        record
+        for record in records
+        if record["thread"] is None and record["source"]["kind"] == "widget"
+    ]
+    asked = [
+        record
+        for record in records
+        if record["thread"] is not None
+        and record["status"] == "open"
+        and record["next_actor"] == "user"
+        and answered_in_words(record, registry)
+    ]
+    topics = thread_topics(
+        {record["thread"]: threads[record["thread"]] for record in asked}, page, within
+    )
+    return [
+        {"id": record["id"], "text": record["prompt"]["text"]}
+        for record in asked
+        if any(about["source"]["id"] == widget for about in topics[record["thread"]])
+    ]
+
+
+def discussed(records: list[dict], anchors: list[dict], within: dict) -> None:
+    """Hand each open obligation discussed by `anchors` (`discussed_by`) to the agent."""
     for anchor in anchors:
-        section = anchor["section"]
-        chain = within.get(section, ())
-        item = next((items[i] for i in reversed(chain) if i in items), None)
-        about = (
-            item
-            if item is not None
-            else [
-                record
-                for record in records
-                if section in within.get(record["source"]["id"], ())
-            ]
-            or next((framed[i] for i in reversed(chain) if i in framed), [])
-        )
-        datum = anchor.get("identity", anchor.get("datum"))
-        for record in about:
-            source = record["source"]
-            if (
-                datum is not None
-                and source["id"] == section
-                and "unit" in source
-                and source["unit"] != datum
-            ):
-                continue
+        for record in discussed_by(anchor, records, within):
             if record["next_actor"] == "user":
                 record["next_actor"] = "agent"
 
@@ -516,7 +497,7 @@ def quoted_in(rec: dict, registry: dict) -> bool:
     same reason `quotedBy` takes an element — an element the author left unnamed
     stands where it stands."""
     return any(
-        (registry.get(node["tag"]) or {}).get("x-exhibit")
+        exhibits(node["attrs"], registry.get(node["tag"], {}))
         for node in enclosing_widgets(rec)
     )
 
@@ -553,7 +534,7 @@ def container_empty(
         for record in byid.values()
         if record["tag"] == empty["within"]
         and inside(record, owner)
-        and asking(record["attrs"], empty["when"])
+        and matches_when(record["attrs"], empty["when"])
     ]
     if len(containers) != 1:
         return False
@@ -586,7 +567,10 @@ def answering_action(
     awaits = entry.get("x-awaits") or {}
     return (
         verb in answer_verbs(entry)
-        and (registered or asking(replayed_attrs(rec, projection), awaits.get("when")))
+        and (
+            registered
+            or matches_when(replayed_attrs(rec, projection), awaits.get("when"))
+        )
         and verb_answers(
             rec,
             entry,
@@ -694,7 +678,7 @@ class _ObligationReducer:
         return self._entry(record).get("x-awaits", {})
 
     def _local(self, record):
-        return asking(
+        return matches_when(
             replayed_attrs(record, self.projection),
             self._declaration(record).get("when"),
         )
@@ -874,7 +858,7 @@ class _ObligationReducer:
                 continue
             registered = (
                 self.local[id(record)]
-                or asking(record["attrs"], self._declaration(record).get("when"))
+                or matches_when(record["attrs"], self._declaration(record).get("when"))
                 or previously_requested(
                     record,
                     self.projection,
@@ -1073,7 +1057,7 @@ def thread_obligation_readings(
     reading: FrozenThreadReading,
     data: dict | None = None,
 ) -> dict:
-    """Frozen widget obligations retain inventory when their containing thread closes,
+    """Message and frozen widget obligations retain inventory when their thread closes,
     with no next actor. While the thread is open, a user turn after the message
     that asks hands the obligation to the agent until the agent answers that turn, and
     until the work a reply after it promised ends, as a thread anchored on a page
@@ -1093,13 +1077,30 @@ def thread_obligation_readings(
     )
     records = reducer.inventory(set())
     message_by_widget = widget_messages(reading.structure)
-    tokens = registry.get("$reactions", {}).get("tokens", {})
     for record in records:
         source = record["source"]["id"]
         record["thread"] = reading.thread_by_widget[source]
         record["message"] = message_by_widget[source]
+    records.extend(
+        {
+            "id": f"message:{message['id']}",
+            "source": {"kind": "message", "id": message["id"]},
+            "thread": identity,
+            "message": message["id"],
+            "prompt": {"text": message["text"], "target": None},
+            "answer": None,
+            "status": "open",
+            "end": None,
+            "next_actor": "user",
+        }
+        for identity, thread in threads.items()
+        for message in thread["msgs"]
+        if message.get("obligation")
+    )
+    tokens = registry.get("$reactions", {}).get("tokens", {})
+    for record in records:
         thread = threads[record["thread"]]
-        in_words = replied(registry[record["source"]["tag"]])
+        in_words = answered_in_words(record, registry)
         asked = next(
             message["seq"]
             for message in thread["msgs"]
@@ -1138,3 +1139,58 @@ def thread_obligation_readings(
         ):
             record["next_actor"] = "agent"
     return collection(records)
+
+
+def answered_in_words(record: dict, registry: dict) -> bool:
+    """Whether a conversational answer, or agent ending, can settle this source."""
+    source = record["source"]
+    return source["kind"] == "message" or (
+        source["kind"] == "widget" and replied(registry[source["tag"]])
+    )
+
+
+def user_task_obligations(
+    log: "TodoReading", reading: FrozenThreadReading
+) -> list[dict]:
+    """User tasks in the canonical inventory, retaining their explicit completion.
+
+    The to-do fold alone decides their outcome. Discussion, thread resolution and
+    page edits never complete the action the user was asked to perform.
+    """
+    events = {event["id"]: event for event in log.events}
+    records = []
+    for todo in log.todos:
+        if todo["owner"] != "user":
+            continue
+        subject, outcome = todo["subject"], todo["outcome"]
+        ended = todo["state"] != "open"
+        records.append(
+            {
+                "id": todo["id"],
+                "source": {"kind": "todo", "id": todo["id"], "subject": subject},
+                "thread": reading.subject_thread(subject),
+                "message": None,
+                "prompt": {
+                    "text": todo["title"],
+                    "target": subject["id"]
+                    if subject["kind"] in {"widget", "element"}
+                    else None,
+                },
+                "answer": {
+                    "value": todo["state"],
+                    "event": event_reference(events[outcome["id"]]),
+                }
+                if ended and todo["state"] != "dropped"
+                else None,
+                "status": "withdrawn"
+                if todo["state"] == "dropped"
+                else "answered"
+                if ended
+                else "open",
+                "end": {"detail": outcome["detail"], "event": event_reference(outcome)}
+                if ended
+                else None,
+                "next_actor": None if ended else "user",
+            }
+        )
+    return records

@@ -1,5 +1,13 @@
 /* A stable review desk: all case headers share grid tracks, and the capture
-   pane uses the remaining workspace. Native reading regions retain each view. */
+   pane uses the remaining workspace. Native reading regions retain each view.
+
+   The remaining workspace has a floor. A desk that fills the window gives its shot's
+   track at least room for the toolbar and a frame to read, and each track between the
+   dashboard and the capture takes its content's minimum (`minmax(min-content, 1fr)`),
+   so a window too short for that floor grows the desk past the workspace body, which
+   scrolls, rather than squeezing the screenshots away: at 720px tall a stacked case list
+   left the shots 5px. The shot is size-contained there, so that minimum is the floor
+   and not the screenshots' natural height, which the shot fits to its room. */
 :scope:is(lf-visual-review) {
   display: block;
   min-inline-size: 0;
@@ -12,7 +20,7 @@
 }
 .lf-vr-dashboard {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(min-content, 1fr);
   min-inline-size: 0;
   --lf-full-height: inherit;
 }
@@ -43,6 +51,7 @@
 .lf-vr-workspace {
   display: grid;
   grid-template-columns: 210px minmax(0, 1fr);
+  grid-template-rows: minmax(min-content, 1fr);
   gap: 24px;
   min-block-size: 0;
   min-inline-size: 0;
@@ -57,6 +66,11 @@
   border-radius: 0;
   min-inline-size: 0;
 }
+/* The queue's body is no container, as a pane's body otherwise is (theme.css): the
+   case buttons follow the review's own width (`visual-review`), and Chromium left
+   them in the wide layout's padding the first time that width crossed a query
+   after the review upgraded, while a container stood between them and it. Nothing
+   in the list measures against it. */
 .lf-vr-case-list {
   display: grid;
   gap: 0;
@@ -66,6 +80,7 @@
   margin-block-start: 0;
   padding: 0;
   --lf-pane-top: 0px;
+  container-type: normal;
 }
 .lf-vr-case-button {
   display: grid;
@@ -112,7 +127,7 @@
 }
 .lf-vr-detail {
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto minmax(min-content, 1fr) auto;
   min-inline-size: 0;
   min-block-size: 0;
   --lf-full-height: inherit;
@@ -227,7 +242,7 @@
   min-inline-size: 0;
   min-block-size: 0;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(min-content, 1fr);
   --lf-full-height: inherit;
   background: color-mix(in srgb, var(--ink) 3%, var(--paper));
   border: 0;
@@ -249,9 +264,12 @@
   color: var(--muted);
   font: 12px/1.4 var(--sans);
 }
+/* The capture takes the desk's spare height, but never less than its toolbar and a
+   frame worth reading: in a short window, where the desk's other regions leave it
+   little, this pane scrolls rather than shrinking the capture away. */
 .lf-vr-capture {
   display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-rows: minmax(12rem, 1fr) auto;
   min-inline-size: 0;
   min-block-size: 0;
   --lf-full-height: inherit;
@@ -274,6 +292,12 @@
   min-block-size: 0;
 }
 @container style(--lf-full-height:1) {
+  .lf-vr-capture {
+    grid-template-rows: minmax(10rem, 1fr) auto;
+  }
+  .lf-vr-capture > lf-shot {
+    contain: size;
+  }
   .lf-vr-discussion {
     max-block-size: min(18rem, 30vh);
     overflow: clip;
@@ -285,7 +309,7 @@
 @container visual-review (max-width:58rem) {
   .lf-vr-workspace {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-rows: auto minmax(min-content, 1fr);
     gap: 0;
   }
   .lf-vr-queue {

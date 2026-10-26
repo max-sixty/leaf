@@ -12,6 +12,7 @@ from interact_support import (
     append_command,
     refused_on,
 )
+from leaf_dev.browser import threads_tab
 from playwright.sync_api import expect
 from render_cases_interaction import (
     HOLD_MOTION,
@@ -27,6 +28,7 @@ from render_cases_navigation import (
     actions,
     composer_quote,
     mark_shows_beside_composer,
+    pending_text,
 )
 from render_harness import (
     AVAILABLE_COMMANDS,
@@ -45,17 +47,21 @@ from render_harness import (
     consume_browser_errors,
     draft_control,
     expect_obligations_answered,
+    expect_panel_offers,
     expect_panel_says,
     holding,
     http_error_console,
     is_problem,
     leaf_page,
+    navigate,
     nudge,
     open_page,
+    open_threads,
     page_comment,
-    pane_posture,
+    pane_scroll_behavior,
     panel_control,
     panel_settled,
+    primed,
     refuse,
     reported_browser_errors,
     resized,
@@ -188,9 +194,7 @@ def test_z_takes_back_the_thread_the_user_just_resolved(browser, serve):
 
     undo(page)
     # Back among the open threads: the user's own and the third, the agent's closed.
-    expect(page.locator(".lf-fp-threads")).to_have_attribute(
-        "title", re.compile("^Threads, 2 open")
-    )
+    expect(threads_tab(page).locator(".lf-fp-count")).to_have_text("2")
     log = events_model.read_events(serve.page_dir)
     assert log[-1] == {
         **log[-1],
@@ -558,6 +562,11 @@ def test_another_key_or_a_scroll_away_puts_the_shown_gesture_back_to_showing(
     def pressed_without_taking():
         page.keyboard.press("z")
         expect(picks).to_be_in_viewport()
+        # A scroll clears the arm only once the arm has seen what the press showed: its
+        # travel finished and the next pass read it in view. The user is on it from
+        # then, so a scroll before it would be one no user could make.
+        page.wait_for_function("() => !navigation.transition")
+        rendered(page)
         told(page)
         assert _undos(serve.page_dir) == []
 
@@ -570,6 +579,8 @@ def test_another_key_or_a_scroll_away_puts_the_shown_gesture_back_to_showing(
     page.evaluate("window.scrollTo({top: 0, behavior: 'instant'})")
     scroll_settled(page)
     expect(picks).not_to_be_in_viewport()
+    # The arm reads the scroll in the pass after the window moves.
+    rendered(page)
     pressed_without_taking()
 
     page.mouse.move(400, 300)
@@ -655,12 +666,11 @@ def test_the_undo_rows_age_follows_the_clock_while_the_page_stays_open(browser, 
             "ts": datetime.now(UTC).isoformat(),
         },
     )
-    page = open_page(browser, url)
+    page = open_page(primed(browser, lambda page: page.clock.install()), url)
     row = panel_control(page, "command:history.undo")
     expect(row.locator(".lf-fp-value")).to_have_text("just now")
-    # The page's clock ticks on the interval it set before the clock was installed, and
-    # a paused clock fires no later timer, so only that tick can move the age.
-    page.clock.install()
+    # Install before navigation so the page's interval belongs to the controlled clock.
+    # A paused clock fires no later timer, so only that tick can move the age.
     page.clock.pause_at(datetime.now(UTC) + timedelta(minutes=5))
     expect(row.locator(".lf-fp-value")).to_have_text("5m ago")
     expect(row).to_have_attribute("title", re.compile(r" · 5m ago$"))
@@ -676,7 +686,7 @@ def test_z_puts_a_card_back_where_the_version_had_it(browser, serve):
 
     The card is told where it goes rather than the board being rebuilt around it,
     because that state can be stated: the user watches it travel back, and the
-    grip they were standing on is still under their hands."""
+    grip they were located on is still under their hands."""
     page = open_page(browser, live_url(serve(BOARD_PAGE)))
     grip = page.locator("#card-baffle .lf-grip")
     grip.focus()
@@ -2364,14 +2374,14 @@ def test_a_held_suggestion_delivery_does_not_reclaim_focus(held_events, serve):
     holding(page, held, 1, "the accepted suggestion")
     expect(suggestion_control(page, "sug-refill", "undo")).to_be_focused()
 
-    elsewhere = page.locator(".lf-fp-threads")
+    elsewhere = page.locator(".lf-fp-on-user")
     elsewhere.focus()
     held.pop(0).continue_()
     round_trip(page)
     expect(elsewhere).to_be_focused()
 
 
-def test_undo_leaves_a_user_standing_elsewhere_where_they_are(browser, serve):
+def test_undo_leaves_a_user_located_elsewhere_where_they_are(browser, serve):
     """Undo from elsewhere changes the decision without moving the user's focus."""
     page = open_page(browser, serve(SUGGESTION_PAGE))
     suggestion_control(page, "sug-refill", "accept").click()
@@ -2677,7 +2687,7 @@ def test_a_comment_field_scrolled_away_and_back_is_still_there(
     )
     resized(page, 1440, 900)
     if scroller == "pane":
-        pane_posture(page, page.locator("#reading"), "bounded")
+        pane_scroll_behavior(page, page.locator("#reading"), "bounded")
     paragraph = page.locator("#p30")
     paragraph.scroll_into_view_if_needed()
     if target == "passage":
@@ -2688,8 +2698,14 @@ def test_a_comment_field_scrolled_away_and_back_is_still_there(
     field = page.locator(".lf-fab-input")
     write(field, "Half a thought")
     expect(field).to_be_focused()
+    rendered(page)
     box = page.locator(".lf-fab-bar")
-    at = box.bounding_box()["y"]
+    # Where the field stands is read against its target: the scroll offset that brings
+    # the target back is not the one read here once anything above it reflows, which
+    # scroll anchoring then absorbs.
+    beside = """box => box.getBoundingClientRect().top
+      - document.getElementById('p30').getBoundingClientRect().top"""
+    at = box.evaluate(beside)
     away = (
         "document.scrollingElement"
         if scroller == "page"
@@ -2714,8 +2730,8 @@ def test_a_comment_field_scrolled_away_and_back_is_still_there(
     expect(box).to_be_visible()
     expect(field).to_have_js_property("value", "Half a thought")
     expect(field).to_be_focused()
-    assert box.bounding_box()["y"] == pytest.approx(at, abs=1), (
-        "the field came back somewhere other than where it stood"
+    assert box.evaluate(beside) == pytest.approx(at, abs=1), (
+        "the field came back somewhere other than beside its target"
     )
     page.keyboard.type(" more")
     expect(field).to_have_js_property("value", "Half a thought more")
@@ -2725,7 +2741,7 @@ def test_a_comment_field_follows_when_its_pane_scrolls_past_the_target(browser, 
     """A bounded pane carries the field away while retaining its draft and caret."""
     page = open_page(browser, serve(PANED_LONG_PAGE))
     resized(page, 1440, 900)
-    pane_posture(page, page.locator("#reading"), "bounded")
+    pane_scroll_behavior(page, page.locator("#reading"), "bounded")
     paragraph = page.locator("#p30")
     paragraph.scroll_into_view_if_needed()
     paragraph.click(modifiers=["Alt"])
@@ -2808,9 +2824,8 @@ def test_opening_the_panel_stands_down_the_field_without_losing_its_draft(
     page.locator(".lf-fab-input").click()
     expect(page.locator(".lf-composer")).to_be_visible()
     write(page.locator(".lf-composer leaf-text"), "held open across the panel opening")
-    # A press on the panel's Threads mark gives the Threads view focus.
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    # Opening the panel's Threads takes focus into the panel.
+    open_threads(page)
     expect(page.locator(".lf-composer")).to_be_hidden()
     assert root_overflow(page) == 0
 
@@ -2916,82 +2931,6 @@ customElements.define('lf-preparation', class extends HTMLElement {
 });
 """
         },
-    )
-
-
-def approval(page):
-    """The version's approval, in the leaf's menu under Versions, read from a fresh
-    opening of the menu, which holds the rows it opened with."""
-    if page.locator(".lf-floating-panel").get_attribute("data-menu") is not None:
-        page.locator(".lf-fp-leaf").click()
-        expect(page.locator(".lf-floating-panel")).not_to_have_attribute(
-            "data-menu", ""
-        )
-    return panel_control(page, "approval")
-
-
-def test_a_failed_candidate_presentation_keeps_version_approval(browser, serve):
-    """Approval follows accepted truth even when the reading stamp cannot present."""
-    signoff_page = LONG_PAGE.replace(
-        "<title>long</title>",
-        '<title>long</title><meta name="lf-review" content="sign-off">',
-    )
-    page = open_page(browser, _serve_preparing_thread(serve, signoff_page))
-    expect(approval(page)).to_contain_text("Approve version")
-    long_thread(
-        serve.page_dir, "approval-question", "Please add the supporting detail."
-    )
-    told(page)
-    open_panel_thread(page, "approval-question")
-    before = page.locator("body").get_attribute("data-lf-reading")
-    held_states = []
-    page.route("**/api/state*", lambda route: held_states.append(route))
-    preparations = []
-    page.route("**/preparation-content", lambda route: preparations.append(route))
-
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "reply",
-            "author": "agent",
-            "revision": 1,
-            "parent": "approval-question",
-            "text": "Here is the detail.",
-            "markup": '<lf-preparation id="approval-detail"><p>Detail</p></lf-preparation>',
-        },
-    )
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "done",
-            "author": "user",
-            "version": 1,
-        },
-    )
-    holding(page, held_states, 1, "candidate approval read")
-    candidate = held_states[0].fetch().json()
-    with page.expect_request("**/preparation-content"):
-        held_states.pop(0).fulfill(json=candidate)
-    holding(page, preparations, 1, "approval thread preparation")
-    expect(approval(page)).to_contain_text("✓ Version approved")
-
-    fail_reading_commit(page, candidate["reading"], "injected approval commit fault")
-    with page.expect_console_message(
-        lambda message: "injected approval commit fault" in message.text
-    ):
-        preparations.pop(0).fulfill(status=204)
-
-    expect(page.locator("body")).to_have_attribute("data-lf-reading", before)
-    expect(approval(page)).to_contain_text("✓ Version approved")
-
-    page.unroute("**/api/state*")
-    for route in held_states:
-        route.continue_()
-    nudge(serve.page_dir)
-    expect(approval(page)).to_contain_text("✓ Version approved")
-    reported_browser_errors(
-        page,
-        "leaf: State presentation failed: injected approval commit fault",
     )
 
 
@@ -3132,3 +3071,58 @@ def test_an_optimistic_presentation_fault_does_not_change_delivery_result(
     assert [said(error) for error in errors] == [
         'leaf: <lf-suggestion id="sug-refill"> failed: injected optimistic presentation fault'
     ], errors
+
+
+def test_a_draft_that_outlives_its_passage_returns_with_that_passage(browser, serve):
+    """A draft survives the version it was written against even when that version's
+    replacement removes its passage. The editor stays available without attaching to
+    the rewritten words, and the draft returns to its passage when that version does."""
+    url = serve(INLINE_PAGE)
+    page = open_page(browser, url)
+
+    page.locator("#p").click(click_count=3)
+    page.locator(".lf-fab-input").click()
+    write(
+        page.locator(".lf-composer leaf-text"),
+        "half-written when the version turned over",
+    )
+    passage = " ".join(page.locator("#p").inner_text().split())
+    assert not composer_quote(page)["shown"], "the passage is right here, and marked"
+
+    # Claude ships a version that rewrites the passage out. The page holds still — a
+    # draft is mid-composition — and offers the new version in the leaf's menu, which
+    # the user takes.
+    d = serve.page_dir
+    rewritten = INLINE_PAGE.replace(
+        "A paragraph carrying <strong>bold text</strong> and <em>emphasis</em> inside it,\n"
+        "so that a selection across the middle of it lands in more than one text node.",
+        "Rewritten, with nothing left of the sentence the draft was about.",
+    )
+    stamp_page(d, rewritten, "two")
+    told(page)
+    expect_panel_offers(page, "latest")
+    panel_control(page, "latest").click()
+    wait_for_revision(page, 2)
+    expect(page).not_to_have_url(re.compile("/versions/"))
+    expect(page.locator(".lf-composer")).to_be_visible()
+    expect(page.locator(".lf-fab-input")).to_have_js_property(
+        "value", "half-written when the version turned over"
+    )
+    expect(page.locator("#lf-composer-quote")).to_have_text(f"“{passage}”")
+    assert pending_text(page) == "", (
+        "v2 rewrote the passage and the page marked it anyway"
+    )
+
+    # Through the page's own readiness rather than the paragraph's arrival in markup:
+    # the restore of an open draft is part of presenting the page, and a gesture made
+    # before that is a gesture the user could not have made.
+    navigate(page, url)
+    page.locator("#p").click(click_count=3)
+    expect(page.locator("#lf-composer-quote")).to_have_text(f"“{passage}”")
+    expect(page.locator(".lf-fab-input")).to_have_js_property(
+        "value", "half-written when the version turned over"
+    )
+    # The words come back; the user's keyboard does not go with them.
+    expect(page.locator(".lf-fab-input")).not_to_be_focused()
+    quote = composer_quote(page)
+    assert quote["text"] == f"“{passage}”", f"the quote says {quote['text']!r}"

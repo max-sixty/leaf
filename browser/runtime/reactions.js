@@ -65,7 +65,12 @@ import {
 import { repaint } from "./repaint.js";
 
 import { allButCommandReference, pageCommand, pageScope } from "./keyboard/register.js";
-import { PRESS, rowArrows, savedReadingSettled } from "./keyboard/bindings.js";
+import {
+  PRESS,
+  cycledRow,
+  rowArrows,
+  savedReadingSettled,
+} from "./keyboard/bindings.js";
 import { beginWalk, listWalkPosition } from "./walk-position.js";
 import { anchorLabel } from "./thread/messages.js";
 import { reactionsAt, tokenChoices } from "./thread/model.js";
@@ -143,8 +148,8 @@ export function createReactionController({
   showFab,
   showFabOptions,
   updateFab,
-  standingThread,
-  standingTarget,
+  currentLocationThread,
+  currentTarget,
 }) {
   const surfaces = new WeakMap();
   const marginSurface = Symbol("margin reactions");
@@ -219,7 +224,7 @@ export function createReactionController({
   }
 
   // The react press opens one surface's list. `e` uses the latest agent reply in the
-  // thread the user is standing in, an already raised bar, a completed native
+  // thread the user is in, an already raised bar, a completed native
   // selection, or the addressable element holding focus. This same reading decides whether the page
   // command exists, so dispatch cannot advertise a reaction before its target.
   let reactArmed = false;
@@ -227,7 +232,7 @@ export function createReactionController({
   // The margin lends reaction mode its disclosure and returns a release that restores
   // the user's previous fold only while this mode still owns it.
   let releaseMarginOptions = null;
-  // React mode's opener (focus.js, `openLayer`): the control the user stood on as the
+  // React mode's opener (focus.js, `openLayer`): the control the user was on as the
   // press armed it, which the close hands them back to.
   const reactLayer = {};
   const reactFrom = () => openerOf(reactLayer);
@@ -241,12 +246,12 @@ export function createReactionController({
   const pickerFor = (surface) => surfaces.get(surface);
 
   function reactionTarget() {
-    const said = standingThread();
+    const said = currentLocationThread();
     const strip = said && latestAgentStrip(said.held);
     if (strip) return { kind: "surface", surface: strip };
     if (fabAnchorAt()) return { kind: "anchor" };
     if (hasPageSelectionTarget()) return { kind: "selection" };
-    const target = standingTarget();
+    const target = currentTarget();
     return target ? { kind: "target", target } : null;
   }
   const hasReactionTarget = () => Boolean(reactionTarget());
@@ -338,7 +343,7 @@ export function createReactionController({
     // Closing hides the palette synchronously. Capture its focused control first: a
     // reply's list hands focus back to its opener as it closes, and the margin's goes
     // with its contribution, after which the browser reports where focus went rather
-    // than the choice the user stood on, the fact the return below reads.
+    // than the choice the user was on, the fact the return below reads.
     const closingActive = on ? null : focused();
     if (!on) {
       closeReact(closingActive);
@@ -386,7 +391,7 @@ export function createReactionController({
       if (reactSurface !== marginSurface) {
         reactSurface.classList.add("lf-react-open");
         const picker = pickerFor(reactSurface);
-        // `e` opens the latest reply of the thread the user stands in, which may be
+        // `e` opens the latest reply of the thread the user is in, which may be
         // scrolled out of the list: it comes into view to be answered, since a list
         // hung from a trigger out of view would neither show nor stay open, and it
         // closes once none of the trigger is in front of the user (`seenRect`). The
@@ -413,7 +418,7 @@ export function createReactionController({
   }
 
   // Putting the reaction choices away is closing a layer (focus.js, `closeLayer`): the
-  // palette's own hand-back as it hides reaches no reader, and a user who stood in the
+  // palette's own hand-back as it hides reaches no reader, and a user who was in the
   // choices, the bar or the margin's raise goes back once, to the bar's field, the
   // control the press stood them on, or the list's trigger, whichever stands as the
   // choices go; one they covered then is no way back, and a later frame showing it again
@@ -459,17 +464,10 @@ export function createReactionController({
   function stepResponse(binding) {
     const choices = responseChoices(reactSurface);
     if (!choices.length) return;
-    const at = choices.indexOf(focused());
     const backward = [rowArrows(choices[0])[0], "ArrowUp", "Shift+Tab"].includes(
       binding,
     );
-    const next =
-      at < 0
-        ? backward
-          ? choices.length - 1
-          : 0
-        : (at + (backward ? -1 : 1) + choices.length) % choices.length;
-    focusDestination(choices[next], "move");
+    focusDestination(cycledRow(choices, focused(), backward ? -1 : 1), "move");
     beginWalk("reaction", "Reaction", () =>
       listWalkPosition(responseChoices(reactSurface), focused()),
     );

@@ -1,16 +1,17 @@
 /* Landing the user in a thread: which box a reply lands in, and where focus goes
    coming back out of one.
 
-   `backFromBox` and `standingThread` climb the same thread relation, so
+   `backFromBox` and `currentLocationThread` climb the same thread relation, so
    “comment on the thread” going in and “back to thread” coming out name one element. It
    answers for every arrival — a keyboard command, a Tab, a pointer — because a box's way
    out is the thread it belongs to whichever of them put the user in it. A page-owned
-   first-message seat has no standing place of its own; a widget control that explicitly
+   first-message seat has no current location of its own; a widget control that explicitly
    enters its box supplies the caller-owned return target through `landInThread`.
    Sending from a conversation's own box leaves focus on its card (`landSent`); the
    floating panel's field, which stands for the thread open above it, keeps focus for
    the next turn. Returning to the page is a separate navigation gesture. */
 import { alreadyShown, fitsWhole, scrollIntoView } from "../landing-scroll.js";
+import { seenRect } from "../geometry.js";
 import {
   focusDestination,
   focused,
@@ -42,9 +43,9 @@ export function threadInput(node) {
 }
 
 const heldThreadOrSeat = () => focused() && closestAcross(focused(), SAYS_IN);
-// The thread the user writes in from where they stand, whole where it is drawn in
+// The thread the user writes in from where they are, whole where it is drawn in
 // pieces (focus.js, `wholeThread`), and its box.
-export const standingThread = () => {
+export const currentLocationThread = () => {
   const held = heldThreadOrSeat();
   const box = threadReplyInput(held);
   return box ? { held: wholeThread(held), box } : null;
@@ -54,7 +55,7 @@ const backFromThread = (box) => threadReturns.get(box) ?? null;
 // Where a box hands the user back, however they reached it. The climb is
 // `heldThreadOrSeat`'s, the same relation contextual `c` uses when it names a thread.
 //
-// A seat holding no thread yet has no standing place of its own. A widget control that
+// A seat holding no thread yet has no current location of its own. A widget control that
 // explicitly sends the user into that box can supply its own return through
 // `landInThread`; a visit reached by Tab still falls through to the page's "let go".
 // Otherwise the question is "can the user be put here", rather than a list of which two
@@ -75,17 +76,17 @@ const boxHandsBack = () => Boolean(backFromBox());
 const inBox = () => takesLetters(focused()) || replyDraftContext(focused()) !== null;
 // Whether Escape here leaves a box for the place it hands back to. The page's let-go
 // defers to it from the box and from every control in its row; a box with nowhere to
-// hand back to is a control the user stands on, theirs to let go of.
+// hand back to is a control the user is on, theirs to let go of.
 export const leavesBox = () => inBox() && boxHandsBack();
 
 // A box words are typed into takes character keys and the keys that edit it: Enter,
 // deletion, caret movement, Home/End, and page movement, including their modified forms.
 // Escape leaves the reply's whole composition row, including its Send control, through
 // this declared command, after any nearer interaction has had its own Escape. It is
-// the way back out to the thread a reply belongs to, so Esc then Enter round-trips.
+// the way back out to the thread a reply belongs to, so Esc then Enter round-navigation steps.
 // Drafts are kept at every rung.
 //
-// A control the user is standing on rather than writing in keeps that rung without this
+// A control the user is on rather than writing in keeps that rung without this
 // scope carrying a second branch for it: the scope claims the keys a box takes and leaves
 // every other press — c, the walks, the versions, the reference — to the scopes behind it.
 pageScope("text entry", {
@@ -115,7 +116,7 @@ pageScope("text entry", {
           scrollIntoView(target, { block: "nearest" });
           return;
         }
-        standOnThread(target);
+        returnToThread(target);
       },
     },
   ],
@@ -125,20 +126,24 @@ pageScope("text entry", {
 // arrival. A thread too tall to show whole and already shown stands around the box, and
 // landing its title would take the user away from the turn they were answering, so it
 // is a `return` that leaves it where it is. One that fits, or one the user has
-// scrolled out of view since, is a `move`, brought into view. One the user already
-// sees stays where it is: the box they left stands beside the gesture, and a landing
-// would carry it by the room the thread's focus ring asks at its foot.
-function standOnThread(thread) {
+// scrolled out of view since, is a `move`, brought into view. While the box the user
+// left still stands in front of them, nothing scrolls: it stands beside the gesture,
+// and a landing would carry it, by the room the thread's focus ring asks at its foot or
+// by bringing back a head they scrolled above the window. A box the send gave up, as a
+// seat's does to the thread it starts, leaves nothing there to carry.
+function returnToThread(thread) {
   const shown = alreadyShown(thread);
   if (!fitsWhole(thread) && shown) {
     focusThread(thread, "return");
     return;
   }
   focusThread(thread, "move");
-  if (!shown) scrollIntoView(thread, { block: "nearest" });
+  const box = threadReplyInput(thread);
+  if (!shown && !(box && seenRect(box, new Map())))
+    scrollIntoView(thread, { block: "nearest" });
 }
 
-// The thread whose card the user stands on.
+// The thread whose card the user is on.
 const cardThread = () => focusedThreadTarget();
 // Settlement belongs to the thread, wherever its view places that control.
 const resolutionControl = (thread) =>
@@ -161,7 +166,7 @@ export function createThreadLanding() {
     const prepared = prepareLanding(destination);
     if (!prepared) return false;
     const { box } = prepared;
-    // Entering a reply is a focus move, not a trip to its thread or passage.
+    // Entering a reply is a focus move, not a navigation step to its thread or passage.
     // Reveal only the writing area: a box already shown (landing-scroll.js,
     // `alreadyShown`) leaves every scroller where the reader put it, including the
     // transcript inside a margin card, however tall the box.
@@ -177,7 +182,7 @@ export function createThreadLanding() {
   const landInThread = (box, route = null) => landIn({ box, route });
   // Sending ends text entry while keeping the user in the conversation. Every surface
   // uses its thread's focus stop; leaving the card belongs to navigation, not Send.
-  const landSent = standOnThread;
+  const landSent = returnToThread;
   return { landIn, landInThread, landSent };
 }
 

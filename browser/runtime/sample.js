@@ -56,6 +56,7 @@ import {
   watchFrame,
 } from "./frame-visibility.js";
 import { keeps } from "./keeps.js";
+import { inputInFrame } from "./focus.js";
 import { move } from "./dom-move.js";
 import { nextRender, sizeObserver } from "./rendering.js";
 import { recordInteraction } from "./interaction-log.js";
@@ -371,7 +372,10 @@ export function mountSample(frame, { template, window: asWindow = false }) {
             detail: data.detail,
           }),
         );
-      else notify(data.type, data.detail);
+      else {
+        if (data.type === "input") inputInFrame(frame, data.detail.type);
+        notify(data.type, data.detail);
+      }
     };
     event.source.postMessage(
       {
@@ -517,7 +521,7 @@ export function mountSample(frame, { template, window: asWindow = false }) {
       listeners.get(type).add(callback);
       return () => listeners.get(type).delete(callback);
     },
-    restoreStanding: () => call("restore-standing"),
+    restoreCurrentLocation: () => call("restore-current-location"),
     showThread(id, { signal, ...options }) {
       if (signal.aborted) return Promise.resolve(false);
       const cancel = () => channel?.postMessage({ type: "cancel-view" });

@@ -1,6 +1,9 @@
 # Theme packages
 
-Read with [packages.md](packages.md), which holds the package contract and how styles compose.
+Read with [packages.md](packages.md), which holds the package contract and how styles
+compose. Page-wide rules and idioms belong in `theme.css`, whether or not the package
+also declares widgets; widget defaults belong in `widgets.css`. Each stylesheet's
+role determines its scope and cascade priority.
 
 ## Personal themes
 
@@ -46,15 +49,11 @@ pattern the project reuses across pages, such as a callout, is an idiom: declare
 under its CSS selector in the package's `registry.json`, with a `description`, an
 `x-example` and optional `x-instructions`, and style it in the package's `theme.css`.
 
-Page-wide rules and idioms belong in `theme.css`, whether or not the package also
-declares widgets. Widget defaults belong in `widgets.css` and are scoped below the
-Layouts. The stylesheet roles, including shared shadow rules and explicit control
-styling, are defined in `packages.md`, "Styles and composition". Where a Layout reads a geometry
-input (the override table's "Theme inputs"), set that input rather than overriding the
-Layout.
+Where a Layout reads a geometry input (the "Theme inputs" table in `packages.md`,
+"Styles and composition"), set that input rather than overriding the Layout.
 
 A widget's rules depend only on the box it is given and the theme's tokens, never on
-the Layout around it, so it behaves the same on any page that gives it the same box. A
+the Layout around it. A
 size query on its own container gives its width. What a width can't say arrives as a
 token from the box that knows it: `--lf-full-height` where the widget has a definite
 height to fill (`module-scroll-and-motion.md`, "Reading regions"), and
@@ -99,10 +98,12 @@ page.
 
 Choose vertical bounds as `page-layout.md`, "Bounds and widths", describes. Where a
 bounded widget should scroll a box inside it, such as a listing under a caption that
-stays in view, move the bound to that box under `[data-lf-bound]` and declare
-`--lf-bound-box: 1` there, making it the box Leaf scrolls and keeps the user's place in,
-and `--lf-holds-height: 1`, which tells the render check the box keeps its height on
-purpose (`packages.md`, "Seeing it", `grows-with-content`). A box that scrolls sideways
+stays in view, move the bound to that box under `[data-lf-bound]`. On the bounded host,
+declare `--lf-bound-box` as a selector within it, such as `.listing`.
+Leaf scrolls and keeps the user's place in the first match outside nested bounds,
+or in the host while no match exists. The declaration does not inherit. Declare
+`--lf-holds-height: 1` on the scrolling box (`packages.md`, "Seeing it",
+`grows-with-content`). A box that scrolls sideways
 needs nothing: Leaf fades its content at any edge with more beyond.
 
 A rule that draws a control's focus ring on a box around it, such as a choice's face

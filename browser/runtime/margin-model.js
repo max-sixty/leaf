@@ -157,7 +157,7 @@ export const secondaryCount = (entry, primary) =>
   entry.controls.length -
   Number(Boolean(primary)) +
   entry.afterControls.length;
-// One peer is not overflow. It costs the same second circle as `…`, but the peer says
+// One peer is not overflow. It costs the same second entry as `…`, but the peer says
 // what it does and is immediately usable. Ellipsis earns its place only from the third
 // margin entry onward.
 export const optionsOffered = (entry, primary) =>
@@ -217,7 +217,7 @@ const userAttention = (items) => {
   for (const item of items) {
     const attention = item.userAttention;
     if (!attention) continue;
-    if (attention.reason === "widget") return attention;
+    if (attention.reason === "obligation") return attention;
     first ??= attention;
   }
   return first;

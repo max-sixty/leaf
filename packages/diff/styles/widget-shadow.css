@@ -1,4 +1,5 @@
 @import "./palette.css";
+@import "./geometry.css";
 @import "./disclosure.css";
 
 /* The diff's rules inside its own shadow tree (x-shadow). A selector in widgets.css stops
@@ -44,8 +45,8 @@
    to `--lf-top` and to the room a landing leaves above them. A path too long for the
    line gives way from its folders first, which end in an ellipsis, and the file's own
    name is cut only where it alone is too long; the path's title then holds it whole.
-   A flex row draws no disclosure marker, so the triangle is the row's own first mark.
-   File and conversation labels have different type sizes; their triangles share one size. */
+   Both rows wear Leaf's disclosure marker (controls.css), at one size though the file
+   and conversation labels have different type sizes. */
 :scope:host(.lf-rendered) :where(.lf-diff-file) > details > summary,
 :scope:host(.lf-rendered)
   .lf-diff-file-thread-outlet
@@ -64,16 +65,8 @@
   .lf-diff-file-thread-outlet
   > .lf-resolved-threads
   > .lf-resolved-summary::before {
-  content: "▶" / "";
   flex: none;
-  font-size: calc(0.7 * var(--t-5));
-}
-:scope:host(.lf-rendered) :where(.lf-diff-file) > details[open] > summary::before,
-:scope:host(.lf-rendered)
-  .lf-diff-file-thread-outlet
-  > .lf-resolved-threads[open]
-  > .lf-resolved-summary::before {
-  content: "▼" / "";
+  font-size: var(--t-5);
 }
 /* Source paths may change with new evidence; their region gives way while the
    statistics and adjacent actions keep their trailing columns. */
@@ -252,7 +245,7 @@
   display: block;
   width: 100%;
   min-width: 0;
-  margin: 0 0 8px;
+  margin: 0 0 var(--lf-diff-gap);
 }
 .lf-diff-progress {
   color: var(--code-muted);
@@ -276,38 +269,26 @@
   margin: -1px 0 0;
   --lf-diff-r-start: 0px;
   --lf-diff-r-end: 0px;
-  /* How tall the bar of presses on the file's name line stands, and how far
-                   down the name it starts. Both are said here because the pull below is
-                   the same distance in the other direction: the bar is laid out above the
-                   file's body and the body is drawn back over it, so a number restated
-                   there would put the presses off the name the moment either changed. A
-                   finger raises the floor and the pull follows on its own. */
-  --lf-diff-action-h: max(26px, var(--aim-floor));
-  --lf-diff-action-top: 6px;
   --lf-diff-actions: var(--lf-diff-action-h);
-  /* The file's row: 7px above and below a path's line, 35px in all, or the
-                   bar of presses where that stands taller, as under a finger. */
-  --lf-diff-head-h: 35px;
+  --lf-diff-head-h: var(--lf-diff-head-line);
 }
 .lf-diff-run-start {
-  margin-top: 8px;
+  margin-top: var(--lf-diff-gap);
   --lf-diff-r-start: var(--r);
 }
 .lf-diff-run-end {
   --lf-diff-r-end: var(--r);
 }
 .lf-diff-file:has(> .lf-diff-file-actions > *) {
-  --lf-diff-head-h: max(
-    35px,
-    calc(var(--lf-diff-action-top) + var(--lf-diff-action-h))
-  );
+  --lf-diff-head-h: var(--lf-diff-head-pressed);
 }
 .lf-diff-file:has(> .lf-diff-file-actions > *) > :is(.lf-diff-fold, .lf-diff-metadata) {
   margin-top: calc(-1 * (var(--lf-diff-action-h) + var(--lf-diff-action-top)));
 }
 .lf-diff-file-actions {
   position: relative;
-  z-index: 3;
+  /* Stay above the pinned name while its path box covers numbered line controls. */
+  z-index: 4;
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -322,14 +303,14 @@
   display: none;
 }
 .lf-diff-file-comment {
-  --lf-icon-action-hit: var(--lf-diff-action-h);
+  --lf-icon-action-face: var(--lf-diff-action-h);
 }
 /* An auxiliary control of the filter field, like its Clear: the field's frame carries
    the focus band for the group, and the press shows it is the one focused by its fill.
-   It is no taller than the count, so the field keeps the height it has without it, and
-   a finger's floor raises it as it does every other press. */
+   It is no taller than the count, so the field keeps the height it has without it,
+   and a finger's floor is its reach, as it is every other press's. */
 .lf-diff-fold-all {
-  --lf-icon-action-hit: max(24px, var(--aim-floor));
+  --lf-icon-action-face: 24px;
   margin-inline-end: -3px;
 }
 .lf-diff-fold-all[data-lf-focus-visible] {
@@ -391,7 +372,7 @@
   inset-inline-start: 1px;
   inset-block-start: 0;
   width: calc(2ch - 2px);
-  border-radius: 3px;
+  border-radius: var(--r-s);
   background: var(--accent-tint);
   color: var(--accent);
   font-weight: 700;
@@ -408,6 +389,11 @@
 /* The filter field is not listed here. It is a vendored text field, whose Tab stop and
    ringed box are both inside its own shadow root, so a rule on this host would reach
    neither; the shared Web Awesome theme draws that band once for every package. */
+/* A line's press stands in a stack of lines, one above the next, so it reaches no
+   further than its own line: a reach would lie over the press on the next. */
+.lf-diff-line-comment::after {
+  content: none;
+}
 .lf-diff-comment[data-lf-focus-visible] {
   outline: var(--focus-ring);
   outline-offset: 1px;
@@ -453,9 +439,11 @@
   }
   :scope:host(.lf-rendered[data-lf-diff-pinned]) .lf-diff-file > details > summary {
     position: sticky;
+    --lf-head-inset: 0px;
     --lf-top: var(--lf-top-outer);
     top: var(--lf-top, 0px);
-    z-index: 2;
+    /* Keep a focused path's full-name box above numbered line controls. */
+    z-index: 3;
   }
   /* The press with it, as far down the pinned line as it stands at rest: its own gap
      less the 1px border the summary's box starts inside. */
@@ -498,6 +486,7 @@
 /* Highlighted tokens use Leaf's syntax palette. Native blocks own layout, so
    source rows and conversations need no synchronized columns or measurements. */
 :scope:host(.lf-rendered) .lf-diff-fold > pre {
+  position: relative;
   margin: 0;
   padding: 0;
   border: none;
@@ -508,6 +497,7 @@
   background: var(--pre-bg);
 }
 :scope:host(.lf-rendered) code[data-code] {
+  isolation: isolate;
   display: block;
   overflow: auto hidden;
   overscroll-behavior-x: auto;
@@ -517,6 +507,7 @@
   white-space: pre;
   padding: 0;
   border: 0;
+  outline: none;
   background: none;
 }
 .lf-diff-rows {
@@ -556,9 +547,25 @@ pre[data-overflow="wrap"] .lf-diff-rows {
 [data-separator] svg {
   display: none;
 }
-:scope:host(.lf-rendered) code[data-code][data-lf-focus-visible] {
-  outline: var(--focus-ring);
+/* A separator's label describes the source rather than quoting it, so it takes the
+   chrome's face, as the path does the reverse. The row keeps the source's face,
+   so its inset measures the code column in the code's `ch`; the label is a block so
+   its line box holds only its own face and the row stays one source line tall. */
+:is([data-separator-wrapper], [data-no-newline] > span) {
+  display: block;
+  font: var(--t-6) / var(--code-line) var(--sans);
+}
+/* A sibling carries the viewport's ring above its positioned rows without
+   scrolling with them. Unlike a parent's :has() pseudo-element, its selector
+   also invalidates reliably in Firefox when focus moves into a source row. */
+.lf-diff-frame {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
   outline-offset: calc(-1 * var(--focus-ring-w));
+}
+[data-lf-focus-visible] + .lf-diff-frame {
+  outline: var(--focus-ring);
 }
 /* Container units are the visible reader width, while max-content lets source rows
    extend horizontally. Inline-size containment keeps a long remark from widening

@@ -8,12 +8,7 @@
       (control) => belongsTo(host, control)
     )
   ];
-  var COPY_LABELS = [
-    ["rest", "Copy instruction"],
-    ["success", "Copied"],
-    ["error", "Copy failed"]
-  ];
-  function render(host, { tabStore, offer, keeps }) {
+  function render(host, { tabStore, offer, generatedElement, keeps }) {
     const presets = own(host, "lf-playground-preset");
     const outputs = own(host, "lf-playground-output");
     const previews = own(host, "lf-playground-preview");
@@ -104,7 +99,7 @@
       const element = document.createElement(tag);
       element.className = cls;
       if (text2 !== void 0) {
-        element.dataset.lfGen = "1";
+        generatedElement(element, { says: false });
         element.textContent = text2;
       }
       return element;
@@ -159,7 +154,7 @@
         return [preset, Object.freeze(next)];
       })
     );
-    let submit = null, copy = null, reset = null;
+    let submit = null, reset = null;
     if (interactive) {
       const railed = controls.filter((control) => control.parentElement === host);
       const panel = node("div", "lf-playground-controls");
@@ -179,7 +174,7 @@
           group.setAttribute("aria-label", label);
           const radios = [];
           for (const choice of choicesByName.get(name)) {
-            const face = node("label", "choice");
+            const face = generatedElement(node("label", "choice"), { says: false });
             const input = offer("input", "", void 0, "radio");
             input.name = `${host.id}-${name}`;
             input.value = choice.getAttribute("value");
@@ -209,7 +204,7 @@
               input.setAttribute(attr, control.getAttribute(attr));
           inputs.set(name, input);
           if (kind === "toggle") {
-            const face = node("label", "choice");
+            const face = generatedElement(node("label", "choice"), { says: false });
             face.append(input);
             control.append(face);
           } else control.append(input);
@@ -237,17 +232,12 @@
       }
       const actions = node("footer", "lf-playground-actions");
       reset = offer("button", "lf-btn lf-playground-reset", "Reset");
-      copy = offer("button", "lf-btn lf-playground-copy-trigger");
-      copy.id = `${host.id}-copy`;
-      copy.dataset.copyState = "rest";
-      for (const [state, text2] of COPY_LABELS)
-        copy.append(node("span", `lf-playground-copy-label ${state}`, text2));
-      submit = offer(
-        "button",
-        "lf-btn primary lf-playground-submit",
-        host.getAttribute("submit-label") ?? "Use these settings"
-      );
-      actions.append(reset, copy, submit);
+      submit = offer("button", "lf-btn primary lf-playground-submit");
+      const submitLabel = host.getAttribute("submit-label") ?? "Use these settings";
+      submit.dataset.room = `${submitLabel}
+Undo choice`;
+      submit.append(node("span", "", submitLabel));
+      actions.append(reset, submit);
       if (document.querySelector("script[data-lf-offline]"))
         actions.append(
           node(
@@ -326,6 +316,7 @@
       for (const slot of output.querySelectorAll("lf-playground-value")) {
         if (!belongsTo(host, slot)) continue;
         const name = slot.getAttribute("for");
+        generatedElement(slot, { says: true });
         text(slot, formatted(controlByName.get(name), next[name]));
       }
     };
@@ -358,7 +349,6 @@
       output,
       preview,
       submit,
-      copy,
       reset,
       regions,
       presetButtons,

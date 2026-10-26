@@ -23,6 +23,7 @@ from render_harness import (
     margins_laid_out,
     open_page,
     panel_settled,
+    panel_view,
     resized,
     select,
     sending,
@@ -274,6 +275,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
             "start",
             str(serve.page_dir),
             roots[0]["id"],
+            "--text",
             detail,
         ],
     )
@@ -466,7 +468,14 @@ def test_each_seat_agrees_with_the_page_map_on_a_controls_receipt(
         delivery_model.record_pickup(transaction, roots)
     claimed = CliRunner().invoke(
         cli_model.cli,
-        ["task", "start", str(serve.page_dir), roots[0]["id"], "Checking the visit."],
+        [
+            "task",
+            "start",
+            str(serve.page_dir),
+            roots[0]["id"],
+            "--text",
+            "Checking the visit.",
+        ],
     )
     assert claimed.exit_code == 0, claimed.output
     told(page)
@@ -690,6 +699,7 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
             "start",
             str(serve.page_dir),
             roots[0]["id"],
+            "--text",
             "Checking the user comment.",
         ],
     )
@@ -779,7 +789,7 @@ def test_a_thread_an_open_to_do_holds_says_so_beside_the_page(browser, serve):
     page.keyboard.press("Shift+m")
     panel_settled(page, view="queue")
     page.locator(".lf-floating-panel .lf-fp-filters button").nth(1).click()
-    queue = page.locator('.lf-fp-view[data-view="queue"]:not([data-leaving])')
+    queue = page.locator(panel_view("queue"))
     owed = queue.locator('.lf-fp-on-item[data-list="agent"]')
     expect(owed).to_have_count(1)
     expect(owed.locator(".lf-fp-on-title, .lf-fp-prompt").first).to_have_text(named)
@@ -859,7 +869,7 @@ def test_unit_claim_arrivals_share_one_window_with_the_open_page_map(browser, se
     record_claim(serve.page_dir)
     claimed = CliRunner().invoke(
         cli_model.cli,
-        ["task", "open", str(serve.page_dir), "sprint", "Check the board"],
+        ["task", "create", str(serve.page_dir), "sprint", "--title", "Check the board"],
     )
     assert claimed.exit_code == 0, claimed.output
     told(page)
@@ -913,6 +923,7 @@ def test_unit_claim_arrivals_share_one_window_with_the_open_page_map(browser, se
                 "start",
                 str(serve.page_dir),
                 move["id"],
+                "--text",
                 "Checking both moved cards",
             ],
         )
@@ -954,7 +965,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     """A margin entry keeps the margin entry family visible without promising a press.
 
     Sent, Waiting for delivery, and Picked up report a move already made. Their status
-    margin entry therefore keeps the circular silhouette and full ink, while leaving the
+    margin entry therefore keeps the family silhouette and full ink, while leaving the
     accessibility tree as a status rather than a control and showing no hover fill.
     Hovering the status draws a soft neutral trace to the
     target without making the margin entry respond like a control. The walk still arrives,
@@ -1162,7 +1173,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     go_to_address(page, "Margin entry", address_target)
     expect(marker).to_be_focused()
 
-    # Standing there is not the same as being the way in. A repaint under the user
+    # Located there is not the same as being the way in. A repaint under the user
     # leaves the rail's one stop on a margin entry that acts, and the status without one.
     page.evaluate("() => window.dispatchEvent(new Event('resize'))")
     page.evaluate(
@@ -1247,7 +1258,14 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
 
     claimed = CliRunner().invoke(
         cli_model.cli,
-        ["task", "start", str(page_dir), logged_action["id"], "checking the mounts"],
+        [
+            "task",
+            "start",
+            str(page_dir),
+            logged_action["id"],
+            "--text",
+            "checking the mounts",
+        ],
     )
     assert claimed.exit_code == 0, claimed.output
     told(page)

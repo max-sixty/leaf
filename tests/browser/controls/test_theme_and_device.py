@@ -6,13 +6,17 @@ from playwright.sync_api import expect
 from render_cases_layout import UNBREAKABLE_PAGE
 from render_harness import (
     LONG_PAGE,
+    displayed,
     leaf_page,
     open_page,
+    open_threads,
     page_comment,
     panel_settled,
     resized,
     write,
 )
+
+from leaf.render_checks import wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -129,25 +133,21 @@ def test_stylesheet_motion_inputs_drive_css_and_web_animations(browser, serve):
     result = page.evaluate("""async () => {
       const owner = await window.__lfWidgetApi();
       const chrome = document.querySelector('.lf-chrome');
-      const cue = document.createElement('div');
-      cue.className = 'lf-msg flash';
       const arrival = document.createElement('button');
       arrival.className = 'lf-margin-entry';
       arrival.dataset.lfAgentArrival = '1';
-      chrome.append(cue, arrival);
-      const cssFlash = getComputedStyle(cue).animationDuration;
+      chrome.append(arrival);
       const cssArrival = getComputedStyle(arrival).animationDuration;
       const cssFold = getComputedStyle(document.querySelector('lf-old')).transitionDuration;
       const {flashDuration, agentArrivalDuration} = await window.__lfCheckApi();
       const animation = owner.backgroundFlash(document.querySelector('#subject'), flashDuration());
       const played = animation.effect.getTiming().duration;
       animation.finish();
-      cue.remove(); arrival.remove();
-      return {cssFlash, cssArrival, cssFold, played,
+      arrival.remove();
+      return {cssArrival, cssFold, played,
         fold: owner.foldDuration(), agent: agentArrivalDuration()};
     }""")
     assert result == {
-        "cssFlash": "0.73s",
         "cssArrival": "0.91s",
         "cssFold": "0.17s",
         "played": 730,
@@ -207,14 +207,10 @@ def test_motion_preference_changes_are_heard_without_reloading(browser, serve):
 def test_coarse_pointer_panel_lists_give_humane_aims(browser, serve):
     """Touch keeps the panel's compact paint while its lists' rows take a finger-sized
     aim."""
-    html = LONG_PAGE.replace(
-        "<title>long</title>",
-        '<title>long</title><meta name="lf-review" content="sign-off">',
-    )
     context = browser.new_context(
         viewport={"width": 390, "height": 844}, has_touch=True
     )
-    page = open_page(browser, serve(html, comments=1), context=context)
+    page = open_page(browser, serve(LONG_PAGE, comments=1), context=context)
     assert page.evaluate("() => matchMedia('(pointer: coarse)').matches"), (
         "the touch fixture never reached Leaf's coarse-pointer rules"
     )
@@ -228,9 +224,7 @@ def test_coarse_pointer_panel_lists_give_humane_aims(browser, serve):
             )
 
     # The rows of the panel's lists, which a finger picks among.
-    page.locator(".lf-fp-threads").tap()
-    panel_settled(page, view="threads")
-    page.locator(".lf-fp-filters button", has_text="Open").tap()
+    open_threads(page)
     humane(page.locator(".lf-fp-thread:visible"), "Threads row")
     page.locator(".lf-fp-close").tap()
     panel_settled(page, open=False)
@@ -282,7 +276,7 @@ def test_dynamic_chrome_offsets_keep_the_safe_area_in_their_arithmetic(browser, 
         resized(page, width, 700)
         for opened in (False, True):
             if opened:
-                page.locator(".lf-fp-threads").click()
+                page.locator(".lf-fp-on-user").click()
             panel_settled(page, open=opened)
             box = page.evaluate(reading)
             assert box["bottom"] <= box["height"] - insets["bottom"], (width, box)
@@ -337,7 +331,9 @@ ELEVATION_SHADOWS = """() => {
     try { list = sheet.cssRules; } catch { return; }  // a sheet from another origin
     const walk = (from) => {
       for (const rule of from) {
-        const named = rule.style ? [...rule.style] : [];
+        // Position-try descriptors expose item(i), but not indexed properties.
+        const named = rule.style
+          ? Array.from({length: rule.style.length}, (_, i) => rule.style.item(i)) : [];
         const lifted = (name) => ['box-shadow', 'filter'].includes(name) || name.startsWith('--');
         for (const property of named.filter(lifted)) {
           const value = parts(rule.style.getPropertyValue(property).trim());
@@ -445,3 +441,105 @@ def test_every_lift_names_one_of_the_theme_s_heights_cast_in_the_scheme_s_ink(
         f"both schemes cast their shadows in {shade!r}, so routing them through a token "
         f"bought the dark page nothing it did not already have"
     )
+
+
+def test_authored_label_room_keeps_toolbar_still_before_runtime(
+    browser, serve, subtests
+):
+    """Labels and numeric readouts hold their space from authored paint to completion."""
+    source = leaf_page(
+        "Playback",
+        """<h1>Playback</h1>
+<div id="toolbar">
+  <button id="playback" class="button" data-room="Play&#10;Pause&#10;Resume&#10;Replay">
+    <span>Play</span>
+  </button>
+  <label id="speed">Speed <select><option>1×</option><option>0.5×</option></select></label>
+  <span id="status" role="status"
+        data-room="Ready to compare.&#10;Playing.&#10;Paused.&#10;Finished. Replay to compare again.">
+    <span>Ready to compare.</span>
+  </span>
+</div>
+<div id="timeline-row">
+  <input id="timeline" type="range" min="0" max="1200" value="0" aria-label="Timeline">
+  <output id="time" data-room="1200 / 1200ms"><span>0 / 1200ms</span></output>
+</div>
+<p id="following">The comparison stays beneath the controls.</p>
+<script type="module">
+const button = document.querySelector('#playback');
+const status = document.querySelector('#status > span');
+const states = [
+  ['Pause', 'Playing.', 20], ['Resume', 'Paused.', 300],
+  ['Replay', 'Finished. Replay to compare again.', 1200], ['Play', 'Ready to compare.', 0]
+];
+let next = 0;
+button.addEventListener('click', () => {
+  const [label, message, time] = states[next++ % states.length];
+  button.firstElementChild.textContent = label;
+  status.textContent = message;
+  document.querySelector('#timeline').value = time;
+  document.querySelector('#time > span').textContent = `${time} / 1200ms`;
+});
+button.dataset.connected = '';
+</script>""",
+        head="""<style>
+#toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+#speed { white-space: nowrap; }
+#timeline-row { display: flex; align-items: center; gap: 12px; }
+#timeline { flex: 1; min-inline-size: 0; }
+#time { font-variant-numeric: tabular-nums; }
+</style>""",
+    )
+    boot = []
+    page = browser.new_page(viewport={"width": 390, "height": 900})
+    page.route("**/leaf.js", lambda route: boot.append(route))
+    geometry = """() => Object.fromEntries(
+      ['playback', 'speed', 'status', 'timeline', 'time', 'following'].map(id =>
+        [id, document.getElementById(id).getBoundingClientRect().toJSON()]))"""
+    try:
+        with page.expect_request("**/leaf.js"):
+            page.goto(serve(source), wait_until="commit")
+        displayed(page)
+        assert boot, "the positive control did not hold runtime startup"
+        before_startup = page.evaluate(geometry)
+        boot.pop().continue_()
+        wait_until_ready(page)
+        expect(page.locator("#playback")).to_have_attribute("data-connected", "")
+        assert page.evaluate(geometry) == before_startup
+        for width in (390, 900):
+            with subtests.test(width=width):
+                page.set_viewport_size({"width": width, "height": 900})
+                before = page.evaluate(geometry)
+                button = page.get_by_role("button", name="Play", exact=True)
+                button.click()
+                expect(
+                    page.get_by_role("button", name="Pause", exact=True)
+                ).to_be_focused()
+                assert page.evaluate(geometry) == before
+                page.keyboard.press("Space")
+                expect(
+                    page.get_by_role("button", name="Resume", exact=True)
+                ).to_be_focused()
+                assert page.evaluate(geometry) == before
+                page.keyboard.press("Enter")
+                expect(
+                    page.get_by_role("button", name="Replay", exact=True)
+                ).to_be_focused()
+                expect(page.locator("#status")).to_have_text(
+                    "Finished. Replay to compare again."
+                )
+                expect(page.locator("#time")).to_have_text("1200 / 1200ms")
+                assert page.evaluate(geometry) == before
+                if width == 900:
+                    assert page.locator("#status > span").evaluate(
+                        "el => el.scrollWidth <= el.clientWidth"
+                    ), "the status was clipped despite room for its full wording"
+                page.keyboard.press("Enter")
+                expect(
+                    page.get_by_role("button", name="Play", exact=True)
+                ).to_be_focused()
+                assert page.evaluate(geometry) == before
+    finally:
+        for route in boot:
+            route.continue_()
+        page.unroute_all(behavior="wait")

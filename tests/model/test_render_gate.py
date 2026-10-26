@@ -1,13 +1,16 @@
 """Browser-gate, arrival, layout, and layer integration tests."""
 
 import json
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
+from leaf import user_views
 from leaf.findings import Finding
 from leaf.render_gate import readings as render_gate_readings
 from leaf.render_gate import version as render_gate_model
-from leaf.render_gate.command import BrowserCheck
+from leaf.render_gate.command import PIN_VARIABLE, BrowserCheck, desktop_viewport
+from model.test_user_views import report
 
 
 def test_swept_faults_are_reported_by_element_and_by_unbroken_run():
@@ -160,6 +163,46 @@ def test_page_check_json_names_only_the_gates_that_read_the_page():
     )
 
 
+def test_the_render_check_reads_the_desktop_in_the_last_reported_window(
+    tmp_path, monkeypatch
+):
+    """`page check --render` reads its desktop at the window of the browser that
+    reported last, while the page keeps that report, and at the fixed laptop window
+    before any report or when the caller pins it."""
+    monkeypatch.delenv(PIN_VARIABLE)
+    now = datetime(2026, 10, 22, tzinfo=UTC)
+    monkeypatch.setattr(user_views, "_now", lambda: now)
+
+    def read():
+        return desktop_viewport(tmp_path).json()
+
+    unviewed = read()
+    assert (unviewed["width"], unviewed["height"]) == (1280, 720)
+    assert unviewed["from"].startswith("fixed, since no browser")
+
+    laptop, wide = report(session="a" * 32), report(session="b" * 32)
+    wide["viewport"] = {"width": 1728, "height": 999}
+    user_views.observe_user_view(tmp_path, laptop)
+    now += timedelta(minutes=5)
+    user_views.observe_user_view(tmp_path, wide)
+    assert read() == {"width": 1728, "height": 999, "from": "the user's window"}
+
+    # A day on, the page no longer keeps either report.
+    now += timedelta(days=1, seconds=1)
+    assert read()["from"].startswith("fixed, since no browser")
+    now -= timedelta(days=1, seconds=1)
+
+    monkeypatch.setenv(PIN_VARIABLE, "fixed")
+    assert read() == {
+        "width": 1280,
+        "height": 720,
+        "from": f"fixed, pinned by {PIN_VARIABLE}",
+    }
+    monkeypatch.setenv(PIN_VARIABLE, "1728x999")
+    with pytest.raises(ValueError, match="takes only 'fixed'"):
+        read()
+
+
 def test_a_resize_notice_is_pardoned_only_by_a_complete_clean_confirmation(monkeypatch):
     """The retry policy over whole attempts (`render_version`): a notice is ignored
     only when a later complete attempt is clean, ordinary failures from both attempts
@@ -175,7 +218,7 @@ def test_a_resize_notice_is_pardoned_only_by_a_complete_clean_confirmation(monke
     first = Finding(
         "unreserved-height",
         "<lf-x id=a>",
-        {"drawn": 20, "reserved": None},
+        {"first": 0, "drawn": 20, "reserved": None},
         severity="advice",
     )
 
@@ -188,7 +231,7 @@ def test_a_resize_notice_is_pardoned_only_by_a_complete_clean_confirmation(monke
         monkeypatch.setattr(
             render_gate_model,
             "_render_version_attempt",
-            lambda browser, url, served_timeout_ms=None, implementations=None, declaration_sources=None: (
+            lambda browser, url, desktop, served_timeout_ms=None, implementations=None, declaration_sources=None: (
                 left.pop(0)
             ),
         )

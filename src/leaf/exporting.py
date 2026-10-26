@@ -45,6 +45,7 @@ from leaf.revision_delivery import (
     initial_script_paths,
     json_script,
     rebase_css,
+    runtime_settings,
 )
 from leaf.runtime_selection import executing
 from leaf.served_state.service import PageStateService
@@ -344,11 +345,13 @@ def export_document(
             # The generation the revision was captured at, which the runtime holds
             # the embedded registry and reading to (`layer-client.js`), as it holds a
             # served document's.
-            runtime=(
-                '<script type="application/json" data-lf-runtime data-lf-offline '
-                f'data-lf-layer="{artifact.registry["$layer"]["generation"]}" '
-                'data-lf-page-root="" data-lf-entry="leaf:/leaf.js" data-lf-probe="">'
-                f"{payload}</script>"
+            runtime=runtime_settings(
+                payload,
+                layer=str(artifact.registry["$layer"]["generation"]),
+                page_root="",
+                entry="leaf:/leaf.js",
+                probe="",
+                declared={"type": "application/json", "data-lf-offline": True},
             ),
         ),
     )

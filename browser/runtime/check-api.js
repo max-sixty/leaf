@@ -10,6 +10,7 @@ export {
   watchSemantic,
   applicationPresented,
   readApplicationPresentation,
+  presentDocument,
   whenApplicationPresented,
   whenApplicationRegionsPresented,
   whenDocumentPresented,
@@ -37,6 +38,7 @@ export {
   shownParts,
 } from "./geometry.js";
 export { renderedParent, uiInside, upFrom } from "./shadow.js";
+export { authoredBody } from "./initial-render.js";
 export {
   readingRegions,
   shownRegionBounds,
@@ -74,16 +76,23 @@ export {
 } from "./keyboard/bindings.js";
 export { availableCommandRoutes, stack, executeCommand } from "./keyboard/dispatch.js";
 export { whereDraft, storedDraft, captureDraftEditing } from "./drafts.js";
-export { onStanding, releaseFocus, takesLetters, tabStops } from "./focus.js";
+export { onCurrentLocation, releaseFocus, takesLetters, tabStops } from "./focus.js";
 export { selectionAnchor } from "./composing/capture.js";
 export { TEXT_BLOCK } from "./passage-facts.js";
 export { renderingState } from "./rendering.js";
-export { readingBlock, blocksOnScreen } from "./reading-place.js";
-export { walkOrigin, heldObligation, placeOf } from "./standing-target.js";
+export {
+  readingBlock,
+  blocksOnScreen,
+  capturePlace,
+  placeNode,
+} from "./reading-place.js";
+export { walkOrigin, heldObligation, placeOf } from "./current-target.js";
 export { walkPosition } from "./walk-position.js";
+export { threadCounts } from "./thread/model.js";
 export { nativeLayers } from "./keyboard/layer-stack.js";
 export { scrollAxes, elementFrame } from "./element-frame.js";
 export { fitsWhole, alreadyShown } from "./landing-scroll.js";
+export { scrollGlides, watchScrollEnds } from "./arrivals.js";
 export { pageScopes } from "./keyboard/register.js";
 export {
   chromeSheet,
@@ -115,3 +124,4 @@ export { WORKS } from "./control-selectors.js";
 export { readingReturn, completeReadingReturn } from "./reading-continuity.js";
 
 export { observeOutputs } from "./data.js";
+export { selfComparison, servedElements } from "./version.js";

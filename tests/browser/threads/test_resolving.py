@@ -20,6 +20,7 @@ from render_harness import (
     LONG_PAGE,
     PANEL,
     CutOff,
+    expect_open_threads,
     holding,
     leaf_page,
     open_page,
@@ -41,13 +42,6 @@ from leaf import event_log as events_model
 from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
-
-
-def expect_open_threads(page, count):
-    """The panel's Threads mark counts `count` open threads."""
-    expect(page.locator(".lf-fp-threads")).to_have_attribute(
-        "aria-label", re.compile(rf"^Threads, {count} open\b")
-    )
 
 
 def test_inline_settlement_retains_focus_when_its_controls_are_replaced(browser, serve):
@@ -112,11 +106,13 @@ def test_inline_settlement_retains_focus_when_its_controls_are_replaced(browser,
     page.unroute("**/api/event")
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 @pytest.mark.parametrize("existing_neighbors", [False, True])
 def test_inline_retirement_is_resolved_before_its_pixels_finish(
-    browser, serve, existing_neighbors
+    engine, request, serve, existing_neighbors
 ):
-    """The outgoing room is inert; open, undo and refusal interrupt it immediately."""
+    """The outgoing room is inert; open, undo and refusal interrupt it immediately.
+    Firefox, without intrinsic-size interpolation, starts from the same room."""
     url = serve(
         SEATED_OBLIGATION_PAGE.replace(
             "</main>", '<label>Later thought <input id="later"></label></main>'
@@ -146,7 +142,7 @@ def test_inline_retirement_is_resolved_before_its_pixels_finish(
         append_carried_log_record(
             serve.page_dir, {"kind": "resolve", "author": "user", "parent": settled}
         )
-    page = open_page(browser, url)
+    page = open_page(request.getfixturevalue(engine), url)
     page.emulate_media(reduced_motion="no-preference")
     thread = page.locator(f'#jobs .lf-page-thread[data-thread="{root}"]')
     summary = page.locator("#jobs .lf-resolved-summary")
@@ -646,7 +642,7 @@ ATTACHED_THREAD_PAGE = leaf_page(
 def test_r_settles_the_thread_shown_for_the_element_the_user_stands_on(
     browser, serve, arrival
 ):
-    """An element and the thread its card shows are one place (glossary, Standing
+    """An element and the thread its card shows are one place (glossary, Current
     target), so `r` on the element settles that thread as it does from the card: on
     the obligation `m` lands on, or on any element the keyboard stands on. The card
     closes and the user stays on the element. Leaf's panel stands at no place, so `r`
@@ -671,7 +667,7 @@ def test_r_settles_the_thread_shown_for_the_element_the_user_stands_on(
         expect(card.locator(f'.lf-page-thread[data-thread="{root}"]')).to_be_visible()
 
     arrive()
-    page.locator(".lf-fp-threads").focus()
+    page.locator(".lf-fp-on-user").focus()
     page.keyboard.press("r")
     rendered(page)
     expect(card).to_be_visible()

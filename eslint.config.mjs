@@ -67,7 +67,9 @@ const browserGlobals = Object.fromEntries(
     "SVGAnimatedLength",
     "SVGElement",
     "SVGGeometryElement",
+    "SVGImageElement",
     "SVGSVGElement",
+    "SVGUseElement",
     "ShadowRoot",
     "URL",
     "URLSearchParams",
@@ -410,8 +412,8 @@ export const semanticStoreOwnershipRule = {
   },
 };
 
-// Where the user stands, and what moved them there, is focus.js's one reading
-// (`onStanding`). A `focusin` or `focusout` listener hears nothing of a move between two
+// The user’s current location, and what moved them there, is focus.js's one reading
+// (`onCurrentLocation`). A `focusin` or `focusout` listener hears nothing of a move between two
 // nodes of one shadow tree beneath it, and a reader that tells the runtime's returns or
 // the keyboard's arrivals apart for itself answers a question focus.js already answers.
 // So the two event names appear nowhere else, in a listener, a list of event types, a
@@ -421,9 +423,9 @@ export const semanticStoreOwnershipRule = {
 // by path from the repository root, the files that may still name a focus event, each
 // with the reason in the config that grants it.
 const repoRoot = path.dirname(fileURLToPath(import.meta.url));
-const STANDING_MESSAGE =
-  "Read where the user stands from onStanding (runtime/focus.js): a focusin or focusout listener misses moves inside a shadow tree beneath it and guesses its own cause.";
-const standingListenersRule = {
+const CURRENT_LOCATION_MESSAGE =
+  "Read the user’s current location from onCurrentLocation (runtime/focus.js): a focusin or focusout listener misses moves inside a shadow tree beneath it and guesses its own cause.";
+const currentLocationListenersRule = {
   meta: {
     type: "problem",
     schema: [{ type: "object", additionalProperties: { type: "array" } }],
@@ -435,7 +437,8 @@ const standingListenersRule = {
       .join("/");
     const allowed = new Set(context.options[0]?.[file] ?? []);
     const named = (node, type) => {
-      if (!allowed.has(type)) context.report({ node, message: STANDING_MESSAGE });
+      if (!allowed.has(type))
+        context.report({ node, message: CURRENT_LOCATION_MESSAGE });
     };
     // Capturing `focus` or `blur` on any node hears every element beneath it, the
     // window's included.
@@ -589,15 +592,15 @@ const placementsRule = {
 };
 
 // Where the user stands is read through `focused()` in focus.js, or `focused(tree)` for
-// the node standing for it in one tree, as `tree.activeElement` retargets focus. A raw
+// the node representing it in one tree, as `tree.activeElement` retargets focus. A raw
 // `activeElement`, of the document or of a shadow root, misses a label press that holds
 // the user on the element they stood on, and the document's stops at the host of the
 // shadow tree they stand in, so a copy of that reading answers differently from every
 // other at exactly those edges. A frame's `contentDocument.activeElement` is the frame
 // page's own question. The option names the files that may still read it.
-const STANDING_READ_MESSAGE =
-  "Read where the user stands with focused() (runtime/focus.js; widget-api.js in a package), or focused(tree) for the node standing for it in one document or shadow root: a raw activeElement misses a label press holding them and focus inside shadow trees.";
-export const standingReadsRule = {
+const CURRENT_LOCATION_READ_MESSAGE =
+  "Read the user’s current location with focused() (runtime/focus.js; widget-api.js in a package), or focused(tree) for the node representing it in one document or shadow root: a raw activeElement misses a label press holding them and focus inside shadow trees.";
+export const currentLocationReadsRule = {
   meta: { type: "problem", schema: [{ type: "array", items: { type: "string" } }] },
   create(context) {
     const file = path
@@ -616,10 +619,10 @@ export const standingReadsRule = {
             node.object.property.name === "contentDocument"
           )
         )
-          context.report({ node, message: STANDING_READ_MESSAGE });
+          context.report({ node, message: CURRENT_LOCATION_READ_MESSAGE });
       },
       // `scope.contains(focused())`, in either reading, stops at a shadow root and misses a
-      // node slotted into the scope, where `standingIn(scope)` climbs as rendered.
+      // node slotted into the scope, where `currentLocationIn(scope)` climbs as rendered.
       CallExpression(node) {
         const { callee, arguments: args } = node;
         if (
@@ -634,7 +637,7 @@ export const standingReadsRule = {
           context.report({
             node,
             message:
-              "Ask whether the user stands in a scope with standingIn(scope) (runtime/focus.js; widget-api.js in a package): contains() stops at a shadow root.",
+              "Ask whether the user’s current location is in a scope with currentLocationIn(scope) (runtime/focus.js; widget-api.js in a package): contains() stops at a shadow root.",
           });
       },
     };
@@ -900,7 +903,7 @@ const enclosingFunction = (node) => {
   return null;
 };
 // The argument a function value is passed as, through the choices that pick it
-// (`open && (() => …)`, `standing ? () => … : letGo`).
+// (`open && (() => …)`, `currentLocation ? () => … : letGo`).
 const argumentOf = (fn) => {
   let at = fn;
   while (
@@ -1007,10 +1010,10 @@ export const layerReturnsRule = {
 const architecturePlugin = {
   rules: {
     "semantic-store-ownership": semanticStoreOwnershipRule,
-    "standing-listeners": standingListenersRule,
+    "current-location-listeners": currentLocationListenersRule,
     placements: placementsRule,
     "scroll-writes": scrollWritesRule,
-    "standing-reads": standingReadsRule,
+    "current-location-reads": currentLocationReadsRule,
     "open-layers": openLayersRule,
     moves: movesRule,
     "layer-returns": layerReturnsRule,
@@ -1337,6 +1340,30 @@ export default [
     rules: publicRuntimeBoundary,
   },
   {
+    // Initial sources are compiled to self-contained scripts. Sharing these pure SVG paths
+    // and the time axis's geometry adds no private runtime dependency to the package
+    // shipped to a page.
+    files: ["packages/*/initial/*.js"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          ...publicRuntimeBoundary["no-restricted-imports"][1],
+          patterns: publicRuntimeBoundary["no-restricted-imports"][1].patterns.map(
+            (pattern) =>
+              pattern.regex === "^\\.{1,2}/(?:.*/)?runtime/"
+                ? {
+                    ...pattern,
+                    regex:
+                      "^\\.{1,2}/(?:.*/)?runtime/(?!(?:motion-icon-paths|time-axis)\\.js$)",
+                  }
+                : pattern,
+          ),
+        },
+      ],
+    },
+  },
+  {
     // Build tools share private runtime declarations with the browser rather than
     // duplicating them. The public facade boundary applies to page consumers.
     files: ["build/**/*.mjs", "worker/*.mjs"],
@@ -1530,14 +1557,14 @@ export default [
     files: ["browser/**/*.js", "packages/*/**/*.js"],
     plugins: { architecture: architecturePlugin },
     rules: {
-      "architecture/standing-listeners": [
+      "architecture/current-location-listeners": [
         "error",
         {
           // The owner of every focus event.
           "browser/runtime/focus.js": ["focus", "focusin", "focusout"],
           // Records the raw events of a session for the interaction log, the one
           // exception that is not one element's or one subtree's own question: it is a
-          // recorder of events, and reads no standing from them.
+          // recorder of events, and does not read the current location from them.
           "browser/runtime/interaction-log.js": ["focusin", "focusout"],
           // A reply row's own entry begins its composition. The box's host is in the
           // row's tree, so entering its shadow tree reaches the row, and a move inside
@@ -1562,6 +1589,9 @@ export default [
           "browser/runtime/composing/text-field.js",
           // The shared CodeMirror adapter places its own native editor.
           "browser/runtime/editor-view.js",
+          // A held release stands in for the browser's own press, so it focuses the
+          // control as that press does, ringless; focus.js reads it as the press's.
+          "browser/runtime/held-word.js",
         ],
       ],
       "architecture/open-layers": [
@@ -1590,10 +1620,10 @@ export default [
           "browser/runtime/focus.js",
         ],
       ],
-      "architecture/standing-reads": [
+      "architecture/current-location-reads": [
         "error",
         [
-          // The one reading of where the user stands.
+          // The one reading of the user’s current location.
           "browser/runtime/focus.js",
           // The editor asks whether its own content holds focus inside the closed
           // root it renders in, which focus.js, reading through open roots, cannot see.
@@ -1649,7 +1679,7 @@ export default [
     // subject to the same boundary. Nor is another primitive,
     // whose own imports this same rule holds: `rendering.js`, which every rendering
     // callback is counted through, or `focus.js`, which a primitive that moves the
-    // user's node asks to keep them standing on it.
+    // user's node asks to keep their current location on it.
     files: runtimePrimitives.map((name) => `browser/runtime/${name}`),
     rules: {
       "no-restricted-imports": [

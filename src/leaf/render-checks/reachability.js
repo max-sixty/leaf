@@ -8,6 +8,25 @@ import { at, place, unique } from "./locate.js";
 export const restsOverPage = (style) =>
   style.position === "fixed" && style.pointerEvents === "none";
 
+// The axes on which a box clips what it holds and offers the user no way in, asked of
+// the overflow value per axis rather than of the scroll extent. A box that clips
+// always has something to scroll, which is what clipping means, so
+// `scrollWidth > clientWidth` is true of exactly the boxes in question and would wave
+// every one of them through. What separates a board, whose columns run past it and are
+// reached by dragging, from a group that swallowed its own pick marks is whether the
+// box offers the user a way in: auto and scroll do, hidden and clip do not. Paint
+// containment clips both axes while `overflow` computes `visible` (MISPLACED_BOXES
+// reads the same fact for its ancestors), and it denies the way in exactly where the
+// axis has no scroller of its own.
+export function sealedAxes(style) {
+  const contained = /paint|strict|content/.test(style.contain);
+  const sealed = (overflow) =>
+    overflow === "hidden" ||
+    overflow === "clip" ||
+    (contained && !userScrollport(overflow));
+  return { across: sealed(style.overflowX), down: sealed(style.overflowY) };
+}
+
 // A control drawn where no user can reach it. `TINY_BOXES` asks whether a widget got a
 // box at all; this asks the question one level down, of the chrome inside it, and the
 // difference is which failure each catches: a widget with no box is a widget that didn't
@@ -51,7 +70,7 @@ export function clippedControls() {
     if (b.width < 1 && b.height < 1) continue;
     // Where the clip is escaped rather than suffered. An absolutely-positioned
     // control whose containing block is above the clipping ancestor is painted
-    // outside it on purpose, exactly as MISPLACED_BOXES' own resident is.
+    // outside it on purpose, exactly as MISPLACED_BOXES' own margin content is.
     if (getComputedStyle(el).position === "absolute") continue;
     // Up to the body and no further: the document's own scrolling arrangement is
     // the page's, not a widget's. The runtime scrolls body rather than the
@@ -60,23 +79,7 @@ export function clippedControls() {
     // every control below the fold as hidden by the page it is on.
     for (let a = el.parentElement; a && a !== document.body; a = a.parentElement) {
       const s = getComputedStyle(a);
-      // Asked of the overflow value, per axis, and not of the scroll extent. A
-      // box that clips always has something to scroll — that is what clipping
-      // means — so `scrollWidth > clientWidth` is true of exactly the boxes this
-      // is about and would wave every one of them through. What separates a
-      // board, whose columns run past it and are reached by dragging, from a
-      // group that swallowed its own pick marks is whether the box offers the
-      // user a way in: auto and scroll do, hidden and clip do not. Paint
-      // containment clips both axes while `overflow` computes `visible`
-      // (MISPLACED_BOXES reads the same fact for its ancestors), and it denies
-      // the way in exactly where the axis has no scroller of its own.
-      const contained = /paint|strict|content/.test(s.contain);
-      const scrollX = userScrollport(s.overflowX);
-      const scrollY = userScrollport(s.overflowY);
-      const across =
-        s.overflowX === "hidden" || s.overflowX === "clip" || (contained && !scrollX);
-      const down =
-        s.overflowY === "hidden" || s.overflowY === "clip" || (contained && !scrollY);
+      const { across, down } = sealedAxes(s);
       if (across || down) {
         const f = a.getBoundingClientRect();
         const lost = Math.round(
@@ -132,7 +135,7 @@ export function clippedControls() {
 //
 // An overlay at rest (`restsOverPage`) is held to the height floor alone, as the
 // contents map is: in the margin its box is a 24px spine, and its labels reveal over
-// the page from it. Its posture says so in its computed style, which a widget that
+// the page from it. Its scroll behavior says so in its computed style, which a widget that
 // lost its rules doesn't take on, so a map dropped into the flow at that width is
 // still caught.
 export function tinyBoxes(declarations) {

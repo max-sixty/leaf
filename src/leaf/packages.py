@@ -20,9 +20,9 @@ from .layer import (
     named_package,
 )
 from .locations import (
+    first_overlap,
     located,
     location_is_within,
-    locations_overlap,
     path_location,
     path_lock_key,
     paths_same,
@@ -173,18 +173,9 @@ def protected_package_paths(package: Path) -> list:
 
 def refuse_package_overlap(targets: list, protected: list) -> None:
     """Refuse package paths that would write over another package."""
-    located_protected = located(protected)
-    overlap = next(
-        (
-            (target.resolve(), source)
-            for target, target_at in located(targets)
-            for source, source_at in located_protected
-            if locations_overlap(target_at, source_at)
-        ),
-        None,
-    )
-    if overlap:
+    if overlap := first_overlap(located(targets), located(protected)):
         target, source = overlap
+        target = target.resolve()
         raise Refused(
             f"package target {target} overlaps another package {source}; "
             "package scopes must be separate"

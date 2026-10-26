@@ -210,8 +210,10 @@ function advance(
 
 
 /** One row of On me or On <agent>, as `served_state.queues` serves it or this tab
- * places it: `owner` names the list. A widget, approval or to-do row names its record
+ * places it: `owner` names the list. A widget or to-do row names its record
  * by `id`. */
+
+
 
 
 
@@ -318,8 +320,7 @@ const NO_OBLIGATIONS = {
   unanswered: []                      ,
 };
 
-/* The admitted inventory owns membership and widget completion. Approval and its
- * undo draw their direct result immediately. Widget values come from
+/* The admitted inventory owns membership and widget completion. Widget values come from
  * the same local-inclusive fold used by their controls, so a partial answer is
  * visible before its POST settles the obligation. */
 function normalizedObligations(
@@ -327,26 +328,26 @@ function normalizedObligations(
   widgets                                     ,
   document                  ,
   projection                                   ,
-  local                        ,
+  todos                               ,
 )                  {
+  const todoRecords = new Map(
+    [...todos.open, ...todos.ended].map((todo) => [todo.id, todo]),
+  );
   const all = (view?.obligations ?? []).map((item)                   => {
-    if (item.source.kind === "approval") {
-      const version = item.source.version;
-      const undone = new Set(
-        local.flatMap(({ event }) => (event.kind === "undo" ? [event.undoes] : [])),
-      );
-      const approving = local.some(
-        ({ event }) => event.kind === "done" && event.version === version,
-      );
-      if (approving)
+    // Done and its Undo decide the user's task directly. Reuse the pending to-do
+    // reading so the canonical inventory and its queue row show the same gesture.
+    if (item.source.kind === "todo") {
+      const todo = todoRecords.get(item.source.id) ;
+      if (todo.state === "open" && item.status !== "open")
+        return { ...item, answer: null, status: "open", next_actor: "user", end: null };
+      if (todo.state !== "open" && item.status === "open")
         return {
           ...item,
-          answer: { value: true, event: null },
+          answer: { value: todo.state, event: null },
           status: "answered",
           next_actor: null,
+          end: null,
         };
-      if (item.answer?.event && undone.has(item.answer.event.id))
-        return { ...item, answer: null, status: "open", next_actor: "user" };
       return item;
     }
     if (item.source.kind !== "widget") return item;
@@ -381,7 +382,7 @@ function normalizedObligations(
     return { ...item, answer };
   });
   // A widget's record keeps the server's status and next actor, which only the log
-  // decides; an approval's carries this tab's gesture, so both select alike.
+  // decides.
   return {
     all,
     user: all.filter((item) => item.next_actor === "user"),
@@ -483,9 +484,8 @@ function currentWidgetRelations(
  * the view's served lists (`served_state.queues`), with this tab's unresolved sends
  * placed against them. Every row but a to-do names an obligation record, so a send moves
  * an item the server listed only where the record is its own subject: a Done or its
- * undo moves a to-do between its list and done, and an approval or its undo moves the
- * approval obligation. What a send leaves anything else, such as which obligations in
- * its thread it answers, waits for the server's reading of it. This adds only the
+ * undo moves a to-do between its list and done. What a send leaves anything else, such
+ * as which obligations in its thread it answers, waits for the server's reading of it. This adds only the
  * records a send alone publishes (`localUpdates`): the answer it is owed, which stands
  * for every update the server listed open in its thread, and the resend a refused one
  * leaves. Nothing here selects a list again. */
@@ -522,7 +522,7 @@ function localQueues(
   // record still on the list's side, unless it is an update in a thread this tab has
   // sent to since, whose own record stands for it.
   const standsOpen = (item           ) => {
-    if (item.kind === "todo") return open.has(item.id);
+    if (!namesRecord(item)) return open.has(item.id);
     const current = obligationOf(item);
     return (
       current.next_actor === item.owner &&
@@ -580,6 +580,7 @@ function localQueues(
       owner: item.next_actor                    ,
       subject: source.subject,
       thread: item.thread,
+      also: [],
       live: false,
     });
   };
@@ -649,15 +650,14 @@ function localUpdates(workflows                     ) {
   return { workflows: named, records };
 }
 
-// The order the server lists On me in: what the page asks (widget and approval
-// obligations), to-dos, then updates to send again; records of a kind among
+// The order the server lists On me in: widget obligations, to-dos, then updates to
+// send again; records of a kind among
 // themselves in the order the view's inventory holds them.
 const onUserRank = (item           ) =>
   item.kind === "todo" ? 1 : item.kind === "update" ? 2 : 0;
 
-// Whether a list item names an obligation record, which it carries: every row but a
-// to-do's.
-const namesRecord = (item           ) => item.kind !== "todo";
+// Every row but an agent-owned to-do names the canonical obligation inventory.
+const namesRecord = (item           ) => item.kind !== "todo" || item.owner === "user";
 
 
 
@@ -940,10 +940,10 @@ export function createSemanticApplication({
       widgets,
       projection,
     );
-    const servedItems = ready
-      ? normalizedObligations(view, widgets, document, projection, local)
-      : NO_OBLIGATIONS;
     const todos = ready ? localTodos(state, local) : { open: [], ended: [] };
+    const servedItems = ready
+      ? normalizedObligations(view, widgets, document, projection, todos)
+      : NO_OBLIGATIONS;
     // Thread attention is the server's reading, and one local fact adjusts it: a
     // refused send hands a thread the server left with the agent back to the user,
     // whose Retry it is.
@@ -1124,19 +1124,6 @@ export function createSemanticApplication({
       widgets,
       thread: {
         all: threads,
-        // Historical system rows are event narration, never current approval state.
-        approvalHistory: [
-          ...(state?.browser.approval_history ?? []),
-          ...local.flatMap(({ event, localId, timestamp }) =>
-            event.kind === "done" ? [{ ...event, id: localId, ts: timestamp }] : [],
-          ),
-        ].filter(
-          (event) =>
-            !local.some(
-              ({ event: gesture }) =>
-                gesture.kind === "undo" && gesture.undoes === event.id,
-            ),
-        ),
         collection: {
           phase,
           threads: threads.filter(discussed),

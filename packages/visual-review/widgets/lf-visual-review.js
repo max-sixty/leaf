@@ -12,8 +12,12 @@ import {
   repeat,
   ref,
   live,
+  generated,
   offered,
   commands,
+  cycledRow,
+  beginWalk,
+  listWalkPosition,
   paintKeys,
   holdFocus,
   focused,
@@ -25,11 +29,10 @@ import {
   showNativeLayer,
   closeNativeLayer,
   isNativeLayer,
-  projectData,
+  keeps,
   releaseOutlets,
   threadSurface,
   scopedMediaUrl,
-  describeDifference,
   whileConnected,
   registerReadingRegion,
   compoundReadingRegionId,
@@ -51,8 +54,8 @@ const closeButton = (popover, name) =>
   </button>`;
 const fact = (name, value) =>
   html`<div>
-    <dt data-lf-gen="1" data-lf-said>${name}</dt>
-    <dd data-lf-gen="1" data-lf-said>${value}</dd>
+    <dt ${generated({ says: true })}>${name}</dt>
+    <dd ${generated({ says: true })}>${value}</dd>
   </div>`;
 const destination = (target, path) => {
   if (!target.url) return null;
@@ -68,9 +71,19 @@ customElements.define(
       return value.approved ? "Looks right" : "Unchecked";
     }
 
+    // The run, set by whoever hosts the widget: Leaf from the bound source (the
+    // registry's `x-data.run.property`), or null while that source has none.
+    static properties = { value: { attribute: false } };
+
+    constructor() {
+      super();
+      this.value = null;
+    }
+
     #entries = new Map();
-    #snapshot;
-    #projected;
+    // The run the last render reconciled, and the one whose cases were last marked.
+    #run;
+    #marked;
     #selected;
     #restoreFocus;
     #queue;
@@ -97,6 +110,7 @@ customElements.define(
         {
           id: "visual.next-case",
           title: "Next case",
+          travels: true,
           keys: ["n"],
           when: () => this.#entries.size > 1,
           run: () => this.#step(1),
@@ -104,6 +118,7 @@ customElements.define(
         {
           id: "visual.previous-case",
           title: "Previous case",
+          travels: true,
           keys: ["Shift+n"],
           when: () => this.#entries.size > 1,
           run: () => this.#step(-1),
@@ -166,8 +181,8 @@ customElements.define(
       });
     }
 
-    #reconcile(snapshot) {
-      const records = snapshot?.value.cases ?? [];
+    #reconcile(run) {
+      const records = run?.cases ?? [];
       const ids = new Set(records.map((record) => record.id));
       for (const [id, entry] of this.#entries) {
         if (ids.has(id)) continue;
@@ -201,18 +216,18 @@ customElements.define(
         this.#selected = (
           records.find((record) => record.classification !== "clean") ?? records[0]
         )?.id;
-      this.#snapshot = snapshot;
+      this.#run = run;
     }
 
     #approved(id) {
       return this.state?.review?.units?.[id]?.detail.approved === true;
     }
+    // n and Shift+n walk the cases, coming round at either end, and say where the
+    // landing stands among them as every walk does.
     #step(delta) {
-      const ids = this.#snapshot.value.cases.map((record) => record.id);
-      this.#select(
-        ids[(ids.indexOf(this.#selected) + delta + ids.length) % ids.length],
-        true,
-      );
+      const ids = () => this.#run.cases.map((record) => record.id);
+      this.#select(cycledRow(ids(), this.#selected, delta), true);
+      beginWalk("visual-case", "Case", () => listWalkPosition(ids(), this.#selected));
     }
     #inspection() {
       const article = this.#entries.get(this.#selected)?.article;
@@ -249,7 +264,7 @@ customElements.define(
       });
     }
     #nextUnchecked() {
-      const records = this.#snapshot?.value.cases ?? [];
+      const records = this.#run?.cases ?? [];
       const index = records.findIndex((record) => record.id === this.#selected);
       return [...records.slice(index + 1), ...records.slice(0, index)].find(
         (record) => !this.#approved(record.id),
@@ -257,11 +272,10 @@ customElements.define(
     }
 
     render() {
-      const snapshot = this.data("run");
-      if (snapshot !== this.#snapshot) this.#reconcile(snapshot);
-      const run = snapshot?.value;
+      const run = this.value;
+      if (run !== this.#run) this.#reconcile(run);
       if (!run)
-        return html`<p class="lf-vr-empty" data-lf-gen="1" data-lf-said>
+        return html`<p class="lf-vr-empty" ${generated({ says: true })}>
           Waiting for visual evidence.
         </p>`;
       const approvedCount = run.cases.filter((record) =>
@@ -271,9 +285,9 @@ customElements.define(
       const available = this.reading.actions.review.available;
       return html`<div class="lf-vr-dashboard">
         <header class="lf-vr-heading">
-          <h2 data-lf-gen="1" data-lf-said>${run.title}</h2>
+          <h2 ${generated({ says: true })}>${run.title}</h2>
           <div class="lf-vr-progress" role="status" aria-live="polite">
-            <span data-lf-gen="1" data-lf-said
+            <span ${generated({ says: true })}
               ><strong>${approvedCount}</strong> of ${run.cases.length} look right</span
             >
           </div>
@@ -330,19 +344,18 @@ customElements.define(
 
     updated(changed) {
       super.updated(changed);
-      this.classList.toggle("lf-rendered", Boolean(this.#snapshot));
-      if (this.#snapshot !== this.#projected) {
-        projectData(
-          this,
-          (this.#snapshot?.value.cases ?? []).map((record, index) => ({
-            node: this.#entries.get(record.id).article,
-            key: record.id,
-            identity: record.id,
-            label: record.title,
-            origin: { ...this.#snapshot.origin, path: ["cases", index] },
-          })),
-          { snapshot: this.#snapshot ?? null },
-        );
+      this.classList.toggle("lf-rendered", Boolean(this.#run));
+      if (this.#run !== this.#marked) {
+        // Each case's article is a datum on a Leaf page (`module-state.md`, "Marking
+        // drawn data"), following its case by id across runs.
+        for (const [index, record] of (this.#run?.cases ?? []).entries()) {
+          const { article } = this.#entries.get(record.id);
+          keeps(article, "data-lf-datum", record.id);
+          keeps(article, "data-lf-identity", record.id);
+          keeps(article, "data-lf-datum-label", record.title);
+          keeps(article, "data-lf-origin-path", JSON.stringify(["cases", index]));
+        }
+        this.dispatchEvent(new CustomEvent("drawn", { detail: { value: this.#run } }));
         for (const entry of this.#entries.values()) {
           const { shot, record } = entry;
           shot?.inspect({
@@ -366,7 +379,7 @@ customElements.define(
             () => {},
           );
         }
-        this.#projected = this.#snapshot;
+        this.#marked = this.#run;
       }
       threadSurface(this).update();
       this.#restoreFocus?.(() => {
@@ -393,7 +406,7 @@ customElements.define(
 
     #case(entry, approved, available) {
       const { record, before, after } = entry;
-      const run = this.#snapshot.value;
+      const run = this.#run;
       const threads = readThreads().threads.filter(
         (thread) =>
           thread.anchor?.section === this.id && thread.anchor.datum === record.id,
@@ -416,7 +429,7 @@ customElements.define(
         ${ref(entry.place)}
       >
         <div class="lf-vr-caption">
-          <h3 class="lf-vr-title" data-lf-gen="1" data-lf-said>${record.title}</h3>
+          <h3 class="lf-vr-title" ${generated({ says: true })}>${record.title}</h3>
         </div>
         <div class="lf-vr-decision">
           <div class="lf-vr-review-actions">
@@ -429,25 +442,20 @@ customElements.define(
                 @change=${(event) => this.#review(record, event.currentTarget.checked)}
               />Looks right</label
             >
-            <button
-              type="button"
-              ${offered("lf-btn lf-quiet-action lf-compact-control lf-vr-feedback")}
-            >
+            <button type="button" ${offered("lf-btn lf-quiet-action lf-vr-feedback")}>
               Add feedback
             </button>
             ${
               threads.length
                 ? html`<button
                       type="button"
-                      ${offered(
-                        "lf-btn lf-quiet-action lf-compact-control lf-vr-open-threads",
-                      )}
+                      ${offered("lf-btn lf-quiet-action lf-vr-open-threads")}
                       popovertarget=${`${this.id}-${record.id}-threads`}
                     >
                       ${threads.length} ${threads.length === 1 ? "thread" : "threads"}
                     </button>
                     <div
-                      class="lf-vr-thread-list"
+                      class="lf-vr-thread-list scroll"
                       id=${`${this.id}-${record.id}-threads`}
                       popover
                     >
@@ -484,29 +492,26 @@ customElements.define(
                 : nothing
             }
           </div>
-          <button
-            type="button"
-            ${offered("lf-btn lf-quiet-action lf-compact-control lf-vr-next")}
-          >
+          <button type="button" ${offered("lf-btn lf-quiet-action lf-vr-next")}>
             Next unchecked <span aria-hidden="true">→</span>
           </button>
         </div>
         <div class="lf-vr-evidence" data-lf-reading-role="pane" data-lf-generated>
           <header>
-            <p class="lf-vr-evidence-note" data-lf-gen="1" data-lf-said>
+            <p class="lf-vr-evidence-note" ${generated({ says: true })}>
               Captured screenshots · ${record.capture.viewport.width} ×
               ${record.capture.viewport.height} · ${record.capture.browser}. Links
               inside these images are not interactive.
             </p>
             <button
               type="button"
-              ${offered("lf-btn lf-quiet-action lf-compact-control lf-vr-inspect")}
+              ${offered("lf-btn lf-quiet-action lf-vr-inspect")}
               aria-controls=${`${this.id}-${record.id}-inspection`}
             >
               Capture details
             </button>
             <div
-              class="lf-vr-details"
+              class="lf-vr-details scroll"
               id=${`${this.id}-${record.id}-inspection`}
               popover
             >
@@ -544,10 +549,7 @@ customElements.define(
                 }
                 ${
                   entry.difference
-                    ? fact(
-                        "Full-frame difference",
-                        describeDifference(entry.difference),
-                      )
+                    ? fact("Full-frame difference", entry.difference.description)
                     : nothing
                 }
               </dl>
@@ -569,8 +571,8 @@ customElements.define(
               ${ref(entry.prepare)}
             ></lf-shot>
             <div class="lf-vr-claim">
-              <p class="lf-vr-result" data-lf-gen="1" data-lf-said>${record.result}</p>
-              <p class="lf-vr-action" data-lf-gen="1" data-lf-said>
+              <p class="lf-vr-result" ${generated({ says: true })}>${record.result}</p>
+              <p class="lf-vr-action" ${generated({ says: true })}>
                 <strong>Check:</strong> ${record.action}
               </p>
             </div>
@@ -584,7 +586,7 @@ customElements.define(
         >
           <div
             class="lf-vr-threads lf-ui"
-            data-lf-gen="1"
+            ${generated({ says: false })}
             ${ref(entry.threadPlace)}
           ></div>
         </section>

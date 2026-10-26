@@ -18,8 +18,8 @@
  * is in, the tally says nothing rather than a count of an inventory it has not seen.
  *
  * With `next`, a Next on me control steps to the next obligation waiting on the user inside
- * the region (`obligationActions.next`), from where the user stands, so a press keeps
- * them standing there rather than taking focus onto the control, as the On
+ * the region (`obligationActions.next`), from where the user is, so a press keeps
+ * them there rather than taking focus onto the control, as the On
  * panel's Next on me does. It is a native button: Tab and Enter reach it, and a
  * finger taps it. Pressed by keyboard, focus is on the control outside the region, so
  * the walk counts from the obligation the user last went to there, else the first in sight,
@@ -38,6 +38,7 @@ import {
   LeafElement,
   nothing,
   offer,
+  generatedElement,
   obligationActions,
   readObligations,
   relabel,
@@ -68,7 +69,7 @@ customElements.define(
       const drawing = document.createElement("template");
       drawing.innerHTML = declarationFor(this, "x-prepaint");
       const face = /** @type {HTMLElement} */ (drawing.content.firstElementChild);
-      face.dataset.lfGen = "1";
+      generatedElement(face, { says: false });
       this.#rooms = [...face.querySelectorAll(".lf-tally-room")];
       for (const room of this.#rooms) room.replaceChildren();
       this.#words = face.querySelector(".lf-tally-words");

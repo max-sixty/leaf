@@ -23,7 +23,7 @@ from leaf.files import (
 from leaf.findings import Finding, Rejected, note
 from leaf.harness import message_identity
 from leaf.leases import contract_writer
-from leaf.obligations import asking, local_obligation_entry, quoted_in
+from leaf.obligations import local_obligation_entry, quoted_in
 from leaf.passages import SourceReading
 from leaf.projection import (
     generated_children,
@@ -31,6 +31,7 @@ from leaf.projection import (
     retirement_outcomes,
     rewritten_bodies,
 )
+from leaf.registry.contract import matches_when
 from leaf.registry.kernel import kinds_declaring
 from leaf.revision_artifact import active_enclosing, read_revision
 from leaf.service import PageTransaction, delivery_reply_attempt, same_claim
@@ -232,6 +233,7 @@ def cmd_comment(
     markup: str,
     *,
     title: str | None = None,
+    obligation: bool = False,
 ) -> dict:
     """Open a thread, as the user's own gestures do: on a passage where --quote or
     --section points at one, and on the page as a whole where neither does — the same
@@ -241,6 +243,11 @@ def cmd_comment(
     their decision retired is off the page, and a draft they edited holds their words,
     so a quote is met here the way it would land there."""
     body = checked_text(page_dir, text)
+    if markup:
+        from leaf.render_gate.command import message_check
+
+        # Apart from the page lease, since a browser run takes about a second.
+        message_check(page_dir, "comment", markup)
     with PageTransaction(page_dir) as page:
         events = page.events
         revision, anchor = current_anchor(
@@ -257,10 +264,11 @@ def cmd_comment(
         event = {
             "kind": "comment",
             "author": "agent",
-            **message_identity(),
             "revision": revision,
             "text": body,
         }
+        if obligation:
+            event["obligation"] = True
         if anchor:
             event["anchor"] = anchor
         if markup:
@@ -334,6 +342,7 @@ def post_reply(
     validate_source: bool = False,
     todo: str | None = None,
     asks_back: bool = False,
+    obligation: bool = False,
     ephemeral: bool = False,
     quote: str = "",
     section: str = "",
@@ -373,6 +382,11 @@ def post_reply(
     write.
     """
     text = checked_text(page_dir, text)
+    if markup:
+        from leaf.render_gate.command import message_check
+
+        # Apart from the page lease, since a browser run takes about a second.
+        message_check(page_dir, "reply", markup)
     posting_identity = message_identity() if identity is None else identity
     with PageTransaction(page_dir) as page:
         if claimed_session is not None:
@@ -401,10 +415,11 @@ def post_reply(
                 ephemeral,
                 failure is not None,
                 todo,
+                obligation,
             )
         ):
             return repeated
-        obligation = _resolve_obligation(
+        addressed = _resolve_obligation(
             page,
             address,
             settlement,
@@ -412,11 +427,11 @@ def post_reply(
             ephemeral,
             failure,
         )
-        if obligation is None:
+        if addressed is None:
             return None
         record, published = _compose_and_append(
             page,
-            obligation,
+            addressed,
             posting_identity,
             text,
             markup,
@@ -425,6 +440,7 @@ def post_reply(
             validate_source=validate_source,
             todo=todo,
             asks_back=asks_back,
+            explicit_obligation=obligation,
             ephemeral=ephemeral,
             quote=quote,
             section=section,
@@ -488,6 +504,7 @@ def _repeated_reply(
     ephemeral: bool,
     failed: bool,
     todo: str | None,
+    obligation: bool,
 ) -> dict | None:
     """The reply an earlier write with this `attempt` appended, or None; refuses an
     attempt that named another kind of write: progress, a failure receipt and an
@@ -511,7 +528,7 @@ def _repeated_reply(
         or not same_scope
     ):
         raise Rejected([Finding("attempt-conflict", values={"attempt": attempt})])
-    if existing.get("todo") != todo:
+    if existing.get("todo") != todo or bool(existing.get("obligation")) != obligation:
         # A repeat that promises differently would otherwise return the first
         # answer and drop what this one declares.
         raise Rejected(
@@ -631,6 +648,7 @@ def _compose_and_append(
     validate_source: bool,
     todo: str | None,
     asks_back: bool,
+    explicit_obligation: bool,
     ephemeral: bool,
     quote: str,
     section: str,
@@ -655,7 +673,9 @@ def _compose_and_append(
     }
     opening = _messages(events)[thread_id]
     moving = bool(quote or section or part)
-    if ephemeral and (todo or markup or failure or moving or detach):
+    if ephemeral and (
+        todo or explicit_obligation or markup or failure or moving or detach
+    ):
         raise Rejected([Finding("ephemeral-content")])
     if detach and moving:
         raise Rejected([Finding("detach-with-target")])
@@ -748,17 +768,22 @@ def _compose_and_append(
             publication=publication,
             thread=thread_id,
         )
-    # An answer that declares neither `--done` nor `--todo` asks the user back, so its
-    # markup holds a widget that asks.
-    if asks_back and not (
-        markup
-        and any(
-            local_obligation_entry(publication.registry.get(rec["tag"]) or {})
-            and asking(
-                rec["attrs"], publication.registry[rec["tag"]]["x-awaits"].get("when")
+    # A markup-only answer must itself request input. Explicit obligations need
+    # no widget: the message is their source.
+    if (
+        asks_back
+        and not explicit_obligation
+        and not (
+            markup
+            and any(
+                local_obligation_entry(publication.registry.get(rec["tag"]) or {})
+                and matches_when(
+                    rec["attrs"],
+                    publication.registry[rec["tag"]]["x-awaits"].get("when"),
+                )
+                and not quoted_in(rec, publication.registry)
+                for rec in fragment.lf_elements
             )
-            and not quoted_in(rec, publication.registry)
-            for rec in fragment.lf_elements
         )
     ):
         raise Rejected([Finding("undeclared-answer")])
@@ -775,6 +800,8 @@ def _compose_and_append(
             "item": in_hand,
             **({"turn": turn} if turn else {}),
         }
+    if explicit_obligation:
+        event["obligation"] = True
     if todo is not None:
         event["todo"] = todo
     if markup:
@@ -814,6 +841,13 @@ def post_response(
     destination after user settlement but yields to another successful answer.
     Explicit addressed replies commit immediately; reservations prevent competing
     provider finals and failure receipts.
+
+    Each write's retry key (`post_reply`'s `attempt`) is derived here, never given:
+    the reservation for a provider's answer and the reservation's progress line for
+    its progress, so a provider's repeat returns the first; without a reservation,
+    the reference, in disjoint namespaces for answers and failure receipts so a
+    receipt's key never stands in for a later answer's. Progress without a
+    reservation takes no key, so each line posts.
     """
     address = response_address(reference)
     if address["kind"] != "reply":
@@ -828,15 +862,14 @@ def post_response(
                 )
             ]
         )
-    attempt = options.pop("attempt", None)
-    if reservation is None and (attempt is not None or not options.get("ephemeral")):
-        # Public retry keys identify this addressed author's writes, never a
-        # provider's reservation. The disjoint namespaces prevent a progress
-        # retry key from consuming its provider final's append identity too, and
-        # a failure receipt's from standing in for a later answer's.
-        retry = reference if attempt is None else f"{reference}:{attempt}"
+    ephemeral = options.get("ephemeral", False)
+    if reservation is not None:
+        attempt = f"{reservation}-progress" if ephemeral else reservation
+    elif ephemeral:
+        attempt = None
+    else:
         namespace = "failure" if options.get("failure") is not None else "response"
-        attempt = f"leaf-{namespace}-{sha256(retry.encode()).hexdigest()}"
+        attempt = f"leaf-{namespace}-{sha256(reference.encode()).hexdigest()}"
     return post_reply(
         Path(address["page"]),
         address,
@@ -922,12 +955,14 @@ def _fail_markup_answer(
         return record_pickup(page, [update], phase="failed", failure=failure)
 
 
-def title_event(thread: str, title: str, identity: dict) -> dict:
-    """The `thread_title` event naming `thread`, in the voice of `identity`."""
+def title_event(thread: str, title: str, identity: dict | None = None) -> dict:
+    """The `thread_title` event naming `thread`, in the voice of `identity` where one
+    is given; without one, admission gives it the posting session's
+    (`event_contracts.voiced`)."""
     return {
         "kind": "thread_title",
         "author": "agent",
-        **identity,
+        **(identity or {}),
         "thread": thread,
         "title": title,
     }
@@ -959,7 +994,7 @@ def cmd_edit(
     A rename adds no turn and changes no obligation. Under one lease, the rename is
     admitted before the edit is appended, so a refused title leaves the text unedited.
     """
-    from leaf.event_contracts import admitted_event
+    from leaf.event_contracts import admitted_event, voiced
     from leaf.page_view import PageView
     from leaf.registry.storage import require_registry
 
@@ -969,14 +1004,13 @@ def cmd_edit(
         named = None
         if title is not None:
             thread = thread_named(page_dir, page.events, message)
-            named = title_event(thread, title, message_identity())
-            admitted_event(PageView(page_dir), page.events, named)
+            named = title_event(thread, title)
+            admitted_event(PageView(page_dir), page.events, voiced(named))
         records = []
         if body is not None:
             edit = {
                 "kind": "edit",
                 "author": "agent",
-                **message_identity(),
                 "message": message,
                 "text": body,
             }
@@ -1007,7 +1041,6 @@ def cmd_summarize(
             {
                 "kind": "summary",
                 "author": "agent",
-                **message_identity(),
                 "thread": thread_named(page_dir, page.events, from_message),
                 "from": from_message,
                 "through": through_message,
@@ -1028,44 +1061,6 @@ def cmd_resolve(page_dir: Path, parent: str) -> dict:
         event = {
             "kind": "resolve",
             "author": "agent",
-            **message_identity(),
             "parent": parent,
-        }
-        return append_admitted(page, event)[0]
-
-
-@contract_writer
-def cmd_report(
-    page_dir: Path,
-    widget: str,
-    verb: str,
-    fields: tuple,
-) -> dict:
-    """A worker's provisional news: a declared state change folded onto a page
-    widget, admitted the way the append door admits a user's action,
-    stamped with the posting session's voice, and made against the active revision —
-    the page the user is looking at. The runtime paints it live; it stands until
-    a stamped revision absorbs or overrules it by id (see `page stamp`), and the
-    page's watcher wakes to fold it in. Field values
-    are strings — the declared detail schemas for reports speak in attribute
-    values, which is all a report may move."""
-    from leaf.revisioning import activate_source
-
-    detail = {}
-    for field in fields:
-        name, eq, value = field.partition("=")
-        if not eq or not name:
-            raise Rejected([Finding("detail-field", values={"field": field})])
-        detail[name] = value
-    with PageTransaction(page_dir) as page:
-        activate_source(page_dir, transaction=page)
-        event = {
-            "kind": "report",
-            "author": "agent",
-            **message_identity(),
-            "widget": widget,
-            "action": verb,
-            "detail": detail,
-            "revision": require_revision(page_dir),
         }
         return append_admitted(page, event)[0]

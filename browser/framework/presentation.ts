@@ -620,37 +620,27 @@ export function createPresentationCoordinator<
   });
 }
 
-/** Epoch presenters and the one pass that paints them.
+/** Presenters claim semantic proof synchronously and draw at the publication's
+ * microtask checkpoint. Each owner names the DOM completion it reads in `after`;
+ * native Lit `updateComplete` supplies an element's completion, while imperative
+ * Lit renders commit synchronously. Registration and enqueue order confer nothing.
  *
- * Every renderer owes the same two moves — open a ticket inside the synchronous
- * publication that opened the epoch, and paint the newest value once that publication
- * has settled. A schedule starts the presenters it collected
- * in ascending `order` and repeats while painting has collected more.
+ * DOM completion is independent of semantic proof. A paint's asynchronous tail
+ * can prepare content or hold a reading without blocking dependent DOM readers.
+ * Later materialization must invalidate its DOM consumers, as any mechanical
+ * change does. The ledger alone decides which semantic revision is visible.
  *
- * Starting is all the order buys, and the guarantee is worth stating exactly: when a
- * presenter begins, every lower-ranked presenter in that round has run as far as its
- * first `await`. So a renderer may rely on the markup a lower-ranked one writes
- * synchronously, and may not rely on anything that one finishes asynchronously — a
- * widget it upgrades, a box it measures after a frame. That dependency is stated once
- * here, beside the coordinator, rather than at every site that publishes, and `passed`
- * says the page has caught up with the root it is reading, which is what a caller waits
- * for instead of naming renderers.
- *
- * The host supplies a mandatory callback binder. Each claim binds its synchronous
- * paint turn before coalescing; the host can preserve the scheduling context without
- * changing the shared pass's ordering. A returned asynchronous tail is independent.
- *
- * The pass cannot await a presenter before starting the next, and a claim cannot wait
- * for the reading it supersedes, for the same reason: a renderer may be holding its
- * reading open — on a widget that has not prepared, on a gesture the user has not
- * finished — and anything queued behind that hold would never be drawn at all. The
- * handle releases a superseded hold; a superseded paint keeps its own ticket, so the
- * coordinator still reports its failure.
+ * The callback binder preserves each claim's input context around the synchronous
+ * paint, after its DOM dependencies finish. Superseded and disconnected claims
+ * release their DOM waiters; started asynchronous paints retain their tickets so
+ * even late failures reach the coordinator. `passed` joins the whole pass's proof.
  */
 
 interface EpochPresenter<Value> {
   /** Claim this value's ticket now and paint it on the pass that follows. */
   sync(value: Value): Promise<void>;
+  /** DOM needed by dependents has committed, regardless of held semantic proof. */
+  committed(): Promise<void>;
   /** Retire this renderer: release what it holds and leave the region to its successor. */
   disconnect(): void;
 }
@@ -658,7 +648,7 @@ interface EpochPresenter<Value> {
 export function createPresentationSchedule(
   bindJob: <Result>(callback: () => Result) => () => Result,
 ) {
-  let queued: { order: number; run: () => Promise<void> }[] = [];
+  let queued: (() => Promise<void>)[] = [];
   let running: Promise<void>[] = [];
   let scheduled = false;
   let settling = false;
@@ -672,23 +662,36 @@ export function createPresentationSchedule(
     void pass.promise.catch(() => undefined);
   }
 
-  function collect(order: number, run: () => Promise<void>) {
+  function collect(
+    after: (() => readonly PromiseLike<unknown>[]) | undefined,
+    run: () => Promise<void>,
+    retired?: { ready: Promise<void>; current: () => boolean },
+  ) {
     open();
-    // Each claim belongs to its own scheduling context. The host binds it here,
-    // before several producers share the one microtask that starts this pass.
-    queued.push({ order, run: bindJob(run) });
+    // Bind the actual synchronous paint, not the wait preceding it.
+    const paint = bindJob(run);
+    queued.push(async () => {
+      let dependencies = after?.() ?? [];
+      while (dependencies.length && (!retired || retired.current())) {
+        // A failed owner leaves DOM too. Its ledger reports the failure; other
+        // owners must still draw. Retirement releases obsolete waiters immediately.
+        const settled = Promise.allSettled(dependencies);
+        await (retired ? Promise.race([settled, retired.ready]) : settled);
+        const latest = after?.() ?? [];
+        // A predecessor may have been replaced while this owner waited. Its retired
+        // promise is no evidence that the replacement DOM has committed.
+        if (latest.every((dependency) => dependencies.includes(dependency))) break;
+        dependencies = latest;
+      }
+      return paint();
+    });
     if (scheduled) return;
     scheduled = true;
     queueMicrotask(() => {
       scheduled = false;
       const round = queued;
       queued = [];
-      round.sort((left, right) => left.order - right.order);
-      // Start them in rank order, so a renderer that reads DOM another materializes runs
-      // after those writes are in the document. Nothing here waits for them: a renderer
-      // may hold its reading open on a widget that has not prepared, and a later turn's
-      // paint queued behind that hold would never reach the page at all.
-      for (const { run } of round) {
+      for (const run of round) {
         const started = run();
         void started.catch(() => undefined);
         running.push(started);
@@ -721,47 +724,63 @@ export function createPresentationSchedule(
   /** The page has caught up with the root it is reading. */
   const passed = () => pass?.promise ?? Promise.resolve();
 
-  /** Queue a renderer that already owns its claim; return only its own completion. */
-  function enqueue(order: number, run: () => void | PromiseLike<void>): Promise<void> {
+  /** Queue a native renderer, separating its scheduling return from committed DOM. */
+  function enqueue(
+    after: () => readonly PromiseLike<unknown>[],
+    run: () => void | PromiseLike<void>,
+    committed: () => PromiseLike<unknown>,
+  ) {
     const completion = Promise.withResolvers<void>();
-    collect(order, async () => {
+    const dom = Promise.withResolvers<void>();
+    collect(after, async () => {
       try {
         await run();
+        // Release Lit's scheduleUpdate before awaiting its updateComplete: Lit
+        // completes the native update only once this callback has returned.
         completion.resolve();
+        await committed();
+        dom.resolve();
       } catch (error) {
         completion.reject(error);
+        dom.reject(error);
         throw error;
       }
     });
-    return completion.promise;
+    return Object.freeze({ ready: completion.promise, committed: dom.promise });
   }
 
   function presenter<Value, Proof>({
     attach,
     paint,
     failSoft,
-    order = 0,
+    after,
   }: {
     attach: () => PresentationHandle<Value, Proof>;
     paint: (value: Value, current: () => boolean) => Proof | PromiseLike<Proof>;
     failSoft?: (reason: unknown) => Proof;
-    order?: number | (() => number);
+    after?: () => readonly PromiseLike<unknown>[];
   }): EpochPresenter<Value> {
     interface Claim {
       readonly claimed: number;
+      readonly dom: PromiseWithResolvers<void>;
       readonly value: Value;
       readonly presentation: PresentationTicket<Proof>;
     }
     let handle: PresentationHandle<Value, Proof> | null = null;
     let generation = 0;
+    let dom = Promise.withResolvers<void>();
+    dom.resolve();
 
     function claim(value: Value): Claim {
       const claimed = ++generation;
       handle ??= attach();
-      return { claimed, value, presentation: handle.present(value, failSoft) };
+      const previous = dom;
+      dom = Promise.withResolvers<void>();
+      previous.resolve();
+      return { claimed, value, dom, presentation: handle.present(value, failSoft) };
     }
 
-    async function run({ claimed, value, presentation }: Claim) {
+    async function run({ claimed, value, presentation, dom }: Claim) {
       // Superseded before it painted: the newer claim's ticket already released this one.
       if (claimed !== generation) return;
       let painted: Proof | PromiseLike<Proof>;
@@ -770,6 +789,9 @@ export function createPresentationSchedule(
       } catch (error) {
         painted = Promise.reject(error);
       }
+      // Imperative Lit rendering commits in this call. Its asynchronous tail is
+      // semantic preparation and never stands in for native DOM completion.
+      dom.resolve();
       presentation.resolve(painted);
       // The coordinator's answer is the verdict on this reading. It resolves once the
       // region has committed one, fail-soft proof included, and rejects when the failure
@@ -781,17 +803,21 @@ export function createPresentationSchedule(
       // The claim is synchronous, inside the publication that opened the epoch. Only
       // the paint waits for the pass.
       const ticket = claim(value);
-      collect(typeof order === "function" ? order() : order, () => run(ticket));
+      collect(after, () => run(ticket), {
+        ready: ticket.dom.promise,
+        current: () => ticket.claimed === generation,
+      });
       return passed();
     }
 
     function disconnect() {
       generation += 1;
+      dom.resolve();
       handle?.disconnect();
       handle = null;
     }
 
-    return Object.freeze({ sync, disconnect });
+    return Object.freeze({ sync, committed: () => dom.promise, disconnect });
   }
 
   return Object.freeze({ presenter, enqueue, passed });

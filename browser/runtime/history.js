@@ -1,8 +1,8 @@
 /* The entries this document adds to session history, and the traversals among them.
  *
  * Every same-document entry is a place the user can come Back to. `pushEntry` adds one,
- * leaving the entry the user stood on with the scroll offset the browser saves on it;
- * `replaceEntry` renames the entry the user stands on and keeps its state. A new entry
+ * leaving the entry the user was on with the scroll offset the browser saves on it;
+ * `replaceEntry` renames the entry the user is on and keeps its state. A new entry
  * starts with no state of its own, since state belongs to the entry that set it.
  * Travel prepares its outgoing checkpoint before revealing a destination and commits
  * it only after arrival succeeds. Failed or canceled routes add no return stop.
@@ -18,7 +18,7 @@
  * Chrome answers a traversal to an entry whose fragment names an element by scrolling to that element
  * instead (measured: Back to `#s2` after reading 3000px down landed on `#s2` at 666).
  * So every same-document traversal comes through here, through the Navigation API. An
- * owner that claims the destination (`claimTraversals`) places the page itself, as a
+ * owner that claims the destination (`claimTraversals`) can place the page itself, as a
  * root tab set does for the entry of each of its views. Travel takes the traversal next
  * (`mountHistory`'s `returnToFragment`, anchor-travel.js) where the entry's fragment
  * names a place the page no longer shows: the offset was saved over a page that has
@@ -31,7 +31,7 @@
  * Checkpoints hold nodes weakly: history owns the return, not the old markup.
  *
  * A fragment navigation, a followed `#id` link, is not a traversal: it adds its entry
- * and is a trip to the element it names. Travel claims it (`followFragment`) where the
+ * and is a navigation step to the element it names. Travel claims it (`followFragment`) where the
  * fragment names an element of the page, and lands it through the browser's own
  * fragment placement rule once travel has cleared and revealed the way; any other fragment
  * keeps native landing. An entry this document writes through `pushEntry` or
@@ -42,8 +42,9 @@
 import { deepFocus, drawn, focusDestination, readCaret } from "./focus.js";
 import { pageRange, selectEnds, selectionBackward } from "./passages.js";
 import { retainUserIntent } from "./user-intent.js";
-import { placeOf } from "./standing-target.js";
+import { placeOf } from "./current-target.js";
 import { upFrom } from "./shadow.js";
+import { presented } from "./geometry.js";
 import { unconcealedReadingRegions } from "./reading-regions.js";
 import { pageScroller, stopScroll } from "./scrolling.js";
 
@@ -52,7 +53,7 @@ const places = new Map();
 
 // The user's working place, read once before something borrows it: leaving an entry, or
 // stepping into the floating panel, whose place-keeping commands hand it back. `focus` is
-// the node they stood on, when the reading comes after focus has left it. Plain endpoints
+// the node they had focused, when the reading comes after focus has left it. Plain endpoints
 // keep a removed passage from being silently retargeted by a live Range. pageRange
 // shares the declared-shadow reading used for commenting; the selection's direction also
 // keeps its working end.
@@ -87,15 +88,16 @@ export function returnPlace(checkpoint) {
     const length = node?.nodeType === 3 ? node.length : node?.childNodes.length;
     return [node, Math.min(offset, length ?? offset)];
   });
-  if (focus !== document.body && drawn(focus)) {
+  if (focus !== document.body && focus?.isConnected && presented(focus)) {
     focusDestination(focus, "return", { caret });
     // A field's caret is its whole selection, and clearing the document's would
     // collapse it.
     if (caret) return;
   }
-  // A thread card may have closed on departure. Its page target is the same working
-  // place from the other side, and remains a browser focus destination on return.
-  else if (drawn(place)) focusDestination(place, "return");
+  // A thread card may have closed on departure, still painted but inert during
+  // its closing fade. Its page target is the same working place from the other
+  // side, and remains a browser focus destination on return.
+  else if (place?.isConnected && presented(place)) focusDestination(place, "return");
   else /** @type {HTMLElement | null} */ (deepFocus())?.blur();
   const selection = getSelection();
   selection.removeAllRanges();
@@ -158,8 +160,10 @@ export function prepareEntry() {
   };
 }
 
-// `claim(url)` returns the handler that places the page at a traversal to `url`, or
+// `claim(url)` returns the handler that reveals the destination of a traversal, or
 // nothing when the entry is not the claimant's. The first claim to answer takes it.
+// A handler places the viewport itself unless it resolves to false, handing placement
+// back to the entry's checkpoint (or the browser when no checkpoint was captured).
 /** @param {(url: URL) => unknown} claim @param {{signal?: AbortSignal}} [options] */
 export function claimTraversals(claim, { signal } = {}) {
   claims.add(claim);
@@ -201,9 +205,9 @@ export function mountHistory({ followFragment, returnToFragment }) {
           mayReturn.handoff(() => {
             work = handler?.();
           });
-          await work;
+          const placed = await work;
           if (!mayReturn()) return;
-          if (!handler) {
+          if (!handler || placed === false) {
             if (place)
               window.scrollTo({
                 left: place.offset[0],
@@ -218,7 +222,7 @@ export function mountHistory({ followFragment, returnToFragment }) {
       return;
     }
     // A followed link again to the fragment already shown is a `replace` with no hash
-    // change, and still a trip: its target may have been shut since.
+    // change, and still a navigation step: its target may have been shut since.
     if (writing || event.formData || !url.hash) return;
     const handler = followFragment(url);
     if (handler) event.intercept({ scroll: "manual", focusReset: "manual", handler });

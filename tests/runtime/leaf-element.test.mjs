@@ -5,6 +5,7 @@
    holds, are the browser suite's. */
 import assert from "node:assert/strict";
 import test from "node:test";
+import { signal } from "/vendor/browser-runtime.js";
 import { html, LeafElement, nothing, noChange } from "/runtime/widget-api.js";
 import { focused, focusDestination } from "/runtime/focus.js";
 import { failSoftUnreported } from "/runtime/widget-upgrade.js";
@@ -14,6 +15,9 @@ import {
   applicationRegionsPresented,
   readApplicationPresentation,
   readPart,
+  queueWidgetUpdate,
+  applicationPresenter,
+  PRESENTATION_DOM,
 } from "/runtime/semantic-state.js";
 import { clockValue, tickClock } from "/runtime/presence.js";
 import { adoptRegistry } from "/runtime/registry.js";
@@ -46,6 +50,13 @@ function probe(render) {
 const settled = async (element) => {
   await new Promise((resolve) => setTimeout(resolve, 0));
   await element.updateComplete;
+};
+
+// Whatever the element owes has drawn its DOM, without the drawing its own
+// `updateComplete` goes on to wait for.
+const committed = async (element) => {
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await Object.getPrototypeOf(LeafElement.prototype).getUpdateComplete.call(element);
 };
 
 // Whether the element's own region still waits on a draw.
@@ -148,7 +159,12 @@ test("an updated callback's follow-up keeps presentation pending through its dra
         super.updated(changed);
         if (this.name === "second") this.name = "final";
         else if (this.name === "final")
-          this.drawing(new Promise((done) => (finish = done)));
+          this.work = new Promise((done) => (finish = done));
+      }
+      async getUpdateComplete() {
+        const result = await super.getUpdateComplete();
+        await this.work;
+        return result;
       }
     },
   );
@@ -158,7 +174,7 @@ test("an updated callback's follow-up keeps presentation pending through its dra
   try {
     await settled(element);
     element.name = "second";
-    await settled(element);
+    await committed(element);
     assert.equal(element.textContent, "final");
     assert.ok(pending(element), "the follow-up's drawing still holds presentation");
     finish();
@@ -284,10 +300,18 @@ test("a render that throws shows its failure and draws again for the next move",
     if (now === "offline") throw new Error("cannot draw offline");
     return now;
   });
-  document.body.append(element);
+  const unrelated = probe(() => phase());
+  document.body.append(element, unrelated.element);
   await settled(element);
+  await settled(unrelated.element);
   applicationState.setPhase("offline");
   await settled(element);
+  await settled(unrelated.element);
+  assert.equal(
+    unrelated.element.textContent,
+    "offline",
+    "a failing owner leaves other signal views functional",
+  );
   await new Promise((resolve) => setTimeout(resolve, 0));
   assert.match(element.textContent, /failed: cannot draw offline/);
   applicationState.setPhase("waiting");
@@ -296,12 +320,15 @@ test("a render that throws shows its failure and draws again for the next move",
   assert.equal(element.textContent, "waiting");
   window.removeEventListener("error", report);
   element.remove();
+  unrelated.element.remove();
 });
 
-test("an element that reads its bound data draws each accepted reading", async () => {
+test("an element gates its draws on the delivered bound value", async () => {
   const tag = `lf-probe-data-${++tags}`;
   adoptRegistry({
-    [tag]: { "x-data": { rows: { source: "source", contract: "rows" } } },
+    [tag]: {
+      "x-data": { rows: { source: "source", contract: "rows", property: "value" } },
+    },
     $data: { contracts: { rows: { records: { items: "", key: "key" } } } },
   });
   const accept = (version, revision) =>
@@ -309,7 +336,11 @@ test("an element that reads its bound data draws each accepted reading", async (
       {
         version,
         sources: {
-          deployments: { contract: "rows", revision, value: [{ key: "api" }] },
+          deployments: {
+            contract: "rows",
+            revision,
+            value: [{ key: "api", revision }],
+          },
         },
       },
       1,
@@ -319,10 +350,13 @@ test("an element that reads its bound data draws each accepted reading", async (
   customElements.define(
     tag,
     class extends LeafElement {
+      shouldUpdate(changed) {
+        return super.shouldUpdate(changed) && this.value !== this.drawn;
+      }
       render() {
-        const reading = this.data("rows");
-        revisions.push(reading?.revision ?? null);
-        return html`${reading?.origin.source}`;
+        this.drawn = this.value;
+        revisions.push(this.value?.[0].revision ?? null);
+        return html`${this.value?.[0].key}`;
       }
     },
   );
@@ -331,10 +365,13 @@ test("an element that reads its bound data draws each accepted reading", async (
   element.setAttribute("source", "deployments");
   document.body.append(element);
   await settled(element);
+  element.requestUpdate();
+  await settled(element);
+  assert.deepEqual(revisions, ["r1"], "an unchanged value skips the draw");
   accept("second", "r2");
   await notifyDataSubscribers();
   assert.deepEqual(revisions, ["r1", "r2"]);
-  assert.equal(element.textContent, "deployments");
+  assert.equal(element.textContent, "api");
   assert.equal(document.body.getAttribute("data-lf-data-version"), "second");
   element.remove();
 });
@@ -464,7 +501,7 @@ test("a failed preparation stands beside the render root, which the next draw st
   element.remove();
 });
 
-test("a setup that throws shows its failure and the element draws nothing", async () => {
+test("a setup that throws shows its failure and the element draws nothing, a check's redraw included", async () => {
   applicationState.setPhase("waiting");
   const errors = [];
   const original = console.error;
@@ -489,6 +526,7 @@ test("a setup that throws shows its failure and the element draws nothing", asyn
   await settled(element);
   applicationState.setPhase("offline");
   await settled(element);
+  element.redraw();
   console.error = original;
   assert.deepEqual(draws, []);
   assert.match(element.textContent, /failed: cannot build/);
@@ -524,14 +562,18 @@ test("a setup that throws inside its own shadow root shows its failure there", a
 test("bound data draws only as it is delivered", async () => {
   const tag = `lf-probe-delivered-${++tags}`;
   adoptRegistry({
-    [tag]: { "x-data": { rows: { source: "source", contract: "rows" } } },
+    [tag]: {
+      "x-data": { rows: { source: "source", contract: "rows", property: "value" } },
+    },
     $data: { contracts: { rows: { records: { items: "", key: "key" } } } },
   });
   const accept = (version, revision) =>
     acceptData(
       {
         version,
-        sources: { builds: { contract: "rows", revision, value: [{ key: "api" }] } },
+        sources: {
+          builds: { contract: "rows", revision, value: [{ key: "api", revision }] },
+        },
       },
       1,
     );
@@ -542,7 +584,7 @@ test("bound data draws only as it is delivered", async () => {
     tag,
     class extends LeafElement {
       render() {
-        revisions.push(this.data("rows")?.revision ?? null);
+        revisions.push(this.value?.[0].revision ?? null);
         return html`drawn`;
       }
     },
@@ -661,7 +703,13 @@ test("a draw's claim waits for the drawing it holds it for", async () => {
       }
       updated(changed) {
         super.updated(changed);
-        if (phase() === "offline") this.drawing(new Promise((done) => (finish = done)));
+        this.work =
+          phase() === "offline" ? new Promise((done) => (finish = done)) : undefined;
+      }
+      async getUpdateComplete() {
+        const result = await super.getUpdateComplete();
+        await this.work;
+        return result;
       }
     },
   );
@@ -671,32 +719,77 @@ test("a draw's claim waits for the drawing it holds it for", async () => {
   document.body.append(element);
   await settled(element);
   applicationState.setPhase("offline");
-  await settled(element);
+  await committed(element);
   assert.ok(pending(element), "the claim waits for the drawing");
   finish();
   await settled(element);
   assert.ok(!pending(element));
-  // An update no move claimed, as a retry is, claims the region for its drawing.
+  // An update the element asks for itself, as a retry is, claims the region too.
   element.requestUpdate();
-  await settled(element);
-  assert.ok(pending(element), "the unclaimed update's drawing holds the region");
+  await committed(element);
+  assert.ok(pending(element), "the requested update's drawing holds the region");
   finish();
   await settled(element);
   assert.ok(!pending(element));
   element.remove();
 });
 
+test("the first drawing after a skipped update holds presentation until it finishes", async () => {
+  const value = signal(false);
+  let finish;
+  const tag = `lf-probe-signal-drawing-${++tags}`;
+  customElements.define(
+    tag,
+    class extends LeafElement {
+      shouldUpdate(changed) {
+        return super.shouldUpdate(changed) && value.value;
+      }
+      render() {
+        return html`${value.value}`;
+      }
+      updated(changed) {
+        super.updated(changed);
+        this.work = value.peek() ? new Promise((done) => (finish = done)) : undefined;
+      }
+      async getUpdateComplete() {
+        const result = await super.getUpdateComplete();
+        await this.work;
+        return result;
+      }
+    },
+  );
+  const element = document.createElement(tag);
+  element.id = tag;
+  document.body.append(element);
+  try {
+    await settled(element);
+    value.value = true;
+    await committed(element);
+    assert.ok(pending(element), "the signal's drawing holds the region");
+    finish();
+    await settled(element);
+    assert.ok(!pending(element));
+  } finally {
+    finish?.();
+    element.remove();
+  }
+});
+
 test("accepted data claims the element's region until its delivery draws", async () => {
   const tag = `lf-probe-claim-${++tags}`;
   adoptRegistry({
-    [tag]: { "x-data": { rows: { source: "source", contract: "rows" } } },
+    [tag]: {
+      "x-data": { rows: { source: "source", contract: "rows", property: "value" } },
+    },
     $data: { contracts: { rows: { records: { items: "", key: "key" } } } },
   });
   const accept = (version, revision) =>
     acceptData(
       {
         version,
-        sources: { jobs: { contract: "rows", revision, value: [{ key: "api" }] } },
+        sources: {
+          jobs: { contract: "rows", revision, value: [{ key: "api", revision }] },
+        },
       },
       1,
     );
@@ -706,7 +799,7 @@ test("accepted data claims the element's region until its delivery draws", async
     tag,
     class extends LeafElement {
       render() {
-        return html`${this.data("rows")?.revision}`;
+        return html`${this.value?.[0].revision}`;
       }
     },
   );
@@ -731,14 +824,18 @@ test(
   async () => {
     const tag = `lf-probe-unused-data-${++tags}`;
     adoptRegistry({
-      [tag]: { "x-data": { rows: { source: "source", contract: "rows" } } },
+      [tag]: {
+        "x-data": { rows: { source: "source", contract: "rows", property: "value" } },
+      },
       $data: { contracts: { rows: { records: { items: "", key: "key" } } } },
     });
     const accept = (version, revision) =>
       acceptData(
         {
           version,
-          sources: { jobs: { contract: "rows", revision, value: [{ key: "api" }] } },
+          sources: {
+            jobs: { contract: "rows", revision, value: [{ key: "api", revision }] },
+          },
         },
         1,
       );
@@ -749,7 +846,7 @@ test(
       class extends LeafElement {
         showData = true;
         render() {
-          return html`${this.showData ? this.data("rows")?.revision : "Hidden"}`;
+          return html`${this.showData ? this.value?.[0].revision : "Hidden"}`;
         }
       },
     );
@@ -774,3 +871,59 @@ test(
     }
   },
 );
+
+test("document consumers wait for native Lit follow-up DOM, not held drawing", async () => {
+  const held = Promise.withResolvers();
+  const tag = `lf-probe-native-completion-${++tags}`;
+  customElements.define(
+    tag,
+    class extends LeafElement {
+      static properties = { value: {} };
+      constructor() {
+        super();
+        this.value = "initial";
+      }
+      scheduleUpdate() {
+        return queueWidgetUpdate(
+          this.id,
+          () => super.scheduleUpdate(),
+          () => super.getUpdateComplete(),
+        );
+      }
+      render() {
+        return html`<p>${this.value}</p>`;
+      }
+      updated(changed) {
+        super.updated(changed);
+        if (this.value === "intermediate") this.value = "final";
+        if (this.value === "final") this.work = held.promise;
+      }
+      async getUpdateComplete() {
+        const result = await super.getUpdateComplete();
+        await this.work;
+        return result;
+      }
+    },
+  );
+  const element = document.createElement(tag);
+  element.id = tag;
+  document.body.append(element);
+  await settled(element);
+  const seen = [];
+  const consumer = applicationPresenter({
+    region: "native-completion-consumer",
+    reading: () => true,
+    after: PRESENTATION_DOM.widgets,
+    paint: () => seen.push(element.textContent),
+  });
+  element.value = "intermediate";
+  const ready = consumer.present();
+  await ready;
+  assert.deepEqual(seen, ["final"]);
+  assert.ok(pending(element), "DOM completion does not certify held semantic drawing");
+  held.resolve();
+  await settled(element);
+  assert.ok(!pending(element));
+  consumer.disconnect();
+  element.remove();
+});

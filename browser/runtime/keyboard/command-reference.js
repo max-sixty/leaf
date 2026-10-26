@@ -17,7 +17,7 @@
    stay with this controller. Modal entry follows the platform contract rather than
    rebuilding the popovers it dismisses.
 
-   Every row wears one face, whether or not it can run from where the user stands. Its
+   Every row wears one face, whether or not it can run from where the user is. Its
    section heading already says where it applies, and pressing one that cannot run says
    so in the meta line; muting those rows put most of a page's catalog in a second face
    that read as a different font beside the first.
@@ -36,7 +36,7 @@
 
    `?` opens it from anywhere a key reaches, and the page's controls carry the same
    door as their Keyboard shortcuts row (page-controls.js), for a pointer. That row
-   opens it from where the user stood before pressing it, and Escape returns to the row's
+   opens it from where the user was before pressing it, and Escape returns to the row's
    door. */
 import {
   showNativeLayer,
@@ -79,7 +79,7 @@ import {
   openLayer,
   openerOf,
   rove,
-  standingIn,
+  currentLocationIn,
   deepFocus,
 } from "../focus.js";
 import { closeControl, searchField } from "../widget-elements.js";
@@ -655,20 +655,22 @@ function commandEntryTemplate(entry, promoted = false, shown = true) {
   const scope = promoted
     ? html`<span class="lf-command-reference-scope">${entry.sectionTitle}</span>`
     : nothing;
-  // Whitespace in this cell is observable to accessibility and command consumers.
+  // Whitespace in these cells is observable to accessibility and command consumers.
   // prettier-ignore
-  const actionBody = html`<div class="lf-command-reference-action"><div class="lf-command-reference-action-main">${action}${scope}</div>${entry.description ? html`<span id=${entry.descriptionId} class="lf-command-reference-description">${entry.description}</span>` : nothing}</div>`;
-  const actionCell = html`<td role="gridcell">${actionBody}</td>`;
+  const actionCell = html`<div role="gridcell" class="lf-command-reference-action">${action}${scope}</div>`;
+  // prettier-ignore
+  const descriptionCell = entry.description ? html`<div role="gridcell" id=${entry.descriptionId} class="lf-command-reference-description">${entry.description}</div>` : nothing;
   return html`
-    <tr
+    <div
       id=${entry.rowId}
       role="row"
-      class=${entry.sequenceControl ? "lf-sequence-command" : ""}
+      class=${`lf-command-reference-row${entry.sequenceControl ? " lf-sequence-command" : ""}`}
       data-lf-command=${entry.id}
       aria-selected=${entry.actionable ? String(selected) : nothing}
       ?hidden=${!shown}
     >
-      <td role="gridcell">
+      ${actionCell}
+      <div role="gridcell" class="lf-command-reference-key">
         ${
           entry.keySequence
             ? keySequenceTemplate(entry.keySequence, {
@@ -677,18 +679,18 @@ function commandEntryTemplate(entry, promoted = false, shown = true) {
               })
             : nothing
         }
-      </td>
-      ${actionCell}
-    </tr>
+      </div>
+      ${descriptionCell}
+    </div>
   `;
 }
 
 const headingRow = (id, title, hidden = false) => html`
-  <tbody ?hidden=${hidden}>
-    <tr role="row">
-      <th role="gridcell" colspan="2"><h3 class="lf-label" id=${id}>${title}</h3></th>
-    </tr>
-  </tbody>
+  <div role="rowgroup" ?hidden=${hidden}>
+    <div role="row">
+      <div role="gridcell"><h3 class="lf-label" id=${id}>${title}</h3></div>
+    </div>
+  </div>
 `;
 
 const commandReferenceItems = () => {
@@ -748,7 +750,7 @@ const commandReferenceItems = () => {
 
 function commandReferenceItemTemplate(item) {
   if (item.kind === "heading") return headingRow(item.id, item.title, item.hidden);
-  return html`<tbody
+  return html`<div
     role="rowgroup"
     aria-labelledby=${
       item.promoted ? "lf-command-reference-binding-matches" : item.entry.sectionId
@@ -757,7 +759,7 @@ function commandReferenceItemTemplate(item) {
     ?hidden=${item.hidden}
   >
     ${commandEntryTemplate(item.entry, item.promoted, !item.hidden)}
-  </tbody>`;
+  </div>`;
 }
 
 function commandReferenceTemplate() {
@@ -804,13 +806,7 @@ function commandReferenceTemplate() {
       role="grid"
       aria-label="Command reference"
     >
-      <table role="presentation">
-        <colgroup>
-          <col class="lf-command-reference-key-column" />
-          <col />
-        </colgroup>
-        ${repeat(items, (item) => item.key, commandReferenceItemTemplate)}
-      </table>
+      ${repeat(items, (item) => item.key, commandReferenceItemTemplate)}
       <div role="row" ?hidden=${commandReferenceView.shown !== 0}>
         <div class="lf-command-reference-empty" role="gridcell">
           No matching commands
@@ -871,13 +867,14 @@ function showCommandReference(open, restoreFocus, invokeCommand, returnTo) {
   // Focusing a text input replaces the document selection. Keep a passage the user has
   // in hand and focus Close instead; an ordinary opening lands directly in search.
   const preserveSelection = fresh && Boolean(pageSelection());
-  const handingBack = !open && restoreFocus && standingIn(commandReferenceDialog);
+  const handingBack =
+    !open && restoreFocus && currentLocationIn(commandReferenceDialog);
   const restore = handingBack ? commandReferenceReturn : null;
   if (fresh) {
     commandReferenceInvoke = invokeCommand;
     dismissPopoversOutside(commandReferenceDialog);
     // The origin is read off the scene the reference leaves behind: hiding a popover
-    // hands focus back to where the user stood when it opened, and that is the place
+    // hands focus back to where the user was when it opened, and that is the place
     // the reference owes them. A control, or nothing: a user working from the page
     // stands on `body`, which is not a place to be given back — focusing it resets the
     // browser's sequential focus navigation starting point to the top of the document,
@@ -931,7 +928,7 @@ function showCommandReference(open, restoreFocus, invokeCommand, returnTo) {
     closeLayer(
       () => {
         if (commandReferenceDialog.open) closeNativeLayer(commandReferenceDialog);
-        if (standingIn(commandReferenceDialog))
+        if (currentLocationIn(commandReferenceDialog))
           /** @type {HTMLElement | null} */ (deepFocus())?.blur();
         repaint();
       },
@@ -988,7 +985,7 @@ function moveCommandReferenceSelection(dir) {
   presentCommandReference();
   const next = commandButton(nextId);
   if (focusedId) focusDestination(next, "move");
-  scrollIntoView(next.closest("tr"), { block: "nearest" });
+  scrollIntoView(next.closest('[role="row"]'), { block: "nearest" });
   beginWalk("shortcut-command", "Command", () => {
     const current = focusedCommandId() ?? commandReferenceState.selectedCommandId;
     return listWalkPosition(
@@ -1012,12 +1009,12 @@ function activateSelectedCommand() {
   return true;
 }
 
-export const commandReferenceOpen = () => commandReferenceIsOpen;
+const commandReferenceOpen = () => commandReferenceIsOpen;
 // The opening command supplies the action chosen from this particular reference. The
 // rendered catalog retains only ids and sends one back through that injected authority.
 const openCommandReference = (invokeCommand, returnTo = null) =>
   showCommandReference(true, true, invokeCommand, returnTo);
-export const closeCommandReference = (restoreFocus = true) =>
+const closeCommandReference = (restoreFocus = true) =>
   showCommandReference(false, restoreFocus, null, null);
 
 // The dialog's own keys. It is a modal search context and claims the whole keyboard while
@@ -1037,6 +1034,7 @@ pageScope("command reference", {
       keys: ["ArrowDown"],
       title: "choose next",
       repeat: true,
+      travels: true,
       runFromCommandReference: false,
       // The list is built before search receives focus, so physical liveness is false at
       // that instant even though the reference always lists this instruction.
@@ -1050,6 +1048,7 @@ pageScope("command reference", {
       keys: ["ArrowUp"],
       title: "choose previous",
       repeat: true,
+      travels: true,
       runFromCommandReference: false,
       commandReferenceWhen: () => true,
       when: () => commandReferenceCommandActive(),
@@ -1098,7 +1097,7 @@ pageCommand({
   run: () => openReference(),
 });
 // The row's press stands where the user pressed it, such as the floating panel's leaf,
-// and is handed the place they stood before stepping in. The reference opens from that
+// and is handed the location they had before stepping in. The reference opens from that
 // place, so its commands act there, as `?` pressed there would; closing it unrun returns
 // to the control that opened it.
 registerPageControl({

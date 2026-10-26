@@ -2,10 +2,10 @@
 
    `registerReadingRegion` binds one stable id to a host and body. The host makes focus
    in a pane's header or footer select that pane; the body is the region's scroller
-   whenever the stylesheet makes it scroll, which is the only reading of posture there
+   whenever the stylesheet makes it scroll, which is the only reading of scroll behavior there
    is: a bounded region's body scrolls, and a flowing one's is carried by the region
    containing it or by the page. CSS decides that from the space a workspace has
-   (layouts.css, the workspace Layout), so nothing here chooses a posture.
+   (layouts.css, the workspace Layout), so nothing here chooses a scroll behavior.
 
    Every box Leaf makes scroll vertically is a region, so every question that names the
    box scrolling a node (`scrollerFor`, and `scrollersOf` for the boxes around it) gets
@@ -55,7 +55,7 @@ import { pageScroller } from "./scrolling.js";
 import { reachReadingScroller } from "./reach.js";
 import { under, renderedUnder, renderedParent } from "./shadow.js";
 import { layoutBox, pageDocument } from "./passages.js";
-import { deepFocus, onStanding, pressing } from "./focus.js";
+import { deepFocus, onCurrentLocation, pressing } from "./focus.js";
 
 const regions = new Map();
 const transitionWatchers = new Set();
@@ -125,13 +125,14 @@ export function registerReadingRegion({
 
 // The boxes a page's Layout makes scroll, which no widget owns: the workspace's body,
 // which scrolls as a whole where a pane in it does not bound itself, a column page's
-// sidebar standing in the margin, and the one block a sidebar page's track holds, which
-// scrolls while it stands beside the body (layouts.css). The stylesheet marks each one
+// sidebar standing in the margin, and the box a sidebar page's track holds its blocks in
+// (prepaint.js, `holdTrack`), which scrolls while it stands beside the body
+// (layouts.css). The stylesheet marks each one
 // (`--lf-reading-region: layout`): a child of `main`, or the only child of one that is
 // not itself marked. Each is registered like any other region, so what it holds is
-// carried by it rather than by the page, and its posture is read from whether it
+// carried by it rather than by the page, and its scroll behavior is read from whether it
 // scrolls. Its id is the authored id of the box or, for an only child, of the child of
-// `main` holding it, as a sidebar's `aside` names the block it holds, so a neighbour's
+// `main` holding it, as a sidebar page's `aside` names that box, so a neighbour's
 // arrival or removal never renames it; an unnamed one takes its place among the unnamed
 // ones, in a namespace of its own. Chrome layout asks on every pass, since a revision can
 // replace `main`'s children and a resize can change which of them the stylesheet marks.
@@ -221,7 +222,7 @@ export const readingRegionFor = (node) => {
 // (`releaseFocus`) or a press on nothing puts the user. Anything in the chrome names
 // nothing new, so opening a menu leaves the pane the user was reading as the answer.
 // A key press is not among them: its target is where focus already stands, which
-// arrived as a change where the user stands (focus.js, `onStanding`), or the body,
+// arrived as a change where the user is (focus.js, `onCurrentLocation`), or the body,
 // which is where a click on words leaves it.
 //
 // The page's own answer is kept apart from a surface's. A region in the chrome, such as
@@ -262,7 +263,7 @@ for (const type of ["pointerdown", "wheel", "touchstart", "click"])
     { capture: true, passive: true },
   );
 // An arrival, by whatever route, a move inside a widget's shadow tree included.
-onStanding((node, cause) => {
+onCurrentLocation((node, cause) => {
   if (node) actedAt(node, true);
   if (node && cause === "step") readingInput(node);
 });
@@ -305,7 +306,7 @@ const asRegion = (regionOrNode) =>
 const scrolls = (box) => userScrollport(getComputedStyle(box).overflowY);
 
 // "bounded" when the region's own body scrolls, "flow" when something outside it does.
-export const readingPosture = (regionOrNode) => {
+export const regionScrollBehavior = (regionOrNode) => {
   const region = asRegion(regionOrNode);
   return region && live(region) && scrolls(region.body) ? "bounded" : "flow";
 };
@@ -313,7 +314,7 @@ export const readingPosture = (regionOrNode) => {
 export function effectiveScroller(regionOrNode) {
   const region = asRegion(regionOrNode);
   if (!region) return pageScroller;
-  if (readingPosture(region) === "bounded") return region.body;
+  if (regionScrollBehavior(region) === "bounded") return region.body;
   const containing = [...regions.values()]
     .filter(
       (candidate) =>

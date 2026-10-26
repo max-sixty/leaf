@@ -655,7 +655,7 @@ def page_reading(
 ) -> PageReading:
     """Read one page's markup and log window through one construction.
 
-    Document inspection and the passage readings used by `leaf thread open` and
+    Document inspection and the passage readings used by `leaf thread create` and
     `page check` share declarations, floors, and the log window. The document's
     own reading (`SourceReading`) travels with the projection for callers that need
     its authored construction; a stored revision's is held across reads, so only

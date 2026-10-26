@@ -21,7 +21,7 @@ import { clamp, overlaps, overlapsAcross } from "../rect.js";
 // pin instead: the figure keeps its shape and the comment lands on what it is about. A
 // note hanging in the right margin level with the row holds the rail's strip there, so
 // that row pins too (`noted`).
-export function rowPosture({
+export function rowPlacement({
   railStands,
   besideRail,
   blockRight,

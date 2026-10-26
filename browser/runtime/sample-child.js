@@ -2,7 +2,12 @@
  * port; documents, DOM nodes, functions and browser owners remain in this realm.
  * `ready` announces the usable, upgraded interface, independently of saved state.
  * Commands that need history wait at their owning child capability. */
-import { canPlaceFocus, focusDestination, onStanding, onUserInput } from "./focus.js";
+import {
+  canPlaceFocus,
+  focusDestination,
+  onCurrentLocation,
+  onUserInput,
+} from "./focus.js";
 import { pagePresented, pageUpgraded } from "./page-paint.js";
 import { whenArrived, whenArriving } from "./presentation.js";
 import { afterSettling, sizeObserver } from "./rendering.js";
@@ -45,10 +50,12 @@ if (child) {
   let height = null;
   // A parent cannot inspect focus in this opaque document. Report whether a
   // control holds it, and retain its node while a parent control borrows focus.
-  let standing = null;
-  onStanding((node) => {
-    if (node && node !== document.body) standing = node;
-    sampleNotice("standing", { focused: Boolean(node && node !== document.body) });
+  let currentLocation = null;
+  onCurrentLocation((node) => {
+    if (node && node !== document.body) currentLocation = node;
+    sampleNotice("current-location", {
+      focused: Boolean(node && node !== document.body),
+    });
   });
   // The reader's own input here, a press, a key or a wheel, is theirs to move the
   // frame with, so the containing page applies a size it held while they read. So is
@@ -64,13 +71,13 @@ if (child) {
     if (!event.isTrusted || event.type === "blur") return;
     gestures++;
     afterSettling(() => gestures--);
-    sampleNotice("input");
+    sampleNotice("input", { type: event.type });
   };
   onUserInput(input);
   window.addEventListener("click", input, { capture: true, passive: true });
-  registerSampleCommand("restore-standing", () => {
-    if (!standing?.isConnected || !canPlaceFocus()) return false;
-    focusDestination(standing, "return");
+  registerSampleCommand("restore-current-location", () => {
+    if (!currentLocation?.isConnected || !canPlaceFocus()) return false;
+    focusDestination(currentLocation, "return");
     return document.hasFocus();
   });
   const measure = () => {

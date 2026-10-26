@@ -10,12 +10,12 @@ import {
   arrivals,
   packRows,
   pinSpot,
-  rowPosture,
+  rowPlacement,
   seatRows,
 } from "/runtime/annotation-overlay/margin-placement.js";
 
 const posture = (blockRight, over = {}) =>
-  rowPosture({
+  rowPlacement({
     railStands: true,
     besideRail: true,
     blockRight,

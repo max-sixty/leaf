@@ -590,12 +590,14 @@
           // came back reported while every pixel of it was the accent's own. Asked where
           // the two boxes meet, since that is the only place hit testing can order them,
           // and only when both answer there — a point some third box owns says nothing
-          // about these two.
+          // about these two. Hit testing answers a control inside a shadow root with its
+          // host, as it does a code block's Copy, whose ring is its shadow button's, so
+          // the control's place in the stack is the first box that is it or holds it.
           const meetX = [Math.max(o.left, b.left), Math.min(o.right, b.right)];
           const meetY = [Math.max(o.top, b.top), Math.min(o.bottom, b.bottom)];
           if (meetX[0] <= meetX[1] && meetY[0] <= meetY[1]) {
             const stack = document.elementsFromPoint(mid(...meetX), mid(...meetY));
-            const control = stack.indexOf(el);
+            const control = stack.findIndex((n) => n === el || holds(n, el));
             const covering = stack.indexOf(over);
             if (control >= 0 && covering >= 0 && control < covering) break;
           }
@@ -721,6 +723,11 @@
         if (ringed(getComputedStyle(child))) carriers.push([child, null]);
         overlaid(child);
       }
+    // A diff's scroller gives its ring to the following frame so its rows cannot
+    // paint over the band. The frame is outside the focused node's ancestry.
+    const frame = e.nextElementSibling;
+    if (frame?.matches(".lf-diff-frame") && ringed(getComputedStyle(frame)))
+      carriers.push([frame, null]);
     for (let el = flatParent(e); el; el = flatParent(el)) {
       const up = getComputedStyle(el);
       if (up.outlineStyle === "auto") return null;

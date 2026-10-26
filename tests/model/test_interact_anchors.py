@@ -46,7 +46,7 @@ def undelivered(page_dir, input_id: str) -> str:
     this session has not claimed: no reference exists yet, so it names the wait that
     delivers one, after the claim that wait's receipt needs."""
     return (
-        "`leaf response reply <answer.ref>` with the `answer.ref` that "
+        "`leaf thread reply <answer.ref>` with the `answer.ref` that "
         f"`leaf wait {page_dir}` delivers for {input_id} (`leaf page claim "
         f"{page_dir}` first, since this session does not hold the page)"
     )
@@ -135,10 +135,6 @@ def test_detached_capture_remains_detached_when_an_identical_copy_survives(page_
     passages = passages_model.page_passages(structure_model.SourceDocument(revised))
     assert resolve_quote(passages, anchor) is None
     assert resolve_quote(passages, exact["anchor"]) is not None
-    from leaf.transcript import _thread_heading
-
-    assert "passage not identified" in _thread_heading(threads[detached["id"]])
-    assert "passage not identified" not in _thread_heading(threads[exact["id"]])
 
 
 def test_comment_anchors_on_a_quote_and_posts_as_agent(page_dir, sessionless):
@@ -291,7 +287,7 @@ def test_a_section_handed_a_message_id_is_sent_to_the_option_that_takes_one(page
 
 def test_a_section_handed_a_message_owed_nothing_is_sent_to_its_thread(page_dir):
     """A message the log owes nothing still names its thread to `leaf thread reply`.
-    Proactive replies name PAGE THREAD when nothing is owed; the diagnostic
+    Proactive replies name PAGE MESSAGE when nothing is owed; the diagnostic
     must provide a route the writer can take."""
     own = json.loads(
         comment(published(page_dir), "--quote", "Ship dark", "--text", "note").output
@@ -341,7 +337,7 @@ def test_a_message_whose_thread_owes_a_reply_is_sent_to_its_delivery_reference(
     answered = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, asked["id"]),
@@ -355,7 +351,7 @@ def test_a_message_whose_thread_owes_a_reply_is_sent_to_its_delivery_reference(
 def test_a_section_handed_a_settled_move_is_told_nothing_is_owed(page_dir):
     """A route is only worth naming where the writer it names takes the value. What a
     writer takes is what the log still owes, not the event's kind: a resolve is owed
-    nothing, so sending the agent to a response command hands it a second refusal with no
+    nothing, so sending the agent to an addressed reply hands it a second refusal with no
     route at all."""
     root = append_carried_log_record(
         published(page_dir),
@@ -390,7 +386,7 @@ def test_a_reply_refused_after_user_resolution_names_the_resolution(page_dir):
 
     refused = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", "--done", reference, "--text", "I checked it."],
+        ["thread", "reply", "--done", reference, "--text", "I checked it."],
     )
 
     assert refused.exit_code != 0
@@ -421,7 +417,7 @@ def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
     answered = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, "c1"),
@@ -451,7 +447,7 @@ def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
     mistaken = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, pressed["id"]),
@@ -1058,7 +1054,7 @@ def test_a_reply_refuses_to_change_a_held_command_goal_anchor(page_dir):
     moved = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, root["id"]),
@@ -1075,7 +1071,7 @@ def test_a_reply_refuses_to_change_a_held_command_goal_anchor(page_dir):
     detached = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, root["id"]),
@@ -1129,7 +1125,7 @@ def test_a_verbatim_body_is_quotable_where_a_source_body_is_not(page_dir):
 def test_an_edited_draft_reads_as_the_users_words(page_dir, formatted):
     """An `edit` is absolute — the log carries the whole new body, and replay writes
     exactly that into the DOM the anchor pass searches — so the reading
-    `leaf thread open` captures against holds the user's words in the authored
+    `leaf thread create` captures against holds the user's words in the authored
     body's place: quotable, collapsed like any passage, genuinely adjacent to the
     prose around them (no fence — the screen shows that adjacency too)."""
     drafted(page_dir)
@@ -1530,7 +1526,7 @@ def test_resolve_closes_a_thread_the_way_the_panel_does(page_dir, monkeypatch):
         .invoke(
             cli_model.cli,
             [
-                "response",
+                "thread",
                 "reply",
                 "--done",
                 response_reference(page_dir, root["id"]),
@@ -1554,11 +1550,6 @@ def test_resolve_closes_a_thread_the_way_the_panel_does(page_dir, monkeypatch):
     threads = state_json(page_dir)["threads"]
     assert [t["resolved"] for t in threads] == ["agent"]
 
-    transcript = CliRunner().invoke(
-        cli_model.cli, ["page", "transcript", str(page_dir)]
-    )
-    assert "resolved by Indexer" in transcript.output
-
 
 def test_resolve_refuses_a_message_the_log_has_not_got(page_dir):
     """The parent rule is the reply door's, so a thread can't be closed by naming
@@ -1569,7 +1560,7 @@ def test_resolve_refuses_a_message_the_log_has_not_got(page_dir):
 
 def test_unresolve_reopens_a_thread_in_agent_readings(page_dir):
     """The agent-side fold reads the inverse transition from the same log as the
-    browser, so page state and the transcript both show the thread open again."""
+    browser, so page state shows the thread open again."""
     published(page_dir)
     root = append_carried_log_record(
         page_dir,
@@ -1594,10 +1585,6 @@ def test_unresolve_reopens_a_thread_in_agent_readings(page_dir):
         resolved["id"],
         reopened["id"],
     ]
-    transcript = CliRunner().invoke(
-        cli_model.cli, ["page", "transcript", str(page_dir)]
-    )
-    assert "— resolved" not in transcript.output
 
 
 def test_a_closed_thread_stops_asking(page_dir):
@@ -1719,7 +1706,7 @@ def test_native_message_markup_shares_admission_and_id_ownership(page_dir):
     answered = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, user),
@@ -1888,7 +1875,7 @@ def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):
     clash = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, "c1"),
@@ -1903,7 +1890,7 @@ def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):
     plain_clash = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, "c1"),

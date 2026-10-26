@@ -36,9 +36,8 @@ def compose_page_registry(
 
     ``validated`` is a vocabulary already validated, such as the active revision's:
     a composition equal to it is not validated again. A composition that is
-    validated gets its `$decisions` and `$states` stamped
-    (`registry.layer.stamp_composition`); one equal to ``validated`` already carries
-    them.
+    validated is stamped (`registry.layer.stamp_composition`) before its examples
+    are; one equal to ``validated`` already is.
 
     ``widget_paths`` contains available page-root-relative file names, including
     ``widgets/<tag>.js`` from the layer and ``page/widgets/<tag>.js`` from the
@@ -53,6 +52,8 @@ def compose_page_registry(
     merge_layer_declarations(registry, deepcopy(page_declarations))
     if registry != validated:
         validate_registry(registry, source)
+        # Examples validate against the vocabulary as pages read it, stamped.
+        stamp_composition(registry)
 
         # Example validation consumes source/instance readers which themselves load
         # page registries. Import it after those owners have finished initializing.
@@ -60,7 +61,6 @@ def compose_page_registry(
 
         if page_declarations:
             validate_registry_examples(registry, source)
-        stamp_composition(registry)
     declaration_sources = {
         f"$data.contracts.{name}": (
             "page"

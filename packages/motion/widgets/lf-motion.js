@@ -24,7 +24,6 @@ import {
   onUserInput,
   keeps,
   keepsText,
-  relabel,
   paintKeys,
   tabStore,
   raiseError,
@@ -89,16 +88,6 @@ customElements.define(
           control: this.#ui.play,
           when: () => this.#playable,
           run: () => this.#toggle(),
-        },
-        {
-          id: "motion.replay",
-          title: "Replay from the beginning",
-          control: this.#ui.replay,
-          when: () => this.#playable,
-          run: () => {
-            this.currentTime = 0;
-            this.#toggle();
-          },
         },
       ]);
       whileConnected(this, (signal) => {
@@ -253,7 +242,7 @@ customElements.define(
       const label = this.#playLabel();
       if (this.#label !== label) {
         this.#label = label;
-        relabel(this.#ui.playLabel, label, { says: false });
+        this.#ui.paintPlay(label, this.#playing);
         paintKeys();
       }
     }

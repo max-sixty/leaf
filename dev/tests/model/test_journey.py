@@ -25,6 +25,8 @@ from leaf_dev.reply_phases import (
 )
 from leaf_dev.review_scenario import SLEEP
 
+from leaf import harness
+from leaf.hook_transport import INLINE_OPENING
 from leaf.interaction_log import read_interactions
 
 
@@ -310,7 +312,8 @@ def test_claude_codes_transcript_gives_tool_and_turn_records(tmp_path):
             "type": "user",
             "timestamp": at(1),
             "turnPosition": {"promptIndex": 1, "turnIndex": 1},
-            "message": {"content": "Serve it."},
+            # Claude Code writes U+2028 raw inside a string.
+            "message": {"content": "Serve\u2028it."},
         },
         {"type": "attachment", "timestamp": at(1.5), "attachment": {}},
         {
@@ -334,13 +337,18 @@ def test_claude_codes_transcript_gives_tool_and_turn_records(tmp_path):
             "message": {"content": "Summary."},
         },
     ]
-    path.write_text("".join(json.dumps(line) + "\n" for line in lines))
+    # Claude Code is still writing the last record, which is no record yet; its
+    # bytes so far can end inside a character.
+    path.write_bytes(
+        "".join(json.dumps(line, ensure_ascii=False) + "\n" for line in lines).encode()
+        + '{"type": "assistant", "text": "é'.encode()[:-1]
+    )
     native = journey_claude_code.native_records(tmp_path, session)
     assert claude_code_records(native) == [
         {"type": "turn_start", "received_at": at(1)},
         {
             "type": "user",
-            "message": {"content": [{"type": "text", "text": "Serve it."}]},
+            "message": {"content": [{"type": "text", "text": "Serve\u2028it."}]},
             "received_at": at(1),
         },
         {
@@ -360,6 +368,73 @@ def test_claude_codes_transcript_gives_tool_and_turn_records(tmp_path):
             "received_at": at(4),
         },
     ]
+
+
+def test_the_journey_reads_claude_codes_status_as_it_is_now(tmp_path, monkeypatch):
+    """Claude Code rewrites its registry record in place, which Leaf's reused
+    listing doesn't notice within its time bucket; the journey's reading sees the
+    rewrite at once, as a step that presses Escape and waits for the next turn
+    needs."""
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path))
+    (tmp_path / "sessions").mkdir()
+    record = tmp_path / "sessions" / f"{os.getpid()}.json"
+    # Leaf's listing reads within one time bucket throughout.
+    monkeypatch.setattr(harness.time, "monotonic", lambda: 0.0)
+
+    def write(status: str, at: int) -> None:
+        with record.open("w") as written:
+            written.write(
+                json.dumps(
+                    {
+                        "pid": os.getpid(),
+                        "sessionId": "s",
+                        "status": status,
+                        "statusUpdatedAt": at,
+                    }
+                )
+            )
+
+    cc = journey_claude_code.ClaudeCode.__new__(journey_claude_code.ClaudeCode)
+    cc.session = "s"
+    write("idle", 1)
+    assert (
+        harness.ClaudeCodeHarness(session="s", agent="Claude").live_turn()["state"]
+        == "idle"
+    )
+    assert cc.idle()
+    write("busy", 2)
+    assert (
+        harness.ClaudeCodeHarness(session="s", agent="Claude").live_turn()["state"]
+        == "idle"
+    )
+    assert cc.state() == "busy"
+
+
+def test_a_delivered_update_waits_for_the_turn_it_opened_to_end():
+    """The journey waits for the turn a delivery reached to end in the transcript;
+    a turn that ended before the delivery doesn't count. Waiting on Claude Code's
+    idle instead read the idle an Escape wrote before the delivery's turn started,
+    and found the page's claim holding that running turn open."""
+    delivery = {
+        "format": "leaf-delivery/15",
+        "batches": [{"events": [{"kind": "resolve", "id": "f4a21046"}]}],
+    }
+    records = [
+        {"type": "system", "subtype": "turn_duration"},
+        {"type": "user", "message": {"content": "<task-notification>"}},
+        {
+            "type": "attachment",
+            "attachment": {
+                "type": "hook_additional_context",
+                "hookEvent": "UserPromptSubmit",
+                "content": [INLINE_OPENING + "\n" + json.dumps(delivery)],
+            },
+        },
+    ]
+    assert not journey_claude_code.delivery_ended(records, "f4a21046")
+    records.append({"type": "system", "subtype": "turn_duration"})
+    assert journey_claude_code.delivery_ended(records, "f4a21046")
+    assert not journey_claude_code.delivery_ended(records, "a-comment-never-sent")
 
 
 def test_a_comment_picked_up_while_a_call_is_out_starts_in_that_tool_phase():
@@ -438,7 +513,7 @@ def test_a_reply_taken_while_working_splits_into_leaf_share_and_model_calls():
         responded(9.35),
         result(10, "d"),
         responded(12),
-        use(12, "e", "leaf response reply c1"),
+        use(12, "e", "leaf thread reply c1"),
     ]
 
     def ran(started: float, ended: float) -> dict:
@@ -475,7 +550,7 @@ def test_a_reply_taken_while_working_splits_into_leaf_share_and_model_calls():
         "modelCalls": [
             {"ms": 1800, "calls": ["leaf task start . c1", "cat index.html"]},
             {"ms": 1700, "calls": ["Edit", "/x/bin/leaf page check ."]},
-            {"ms": 2000, "calls": ["leaf response reply c1"]},
+            {"ms": 2000, "calls": ["leaf thread reply c1"]},
         ],
     }
     assert [phase["phase"] for phase in reply["phases"][:3]] == [
@@ -598,13 +673,13 @@ def test_a_reply_is_attributed_to_leaf_the_harness_and_the_models_wait_and_outpu
 
     records = [
         {"type": "turn_start", "received_at": at(0.5)},
-        use(4, "a", "leaf response reply c1 --ephemeral"),
+        use(4, "a", "leaf thread reply c1 --ephemeral"),
         responded(4, 200),
         result(4.5, "a"),
         use(7, "b", "Edit"),
         responded(7, 300),
         result(7.05, "b"),
-        use(10, "c", "leaf response reply c1 --done"),
+        use(10, "c", "leaf thread reply c1 --done"),
         responded(10, 150),
         *claude_code_debug_records(log),
     ]
@@ -636,7 +711,7 @@ def test_a_reply_is_attributed_to_leaf_the_harness_and_the_models_wait_and_outpu
                 "waitMs": 1000,
                 "generationMs": 2400,
                 "outputTokens": 200,
-                "calls": ["leaf response reply c1 --ephemeral"],
+                "calls": ["leaf thread reply c1 --ephemeral"],
             },
             {"ms": 2500, "harnessMs": 100, "outputTokens": 300, "calls": ["Edit"]},
             {
@@ -645,7 +720,7 @@ def test_a_reply_is_attributed_to_leaf_the_harness_and_the_models_wait_and_outpu
                 "waitMs": 1000,
                 "generationMs": 1700,
                 "outputTokens": 150,
-                "calls": ["leaf response reply c1 --done"],
+                "calls": ["leaf thread reply c1 --done"],
             },
         ],
     }

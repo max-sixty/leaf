@@ -11,14 +11,14 @@ settled, and emits two readings of them, each the one home of its facts:
 
   - `{"kind": "reply", "parent": <message>, "responds": <event>}` — a thread message, or an
     action in an answered obligation in frozen thread markup. The agent answers it with
-    `leaf response reply <answer.ref>`.
+    `leaf thread reply <answer.ref>`.
   - `{"kind": "markup", "action": <action>}` — a page action that is part of its
     widget's answered obligation and the authored markup does not yet record, answered
     by a stamped version that writes it in. An option the user added stays in the log,
     so a version that takes in a pick of it need not write it into the markup.
 
   Every consumer that holds the agent to something — delivery, `page state`, activity
-  counts, the Stop hook, `leaf status idle`, the On lists and thread attention — reads
+  counts, the Stop hook, `leaf page close`, the On lists and thread attention — reads
   these records rather than deciding again. `activity.turn_obligations` decides how long
   an owed update holds the agent's turn.
 
@@ -47,7 +47,7 @@ none.
 
 Whether an update needs delivering is decided apart from its workflow. Admission
 records whether the update changes the user's outstanding obligations, owed answers, work
-in hand or approvals (`obligation_reading`), and delivery keeps that decision after
+in hand (`obligation_reading`), and delivery keeps that decision after
 the workflow settles.
 
 An action on a widget whose obligation the user is still answering, such as a pick before
@@ -96,7 +96,6 @@ def obligation_reading(readings) -> dict:
     page = work.page
     thread = work.thread
     workflows = work.workflows
-    thread_obligations = work.widget_obligations
     in_hand = [
         (item["id"], item["subject"])
         for item in workflows
@@ -114,26 +113,11 @@ def obligation_reading(readings) -> dict:
         if source["author"] == "user"
     ]
     return {
-        "on_user": {
-            "page": [
-                item["id"]
-                for item in work.document.items["unanswered"]
-                if item["next_actor"] is not None
-            ]
-            if page is not None
-            else [],
-            "thread": [
-                item["id"]
-                for item in thread_obligations["unanswered"]
-                if item["next_actor"] is not None
-            ],
-            # The to-dos the agent put on the user, which their Done ends.
-            "todos": [
-                todo["id"]
-                for todo in work.log.todos
-                if todo["owner"] == "user" and todo["state"] == "open"
-            ],
-        },
+        "on_user": [
+            item["id"]
+            for item in work.all_obligations["unanswered"]
+            if item["next_actor"] is not None
+        ],
         # The updates the agent owes an answer, by their records.
         "answers": [
             record["id"]
@@ -156,7 +140,6 @@ def obligation_reading(readings) -> dict:
             }
             for identity, subject in in_hand
         ],
-        "approvals": [event["id"] for event in work.approvals],
     }
 
 
@@ -254,8 +237,7 @@ def handed_over(
 
     A start in force (`todos.item_starts`) holds an update it names, and a start running
     on an open to-do over a widget holds that widget's actions delivered before it, as
-    the work the to-do answers. A `status` declaration in the log, which `leaf status
-    waiting` and `idle` write, ends every start before it, so the updates they named
+    the work the to-do answers. A `status` declaration in the log, which `leaf page open` and `leaf page close` write, ends every start before it, so the updates they named
     are no longer in hand. The workflow names the start holding it as `held_by`,
     which `activity` takes off before serving.
 

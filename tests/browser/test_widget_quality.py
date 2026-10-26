@@ -32,16 +32,66 @@ def test_package_render_check_refuses_a_failed_async_paint(tmp_path, browser):
 import { LeafElement, html } from "/runtime/widget-api.js";
 customElements.define("lf-async-panel", class extends LeafElement {
   render() { return html`Instrument`; }
-  updated(changed) {
-    super.updated(changed);
-    this.drawing(Promise.resolve().then(() => {
-      throw new Error("The instrument paint failed");
-    }));
+  async getUpdateComplete() {
+    await super.getUpdateComplete();
+    throw new Error("The instrument paint failed");
   }
 });
 """)
     with pytest.raises(UnreadablePage, match="The instrument paint failed"):
         widget_findings(browser.unwatched, package)
+
+
+def test_package_render_check_draws_example_source_values(tmp_path, browser):
+    """The quality checks see the populated drawing through ordinary bound data."""
+    package = tmp_path / "package"
+    made = CliRunner().invoke(
+        cli_model.cli,
+        ["package", "init", str(package), "--widget", "lf-feed"],
+    )
+    assert made.exit_code == 0, made.output
+    path = package / "registry.json"
+    registry = json.loads(path.read_text())
+    registry["$data"] = {
+        "description": "Sample feed.",
+        "contracts": {
+            "feed": {
+                "description": "Rows.",
+                "schema": {"type": "array", "items": {"type": "string"}},
+            }
+        },
+    }
+    entry = registry["lf-feed"]
+    entry["properties"]["source"] = {
+        "type": "string",
+        "pattern": f"^{schema_model.DATA_SOURCE_NAME}$",
+    }
+    entry["x-data"] = {
+        "feed": {"contract": "feed", "source": "source", "property": "value"}
+    }
+    entry["x-example"] = '<lf-feed id="feed" source="rows"></lf-feed>'
+    entry["x-example-data"] = {"rows": ["First", "Second"]}
+    path.write_text(json.dumps(registry))
+    (package / "widgets/lf-feed.js").write_text("""\
+import { LeafElement, html } from "/runtime/widget-api.js";
+customElements.define("lf-feed", class extends LeafElement {
+  static properties = { value: { attribute: false } };
+  render() {
+    return this.value ? html`<div style="height:200px">${this.value.join(", ")}</div>` : html`Waiting`;
+  }
+});
+""")
+    findings = widget_findings(browser, package)
+    assert {
+        finding.values["layout"]
+        for finding in findings
+        if finding.code == "keeps-first-box"
+    } == {"column", "workspace"}
+    assert all(
+        finding.values["now"]["height"] >= 200
+        for finding in findings
+        if finding.code == "keeps-first-box"
+    )
 
 
 def grows_at_upgrade(tag: str, style: str) -> str:
@@ -374,6 +424,6 @@ INITIAL_DRAWING_PAGE = """
 INITIAL_DRAWING_NODES = """lf-playground, lf-playground-control,
   lf-playground-preview, lf-playground-output, lf-playground-value,
   .lf-playground-input, .lf-playground-control-label, lf-playground label,
-  .lf-playground-reading, .lf-playground-copy-trigger,
+  .lf-playground-reading, .lf-playground-submit,
   lf-margin-entry-gallery, .margin-entry-gallery-name, .margin-entry-gallery-detail, .margin-entry-gallery-heading, .margin-entry-gallery-summary, .margin-entry-gallery-face,
   #after"""

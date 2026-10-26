@@ -153,7 +153,7 @@ def start_pi_fixture(page_dir, monkeypatch, spawn, sessionless):
         monkeypatch.setenv("LEAF_PI_PID", str(driven.pid))
         service_model.claim_page(page_dir)
         serving(page_dir, 1)
-        session_model.cmd_waiting(page_dir, "")
+        session_model.cmd_waiting(page_dir)
         driven.emit("session_start", idle=True, reason="startup")
         return driven
 
@@ -234,7 +234,7 @@ def test_an_escape_leaves_input_handed_to_the_run_for_the_next_prompt(page_dir, 
     pi.emit("agent_start")
     continued = pi.emit("turn_end")
     [entry] = continued["entries"]
-    assert f"`leaf response reply {ref}`" in entry["content"]
+    assert f"`leaf thread reply {ref}`" in entry["content"]
     *_, pickup = (
         e for e in events_model.read_events(page_dir) if e["kind"] == "pickup"
     )

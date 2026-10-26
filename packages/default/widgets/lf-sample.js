@@ -1,4 +1,6 @@
-/* lf-sample: quoted content, or a complete live page authored in a template.
+/* lf-sample: inline content (quoted by default, interactive on the parent page
+ * when declared), or a complete live page authored in a template. The inline modes
+ * need no controller; the registry owns their quotation semantics.
  * The shared host owns the child page and its independent event log. The frame
  * takes its child's height, so the surrounding page scrolls the sample like any
  * other block and focus moves into it the way it moves into any iframe. A `window`
@@ -41,10 +43,12 @@ import {
   whileConnected,
   keeps,
   keepsText,
+  iconElement,
   layoutPx,
   mountSample,
   once,
   offer,
+  generatedElement,
   widgetController,
   focusDestination,
   closeLayer,
@@ -93,8 +97,8 @@ customElements.define(
       return this.#focusedContent;
     }
 
-    restoreStanding() {
-      return this.#host?.restoreStanding();
+    restoreCurrentLocation() {
+      return this.#host?.restoreCurrentLocation();
     }
 
     connectedCallback() {
@@ -150,7 +154,7 @@ customElements.define(
             this.#focusedContent = false;
             this.#track(host.ready);
           });
-          host.on("standing", ({ focused }) => {
+          host.on("current-location", ({ focused }) => {
             this.#focusedContent = focused;
           });
           // The departed document's frame shows the browser's destination, which
@@ -213,7 +217,7 @@ customElements.define(
 
       this.#view = document.createElement("dialog");
       this.#view.className = "lf-sample-view";
-      this.#view.dataset.lfGen = "1";
+      generatedElement(this.#view, { says: false });
       this.#view.setAttribute("open", "");
       this.#view.setAttribute("role", "presentation");
       this.#view.addEventListener("cancel", (event) => {
@@ -223,16 +227,19 @@ customElements.define(
 
       const controls = document.createElement("div");
       controls.className = "lf-sample-controls lf-ui";
-      controls.dataset.lfGen = "1";
+      generatedElement(controls, { says: false });
       const actions = document.createElement("div");
-      this.#reset = offer("button", "lf-btn", "Reset");
+      this.#reset = offer("button", "lf-btn lf-sample-action");
+      this.#reset.ariaLabel = this.#reset.title = "Reset";
+      this.#reset.append(iconElement("retry", "lf-action-icon"));
       this.#reset.addEventListener("click", () => {
         if (this.#reset.ariaDisabled === "true") return;
         this.reset().catch(() => {}); // #track paints the failed operation.
       });
       this.#status = offer("span", "lf-sample-status");
       this.#status.setAttribute("role", "status");
-      this.#full = offer("button", "lf-btn", "Full view");
+      this.#full = offer("button", "lf-btn lf-sample-action");
+      this.#paintFull(false);
       this.#full.addEventListener("click", () => {
         if (isNativeLayer(this.#view)) this.#return();
         else {
@@ -246,7 +253,7 @@ customElements.define(
           closeNativeLayer(this.#view);
           this.#view.setAttribute("role", "dialog");
           this.#view.setAttribute("aria-label", this.#frame.title);
-          keepsText(this.#full, "Return to page");
+          this.#paintFull(true);
           showNativeLayer(this.#view);
           this.#setWindow(true);
           focusDestination(this.#full, "move");
@@ -278,8 +285,17 @@ customElements.define(
       this.#view.setAttribute("role", "presentation");
       this.#view.removeAttribute("aria-label");
       this.style.removeProperty("--lf-sample-height");
-      keepsText(this.#full, "Full view");
+      this.#paintFull(false);
       this.#setWindow(this.hasAttribute("window"));
+    }
+
+    #paintFull(expanded) {
+      this.#full.ariaLabel = this.#full.title = expanded
+        ? "Return to page"
+        : "Full view";
+      this.#full.replaceChildren(
+        iconElement(expanded ? "collapse" : "expand", "lf-action-icon"),
+      );
     }
 
     #setWindow(value) {
@@ -407,8 +423,8 @@ customElements.define(
     // selection, Reset or removal supersedes it. The outer control remains the
     // keyboard stop while the child draws its view.
     /** @param {string} id
-     * @param {{surface?: string, status?: string}} [view] */
-    async showThread(id, { surface = "page", status } = {}) {
+     * @param {{surface?: string}} [view] */
+    async showThread(id, { surface = "page" } = {}) {
       this.#viewOperation?.abort();
       const operation = new AbortController();
       this.#viewOperation = operation;
@@ -416,9 +432,7 @@ customElements.define(
       const select = (ready) =>
         ready
           .then(() =>
-            signal.aborted
-              ? false
-              : this.#host.showThread(id, { surface, status, signal }),
+            signal.aborted ? false : this.#host.showThread(id, { surface, signal }),
           )
           .catch((error) => {
             // The departure that rejected it has already promised the next document.

@@ -18,7 +18,7 @@ import {
   scrollChainOf,
   scrollersOf,
 } from "./reading-regions.js";
-import { walkOrigin, heldObligation, placeOf, stepFrom } from "./standing-target.js";
+import { walkOrigin, heldObligation, placeOf, stepFrom } from "./current-target.js";
 import { focused } from "./focus.js";
 import { pageSelection } from "./composing/capture.js";
 import { blockAt, closestAcross, pageRange } from "./passages.js";
@@ -70,34 +70,29 @@ async function arriveAtThread(id, { openPageThread }, intent) {
 // (`cycledRow`).
 //
 // From a place at no thread, the walk steps by the page walks' one rule (`stepFrom`,
-// standing-target.js): a place on the page against each thread's place (`threadPlace`).
+// current-target.js): a place on the page against each thread's place (`threadPlace`).
 // A thread whose place holds the user's is where they are without the thread open, so
 // the press opens it. A general thread has no place and stands after every placed one.
 function stepThread(dir, destinations, placedAt) {
-  const { threadHere, threadAtStanding, threadPlace } = destinations;
+  const { threadHere, threadAtCurrentLocation, threadPlace } = destinations;
   const threads = openThreads(placedAt);
   const origin = walkOrigin();
   const current = currentThread(threads, threadHere);
-  const targetId = !current && origin.kind === "standing" && threadAtStanding();
+  const targetId =
+    !current && origin.kind === "current-location" && threadAtCurrentLocation();
   const atTarget = targetId && threads.includes(targetId) ? targetId : null;
-  const { row: next, wrapped } = current
+  const next = current
     ? cycledRow(threads, current, dir)
-    : atTarget
-      ? { row: atTarget, wrapped: false }
-      : stepFrom(threads, origin, dir, threadPlace);
+    : (atTarget ?? stepFrom(threads, origin, dir, threadPlace));
   if (!next) return;
-  // The walk reads the standing destination, so begin it once the arrival has moved
+  // The walk reads the current destination, so begin it once the arrival has moved
   // focus, as the queue walk does; an arrival that failed registers nothing.
   const ready = arriveAtThread(next, destinations, retainUserIntent()).then(
     (arrived) => {
       if (!arrived) return;
       announce(
-        beginWalk(
-          "thread",
-          "Thread",
-          () => threadPosition(threadHere, placedAt),
-          wrapped,
-        ) ?? walkPositionLabel("Thread", threads.indexOf(next) + 1, threads.length),
+        beginWalk("thread", "Thread", () => threadPosition(threadHere, placedAt)) ??
+          walkPositionLabel("Thread", threads.indexOf(next) + 1, threads.length),
       );
     },
   );
@@ -105,7 +100,7 @@ function stepThread(dir, destinations, placedAt) {
   return ready;
 }
 
-// Put the comment the user is standing on against one edge of its list. This is
+// Put the comment the user is on against one edge of its list. This is
 // placement inside the panel, not travel to the passage the comment is about, so it
 // moves only the thread scroller and keeps the card's focus. Native scroll placement
 // reads the list's declared scroll-padding, its focus-ring room, from the same authority
@@ -263,7 +258,7 @@ export function stopGlide(box) {
 
 export function createNavigation({ threadDestinations, placedAt, heldPlace }) {
   const currentItem = () => {
-    // The place the floating panel holds while the user is in it is the same standing,
+    // The place the floating panel holds while the user is in it is the same current location,
     // read without moving focus merely to paint whether its row is available.
     const at = heldPlace()?.focus?.deref() ?? focused();
     const item = heldObligation(at);
@@ -295,7 +290,8 @@ export function createNavigation({ threadDestinations, placedAt, heldPlace }) {
     title: "Align current item at top",
     touch: "Align current item at top",
     menu: "keys",
-    retainStanding: true,
+    retainCurrentLocation: true,
+    travels: true,
     run: () => {
       const item = currentItem();
       if (!item) return;
@@ -331,6 +327,7 @@ export function createNavigation({ threadDestinations, placedAt, heldPlace }) {
     title: "threads",
     when: () => openThreads(placedAt).length > 0,
     repeat: true,
+    travels: true,
     // The walk moves the user laterally: it is the surface it reaches through, rather
     // than the walk, that Escape takes off. It stands them on a thread a widget seats on
     // the page, or opens the margin's thread view, or the floating panel's, for a thread
@@ -363,6 +360,7 @@ export function createNavigation({ threadDestinations, placedAt, heldPlace }) {
     ],
     title: "page down / up",
     repeat: true,
+    travels: true,
     run: (binding) => move(binding === "d" ? 0.6 : -0.6, "page"),
   });
   pageCommand({
@@ -383,13 +381,18 @@ export function createNavigation({ threadDestinations, placedAt, heldPlace }) {
     ],
     title: "scroll down / up",
     repeat: true,
+    travels: true,
     run: (binding) => move(binding === "j" ? 60 : -60, "pixel"),
   });
 
   // The queue walk's way onto one thread it names by id: the t/T walk's own arrival,
   // whatever list the thread is in.
-  const arriveAtThreadById = (id) =>
-    arriveAtThread(id, threadDestinations, retainUserIntent());
+  const arriveAtThreadById = (id, message = null) =>
+    message
+      ? threadDestinations
+          .openPageThread(message, { part: "message", intent: retainUserIntent() })
+          .then(Boolean)
+      : arriveAtThread(id, threadDestinations, retainUserIntent());
 
   return {
     alignTop,

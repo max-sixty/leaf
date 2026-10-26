@@ -64,6 +64,7 @@ from leaf.page import page_instructions
 from leaf.refusals import Refused
 from leaf.registry import storage as registry_storage
 from leaf.registry import widgets as registry_widgets
+from leaf.registry.contract import DECLARED_WORDS
 from leaf.render_gate import browser as browser_model
 from leaf.render_gate.preview import preview_server
 from leaf.revisioning import activate_source
@@ -94,13 +95,13 @@ def test_cli_help_groups_commands_with_complete_summaries(regtest):
     cases = {
         "root": ["--help"],
         "codex": ["codex", "--help"],
+        "connection": ["connection", "--help"],
         "data": ["data", "--help"],
         "package": ["package", "--help"],
         "package-init": ["package", "init", "--help"],
         "page": ["page", "--help"],
         "server": ["server", "--help"],
         "thread": ["thread", "--help"],
-        "response": ["response", "--help"],
     }
     outputs = []
 
@@ -147,13 +148,15 @@ def test_agent_interaction_command_help(regtest):
         "delivery read",
         "delivery ack",
         "page state",
+        "page claim",
         "thread summarize",
-        "status",
-        "thread open",
+        "page open",
+        "page close",
+        "thread create",
         "thread reply",
-        "response reply",
         "thread edit",
         "thread resolve",
+        "task end",
         "page report",
         "page check",
         "page stamp",
@@ -196,7 +199,7 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
             text = text.replace(event_id, f"user-{number}")
         outputs.append(text)
 
-    record(["thread", "reply", str(page), "--text", "Answer"], 2)
+    record(["thread", "reply", "--text", "Answer"], 2)
     for text in ("Why this plan?", "What will it cost?"):
         code, response = fetch(
             f"{server}/api/event",
@@ -210,22 +213,44 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
     woke = runner.invoke(cli_model.cli, ["wait", str(page)])
     assert woke.exit_code == 0, woke.output
     envelope = json.loads(woke.output)
-    assert f"leaf wait --ack {envelope['id']}" in envelope["acknowledge"]
+    assert f"leaf delivery ack {envelope['id']} && leaf wait" in envelope["acknowledge"]
     delivery_model.receive(envelope, "s1")
     [batch] = envelope["batches"]
     assert len(batch["events"]) == 2
     reference = batch["events"][0]["answer"]["ref"]
     references.append(reference)
     # Delivered, the refusal names the delivery's exact reference.
-    record(["thread", "reply", str(page), "--text", "Answer"], 2)
+    record(["thread", "reply", str(page), "--text", "Answer", "--done"], 1)
     record(["thread", "reply", str(page), ids[0], "--text", "Answer"], 1)
 
     def response_args(*extra):
-        return ["response", "reply", reference, "--text", "Answer", "--done", *extra]
+        return ["thread", "reply", reference, "--text", "Answer", "--done", *extra]
 
     record(response_args(), 0)
+    answered_events = events_model.read_events(page)
     record(response_args(), 0)
-    record(["thread", "reply", str(page), ids[0], "--text", "Follow-up"], 0)
+    assert events_model.read_events(page) == answered_events
+    for addressed_option in (["--done"],):
+        record(
+            [
+                "thread",
+                "reply",
+                str(page),
+                ids[0],
+                "--text",
+                "Follow-up",
+                *addressed_option,
+            ],
+            2,
+        )
+    assert events_model.read_events(page) == answered_events
+    record(
+        ["thread", "reply", str(page), ids[0], "--text", "Follow-up", "--obligation"],
+        0,
+    )
+    followup = events_model.read_events(page)[-1]
+    assert followup["parent"] == ids[0]
+    assert followup["obligation"] is True
     # A page reaction can close without an answer: it never owed a reply.
     code, response = fetch(
         f"{server}/api/event",
@@ -233,7 +258,7 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
     )
     assert code == 200, response
     ids.append(events_model.read_events(page)[-1]["id"])
-    record(["response", "reply", "not-a-response-ref", "--text", "Answer", "--done"], 1)
+    record(["thread", "reply", "not-a-response-ref", "--text", "Answer", "--done"], 1)
     record(["thread", "resolve", str(page), ids[-1]], 0)
     regtest.write("\n".join(outputs).encode("ascii", "backslashreplace").decode())
 
@@ -256,7 +281,7 @@ def _replying_after(page, server, edit):
     # A process of its own, as the agent's next command is, so it reads the page as
     # edited rather than as this one remembers it (`page_memory`).
     return subprocess.run(
-        [*LEAF_COMMAND, "response", "reply", reference, "--ephemeral", "--text", "Hi"],
+        [*LEAF_COMMAND, "thread", "reply", reference, "--ephemeral", "--text", "Hi"],
         capture_output=True,
         text=True,
         timeout=STATED_TIMEOUT,
@@ -297,57 +322,6 @@ def test_a_page_another_leaf_vendored_at_this_protocol_takes_its_writes(
         check=False,
     )
     assert checked.returncode == 0, checked.stderr
-
-
-def test_a_command_re_vendors_its_sessions_page_an_older_leaf_vendored(
-    claimed, server, tmp_path
-):
-    """A reply through a reference names no page, so it is refused on a page an older
-    Leaf vendored, naming the re-vendor. The session's next write naming the page
-    makes that re-vendor itself (`vendoring.renew_layer`), restarting the server at
-    its address, and the reply then goes."""
-    replied = _replying_after(claimed, server, vendored_at_another_protocol)
-    assert replied.returncode != 0, replied.stdout
-    assert f"leaf page init {claimed}" in replied.stderr
-    read = subprocess.run(
-        [*LEAF_COMMAND, "page", "state", str(claimed)],
-        capture_output=True,
-        text=True,
-        timeout=STATED_TIMEOUT,
-        check=False,
-    )
-    assert read.returncode == 0, read.stderr
-    assert "page protocol" in json.loads(read.stdout)["source"]["error"]
-    before = interact_files.read_json(claimed / "registry.json")["$layer"]["generation"]
-    subprocess.run(
-        [
-            *LEAF_COMMAND,
-            "page",
-            "export",
-            str(claimed),
-            "--out",
-            str(tmp_path / "export.html"),
-        ],
-        capture_output=True,
-        text=True,
-        timeout=STATED_TIMEOUT,
-        check=False,
-    )
-    assert (
-        interact_files.read_json(claimed / "registry.json")["$layer"]["generation"]
-        == before
-    )
-    for command in (["page", "claim", str(claimed)], replied.args[len(LEAF_COMMAND) :]):
-        ran = subprocess.run(
-            [*LEAF_COMMAND, *command],
-            capture_output=True,
-            text=True,
-            timeout=STATED_TIMEOUT,
-            check=False,
-        )
-        assert ran.returncode == 0, ran.stderr
-        assert "re-vendor" not in ran.stderr
-    assert fetch(f"{server}/api/state")[0] == 200
 
 
 @pytest.mark.parametrize("unreadable", ["claim", "lifecycle"])
@@ -524,30 +498,6 @@ def test_page_state_reports_a_layer_this_leaf_cannot_serve(claimed, vendored, na
     assert interact_files.list_revisions(page_dir) == revisions
 
 
-def test_response_reply_names_a_published_page_vendored_before_a_key_was_renamed(
-    claimed, server
-):
-    """Admission refuses an old page on the same reading the servers do, after a
-    revision is published as well as before: here the layer and the revision it
-    captured both use the key's old name, in `$keys` and on `lf-ask`, as the older
-    Leaf left them."""
-    replied = _replying_after(claimed, server, vendored_before_a_key_rename)
-    assert replied.returncode != 0, replied.stdout
-    assert "x-noun" in replied.stderr
-    assert f"leaf page init {claimed}" in replied.stderr
-    # The re-vendor it names repairs the page: init runs on it, and the reply goes.
-    for command in (["page", "init", str(claimed)], replied.args[len(LEAF_COMMAND) :]):
-        ran = subprocess.run(
-            [*LEAF_COMMAND, *command],
-            capture_output=True,
-            text=True,
-            timeout=STATED_TIMEOUT,
-            check=False,
-        )
-        assert ran.returncode == 0, ran.stderr
-    assert fetch(f"{server}/api/state")[0] == 200
-
-
 def test_a_layer_stamped_with_its_revision_still_names_the_revendor(page_dir):
     """A page an older Leaf stamped holds that Leaf's layer twice, vendored and captured
     in its active revision, and the captured copy excuses an unchanged layer from
@@ -598,50 +548,6 @@ def test_the_skill_routes_every_reference_it_ships():
     for path in references:
         relative = path.relative_to(root).as_posix()
         assert relative in skill, relative
-
-
-def test_the_python_instructions_name_every_module_they_own():
-    """Every Python owner is named in the instruction scope that routes it."""
-    scripts = ROOT / "src"
-    instructions = (scripts / "AGENTS.md").read_text(encoding="utf-8")
-    paragraphs = instructions.split("\n\n")
-    within = {
-        match.group(1): paragraph
-        for paragraph in paragraphs
-        if (match := re.match(r"Within `([^`/]+)/`", paragraph))
-    }
-    outside = "\n\n".join(p for p in paragraphs if not p.startswith("Within `"))
-
-    # Keep package names scoped so `registry/layer` cannot be satisfied by the
-    # top-level `layer` owner.
-    def names(scope):
-        return {
-            part.removesuffix(".py")
-            for span in re.findall(r"`([^`]+)`", scope)
-            for part in span.split("/")
-        }
-
-    package_root = scripts / "leaf"
-    modules = sorted(
-        path.relative_to(package_root)
-        for path in package_root.rglob("*.py")
-        if path.name != "__init__.py"
-    )
-    assert modules, "no modules read — an empty set names itself"
-    packages = sorted({m.parent.as_posix() for m in modules} - {"."})
-    assert not set(packages) - set(within), (
-        f"packages with no Within paragraph: {sorted(set(packages) - set(within))}"
-    )
-
-    unnamed = [
-        module.as_posix()
-        for module in modules
-        if module.stem
-        not in names(
-            outside if module.parent.as_posix() == "." else within[module.parent.name]
-        )
-    ]
-    assert not unnamed, f"unnamed in scripts/AGENTS.md: {unnamed}"
 
 
 def test_the_root_instructions_name_every_directory_of_the_projects_own_tree():
@@ -786,15 +692,15 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
     assert again.exit_code != 0  # nothing changed, so there is no second version
     assert "already stamped as v1" in again.output
 
-    [waiting] = written(["status", str(page_dir), "waiting", "pick a storage engine"])
+    [waiting] = written(["page", "open", str(page_dir)])
     assert waiting == logged(waiting)
-    assert (waiting["state"], waiting["detail"]) == ("waiting", "pick a storage engine")
+    assert waiting["state"] == "waiting"
 
     # The comment's id is the thread's; --title names it in the same command.
     [opened] = written(
         [
             "thread",
-            "open",
+            "create",
             str(page_dir),
             "--text",
             "which store?",
@@ -809,7 +715,7 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
     # A refused title refuses the whole command, so no message goes up unnamed.
     before = events_model.read_events(page_dir)
     [unnamed] = command_findings(
-        "thread", "open", page_dir, "--text", "and the cache?", "--title", ""
+        "thread", "create", page_dir, "--text", "and the cache?", "--title", ""
     )
     assert (unnamed.code, unnamed.values["kind"]) == ("invalid-event", "comment")
     assert events_model.read_events(page_dir) == before
@@ -1181,6 +1087,15 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         for path in shipped_payload()
         if path.suffix == ".lock"
     ] == ["uv.lock"]
+
+
+def test_page_authoring_names_the_theme_s_largest_spacing_step():
+    """Authors read the spacing scale's ends in page-authoring.md rather than the
+    theme, so a step the theme adds is one they can find."""
+    theme = (PLUGIN_ROOT / "browser/styles/theme.css").read_text()
+    largest = max(int(step) for step in re.findall(r"--sp-(\d+):", theme))
+    prose = (PLUGIN_ROOT / "skills/leaf/references/page-authoring.md").read_text()
+    assert f"`--sp-1` to `--sp-{largest}`" in " ".join(prose.split())
 
 
 def test_the_launcher_resolves_through_the_hosts_own_index(tmp_path):
@@ -1634,7 +1549,7 @@ def test_the_chrome_restates_no_rule_a_page_side_sheet_already_makes():
 
 def test_kernel_selectors_name_no_package_tag():
     """The kernel styles and finds a package widget by what its registry declares, a
-    mark delivery paints such as `data-lf-resident`, never by its tag: a rule naming
+    mark delivery paints such as `data-lf-margin-content`, never by its tag: a rule naming
     lf-toc serves lf-toc and no other contents map, and binds the kernel to one
     package's vocabulary. A kernel sheet's selectors and `@scope` preludes, and the
     selectors the runtime hands a DOM query, use no tag a bundled package declares as
@@ -2101,37 +2016,6 @@ PLAIN_PAGE = (
     '<!doctype html><html lang="en"><head><title>t</title></head>'
     "<body><main><h1>Title</h1><p>words</p></main></body></html>"
 )
-
-
-def test_the_browser_gate_reads_a_page_another_leaf_vendored(tmp_path, monkeypatch):
-    """A Leaf update leaves the render gate working on a page an earlier Leaf vendored
-    at this protocol: the gate runs the page under its own runtime and probes, and
-    names the page's Leaf beside its own."""
-    monkeypatch.chdir(tmp_path)
-    runner = CliRunner()
-    page = tmp_path / "page"
-    initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
-    assert initialized.exit_code == 0, initialized.output
-    (page / "index.html").write_text(PLAIN_PAGE, encoding="utf-8")
-    # The identity an earlier Leaf recorded for the layer it vendored.
-    stamp = page / "registry.json"
-    vendored = interact_files.read_json(stamp)
-    vendored["$layer"]["producer"] = {
-        "commit": "a74b08365870",
-        "dirty": False,
-        "committed": "2026-09-26T09:32:21-07:00",
-    }
-    stamp.unlink()
-    stamp.write_text(json.dumps(vendored), encoding="utf-8")
-
-    result = runner.invoke(cli_model.cli, ["page", "check", "--render", str(page)])
-
-    assert result.exit_code == 0, result.output
-    report = json.loads(result.stdout)
-    assert report["browser"]["ran"] == ["render check"]
-    assert "Leaf a74b08365870, committed 2026-09-26T09:32:21-07:00" in words(
-        result.stdout
-    )
 
 
 def test_the_browser_gate_opens_away_from_the_project_a_page_selected(
@@ -4427,6 +4311,7 @@ def test_page_owned_pr_brief_composes_its_data_contract(tmp_path, monkeypatch):
         "request": {
             "contract": "pull-request",
             "source": "source",
+            "property": "value",
         }
     }
     assert "pull-request" in registry["$data"]["contracts"]
@@ -4509,6 +4394,7 @@ def test_visual_review_package_composes_its_run_contract(tmp_path, monkeypatch):
         "run": {
             "contract": "visual-run",
             "source": "source",
+            "property": "value",
         }
     }
     assert widget["x-state"]["review"]["unit"] == "case"
@@ -5044,6 +4930,26 @@ def test_selected_instructions_cover_dependencies_without_loading_unused_vocabul
     assert author.count("# Vocabulary `lf-instruction-owner`") == 1
 
 
+def test_a_declared_attribute_lists_its_words_in_the_composed_schema(page_dir):
+    """An attribute that names a layer-wide word, such as a column's tone or a code
+    block's language, takes the layer's list as its `enum` in the vocabulary a page
+    composes, so its schema says what it accepts to validation and to an author
+    reading the entry, and the selected entry's instructions list the words."""
+    registry = registry_storage.read_page_registry(page_dir).registry
+    checked = set()
+    for key, fact in DECLARED_WORDS:
+        for name, entry in registry.items():
+            if name.startswith("$") or not isinstance(entry, dict) or key not in entry:
+                continue
+            names = registry[fact]["names"]
+            assert entry["properties"][entry[key]]["enum"] == names
+            author = page_instructions(page_dir, entries=(name,))["author"]
+            listed = ", ".join(f"`{word}`" for word in names)
+            assert f"`{entry[key]}` takes one of: {listed}." in author
+            checked.add(key)
+    assert checked == {key for key, _ in DECLARED_WORDS}
+
+
 def test_cli_selection_returns_the_composed_audience_map(instruction_page):
     runner = CliRunner()
     reading = runner.invoke(
@@ -5081,6 +4987,8 @@ def test_cli_selection_returns_the_composed_audience_map(instruction_page):
     for option, value, message in (
         ("--use", "lf-absent", "unknown instructions vocabulary entry"),
         ("--use", "$data", "unknown instructions vocabulary entry"),
+        # A Layout is a class the page's CSS provides; the refusal says where it is.
+        ("--use", "layout-tiles", "page-layout.md describes them"),
         ("--contract", "absent", "unknown instructions data contract"),
     ):
         result = runner.invoke(

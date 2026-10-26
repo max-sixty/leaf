@@ -85,40 +85,6 @@ def test_developer_fixtures_do_not_capture_the_developers_personal_theme(tmp_pat
         assert layer_metadata(page)["theme"] is None
 
 
-def test_seeded_fixture_history_does_not_require_the_builders_page_protocol(tmp_path):
-    """Paired probes can prepare historical input for either arm's own runtime."""
-    from leaf.event_log import read_events
-    from leaf.service import acknowledged
-
-    fixture = read_fixture(ROOT / "examples/review-a-plan.html")
-    page = tmp_path / "page"
-    selected_protocol = None
-
-    def run_leaf(*args, input_text=None):
-        nonlocal selected_protocol
-        result = CliRunner().invoke(cli_model.cli, list(args), input=input_text)
-        assert result.exit_code == 0, result.output
-        if args[:2] == ("page", "stamp") and args[-1] == "Draft as authored":
-            # The command runner owns the arm's protocol. Once it has produced its
-            # page, fixture history must not ask this checkout to admit a write.
-            registry_path = page / "registry.json"
-            registry = json.loads(registry_path.read_text())
-            selected_protocol = registry["$events"]["protocol"] + 1
-            registry["$events"]["protocol"] = selected_protocol
-            registry_path.write_text(json.dumps(registry))
-
-    prepare_page(page, fixture, run_leaf, final_status=None)
-    events = read_events(page)
-    assert [event["version"] for event in events if "version" in event] == [1, 2, 3]
-    assert fixture.seed.read_text() in (page / "events.jsonl").read_text()
-    assert events[-1]["kind"] == "receipt"
-    assert acknowledged(events) == events[-1]["seq"] - 1
-    assert (
-        json.loads((page / "registry.json").read_text())["$events"]["protocol"]
-        == selected_protocol
-    )
-
-
 def test_automated_page_producers_record_the_run_before_input(tmp_path, serve, request):
     """A served test and an isolated developer arm declare their actual provenance."""
     source = tmp_path / "reading.html"
@@ -724,7 +690,7 @@ def test_serving_connects_codex_feedback_before_handing_over_its_url(
     handoff,
     initially_idle,
 ):
-    """HTTP feedback reaches the current task without a second `codex start`.
+    """HTTP feedback reaches the current task without a second `page claim`.
 
     The detached adapter, claim and page server are real. Only the external Codex
     CLI is replaced: its queue boundary acknowledges and records the submitted
@@ -850,7 +816,7 @@ finally:
         assert codex_adapter.adapter_is_live("preview-thread")
         if initially_idle:
             assert declared(page_dir)["state"] == "idle"
-            session.cmd_waiting(page_dir, "Review this page")
+            session.cmd_waiting(page_dir)
         endpoint = urlsplit(url)._replace(path="/api/event").geturl()
         status, body = fetch(
             endpoint,
@@ -1188,6 +1154,34 @@ def test_fixture_captures_use_the_selected_runtime_producer(
         {"kind": "capture", "source": "notes", "value": "second\n"},
         {"kind": "seed", "source": "written", "value": "Authored value"},
     )
+
+
+def test_a_fixture_acknowledges_its_seed_with_the_runtime_it_was_read_for(tmp_path):
+    """An arm at another protocol acknowledges a seeded page it vendored, so a paired
+    comparison across a protocol bump builds both arms (`leaf-dev stills`)."""
+    runtime = tmp_path / "runtime"
+    arms.extract_payload(runtime)
+    registry = runtime / "browser/registry.json"
+    layer = json.loads(registry.read_text())
+    layer["$events"]["protocol"] += 1
+    registry.write_text(json.dumps(layer, ensure_ascii=False))
+    state = tmp_path / "state"
+    page = tmp_path / "page"
+    prepare_page(
+        page,
+        read_fixture(
+            ROOT / "examples/log-retention.html",
+            runtime=runtime,
+            env=arms.environment(XDG_STATE_HOME=str(state)),
+        ),
+        partial(arms.run_leaf, runtime, state, check=True),
+        final_status=None,
+    )
+    events = [
+        json.loads(line) for line in (page / "events.jsonl").read_text().splitlines()
+    ]
+    assert events[-1]["kind"] == "receipt"
+    assert events[-1]["through"] == len(events) - 1
 
 
 def test_resumed_preview_follows_capture_bindings_and_files_without_replaying_seeds(

@@ -37,7 +37,14 @@ def instruction_selection(
     while pending:
         name = pending.pop()
         if name not in declarations:
-            raise Refused(f"unknown instructions vocabulary entry {name!r}")
+            # Authors land here asking for a Layout class, which the page's CSS
+            # provides and page-layout.md describes, outside the registry.
+            raise Refused(
+                f"unknown instructions vocabulary entry {name!r}: the page's registry"
+                " declares no element or idiom by that name (its keys list the"
+                " vocabulary); Layout classes such as `layout-tiles` aren't entries,"
+                " and page-layout.md describes them"
+            )
         if name in selected_entries:
             continue
         selected_entries.add(name)
@@ -61,6 +68,20 @@ def instruction_selection(
         if contract not in data_contracts:
             raise Refused(f"unknown instructions data contract {contract!r}")
     return sorted(selected_entries), sorted(selected_contracts)
+
+
+def words(entry: dict) -> list[str]:
+    """What each attribute of a vocabulary `entry` whose schema lists the words it
+    takes (`enum`) may say, as its schema says it, such as the tones the layer
+    paints (`registry.contract.stamp_words`): an author choosing one need not look
+    it up."""
+    return [
+        f"`{attr}` takes one of: "
+        + ", ".join(f"`{word}`" for word in spec["enum"])
+        + "."
+        for attr, spec in entry.get("properties", {}).items()
+        if "enum" in spec
+    ]
 
 
 def page_instructions(
@@ -91,9 +112,14 @@ def page_instructions(
                 f"# Data contract `{contract}`\n\n{text.strip()}"
             )
     for name in selected_entries:
-        if text := registry[name].get("x-instructions"):
+        said = [
+            text.strip()
+            for text in (registry[name].get("x-instructions"), *words(registry[name]))
+            if text
+        ]
+        if said:
             parts.setdefault("author", []).append(
-                f"# Vocabulary `{name}`\n\n{text.strip()}"
+                f"# Vocabulary `{name}`\n\n" + "\n\n".join(said)
             )
     return {
         audience: "\n\n".join(sections).rstrip() + "\n"

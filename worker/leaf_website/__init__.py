@@ -47,7 +47,6 @@ from collections.abc import Mapping
 from contextlib import ExitStack
 from dataclasses import replace
 from functools import partial
-from html import escape
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -79,7 +78,7 @@ from leaf.page_snapshot import capture_page_snapshot
 from leaf.refusals import Refused
 from leaf.registry.storage import layer_metadata
 from leaf.revision_artifact import read_revision
-from leaf.revision_delivery import Delivery
+from leaf.revision_delivery import Delivery, runtime_element
 from leaf.revisioning import activate_source
 from leaf.schema import PAGE_ROUTE_DIRS, REVISION_NAME, VENDORED_FILES
 from leaf.served_state.context import read_page
@@ -306,20 +305,21 @@ def site_metadata(page_root: str, page: dict) -> str:
     Each declaration is marked as delivery's own, so a revision arriving at a page
     someone is reading brings the author's head across without this one riding in.
     """
-    url = f"{SITE_ORIGIN}{page_root}/"
     title = page["title"]
-    mark = " data-lf-runtime"
+    properties = {
+        "og:type": "website",
+        "og:site_name": SITE_NAME,
+        "og:title": title,
+        "og:description": page["description"],
+        "og:url": f"{SITE_ORIGIN}{page_root}/",
+        "og:image": SITE_ORIGIN + page["image"],
+        "og:image:alt": title,
+    }
     return "".join(
-        (
-            f'<meta property="og:type" content="website"{mark}>',
-            f'<meta property="og:site_name" content="{escape(SITE_NAME)}"{mark}>',
-            f'<meta property="og:title" content="{escape(title)}"{mark}>',
-            f'<meta property="og:description" content="{escape(page["description"])}"{mark}>',
-            f'<meta property="og:url" content="{escape(url)}"{mark}>',
-            f'<meta property="og:image" content="{escape(SITE_ORIGIN + page["image"])}"{mark}>',
-            f'<meta property="og:image:alt" content="{escape(title)}"{mark}>',
-            f'<meta name="twitter:card" content="summary_large_image"{mark}>',
-        )
+        runtime_element("meta", {"property": name, "content": content})
+        for name, content in properties.items()
+    ) + runtime_element(
+        "meta", {"name": "twitter:card", "content": "summary_large_image"}
     )
 
 
@@ -960,7 +960,7 @@ class WebsiteCodexHarness:
                     and claim["id"] == thread_id
                     and claim["turn"] == turn["id"]
                 ):
-                    page.set_status("waiting", "")
+                    page.set_status("waiting")
                     advance_turn(thread_id, turn["id"], running=False)
         if activation.error:
             raise ValueError(activation.error)
@@ -1039,7 +1039,7 @@ class WebsiteCodexHarness:
         started = time.monotonic()
         with PageTransaction(page_dir) as page:
             if page.status["state"] == "idle":
-                page.set_status("waiting", "")
+                page.set_status("waiting")
         self._hold_waiter(page_dir, thread_id)
         prepared = prepare_codex_delivery(
             page_dir, website_harness(thread_id, process.pid)

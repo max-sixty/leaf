@@ -197,8 +197,8 @@ def arm_interception(page):
     it opens would otherwise see the list empty at the `unroute` — measured on the
     corpus page, with `/api/state`, `/registry.json` and `/icon.svg` still in
     flight. A route on a pattern nothing ever asks for keeps the list non-empty, so
-    no such transition is ever sent. `arm_interception` in the suite's own harness
-    arms the pages a test opens for the same reason.
+    no such transition is ever sent. The suite's harness arms a page it opens the
+    same way, once something routes it (`render_harness._arm`).
     """
     page.route(INTERCEPTION_ARM, lambda route: route.abort())
 

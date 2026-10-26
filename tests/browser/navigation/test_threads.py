@@ -19,6 +19,7 @@ from render_harness import (
     open_page,
     panel_field,
     panel_settled,
+    panel_view,
     resized,
     round_trip,
     scroll_settled,
@@ -101,7 +102,7 @@ def test_the_thread_panel_and_a_page_thread_carry_names(browser, serve):
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     region = page.get_by_role("region", name="Leaf", exact=True)
-    expect(region.locator('.lf-fp-view[data-view="threads"]')).to_be_focused()
+    expect(region.locator(panel_view("threads"))).to_be_focused()
     expect(region.locator(".lf-fp-title")).to_have_text("Threads")
     page.keyboard.press("Escape")
 
@@ -417,7 +418,7 @@ customElements.define("lf-shadow-reading", class extends HTMLElement {
 def test_the_thread_walk_opens_the_thread_on_the_passage_the_caret_is_in(
     browser, serve, key
 ):
-    """A caret in a passage a thread is on is at that thread without standing on it, so
+    """A caret in a passage a thread is on is at that thread without making it the current location, so
     either direction of the walk opens it, as `m` arrives at an item holding the caret."""
     url = serve(
         leaf_page(
@@ -488,7 +489,7 @@ def test_a_thread_walk_starts_one_page_trip_and_reveals_its_nested_passage(
 ):
     """The range travel has two jobs: reveal a passage inside its nested scrollports,
     then centre it vertically in the document. `scrollIntoView` also moved the document,
-    jumping it to the nearest edge synchronously before the intended smooth centred trip
+    jumping it to the nearest edge synchronously before the intended smooth centred navigation step
     began. Both local axes must remain immediate, while the page makes only one move."""
     lead = "".join(
         f"<p>Reading context before the passage, line {i}.</p>" for i in range(32)
@@ -497,9 +498,9 @@ def test_a_thread_walk_starts_one_page_trip_and_reveals_its_nested_passage(
         f"<p>Reading context after the passage, line {i}.</p>" for i in range(20)
     )
     source = leaf_page(
-        "one thread trip",
+        "one thread navigation step",
         f"""
-<h1>One thread trip</h1>
+<h1>One thread navigation step</h1>
 {lead}
 <div id="local">
   {"".join(f"<p>Local context line {i}.</p>" for i in range(16))}
@@ -540,7 +541,7 @@ def test_a_thread_walk_starts_one_page_trip_and_reveals_its_nested_passage(
         })"""
     )
     assert immediate["firstPage"] < 100, (
-        f"the thread walk jumped the page before its smooth trip began: {immediate}"
+        f"the thread walk jumped the page before its smooth navigation step began: {immediate}"
     )
     assert immediate["rail"] > 0, (
         f"the passage stayed beyond its own horizontal scroller: {immediate}"
@@ -633,22 +634,22 @@ def test_c_lands_where_its_badge_is_and_in_the_card_on_screen(browser, serve, ro
 @pytest.mark.parametrize("width", [1200, 600])
 def test_go_to_threads_lands_on_threads_from_a_page_thread(browser, serve, width):
     """g T has one destination regardless of the selected page thread: Threads, in the
-    panel, standing on the row of the thread the user stood in where there is one, and
+    panel, focused on the row of the thread the user last visited where there is one, and
     Escape puts it away onto the page."""
     page = open_page(
         browser,
         serve(INLINE_PAGE, anchored=[("p", "bold text"), ("p2", "neighbouring block")]),
     )
     resized(page, width, 844)
-    threads = page.locator('.lf-fp-view[data-view="threads"]')
+    threads = page.locator(panel_view("threads"))
     for from_thread in (False, True):
         if from_thread:
             page.keyboard.press("t")
             page.keyboard.press("t")
-            standing = page.locator(".lf-margin-preview .lf-page-thread")
-            expect(standing).to_be_focused()
+            current_location = page.locator(".lf-margin-preview .lf-page-thread")
+            expect(current_location).to_be_focused()
             # The second of the two threads, so the first row is not the answer.
-            stood_in = standing.get_attribute("data-thread")
+            stood_in = current_location.get_attribute("data-thread")
         page.keyboard.press("g")
         page.keyboard.press("Shift+t")
         # From the page the view takes focus; from a page thread, that thread's row.
@@ -662,44 +663,80 @@ def test_go_to_threads_lands_on_threads_from_a_page_thread(browser, serve, width
         assert page.evaluate("document.activeElement === document.body")
 
 
-def test_an_inline_thread_rings_its_card_for_pointer_and_keyboard_focus(browser, serve):
-    """Either arrival rings the thread; entering its reply gives the ring to the field."""
+def test_a_thread_walk_shows_one_thread_at_a_time(browser, serve):
+    """A walk shows the thread it lands on and no other, so `c` and the walk's position
+    have one thread to mean. From a thread open in the panel, `t` to a thread about a
+    passage opens its card and puts the panel's view away; from that card, `t` to a
+    thread about the whole page opens it in the panel and closes the card. Both once
+    stayed open, and the panel said "Thread 2 of 2" under the thread the user had
+    left."""
+    url = serve(INLINE_PAGE)
+    first = panel_comment(
+        serve.page_dir, "About the bold text.", {"section": "p", "quote": "bold text"}
+    )
+    second = panel_comment(
+        serve.page_dir,
+        "About the neighbour.",
+        {"section": "p2", "quote": "neighbouring block"},
+    )
+    general = panel_comment(serve.page_dir, "About the whole page.")
+    page = open_page(browser, url)
+    view = open_panel_thread(page, first)
+    # The caret leaves the reply for the view, where the thread's keys answer.
+    page.keyboard.press("Escape")
+    expect(view).to_be_focused()
+
+    page.keyboard.press("t")
+    card = page.locator(".lf-margin-preview")
+    expect(card.locator(f'.lf-page-thread[data-thread="{second}"]')).to_be_focused()
+    expect(page.locator(PANEL_THREAD)).to_have_count(0)
+
+    page.keyboard.press("t")
+    expect(page.locator(f'{PANEL_THREAD}[data-thread="{general}"]')).to_be_focused()
+    expect(card).to_be_hidden()
+
+
+def test_an_inline_thread_rings_its_card_for_keyboard_focus(browser, serve):
+    """Keyboard arrival rings the thread; its reply shows a cue by either input route."""
     page = open_page(
         browser,
         serve(INLINE_PAGE, anchored=[("p", "bold text")]),
     )
     thread = page.locator(".lf-margin-preview .lf-page-thread")
     preview = page.locator(".lf-margin-preview")
-    # The margin preview carries its thread's ring around the complete floating card.
+    # The preview root owns placement; its face carries the complete card's ring.
+    face = preview.locator(".lf-margin-preview-card")
     paint = """el => {
       const s = getComputedStyle(el);
-      const after = getComputedStyle(el, '::after');
-      const ring = after.content !== 'none' && after.outlineStyle !== 'none' ? after : s;
       return {
-        outline: ring.outlineStyle, offset: ring.outlineOffset,
+        outline: s.outlineStyle, offset: s.outlineOffset,
         background: s.backgroundColor, shadow: s.boxShadow,
       };
     }"""
 
     page.locator('.lf-margin-marker[data-lf-kinds="comment"]').first.click()
     expect(thread).to_be_focused()
-    pointer = preview.evaluate(paint)
-    assert pointer["outline"] == "solid"
-    assert pointer["offset"] == "-2px"
+    pointer = face.evaluate(paint)
+    assert pointer["outline"] == "none"
     drawn = rings_drawn(page)
-    assert any(ring["sample"] for ring in drawn), drawn
+    assert not any(ring["sample"] for ring in drawn), drawn
     assert not ring_faults(drawn, "the thread opened by pointer")
 
     page.keyboard.press("Escape")
     page.keyboard.press("t")
     expect(thread).to_be_focused()
-    current = preview.evaluate(paint)
-    assert current == pointer
+    current = face.evaluate(paint)
+    assert current["outline"] == "solid"
+    assert current["offset"] == "-2px"
+    assert current["background"] == pointer["background"]
+    drawn = rings_drawn(page)
+    assert any(ring["sample"] for ring in drawn), drawn
+    assert not ring_faults(drawn, "the thread reached by keyboard")
 
     page.keyboard.press("Enter")
     reply = thread.locator("leaf-text")
     expect(reply).to_be_focused()
-    writing = preview.evaluate(paint)
+    writing = face.evaluate(paint)
     assert writing["outline"] == "none"
     assert writing["background"] == pointer["background"]
     drawn = rings_drawn(page)

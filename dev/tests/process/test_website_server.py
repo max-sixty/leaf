@@ -1223,12 +1223,14 @@ def test_an_agent_turn_splits_into_delivery_model_and_tool_phases():
             "message": {"content": [{"type": "thinking", "thinking": ""}]},
             "received_at": at(2.0),
         },
-        call(4.0, ("start", "leaf task start . c1 x"), ("read", "cat threads.md")),
+        call(
+            4.0, ("start", "leaf task start . c1 --text x"), ("read", "cat threads.md")
+        ),
         result(4.1, "read"),
         result(5.0, "start"),
         call(7.0, ("edit", "leaf page check .")),
         result(8.0, "edit"),
-        call(12.0, ("reply", "leaf response reply 62af9e31:0:test-comment")),
+        call(12.0, ("reply", "leaf thread reply 62af9e31:0:test-comment")),
     ]
     # Delivery ends at the opened pickup, not at the first record the harness sends
     # after admission: a tool result of a turn already running is no delivery.
@@ -1239,7 +1241,7 @@ def test_an_agent_turn_splits_into_delivery_model_and_tool_phases():
             "phase": "tool",
             "startMs": 4000,
             "ms": 1000,
-            "calls": ["leaf task start . c1 x", "cat threads.md"],
+            "calls": ["leaf task start . c1 --text x", "cat threads.md"],
         },
         {"phase": "model", "startMs": 5000, "ms": 2000},
         {"phase": "tool", "startMs": 7000, "ms": 1000, "calls": ["leaf page check ."]},
@@ -1248,7 +1250,7 @@ def test_an_agent_turn_splits_into_delivery_model_and_tool_phases():
             "phase": "tool",
             "startMs": 12000,
             "ms": 500,
-            "calls": ["leaf response reply 62af9e31:0:test-comment"],
+            "calls": ["leaf thread reply 62af9e31:0:test-comment"],
         },
     ]
     assert turn_phases(stream, comment["ts"], None, reply["ts"]) == []

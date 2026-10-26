@@ -3,16 +3,17 @@ and forced colors, and the ring and focus-stop readings that check them."""
 
 import io
 import re
+from html import escape
 
 import pytest
 from interact_support import append_carried_log_record, element_declaration
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_layout import (
+    current_location_ring,
     mark_edges,
     ring_faults,
     rings_drawn,
-    standing_ring,
     token_colour,
 )
 from render_harness import (
@@ -22,8 +23,8 @@ from render_harness import (
     any_suggestion_control,
     leaf_page,
     open_page,
+    open_threads,
     page_comment,
-    panel_settled,
     scroll_settled,
 )
 
@@ -34,6 +35,82 @@ from leaf import data as data_model
 from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_diff_focus_distinguishes_pointer_and_keyboard_and_survives_shaded_rows(
+    request, serve, engine
+):
+    """The reported diff click drew a ring below its positioned addition rows.
+
+    Real Tab arrival must paint all four viewport edges before and after sideways
+    scrolling; pointer arrival must preserve focus without painting a keyboard cue.
+    """
+    patch = (
+        "diff --git a/example.py b/example.py\n--- a/example.py\n+++ b/example.py\n"
+        "@@ -1,3 +1,3 @@\n context\n-"
+        + "old_value " * 100
+        + "\n+"
+        + "new_value " * 100
+        + "\n context\n"
+    )
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "Read a diff",
+                '<h1>Read a diff</h1><lf-diff id="patch"><pre>'
+                + escape(patch)
+                + "</pre></lf-diff>",
+            ),
+            packages=("diff",),
+        ),
+    )
+    code = page.locator("#patch code[data-code]")
+    # Give the generated scrollport an address for the shared pixel-edge reader.
+    code.evaluate("node => node.id = 'diff-viewport'")
+    code.click(position={"x": 150, "y": 25})
+    expect(code).to_be_focused()
+    rendered(page)
+    assert not rings_drawn(page)
+    # A command can enter a reading row before Tab establishes native keyboard
+    # visibility. The first arrival also lends the row its temporary focus stop.
+    row = page.locator("#patch .lf-diff-line > [data-line]").first
+    expect(row).not_to_have_attribute("tabindex")
+    page.keyboard.press("]")
+    expect(row).to_be_focused()
+    rendered(page)
+    assert row.evaluate("node => getComputedStyle(node).outlineStyle") == "solid"
+    page.keyboard.press("c")
+    expect(page.locator("leaf-text[data-lf-focus]")).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(row).to_be_focused()
+    rendered(page)
+    assert row.evaluate("node => getComputedStyle(node).outlineStyle") == "solid"
+    code.click(position={"x": 150, "y": 25})
+    expect(code).to_be_focused()
+    page.keyboard.press("Tab")
+    page.keyboard.press("Shift+Tab")
+    expect(code).to_be_focused()
+    rendered(page)
+    accent = tuple(int(n) for n in re.findall(r"\d+", token_colour(page, "--accent")))
+    for scrolled in (False, True):
+        if scrolled:
+            page.keyboard.press("ArrowRight")
+            page.wait_for_function(
+                "document.querySelector('#patch').shadowRoot.querySelector('code').scrollLeft > 0"
+            )
+        edges = mark_edges(page, "diff-viewport", accent)
+        assert all(min(widths) >= 1 for widths in edges.values()), edges
+    # Entering a hunk transfers the ring from the whole viewport to its first row.
+    # The parent still contains visible focus, so its frame must also respond to
+    # the code losing focus. Side samples below that row must lose their blue edge.
+    page.keyboard.press("]")
+    expect(row).to_be_focused()
+    rendered(page)
+    assert row.evaluate("node => getComputedStyle(node).outlineStyle") == "solid"
+    edges = mark_edges(page, "diff-viewport", accent)
+    assert min(edges["left"]) == min(edges["right"]) == 0, edges
 
 
 @pytest.mark.parametrize("reading", ["markdown", "boxed-tab", "page-tab"])
@@ -122,7 +199,7 @@ def test_an_open_part_wears_a_tab_panels_ring_on_its_own_edge(browser, serve):
 def test_controls_show_keyboard_focus_without_ringing_pointer_activation(
     browser, serve
 ):
-    """Clicks retain standing; keyboard arrivals show one ring, including carriers."""
+    """Clicks retain the current location; keyboard arrivals show one ring, including carriers."""
     declaration = element_declaration("lf-shadow-focus", upgrade=True)
     declaration["x-shadow"] = True
     page = open_page(
@@ -402,13 +479,13 @@ def test_the_ring_reading_names_every_way_a_box_can_draw_nothing_past_its_edge(
     }"""
 
     clean = page.evaluate(plant, "none")
-    assert standing_ring(page)["cuts"] == [], (
+    assert current_location_ring(page)["cuts"] == [], (
         f"the displaced ring is reported cut with nothing clipping it ({clean}), so the "
         "cases below would only be repeating whatever this reading always says"
     )
     for how in ("overflow", "contain", "content-visibility"):
         style = page.evaluate(plant, how)
-        cuts = standing_ring(page)["cuts"]
+        cuts = current_location_ring(page)["cuts"]
         assert any("left edge" in c for c in cuts), (
             f"a parent clipping by {how} ({style}) drew the ring away and the reading "
             f"said {cuts}"
@@ -436,6 +513,9 @@ def test_the_ring_reading_distinguishes_element_marks_from_focus(browser, serve)
         box.classList.toggle(name, false);
       box.toggleAttribute('data-lf-focus-visible', how === 'focused mark');
       box.style.outline = '';
+      // Keep the paints identical so the mark's role is what excludes it.
+      box.style.setProperty('--mark-contour-w', 'var(--focus-ring-w)');
+      box.style.setProperty('--mark-contour-ink', 'var(--accent)');
       if (how === 'mark') box.classList.add('lf-mark-el', 'lf-mark-hover');
       if (how === 'focused mark') box.classList.add('lf-mark-el');
       if (how === 'the ring itself') box.style.outline = 'var(--focus-ring)';
@@ -464,8 +544,8 @@ def test_the_ring_reading_distinguishes_element_marks_from_focus(browser, serve)
 
     page.evaluate(plant, "none")
     assert not claimed(), "the box is called a ring before anything is painted on it"
-    standing = standing_ring(page)
-    assert standing and standing["here"], (
+    current_location = current_location_ring(page)
+    assert current_location and current_location["here"], (
         "no ring is painted with the keyboard on a control, so the reading is silent "
         "here and would pass this test however it behaved"
     )
@@ -617,9 +697,9 @@ def test_the_ring_reading_still_sees_what_is_painted_over_a_ring(browser, serve)
     page.locator("#ring-control").focus()
     page.keyboard.press("Tab")
     page.keyboard.press("Shift+Tab")
-    assert standing_ring(page), "no ring is drawn, so nothing is covered"
+    assert current_location_ring(page), "no ring is drawn, so nothing is covered"
 
-    assert standing_ring(page)["covers"] == [], (
+    assert current_location_ring(page)["covers"] == [], (
         "the control is reported covered before anything is put over it"
     )
     page.evaluate(
@@ -633,7 +713,9 @@ def test_the_ring_reading_still_sees_what_is_painted_over_a_ring(browser, serve)
           document.body.append(d);
         }"""
     )
-    assert any("top edge is under" in c for c in standing_ring(page)["covers"]), (
+    assert any(
+        "top edge is under" in c for c in current_location_ring(page)["covers"]
+    ), (
         "a band laid over the ring's top run was not reported, so this reading answers "
         "nothing and the pages it passes are not evidence"
     )
@@ -673,9 +755,9 @@ def test_the_ring_reading_passes_over_a_neighbour_the_control_paints_across(
           control.focus();
         }"""
     )
-    standing = standing_ring(page)
-    assert standing and standing["covers"] == [], (
-        f"the control is reported covered before anything is put over it: {standing}"
+    current_location = current_location_ring(page)
+    assert current_location and current_location["covers"] == [], (
+        f"the control is reported covered before anything is put over it: {current_location}"
     )
 
     # A band under the grip's right ring run and clear of its own box, inside a holder
@@ -716,12 +798,12 @@ def test_the_ring_reading_passes_over_a_neighbour_the_control_paints_across(
         f"the grip draws its ring {grow}px outside its box, so there is no band outside "
         "it to lay anything under and this holds nothing"
     )
-    assert standing_ring(page)["covers"] == [], (
+    assert current_location_ring(page)["covers"] == [], (
         "a neighbour the grip paints across was read as standing over its ring"
     )
 
     page.evaluate(plant, {"z": 2, "wrap": False})
-    covers = standing_ring(page)["covers"]
+    covers = current_location_ring(page)["covers"]
     assert any("right edge is under" in c for c in covers), (
         f"the same band lifted past the grip by a z-index of its own read as {covers}, "
         "so the half above passed on a reading that answers nothing"
@@ -732,7 +814,7 @@ def test_the_ring_reading_passes_over_a_neighbour_the_control_paints_across(
     # is still the layer under the grip's own, so the page paints the grip in front and
     # the reading has nothing to report.
     page.evaluate(plant, {"z": 0, "wrap": True})
-    covers = standing_ring(page)["covers"]
+    covers = current_location_ring(page)["covers"]
     assert covers == [], (
         f"a band the grip's own z-index stands over read as {covers}, so leaving a "
         "holder's flow was taken for standing over the control that names one"
@@ -755,7 +837,7 @@ def test_the_ring_reading_passes_over_a_neighbour_the_control_paints_across(
         )
         red, green, blue = Image.open(io.BytesIO(shot)).convert("RGB").getpixel((0, 0))
         painted = red > 200 and green < 80 and blue < 80
-        covers = standing_ring(page)["covers"]
+        covers = current_location_ring(page)["covers"]
         assert bool(covers) == painted, (
             f"a band inside a stacking context at z-index {z} read as {covers} while "
             f"the page {'paints' if painted else 'does not paint'} it over the ring"
@@ -791,9 +873,9 @@ def test_the_ring_reading_sees_a_neighbour_lifted_out_of_the_flow_it_was_ranked_
           control.focus();
         }"""
     )
-    standing = standing_ring(page)
-    assert standing and standing["covers"] == [], (
-        f"the control is reported covered before anything is put over it: {standing}"
+    current_location = current_location_ring(page)
+    assert current_location and current_location["covers"] == [], (
+        f"the control is reported covered before anything is put over it: {current_location}"
     )
 
     page.evaluate(
@@ -813,7 +895,7 @@ def test_the_ring_reading_sees_a_neighbour_lifted_out_of_the_flow_it_was_ranked_
           document.getElementById('ring-holder').append(holder);
         }"""
     )
-    covers = standing_ring(page)["covers"]
+    covers = current_location_ring(page)["covers"]
     assert any("top edge is under" in c for c in covers), (
         f"a band standing over the ring read as {covers}, so a neighbour that left the "
         "flow its holder was ranked in goes unreported"
@@ -833,7 +915,7 @@ def test_the_ring_reading_sees_a_neighbour_lifted_out_of_the_flow_it_was_ranked_
           context.append(band);
         }"""
     )
-    covers = standing_ring(page)["covers"]
+    covers = current_location_ring(page)["covers"]
     assert any("top edge is under" in c for c in covers), (
         f"a band lifted inside a stacking context read as {covers}, so a z-index that "
         "orders a box only inside its context hid a cover the page paints"
@@ -860,7 +942,7 @@ def test_the_ring_reading_sees_a_neighbour_lifted_out_of_the_flow_it_was_ranked_
     assert not (red > 200 and green < 80 and blue < 80), (
         "the page paints the band over the ring here, so this case holds nothing"
     )
-    covers = standing_ring(page)["covers"]
+    covers = current_location_ring(page)["covers"]
     assert covers == [], (
         f"a band inside a context the control paints over read as {covers}, so the "
         "walk hoisted the context past the rank that answers for it"
@@ -892,8 +974,7 @@ def test_a_user_who_asked_for_no_motion_gets_a_ring_that_does_not_arrive(
     assert page.evaluate(
         "() => matchMedia('(prefers-reduced-motion: reduce)').matches"
     ), "the context did not ask for reduced motion, so the guard under test is off"
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    open_threads(page)
     control = page.locator(".lf-fp-thread").first
     control.focus()
     page.keyboard.press("Tab")
@@ -982,13 +1063,13 @@ def test_the_ring_reading_sees_a_neighbour_paint_over_a_ring_drawn_inside_its_bo
     }"""
 
     page.evaluate(plant, 0)
-    assert standing_ring(page)["covers"] == [], (
+    assert current_location_ring(page)["covers"] == [], (
         "the control is reported covered with nothing over it, so the planted case "
         "below would only be repeating whatever this reading always says"
     )
 
     laid = page.evaluate(plant, inset[0])
-    covers = standing_ring(page)["covers"]
+    covers = current_location_ring(page)["covers"]
     assert any("top edge" in c for c in covers), (
         f"a {laid}px band over the whole of the control's {inset[0]}px inset ring, "
         f"with the rest of the control in full view, and the reading said {covers}"
@@ -1023,9 +1104,11 @@ def test_the_ring_reading_measures_a_displaced_pseudo_element(browser, serve):
         }`;
       document.getElementById('ring-control').focus();
     }""")
-    standing = standing_ring(page)
-    assert standing and standing["pseudo"] == "after", standing
-    assert standing["cuts"] == standing["covers"] == [], standing
+    current_location = current_location_ring(page)
+    assert current_location and current_location["pseudo"] == "after", current_location
+    assert current_location["cuts"] == current_location["covers"] == [], (
+        current_location
+    )
 
     page.evaluate("""() => {
       const holder = document.getElementById('ring-holder').getBoundingClientRect();
@@ -1034,4 +1117,4 @@ def test_the_ring_reading_measures_a_displaced_pseudo_element(browser, serve):
         left: ${holder.left + 80}px; top: ${holder.top + 80}px;
         width: 120px; height: 2px;`;
     }""")
-    assert any("top edge is under" in c for c in standing_ring(page)["covers"])
+    assert any("top edge is under" in c for c in current_location_ring(page)["covers"])

@@ -7,7 +7,13 @@ from interact_support import add_test_widget
 from model_folds import leaf_page
 from render_harness import open_page
 
-from leaf.render_checks import RENDER_VIEWPORT, observe_output_documents, rendered
+from leaf.render_checks import (
+    HANDOVER_DEADLINE_MS,
+    RENDER_VIEWPORT,
+    SERVED_TIMEOUT_MS,
+    observe_output_documents,
+    rendered,
+)
 from leaf.render_gate.scheme import _render_scheme
 from leaf.render_gate.widget_quality import widget_findings
 from leaf.revision_artifact import read_artifact
@@ -150,20 +156,16 @@ def test_page_render_attributes_invalid_output_to_the_overriding_implementation(
     )
     artifact = read_artifact(serve.page_dir, 1)
     pages = []
-    try:
-        findings, _, complete = _render_scheme(
-            browser.unwatched,
-            url,
-            "light",
-            RENDER_VIEWPORT,
-            20_000,
-            pages,
-            implementations=artifact.implementations,
-            declaration_sources=artifact.declaration_sources,
-        )
-    finally:
-        for page in pages:
-            page.close()
+    findings, _, complete = _render_scheme(
+        browser.unwatched,
+        url,
+        "light",
+        RENDER_VIEWPORT,
+        SERVED_TIMEOUT_MS,
+        pages,
+        implementations=artifact.implementations,
+        declaration_sources=artifact.declaration_sources,
+    )
     assert complete
     failures = [f for f in findings if f.code == "invalid-output"]
     assert len(failures) == 1
@@ -187,19 +189,15 @@ def test_render_check_preserves_an_authored_classic_script_named_leaf(browser, s
     def read_script(page, registry):
         assert page.evaluate("window.authoredScriptRan") is True
 
-    try:
-        findings, _, complete = _render_scheme(
-            browser.unwatched,
-            url,
-            "light",
-            RENDER_VIEWPORT,
-            20_000,
-            pages,
-            then=read_script,
-        )
-    finally:
-        for page in pages:
-            page.close()
+    findings, _, complete = _render_scheme(
+        browser.unwatched,
+        url,
+        "light",
+        RENDER_VIEWPORT,
+        SERVED_TIMEOUT_MS,
+        pages,
+        then=read_script,
+    )
     assert complete
     assert not [f for f in findings if f.severity == "error"]
 
@@ -221,14 +219,11 @@ def test_output_capture_fetch_failure_reaches_the_browsers_network_boundary(
     page = browser.unwatched.new_page()
     page.on("requestfailed", lambda request: failed.append(request.url))
     observe_output_documents(page)
-    try:
-        # Aborting ends the browser request, so load completes instead of hanging
-        # until the handover deadline behind an unfulfilled interception.
-        page.goto(url, wait_until="load", timeout=5_000)
-        assert attempted
-        assert set(attempted) <= set(failed)
-    finally:
-        page.close()
+    # Aborting ends the browser request, so load completes instead of hanging
+    # until the handover deadline behind an unfulfilled interception.
+    page.goto(url, wait_until="load", timeout=HANDOVER_DEADLINE_MS)
+    assert attempted
+    assert set(attempted) <= set(failed)
 
 
 @pytest.mark.parametrize("ending", ["removed", "navigated"])
@@ -265,21 +260,17 @@ def test_render_check_keeps_departed_samples_invalid_outputs(
             for frame in page.frames[1:]:
                 frame.goto("about:blank")
 
-    try:
-        findings, _, complete = _render_scheme(
-            browser.unwatched,
-            url,
-            "light",
-            RENDER_VIEWPORT,
-            20_000,
-            pages,
-            then=leave_samples,
-            implementations=artifact.implementations,
-            declaration_sources=artifact.declaration_sources,
-        )
-    finally:
-        for page in pages:
-            page.close()
+    findings, _, complete = _render_scheme(
+        browser.unwatched,
+        url,
+        "light",
+        RENDER_VIEWPORT,
+        SERVED_TIMEOUT_MS,
+        pages,
+        then=leave_samples,
+        implementations=artifact.implementations,
+        declaration_sources=artifact.declaration_sources,
+    )
     assert complete
     failures = [f for f in findings if f.code == "invalid-output"]
     assert len(failures) == 3
@@ -317,20 +308,16 @@ def test_page_output_declaration_keeps_its_owner_beside_the_package_implementati
     )
     artifact = read_artifact(serve.page_dir, 1)
     pages = []
-    try:
-        findings, _, complete = _render_scheme(
-            browser.unwatched,
-            url,
-            "light",
-            RENDER_VIEWPORT,
-            20_000,
-            pages,
-            implementations=artifact.implementations,
-            declaration_sources=artifact.declaration_sources,
-        )
-    finally:
-        for page in pages:
-            page.close()
+    findings, _, complete = _render_scheme(
+        browser.unwatched,
+        url,
+        "light",
+        RENDER_VIEWPORT,
+        SERVED_TIMEOUT_MS,
+        pages,
+        implementations=artifact.implementations,
+        declaration_sources=artifact.declaration_sources,
+    )
     assert complete
     failures = [f for f in findings if f.code == "invalid-output"]
     assert len(failures) == 1

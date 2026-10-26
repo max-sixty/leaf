@@ -34,7 +34,7 @@ def _response_key(responds: str) -> dict:
 
     A provisional reply and the answer that retires it are one message to the reader,
     but the answer's own attempt need not be the one the provisional reply was reserved
-    under: an explicit `response reply` takes an author's retry key from a namespace of
+    under: an explicit `thread reply` takes an author's retry key from a namespace of
     its own, so it can never consume the provider final's append identity. The input
     they both answer is the identity they share. A failure receipt is no answer
     (`events.is_answer`), so it keeps its own name. The log can hold a second answer to
@@ -60,14 +60,16 @@ def _answer_key(event: dict, first_answers: dict[str, str]) -> dict:
 
 
 def thread_counts(threads: list[dict]) -> dict:
-    """What the Leaf panel's Threads mark counts of `browser_thread`'s threads
+    """What the Leaf panel's Threads tab counts of `browser_thread`'s threads
     (`threadCounts` in the runtime's `thread/model.js`): of those more than a bare
-    reaction, the ones still open and the ones holding words the user hasn't read.
-    `tests/thread_count_cases.json` holds both runtimes to the same cases."""
+    reaction, the ones still open, and of those the ones holding words the user
+    hasn't read. `tests/thread_count_cases.json` holds both runtimes to the same
+    cases."""
     listed = [thread for thread in threads if not thread["bare_reaction"]]
+    open_threads = [thread for thread in listed if not thread["resolved"]]
     return {
-        "open": sum(not thread["resolved"] for thread in listed),
-        "unread": sum(bool(thread["unread"]) for thread in listed),
+        "open": len(open_threads),
+        "unread": sum(bool(thread["unread"]) for thread in open_threads),
     }
 
 
@@ -82,7 +84,7 @@ def browser_thread(
     workflow says the agent is replying, and an empty message would only reserve a
     bubble with nothing in it."""
     events, threads = work.events, work.threads
-    reading, widget_obligations = work.thread, work.widget_obligations
+    reading, thread_obligations = work.thread, work.thread_obligations
     unread = unread_content(
         events, threads, reading.thread_by_name, reading.thread_by_widget
     )
@@ -96,10 +98,15 @@ def browser_thread(
         protected = set()
         if awaits_agent(thread):
             protected.add(turn_message(unanswered_agent_turn(thread)))
+        protected.update(
+            item["message"]
+            for item in thread_obligations["unanswered"]
+            if item["thread"] == thread_id and item["source"]["kind"] == "message"
+        )
         obligation_sources = {
             item["source"]["id"]
-            for item in widget_obligations["unanswered"]
-            if item["thread"] == thread_id
+            for item in thread_obligations["unanswered"]
+            if item["thread"] == thread_id and item["source"]["kind"] == "widget"
         }
         for message_id, fragment in reading.structure.fragments.items():
             if obligation_sources.intersection(fragment.by_id):

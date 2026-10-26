@@ -97,8 +97,8 @@ const searchCount = (position, total) => `${position}/${total}`;
 
 // Target choosing and whole-page text search. `s` opens a viewport-local map of
 // the same stable addressables and visual parts Alt-click reaches, then opens Comment on the
-// chosen target; `/` opens the page's text search directly or from that map. The floating
-// panel's Select element opens this same picker. A choice
+// chosen target; `/` opens the page's text search directly or from that map. The leaf
+// menu's Annotations → Comment on an element opens this same picker. A choice
 // in Design mode keeps that mode's design intent; Draw reserves the page for ink and
 // offers no picker. Area capture also claims the page until it ends. While the picker
 // stands, the page is armed as it is under a held Alt (aim.js): a mouse shows the target
@@ -231,7 +231,7 @@ export function createTargetPicker({
   // `withHints` opens the shared mode without a target map: a direct slash is page
   // search over the whole document, and reading a viewport-local map it would then hide
   // is work for nobody.
-  // The picker's opener is the control the user stood on as it opened (focus.js,
+  // The picker's opener is the control the user was on as it opened (focus.js,
   // `openLayer`); a close that restores hands them back to it as it closes.
   function setTargetPicker(on, restore = false, withHints = true) {
     if (on && (!anchoringIsReady() || (withHints && !canChoose()))) return;
@@ -455,12 +455,13 @@ export function createTargetPicker({
   function moveMatch(direction) {
     refreshMatches();
     if (!matches.value.length) return presentSearchStatus();
-    const { row, wrapped } = cycledRow(matches.value, matches.value[active], direction);
-    active = matches.value.indexOf(row);
+    active = matches.value.indexOf(
+      cycledRow(matches.value, matches.value[active], direction),
+    );
     presentSearchStatus();
     showMatch();
     const query = pageSearchInput.value.trim();
-    beginWalk("page-search", "Match", () => matchWalkPosition(query), wrapped);
+    beginWalk("page-search", "Match", () => matchWalkPosition(query));
     announce(
       `Match ${active + 1} of ${matches.value.length}: ${matchDescription(matches.value[active])}.`,
     );
@@ -500,7 +501,7 @@ export function createTargetPicker({
     );
   }
 
-  function landOnMatch(wrapped = false) {
+  function landOnMatch() {
     releaseFocus();
     const range = rangeOf(matches.value[active]);
     selectEnds(
@@ -509,7 +510,7 @@ export function createTargetPicker({
     );
     updateFab();
     const query = repeatedSearch.query;
-    beginWalk("page-search", "Match", () => matchWalkPosition(query), wrapped);
+    beginWalk("page-search", "Match", () => matchWalkPosition(query));
   }
 
   function repeatSearch(direction) {
@@ -521,11 +522,12 @@ export function createTargetPicker({
       return repaint();
     }
     const from = Math.min(repeatedSearch.index, matches.value.length - 1);
-    const { row, wrapped } = cycledRow(matches.value, matches.value[from], direction);
-    active = matches.value.indexOf(row);
+    active = matches.value.indexOf(
+      cycledRow(matches.value, matches.value[from], direction),
+    );
     repeatedSearch.index = active;
     showMatch();
-    landOnMatch(wrapped);
+    landOnMatch();
     announce(
       `Match ${active + 1} of ${matches.value.length}: ${matchDescription(matches.value[active])}.`,
     );
@@ -661,6 +663,7 @@ export function createTargetPicker({
     ],
     title: "search matches",
     repeat: true,
+    travels: true,
     when: () => Boolean(repeatedSearch),
     run: (binding) => repeatSearch(binding === "n" ? 1 : -1),
   };
@@ -692,6 +695,7 @@ export function createTargetPicker({
     keys: HINT_KEYS,
     label: "a–z",
     title: "type hint",
+    travels: true,
     when: () => hints.candidates().length > 0,
     run: hints.type,
   };
@@ -726,6 +730,7 @@ export function createTargetPicker({
         id: "page.search.match.select",
         keys: ["Enter"],
         title: "select match",
+        travels: true,
         // A finger presses the marked match itself (`pressMatch`).
         touch: false,
         when: () => matches.value.length > 0,
@@ -751,6 +756,7 @@ export function createTargetPicker({
         ],
         title: "matches",
         repeat: true,
+        travels: true,
         when: () => matches.value.length > 0,
         run: (binding) => moveMatch(binding === "Tab" ? 1 : -1),
       },
@@ -809,7 +815,12 @@ export function createTargetPicker({
   pageScope("page search", PAGE_SEARCH_SCOPE);
   pageScope("target picker", TARGET_PICKER_SCOPE);
   // The page itself is already a Comment target; `s` plus a hint names a more particular
-  // one. Either route opens Comment, while reactions wait for a target.
+  // one. Either route opens Comment, while reactions wait for a target. The leaf menu's
+  // Annotations lists it for every pointer, named for what it leads to. The user chose
+  // this on 24 October 2026 over listing it, as "Select element", only where no
+  // keyboard was there to press `s`: a mouse user who never learned `s` had no visible
+  // way to comment on a whole widget or picture, since selecting words picks neither.
+  // A row at the menu's top level was shown and set aside for Annotations.
   pageCommand({
     id: "target.picker.open",
     keys: ["s"],
@@ -817,8 +828,8 @@ export function createTargetPicker({
       bindings(TARGET_HINT_TYPE).length
         ? "Choose an element by pressing it or typing its hint, then comment"
         : "Choose an element by pressing it or browsing targets with Tab and Enter, then comment",
-    title: "select element",
-    touch: "Select element",
+    title: "comment on an element",
+    touch: "Comment on an element",
     menu: "annotate",
     when: canChoose,
     run: (/** @type {Parameters<typeof openTargetPicker>} */ ...args) =>

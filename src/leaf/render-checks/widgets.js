@@ -202,7 +202,7 @@ export function undeclaredAttrs(declarations) {
 // page still reads, and a settled slot can show its words anyway — a later layer's
 // rule outranking the default hide, a module re-showing what it folded — leaving the
 // user selecting words no comment can anchor to, with the refusal arriving later, at
-// `leaf thread open`, nowhere near the mistake. So the expected outcome comes from the
+// `leaf thread create`, nowhere near the mistake. So the expected outcome comes from the
 // file's reading (`decisions`, folded over this version's log), never from the page,
 // and the page answers only for what it shows.
 //
@@ -310,12 +310,20 @@ const withFirstSizes = (holder, inside) => {
 // and whose border box, which is the box the theme reserves, changed height between the
 // page's first paint and now: `drawn` is the height to state as its data-height, and
 // `reserved` the height its first paint held (`data-lf-height`, empty where `x-height`
-// is `true` and the occurrence states none), if any.
+// is `true` and the occurrence states none), if any. The height is the page's to state
+// only where its first paint left the box to its content or held it to a
+// `data-lf-height`. A box the widget's own theme held to another height, as an inline
+// patch's counted rows hold an lf-diff, was sized from its markup, so a drawing that
+// misses that height is the widget's to fix (`keeps-first-box`), and a data-height
+// would only stand in for the count until the next edit made it stale.
 export function unreservedHeights(declarations) {
   return globalThis.__leafRenderDriver
     .firstBoxes()
     .filter(
-      ({ element }) => declarations[element.localName]?.["x-height"] && shown(element),
+      ({ element, stated }) =>
+        declarations[element.localName]?.["x-height"] &&
+        (!stated || element.getAttribute("data-lf-height")) &&
+        shown(element),
     )
     .flatMap(({ element, height }) => {
       const now = element.getBoundingClientRect().height;
@@ -325,6 +333,7 @@ export function unreservedHeights(declarations) {
             {
               code: "unreserved-height",
               at: locate(element),
+              first: Math.round(height),
               drawn: Math.round(now),
               reserved: element.getAttribute("data-lf-height") || null,
             },

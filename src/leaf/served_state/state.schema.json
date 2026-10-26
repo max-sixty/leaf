@@ -145,16 +145,12 @@
               "description": "`waiting` on the user or `idle`, done with the page; `waiting` before the agent declares anything.",
               "type": "string"
             },
-            "detail": {
-              "description": "The declaration's words; empty before the first declaration and where a start reopened an idle page.",
-              "type": "string"
-            },
             "ts": {
               "description": "When the agent declared it, or when a start reopened an idle page; absent before the first declaration.",
               "type": "string"
             }
           },
-          "required": ["state", "detail"],
+          "required": ["state"],
           "additionalProperties": false
         },
         "listening": {
@@ -196,6 +192,10 @@
           "description": "The claimant session, or null.",
           "type": ["string", "null"]
         },
+        "session_name": {
+          "description": "What the claimant's harness calls its session now (`Harness.session_name`), or null where it names none.",
+          "type": ["string", "null"]
+        },
         "claim_turn": {
           "description": "The claimant's current turn, which an opened delivery names, or null.",
           "type": ["string", "null"]
@@ -210,6 +210,10 @@
         },
         "turn_takes_input": {
           "description": "Whether an open turn of the claimant's takes new input before it ends (`Harness.turn_takes_input`).",
+          "type": "boolean"
+        },
+        "input_wakes": {
+          "description": "Whether the nudge the claimant's next input gets would start a turn of its session's (`Harness.input_wakes`).",
           "type": "boolean"
         },
         "session_cwd": {
@@ -302,10 +306,12 @@
         "pending",
         "agent",
         "claim_session",
+        "session_name",
         "claim_turn",
         "turn_closed",
         "turn_opened",
         "turn_takes_input",
+        "input_wakes",
         "session_cwd",
         "activity",
         "workflows",
@@ -752,8 +758,7 @@
             "unresolve",
             "action",
             "report",
-            "note",
-            "done"
+            "note"
           ]
         },
         "author": { "type": "string" },
@@ -815,11 +820,6 @@
           "type": "object",
           "additionalProperties": { "$ref": "#/$defs/View" }
         },
-        "approval_history": {
-          "description": "Approvals in force across every stamp, for Threads' event timeline. Current-version approval state lives only in its obligation.",
-          "type": "array",
-          "items": { "$ref": "leaf:event/done", "unevaluatedProperties": false }
-        },
         "todos": {
           "description": "Every to-do, open and ended, the one record the browser reads each from.",
           "type": "array",
@@ -862,7 +862,6 @@
       "required": [
         "basis",
         "views",
-        "approval_history",
         "todos",
         "plan",
         "receipts",
@@ -904,7 +903,7 @@
           "additionalProperties": false
         },
         "obligations": {
-          "description": "Every obligation record of this view, its document's then its frozen threads', answered and withdrawn ones included. The one copy of each: a list row and `approval_blocking` name an obligation by `id`.",
+          "description": "Every obligation record of this view, its document's then its frozen threads', answered and withdrawn ones included. The one copy of each: a list row names an obligation by `id`.",
           "type": "array",
           "items": { "$ref": "#/$defs/Obligation" }
         },
@@ -997,11 +996,6 @@
           },
           "required": ["on_user", "on_agent", "done"],
           "additionalProperties": false
-        },
-        "approval_blocking": {
-          "description": "The obligations approving this version waits on (`obligations.approval_blocking`).",
-          "type": "array",
-          "items": { "type": "string" }
         }
       },
       "required": [
@@ -1013,8 +1007,7 @@
         "undo",
         "coverage",
         "published_at",
-        "queues",
-        "approval_blocking"
+        "queues"
       ],
       "additionalProperties": false
     },
@@ -1080,7 +1073,7 @@
       "additionalProperties": false
     },
     "Obligation": {
-      "description": "One request and its contained answer (`obligations.py`, which owns the statuses): what a widget or a version's sign-off waits on the user for, or what an update the user handed over is owed (`workflows.handed_over`). The source owns the canonical value; identity includes its kind so authored ids and message ids cannot collide.",
+      "description": "One request and its contained answer (`obligations.py`, which owns the statuses): what a message, user task, or widget waits on the user for, or what a user update is owed (`workflows.handed_over`). The source owns the canonical value; identity includes its kind so authored ids and message ids cannot collide.",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -1101,19 +1094,29 @@
               "additionalProperties": false
             },
             {
-              "type": "object",
-              "properties": {
-                "kind": { "const": "approval" },
-                "version": { "type": "integer" }
-              },
-              "required": ["kind", "version"],
-              "additionalProperties": false
-            },
-            {
               "description": "An update the user handed over: `id` is the input's event, `subject` the thread or widget it stands on.",
               "type": "object",
               "properties": {
                 "kind": { "const": "update" },
+                "id": { "type": "string" },
+                "subject": { "$ref": "#/$defs/Subject" }
+              },
+              "required": ["kind", "id", "subject"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": { "const": "message" },
+                "id": { "type": "string" }
+              },
+              "required": ["kind", "id"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": { "const": "todo" },
                 "id": { "type": "string" },
                 "subject": { "$ref": "#/$defs/Subject" }
               },
@@ -1129,7 +1132,7 @@
           "properties": {
             "text": { "type": ["string", "null"] },
             "target": {
-              "description": "Where the user goes to answer: the id of a widget's prompt context, or of the thread or widget an update stands on; null for an approval, which asks about the version as a whole.",
+              "description": "Where the user goes to answer: the id of a widget's prompt context, or of the thread or widget an update stands on; null for a message or page-wide task, whose source and thread supply navigation.",
               "type": ["string", "null"]
             }
           },
@@ -1195,7 +1198,7 @@
       "additionalProperties": false
     },
     "QueueRow": {
-      "description": "One row of On me or On <agent> (`served_state.queues`); `owner` names its list and `live` whether the agent has it in hand now. A record's row names its obligation by `id`, whose record is the view's `obligations` entry, and a to-do row names its to-do by `id`, whose record is the page's `todos` entry.",
+      "description": "One row of On me or On <agent> (`served_state.queues`); `owner` names its list and `live` whether the agent has it in hand now. A record's row names its obligation by `id`, whose record is the view's `obligations` entry, and an agent to-do row names its record in the page's `todos` entry.",
       "anyOf": [
         { "$ref": "#/$defs/ObligationRow", "unevaluatedProperties": false },
         { "$ref": "#/$defs/TodoRow", "unevaluatedProperties": false }
@@ -1207,7 +1210,7 @@
       "properties": {
         "kind": {
           "description": "The record's `source.kind`.",
-          "enum": ["widget", "approval", "update"]
+          "enum": ["widget", "update", "message", "todo"]
         },
         "id": {
           "description": "The obligation, whose record is the view's `obligations` entry.",
@@ -1222,15 +1225,20 @@
           "description": "The thread it stands in, or null.",
           "type": ["string", "null"]
         },
+        "also": {
+          "description": "The other obligations the user answers at the same place, each a view's `obligations` entry: the further records a thread's reply answers, and on an obligation's row those of a thread about it.",
+          "type": "array",
+          "items": { "type": "string" }
+        },
         "live": {
           "description": "Whether the agent has it in hand now: an update it is at work on whose work has not gone quiet or stopped.",
           "type": "boolean"
         }
       },
-      "required": ["kind", "id", "owner", "subject", "thread", "live"]
+      "required": ["kind", "id", "owner", "subject", "thread", "also", "live"]
     },
     "TodoRow": {
-      "description": "A to-do's row in On me or On <agent> (`served_state.queues`).",
+      "description": "An agent to-do's row in On <agent> (`served_state.queues`).",
       "type": "object",
       "properties": {
         "kind": { "const": "todo" },
@@ -1240,7 +1248,7 @@
         },
         "owner": {
           "description": "The list the row stands on.",
-          "enum": ["agent", "user"]
+          "const": "agent"
         },
         "subject": { "$ref": "#/$defs/Subject" },
         "thread": {
@@ -1360,7 +1368,7 @@
           "type": "object",
           "properties": {
             "kind": { "const": "needs_user" },
-            "reason": { "enum": ["widget", "resend"] },
+            "reason": { "enum": ["obligation", "resend"] },
             "workflow": { "type": ["string", "null"] }
           },
           "required": ["kind", "reason", "workflow"],

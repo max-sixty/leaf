@@ -58,6 +58,11 @@
      terse reading that row shows at its end, past words the row may cut, such as how
      long ago the gesture Undo would take back was made; the row's hover reads the
      description whole.
+   - `travels: true` says the command takes the user somewhere, as a walk, a scroll or
+     a Go-to destination does, so its result may move what they pressed it on. Every
+     other command leaves the control it was pressed on where it stood on screen
+     (browser/AGENTS.md, "Stability"). The dispatcher announces it with the
+     invocation, where the suite's shift watch reads it.
    - A command that enters a layer declares no way back out of it. The layer's own
      owner declares that step, against the open layer rather than against the press
      that opened it, so one state has one way out however the user reached it.
@@ -581,7 +586,7 @@ export function answers(binding, ev) {
   // business rather than the binding's. A named key carries no such ambiguity — no layout
   // hides ArrowLeft behind Shift — so there the modifier is asked for exactly, the way it
   // is on a letter. Shift+→ is how a user extends a selection through the words of a
-  // <summary> they are standing on, and the laxity here was closing the section under
+  // <summary> they are on, and the laxity here was closing the section under
   // them and eating the extension.
   return key === " " || key.length > 1
     ? ev.key === key && ev.shiftKey === shift
@@ -718,9 +723,8 @@ export const rowArrows = (node) =>
   node.matches(":dir(rtl)") ? ["ArrowRight", "ArrowLeft"] : ["ArrowLeft", "ArrowRight"];
 
 // The one-dimensional list policy. Every step inside the list clamps; a caller may name
-// the row where its own off-list arrival enters. The page walks cycle (`cycledRow`), and
-// tabs and spatial grids own their cyclic policies instead of passing through this
-// primitive.
+// the row where its own off-list arrival enters. A walk that comes round at its ends
+// steps with `cycledRow` instead.
 export const clampedRow = (
   rows,
   current,
@@ -733,14 +737,13 @@ export const clampedRow = (
   return rows[Math.max(0, Math.min(rows.length - 1, next))];
 };
 
-// The page walks' policy (`t`, `m`, `n`): a step past either end comes round to the
-// other. `wrapped` says it came round, which the landing's ordinal alone does not, so
-// the walk can mark it (walk-position.js, `beginWalk`). Entry from off the list takes
-// the end the step faces and comes round nothing.
+// The cyclic list policy, the one step of every walk that comes round at its ends, from
+// the page walks (`t`, `m`, `n`) to a tab strip. A step past either end comes round to
+// the other. Entry from off the list takes the end the step faces. A walk kept by index
+// passes the row at its index, or none, and reads the landing's index back.
 export const cycledRow = (rows, current, dir) => {
-  if (!rows.length) return { row: undefined, wrapped: false };
+  if (!rows.length) return undefined;
   const at = rows.indexOf(current);
   const next = at < 0 ? (dir > 0 ? 0 : rows.length - 1) : at + dir;
-  const wrapped = next < 0 || next >= rows.length;
-  return { row: rows[(next + rows.length) % rows.length], wrapped };
+  return rows[(next + rows.length) % rows.length];
 };

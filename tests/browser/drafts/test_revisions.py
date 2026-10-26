@@ -281,7 +281,9 @@ def test_executable_revision_preserves_each_editor_identity(browser, serve, kind
     assert after == before
 
 
-def test_executable_revision_preserves_non_editor_thread_standing(browser, serve):
+def test_executable_revision_preserves_non_editor_thread_current_location(
+    browser, serve
+):
     page = editing_reply_page(browser, serve)
     page.keyboard.press("Escape")
     captured = page.evaluate(
@@ -356,28 +358,27 @@ def test_a_re_vendor_waits_for_the_reply_being_written(browser, serve):
         assert revised.error is None
         with restarting(page):
             before.close()
-            replaced = hosting_model.TemporaryPageServer(
-                page_dir, token=before.token, port=before.port
-            ).start()
+            # `serve` ends it with its own server, once the test body's pages
+            # have painted their last frame.
+            serve.servers.append(
+                hosting_model.TemporaryPageServer(
+                    page_dir, token=before.token, port=before.port
+                ).start()
+            )
             # The tab has read the state naming the newer revision.
             told(page)
-    try:
-        # A second of news from the replaced server, which is where a token the tab
-        # refused would have sent it to reload.
-        for _ in range(4):
-            with page.expect_response("**/api/news*"):
-                pass
-        assert page.evaluate("performance.timeOrigin") == birth
-        expect(editor).to_be_focused()
-        expect(editor).to_have_js_property("value", words)
-        page.keyboard.press("Control+Enter")
-        wait_for_revision(page, revised.revision)
-        assert page.evaluate("performance.timeOrigin") != birth
-        assert events_model.read_events(page_dir)[-1]["text"] == words
-    finally:
-        # Closed while its server is still up, so no late module load meets a reset.
-        page.close()
-        replaced.close()
+    # A second of news from the replaced server, which is where a token the tab
+    # refused would have sent it to reload.
+    for _ in range(4):
+        with page.expect_response("**/api/news*"):
+            pass
+    assert page.evaluate("performance.timeOrigin") == birth
+    expect(editor).to_be_focused()
+    expect(editor).to_have_js_property("value", words)
+    page.keyboard.press("Control+Enter")
+    wait_for_revision(page, revised.revision)
+    assert page.evaluate("performance.timeOrigin") != birth
+    assert events_model.read_events(page_dir)[-1]["text"] == words
 
 
 @pytest.mark.parametrize("kind", ["edit", "first-message", "option"])

@@ -1,8 +1,8 @@
-/** Shared Shiki engine, Leaf token theme, and source-preserving token reading.
+/** Leaf's syntax module, token theme, and source-preserving token reading.
  *
  * The runtime loads registry-selected grammar modules before asking either this
- * tokenizer or Pierre to render. Both use this singleton and the same theme;
- * grammar loaders are registered here so Pierre consumes those same modules.
+ * tokenizer or Pierre to render. Grammar loaders are registered here so Pierre
+ * consumes those same modules and Leaf's token theme.
  */
 import {
   createHighlighterCore,
@@ -76,7 +76,7 @@ export const foreground = leafTheme.colors["editor.foreground"];
 export const bundledLanguages = {};
 let highlighter;
 
-/** Pierre's public factory shares the engine already used by ordinary code. */
+/** Ordinary code blocks share one highlighter and its loaded grammars. */
 export async function createHighlighter({ langs = [], themes = [] } = {}) {
   const instance = await (highlighter ??= createHighlighterCore({
     engine: createJavaScriptRegexEngine(),
@@ -142,6 +142,7 @@ export const createOnigurumaEngine = () => {
 
 export {
   createCssVariablesTheme,
+  createHighlighterCore,
   createJavaScriptRegexEngine,
   getTokenStyleObject,
   normalizeTheme,

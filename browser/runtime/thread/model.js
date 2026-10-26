@@ -91,7 +91,7 @@ export const turns = (thread) =>
   );
 // The name for a thread that the log's answer does not change: the user's own attempt
 // where their gesture opened the thread, else the id the log gave it. Anything
-// that has to outlive that transition with the user standing in it — a reply draft, a
+// that has to outlive that transition with the user in it — a reply draft, a
 // margin row — keys itself by this rather than by the id, which changes when the log
 // answers.
 /** @param {{id: string, root: {attempt?: string}}} thread */
@@ -138,8 +138,16 @@ export const discussed = (thread) => !bareReaction(thread);
  * @param {Pick<Thread, "unread">} thread */
 export const hasUnread = (thread) => thread.unread.length > 0;
 /**
- * What the panel's Threads mark counts of the threads it lists: those still open, and
- * those holding words the user hasn't read. A page's served row counts the same way
+ * Whether a thread is news: still open and holding words the user hasn't read. A
+ * resolved thread's unread words aren't, so the news the panel counts never outnumbers
+ * the open threads; a reply reopens its thread, and the user chose on 21 October to
+ * leave what reaches a closed one unannounced.
+ * @param {Pick<Thread, "resolved" | "unread">} thread */
+export const isNews = (thread) => !thread.resolved && hasUnread(thread);
+/**
+ * What the panel counts of the threads it lists: those still open, which Threads' tab
+ * says, and those that are news (`isNews`), which the On me mark's dot says. A page's
+ * served row counts the same way
  * (`served_state.thread.thread_counts`); tests/thread_count_cases.json holds both.
  * @param {readonly Pick<Thread, "bare_reaction" | "resolved" | "unread">[]} threads
  */
@@ -147,7 +155,7 @@ export function threadCounts(threads) {
   const listed = threads.filter(discussed);
   return {
     open: listed.filter((thread) => !thread.resolved).length,
-    unread: listed.filter(hasUnread).length,
+    unread: listed.filter(isNews).length,
   };
 }
 // Which widget's seat a pending thread stands in, by the rule `seat_root` reads the log
@@ -333,7 +341,7 @@ const versionKey = ({ message, version }) => `${message}\u0000${version}`;
  * @param {ReturnType<typeof import("../projection/model.js").foldWidgetStates>} widgets
  * @param {import("../../framework/application.ts").Workflow[]} workflows
  * @param {readonly import("../../framework/application.ts").WireTodo[]} todos
- *   the open to-dos, of which each thread holds the agent's on it
+ *   the open to-dos, of which each thread holds the agent's and the user's on it apart
  * @param {readonly import("../../framework/application.ts").ObligationRecord[]} obligations
  *   the view's obligations, of which each thread holds those its messages make
  * @param {import("../../framework/domain.ts").ContentVersion[]} markingRead
@@ -443,6 +451,12 @@ export function readThreadRecords(
       // thread's working message reads whoever's turn the thread is.
       todos: todos.filter(
         (todo) => todo.owner === "agent" && todo.thread === thread.id,
+      ),
+      // The user's open to-dos on the thread, which its head names with their Done: a
+      // to-do on a thread has no place on the page (obligations/place.js), so the
+      // thread draws it.
+      userTodos: todos.filter(
+        (todo) => todo.owner === "user" && todo.thread === thread.id,
       ),
       workflows: workflows.filter((workflow) => workflow.thread === thread.id),
       bare_reaction: thread.bare_reaction,

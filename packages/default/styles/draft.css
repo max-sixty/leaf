@@ -56,8 +56,10 @@
   outline: none;
   box-shadow: none;
 }
-.lf-draft-tools {
-  display: none;
+@media not screen {
+  .lf-draft-tools {
+    display: none;
+  }
 }
 @media screen {
   :scope:is(lf-draft):not(:where([data-lf-exhibit], [data-lf-exhibit] *)) {
@@ -74,28 +76,20 @@
   :scope:is(lf-draft):has(.lf-draft-edit:state(ready)) > .lf-draft-body {
     display: none;
   }
-  /* The toolbar's middle lies on the box's border at its right, so it covers the
-     border and padding and never a word: Edit and Copy at rest, Save, Discard and Copy
-     while editing, Copy keeping the last seat, and a refused save's status before
+  /* The toolbar is Leaf's mark toolbar (integration.css, `.lf-mark-bar`), whose face
+     and seat a code block's lone Copy shares: Edit and Copy at rest, Save, Discard and
+     Copy while editing, Copy keeping the last seat, and a refused save's status before
      them. A pointer sees it on the top border while over the box or a key is in it,
      and the open editor always. A finger sees it always, on the bottom border, since
      on a phone the margin's entries hang past the end of the line they mark, into the
-     room over the next block, which is where a top toolbar would stand. There each
-     mark is a full aim wide and its reach a full aim tall. */
+     room over the next block, which is where a top toolbar would stand. */
   .lf-draft-tools {
-    --lf-draft-mark: 26px;
     position: absolute;
     z-index: 1;
     inset-block-start: 0;
-    inset-inline-end: calc(var(--lf-draft-inset) - 6px);
+    /* The seat is measured from the box's outer edge, as a code block's is. */
+    inset-inline-end: calc(var(--lf-mark-bar-end) - 1px);
     translate: 0 calc(-50% - 0.5px);
-    display: flex;
-    gap: 2px;
-    padding: 1px;
-    border: 1px solid var(--border-2);
-    border-radius: var(--r);
-    background: var(--card);
-    box-shadow: var(--raise-1);
     opacity: 0;
     transition: opacity 120ms;
   }
@@ -119,51 +113,5 @@
       translate: 0 calc(50% + 0.5px);
       opacity: 1;
     }
-  }
-  .lf-draft-action,
-  .lf-draft-tools > .lf-code-copy::part(button) {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    box-sizing: border-box;
-    inline-size: max(var(--lf-draft-mark), var(--aim-floor));
-    min-inline-size: 0;
-    block-size: var(--lf-draft-mark);
-    min-block-size: 0;
-    padding: 0;
-  }
-  .lf-draft-action::before {
-    content: "";
-    position: absolute;
-    inset: min(0px, (var(--lf-draft-mark) - var(--aim-floor)) / 2) 0;
-  }
-  /* Its own rule, so an engine refusing a pseudo-element after a part keeps the rest. */
-  .lf-draft-tools > .lf-code-copy::part(button)::before {
-    content: "";
-    position: absolute;
-    inset: min(0px, (var(--lf-draft-mark) - var(--aim-floor)) / 2) 0;
-  }
-  /* The ring stays inside its mark, off the words beside the toolbar. */
-  .lf-draft-action[data-lf-focus-visible],
-  .lf-draft-tools > .lf-code-copy::part(lf-focus-visible) {
-    outline-offset: calc(-1 * var(--focus-ring-w));
-  }
-  /* Copy keeps the control code blocks share; in the toolbar it is one of its marks. */
-  .lf-draft-tools > .lf-code-copy {
-    position: static;
-    inline-size: auto;
-    block-size: auto;
-    opacity: 1;
-    pointer-events: auto;
-  }
-  .lf-draft-icon {
-    inline-size: 16px;
-    block-size: 16px;
-  }
-}
-@media (forced-colors: active) {
-  :scope:is(lf-draft):has(.lf-draft-edit[data-lf-focus-visible]) {
-    outline-color: Highlight;
   }
 }

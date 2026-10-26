@@ -685,7 +685,7 @@
 }
 @media screen {
   :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *):has(> lf-option > strong) {
-    --lf-card-state-room: 80px;
+    --lf-card-state-room: calc(var(--lf-key-badge-size) + var(--sp-2));
     --lf-card-state-height: 22px;
     & > :is(lf-option, .lf-another) {
       padding-inline-start: var(--sp-3);
@@ -715,22 +715,6 @@
       min-width: var(--lf-key-badge-size);
       min-height: var(--lf-key-badge-size);
       justify-content: center;
-    }
-    & > lf-option[chosen] > .lf-pick {
-      padding: var(--chip-pad);
-      border-radius: var(--chip-r);
-      background: var(--ok);
-      color: var(--card);
-      font-size: var(--t-6);
-      line-height: var(--chip-lh);
-      gap: 4px;
-    }
-    & > lf-option[chosen] > .lf-pick::before {
-      width: auto;
-      height: auto;
-      border: 0;
-      background: transparent;
-      color: inherit;
     }
     & > lf-option > .lf-key-badge {
       inset-inline-start: auto;

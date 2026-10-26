@@ -210,7 +210,7 @@ def test_substantial_options_stack_and_align_their_facts(browser, serve):
             or chip["y"] + chip["height"] <= state_box["y"]
             or state_box["y"] + state_box["height"] <= chip["y"]
         )
-        assert separate, "the selected header state covers an authored chip"
+        assert separate, "the pick's check covers an authored chip"
 
     # More chips than fit on a line wrap along the band rather than over the card's edge.
     # The pair this replaced could not: each was an absolutely-positioned box sized to
@@ -251,15 +251,17 @@ def test_a_row_too_narrow_to_dock_a_rail_stacks_it_instead(browser, serve):
     assert rail["y"] + rail["height"] <= prose["y"], "the case has to clear the rail"
 
 
-def test_a_live_card_pick_uses_header_state_and_remains_pressable(browser, serve):
-    """A completed obligation keeps the same live-card state when reopened for review."""
+def test_a_live_card_pick_shows_the_check_and_remains_pressable(browser, serve):
+    """A picked card wears the check alone, as a row does, and keeps it when a
+    completed obligation is reopened for review; "selected" stays its accessible name."""
     page = open_page(browser, live_url(serve(SETTLED_PAGE)))
     page.locator("#transport .lf-settled").click()
     mark = page.locator("#opt-lax .lf-pick")
     assert mark.get_attribute("aria-checked") == "true"
     assert mark.get_attribute("aria-label") == "selected: Lax cookie — option 1 of 3"
-    assert mark.evaluate("el => getComputedStyle(el).fontSize") != "0px"
-    expect(mark).to_have_text("selected")
+    assert mark.evaluate("el => getComputedStyle(el).fontSize") == "0px", (
+        "a picked card draws no word beside its check"
+    )
     assert mark.evaluate("el => getComputedStyle(el, '::before').content") == '"✓"'
 
     strict = page.locator("#opt-strict")

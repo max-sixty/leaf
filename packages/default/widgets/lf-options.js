@@ -16,9 +16,10 @@
  * `choose` takes the user's pick. Every option carries one injected mark that is both
  * the keyboard path and the state — a toggle reading "choose one" or "choose any" as the
  * group takes one option or several. Once picked, the same mark becomes a check while
- * the option's cell takes a quiet tint. Presentation follows the form: a titled live card
- * exposes "selected" as compact header state, while a row keeps only its check. The
- * checkbox state carries the same fact for a user listening. Outside a `choose` group
+ * the option's cell takes a quiet tint. Cards and rows mark a pick alike, tint plus
+ * check: on 2026-10-26 the user chose this over a "✓ selected" chip in a live titled
+ * card's corner, a word only cards wore, crowding the author's own chips. The checkbox state carries the same fact for a user
+ * listening. Outside a `choose` group
  * the mark renders as an image-like span, so authored state keeps the check and an
  * accessible name without pretending it can be pressed.
  *

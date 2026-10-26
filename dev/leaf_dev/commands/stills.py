@@ -1468,6 +1468,12 @@ STATES = (
     State("ship-threads", "ship-review", go_to_threads, region=".lf-fp-opened"),
     State("plan-option-picked", "review-a-plan", option_picked, region=".lf-fp-row"),
     State(
+        "plan-option-card-picked",
+        "review-a-plan",
+        option_picked,
+        region="lf-options:has(> #plan-admin)",
+    ),
+    State(
         "ship-option-references",
         "ship-review",
         option_references,

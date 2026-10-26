@@ -224,7 +224,8 @@
   :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *):has(
       > lf-option > strong
     ) {
-    --lf-card-state-room: 80px;
+    /* The seat below, past the card's inset, and a gap before the words. */
+    --lf-card-state-room: calc(var(--lf-key-badge-size) + var(--sp-2));
     --lf-card-state-height: 22px;
     & > :is(lf-option, .lf-another) {
       padding-inline-start: var(--sp-3);
@@ -260,22 +261,6 @@
       min-width: var(--lf-key-badge-size);
       min-height: var(--lf-key-badge-size);
       justify-content: center;
-    }
-    & > lf-option[chosen] > .lf-pick {
-      padding: var(--chip-pad);
-      border-radius: var(--chip-r);
-      background: var(--ok);
-      color: var(--card);
-      font-size: var(--t-6);
-      line-height: var(--chip-lh);
-      gap: 4px;
-    }
-    & > lf-option[chosen] > .lf-pick::before {
-      width: auto;
-      height: auto;
-      border: 0;
-      background: transparent;
-      color: inherit;
     }
     & > lf-option > .lf-key-badge {
       inset-inline-start: auto;
@@ -351,9 +336,8 @@
 :scope:is(lf-option) .lf-pick[role="checkbox"] {
   cursor: pointer;
 }
-/* An offer's word is not drawn; "Choose one" or "choose any" stays the accessible name.
- * A live titled card's picked word is the exception, as a header status in its reserved
- * room above. */
+/* The mark's word is not drawn; "choose one", "choose any" or "selected" stays its
+ * accessible name. */
 :scope:is(lf-option) .lf-pick:not([data-lf-said]) {
   font-size: 0;
   gap: 0;

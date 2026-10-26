@@ -1000,7 +1000,7 @@
   const readMotion = (at, ending = null) => {
     const effects = [
       ...new Set([...allAnimations(), ...(ending?.effect?.target ? [ending] : [])]),
-    ].filter((animation) => animation.effect?.target && moves(animation));
+    ].filter((animation) => animation.effect?.target?.isConnected && moves(animation));
     const uses = new Map();
     for (const animation of effects) {
       const priorState = observedStates.get(animation);

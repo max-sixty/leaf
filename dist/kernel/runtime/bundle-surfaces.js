@@ -1,5 +1,5 @@
 import { Z, bindQueuedWork } from "./bundle-signals-core.js";
-import { CARET_KEYS, TEXT_FIELD, afterScript, cancelRender, caretAtKey, currentLocationIn, currentLocationNodes, currentLocationTouches, drawn as drawn$2, focusDestination, focused, holdCurrentLocation, holdFocus, keeps, keepsHidden, layoutPx, move, nextFrame, nextRender, onCurrentLocation, onPress, onPressAway, readCaret, recentPlaceInput, renderedOrder, renderedParent, renderedUnder, selectsAll, sizeObserver, takesLetters, under, upFrom } from "./bundle-dom-move.js";
+import { CARET_KEYS, TEXT_FIELD, afterScript, cancelRender, caretAtKey, currentLocationIn, currentLocationNodes, currentLocationTouches, drawn as drawn$2, focusDestination, focused, holdCurrentLocation, holdFocus, inputCount, keeps, keepsHidden, layoutPx, move, nextFrame, nextRender, onCurrentLocation, onPress, onPressAway, readCaret, recentPlaceInput, renderedOrder, renderedParent, renderedUnder, selectsAll, sizeObserver, takesLetters, under, upFrom } from "./bundle-dom-move.js";
 import { PAGE_PAINT_ATTRIBUTE, admitResponse, pagePresented, randomId, reportPageError, revealLayer, sameLayer } from "./bundle-layer-client.js";
 import { adoptRegistry, clippedContents, declarationFor, elementDeclarations, elementsDeclaring, exhibits, growthAfterIsSeen, growthIsSeen, headerInset, inUi, inWindowChrome, landingBand, loadShadowRules, registry as registry$1, seenRect, shownBox, shownRect, shownWindow, skipped, slotTop, stuckBox, tagsDeclaring, tokenEntry, union, userScrollport, visibleBand, watchArrivals, watchOwner, whenNone } from "./bundle-geometry.js";
 import { COLLAPSE, PENDING, applicationState, attachApplicationPresentation, editable, html, isElementName, isReaction, keyed, lastMovedAt, marks, messageKey, moved, nothing, offlineInteractive, pageClaimed, pendingForParent, readApplication, readPart, render as render$1, repeat, runtime, runtimeModule, runtimeResource, sameAnchor, seatRoot, share, threadKey, threadNames, turns, whenApplicationPresented, whenDocumentPresented, whenWidgetsPresented } from "./bundle-context.js";
@@ -4479,32 +4479,38 @@ function createReplyView(key, commands, redraw, { onChange = () => {}, editLast 
 //#endregion
 //#region runtime/thread/folding.js
 const pendingSettlement = (entries, id) => pendingForParent(entries, id, ["resolve", "unresolve"]);
-async function settleThread({ parent, key, resolved, prepareLanding, pendingEntries, actions, retainGesture }) {
+async function settleThread({ parent, key, resolved, prepareLanding, pendingEntries, actions, landedAway, returnToThread }) {
 	if (pendingSettlement(pendingEntries(), parent())) return;
-	const landing = prepareLanding?.();
+	const land = prepareLanding?.();
+	const since = inputCount();
 	const attempt = randomId();
 	const answer = resolved ? actions.reopen(key, { attempt }) : actions.resolve(key, { attempt });
 	if (!answer) return;
 	notice(resolved ? "Reopened the thread" : "Resolved the thread");
-	if (landing) retainGesture(attempt, { reverse: landing.reverse });
+	if (land) landedAway(attempt);
 	await landGesture({
-		landing,
+		land,
 		answer,
-		pending: () => Boolean(pendingSettlement(pendingEntries(), parent()))
+		pending: () => Boolean(pendingSettlement(pendingEntries(), parent())),
+		refused: async () => {
+			const mayReturn = retainUserIntent({ since });
+			await whenDocumentPresented();
+			return returnToThread(parent(), mayReturn);
+		}
 	});
 }
-async function landGesture({ landing, answer, pending }) {
-	const land = async (step) => {
+async function landGesture({ land, answer, pending, refused }) {
+	const step = async (work) => {
 		try {
-			return Boolean(await step?.());
+			return Boolean(await work?.());
 		} catch {
 			return false;
 		}
 	};
-	const startLanding = bindQueuedWork(() => pending() ? land(landing?.optimistic) : false);
+	const startLanding = bindQueuedWork(() => pending() ? step(land) : false);
 	const finishLanding = bindQueuedWork((accepted, landed) => {
-		if (!accepted) return land(landing?.reverse);
-		if (!landed) return land(landing?.optimistic);
+		if (!accepted) return land && step(refused);
+		if (!landed) return step(land);
 	});
 	const presentation = whenDocumentPresented();
 	paintKeys();
@@ -6152,18 +6158,12 @@ var ThreadView = class {
 			source: this.node,
 			available: () => this.node.isConnected
 		});
-		const land = async (may = mayLand, reverse = false) => {
+		return async () => {
 			await this.#retirement?.catch(() => {});
 			const place = this.#fold?.querySelector(":scope > summary") ?? this.node;
-			if (!may()) return false;
-			if (reverse) may.handoff(() => focusDestination(place, "return"));
-			if (!currentLocationIn(place)) return false;
+			if (!mayLand() || !currentLocationIn(place)) return false;
 			scrollThreadIntoView(place, focused());
 			return true;
-		};
-		return {
-			optimistic: () => land(),
-			reverse: (may) => land(may, true)
 		};
 	};
 	#createReply(model) {

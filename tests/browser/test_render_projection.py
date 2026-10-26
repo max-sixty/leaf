@@ -30,6 +30,7 @@ from render_harness import (
     EXAMPLE_PACKAGES,
     draft_control,
     expect_obligations_answered,
+    expect_on_me,
     expect_panel_offers,
     holding,
     leaf_page,
@@ -418,7 +419,7 @@ def test_a_live_revision_preserves_a_reply_after_native_tab(browser, serve):
     expect(send).to_be_focused()
 
     (serve.page_dir / "index.html").write_text(second)
-    expect(page.locator(".lf-fp-on-user")).to_have_attribute("aria-label", "On me: 1")
+    expect_on_me(page, 1)
     expect(send).to_be_focused()
 
     third = second.replace('<p id="subject">Work under discussion.</p>', "")
@@ -450,7 +451,7 @@ def test_a_live_revision_preserves_a_reply_after_native_tab(browser, serve):
     expect(editor).to_be_focused()
     editor.press("Escape")
     page.wait_for_function("window.heldReply === undefined")
-    expect(page.locator(".lf-fp-on-user")).to_have_attribute("aria-label", "On me: 1")
+    expect_on_me(page, 1)
 
 
 def test_an_old_document_state_request_cannot_update_the_new_revision(browser, serve):

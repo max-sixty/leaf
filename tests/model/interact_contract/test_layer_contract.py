@@ -441,6 +441,12 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
             "meaning": on_page,
         },
         "pick before Done": {"kind": "action", "meaning": on_page},
+        "pick a thread's open question is about": {
+            "kind": "action",
+            "meaning": on_page,
+            "waiting": [{"id": "message:m1", "text": "Try the previews first."}],
+            **owes("markup"),
+        },
         "decided suggestion": {
             "kind": "action",
             "action": "decide",

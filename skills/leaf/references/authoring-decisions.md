@@ -71,11 +71,12 @@ put on the user is work for them to do, such as trying a build, not a question.
 ## On the page
 
 Make each decision on the document answerable where On me takes the user, without
-reading earlier content. Pressing `m` brings that decision to the top of the
-window, leaving preceding prose out of view. So the decision opens with a heading that
-asks its question, and holds its explanation, its evidence, the current state and the
-answering control, inside the answering widget or an enclosing `lf-ask`. Compose the
-explanation there first; backing detail goes after it.
+reading earlier content. Pressing `m` brings that decision to the top of the window,
+leaving preceding prose out of view. So the decision opens with a heading that asks
+its question, and holds its explanation, its evidence, the current state and the
+answering control, inside the answering widget or an enclosing `lf-ask`. Build that
+self-contained decision around the material the user judges; backing detail goes after
+it.
 
 On a quick-answer page, open with the decision and put its backing in a disclosure after
 it; the first screen shows the goal, the current state and what the user can do next. On

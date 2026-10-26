@@ -221,6 +221,7 @@ def layer_metadata(page_dir: Path) -> dict:
         "fingerprint": layer["fingerprint"],
         "server": layer["server"],
         "packages": _layer_packages(layer, path),
+        "theme": layer.get("theme"),
         **({"producer": producer} if producer else {}),
     }
 

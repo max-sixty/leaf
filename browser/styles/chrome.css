@@ -198,6 +198,14 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
 }
 /* Everything below is private to the chrome: no widget or page class can match it. */
 @scope (.lf-chrome) {
+  /* The tween a floating box's change of layout travels on (runtime/box-motion.js),
+     the floating panel's and the margin card's alike, which their scripts read off the
+     box: the Codex panel's one strong ease-out, at a length the user singled out as the
+     panel's best motion for a box growing as the words do (15 October). */
+  :is(.lf-floating-panel, .lf-margin-preview) {
+    --lf-motion-box-ease: cubic-bezier(0.23, 1, 0.32, 1);
+    --lf-motion-box-resize: 300ms;
+  }
   /* The foreground dialog (chrome.js) is an empty box at the document's origin, so what
      it holds positions against the window or that origin and never reads its size. Left
      to the browser's dialog face, it drew an empty bordered square where the page ends. */
@@ -662,6 +670,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     max-height: none;
   }
   .lf-media-viewer .pswp__img {
+    border-radius: 0;
     outline: 1px solid var(--border-2);
     box-shadow: var(--raise-2);
   }

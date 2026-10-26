@@ -24,6 +24,7 @@ from render_harness import (
     ROOT,
     leaf_page,
     open_page,
+    open_threads,
     pane_scroll_behavior,
     panel_settled,
     regions_side_by_side,
@@ -441,13 +442,13 @@ def test_a_delayed_obligation_reveal_yields_to_programmatic_user_focus(browser, 
     page.wait_for_function("window.obligationRevealStarted === true")
     # Assistive technology and focus-management code can move the user without a
     # pointer, key, or input event. The retained navigation must read focus itself.
-    page.locator(".lf-fp-threads").focus()
-    expect(page.locator(".lf-fp-threads")).to_be_focused()
+    page.locator(".lf-fp-on-user").focus()
+    expect(page.locator(".lf-fp-on-user")).to_be_focused()
     page.evaluate("releaseObligationReveal()")
     page.wait_for_function("window.obligationRevealSettled === true")
     rendered(page)
 
-    expect(page.locator(".lf-fp-threads")).to_be_focused()
+    expect(page.locator(".lf-fp-on-user")).to_be_focused()
     # The user left the walk, so it says nothing more; it never says the next arrival.
     position = walk_position(page)
     assert (position or {}).get("text") in (None, "1 of 4 waiting on me · Options")
@@ -603,8 +604,7 @@ def test_an_absent_walk_destination_returns_to_the_callers_fallback(browser, ser
         },
     )
     page = open_page(browser, url)
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    open_threads(page)
     expect(page.locator(".lf-fp-thread")).to_have_count(1)
     page.get_by_role("button", name="Find a thread or message").click()
     page.locator("input.lf-fp-search").fill("no matching thread")
@@ -996,6 +996,34 @@ def test_an_obligation_and_its_thread_are_one_current_target(browser, serve):
     expect(page.locator("#ship-ask")).to_be_focused()
     page.keyboard.press("m")
     expect(item).to_be_focused()
+
+
+def test_c_continues_the_card_beside_an_obligation_in_a_commented_block(browser, serve):
+    """The card a block's thread opens beside an obligation inside the block is the
+    thread the user is at, so `c` writes in its reply. It once closed that card and
+    opened a box on the obligation, answering a reply with a new thread."""
+    url = serve(
+        leaf_page(
+            "calls",
+            """<h1>Review</h1>
+<section id="calls"><h2>Judgment calls</h2>
+<lf-ask id="mark-ask"><h3>Cut the mark?</h3>
+<lf-options id="mark" choose>
+  <lf-option id="mark-keep">Keep it</lf-option>
+  <lf-option id="mark-cut">Remove it</lf-option>
+</lf-options></lf-ask></section>""",
+        )
+    )
+    root = answered_comment(
+        serve.page_dir, "Need better choices.", {"section": "calls"}
+    )
+    page = open_page(browser, url)
+    thread = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
+    page.keyboard.press("m")
+    expect(page.locator("#mark-ask")).to_be_focused()
+    expect(thread).to_be_visible()
+    page.keyboard.press("c")
+    expect(thread.locator("leaf-text")).to_be_focused()
 
 
 def test_an_obligation_in_a_reply_is_where_the_user_stands_once_answered(

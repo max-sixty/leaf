@@ -65,6 +65,7 @@ from render_harness import (
     _traffic,
     compare_with,
     consume_browser_errors,
+    expect_open_threads,
     expect_panel_says,
     hold_selection,
     holding,
@@ -147,13 +148,6 @@ def stranded_quotes(page):
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
     return stranded
-
-
-def expect_open_threads(page, count):
-    """Wait until the panel's Threads mark counts `count` open threads."""
-    expect(page.locator(".lf-fp-threads")).to_have_attribute(
-        "title", re.compile(rf"^Threads, {count} open")
-    )
 
 
 def open_selected_comment(page):
@@ -2238,7 +2232,8 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     ), [(file["code"], file["numbers"][:1]) for file in files]
 
     reading = page.evaluate("""async () => {
-      const { says, textNodesUnder, wrote } = await window.__lfWidgetApi();
+      const { says, wrote } = await window.__lfWidgetApi();
+      const { textNodesUnder } = await window.__lfCheckApi();
       const diff = document.querySelector('#patch');
       const shadow = diff.shadowRoot;
       const segments = textNodesUnder(document)

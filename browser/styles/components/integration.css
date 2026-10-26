@@ -1,11 +1,10 @@
 /* Sent media can live in chrome-owned threads or page-owned widget threads.
    Scale the complete image in both surfaces; a tall capture must not become the whole
-   thread, and nothing is cropped. */
+   thread, and nothing is cropped. Its face is every picture's (reading.css). */
 .lf-message-media img {
   display: block;
   max-width: 100%;
   max-height: min(60vh, 480px);
-  border-radius: var(--r);
 }
 :is(.lf-btn, .button):is([aria-pressed="true"], [aria-checked="true"]) {
   border-color: var(--accent);
@@ -301,7 +300,4 @@ html[data-lf-draw-mode] main {
   block-size: var(--lf-reply-space, 0px);
   min-block-size: 0;
   max-block-size: 100%;
-}
-.lf-reply-continuity > .lf-thread-reply leaf-text:not(:state(placeholder-shown)) {
-  block-size: var(--lf-reply-writing-room, auto);
 }

@@ -10,6 +10,12 @@ measurement, and plain HTML for numbers with no repeatable source.
 
 ## Interactive and visual evidence
 
+For an existing interface, capture the relevant panel, card or menu with enough
+surrounding background to preserve its whole shadow. Crop or mark the capture so
+the eye lands on the point, cutting through background rather than text. Use
+`lf-shot` for before-and-after captures and a table for captures that vary along
+other axes ("Source files and media").
+
 Use `lf-diagram` for Mermaid syntax rendered by Pele. It ships in the `diagram`
 package, so create the page with `leaf page init --package diagram <page>`.
 `page check --render` reports
@@ -94,6 +100,10 @@ Run `leaf page media <page> <file>…`, naming each file as its own argument as 
 such as `shots/*.png` does, and use each printed `/media/…` `path` for images, video
 and audio; never inline media bytes. To let the reader zoom into an image, link it
 to its own media URL: `<a href="/media/…"><img src="/media/…" alt="…"></a>`.
+The theme edges every image with a hairline ring and a slight lift, so a capture
+whose edge is the page's colour still shows where it ends. For an image meant to sit
+on the page without one, such as a badge or a transparent logo, give it
+`box-shadow: none; border-radius: 0` in the page's CSS.
 
 Keep each capture in its own image file; never join captures into one. Where captures
 vary along named axes, such as the moment in an interaction, the case, the window width
@@ -121,8 +131,7 @@ package's author instructions describe. Leaf
 accepts MP4 and WebM video and MP3, M4A, Ogg and WAV audio. An export embeds each
 recording whole, a third larger, so trim recordings to what the reader needs.
 
-Put invented examples inside `lf-sample` and make them visibly fictional. Render
-tickets, source locations and URLs as real links.
+Put invented examples inside `lf-sample` and make them visibly fictional.
 
 `lf-shot` shows two versions of an interface, before and after, captured at the same
 viewport. Before writing the prose and `alt`, open both images and compare them where

@@ -42,6 +42,7 @@ from render_harness import (
     held_frames,
     leaf_page,
     open_page,
+    open_threads,
     open_versions,
     opened_tab,
     page_comment,
@@ -284,7 +285,7 @@ RING_CASES = (
             RING_CHROME: (
                 (".lf-grip", ".lf-grip"),
                 (".lf-fp-leaf", PANEL_RING),
-                (".lf-fp-threads", PANEL_RING),
+                (".lf-fp-on-user", PANEL_RING),
                 (".lf-fp-field leaf-text", ".lf-fp-field .lf-compose-field"),
             ),
             "feature-gallery": (
@@ -568,26 +569,16 @@ RING_SCOPE_THREAD = {
 def open_panel_thread_holding(page, selector):
     """Open the panel's view of the first thread, open or resolved, whose view holds
     `selector`, walking Threads' rows in turn."""
-
-    def threads_on(status):
-        if page.locator(PANEL).get_attribute("data-open") is not None:
-            page.locator(".lf-fp-close").click()
-            panel_settled(page, open=False)
-        page.locator(".lf-fp-threads").click()
-        panel_settled(page, view="threads")
-        page.locator(".lf-fp-filters button", has_text=status).click()
-
-    for status in ("Open", "Resolved"):
-        threads_on(status)
-        keys = page.locator(".lf-fp-thread").evaluate_all(
-            "rows => rows.map(row => row.dataset.key)"
-        )
-        for key in keys:
-            threads_on(status)
-            page.locator(f'.lf-fp-thread[data-key="{key}"]').click()
-            panel_settled(page, view="thread")
-            if page.locator(f"{PANEL} {selector}").count():
-                return
+    open_threads(page)
+    keys = page.locator(".lf-fp-thread").evaluate_all(
+        "rows => rows.map(row => row.dataset.key)"
+    )
+    for key in keys:
+        open_threads(page)
+        page.locator(f'.lf-fp-thread[data-key="{key}"]').click()
+        panel_settled(page, view="thread")
+        if page.locator(f"{PANEL} {selector}").count():
+            return
     raise AssertionError(f"no thread's view holds {selector}")
 
 
@@ -862,10 +853,14 @@ def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
     )
     expect(anchored.locator(".lf-msg")).to_have_count(3)
     expect(anchored.locator("leaf-text")).to_be_visible()
+    expect(views["resolved"].locator(f"{threads} .lf-fp-ended")).to_have_text(
+        "Resolved"
+    )
     expect(
-        views["resolved"].locator(".lf-fp-filters button[aria-pressed=true]")
-    ).to_have_text("Resolved")
-    expect(views["resolved"].locator(f"{threads} .lf-fp-thread")).to_have_count(1)
+        views["resolved"].locator(
+            f"{threads} .lf-fp-ended ~ .lf-fp-thread[data-resolved]"
+        )
+    ).to_have_count(1)
     summary = views["summary"].locator(f'{PANEL_THREAD}[data-thread="c1a39980"]')
     expect(summary).to_be_visible()
     expect(views["summary"].locator(".lf-fp-title")).to_have_text("Afternoon workshop")
@@ -1414,11 +1409,11 @@ def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serv
     for _ in range(60):
         page.keyboard.press("Tab")
         if page.evaluate(
-            "() => Boolean(document.activeElement?.matches('.lf-fp-threads'))"
+            "() => Boolean(document.activeElement?.matches('.lf-fp-on-user'))"
         ):
             break
     else:
-        raise AssertionError("Tab never reached the panel's Threads")
+        raise AssertionError("Tab never reached the panel's On me mark")
     rendered(page)
 
     assert seen_stop(page) is None, (
@@ -1431,13 +1426,13 @@ def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serv
         style.id = 'lf-ring-negative-control';
         style.setAttribute('data-controls', '');
         style.textContent =
-          '.lf-fp-threads:focus { outline: none !important;'
+          '.lf-fp-on-user:focus { outline: none !important;'
           + ' box-shadow: none !important; }';
         document.head.append(style);
     }""")
     rendered(page)
     lost = seen_stop(page)
-    assert lost and "lf-fp-threads" in lost, (
+    assert lost and "lf-fp-on-user" in lost, (
         "the ring was taken off a focused control and the reading still called it seen "
         f"({lost}), so the sample floor cannot report a missing indication"
     )

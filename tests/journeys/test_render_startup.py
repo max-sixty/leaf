@@ -25,6 +25,7 @@ from render_harness import (
     holding,
     leaf_page,
     open_page,
+    open_threads,
     page_comment,
     panel_menu,
     panel_view,
@@ -64,7 +65,7 @@ def test_the_gallery_embeds_an_ordinary_stamped_page(browser, serve):
     expect(frame.locator("#bg-choice-ask h3")).to_have_text(
         "Which map should the sample team carry?"
     )
-    frame.locator(".lf-fp-threads").click()
+    open_threads(frame)
     expect(frame.locator(panel_view("threads"))).to_be_visible()
     frame.goto(frame.url)
     wait_until_ready(frame)
@@ -717,7 +718,7 @@ customElements.define('lf-probe',class extends HTMLElement {connectedCallback(){
     )
     expect(page.locator("body")).to_have_attribute("data-lf-upgraded", "1")
     page.evaluate(
-        """async()=>{const host=document.querySelector('lf-probe');host.shadowRoot.append(document.createTextNode('Broken author words'));const {textNodesUnder}=await window.__lfWidgetApi();[...textNodesUnder(document.body)];}"""
+        """async()=>{const host=document.querySelector('lf-probe');host.shadowRoot.append(document.createTextNode('Broken author words'));const {textNodesUnder}=await window.__lfCheckApi();[...textNodesUnder(document.body)];}"""
     )
     assert page.evaluate("document.documentElement.hasAttribute('data-lf-interactive')")
     expect(

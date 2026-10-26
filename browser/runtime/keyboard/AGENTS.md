@@ -40,7 +40,7 @@ keep the browser's order.
 - The document is the base. In a live sample, one more Escape returns focus to the
   containing page.
 - Draw and Design are page modes; surfaces opened inside them close first.
-- A surface's own state, such as a Threads filter, clears before the surface closes.
+- A surface's own state, such as Threads' search, clears before the surface closes.
   Page-side selections, targets, margin clusters and the page composer coexist beside a view the
   floating panel opens, and focus decides which answers first.
 - A composer, reply box or find box returns to its container: an element comment's
@@ -90,8 +90,9 @@ without `touch` and a scope row whose `run` is neither `exit` nor `touch: false`
 a control of the row's own beside what it changes.
 
 The comment field has one primary action, Dictate while empty and Send once it has
-words. Suggest and reactions share an anchored Other responses picker, reached by its
-button, Tab from the field, or the contextual reaction command. Opening the picker
+words. Suggest and reactions share an anchored Other responses picker, reached by the
+⋯ beside Dictate while the field is empty, Tab from the field, or the contextual
+reaction command. Opening the picker
 keeps the field in place on desktop and touch surfaces alike.
 
 A command that should leave the user where they are declares `retainCurrentLocation`: the

@@ -22,7 +22,7 @@
  * reads them follows their native signals.
  * A row whose answer moves outside the page's readings, such as a stance's way out, says
  * so with `pageControlsChanged`, which publishes that invalidation as a signal. */
-import { signal } from "/vendor/browser-runtime.js";
+import { signal } from "/runtime/framework.js";
 import { afterScript } from "./rendering.js";
 
 const EMPTY = Object.freeze([]);

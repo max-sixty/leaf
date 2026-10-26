@@ -814,6 +814,8 @@ def test_control_reflow_stays_inside_its_runtime_region(browser, fault, protecte
         ("region_growth", "button#reply"),
         ("tail_and_region_growth", "button#reply"),
         ("growing_port", None),
+        ("clipped_port", None),
+        ("clipped_extra", "button#later"),
         ("overgrown_port", "button#later"),
         ("sticky_extra", "button#reply"),
         ("prepend", "p#old"),
@@ -836,9 +838,11 @@ def test_append_reflow_credits_only_its_measured_suffix_growth(
     # A floating port: nothing follows it in flow, so its foot is free to grow.
     floating = (
         "position:fixed;top:0;left:0;"
-        if fault in {"growing_port", "overgrown_port"}
+        if fault in {"growing_port", "overgrown_port", "clipped_port", "clipped_extra"}
         else ""
     )
+    overflow = "clip" if fault.startswith("clipped_") else "auto"
+    reply_position = "static" if fault.startswith("clipped_") else "sticky"
     tail = (
         " data-lf-append-tail"
         if fault
@@ -856,11 +860,11 @@ def test_append_reflow_credits_only_its_measured_suffix_growth(
         + quote(
             '<!doctype html><body style="margin:0;font:16px monospace">'
             f'<div id="port" data-lf-runtime style="{floating}width:360px;height:300px;'
-            'padding:5px;box-sizing:border-box;overflow:auto;overflow-anchor:none">'
+            f'padding:5px;box-sizing:border-box;overflow:{overflow};overflow-anchor:none">'
             '<section style="overflow:clip">'
             '<div id="source" data-lf-reflow="append">'
             f'{hidden}<p id="old"{tail} style="margin:0;height:40px">Already reading.</p></div>'
-            '<button id="reply" style="display:block;position:sticky;bottom:0">Reply</button></section>'
+            f'<button id="reply" style="display:block;position:{reply_position};bottom:0">Reply</button></section>'
             '<article><p style="margin:0">Another conversation.</p>'
             '<button id="later">Later thread</button></article></div>'
             '<button id="outside">Outside the panel</button></body>'
@@ -906,7 +910,7 @@ def test_append_reflow_credits_only_its_measured_suffix_growth(
           if (fault === 'growing_port') document.getElementById('port').style.height = '340px';
           if (fault === 'overgrown_port') document.getElementById('port').style.height = '350px';
           if (fault === 'old_growth') document.getElementById('old').style.height = '60px';
-          if (fault === 'extra_carry') document.getElementById('later').style.marginTop = '7px';
+          if (fault === 'extra_carry' || fault === 'clipped_extra') document.getElementById('later').style.marginTop = '7px';
           if (fault === 'sticky_extra') document.getElementById('reply').style.bottom = '7px';
           if (fault === 'moving_port') document.getElementById('port').style.marginTop = '7px';
           if (fault === 'outside') document.getElementById('outside').style.marginTop = '7px';
@@ -4502,6 +4506,35 @@ def test_cancelled_native_translation_credits_its_return_to_layout(
         assert names_move(errors, "div#panel"), errors
     else:
         assert not errors, errors
+
+
+@pytest.mark.parametrize("ending", ["cancel", "finish"])
+def test_ending_an_animation_after_its_target_detaches(browser, ending):
+    """A removed surface has no presentation for the motion watch to sample."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><section id="surface"><div id="words">Words</div></section>'
+        )
+    )
+    paint(page)
+    page.evaluate("""() => {
+      window.motion = words.animate(
+        [{translate: '20px 0px'}, {translate: '0px 0px'}], {duration: 1000});
+      motion.pause();
+      motion.currentTime = 500;
+    }""")
+    paint(page)
+    page.evaluate(
+        """ending => {
+      surface.remove();
+      motion[ending]();
+    }""",
+        ending,
+    )
+    paint(page)
+    judge_watches()
 
 
 FRAMES = """count => new Promise((done) => {

@@ -425,7 +425,8 @@ export function createMarginProjection({
   }
 
   // Where a row's marker is painted (margin-layout.js, `paintedBox`).
-  const markerBox = (row) => paintedBox(row, closestAcross(row, "[data-lf-margin-for]"));
+  const markerBox = (row) =>
+    paintedBox(row, closestAcross(row, "[data-lf-margin-for]"));
 
   // The rows in front of the user (`seenRect`): one under the floating panel,
   // or scrolled out of a pane, is no row the walk or the rail's way in may land on.

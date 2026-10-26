@@ -18,6 +18,7 @@ from interact_support import (
     COMPOSITE_TIMEOUT,
     STATED_TIMEOUT,
     append_carried_log_record,
+    fetch,
     install_payload,
     wait_for,
     woken,
@@ -987,3 +988,77 @@ def test_exporting_an_example_leaves_the_live_preview_untouched(
     finally:
         CliRunner().invoke(cli_model.cli, ["server", "stop", str(page_dir)])
         live_server.wait(timeout=STATED_TIMEOUT)
+
+
+def test_preview_resumes_loaded_code_changes_without_losing_feedback(
+    tmp_path, preview_slot, spawn
+):
+    """Python edits keep the old page serving until an explicit restart."""
+    from urllib.parse import urlsplit
+
+    source, runtime, directory, process, url, log = watching(
+        tmp_path, preview_slot, spawn, user=True
+    )
+    state_url = urlsplit(url)._replace(path="/api/state").geturl()
+    event_url = urlsplit(url)._replace(path="/api/event").geturl()
+    status, body = fetch(
+        event_url,
+        token=None,
+        data=json.dumps(
+            {
+                "kind": "comment",
+                "revision": files_model.latest_revision(directory),
+                "text": "Keep this feedback through the update",
+                "attempt": "preview-runtime-update",
+            }
+        ).encode(),
+    )
+    assert status == 200, body
+    feedback = (directory / "events.jsonl").read_bytes()
+    assert b"Keep this feedback through the update" in feedback
+    status, body = fetch(state_url, token=None)
+    assert status == 200, body
+    old_grace = json.loads(body)["working_grace_ms"]
+
+    edited = runtime / "src/leaf/served_state/page.py"
+    original = edited.read_text()
+    updated = original.replace("WORKING_GRACE // timedelta(milliseconds=1)", "12345")
+    assert updated != original
+    edited.write_text(updated)
+
+    def restart_requested(text):
+        assert process.poll() is None, text
+        return "restart this preview" in text
+
+    wait_for(
+        log.read_text,
+        restart_requested,
+        timeout=STATED_TIMEOUT,
+        failure="the preview did not request a restart for its changed Python code",
+    )
+    assert _reachable(url)
+    status, body = fetch(state_url, token=None)
+    assert status == 200, body
+    assert json.loads(body)["working_grace_ms"] == old_grace
+
+    # The same command resumes a user preview; no process identity is a contract.
+    result = CliRunner().invoke(cli_model.cli, ["server", "stop", str(directory)])
+    assert result.exit_code == 0, result.output
+    process.wait(timeout=STATED_TIMEOUT)
+    restarted, restarted_url = start_preview(
+        spawn, process.args, tmp_path / "restarted.log"
+    )
+    assert restarted_url == url
+    status, body = fetch(state_url, token=None)
+    assert status == 200, body
+    assert json.loads(body)["working_grace_ms"] == 12345
+    assert (directory / "events.jsonl").read_bytes().startswith(feedback)
+
+    source.write_text(source.read_text().replace("Rollout", "Updated rollout"))
+    wait_for(
+        lambda: (directory / "index.html").read_text(),
+        lambda text: "Updated rollout" in text,
+        timeout=COMPOSITE_TIMEOUT,
+        failure="the restarted preview did not resume authored-page updates",
+    )
+    assert restarted.poll() is None

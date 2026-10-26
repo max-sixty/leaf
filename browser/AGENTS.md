@@ -76,10 +76,10 @@ representative desktop viewport.
   `shifts_unsurveyed` (`tests/AGENTS.md`, "Browser errors").
 - **Stability is owed to the common path.** Every hold costs code on each later
   change, so a rare path the user reads at a glance moves what is on screen rather
-  than carry a mechanism of its own. In the floating panel, words a refused send hands
-  back, and a draft typed in another tab, grow the field as typing does: what the user
-  is about to send shows whole before the layout holds (the user's choice, 25 October
-  2026).
+  than carry a mechanism of its own. Words a refused send hands back, and a draft typed
+  in another tab, grow the reply field as typing does, in a card as in the floating
+  panel, and a refused turn gives its room back as it folds: what the user is about to
+  send shows whole before the layout holds (the user's choice, 25 October 2026).
 - **What takes turns in a place doesn't size it.** Where several modes share one seat,
   as the comment field, page search, Threads' search, a thread's reply and the seated
   comment box share the floating panel's field, the place sets the box from a theme

@@ -2195,9 +2195,6 @@ html[data-lf-draw-mode] main {
   min-block-size: 0;
   max-block-size: 100%;
 }
-.lf-reply-continuity > .lf-thread-reply leaf-text:not(:state(placeholder-shown)) {
-  block-size: var(--lf-reply-writing-room, auto);
-}
 
 /* browser/styles/components/webawesome.css */
 :where(:root),

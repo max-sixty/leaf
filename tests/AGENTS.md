@@ -295,8 +295,8 @@ allowance list.
   does it the way a user
   does.
 - `swap_watch.js` reports a row that grows or shrinks across its line as one occupant
-  gives way to another (`browser/AGENTS.md`, "What takes turns in a place doesn't size
-  it"). Fix the occupant so it takes the row's line.
+  gives way to another (`browser/AGENTS.md`, "Shared containers determine control
+  dimensions"). Fix the occupant so it takes the row's line.
 
 `input_work_watch.js` tells the shift and words watches which input caused a change. It
 follows timers, frames, promises and Lit updates but not a native `await`, so code that

@@ -30,8 +30,14 @@ people, who can't ask you what you meant, or when it makes an argument the user 
 follow to decide, where one gap breaks the chain. Hand over without one when the page is
 short and the user is waiting on it in the middle of their own work: there the wait
 costs more than the reader would find, and the user can ask about anything unclear as
-they read. When you run one, give it only the request and the screens and none of your
-notes, since the user hasn't seen them either; have it report anything it can't follow,
+they read.
+
+When you run one, give it only the request, saved screens and served page, without
+your notes. Have it try the task from the initial view, verify the visible outcome,
+and judge the effort of finding information, comparing it and reaching a decision or
+action. Use a disposable review copy for interactions so test decisions stay out of the
+user's record. Its first judgment comes from what the user can see and do, before
+reading source or the author's explanations. Have it report anything it can't follow,
 has to guess or has to picture from a description, and fix what it finds.
 
 In your own read-through, check that headings state findings, claims have evidence,

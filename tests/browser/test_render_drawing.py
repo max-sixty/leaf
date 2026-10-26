@@ -923,7 +923,7 @@ def test_pointer_modes_leave_document_editing_controls_usable(browser, serve):
         assert edit.evaluate("el => getComputedStyle(el).cursor") != "crosshair"
         edit.click()
         expect(page.locator(".lf-fab-input")).to_be_hidden()
-        editor = draft.get_by_role("textbox", name="Edit draft", exact=True)
+        editor = draft.locator("leaf-text")
         expect(editor).to_be_focused()
         assert editor.evaluate("el => getComputedStyle(el).cursor") != "crosshair"
         editor.click()

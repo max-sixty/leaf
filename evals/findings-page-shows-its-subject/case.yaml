@@ -13,7 +13,7 @@
 # The relationship/consequence rubrics below passed saved HEAD 0/1 and the revised
 # authoring workflow 2/2 on saved output; these are content regrades, not an
 # estimate of reliability. Earlier rubric scores remain in scratch.
-description: findings-page-shows-its-subject
+description: CSS cascade survey
 metadata:
   purpose: "Show the subject: a findings page whose request names no form shows what its
     findings are about in a picture on the page, not only in prose, tables and code."

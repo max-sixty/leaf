@@ -63,7 +63,8 @@ const NAME = /^[a-z0-9][a-z0-9-]*$/;
 const ONE_PRESS = [
   ".lf-playground-preset",
   ".lf-playground-reset",
-  ...["choice", "toggle", "range"].map((kind) => `.lf-playground-${kind}`),
+  '.lf-playground-choice:not([appearance="select"])',
+  ...["toggle", "range"].map((kind) => `.lf-playground-${kind}`),
 ].join(", ");
 
 const sameKeys = (left, right) =>
@@ -341,8 +342,8 @@ customElements.define(
     // they stand at: a sample child's focus treatment, for one. Pressing a control face
     // that changes the candidate in one gesture leaves them there: taking focus
     // to the control would put that state away as the candidate changed.
-    // Readable labels allow the browser's selection gesture. Text and colour controls
-    // take focus to be operated, and a key reaches any control by moving focus onto it
+    // Readable labels allow the browser's selection gesture. Text, colour and select
+    // controls take focus to be operated, and a key reaches any control by moving focus onto it
     // first, so the keyboard still acts where it stands.
     // A control written in the preview is not a candidate: standing on one is standing
     // on a control.

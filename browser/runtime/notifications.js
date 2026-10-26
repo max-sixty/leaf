@@ -48,7 +48,7 @@ export function announce(msg) {
   }, 30);
 }
 
-// The acknowledgement of a gesture ("Moved to Done — sent"), an arrival ("Updated
+// The acknowledgement of a gesture ("Moved to Done"), an arrival ("Updated
 // to v3"): the quiet words in the panel's seat. A sentence that is also a button for
 // four seconds is a target
 // the user cannot learn.

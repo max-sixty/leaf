@@ -2731,7 +2731,7 @@ function createUndo({ post, stateApplying, unaccountedGesture, openThread, threa
 			undoes: event.id
 		}).then((accepted) => {
 			if (accepted) {
-				notice(`Undid: ${taken} — sent`);
+				notice(`Undid: ${taken}`);
 				gestures.delete(event.attempt);
 			}
 			return accepted;
@@ -4310,7 +4310,7 @@ const threadBox$1 = (el, hint, { createComment, onDraftChanged, wireInput }) => 
 			sendComment(raw, owns);
 		},
 		altSend: hold ? (_text, raw, owns) => {
-			if (sendComment(raw, owns, true)) notice("Message sent — goal paused");
+			if (sendComment(raw, owns, true)) notice("Replied — goal paused");
 		} : null
 	});
 	sync();
@@ -4899,7 +4899,7 @@ function mountApplication(dependencies) {
 	const refreshThread = () => presentThread().catch(() => void 0);
 	function afterEnqueue(entry) {
 		try {
-			if (isMessageEvent(entry.event)) announce("Message sent");
+			if (isMessageEvent(entry.event)) announce("Message added");
 			if (entry.event.kind === "edit") announce("Message edited");
 		} catch (error) {
 			reportPageError(error, "optimistic presentation");
@@ -4912,7 +4912,7 @@ function mountApplication(dependencies) {
 		named: (entry, says) => {
 			undo.retainGesture(entry.event.attempt, { says });
 			entry.answer.then((admitted) => {
-				if (admitted) notice(`${says} — sent`);
+				if (admitted) notice(says);
 			});
 		},
 		withdraw: (candidate) => undo.withdraw(candidate),

@@ -2169,7 +2169,7 @@ flowchart TD
                   <td>A new revision replaces the page in place.</td>
                 </tr>
                 <tr id="updates-notice-gesture">
-                  <td>Moved to Done — sent, Undid: Moved to Done — sent</td>
+                  <td>Moved to Done, Undid: Moved to Done</td>
                   <td>The log accepted the user's gesture, or its undo.</td>
                 </tr>
               </tbody>
@@ -2473,9 +2473,10 @@ flowchart TD
                 </figcaption>
               </figure>
               <p id="loading-order">
-                A pending state request remains Loading saved state; a failed read shows
-                Offline. <a href="#browser-offline">Connection failures</a> describes
-                retry behavior.
+                While the first state request is pending, the status reads
+                <em>Loading comments and choices…</em>; a failed read shows Offline.
+                <a href="#browser-offline">Connection failures</a> describes retry
+                behavior.
               </p>
             </section>
           </section>

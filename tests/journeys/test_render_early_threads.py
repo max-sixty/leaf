@@ -96,7 +96,7 @@ def _cold_page(browser, url, *, touch=False, clock=False):
         wait_until_ready(page, through="upgraded")
     expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
     expect(page.locator(".lf-fp-leaf")).to_have_attribute(
-        "aria-label", "Page menu · Loading saved state…"
+        "aria-label", "Page menu · Loading comments and choices…"
     )
 
     def release():

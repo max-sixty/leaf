@@ -2680,7 +2680,7 @@ function keepRefusedWords(attempts) {
 		selection: atEnd(ctx),
 		generation: randomId()
 	});
-	const sentences = [hidden.length && "Draft kept — g i resumes writing", held && "Reply kept — it returns when its comment sends"].filter(Boolean);
+	const sentences = [hidden.length && "Draft kept — g i resumes writing", held && "Reply kept — it comes back once its comment is saved"].filter(Boolean);
 	return {
 		said: sentences.length ? sentences.join(". ") : null,
 		field: returned.map(shownIn).find(Boolean) ?? null

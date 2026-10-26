@@ -510,7 +510,7 @@ def test_a_page_asks_its_source_before_reloading_onto_the_same_document(browser,
             if index == 0:
                 expect(panel_field(page)).to_have_attribute(
                     "placeholder",
-                    re.compile("^Waiting for the server to finish updating."),
+                    re.compile("^Waiting for Leaf to finish updating."),
                 )
         assert page.evaluate("() => window.lfSameDocument === true"), (
             "the page reloaded onto the document it was already being served"

@@ -318,7 +318,7 @@ def test_z_names_what_it_takes_and_how_long_ago_in_a_fresh_tab(browser, serve):
     expect(page.locator(".lf-live")).to_have_text(f"Press again to undo: {resolved}")
     with sending(page, "the withdrawal"):
         panel_control(page, "command:history.undo").click()
-    expect(page.locator(".lf-live")).to_have_text(f"Undid: {resolved} — sent")
+    expect(page.locator(".lf-live")).to_have_text(f"Undid: {resolved}")
 
     append_command(
         serve.page_dir,
@@ -416,9 +416,7 @@ def test_z_shows_an_old_resolve_out_of_view_before_taking_it(browser, serve):
     with sending(page, "the withdrawal"):
         page.keyboard.press("z")
     assert _undos(serve.page_dir) == [resolve]
-    expect(page.locator(".lf-live")).to_have_text(
-        "Undid: resolved “Feeder” · 21d ago — sent"
-    )
+    expect(page.locator(".lf-live")).to_have_text("Undid: resolved “Feeder” · 21d ago")
 
 
 def test_a_quick_second_z_waits_for_the_first_to_show_its_gesture(browser, serve):

@@ -42,6 +42,11 @@ saying *you* or *my*: “The draft is kept”, “New messages”. Text addresse
 agent, such as `x-instructions` and event handling, uses the second person, as does
 the website's prose to a visitor.
 
+Visible copy is personal, not technical: it speaks of the user, the agent and the page,
+never of the machinery between them. Say what the user did (“Moved to Done”) or what the
+agent did (“Claude replied”), not that something was sent, logged, stored or retried. Name the machinery only where the user must act
+on it, as an unreachable server asks them to keep the tab open.
+
 Name an update's kind where it is known: a **comment**, **reply**, **choice**
 or **reaction**; in protocol text a widget's is an **action**, after its
 event kind. Don't call an update a *move* or *feedback*, or an *input* as a count noun;

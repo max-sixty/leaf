@@ -1180,10 +1180,10 @@ def test_interrupted_background_notice_keeps_the_newer_version(browser, serve):
           const {notice} = await window.__lfWidgetApi();
           notice('Updated to v3', {background: true});
           notice('Updated to v4', {background: true});
-          notice('Saved — sent');
+          notice('Saved');
         }"""
     )
-    expect_panel_says(page, "Saved — sent")
+    expect_panel_says(page, "Saved")
     expect_panel_says(page, "Updated to v4")
 
 

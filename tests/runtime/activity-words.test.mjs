@@ -167,8 +167,8 @@ test("a quiet claim is dated by its last word, and a dropped one by the turn's e
     "Claude’s turn ended 5m ago: revising the plan. Updates are saved.",
   ]);
   assert.deepEqual(said({ kind: "stalled", detail: "", ts: null }), [
-    "No check-in from Claude is recorded",
-    "No check-in from Claude is recorded. Updates are saved.",
+    "Claude hasn't checked in",
+    "Claude hasn't checked in. Updates are saved.",
   ]);
 });
 

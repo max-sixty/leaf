@@ -376,7 +376,7 @@ customElements.define(
       this.#returnMotion = null;
       if (this.#editor) return;
       if (this.#sending) {
-        raiseError("Wait for the current edit to finish sending");
+        raiseError("Wait for the current edit to finish saving");
         return;
       }
       if (this.#available()) this.#resumeProjection ??= this.controller.defer();

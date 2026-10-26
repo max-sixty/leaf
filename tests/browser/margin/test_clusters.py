@@ -333,7 +333,7 @@ def test_a_margin_entry_carries_a_suggestion_through_its_whole_lifecycle(
     expect(page.locator("#s-replace")).to_have_attribute("data-lf-state", "accept")
     # No passing notice repeats the receipt the margin shows.
     expect(panel_field(page)).not_to_have_attribute(
-        "placeholder", re.compile(r"^(Accepted|Rejected) .+ — sent")
+        "placeholder", re.compile(r"^(Accepted|Rejected) .+")
     )
     expect(workflow.locator(".lf-margin-receipt")).to_have_count(0)
     undo_button = workflow.get_by_role("button", name=re.compile(r"^Undo accepting"))

@@ -9,7 +9,7 @@
 
    `z` says what it takes and how long ago that was made, in the command reference, the
    floating panel's menu row and the notice its undo leaves ("Undo: resolved “Rollout
-   safety” · 3d ago", then "Undid: resolved “Rollout safety” · 3d ago — sent"), in
+   safety” · 3d ago", then "Undid: resolved “Rollout safety” · 3d ago"), in
    every tab and after a reload. A thread goes by its name as it stands now, a to-do by
    its title and a reaction by where it stands, all of
    which the page already holds. An action's ids are words only in the document it was
@@ -38,8 +38,8 @@
    admits runs that reversal once the page presents it, under the intent of the press
    that asked for it. A widget's gesture leaves the words the widget named it by
    (`says`, pending/dispatch.js), and while this page holds them its undo is said in
-   them, the name its own acknowledgement used: "Chose “Fast” — sent", then "Undid:
-   Chose “Fast” · just now — sent". Both live with the page that made the gesture, so
+   them, the name its own acknowledgement used: "Chose “Fast”", then "Undid:
+   Chose “Fast” · just now". Both live with the page that made the gesture, so
    after a reload or from another tab the undo changes the thread and moves nobody. */
 import { notice } from "./notifications.js";
 import {
@@ -216,7 +216,7 @@ export function createUndo({
     const mayLand = retainUserIntent();
     const answer = post({ kind: "undo", undoes: event.id }).then((accepted) => {
       if (accepted) {
-        notice(`Undid: ${taken} — sent`);
+        notice(`Undid: ${taken}`);
         gestures.delete(event.attempt);
       }
       return accepted;

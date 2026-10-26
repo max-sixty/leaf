@@ -661,7 +661,7 @@ export function keepRefusedWords(attempts) {
       keepWritingPlace({ context: ctx, selection: atEnd(ctx), generation: randomId() });
   const sentences = [
     hidden.length && "Draft kept — g i resumes writing",
-    held && "Reply kept — it returns when its comment sends",
+    held && "Reply kept — it comes back once its comment is saved",
   ].filter(Boolean);
   return {
     said: sentences.length ? sentences.join(". ") : null,

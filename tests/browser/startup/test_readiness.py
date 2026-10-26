@@ -46,7 +46,7 @@ from leaf.render_checks import wait_until_ready
 pytestmark = pytest.mark.shifts_unsurveyed
 
 # The status the panel's empty field says while the first state answer is held.
-LOADING = re.compile("^Loading saved state…")
+LOADING = re.compile("^Loading comments and choices…")
 
 
 VISUAL_ACTION_TIMING = """

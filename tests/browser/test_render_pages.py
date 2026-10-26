@@ -1113,7 +1113,7 @@ def test_a_tab_set_whose_runtime_could_not_start_shows_every_panel(browser, serv
     page.route("**/widgets/lf-tabs.js", lambda route: route.abort())
     page.goto(url, wait_until="load")
     expect(
-        page.get_by_text("Leaf couldn't start. Waiting for the server to update.")
+        page.get_by_text("Leaf couldn't start. Waiting for Leaf to update.")
     ).to_be_visible()
     expect(page.locator("#views")).not_to_have_class("lf-rendered")
     expect(page.locator("#first")).to_be_visible()
@@ -1139,7 +1139,7 @@ def test_a_drawing_that_will_never_draw_claims_no_room(browser, serve):
     page.route("**/widgets/lf-diagram.js", lambda route: route.abort())
     page.goto(url, wait_until="load")
     expect(
-        page.get_by_text("Leaf couldn't start. Waiting for the server to update.")
+        page.get_by_text("Leaf couldn't start. Waiting for Leaf to update.")
     ).to_be_visible()
     expect(page.locator("body")).not_to_have_attribute("data-lf-upgraded", "1")
     at = page.evaluate("""() => {

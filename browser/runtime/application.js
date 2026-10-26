@@ -155,7 +155,7 @@ export function mountApplication(dependencies) {
     // than turning an accepted gesture into an apparent refusal, and it cannot strand
     // the gesture before transport or leave later sends behind an unanswered entry.
     try {
-      if (isMessageEvent(entry.event)) announce("Message sent");
+      if (isMessageEvent(entry.event)) announce("Message added");
       if (entry.event.kind === "edit") announce("Message edited");
     } catch (error) {
       reportPageError(error, "optimistic presentation");
@@ -171,7 +171,7 @@ export function mountApplication(dependencies) {
     named: (entry, says) => {
       undo.retainGesture(entry.event.attempt, { says });
       void entry.answer.then((admitted) => {
-        if (admitted) notice(`${says} — sent`);
+        if (admitted) notice(says);
       });
     },
     withdraw: (candidate) => undo.withdraw(candidate),

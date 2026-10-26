@@ -496,7 +496,7 @@ def test_a_reply_under_a_refused_parent_comes_back_with_it(
     expect_panel_says(
         page,
         "Couldn't send — refused before append. "
-        "Reply kept — it returns when its comment sends",
+        "Reply kept — it comes back once its comment is saved",
     )
     expect(card).to_have_count(0)
     assert not thread_listed(page, attempt), "the refused thread is still listed"
@@ -588,7 +588,7 @@ def test_a_refused_comments_reply_travels_with_it_to_another_passage(
                 "final": True,
             },
         )
-    expect_panel_says(page, "Reply kept — it returns when its comment sends")
+    expect_panel_says(page, "Reply kept — it comes back once its comment is saved")
 
     page.locator("h1").click()
     page.keyboard.press("g")
@@ -686,7 +686,7 @@ def test_every_message_send_says_so_to_a_user_listening(held_events, serve):
     # Held: the gesture is the only thing that can have written the region, and the
     # words are said before the log has answered rather than because it did.
     holding(page, held, 1, "the send")
-    expect(live).to_have_text("Message sent")
+    expect(live).to_have_text("Message added")
 
     held.pop(0).continue_()
     page.unroute("**/api/event")

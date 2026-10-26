@@ -1030,7 +1030,7 @@ def test_a_thread_obligation_waits_until_answered(browser, serve):
         page.locator("#tq-set .lf-done").click()
     expect_obligations_answered(page, "2/2")
     expect(page.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "true")
-    expect_panel_says(page, "Marked answered — sent")
+    expect_panel_says(page, "Marked answered")
     # Said once, by the log's answer. An `answered` attribute on the group said it
     # again in the author's namespace, where the entry admits nothing undeclared and no
     # version could ever have carried a record of a thread verb — invisible to every

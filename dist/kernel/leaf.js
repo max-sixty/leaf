@@ -4153,7 +4153,7 @@ function pageStatus(state, { reach = "reached", fault = null } = {}) {
 	const detail = onCall ? "" : activity.detail;
 	const facts = activityFacts(state);
 	const saved = "Updates are saved.";
-	const checkedIn = facts.silentSince ? `${agent} last checked in ${facts.silentSince}` : `No check-in from ${agent} is recorded`;
+	const checkedIn = facts.silentSince ? `${agent} last checked in ${facts.silentSince}` : `${agent} hasn't checked in`;
 	const ended = `${agent}’s turn ended${facts.silentSince ? " " + facts.silentSince : ""}`;
 	const age = kind === "working" && activity.ts ? ago(activity.ts) : "";
 	const [summaryWords, explanationWords, beyond, asked = false] = statusWords({
@@ -4281,11 +4281,11 @@ function leafRow(entry) {
 
 //#endregion
 //#region runtime/page-status.js
-const LOADING_LINE = "The page is ready for reading and new comments. Saved comments and choices are still loading; new comments will be sent when the server responds." + (WEBSITE_DELIVERY ? " Website examples can take longer to load their saved state than a usual Leaf page." : "");
+const LOADING_LINE = "The page is ready for reading and new comments. Saved comments and choices are still loading; new comments go through once they have." + (WEBSITE_DELIVERY ? " Website examples can take longer to load their comments and choices than a usual Leaf page." : "");
 const LOADING = Object.freeze({
 	kind: "loading",
 	tone: "",
-	summary: "Loading saved state…",
+	summary: "Loading comments and choices…",
 	explanation: LOADING_LINE,
 	adds: LOADING_LINE
 });

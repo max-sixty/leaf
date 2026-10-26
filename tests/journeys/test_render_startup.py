@@ -274,7 +274,7 @@ def test_slow_history_keeps_decisions_safe_and_status_honest(browser, serve, ans
     page.wait_for_function("performance.now() > 11_000")
     expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
     expect(page.locator(".lf-fp-leaf")).to_have_attribute(
-        "aria-label", "Page menu · Loading saved state…"
+        "aria-label", "Page menu · Loading comments and choices…"
     )
     assert len(held) == 1
     if answer == "ready":

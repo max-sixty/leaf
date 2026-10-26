@@ -282,7 +282,7 @@ export function pageStatus(state, { reach = "reached", fault = null } = {}) {
   const saved = "Updates are saved.";
   const checkedIn = facts.silentSince
     ? `${agent} last checked in ${facts.silentSince}`
-    : `No check-in from ${agent} is recorded`;
+    : `${agent} hasn't checked in`;
   const ended = `${agent}’s turn ended${facts.silentSince ? " " + facts.silentSince : ""}`;
   const age = kind === "working" && activity.ts ? ago(activity.ts) : "";
   const [summaryWords, explanationWords, beyond, asked = false] = statusWords({

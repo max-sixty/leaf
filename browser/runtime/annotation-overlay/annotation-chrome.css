@@ -643,7 +643,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
      name stays over the words and nothing moves when the reply reads. The head clips
      sideways and sticks, so it reaches into the gutter by the dot and the head's own
      gap, and holds the dot there, where it sticks with the name. */
-  .lf-margin-thread .lf-thread-transcript .lf-msg-head:has(> .lf-msg-meta > .lf-msg-new) {
+  .lf-margin-thread
+    .lf-thread-transcript
+    .lf-msg-head:has(> .lf-msg-meta > .lf-msg-new) {
     --lf-msg-new-room: calc(6px + var(--sp-2));
     margin-inline-start: calc(-1 * var(--lf-msg-new-room));
     padding-inline-start: var(--lf-msg-new-room);

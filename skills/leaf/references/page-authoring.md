@@ -62,6 +62,11 @@ Write for what the user has seen: this conversation and the page so far. Introdu
 names a decision depends on, show evidence for any claim they could doubt, and drop the
 story of how you got there.
 
+Link each pull request, issue, commit, URL, and file or source line with a known
+destination in every section, decision and reply that names it. The user reaches each
+of those on its own, from the contents or On me, and opens what it names from there to
+check it.
+
 The user knows the facts they gave you and reads the page against them, so one figure
 that differs from theirs makes them doubt the rest. Keep each supplied fact as given,
 with the measure it belongs to. A number, trend, count or consequence you work out from
@@ -70,8 +75,7 @@ beside it. Where your working contradicts a supplied fact, show both and say whi
 page uses, rather than correcting theirs in place.
 
 Use `lf-gloss` for a local term, acronym or premise the reader can open beside a
-phrase. Keep citations as links and keep visible any qualification the argument rests
-on.
+phrase, and keep visible any qualification the argument rests on.
 
 ## Composing a page
 
@@ -221,8 +225,7 @@ Widget attributes carry scalars and children carry prose; a titled member of a c
 widget starts with a `<strong>`. A widget whose body is data, such as `lf-code`, holds
 escaped text in a `<pre>`. Escape `&` first, then `<` and `>`.
 
-Format filenames and paths as inline code, and link a file that has a known
-destination.
+Format filenames and paths as inline code.
 
 Show source snippets as `<pre><code class="language-javascript">…</code></pre>`, or as
 `lf-code language="javascript"` for a line-numbered walkthrough, naming the actual
@@ -239,9 +242,12 @@ change overflow at a breakpoint; Leaf measures the declared surface, never all o
 descendants. Use a bounded reading region for independently scrolling vertical content.
 
 The theme scrolls a `<pre>` or table wider than its container and fits an image or SVG
-to it, so none needs a width. In a table that scrolls sideways, prose wraps a word per
-line. Put identifiers in `<code>`, which can break inside a cell, and keep the columns
-to what fits at the narrowest width the page's readers use. Write each row's name as its
+to it, so none needs a width. A table's columns size to their content, so leave its
+cells' widths and wrapping to the theme too. Text that can't break, such as a bare
+identifier or a cell kept on one line, holds its column at its full length, and once
+the table scrolls sideways, prose in the other columns wraps a word per line. Put
+identifiers in `<code>`, which can break inside a cell, and keep the columns to what
+fits at the narrowest width the page's readers use. Write each row's name as its
 first cell, a `<th scope="row">`, and the names stay in view while the other columns
 scroll.
 

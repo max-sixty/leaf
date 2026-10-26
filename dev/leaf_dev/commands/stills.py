@@ -482,6 +482,21 @@ def on_me(page: Page) -> None:
     expect(page.locator(".lf-fp-view[data-view=queue]")).to_be_visible()
 
 
+def on_me_choice(page: Page) -> None:
+    """A described choice card in On me, before answering."""
+    on_me(page)
+    card = page.locator('.lf-fp-on-item[data-obligation="widget:decision-dedupe"]')
+    card.scroll_into_view_if_needed()
+
+
+def on_me_choice_answered(page: Page) -> None:
+    """The result and Undo replacing a described choice on its retained card."""
+    on_me_choice(page)
+    card = page.locator('.lf-fp-on-item[data-obligation="widget:decision-dedupe"]')
+    card.locator(".lf-fp-answer").first.click()
+    expect(card.locator(".lf-fp-said")).to_contain_text("Answered:")
+
+
 def on_agent(page: Page) -> None:
     """The On view turned to the agent's tab."""
     on_me(page)
@@ -2394,6 +2409,18 @@ STATES = (
     State("on-me-dark", "corpus", on_me, scheme="dark"),
     State("on-agent", "corpus", on_agent),
     State("hub-on-me", "command-hub", on_me),
+    State("hub-choice", "command-hub", on_me_choice),
+    State("hub-choice-answered", "command-hub", on_me_choice_answered),
+    State(
+        "hub-choice-answered-dark", "command-hub", on_me_choice_answered, scheme="dark"
+    ),
+    State(
+        "hub-choice-answered-touch",
+        "command-hub",
+        on_me_choice_answered,
+        viewport=(390, 844),
+        touch=True,
+    ),
     State("hub-on-agent", "command-hub", on_agent),
     State("hub", "command-hub", at_rest),
     State("hub-workers", "command-hub", hub_workers),

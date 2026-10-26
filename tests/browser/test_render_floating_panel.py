@@ -3346,6 +3346,8 @@ def test_obligations_are_answered_where_they_are_read_on_me(browser, serve):
     expect(cards.first).to_contain_text("How should the schema migrate?")
     settled(page)
     first, second = cards.first.bounding_box(), cards.nth(1).bounding_box()
+    show = cards.first.locator(".lf-fp-show")
+    shown = show.bounding_box()
     with sending(page, "the answer"):
         cards.first.locator(".lf-fp-answer", has_text="Shim").click()
     answer = events_model.read_events(serve.page_dir)[-1]
@@ -3356,12 +3358,14 @@ def test_obligations_are_answered_where_they_are_read_on_me(browser, serve):
     expect(owed).to_have_text("1")
     assert cards.first.bounding_box() == first
     assert cards.nth(1).bounding_box() == second
+    assert show.bounding_box() == shown
 
     with sending(page, "the undo"):
         cards.first.get_by_role("button", name="Undo").click()
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "undo"
     expect(cards.first.locator(".lf-fp-answer", has_text="Shim")).to_be_visible()
     expect(owed).to_have_text("2")
+    assert show.bounding_box() == shown
     # The pressed Undo is gone, and Escape still puts the view away.
     page.keyboard.press("Escape")
     expect(view).to_have_count(0)

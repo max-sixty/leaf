@@ -1516,7 +1516,8 @@
      the answers it takes, answered here. What it is and its question's heading set
      cards apart, with the space between them, so no rule runs between them. */
   .lf-fp-on-item[data-card] {
-    display: block;
+    display: flex;
+    flex-direction: column;
     padding: 10px 8px 12px;
   }
   /* What left the list in view, under it: a section of its own, so a rule opens it. */
@@ -1556,6 +1557,12 @@
     gap: 6px;
     margin-top: 9px;
     min-height: var(--lf-fp-press);
+  }
+  /* The card keeps its height after an answer; keep its answers at the foot too,
+     so Show stays put when described choices give way to the result and Undo. */
+  .lf-fp-on-item[data-card] > .lf-fp-answers {
+    margin-top: auto;
+    padding-top: 9px;
   }
   .lf-fp-show {
     margin-inline-start: auto;

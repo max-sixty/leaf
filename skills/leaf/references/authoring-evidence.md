@@ -10,6 +10,12 @@ measurement, and plain HTML for numbers with no repeatable source.
 
 ## Interactive and visual evidence
 
+For an existing interface, capture the relevant panel, card or menu with enough
+surrounding background to preserve its whole shadow. Crop or mark the capture so
+the eye lands on the point, cutting through background rather than text. Use
+`lf-shot` for before-and-after captures and a table for captures that vary along
+other axes ("Source files and media").
+
 Use `lf-diagram` for Mermaid syntax rendered by Pele. It ships in the `diagram`
 package, so create the page with `leaf page init --package diagram <page>`.
 `page check --render` reports

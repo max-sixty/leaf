@@ -1381,9 +1381,7 @@ def test_threads_search_reads_rendered_messages_and_summaries(browser, serve):
         "The **room** photo.",
         '<lf-ask id="crop">Should I reshoot it wider?</lf-ask>',
     )
-    summarize_thread(
-        serve.page_dir, root, reply["id"], "A **wider** view would help."
-    )
+    summarize_thread(serve.page_dir, root, reply["id"], "A **wider** view would help.")
     page = floating(browser, url)
     rows = threads_rows(page)
     page.get_by_role("button", name="Find a thread or message").click()

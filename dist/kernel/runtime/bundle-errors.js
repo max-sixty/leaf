@@ -1216,20 +1216,8 @@ function elementDirective(name, write) {
 	});
 }
 const offered = elementDirective("offered", offerElement);
-function selectableOfferElement(node, role, cls) {
-	keeps(node, "role", role);
-	keeps(node, "class", cls ? `${cls} lf-ui lf-ui-face` : "lf-ui lf-ui-face");
-	keeps(node, "data-lf-gen", "1");
-	keeps(node, "data-lf-offer", role);
-	keeps(node, "data-lf-selectable-offer", "");
-}
-function selectableOffer(role, cls, label) {
-	const node = document.createElement("span");
-	selectableOfferElement(node, role, cls);
-	node.tabIndex = 0;
-	if (label !== void 0) node.textContent = label;
-	return node;
-}
+const selectableOfferElement = (node, role, cls) => document.documentElement.lfInitial.selectableOfferElement(node, role, cls);
+const selectableOffer = (role, cls, label) => document.documentElement.lfInitial.selectableOffer(role, cls, label);
 const selectableOffered = elementDirective("selectableOffered", selectableOfferElement);
 const PRESSABLE = "[data-lf-offer]:not([data-lf-offer=\"\"])";
 function reachedForWords(el) {

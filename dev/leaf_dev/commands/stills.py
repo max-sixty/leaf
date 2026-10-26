@@ -1368,6 +1368,13 @@ def trace_timeline_by_keyboard(page: Page) -> None:
     )
 
 
+def authored_timeline_step(page: Page) -> None:
+    """A step reached by Tab, with the timeline's playhead on it."""
+    page.locator("#race-before .lf-timeline-step").first.click()
+    page.keyboard.press("Tab")
+    page.keyboard.press("Space")
+
+
 @dataclass(frozen=True)
 class State:
     name: str
@@ -1380,6 +1387,28 @@ class State:
 
 
 STATES = (
+    State("authored-timeline", "lost-update", at_rest, region="#race-before"),
+    State(
+        "authored-timeline-keyboard",
+        "lost-update",
+        authored_timeline_step,
+        region="#race-before",
+    ),
+    State(
+        "authored-timeline-dark",
+        "lost-update",
+        authored_timeline_step,
+        scheme="dark",
+        region="#race-before",
+    ),
+    State(
+        "authored-timeline-phone",
+        "lost-update",
+        at_rest,
+        viewport=(390, 900),
+        touch=True,
+        region="#race-before",
+    ),
     State(
         "native-code",
         "developer/feature-gallery",

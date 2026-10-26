@@ -60,7 +60,7 @@ def _answer_key(event: dict, first_answers: dict[str, str]) -> dict:
 
 
 def thread_counts(threads: list[dict]) -> dict:
-    """What the Leaf panel's Threads mark counts of `browser_thread`'s threads
+    """What the Leaf panel's Threads tab counts of `browser_thread`'s threads
     (`threadCounts` in the runtime's `thread/model.js`): of those more than a bare
     reaction, the ones still open, and of those the ones holding words the user
     hasn't read. `tests/thread_count_cases.json` holds both runtimes to the same

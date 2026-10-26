@@ -145,8 +145,9 @@ export const hasUnread = (thread) => thread.unread.length > 0;
  * @param {Pick<Thread, "resolved" | "unread">} thread */
 export const isNews = (thread) => !thread.resolved && hasUnread(thread);
 /**
- * What the panel's Threads mark counts of the threads it lists: those still open, and
- * those that are news (`isNews`). A page's served row counts the same way
+ * What the panel counts of the threads it lists: those still open, which Threads' tab
+ * says, and those that are news (`isNews`), which the On me mark's dot says. A page's
+ * served row counts the same way
  * (`served_state.thread.thread_counts`); tests/thread_count_cases.json holds both.
  * @param {readonly Pick<Thread, "bare_reaction" | "resolved" | "unread">[]} threads
  */

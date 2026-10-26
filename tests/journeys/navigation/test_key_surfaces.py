@@ -20,7 +20,7 @@ def test_user_news_interrupts_and_then_restores_background_news(browser, serve):
     comes back after it without being announced twice; the live region is retained
     through every change, and the user stays where they stood."""
     page = open_page(browser, serve(NOTED_PAGE))
-    page.locator(".lf-fp-threads").focus()
+    page.locator(".lf-fp-on-user").focus()
     page.evaluate(
         """async () => {
           window.__lfStatusNodes = {'.lf-live': document.querySelector('.lf-live')};

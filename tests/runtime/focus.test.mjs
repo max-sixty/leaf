@@ -274,6 +274,17 @@ test("delayed work follows a hold that carries the user to the node replacing th
   assert.equal(mayFocus(), false);
 });
 
+test("a hold leaves a still-painted inert layer for its replacement", () => {
+  const { box, first, other } = scene();
+  focusDestination(first, "move");
+  const restore = holdFocus(box);
+  // A closing layer can keep painting through its fade while the browser has
+  // not yet blurred its control. Its old focus must not satisfy the hold.
+  box.inert = true;
+  assert.equal(restore(other), true);
+  assert.equal(focused(), other);
+});
+
 test("a keyed hold lands on the row keyed the same, or the nearest that survived", () => {
   scene();
   const list = document.createElement("ul");

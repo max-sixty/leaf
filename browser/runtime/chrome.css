@@ -1173,7 +1173,7 @@
     font-weight: 600;
     color: var(--lf-fp-muted);
   }
-  .lf-fp-on-kind,
+  .lf-fp-on-place,
   .lf-fp-on-title {
     margin: 0 0 2px;
     font: inherit;

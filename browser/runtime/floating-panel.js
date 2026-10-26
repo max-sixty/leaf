@@ -2823,9 +2823,9 @@ export function createFloatingPanel({
 
   // One item: On me's card standing open (`card`), else a line opened into its card
   // while it is the open item. `says` names what the group's heading already says of
-  // it, its `place` or its `kind`, which the item leaves out; `group` the name of the
-  // group it stands alone in, with no heading over it, which it says in its place's
-  // seat; `leads` whether it is the first item of the walk's stop it stands at, which
+  // it, which the card leaves out where that is its `place`; `group` the name of the
+  // group it stands alone in, with no heading over it, which the card says before its
+  // place (once, where that name is its place); `leads` whether it is the first item of the walk's stop it stands at, which
   // alone wears the walk's ring.
   function onItemCard(
     item,
@@ -2984,16 +2984,20 @@ export function createFloatingPanel({
     const opened = openItem === key;
     const stop = queueStop(item);
     const mine = item.owner === "user";
-    // An item says what it is: what waits on the user in the walk's word for it, so a
-    // suggestion says Insertion, Deletion or Rewrite as the field does after `m`, and
-    // the agent's as the reply, answer or to-do it owes.
-    const kind = mine ? (says === "kind" ? "" : stop.noun) : agentNoun(item);
-    const where = group ?? (says === "place" ? "" : onMe.place(item));
+    // A line says what its item is: what waits on the user in the walk's word for it,
+    // so a suggestion says Insertion, Deletion or Rewrite as the field does after `m`,
+    // and the agent's as the reply, answer or to-do it owes.
+    const kind = mine ? stop.noun : agentNoun(item);
+    const where = says === "place" ? "" : onMe.place(item);
     const walked = leads && queueTab === "you" && walkedStop() === stop.key;
-    // On me's card says what the item is and where it stands over its question, and
-    // keeps both once it is answered, so the answer moves nothing.
+    // On me's card says only where its item stands over its question, after the name
+    // of the group it stands alone in, and keeps that once it is answered, so the
+    // answer moves nothing. It names no kind: its question and answers say what it is,
+    // a to-do telling itself from a question by its Done. The user chose that on 26
+    // October 2026 over a kind word before every card's place, which repeated what the
+    // card's answers already say.
     if (card) {
-      const about = [kind, where].filter(Boolean);
+      const about = [...new Set([group, where])].filter(Boolean);
       return html`<section
         class="lf-fp-on-item"
         data-card
@@ -3005,7 +3009,7 @@ export function createFloatingPanel({
       >
         ${
           about.length
-            ? html`<p class="lf-fp-on-kind">${about.join(" · ")}</p>`
+            ? html`<p class="lf-fp-on-place">${about.join(" · ")}</p>`
             : nothing
         }${
           message
@@ -3222,8 +3226,8 @@ export function createFloatingPanel({
     // A group counts what still waits in it; the cards answered here keep their seats,
     // so a group keeps its heading, or its want of one, while the view stands. Only a
     // group of two or more cards has a heading: a card alone in its group stands in its
-    // place in the order saying the group's name where its place would be, or its kind
-    // word already saying it. The user chose that on 22 October 2026, finding a heading
+    // place in the order saying the group's name before its place. The user chose that
+    // on 22 October 2026, finding a heading
     // over every item, as the corpus's parts each holding one item gave, spent the room
     // the items need and grouped nothing.
     const waits = (item) => lists.you.includes(item);
@@ -3249,7 +3253,7 @@ export function createFloatingPanel({
             : onItemCard(item, listOf(item), {
                 card: true,
                 says: group.headed ? says : null,
-                group: group.headed || grouping === "kind" ? null : group.title,
+                group: group.headed ? null : group.title,
                 leads: group.leads.has(item),
                 also: carrying.get(queueItemKey(item)),
               }),

@@ -29,6 +29,7 @@ matching build is installed once with `playwright install chromium --only-shell`
 
 import base64
 import difflib
+import hashlib
 import io
 import itertools
 import json
@@ -1274,7 +1275,8 @@ def clean_browser(test=None):
     A worker runs one test at a time, so one process-local collector covers pages made
     by `WatchedBrowser`, render helpers, and tests that navigate a page
     themselves. The fixture hands over its `test` node to select shift coverage
-    (`watches_shifts`); every problem a watch reports reaches this collector.
+    (`watches_shifts`); every problem a watch reports reaches this collector. A test
+    that failed or left problems leaves a picture of each page (`_picture_pages`).
     """
     global _BROWSER_PROBLEM_LISTS, _TEST
     assert _BROWSER_PROBLEM_LISTS is None, "browser problem collector already active"
@@ -1291,7 +1293,28 @@ def clean_browser(test=None):
         for page, problem_list in captured
         for problem in problem_list
     ]
+    if test is not None and (problems or getattr(test, "lf_failed", False)):
+        _picture_pages(test, [page for page, _ in captured])
     assert not problems, "\n".join(problems)
+
+
+def _picture_pages(test, pages):
+    """Save what each page of a failing test shows under `.tmp/test-results/screens/`,
+    which CI uploads with the junit results: an assertion names only what it read, and
+    the picture shows the rest, such as a widget drawn without its styles. A page that
+    can't answer leaves no picture, since the test's own failure is the one to report.
+    The node id is cut to fit a file name, and its hash keeps cut names apart."""
+    stem = re.sub(r"[^\w.-]+", "_", test.nodeid)[:150]
+    name = f"{stem}-{hashlib.sha1(test.nodeid.encode()).hexdigest()[:8]}"
+    for n, page in enumerate(pages):
+        if page.is_closed():
+            continue
+        try:
+            page.screenshot(
+                path=ROOT / f".tmp/test-results/screens/{name}-{n}.png", timeout=5000
+            )
+        except PlaywrightError:
+            continue
 
 
 def judge_watches():
@@ -1322,23 +1345,6 @@ def judge_watches():
                     # lifetime facts release it; every live-frame failure propagates.
                     if not frame.is_detached() and not page.is_closed():
                         raise
-
-
-def capture_failed_pages(test):
-    """Save what each page a failing test still holds shows, under
-    `.tmp/test-results/screens/`, which CI uploads with the junit results: an
-    assertion names only what it read, and the picture shows the rest, such as a
-    widget drawn without its styles. A page that can't answer leaves no picture,
-    since the test's own failure is the one to report."""
-    screens = ROOT / ".tmp/test-results/screens"
-    name = re.sub(r"[^\w.-]+", "_", test.nodeid)
-    for n, (page, _) in enumerate(_BROWSER_PROBLEM_LISTS or ()):
-        if page.is_closed():
-            continue
-        try:
-            page.screenshot(path=screens / f"{name}-{n}.png", timeout=5000)
-        except PlaywrightError:
-            continue
 
 
 def _reachable(frame):

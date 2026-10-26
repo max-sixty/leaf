@@ -2,7 +2,11 @@
  * The source owns cases and captures; Leaf owns approvals and discussion. The
  * dashboard derives its queue and counts from that state. Selection
  * is transient. lf-shot owns comparison controls, layout and capture scrolling;
- * the dashboard supplies capture metadata and retains case articles and threads. */
+ * the dashboard supplies capture metadata and retains case articles and threads.
+ * A case's header names only the capture size and browser, with Capture details
+ * holding the rest: on 2026-10-26 the user chose this over a line that also said the
+ * images were captured screenshots whose links don't work, which they show
+ * themselves. */
 import "/widgets/lf-shot.js";
 import {
   LeafElement,
@@ -493,9 +497,8 @@ customElements.define(
         <div class="lf-vr-evidence" data-lf-reading-role="pane" data-lf-generated>
           <header>
             <p class="lf-vr-evidence-note" ${generated({ says: true })}>
-              Captured screenshots · ${record.capture.viewport.width} ×
-              ${record.capture.viewport.height} · ${record.capture.browser}. Links
-              inside these images are not interactive.
+              ${record.capture.viewport.width} × ${record.capture.viewport.height} ·
+              ${record.capture.browser}
             </p>
             <button
               ${offeredAction("word", "lf-vr-inspect")}

@@ -335,7 +335,6 @@ customElements.define(
           bindingBadge: null,
           decision: true,
           title: label,
-          description: `${label} the suggested change`,
           when: () => this.#offered().includes(key),
           run: () => this.#margin?.activate(key),
         })),

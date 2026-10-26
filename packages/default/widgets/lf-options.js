@@ -123,6 +123,7 @@ import {
   wrote,
   focusDestination,
   scrollIntoView,
+  textNodesUnder,
 } from "/runtime/widget-api.js";
 
 // What an option is called, in either form: its title where it leads with one, and its
@@ -131,6 +132,45 @@ import {
 // to the option's name, which is what every caller here wants. A settled title's answer
 // to an option with neither is to say "Settled" rather than name an id nobody wrote.
 const label = (option) => wrote(option.querySelector(":scope > strong") ?? option);
+
+// What choosing an option gives the user: the words after a card's title, up to any
+// picture or other block below them, as the registry's card shape lays them out. A
+// label-only option says nothing beyond its name. On me shows these words under the
+// option's name, where the user answers away from the card.
+const consequence = (option) => {
+  const title = option.querySelector(":scope > strong");
+  if (!title) return "";
+  // Before and after in the document, a node inside the other being neither.
+  const comes = (node, than, order) =>
+    (than.compareDocumentPosition(node) &
+      (order | Node.DOCUMENT_POSITION_CONTAINED_BY)) ===
+    order;
+  const {
+    DOCUMENT_POSITION_FOLLOWING: FOLLOWING,
+    DOCUMENT_POSITION_PRECEDING: PRECEDING,
+  } = Node;
+  const block = [...option.children].find(
+    (child) =>
+      comes(child, title, FOLLOWING) && getComputedStyle(child).display !== "inline",
+  );
+  // One run of inline words, so its text joins as the page's reading joins it.
+  return textNodesUnder(option, "wrote")
+    .filter(
+      ({ node }) =>
+        comes(node, title, FOLLOWING) && (!block || comes(node, block, PRECEDING)),
+    )
+    .map(({ node, start, end }) => node.data.slice(start, end))
+    .join("")
+    .replace(/\s+/g, " ")
+    .trim();
+};
+
+// The option the page advises wears the `recommended` tag the registry's card shape
+// names, and the group says so wherever the option is answered away from its card.
+const recommended = (option) =>
+  [...option.querySelectorAll(":scope > small.tag")].some(
+    (tag) => wrote(tag).trim() === "recommended",
+  );
 
 // The offer, and how many of the group it takes. A group's prose stays deliberately silent,
 // while the control states arity in the two registers it has: corner shape for the eye and
@@ -412,6 +452,8 @@ customElements.define(
           decision: true,
           bindingBadge,
           title: label(option) || option.id,
+          description: consequence(option),
+          recommended: recommended(option),
           when: () => this.#available("choose"),
           run: () => mark.click(),
         });

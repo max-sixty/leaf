@@ -535,6 +535,7 @@ function decisionControls(commands, where = "an obligation") {
 			const contribution = route ?? row;
 			const control = word(contribution.control ?? row.control);
 			const label = titleOf(contribution);
+			const description = descriptionOf(route?.description !== void 0 ? route : row);
 			const bindingBadge = word(contribution.bindingBadge !== void 0 ? contribution.bindingBadge : row.bindingBadge) ?? null;
 			const active = route ? [route.binding, ...contextBindings(route)].filter(Boolean) : allBindings(row);
 			if (control == null) continue;
@@ -546,6 +547,8 @@ function decisionControls(commands, where = "an obligation") {
 				source,
 				control,
 				label,
+				description,
+				recommended: Boolean(contribution.recommended ?? row.recommended),
 				bindingBadge,
 				intrinsicBindings: active,
 				command: Object.freeze({

@@ -40,8 +40,10 @@ Where the rows need the element, pass a function of it, such as
 
 A row's `id` is a stable, lowercase dotted name such as `draft.save`; keep it when keys
 or words change. `title` names the command and may be a function where state changes
-it; `description` is the command reference's tooltip for it, and `label` replaces the
-keycap.
+it, and `label` replaces the keycap. `description` is the command reference's tooltip
+for it and the line under its title where a touch menu or an On me card offers it. A
+`decision: true` row answers an obligation, and `recommended: true` marks the answer
+the page advises, which an On me card names.
 
 `keys` lists bindings in canonical spelling, such as `"a"`, `"Shift+a"` or
 `"Mod+Enter"`, or is a function returning them. `repeat: true` also runs on a held key's

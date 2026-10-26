@@ -6436,17 +6436,23 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
               >
                 Reply
               </button>` : nothing}`;
-		} else if (choices?.length) answers = html`${choices.map((choice) => html`<button
-            type="button"
-            class="lf-fp-face lf-fp-answer"
-            aria-pressed=${String(choice.chosen)}
-            @click=${() => {
-			choice.press();
-			paint();
-		}}
-          >
-            ${capital(choice.label)}
-          </button>`)}`;
+		} else if (choices?.length) answers = html`${choices.map((choice) => {
+			const told = Boolean(choice.description || choice.recommended);
+			return html`<button
+          type="button"
+          class="lf-fp-face lf-fp-answer"
+          ?data-told=${told}
+          aria-pressed=${String(choice.chosen)}
+          @click=${() => {
+				choice.press();
+				paint();
+			}}
+        >
+          ${told ? html`<span class="lf-fp-choice-name">${capital(choice.label)}</span>${choice.recommended ? html` <span class="lf-fp-choice-tag">recommended</span>` : nothing}${choice.description ? html`<span class="lf-fp-choice-says"
+                          >${choice.description}</span
+                        >` : nothing}` : capital(choice.label)}
+        </button>`;
+		})}`;
 		else if (item.offers?.done) answers = html`<button
         type="button"
         class="lf-fp-face lf-fp-answer"
@@ -7933,9 +7939,11 @@ function createObligationView({ prepareNavigationStep, arrive, openPageThread, f
 	function choicesOf(item) {
 		const source = sourceNode(item);
 		if (!source) return null;
-		return actionsFor(source, sourceOwner(item)).map(({ id, label, control }) => Object.freeze({
+		return actionsFor(source, sourceOwner(item)).map(({ id, label, description, recommended, control }) => Object.freeze({
 			id,
 			label,
+			description,
+			recommended,
 			chosen: control.getAttribute("aria-pressed") === "true" || control.getAttribute("aria-checked") === "true" || control.localName === "input" && control.checked,
 			press: () => presentedActionControl(control).click()
 		}));

@@ -82,7 +82,7 @@
     "runtime/errors.js": "7dd996bf402b05ba7eeaf82a3f87be1bb76244c1ea98725324c475c7b6c5057e",
     "runtime/event-kinds.js": "8d116cd0afc5f4567c7a3867b49dc9494c0c3b1ba05752384e6a433657904fba",
     "runtime/file-api.js": "4ffa7c003279a45c649db56e3904e7c535f94407fa052ad39797141394107bd9",
-    "runtime/floating-panel.js": "2bb059d73e5dc79b143144c76627748fea76c167ffe8366ae067001e78bb6bb4",
+    "runtime/floating-panel.js": "2719e2ffb7cdaeb1b79b3f445b166c4c98692454218632a626525bf6a16832b0",
     "runtime/focus.js": "9b452e1f5f6d37b4156cd6708441faa8e5640655eb499f700a9905d281290f07",
     "runtime/frame-visibility.js": "bf7a4b7783b0b7c55dccb59d89863ba6e5252b63c3c43331493c59e510d3c0a1",
     "runtime/framework.js": "4231f9a0801ba1042f075e44a390e84f7b6a3992f97c216ca9d1b5029dbae0b7",
@@ -101,7 +101,7 @@
     "runtime/inline-contributions.js": "d77c6b68328f1bf9a84e88a2345ddb58bf6a69928a4db833c1643ae7cf0fc010",
     "runtime/interaction-log.js": "8010d5aee446b9ce5c6bc3f566f7054be9a8e1d26cf4690a14e39cf72a786935",
     "runtime/keeps.js": "e7d47b01a587ec72d79d6af2fbb63855cacfb583e258d5042ecf49247128b909",
-    "runtime/keyboard/bindings.js": "c97c5b721534d147f67bb3df7bdd9da67f92b46a367f2f5eb008d887128fa221",
+    "runtime/keyboard/bindings.js": "5226e797babd10f221d909c2f5abd1440908770054901d55ce92916ee44f69cc",
     "runtime/keyboard/chip-seats.js": "96b59edd240941e50aa06dcbfc9d4117fe47a8b2ea713d56ebd60bc9fb0285ee",
     "runtime/keyboard/command-hints.js": "6d76fa56bb20582189a851e39a772660ae98f48e29ee2f9ff252b8cdddcc8c68",
     "runtime/keyboard/command-reference.js": "549c9e2c89d7bc409350df9cc951ae0245d73d87ea91b06ece8862b5fcb0af85",
@@ -139,7 +139,7 @@
     "runtime/obligations/model.js": "0071e1b7fd8b1ca5c08ae2b157ccd705f2df15e27e9d7321d3aa923bacc78fc4",
     "runtime/obligations/place.js": "e2b375fb855222c82b6b3eada0c4c639a9831f847361d6acb0eeb74044fcff5c",
     "runtime/obligations/view-elements.js": "8dcb50af3cd2a4e2d57dfd37e134ceddc7688acd53bc62c3fece85e225927123",
-    "runtime/obligations/view.js": "0b3b2eef892720ba98d7e513172fed70a0b0d9044cfc418cf909fd3532a81887",
+    "runtime/obligations/view.js": "9d11e0a4d04c062f7ebe1b8cf50094314fc1353701e3ed8ec554d3528cdbb913",
     "runtime/off-flow.js": "752767afa7f5ec87db6555bb686114d11d377d965f1098e001f3662bc31bb1e3",
     "runtime/offline-delivery.js": "4818293781d54c0361e1e9abb51a9060f10ea7da79098cb81cdb8a30baba06c6",
     "runtime/page-about.js": "6af1ad58e2d08f43b055fec6555fe2afab91f3785441f911d95b58d3a1b0c1ec",
@@ -287,7 +287,7 @@
     "vendor/syntax/yaml.js": "d26d797bdd23183ea23fc5bd145ac49288f4513af32700f080139d1e484e1fcb",
     "vendor/webawesome-chrome.js": "9b815aa69316c8a99c7d798f1df394252cd36481c625b7784d9ae5952a9e3695",
     "vendor/webawesome/chunk-KPIIXIVK.js": "2d9087146189f1515f7985fc1cb0405344d5382291483bf9f848072577bff67d",
-    "widgets/lf-suggestion.js": "f10b92464c4a8ffc641d25438d9886975ab1f48546e04fddaa1a9742eaa26a81"
+    "widgets/lf-suggestion.js": "283fee2e8aff83bae435dbdd5cd002d78c9a871684d5dbe4e2284815839d93cf"
   },
   "replaces": [
     "leaf.js",

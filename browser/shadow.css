@@ -1515,6 +1515,15 @@ svg[data-lf-icon] {
 .lf-compose-field:where(:has(> .lf-compose-submit)) > leaf-text:not(.lf-fab-input) {
   --lf-field-end-room: calc( var(--lf-compose-send-end) - var(--lf-compose-pad-inline-start) );
 }
+@media (hover: hover) and (pointer: fine) {
+  .lf-compose-field:where(:has(> .lf-compose-submit)) > leaf-text:not(.lf-fab-input) {
+    --lf-field-end-room: 0px;
+    --lf-field-corner: calc(var(--lf-icon-action-hit) + var(--lf-compose-action-inset));
+  }
+  .lf-compose-field:has(> leaf-text:state(corner-taken)) > .lf-compose-submit {
+    visibility: hidden;
+  }
+}
 .lf-icon-action {
   box-sizing: border-box;
   width: var(--lf-icon-action-hit);

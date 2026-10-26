@@ -1005,23 +1005,56 @@ var LeafText = class extends HTMLElement {
 	#measureOverflow() {
 		this.#view?.requestMeasure({
 			key: this.#overflow,
-			read: () => {
+			read: (view) => {
 				const style = getComputedStyle(this);
 				return {
 					scrolls: this.scrollHeight > this.clientHeight,
 					above: this.scrollTop > Number.parseFloat(style.paddingTop) + 1,
-					below: this.scrollTop + this.clientHeight < this.scrollHeight - Number.parseFloat(style.paddingBottom) - 1
+					below: this.scrollTop + this.clientHeight < this.scrollHeight - Number.parseFloat(style.paddingBottom) - 1,
+					corner: this.#cornerTaken(view, style)
 				};
 			},
 			write: (reading) => {
 				if (this.hasAttribute("data-scrolls") !== reading.scrolls) this.toggleAttribute("data-scrolls", reading.scrolls);
-				for (const [state, on] of [["more-above", reading.scrolls && reading.above], ["more-below", reading.scrolls && reading.below]]) {
+				for (const [state, on] of [
+					["more-above", reading.scrolls && reading.above],
+					["more-below", reading.scrolls && reading.below],
+					["corner-taken", reading.corner]
+				]) {
 					if (this.#internals.states.has(state) === on) continue;
 					if (on) this.#internals.states.add(state);
 					else this.#internals.states.delete(state);
 				}
 			}
 		});
+	}
+	#cornerTaken(view, style) {
+		const size = Number.parseFloat(style.getPropertyValue("--lf-field-corner"));
+		if (!(size > 0)) return false;
+		const { scaleX, scaleY } = view;
+		const box = this.getBoundingClientRect();
+		const rtl = style.direction === "rtl";
+		const left = rtl ? box.left : box.right - size * scaleX;
+		const right = rtl ? box.left + size * scaleX : box.right;
+		const top = box.bottom - size * scaleY;
+		const reaches = (rect, leading) => rect.left < right && rect.right > left && rect.top - leading < box.bottom && rect.bottom + leading > top;
+		for (const line of view.contentDOM.children) {
+			const block = line.getBoundingClientRect();
+			if (block.bottom <= top || block.top >= box.bottom) continue;
+			const height = Number.parseFloat(getComputedStyle(line).lineHeight) * scaleY;
+			const words = document.createRange();
+			words.selectNodeContents(line);
+			for (const rect of words.getClientRects()) if (reaches(rect, Math.max(0, (height - rect.height) / 2) || 0)) return true;
+		}
+		if (!view.hasFocus) return false;
+		const { rectangle: caret } = caretAt(view, view.state.selection.main.head);
+		const { left: x, top: y, bottom: foot } = caret;
+		return reaches({
+			left: x,
+			right: x + 1,
+			top: y,
+			bottom: foot
+		}, 0);
 	}
 	static observedAttributes = [
 		"aria-label",
@@ -1054,6 +1087,7 @@ var LeafText = class extends HTMLElement {
 			if (!this.#view) this.#build();
 		});
 		this.addEventListener("scroll", () => this.#measureOverflow(), { passive: true });
+		for (const type of ["focusin", "focusout"]) this.addEventListener(type, () => this.#measureOverflow());
 		this.#root.addEventListener("beforeinput", () => this.#beforeEdit(), { capture: true });
 		for (const type of ["input", "beforeinput"]) this.#root.addEventListener(type, (event) => event.stopPropagation());
 	}
@@ -1183,6 +1217,7 @@ var LeafText = class extends HTMLElement {
 		queueMicrotask(() => {
 			if (this.isConnected) return;
 			this.#internals.states.delete("ready");
+			this.#internals.states.delete("corner-taken");
 			if (!this.#view) return;
 			this.#model = this.#view.state;
 			this.#sizes.disconnect();

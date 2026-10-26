@@ -95,6 +95,13 @@
  * that word with it, so typing a space after a word could pull it back up a line,
  * and it needed separate modes under a finger and while the field scrolled.
  *
+ * A box may instead give the words the whole line and set `--lf-field-corner` to the
+ * square at the field's trailing foot its action stands in. The field then says
+ * whether words in view, or its caret, reach that square (`:state(corner-taken)`), and
+ * the box shows its action only while the corner is free. Wrapping still turns on
+ * nothing but the words; only the action comes and goes. Under a mouse, Return sends
+ * when the action is hidden.
+ *
  * Leaf's key dispatcher owns submission and Escape. Return inserts a newline unless
  * its owner cancels `lf-edit-return` to reserve the press for submission. Android's
  * EditContext supplies no native insertion after CodeMirror handles the press, so this
@@ -800,7 +807,7 @@ class LeafText extends HTMLElement {
     this.#view?.requestMeasure({
       key: this.#overflow,
       // Words, not the host's padding, run past an edge.
-      read: () => {
+      read: (view) => {
         const style = getComputedStyle(this);
         return {
           scrolls: this.scrollHeight > this.clientHeight,
@@ -808,6 +815,7 @@ class LeafText extends HTMLElement {
           below:
             this.scrollTop + this.clientHeight <
             this.scrollHeight - Number.parseFloat(style.paddingBottom) - 1,
+          corner: this.#cornerTaken(view, style),
         };
       },
       write: (reading) => {
@@ -818,6 +826,7 @@ class LeafText extends HTMLElement {
         for (const [state, on] of [
           ["more-above", reading.scrolls && reading.above],
           ["more-below", reading.scrolls && reading.below],
+          ["corner-taken", reading.corner],
         ]) {
           // Adding a state already set restyles all the same, on every scrolled frame.
           if (this.#internals.states.has(state) === on) continue;
@@ -826,6 +835,38 @@ class LeafText extends HTMLElement {
         }
       },
     });
+  }
+
+  // Whether words in view, or the caret, reach the square `--lf-field-corner` wide at
+  // the host's trailing foot, where a box stands its action over the words. A row
+  // counts at its line height, so its leading under the action counts as the row.
+  #cornerTaken(view, style) {
+    const size = Number.parseFloat(style.getPropertyValue("--lf-field-corner"));
+    if (!(size > 0)) return false;
+    const { scaleX, scaleY } = view;
+    const box = this.getBoundingClientRect();
+    const rtl = style.direction === "rtl";
+    const left = rtl ? box.left : box.right - size * scaleX;
+    const right = rtl ? box.left + size * scaleX : box.right;
+    const top = box.bottom - size * scaleY;
+    const reaches = (rect, leading) =>
+      rect.left < right &&
+      rect.right > left &&
+      rect.top - leading < box.bottom &&
+      rect.bottom + leading > top;
+    for (const line of view.contentDOM.children) {
+      const block = line.getBoundingClientRect();
+      if (block.bottom <= top || block.top >= box.bottom) continue;
+      const height = Number.parseFloat(getComputedStyle(line).lineHeight) * scaleY;
+      const words = document.createRange();
+      words.selectNodeContents(line);
+      for (const rect of words.getClientRects())
+        if (reaches(rect, Math.max(0, (height - rect.height) / 2) || 0)) return true;
+    }
+    if (!view.hasFocus) return false;
+    const { rectangle: caret } = caretAt(view, view.state.selection.main.head);
+    const { left: x, top: y, bottom: foot } = caret;
+    return reaches({ left: x, right: x + 1, top: y, bottom: foot }, 0);
   }
 
   static observedAttributes = ["aria-label", "aria-describedby", "placeholder"];
@@ -859,6 +900,9 @@ class LeafText extends HTMLElement {
       if (!this.#view) this.#build();
     });
     this.addEventListener("scroll", () => this.#measureOverflow(), { passive: true });
+    // The caret counts toward the corner only while it shows.
+    for (const type of ["focusin", "focusout"])
+      this.addEventListener(type, () => this.#measureOverflow());
     this.#root.addEventListener("beforeinput", () => this.#beforeEdit(), {
       capture: true,
     });
@@ -1053,6 +1097,7 @@ class LeafText extends HTMLElement {
     queueMicrotask(() => {
       if (this.isConnected) return;
       this.#internals.states.delete("ready");
+      this.#internals.states.delete("corner-taken");
       if (!this.#view) return;
       this.#model = this.#view.state;
       this.#sizes.disconnect();

@@ -912,9 +912,6 @@ leaf-text.lf-fab-input,
 .lf-msg-text blockquote[data-lf-gap] {
   padding-block: 0;
 }
-.lf-msg-text pre:has(> [data-lf-gap]) {
-  padding-block: var(--code-line);
-}
 .lf-msg-text :is([data-lf-gap="1"], pre:has(> [data-lf-gap="1"])) {
   margin-block-start: var(--lf-msg-line);
 }

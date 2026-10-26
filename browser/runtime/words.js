@@ -1,7 +1,7 @@
 /* Words as a label reads them: whitespace collapsed with the one collapse class
-   (passage-facts.js), and an excerpt cut at a word boundary. Pure, so the record folds,
+   (kernel-facts.js), and an excerpt cut at a word boundary. Pure, so the record folds,
    the passage reader and a package's widgets share one truncation rule. */
-import { COLLAPSE } from "./passage-facts.js";
+import { COLLAPSE } from "./kernel-facts.js";
 
 export const labelWords = (value) =>
   String(value ?? "")

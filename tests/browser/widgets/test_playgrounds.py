@@ -736,15 +736,10 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
         "spokenWords": True,
     }
     assert bounded["controlsSize"][1] > bounded["controlsSize"][0], bounded
-    # The rail's two titles are one voice: the package draws its generated panes, and
-    # the kernel's default pane header must not outrank the class that says so.
-    voice = """node => {
-      const style = getComputedStyle(node);
-      return [style.fontFamily, style.fontSize, style.fontWeight];
-    }"""
-    assert playground.locator(".lf-playground-instruction-title").evaluate(
-        voice
-    ) == playground.locator(".lf-playground-presets-title").evaluate(voice)
+    # The band is its buttons alone; "Starting points" only names the group.
+    expect(presets).to_have_text(
+        re.compile(r"^\s*Routine release\s*Needs attention\s*$")
+    )
     # The presets band heading the controls is ruled off from them, over the generic
     # region header's unruled box.
     assert playground.locator(".lf-playground-presets").evaluate(

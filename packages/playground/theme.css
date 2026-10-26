@@ -338,12 +338,6 @@
   gap: var(--sp-2);
 }
 
-.lf-playground-presets-title {
-  margin-right: var(--sp-2);
-  color: var(--muted);
-  font: 600 var(--t-6)/1.3 var(--sans);
-}
-
 :scope:is(lf-playground-preset) {
   display: contents;
 }

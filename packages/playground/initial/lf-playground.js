@@ -264,13 +264,13 @@ function render(host, { tabStore, offer, offerAction, generatedElement, keeps })
     let presetBar = null;
     if (presets.length) {
       // The presets head the rail's controls, or are the whole pane when every
-      // control stands in the preview.
+      // control stands in the preview. The buttons stand alone, with "Starting
+      // points" only as the group's accessible name: the user chose this on
+      // 2026-10-26 over a visible label before them.
       presetBar = node(railed.length ? "header" : "div", "lf-playground-presets");
-      const title = node("span", "lf-playground-presets-title", "Starting points");
-      title.id = `${host.id}-presets-title`;
       presetBar.setAttribute("role", "group");
-      presetBar.setAttribute("aria-labelledby", title.id);
-      presetBar.append(title, ...presets);
+      presetBar.setAttribute("aria-label", "Starting points");
+      presetBar.append(...presets);
     }
     for (const preset of presets) {
       const button = offerAction(

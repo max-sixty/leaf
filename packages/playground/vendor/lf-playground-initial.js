@@ -212,11 +212,9 @@
       let presetBar = null;
       if (presets.length) {
         presetBar = node(railed.length ? "header" : "div", "lf-playground-presets");
-        const title = node("span", "lf-playground-presets-title", "Starting points");
-        title.id = `${host.id}-presets-title`;
         presetBar.setAttribute("role", "group");
-        presetBar.setAttribute("aria-labelledby", title.id);
-        presetBar.append(title, ...presets);
+        presetBar.setAttribute("aria-label", "Starting points");
+        presetBar.append(...presets);
       }
       for (const preset of presets) {
         const button = offerAction(

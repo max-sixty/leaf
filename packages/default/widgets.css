@@ -903,6 +903,7 @@
     }
     & > lf-option[chosen] {
       --fill: var(--ok-tint);
+      box-shadow: inset 0 0 0 2px var(--ok), var(--lf-cell-rule);
     }
     & > lf-option[chosen] > .tag.ok {
       background: var(--card);
@@ -1067,6 +1068,7 @@
   :scope:is(lf-options):not(:has(> lf-option > strong)) > lf-option[chosen] {
     --lf-ground: var(--ok-tint);
     background: var(--lf-ground);
+    box-shadow: inset 0 0 0 2px var(--ok);
   }
 }
 @media screen {

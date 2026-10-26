@@ -188,7 +188,9 @@
   }
 }
 /* A card standing alone states its pick with the border it has. A row says it with a
- * wash, and a joined cell with its fill (below). */
+ * wash and a joined cell with its fill (below), each ringed in the same green inside its
+ * edge: the tint alone is about 1.1:1 against the card in the dark palette, and a
+ * recommended tag wears that green too. */
 @container style(--lf-joined: 0) {
   :scope:is(lf-options):has(> lf-option > strong) > lf-option[chosen] {
     border-color: var(--ok);
@@ -514,6 +516,9 @@
     }
     & > lf-option[chosen] {
       --fill: var(--ok-tint);
+      box-shadow:
+        inset 0 0 0 2px var(--ok),
+        var(--lf-cell-rule);
     }
     /* An ok chip on the chosen cell stands on the card's ground, or it loses its ground
      * in the cell's tint. */
@@ -783,6 +788,7 @@
   :scope:is(lf-options):not(:has(> lf-option > strong)) > lf-option[chosen] {
     --lf-ground: var(--ok-tint);
     background: var(--lf-ground);
+    box-shadow: inset 0 0 0 2px var(--ok);
   }
 }
 /* A standalone option answers the pointer with a wash, without moving its words. */

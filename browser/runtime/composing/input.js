@@ -9,7 +9,8 @@
 // empty-field status stays in the placeholder, words keep their place, and the mic's
 // face carries listening. Sending and explicit closing retire capture before the
 // draft can change; Escape keeps its existing close-and-keep-draft meaning.
-// Shift+Enter inserts a line, the field's own binding; on touch keyboards Enter does too.
+// Shift+Enter inserts a line, the field's own binding; on touch keyboards Enter does too,
+// except in a one-line field (`aria-multiline="false"`), where Return sends everywhere.
 // Mod+Enter remains another route to submit. The field grows with its words, within the
 // room supplied by floating placement; script does not derive its height from its text. When the surface
 // accepts images, a paste or capture uploads bytes to page media; one that does not says
@@ -50,13 +51,7 @@
 import { rememberWriting } from "../drafts.js";
 import { keys, paintKeysWithin } from "../keyboard/scopes.js";
 import { keeps, keepsHidden, keepsText } from "../keeps.js";
-import {
-  advertisesKeys,
-  submitBindings,
-  submitLabel,
-  spell,
-  PRESS,
-} from "../keyboard/bindings.js";
+import { advertisesKeys, submitBindings, spell, PRESS } from "../keyboard/bindings.js";
 import { readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "../media.js";
 import { announce } from "../notifications.js";
 import { iconElement, iconTemplate } from "../icons.js";
@@ -351,6 +346,11 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     const field = document.createElement("div");
     field.className = "lf-compose-field";
     ta.before(field);
+    // A one-line field, such as an option's title, has no line for Return to break, so
+    // Return sends it from every keyboard, a phone's included.
+    const oneLine = ta.getAttribute("aria-multiline") === "false";
+    const sendBindings = () => (oneLine ? ["Enter", "Mod+Enter"] : submitBindings());
+    const sendKey = () => spell(sendBindings()[0]);
     // The placeholder with its send key drawn as a key: the field shows it in place of
     // the plain placeholder while it is in the field, which is while there is a key to
     // show.
@@ -539,7 +539,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       // Read the shared logical focus so this hint agrees with the key chips and rings.
       const currentLocation = focused() === ta;
       const advertising = advertisesKeys();
-      const sendKeys = advertising ? submitLabel() : "";
+      const sendKeys = advertising ? sendKey() : "";
       const suffix = !advertising
         ? ""
         : currentLocation
@@ -584,7 +584,9 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       // Where Return sends, a line breaks with Shift+Return, which the hover name says
       // beside the send key, since nothing in the box does.
       const newline =
-        sendKeys === spell("Enter") ? ` · ${spell("Shift+Enter")} new line` : "";
+        sendKeys === spell("Enter") && !oneLine
+          ? ` · ${spell("Shift+Enter")} new line`
+          : "";
       keeps(sendBtn, "title", sendKeys ? `${action} (${sendKeys})${newline}` : action);
       // These native input actions keep their focus seat while refusing a send.
       keeps(sendBtn, "aria-disabled", !canSend());
@@ -893,8 +895,8 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     keys(ta, "In a text box", [
       {
         id: "text.send",
-        keys: submitBindings,
-        label: submitLabel,
+        keys: sendBindings,
+        label: sendKey,
         title: sends,
         run: () => pressed(send),
       },
@@ -903,7 +905,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     // The field owns text editing; this owner alone reserves Return for its declared
     // submit binding. An unwired source editor therefore keeps Return on every device.
     ta.addEventListener("lf-edit-return", (event) => {
-      if (submitBindings().includes("Enter")) event.preventDefault();
+      if (sendBindings().includes("Enter")) event.preventDefault();
     });
     // A press on a submit control is the send key pressed from the box, so it leaves the
     // user where Enter does: in the box, for a box that stays to take more, or wherever the

@@ -2954,20 +2954,40 @@ export function createFloatingPanel({
             : nothing
         }`;
     } else if (choices?.length)
-      answers = html`${choices.map(
-        (choice) =>
-          html`<button
-            type="button"
-            class="lf-fp-face lf-fp-answer"
-            aria-pressed=${String(choice.chosen)}
-            @click=${() => {
-              choice.press();
-              paint();
-            }}
-          >
-            ${capital(choice.label)}
-          </button>`,
-      )}`;
+      // A choice that says more than its name, what choosing it gives and whether the
+      // page advises it, stands on a line of its own with those words under its name,
+      // two lines at most, so the user can answer here without Show. Rejected: the
+      // option's whole card, whose tags and picture let one choice fill a phone's
+      // screen, and its name alone, which left the user picking blind on a phone.
+      answers = html`${choices.map((choice) => {
+        const told = Boolean(choice.description || choice.recommended);
+        return html`<button
+          type="button"
+          class="lf-fp-face lf-fp-answer"
+          ?data-told=${told}
+          aria-pressed=${String(choice.chosen)}
+          @click=${() => {
+            choice.press();
+            paint();
+          }}
+        >
+          ${
+            told
+              ? html`<span class="lf-fp-choice-name">${capital(choice.label)}</span>${
+                    choice.recommended
+                      ? html` <span class="lf-fp-choice-tag">recommended</span>`
+                      : nothing
+                  }${
+                    choice.description
+                      ? html`<span class="lf-fp-choice-says"
+                          >${choice.description}</span
+                        >`
+                      : nothing
+                  }`
+              : capital(choice.label)
+          }
+        </button>`;
+      })}`;
     else if (item.offers?.done)
       answers = html`<button
         type="button"

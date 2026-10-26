@@ -119,7 +119,7 @@ export function createDelivery({
         return {
           accepted: null,
           state: completeData(answer.state, held),
-          refusal: `Couldn't send — ${answer.error || "the server refused it"}`,
+          refusal: `Couldn't ${event.kind === "edit" ? "save edit" : "send"} — ${answer.error || "the server refused it"}`,
         };
       }
       await retry("Server answer was incomplete — retrying the change…");

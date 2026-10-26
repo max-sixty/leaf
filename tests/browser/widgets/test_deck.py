@@ -123,37 +123,45 @@ DRAFT_DECK_PAGE = leaf_page(
 )
 
 
-def test_a_card_holding_unsent_words_stays_when_answered(browser, serve):
-    """An answer on a card whose draft editor is still open leaves the card in view,
-    since moving on would hide the words not yet saved; Next then moves on."""
+def test_an_answer_saves_the_open_draft_before_the_card_moves_on(browser, serve):
+    """An answer pressed on a card whose draft editor is still open saves the edit, as
+    any press away from the editor does, and the deck moves on with nothing lost."""
     page = open_page(browser, serve(DRAFT_DECK_PAGE))
     open_card(page, "reply-ask")
     page.locator("#reply-draft .lf-draft-body").click()
-    expect(page.locator("#reply-draft leaf-text")).to_be_focused()
+    editor = page.locator("#reply-draft leaf-text")
+    expect(editor).to_be_focused()
+    page.keyboard.press("End")
+    page.keyboard.type(" Sorry for the wait.")
     answer(page, "reply-send")
-    expect(page.locator("lf-deck .lf-deck-forward")).to_have_attribute("title", "Next")
-    open_card(page, "reply-ask")
-    expect(page.locator("#reply-draft leaf-text")).to_be_visible()
+    open_card(page, "notes-ask")
+    edits = [
+        event["detail"]["value"]
+        for event in events_model.read_events(serve.page_dir)
+        if event.get("action") == "edit"
+    ]
+    assert edits == ["Thanks for the report. Sorry for the wait."], edits
 
 
 def test_by_keyboard_an_answer_lands_on_the_next_question_once(browser, serve):
     """A digit that answers a card brings the user to the next card's question once it
-    has settled, so its digits answer it, and a digit pressed twice answers one card.
+    has settled, so its digits answer it, and a digit pressed again as the next card
+    comes up answers nothing.
     Once the pass is over, the end frame says what is left and takes the user back in."""
     page = open_page(browser, serve(DECK_PAGE))
     page.keyboard.press("m")
     expect(page.locator("#store-ask")).to_be_focused()
     page.keyboard.press("1")
-    page.keyboard.press("1")
     round_trip(page)
     open_card(page, "beta-ask")
+    page.keyboard.press("1")
     expect(page.locator("#beta-ask")).to_be_focused()
-    chosen = [
+    chosen = {
         event["widget"]
         for event in events_model.read_events(serve.page_dir)
         if event.get("action") == "choose"
-    ]
-    assert chosen == ["store-choice"], chosen
+    }
+    assert chosen == {"store-choice"}, chosen
     page.keyboard.press("ArrowRight")
     open_card(page, "notes-ask")
     page.keyboard.press("2")

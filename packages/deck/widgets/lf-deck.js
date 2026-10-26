@@ -5,11 +5,11 @@
  * inventory, the rule `lf-tally` counts by). When the server's reading says the open
  * card no longer waits, after the user answered it on the card or on a control standing
  * for it, such as a suggestion's margin entry, the card flies right and the next waiting
- * card after it comes up, unless a field on the card still holds words the user has not
- * sent, such as an open draft editor, which the card keeps in view. A wait that ends
- * anywhere else, as when the user comments on the card and leaves it with the agent,
- * the agent ends the question, or the user answers it in another window, leaves the
- * card where it is with Next, since news never moves what the user is reading. Later sends a card left and
+ * card after it comes up; a draft editor open on the card saves as the press leaves it
+ * (`lf-draft`), so moving on hides no unsaved words. A wait that ends anywhere else, as
+ * when the user comments on the card and leaves it with the agent, the agent ends the
+ * question, or the user answers it in another window, leaves the card where it is with
+ * Next, since news never moves what the user is reading. Later sends a card left and
  * leaves its obligation open, which is Leaf's keep unread: nothing is recorded, the
  * pass ends with the cards kept for later still waiting, and Go through starts again
  * from the first of them. Back returns to the card before, where the widget's own
@@ -80,7 +80,6 @@ import {
   scrollBehavior,
   scrollIntoView,
   signal,
-  TEXT_FIELD,
   tally,
   tallyWords,
   under,
@@ -580,10 +579,7 @@ customElements.define(
         document.hasFocus() &&
         (Boolean(place && under(place, card)) ||
           (this.#pressed === card && [null, document.body].includes(here)));
-      // Unsent words in a field on the card, such as an open draft's editor, keep it,
-      // since moving on would hide them.
-      const writing = [...card.querySelectorAll(TEXT_FIELD)].some((field) => field.value);
-      if (this.#waited && !waits && closed && onCard && !writing) {
+      if (this.#waited && !waits && closed && onCard) {
         this.#go(this.#after(card, readings), "right", { answered: true });
       } else this.#waited = waits;
     }

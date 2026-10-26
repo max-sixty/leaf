@@ -203,11 +203,15 @@ is about and stays running.
 
 ## Preview a page
 
-`uv run leaf-dev preview <example>` serves a live page that follows source and runtime
+`uv run leaf-dev preview <example>` serves a live page that follows source and browser-runtime
 edits at one URL; `--source <file>` serves any HTML file. Its module header
 (`dev/leaf_dev/commands/preview.py`) covers slots, restarts and which previews detach.
 Start one that stays in the foreground as a long-running command (`run_in_background`
 in Claude Code).
+
+Python, schema and dependency edits require restarting the preview; its log says when.
+For a user preview, stop its page server and rerun the same preview command to keep its
+URL and comments. A plain preview starts fresh on restart.
 
 Drive only plain previews, since every click this session drives on a `--user`
 preview arrives as an unanswered update, and start a `--user` preview only from the

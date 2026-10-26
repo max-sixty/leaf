@@ -401,6 +401,17 @@ def layer_fingerprint(composition: LayerComposition) -> str:
     )
 
 
+def payload_python_inputs(root: Path) -> list[Path]:
+    """Code, schemas and dependencies a running Python process has loaded."""
+    return [
+        *sorted(path for path in (root / "src").rglob("*.py") if path.is_file()),
+        *sorted(path for path in (root / "src").rglob("*.json") if path.is_file()),
+        root / "browser/registry.json",
+        root / "pyproject.toml",
+        root / "uv.lock",
+    ]
+
+
 def payload_server_inputs(root: Path) -> list[Path]:
     """The serving code, the browser runtime it serves (`runtime_selection`), and the
     dependency manifests an init must restart to adopt."""
@@ -411,15 +422,13 @@ def payload_server_inputs(root: Path) -> list[Path]:
         root / "src/leaf/render-checks",
     ]
     return [
-        *sorted((root / "src").rglob("*.py")),
+        *payload_python_inputs(root),
         *sorted(
             path
             for top in runtime
             for path in ([top] if top.is_file() else top.rglob("*"))
             if path.is_file()
         ),
-        root / "pyproject.toml",
-        root / "uv.lock",
     ]
 
 

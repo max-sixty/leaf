@@ -12,7 +12,7 @@ from typing import NamedTuple
 import tinycss2
 
 from .findings import Finding
-from .locations import located, locations_overlap
+from .locations import first_overlap, located
 from .machine import package_store
 from .refusals import Refused
 from .registry.contract import element_declarations, is_element_name
@@ -157,17 +157,12 @@ def input_paths(inputs: list[Path]) -> list[Path]:
 def overlapping_inputs(inputs: list[Path]):
     """The first resolved path shared by two precedence scopes."""
     located_inputs = [(root, located(input_paths([root]))) for root in inputs]
-    return next(
-        (
-            (left_root, left, right_root, right)
-            for index, (left_root, left_paths) in enumerate(located_inputs)
-            for right_root, right_paths in located_inputs[index + 1 :]
-            for left, left_at in left_paths
-            for right, right_at in right_paths
-            if locations_overlap(left_at, right_at)
-        ),
-        None,
-    )
+    for index, (left_root, left_paths) in enumerate(located_inputs):
+        for right_root, right_paths in located_inputs[index + 1 :]:
+            if overlap := first_overlap(left_paths, right_paths):
+                left, right = overlap
+                return left_root, left, right_root, right
+    return None
 
 
 def composed_dir_files(inputs: list[Path], sub: str) -> dict[str, Path]:
@@ -406,6 +401,17 @@ def layer_fingerprint(composition: LayerComposition) -> str:
     )
 
 
+def payload_python_inputs(root: Path) -> list[Path]:
+    """Code, schemas and dependencies a running Python process has loaded."""
+    return [
+        *sorted(path for path in (root / "src").rglob("*.py") if path.is_file()),
+        *sorted(path for path in (root / "src").rglob("*.json") if path.is_file()),
+        root / "browser/registry.json",
+        root / "pyproject.toml",
+        root / "uv.lock",
+    ]
+
+
 def payload_server_inputs(root: Path) -> list[Path]:
     """The serving code, the browser runtime it serves (`runtime_selection`), and the
     dependency manifests an init must restart to adopt."""
@@ -416,15 +422,13 @@ def payload_server_inputs(root: Path) -> list[Path]:
         root / "src/leaf/render-checks",
     ]
     return [
-        *sorted((root / "src").rglob("*.py")),
+        *payload_python_inputs(root),
         *sorted(
             path
             for top in runtime
             for path in ([top] if top.is_file() else top.rglob("*"))
             if path.is_file()
         ),
-        root / "pyproject.toml",
-        root / "uv.lock",
     ]
 
 
@@ -459,7 +463,7 @@ def incompatible_layer(page_dir: Path, registry: dict) -> Finding | None:
     is the same kind of fact: this Leaf would read the key's new name, find nothing,
     and drop what the page's layer declares under the old one, so the page is
     refused rather than misread. The check is one-sided: a key this Leaf added and
-    an older layer lacks refuses nothing. Every page server, the gate's and the
+    an older layer lacks refuses nothing. Every server of the page's live files, the
     website's included (`http.page_endpoint`, `leaf_website.page_binding`), the one
     append door and the writers that ask it first (`event_contracts.write_refusal`),
     and `page check` refuse on this one reading, each naming its repair. For a page
@@ -527,9 +531,10 @@ def incompatible_revision(revision: int, registry: dict) -> Finding | None:
     re-vendor leaves existing revisions as they were, so a page re-vendored across a
     bump still holds revisions saved before it. Served, one would run its own runtime
     against this Leaf's server, which is the break the protocol announces. The
-    document server and the append door ask this of the revision they would serve or
-    admit under; readings of the log keep reading every revision's registry, so
-    history still projects. Serving the page saves its source as a revision first,
+    document server, a snapshot's capture (`page_snapshot.capture_page_snapshot`),
+    and the append door ask this of the revision they would serve or admit under;
+    readings of the log keep reading every revision's registry, so history still
+    projects. Serving the page saves its source as a revision first,
     so its live revision is one of these only where the source no longer saves.
     A revision whose vocabulary uses a retired key is refused for the reason the
     layer is: this Leaf would read the key's new name there, find nothing, and draw

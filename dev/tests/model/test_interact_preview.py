@@ -338,6 +338,13 @@ def test_a_preview_reads_its_watched_inputs_from_the_files_that_exist_now(tmp_pa
     added_script.unlink()
     assert str(added_script) not in watched().paths
 
+    # Python loads schema data at import time too; changing it needs both the
+    # server's refresh and a fresh watcher, just like changing a Python module.
+    schema = scripts / "state.schema.json"
+    schema.write_text("{}")
+    assert str(schema) in watched().paths
+    assert schema in preview.worker_inputs(runtime)
+
     versions = source.parent / "versions"
     versions.mkdir()
     version = versions / "page.v1.html"
@@ -775,7 +782,7 @@ finally:
         assert codex_adapter.adapter_is_live("preview-thread")
         if initially_idle:
             assert declared(page_dir)["state"] == "idle"
-            session.cmd_waiting(page_dir, "Review this page")
+            session.cmd_waiting(page_dir)
         endpoint = urlsplit(url)._replace(path="/api/event").geturl()
         status, body = fetch(
             endpoint,
@@ -1115,6 +1122,34 @@ def test_fixture_captures_use_the_selected_runtime_producer(
     )
 
 
+def test_a_fixture_acknowledges_its_seed_with_the_runtime_it_was_read_for(tmp_path):
+    """An arm at another protocol acknowledges a seeded page it vendored, so a paired
+    comparison across a protocol bump builds both arms (`leaf-dev stills`)."""
+    runtime = tmp_path / "runtime"
+    arms.extract_payload(runtime)
+    registry = runtime / "browser/registry.json"
+    layer = json.loads(registry.read_text())
+    layer["$events"]["protocol"] += 1
+    registry.write_text(json.dumps(layer, ensure_ascii=False))
+    state = tmp_path / "state"
+    page = tmp_path / "page"
+    prepare_page(
+        page,
+        read_fixture(
+            ROOT / "examples/log-retention.html",
+            runtime=runtime,
+            env=arms.environment(XDG_STATE_HOME=str(state)),
+        ),
+        partial(arms.run_leaf, runtime, state, check=True),
+        final_status=None,
+    )
+    events = [
+        json.loads(line) for line in (page / "events.jsonl").read_text().splitlines()
+    ]
+    assert events[-1]["kind"] == "receipt"
+    assert events[-1]["through"] == len(events) - 1
+
+
 def test_resumed_preview_follows_capture_bindings_and_files_without_replaying_seeds(
     tmp_path,
 ):
@@ -1243,10 +1278,8 @@ def test_resumed_preview_follows_capture_bindings_and_files_without_replaying_se
         service.stop()
 
 
-def test_preview_keeps_watching_after_an_invalid_capture_companion(
-    tmp_path, monkeypatch, capsys
-):
-    """An interrupted JSON save refuses one refresh, then its repair reaches the page."""
+def test_preview_keeps_watching_after_unreadable_inputs(tmp_path, monkeypatch, capsys):
+    """Unreadable runtime inputs or incomplete captures leave the last page serving."""
     from leaf.data import read_data
     from leaf.registry.storage import load_registry
 
@@ -1264,6 +1297,17 @@ def test_preview_keeps_watching_after_an_invalid_capture_companion(
     page = tmp_path / "page"
 
     def edits():
+        output = capsys.readouterr().out
+        url = next(line for line in output.splitlines() if line.startswith("http://"))
+
+        def unavailable(_runtime):
+            raise OSError("runtime input temporarily unavailable")
+
+        with monkeypatch.context() as unreadable:
+            unreadable.setattr(preview, "worker_identity", unavailable)
+            yield {str(captured)}
+            assert "runtime input temporarily unavailable" in capsys.readouterr().err
+            assert fetch(url)[0] == 200
         companion.write_text("{")
         yield {str(companion)}
         assert (

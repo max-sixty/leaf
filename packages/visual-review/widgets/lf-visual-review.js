@@ -29,11 +29,10 @@ import {
   showNativeLayer,
   closeNativeLayer,
   isNativeLayer,
-  projectData,
+  keeps,
   releaseOutlets,
   threadSurface,
   scopedMediaUrl,
-  describeDifference,
   whileConnected,
   registerReadingRegion,
   compoundReadingRegionId,
@@ -72,9 +71,19 @@ customElements.define(
       return value.approved ? "Looks right" : "Unchecked";
     }
 
+    // The run, set by whoever hosts the widget: Leaf from the bound source (the
+    // registry's `x-data.run.property`), or null while that source has none.
+    static properties = { value: { attribute: false } };
+
+    constructor() {
+      super();
+      this.value = null;
+    }
+
     #entries = new Map();
-    #snapshot;
-    #projected;
+    // The run the last render reconciled, and the one whose cases were last marked.
+    #run;
+    #marked;
     #selected;
     #restoreFocus;
     #queue;
@@ -101,6 +110,7 @@ customElements.define(
         {
           id: "visual.next-case",
           title: "Next case",
+          travels: true,
           keys: ["n"],
           when: () => this.#entries.size > 1,
           run: () => this.#step(1),
@@ -108,6 +118,7 @@ customElements.define(
         {
           id: "visual.previous-case",
           title: "Previous case",
+          travels: true,
           keys: ["Shift+n"],
           when: () => this.#entries.size > 1,
           run: () => this.#step(-1),
@@ -170,8 +181,8 @@ customElements.define(
       });
     }
 
-    #reconcile(snapshot) {
-      const records = snapshot?.value.cases ?? [];
+    #reconcile(run) {
+      const records = run?.cases ?? [];
       const ids = new Set(records.map((record) => record.id));
       for (const [id, entry] of this.#entries) {
         if (ids.has(id)) continue;
@@ -205,7 +216,7 @@ customElements.define(
         this.#selected = (
           records.find((record) => record.classification !== "clean") ?? records[0]
         )?.id;
-      this.#snapshot = snapshot;
+      this.#run = run;
     }
 
     #approved(id) {
@@ -214,7 +225,7 @@ customElements.define(
     // n and Shift+n walk the cases, coming round at either end, and say where the
     // landing stands among them as every walk does.
     #step(delta) {
-      const ids = () => this.#snapshot.value.cases.map((record) => record.id);
+      const ids = () => this.#run.cases.map((record) => record.id);
       this.#select(cycledRow(ids(), this.#selected, delta), true);
       beginWalk("visual-case", "Case", () => listWalkPosition(ids(), this.#selected));
     }
@@ -253,7 +264,7 @@ customElements.define(
       });
     }
     #nextUnchecked() {
-      const records = this.#snapshot?.value.cases ?? [];
+      const records = this.#run?.cases ?? [];
       const index = records.findIndex((record) => record.id === this.#selected);
       return [...records.slice(index + 1), ...records.slice(0, index)].find(
         (record) => !this.#approved(record.id),
@@ -261,9 +272,8 @@ customElements.define(
     }
 
     render() {
-      const snapshot = this.data("run");
-      if (snapshot !== this.#snapshot) this.#reconcile(snapshot);
-      const run = snapshot?.value;
+      const run = this.value;
+      if (run !== this.#run) this.#reconcile(run);
       if (!run)
         return html`<p class="lf-vr-empty" ${generated({ says: true })}>
           Waiting for visual evidence.
@@ -334,19 +344,18 @@ customElements.define(
 
     updated(changed) {
       super.updated(changed);
-      this.classList.toggle("lf-rendered", Boolean(this.#snapshot));
-      if (this.#snapshot !== this.#projected) {
-        projectData(
-          this,
-          (this.#snapshot?.value.cases ?? []).map((record, index) => ({
-            node: this.#entries.get(record.id).article,
-            key: record.id,
-            identity: record.id,
-            label: record.title,
-            origin: { ...this.#snapshot.origin, path: ["cases", index] },
-          })),
-          { snapshot: this.#snapshot ?? null },
-        );
+      this.classList.toggle("lf-rendered", Boolean(this.#run));
+      if (this.#run !== this.#marked) {
+        // Each case's article is a datum on a Leaf page (`module-state.md`, "Marking
+        // drawn data"), following its case by id across runs.
+        for (const [index, record] of (this.#run?.cases ?? []).entries()) {
+          const { article } = this.#entries.get(record.id);
+          keeps(article, "data-lf-datum", record.id);
+          keeps(article, "data-lf-identity", record.id);
+          keeps(article, "data-lf-datum-label", record.title);
+          keeps(article, "data-lf-origin-path", JSON.stringify(["cases", index]));
+        }
+        this.dispatchEvent(new CustomEvent("drawn", { detail: { value: this.#run } }));
         for (const entry of this.#entries.values()) {
           const { shot, record } = entry;
           shot?.inspect({
@@ -370,7 +379,7 @@ customElements.define(
             () => {},
           );
         }
-        this.#projected = this.#snapshot;
+        this.#marked = this.#run;
       }
       threadSurface(this).update();
       this.#restoreFocus?.(() => {
@@ -397,7 +406,7 @@ customElements.define(
 
     #case(entry, approved, available) {
       const { record, before, after } = entry;
-      const run = this.#snapshot.value;
+      const run = this.#run;
       const threads = readThreads().threads.filter(
         (thread) =>
           thread.anchor?.section === this.id && thread.anchor.datum === record.id,
@@ -540,10 +549,7 @@ customElements.define(
                 }
                 ${
                   entry.difference
-                    ? fact(
-                        "Full-frame difference",
-                        describeDifference(entry.difference),
-                      )
+                    ? fact("Full-frame difference", entry.difference.description)
                     : nothing
                 }
               </dl>

@@ -1,9 +1,13 @@
 # Further Codex integration work
 
-Leaf's current companion workflow is documented in
-[harness-codex.md](../skills/leaf/references/harness-codex.md).
-[Session lifetime, “Watchers”](../src/leaf/session-lifetime.md#watchers)
-owns the delivery and connection lifecycle. This note holds open design work.
+Leaf reaches a Codex task in the desktop app, an IDE or a plain terminal only through
+hooks and a message it queues between turns, which gives it no more control over a
+turn than it has over a Claude Code session. Only on leaf.page and on an experimental
+terminal route does it connect to the task's App Server. [Session lifetime,
+“Watchers”](../src/leaf/session-lifetime.md#watchers) owns that delivery and
+connection lifecycle, and
+[harness-codex.md](../skills/leaf/references/harness-codex.md) the agent's side of it.
+This note holds open design work.
 
 ## User-opened conversation panel
 
@@ -46,7 +50,8 @@ An idle desktop chat receives Leaf input through `codex queue` as a
 removes the external queue's polling delay, but checks for queued input before
 resuming and supplies no input itself.
 
-Leaf already starts message-free turns through an accessible App Server:
+Leaf already starts message-free turns where it can reach the App Server, on the
+experimental terminal route and on leaf.page:
 `codex.start_app_server_delivery` sends `turn/start` with a `leaf_delivery` tool
 output. The desktop implements this capability internally, but the 22 October
 2026 inspection found no supported external desktop or MCP interface exposing
@@ -99,3 +104,4 @@ These alternatives need a user-facing purpose before implementation:
   coordinated workspace ownership; persistent pages are one possible use.
 - Make Leaf the Codex client. This would add transcript, approval, interruption,
   and reconnect ownership to Leaf's page and feedback responsibilities.
+  [Leaf running the agent session](leaf-run-sessions.md) weighs it across harnesses.

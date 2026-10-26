@@ -62,13 +62,24 @@ representative desktop viewport.
 ### Stability
 
 - **The page holds still under the user's aim.** A state change may repaint any box,
-  but must not move the controls next to the gesture that caused it. Without a gesture,
+  but must not move the controls next to the gesture that caused it. A scroll the
+  gesture makes may not carry the control it was made on either, except to bring it
+  whole into a scroller that showed only part of it, or where the gesture takes the
+  user somewhere and says so: a command as a walk or Go-to does (`travels`,
+  `runtime/keyboard/bindings.js`), or a press by the history entry it adds, as a link
+  or a root tab set's switch does. Without a gesture,
   a box may grow or shrink into free room, but reading content and controls stay put. A
   change the user asked for may reflow the content it replaces, with motion the eye can
   follow. A reveal on hover, focus or a key never changes the size or position of its
   ancestors or siblings, and typing may grow a field but never moves it. Check:
   `tests/shift_watch.js`, run on every browser test outside a module marked
   `shifts_unsurveyed` (`tests/AGENTS.md`, "Browser errors").
+- **Stability is owed to the common path.** Every hold costs code on each later
+  change, so a rare path the user reads at a glance moves what is on screen rather
+  than carry a mechanism of its own. Words a refused send hands back, and a draft typed
+  in another tab, grow the reply field as typing does, in a card as in the floating
+  panel, and a refused turn gives its room back as it folds: what the user is about to
+  send shows whole before the layout holds (the user's choice, 25 October 2026).
 - **What takes turns in a place doesn't size it.** Where several modes share one seat,
   as the comment field, page search, Threads' search, a thread's reply and the seated
   comment box share the floating panel's field, the place sets the box from a theme
@@ -165,11 +176,20 @@ representative desktop viewport.
   edged on one side is never rounded: mark a state with a whole contour, or a stripe on
   a square box. Avoid reflexive cards, tints, gradients and soft shadows. Check:
   `test_no_rule_rounds_a_box_edged_on_one_side`.
+- **Leaf's controls are few, and each shows a symbol rather than a word where a
+  familiar symbol says what it does.** The words on Leaf's controls compete with the
+  page's own words for the reader's attention, and a symbol is smaller and quieter.
+  Draw it from `runtime/icons.js` and give the control its name as tooltip and
+  accessible name, without the word beside the symbol. One control whose symbol follows
+  its state, such as play turning to pause, replaces a button for each state. A word
+  stays where a symbol would leave the reader guessing, as in the rows of the leaf's
+  menu, which the user opened to read. Symbols don't license more controls: a surface
+  at rest shows only what its task needs, and the leaf's menu holds the rest.
 - **A face used twice is a token or a shared rule.** A lift names one of the theme's
   heights, `--raise-1` to `--raise-3` (`styles/theme.css`). Check:
   `test_every_lift_names_one_of_the_theme_s_heights_cast_in_the_scheme_s_ink`.
 - **Every surface paints a thread's `unread` and `attention` from one value**, so the
-  Threads toggle, filters, panel, margin entry and Page Map change together. Green marks
+  On me mark's dot, Threads, panel, margin entry and Page Map change together. Green marks
   the user's turn; other thread controls stay blue. Marking read never moves the user.
 
 ### Motion
@@ -321,7 +341,7 @@ reads (root `AGENTS.md`, "The document starts state; the log changes it"):
 | Fact                                                                                                          | Authority                                                                                                                                                                                          |
 | ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | authored widget state                                                                                         | the validated source markup, captured before upgrade                                                                                                                                               |
-| external data                                                                                                 | the latest page data; a widget reads each bound source through `this.data` (data.js)                                                                                                               |
+| external data                                                                                                 | the latest page data; Leaf sets each bound source on the widget property x-data names (data.js)                                                                                                    |
 | version shown                                                                                                 | the revision the delivery prelude names; a newer revision with the same executable identity patches in place, and a different one loads a fresh document                                           |
 | accepted history                                                                                              | the server's event log and its `/api/state` answer, which the publisher adopts whole; each answer has one `through_seq`, and a version comparison asks `/api/view` at the sequence already applied |
 | unresolved browser work, refusals included                                                                    | the publisher's one ordered list; the server records no refusal, since the condition behind one can change while the user's words stay the same                                                    |
@@ -407,6 +427,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | The thread id a drawn thread carries                                                                  | `thread/selectors.js` `drawnThreadId`                                              |
 | The draft a thread holds: its reply box or a rewrite                                                  | `drafts.js` `replyContext`, `rewriteContext`, `threadDraft`                        |
 | Which obligations a region of the page holds                                                          | `obligations/place.js` `obligationsIn`                                             |
+| What names the part of the page a node stands in: its heading, or a named region                      | `thread/placement.js` `partOver`                                                   |
 
 ### Facts both runtimes know
 

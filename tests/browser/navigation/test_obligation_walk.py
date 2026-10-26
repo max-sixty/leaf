@@ -24,6 +24,7 @@ from render_harness import (
     ROOT,
     leaf_page,
     open_page,
+    open_threads,
     pane_scroll_behavior,
     panel_settled,
     regions_side_by_side,
@@ -441,13 +442,13 @@ def test_a_delayed_obligation_reveal_yields_to_programmatic_user_focus(browser, 
     page.wait_for_function("window.obligationRevealStarted === true")
     # Assistive technology and focus-management code can move the user without a
     # pointer, key, or input event. The retained navigation must read focus itself.
-    page.locator(".lf-fp-threads").focus()
-    expect(page.locator(".lf-fp-threads")).to_be_focused()
+    page.locator(".lf-fp-on-user").focus()
+    expect(page.locator(".lf-fp-on-user")).to_be_focused()
     page.evaluate("releaseObligationReveal()")
     page.wait_for_function("window.obligationRevealSettled === true")
     rendered(page)
 
-    expect(page.locator(".lf-fp-threads")).to_be_focused()
+    expect(page.locator(".lf-fp-on-user")).to_be_focused()
     # The user left the walk, so it says nothing more; it never says the next arrival.
     position = walk_position(page)
     assert (position or {}).get("text") in (None, "1 of 4 waiting on me · Options")
@@ -603,8 +604,7 @@ def test_an_absent_walk_destination_returns_to_the_callers_fallback(browser, ser
         },
     )
     page = open_page(browser, url)
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    open_threads(page)
     expect(page.locator(".lf-fp-thread")).to_have_count(1)
     page.get_by_role("button", name="Find a thread or message").click()
     page.locator("input.lf-fp-search").fill("no matching thread")
@@ -998,6 +998,34 @@ def test_an_obligation_and_its_thread_are_one_current_target(browser, serve):
     expect(item).to_be_focused()
 
 
+def test_c_continues_the_card_beside_an_obligation_in_a_commented_block(browser, serve):
+    """The card a block's thread opens beside an obligation inside the block is the
+    thread the user is at, so `c` writes in its reply. It once closed that card and
+    opened a box on the obligation, answering a reply with a new thread."""
+    url = serve(
+        leaf_page(
+            "calls",
+            """<h1>Review</h1>
+<section id="calls"><h2>Judgment calls</h2>
+<lf-ask id="mark-ask"><h3>Cut the mark?</h3>
+<lf-options id="mark" choose>
+  <lf-option id="mark-keep">Keep it</lf-option>
+  <lf-option id="mark-cut">Remove it</lf-option>
+</lf-options></lf-ask></section>""",
+        )
+    )
+    root = answered_comment(
+        serve.page_dir, "Need better choices.", {"section": "calls"}
+    )
+    page = open_page(browser, url)
+    thread = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
+    page.keyboard.press("m")
+    expect(page.locator("#mark-ask")).to_be_focused()
+    expect(thread).to_be_visible()
+    page.keyboard.press("c")
+    expect(thread.locator("leaf-text")).to_be_focused()
+
+
 def test_an_obligation_in_a_reply_is_where_the_user_stands_once_answered(
     browser, serve
 ):
@@ -1143,3 +1171,48 @@ def test_an_obligation_landed_in_a_pane_keeps_its_ring_inside_the_pane(browser, 
         }"""
     )
     assert reading["ringTop"] >= reading["paneTop"] - 0.5, reading
+
+
+ASK_RING_READING = """() => {
+  const ask = document.querySelector('lf-ask[data-lf-obligation]');
+  const ring = getComputedStyle(ask, '::after');
+  const box = ask.getBoundingClientRect();
+  const words = document.createRange();
+  words.selectNodeContents(ask.querySelector('h2'));
+  const offset = parseFloat(ring.outlineOffset);
+  const width = parseFloat(ring.outlineWidth);
+  return {
+    inner: box.left - offset,
+    outer: box.bottom + offset + width,
+    words: words.getClientRects()[0].left,
+    foot: innerHeight,
+  };
+}"""
+
+
+def test_the_ring_round_a_question_stands_clear_of_its_words(browser, serve):
+    """The ring the user stands in goes round a question outside its box, as every
+    obligation's does, so it does not run over the first letter of each line. Only a
+    question that fills a full-height workspace, which can meet the window's foot with
+    no scroll left to show a ring outside it, draws the ring inside its box."""
+    ask = (
+        '<lf-ask id="rollout"><h2>Include self-hosted runners?</h2>'
+        "<p>They need administrator-configured namespaces.</p>"
+        '<lf-options id="rollout-options" choose>'
+        '<lf-option id="include">Include them</lf-option>'
+        '<lf-option id="later">Later</lf-option></lf-options></lf-ask>'
+    )
+    page = open_page(browser, serve(leaf_page("a question", ask)))
+    resized(page, 1280, 800)
+    page.keyboard.press("m")
+    expect(page.locator("#rollout")).to_have_attribute("data-lf-obligation", "1")
+    column = page.evaluate(ASK_RING_READING)
+    assert column["inner"] < column["words"], column
+    page.close()
+
+    page = open_page(browser, serve(leaf_page("a question", ask, layout="workspace")))
+    resized(page, 1280, 800)
+    page.keyboard.press("m")
+    expect(page.locator("#rollout")).to_have_attribute("data-lf-obligation", "1")
+    workspace = page.evaluate(ASK_RING_READING)
+    assert workspace["outer"] <= workspace["foot"], workspace

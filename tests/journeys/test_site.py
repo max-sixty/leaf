@@ -28,7 +28,8 @@ from urllib.parse import urljoin, urlsplit
 import leaf_website as website_server
 import pytest
 from conftest import LENT_LINKED_DIRS
-from interact_support import declared, running_http_server
+from interact_support import declared, running_http_server, wait_for
+from leaf_dev.browser import panel_tab
 from leaf_dev.commands import site as site_build
 from leaf_dev.example_data import catalog_sources, data_operations, example_versions
 from leaf_dev.leaf_assets import pinned_assets
@@ -36,19 +37,21 @@ from leaf_dev.page_fixtures import authored_markup, source_packages
 from PIL import Image
 from playwright.sync_api import expect
 from render_harness import (
+    OPEN_THREAD_COUNT,
     PANEL_THREAD,
     compare_with,
     consume_browser_errors,
     displayed,
     expect_obligations_answered,
+    expect_open_threads,
     holding,
     http_error_console,
     is_problem,
     navigate,
     open_page,
+    open_threads,
     page_comment,
     panel_menu,
-    panel_settled,
     root_overflow,
     select,
     sending,
@@ -81,9 +84,13 @@ DEVELOPER_PAGES = tuple(sorted((EXAMPLES / "developer").glob("*.html")))
 
 
 def open_count(page):
-    """How many open threads the panel's Threads mark counts."""
-    label = page.locator(".lf-fp-threads").get_attribute("aria-label")
-    return int(re.match(r"Threads, (\d+) open", label).group(1))
+    """How many open threads the page's reading holds (`OPEN_THREAD_COUNT`), once its
+    saved inventory has arrived."""
+    return wait_for(
+        lambda: page.evaluate(OPEN_THREAD_COUNT),
+        lambda held: held is not None,
+        failure="the page's saved threads never arrived",
+    )
 
 
 # The theme's paper, light and dark, as the browser reports a background.
@@ -834,7 +841,7 @@ def test_a_page_that_starts_after_a_fault_takes_its_notice_back(
     notice = page.get_by_text("Leaf couldn't start. Waiting for the server to update.")
     expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
     expect(notice).to_have_count(0)
-    expect(page.locator(".lf-fp-threads")).to_be_visible()
+    expect(page.locator(".lf-fp-on-user")).to_be_visible()
 
     # The probe stops with it: a page that started has nothing left to ask the source.
     before = sum("registry.json" in probe for probe in probes)
@@ -1510,14 +1517,11 @@ def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):
     opened = sum(not thread["resolved"] for thread in threads)
     resolved = len(threads) - opened
     assert opened and resolved, "the shipped seed must cover both thread states"
-    expect(page.locator(".lf-fp-threads")).to_have_attribute(
-        "aria-label", re.compile(rf"^Threads, {opened} open")
+    open_threads(page)
+    expect(panel_tab(page, "Threads").locator(".lf-fp-count")).to_have_text(str(opened))
+    expect(page.locator(".lf-fp-ended ~ .lf-fp-thread[data-resolved]")).to_have_count(
+        resolved
     )
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
-    page.locator(".lf-fp-filters button", has_text="Resolved").click()
-    expect(page.locator(".lf-fp-thread")).to_have_count(resolved)
-    page.locator(".lf-fp-filters button", has_text="Open").click()
     # Named rather than taken first: the assertion follows the shipped objection,
     # independent of where a later seed might place another thread.
     row = page.locator(".lf-fp-thread").filter(
@@ -1596,17 +1600,13 @@ def test_a_comment_persists_without_inventing_an_agent_reply(served_example, bro
     # theirs would be first. triage-board ships none today, so `.first` was
     # right by accident and would stop being on the day it does.
     def written():
-        page.locator(".lf-fp-threads").click()
-        panel_settled(page, view="threads")
-        page.locator(".lf-fp-filters button", has_text="Open").click()
+        open_threads(page)
         page.locator(".lf-fp-thread").filter(
             has_text="Can the migration fix ship first?"
         ).click()
         return page.locator(PANEL_THREAD)
 
-    expect(page.locator(".lf-fp-threads")).to_have_attribute(
-        "aria-label", re.compile(rf"^Threads, {opened_with + 1} open")
-    )
+    expect_open_threads(page, opened_with + 1)
     thread = written()
     expect(thread).to_contain_text("Can the migration fix ship first?")
     expect(thread.locator(".lf-fp-quote")).to_contain_text(selected.strip()[:40])
@@ -1646,9 +1646,7 @@ def test_what_a_user_leaves_on_one_page_stays_on_it(served_example, browser):
     page.locator(".lf-fp-field .lf-compose-submit").click()
     # One, and typed: this example ships no log, so the count is the comment
     # just written and nothing else.
-    expect(page.locator(".lf-fp-threads")).to_have_attribute(
-        "aria-label", re.compile("^Threads, 1 open")
-    )
+    expect_open_threads(page, 1)
     # The page's own scroller (the runtime's `pageScroller`), moved the way a
     # user moves it far enough down that the landmark is worth restoring.
     page.evaluate(
@@ -1668,9 +1666,101 @@ def test_what_a_user_leaves_on_one_page_stays_on_it(served_example, browser):
     )
     _, plain_url = served_example(plain)
     opened(page, plain_url)
-    expect(page.locator(".lf-fp-threads")).to_have_attribute(
-        "aria-label", re.compile("^Threads, 0 open")
-    )
+    expect_open_threads(page, 0)
     assert page.evaluate("() => document.scrollingElement.scrollTop") == 0, (
         "the second example opened at the offset left on the first"
     )
+
+
+def test_a_sample_waits_for_slow_contained_page_state(serve, browser):
+    """A healthy contained page may present after an arbitrarily slow state read."""
+    url = serve("""<!doctype html><html><head><title>Slow sample</title></head><body><main>
+      <lf-sample id="practice" label="practice page">
+        <template id="practice-page" data-sample><p id="copy">Practice here.</p></template>
+      </lf-sample>
+    </main></body></html>""")
+    context = browser.new_context(reduced_motion="reduce")
+    page = context.new_page()
+    held = []
+    held_once = False
+    allocation = sample_allocation(page, url, "practice-page")
+
+    def hold_first_contained_state(route):
+        nonlocal held_once
+        if (
+            allocation["url"] is not None
+            and route.request.url.startswith(allocation["url"])
+            and not held_once
+        ):
+            held_once = True
+            held.append(route)
+            return
+        route.continue_()
+
+    page.route("**/api/state*", hold_first_contained_state)
+    try:
+        with page.expect_request(
+            lambda request: (
+                allocation["url"] is not None
+                and request.url.startswith(allocation["url"])
+                and "/api/state" in request.url
+            )
+        ):
+            page.goto(url, wait_until="domcontentloaded")
+        sample = page.locator("#practice")
+        holding(page, held, 1, "the contained page's first state read")
+        held.pop().continue_()
+        page.wait_for_load_state("load")
+        wait_until_ready(page)
+        sample.evaluate("async sample => { await sample.ready; }")
+        frame = sample.locator("iframe")
+        assert not frame.get_attribute("srcdoc")
+        contained_document = frame.content_frame.locator("html")
+        assert contained_document.evaluate(
+            "() => document.doctype?.name === 'html' && Boolean(document.scrollingElement)"
+        )
+        page.evaluate("sessionStorage.setItem('lf-view', 'outer reading')")
+        storage = contained_document.evaluate(
+            """async () => {
+                const {readApplication} = await window.__lfCheckApi();
+                const {PAGE_SCOPE, tabStore, draftStore, userStore} =
+                    await window.__lfCheckApi();
+                for (const [name, store] of Object.entries({tabStore, draftStore, userStore})) {
+                    if (!store.set('isolation-test', name) || store.get('isolation-test') !== name)
+                        throw new Error(`${name} did not retain sample working state`);
+                    if (!store.keys().includes('isolation-test'))
+                        throw new Error(`${name} did not enumerate its retained state`);
+                    store.set('isolation-test', null);
+                    if (store.get('isolation-test') !== null)
+                        throw new Error(`${name} did not clear its retained state`);
+                }
+                return {liveRoot: readApplication().document.live, pageScope: PAGE_SCOPE};
+            }"""
+        )
+        assert storage["liveRoot"] is True
+        assert "/api/samples/" in storage["pageScope"]
+        interaction_url = f"{sample_address(frame)}api/interaction"
+        with page.expect_response(
+            lambda response: (
+                response.url == interaction_url
+                and any(
+                    entry["type"] == "pagehide"
+                    for entry in response.request.post_data_json["entries"]
+                )
+            )
+        ) as departure:
+            contained_document.evaluate(
+                "dispatchEvent(new PageTransitionEvent('pagehide'))"
+            )
+        assert departure.value.ok
+        assert page.evaluate("sessionStorage.getItem('lf-view')") == "outer reading"
+        assert (
+            page.evaluate(
+                "scope => sessionStorage.getItem(scope + 'lf-view')",
+                storage["pageScope"],
+            )
+            is None
+        )
+    finally:
+        for route in held:
+            route.abort()

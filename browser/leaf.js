@@ -386,6 +386,7 @@ app = mountApplication({
     pageMapDialogContains: (...args) => pageMapDialog.pageMapDialogContains(...args),
     renderPageMapDialog: (...args) => pageMapDialog.renderPageMapDialog(...args),
     scrollThreadIntoView,
+    openInPanel: (id) => floatingPanel?.openThread(id),
     goToObligation: (...args) => items.goToObligation(...args),
   },
   state: {
@@ -460,12 +461,13 @@ floatingPanel = createFloatingPanel({
   obligations: { choicesOf: items.choicesOf },
   queueActions: app.queueActions,
   arrivesAt: (item) => queueWalk.arrivesAt(item),
-  inWalkOrder: (items) => queueWalk.inWalkOrder(items),
+  onMe: queueWalk.onMe,
   withdraw: app.withdraw,
   settlement: app.settlement,
   placedAt: anchorPlacement.placedAt,
   openThreadSubject: (id, options) =>
     app.threadDestinations.openThreadSubject(id, options),
+  atLastResort: (key) => app.threadDestinations.atLastResort(key),
   annotationsHidden: () => annotationRenderer?.annotationsHidden() ?? false,
 });
 // The page's general comment box is the floating panel's field.
@@ -575,7 +577,7 @@ layout = createPageLayout({
 if (document.documentElement.lfSample) {
   let viewOperation;
   onSampleNotice("cancel-view", () => viewOperation?.abort());
-  registerSampleCommand("thread", async ({ id, surface, status }) => {
+  registerSampleCommand("thread", async ({ id, surface }) => {
     viewOperation?.abort();
     viewOperation = new AbortController();
     const { signal } = viewOperation;
@@ -588,8 +590,7 @@ if (document.documentElement.lfSample) {
       if (!intent()) return false;
       if (surface === "panel") {
         let shown = null;
-        const show = () =>
-          (shown = floatingPanel.showForSample({ thread: id, status }));
+        const show = () => (shown = floatingPanel.showForSample({ thread: id }));
         if (!intent.handoff(show)) return false;
         return (await shown) && intent.available();
       }

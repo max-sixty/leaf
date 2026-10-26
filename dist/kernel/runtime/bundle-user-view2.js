@@ -1,8 +1,9 @@
-import { coarsePointer, layerHeaders, layoutWindow, randomId, seenRect, sessionIsActive, shownWindow, tagsDeclaring, watchRoom } from "./bundle-layer-client.js";
+import { layerHeaders, randomId, sessionIsActive } from "./bundle-layer-client.js";
+import { coarsePointer, layoutWindow, seenRect, shownWindow, tagsDeclaring, watchRoom } from "./bundle-errors.js";
 import { offlineInteractive, pageUrl, runtime, watchSemantic } from "./bundle-context.js";
 import { pageReadiness, unconcealedReadingRegions } from "./bundle-reading-regions.js";
 import { onMotionPreferenceChange, reducedMotion } from "./bundle-motion.js";
-import { darkPreference, shownScheme } from "./bundle-color-scheme.js";
+import { darkPreference, pageIdentity, shownScheme } from "./bundle-page-identity.js";
 
 //#region runtime/user-view.js
 const REPORT_MS = 1e4;
@@ -36,6 +37,7 @@ function context() {
 	const clips = /* @__PURE__ */ new Map();
 	return {
 		session,
+		identity: pageIdentity(),
 		sequence: ++sequence,
 		visible: document.visibilityState !== "hidden",
 		revision: runtime.currentRevision,
@@ -63,6 +65,7 @@ function readChecks(view) {
 	const open = tagsDeclaring((entry) => ["markup", "members"].includes(entry["x-content"]));
 	return {
 		sequence: view.sequence,
+		identity: view.identity,
 		revision: view.revision,
 		through_seq: view.through_seq,
 		viewport: view.viewport,

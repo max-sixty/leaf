@@ -602,7 +602,12 @@
 .lf-trace-error {
   color: var(--danger);
 }
+/* The image takes up whatever room the timeline above it leaves, so it grows by as much
+ * as another scope's lanes shrink the timeline. Anchored on it, the browser would pay for
+ * the shrink above by moving everything below the image, the scope chooser under the
+ * user's arrow or press included; out of the running, the controls below anchor instead. */
 .lf-trace-images {
+  overflow-anchor: none;
   min-inline-size: 0;
   position: relative;
 }
@@ -842,6 +847,13 @@
   background: var(--paper);
   z-index: 0;
 }
+/* The canvas frames its capture with its own border, so the capture wears no picture
+ * face of its own (reading.css). */
+.lf-trace-canvas img {
+  border-radius: 0;
+  box-shadow: none;
+  outline: 0;
+}
 .lf-trace-canvas > img {
   position: absolute;
   inset: 0;
@@ -874,8 +886,10 @@
 .lf-trace-image-tools > button:not(.lf-trace-image-scale) {
   inline-size: var(--lf-line);
 }
-/* Status changes share one slot; loading a frame cannot wrap the tools into a new row. */
-.lf-trace-image-status {
+/* Status changes share one slot; loading a frame cannot wrap the tools into a new row.
+ * It keeps its line when its text clears, so a narrow layout's own row of it holds. */
+.lf-trace-tools-status {
+  min-block-size: 1lh;
   margin-inline-start: auto;
   inline-size: 24ch;
   flex: 0 0 auto;
@@ -909,7 +923,7 @@
 }
 
 @container (max-width: 480px) {
-  .lf-trace-image-status {
+  .lf-trace-tools-status {
     margin-inline-start: 0;
     inline-size: 100%;
     text-align: start;

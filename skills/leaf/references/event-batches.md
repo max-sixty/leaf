@@ -41,6 +41,9 @@ Events keep their stored fields and log order, and add:
 - `was`: on the user's rewrite of their own message, the words it replaced.
   `suggestion: true` beside it means the message is a suggestion, so its new `text`
   is the exact replacement it proposes.
+- `waiting`: on a widget action, your questions still waiting on the user in a thread
+  about that widget, each its obligation `id` and the `text` that asked it. Its
+  `handling` says how to settle the ones the action answers.
 - `answer`: the response the event owes. A `kind: "reply"` answer is a thread reply,
   written with `leaf thread reply <answer.ref>` ([threads](threads.md)), or by your
   turn's final message where its `writer` is `"turn"`. A `kind: "markup"` answer is the
@@ -58,7 +61,7 @@ The batch's `threads` give each thread's title (null until named), anchor, wheth
 it is resolved, earlier messages, and the gestures in force on widgets sent in it. A
 thread's history leaves out messages that are events in the batch, and a long thread
 shows only its opening and latest messages, with `elided` counting the rest; read
-the whole thread with `leaf page state <page> <thread-id>`, paginated with
+the whole thread with `leaf page state <page> <message>`, paginated with
 `--after`. A long
 thread may also carry `summary_hint`
 ([threads, "Summarize a long discussion"](threads.md#summarize-a-long-discussion)).

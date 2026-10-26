@@ -175,7 +175,7 @@ import { keySequenceModel, keySequenceTemplate } from "./keyboard/key-sequence.j
 import { pageControls } from "./page-controls.js";
 import { readPlace } from "./history.js";
 import { readThreads } from "./thread/state.js";
-import { hasUnread, threadCounts } from "./thread/model.js";
+import { isNews, threadCounts } from "./thread/model.js";
 import { LeafElement } from "./leaf-element.js";
 import { afterScript } from "./rendering.js";
 import {
@@ -928,10 +928,12 @@ export function createFloatingPanel({
     return queues.phase === "ready" ? queues.on_user.length : 0;
   };
   // Ordinary open state is implicit. Rows name attention, news and drafts, and
-  // resolution where no Resolved heading over them says it already.
+  // resolution where no Resolved heading over them says it already. Only an open
+  // thread is news (`isNews`), as the On me mark's dot counts it: the user chose
+  // (2026-10-25) that a resolved thread's unread reply says nothing new.
   const threadStatus = (thread, { headed }) =>
     [
-      hasUnread(thread) && "New",
+      isNews(thread) && "New",
       thread.resolved ? !headed && "Resolved" : threadAttention(thread)?.label,
       draftHasContent(replyContext(thread.key)) && "Draft",
     ]
@@ -2254,7 +2256,7 @@ export function createFloatingPanel({
         type="button"
         class="lf-fp-face lf-fp-thread"
         data-key=${thread.key}
-        ?data-unread=${hasUnread(thread)}
+        ?data-unread=${isNews(thread)}
         ?data-resolved=${thread.resolved}
         ?data-yours=${threadAttention(thread)?.kind === "needs_user"}
         @click=${() => open({ view: "thread", thread: thread.key })}
@@ -2645,29 +2647,33 @@ export function createFloatingPanel({
   }
 
   // ---------- choosing an arrangement ----------
-  // A view's choice among its arrangements, at its foot: the platform's own select in
-  // the theme's face (`.lf-ui`), which a key, a pointer and a finger each work, the
-  // chosen one its label. The choice is kept for every page, and the view fits what it
-  // then shows.
+  // A view's choice among its arrangements, at its foot: a symbol, as Leaf's controls
+  // are (browser/AGENTS.md, "Visual grammar"), over the platform's own select, which
+  // a key, a pointer and a finger each open on its list of words, the chosen one
+  // checked. The select stands unseen over the symbol, so it is what each of them
+  // presses; its name and choice are the tooltip. The choice is kept for every page,
+  // and the view fits what it then shows. The user chose the symbol (2026-10-25) over
+  // the select showing its chosen word, bordered or not.
   const chooser = ({ label, values, name, current, choose }) =>
-    html`<select
-      class="lf-ui lf-fp-face"
-      aria-label=${label}
-      .value=${live(current)}
-      @change=${(event) => {
-        choose(event.target.value);
-        refit();
-        fromTop = true;
-        paint();
-      }}
-    >
-      ${values.map(
-        (value) =>
-          html`<option value=${value} ?selected=${value === current}>
-            ${name(value)}
-          </option>`,
-      )}
-    </select>`;
+    html`<span class="lf-fp-chooser" title=${`${label}: ${name(current)}`}
+      >${iconTemplate("arrange", "lf-action-icon")}<select
+        aria-label=${label}
+        .value=${live(current)}
+        @change=${(event) => {
+          choose(event.target.value);
+          refit();
+          fromTop = true;
+          paint();
+        }}
+      >
+        ${values.map(
+          (value) =>
+            html`<option value=${value} ?selected=${value === current}>
+              ${name(value)}
+            </option>`,
+        )}
+      </select></span
+    >`;
 
   // ---------- the plan ----------
   // What each state reads as to assistive tech, which hears no mark.

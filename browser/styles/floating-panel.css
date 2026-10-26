@@ -170,7 +170,7 @@
      control reset (chrome.css) and the layer's focus band at no weight (surfaces.css).
      A press reaches the pointer's floor by the shared reach (surfaces.css). */
   @layer lf-base {
-    :is(button, input, textarea, select):where(.lf-fp-face) {
+    :is(button, input, textarea):where(.lf-fp-face) {
       font: inherit;
       color: inherit;
     }
@@ -191,10 +191,10 @@
       cursor: default;
       background: none;
     }
-    /* The ring of the panel's controls, a chooser's select among them, and of On me's
-       cards. The card the `m` walk stands on wears it too, though focus is at its ask
-       on the page (floating-panel.js, `walkedStop`). */
-    :is(.lf-fp-face, .lf-fp-on-item[data-card]):focus-visible,
+    /* The ring of the panel's controls and of On me's cards. The card the `m` walk
+       stands on wears it too, though focus is at its ask on the page
+       (floating-panel.js, `walkedStop`). */
+    :is(.lf-fp-face, .lf-fp-on-item):focus-visible,
     .lf-fp-on-item[data-walked] {
       outline: var(--focus-ring);
       outline-offset: -2px;
@@ -1003,6 +1003,31 @@
   .lf-fp-icon-btn:hover,
   .lf-fp-icon-btn[aria-pressed="true"] {
     color: var(--ink);
+  }
+  /* A view's chooser: its symbol, an icon press's size and face, under the select that
+     takes the press (floating-panel.js, `chooser`), which wears the ring. */
+  .lf-fp-chooser {
+    position: relative;
+    display: grid;
+    place-items: center;
+    min-width: max(var(--lf-fp-press), var(--aim-floor));
+    min-height: var(--lf-fp-press);
+    border-radius: var(--r);
+    color: var(--lf-fp-muted);
+  }
+  .lf-fp-chooser:hover {
+    color: var(--ink);
+    background: var(--lf-fp-hover);
+  }
+  .lf-fp-chooser > select {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+  .lf-fp-chooser:has(> select:focus-visible) {
+    outline: var(--focus-ring);
+    outline-offset: -2px;
   }
   :is(.lf-fp-quiet, .lf-fp-next-unread)[data-unoffered] {
     visibility: hidden;

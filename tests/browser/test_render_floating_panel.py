@@ -3372,6 +3372,26 @@ def test_on_me_groups_by_the_plan_and_on_claude_heads_with_its_progress(browser,
     expect(tabs.nth(0)).to_be_focused()
 
 
+def test_only_an_open_thread_says_new_in_threads(browser, serve):
+    """Threads says New, and marks the row with the news dot, only on an open thread
+    the user hasn't read, as the On me mark's dot counts: a resolved thread's unread
+    message, under the Resolved heading, says nothing new."""
+    url = serve(LONG_PAGE)
+    panel_comment(serve.page_dir, "Is the window long enough?", author="agent")
+    closed = panel_comment(serve.page_dir, "Is the room booked?", author="agent")
+    thread_model.cmd_resolve(serve.page_dir, closed)
+    page = floating(browser, url)
+    open_threads(page)
+    view = page.locator(panel_view("threads"))
+    open_row = view.locator(".lf-fp-thread:not([data-resolved])")
+    expect(open_row.locator(".lf-fp-value")).to_contain_text("New")
+    expect(open_row).to_have_attribute("data-unread", "")
+    resolved = view.locator(".lf-fp-thread[data-resolved]")
+    expect(resolved).to_contain_text("Is the room booked?")
+    expect(resolved.locator(".lf-fp-value")).not_to_contain_text("New")
+    expect(resolved).not_to_have_attribute("data-unread", "")
+
+
 def test_on_claude_lists_its_work_in_hand_queued_and_done_or_says_it(browser, serve):
     """On Claude is the agent's work list: what it has in hand, what is queued behind
     that, and what it finished, a line each with its stage and how long it has stood

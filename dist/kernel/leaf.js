@@ -1,5 +1,5 @@
 import { aimLayer, mountTargetPaint, paintSet, targetTraceLayer, target_paint_exports } from "./runtime/bundle-target-paint.js";
-import { LitElement, Z, bareReaction, bindQueuedWork, carriesObligation, d, hasUnread, html, itemNoun, itemOutcome, keyed, live, noChange, nothing, observeQueuedWork, ref, render, repeat, sameAnchor, threadCounts, threadKey, threadNames, x } from "./runtime/bundle-browser-runtime.js";
+import { LitElement, Z, bareReaction, bindQueuedWork, carriesObligation, d, html, isNews, itemNoun, itemOutcome, keyed, live, noChange, nothing, observeQueuedWork, ref, render, repeat, sameAnchor, threadCounts, threadKey, threadNames, x } from "./runtime/bundle-browser-runtime.js";
 import { CARET_KEYS, MODIFIER_KEYS, PRESSES, TEXT_BOX, TEXT_FIELD, WORKS, afterScript, afterSettling, byRenderedOrder, cancelRender, closeLayer, currentLocationIn, declareReading, deepFocus, drawn, focusDestination, focused, handBack, holdFocus, holdRendering, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, nextFrame, nextRender, observePreparations, onCurrentLocation, onPressAway, onUserInput, openLayer, openerOf, release, releaseFocus, renderedOrder, renderedUnder, renderingState, rove, selectsAll, shadowHost, sizeObserver, takesLetters, typesText, under, upFrom } from "./runtime/bundle-dom-move.js";
 import { PAGE_PAINT_ATTRIBUTE, pagePresented, pageUpgraded, reportPageError, setRuntimeRootStyle, uploadMedia } from "./runtime/bundle-layer-client.js";
 import { EVERYTHING, LAYOUT, LINK, PRESS, PRESSABLE, advertisesKeys, allBindings, annotationSheets, announce, bindingEnabled, bindings, buttonCommand, chromeSheet, claimsEsc, clamp, clampedRow, clippedContents, closeControl, closeNativeLayer, coarsePointer, commandDeclarationsWithin, commandPresentations, commandRoutes, commandScope, commandsWithin, contextBindings, contextScopes, cycledRow, decisionControls, decisionFor, declareOccluder, declareWindowChrome, declaredBindings, descriptionOf, dismissError, dismissErrors, dismissPopoversOutside, dragHeld, el, errorsReading, holdingError, hostIn, iconElement, iconTemplate, inUi, intersect, keys, labelOf, landingBand, layoutWindow, live as live$1, liveEl, marksSheet, merge, mountRepaint, nativeLayers, nativeModalAdmits, notice, noticeReading, offer, offered, overlaps, overlapsAcross, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, pointerAt, pressIsKeyboardActivation, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, reflectFirstScopes, reflectKeys, registry, repaint, repaintPage, reveal, routedCommand, rowArrows, savedReadingSettled, saying, scopeRefs, scopesAt, scopesFor, scrollGlides, scrolling, searchField, seeErrors, seenRect, setNoticeContext, setQuickShortcuts, showNativeLayer, shownBox, shownParts, shownRect, spell, spokenBinding, stackLevel, startsAt, submitBindings, submitLabel, tagsDeclaring, titleOf, underOccluder, union, watchCommandAvailability, watchScrollEnds, watchScrolls, whileConnected, windowChromeBoxes, word } from "./runtime/bundle-errors.js";
@@ -5677,7 +5677,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		return queues.phase === "ready" ? queues.on_user.length : 0;
 	};
 	const threadStatus = (thread, { headed }) => [
-		hasUnread(thread) && "New",
+		isNews(thread) && "New",
 		thread.resolved ? !headed && "Resolved" : threadAttention(thread)?.label,
 		draftHasContent(replyContext(thread.key)) && "Draft"
 	].filter(Boolean).join(" · ");
@@ -6524,7 +6524,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
         type="button"
         class="lf-fp-face lf-fp-thread"
         data-key=${thread.key}
-        ?data-unread=${hasUnread(thread)}
+        ?data-unread=${isNews(thread)}
         ?data-resolved=${thread.resolved}
         ?data-yours=${threadAttention(thread)?.kind === "needs_user"}
         @click=${() => open({
@@ -6749,21 +6749,22 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			within: view
 		});
 	}
-	const chooser = ({ label, values, name, current, choose }) => html`<select
-      class="lf-ui lf-fp-face"
-      aria-label=${label}
-      .value=${live(current)}
-      @change=${(event) => {
+	const chooser = ({ label, values, name, current, choose }) => html`<span class="lf-fp-chooser" title=${`${label}: ${name(current)}`}
+      >${iconTemplate("arrange", "lf-action-icon")}<select
+        aria-label=${label}
+        .value=${live(current)}
+        @change=${(event) => {
 		choose(event.target.value);
 		refit();
 		fromTop = true;
 		paint();
 	}}
-    >
-      ${values.map((value) => html`<option value=${value} ?selected=${value === current}>
-            ${name(value)}
-          </option>`)}
-    </select>`;
+      >
+        ${values.map((value) => html`<option value=${value} ?selected=${value === current}>
+              ${name(value)}
+            </option>`)}
+      </select></span
+    >`;
 	const PLAN_STATES = Object.freeze({
 		open: "Not started",
 		working: "Under way",

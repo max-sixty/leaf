@@ -82,7 +82,7 @@
     flex-shrink: 0;
   }
   @layer lf-base {
-    :is(button, input, textarea, select):where(.lf-fp-face) {
+    :is(button, input, textarea):where(.lf-fp-face) {
       font: inherit;
       color: inherit;
     }
@@ -103,7 +103,7 @@
       cursor: default;
       background: none;
     }
-    :is(.lf-fp-face, .lf-fp-on-item[data-card]):focus-visible,
+    :is(.lf-fp-face, .lf-fp-on-item):focus-visible,
     .lf-fp-on-item[data-walked] {
       outline: var(--focus-ring);
       outline-offset: -2px;
@@ -731,6 +731,29 @@
   .lf-fp-icon-btn:hover,
   .lf-fp-icon-btn[aria-pressed=true] {
     color: var(--ink);
+  }
+  .lf-fp-chooser {
+    position: relative;
+    display: grid;
+    place-items: center;
+    min-width: max(var(--lf-fp-press), var(--aim-floor));
+    min-height: var(--lf-fp-press);
+    border-radius: var(--r);
+    color: var(--lf-fp-muted);
+  }
+  .lf-fp-chooser:hover {
+    color: var(--ink);
+    background: var(--lf-fp-hover);
+  }
+  .lf-fp-chooser > select {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+  .lf-fp-chooser:has(> select:focus-visible) {
+    outline: var(--focus-ring);
+    outline-offset: -2px;
   }
   :is(.lf-fp-quiet, .lf-fp-next-unread)[data-unoffered] {
     visibility: hidden;

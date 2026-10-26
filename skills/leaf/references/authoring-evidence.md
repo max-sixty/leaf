@@ -121,8 +121,7 @@ package's author instructions describe. Leaf
 accepts MP4 and WebM video and MP3, M4A, Ogg and WAV audio. An export embeds each
 recording whole, a third larger, so trim recordings to what the reader needs.
 
-Put invented examples inside `lf-sample` and make them visibly fictional. Render
-tickets, source locations and URLs as real links.
+Put invented examples inside `lf-sample` and make them visibly fictional.
 
 `lf-shot` shows two versions of an interface, before and after, captured at the same
 viewport. Before writing the prose and `alt`, open both images and compare them where

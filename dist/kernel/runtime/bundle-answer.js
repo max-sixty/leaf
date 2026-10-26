@@ -1,7 +1,7 @@
 import { J, LitElement, PENDING, Z, actionForWidget, anchorKey, bindQueuedWork, d, discussed, editable, isMessageEvent, isThreadEvent, moved, projectionOrigins, q, reactionsAt, render, stateCoordinate, threadKey, tokenChoices, turns, x } from "./bundle-browser-runtime.js";
 import { TEXT_FIELD, afterScript, byRenderedOrder, canPlaceFocus, closeLayer, composedParentNode, deepFocus, drawn, focusDestination, focused, frameVisibility, handBack, holdFocus, holdRendering, inputCount, isNativeLayer, keeps, keepsHidden, move, nextRender, onCurrentLocation, onFrameVisibility, onUserInput, openLayer, openerOf, readSampleVisibility, renderedOrder, renderedParent, renderedUnder, shadowHost, sizeObserver, takesLetters, under, upFrom, whenLeft } from "./bundle-dom-move.js";
 import { PAGE_PAINT_ATTRIBUTE, admitResponse, completeData, countTraffic, dataHeaders, layerHeaders, postEvent, randomId, recordInteraction, reportCarried, reportPageError, requestJson, sameLayer, sessionIsActive, setRuntimeRootAttribute, watchPendingTraffic } from "./bundle-layer-client.js";
-import { PRESS, TEXT_ENTRY, announce, claimsEsc, clamp, clippedContents, clipsPastSurfaces, closeNativeLayer, cycledRow, el, generatedElement, growthIsSeen, hasArea, holdingError, intersect, keys, layoutWindow, matchesWhen, notice, offer, offerAction, paintKeys, paintKeysWithin, placeBox, placeHolder, presented, raiseError, registry, repaint, responseAction, reveal as reveal$1, rowArrows, savedReadingSettled, saying, seenRect, shadowRootsIn, showNativeLayer, shownWindow, tagsDeclaring, union, watchOwner, watchRoom, whenNone, whileConnected } from "./bundle-errors.js";
+import { PRESS, TEXT_ENTRY, announce, claimsEsc, clamp, clippedContents, clipsPastSurfaces, closeNativeLayer, cycledRow, el, generatedElement, growthIsSeen, hasArea, holdingError, iconElement, intersect, keys, layoutWindow, matchesWhen, notice, offer, offerAction, paintKeys, paintKeysWithin, placeBox, placeHolder, presented, raiseError, registry, repaint, responseAction, reveal as reveal$1, rowArrows, savedReadingSettled, saying, seenRect, shadowRootsIn, showNativeLayer, shownWindow, tagsDeclaring, union, watchOwner, watchRoom, whenNone, whileConnected } from "./bundle-errors.js";
 import { PRESENTATION_DOM, agentLabel, annotationMode, applicationPresenter, applicationState, attachApplicationPresentation, attachWidgetPresentation, documentChanged, offlineData, offlineInteractive, offlineState, pageUrl, presentDocument, queueWidgetUpdate, readApplication, readPart, runtime, setPresentationFailureReporter, watchPresentation, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented } from "./bundle-context.js";
 import { activityTransitionDue, ago, markStateApplied, moveScrollerBy, observeServerNow, observeWorkingGrace, reachScrollers, readingRegionFor, saidNow, settlePageInterface, tickClock } from "./bundle-reading-regions.js";
 import { comparisonBase, comparisonChanges, createProjectionPresentation, inlineComparison, referencedProjection, requireReference, toggleInlineComparison } from "./bundle-version.js";
@@ -1387,16 +1387,15 @@ const fabSuggest = responseAction(el("button", "lf-ui lf-fab-suggest"), {
 	collapse: true
 });
 fabOptions.append(fabSuggest);
-const fabOptionsTrigger = responseAction(el("button", "lf-ui lf-response-trigger"), {
-	icon: "more",
-	label: "Other responses",
-	collapse: true,
-	behavior: "disclosure"
-});
+const fabOptionsTrigger = el("button", "lf-ui lf-icon-action lf-response-trigger");
+fabOptionsTrigger.type = "button";
+fabOptionsTrigger.title = "Other responses";
+fabOptionsTrigger.append(iconElement("more", "lf-action-icon"));
+fabOptionsTrigger.setAttribute("aria-label", "Other responses");
 fabOptionsTrigger.setAttribute("aria-controls", fabOptions.id);
 fabOptionsTrigger.setAttribute("aria-expanded", "false");
 fabOptionsTrigger.popoverTargetElement = fabOptions;
-fabBar.append(fab, fabOptionsTrigger, fabOptions);
+fabBar.append(fab, fabOptions);
 const composer = el("div", "lf-ui lf-composer");
 composer.id = "lf-composer";
 const composerQuote = el("blockquote", "lf-ui lf-quote detached");
@@ -1783,6 +1782,7 @@ function createSelectionComposer({ setReact, reactionTokens, reactionAvailable, 
 				}
 			}
 		});
+		composerInput.parentElement.append(fabOptionsTrigger);
 		fabSuggest.onclick = () => {
 			setResponseOptions(false);
 			setSuggestionMode(!suggestionMode);

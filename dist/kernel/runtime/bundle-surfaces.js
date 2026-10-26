@@ -1,7 +1,7 @@
 import { PENDING, Z, bindQueuedWork, editable, html, isElementName, isReaction, keyed, lastMovedAt, messageKey, moved, nothing, pendingForParent, render as render$1, repeat, sameAnchor, seatRoot, share, threadKey, threadNames, turns } from "./bundle-browser-runtime.js";
-import { CARET_KEYS, TEXT_FIELD, afterScript, atLayoutPrecision, cancelRender, caretAtKey, carriedFrom, currentLocationIn, currentLocationNodes, currentLocationTouches, deepFocus, drawn as drawn$2, focusDestination, focused, holdCurrentLocation, holdFocus, inputCount, keeps, keepsHidden, layoutPx, move, nextAnimation, nextFrame, nextRender, onCurrentLocation, onPress, onPressAway, readCaret, recentPlaceInput, renderedOrder, renderedParent, renderedUnder, ringBox, selectsAll, sizeObserver, takesLetters, under, upFrom } from "./bundle-dom-move.js";
+import { CARET_KEYS, TEXT_FIELD, afterScript, cancelRender, caretAtKey, carriedFrom, currentLocationIn, currentLocationNodes, currentLocationTouches, deepFocus, drawn as drawn$2, focusDestination, focused, holdCurrentLocation, holdFocus, inputCount, keeps, keepsHidden, layoutPx, move, nextFrame, nextRender, onCurrentLocation, onPress, onPressAway, readCaret, recentPlaceInput, renderedOrder, renderedParent, renderedUnder, ringBox, selectsAll, sizeObserver, takesLetters, under, upFrom } from "./bundle-dom-move.js";
 import { PAGE_PAINT_ATTRIBUTE, admitResponse, pagePresented, randomId, reportPageError, revealLayer, sameLayer } from "./bundle-layer-client.js";
-import { PRESS, adoptRegistry, announce, bindings, checked, clampedRow, clippedContents, clippingAxes, commandScope, cycledRow, declarationFor, declareCommandReadiness, descriptionOf, el, elementDeclarations, elementsDeclaring, exhibits, generatedElement, growthAfterIsSeen, growthIsSeen, headerInset, holdStatus, iconElement, iconTemplate, inUi, inWindowChrome, keys, landingBand, loadShadowRules, measure, nearestScrollBy, notice, offer, offerAction, offered, offeredAction, paintKeys, passErrorsAt, placeBox, placeHolder, plainPress, pointerAt, pressIsKeyboardActivation, projectCommandScope, raiseError, registry as registry$1, repaint, seenRect, shownBox, shownRect, shownWindow, skipped, slotTop, stuckBox, tagsDeclaring, titleOf, tokenEntry, touchPresses as touchPresses$1, union, userScrollport, visibleBand, watchArrivals, watchCommandScopes, watchOwner, whenNone } from "./bundle-errors.js";
+import { PRESS, adoptRegistry, announce, bindings, checked, claimReleaseClick, clampedRow, clippedContents, clippingAxes, commandScope, cycledRow, declarationFor, declareCommandReadiness, descriptionOf, el, elementDeclarations, elementsDeclaring, exhibits, generatedElement, growthAfterIsSeen, growthIsSeen, headerInset, holdStatus, iconElement, iconTemplate, inUi, inWindowChrome, keys, landingBand, loadShadowRules, measure, nearestScrollBy, notice, offer, offerAction, offered, offeredAction, paintKeys, passErrorsAt, placeBox, placeHolder, plainPress, pointerAt, projectCommandScope, raiseError, registry as registry$1, repaint, seenRect, shownBox, shownRect, shownWindow, skipped, slotTop, stuckBox, tagsDeclaring, titleOf, tokenEntry, touchPresses as touchPresses$1, union, userScrollport, visibleBand, watchArrivals, watchCommandScopes, watchOwner, whenNone } from "./bundle-errors.js";
 import { applicationState, attachApplicationPresentation, offlineInteractive, pageClaimed, readApplication, readPart, runtime, runtimeModule, runtimeResource, whenApplicationPresented, whenDocumentPresented, whenWidgetsPresented } from "./bundle-context.js";
 import { ago, aimedTop, atScrollEnd, claimReachStop, containingReadingRegionFor, effectiveScroller, moveScrollerBy, pageReadingRegion, pageScroller, placeKept, reachScrollers, reachable, readingRegionFor, readingRegions, releaseReachStop, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, shortAgo, shownRegionBounds, startScroll } from "./bundle-reading-regions.js";
 import { chromeForeground, chromeRoot } from "./bundle-chrome.js";
@@ -3594,7 +3594,6 @@ const HOLDS_WORD = "lf-holds-word";
 const HOLDER = `.${HOLDS_WORD}`;
 function holdToRead() {
 	let hold = null;
-	let released = null;
 	const holderIn = (event) => event.composedPath().find((node) => node instanceof Element && node.matches(HOLDER));
 	const read = (holder) => {
 		if (hold.reading === holder) return;
@@ -3612,7 +3611,7 @@ function holdToRead() {
 		read(null);
 		hold = null;
 		if (!holder) return;
-		released = holder;
+		claimReleaseClick();
 		holder.focus({
 			preventScroll: true,
 			focusVisible: false
@@ -3627,7 +3626,6 @@ function holdToRead() {
 		}));
 	};
 	document.addEventListener("pointerdown", (event) => {
-		released = null;
 		if (hold) read(null);
 		hold = null;
 		if (!event.isPrimary || !plainPress(event)) return;
@@ -3647,12 +3645,6 @@ function holdToRead() {
 	}, { capture: true });
 	document.addEventListener("pointerup", (event) => end(event, true), { capture: true });
 	document.addEventListener("pointercancel", (event) => end(event, false), { capture: true });
-	document.addEventListener("click", (event) => {
-		if (!released || !event.isTrusted || pressIsKeyboardActivation(event)) return;
-		released = null;
-		event.preventDefault();
-		event.stopImmediatePropagation();
-	}, { capture: true });
 	document.addEventListener("contextmenu", (event) => {
 		if (hold) event.preventDefault();
 	}, { capture: true });
@@ -5399,27 +5391,17 @@ var HeldArrivals = class {
 
 //#endregion
 //#region runtime/thread/reply-continuity.js
+const room = (node) => {
+	if (!node.isConnected) return 0;
+	const { marginBlockStart, marginBlockEnd } = getComputedStyle(node);
+	return node.getBoundingClientRect().height + parseFloat(marginBlockStart) + parseFloat(marginBlockEnd);
+};
 var ReplyContinuity = class {
 	#owner;
 	#row = null;
 	#departure = null;
 	#space = 0;
-	#through = null;
-	#returningWriting = 0;
 	#presenting = [];
-	#writing = null;
-	#measure = null;
-	#sizes = sizeObserver((entries) => {
-		const writing = this.#writing;
-		if (!writing || !entries.some(({ target, borderBoxSize }) => target === writing.input && atLayoutPrecision(borderBoxSize[0].inlineSize) !== writing.width) || this.#measure != null) return;
-		this.#measure = nextRender(() => {
-			this.#measure = null;
-			if (this.#writing !== writing) return;
-			if (!this.#visible()) return this.#releaseSpace();
-			writing.width = atLayoutPrecision(parseFloat(getComputedStyle(writing.input).inlineSize));
-			this.#allocateWriting(writing.input, layoutPx(writing.input.naturalBlockSize));
-		});
-	});
 	gap = document.createElement("div");
 	constructor(owner) {
 		this.#owner = owner;
@@ -5429,23 +5411,17 @@ var ReplyContinuity = class {
 		owner.addEventListener("toggle", () => {
 			if (!this.#visible()) this.release();
 		});
-		owner.addEventListener("input", (event) => {
-			if (!this.#row?.contains(event.target)) return;
-			const input = this.#row.querySelector(TEXT_FIELD);
-			if (input.value) this.#allocateWriting(input, layoutPx(input.naturalBlockSize));
-			else this.#releaseWriting();
-		}, { capture: true });
 	}
 	#visible() {
 		return this.#owner.isConnected && this.#row?.isConnected && growthIsSeen(this.#row);
 	}
-	before(writing = []) {
+	before(own = []) {
 		this.#row = this.#owner.querySelector(":scope > .lf-thread-reply");
 		this.#presenting = [];
 		if (!this.#visible()) return null;
-		this.#presenting = writing.filter((node) => node.isConnected).map((node) => ({
+		this.#presenting = own.filter((node) => node.isConnected).map((node) => ({
 			node,
-			height: node.getBoundingClientRect().height
+			height: room(node)
 		}));
 		const extent = parseFloat(getComputedStyle(this.#owner).blockSize);
 		const place = offFlowSurfaceOf(this.#owner) ? null : placeKeeper(scrollerFor(this.#owner), {
@@ -5459,58 +5435,25 @@ var ReplyContinuity = class {
 			held: place?.take({ spans: false })
 		};
 	}
-	after(reading, folds = []) {
+	after(reading) {
 		this.#row = this.#owner.querySelector(":scope > .lf-thread-reply");
 		const presenting = this.#presenting;
 		this.#presenting = [];
 		if (!this.#row?.isConnected) return this.release();
 		if (!this.#visible()) {
 			reading?.place?.finish(reading.held);
-			return this.#releaseSpace();
+			return this.release();
 		}
-		this.#retainWriting();
 		if (reading != null) {
 			const { extent, place, held } = reading;
-			const body = getComputedStyle(this.#owner);
-			const written = presenting.filter(({ node }) => node.isConnected).reduce((sum, { node, height }) => sum + node.getBoundingClientRect().height - height, 0);
-			const input = this.#row.querySelector(TEXT_FIELD);
-			const context = input && replyDraftContext(input);
-			const returning = this.#writing?.input === input && context && draftHasContent(context) && !this.#owner.querySelector(".lf-msg.user[data-attempt]") ? Math.max(0, parseFloat(this.#writing.room) - input.getBoundingClientRect().height) : 0;
-			this.#keep(Math.max(0, this.#space + extent - parseFloat(body.blockSize) + written + this.#returningWriting - returning));
-			this.#returningWriting = returning;
+			const own = presenting.reduce((sum, { node, height }) => sum + room(node) - height, 0);
+			const now = parseFloat(getComputedStyle(this.#owner).blockSize);
+			this.#keep(Math.max(0, this.#space + extent - now + own));
 			place?.finish(held);
 		}
-		if (!this.#visible()) return this.#releaseSpace();
+		if (!this.#visible()) return this.release();
 		this.#departure?.();
-		this.#departure = whenNone([this.#row], growthIsSeen, () => {
-			if (!this.#owner.isConnected) this.release();
-			else this.#releaseSpace();
-		});
-		if (reading != null && folds.length) this.#holdThrough(folds);
-	}
-	#holdThrough(folds) {
-		const extent = parseFloat(getComputedStyle(this.#owner).blockSize);
-		const through = { cut: 0 };
-		this.#through = through;
-		const take = () => {
-			if (this.#through !== through) return;
-			const writing = this.#writing;
-			const cut = writing?.input.matches(":state(placeholder-shown)") ? 0 : through.cut;
-			const now = parseFloat(getComputedStyle(this.#owner).blockSize);
-			const room = extent - (now - this.#space + cut);
-			this.#cutWriting(writing ? Math.max(0, -room) : 0);
-			this.#keep(Math.max(0, room));
-		};
-		const frame = () => {
-			if (this.#through !== through) return;
-			take();
-			nextAnimation(frame);
-		};
-		nextAnimation(frame);
-		Promise.all(folds.map(({ finished }) => finished.catch(() => {}))).then(() => {
-			take();
-			if (this.#through === through) this.#through = null;
-		});
+		this.#departure = whenNone([this.#row], growthIsSeen, () => this.release());
 	}
 	#keep(space) {
 		if (space === this.#space) return;
@@ -5518,61 +5461,11 @@ var ReplyContinuity = class {
 		const value = layoutPx(space);
 		if (this.gap.style.getPropertyValue("--lf-reply-space") !== value) this.gap.style.setProperty("--lf-reply-space", value);
 	}
-	#retainWriting() {
-		const input = this.#row?.querySelector(TEXT_FIELD);
-		if (!input?.value) {
-			const context = input && replyDraftContext(input);
-			if (context && draftHasContent(context) && this.#writing?.context === context) {
-				if (this.#writing.input === input) return;
-				if (atLayoutPrecision(parseFloat(getComputedStyle(input).inlineSize)) === this.#writing.width) return this.#allocateWriting(input, this.#writing.room);
-			}
-			return this.#releaseWriting();
-		}
-		if (this.#writing?.input === input) return;
-		this.#allocateWriting(input, getComputedStyle(input).blockSize);
-	}
-	#allocateWriting(input, room) {
-		if (this.#writing?.input !== input) {
-			this.#releaseWriting();
-			this.#writing = {
-				input,
-				context: replyDraftContext(input),
-				width: atLayoutPrecision(parseFloat(getComputedStyle(input).inlineSize)),
-				room: null
-			};
-			this.#sizes.observe(input, { box: "border-box" });
-		}
-		if (this.#writing.room === room) return;
-		this.#writing.room = room;
-		input.style.setProperty("--lf-reply-writing-room", room);
-	}
-	#releaseWriting() {
-		if (!this.#writing) return;
-		this.#returningWriting = 0;
-		const { input } = this.#writing;
-		input.style.removeProperty("--lf-reply-writing-room");
-		this.#sizes.unobserve(input);
-		this.#writing = null;
-	}
-	#cutWriting(cut) {
-		const through = this.#through;
-		if (!through || cut === through.cut) return;
-		through.cut = cut;
-		const { input, room } = this.#writing ?? {};
-		input?.style.setProperty("--lf-reply-writing-room", cut ? `calc(${room} - ${layoutPx(cut)})` : room);
-	}
-	#releaseSpace() {
-		this.#cutWriting(0);
-		this.#through = null;
+	release() {
 		this.#departure?.();
 		this.#departure = null;
 		this.#space = 0;
-		this.#returningWriting = 0;
 		if (this.gap.style.getPropertyValue("--lf-reply-space")) this.gap.style.removeProperty("--lf-reply-space");
-	}
-	release() {
-		this.#releaseSpace();
-		this.#releaseWriting();
 	}
 };
 
@@ -5704,8 +5597,9 @@ var Transcript = class Transcript {
 	messageNode(key) {
 		return this.#messages.get(key)?.node ?? null;
 	}
-	get folds() {
-		return [...this.#folding.values()].flatMap(({ played }) => played ?? []);
+	leaving(model) {
+		const wanted = new Set(model.messages.map(({ key }) => key));
+		return [...this.#messages].flatMap(([key, { node }]) => wanted.has(key) || !node.isConnected ? [] : [node]);
 	}
 	summaryNode(id) {
 		return this.#checkpoints.get(id)?.node ?? null;
@@ -6258,8 +6152,7 @@ var ThreadView = class {
 		this.#drawnWith = this.#outside(model);
 		const prior = this.#model;
 		if (model.news && !prior?.news) this.#retainHeaderSlot({ observe: false });
-		const rewritten = this.#transcript.views.filter((view) => view.editing).map(({ node }) => node);
-		const bodyPlace = published ? this.#continuity?.before(rewritten) : null;
+		const bodyPlace = published ? this.#continuity?.before([...this.#transcript.views.filter((view) => view.editing).map(({ node }) => node), ...this.#transcript.leaving(model)]) : null;
 		const restoreFocus = holdFocus(this.node);
 		this.#model = model;
 		const reply = model.reply || replyIsEditing(model.key);
@@ -6303,7 +6196,7 @@ var ThreadView = class {
       `, this.node);
 		if (!marginControls && model.news) measure(this.node, () => this.#retainHeaderSlot());
 		else this.#releaseHeaderSlot();
-		this.#continuity?.after(bodyPlace, this.#transcript.folds);
+		this.#continuity?.after(bodyPlace);
 		restoreFocus?.(handedOn ? () => (focusDestination(handedOn, "return"), true) : () => this.#commands.landInThread(this.node.querySelector(SAY_BOX) ?? this.node));
 		return this.node;
 	}

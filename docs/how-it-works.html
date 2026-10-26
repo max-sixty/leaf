@@ -350,8 +350,7 @@ flowchart TD
   Leaf --&gt;|Delivered updates| Agent
   Leaf --&gt;|Page and state| Browser
   Browser --&gt;|Comments and choices| Leaf
-</pre
-                >
+</pre>
               </lf-diagram>
             </figure>
             <p id="architecture-browser">
@@ -955,8 +954,7 @@ flowchart TD
   Extended --&gt;|otherwise| Pending
   Pending --&gt;|otherwise| Watching
   Watching --&gt;|otherwise| End
-</pre
-                    >
+</pre>
                   </lf-diagram>
                   <figcaption>
                     <strong>Checks before a turn ends.</strong> Take the first matching
@@ -1346,8 +1344,7 @@ flowchart TD
   Theme -.->|visual inputs| Page
   Widget -->|actions| Core
   Core -->|current state| Widget
-</pre
-                >
+</pre>
               </lf-diagram>
               <figcaption id="responsibilities-example">
                 Ownership architecture. The author places widgets inside the page; each
@@ -1502,8 +1499,7 @@ flowchart TD
   accDescr: The author supplies a patch. The Diff widget publishes its changed files using the file-list contract. The page binds a File tree widget to that output, without either widget knowing the other's implementation.
   Patch["Author supplies a patch"] --> Diff["Diff widget"]
   Diff -->|files: file-list| Tree["File tree widget"]
-</pre
-                >
+</pre>
               </lf-diagram>
               <figcaption id="package-shared-contract">
                 The page connects these widgets with <code>for="release-patch"</code>.
@@ -1526,8 +1522,7 @@ flowchart TD
   Admit --&gt; State["Shared state"]
   Draw --&gt; Reconcile["Browser&lt;br/&gt;Reconcile choice"]
   State --&gt; Reconcile
-</pre
-                >
+</pre>
               </lf-diagram>
               <figcaption id="package-action-widget">
                 The package declares <code>choose</code> and the schema for its selected
@@ -1716,8 +1711,7 @@ flowchart TD
   accDescr: The author selects Editorial from the user's themes. Leaf captures that theme in the release-review page, and the export carries the same theme. Changing the user's default later changes neither existing copy.
   Themes["User's themes&lt;br/&gt;Editorial · Dense"] -->|select Editorial| Page["Release review&lt;br/&gt;Captured: Editorial"]
   Page -->|export| Export["Exported review&lt;br/&gt;Same Editorial theme"]
-</pre
-                >
+</pre>
               </lf-diagram>
               <figcaption>
                 <strong>A page keeps the theme it was made with.</strong>
@@ -1858,8 +1852,7 @@ flowchart TD
   Theme --> Layout["lf-layouts · Leaf"]
   Layout --> Base["lf-base · Leaf and widgets"]
   Base --> Reset["lf-reset · Leaf"]
-</pre
-                >
+</pre>
               </lf-diagram>
               <h4 id="cascade-shadow">A widget’s shadow tree</h4>
               <lf-diagram id="cascade-shadow-order" data-height="449" parts="all">
@@ -1871,8 +1864,7 @@ flowchart TD
   State --> Theme["lf-theme · theme packages"]
   Theme --> Shadow["lf-shadow · Leaf and widgets"]
   Shadow --> Base["lf-base · widget defaults"]
-</pre
-                >
+</pre>
               </lf-diagram>
               <figcaption>
                 <strong>Normal declarations, highest precedence first.</strong>
@@ -1961,8 +1953,7 @@ flowchart TD
     Content -->|arranges| Host
   end
   Theme -.->|inherit through both| Review
-</pre
-                >
+</pre>
               </lf-diagram>
               <figcaption>
                 <strong>The boundary stops selectors, not inheritance.</strong>
@@ -3447,8 +3438,7 @@ flowchart TD
   end
   Records --&gt;|records| Reading["Whose move is next?&lt;br/&gt;Which work is finished?"]
   Reading --&gt; Views["Thread attention&lt;br/&gt;On me · On agent · Done"]
-</pre
-                  >
+</pre>
                 </lf-diagram>
                 <figcaption>
                   Threads hold messages and anchor to a passage, widget or page.
@@ -3504,8 +3494,7 @@ flowchart TD
   Stores --&gt; Inputs["Captured markup&lt;br/&gt;Recorded actions&lt;br/&gt;External values"]
   Inputs --&gt; State["Current state"]
   State --&gt; Readers["Browser&lt;br/&gt;leaf page state"]
-</pre
-                  >
+</pre>
                 </lf-diagram>
                 <figcaption>
                   Leaf captures valid changed source under <code>revisions/</code> and
@@ -4127,8 +4116,7 @@ flowchart TD
   Stale --&gt;|otherwise| Input["Takes input&lt;br/&gt;Status: Awaits"]
   Input --&gt;|otherwise| Stalled["Input stalled&lt;br/&gt;Nudge in terminal"]
   Stalled --&gt;|otherwise| Away["Status: Away"]
-</pre
-                >
+</pre>
               </lf-diagram>
               <figcaption>
                 The first matching condition determines the base status. The table below
@@ -5101,8 +5089,7 @@ flowchart TD
   accDescr: Authored initial values, the server's reading and this tab's pending gestures combine into one current state. Renderers select the parts they read and draw the interface.
   Inputs["Authored initial values&lt;br/&gt;Server’s recorded state&lt;br/&gt;This tab’s pending gestures"] --&gt; State["Current state&lt;br/&gt;Values · threads · obligations"]
   State --&gt;|selectors| Renderers["Widgets · threads&lt;br/&gt;Leaf panel · page marks"]
-</pre
-                >
+</pre>
               </lf-diagram>
               <figcaption>
                 <span id="browser-one-reading"
@@ -5140,8 +5127,7 @@ flowchart TD
   Reserve["Before first paint&lt;br/&gt;Reserve space · capture keys"] --&gt; Prepare["Start state request&lt;br/&gt;Restore arrangements&lt;br/&gt;Load registry"]
   Prepare --&gt; Capture["Capture authored values"]
   Capture --&gt; Upgrade["Import widget modules&lt;br/&gt;Upgrade elements"]
-</pre
-                >
+</pre>
               </lf-diagram>
               <figcaption>
                 <span id="browser-startup-receipt"
@@ -5182,8 +5168,7 @@ flowchart TD
   Request --&gt; State["State&lt;br/&gt;received"]
   Comments --&gt; Ready["Saved choices and threads"]
   State --&gt; Ready
-</pre
-                  >
+</pre>
                 </lf-diagram>
                 <figcaption>
                   <span id="loading-document"
@@ -5236,8 +5221,7 @@ flowchart TD
   Send --&gt; Accepted["Server accepts&lt;br/&gt;Record + current state"]
   Accepted --&gt; Presented["Present server state"]
   Presented --&gt; Release["Release pending entry"]
-</pre
-                >
+</pre>
               </lf-diagram>
               <figcaption>
                 The local result stays visible until every renderer showing it has drawn
@@ -5298,8 +5282,7 @@ flowchart TD
   accTitle: A changed freshness token triggers a state read
   accDescr: A finite news request checks freshness. A changed token triggers a state request; an unchanged token keeps the current reading without another state request.
   News["Check freshness&lt;br/&gt;GET /api/news"] --&gt;|token changed| Read["Read current state&lt;br/&gt;GET /api/state"]
-</pre
-                >
+</pre>
               </lf-diagram>
               <figcaption>
                 An unchanged token keeps the current reading. These are finite requests,
@@ -5368,8 +5351,7 @@ flowchart TD
   accDescr: Page marks may add text; threads locate passages in that text; obligations may live inside those threads. These presentation dependencies establish the drawing order.
   Marks["Page marks&lt;br/&gt;May add text"] --&gt; Threads["Threads&lt;br/&gt;Locate passages in that text"]
   Threads --&gt; Obligations["Obligations&lt;br/&gt;May live inside those threads"]
-</pre
-                >
+</pre>
               </lf-diagram>
               <figcaption>
                 Presentation dependencies set this order once. Code publishes a change;
@@ -5470,8 +5452,7 @@ flowchart LR
   accDescr: A revision with the same executable identity patches the document, preserving unchanged nodes. A changed identity starts a fresh document with the new executable graph and current state.
   Same["Same&lt;br/&gt;identity"] --&gt; Patch["Patch the&lt;br/&gt;document"]
   Changed["Changed&lt;br/&gt;identity"] --&gt; Fresh["Load a fresh&lt;br/&gt;document"]
-</pre
-                  >
+</pre>
                 </lf-diagram>
                 <figcaption>
                   Prose, styles and media can update through a patch, keeping unchanged

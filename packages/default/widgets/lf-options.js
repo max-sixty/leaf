@@ -123,7 +123,6 @@ import {
   wrote,
   focusDestination,
   scrollIntoView,
-  textNodesUnder,
 } from "/runtime/widget-api.js";
 
 // What an option is called, in either form: its title where it leads with one, and its
@@ -139,30 +138,19 @@ const label = (option) => wrote(option.querySelector(":scope > strong") ?? optio
 // option's name, where the user answers away from the card.
 const consequence = (option) => {
   const title = option.querySelector(":scope > strong");
-  if (!title) return "";
-  // Before and after in the document, a node inside the other being neither.
-  const comes = (node, than, order) =>
-    (than.compareDocumentPosition(node) &
-      (order | Node.DOCUMENT_POSITION_CONTAINED_BY)) ===
-    order;
-  const {
-    DOCUMENT_POSITION_FOLLOWING: FOLLOWING,
-    DOCUMENT_POSITION_PRECEDING: PRECEDING,
-  } = Node;
-  const block = [...option.children].find(
-    (child) =>
-      comes(child, title, FOLLOWING) && getComputedStyle(child).display !== "inline",
-  );
-  // One run of inline words, so its text joins as the page's reading joins it.
-  return textNodesUnder(option, "wrote")
-    .filter(
-      ({ node }) =>
-        comes(node, title, FOLLOWING) && (!block || comes(node, block, PRECEDING)),
-    )
-    .map(({ node, start, end }) => node.data.slice(start, end))
-    .join("")
-    .replace(/\s+/g, " ")
-    .trim();
+  let words = "";
+  for (let node = title?.nextSibling; node; node = node.nextSibling) {
+    if (node.nodeType === Node.TEXT_NODE) words += node.data;
+    else if (node.nodeType !== Node.ELEMENT_NODE) continue;
+    else if (getComputedStyle(node).display !== "inline") break;
+    // `wrote` trims the element's own edges, which may be the spaces between words,
+    // as where Markdown emphasis splits a sentence.
+    else {
+      const edges = node.textContent.match(/^(\s*)[\s\S]*?(\s*)$/);
+      words += `${edges[1]}${wrote(node)}${edges[2]}`;
+    }
+  }
+  return words.replace(/\s+/g, " ").trim();
 };
 
 // The option the page advises wears the `recommended` tag the registry's card shape

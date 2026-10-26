@@ -998,6 +998,34 @@ def test_an_obligation_and_its_thread_are_one_current_target(browser, serve):
     expect(item).to_be_focused()
 
 
+def test_c_continues_the_card_beside_an_obligation_in_a_commented_block(browser, serve):
+    """The card a block's thread opens beside an obligation inside the block is the
+    thread the user is at, so `c` writes in its reply. It once closed that card and
+    opened a box on the obligation, answering a reply with a new thread."""
+    url = serve(
+        leaf_page(
+            "calls",
+            """<h1>Review</h1>
+<section id="calls"><h2>Judgment calls</h2>
+<lf-ask id="mark-ask"><h3>Cut the mark?</h3>
+<lf-options id="mark" choose>
+  <lf-option id="mark-keep">Keep it</lf-option>
+  <lf-option id="mark-cut">Remove it</lf-option>
+</lf-options></lf-ask></section>""",
+        )
+    )
+    root = answered_comment(
+        serve.page_dir, "Need better choices.", {"section": "calls"}
+    )
+    page = open_page(browser, url)
+    thread = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
+    page.keyboard.press("m")
+    expect(page.locator("#mark-ask")).to_be_focused()
+    expect(thread).to_be_visible()
+    page.keyboard.press("c")
+    expect(thread.locator("leaf-text")).to_be_focused()
+
+
 def test_an_obligation_in_a_reply_is_where_the_user_stands_once_answered(
     browser, serve
 ):

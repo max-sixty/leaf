@@ -82,6 +82,14 @@ def at_rest(page: Page) -> None:
     """The page as it loads."""
 
 
+def plan_execution(page: Page) -> None:
+    """The execution step with its security qualification in view."""
+    page.locator("#plan-execute > h3").evaluate(
+        "element => element.scrollIntoView({block: 'start', behavior: 'instant'})"
+    )
+    scroll_settled(page)
+
+
 def captured_source(page: Page) -> None:
     """The gallery's captured source file, with its numbered syntax presentation."""
     page.locator("#bg-gallery-tabs").get_by_role(
@@ -845,10 +853,10 @@ def into_the_body(page: Page) -> None:
     page.evaluate("() => scrollTo(0, 2 * innerHeight)")
 
 
-def plan_disclosure(page: Page) -> None:
-    """The plan's first disclosure, between the prose of two steps."""
+def plan_caveat(page: Page) -> None:
+    """The plan's network caveat, visible between the prose of two steps."""
     page.locator("#plan-network").evaluate(
-        "details => details.scrollIntoView({block: 'center'})"
+        "node => node.scrollIntoView({block: 'center'})"
     )
 
 
@@ -1884,7 +1892,8 @@ STATES = (
     ),
     State("gallery-multiline-passage", "developer/feature-gallery", multiline_passage),
     State("plan", "review-a-plan", at_rest),
-    State("plan-disclosure", "review-a-plan", plan_disclosure, region="#plan-network"),
+    State("plan-execution", "review-a-plan", plan_execution, region="#plan-execute"),
+    State("plan-caveat", "review-a-plan", plan_caveat, region="#plan-network"),
     State("page-search", "review-a-plan", page_search, region=".lf-floating-panel"),
     State(
         "accepted-page-search",

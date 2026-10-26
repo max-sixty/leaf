@@ -6,10 +6,12 @@ import { applicationPresented, presentDocument, readApplication, readApplication
 import { effectiveScroller, reachScrollers, readingRegion, readingRegionFor, readingRegions, releaseReachStop, scrollersOf, shownRegionBounds, unconcealedReadingRegions, userReadingRegion } from "./bundle-reading-regions.js";
 import { availableCommandRoutes, executeCommand, registerSampleCommand, stack } from "./bundle-dispatch.js";
 import { selfComparison, servedElements, shallowSigs } from "./bundle-version.js";
+import { elementFrame, scrollAxes } from "./bundle-element-frame.js";
 import { alignInlineText, closestAcross, elementById, fencePassageParts, findQuote, layoutBox, pageDocument, pageRange, pageText, quoteFrom, segmentsIn, sentenceUnits, settledAway, spanIn, verbatimBoundaryIdentity, verbatimOwnerIdentity } from "./bundle-passages.js";
-import { ADDRESSABLE, aimTargetAt, aimTargets, anchorForRange, elementFrame, resolveAnchor, scrollAxes, visualPartProblems } from "./bundle-content-layout.js";
+import { ADDRESSABLE, aimTargetAt, aimTargets, anchorForRange, resolveAnchor, visualPartProblems } from "./bundle-content-layout.js";
 import { authoredBody } from "./bundle-initial-render.js";
-import { PAGE_SCOPE, SAY_BOX, THREAD, alreadyShown, blocksOnScreen, bringBackSurfaceOf, captureDraftEditing, capturePlace, claimed, completeReadingReturn, draftStore, fitsWhole, heldObligation, pageScopes, placeNode, placeOf, readingBlock, readingReturn, replyIsEditing, selectionAnchor, storedDraft, tabStore, userStore, walkOrigin, walkPosition, whereDraft } from "./bundle-surfaces.js";
+import { alreadyShown, fitsWhole } from "./bundle-copy-control.js";
+import { PAGE_SCOPE, SAY_BOX, THREAD, blocksOnScreen, bringBackSurfaceOf, captureDraftEditing, capturePlace, claimed, completeReadingReturn, draftStore, heldObligation, pageScopes, placeNode, placeOf, readingBlock, readingReturn, replyIsEditing, selectionAnchor, storedDraft, tabStore, userStore, walkOrigin, walkPosition, whereDraft } from "./bundle-surfaces.js";
 import { domValue } from "./bundle-abort.js";
 import { agentArrivalDuration, flashDuration } from "./bundle-motion.js";
 import { USER_VIEW_RESTORE_CASES } from "./bundle-restore-state.js";

@@ -41,6 +41,8 @@ def test_a_leaf_serves_the_kernel_only_while_it_matches_the_tree(tmp_path, monke
     assert any(path.startswith("/runtime/bundle-") for path in files)
     assert "/vendor/browser-runtime.js" not in files
     assert "/vendor/lit.js" in files
+    # The kernel holds the kernel registry's facts as values, so it serves no copy.
+    assert "/runtime/kernel-registry.json" not in files
 
     # A package adds runtime modules beside the runtime's own and may replace a vendor
     # module, but not a runtime module, whatever an older layer captured.
@@ -57,6 +59,20 @@ def test_a_leaf_serves_the_kernel_only_while_it_matches_the_tree(tmp_path, monke
     files = runtime.resources({"/vendor/browser-runtime.js": own})
     assert files["/leaf.js"].data == (assets / "leaf.js").read_bytes()
     assert files["/vendor/browser-runtime.js"] is own
+
+    # A JSON file the kernel never read leaves it current; the kernel registry it
+    # compiled in does not, so an edit to it reaches the browser through the source
+    # modules, which read it, as it reaches Python.
+    unread = assets / "vendor/initial-dependencies.json"
+    unread.write_text(unread.read_text() + "\n")
+    assert runtime_selection.read_runtime().kernel is not None
+    registry = assets / "runtime/kernel-registry.json"
+    shipped = registry.read_bytes()
+    registry.write_bytes(shipped + b"\n")
+    files = runtime_selection.read_runtime().resources({})
+    assert files["/leaf.js"].data == (assets / "leaf.js").read_bytes()
+    assert files["/runtime/kernel-registry.json"].data == registry.read_bytes()
+    registry.write_bytes(shipped)
 
     module = assets / "runtime/context.js"
     module.write_text(module.read_text() + "\n")

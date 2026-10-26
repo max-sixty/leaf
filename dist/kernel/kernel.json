@@ -380,6 +380,7 @@
     "runtime/interaction-log.js",
     "runtime/keeps.js",
     "runtime/kernel-facts.js",
+    "runtime/kernel-registry.json",
     "runtime/keyboard/bindings.js",
     "runtime/keyboard/chip-seats.js",
     "runtime/keyboard/command-hints.js",

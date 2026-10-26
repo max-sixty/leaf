@@ -164,11 +164,13 @@ function moduleBoundaries(layerRoot, assetRoot) {
   };
 }
 
-/** A JavaScript literal of a value `runtime/kernel-facts.js` exports. */
+/** A JavaScript literal of a value `runtime/kernel-facts.js` exports. A `__proto__`
+ * key is computed, so it stays an own key rather than setting the prototype. */
 function literal(value) {
   if (value instanceof RegExp) return String(value);
   if (value instanceof Set) return `new Set(${literal([...value])})`;
   if (Array.isArray(value)) return `[${value.map(literal).join(", ")}]`;
+  if (Object.is(value, -0)) return "-0";
   if (
     value === null ||
     typeof value === "string" ||
@@ -176,12 +178,22 @@ function literal(value) {
     Number.isFinite(value)
   )
     return JSON.stringify(value);
-  if (Object.getPrototypeOf(value) === Object.prototype)
+  if (typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype)
     return `{${Object.entries(value)
-      .map(([key, item]) => `${JSON.stringify(key)}: ${literal(item)}`)
+      .map(([key, item]) => {
+        const name = JSON.stringify(key);
+        return `${key === "__proto__" ? `[${name}]` : name}: ${literal(item)}`;
+      })
       .join(", ")}}`;
+  const kind = Object.prototype.toString.call(value).slice(8, -1);
+  const shown =
+    typeof value !== "object"
+      ? `${kind} ${String(value)}`
+      : Object.getPrototypeOf(value) === null
+        ? "an object with no prototype"
+        : kind;
   throw new Error(
-    `runtime/kernel-facts.js exports ${value}, which has no literal here`,
+    `runtime/kernel-facts.js exports ${shown}, which has no literal here`,
   );
 }
 
@@ -190,9 +202,9 @@ function literal(value) {
  * the few facts the browser reads rather than the whole kernel registry. The module is
  * evaluated from a `data:` URL with its JSON imports inlined, so the values come from
  * the bytes on disk now, never from a module Node cached earlier in a long build.
- * Each file it inlines joins `read`, which `kernelOutputs` records with its hash, so an
- * edit to the registry serves the source modules, which read it, until the kernel is
- * rebuilt.
+ * Each file it inlines joins `read`, which `kernelOutputs` records as compiled in and
+ * with its hash, so an edit to the registry serves the source modules, which read it,
+ * until the kernel is rebuilt.
  */
 function kernelFacts(layerRoot, read) {
   const facts = join(layerRoot, "runtime/kernel-facts.js");
@@ -313,12 +325,13 @@ async function layerModules(layerRoot) {
  * the record an install's guard reads (`leaf.runtime_selection.read_runtime`).
  *
  * The record's `inputs` map every file the build reads, `leaf.js`, each `.js` under
- * `runtime/`, `vendor/` and `widgets/`, and each file it inlines as values (the kernel
- * registry, `kernelFacts`), to the SHA-256 of its bytes, one line each, so branches
- * that change different modules change different lines. The guard hashes each `.js`
- * module and each other file the record names, so it follows what this build read.
- * `replaces` lists the modules compiled into the kernel, which a runtime serving it
- * no longer carries. The modules it leaves native, such as the classic scripts
+ * `runtime/`, `vendor/` and `widgets/`, and each other file it compiles in, such as
+ * the kernel registry `kernelFacts` inlines as values, to the SHA-256 of its bytes,
+ * one line each, so branches that change different modules change different lines.
+ * The guard hashes each `.js` module and each other file the record names, so it
+ * follows what this build read.
+ * `replaces` lists the files compiled into the kernel, the kernel registry among them,
+ * which a runtime serving it no longer carries. The modules it leaves native, such as the classic scripts
  * nothing imports, are served from source beside it.
  */
 export async function kernelOutputs(layerRoot) {
@@ -332,16 +345,21 @@ export async function kernelOutputs(layerRoot) {
     }
   }
   const result = await compile(layerRoot, entries, null, false);
-  const modules = [...(await layerModules(layerRoot)), ...result.inlined].sort();
   const files = new Map(
     result.output.map((file) => [file.fileName, Buffer.from(file.code)]),
   );
-  const replaces = new Set(
-    result.output
+  const replaces = new Set([
+    ...result.output
       .flatMap((file) => file.moduleIds)
       .filter((path) => path.startsWith(layerRoot + "/"))
       .map((path) => browserPath(relative(layerRoot, path))),
-  );
+    ...result.inlined,
+  ]);
+  // Every file the compiler read, whatever its type, so an edit to any of them makes
+  // the kernel stale.
+  const modules = [
+    ...new Set([...(await layerModules(layerRoot)), ...replaces]),
+  ].sort();
   const inputs = {};
   for (const module of modules)
     inputs[module] = createHash("sha256")

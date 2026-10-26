@@ -1120,7 +1120,7 @@ def test_a_fixture_acknowledges_its_seed_with_the_runtime_it_was_read_for(tmp_pa
     comparison across a protocol bump builds both arms (`leaf-dev stills`)."""
     runtime = tmp_path / "runtime"
     arms.extract_payload(runtime)
-    registry = runtime / "browser/registry.json"
+    registry = runtime / "browser/runtime/kernel-registry.json"
     layer = json.loads(registry.read_text())
     layer["$events"]["protocol"] += 1
     registry.write_text(json.dumps(layer, ensure_ascii=False))

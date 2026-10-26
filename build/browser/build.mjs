@@ -8,9 +8,9 @@
  * without writing them. This module owns its source root, outputs, and their layer
  * paths, and writes and checks every other committed Node-built output beside them:
  * the initial renderers (`build/initial.mjs`), the stylesheets (`build/styles.mjs`),
- * the modules generated from the registry (`build/registry.mjs`), the page
- * protocol's types, the event records and the served state (`contract-types.mjs`),
- * and the baseline its schemas are held to (`protocol.mjs`), the third-party bundles
+ * the page protocol's types, the event records and the served state
+ * (`contract-types.mjs`), and the baseline its schemas are held to (`protocol.mjs`),
+ * the third-party bundles and the runtime's table of their grammars
  * (`build/vendor.mjs`), and last the kernel compiled from all of them
  * (`build/runtime-bundle.mjs`). The kernel's
  * directory, the layer's `vendor/` and each package's hold nothing else, so a file
@@ -57,7 +57,6 @@ import {
   litNamespace,
   litPath,
 } from "../lit.mjs";
-import { registryOutputs } from "../registry.mjs";
 import { styleOutputs } from "../styles.mjs";
 import { kernelOutputs } from "../runtime-bundle.mjs";
 import { adapt, seam, vendorOutputs } from "../vendor.mjs";
@@ -262,7 +261,7 @@ async function protocolOutputs() {
   const refused = protocolBreaks(baseline, held);
   if (refused.length)
     throw new Error(
-      `A page vendored at protocol ${baseline.protocol}, or a Leaf sharing a record's format, breaks on:\n${refused.join("\n")}\nKeep what it took, or bump $events.protocol in browser/registry.json (for a record, set its since to the current protocol), then run pnpm run build:browser.`,
+      `A page vendored at protocol ${baseline.protocol}, or a Leaf sharing a record's format, breaks on:\n${refused.join("\n")}\nKeep what it took, or bump $events.protocol in browser/runtime/kernel-registry.json (for a record, set its since to the current protocol), then run pnpm run build:browser.`,
     );
   return {
     contract: await contractTypes(new URL("../../", import.meta.url), schemas),
@@ -465,7 +464,7 @@ export async function buildOutputs() {
     `${assets}/vendor/browser-runtime.LICENSES.txt`,
     Buffer.from(licenseNotices("browser-runtime", packageRoots)),
   );
-  for (const producer of [initialOutputs, styleOutputs, registryOutputs, vendorOutputs])
+  for (const producer of [initialOutputs, styleOutputs, vendorOutputs])
     for (const [name, bytes] of await producer()) outputs.set(name, bytes);
   for (const [name, bytes] of await kernelOf(outputs))
     outputs.set(`${kernelDirectory}/${name}`, bytes);
@@ -559,9 +558,6 @@ async function main(args) {
     await writeFile(path.join(root, compilerPathsFile), await compilerPaths());
     const { contract } = await protocolOutputs();
     await writeFile(path.join(root, sourceRoot, "contract.d.ts"), contract);
-    // The modules generated from the registry are the typecheck's inputs too.
-    for (const [name, bytes] of await registryOutputs())
-      await writeFile(path.join(root, name), bytes);
   }
   const outputs = await buildOutputs();
   if (args[0] === "--check") await checkOutputs(outputs);

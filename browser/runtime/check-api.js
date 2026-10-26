@@ -76,7 +76,7 @@ export { availableCommandRoutes, stack, executeCommand } from "./keyboard/dispat
 export { whereDraft, storedDraft, captureDraftEditing } from "./drafts.js";
 export { onCurrentLocation, releaseFocus, takesLetters, tabStops } from "./focus.js";
 export { selectionAnchor } from "./composing/capture.js";
-export { TEXT_BLOCK } from "./passage-facts.js";
+export { TEXT_BLOCK } from "./kernel-facts.js";
 export { renderingState } from "./rendering.js";
 export {
   readingBlock,

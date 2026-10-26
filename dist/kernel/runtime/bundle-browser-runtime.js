@@ -1,4 +1,5 @@
 import { AsyncDirective, Directive, LitElement, PartType, classMap, createRef, directive, guard, html, keyed, live, noChange, nothing, ref, render, repeat, styleMap, unsafeHTML } from "/vendor/lit.js";
+import kernel from "/runtime/kernel-registry.json" with { type: "json" };
 
 //#region runtime/queued-work.js
 const jobObservers = /* @__PURE__ */ new Set();
@@ -653,16 +654,20 @@ function obligationValue(widget, verb, answered, unit) {
 const isProjectionEntry = (entry) => entry.coordinate !== void 0;
 
 //#endregion
-//#region runtime/event-kinds.js
-const MESSAGE_KINDS = /* @__PURE__ */ new Set(["comment", "reply"]);
-const VERB_WRITERS = {
-	"action": "user",
-	"report": "agent"
-};
-
-//#endregion
-//#region runtime/names.js
-const WIDGET_NAME = /* @__PURE__ */ new RegExp("^lf-[a-z0-9]+(?:-[a-z0-9]+)*$");
+//#region runtime/kernel-facts.js
+const { collapse, blocks, context } = kernel.$passages;
+const escaped = [...collapse].map((ch) => `\\u${ch.codePointAt(0).toString(16).padStart(4, "0")}`).join("");
+const COLLAPSE = new RegExp(`[${escaped}]+`, "g");
+const TEXT_BLOCK = blocks.join(",");
+const CONTEXT = context;
+const WIDGET_NAME = new RegExp(`^${kernel.$names.widget}$`);
+const { description: _description, ...declaredMarks } = kernel.$marks;
+const marks = declaredMarks;
+const kinds = Object.entries(kernel.$events.kinds);
+const MESSAGE_KINDS = new Set(kinds.filter(([, kind]) => "message" in kind && kind.message).map(([name]) => name));
+const VERB_WRITERS = Object.fromEntries(kinds.flatMap(([name, kind]) => "verb_writer" in kind ? [[name, kind.verb_writer]] : []));
+const drawingSchema = kernel.$events.kinds.comment.record.properties.drawing;
+const DRAFT_FORMAT = `leaf-draft/${kernel.$events.draft.since}`;
 
 //#endregion
 //#region runtime/registry-contract.js
@@ -2315,4 +2320,4 @@ function createPresentationSchedule(bindJob) {
 }
 
 //#endregion
-export { AsyncDirective, Directive, J, LitElement, PENDING, PartType, W, Z, actionForWidget, anchorKey, authoredRank, bareReaction, bindQueuedWork, cancelWork, carriesObligation, classMap, createPresentationCoordinator, createPresentationSchedule, createRef, createSemanticApplication, d, describeFailure, directive, discussed, editable, enqueueWork, foldWidgetStates, guard, html, isElementName, isMessageEvent, isNews, isReaction, isThreadEvent, itemNoun, itemOutcome, keyed, lastMovedAt, live, messageKey, moved, noChange, nothing, obligationValue, observeQueuedWork, pendingForParent, projectionOrigins, q, rankAt, reactionsAt, ref, render, repeat, runWork, sameAnchor, seatRoot, share, stateCoordinate, styleMap, threadCounts, threadKey, threadNames, tokenChoices, turns, unsafeHTML, x };
+export { AsyncDirective, COLLAPSE, CONTEXT, DRAFT_FORMAT, Directive, J, LitElement, PENDING, PartType, TEXT_BLOCK, W, Z, actionForWidget, anchorKey, authoredRank, bareReaction, bindQueuedWork, cancelWork, carriesObligation, classMap, createPresentationCoordinator, createPresentationSchedule, createRef, createSemanticApplication, d, describeFailure, directive, discussed, drawingSchema, editable, enqueueWork, foldWidgetStates, guard, html, isElementName, isMessageEvent, isNews, isReaction, isThreadEvent, itemNoun, itemOutcome, keyed, lastMovedAt, live, marks, messageKey, moved, noChange, nothing, obligationValue, observeQueuedWork, pendingForParent, projectionOrigins, q, rankAt, reactionsAt, ref, render, repeat, runWork, sameAnchor, seatRoot, share, stateCoordinate, styleMap, threadCounts, threadKey, threadNames, tokenChoices, turns, unsafeHTML, x };

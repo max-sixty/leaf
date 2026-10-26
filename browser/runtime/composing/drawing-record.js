@@ -19,7 +19,7 @@
  * takes the target away. It is the draft's alone: `sentDrawing` leaves it out of the
  * comment.
  */
-import { drawingSchema } from "./drawing-schema.js";
+import { drawingSchema } from "../kernel-facts.js";
 
 // Every bound is read from the schema admission holds a comment's drawing to,
 // generated from registry.json, each field from its own declaration, so a bound

@@ -131,8 +131,9 @@ overwriting any a layer declared: `$decisions`, each widget's deciding `x-state`
 and the member tags each of its outcomes retires, and `$states`, each verb's writer
 and the operation definition an admitted event records.
 
-The kernel registry declares the other facts both runtimes read
-(`registry.layer.KERNEL_FACTS`, described in `registry/kernel.py`'s header, and the
-classifications on each `$events.kinds` entry). The build generates the browser's
-copy of each (`build/registry.mjs`), so none is stamped, and a layer that changes
-one is refused.
+The kernel registry, `browser/runtime/kernel-registry.json`, declares the other facts
+both runtimes read (`registry.layer.KERNEL_FACTS`, described in `registry/kernel.py`'s
+header, and the classifications on each `$events.kinds` entry). It is part of the
+runtime, so both read the serving Leaf's copy, the browser through
+`runtime/kernel-facts.js`. Composition lays each layer over it, none is stamped for
+the browser to read, and a layer that changes one is refused.

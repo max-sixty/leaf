@@ -4,7 +4,7 @@
    The ledger holding each gesture, and the lifecycle that decides when it leaves, belong
    to the application publisher (`browser/framework/application.ts`). */
 import { PENDING } from "../thread/identity.js";
-import { MESSAGE_KINDS } from "../event-kinds.js";
+import { MESSAGE_KINDS } from "../kernel-facts.js";
 
 /** @param {import("../../framework/domain.ts").Command} event
  * @returns {event is Extract<import("../../framework/domain.ts").Command, {kind: import("../../framework/contract.js").MessageKind}>}

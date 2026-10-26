@@ -77,10 +77,14 @@ async function preloadDocuments(pageRoot, layers) {
       if (!probe) throw new Error(`document has no registry address: ${path}`);
       const links = [
         `<link rel="preload" as="fetch" href="${probe.replaceAll("&", "&amp;")}" crossorigin data-lf-runtime>`,
-        ...[...modules].map(
-          (module) =>
-            `<link rel="modulepreload" href="${`${assetRoot}/${module}`.replaceAll("&", "&amp;")}" data-lf-runtime>`,
-        ),
+        // A modulepreload fetches a script, so the kernel registry's JSON module
+        // (`runtime/kernel-facts.js`) loads with the chunk that imports it.
+        ...[...modules]
+          .filter((module) => /\.m?js$/.test(module))
+          .map(
+            (module) =>
+              `<link rel="modulepreload" href="${`${assetRoot}/${module}`.replaceAll("&", "&amp;")}" data-lf-runtime>`,
+          ),
       ].join("");
       // First-paint scripts write template openers at execution time. Edit only
       // the parser's actual hint/map locations, preserving every authored byte.

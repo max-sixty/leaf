@@ -454,6 +454,15 @@ def js_facts(command: str, files) -> str:
     ).stdout
 
 
+def shipped_core_registry() -> dict:
+    """The kernel registry with the core layer's declarations beside it, the layer
+    facts `page init` starts every composition from, unstamped."""
+    return {
+        **cleanup_model.kernel_registry(),
+        **json.loads((schema_model.ASSETS / "registry.json").read_text()),
+    }
+
+
 def shipped_payload():
     """Tracked and unignored candidate files a completed change would ship."""
     listed = subprocess.run(

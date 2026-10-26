@@ -1,4 +1,4 @@
-import { J, LitElement, PENDING, Z, actionForWidget, anchorKey, bindQueuedWork, d, discussed, editable, isMessageEvent, isThreadEvent, moved, projectionOrigins, q, reactionsAt, render, stateCoordinate, threadKey, tokenChoices, turns, x } from "./bundle-browser-runtime.js";
+import { DRAFT_FORMAT, J, LitElement, PENDING, Z, actionForWidget, anchorKey, bindQueuedWork, d, discussed, drawingSchema, editable, isMessageEvent, isThreadEvent, moved, projectionOrigins, q, reactionsAt, render, stateCoordinate, threadKey, tokenChoices, turns, x } from "./bundle-browser-runtime.js";
 import { TEXT_FIELD, afterScript, byRenderedOrder, canPlaceFocus, closeLayer, composedParentNode, deepFocus, drawn, focusDestination, focused, frameVisibility, handBack, holdFocus, holdRendering, inputCount, isNativeLayer, keeps, keepsHidden, move, nextRender, onCurrentLocation, onFrameVisibility, onUserInput, openLayer, openerOf, readSampleVisibility, renderedOrder, renderedParent, renderedUnder, shadowHost, sizeObserver, takesLetters, under, upFrom, whenLeft } from "./bundle-dom-move.js";
 import { PAGE_PAINT_ATTRIBUTE, admitResponse, completeData, countTraffic, dataHeaders, layerHeaders, postEvent, randomId, recordInteraction, reportCarried, reportPageError, requestJson, sameLayer, sessionIsActive, setRuntimeRootAttribute, watchPendingTraffic } from "./bundle-layer-client.js";
 import { PRESS, TEXT_ENTRY, announce, claimsEsc, clamp, clippedContents, clipsPastSurfaces, closeNativeLayer, cycledRow, el, generatedElement, growthIsSeen, hasArea, holdingError, iconElement, intersect, keys, layoutWindow, matchesWhen, notice, offer, paintKeys, paintKeysWithin, placeBox, placeHolder, presented, raiseError, registry, repaint, responseAction, reveal as reveal$1, rowArrows, savedReadingSettled, saying, seenRect, shadowRootsIn, showNativeLayer, shownWindow, tagsDeclaring, union, watchOwner, watchRoom, whenNone, whileConnected } from "./bundle-errors.js";
@@ -257,125 +257,6 @@ async function deliverBookkeeping(event, applyState) {
 }
 
 //#endregion
-//#region runtime/composing/drawing-schema.js
-const drawingSchema = {
-	"type": "object",
-	"properties": {
-		"strokes": {
-			"type": "array",
-			"minItems": 1,
-			"maxItems": 32,
-			"items": {
-				"type": "array",
-				"minItems": 2,
-				"maxItems": 256,
-				"items": {
-					"type": "array",
-					"minItems": 2,
-					"maxItems": 2,
-					"prefixItems": [{
-						"type": "number",
-						"minimum": -33554432,
-						"maximum": 33554432
-					}, {
-						"type": "number",
-						"minimum": -33554432,
-						"maximum": 33554432
-					}],
-					"items": false
-				}
-			}
-		},
-		"box": {
-			"type": "array",
-			"minItems": 2,
-			"maxItems": 2,
-			"prefixItems": [{
-				"type": "number",
-				"exclusiveMinimum": 0,
-				"maximum": 33554432
-			}, {
-				"type": "number",
-				"exclusiveMinimum": 0,
-				"maximum": 33554432
-			}],
-			"items": false
-		},
-		"frame": {
-			"type": "object",
-			"properties": {
-				"root": {
-					"type": "string",
-					"maxLength": 128,
-					"pattern": "^[A-Za-z][A-Za-z0-9_.:-]*$"
-				},
-				"path": {
-					"type": "array",
-					"maxItems": 32,
-					"items": {
-						"type": "object",
-						"properties": {
-							"tag": {
-								"type": "string",
-								"maxLength": 128,
-								"pattern": "^[A-Za-z][A-Za-z0-9_.:-]*$"
-							},
-							"index": {
-								"type": "integer",
-								"minimum": 0,
-								"maximum": 65535
-							},
-							"siblings": {
-								"type": "integer",
-								"minimum": 1,
-								"maximum": 65536
-							},
-							"shadow": { "type": "boolean" }
-						},
-						"required": [
-							"tag",
-							"index",
-							"siblings"
-						],
-						"additionalProperties": false
-					}
-				}
-			},
-			"required": ["root", "path"],
-			"additionalProperties": false
-		},
-		"says": {
-			"type": "string",
-			"minLength": 1,
-			"maxLength": 500
-		},
-		"viewport": {
-			"type": "array",
-			"minItems": 2,
-			"maxItems": 2,
-			"prefixItems": [{
-				"type": "number",
-				"exclusiveMinimum": 0,
-				"maximum": 33554432
-			}, {
-				"type": "number",
-				"exclusiveMinimum": 0,
-				"maximum": 33554432
-			}],
-			"items": false
-		},
-		"scheme": { "enum": ["light", "dark"] }
-	},
-	"required": [
-		"strokes",
-		"box",
-		"viewport",
-		"scheme"
-	],
-	"additionalProperties": false
-};
-
-//#endregion
 //#region runtime/composing/drawing-record.js
 const FIELDS = drawingSchema.properties;
 const MAX_DRAWING_STROKES = FIELDS.strokes.maxItems;
@@ -387,10 +268,6 @@ function sentDrawing(drawing) {
 	const { at, ...sent } = drawing;
 	return sent;
 }
-
-//#endregion
-//#region runtime/protocol.js
-const DRAFT_FORMAT = "leaf-draft/17";
 
 //#endregion
 //#region runtime/editor-view.js
@@ -1436,7 +1313,7 @@ function createSelectionComposer({ setReact, reactionTokens, reactionAvailable, 
 	const saveComposerDraft = (text = syncComposer.value()) => saveDraft(composerCtx(pendingAnchor), text, composerDraftPayload());
 	const composerRecord = (ctx) => {
 		const payload = loadDraftPayload(ctx);
-		return payload?.format === "leaf-draft/17" ? {
+		return payload?.format === DRAFT_FORMAT ? {
 			...payload,
 			text: loadDraft(ctx)
 		} : null;

@@ -1,14 +1,10 @@
+import { COLLAPSE, TEXT_BLOCK } from "./bundle-browser-runtime.js";
 import { shadowHost, under, upFrom } from "./bundle-dom-move.js";
 import { PAGE_PAINT_ATTRIBUTE, pageUpgraded, reportPageError } from "./bundle-layer-client.js";
 import { SAID, UI_MARKS, decisionFor, declaredRoot, hostIn, inUi, overIn, pageShadowRoots, refuseShadowRoot, registry, shadowRootsIn, uiInside } from "./bundle-errors.js";
 import { readPart } from "./bundle-context.js";
 import { diffArrays } from "/vendor/jsdiff.esm.js";
 
-//#region runtime/passage-facts.js
-const COLLAPSE = /[\u0009\u000a\u000b\u000c\u000d\u0020\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff]+/g;
-const TEXT_BLOCK = "p,li,h1,h2,h3,h4,h5,h6,td,th,pre,blockquote,dd,dt,figcaption,summary";
-
-//#endregion
 //#region runtime/text-alignment.js
 const textUnits = new Intl.Segmenter(void 0, { granularity: "word" });
 const sentenceUnits = new Intl.Segmenter(void 0, { granularity: "sentence" });
@@ -774,4 +770,4 @@ function pageParts(sel) {
 }
 
 //#endregion
-export { COLLAPSE, DATUM, LEAF_SURFACE, TEXT_BLOCK, alignInlineText, alignText, authored, authoredScope, blockAt, closestAcross, contextAround, cut, elementById, elementFromPointAcross, elementOver, elementReading, excerptWords, fencePassageParts, fileModelsPassage, findQuote, findText, inChrome, labelWords, layoutBox, leafSurface, neighbourhood, pageBlocks, pageDocument, pageParts, pageQueryAll, pageRange, pageReadingVersion, pageText, pageWords, pointAt, programmaticSelection, quoteFrom, rangeOf, readingFrom, renderRetired, says, segmentBlock, segmentsIn, selectEnds, selectionBackward, sentenceUnits, settledAway, showsWords, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity, watchPassageRoot, wrote };
+export { DATUM, LEAF_SURFACE, alignInlineText, alignText, authored, authoredScope, blockAt, closestAcross, contextAround, cut, elementById, elementFromPointAcross, elementOver, elementReading, excerptWords, fencePassageParts, fileModelsPassage, findQuote, findText, inChrome, labelWords, layoutBox, leafSurface, neighbourhood, pageBlocks, pageDocument, pageParts, pageQueryAll, pageRange, pageReadingVersion, pageText, pageWords, pointAt, programmaticSelection, quoteFrom, rangeOf, readingFrom, renderRetired, says, segmentBlock, segmentsIn, selectEnds, selectionBackward, sentenceUnits, settledAway, showsWords, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity, watchPassageRoot, wrote };

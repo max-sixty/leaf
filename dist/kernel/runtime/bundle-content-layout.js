@@ -1,10 +1,10 @@
-import { Z, anchorKey, isElementName } from "./bundle-browser-runtime.js";
+import { CONTEXT, TEXT_BLOCK, Z, anchorKey, isElementName, marks } from "./bundle-browser-runtime.js";
 import { PRESSES, WORKS, afterScript, keeps, layoutPx, move, nativeLayerHolding, nextFrame, nextRender, renderedParent, shadowHost, sizeObserver, under, upFrom } from "./bundle-dom-move.js";
 import { PRESSABLE, clamp, clippedContents, headerCuts, hostIn, inUi, layoutChanged, nearObserver, nearWindow, overlaps, registry, repaintPage, scrollContainer, scrollsContent, shownBox, shownParts, skipped, tagsDeclaring, uiInside, watchArrivals } from "./bundle-errors.js";
 import { documentChanged } from "./bundle-context.js";
 import { atScrollEnd, compoundReadingRegionId, registerReadingRegion, scrollToEnd } from "./bundle-reading-regions.js";
 import { chromeRoot } from "./bundle-chrome.js";
-import { DATUM, TEXT_BLOCK, authoredScope, blockAt, closestAcross, contextAround, cut, elementById, elementReading, excerptWords, fileModelsPassage, findQuote, inChrome, layoutBox, leafSurface, neighbourhood, pageDocument, pageQueryAll, pageText, quoteFrom, rangeOf, readingFrom, segmentsIn, settledAway, spanIn, textNodesUnder } from "./bundle-passages.js";
+import { DATUM, authoredScope, blockAt, closestAcross, contextAround, cut, elementById, elementReading, excerptWords, fileModelsPassage, findQuote, inChrome, layoutBox, leafSurface, neighbourhood, pageDocument, pageQueryAll, pageText, quoteFrom, rangeOf, readingFrom, segmentsIn, settledAway, spanIn, textNodesUnder } from "./bundle-passages.js";
 import { fragmentId } from "./bundle-initial-render.js";
 
 //#region runtime/resolved-target.js
@@ -217,7 +217,7 @@ const captionOf = (element) => {
 };
 const accessibleName = (element) => element.getAttribute("aria-label")?.trim() || (element.labels?.[0] ? elementReading(element.labels[0]) : "") || element.alt?.trim() || "";
 const ownName = (element) => addressableName(element) || captionOf(element) || accessibleName(element);
-const saysItself = (element) => element.matches("p,li,h1,h2,h3,h4,h5,h6,td,th,pre,blockquote,dd,dt,figcaption,summary") || registry[element.localName]?.["x-word"] === "module" && element.lfSays?.() || [...element.childNodes].some((node) => node.nodeType === Node.TEXT_NODE && node.data.trim());
+const saysItself = (element) => element.matches(TEXT_BLOCK) || registry[element.localName]?.["x-word"] === "module" && element.lfSays?.() || [...element.childNodes].some((node) => node.nodeType === Node.TEXT_NODE && node.data.trim());
 function addressableLabel(element) {
 	if (!element) return "";
 	const own = ownName(element);
@@ -397,7 +397,7 @@ function anchorForPassage(segments, node) {
 	if (!quote) return { section };
 	const reading = pageText();
 	const [start, stop] = spanIn(reading, segments);
-	for (let width = 24;; width *= 2) {
+	for (let width = CONTEXT;; width *= 2) {
 		const prefix = cut(neighbourhood(reading, start, width, true), -width, Infinity);
 		const suffix = cut(neighbourhood(reading, stop, width, false), 0, width);
 		const anchor = {
@@ -681,67 +681,6 @@ function resolveAnchor(anchor) {
 	});
 }
 const fragmentTarget = (fragment) => fragment ? targetElement(resolveAnchor({ section: fragmentId(fragment) })) : null;
-
-//#endregion
-//#region runtime/marks.js
-const marks = {
-	"x-content": {
-		"paint": "data-lf-content",
-		"message": true
-	},
-	"x-verbatim": {
-		"paint": "data-lf-verbatim",
-		"message": true
-	},
-	"x-space": {
-		"paint": "data-lf-space",
-		"authored": "data-width",
-		"authored_on": "content",
-		"message": false
-	},
-	"x-inline": {
-		"paint": "data-lf-inline",
-		"message": true
-	},
-	"x-exhibit": {
-		"paint": "data-lf-exhibit",
-		"message": true
-	},
-	"x-bound": {
-		"paint": "data-lf-bound",
-		"authored": "data-bound",
-		"authored_on": "content",
-		"message": true
-	},
-	"x-height": {
-		"paint": "data-lf-height",
-		"authored": "data-height",
-		"authored_on": "declared",
-		"message": true
-	},
-	"x-reading-role": {
-		"paint": "data-lf-reading-role",
-		"message": true
-	},
-	"x-margin-content": {
-		"paint": "data-lf-margin-content",
-		"message": false
-	},
-	"x-views": {
-		"paint": "data-lf-views",
-		"message": true
-	},
-	"x-visual": {
-		"paint": "data-lf-visual",
-		"presence": true,
-		"message": true
-	},
-	"x-awaits": {
-		"paint": "data-lf-awaits",
-		"presence": true,
-		"message": true
-	}
-};
 
 //#endregion
 //#region runtime/bounds.js
@@ -1692,4 +1631,4 @@ function openMarginContentLayout({ onRead }) {
 }
 
 //#endregion
-export { ADDRESSABLE, PAGE_CONTROL_RANK, addressableLabel, addressableName, addressableSays, addressableWord, addressedElements, aimTargetAt, aimTargets, anchorAt, anchorBox, anchorElement, anchorFor, anchorForPassage, anchorForRange, anchorName, anchorReaches, anchorReading, anchorView, anchoringIsReady, annotationAt, boundedBlockOf, carriedAnchor, commitPoint, cutFrames, datumAimTarget, datumLabel, declaredName, designPressAt, elementFrame, exactTarget, followingItsEnd, fragmentTarget, headerLevels, holdArrivingBounds, isAddressable, leadingTitle, lightSeat, livePoint, localScrollBy, marks, nameAnchor, nameable, openMarginContentLayout, pageControls, pageControlsChanged, passageBoxes, passageGeometry, placePoints, pointBand, pointInto, projectedDatum, railStands, rangeGeometry, refreshAnchorView, registerPageControl, registerVisualParts, resolveAnchor, resolvedInMessage, revealAddressed, scheduleMarginContentLayout, scrollAxes, scrollsWith, sectionLabel, sectionOf, setAnchoringReady, settleMarginContentLayout, targetElement, targetParts, targetPlace, targetRange, targetSegments, targetSurface, unclaimedVisualGesture, visualAt, visualPartLabel, visualPartProblems, visualParts, visualSelector, widgetWord };
+export { ADDRESSABLE, PAGE_CONTROL_RANK, addressableLabel, addressableName, addressableSays, addressableWord, addressedElements, aimTargetAt, aimTargets, anchorAt, anchorBox, anchorElement, anchorFor, anchorForPassage, anchorForRange, anchorName, anchorReaches, anchorReading, anchorView, anchoringIsReady, annotationAt, boundedBlockOf, carriedAnchor, commitPoint, cutFrames, datumAimTarget, datumLabel, declaredName, designPressAt, elementFrame, exactTarget, followingItsEnd, fragmentTarget, headerLevels, holdArrivingBounds, isAddressable, leadingTitle, lightSeat, livePoint, localScrollBy, nameAnchor, nameable, openMarginContentLayout, pageControls, pageControlsChanged, passageBoxes, passageGeometry, placePoints, pointBand, pointInto, projectedDatum, railStands, rangeGeometry, refreshAnchorView, registerPageControl, registerVisualParts, resolveAnchor, resolvedInMessage, revealAddressed, scheduleMarginContentLayout, scrollAxes, scrollsWith, sectionLabel, sectionOf, setAnchoringReady, settleMarginContentLayout, targetElement, targetParts, targetPlace, targetRange, targetSegments, targetSurface, unclaimedVisualGesture, visualAt, visualPartLabel, visualPartProblems, visualParts, visualSelector, widgetWord };

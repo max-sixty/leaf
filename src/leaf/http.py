@@ -199,9 +199,9 @@ def page_delivery(
     `probe` is where a tab asks whether its source has moved on to another layer or
     release (`layer-client.js`, `sourceMovedOn`, and `bootstrap.js`'s startup
     recovery), so its answer must name the layer or release a fresh document would
-    start under. It defaults to the kernel's registry, whose answer names its release.
-    `runtime_identity` is the runtime a host without a release serves the document
-    with (`runtime_selection`), which the tab holds every answer to.
+    start under. It defaults to the page's `/registry.json`, whose answer names its
+    release. `runtime_identity` is the runtime a host without a release serves the
+    document with (`runtime_selection`), which the tab holds every answer to.
     """
     assets = asset_root if asset_root is not None else page_root
     address = DeliveryAddress(page_root, assets)

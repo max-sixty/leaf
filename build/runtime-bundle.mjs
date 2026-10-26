@@ -69,9 +69,12 @@ function layerPath(path, assetRoot) {
 /** Whether a layer module is served as committed rather than compiled into the kernel.
  *
  * Page modules and vendor modules always are; installations also keep package widgets
- * native. The framework is not: the kernel absorbs it with the runtime it imports.
+ * native. The framework is not: the kernel absorbs it with the runtime it imports. Nor
+ * is the kernel registry's JSON module (`runtime/kernel-facts.js`), so the kernel holds
+ * no copy of it to go stale when the registry changes.
  */
 function native(local, assetRoot) {
+  if (!/\.m?js$/.test(local)) return true;
   if (local.startsWith("page/")) return true;
   if (local.startsWith("vendor/")) return !inFramework(local);
   return !assetRoot && local.startsWith("widgets/");
@@ -230,7 +233,10 @@ export async function bundleRuntime(layerRoot, entries, outputRoot, assetRoot) {
   while (pending.length) {
     const local = pending.pop();
     if (graph.has(local)) continue;
-    const dependencies = await nativeImports(layerRoot, local, assetRoot);
+    // A JSON module imports nothing.
+    const dependencies = /\.m?js$/.test(local)
+      ? await nativeImports(layerRoot, local, assetRoot)
+      : [];
     graph.set(local, dependencies);
     pending.push(...dependencies);
   }

@@ -1,4 +1,4 @@
-import { bindQueuedWork, createPresentationSchedule, observeQueuedWork, threadCounts } from "./bundle-browser-runtime.js";
+import { TEXT_BLOCK, bindQueuedWork, createPresentationSchedule, observeQueuedWork, threadCounts } from "./bundle-browser-runtime.js";
 import { WORKS, frameVisibility, onCurrentLocation, onFrameVisibility, readSampleVisibility, releaseFocus, renderedParent, renderingState, tabStops, takesLetters, upFrom } from "./bundle-dom-move.js";
 import { exceptionText, recordInteraction, runtimeRootState } from "./bundle-layer-client.js";
 import { allBindings, annotationMarkSheets, annotationSheets, chromeSharedClasses, chromeSheet, commandDeclarationsWithin, commandEntries, commandPresentations, commandRoutes, dragHeld, growthAfterIsSeen, landingBand, live, marksSheet, nativeLayers, reveal, scrollGlides, seenRect, shownBand, shownBox, shownRect, skipped, stackLevel, stuckBox, uiInside, userScrollport, visibleBand, watchScrollEnds } from "./bundle-errors.js";
@@ -6,7 +6,7 @@ import { applicationPresented, presentDocument, readApplication, readApplication
 import { effectiveScroller, reachScrollers, readingRegion, readingRegionFor, readingRegions, releaseReachStop, scrollersOf, shownRegionBounds, unconcealedReadingRegions, userReadingRegion } from "./bundle-reading-regions.js";
 import { availableCommandRoutes, executeCommand, registerSampleCommand, stack } from "./bundle-dispatch.js";
 import { selfComparison, servedElements, shallowSigs } from "./bundle-version.js";
-import { TEXT_BLOCK, alignInlineText, closestAcross, elementById, fencePassageParts, findQuote, layoutBox, pageDocument, pageRange, pageText, quoteFrom, segmentsIn, sentenceUnits, settledAway, spanIn, verbatimBoundaryIdentity, verbatimOwnerIdentity } from "./bundle-passages.js";
+import { alignInlineText, closestAcross, elementById, fencePassageParts, findQuote, layoutBox, pageDocument, pageRange, pageText, quoteFrom, segmentsIn, sentenceUnits, settledAway, spanIn, verbatimBoundaryIdentity, verbatimOwnerIdentity } from "./bundle-passages.js";
 import { ADDRESSABLE, aimTargetAt, aimTargets, anchorForRange, elementFrame, resolveAnchor, scrollAxes, visualPartProblems } from "./bundle-content-layout.js";
 import { authoredBody } from "./bundle-initial-render.js";
 import { PAGE_SCOPE, SAY_BOX, THREAD, alreadyShown, blocksOnScreen, bringBackSurfaceOf, captureDraftEditing, capturePlace, claimed, completeReadingReturn, draftStore, fitsWhole, heldObligation, pageScopes, placeNode, placeOf, readingBlock, readingReturn, replyIsEditing, selectionAnchor, storedDraft, tabStore, userStore, walkOrigin, walkPosition, whereDraft } from "./bundle-surfaces.js";

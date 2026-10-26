@@ -10,6 +10,13 @@
   syntax: "*";
   inherits: false;
 }
+/* Clearance needed after the last content in a region reaching the window's foot.
+ * It does not inherit: a container passes it only to a child taking over that edge. */
+@property --lf-end-room {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
 @layer lf-layouts {
   /* Each page Layout owns its page's geometry, the body's included; a page with no
    * Layout keeps the browser's. The body drops its margin and, on a live page other than
@@ -825,6 +832,42 @@
     --lf-workspace-gutter: 12px;
     padding-inline: var(--lf-workspace-gutter);
     padding-block: var(--sp-2) var(--page-pad-end);
+  }
+  /* The root workspace reaches the window's foot. Its last reading region keeps
+   * the panel's clearance inside its content; containers that pass the edge to a
+   * child pass --lf-end-room as well, rather than shortening that child's frame. */
+  @media screen {
+    html[data-lf-live][data-lf-layout~="workspace"] body,
+    html[data-lf-live][data-lf-layout~="workspace"] body > main.layout-workspace {
+      padding-block-end: 0;
+    }
+    html[data-lf-live][data-lf-layout~="workspace"] body > main.layout-workspace
+      > :not(header, footer) {
+      --lf-end-room: var(--lf-foot-room);
+      margin-block-end: 0;
+    }
+    html[data-lf-live][data-lf-layout~="workspace"] body > main.layout-workspace:has(> footer)
+      > :not(header, footer) {
+      --lf-end-room: 0px;
+    }
+    html[data-lf-live][data-lf-layout~="workspace"] body > main.layout-workspace > footer {
+      padding-block-end: var(--lf-foot-room);
+    }
+    html[data-lf-live][data-lf-layout~="workspace"] body > main.layout-workspace
+      > :not(header, footer) > [data-lf-reading-role="pane"] {
+      --lf-end-room: inherit;
+    }
+    html[data-lf-live][data-lf-layout~="workspace"] body > main.layout-workspace
+      > :not(header, footer, [data-lf-reading-role="pane"], [data-lf-views]):not(
+        :has(> [data-lf-reading-role="pane"])
+      ) {
+      padding-block-end: var(--lf-end-room);
+    }
+  }
+  @media screen and (min-width: 720px) and (min-height: 480px) {
+    html[data-lf-live][data-lf-layout~="workspace"] body > main.layout-workspace {
+      block-size: calc(var(--lf-view-height) + var(--lf-foot-room));
+    }
   }
   /* The header is one row: the title with the page's status beside it, wrapping only
    * where the row runs out. A lede belongs in a pane. */

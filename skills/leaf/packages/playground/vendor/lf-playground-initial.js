@@ -150,7 +150,19 @@
         control.classList.add(`lf-playground-${kind}`);
         const heading = node("span", "lf-playground-control-label", label);
         control.prepend(heading);
-        if (kind === "choice") {
+        if (kind === "choice" && control.getAttribute("appearance") === "select") {
+          const input = offer("select", "lf-playground-input");
+          input.name = `${host.id}-${name}`;
+          input.setAttribute("aria-label", label);
+          for (const choice of choicesByName.get(name)) {
+            const option = node("option", "", choice.getAttribute("label"));
+            option.value = choice.getAttribute("value");
+            input.append(option);
+            choice.remove();
+          }
+          inputs.set(name, input);
+          control.append(input);
+        } else if (kind === "choice") {
           const group = node("div", "lf-playground-input lf-playground-choices");
           group.setAttribute("role", "radiogroup");
           group.setAttribute("aria-label", label);
@@ -273,7 +285,7 @@
     const setInput = (control, value) => {
       const name = control.getAttribute("name"), kind = control.getAttribute("kind"), input = inputs.get(name);
       if (!input) return;
-      if (kind === "choice")
+      if (Array.isArray(input))
         for (const radio of input) radio.checked = radio.value === value;
       else if (kind === "toggle") input.checked = value;
       else input.value = value;
@@ -282,7 +294,7 @@
     };
     const readInput = (control) => {
       const kind = control.getAttribute("kind"), input = inputs.get(control.getAttribute("name"));
-      return kind === "choice" ? input.find((radio) => radio.checked)?.value : kind === "toggle" ? input.checked : input.value;
+      return Array.isArray(input) ? input.find((radio) => radio.checked)?.value : kind === "toggle" ? input.checked : input.value;
     };
     const text = (element, value) => {
       if (element.textContent !== value) element.textContent = value;

@@ -1316,7 +1316,8 @@
   --col-pad: 24px;
   --page-pad-start: 72px;
   --page-pad-end: 96px;
-  --pane-bar-pad: 10px 14px;
+  --pane-bar-pad-block: 10px;
+  --pane-bar-pad: var(--pane-bar-pad-block) 14px;
   --pane-inset: 14px;
   --wide: 1080px;
   --wide-page-max: 1600px;
@@ -1740,7 +1741,8 @@ p {
   --code-line: 17px;
   --lf-key-badge-size: calc(round(var(--t-6) * 1.478 + 2px, 1px));
   --tip-font: 500 var(--t-6)/1.2 var(--sans);
-  --pane-bar-pad: 6px 12px;
+  --pane-bar-pad-block: 6px;
+  --pane-bar-pad: var(--pane-bar-pad-block) 12px;
   --pane-inset: 12px;
   --h2-start: 18px;
   --h3-start: 12px;
@@ -2358,9 +2360,18 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
 }
 :where([data-lf-reading-role=pane]) > :not(header, footer) {
   --lf-pane-top: var(--pane-inset);
-  padding: var(--lf-pane-top) var(--pane-inset) var(--pane-inset);
+  padding: var(--lf-pane-top) var(--pane-inset) calc(var(--pane-inset) + var(--lf-end-room));
   container-type: inline-size;
   --lf-block-frame: 1;
+}
+:where([data-lf-reading-role=pane]):not(:has(> footer)) > :not(header, footer) {
+  --lf-end-room: inherit;
+}
+@container not style(--lf-end-room: 0px) {
+  :where([data-lf-reading-role=pane]) > footer {
+    --lf-end-room: inherit;
+    padding-block-end: calc(var(--pane-bar-pad-block) + var(--lf-end-room));
+  }
 }
 .lf-motion-preview {
   box-sizing: border-box;

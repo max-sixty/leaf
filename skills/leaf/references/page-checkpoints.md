@@ -21,12 +21,16 @@ stacking. Inspect the end of a longer page yourself. Look in every screen for il
 labels in drawings, lone tiles, pins covering headings, and a summary that comes too
 late on a phone, and fix what the page controls.
 
-Then give a subagent only the user's request and the saved screens, and have it report
-anything it can't follow, has to guess, or has to picture from a description. Give it
-none of your notes: the user hasn't seen them either. Fix what it finds. In your own
-read-through, check that headings state findings, claims have evidence, decisions have
-controls, and every line of prose is needed, and draw anything the page explains only
-in words when a picture would show it.
+Then give a subagent with fresh context only the user's request, saved screens and
+served page. Use a disposable review copy for interactions, so test decisions stay out
+of the user's record. Have it try the task from the initial view, verify the visible
+outcome and judge how readily the user can find the relevant information, compare it
+and reach a decision or action, including avoidable effort from the composition. Its
+first judgment comes from what the user can see and do, before reading source or the
+author's explanations. Fix what it finds. In your own read-through, check that headings
+state findings, claims have evidence, decisions have controls, and every line of prose
+is needed, and draw anything the page explains only in words when a picture would show
+it.
 
 For a page with contents, start at the top at desktop and phone widths and jump to a
 later section without first scrolling to find the navigation. Follow the page's links

@@ -252,18 +252,15 @@
   display: none;
 }
 
-/* The stage: one well the preview's artifacts stand on, read from its top like a page.
- * A stage taller than its artifacts, held by the rail beside it or by a workspace's
- * height, leaves the room below them. Setting them in its middle left a bare band above
- * the artifact the reader came for, as tall as half the spare room, and moved every
- * artifact, the controls among them, whenever a control changed one artifact's height
- * or the rail's height changed. */
+/* The stage fits its artifacts in document flow; a rail or full-height workspace can
+ * stretch it. Artifacts stay at the top so changes in their height or the rail don't
+ * move what the reader is working on, and small previews leave no empty well between
+ * their evidence and the controls below. */
 :scope:is(lf-playground-preview) {
   --lf-block-frame: 1;
   display: grid;
   align-content: start;
   min-width: 0;
-  min-height: 18rem;
   padding: var(--sp-4);
   border: 1px solid var(--rule);
   border-radius: var(--r);
@@ -333,15 +330,4 @@
   :is(lf-playground-control, .lf-playground-control-box),
 :scope:is(lf-playground).lf-playground-quoted > lf-playground-preset {
   display: none !important;
-}
-/* Its stage holds what was authored and never changes, so it takes the height of its
- * artifacts rather than a live stage's minimum, which stood empty below them. */
-:scope:is(lf-playground).lf-playground-quoted > lf-playground-preview {
-  min-height: 0;
-}
-
-@container (max-width: 38rem) {
-  :scope:is(lf-playground-preview) {
-    min-height: 14rem;
-  }
 }

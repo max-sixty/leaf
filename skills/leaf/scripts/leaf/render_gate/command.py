@@ -110,9 +110,8 @@ class BrowserCheck:
                 "directory": str(into),
                 "files": [{"file": shot.name, "shows": label} for shot, label in saved],
                 "next": (
-                    "before handover, have a subagent with only the user's request and"
-                    " these screens read the page as the user would"
-                    ' (page-checkpoints.md, "Pre-handover review")'
+                    "before handover, run the independent review described in"
+                    ' page-checkpoints.md, "Pre-handover review"'
                 ),
             }
         return reading

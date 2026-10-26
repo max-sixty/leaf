@@ -6,7 +6,7 @@
 # candidate 9/9, each a workspace whose first page tab is the playground's lf-ask.
 description: surface-page-takes-the-window
 metadata:
-  purpose: "Arranging a page: a page whose main item is one surface the user works gives that surface the window, a workspace, and moves its supporting reading into page tabs after it."
+  purpose: "Arranging a page: a desktop interface the user tunes leads at a useful working scale, with supporting review separately accessible."
   tags:
     - layout
     - playground
@@ -33,11 +33,11 @@ assert:
   - type: llm-rubric
     metric: judgment
     value: |
-      Read the HTML. Pass only if the playground leads the page as its main surface:
-      `main` is a `layout-workspace`; the `lf-ask` holding the `lf-playground` is either
-      the workspace's body or the only block in the first tab of an `lf-tabs` set placed
-      directly in `main`, whose later tabs hold the review of today's panel, the
-      comparisons and the reasoning; and the `lf-playground` carries
-      `data-width="available"`. Fail if `main` is a `layout-column` or `layout-sidebar` page with the
-      playground set among the review's sections, or if the review, comparisons or
-      reasoning stand before the playground in the same view.
+      Read the HTML. Pass if the proposed desktop panel and its tuning controls lead
+      as the main working surface, with room to inspect the panel at desktop scale,
+      and the supporting review, comparisons and reasoning remain accessible without
+      pushing that task down the page. A workspace, a page of parts or another layout
+      can satisfy this. Fail if the user must read through the supporting review to
+      reach the playground, or the proposed panel is confined to a prose-sized exhibit
+      that cannot show the desktop interface being decided. Judge the authored layout
+      and order, not the presence of a particular class or width attribute.

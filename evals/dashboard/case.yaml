@@ -1,5 +1,5 @@
 # Complete task; diagnostic contexts retain the original fixed checks.
-description: Dashboard
+description: Release rollout dashboard
 metadata:
   purpose: Compose and revise a dashboard; inspect its rendered output against the
     request and, on Leaf, read and preserve a user choice on that page.

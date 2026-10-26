@@ -38,8 +38,23 @@ previous runs and findings.
 
 If the user gives no run limit, complete an initial improvement cycle, decide
 whether to retain the change, and report the result. For longer runs, keep the user
-current through a report while continuing. At handoff, leave the retained changes
-and their comparison evidence clear, including unsuccessful experiments.
+current through the standard eval report while continuing. Lead with the latest
+run's scope and what changed: the tested intervention, matched before/after outputs,
+and the keep, revise or reject judgment. A current-state pass without a baseline
+doesn't establish improvement; earlier experiments remain supporting history. Each
+experiment should let the user open the compared outputs and inspect the evidence
+behind its conclusion. Keep focused experiments
+in the same result format as full workflows, with exploratory observations distinct
+from scored comparisons; `evals/README.md`, "Render a report", owns that format and
+the reporting commands. At handoff, review each page the user will open through
+`/developing-leaf`, "Author or revise a page", including
+demonstrations linked from the report. Present the retained changes and comparison
+evidence, including unsuccessful experiments.
+
+Choose the experiment's scope to leave time for a change and its confirmation.
+Full multi-turn authoring tests the whole exchange; saved-page probes and focused
+fresh-author tasks give faster feedback on a local hypothesis. Long workflows
+can run alongside those shorter cycles when the questions are independent.
 
 ## What the comparisons should reveal
 

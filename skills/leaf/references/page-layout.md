@@ -30,8 +30,8 @@ widths"). The block breaks out of the column and the prose stays centred.
 
 On a sidebar page, every block, the title included, starts at the same left edge and
 fills its region. Text, an `lf-ask`, a callout, and widgets read as text such as an
-option list keep the reading measure, on a column page too. Give a table, chart or
-playground inside an `lf-ask` or callout its own `data-width`.
+option list keep the reading measure, on a column page too. To widen a table, chart or
+playground inside an `lf-ask` or callout, give that block its own `data-width`.
 
 A workspace fills the window. It has no reading measure, every block fills its region,
 and `data-width` has no effect. Where a region would hold prose too wide to read,

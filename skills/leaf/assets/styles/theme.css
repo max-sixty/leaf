@@ -333,7 +333,8 @@
   /* A pane's insets: its header and footer's, and its body's on every side. Tokens
      rather than numbers in the pane rules, so a density restates them and the rules
      keep the zero specificity a package restyling a pane relies on. */
-  --pane-bar-pad: 10px 14px;
+  --pane-bar-pad-block: 10px;
+  --pane-bar-pad: var(--pane-bar-pad-block) 14px;
   --pane-inset: 14px;
   /* How wide evidence with `x-space: wide` may stand — one number for the whole
      vocabulary, because a set of widths is
@@ -1308,7 +1309,8 @@ p {
   --code-line: 17px;
   --lf-key-badge-size: calc(round(var(--t-6) * 1.478 + 2px, 1px));
   --tip-font: 500 var(--t-6)/1.2 var(--sans);
-  --pane-bar-pad: 6px 12px;
+  --pane-bar-pad-block: 6px;
+  --pane-bar-pad: var(--pane-bar-pad-block) 12px;
   --pane-inset: 12px;
   --h2-start: 18px;
   --h3-start: 12px;
@@ -2363,9 +2365,21 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
  * that pads a pane body another way sets `--lf-pane-top` with it. */
 :where([data-lf-reading-role="pane"]) > :not(header, footer) {
   --lf-pane-top: var(--pane-inset);
-  padding: var(--lf-pane-top) var(--pane-inset) var(--pane-inset);
+  padding: var(--lf-pane-top) var(--pane-inset)
+    calc(var(--pane-inset) + var(--lf-end-room));
   container-type: inline-size;
   --lf-block-frame: 1;
+}
+
+/* Only the last region owns the clearance; a footer already stands below the body. */
+:where([data-lf-reading-role="pane"]):not(:has(> footer)) > :not(header, footer) {
+  --lf-end-room: inherit;
+}
+@container not style(--lf-end-room: 0px) {
+  :where([data-lf-reading-role="pane"]) > footer {
+    --lf-end-room: inherit;
+    padding-block-end: calc(var(--pane-bar-pad-block) + var(--lf-end-room));
+  }
 }
 
 /* Board motion carries a compact card label without duplicating its live

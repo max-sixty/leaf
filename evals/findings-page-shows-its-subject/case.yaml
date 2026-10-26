@@ -8,7 +8,7 @@
 # reproducing the failure. Replaying the session from just before it wrote the page
 # reproduced it: base showed the tiers in 4 of 15 pages; SKILL.md's picture default and
 # code-as-effect rule, over four wordings, in 12 of 17, the committed wording 4 of 4.
-description: findings-page-shows-its-subject
+description: CSS cascade survey
 metadata:
   purpose: "Show the subject: a findings page whose request names no form shows what its
     findings are about in a picture on the page, not only in prose, tables and code."

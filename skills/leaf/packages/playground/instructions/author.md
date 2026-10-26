@@ -21,17 +21,10 @@ settings every item shares in the rail. A control in the preview still belongs t
 playground. Its value is submitted, and presets and Reset set it. With every control
 in the preview, presets precede the full-width preview and the instruction follows it.
 
-Give the `lf-playground` `data-width="available"` wherever it stands, so it takes the
-room it is given while the question and premise in its `lf-ask` keep the prose width.
-Where the playground is the page's subject, make the page a workspace (`<main
-class="layout-workspace density-working">`) whose body is that `lf-ask`. When the page
-also carries reading that supports the playground, make it a page of parts instead: the
-first part is that workspace, `<div class="layout-workspace density-working">` holding
-the `lf-ask`, and the reading goes in later parts, each a column
-(`references/page-layout.md`, "A page of parts"). Either way the playground fills the
-window. Where the playground is one exhibit in a document, it breaks out of the
-document's column. Draw the candidates directly in the preview, without a card around
-each.
+Choose the playground's space by what the user needs to see and operate together
+(`references/page-authoring.md`, "Composing a page"). `data-width="available"` lets it
+break out of a reading column; a workspace gives it the window. Draw the candidates
+directly in the preview, without a card around each.
 
 An A/B comparison mounts both candidates in the preview with the same configuration and
 starting content. When candidates stand side by side, align their names, notes and
@@ -76,6 +69,13 @@ its key in the map of typed values the final `choose` action sends. A range need
 `min` defaults to 0 and `step` to 1. A range's `unit` is appended to its value in its
 CSS custom property and in `lf-playground-value`, while its data attribute and its entry
 in `values` stay plain numbers.
+
+A choice control shows radio buttons by default, so alternatives and their labels can
+be compared directly. `appearance="select"` favors scanning current settings across
+many items, at the cost of opening menus to compare alternatives. Choose by whether
+the alternatives or the current values carry the decision. The same
+`lf-playground-choice` children provide the select's values and labels; presets, Reset
+and the submitted values work the same.
 
 Keep the configuration the user is choosing apart from the cases used to inspect it.
 Controls and presets describe what to build. Give preview cases and inspection settings

@@ -1486,6 +1486,7 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
   --lf-views-flow: page;
 }
 :where(:scope:is(lf-tabs)) {
+  --lf-tab-end: calc(var(--sp-4) + var(--lf-end-room));
   display: block;
   margin: 14px 0;
 }
@@ -1642,7 +1643,8 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
   }
   :scope:is(lf-tabs).lf-rendered > lf-tab:not([hidden]),
   html[data-lf-interactive] :scope:is(lf-tabs):not(.lf-rendered):has(> lf-tab) > lf-tab {
-    padding: var(--sp-4);
+    padding: var(--sp-4) var(--sp-4) var(--lf-tab-end);
+    --lf-end-room: inherit;
     --lf-block-frame: 1;
   }
   :scope:is(lf-tabs, lf-parts).lf-rendered {
@@ -1699,7 +1701,7 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
     --lf-tabstrip-bg: var(--field);
     gap: 0;
     overflow: visible;
-    padding: 8px;
+    padding: 8px 8px calc(8px + var(--lf-end-room));
     border-bottom: 0;
     border-inline-end: 1px solid var(--border-2);
     border-radius: calc(var(--r) - 1px) 0 0 calc(var(--r) - 1px);
@@ -1839,6 +1841,7 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
   }
   @container style(--lf-full-height: 1) {
     :scope:is(lf-tabs)[list=side].lf-rendered {
+      min-block-size: 0;
       grid-template-rows: auto minmax(0, 1fr);
       --lf-full-height: inherit;
     }
@@ -1864,6 +1867,7 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
     }
   }
   :where(:scope:is(lf-tabs).lf-rendered[data-lf-views-flow=page], html[data-lf-interactive] :scope:is(lf-tabs):not(.lf-rendered)[data-lf-views-flow=page]:has(> lf-tab)) {
+    --lf-tab-end: var(--lf-end-room);
     margin-block: 0 32px;
     min-block-size: calc(100dvh - var(--lf-top));
     border: 0;
@@ -1970,7 +1974,7 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
   }
   :scope:is(lf-tabs).lf-rendered[data-lf-views-flow=page] > lf-tab:not([hidden]),
   html[data-lf-interactive] :scope:is(lf-tabs):not(.lf-rendered)[data-lf-views-flow=page]:has(> lf-tab) > lf-tab {
-    padding: var(--sp-4) 0 0;
+    padding: var(--sp-4) 0 var(--lf-tab-end);
     --lf-block-frame: trim;
   }
   :scope:is(lf-tabs).lf-rendered[data-lf-views-flow=page] > lf-tab[hidden] {
@@ -2151,6 +2155,22 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
 @media print {
   :scope:is(lf-tabs)[list=side] > lf-tab[group]::before {
     content: attr(group) " · " attr(label);
+  }
+}
+@media screen {
+  @container not style(--lf-end-room: 0px) {
+    :scope:is(lf-tabs) > lf-tab:not([hidden]):has(> :is(lf-tabs, [data-lf-reading-role=pane]):only-child) {
+      --lf-tab-end: 0px;
+    }
+    :scope:is(lf-tabs) > lf-tab:not([hidden]) > :is(lf-tabs, [data-lf-reading-role=pane]):only-child {
+      --lf-end-room: inherit;
+      margin-block-end: 0;
+    }
+    @container (width >= 36rem) {
+      :scope:is(lf-tabs)[list=side] > .lf-tabstrip {
+        --lf-end-room: inherit;
+      }
+    }
   }
 }
 

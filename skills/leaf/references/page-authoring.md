@@ -87,7 +87,11 @@ Most pages are read top to bottom and use the reading column,
 `<main class="layout-column">`, where text stays within the measure and wider blocks
 extend beside it. Without a Layout class, the page lays out as plain HTML. A diagram or
 board declares its width; `data-width` asks for one on other blocks, such as a wide
-table (`page-layout.md`, "Bounds and widths"). Compose the page from these:
+table (`page-layout.md`, "Bounds and widths"). Choose space for the user's task: keep
+the evidence, controls and results they need to compare together. Width can reveal a
+comparison at useful scale, while extra distance and padding can make a small choice
+harder to scan. Supporting explanation should help the user reach the task. Compose
+the page from these:
 
 - **Prose read in order**, such as a plan, review or decision, is plain semantic HTML.
 - **Independent status tiles** are a block with `class="layout-tiles"`, whose children
@@ -96,13 +100,11 @@ table (`page-layout.md`, "Bounds and widths"). Compose the page from these:
 - **A comparison** is a table, or native sections arranged by the page's CSS.
 - **Controls beside evidence** is a playground.
 - **A screen the reader works in rather than scrolls**, like a mail client, a queue
-  worked one item at a time, a log beside its chart, or a playground that is the page's
-  subject, is a workspace (`page-layout.md`, "A workspace"). Its surface fills the
-  window from the title's left edge. Broken out of a column, the same surface would sit
-  below the opening prose, with edges that match neither the title nor the prose, which
-  suits a figure a document cites but not the page's main item. Reading that supports the
-  surface, such as the review behind a design the reader tunes, goes in parts of its own
-  after the surface's, on a page of parts (below). A document read top to bottom beside a
+  worked one item at a time, a log beside its chart, or a desktop interface the reader
+  tunes, is a workspace (`page-layout.md`, "A workspace"). Its surface fills the
+  window from the title's left edge. Let that surface lead when it is the main task;
+  supporting reading, such as the review behind a design the reader tunes, goes in
+  later parts on a page of parts (below). A document read top to bottom beside a
   panel kept in view, such as a postmortem beside its timeline, is a `layout-sidebar` page
   (`page-layout.md`, "A sidebar page").
 - **Several views of one artifact** are one `lf-tabs` set. Page tabs hold project-scale

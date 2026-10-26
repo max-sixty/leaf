@@ -50,6 +50,7 @@ DEVELOPER_SOURCES = [
     EXAMPLES_DIR / "developer" / "visual-review-gallery.html",
     EXAMPLES_DIR / "developer" / "playwright-trace-gallery.html",
     EXAMPLES_DIR / "developer" / "motion.html",
+    EXAMPLES_DIR / "developer" / "playground.html",
 ]
 # Keep catalog order first, then include every other example, even one whose
 # catalog card is absent or commented out. The generated corpus never includes itself.

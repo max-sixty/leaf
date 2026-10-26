@@ -1481,6 +1481,12 @@ details {
   margin: var(--details-margin-block) 0;
   --lf-block-frame: trim;
 }
+/* A disclosure arranged in columns gives its evidence the whole row. Keep this
+   native pseudo-element rule outside package scopes: Firefox computes scoped
+   ::details-content declarations but does not use them for grid placement. */
+details::details-content {
+  grid-column: 1 / -1;
+}
 summary {
   cursor: pointer;
   font-weight: 600;

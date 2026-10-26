@@ -23,6 +23,72 @@ from leaf import data as data_model
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
+def test_worktree_summaries_share_columns_without_cramping_their_evidence(
+    request, serve, engine, subtests
+):
+    """A list aligns unlike counts and statuses; its narrow rows still wrap, and
+    opening a worktree gives its evidence the whole row rather than one column."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "Worktree columns",
+                '<h1>Worktree columns</h1><lf-worktree-diffs id="trees">'
+                '<lf-worktree id="short" label="Small change" path="/work/short" '
+                'status="changed" files="1" additions="1" deletions="1">'
+                '<p id="evidence">Evidence can use the complete worktree width.</p>'
+                '</lf-worktree><lf-worktree id="long" label="A longer change" '
+                'path="/work/long" status="changed" files="123" additions="12345" '
+                'deletions="1234" binary-files="2"><p>More evidence.</p></lf-worktree>'
+                '<lf-worktree id="unknown" label="Missing checkout" path="/work/missing" '
+                'status="unavailable"><p>No snapshot.</p></lf-worktree>'
+                "</lf-worktree-diffs>",
+            ),
+            packages=("diff",),
+        ),
+    )
+    for width in (1280, 720, 640, 390):
+        with subtests.test(width=width):
+            resized(page, width, 900)
+            reading = page.locator("#trees").evaluate("""node => {
+              const box = n => n.getBoundingClientRect().toJSON();
+              return {width: node.clientWidth, viewport: innerWidth,
+                rows: [...node.querySelectorAll('.lf-worktree-summary')].map(summary => ({
+                  box: box(summary), label: box(summary.querySelector('.lf-worktree-identity')),
+                  line: parseFloat(getComputedStyle(summary).lineHeight),
+                  status: box(summary.querySelector('.lf-worktree-status')),
+                  stats: [...summary.querySelector('.lf-worktree-stats').children].map(box)
+                }))};
+            }""")
+            rows = reading["rows"]
+            assert len(rows) == 3
+            for row in rows:
+                assert 0 <= row["box"]["left"] < row["box"]["right"] <= width
+                assert row["label"]["right"] <= row["status"]["left"]
+                assert all(
+                    stat["right"] <= row["box"]["right"] for stat in row["stats"]
+                )
+            if reading["width"] > 608:
+                if width == 1280:
+                    assert all(row["label"]["height"] <= row["line"] for row in rows)
+                assert [row["status"]["left"] for row in rows] == pytest.approx(
+                    [rows[0]["status"]["left"]] * 3, abs=0.5
+                )
+                assert [stat["left"] for stat in rows[0]["stats"]] == pytest.approx(
+                    [stat["left"] for stat in rows[1]["stats"][:3]], abs=0.5
+                )
+            else:
+                assert rows[0]["stats"][0]["top"] >= rows[0]["label"]["bottom"]
+            page.locator("#short > details > summary").click()
+            expect(page.locator("#evidence")).to_be_visible()
+            evidence = page.locator("#short .lf-worktree-body").bounding_box()
+            assert (
+                evidence["width"] > page.locator("#short").bounding_box()["width"] * 0.8
+            )
+            page.locator("#short > details > summary").click()
+
+
 def test_worktree_disclosures_keep_diff_reading_state_and_unknown_totals(
     browser, serve
 ):

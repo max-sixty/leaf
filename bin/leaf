@@ -16,13 +16,15 @@
 # install. `-q` because an agent reads stderr back and an ordinary sync has
 # nothing to say; a failed resolve is reported either way.
 #
-# uv opens its cache even with nothing to sync, and Codex's sandbox refuses writes
-# to it, so inside that sandbox uv runs with `--no-cache`, letting a direct call
-# such as `leaf --root` work and a refusal name the way out. CODEX_SANDBOX and
+# uv opens its cache even with nothing to sync, and Codex's workspace-write sandbox
+# writes only to the workspace and the temporary directories, so inside that
+# sandbox uv keeps its cache under $TMPDIR, letting a direct call such as
+# `leaf --root` work and a refusal name the way out. CODEX_SANDBOX and
 # CODEX_SANDBOX_NETWORK_DISABLED are Codex's markers for that sandbox, the ones
 # `machine.SANDBOX_REMEDIES` reads; Codex's hooks and Leaf's MCP server run outside
-# it and see neither. Elsewhere uv keeps its cache: without it uv re-queries the
-# interpreter on every call, tens of ms more (24 ms at load 33, 40 ms at load 60).
+# it and see neither. A cache it may write beats `--no-cache`, with which uv
+# re-queries the interpreter on every call, tens of ms more (24 ms at load 33,
+# 40 ms at load 60).
 #
 # The module rather than the `leaf` console script: where this path is long
 # enough to pass the ~127-byte shebang limit — a harness cache path reaches it —
@@ -54,8 +56,7 @@ python="$root/.venv/bin/python"
 if [ "$#" -eq 1 ] && [ "$1" = session-end ]; then
     exec python3 -S "$state"
 fi
-cache=
-[ -n "${CODEX_SANDBOX:-}${CODEX_SANDBOX_NETWORK_DISABLED:-}" ] && cache=--no-cache
+[ -n "${CODEX_SANDBOX:-}${CODEX_SANDBOX_NETWORK_DISABLED:-}" ] && export UV_CACHE_DIR="${TMPDIR:-/tmp}/leaf-uv-cache"
 if [ -n "${LEAF_HOST_LAUNCHER:-}" ] && [ ! "$LEAF_HOST_LAUNCHER" -ef "$0" ]; then
     leaf_host_launcher=$LEAF_HOST_LAUNCHER
     unset LEAF_HOST_LAUNCHER
@@ -68,8 +69,8 @@ if [ "${1:-}" = hook ] && [ "${4:-}" = --if-claimed ] && [ -x "$python" ]; then
     payload=$(cat)
     printf '%s' "$payload" | "$python" -S "$state" hook-gate
     [ "$?" -eq 3 ] && exit 0
-    exec uv run -q $cache --no-dev --project "$root" python -m leaf "$@" <<EOF
+    exec uv run -q --no-dev --project "$root" python -m leaf "$@" <<EOF
 $payload
 EOF
 fi
-exec uv run -q $cache --no-dev --project "$root" python -m leaf "$@"
+exec uv run -q --no-dev --project "$root" python -m leaf "$@"

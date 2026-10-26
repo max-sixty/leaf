@@ -953,11 +953,31 @@ var LeafText = class extends HTMLElement {
 					return false;
 				}),
 				this.#history.of(history()),
+				EditorState.transactionFilter.of((tr) => {
+					if (!tr.docChanged || !this.#oneLine) return tr;
+					const breaks = [];
+					tr.changes.iterChanges((_fromA, _toA, fromB, _toB, inserted) => {
+						const text = inserted.toString();
+						for (let at = text.indexOf("\n"); at !== -1; at = text.indexOf("\n", at + 1)) breaks.push({
+							from: fromB + at,
+							to: fromB + at + 1,
+							insert: " "
+						});
+					});
+					return breaks.length ? [tr, {
+						changes: breaks,
+						sequential: true
+					}] : tr;
+				}),
 				invertedEffects.of((tr) => tr.effects.filter((effect) => effect.is(ownerStep)).map(({ value }) => ownerStep.of({
 					run: value.back,
 					back: value.run
 				}))),
 				keymap.of([
+					{
+						key: "Shift-Enter",
+						run: () => this.#oneLine
+					},
 					{
 						key: "Enter",
 						run: (view) => this.dispatchEvent(new Event("lf-edit-return", { cancelable: true })) && insertNewline(view)
@@ -1010,7 +1030,6 @@ var LeafText = class extends HTMLElement {
 		const wanted = {
 			...this.#contentAttributes(),
 			role: "textbox",
-			"aria-multiline": "true",
 			contenteditable: "plaintext-only",
 			...this.#readOnly && { "aria-readonly": "true" }
 		};
@@ -1114,11 +1133,15 @@ var LeafText = class extends HTMLElement {
 		if (this.#view) this.#view.dispatch(spec);
 		else this.#model = this.#model.update(spec).state;
 	}
+	get #oneLine() {
+		return this.getAttribute("aria-multiline") === "false";
+	}
 	#contentAttributes() {
 		const attributes = {
 			spellcheck: "true",
 			autocorrect: "on",
-			autocapitalize: "sentences"
+			autocapitalize: "sentences",
+			"aria-multiline": String(!this.#oneLine)
 		};
 		if (this.placeholder) attributes["aria-placeholder"] = this.placeholder;
 		const label = this.getAttribute("aria-label");

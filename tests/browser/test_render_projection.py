@@ -573,7 +573,7 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve, provided)
     page = open_page(browser, live_url(url))
     draft = page.locator("#ledger-cargo")
     draft_control(page, "edit", "ledger-cargo").click()
-    editor = draft.get_by_role("textbox", name="Edit ledger-cargo")
+    editor = draft.locator("leaf-text")
     if provided.startswith("\n"):
         # CodeMirror's bulk insertText reading drops an initial LF;
         # create that line through the editor's ordinary key route instead.

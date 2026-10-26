@@ -14,7 +14,14 @@
  * have already been rejected by the dispatcher. Accessible shortcuts compose with
  * existing control scopes through scopes.js rather than a second attribute writer.
  */
-import { bindings, commandRoutes, routedCommand, spell, word } from "./bindings.js";
+import {
+  advertisesKeys,
+  bindings,
+  commandRoutes,
+  routedCommand,
+  spell,
+  word,
+} from "./bindings.js";
 import { availableCommandRoutes } from "./dispatch.js";
 import { buttonCommand, commandScope, projectCommandScope } from "./scopes.js";
 import { keyBadgePlacement } from "./key-badge-placement.js";
@@ -207,9 +214,11 @@ export function createCommandHints({ presentedControl }) {
       routedControls.add(control);
     }
     withdrawRoutes(new Set(routes.map(({ control }) => control)));
-    const visualRoutes = routes.filter(
-      ({ bindingBadge }) => bindingBadge !== undefined,
-    );
+    // A touch screen gets the accessible shortcuts and no faces: a digit drawn where the
+    // user has no keyboard names a press they cannot make (`advertisesKeys`).
+    const visualRoutes = advertisesKeys()
+      ? routes.filter(({ bindingBadge }) => bindingBadge !== undefined)
+      : [];
     hasRoutes = visualRoutes.length > 0;
     if (!visualRoutes.length) {
       restoreBindingBadges();

@@ -21,6 +21,7 @@ from render_harness import (
     PANEL_THREAD,
     leaf_page,
     open_page,
+    open_threads,
     panel_settled,
     resized,
     sending,
@@ -828,8 +829,7 @@ def test_draw_mode_leaves_chrome_controls_usable(browser, serve):
     expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
     exit_mode.click()
     expect(page.locator("html")).not_to_have_attribute("data-lf-draw-mode", "")
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    open_threads(page)
 
 
 def test_draw_mode_keeps_the_separate_design_mode_binding(browser, serve):

@@ -15,6 +15,7 @@ from render_harness import (
     leaf_page,
     margins_laid_out,
     open_page,
+    open_threads,
     panel_settled,
     resized,
     sending,
@@ -627,8 +628,7 @@ def test_lit_inline_margin_projection_keys_controls_inside_thread_chrome(
 ):
     """The inline Lit seat reorders one retained control tree and completes its press."""
     page = open_page(browser, serve(PANEL_PAGE))
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    open_threads(page)
     page.evaluate(
         """async () => {
           const {contributionEntry, registerContribution} =

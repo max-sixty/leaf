@@ -19,10 +19,12 @@ playground. Its value is submitted, and presets and Reset set it.
 
 Choose the playground's space by what the user needs to see and operate together
 (`references/page-authoring.md`, "Composing a page"). `data-width="available"` lets it
-break out of a reading column; a workspace gives it the window. A long comparison can
-flow down the page. Shared controls stay in their rail on wide layouts and above the
-preview on narrow layouts, where their own contents scroll if needed to leave room for
-the candidates. Controls authored beside an individual candidate stay beside it.
+break out of a reading column; a workspace gives it the window. Candidates the user
+compares fit the window together, each picture sized as
+`references/authoring-decisions.md` says. Shared controls stay in their rail on wide
+layouts and above the preview on narrow layouts, where their own contents scroll if
+needed to leave room for the candidates. Controls authored beside an individual
+candidate stay beside it.
 
 Keep the premise focused on what the user is setting and why, so the preview, controls
 and submission remain easy to reach. Leave facts already visible in the preview there.

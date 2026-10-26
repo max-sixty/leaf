@@ -14,7 +14,7 @@ from .activity import (
     current_turn,
     declaration,
     declared_at,
-    takes_input,
+    nudge_due,
     undeclared,
 )
 from .files import file_stamp
@@ -256,7 +256,13 @@ def live_facts(page_dir: Path, claim: dict | None, *, process: bool = True) -> d
         "session_alive": active is not None if claim else None,
         "live_turn": claim_harness(active).live_turn() if active else None,
         "session_name": claim_harness(claim).session_name() if claim else None,
+        # Whether a nudge would start the claimant's next turn (`Harness.input_wakes`).
+        "input_wakes": bool(active and claim_harness(active).input_wakes()),
     }
+
+
+# The keys `live_facts` returns.
+LIVE_FACTS = ("listening", "session_alive", "live_turn", "session_name", "input_wakes")
 
 
 def page_agent(claim: dict | None, events: list) -> str:
@@ -374,13 +380,7 @@ def presence(page_dir: Path, events: list) -> dict:
 def presence_fingerprint(present: dict, others: list) -> str:
     """The half of a reading that file stamps cannot supply, from the facts a state
     already carries: its `live_facts`, and the neighbours as All pages shows them."""
-    facts = (
-        [
-            present[key]
-            for key in ("listening", "session_alive", "live_turn", "session_name")
-        ],
-        others,
-    )
+    facts = ([present[key] for key in LIVE_FACTS], others)
     return hashlib.sha256(
         json.dumps(facts, sort_keys=True, default=str).encode()
     ).hexdigest()[:8]
@@ -424,12 +424,10 @@ def nudge_unwatched(page: PageTransaction) -> None:
     """Message the claimant of a page holding input nothing will carry, once per
     ending of its turn.
 
-    Nothing carries it when no wait lease is held and the claimant takes no input
-    by the activity fold's own reading (`activity.takes_input`), because its turn
-    was seen to end: closed by the Stop hook, or interrupted as its harness's record
-    says. A turn Leaf only stopped believing in may still be running a long step,
-    and a running turn needs no nudge, because its Stop hook refuses to end with the
-    input unpicked. Each ending gets one nudge per page, named by the claim's turn
+    Nothing carries it when no wait lease is held and the activity fold reads a
+    nudge as due (`activity.nudge_due`): the claimant takes no input, because its
+    turn was seen to end, closed by the Stop hook or interrupted as its harness's
+    record says. Each ending gets one nudge per page, named by the claim's turn
     and the stamp that ended or last renewed it, so a user ticking three boxes queues
     one turn or one approval rather than three, while a turn interrupted again after
     a new prompt is messaged again. The claimant's harness decides whether its
@@ -446,8 +444,7 @@ def nudge_unwatched(page: PageTransaction) -> None:
     present, turn = claimant_reading(page_dir, page.events)
     mark = turn_ending(claim)
     if (
-        turn.ended is not None
-        and not takes_input(present, turn)
+        nudge_due(present, turn)
         and claim.get("messaged_ending") != mark
         and claim_harness(claim).nudge(page_dir)
     ):

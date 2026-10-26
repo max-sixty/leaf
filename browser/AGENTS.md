@@ -74,6 +74,12 @@ representative desktop viewport.
   ancestors or siblings, and typing may grow a field but never moves it. Check:
   `tests/shift_watch.js`, run on every browser test outside a module marked
   `shifts_unsurveyed` (`tests/AGENTS.md`, "Browser errors").
+- **Stability is owed to the common path.** Every hold costs code on each later
+  change, so a rare path the user reads at a glance moves what is on screen rather
+  than carry a mechanism of its own. In the floating panel, words a refused send hands
+  back, and a draft typed in another tab, grow the field as typing does: what the user
+  is about to send shows whole before the layout holds (the user's choice, 25 October
+  2026).
 - **What takes turns in a place doesn't size it.** Where several modes share one seat,
   as the comment field, page search, Threads' search, a thread's reply and the seated
   comment box share the floating panel's field, the place sets the box from a theme
@@ -183,7 +189,7 @@ representative desktop viewport.
   heights, `--raise-1` to `--raise-3` (`styles/theme.css`). Check:
   `test_every_lift_names_one_of_the_theme_s_heights_cast_in_the_scheme_s_ink`.
 - **Every surface paints a thread's `unread` and `attention` from one value**, so the
-  Threads toggle, filters, panel, margin entry and Page Map change together. Green marks
+  On me mark's dot, Threads, panel, margin entry and Page Map change together. Green marks
   the user's turn; other thread controls stay blue. Marking read never moves the user.
 
 ### Motion

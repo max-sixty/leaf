@@ -54,10 +54,14 @@
    and a group's one Tab stop (`rove`).
 
    The selector vocabulary lives in control-selectors.js, which imports nothing.
-   In a sample, only the document already holding input may place focus. A trusted
-   pointer or keyboard entry gives the child that ownership before Leaf handles the
-   gesture; remote commands and delayed work cannot borrow it from the parent. This
-   is a rule for Leaf placements, not a restriction on authored browser scripts.
+   In a framed document, a sample's or any other, only the document already holding
+   input may place focus: one the user has not entered would take them from the page
+   around it. A top-level document always may, since placing focus in a background tab
+   takes it from nobody. A trusted pointer or keyboard entry gives the frame that
+   ownership before Leaf handles the gesture (bootstrap.js); arrival, the embedding
+   page's navigation, remote commands and delayed work cannot borrow it from the
+   parent. This is a rule for Leaf placements, not a restriction on authored browser
+   scripts.
 
    Its dependencies are structural vocabulary, rendering and writes; importing a
    gesture owner would cycle through its focus dependency. */
@@ -66,6 +70,7 @@ import { signal } from "/vendor/browser-runtime.js";
 import { keeps } from "./keeps.js";
 import { MODIFIER_KEYS, TEXT_BOX, TAB_STOP } from "./control-selectors.js";
 import {
+  excludedByInert,
   isNativeLayer,
   renderedParent,
   renderedUnder,
@@ -147,8 +152,7 @@ export const tabStops = (root) =>
 //
 // Placements never ask the browser to reveal their target: native focus scrolling
 // crosses browsing contexts. A caller needing reveal uses document-local scrolling.
-export const canPlaceFocus = () =>
-  !document.documentElement.lfSample || document.hasFocus();
+export const canPlaceFocus = () => window === window.top || document.hasFocus();
 const CAUSES = new Set(["move", "step", "return", "press"]);
 export function focusDestination(
   destination,
@@ -981,10 +985,13 @@ export function ringBox(node) {
     if (getComputedStyle(box).getPropertyValue("--lf-wears-ring") === "1") return box;
   return node;
 }
+// A focus place excludes inert content, even while its closing animation paints it.
 // Drawn counts `visibility: hidden` as hidden: a node under it keeps focus for a frame
 // and then the browser blurs it to the body, as it does a node under `display: none`.
 export const drawn = (node) =>
-  node?.isConnected && node.checkVisibility({ visibilityProperty: true });
+  node?.isConnected &&
+  !excludedByInert(node) &&
+  node.checkVisibility({ visibilityProperty: true });
 // The node hidden or removed by a change that left the user with no current location.
 const dropped = () => {
   const at = deepFocus();

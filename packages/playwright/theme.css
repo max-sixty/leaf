@@ -847,6 +847,13 @@
   background: var(--paper);
   z-index: 0;
 }
+/* The canvas frames its capture with its own border, so the capture wears no picture
+ * face of its own (reading.css). */
+.lf-trace-canvas img {
+  border-radius: 0;
+  box-shadow: none;
+  outline: 0;
+}
 .lf-trace-canvas > img {
   position: absolute;
   inset: 0;

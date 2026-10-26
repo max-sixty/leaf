@@ -37,6 +37,7 @@
       "unit": {"type":"string","minLength":1},
       "record": {"oneOf":[{"type":"object","properties":{"kind":{"const":"attribute"},"attr":{"type":"string","pattern":"^[a-z][a-z0-9-]*$"}},"required":["kind","attr"],"additionalProperties":false},{"type":"object","properties":{"kind":{"const":"position"},"within":{"type":"string","pattern":"^lf-[a-z0-9]+(?:-[a-z0-9]+)*$"}},"required":["kind","within"],"additionalProperties":false},{"type":"object","properties":{"kind":{"const":"body"}},"required":["kind"],"additionalProperties":false},{"type":"object","properties":{"kind":{"const":"value"},"attr":{"type":"string","pattern":"^[a-z][a-z0-9-]*$"}},"required":["kind","attr"],"additionalProperties":false}]},
       "writer": {"const":"agent"},
+      "attention": {"const":true},
       "creates": {"type":"object","properties":{"child":{"type":"string","pattern":"^lf-[a-z0-9]+(?:-[a-z0-9]+)*$"},"words":{"type":"string","pattern":"^[a-z][a-z0-9-]*$"}},"required":["child","words"],"additionalProperties":false},
       "decides": {"const":true},
       "contract": {"type":"object","properties":{"field":{"type":"string","minLength":1},"attribute":{"type":"string","pattern":"^[a-z][a-z0-9-]*$"}},"required":["field","attribute"],"additionalProperties":false},

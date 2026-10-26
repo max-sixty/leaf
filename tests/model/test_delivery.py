@@ -41,6 +41,7 @@ from leaf import session as session_model
 from leaf import thread as thread_model
 from leaf.registry import contract as registry_contract
 from leaf.registry import storage as registry_storage
+from model.interact_contract import _stateful_page_declaration
 
 
 def test_delivery_ids_are_short_and_rerolled_under_the_store_lock(monkeypatch):
@@ -380,6 +381,111 @@ def test_delivery_distinguishes_composing_an_obligation_from_changing_input_in_h
     )
     assert quiet not in selected
     assert undone in selected and changed in selected
+
+
+def test_recordless_requests_wake_without_user_obligations(
+    page_dir, sessionless, capsys
+):
+    from leaf.files import latest_revision
+    from leaf.served_state.context import read_page
+
+    declaration = _stateful_page_declaration(page_dir, "lf-archive")
+    verb = {
+        "unit": "widget",
+        "detail": {"type": "object", "properties": {}, "additionalProperties": False},
+    }
+    declaration["x-state"] = {
+        "archive": {**verb, "attention": True},
+        "edit": verb,
+    }
+    (page_dir / "page" / "registry.json").write_text(
+        json.dumps({"lf-archive": declaration})
+    )
+    source = PAGE.replace(
+        "</section>", '<lf-archive id="row">Archive this</lf-archive></section>'
+    )
+    (page_dir / "index.html").write_text(source)
+    serving(page_dir, 1)
+    publish(page_dir)
+    session_model.cmd_waiting(page_dir)
+
+    def action(verb, widget="row"):
+        return append_command(
+            page_dir,
+            {
+                "kind": "action",
+                "author": "user",
+                "revision": latest_revision(page_dir),
+                "widget": widget,
+                "action": verb,
+                "detail": {},
+            },
+        )
+
+    def work():
+        return read_page(page_dir, events_model.read_events(page_dir)).work.durable
+
+    assert work().all_obligations["all"] == []
+    quiet = action("edit")
+    assert not quiet["attention"]
+    first = action("archive")
+    assert first["attention"]
+    assert work().all_obligations["all"] == []
+    assert owed_answers(page_dir) == []
+    assert session_model.cmd_wait(page_dir) == 0
+    payload, _, events = printed(capsys.readouterr().out)
+    assert [event["id"] for event in events] == [first["id"]]
+    assert "answer" not in events[0]
+    delivery_model.receive_delivery(payload["id"])
+    assert page_state(page_dir)["pending"] == 0
+
+    repeated = action("archive")
+    assert repeated["attention"]
+    assert not action("edit")["attention"]
+    (page_dir / "index.html").write_text(
+        source.replace("Archive this", "Archive this row")
+    )
+    note = publish(page_dir)
+    assert not note["attention"]
+    assert work().workflows == []
+    # A stamp settles the receipt; taking back the requested state still needs
+    # to reach the agent, just as changing it again does.
+    undone = append_command(
+        page_dir, {"kind": "undo", "author": "user", "undoes": repeated["id"]}
+    )
+    assert undone["attention"]
+    fresh = action("archive")
+    assert fresh["attention"]
+    assert service_model.unacknowledged(
+        events_model.read_events(page_dir), first["seq"]
+    ) == [repeated, undone, fresh]
+
+    # The same declaration belongs to a widget frozen into a thread message.
+    thread = append_command(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "agent",
+            "revision": latest_revision(page_dir),
+            "text": "An optional command:",
+            "markup": '<lf-archive id="thread-row">Archive this</lf-archive>',
+        },
+    )
+    frozen = action("archive", "thread-row")
+    assert frozen["attention"]
+    assert "answer" not in frozen["meaning"]
+    assert owed_answers(page_dir) == []
+    append_command(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "parent": thread["id"],
+            "text": "Archived.",
+        },
+    )
+    assert not any(item["input"] == frozen["id"] for item in work().workflows)
+    assert action("archive", "thread-row")["attention"]
 
 
 def test_widget_actions_withdrawals_reports_and_errors_remain_deliverable(page_dir):

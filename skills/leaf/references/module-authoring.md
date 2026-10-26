@@ -352,8 +352,9 @@ one kind wears one face: `offerAction(role, className, label, {title, icon})`, o
 - `"commit"`, the one press on a surface that commits the user's work.
 - `"mark"`, a small symbol seated on the thing it acts on, at its corner.
 
-`className` places the control; don't restyle its face. Prefer a symbol where a familiar
-icon says what the press does, and words where it would leave the reader guessing.
+`className` places the control; don't restyle its face. Use a symbol where a standard
+symbol for the action exists, one readers know from other software, and words where
+none does.
 Shared control styles (`page-layout.md`, "Page CSS and Leaf's controls") apply to
 generated controls too.
 

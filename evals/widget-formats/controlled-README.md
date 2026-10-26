@@ -101,7 +101,12 @@ The retained batch exposed an ambiguity in the common component instructions:
 they list available attributes globally but Leaf validates each tag's own
 schema. Both encodings produced one `lf-options` with `aria-label`, which the
 Leaf schema rejects. These are component-contract failures, not encoding parse
-failures. Preserve that distinction when interpreting the run.
+failures. Preserve that distinction when interpreting the run. Future runs use
+the corrected contract, which lists the Leaf elements' attributes separately
+from ordinary HTML attributes. The retained batch's saved `instructions.txt`
+files preserve its original contract; do not pool its results with new runs as
+one unchanged condition. Repairs reuse the initial sample's saved instructions,
+including when the current contract has since changed.
 
 ## Commands
 

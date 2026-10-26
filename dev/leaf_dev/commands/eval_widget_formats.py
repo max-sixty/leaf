@@ -163,7 +163,7 @@ def eval_widget_formats(
         PROMPTFOO_DISABLE_UPDATE_CHECK="1",
         PROMPTFOO_PYTHON=sys.executable,
     )
-    subprocess.run(
+    status = subprocess.run(
         [
             str(ROOT / "node_modules/.bin/promptfoo"),
             "eval",
@@ -178,5 +178,6 @@ def eval_widget_formats(
         cwd=ROOT,
         env=env,
         check=False,
-    )
-    click.echo(f"Results: {run / 'results.json'}")
+    ).returncode
+    click.echo("view: pnpm run eval:view")
+    sys.exit(status)

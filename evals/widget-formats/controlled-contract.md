@@ -16,6 +16,9 @@ Both encodings have the following component catalog and behavior:
   The chosen boolean attribute records an existing decision, so leave it absent
   when the user has not decided. Recommendation is prose, not a chosen value.
   These choices record a local decision and perform no rollout operation.
+  In this experiment, lf-ask accepts only id; lf-options accepts id, choose and
+  multiple; lf-option accepts id and chosen. Ordinary HTML attributes below do
+  not apply to these Leaf elements. Put any labeled section around them.
 - Form elements: form, label, input, select, option, textarea, button, fieldset,
   legend, output. Use an input type=text with name=title and accessible label
   "Title", a select name=severity with accessible label "Severity", and a
@@ -27,10 +30,10 @@ Both encodings have the following component catalog and behavior:
   "Draft recorded locally for review". It sends nothing and changes no service.
   Do not prefill the user's title or impact. You may include an initially empty
   output or let the host create it.
-- Available attributes: id, class, title, role, aria-label, aria-labelledby,
-  aria-describedby, aria-live, choose, multiple, chosen, for, type, name, value,
-  required, placeholder, rows, cols, maxlength, minlength, selected, checked,
-  disabled, scope. Use only attributes appropriate to the element. All ids
+- Available attributes on ordinary HTML elements: id, class, title, role,
+  aria-label, aria-labelledby, aria-describedby, aria-live, multiple, for, type,
+  name, value, required, placeholder, rows, cols, maxlength, minlength, selected,
+  checked, disabled, scope. Use only attributes appropriate to the element. All ids
   must be unique; Leaf element ids use lowercase letters, numbers and hyphens.
   The host supplies ordinary browser semantics for HTML elements. input and br
   are void elements with no children. All other elements have closing tags in

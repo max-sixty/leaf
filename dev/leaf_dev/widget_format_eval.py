@@ -392,7 +392,12 @@ def call_api(prompt: str, options: dict, context: dict) -> dict:
     samples = Path(config["samples"])
     samples.mkdir(parents=True, exist_ok=True)
     work = Path(tempfile.mkdtemp(prefix=f"{case}-{condition}-", dir=samples))
-    system = instructions(condition)
+    original = context["vars"].get("repairOf")
+    system = (
+        (Path(original) / "instructions.txt").read_text()
+        if original
+        else instructions(condition)
+    )
     (work / "instructions.txt").write_text(system)
     (work / "prompt.txt").write_text(prompt)
     result = infer(prompt, system, work)

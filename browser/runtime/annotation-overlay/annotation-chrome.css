@@ -24,20 +24,19 @@ body.lf-over-mark {
 }
 /* The draft's own element (an open composer is on screen whenever this is), the pointer
    on the thread's row in Threads and the thread the user is in share one contour
-   (--mark-contour-w and --mark-contour-ink, theme.css). It stands outside the element
-   at the focus ring's gap, clear of the words at its edge: drawn inside, it ran into a
-   heading's first letters. Focus on the element itself is the distinct state that
-   earns the full ring, in the same place. */
-.lf-mark-el:is(.lf-pending, .lf-mark-hover, .lf-mark-here) {
+   (chrome.css). The projected brackets stand flush outside its boundary;
+   focus earns the same outline drawn whole. This fallback draws the full outline
+   where no projection is available. */
+.lf-mark-el:is(.lf-pending, .lf-mark-hover, .lf-mark-here):not(.lf-projected-mark) {
   outline: var(--mark-contour-w) solid var(--mark-contour-ink);
-  outline-offset: var(--focus-ring-gap);
+  outline-offset: 0;
 }
 .lf-mark-el.lf-pending {
   cursor: auto;
 }
 .lf-mark-el:not(.lf-projected-mark)[data-lf-focus-visible] {
   outline: var(--focus-ring);
-  outline-offset: var(--focus-ring-gap);
+  outline-offset: 0;
 }
 /* Armed, a press on a thread-marked element is the aim's, not the thread's, so the
    hand here is the aim's answer rather than the thread's: it stands where the aim has
@@ -49,9 +48,10 @@ body:is(.lf-aiming, [data-lf-design-mode]) .lf-mark-el {
 body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   cursor: pointer;
 }
-/* The chrome layer projects every element mark above the element's own descendants,
-   so source paint would duplicate it. */
-:is(.lf-mark-el, .lf-action-target).lf-projected-mark {
+/* Replace only the source focus cue, preserving authored outlines and obligations
+   while a reference is projected. Native visibility covers the return before the
+   focus owner has reflected its attribute. */
+:root .lf-projected-mark:is(:focus-visible, [data-lf-focus-visible]) {
   outline: none;
 }
 
@@ -192,18 +192,15 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   .lf-visual-marks {
     display: contents;
   }
-  /* Every projected state is a moment (anchor-paint.js), drawn as the contour the
-     fallback above draws, outside the target; focus on the target wears the focus ring
-     there instead, and an action's target alone keeps the hairline. A shaped mark
-     strokes the target's own shape (target-paint-geometry.js), so it spends no outline. */
+  /* Rectangles use the shared brackets in chrome.css; focus draws that perimeter
+     whole. SVG marks retain their actual contour instead of a rectangular frame. */
   .lf-visual-mark {
     position: absolute;
     display: none;
     pointer-events: none;
     --lf-shape-ink: var(--mark-contour-ink);
     --lf-shape-stroke: var(--mark-contour-w);
-    outline: var(--lf-shape-stroke) solid var(--lf-shape-ink);
-    outline-offset: var(--focus-ring-gap);
+    outline-offset: 0;
     /* This layer is above the target's children. Keep its interior physically unable
        to paint over them, including under package and page-local theme rules. */
     background: none !important;
@@ -220,6 +217,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
       .lf-visual-mark-here
     ) {
     --lf-shape-stroke: 1px;
+    --lf-target-outline: 1px solid var(--mark-contour-ink);
   }
   .lf-visual-mark.lf-shaped {
     outline: none;

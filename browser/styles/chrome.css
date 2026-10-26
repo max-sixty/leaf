@@ -323,7 +323,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     display: none;
     pointer-events: none;
     box-sizing: border-box;
-    border: var(--target-trace-w) solid var(--target-trace-ink);
+    --lf-target-outline: var(--focus-ring-w) solid var(--target-trace-ink);
     --lf-shape-ink: var(--target-trace-ink);
     --lf-shape-stroke: var(--target-trace-w);
     --lf-shape-dash: none;
@@ -335,6 +335,44 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     border: 0 !important;
     border-radius: 0 !important;
     background: none !important;
+  }
+  /* Flush outside: brackets are two 8px end strips of the same 2px outline
+     keyboard focus draws whole. Neither state changes bounds, radius or offset.
+     The placement owner supplies the target rectangle and its corner shape.
+     Keep this in shared chrome so Aim and an optional annotation painter agree. */
+  :is(.lf-aim, .lf-target-trace, .lf-visual-mark):not(
+      .lf-shaped,
+      .lf-visual-mark-focus
+    )::before,
+  :is(.lf-aim, .lf-target-trace, .lf-visual-mark):not(
+      .lf-shaped,
+      .lf-visual-mark-focus
+    )::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    outline: var(--lf-target-outline, var(--focus-ring));
+    outline-offset: 0;
+    pointer-events: none;
+  }
+  :is(.lf-aim, .lf-target-trace, .lf-visual-mark):not(
+      .lf-shaped,
+      .lf-visual-mark-focus
+    )::before {
+    clip-path: inset(
+      calc(-1 * var(--focus-ring-w)) calc(100% + var(--focus-ring-w) - 8px)
+        calc(-1 * var(--focus-ring-w)) calc(-1 * var(--focus-ring-w))
+    );
+  }
+  :is(.lf-aim, .lf-target-trace, .lf-visual-mark):not(
+      .lf-shaped,
+      .lf-visual-mark-focus
+    )::after {
+    clip-path: inset(
+      calc(-1 * var(--focus-ring-w)) calc(-1 * var(--focus-ring-w))
+        calc(-1 * var(--focus-ring-w)) calc(100% + var(--focus-ring-w) - 8px)
+    );
   }
   .lf-target-trace-shape {
     display: block;
@@ -486,8 +524,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     --lf-shape-ink: var(--accent);
     --lf-shape-stroke: 2px;
     --lf-shape-dash: none;
-    border: 2px solid var(--accent);
-    background: color-mix(in srgb, var(--accent) 8%, transparent);
+    background: color-mix(in srgb, var(--accent) 4%, transparent);
   }
   .lf-aim-shape {
     display: block;

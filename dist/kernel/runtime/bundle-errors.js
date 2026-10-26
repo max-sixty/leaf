@@ -1,5 +1,5 @@
 import { Z, x as x$1 } from "./bundle-signals-core.js";
-import { CARET_KEYS, PRESSES, WORKS, controlNavigationKeys, focusRevision, keeps, keepsText, nextRender, onCurrentLocation, renderedParent, sizeObserver, takesLetters, under } from "./bundle-dom-move.js";
+import { CARET_KEYS, PRESSES, WORKS, controlNavigationKeys, focusRevision, keeps, keepsText, nextRender, onCurrentLocation, onFocusVisibility, renderedParent, sizeObserver, takesLetters, under } from "./bundle-dom-move.js";
 import { shownBox, tagsDeclaring } from "./bundle-geometry.js";
 import { AsyncDirective, Directive, PartType, directive, html, nothing, render, runtime } from "./bundle-context.js";
 
@@ -399,6 +399,7 @@ let movePage = false;
 function mountRepaint(slots) {
 	painters = slots;
 	onCurrentLocation(requestFrame);
+	onFocusVisibility(requestFrame);
 	requestFrame();
 }
 function requestFrame() {

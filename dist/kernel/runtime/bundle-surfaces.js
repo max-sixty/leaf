@@ -1521,8 +1521,11 @@ function watchHeadingLinks() {
 			keys: ["Enter"],
 			title: "copy link to section",
 			touch: false,
-			run: () => {
-				stand(headingOn(focused()))?.control.shadowRoot.querySelector("button").click();
+			run: async () => {
+				const link = stand(headingOn(focused()));
+				if (!link) return;
+				await link.control.updateComplete;
+				link.control.shadowRoot.querySelector("button").click();
 			}
 		}]
 	});

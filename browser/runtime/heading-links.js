@@ -237,9 +237,12 @@ export function watchHeadingLinks() {
         title: "copy link to section",
         // The link's own control beside the heading takes a finger.
         touch: false,
-        run: () => {
+        run: async () => {
           const link = stand(headingOn(focused()));
-          link?.control.shadowRoot.querySelector("button").click();
+          if (!link) return;
+          // Enter on an address can create the lazy control in this very task.
+          await link.control.updateComplete;
+          link.control.shadowRoot.querySelector("button").click();
         },
       },
     ],

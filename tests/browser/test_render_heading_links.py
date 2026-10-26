@@ -36,6 +36,18 @@ def test_a_heading_copies_the_link_to_the_section_it_opens(browser, serve):
     context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
     page = open_page(browser, url, context=context)
 
+    # Arrive at the address before any hover or heading focus has made its lazy control.
+    page.evaluate("navigator.clipboard.writeText('')")
+    page.goto(page.url + "#rates%252Flimits")
+    expect(page.locator("section[id]")).to_be_focused()
+    expect(page.locator(LINK)).to_have_count(0)
+    link = page.url.split("#")[0] + "#rates%252Flimits"
+    page.keyboard.press("Enter")
+    expect(page.locator(LINK)).to_have_js_property("status", "success")
+    assert copied(page) == link
+    assert shown(page) == 1
+    page.keyboard.press("Escape")
+
     # A pointer over the heading shows its link, which takes the pointer onto it.
     page.locator("section[id] > h2").hover()
     expect(page.locator(LINK)).to_have_count(1)

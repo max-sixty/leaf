@@ -704,20 +704,19 @@ def test_an_inline_thread_rings_its_card_for_keyboard_focus(browser, serve):
     )
     thread = page.locator(".lf-margin-preview .lf-page-thread")
     preview = page.locator(".lf-margin-preview")
-    # The margin preview carries its thread's ring around the complete floating card.
+    # The preview root owns placement; its face carries the complete card's ring.
+    face = preview.locator(".lf-margin-preview-card")
     paint = """el => {
       const s = getComputedStyle(el);
-      const after = getComputedStyle(el, '::after');
-      const ring = after.content !== 'none' && after.outlineStyle !== 'none' ? after : s;
       return {
-        outline: ring.outlineStyle, offset: ring.outlineOffset,
+        outline: s.outlineStyle, offset: s.outlineOffset,
         background: s.backgroundColor, shadow: s.boxShadow,
       };
     }"""
 
     page.locator('.lf-margin-marker[data-lf-kinds="comment"]').first.click()
     expect(thread).to_be_focused()
-    pointer = preview.evaluate(paint)
+    pointer = face.evaluate(paint)
     assert pointer["outline"] == "none"
     drawn = rings_drawn(page)
     assert not any(ring["sample"] for ring in drawn), drawn
@@ -726,7 +725,7 @@ def test_an_inline_thread_rings_its_card_for_keyboard_focus(browser, serve):
     page.keyboard.press("Escape")
     page.keyboard.press("t")
     expect(thread).to_be_focused()
-    current = preview.evaluate(paint)
+    current = face.evaluate(paint)
     assert current["outline"] == "solid"
     assert current["offset"] == "-2px"
     assert current["background"] == pointer["background"]
@@ -737,7 +736,7 @@ def test_an_inline_thread_rings_its_card_for_keyboard_focus(browser, serve):
     page.keyboard.press("Enter")
     reply = thread.locator("leaf-text")
     expect(reply).to_be_focused()
-    writing = preview.evaluate(paint)
+    writing = face.evaluate(paint)
     assert writing["outline"] == "none"
     assert writing["background"] == pointer["background"]
     drawn = rings_drawn(page)

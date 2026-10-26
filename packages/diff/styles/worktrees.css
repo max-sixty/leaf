@@ -5,6 +5,7 @@
 :scope:is(lf-worktree-diffs) {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) repeat(5, auto);
+  column-gap: var(--sp-3);
   min-width: 0;
   max-width: 100%;
   margin-block: var(--sp-4);
@@ -12,6 +13,13 @@
   font-size: var(--t-5);
   line-height: 1.5;
   container-type: inline-size;
+}
+
+:scope:is(lf-worktree),
+.lf-worktree-disclosure,
+.lf-worktree-summary,
+.lf-worktree-summary > .lf-worktree-stats {
+  column-gap: inherit;
 }
 
 :scope:is(lf-worktree) {
@@ -74,7 +82,6 @@
   grid-template-columns: subgrid;
   grid-column: 1 / -1;
   align-items: center;
-  gap: var(--sp-3);
   min-block-size: max(4rem, var(--aim-floor));
   padding: var(--sp-2) var(--sp-3);
   border-radius: var(--r);
@@ -130,7 +137,7 @@
 }
 
 .lf-worktree-stats > span {
-  white-space: nowrap;
+  min-inline-size: max-content;
 }
 
 .lf-worktree-summary > .lf-worktree-stats {

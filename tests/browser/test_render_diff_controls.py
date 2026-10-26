@@ -58,7 +58,8 @@ def test_worktree_summaries_share_columns_without_cramping_their_evidence(
                   box: box(summary), label: box(summary.querySelector('.lf-worktree-identity')),
                   line: parseFloat(getComputedStyle(summary).lineHeight),
                   status: box(summary.querySelector('.lf-worktree-status')),
-                  stats: [...summary.querySelector('.lf-worktree-stats').children].map(box)
+                  stats: [...summary.querySelector('.lf-worktree-stats').children]
+                    .map(n => ({...box(n), content: n.scrollWidth}))
                 }))};
             }""")
             rows = reading["rows"]
@@ -68,6 +69,13 @@ def test_worktree_summaries_share_columns_without_cramping_their_evidence(
                 assert row["label"]["right"] <= row["status"]["left"]
                 assert all(
                     stat["right"] <= row["box"]["right"] for stat in row["stats"]
+                )
+                assert all(
+                    stat["content"] <= stat["width"] + 1 for stat in row["stats"]
+                ), [(stat["width"], stat["content"]) for stat in row["stats"]]
+                assert all(
+                    before["right"] < after["left"]
+                    for before, after in zip(row["stats"], row["stats"][1:])
                 )
             if reading["width"] > 608:
                 if width == 1280:

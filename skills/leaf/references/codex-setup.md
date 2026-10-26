@@ -32,19 +32,19 @@ export LEAF_CODEX_APP_SERVER="<printed endpoint>"
 codex --remote "$LEAF_CODEX_APP_SERVER"
 ```
 
-The task inherits the endpoint, so `leaf codex start` connects to that App Server. Each
+The task inherits the endpoint, so `leaf page claim` connects to that App Server. Each
 pair has its own socket, so parallel pairs need no port assignment.
 
 To bind an endpoint the user supplied before serving the page, run:
 
 ```sh
-leaf codex start <page> --app-server <supplied-endpoint>
+LEAF_CODEX_APP_SERVER="<supplied-endpoint>" leaf page claim <page>
 ```
 
 If an adapter already holds a different endpoint, follow the conflict message.
-To connect a claimed page without serving it, run `leaf codex start <page>`. It
-prints `{"task", "app_server", "started"}`; a null `app_server` means the queue
-route. A task or watcher already running `leaf wait` keeps that delivery loop and
+To connect a claimed page without serving it, run `leaf page claim <page>`. It
+prepares the adapter before taking ownership; without an App Server endpoint, it uses
+the queue route. A task or watcher already running `leaf wait` keeps that delivery loop and
 answers with explicit reply commands, as `harness-codex.md` describes.
 
 Leaf accepts only `unix://<absolute path>` sockets and unauthenticated loopback `ws://`

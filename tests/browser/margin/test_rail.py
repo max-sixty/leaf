@@ -9,6 +9,7 @@ from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, live_url
 from render_harness import (
     EXAMPLES,
+    expect_open_threads,
     leaf_page,
     margins_laid_out,
     open_page,
@@ -243,8 +244,9 @@ def test_a_live_page_leaves_no_empty_thread_column_and_keeps_its_reading_positio
     # The rail is 95px, so the page's axis stands at most half of it off the shell's.
     initial = position()
     assert abs(initial["offset"]) <= 48, initial
+    # The wide measure is 840px plus the page's 48px of inline padding.
     assert (
-        initial["width"] >= min(1128 if wide else 768, initial["shellWidth"] - 95) - 1
+        initial["width"] >= min(888 if wide else 768, initial["shellWidth"] - 95) - 1
     ), initial
 
     comment = append_carried_log_record(
@@ -270,9 +272,7 @@ def test_a_live_page_leaves_no_empty_thread_column_and_keeps_its_reading_positio
         {"kind": "resolve", "author": "user", "parent": comment["id"]},
     )
     told(page)
-    expect(page.locator(".lf-fp-threads")).to_have_attribute(
-        "aria-label", "Threads, 0 open"
-    )
+    expect_open_threads(page, 0)
     assert position() == initial
 
 
@@ -520,7 +520,6 @@ def test_a_quoted_passage_stands_its_own_rail_row_level_with_its_words(browser, 
     assert whole["place"] == passage["place"] == "rail", read
     assert abs(whole["top"] - read["paragraph"]) < 1, read
     assert abs(passage["top"] - read["line"]) < 1, read
-    context.close()
 
 
 @pytest.mark.watch_shifts
@@ -578,7 +577,6 @@ def test_new_rail_keeps_a_pin_reachable(browser, serve, focused):
     page.keyboard.press("Escape")
     rail.get_by_role("button", name="Activate rail", exact=True).click()
     assert page.evaluate("()=>window.railActivated")
-    context.close()
 
 
 @pytest.mark.watch_shifts
@@ -625,4 +623,3 @@ def test_new_pin_keeps_a_rail_reachable(browser, serve, focused):
     assert page.evaluate("()=>window.placementActivated") == "rail"
     pin.get_by_role("button", name="Activate pin", exact=True).click()
     assert page.evaluate("()=>window.placementActivated") == "pin"
-    context.close()

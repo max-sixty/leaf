@@ -1,5 +1,9 @@
 /* Prose faces reach the document and the layer's reading regions in declared
  * shadow trees. A widget's own source or controls keep its own sheet. */
+:root {
+  --lf-text-scroll-clearance: 8px;
+  --lf-text-scroll-track: 15px;
+}
 :where(:root, .lf-thread-transcript) a {
   color: var(--accent);
   text-underline-offset: var(--link-underline-offset);
@@ -44,8 +48,9 @@
   isolation: auto;
 }
 /* A code block is sized by how many characters it takes across, which is why its size
- * is off the serif ladder above. At --code-size, the column keeps comfortably more
- * than the 80 characters most source is written to.
+ * is off the serif ladder above. At --code-size, the column keeps a few more than the
+ * 80 characters most source is written to (about 84 at 13.5px), and a `wide` block
+ * 100 (theme.css, --wide).
  *
  * The size and leading are tokens because plain blocks, upgraded widgets, and the diff's
  * shadow tree must keep one density through upgrade. */
@@ -100,11 +105,11 @@
     content: "";
     float: inline-start;
     inline-size: 100%;
-    block-size: 15px;
+    block-size: var(--lf-text-scroll-track);
     grid-column: 1 / -1;
   }
   :where(:root, .lf-thread-transcript) :is(pre, table)::after {
-    block-size: 8px;
+    block-size: var(--lf-text-scroll-clearance);
   }
 }
 /* Paper has no scrollbar, so a line past the column is not a scroll away but gone. Code
@@ -265,6 +270,82 @@
 :where(:root, .lf-thread-transcript) th[scope="row"] {
   font-weight: 600;
 }
+/* A table whose rows open with their names keeps that column in view as its other
+   columns scroll sideways, since a value read without its row's name is a value
+   read blind. The first cell of every row sticks at the table's start, the corner
+   over the names included, so the heading row stays aligned with the rows. Each
+   cell paints the ground it stands on, so the columns scrolling under it don't show
+   through.
+   The names stand whole at the table's start, so the fade that says columns lie
+   before the scroll position (controls.css, `--lf-more-fade-start`) moves off that
+   edge to the names' far side, where the columns pass under them: the same 24px
+   from the ground to clear, painted over what scrolls there, and gone while focus
+   is in the table, as the mask is. */
+:where(:root, .lf-thread-transcript) table:has(> * > tr > th[scope="row"]:first-child) {
+  --lf-more-fade-start: 0px;
+}
+:where(:root, .lf-thread-transcript)
+  table:has(> * > tr > th[scope="row"]:first-child)
+  > *
+  > tr
+  > :first-child {
+  position: sticky;
+  inset-inline-start: 0;
+  background: var(--lf-ground);
+}
+@media screen {
+  :where(:root, .lf-thread-transcript)
+    table:has(> * > tr > th[scope="row"]:first-child)[data-lf-more-before]:not(
+      [data-lf-focus],
+      :has([data-lf-focus])
+    )
+    > *
+    > tr
+    > :first-child::after {
+    content: "";
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: 100%;
+    inline-size: var(--lf-more-fade, 24px);
+    background: linear-gradient(to right, var(--lf-ground), transparent);
+    pointer-events: none;
+  }
+  :where(:root, .lf-thread-transcript)
+    table:has(> * > tr > th[scope="row"]:first-child)[data-lf-scroll-direction="rtl"]
+    > *
+    > tr
+    > :first-child::after {
+    background: linear-gradient(to left, var(--lf-ground), transparent);
+  }
+}
+/* Every picture in reading content wears one face: a 1px ring in its surface's edge
+   colour (`--lf-ring`, which a surface on another ground sets) and the lowest lift
+   (theme.css, `--raise-1`, which an image lies at). A capture whose edge is the
+   ground's colour, such as a screenshot of a white page, then shows where it ends: on
+   the page, in a thread wherever it is drawn, and on a draft's shelf as once it is
+   sent. A box that frames a picture wears the face for it by declaring
+   `.lf-media-frame`, as lf-shot's frame does around a capture it scrolls at 100% and
+   a draft's attachment around the picture it crops. Whatever gives a picture a face
+   of its own, as lf-trace's canvas and the media viewer do, or a page whose figure
+   should have no edge, such as a transparent logo, sets the face's radius, shadow
+   and forced-colours outline in its own rule, which outranks this one. The user chose
+   this on 25 October over leaving each page to frame its own captures, which most
+   pages never did. */
+.lf-media-frame,
+:where(:root, .lf-thread-transcript) img:where(:not(.lf-media-frame img)) {
+  border-radius: var(--r);
+  box-shadow:
+    0 0 0 1px var(--lf-ring, var(--border-2)),
+    var(--raise-1);
+}
+/* A forced palette drops the ring, so a picture takes a system edge; a focused
+   frame's focus ring outranks it. */
+@media (forced-colors: active) {
+  .lf-media-frame,
+  :where(:root, .lf-thread-transcript) img:where(:not(.lf-media-frame img)) {
+    outline: 1px solid CanvasText;
+  }
+}
 /* A table of captures (authoring-evidence.md, "Source files and media") labels each
    axis once, so its heads are the only words saying which capture is which: a column's
    stands centred over its captures in the row names' ink, and a row's name stands level
@@ -333,23 +414,51 @@ leaf-text.lf-fab-input,
   overflow-wrap: anywhere;
   --lf-measure: var(--col);
 }
+/* The user's own words and pictures end as far inside the thread's column as they
+   start, the room their rewrite's frame stands in (response.css, `.lf-msg-editor`);
+   a surface whose messages end their words further in says where
+   (`--lf-msg-text-end`), as a margin card does. Rejected: ending them short of Send,
+   as the field they were typed in does, so a line broke where it broke as they wrote
+   it; every message the user sent then ran up to 86px narrower than the reply under
+   it. */
+.lf-msg:where(.user) {
+  --lf-msg-text-end: var(--lf-thread-text-inset);
+}
 .lf-msg-text {
   display: block;
   padding-block: var(--lf-thread-text-pad-block, 0px);
+  padding-inline-end: var(--lf-msg-text-end, 0px);
+}
+.lf-msg-media {
+  padding-inline-end: var(--lf-msg-text-end, 0px);
 }
 .lf-msg-text > :first-child {
   margin-top: 0;
 }
 .lf-msg-body > :last-child,
-.lf-msg-text > :last-child {
+.lf-msg-text > :last-child,
+.lf-msg-media > :last-child {
   margin-bottom: 0;
 }
 .lf-msg-body :is(p, ul, ol, pre, blockquote, table, hr) {
   margin: 6px 0;
 }
+/* A message's authored markup (messages.js) follows its words and pictures, and stands
+   under them at least as far as the blocks above stand apart, so a question of bare
+   words never reads as the words' last line or touches the picture above it. The gap
+   is the words' or pictures' own end, so it collapses with whatever top the markup sets
+   and a message of markup alone starts at its head. */
+.lf-msg-body
+  > :is(.lf-msg-text:not(:empty), .lf-msg-media):has(
+    + :not(.lf-msg-media, .lf-drawing-reference)
+  ) {
+  margin-block-end: 6px;
+}
+/* A message keeps its source's spaces and line breaks, wrapped as its draft's editor
+   wraps them (composing/text-field.js), a space at a line's end hanging past it. */
 .lf-msg-text > p {
   font: inherit;
-  white-space: break-spaces;
+  white-space: pre-wrap;
   margin-block: 1lh;
 }
 /* Prose here breaks anywhere, because the thing a reply overflows on is a URL
@@ -391,10 +500,6 @@ leaf-text.lf-fab-input,
 }
 .lf-msg-text blockquote[data-lf-gap] {
   padding-block: 0;
-}
-/* The draft keeps a fence's lines, so the code stands a code line in from each end. */
-.lf-msg-text pre:has(> [data-lf-gap]) {
-  padding-block: var(--code-line);
 }
 .lf-msg-text :is([data-lf-gap="1"], pre:has(> [data-lf-gap="1"])) {
   margin-block-start: var(--lf-msg-line);

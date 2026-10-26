@@ -35,6 +35,8 @@ import {
   failSoft,
   ensureSyntaxLanguage,
   focusDestination,
+  generated,
+  generatedElement,
   holdFocus,
   html,
   nothing,
@@ -56,7 +58,6 @@ import {
   offer,
   LeafElement,
   paintKeys,
-  projectData,
   publishOutput,
   projectedDatum,
   threadSurface,
@@ -81,6 +82,7 @@ import {
   findDiffLine,
   readDiffCoordinate,
 } from "./diff-coordinates.js";
+import { overflowFor } from "./overflow.js";
 import "/vendor/webawesome.esm.js";
 import { pierre, markSyntax } from "/widgets/pierre.js";
 // Only a diff that is actually rendering has any use for Pierre's renderer —
@@ -101,12 +103,6 @@ const OPTIONS = Object.freeze({
   hunkSeparators: "line-info-basic",
   lineDiffType: "word-alt",
 });
-
-// Prose files usually keep a paragraph on one source line. Let the file path choose
-// the reading mode unless the page author chose one for the entire patch.
-const overflowFor = (path, authored) =>
-  authored ??
-  (langForPath(path) === "markdown" || /\.txt$/i.test(path) ? "wrap" : "scroll");
 
 // The records every source form renders from, in the shape of the contract's file
 // manifest. A patch text is parsed once, strictly, so a malformed hunk never becomes
@@ -178,18 +174,28 @@ const lineLabel = ({ path, side, oldLine, newLine }) => {
 
 const fileLabel = ({ path }) => `${path || "(unnamed file)"} · file`;
 const fileNode = (entry) => entry.node;
-const fileDatum = (entry, origin = null) => ({
+const fileDatum = (entry) => ({
   file: true,
   path: entry.record.path,
   node: fileNode(entry),
-  ...(origin ? { origin } : {}),
 });
-const projectionDatum = (record) => ({
-  node: record.node,
-  key: diffDatumKey(record),
-  label: record.file ? fileLabel(record) : lineLabel(record),
-  ...(record.origin ? { origin: record.origin } : {}),
-});
+
+// The marks that make a drawn file row or line a datum on a Leaf page
+// (`module-state.md`, "Marking drawn data"), and their removal from a node kept
+// after it stops showing one.
+const MARKS = ["data-lf-datum", "data-lf-datum-label", "data-lf-origin-path"];
+const mark = (record, path) => {
+  keeps(record.node, "data-lf-datum", diffDatumKey(record));
+  keeps(
+    record.node,
+    "data-lf-datum-label",
+    record.file ? fileLabel(record) : lineLabel(record),
+  );
+  keeps(record.node, "data-lf-origin-path", path ? JSON.stringify(path) : null);
+};
+const unmark = (node) => {
+  for (const name of MARKS) node.removeAttribute(name);
+};
 
 // Pierre owns parsing, highlighting and word differences. Leaf gives each source
 // line one native row: its number is the comment control, and a conversation can
@@ -203,6 +209,8 @@ function renderedLines(file, content) {
     );
   return records.map((record, index) => {
     const node = nodes[index];
+    // Pierre represents an empty source row with a newline placeholder.
+    if (node.textContent === "\n") node.replaceChildren();
     const key = diffDatumKey(record);
     node.setAttribute(LINE_KEY, key);
     const row = document.createElement("div");
@@ -224,7 +232,7 @@ function renderedLines(file, content) {
 
 // A path separates ancestors, the immediate parent, and the basename. A narrow row
 // elides ancestors first so repeated basenames keep their distinguishing parent;
-// a rename shares the space between both basenames before folders (shadow.css). Where
+// a rename shares the space between both basenames before folders (widget-shadow.css). Where
 // a path wraps, as in a rename's row, it breaks after its slashes before anywhere else:
 // with no break in it but the one the stylesheet forces, a narrow row cut names mid-word
 // ("skills/wor|ktrunk", "preview.|rs"). The text is unchanged; a <wbr> adds only the
@@ -247,7 +255,7 @@ function pathTemplate(path) {
 }
 
 // While a file's row cuts its path short, the row wears `data-path-cut`, which draws the
-// whole path for the keyboard and a held press (shadow.css), and the path's title holds
+// whole path for the keyboard and a held press (widget-shadow.css), and the path's title holds
 // it for a pointer resting there. A path the row shows whole has neither, since each
 // would repeat it. Whether the row cuts the path changes only with the width of a part
 // of it, the folders or the name (at a new window width, face or press beside it), so
@@ -338,7 +346,7 @@ function paintSummary(details, record, verified = true) {
       filePathTemplate(verified ? record : { path }),
     )}${
       verified
-        ? html`<span class="lf-diff-stat" data-lf-gen="1"
+        ? html`<span class="lf-diff-stat" ${generated({ says: false })}
             ><span class="lf-diff-additions">+${additions}</span>${" "}<span
               class="lf-diff-deletions"
               >−${deletions}</span
@@ -360,7 +368,7 @@ function summaryNode(record, open, verified = true) {
   details.className = "lf-diff-fold";
   details.open = open;
   const summary = document.createElement("summary");
-  summary.className = `lf-diff-head ${HOLDS_WORD}`;
+  summary.className = `lf-diff-head lf-disclosure-marker ${HOLDS_WORD}`;
   details.append(summary);
   paintSummary(details, record, verified);
   commands(summary, "On a diff", [
@@ -378,7 +386,7 @@ function summaryNode(record, open, verified = true) {
 // The press cannot go inside the <summary>: a disclosure is itself a control, and a
 // control nested in one is announced as a single thing — the serious
 // `nested-interactive` finding the corpus's axe sweep reports, once per file. They are
-// siblings in this wrapper instead, the press first, and shadow.css draws it back onto
+// siblings in this wrapper instead, the press first, and widget-shadow.css draws it back onto
 // the summary line. First because the line pins: the summary sticks at the window's top
 // while its rows go past, and the press sticks with it only as a box in the flow ahead
 // of the disclosure, since a box placed against the file's top would stay there and
@@ -519,12 +527,12 @@ function diffTools(host) {
   search.addEventListener("input", () => host.filterFiles(search.value));
   const progress = document.createElement("span");
   progress.className = "lf-diff-progress";
-  progress.dataset.lfGen = "1";
+  generatedElement(progress, { says: false });
   progress.slot = "end";
   const count = document.createElement("span");
   progress.append(count);
   // Opening every file is rare beside opening one, so it is a quiet icon after the count
-  // of the files it opens rather than a labelled button of its own (shadow.css).
+  // of the files it opens rather than a labelled button of its own (widget-shadow.css).
   const foldAll = offer(
     "button",
     "lf-btn lf-icon-action lf-quiet-action lf-diff-fold-all",
@@ -578,7 +586,7 @@ function paintFileDetails(details, record) {
   if (!evidence) {
     evidence = document.createElement("div");
     evidence.className = "lf-diff-evidence";
-    evidence.dataset.lfGen = "1";
+    generatedElement(evidence, { says: false });
     details.firstElementChild.after(evidence);
   }
   keepsText(evidence, words);
@@ -587,7 +595,7 @@ function paintFileDetails(details, record) {
 function metadataNode(record) {
   const row = document.createElement("div");
   row.className = "lf-diff-metadata";
-  row.dataset.lfGen = "1";
+  generatedElement(row, { says: false });
   render(
     html`${filePathTemplate(record)}<span class="lf-diff-stat"
         >${metadataWords(record)}</span
@@ -767,8 +775,40 @@ async function parsedFiles(source) {
     owners.set(file.name, owned);
   }
   return [...owners.values()].map((files) =>
-    files.length === 1 ? files[0] : replacementFile(files, parseDiffFromFile),
+    joinChangeRuns(
+      files.length === 1 ? files[0] : replacementFile(files, parseDiffFromFile),
+    ),
   );
+}
+
+// Pierre splits a change whose deleted and added line counts differ into pieces, so
+// its most similar lines pair up (`realignChangeContentBySimilarity`, run by
+// `parsePatchFiles` since @pierre/diffs 1.3.0). That serves a split view, which Leaf never draws. In the unified
+// view it moved a rewrite's four deleted lines between the 11th and 12th of its 19
+// added ones, cutting the new function in two and painting the indentation it had
+// paired as changed words. Leaf joins the pieces back into the one change git wrote,
+// its deletions above its additions. A git patch never puts two changes side by side
+// without context, so a one-sided change beside another is always such a piece. The
+// rows, line numbers and comment coordinates are the same either way.
+function joinChangeRuns(file) {
+  for (const hunk of file.hunks ?? []) {
+    const content = [];
+    for (const part of hunk.hunkContent) {
+      const last = content.at(-1);
+      const piece =
+        part.type === "change" &&
+        last?.type === "change" &&
+        [part, last].some((change) => !change.deletions || !change.additions);
+      if (!piece) {
+        content.push({ ...part });
+        continue;
+      }
+      last.deletions += part.deletions;
+      last.additions += part.additions;
+    }
+    hunk.hunkContent = content;
+  }
+  return file;
 }
 
 // The box takes the place of the file's lines, so core's composer leaves their outlets
@@ -782,7 +822,7 @@ function deferredError(details, error, retry) {
   const message = error?.message || error;
   const box = document.createElement("div");
   box.className = "lf-error";
-  box.dataset.lfGen = "1";
+  generatedElement(box, { says: false });
   box.textContent = retry
     ? `That file's diff failed to load: ${message}`
     : `That file's diff cannot be shown: ${message}`;
@@ -813,18 +853,35 @@ customElements.define(
       }
     };
 
-    // The source reading the last render read, and the one whose rendering last
-    // started; a departure that cuts a rendering short forgets it, so the return draws
-    // it again.
+    // The source the last render read, a bound value or an inline patch, and the one
+    // whose rendering last started; a departure that cuts a rendering short forgets
+    // it, so the return draws it again.
     #delivered;
     #shown;
     #showing = false;
+    // The rendering the update under way started, which its `updateComplete` waits for.
+    #rendered;
+    // The nodes the last marking marked as data.
+    #marked = new Set();
+
+    // The patch text or file manifest, set by whoever hosts the widget: Leaf from the
+    // bound source (the registry's `x-data.document.property`), or null while that
+    // source has none.
+    static properties = { value: { attribute: false } };
+
+    constructor() {
+      super();
+      /** @type {string | {files: any[]} | null} */
+      this.value = null;
+    }
 
     shouldUpdate(changed) {
       const ready = super.shouldUpdate(changed);
-      // An inline patch is authored once. Only interrupted preparation needs another
-      // draw; an unchanged return must keep its finished rows or visible refusal.
-      return ready && (this.hasAttribute("source") || this.#shown === undefined);
+      if (!ready) return false;
+      // Only new evidence or preparation interrupted by departure needs a draw;
+      // a no-op update would clear a completed refusal.
+      const source = this.hasAttribute("source") ? this.value : this.inlineSource;
+      return this.#shown === undefined || source !== this.#shown;
     }
 
     setup() {
@@ -846,6 +903,7 @@ customElements.define(
             id: "diff.next-hunk",
             keys: ["]"],
             title: "next hunk",
+            travels: true,
             when: () => this.hasHunks(),
             run: () => this.present(this.stepHunk(false)),
           },
@@ -853,6 +911,7 @@ customElements.define(
             id: "diff.previous-hunk",
             keys: ["["],
             title: "previous hunk",
+            travels: true,
             when: () => this.hasHunks(),
             run: () => this.present(this.stepHunk(true)),
           },
@@ -860,6 +919,7 @@ customElements.define(
             id: "diff.next-file",
             keys: ["}"],
             title: "next file",
+            travels: true,
             when: () => this.navigationEntries().length > 1,
             run: () => this.present(this.stepFile(false)),
           },
@@ -867,6 +927,7 @@ customElements.define(
             id: "diff.previous-file",
             keys: ["{"],
             title: "previous file",
+            travels: true,
             when: () => this.navigationEntries().length > 1,
             run: () => this.present(this.stepFile(true)),
           },
@@ -942,40 +1003,40 @@ customElements.define(
     }
 
     render() {
-      this.#delivered = this.hasAttribute("source")
-        ? this.data("document")
-        : this.inlineSource;
+      this.#delivered = this.hasAttribute("source") ? this.value : this.inlineSource;
       return nothing;
     }
 
-    // A patch renders each reading once, after the draw that read it, whose
-    // claim waits for the rendering.
+    // A patch renders each source once, after the draw that read it, whose
+    // `updateComplete` waits for the rendering.
     updated(changed) {
       super.updated(changed);
+      this.#rendered = undefined;
       if (this.#delivered === this.#shown) return;
       this.#shown = this.#delivered;
-      const bound = this.hasAttribute("source");
-      const snapshot = bound ? this.#delivered : undefined;
       this.#showing = true;
-      const rendering = this.show(
-        bound ? (snapshot?.value ?? null) : this.#delivered,
-        snapshot,
-      );
+      const rendering = this.show(this.#delivered);
       this.sourceRendering = rendering;
-      this.drawing(
-        rendering.finally(() => {
-          if (this.sourceRendering === rendering) {
-            this.#showing = false;
-            // Preparation may finish before the arrival batch reports departure.
-            if (!this.isConnected) this.#shown = undefined;
-          }
-        }),
-      );
+      this.#rendered = rendering.finally(() => {
+        if (this.sourceRendering === rendering) {
+          this.#showing = false;
+          // Preparation may finish before the arrival batch reports departure.
+          if (!this.isConnected) this.#shown = undefined;
+        }
+      });
     }
 
-    // `snapshot` is the bound delivery, null when a bound source has no value, and
-    // undefined for an inline patch.
-    async show(source, snapshot) {
+    // Also waits for the drawing the latest update started: a newer update's drawing
+    // replaces one still pending.
+    async getUpdateComplete() {
+      const result = await super.getUpdateComplete();
+      await this.#rendered;
+      return result;
+    }
+
+    // `source` is a patch text or a file manifest, or null when a bound source has
+    // none.
+    async show(source) {
       const rendering = (this.rendering ?? 0) + 1;
       this.rendering = rendering;
       try {
@@ -987,7 +1048,7 @@ customElements.define(
           this.filesBody = null;
           this.replaceChildren();
           shadowStage(this, []);
-          projectData(this, [], { snapshot });
+          this.markFiles(source);
           this.classList.toggle("lf-rendered", false);
           return;
         }
@@ -1004,7 +1065,7 @@ customElements.define(
         const open = !this.hasAttribute("collapsed");
         const plans = await Promise.all(
           records.map(async (record) => {
-            const evidence = await this.readEntry(snapshot, record);
+            const evidence = await this.readEntry(source, record);
             return {
               record: evidence.file?.record ?? record,
               evidence,
@@ -1032,7 +1093,7 @@ customElements.define(
           await Promise.all(
             pending.map(async (plan) => {
               plan.prepared = await this.prepareEntry(
-                snapshot,
+                source,
                 plan.record,
                 plan.previous?.details ? plan.previous.renderKey : null,
                 plan.evidence,
@@ -1075,7 +1136,7 @@ customElements.define(
               refused: false,
               loading: null,
             });
-            keeps(entry.node, "data-lf-gen", "1");
+            generatedElement(entry.node, { says: false });
             if (metadata) {
               entry.lines = [];
               entry.renderKey = null;
@@ -1089,7 +1150,7 @@ customElements.define(
             }
             return entry;
           });
-          this.snapshot = snapshot;
+          this.drawnSource = source;
           this.fileEntries = entries;
           this.activePath = activePath;
           if (!this.singleFile) this.diffTools ??= diffTools(this);
@@ -1106,7 +1167,7 @@ customElements.define(
           this.replaceChildren();
           this.markRuns();
           this.stageFiles();
-          this.projectFiles();
+          this.markFiles(source);
           this.classList.toggle("lf-rendered", true);
           this.filterFiles(this.diffTools?.search.value ?? "");
           this.publishFiles();
@@ -1125,7 +1186,7 @@ customElements.define(
         // the place of every outlet, which core's composer leaves first.
         releaseOutlets(this);
         failSoft(this, err, typeof source === "string" ? source : undefined);
-        if (snapshot !== undefined) projectData(this, [], { snapshot });
+        this.markFiles(source);
       }
     }
 
@@ -1161,11 +1222,11 @@ customElements.define(
     // will, so it offers no Retry, and `applyEntry` reports it to the agent, which stored
     // it, once the current rendering shows it: the manifest's producer leaves judging a
     // patch to this widget.
-    async readEntry(snapshot, record) {
+    async readEntry(source, record) {
       let patch;
       if (!record.parsed)
         try {
-          patch = await loadDeferred(snapshot, record.path);
+          patch = await loadDeferred(source, record.path);
         } catch (error) {
           return { error, retry: true };
         }
@@ -1176,8 +1237,8 @@ customElements.define(
       }
     }
 
-    async prepareEntry(snapshot, record, renderKey, evidence) {
-      const reading = evidence ?? (await this.readEntry(snapshot, record));
+    async prepareEntry(source, record, renderKey, evidence) {
+      const reading = evidence ?? (await this.readEntry(source, record));
       if (reading.error) return reading;
       try {
         const { file } = reading;
@@ -1198,26 +1259,24 @@ customElements.define(
       shadowStage(this, [this.filesBody]);
     }
 
-    // A manifest names the source field each datum came from; a bound patch text's datums
-    // take the whole delivery's origin, and an inline patch has no delivery.
-    projectFiles() {
-      const origin = (index, field) =>
-        this.snapshot && typeof this.snapshot.value === "object"
-          ? { ...this.snapshot.origin, path: ["files", index, field] }
-          : null;
-      projectData(
-        this,
-        (this.fileEntries ?? [])
-          .flatMap((entry, index) => [
-            fileDatum(entry, origin(index, "path")),
-            ...(entry.loaded ? entry.lines : []).map((line) => ({
-              ...line,
-              origin: origin(index, "patch"),
-            })),
-          ])
-          .map(projectionDatum),
-        { snapshot: this.snapshot },
-      );
+    // Marks each drawn file row, and each line of a loaded file, as data drawn from
+    // `source`, and reports it. A manifest names the field each datum came from; a
+    // patch text's datums take the whole delivery's origin, and an inline patch has no
+    // delivery.
+    markFiles(source) {
+      const manifest = source !== null && typeof source === "object";
+      const marked = new Set();
+      for (const [index, entry] of (this.fileEntries ?? []).entries())
+        for (const [record, field] of [
+          [fileDatum(entry), "path"],
+          ...(entry.loaded ? entry.lines : []).map((line) => [line, "patch"]),
+        ]) {
+          mark(record, manifest ? ["files", index, field] : null);
+          marked.add(record.node);
+        }
+      for (const node of this.#marked) if (!marked.has(node)) unmark(node);
+      this.#marked = marked;
+      this.dispatchEvent(new CustomEvent("drawn", { detail: { value: source } }));
     }
 
     // x-thread-surface: Leaf asks for one outlet, or null, per target it hands over, and
@@ -1262,7 +1321,7 @@ customElements.define(
         outlet.className = `lf-diff-thread-outlet lf-ui${
           file ? " lf-diff-file-thread-outlet" : ""
         }`;
-        outlet.dataset.lfGen = "1";
+        generatedElement(outlet, { says: false });
         outlet.dataset.lfThreadDatum = anchor.datum;
         outlet.setAttribute(
           "aria-label",
@@ -1306,7 +1365,7 @@ customElements.define(
       const rendering = this.rendering;
       const promise = (async () => {
         const prepared = await this.prepareEntry(
-          this.snapshot,
+          this.drawnSource,
           entry.record,
           entry.renderKey,
           entry.file ? { file: entry.file } : undefined,
@@ -1344,7 +1403,7 @@ customElements.define(
             if (ready.length) {
               this.markRuns();
               this.stageFiles();
-              this.projectFiles();
+              this.markFiles(this.drawnSource);
             }
             for (const restore of restores) restore?.();
             resolve(undefined);
@@ -1513,7 +1572,7 @@ customElements.define(
 
     // The files the filter shows are drawn as one bordered list, which a file's own
     // conversations break: they hang under that file in a box of their own, so the list
-    // runs on from the next file the filter shows (shadow.css). Only this pass knows
+    // runs on from the next file the filter shows (widget-shadow.css). Only this pass knows
     // which file that is, since CSS reads a file's sibling before it, which may be
     // hidden, and not the nearest shown one. It runs whenever the shown files or a
     // file's conversations change: on filtering, and on each outlet layout.
@@ -1703,7 +1762,7 @@ customElements.define(
     // header's own room has been added to, and then the focus without the browser
     // scrolling a second time. A row is not a tab stop — a patch is thousands of them —
     // so it is made focusable for the press that lands on it, and wears the band inset
-    // inside its own box (shadow.css). A file header
+    // inside its own box (widget-shadow.css). A file header
     // already is one, and writing a tabindex of -1 onto it would take it out of the
     // order a user tabs through.
     //

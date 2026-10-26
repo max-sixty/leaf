@@ -11,6 +11,7 @@ from render_harness import (
     open_page,
     panel_menu,
     panel_settled,
+    panel_view,
     round_trip,
     scroll_settled,
     stamp_page,
@@ -1057,7 +1058,7 @@ def test_a_live_revision_reorders_the_page_and_obligation_inventory_together(
     expect_obligations_answered(page, "0/3")
     page.locator(".lf-fp-on-user").click()
     panel_settled(page, view="queue")
-    cards = '.lf-fp-view[data-view="queue"]:not([data-leaving]) .lf-fp-on-item'
+    cards = f"{panel_view('queue')} .lf-fp-on-item"
     expect(page.locator(cards)).to_have_count(3)
 
     def identities(selector, attribute):

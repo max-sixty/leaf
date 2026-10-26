@@ -9,9 +9,18 @@
    on its message there. Where none of
    those shows it, the primary is asked again with `request.last` set, which says
    nothing else will show the thread, so the floating panel takes any thread then; a
-   second refusal leaves the thread unopened. A thread about an element an agent sent
+   second refusal leaves the thread unopened. The primary holds such a thread only until
+   the page can draw it again, as when a wider window shows the passage a narrow one hid:
+   once a thread pass has drawn every surface, it goes back to the page, and the user in
+   it goes with it, a reply they are writing carried with its caret and undo history
+   (`returnToPage`). A thread about an element an agent sent
    in a message has no drawing beside its subject: `openThreadSubject` opens that
    message and lands on the element there.
+   A route shows one thread at a time: the primary taking a thread closes the page's
+   card, and the page drawing one has the floating panel put away its view of any
+   thread as it declines (floating-panel.js, `reveal`), so the reply the field holds
+   and a walk's position name the thread the user arrived at. The user chose this on
+   23 October 2026, after a `t` walk left the panel's thread open under a card.
    A compact preview keeps held widget arrivals held until its own release gesture.
    The optional preview supplies physical
    opening, placement proof, current focus node and target accompaniment; it owns
@@ -19,6 +28,8 @@
    and returns its actual focus destination. Surface defaults enter the reply and
    compact previews default to the thread.
    `travel: false` keeps the page under the gesture while revealing its destination;
+   `history: false` arrives at an address the browser already navigated to, revealing
+   its passage without adding another return stop.
    `scroll: false` also leaves every scroller where it stands, for a continuation into
    a box the user had scrolled away from.
    A native continuation (`focus: false`) returns its presented route under session
@@ -41,8 +52,9 @@
 import { aborted } from "../abort.js";
 import { threadDraft } from "../drafts.js";
 import { focused } from "../focus.js";
+import { presented } from "../geometry.js";
 import { restrictUserIntent, retainUserIntent } from "../user-intent.js";
-import { replyAvailable } from "./replies.js";
+import { replyAvailable, replyThreadKey } from "./replies.js";
 import { allThreads, threadIdNamed, threadNamed } from "./state.js";
 import { heldThread } from "./focus.js";
 import { showHeld, showHeldThread } from "./held-news.js";
@@ -67,6 +79,9 @@ export function createThreadDestinations({
 }) {
   let presentation = null;
   let opening = null;
+  // The keys of the threads the primary was handed as the last resort (`request.last`),
+  // which nothing on the page drew when they were asked for.
+  const lastResort = new Set();
   function register(owner, open, reader) {
     if (presentation) throw new Error("The page already has a Thread presentation");
     const registration = { owner, open, reader };
@@ -119,8 +134,29 @@ export function createThreadDestinations({
     const thread = allThreads().find((candidate) => candidate.id === id);
     return thread && replyAvailable(thread) ? id : null;
   };
-  const threadFocusTarget = (id, { part = null } = {}) =>
-    surfaceFocusTarget(id, { part }) ?? preview?.focusTarget(id, { part }) ?? null;
+  const addressedPart = (thread, id, part) => ({
+    part,
+    message:
+      part === "message"
+        ? (thread.msgs.find((message) => message.id === id)?.key ?? null)
+        : null,
+  });
+  // Prefer a shown destination in the same order opening asks: the primary reader,
+  // then the page's own surfaces. Otherwise return a retained node to reveal; a
+  // hidden primary's retained rows must not mask the page's open card.
+  const threadFocusTarget = (id, { part = null } = {}) => {
+    const thread = threadNamed(id);
+    const primary =
+      thread && presentation?.owner.isConnected
+        ? presentation.reader.destination(thread.key, addressedPart(thread, id, part))
+        : null;
+    const candidates = [
+      primary,
+      surfaceFocusTarget(id, { part }),
+      preview?.focusTarget(id, { part }),
+    ].filter(Boolean);
+    return candidates.find(presented) ?? candidates[0] ?? null;
+  };
 
   // What `inPrimary` returns where the primary declined the thread, or took it and drew
   // no destination for it, so another surface may show it; and what `onPage` returns
@@ -134,10 +170,11 @@ export function createThreadDestinations({
       part = null,
       focus = true,
       travel = true,
-      flash = true,
+      history = true,
       scroll = true,
       intent = retainUserIntent(),
       origin = null,
+      returning = false,
     } = {},
   ) {
     if (!intent()) return null;
@@ -159,11 +196,7 @@ export function createThreadDestinations({
       const cancelled = aborted(abort.signal);
       const whileCurrent = (work) => Promise.race([work, cancelled]);
       const request = {
-        message:
-          part === "message"
-            ? (thread.msgs.find((message) => message.id === id)?.key ?? null)
-            : null,
-        part,
+        ...addressedPart(thread, id, part),
         focus,
         last,
         signal: abort.signal,
@@ -180,17 +213,23 @@ export function createThreadDestinations({
         (focus === false ? intent.available() : intent());
       const arriving = restrictUserIntent(intent, mayPresent);
       const departure =
-        focus !== false && navigationStep
+        focus !== false && navigationStep && history
           ? prepareNavigationStep({
               landing: () => selected.reader.destination(thread.key, request),
               intent: arriving,
             })
           : null;
+      if (last) lastResort.add(thread.key);
+      else lastResort.delete(thread.key);
       const result = selected.open(thread.key, request);
+      if (result === false) lastResort.delete(thread.key);
       // A reader that declines at once is answered at once, so the page's own drawing
       // of the thread opens in the task of the gesture that asked for it (`onPage`), as
       // a walk's card does, rather than after a wait that no longer belongs to it.
       if (result === false && !drawn) return mayPresent() ? DECLINED : null;
+      // The reader shows the thread, so the card standing beside another thread's
+      // passage goes, in the same task, and one thread stands open.
+      if (result !== false && preview) intent.handoff(preview.close);
       return taken(result);
       // The reader takes the thread: its layout, then its drawing of it.
       async function taken(result) {
@@ -242,7 +281,7 @@ export function createThreadDestinations({
       const openSurface = async () => {
         if (preview) intent.handoff(preview.close);
         if (navigationStep) {
-          if (!(await scrollToThread(id, { part: localPart, focus, intent })))
+          if (!(await scrollToThread(id, { part: localPart, focus, intent, history })))
             return null;
         } else if (focus === false) {
           await reveal(surfaceFocusTarget(id, { part: localPart }), intent).ready;
@@ -296,6 +335,7 @@ export function createThreadDestinations({
               focus,
               presented: opened.presented,
               intent,
+              history,
             }))
           )
             return null;
@@ -330,15 +370,54 @@ export function createThreadDestinations({
       return DECLINED;
     }
 
-    const asked = selected ? inPrimary(false) : DECLINED;
+    // A thread coming back from the primary's last resort (`returnToPage`) is drawn on
+    // the page first, and the primary is asked only once the page shows it, so it puts
+    // its view away as it declines, handing on the reply being written there.
+    const asked = selected && !returning ? inPrimary(false) : DECLINED;
     const first = asked instanceof Promise ? await asked : asked;
     if (first !== DECLINED && first !== UNDRAWN) return first;
     const shown = await onPage();
+    if (returning) {
+      if (!shown || shown === DECLINED) return null;
+      if (selected) await inPrimary(false);
+      return shown;
+    }
     if (shown !== DECLINED) return shown;
     // Only a reader that declined is asked again; one that took the thread has shown it.
     if (!selected || first !== DECLINED) return null;
     const last = await inPrimary(true);
     return last === DECLINED || last === UNDRAWN ? null : last;
+  }
+
+  // A thread the primary holds as the last resort goes back to the page once the page
+  // can draw it, which each thread pass asks once it has drawn every surface. The page
+  // draws it first, and only then does the primary put its view away, so a page that
+  // still has nowhere to show it leaves the view standing. The user goes with the thread
+  // from where they were in the view: from its reply box, the row itself, carried to the
+  // card with its caret and undo history (replies.js, `releaseReplies`), or from the
+  // thread to the card's. A user elsewhere stays there, and every scroller stays still,
+  // since the user has not moved.
+  async function returnToPage() {
+    const selected = presentation?.owner.isConnected ? presentation : null;
+    if (!selected) return;
+    for (const key of [...lastResort]) {
+      const thread = allThreads().find((each) => threadKey(each) === key);
+      // A view the user has put away holds nothing to give back.
+      const drawing = selected.reader.destination(key, { part: "thread" });
+      if (!thread || !drawing?.checkVisibility()) {
+        lastResort.delete(key);
+        continue;
+      }
+      await openPageThread(thread.id, {
+        part: "thread",
+        focus:
+          replyThreadKey(focused()) !== key &&
+          drawnThreadId(heldThread()) === thread.id,
+        travel: false,
+        scroll: false,
+        returning: true,
+      });
+    }
   }
 
   // Where a thread about an element an agent sent in a message goes to its subject: the
@@ -397,6 +476,10 @@ export function createThreadDestinations({
     openPageThread,
     openThreadSubject,
     openThreadDraft,
+    returnToPage,
+    // Whether the primary holds the thread `key` names as the last resort, so the page
+    // drew it nowhere it could be shown.
+    atLastResort: (key) => lastResort.has(key),
     holdsThreadDraft: (context) => Boolean(threadHolding(context)),
     threadFocusTarget,
     threadHere,

@@ -10,8 +10,10 @@
  * middle stands at or below the edge, read down the blocks on screen in document
  * order, quoted from its first character with the context a comment's capture gives a
  * quote (anchor-resolution.js, `anchorForPassage`), and that line's distance below the
- * edge. The lines above it in its paragraph can rewrap or be rewritten without moving
- * the line the reader sees. A heading is read whole, from its first word, wherever any
+ * edge. A projected passage retains that anchor's datum identity and source, so repeated
+ * words on another row cannot take its place. The lines above it in its paragraph can
+ * rewrap or be rewritten without moving the line the reader sees. A heading is read
+ * whole, from its first word, wherever any
  * of it shows below the edge. A run of fewer than `QUOTABLE` characters, a nav's label
  * or a list of names, is apparatus beside the reading and names no place, nor do words
  * in a stuck box, which ride with every scroll, or in a box scrolling on its own. Where
@@ -26,7 +28,12 @@
  * the document and nothing is left to anchor, the box that replaces the one that read
  * the offset takes it back. A bounded block
  * following its newest entry has its end as its place (`bounds.js`, `followingItsEnd`),
- * however many entries have arrived since.
+ * however many entries have arrived since. A box standing at its start is read from its
+ * top: its own box returns to its start, across a resize or a revision, so a page read
+ * from its top keeps its title in view, and only a box its words are handed to takes
+ * the landmark. The user chose this on 2026-10-25 over keeping the first line at the
+ * edge, which scrolls the title away where a header fixed beside that line drops into
+ * the flow above it as the window narrows.
  * `capturePlace` reads one, of the page or of a reading region, and `restorePlace`
  * returns the user to it: the passage is found again by its words, so a place survives
  * what moved the pixels under it — a new revision, a resize, a view that was hidden
@@ -175,68 +182,57 @@ const drawsLandmark = (parent) => {
   while (box && getComputedStyle(box).display === "contents") box = renderedParent(box);
   return Boolean(box?.checkVisibility({ opacityProperty: true }));
 };
-const blockWords = new WeakMap();
-// Whether a block's words are drawn inside its own box: none stands in an element
-// taken out of flow, positioned or transformed, between the words and the block. Read
-// once per reading of the screen, and only for blocks it would pass over.
-const drawnInside = (block, segments, known) => {
-  if (!known.has(block)) {
-    const asked = new Set();
-    let inside = true;
-    for (const { node } of segments) {
-      for (let at = renderedParent(node); inside && at && at !== block;) {
-        if (asked.has(at)) break;
-        asked.add(at);
-        const style = getComputedStyle(at);
-        inside =
-          (style.position === "static" || style.position === "sticky") &&
-          style.transform === "none" &&
-          style.translate === "none";
-        at = renderedParent(at);
-      }
-      if (!inside) break;
-    }
-    known.set(block, inside);
-  }
-  return known.get(block);
+const blockRuns = new WeakMap();
+// The browser can bound a block's text in one Range read, including positioned
+// children outside its own box. A Range cannot cross shadow roots or read skipped
+// contents without forcing their layout; those blocks keep the per-segment reading.
+const textEnvelope = (block, segments, range) => {
+  if (
+    !segments.every(({ node }) => block.contains(node)) ||
+    [...block.querySelectorAll("*")].some(skipped)
+  )
+    return null;
+  range.selectNodeContents(block);
+  return range.getBoundingClientRect();
 };
-// Each block's drawn words, with the union of their boxes. With `within`, a block whose
-// own box lies wholly above or below that band, and whose words are drawn inside that
-// box, is passed over before its words are measured, so a reading of the screen costs
-// the blocks near it rather than every block above it. A block with no box of its own
-// (display: contents) is measured.
+// Each block's drawn words, with the union of their boxes. Outside the reading band,
+// the native text envelope can rule a block out before individual tokens are measured.
 function* renderedBlocks(blocks, within = null) {
   const reading = pageText();
-  if (!blockWords.has(reading)) {
-    const words = new Map();
+  if (!blockRuns.has(reading)) {
+    const groups = [];
     for (const segment of reading.segments) {
-      if (!words.has(segment.block)) words.set(segment.block, []);
-      words.get(segment.block).push(segment);
+      let group = groups.at(-1);
+      if (!group || group.block !== segment.block)
+        groups.push((group = { block: segment.block, segments: [] }));
+      group.segments.push(segment);
     }
-    blockWords.set(reading, words);
+    blockRuns.set(reading, groups);
   }
-  const words = blockWords.get(reading);
-  // Read fresh each time: a stylesheet or a breakpoint can take words out of flow with
-  // no change to the page's text.
-  const inside = new Map();
+  // A datum can split its parent's words. Keep the parent's later continuation after
+  // that datum, rather than collecting both sides under the parent's first occurrence.
+  const allowed = new Set(blocks);
   const drawn = new Map();
   const range = document.createRange();
-  for (const block of blocks) {
+  for (const { block, segments } of blockRuns.get(reading)) {
+    if (!allowed.has(block)) continue;
     // Skipped content stays unmeasured: asking for a box inside it lays it out.
     if (inChrome(block) || skipped(block)) continue;
     if (within) {
       const own = block.getBoundingClientRect();
-      if (
-        own.height &&
-        (own.bottom <= within.top || own.top >= within.bottom) &&
-        drawnInside(block, words.get(block), inside)
-      )
-        continue;
+      if (own.height && (own.bottom <= within.top || own.top >= within.bottom)) {
+        const envelope = textEnvelope(block, segments, range);
+        if (
+          envelope &&
+          (envelope.bottom <= within.top || envelope.top >= within.bottom)
+        )
+          continue;
+      }
     }
     const boxes = [],
       runs = [];
     let run = null;
-    for (const segment of words.get(block)) {
+    for (const segment of segments) {
       const { node, start, end } = segment;
       const parent = renderedParent(node);
       if (!drawn.has(parent)) drawn.set(parent, drawsLandmark(parent));
@@ -487,6 +483,7 @@ export function capturePlace(region = null, blocks = textBlocks()) {
     revision: runtime.currentRevision,
     [READ_BOX]: new WeakRef(box),
   };
+  if (box.scrollTop === 0) view.start = true;
   const currentLocation = focusedInView();
   const body = region?.body ?? pageDocument();
   const currentLocationBody = readingRegionFor(currentLocation)?.body ?? body;
@@ -575,12 +572,10 @@ export function capturePlace(region = null, blocks = textBlocks()) {
   if (line) {
     const { block, rect, landmark } = line;
     named = block;
-    // Unconditionally, so a line under no section clears the earlier one rather than
-    // sending the search into a subtree its words aren't in. A line in projected data
-    // is found again by its words, as any other: what keeps a reading place is where
-    // the words stand, not which datum they are.
-    const { section: id, quote, prefix, suffix } = landmark.anchor;
-    Object.assign(view, { section: id, quote, prefix, suffix });
+    // The complete canonical anchor keeps a projected passage's identity as well as
+    // its words. Its section replaces the fallback even when null, so restoration
+    // cannot search in an earlier block's unrelated section.
+    Object.assign(view, landmark.anchor);
     const section = sectionOf(view);
     view.sectionTop =
       section && landmarkTop(shownBox(section).top - boxTop, block, rect.top - boxTop);
@@ -690,6 +685,8 @@ export function restorePlace(view, region = null, currentIntent = retainUserInte
   if (!currentLocation || !sameScroller(view, box)) {
     if (view.end) {
       scrollToEnd(box);
+    } else if (view.start && sameScroller(view, box)) {
+      box.scrollTo({ top: 0, behavior: "instant" });
     } else {
       const boxTop = landingBand(box).top;
       // Restoration keeps the reader's disclosures and chosen views: a landmark

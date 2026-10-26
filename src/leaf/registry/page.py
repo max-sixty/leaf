@@ -36,15 +36,15 @@ def compose_page_registry(
 
     ``validated`` is a vocabulary already validated, such as the active revision's:
     a composition equal to it is not validated again. A composition that is
-    validated gets its `$decisions` and `$states` stamped
-    (`registry.layer.stamp_composition`); one equal to ``validated`` already carries
-    them.
+    validated is stamped (`registry.layer.stamp_composition`) before its examples
+    are; one equal to ``validated`` already is.
 
     ``widget_paths`` contains available page-root-relative file names, including
     ``widgets/<tag>.js`` from the layer and ``page/widgets/<tag>.js`` from the
     authored page. ``declaration_sources`` records ``layer`` or ``page`` for each
-    element; ``widget_sources`` records the winning relative path for each
-    upgraded element. Inputs and their nested declarations remain untouched.
+    element and each ``$data.contracts.<name>`` declaration; ``widget_sources``
+    records the winning relative path for each upgraded element. Inputs and their
+    nested declarations remain untouched.
     """
     if "$layer" in page_declarations:
         raise registry_error("page-layer", source)
@@ -52,6 +52,8 @@ def compose_page_registry(
     merge_layer_declarations(registry, deepcopy(page_declarations))
     if registry != validated:
         validate_registry(registry, source)
+        # Examples validate against the vocabulary as pages read it, stamped.
+        stamp_composition(registry)
 
         # Example validation consumes source/instance readers which themselves load
         # page registries. Import it after those owners have finished initializing.
@@ -59,8 +61,14 @@ def compose_page_registry(
 
         if page_declarations:
             validate_registry_examples(registry, source)
-        stamp_composition(registry)
-    declaration_sources = {}
+    declaration_sources = {
+        f"$data.contracts.{name}": (
+            "page"
+            if name in page_declarations.get("$data", {}).get("contracts", {})
+            else "layer"
+        )
+        for name in registry.get("$data", {}).get("contracts", {})
+    }
     widget_sources = {}
     available = set(widget_paths)
     for tag, entry in registry.items():

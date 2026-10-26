@@ -1,17 +1,26 @@
 (() => {
   // packages/diff/initial/lf-worktree.js
-  document.documentElement.lfInitial.register("lf-worktree", (host) => {
+  document.documentElement.lfInitial.register("lf-worktree", (host, tools) => {
     const node = (tag, className, text) => {
       const result = document.createElement(tag);
       result.className = className;
       if (text !== void 0) result.textContent = text;
       return result;
     };
-    const details = host.querySelector(":scope > details");
-    details.classList.add("lf-worktree-disclosure");
-    const summary = node("summary", "lf-worktree-summary");
-    summary.dataset.lfGen = "1";
-    summary.dataset.lfSaid = "";
+    const body = tools.authoredBody(node("div", "lf-worktree-body"));
+    const details = node("details", "lf-worktree-disclosure");
+    const key = `worktree:${host.id}`;
+    const kept = tools.tabStore.get(key);
+    details.open = kept === null ? host.hasAttribute("open") : kept === "open";
+    details.addEventListener(
+      "toggle",
+      () => tools.tabStore.set(
+        key,
+        details.open === host.hasAttribute("open") ? null : details.open ? "open" : "closed"
+      )
+    );
+    const summary = node("summary", "lf-worktree-summary lf-disclosure-marker");
+    tools.generatedElement(summary, { says: true });
     const identity = node("span", "lf-worktree-identity");
     const label = node("strong", "lf-worktree-label", host.getAttribute("label"));
     const branch = host.getAttribute("branch");
@@ -43,13 +52,13 @@
     }
     summary.append(identity, state, stats);
     const path = node("div", "lf-worktree-path");
-    path.dataset.lfGen = "1";
-    path.dataset.lfSaid = "";
+    tools.generatedElement(path, { says: true });
     path.append(
       node("span", "", "Worktree"),
       node("code", "", host.getAttribute("path"))
     );
-    details.prepend(summary, path);
+    details.append(summary, path, body);
+    host.append(details);
     return { details };
   });
 })();

@@ -585,7 +585,10 @@ def test_the_ring_says_where_the_user_is_located(browser, serve):
     question = page.locator("#live-question-decision")
     page.keyboard.press("m")
     expect(question).to_have_attribute("data-lf-obligation", "1")
-    arrival_ring = question.evaluate(RING)
+    arrival_ring = question.evaluate(
+        "ask => { const s = getComputedStyle(ask, '::after'); "
+        "return [s.outlineStyle, s.outlineWidth, s.outlineColor]; }"
+    )
     assert arrival_ring == [
         "solid",
         "2px",
@@ -595,9 +598,12 @@ def test_the_ring_says_where_the_user_is_located(browser, serve):
     # One press in, and the band moves to the row rather than doubling: the frame is the
     # control, and a ring around it as well would come and go with the question.
     page.keyboard.press("Tab")
-    assert question.evaluate(RING)[0] == "none", (
+    question_overlay_ring = question.evaluate(
+        "ask => getComputedStyle(ask, '::after').outlineStyle"
+    )
+    assert question_overlay_ring == "none", (
         "the decision drew its own ring around a control that is already a frame: "
-        f"{question.evaluate(RING)}"
+        f"{question_overlay_ring}"
     )
     row_ring = page.locator("#lq-keep").evaluate(RING)
     assert row_ring == [
@@ -673,7 +679,7 @@ def test_the_ring_says_where_the_user_is_located(browser, serve):
     # keys rather than by backing out of the panel — a surface lands them on the page,
     # never on the control that reopens it. What is asserted here is the band the ring
     # is drawn in while they stand there.
-    toggle = page.locator(".lf-fp-threads")
+    toggle = page.locator(".lf-fp-on-user")
     toggle.focus()
     # Return by keyboard to exercise the same focus band through sequential navigation.
     page.keyboard.press("Tab")
@@ -841,7 +847,9 @@ def test_escape_lets_go_of_the_obligation_the_users_current_location_names(
     # page at all.
     page.keyboard.press("?")
     expect(
-        page.locator('.lf-command-reference tr[data-lf-command="navigation.release"]')
+        page.locator(
+            '.lf-command-reference [role=row][data-lf-command="navigation.release"]'
+        )
     ).to_contain_text("Let go")
     page.keyboard.press("Escape")  # the reference's own rung, which hands focus back
     expect(page.locator(".lf-command-reference")).not_to_have_class(re.compile("open"))
@@ -955,10 +963,10 @@ def test_live_revision_drafts_wait_for_the_complete_controller_publication(
         "The first revision's existing body."
     )
     revised.locator(".lf-draft-body").click()
-    editor = revised.get_by_role("textbox", name="Edit revised-draft")
+    editor = revised.locator("leaf-text")
     write(editor, "The user's unsent replacement.\n")
-    # The user leaves the editor open and steps back to the page.
-    page.locator("h1").click()
+    # The editor stays open with the focus elsewhere; a press away would save it.
+    editor.blur()
     expect(editor).not_to_be_focused()
     assert take_browser_errors(page) == []
 
@@ -971,7 +979,7 @@ def test_live_revision_drafts_wait_for_the_complete_controller_publication(
     expect(page.locator("#arriving-draft .lf-draft-body")).to_have_text(
         "The second revision's newly inserted body."
     )
-    expect(
-        revised.get_by_role("textbox", name="Edit revised-draft")
-    ).to_have_js_property("value", "The user's unsent replacement.\n")
+    expect(revised.locator("leaf-text")).to_have_js_property(
+        "value", "The user's unsent replacement.\n"
+    )
     assert take_browser_errors(page) == []

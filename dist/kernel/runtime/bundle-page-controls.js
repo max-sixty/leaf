@@ -1,263 +1,321 @@
-import {
-  marks,
-  resolveAnchor,
-  targetSegments
-} from "./bundle-visual-parts.js";
-import {
-  inChrome,
-  layoutBox,
-  pageDocument,
-  pageText
-} from "./bundle-passage-facts.js";
-import {
-  clamp,
-  layoutChanged,
-  repaintPage,
-  shownParts
-} from "./bundle-page-paint.js";
-import {
-  afterScript,
-  drawn,
-  nextFrame,
-  nextRender,
-  sizeObserver,
-  under,
-  upFrom
-} from "./bundle-frame-visibility.js";
-import {
-  Z
-} from "./bundle-queued-work.js";
+import { Z } from "./bundle-signals-core.js";
+import { afterScript, renderedParent } from "./bundle-dom-move.js";
+import { shownBox } from "./bundle-geometry.js";
+import "./bundle-context.js";
 
-// runtime/page-controls.js
-var EMPTY = Object.freeze([]);
-var PAGE_CONTROL_RANK = Object.freeze({
-  session: 10,
-  preview: 20,
-  layer: 30,
-  inspection: 32,
-  share: 35,
-  leaves: 40,
-  latest: 50,
-  map: 70,
-  // The page's commands reached by pointer here (touch-controls.js), among themselves
-  // in the register's order.
-  commands: 75,
-  blanket: 80,
-  versions: 90,
-  keyboard: 95,
-  // The way out of the stance the user is in.
-  exit: 120
+//#region runtime/chrome.js
+const chromeRoot = document.createElement("div");
+chromeRoot.className = "lf-chrome";
+const chromeForeground = document.createElement("dialog");
+chromeForeground.className = "lf-ui lf-foreground";
+chromeForeground.setAttribute("open", "");
+chromeForeground.setAttribute("role", "presentation");
+
+//#endregion
+//#region runtime/element-frame.js
+function elementAxes(source) {
+	let matrix = new window.DOMMatrix();
+	for (let node = source; node instanceof Element; node = renderedParent(node)) {
+		const style = getComputedStyle(node);
+		let local = new window.DOMMatrix();
+		if (style.rotate !== "none") {
+			const parts = style.rotate.split(" ");
+			const angle = parts.pop();
+			const degrees = parseFloat(angle) * (angle.endsWith("turn") ? 360 : angle.endsWith("grad") ? .9 : angle.endsWith("rad") ? 180 / Math.PI : 1);
+			const axis = parts.length === 3 ? parts.map(Number) : parts[0] === "x" ? [
+				1,
+				0,
+				0
+			] : parts[0] === "y" ? [
+				0,
+				1,
+				0
+			] : [
+				0,
+				0,
+				1
+			];
+			local = local.rotateAxisAngle(...axis, degrees);
+		}
+		if (style.scale !== "none") {
+			const scale = style.scale.split(" ").map(Number);
+			local = local.scale(scale[0], scale[1] ?? scale[0], scale[2] ?? 1);
+		}
+		if (style.transform !== "none") local = local.multiply(new window.DOMMatrix(style.transform));
+		const zoom = Number(style.zoom);
+		local = local.scale(zoom, zoom);
+		matrix = local.multiply(matrix);
+	}
+	return {
+		x: {
+			x: matrix.a,
+			y: matrix.b
+		},
+		y: {
+			x: matrix.c,
+			y: matrix.d
+		}
+	};
+}
+const nativePositions = /* @__PURE__ */ new WeakMap();
+let positionProbe;
+function nativePosition(source, position, horizontal, vertical) {
+	const key = JSON.stringify([
+		position,
+		horizontal,
+		vertical
+	]);
+	const prior = nativePositions.get(source);
+	if (prior?.key === key) return prior.offset;
+	const components = [];
+	let depth = 0;
+	let start = 0;
+	for (let at = 0; at <= position.length; at++) {
+		const character = position[at];
+		if (character === "(") depth++;
+		if (character === ")") depth--;
+		if (at === position.length || character === " " && !depth) {
+			if (at > start) components.push(position.slice(start, at));
+			start = at + 1;
+		}
+	}
+	const pixels = (value, space) => value.replace(/([-+]?(?:\d*\.)?\d+(?:e[-+]?\d+)?)%/gi, (_unit, percent) => `${Number(percent) * space / 100}px`);
+	if (!positionProbe) {
+		const measure = document.createElement("div");
+		measure.className = "lf-ui";
+		measure.dataset.lfRuntime = "";
+		measure.inert = true;
+		measure.style.cssText = "all:initial;position:fixed;visibility:hidden;contain:strict;width:0;height:0;left:0;top:0;pointer-events:none";
+		const point = document.createElement("div");
+		point.style.cssText = "all:initial;position:absolute;width:0;height:0";
+		measure.append(point);
+		positionProbe = {
+			measure,
+			point
+		};
+	}
+	const { measure, point } = positionProbe;
+	point.style.left = pixels(components[0], horizontal);
+	point.style.top = pixels(components[1], vertical);
+	document.body.append(measure);
+	const resolved = getComputedStyle(point);
+	const offset = [Number.parseFloat(resolved.left), Number.parseFloat(resolved.top)];
+	measure.remove();
+	nativePositions.set(source, {
+		key,
+		offset
+	});
+	return offset;
+}
+function elementFrame(source) {
+	const box = shownBox(source);
+	if (!box?.width || !box?.height) return null;
+	if (source instanceof window.SVGGraphicsElement) {
+		const view = source instanceof window.SVGSVGElement && source.viewBox.baseVal;
+		const local = source instanceof window.SVGSVGElement ? view.width && view.height ? view : {
+			x: 0,
+			y: 0,
+			width: Number.parseFloat(getComputedStyle(source).width),
+			height: Number.parseFloat(getComputedStyle(source).height)
+		} : source.getBBox();
+		const screen = source.getScreenCTM();
+		if (!screen) return null;
+		return {
+			box,
+			width: local.width,
+			height: local.height,
+			matrix: new window.DOMMatrix([
+				screen.a,
+				screen.b,
+				screen.c,
+				screen.d,
+				screen.e,
+				screen.f
+			])
+		};
+	}
+	const layout = elementBorderFrame(source);
+	if (!layout) return null;
+	const { width, height, matrix } = layout;
+	const style = getComputedStyle(source);
+	const native = source instanceof window.HTMLImageElement ? [source.naturalWidth, source.naturalHeight] : source instanceof window.HTMLCanvasElement ? [source.width, source.height] : source instanceof window.HTMLVideoElement ? [source.videoWidth, source.videoHeight] : null;
+	if (native) {
+		if (!native[0] || !native[1]) return null;
+		const edge = (side) => Number.parseFloat(style[`border${side}Width`]) + Number.parseFloat(style[`padding${side}`]);
+		const contentWidth = width - edge("Left") - edge("Right");
+		const contentHeight = height - edge("Top") - edge("Bottom");
+		let sx = contentWidth / native[0];
+		let sy = contentHeight / native[1];
+		if (style.objectFit !== "fill") sx = sy = style.objectFit === "cover" ? Math.max(sx, sy) : style.objectFit === "none" ? 1 : Math.min(sx, sy, style.objectFit === "scale-down" ? 1 : Infinity);
+		const [dx, dy] = nativePosition(source, style.objectPosition, contentWidth - native[0] * sx, contentHeight - native[1] * sy);
+		if (![
+			sx,
+			sy,
+			dx,
+			dy
+		].every(Number.isFinite) || !sx || !sy) return null;
+		return {
+			box,
+			width: native[0],
+			height: native[1],
+			matrix: matrix.translate(edge("Left") + dx, edge("Top") + dy).scale(sx, sy)
+		};
+	}
+	return {
+		box,
+		width,
+		height,
+		matrix
+	};
+}
+function elementBorderFrame(source) {
+	const box = shownBox(source);
+	if (!box?.width || !box?.height) return null;
+	const style = getComputedStyle(source);
+	if (style.display === "contents") return {
+		box,
+		width: box.width,
+		height: box.height,
+		matrix: new window.DOMMatrix().translate(box.left, box.top)
+	};
+	const borderSize = (side, edges, fallback) => {
+		const size = Number.parseFloat(style[side]);
+		if (!Number.isFinite(size)) return fallback;
+		return style.boxSizing === "border-box" ? size : size + edges.reduce((sum, edge) => sum + Number.parseFloat(style[`padding${edge}`]) + Number.parseFloat(style[`border${edge}Width`]), 0);
+	};
+	const width = borderSize("width", ["Left", "Right"], source.offsetWidth);
+	const height = borderSize("height", ["Top", "Bottom"], source.offsetHeight);
+	const { x, y } = elementAxes(source);
+	const left = box.left - Math.min(0, width * x.x, height * y.x, width * x.x + height * y.x);
+	const top = box.top - Math.min(0, width * x.y, height * y.y, width * x.y + height * y.y);
+	return {
+		box,
+		width,
+		height,
+		matrix: new window.DOMMatrix([
+			x.x,
+			x.y,
+			y.x,
+			y.y,
+			left,
+			top
+		])
+	};
+}
+function scrollAxes(source) {
+	return source === source.ownerDocument.scrollingElement ? {
+		x: {
+			x: 1,
+			y: 0
+		},
+		y: {
+			x: 0,
+			y: 1
+		}
+	} : elementAxes(source);
+}
+function localScrollBy(source, { x, y }) {
+	const axes = scrollAxes(source);
+	const horizontal = source.scrollWidth > source.clientWidth;
+	const vertical = source.scrollHeight > source.clientHeight;
+	const along = (axis) => {
+		return [...x && axis.x ? [x / axis.x] : [], ...y && axis.y ? [y / axis.y] : []].reduce((move, amount) => Math.abs(amount) > Math.abs(move) ? amount : move, 0);
+	};
+	const reach = (offset, current, minimum, maximum) => Math.max(minimum - current, Math.min(maximum - current, offset));
+	const horizontalLimit = source.scrollWidth - source.clientWidth;
+	const rtl = getComputedStyle(source).direction === "rtl";
+	const reachLeft = (offset) => reach(offset, source.scrollLeft, rtl ? -horizontalLimit : 0, rtl ? 0 : horizontalLimit);
+	const reachTop = (offset) => reach(offset, source.scrollTop, 0, source.scrollHeight - source.clientHeight);
+	if (!horizontal) return {
+		left: 0,
+		top: vertical ? reachTop(along(axes.y)) : 0
+	};
+	if (!vertical) return {
+		left: reachLeft(along(axes.x)),
+		top: 0
+	};
+	const determinant = axes.x.x * axes.y.y - axes.x.y * axes.y.x;
+	const left = (x * axes.y.y - y * axes.y.x) / determinant;
+	const top = (y * axes.x.x - x * axes.x.y) / determinant;
+	const reachableLeft = reachLeft(left);
+	const reachableTop = reachTop(top);
+	if (reachableLeft !== left && axes.y.y) return {
+		left: reachableLeft,
+		top: reachTop((y - reachableLeft * axes.x.y) / axes.y.y)
+	};
+	if (reachableTop !== top && axes.x.x) return {
+		left: reachLeft((x - reachableTop * axes.y.x) / axes.x.x),
+		top: reachableTop
+	};
+	return {
+		left,
+		top
+	};
+}
+
+//#endregion
+//#region runtime/page-controls.js
+const EMPTY = Object.freeze([]);
+const PAGE_CONTROL_RANK = Object.freeze({
+	session: 10,
+	claimant: 15,
+	preview: 20,
+	layer: 30,
+	inspection: 32,
+	share: 35,
+	leaves: 40,
+	latest: 50,
+	map: 70,
+	commands: 75,
+	blanket: 80,
+	versions: 90,
+	keyboard: 95,
+	exit: 120
 });
-var GROUPS = Object.freeze(["page", "navigate", "annotate", "about", "keys"]);
-var rows = /* @__PURE__ */ new Map();
-var sequence = 0;
-var revision = Z(0);
-var read = (value) => typeof value === "function" ? value() : value;
+const GROUPS = Object.freeze([
+	"page",
+	"navigate",
+	"annotate",
+	"keys"
+]);
+const rows = /* @__PURE__ */ new Map();
+let sequence = 0;
+const revision = Z(0);
+const read = (value) => typeof value === "function" ? value() : value;
 function registerPageControl(row) {
-  if (!row.key || !Number.isFinite(row.rank) || !row.label || !row.group)
-    throw new TypeError(
-      `Page control ${row.key} needs a key, a numeric rank, a label and a group`
-    );
-  if (rows.has(row.key)) throw new TypeError(`Page control ${row.key} is registered`);
-  rows.set(row.key, Object.freeze({ ...row, sequence: sequence++ }));
-  pageControlsChanged();
+	if (!row.key || !Number.isFinite(row.rank) || !row.label || !row.group) throw new TypeError(`Page control ${row.key} needs a key, a numeric rank, a label and a group`);
+	if (rows.has(row.key)) throw new TypeError(`Page control ${row.key} is registered`);
+	rows.set(row.key, Object.freeze({
+		...row,
+		sequence: sequence++
+	}));
+	pageControlsChanged();
 }
 function pageControls() {
-  revision.value;
-  return [...rows.values()].sort((a, b) => a.rank - b.rank || a.sequence - b.sequence).filter((row) => read(row.offered) ?? true).map((row) => {
-    const group = read(row.group);
-    if (!GROUPS.includes(group))
-      throw new TypeError(
-        `Page control ${row.key} is in group ${group}, not one of ${GROUPS.join(", ")}`
-      );
-    return Object.freeze({
-      key: row.key,
-      label: read(row.label),
-      value: read(row.value) ?? "",
-      title: read(row.title) ?? "",
-      shortcut: read(row.shortcut) ?? EMPTY,
-      group,
-      copies: read(row.copies) ?? "",
-      urgent: read(row.urgent) ?? null,
-      exit: Boolean(row.exit),
-      disabled: Boolean(read(row.disabled)),
-      press: row.press ?? null
-    });
-  });
+	revision.value;
+	return [...rows.values()].sort((a, b) => a.rank - b.rank || a.sequence - b.sequence).filter((row) => read(row.offered) ?? true).map((row) => {
+		const group = read(row.group);
+		if (!GROUPS.includes(group)) throw new TypeError(`Page control ${row.key} is in group ${group}, not one of ${GROUPS.join(", ")}`);
+		return Object.freeze({
+			key: row.key,
+			label: read(row.label),
+			value: read(row.value) ?? "",
+			title: read(row.title) ?? "",
+			shortcut: read(row.shortcut) ?? EMPTY,
+			group,
+			copies: read(row.copies) ?? "",
+			urgent: read(row.urgent) ?? null,
+			exit: Boolean(row.exit),
+			icon: read(row.icon) ?? null,
+			disabled: Boolean(read(row.disabled)),
+			press: row.press ?? null
+		});
+	});
 }
-var pageControlsChanged = () => afterScript(tell);
+const pageControlsChanged = () => afterScript(tell);
 function tell() {
-  revision.value = revision.peek() + 1;
+	revision.value = revision.peek() + 1;
 }
 
-// runtime/content-layout.js
-var marginContentLayoutOpen = false;
-var readFinished = null;
-var marginContentLayoutPending = 0;
-var marginContentLayoutRead = -1;
-function marginContentLayoutPass(time) {
-  marginContentLayoutPending = 0;
-  if (time === marginContentLayoutRead) {
-    marginContentLayoutPending = nextFrame(marginContentLayoutPass);
-    return;
-  }
-  marginContentLayoutRead = time;
-  readMarginContentLayout();
-}
-var headSizes = null;
-var watchedHead = null;
-function watchHead() {
-  const header = document.documentElement.lfInitial.layoutBox()?.querySelector(":scope > header") ?? null;
-  if (header === watchedHead) return;
-  headSizes ??= sizeObserver(() => scheduleMarginContentLayout());
-  if (watchedHead) headSizes.unobserve(watchedHead);
-  if (header) headSizes.observe(header);
-  watchedHead = header;
-}
-function readMarginContentLayout() {
-  const { changed } = document.documentElement.lfInitial.marginContentLayout();
-  watchHead();
-  if (changed) layoutChanged(pageDocument());
-  readFinished?.(changed);
-  if (!changed) return;
-  repaintPage();
-  pageControlsChanged();
-}
-var railStands = (main = layoutBox()) => (main?.getAttribute("data-lf-margin") ?? "").split(" ").includes("rail");
-function scheduleMarginContentLayout() {
-  if (marginContentLayoutOpen)
-    marginContentLayoutPending ||= nextRender(marginContentLayoutPass);
-}
-function settleMarginContentLayout() {
-  if (marginContentLayoutOpen) readMarginContentLayout();
-}
-var ROOM = marks["x-space"].paint;
-var BREAKOUT = `[${ROOM}]`;
-var bringsBreakout = (node) => node.nodeType === Node.ELEMENT_NODE && (node.matches(BREAKOUT) || node.querySelector(BREAKOUT) !== null);
-function readBreakouts() {
-  const { changed } = document.documentElement.lfInitial.breakouts();
-  if (!changed) return;
-  layoutChanged(pageDocument());
-  repaintPage();
-}
-var mayChangeMarginContentLayout = (node) => node.matches(
-  'body > main > *, body > main > [data-lf-views="parts"] > *, [data-lf-views-flow="page"] > *'
-);
-function openMarginContentLayout({ onRead }) {
-  readFinished = onRead;
-  marginContentLayoutOpen = true;
-  document.addEventListener("toggle", scheduleMarginContentLayout, { capture: true });
-  window.addEventListener("resize", scheduleMarginContentLayout);
-  const main = pageDocument();
-  if (main)
-    new MutationObserver((records) => {
-      if (records.some(
-        (record) => record.type === "attributes" && record.attributeName === "hidden" && mayChangeMarginContentLayout(record.target)
-      ))
-        readMarginContentLayout();
-      else if (records.some(
-        (record) => record.type === "attributes" ? bringsBreakout(record.target) : [...record.addedNodes].some(bringsBreakout)
-      ))
-        readBreakouts();
-    }).observe(main, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-      attributeFilter: [ROOM, "hidden", "open"]
-    });
-  readMarginContentLayout();
-}
-
-// runtime/pointed-place.js
-var points = /* @__PURE__ */ new Map();
-var handed = /* @__PURE__ */ new Map();
-var WITHIN_A_LINE = /^(inline|contents$)/;
-function pointInto(target, node) {
-  let at = node?.nodeType === Node.ELEMENT_NODE ? node : node?.parentElement ?? null;
-  if (!target || target instanceof SVGElement || !at || !under(at, target)) return null;
-  let line = null;
-  for (; at && at !== target; at = upFrom(at)) {
-    if (at instanceof SVGElement) continue;
-    const display = getComputedStyle(at).display;
-    if (display === "table-row") {
-      line = at;
-      break;
-    }
-    if (display === "table-cell") line = null;
-    else if (!line && !WITHIN_A_LINE.test(display)) line = at;
-  }
-  return line && !opens(target, line) ? line : null;
-}
-function opens(target, line) {
-  for (let at = line; at && at !== target; at = upFrom(at))
-    for (let before = at.previousSibling; before; before = before.previousSibling)
-      if (drawn2(before)) return false;
-  return true;
-}
-var drawn2 = (node) => node.nodeType === Node.TEXT_NODE ? Boolean(node.data.trim()) && Boolean(node.parentElement?.checkVisibility()) : node.nodeType === Node.ELEMENT_NODE && !inChrome(node) && node.checkVisibility() && [...node.getClientRects()].some((box) => box.width && box.height);
-function livePoint(target, point) {
-  return target && point?.isConnected && point !== target && under(point, target) && point.getClientRects().length ? point : null;
-}
-function commitPoint(key, element, passage) {
-  handed.set(key, { element, passage });
-}
-function placePoints(threads, known) {
-  const text = pageText();
-  for (const [key, { element, passage }] of handed) {
-    if (!known.has(key)) continue;
-    handed.delete(key);
-    const beside = [...points.values()].find(
-      (held) => held.element === element && element.isConnected
-    );
-    points.set(key, { element, passage, row: beside?.row ?? key, readFor: null });
-  }
-  const placed = /* @__PURE__ */ new Map();
-  for (const { key, target } of threads) {
-    const point = points.get(key);
-    if (!point) continue;
-    let element = livePoint(target, point.element);
-    if (!element && point.passage && point.readFor !== text) {
-      point.readFor = text;
-      const found = resolveAnchor(point.passage);
-      element = livePoint(target, pointInto(target, targetSegments(found)[0]?.node));
-      if (element) point.element = element;
-    }
-    if (element)
-      placed.set(key, { element, row: point.row, words: point.passage?.quote ?? null });
-  }
-  if (known.size) {
-    for (const store of [points, handed])
-      for (const key of store.keys()) if (!known.has(key)) store.delete(key);
-  }
-  return placed;
-}
-function pointBand(box, point) {
-  const row = point.getBoundingClientRect();
-  const top = clamp(row.top, box.top, box.bottom);
-  const bottom = clamp(row.bottom, top, box.bottom);
-  const { left, right } = box;
-  return { left, top, right, bottom, width: right - left, height: bottom - top };
-}
-
-// runtime/visible-target-parts.js
-function visibleTargetParts(target) {
-  const parts = shownParts(target).filter(drawn);
-  return drawn(target) ? [target, ...parts.filter((part) => part !== target)] : parts;
-}
-
-export {
-  pointInto,
-  livePoint,
-  commitPoint,
-  placePoints,
-  pointBand,
-  PAGE_CONTROL_RANK,
-  registerPageControl,
-  pageControls,
-  pageControlsChanged,
-  railStands,
-  scheduleMarginContentLayout,
-  settleMarginContentLayout,
-  openMarginContentLayout,
-  visibleTargetParts
-};
+//#endregion
+export { PAGE_CONTROL_RANK, chromeForeground, chromeRoot, elementFrame, localScrollBy, pageControls, pageControlsChanged, registerPageControl, scrollAxes };

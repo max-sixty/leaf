@@ -75,7 +75,11 @@ import {
   registerReadingRegion,
   keepsHidden,
   el,
+  generatedElement,
   focusDestination,
+  showNativeLayer,
+  closeNativeLayer,
+  isNativeLayer,
   holdFocus,
   html,
   iconTemplate,
@@ -96,7 +100,6 @@ import {
   LeafElement,
   onUserInput,
   paintKeys,
-  projectData,
   signal,
   quoted,
   registerVisualParts,
@@ -161,6 +164,14 @@ const INPUT_NAMES = {
   mouseClick: "Click",
   dragTo: "Drag",
 };
+// The marks that make a drawn part a datum on a Leaf page, taken off a part kept after
+// it stops showing one.
+const MARKS = [
+  "data-lf-datum",
+  "data-lf-identity",
+  "data-lf-datum-label",
+  "data-lf-origin-path",
+];
 // The longest an image on screen may trail the playing clock, in milliseconds.
 const MAX_LAG = 150;
 // How long after an input is sent the image keeps marking it, in milliseconds of
@@ -226,10 +237,20 @@ const transport = (target, label, icon, disabled, title = label) =>
 customElements.define(
   "lf-trace",
   class extends LeafElement {
-    #snapshot = null;
-    // The delivery the last render read, and the one shown.
+    // The recording, set by whoever hosts the widget: Leaf from the bound source (the
+    // registry's `x-data.trace.property`), or null while that source has none.
+    static properties = { value: { attribute: false } };
+
+    constructor() {
+      super();
+      this.value = null;
+    }
+
+    // The recording the last render read, and the one shown.
     #delivered;
     #shown;
+    // The elements the last paint marked as drawn data.
+    #marked = new Set();
     #origins = new Map();
     #imageSizes = new Map();
     #trace = null;
@@ -280,6 +301,10 @@ customElements.define(
     #imageHost = createRef();
     #imageTools = createRef();
     #zoomLabel = createRef();
+    /** @type {import("lit/directives/ref.js").Ref<HTMLButtonElement>} */
+    #imageScale = createRef();
+    /** @type {import("lit/directives/ref.js").Ref<HTMLElement>} */
+    #imageScaleOptions = createRef();
     /** @type {import("lit/directives/ref.js").Ref<HTMLDetailsElement>} */
     #tree = createRef();
     #treeList = createRef();
@@ -471,7 +496,7 @@ customElements.define(
     }
 
     render() {
-      this.#delivered = this.data("trace");
+      this.#delivered = this.value;
       return nothing;
     }
 
@@ -488,7 +513,7 @@ customElements.define(
       const waiting = document.createElement("template");
       waiting.innerHTML = declarationFor(this, "x-prepaint");
       this.#waiting = waiting.content.firstElementChild;
-      this.#waiting.dataset.lfGen = "1";
+      generatedElement(this.#waiting, { says: false });
       this.querySelector(":scope > [data-lf-prepaint]")?.remove();
       this.#bookmarks = [...this.querySelectorAll(":scope > lf-trace-bookmark")].map(
         (member, index) => ({
@@ -501,7 +526,7 @@ customElements.define(
       // Lit owns only this generated container; authored bookmarks and the
       // prepaint face remain outside its child-part markers.
       this.#view = el("div", "lf-trace-view");
-      this.#view.dataset.lfGen = "1";
+      generatedElement(this.#view, { says: false });
       this.append(this.#view);
       this.#paint();
       // Viewer owns the viewport's figures and the timeline module its own
@@ -526,6 +551,7 @@ customElements.define(
         commands(this.#timelineHost.value, "On a recording timeline", [
           {
             id: "trace.first",
+            travels: true,
             keys: ["Home"],
             title: "first capture",
             control: this.#first.value,
@@ -534,6 +560,7 @@ customElements.define(
           },
           {
             id: "trace.last",
+            travels: true,
             keys: ["End"],
             title: "last capture",
             run: () => this.#navigate(this.#items().at(-1)?.id ?? null),
@@ -903,12 +930,11 @@ customElements.define(
           : ["start", "end"];
     }
 
-    #show(snapshot) {
+    #show(trace) {
       this.pause(false);
       const restore = holdFocus(this);
       const oldArchive = this.#trace?.archive.sha256;
-      this.#snapshot = snapshot;
-      this.#trace = snapshot?.value ?? null;
+      this.#trace = trace;
       this.#boundsByScope.clear();
       this.#itemsCache = null;
       this.#origins = this.#trace ? streamOrigins(this.#trace) : new Map();
@@ -1197,10 +1223,22 @@ customElements.define(
     }
     #imageZoom() {
       this.#drawInput();
+      const percent = `${Math.round((this.#picture?.imageData.ratio ?? 1) * 100)}%`;
+      const fitted = !this.#scopeView().image;
+      keepsText(this.#zoomLabel.value, fitted ? "Fit" : percent);
+      keeps(this.#imageScale.value, "title", fitted ? `Fit · ${percent}` : percent);
+      for (const button of this.#imageScaleOptions.value.querySelectorAll("button"))
+        keeps(
+          button,
+          "aria-pressed",
+          button.dataset.scale === "fit"
+            ? fitted
+            : !fitted && this.#picture?.imageData.ratio === 1,
+        );
       keepsText(
-        this.#zoomLabel.value,
+        this.#imageTools.value.querySelector(".lf-trace-tools-status"),
         this.#picture?.viewed
-          ? `${Math.round(this.#picture.imageData.ratio * 100)}%`
+          ? ""
           : this.#pendingPicture
             ? "Loading capture…"
             : this.#pictureId
@@ -1977,7 +2015,7 @@ customElements.define(
                       ${iconTemplate("play", "lf-action-icon")}${iconTemplate(
                         "pause",
                         "lf-action-icon",
-                      )}<span>${playLabel}</span>
+                      )}
                     </button>
                     ${transport(
                       this.#previous,
@@ -2052,12 +2090,10 @@ customElements.define(
                 ${[
                   ["−", "Zoom image out", () => this.#picture?.zoom(-0.25)],
                   ["+", "Zoom image in", () => this.#picture?.zoom(0.25)],
-                  ["Fit image", null, () => this.#fitPicture()],
-                  ["Actual size", null, () => this.#picture?.zoomTo(1)],
                 ].map(
                   ([text, label, run]) =>
                     html`<button
-                      ${offered("lf-btn lf-quiet-action lf-compact-control")}
+                      ${offered("lf-btn lf-quiet-action")}
                       aria-label=${label ?? nothing}
                       ?disabled=${!this.#picture?.viewed || q}
                       @click=${run}
@@ -2065,7 +2101,80 @@ customElements.define(
                       ${text}
                     </button>`,
                 )}
-                <span class="lf-trace-image-zoom" ${ref(this.#zoomLabel)}></span>
+                <button
+                  ${offered("lf-btn lf-quiet-action lf-trace-image-scale")}
+                  ${ref(this.#imageScale)}
+                  aria-label="Image scale"
+                  aria-controls=${`${this.id}-image-scale-options`}
+                  popovertarget=${`${this.id}-image-scale-options`}
+                  aria-expanded="false"
+                  ?disabled=${!this.#picture?.viewed || q}
+                  @click=${(event) => {
+                    event.preventDefault();
+                    const options = this.#imageScaleOptions.value;
+                    if (isNativeLayer(options)) closeNativeLayer(options);
+                    else {
+                      focusDestination(this.#imageScale.value, "press");
+                      showNativeLayer(options, { source: this.#imageScale.value });
+                      focusDestination(
+                        options.querySelector('[aria-pressed="true"]') ??
+                          options.querySelector("button"),
+                        "move",
+                      );
+                    }
+                  }}
+                >
+                  <span ${ref(this.#zoomLabel)}></span>${iconTemplate(
+                    "down",
+                    "lf-action-icon",
+                  )}
+                </button>
+                <div
+                  id=${`${this.id}-image-scale-options`}
+                  class="lf-trace-scale-options"
+                  popover="auto"
+                  role="group"
+                  aria-label="Image scale"
+                  ${ref(this.#imageScaleOptions)}
+                  @toggle=${() => {
+                    keeps(
+                      this.#imageScale.value,
+                      "aria-expanded",
+                      isNativeLayer(this.#imageScaleOptions.value),
+                    );
+                    paintKeys();
+                  }}
+                >
+                  ${[
+                    {
+                      scale: "fit",
+                      text: "Fit",
+                      label: "Fit image",
+                      run: () => this.#fitPicture(),
+                    },
+                    {
+                      scale: "actual",
+                      text: "100%",
+                      label: "Actual size",
+                      run: () => this.#picture?.zoomTo(1),
+                    },
+                  ].map(
+                    ({ scale, text, label, run }) =>
+                      html`<button
+                        ${offered("lf-btn lf-quiet-action")}
+                        data-scale=${scale}
+                        aria-label=${label}
+                        @click=${() => {
+                          run();
+                          closeNativeLayer(this.#imageScaleOptions.value);
+                          focusDestination(this.#imageScale.value, "move");
+                        }}
+                      >
+                        ${text}
+                      </button>`,
+                  )}
+                </div>
+                <span class="lf-trace-tools-status"></span>
               </div>
             </div>
             <div class="lf-trace-capture-footer" ?hidden=${!trace}>
@@ -2298,19 +2407,22 @@ customElements.define(
             "nodes",
             index,
           ]);
-      // Only drawn evidence is projected. Hidden parts keep their archive coordinate
-      // in the inventory reader's label/reveal routes, not in a second semantic fold.
-      projectData(
-        this,
-        projection.map((record) => ({
-          node: record.element,
-          key: record.id,
-          identity: record.id,
-          label: record.label,
-          origin: { ...this.#snapshot.origin, path: record.path },
-        })),
-        { snapshot: this.#snapshot },
-      );
+      // Only drawn evidence is marked as data (`module-state.md`, "Marking drawn
+      // data"). Hidden parts keep their archive coordinate in the inventory reader's
+      // label/reveal routes, not in a second semantic fold.
+      const marked = new Set();
+      for (const { id, element, label, path } of projection) {
+        keeps(element, "data-lf-datum", id);
+        keeps(element, "data-lf-identity", id);
+        keeps(element, "data-lf-datum-label", label);
+        keeps(element, "data-lf-origin-path", JSON.stringify(path));
+        marked.add(element);
+      }
+      for (const element of this.#marked)
+        if (!marked.has(element))
+          for (const name of MARKS) element.removeAttribute(name);
+      this.#marked = marked;
+      this.dispatchEvent(new CustomEvent("drawn", { detail: { value: this.#trace } }));
       this.#parts.update();
       paintKeys();
     }

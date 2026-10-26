@@ -4,13 +4,13 @@
    not move focus or scroll the panel. `notice` is the one visible surface for a
    moment's news, such as a recorded gesture or an arrived version, and it stands in
    one seat: the floating panel's seat for passing words, in place of the current walk
-   position, which returns when the notice fades (floating-panel.js, `passing`). The
+   position, which returns when the notice's time is up (floating-panel.js, `passing`). The
    live region hears the same words. It is text rather than a control: what a notice
    names, the panel's own controls reach. There is no second surface for news, so
    nothing floats in a corner to become a stale pointer target. A failure is no news:
    it goes through errors.js, which keeps it until the user has dealt with it. */
 import { el } from "./widget-elements.js";
-import { signal } from "/vendor/browser-runtime.js";
+import { signal } from "/runtime/framework.js";
 
 export const liveEl = el("div", "lf-ui lf-live");
 liveEl.setAttribute("aria-live", "polite");
@@ -133,7 +133,7 @@ function yieldNotice() {
 }
 
 // A semantic walk is an immediate user command even though its feedback is the live
-// ordinal rather than a timed notice. Hold arriving news for one boundary interval;
+// ordinal rather than a timed notice. Hold arriving news for a moment after the step;
 // beginWalk calls this only for gestures, so ordinary repaints never restart the hold.
 export function holdStatus(ms) {
   if (noticeVisible()) yieldNotice();

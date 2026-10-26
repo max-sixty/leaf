@@ -51,21 +51,25 @@ export function declareSide(bridge, { beside = false } = {}) {
   return () => sides.delete(bridge);
 }
 
-// The innermost obligation whose source, or whose own enclosing widget, is or holds `node`.
-// An enclosing widget shared by several sources cannot identify one of them on its own,
-// so only a source stands for such an obligation (`obligationPlace`). Obligations nest, as a question
+// The innermost obligation whose source, or whose own place, is or holds `node`: a
+// widget's enclosing widget, or the element a to-do is on. An enclosing widget shared
+// by several sources cannot identify one of them on its own, so only a source stands for
+// such an obligation (`obligationPlace`). Obligations nest, as a question
 // inside a proposal's new text does, so the nearest place holding the node names the
 // obligation rather than the kind of place: on the inner question's enclosing widget the user
-// is on that question, not on the proposal whose source holds it.
-export function obligationHolding(items, node) {
+// is on that question, not on the proposal whose source holds it. Of two standing at one
+// place, as a to-do on a widget does beside the widget's own question, the first the
+// inventory lists names it, and the inventory lists widgets' obligations before to-dos.
+// `items` may be a selection, such as those waiting on the user, placed as the whole
+// `inventory` places them.
+export function obligationHolding(items, node, inventory = items) {
   if (!node) return null;
   const holds = (element) => element && under(node, element);
   let held = null;
   for (const item of items) {
-    if (item.source.kind !== "widget") continue;
-    const { source, node: target } = obligationPlace(item, items);
+    const { source, node: target } = obligationPlace(item, inventory);
     const at = holds(source) ? source : holds(target) ? target : null;
-    if (at && (!held || under(at, held.at))) held = { item, at };
+    if (at && (!held || (at !== held.at && under(at, held.at)))) held = { item, at };
   }
   return held?.item ?? null;
 }
@@ -115,7 +119,7 @@ export const walkOrigin = () =>
   currentLocationOrigin() ?? { place: pageReadingBlock(), kind: "current-location" };
 
 // The item a walk over `list` steps to in direction `dir` from `here`, a place on the
-// page, and whether it came round an end to reach it. `list` is in page order with its
+// page. `list` is in page order with its
 // unplaced items last, and `placeOfItem` reads an item's place, or null. The step takes
 // the nearest item on its side of `here`, else comes round to the far end. An item whose
 // place holds `here`, such as a thread on the paragraph the caret is in, is the nearest
@@ -138,10 +142,7 @@ export function stepFrom(list, { place: here, kind }, dir, placeOfItem) {
     if (!place) return dir > 0;
     return renderedUnder(here, place) || Math.sign(renderedOrder(here, place)) === -dir;
   });
-  const row = dir > 0 ? reach[0] : reach.at(-1);
-  return row
-    ? { row, wrapped: false }
-    : { row: dir > 0 ? list[0] : list.at(-1), wrapped: true };
+  return (dir > 0 ? reach[0] : reach.at(-1)) ?? (dir > 0 ? list[0] : list.at(-1));
 }
 
 // The obligation the user is in, answered or not: where letting go lands, and the extent

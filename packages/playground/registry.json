@@ -1,12 +1,16 @@
 {
   "lf-playground": {
     "description": "A preview with controls, where the user compares candidates, tunes a configuration, and sends it.",
-    "x-instructions": "Frame the question with `lf-ask` when its context lives outside the playground. Structured editors use `registerContributor(name, defaults)` and its immutable get/set handle; views use `subscribe(paint)` through the playground’s LeafElement lifecycle. The playground package’s “Stateful previews” section owns initialization and connection lifetimes. One optional `registerInstructionProvider(values => text)` writes the instruction. For contributor state, redeclare the complete `lf-playground` entry in `page/registry.json` with an exact schema for `detail.values`.",
+    "x-instructions": "Holds one `lf-playground-preview` and one `lf-playground-output`.",
     "type": "object",
     "properties": {
       "id": {
         "type": "string",
         "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "contract": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*(?:/[a-z0-9][a-z0-9-]*)*$"
       },
       "submit-label": {
         "type": "string",
@@ -28,6 +32,7 @@
     },
     "x-state": {
       "choose": {
+        "contract": { "field": "values", "attribute": "contract" },
         "detail": {
           "type": "object",
           "properties": {
@@ -35,7 +40,7 @@
               "type": "object",
               "minProperties": 1,
               "propertyNames": {
-                "pattern": "^[a-z][a-z0-9-]*$"
+                "pattern": "^[a-z0-9][a-z0-9-]*$"
               },
               "additionalProperties": {}
             },
@@ -55,13 +60,17 @@
   },
   "lf-playground-control": {
     "description": "One typed input in a playground.",
-    "x-instructions": "Use a stable `name` for the submitted field and a `label` for the control. Write its initial `value` as a string: a finite number for range, true or false for toggle, one child's value for choice, a six-digit hex color for color, or any text for text. A range needs `max`; `min`, `step` and `unit` are optional. Only a choice control contains lf-playground-choice children. To select among visible candidates, put their markup in those children and this control in lf-playground-preview; the candidate is its own selector. A control that changes the whole preview, as most do, is a direct child of lf-playground and appears in its rail. When the preview holds several items that each take their own settings, write each item's controls inside lf-playground-preview beside that item, where they appear as written.",
+    "x-instructions": "Use a stable `name` for the submitted field and a `label` for the control. Write its initial `value` as a string: a finite number for range, true or false for toggle, one child's value for choice, a six-digit hex color for color, or any text for text. A range needs `max`; `min` defaults to 0 and `step` to 1. A range's `unit` is appended to its value in its CSS custom property and in `lf-playground-value`, while its data attribute and submitted value stay plain numbers. A text control's custom property is a quoted CSS string. Only a choice control contains `lf-playground-choice` children. To select among visible candidates, put their markup in those children and this control in `lf-playground-preview`; the candidate is its own selector. A control that is a direct child of `lf-playground` stands in the rail; one inside `lf-playground-preview` stands where it is written.",
     "x-name": "label",
     "type": "object",
     "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
       "name": {
         "type": "string",
-        "pattern": "^[a-z][a-z0-9-]*$"
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
       },
       "label": {
         "type": "string",
@@ -69,6 +78,9 @@
       },
       "kind": {
         "enum": ["range", "toggle", "choice", "color", "text"]
+      },
+      "appearance": {
+        "const": "select"
       },
       "value": {
         "type": "string"
@@ -94,6 +106,10 @@
     },
     "required": ["name", "label", "kind", "value"],
     "allOf": [
+      {
+        "if": { "required": ["appearance"] },
+        "then": { "properties": { "kind": { "const": "choice" } } }
+      },
       {
         "if": {
           "properties": {
@@ -160,6 +176,10 @@
     "x-name": "label",
     "type": "object",
     "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
       "value": {
         "type": "string",
         "minLength": 1
@@ -178,10 +198,14 @@
   },
   "lf-playground-preset": {
     "description": "A named partial playground configuration the user can apply at once.",
-    "x-instructions": "Include settings only for values the preset changes; unspecified controls keep their current values.",
+    "x-instructions": "A control the preset has no setting for keeps its current value.",
     "x-name": "label",
     "type": "object",
     "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
       "label": {
         "type": "string",
         "minLength": 1
@@ -200,7 +224,7 @@
     "properties": {
       "for": {
         "type": "string",
-        "pattern": "^[a-z][a-z0-9-]*$"
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
       },
       "value": {
         "type": "string"
@@ -218,7 +242,6 @@
   },
   "lf-playground-preview": {
     "description": "The live preview the user operates in a playground, such as the candidates being compared.",
-    "x-instructions": "For an A/B comparison, mount both candidates here and drive them from one state, as the playground package’s author instructions describe. Page CSS can read the `--playground-NAME` properties and `data-playground-NAME` attributes. Page modules read the immutable `values` aggregate, subscribe to draw updates, and replace structured slices through contributor handles.",
     "type": "object",
     "properties": {
       "id": {
@@ -233,7 +256,6 @@
   },
   "lf-playground-output": {
     "description": "The task instruction displayed by a playground and sent with the chosen configuration.",
-    "x-instructions": "Write a self-contained task rather than a value dump. Insert lf-playground-value where scalar selections make it more precise; use a registered instruction provider for prose that depends on structured or conditional values.",
     "type": "object",
     "properties": {
       "id": {
@@ -253,7 +275,7 @@
     "properties": {
       "for": {
         "type": "string",
-        "pattern": "^[a-z][a-z0-9-]*$"
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
       }
     },
     "required": ["for"],

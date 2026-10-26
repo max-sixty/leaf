@@ -12,11 +12,11 @@ from typing import NamedTuple
 import tinycss2
 
 from .findings import Finding
-from .locations import located, locations_overlap
+from .locations import first_overlap, located
 from .machine import package_store
 from .refusals import Refused
 from .registry.contract import element_declarations, is_element_name
-from .registry.kernel import kernel_protocol
+from .registry.kernel import kernel_marks, kernel_protocol
 from .schema import (
     ASSETS,
     BROWSER_DIRS,
@@ -29,6 +29,8 @@ from .schema import (
     JAVASCRIPT_SUFFIXES,
     KERNEL,
     PACKAGE_DIRS,
+    PACKAGE_FILES,
+    PACKAGE_STYLES,
     RUNTIME_DIRS,
     RUNTIME_ENTRY,
     VENDORED_FILES,
@@ -103,7 +105,7 @@ def checked_inputs(inputs: list[Path]) -> list[Path]:
             continue
         if not root.is_dir():
             raise Refused(f"{root} must be a directory")
-        for name in VENDORED_FILES:
+        for name in VENDORED_FILES if root == ASSETS else PACKAGE_FILES:
             path = root / name
             if (path.exists() or path.is_symlink()) and not path.is_file():
                 raise Refused(f"{path} must be a file")
@@ -136,7 +138,7 @@ def input_paths(inputs: list[Path]) -> list[Path]:
         paths.append(root.resolve())
         paths.extend(
             path.resolve()
-            for name in VENDORED_FILES
+            for name in (VENDORED_FILES if root == ASSETS else PACKAGE_FILES)
             if ((path := root / name).exists() or path.is_symlink())
         )
         for sub in PACKAGE_DIRS:
@@ -157,17 +159,12 @@ def input_paths(inputs: list[Path]) -> list[Path]:
 def overlapping_inputs(inputs: list[Path]):
     """The first resolved path shared by two precedence scopes."""
     located_inputs = [(root, located(input_paths([root]))) for root in inputs]
-    return next(
-        (
-            (left_root, left, right_root, right)
-            for index, (left_root, left_paths) in enumerate(located_inputs)
-            for right_root, right_paths in located_inputs[index + 1 :]
-            for left, left_at in left_paths
-            for right, right_at in right_paths
-            if locations_overlap(left_at, right_at)
-        ),
-        None,
-    )
+    for index, (left_root, left_paths) in enumerate(located_inputs):
+        for right_root, right_paths in located_inputs[index + 1 :]:
+            if overlap := first_overlap(left_paths, right_paths):
+                left, right = overlap
+                return left_root, left, right_root, right
+    return None
 
 
 def composed_dir_files(inputs: list[Path], sub: str) -> dict[str, Path]:
@@ -187,8 +184,8 @@ def composed_dir_files(inputs: list[Path], sub: str) -> dict[str, Path]:
 # (`lf-reset`, runtime/chrome.css) stays below everything that chooses a face. The
 # kernel, every widget package, and each widget module's adopted sheet
 # (runtime/stylesheets.js) share one layer, so specificity, scope proximity, then
-# order rank their rules. The kernel's Layouts sit above it. A theme package, one that
-# declares no widgets, sits above those defaults and the Layouts (`lf-theme`), so it
+# order rank their rules. The kernel's Layouts sit above it. Theme contributions
+# sit above those defaults and the Layouts (`lf-theme`), so a package
 # styles every page the way the page's own sheet styles one; its rules reach Leaf's
 # controls only through an explicit controls.css sheet, as a page's marked stylesheet
 # does (runtime/page-sheets.js).
@@ -197,7 +194,7 @@ def composed_dir_files(inputs: list[Path], sub: str) -> dict[str, Path]:
 # and inline widget motion outranks them too. Chrome and apparatus marks stay
 # unlayered to beat page and widget alike; runtime/stylesheets.js owns their
 # precedence and defaults. `lf-shadow` holds shared shadow rules and is read only in
-# shadow trees, where it sits above adopted widget sheets and below theme packages.
+# shadow trees, where it sits above adopted widget sheets and below theme contributions.
 CASCADE_LAYERS = (
     "lf-reset",
     "lf-base",
@@ -227,53 +224,39 @@ def _sheet(source: Path) -> str:
     return serialized if serialized.endswith("\n") else serialized + "\n"
 
 
-def widget_confinement(root: Path) -> tuple[str, str] | None:
-    """Native document and shadow scope roots for a package's declared widgets.
-
-    The browser confines matching to each root and its descendants; authors name
-    a root with :scope. A widget-free package is an unscoped page theme.
-    """
+def package_widget_tags(root: Path) -> set[str]:
+    """The widgets this package declares, including its compound widget parts."""
     registry = root / "registry.json"
-    tags = (
-        sorted(element_declarations(json.loads(registry.read_text())))
+    return (
+        set(element_declarations(json.loads(registry.read_text())))
         if registry.is_file()
-        else []
+        else set()
     )
-    if not tags:
-        return None
-    listed = ", ".join(tags)
-    host = f":host(:is({listed}))"
-    return f":is({listed})", host
-
-
-# Every root's shared sheets, before a theme's optional controls.css.
-ROOT_SHEETS = ("shadow.css", "theme.css")
 
 
 def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     """The layer's two stylesheets, each in layer precedence order.
 
-    A root's shadow.css holds the rules a declared shadow tree has to see as well as
-    the document: the stage copies the composed shadow.css into each tree, and the
-    document's theme.css reads each root's shadow.css just ahead of its theme.css.
+    Contribution filenames determine reach and priority. widgets.css is scoped to
+    the package's declared tags in lf-base; widget-shadow.css also reaches their
+    shadow trees in lf-shadow. theme.css is unscoped lf-theme; theme-shadow.css also
+    reaches every declared shadow tree. controls.css explicitly opts into generated
+    controls from lf-controls. Declaring a widget changes none of these roles.
 
-    In the document, the kernel's and every widget package's sheets are the `lf-base`
-    cascade layer, the kernel's layouts.css and state.css name their higher tiers and
-    come last, and a theme package's sheets are `lf-theme`, between the two. In shadow
-    trees, shared shadow rules use `lf-shadow` above adopted widget sheets (`lf-base`),
-    preserving their precedence over vendor defaults, and a theme package's shadow.css
-    is `lf-theme` above them. state.css ranks above all of these, so declared
-    retirement has the same precedence in both trees. Authored unlayered styles and
-    inline widget motion remain above it.
+    Widget scopes stop below foreign widget hosts, including page declarations:
+    an outer widget may arrange that host, while the nested widget styles its own
+    interior. Delivery paints the declared-content mark before first paint and
+    on revisions; messages paint it as they render. Known foreign tags also cover
+    generated widgets, such as Visual Review's Shot, which arrive without marks.
+    Same-package compound parts remain in scope, even if a page replaces their
+    declarations: declaration replacement does not withdraw selected styles.
+    Inheritance still crosses the boundary, and a nested widget belonging to the
+    outer package starts its own scope. CSS owns matching and scope proximity.
 
-    Each widget package's sheet has one native @scope around its declared tags
-    in the document, or around their :host in shadow trees. :scope names the root,
-    ordinary selectors its descendants. CSS owns nested conditions and proximity;
-    composition neither rewrites selectors nor adds specificity. Widget-free
-    packages are unscoped themes that reach the page and every tree. In the document
-    the browser keeps ordinary theme rules off Leaf controls; controls.css explicitly
-    grants access from the lf-controls tier (runtime/page-sheets.js); a theme's shadow.css is written for widget internals and
-    stands as written.
+    The kernel supplies the unscoped base and shared shadow defaults. Its Layouts
+    and semantic state retain their own tiers. Page CSS remains unlayered. The
+    browser filters ordinary document lf-theme rules off Leaf controls
+    (runtime/page-sheets.js); theme-shadow.css deliberately reaches widget internals.
     """
     from .styles import scoped
 
@@ -282,30 +265,39 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     order = f"@layer {', '.join(CASCADE_LAYERS)};\n"
     theme = [order]
     shadow = [order]
+    tags_by_root = {root: package_widget_tags(root) for root in inputs}
+    all_tags = set().union(*tags_by_root.values())
+    content_mark = kernel_marks()["x-content"]["paint"]
     for position, root in enumerate(inputs):
-        where = widget_confinement(root) if position else None
-        themes = position > 0 and where is None
-        if not themes and (root / "controls.css").is_file():
-            raise Refused(
-                f"{root}/controls.css belongs to a theme package; "
-                "a widget package styles its own controls in theme.css"
-            )
-        sheets = (*ROOT_SHEETS, "controls.css") if themes else ROOT_SHEETS
+        kernel = position == 0
+        sheets = ("shadow.css", "theme.css") if kernel else PACKAGE_STYLES
+        own_tags = tags_by_root[root]
         for name in sheets:
             source = root / name
             if not source.is_file():
                 continue
             css = _sheet(source)
-            placed = scoped(css, where[0]) if where else css
-            if name == "shadow.css":
-                shadow_css = scoped(css, where[1]) if where else css
-                tier = "lf-theme" if themes else "lf-shadow"
+            widget = name in {"widgets.css", "widget-shadow.css"}
+            shared = name in {"shadow.css", "widget-shadow.css", "theme-shadow.css"}
+            if widget:
+                if not own_tags:
+                    raise Refused(f"{source} requires a declared widget")
+                scope = f":is({', '.join(sorted(own_tags))})"
+                foreign = [
+                    f"[{content_mark}]:not({scope})",
+                    *sorted(all_tags - own_tags),
+                ]
+                limit = f":is({', '.join(foreign)}) > *"
+                placed = scoped(css, scope, limit)
+            else:
+                placed = css
+            if shared:
+                shadow_css = scoped(css, f":host({scope})", limit) if widget else css
+                tier = "lf-shadow" if kernel or widget else "lf-theme"
                 shadow.append(f"@layer {tier} {{\n{shadow_css}}}\n")
-            tier = (
-                ("lf-controls" if name == "controls.css" else "lf-theme")
-                if themes
-                else "lf-base"
-            )
+            tier = "lf-base" if kernel or widget else "lf-theme"
+            if name == "controls.css":
+                tier = "lf-controls"
             theme.append(f"@layer {tier} {{\n{placed}}}\n")
     for name in ("layouts.css", "state.css"):
         if (source := inputs[0] / name).is_file():
@@ -406,6 +398,17 @@ def layer_fingerprint(composition: LayerComposition) -> str:
     )
 
 
+def payload_python_inputs(root: Path) -> list[Path]:
+    """Code, schemas and dependencies a running Python process has loaded."""
+    return [
+        *sorted(path for path in (root / "src").rglob("*.py") if path.is_file()),
+        *sorted(path for path in (root / "src").rglob("*.json") if path.is_file()),
+        root / "browser/registry.json",
+        root / "pyproject.toml",
+        root / "uv.lock",
+    ]
+
+
 def payload_server_inputs(root: Path) -> list[Path]:
     """The serving code, the browser runtime it serves (`runtime_selection`), and the
     dependency manifests an init must restart to adopt."""
@@ -416,15 +419,13 @@ def payload_server_inputs(root: Path) -> list[Path]:
         root / "src/leaf/render-checks",
     ]
     return [
-        *sorted((root / "src").rglob("*.py")),
+        *payload_python_inputs(root),
         *sorted(
             path
             for top in runtime
             for path in ([top] if top.is_file() else top.rglob("*"))
             if path.is_file()
         ),
-        root / "pyproject.toml",
-        root / "uv.lock",
     ]
 
 
@@ -459,7 +460,7 @@ def incompatible_layer(page_dir: Path, registry: dict) -> Finding | None:
     is the same kind of fact: this Leaf would read the key's new name, find nothing,
     and drop what the page's layer declares under the old one, so the page is
     refused rather than misread. The check is one-sided: a key this Leaf added and
-    an older layer lacks refuses nothing. Every page server, the gate's and the
+    an older layer lacks refuses nothing. Every server of the page's live files, the
     website's included (`http.page_endpoint`, `leaf_website.page_binding`), the one
     append door and the writers that ask it first (`event_contracts.write_refusal`),
     and `page check` refuse on this one reading, each naming its repair. For a page
@@ -527,9 +528,10 @@ def incompatible_revision(revision: int, registry: dict) -> Finding | None:
     re-vendor leaves existing revisions as they were, so a page re-vendored across a
     bump still holds revisions saved before it. Served, one would run its own runtime
     against this Leaf's server, which is the break the protocol announces. The
-    document server and the append door ask this of the revision they would serve or
-    admit under; readings of the log keep reading every revision's registry, so
-    history still projects. Serving the page saves its source as a revision first,
+    document server, a snapshot's capture (`page_snapshot.capture_page_snapshot`),
+    and the append door ask this of the revision they would serve or admit under;
+    readings of the log keep reading every revision's registry, so history still
+    projects. Serving the page saves its source as a revision first,
     so its live revision is one of these only where the source no longer saves.
     A revision whose vocabulary uses a retired key is refused for the reason the
     layer is: this Leaf would read the key's new name there, find nothing, and draw

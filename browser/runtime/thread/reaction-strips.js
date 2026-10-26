@@ -1,8 +1,9 @@
 /* Thread reaction projection and its synchronous Lit owner. The controller
    registers template-owned controls and owns only disclosure, keyboard and focus. */
-import { html, render, repeat } from "/vendor/browser-runtime.js";
+import { html, render, repeat } from "/runtime/framework.js";
 import { iconTemplate } from "../icons.js";
 import { HOLDS_WORD } from "../held-word.js";
+import { offered } from "../widget-elements.js";
 
 let ordinal = 0;
 export class ReactionStripView {
@@ -24,10 +25,7 @@ export class ReactionStripView {
     this.node.classList.toggle("lf-open", model.latest);
     render(
       html` <button
-          type="button"
-          class="lf-msg-control lf-react-trigger lf-ui"
-          data-lf-gen="1"
-          data-lf-offer="button"
+          ${offered("lf-msg-control lf-react-trigger")}
           aria-expanded="false"
           aria-controls=${this.#paletteId}
           aria-label="Add reaction"
@@ -51,10 +49,7 @@ export class ReactionStripView {
             (choice) => choice.name,
             (choice) =>
               html` <button
-                type="button"
-                class="lf-react ${HOLDS_WORD} lf-ui"
-                data-lf-gen="1"
-                data-lf-offer="button"
+                ${offered(`lf-react ${HOLDS_WORD}`)}
                 data-token=${choice.name}
                 title=${choice.label}
                 aria-label=${choice.label}

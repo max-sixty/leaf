@@ -61,19 +61,20 @@ def test_context_changes_prompt_target_without_changing_obligation_identity_or_v
     assert state["todos"] == []
 
 
-def test_approval_is_independent_and_survives_revision_until_restated():
-    """Approval answers its own request, and a completion stamp does not ask again."""
-    document = model.leaf_page(
-        "Permission",
-        '<lf-approval id="permit"><h2>Publish the report?</h2></lf-approval>'
-        + OPTIONS.format(attrs="choose"),
+def test_a_decision_is_independent_and_survives_revision_until_restated():
+    """A permission is an ordinary decision: it answers its own request, and a
+    completion stamp does not ask again."""
+    permit = (
+        '<lf-options id="permit" choose><lf-option id="publish">Publish</lf-option>'
+        '<lf-option id="hold">Keep it private</lf-option></lf-options>'
     )
+    document = model.leaf_page("Permission", permit + OPTIONS.format(attrs="choose"))
     approved = {
         "kind": "action",
         "id": "approval",
         "widget": "permit",
-        "action": "approve",
-        "detail": {},
+        "action": "choose",
+        "detail": {"value": ["publish"]},
     }
     state = model.reading(document, [approved])
     items = {item["id"]: item for item in page_obligations(state)["all"]}
@@ -85,7 +86,10 @@ def test_approval_is_independent_and_survives_revision_until_restated():
         for item in state["views"]["1"]["queues"]["on_agent"]
     )
 
-    revised = document.replace("Permission", "Permission and progress")
+    # The stamp that records the pick in the markup settles the agent's update.
+    revised = document.replace("Permission", "Permission and progress").replace(
+        '<lf-option id="publish">', '<lf-option id="publish" chosen>'
+    )
     stamp = {
         "kind": "note",
         "author": "agent",
@@ -102,7 +106,8 @@ def test_approval_is_independent_and_survives_revision_until_restated():
     items = {item["id"]: item for item in page_obligations(state)["all"]}
     assert items["widget:permit"]["status"] == "open"
 
-    changed = revised.replace('id="permit"', 'id="permit" restated')
+    # Restating asks again, so the new version carries no pick.
+    changed = document.replace('id="permit" choose', 'id="permit" choose restated')
     state = model.reading(
         {1: document, 2: changed}, [approved, {**stamp, "restated": ["permit"]}]
     )
@@ -555,6 +560,64 @@ def lists(state) -> tuple[list, list, list]:
             and item["source"]["kind"] != "update"
         ),
     )
+
+
+def test_on_me_lists_one_row_for_each_place_the_user_answers_at():
+    """A thread's reply answers every question asked in it, so they share its row, and a
+    thread about a decision is one place with it, so its row rides on the decision's.
+    Each record still settles by its own rule: answering the decision leaves the
+    thread's questions on their own row until the user replies."""
+    document = model.leaf_page(
+        "Questions",
+        '<p id="intro">Context.</p><section id="case"><h2>Which route?</h2>'
+        + OPTIONS.format(attrs="choose")
+        + "</section>",
+    )
+
+    def asked(thread, anchor, *replies):
+        return [
+            {
+                "kind": "comment",
+                "id": thread,
+                "author": "user",
+                "text": "Show me.",
+                "anchor": {"section": anchor},
+            },
+            *(
+                {
+                    "kind": "reply",
+                    "id": reply,
+                    "author": "agent",
+                    "parent": thread,
+                    "responds": thread,
+                    "text": "Try it before choosing.",
+                    "obligation": True,
+                }
+                for reply in replies
+            ),
+        ]
+
+    events = asked("about", "case", "r1", "r2") + asked("aside", "intro", "r3")
+
+    def rows(state):
+        return sorted(
+            (row["id"], row["also"]) for row in state["views"]["1"]["queues"]["on_user"]
+        )
+
+    assert rows(model.reading(document, events)) == [
+        ("message:r3", []),
+        ("widget:choice", ["message:r1", "message:r2"]),
+    ]
+    chosen = {
+        "kind": "action",
+        "widget": "choice",
+        "action": "choose",
+        "detail": {"value": ["a"]},
+    }
+    assert rows(model.reading(document, [*events, chosen])) == [
+        ("message:r1", ["message:r2"]),
+        ("message:r3", []),
+    ]
 
 
 FRAMED = model.leaf_page(

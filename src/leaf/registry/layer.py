@@ -19,6 +19,7 @@ from .contract import (
     registry_error,
     stamp_decisions,
     stamp_states,
+    stamp_words,
 )
 from .kernel import answer_kinds
 from .schema import (
@@ -31,9 +32,8 @@ from .schema import (
 # The `$events` members a layer may restate; the rest are the kernel's.
 LAYER_OWNED_EVENTS = frozenset({"handling", "answering"})
 # The facts both runtimes read from the kernel registry, each whole and none from a
-# layer (`registry.kernel`): Python reads the running Leaf's own copy and the browser a
-# copy generated from it, so a layer's change would reach neither. A page's older
-# runtime reads `$marks` from the vocabulary it was vendored with.
+# layer (`registry.kernel`): Python and the browser (`runtime/kernel-facts.js`) both
+# read the running Leaf's own copy, so a layer's change would reach neither.
 KERNEL_FACTS = frozenset({"$passages", "$names", "$marks", "$authored"})
 # The facts that document a declaration's keys, each beside the schema that admits
 # those keys (`validate_layer_declarations`).
@@ -92,9 +92,11 @@ def _canonical(value) -> str:
 
 
 def stamp_composition(registry: dict) -> dict:
-    """Write into a validated vocabulary what the browser reads rather than derives:
+    """Write into a validated vocabulary what its readers read rather than derive:
     `$decisions` (`registry.contract.stamp_decisions`) and `$states`
-    (`registry.contract.stamp_states`).
+    (`registry.contract.stamp_states`), which the browser reads, and each declared
+    attribute's words as its schema's `enum` (`registry.contract.stamp_words`),
+    which validation and an author reading the entry read.
 
     Each composition that ends in a vocabulary stamps it, `page init`'s layer and a
     page's own declarations over it, overwriting whatever a layer declared under
@@ -102,6 +104,7 @@ def stamp_composition(registry: dict) -> dict:
     """
     stamp_decisions(registry)
     stamp_states(registry)
+    stamp_words(registry)
     return registry
 
 

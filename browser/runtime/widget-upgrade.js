@@ -7,7 +7,7 @@
    asynchronous presentation. */
 import { reportPageError } from "./layer-client.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
-import { render } from "/vendor/browser-runtime.js";
+import { render } from "/runtime/framework.js";
 import { shadowStage } from "./shadow-stage.js";
 
 const initialized = new WeakSet();

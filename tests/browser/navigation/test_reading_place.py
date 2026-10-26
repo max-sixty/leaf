@@ -18,6 +18,7 @@ from render_harness import (
     panel_field,
     panel_menu,
     panel_settled,
+    panel_view,
     resized,
     scroll_settled,
     select,
@@ -251,6 +252,15 @@ def test_a_new_reading_passage_ends_a_travel_group(
     scroll_settled(page)
     assert page.evaluate("history.length") == entries + 2
 
+    if focusable:
+        # Keep the card in its closing frame through Forward: a painted but inert
+        # card is already put away, so history must return through its page target.
+        page.locator(".lf-margin-preview").evaluate("""preview => {
+          preview.addEventListener('transitionrun', event => {
+            if (event.propertyName === 'opacity' && preview.inert)
+              preview.getAnimations().forEach(animation => animation.pause());
+          });
+        }""")
     page.go_back()
     page.wait_for_function("top => Math.abs(scrollY-top) <= 2", arg=chosen_top)
     if focusable:
@@ -260,10 +270,16 @@ def test_a_new_reading_passage_ends_a_travel_group(
             "() => getSelection().focusNode?.parentElement.closest('#elsewhere')"
         )
     page.wait_for_function("navigation.transition === null")
+    if focusable:
+        page.wait_for_function("""() => {
+          const preview = document.querySelector('.lf-margin-preview');
+          return preview.inert && preview.getAnimations().some(a => a.playState === 'paused');
+        }""")
     page.go_forward()
+    page.wait_for_function("navigation.transition === null")
     # A margin card that has closed on Back returns through its source; one still
     # the current location returns focus to its card. Both are the second thread's working place.
-    page.wait_for_function(
+    assert page.evaluate(
         "id => document.activeElement.id === 'second' || "
         "document.activeElement.closest('[data-thread]')?.dataset.thread === id",
         arg=roots[1],
@@ -453,6 +469,95 @@ def test_reading_landmarks_use_drawn_segments_in_mixed_blocks(
     returned = page.evaluate(reading)
     assert returned["place"]["quote"] == visible
     assert returned["top"] == pytest.approx(chosen["top"], abs=2)
+
+
+def test_reading_place_keeps_a_projected_row_among_repeated_words(browser, serve):
+    """A long text block's row identity survives capture, serialization and reflow."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Reading a projected row",
+                '<h1>Projected text</h1><pre id="rows">'
+                + "".join(
+                    f'<span id="row-{n}" style="display:block">'
+                    "The same words occur on every independently addressed row.</span>"
+                    for n in range(80)
+                )
+                + '</pre><div style="height:900px"></div>',
+            )
+        ),
+    )
+    page.evaluate("""() => {
+      for (const row of document.querySelector('#rows').children) {
+        row.dataset.lfProjection = 'rows';
+        row.dataset.lfDatum = row.id;
+      }
+      window.scrollBy(0, document.querySelector('#row-40').getBoundingClientRect().top - 100);
+    }""")
+    scroll_settled(page)
+    reading = page.evaluate("""async () => {
+      const api = await window.__lfWidgetApi();
+      const place = api.capturePlace();
+      return {place, top: document.getElementById(place.datum)?.getBoundingClientRect().top};
+    }""")
+    assert reading["place"].get("datum"), reading
+    assert reading["place"]["quote"].startswith("The same words")
+    assert reading["top"] is not None
+    # A serialized checkpoint has no live node to disguise a lost datum identity.
+    page.evaluate("""() => {
+      document.querySelector('#row-0').style.height = '400px';
+      window.scrollTo({top: 0, behavior: 'instant'});
+    }""")
+    scroll_settled(page)
+    page.evaluate(
+        """async place => {
+      (await window.__lfWidgetApi()).restorePlace(place);
+    }""",
+        reading["place"],
+    )
+    scroll_settled(page)
+    assert page.locator(f"#{reading['place']['datum']}").bounding_box()[
+        "y"
+    ] == pytest.approx(reading["top"], abs=2)
+
+
+def test_reading_place_visits_a_projected_passage_before_its_parent_continuation(
+    browser, serve
+):
+    """A paragraph's later words cannot precede the datum that splits its reading."""
+    record = (
+        "The projected record is the first visible passage the reader should keep. "
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "A projected passage inside a paragraph",
+                '<section id="source"><p id="paragraph">'
+                '<span style="display:block;height:1100px">Earlier paragraph words.</span>'
+                '<span id="record" style="display:block">'
+                + record
+                * 4
+                + '</span><span style="display:block">'
+                "The later continuation follows the record and must not take its place."
+                '</span></p></section><div style="height:900px"></div>',
+            )
+        ),
+    )
+    page.evaluate("""() => {
+      const record = document.querySelector('#record');
+      record.dataset.lfGen = '1';
+      record.dataset.lfProjection = 'source';
+      record.dataset.lfDatum = 'record';
+      window.scrollBy(0, record.getBoundingClientRect().top - 80);
+    }""")
+    scroll_settled(page)
+    place = page.evaluate(
+        """async () => (await window.__lfWidgetApi()).capturePlace()"""
+    )
+    assert place.get("datum") == "record", place
+    assert place["quote"].startswith(record)
 
 
 def test_reading_restore_leaves_a_concealed_landmark_alone(browser, serve, subtests):
@@ -740,7 +845,7 @@ def test_align_current_item_keeps_obligation_control_heading_selection_and_histo
     reference = page.locator(".lf-command-reference")
     expect(reference).to_be_visible()
     page.get_by_role("combobox", name="Search commands").fill("g z")
-    alignment = reference.locator('tr[data-lf-command="reading.align.top"]')
+    alignment = reference.locator('[role=row][data-lf-command="reading.align.top"]')
     expect(alignment.locator(".lf-binding-sequence > kbd")).to_have_text(["g", "z"])
     alignment.get_by_role("button").click()
     expect(reference).to_be_hidden()
@@ -1112,7 +1217,7 @@ def test_align_current_item_does_not_follow_old_page_caret_from_empty_threads(
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     panel_settled(page, view="threads")
-    threads = page.locator('.lf-fp-view[data-view="threads"]')
+    threads = page.locator(panel_view("threads"))
     expect(threads).to_be_focused()
     page.wait_for_function("getSelection().isCollapsed")
     before = page.evaluate("[scrollY,history.length,navigation.currentEntry.key]")
@@ -1313,8 +1418,8 @@ def test_restore_selection_has_touch_route_and_does_not_carry_draft(browser, ser
     write(editor, "Words about the violet subject")
     page.keyboard.press("Escape")
     page.locator("#away").scroll_into_view_if_needed()
-    page.locator(".lf-fp-threads").tap()
-    panel_settled(page, view="threads")
+    page.locator(".lf-fp-on-user").tap()
+    panel_settled(page, view="queue")
     page.keyboard.press("g")
     page.keyboard.press("v")
     page.wait_for_function(
@@ -1326,7 +1431,8 @@ def test_restore_selection_has_touch_route_and_does_not_carry_draft(browser, ser
     page.wait_for_function(
         "expected => getSelection().toString() === expected", arg=selected
     )
-    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
+    # The command closes the borrowed menu and keeps the On view open.
+    expect(page.locator(PANEL)).to_have_attribute("data-open", "queue")
     page.keyboard.press("Escape")
     page.keyboard.press("g")
     page.keyboard.press("i")
@@ -1581,7 +1687,7 @@ def test_closing_a_surface_leaves_the_next_tab_where_the_user_is_reading(
 
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    expect(page.locator('.lf-fp-view[data-view="threads"]')).to_be_focused()
+    expect(page.locator(panel_view("threads"))).to_be_focused()
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
     assert page.evaluate("() => document.activeElement === document.body")

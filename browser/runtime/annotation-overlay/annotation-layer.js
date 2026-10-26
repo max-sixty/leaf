@@ -13,7 +13,9 @@
    `setAnnotationsHidden` is the one writer. It states the fact on the root for the
    stylesheets (theme.css, marks.css, chrome.css), keeps it for the tab, and tells each
    watcher, so the margin can take focus and its card off what it hides. Readers ask
-   `annotationsHidden()` rather than the root attribute, which is a rendering. */
+   `annotationsHidden()` rather than the root attribute, which is a rendering; a
+   renderer that reads it repaints when it changes. */
+import { signal } from "/runtime/framework.js";
 import { tabStore } from "../storage.js";
 import { setRuntimeRootAttribute } from "../root-state.js";
 import { pageCommand } from "../keyboard/register.js";
@@ -22,10 +24,10 @@ import { coarsePointer } from "../pointer.js";
 
 import { ANNOTATIONS_KEY } from "../restore-state.js";
 
-let hidden = false;
+const hidden = signal(false);
 const watchers = new Set();
 
-export const annotationsHidden = () => hidden;
+export const annotationsHidden = () => hidden.value;
 
 export function watchAnnotations(watcher) {
   watchers.add(watcher);
@@ -35,14 +37,14 @@ export function mountAnnotationControls() {
   pageCommand({
     id: "annotations.toggle",
     keys: ["o"],
-    title: () => (hidden ? "show annotations" : "hide annotations"),
-    touch: () => (hidden ? "Show annotations" : "Hide annotations"),
+    title: () => (hidden.value ? "show annotations" : "hide annotations"),
+    touch: () => (hidden.value ? "Show annotations" : "Hide annotations"),
     menu: "annotate",
     when: () => watchers.size > 0,
     run: () => {
-      setAnnotationsHidden(!hidden);
+      setAnnotationsHidden(!hidden.value);
       notice(
-        !hidden
+        !hidden.value
           ? "Annotations shown"
           : coarsePointer.matches
             ? "Annotations hidden"
@@ -53,8 +55,8 @@ export function mountAnnotationControls() {
 }
 
 function setAnnotationsHidden(on) {
-  if (on === hidden) return;
-  hidden = on;
+  if (on === hidden.value) return;
+  hidden.value = on;
   setRuntimeRootAttribute(
     document.documentElement,
     "data-lf-annotations",

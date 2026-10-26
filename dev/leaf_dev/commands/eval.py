@@ -345,7 +345,9 @@ def prepare(
                                 model,
                             )
                         else:
-                            work = scratch / "work" / label
+                            # One flat directory per label: a nested one would
+                            # sit inside the plain arm's ("claude-code/base").
+                            work = scratch / "work" / label.replace("/", "--")
                             work.mkdir(parents=True)
                             configured, skill = native_provider(
                                 harness, payload, work, model
@@ -492,8 +494,6 @@ def prepare(
             tests.append(
                 {
                     **sample,
-                    "description": address
-                    + ("" if condition == "leaf" else f" ({condition})"),
                     "providers": labels,
                     "metadata": {**metadata, "case": address, "condition": condition},
                 }
@@ -596,11 +596,10 @@ def eval(
     split = next((i for i, arg in enumerate(args) if arg.startswith("-")), len(args))
     globs, promptfoo_args = args[:split], args[split:]
     cases = select_cases(globs)
-    if model is not None:
-        if harness != "codex":
-            raise click.BadParameter(
-                "--model currently requires --harness codex", param_hint="--model"
-            )
+    if model is not None and harness != "codex":
+        raise click.BadParameter(
+            "--model currently requires --harness codex", param_hint="--model"
+        )
     conditions = (
         ("leaf", "html")
         if condition == "both"
@@ -633,6 +632,7 @@ def eval(
             prefix=f"{datetime.now().astimezone():%Y%m%d-%H%M%S}-", dir=RUNS
         )
     )
+    click.echo(f"evidence: {out}")
     with tempfile.TemporaryDirectory(prefix="leaf-eval-") as temporary:
         scratch = Path(temporary)
         refs = {"base": base} if base else {}
@@ -692,5 +692,5 @@ def eval(
             stdin=subprocess.DEVNULL,
             check=False,
         ).returncode
-    click.echo(f"evidence: {out}\nview: pnpm run eval:view")
+    click.echo("view: pnpm run eval:view")
     sys.exit(status)

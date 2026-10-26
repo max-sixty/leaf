@@ -101,6 +101,10 @@
 import { OptionAddition } from "./lf-options-addition.js";
 import { SettledOptions } from "./lf-options-settled.js";
 import {
+  addressableLabel,
+  addressableWord,
+  authoredScope,
+  elementById,
   threadInput,
   inChrome,
   keeps,
@@ -127,6 +131,37 @@ import {
 // to the option's name, which is what every caller here wants. A settled title's answer
 // to an option with neither is to say "Settled" rather than name an id nobody wrote.
 const label = (option) => wrote(option.querySelector(":scope > strong") ?? option);
+
+// What choosing an option gives the user: the sentence after a card's title, as the
+// registry's card shape lays it out, written inline or as the paragraph that follows the
+// title, up to any picture or other block below it. A label-only option says nothing
+// beyond its name. On me shows these words under the option's name, where the user
+// answers away from the card.
+const consequence = (option) => {
+  const title = option.querySelector(":scope > strong");
+  let words = "";
+  for (let node = title?.nextSibling; node; node = node.nextSibling) {
+    if (node.nodeType === Node.TEXT_NODE) words += node.data;
+    else if (node.nodeType !== Node.ELEMENT_NODE) continue;
+    else if (getComputedStyle(node).display === "inline") {
+      // `wrote` trims the element's own edges, which may be the spaces between words,
+      // as where Markdown emphasis splits a sentence.
+      const edges = node.textContent.match(/^(\s*)[\s\S]*?(\s*)$/);
+      words += `${edges[1]}${wrote(node)}${edges[2]}`;
+    } else {
+      if (!words.trim() && node.localName === "p") words = wrote(node);
+      break;
+    }
+  }
+  return words.replace(/\s+/g, " ").trim();
+};
+
+// The option the page advises wears the `recommended` tag the registry's card shape
+// names, and the group says so wherever the option is answered away from its card.
+const recommended = (option) =>
+  [...option.querySelectorAll(":scope > small.tag")].some(
+    (tag) => wrote(tag).trim() === "recommended",
+  );
 
 // The offer, and how many of the group it takes. A group's prose stays deliberately silent,
 // while the control states arity in the two registers it has: corner shape for the eye and
@@ -408,6 +443,8 @@ customElements.define(
           decision: true,
           bindingBadge,
           title: label(option) || option.id,
+          description: consequence(option),
+          recommended: recommended(option),
           when: () => this.#available("choose"),
           run: () => mark.click(),
         });
@@ -483,14 +520,19 @@ customElements.define(
       commands(this, SECTION, answerRows);
     }
 
-    // The block this option is about. A pointer, not a voice: its text is the id it
-    // names, and chrome throughout — a thing to work and nothing else, so paper drops
-    // it.
+    // The block this option is about. A pointer, not a voice: it names the block by the
+    // name the chrome gives it (`addressableLabel`), else by its word, and by the id
+    // only where no block in the option's document answers to it. After § a kind word
+    // such as "section" says nothing, so the name stands alone. It is chrome
+    // throughout — a thing to work and nothing else, so paper drops it.
     #reference(option) {
       const target = option.getAttribute("for");
       if (!target) return;
-      const ref = offer("a", "lf-ref", `§ ${target}`);
+      const block = elementById(target, authoredScope(this));
+      const label = `§ ${addressableLabel(block) || addressableWord(block) || target}`;
+      const ref = offer("a", "lf-ref", label);
       ref.href = `#${target}`;
+      ref.title = `Jump to ${label}`;
       option.append(ref);
     }
 

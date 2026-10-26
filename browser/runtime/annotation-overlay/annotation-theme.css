@@ -114,8 +114,9 @@
   display: none;
 }
 /* Every annotation has the same filled pin face when it stands on the block it is
-   about, over the block's own words, so it is a solid teardrop pointing into the block
-   with a paper edge that parts it from whatever it covers. It is smaller than a rail
+   about, over the block's own words, so it is a solid face with the rail marker's
+   corners save one, left square to point into the block, and a paper edge that parts
+   it from whatever it covers. It is smaller than a rail
    marker with a mouse, because it covers what it stands on, and keeps the full aim floor
    under a finger, so what the user sees is what they press.
 
@@ -130,11 +131,11 @@
   --margin-entry: max(26px, var(--aim-floor));
 }
 .lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry {
-  border-radius: 50% 50% 50% 3px;
+  border-radius: var(--r) var(--r) var(--r) 0;
   --lf-pin-edge: var(--paper);
   border: 2px solid var(--lf-pin-edge);
   background: var(--lf-pin-face, var(--pin-fill));
-  --lf-entry-ink: #fff;
+  --lf-entry-ink: var(--pin-ink);
   box-shadow: var(--raise-1);
 }
 .lf-margin-cluster[data-lf-place="pin"]
@@ -162,9 +163,7 @@
 }
 .lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry[data-lf-turn="user"] {
   --lf-pin-face: var(--pin-on-user);
-}
-.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry[data-lf-unread]::after {
-  box-shadow: 0 0 0 2px var(--paper);
+  --lf-entry-ink: var(--pin-on-user-ink);
 }
 .lf-margin-receipt {
   color: var(--ink-2);

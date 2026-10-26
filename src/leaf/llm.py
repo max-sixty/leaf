@@ -3,11 +3,12 @@
 The page's active claimant selects the host's inference transport; credentials stay
 with that transport. Callers supply only input, instructions and a required JSON
 Schema, never a model, executable, tools or provider parameters. The host can select
-its cheap model: Luna for Codex, Haiku for Claude.
+its cheap model: Luna for Codex, Haiku for Claude; Pi runs the model its user
+configured.
 
 Results return to the caller without collecting data or writing page state. Leaf
 makes one harness request and adds no retries. The harness owns its own transport
-retry behavior. TODO.md owns the deferred allowance and accounting work: this
+retry behavior. Issue #4020 owns the deferred allowance and accounting work: this
 endpoint does not bound cumulative usage.
 """
 
@@ -59,7 +60,9 @@ def generate(page_dir: Path, request: dict) -> dict:
         claim = page.active_claim
     inference = claim_harness(claim).inference_generator() if claim else None
     if inference is None:
-        raise LLMError("LLM access needs a page claimed by Codex or Claude Code.", 503)
+        raise LLMError(
+            "LLM access needs a page claimed by Codex, Claude Code or Pi.", 503
+        )
     try:
         return inference(
             request["input"],

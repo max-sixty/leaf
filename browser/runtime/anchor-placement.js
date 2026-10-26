@@ -10,13 +10,29 @@
    hold, stands in that message, and its placement names it (`message`). While no reader
    draws the message, that is all it has (`resolvedInMessage`); while the floating panel
    draws it in its view of the message's thread, it keeps the element's reading too, so
-   the element is marked there. */
+   the element is marked there. `placedAt` tracks changes to resolved placements for
+   views that read them while drawing; a source replacement can change a quote's
+   status without changing its thread. */
 import { anchoringIsReady, resolveAnchor } from "./anchor-resolution.js";
 import { resolvedInMessage, targetElement } from "./resolved-target.js";
 import { inChrome } from "./passages.js";
 import { placePoints } from "./pointed-place.js";
 import { threadKey, threadNames } from "./thread/model.js";
 import { messageHolding } from "./thread/messages.js";
+import { signal } from "/runtime/framework.js";
+
+const samePlacement = (a, b) =>
+  a?.kind === b?.kind &&
+  a?.status === b?.status &&
+  a?.exact === b?.exact &&
+  a?.datumElement === b?.datumElement &&
+  a?.element === b?.element &&
+  a?.place === b?.place &&
+  a?.surface === b?.surface &&
+  a?.message === b?.message &&
+  a?.point === b?.point &&
+  a?.pointRow === b?.pointRow &&
+  a?.pointWords === b?.pointWords;
 
 // The message of these threads that keeps the element an anchor names, if any. An anchor
 // captured detached names no passage the user selected, so finding its element's message
@@ -32,11 +48,13 @@ function heldIn(anchor, threads) {
 
 export function createAnchorPlacement() {
   const placed = new Map();
+  const version = signal(0);
   let pendingPlaced = null;
   let names = new Map();
 
   function read({ threads, draft, actionAnchor }) {
     if (!anchoringIsReady()) return null;
+    const before = new Map(placed);
     placed.clear();
     // Names for the threads this read placed, so `placedAt` answers from the same
     // reading as `placed` until the next read, not from a later publication.
@@ -80,11 +98,19 @@ export function createAnchorPlacement() {
     pendingPlaced = resolvedDraft;
     const active = draft.open ? null : actionAnchor;
     const action = active && !active.quote ? resolveAnchor(active) : null;
+    if (
+      before.size !== placed.size ||
+      [...placed].some(([id, placement]) => !samePlacement(before.get(id), placement))
+    )
+      version.value += 1;
     return { readings, draft: { ...draft, resolved: resolvedDraft }, action };
   }
   return Object.freeze({
     read,
-    placedAt: (id) => placed.get(names.get(id)?.id ?? id),
+    placedAt: (id) => {
+      version.value;
+      return placed.get(names.get(id)?.id ?? id);
+    },
     pendingAt: () => pendingPlaced,
   });
 }

@@ -4,11 +4,9 @@ and set `duration` to the study's length in milliseconds. Choose layout and fram
 size for what the reader needs to compare. The shared toolbar stays visible while
 the previews scroll beneath it.
 
-The reader can play or pause with one icon button, slow playback to half or quarter
-speed, or seek with the timeline. Play at the end starts again from the beginning;
-to restart mid-study, seek to the beginning and play. Use these controls rather than adding
-transport buttons or a second clock. Playback starts paused. With reduced motion,
-Play shows the end immediately; manual seeking still reaches every frame.
+The reader can play or pause with one icon button. Play at the end starts again from
+the beginning; to restart mid-study, seek to the beginning and play. Use these controls
+rather than adding transport buttons or a second clock. Playback starts paused.
 
 For recordings, put ordinary `<video muted playsinline>` elements inside the body.
 Include dimensions or an aspect ratio so loading media keeps the page still. Omit

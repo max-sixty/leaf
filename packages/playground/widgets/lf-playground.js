@@ -5,6 +5,12 @@
  * this module adopts that drawing and owns the live mechanics: working state,
  * tab-local persistence, CSS reflection, instruction copying, commands, and
  * the final recordless action. Intermediate changes never enter Leaf's event log.
+ * The instruction opens from its actions in a popover over the page, so reading it
+ * moves nothing the user set or pressed, in any Layout; the log never records it. The
+ * popover's head holds Leaf's copy control (`copyControl`). Rejected: unfolding
+ * the instruction in the pane, which had to grow below the bar in a flowing page and
+ * above it at the foot of a held workspace, and still moved the bar wherever a stage
+ * at its floor, a resize or a short window left it no room (2026-10-25).
  *
  * The playground owns the complete working configuration. Contributors declare a
  * named default and get an immutable slice handle; set replaces that slice. Required
@@ -28,22 +34,28 @@
  * stays stable when a local gesture receives its durable event id. And it is later in
  * the log than any choice this tab has drawn, which tells it from an earlier choice an
  * undo makes current again: a pending choice is this tab's newest gesture, and a
- * durable one compares by its seq. */
+ * durable one compares by its seq. The submit control withdraws the current choice
+ * while its values and instruction match the working configuration; editing either
+ * makes it submit a replacement. Its face derives from that comparison, never from
+ * delivery timing or a separate saved flag. */
 import {
-  announce,
   commands,
   compoundReadingRegionId,
-  dressSamples,
+  closeNativeLayer,
+  copyControl,
   focusDestination,
   layoutChanged,
   initialRender,
+  isNativeLayer,
   keeps,
+  keepsText,
   LeafElement,
   nothing,
   paintKeys,
   registerReadingRegion,
   reachedForWords,
   says,
+  showNativeLayer,
   sizeObserver,
   tabStore,
   wear,
@@ -53,17 +65,30 @@ import {
 } from "/runtime/widget-api.js";
 import "./lf-playground-output.js";
 
-const NAME = /^[a-z][a-z0-9-]*$/;
+const NAME = /^[a-z0-9][a-z0-9-]*$/;
 // What one pointer press operates: a preset, Reset, and the controls whose press or
 // drag is the whole gesture. Their readable labels remain ordinary selection targets.
 const ONE_PRESS = [
   ".lf-playground-preset",
   ".lf-playground-reset",
-  ...["choice", "toggle", "range"].map((kind) => `.lf-playground-${kind}`),
+  '.lf-playground-choice:not([appearance="select"])',
+  ...["toggle", "range"].map((kind) => `.lf-playground-${kind}`),
 ].join(", ");
 
 const sameKeys = (left, right) =>
   left.length === right.length && left.every((key, index) => key === right[index]);
+
+// Configuration objects have no meaningful key order, including contributor slices.
+const configurationJSON = (value) =>
+  JSON.stringify(value, (_key, item) =>
+    item && typeof item === "object" && !Array.isArray(item)
+      ? Object.fromEntries(
+          Object.keys(item)
+            .sort()
+            .map((key) => [key, item[key]]),
+        )
+      : item,
+  );
 
 function jsonSnapshot(value, path = "configuration") {
   if (value === null || typeof value === "string" || typeof value === "boolean")
@@ -113,8 +138,6 @@ customElements.define(
     #output = null;
     #preview = null;
     #submit = null;
-    #copy = null;
-    #copyTimer = null;
     #reset = null;
     #choosing = false;
     #projected = undefined;
@@ -127,7 +150,7 @@ customElements.define(
     setup() {
       this.#build();
       this.#ready = true;
-      whileConnected(this, () => {
+      whileConnected(this, (signal) => {
         const stops = this.#regions.map((region) => registerReadingRegion(region));
         // The narrow layout places shared controls above the stage. Their actual
         // height is also the landing inset for its content and any sticky toolbar.
@@ -142,10 +165,21 @@ customElements.define(
           );
         });
         if (controls) observer.observe(controls.host);
+        // The instruction is a glance at the window's middle; a window changing width
+        // puts it away rather than reflowing it under the user, which also kept Web
+        // Awesome's copy icon re-measuring through the resize (a ResizeObserver loop).
+        // Height alone changes as a phone's toolbars come and go, which keeps it.
+        let width = innerWidth;
+        const putAway = () => {
+          const instruction = this.#initial.instruction;
+          if (innerWidth !== width && instruction && isNativeLayer(instruction))
+            closeNativeLayer(instruction);
+          width = innerWidth;
+        };
+        window.addEventListener("resize", putAway, { signal });
         this.#paintAvailability();
         return () => {
           observer.disconnect();
-          clearTimeout(this.#copyTimer);
           for (const stop of stops) stop();
         };
       });
@@ -208,7 +242,6 @@ customElements.define(
       this.#preview = initial.preview;
       this.#interactive = Boolean(initial.submit);
       this.#submit = initial.submit;
-      this.#copy = initial.copy;
       this.#reset = initial.reset;
       this.#presetButtons = initial.presetButtons;
       this.#regions = initial.regions.map((region) => ({
@@ -219,8 +252,6 @@ customElements.define(
       this.#initial.renderValues(this.#values);
       const reflection = this.#reflection();
       wear(this, reflection);
-      this.#syncCopy();
-      dressSamples(this, reflection);
       if (this.#interactive) {
         this.addEventListener("click", (event) => {
           const target = /** @type {Element} */ (event.target);
@@ -255,7 +286,42 @@ customElements.define(
             });
             this.#draw();
           });
-        this.#copy.addEventListener("click", () => this.#copyInstruction());
+        const { reveal, instruction } = initial;
+        // Leaf's copy control in the popover's head. A code block's (`copyBlock`) hides
+        // while its block is away and came back a frame or more after the popover
+        // opened, after a Tab had passed it by.
+        const copy = copyControl("lf-quiet-action lf-playground-copy", {
+          label: "Copy instruction",
+          success: "Instruction copied",
+          error: "Unable to copy instruction",
+        });
+        copy.addEventListener(
+          "click",
+          () => {
+            copy.value = this.#instruction();
+          },
+          { capture: true },
+        );
+        instruction.firstElementChild.append(copy);
+        // A press on the reveal while the instruction is open lands outside it, and
+        // the popover's light dismiss closes it before the click: the press closes it.
+        // A key's click (`detail` 0) reads only the popover, since a press dragged off
+        // the reveal leaves no click to clear what it saw.
+        let openAtPress = false;
+        reveal.addEventListener("pointerdown", () => {
+          openAtPress = isNativeLayer(instruction);
+        });
+        reveal.addEventListener("click", (event) => {
+          const open = (event.detail > 0 && openAtPress) || isNativeLayer(instruction);
+          openAtPress = false;
+          if (open) closeNativeLayer(instruction);
+          // Tab goes on from the reveal into the instruction it opened, to its copy.
+          else showNativeLayer(instruction, { source: reveal });
+        });
+        instruction.addEventListener("toggle", (event) => {
+          keeps(reveal, "aria-expanded", event.newState === "open");
+          paintKeys();
+        });
         this.addEventListener("mousedown", (event) => {
           const target = /** @type {Element} */ (event.target);
           if (target.closest(".lf-playground-control-label")) return;
@@ -326,8 +392,8 @@ customElements.define(
     // they stand at: a sample child's focus treatment, for one. Pressing a control face
     // that changes the candidate in one gesture leaves them there: taking focus
     // to the control would put that state away as the candidate changed.
-    // Readable labels allow the browser's selection gesture. Text and colour controls
-    // take focus to be operated, and a key reaches any control by moving focus onto it
+    // Readable labels allow the browser's selection gesture. Text, colour and select
+    // controls take focus to be operated, and a key reaches any control by moving focus onto it
     // first, so the keyboard still acts where it stands.
     // A control written in the preview is not a candidate: standing on one is standing
     // on a control.
@@ -351,7 +417,9 @@ customElements.define(
           control: this.#submit,
           decision: true,
           title: () => this.#submit.textContent,
-          when: () => !this.#choosing && this.#available(),
+          when: () =>
+            !this.#choosing &&
+            (this.#chosen() ? Boolean(this.#undo()) : this.#available()),
           run: () => this.#choose(),
         },
         {
@@ -404,9 +472,7 @@ customElements.define(
         this.#setInput(control, this.#values[name]);
       const reflection = this.#reflection();
       wear(this, reflection);
-      dressSamples(this, reflection);
       this.#renderOutput();
-      this.#syncCopy();
       this.#paintPresets();
       // Keep not-yet-declared tab values without another copy of known working slices.
       tabStore.set(
@@ -436,57 +502,29 @@ customElements.define(
     #instruction() {
       return says(this.#output)
         .replace(/\s+/g, " ")
-        .replace(/\s+([,.;:!?])/g, "$1")
+        .replace(/\s+([,.;:!?])(?=\s|$)/g, "$1")
         .trim();
     }
 
-    #syncCopy() {
-      if (!this.#copy) return;
-      const instruction = this.#instruction();
-      if (this.#copy.dataset.instruction === instruction) return;
-      clearTimeout(this.#copyTimer);
-      this.#copy.dataset.instruction = instruction;
-      keeps(this.#copy, "data-copy-state", "rest");
-    }
-
-    // The copy control is a native button rather than a `wa-copy-button`, because the
-    // initial producer draws it before any module loads and the theme reserves its
-    // feedback words' width in place. Its label shows the result where the press was;
-    // the page's live region says it, as Web Awesome's copy button says its own.
-    async #copyInstruction() {
-      const instruction = this.#instruction();
-      let feedback;
-      try {
-        await navigator.clipboard.writeText(instruction);
-        feedback = "success";
-      } catch {
-        feedback = "error";
-      }
-      if (this.#instruction() !== instruction || !this.isConnected) return;
-      clearTimeout(this.#copyTimer);
-      keeps(this.#copy, "data-copy-state", feedback);
-      announce(
-        feedback === "success"
-          ? "Instruction copied"
-          : "Could not copy the instruction",
-      );
-      this.#copyTimer = setTimeout(() => {
-        keeps(this.#copy, "data-copy-state", "rest");
-      }, 2000);
-    }
-
     async #choose() {
-      if (this.#choosing || !this.#available()) return;
+      if (this.#choosing) return;
+      const chosen = this.#chosen();
+      const undo = chosen ? this.#undo() : null;
+      if (chosen ? !undo : !this.#available()) return;
       this.#choosing = true;
       this.#paintAvailability();
       this.#submit.setAttribute("aria-busy", "true");
       try {
-        await this.controller.dispatch({
-          kind: "action",
-          verb: "choose",
-          detail: { values: this.values, instruction: this.#instruction() },
-          says: "Playground settings",
-        })?.delivery;
+        await this.controller.dispatch(
+          chosen
+            ? { kind: "undo", target: undo.attempt ?? undo.id }
+            : {
+                kind: "action",
+                verb: "choose",
+                detail: { values: this.values, instruction: this.#instruction() },
+                says: "Playground settings",
+              },
+        )?.delivery;
       } finally {
         this.#choosing = false;
         this.#submit.removeAttribute("aria-busy");
@@ -496,7 +534,29 @@ customElements.define(
 
     #paintAvailability() {
       if (!this.#submit) return;
+      keepsText(
+        this.#submit.firstElementChild,
+        this.#chosen()
+          ? "Undo choice"
+          : (this.getAttribute("submit-label") ?? "Use these settings"),
+      );
       paintKeys();
+    }
+
+    #chosen() {
+      const choice = this.state?.choose;
+      return Boolean(
+        choice?.action &&
+        choice.detail.instruction === this.#instruction() &&
+        configurationJSON(choice.detail.values) ===
+          configurationJSON({ ...this.#pendingValues, ...this.values }),
+      );
+    }
+
+    #undo() {
+      const action = this.reading.actions.choose;
+      const latest = action.inForce[0]?.event;
+      return action.undo.find((event) => event.id === latest?.id) ?? null;
     }
 
     #available() {

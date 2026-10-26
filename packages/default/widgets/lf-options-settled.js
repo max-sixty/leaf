@@ -5,8 +5,8 @@ import {
   commands,
   comparisonChanges,
   keeps,
+  generated,
   html,
-  iconTemplate,
   nothing,
   render,
   selectableOffer,
@@ -32,7 +32,7 @@ export class SettledOptions {
   }
 
   #build() {
-    this.#row = selectableOffer("button", "lf-settled");
+    this.#row = selectableOffer("button", "lf-settled lf-disclosure-marker");
     this.#row.setAttribute("aria-expanded", "false");
     this.#row.onclick = () => this.#open(!this.#isOpen, true);
     commands(this.#row, "In settled options", [
@@ -72,9 +72,7 @@ export class SettledOptions {
       .filter(Boolean);
     const changes = comparisonChanges(this.#host).length;
     render(
-      html`${iconTemplate("down", "lf-disclosure-icon")}<span
-          data-lf-gen="1"
-          data-lf-said
+      html`<span ${generated({ says: true })}
           >${names.length ? `Settled: ${names.join(", ")}` : "Settled"}</span
         ><span class="lf-settled-count"
           >${options.length} option${options.length === 1 ? "" : "s"}</span

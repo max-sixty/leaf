@@ -8,9 +8,11 @@ updates handed back to them among them, then the to-dos on the user; On <agent>
 inventory (`obligations`) also retains finished records, whatever their `status`.
 `activity.obligations` names each answer the agent owes: its update's record `id` and,
 as `answer`, the operation that answers it with the reference its delivery gave, so an
-agent recovers what it owes without the delivery. `source` states whether a document is live and whether an invalid
-source save leaves the last valid version active. Before the first valid revision,
-an invalid candidate registry leaves no active document or readable vocabulary; its
+agent recovers what it owes without the delivery. `source` states whether a document
+is live and whether an invalid source save leaves the last valid version active. Its
+`digest` identifies the current index.html and complete page/ tree, even when invalid,
+for `page stamp --replace`. Before the first valid revision, an invalid candidate
+registry leaves no active document or readable vocabulary; its
 source error still remains readable. A page this Leaf cannot serve as
 vendored (`layer.incompatible_layer`) is still read, its `source.error` the refusal
 naming the re-vendor: the reading gives the agent the page's context, and the error
@@ -28,6 +30,7 @@ from .events import bare_reaction, is_reaction
 from .files import revision_path
 from .passages import page_passages
 from .projection import FrozenThreadReading, retirement_outcomes
+from .publishing import authored_digest, authored_files
 from .refusals import Refused
 from .registry.storage import layer_metadata
 from .revision_artifact import active_enclosing
@@ -41,7 +44,7 @@ from .user_views import read_user_views, viewed_at
 from .validation.admission import logged_id
 from .work import page_subject
 
-# How many of a thread's messages one `page state PAGE THREAD` prints by default.
+# How many of a thread's messages one `page state PAGE MESSAGE` prints by default.
 HISTORY_LIMIT = 50
 
 
@@ -73,7 +76,9 @@ def cmd_page_state(
 ) -> dict:
     """The agent-side state from one transaction-consistent snapshot: the page's,
     or the part `target` names — a thread with a page of its history, or a
-    widget."""
+    widget. Paging with no thread named is refused before the page is read."""
+    if target is None and (after is not None or limit is not None):
+        raise Refused("--after and --limit page a thread; name one as ID")
     with PageTransaction(page_dir) as page:
         activation = activate_source(page_dir, transaction=page)
         return _page_state(
@@ -105,6 +110,9 @@ def _base_state(
         "versions": versions,
         "source": {
             "file": "index.html",
+            "digest": authored_digest(
+                authored_files(page_dir / "index.html", page_dir / "page")
+            ),
             "live": source_error is None and active is not None,
             "error": source_error,
         },
@@ -140,7 +148,7 @@ def _base_state(
         "plan": None,
         "obligations": [],
         # Current semantic facts only. A thread's history belongs to
-        # `page state PAGE THREAD`; keeping its sequence list here would make this
+        # `page state PAGE MESSAGE`; keeping its sequence list here would make this
         # default snapshot grow with every thread turn. A reaction nobody
         # has replied to opened no thread: it is paint on the page and
         # stands under `reactions` below.
@@ -355,12 +363,13 @@ def _page_state(
                 "agent",
                 "session_alive",
                 "claim_session",
+                "session_name",
+                "session_cwd",
                 "claim_turn",
                 "turn_closed",
             )
         },
         "viewed": viewed_at(page_dir),
-        "session_cwd": served["session_cwd"],
     }
     state = _base_state(
         page_dir,

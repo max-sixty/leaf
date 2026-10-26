@@ -11,11 +11,11 @@ and independently checks the saved result. The first two arms keep Leaf's
 runtime and widget behavior fixed; the third tests an established JSON card
 system as a whole.
 
-| Arm | Agent writes | Reader | What its comparison can show |
-| --- | --- | --- | --- |
-| `leaf` | Leaf `index.html` | Leaf | Direct authoring baseline |
-| `json` | A flat `root`/`elements` JSON tree | Deterministic compiler to Leaf HTML, then Leaf | Effect of authoring syntax when the runtime and available HTML/Leaf elements are the same |
-| `adaptive` | Adaptive Card JSON | Microsoft's pinned Adaptive Cards JavaScript SDK | Effect of a real JSON schema, component catalog, renderer, and action model together |
+| Arm        | Agent writes                       | Reader                                           | What its comparison can show                                                              |
+| ---------- | ---------------------------------- | ------------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| `leaf`     | Leaf `index.html`                  | Leaf                                             | Direct authoring baseline                                                                 |
+| `json`     | A flat `root`/`elements` JSON tree | Deterministic compiler to Leaf HTML, then Leaf   | Effect of authoring syntax when the runtime and available HTML/Leaf elements are the same |
+| `adaptive` | Adaptive Card JSON                 | Microsoft's pinned Adaptive Cards JavaScript SDK | Effect of a real JSON schema, component catalog, renderer, and action model together      |
 
 The JSON tree borrows the flat keyed shape of [json-render's built-in
 schema](https://github.com/vercel-labs/json-render/blob/main/apps/web/content/docs/schemas.mdx),

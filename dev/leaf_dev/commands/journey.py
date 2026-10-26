@@ -105,7 +105,7 @@ import psutil
 from playwright.sync_api import BrowserContext, Locator, Page
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
-from leaf import thread_titles
+from leaf import inference, thread_titles
 from leaf.delivery import pickup_receipts
 from leaf.event_log import read_events
 from leaf.events import build_threads
@@ -153,7 +153,7 @@ VISIBLE_REPLY_PATIENCE = 30_000
 VISIBLE_MESSAGE_PATIENCE = 2
 # How long the page server gets to title the thread after the turn ends: as long as
 # it asks again after a refusal, then the last request's own limit.
-TITLE_PATIENCE = thread_titles.RETRY_FOR + thread_titles.TIMEOUT
+TITLE_PATIENCE = thread_titles.RETRY_FOR + inference.TIMEOUT
 # How long a harness journey's step waits for the session, and how long a session
 # must stay idle with a step's outcome before the step counts it settled.
 STEP_LIMIT = 300
@@ -173,7 +173,7 @@ CASES = ("waiting", "working")
 def samples_path() -> Path:
     """Where this machine keeps every sample, one JSON line each, outside any
     checkout so runs from every worktree accumulate. A stopgap until a store CI can
-    write to too (`TODO.md`, "Keep the agent journey's samples")."""
+    write to too (issue #4048, "Keep the agent journey's samples")."""
     state = os.environ.get("XDG_STATE_HOME") or Path.home() / ".local" / "state"
     return Path(state) / "leaf-dev" / "journey.jsonl"
 

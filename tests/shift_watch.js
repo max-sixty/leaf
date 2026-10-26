@@ -2,7 +2,8 @@
 //
 // Scope. The sensor credits movement the browser's own placement mechanisms produce,
 // modelled in general for any markup, never for one shape Leaf ships: scrolling,
-// which layout coordinates remove; sticky positioning, through its scroller's travel;
+// which layout coordinates remove, except where it carries the control a gesture was
+// made on (Scrolls a gesture makes); sticky positioning, through its scroller's travel;
 // CSS anchor positioning, through its anchor's scroll; and native animation, scroll-
 // driven included, through sampled translation or reflow from size changes.
 // Beside those, it credits only what the Stability contract itself declares:
@@ -38,8 +39,9 @@
 // Controls and declared regions keep their actual boxes. Runtime-declared
 // bounded reflow retains its historical ownership, stationary-boundary and clipping
 // proof. An append region may carry following content inside its stationary
-// scrollport by its measured suffix growth: new children, the existing ones retaining
-// their boxes, or, where none joins, its last child growing at its foot where that
+// scrollport or floating container by its measured suffix growth: new children,
+// the existing ones retaining their boxes, or, where none joins, its last child
+// growing at its foot where that
 // child declares itself the growing tail (`data-lf-append-tail`), as a thread's
 // working message and a reply still streaming do, or that tail giving way to the
 // children joining in its place, as the working message does to the answer. A
@@ -53,6 +55,33 @@
 // inside the `anchor-scope` that limits its name, and a direct native anchor inset,
 // inline or in their tree's own rules, retain that scroller too; nested CSS
 // expressions, ambiguous names and rules that disagree receive no inferred ownership.
+//
+// Scrolls a gesture makes. Layout coordinates remove scrolling, so a scroll inside a
+// gesture's rendering would credit itself, though it carries the control the user
+// just pressed out from under their aim (browser/AGENTS.md, "Stability"). So the
+// gesture's aim, the control a press lands on or the one holding focus for a key,
+// keeps its place on screen through that rendering, read fresh in viewport pixels
+// beside the scroll offsets of the boxes that carry it. A scroll may hold it still,
+// or take back part of what the gesture's own layout moved it, or bring it whole into
+// the view of a box that showed only part of it (its scrollport less its
+// scroll-padding, which the aim's scroll-margin must clear) by no more than the part
+// it hid, as the browser's own focus does, and carry it no further. A gesture that takes the user somewhere may:
+// a command declares it (`travels` on its register row, which the dispatcher's
+// `lf-command-invoked` carries), and so does the history entry a gesture adds, as a
+// root tab set's switch adds one; a link does by the platform's meaning, its script's
+// travel included, and a key the page leaves to the browser by the browser's. Back
+// and Forward are the user's gestures, made in the browser's chrome, and open a
+// rendering as an input does. Caret navigation is also the editor's own where it
+// implements those platform keys itself, preventing their defaults (CodeMirror
+// does). The runtime owns both the caret keys and which controls take text. A scroll
+// is the gesture's on each box its own work called a scrolling API on, and for a
+// reveal or focus that doesn't prevent its scroll on every box holding the target,
+// as input_work_watch.js names the input of the call; a call work no input owns
+// makes during the rendering, as a test's script does, leaves the rendering
+// unjudged. So a scroll begun where the input's source is lost, after a native
+// `await` or in an observer's delivery, goes unjudged, as does one the browser makes
+// alone, such as a clamp. The driver's own scroll before its next press counts only
+// on a box the gesture's own work scrolled too.
 //
 // Each trusted gesture owns its counted rendering until declared completion. A widget
 // preparation it began (`observePreparations`) works on in a promise the loop
@@ -79,7 +108,8 @@
 // the ancestor's whole box: independent movement of it or its children still fails.
 // This proof supports unique replace effects with pure transform translation, a
 // `translate` in pixels or percentages of the border box (including a directly bound
-// inline custom property), or pixel
+// inline custom property), a pixel-only stylesheet consumer of an inherited custom
+// property, or pixel
 // left/top/marginLeft/marginTop. Scale, rotation and
 // composed effects receive no inferred translation credit.
 //
@@ -217,7 +247,8 @@
   // An animation that can move a box: one of its keyframes sets a geometric property.
   const moves = (animation) =>
     animationProperties(animation).length > 0 ||
-    GEOMETRY.test(animation.transitionProperty ?? "");
+    GEOMETRY.test(animation.transitionProperty ?? "") ||
+    inheritedBindings(animation).length > 0;
   // Every animation in the composed tree: the document's own list leaves out those
   // whose targets are in shadow trees, so each connected shadow root adds its own.
   const allAnimations = () => [
@@ -254,17 +285,13 @@
       `^(?:${anchor}|calc\\((?:${anchor}\\s*[+-]\\s*-?[\\d.]+px|-?[\\d.]+px\\s*\\+\\s*${anchor}|${anchor})\\))$`,
     ).test(value);
   };
-  // What decides a positioned box's inset on an axis, as the declarations that can win
-  // it: an important inline one alone, else the important rules of the box's own tree
-  // that match it now, else its inline style, else every matching rule. Within a tier
-  // the cascade weighs specificity, layers and order, which no API reports, so the
-  // inset counts as anchored only where every candidate there is a direct anchor
-  // inset: rules that disagree are ambiguous, like a name that is. Rules are read only
-  // for a box naming an anchor, since every frame samples it, and only those that
-  // state an inset at all, gathered once per sheet.
-  const INSETS = ["top", "right", "bottom", "left"];
-  const insetRules = new WeakMap();
-  const rulesStatingInsets = (sheet) => {
+  // Declarations that can win a property: an important inline one alone, else
+  // important matching rules, else inline style, else every matching rule. No API
+  // reports the cascade's specificity/layer/order result, so consumers require all
+  // candidates in that tier to prove the same relationship. Gather only rules
+  // stating the requested property, once per sheet and property.
+  const declarationRules = new WeakMap();
+  const rulesStating = (sheet, property) => {
     if (
       sheet.href &&
       new URL(sheet.href).origin !== window.origin &&
@@ -272,14 +299,14 @@
     )
       return [];
     const length = sheet.cssRules.length;
-    const known = insetRules.get(sheet);
+    const cached = declarationRules.get(sheet) ?? new Map();
+    const known = cached.get(property);
     if (known?.length === length) return known.rules;
     const rules = [];
     const visit = (list, conditions) => {
       for (const rule of list) {
         if (rule instanceof CSSStyleRule) {
-          if (INSETS.some((side) => rule.style.getPropertyValue(side)))
-            rules.push({ rule, conditions });
+          if (rule.style.getPropertyValue(property)) rules.push({ rule, conditions });
         } else if (rule.cssRules)
           visit(
             rule.cssRules,
@@ -290,7 +317,8 @@
       }
     };
     visit(sheet.cssRules, []);
-    insetRules.set(sheet, { length, rules });
+    cached.set(property, { length, rules });
+    declarationRules.set(sheet, cached);
     return rules;
   };
   const holds = (condition) =>
@@ -306,7 +334,7 @@
       ...(root.styleSheets ?? []),
       ...(root.adoptedStyleSheets ?? []),
     ])
-      for (const { rule, conditions } of rulesStatingInsets(sheet)) {
+      for (const { rule, conditions } of rulesStating(sheet, property)) {
         const value = rule.style.getPropertyValue(property);
         if (!value || (importantOnly && !rule.style.getPropertyPriority(property)))
           continue;
@@ -324,18 +352,146 @@
       }
     return found;
   };
+  // A direct translation consumer is proved from declarations, not a coincidental
+  // equality of computed values. Keep the existing conservative cascade tiers:
+  // every candidate in the winning tier must name the same animated variable.
+  const declaredValues = (node, property) => {
+    const inline = node.style.getPropertyValue(property);
+    if (inline && node.style.getPropertyPriority(property)) return [inline];
+    const rules = declaredRules(node, property, Boolean(inline));
+    return rules.important.length ? rules.important : inline ? [inline] : rules.normal;
+  };
+  const inheritedConsumers = new WeakMap();
+  const findConsumers = (target, keys) => {
+    keys = keys.filter((key) => key.startsWith("--"));
+    const consumers = [];
+    if (target && keys.length) {
+      const trees = [
+        target,
+        ...[...roots].filter((root) => {
+          for (let at = root.host; at; at = up(at)) if (at === target) return true;
+          return false;
+        }),
+      ];
+      for (const node of new Set(
+        trees.flatMap((tree) => [
+          ...(tree instanceof Element ? [tree] : []),
+          ...tree.querySelectorAll("*"),
+        ]),
+      )) {
+        const values = declaredValues(node, "translate");
+        const key = keys.find(
+          (key) =>
+            values.length && values.every((value) => value.trim() === `var(${key})`),
+        );
+        if (key) consumers.push({ node, key });
+      }
+    }
+    return consumers;
+  };
+  const inheritedBindings = (animation) => {
+    if (!inheritedConsumers.has(animation))
+      inheritedConsumers.set(
+        animation,
+        translationBindings.get(animation)
+          ? []
+          : findConsumers(animation.effect?.target, [
+              ...new Set((animation.effect?.getKeyframes() ?? []).flatMap(Object.keys)),
+            ]),
+      );
+    return inheritedConsumers.get(animation);
+  };
+  const consumerOrigins = (bindings) =>
+    new Map(
+      bindings.map(({ node }) => [
+        node,
+        animatedValue(node, getComputedStyle(node), "translate"),
+      ]),
+    );
+  const inheritedReading = (animation, binding, returning) => {
+    const { node, key } = binding,
+      target = animation.effect.target;
+    if (
+      animation.effect.composite !== "replace" ||
+      animation.effect
+        .getKeyframes()
+        .some(
+          (frame) => frame.composite && !["auto", "replace"].includes(frame.composite),
+        ) ||
+      scrollBinding(animation) ||
+      target
+        .getAnimations()
+        .some(
+          (other) =>
+            other !== animation &&
+            other.effect?.getKeyframes().some((frame) => key in frame),
+        )
+    )
+      return null;
+    const values = declaredValues(node, "translate");
+    if (
+      !node.isConnected ||
+      !values.length ||
+      !values.every((value) => value.trim() === `var(${key})`)
+    )
+      return null;
+    let reached = false;
+    for (let at = node; at; at = up(at)) {
+      if (at === target) {
+        reached = true;
+        break;
+      }
+      // An override, including an independent animation, breaks inherited source
+      // ownership even when its numeric trajectory happens to match.
+      if (
+        declaredValues(at, key).length ||
+        at
+          .getAnimations()
+          .some(
+            (other) =>
+              other !== animation &&
+              other.effect?.getKeyframes().some((frame) => key in frame),
+          )
+      )
+        return null;
+    }
+    if (
+      !reached ||
+      node
+        .getAnimations()
+        .some(
+          (other) =>
+            other !== animation && animationProperties(other).includes("translate"),
+        )
+    )
+      return null;
+    const style = getComputedStyle(node);
+    if (style.getPropertyValue(key) !== getComputedStyle(target).getPropertyValue(key))
+      return null;
+    const value = animatedValue(node, style, "translate");
+    const expected = animationTranslation(
+      "translate",
+      style.getPropertyValue(key).trim(),
+    );
+    const actual = animationTranslation("translate", value);
+    if (
+      !expected ||
+      !actual ||
+      expected.left !== actual.left ||
+      expected.top !== actual.top
+    )
+      return null;
+    if (returning && origins.get(animation)?.consumers?.get(node) !== value)
+      return null;
+    return { node, key, value, axes: translationAxes(node) };
+  };
   const anchoredInset = (node, style, property, axis) => {
     const inline = node.style.getPropertyValue(property);
     if (inline && node.style.getPropertyPriority(property))
       return anchorInset(inline, axis);
     if (!style.positionAnchor.startsWith("--"))
       return inline ? anchorInset(inline, axis) : false;
-    const rules = declaredRules(node, property, Boolean(inline));
-    const candidates = rules.important.length
-      ? rules.important
-      : inline
-        ? [inline]
-        : rules.normal;
+    const candidates = declaredValues(node, property);
     return (
       candidates.length > 0 && candidates.every((value) => anchorInset(value, axis))
     );
@@ -797,17 +953,25 @@
   Element.prototype.animate = function (...args) {
     announce();
     const values = underlying(this);
+    const frames = Array.isArray(args[0]) ? args[0] : [args[0] ?? {}];
+    const bindings = findConsumers(this, [...new Set(frames.flatMap(Object.keys))]);
+    const consumers = consumerOrigins(bindings);
     const at = nativePerformance.now();
     const animation = animate.apply(this, args);
     beganAt.set(animation, { at });
-    origins.set(
+    animationProperties(animation);
+    inheritedConsumers.set(
       animation,
-      Object.fromEntries(
+      translationBindings.get(animation) ? [] : bindings,
+    );
+    origins.set(animation, {
+      ...Object.fromEntries(
         animationProperties(animation)
           .filter((property) => property in values)
           .map((property) => [property, values[property]]),
       ),
-    );
+      consumers,
+    });
     return animation;
   };
   // Reusing a native effect is a new operation when play resumes or reverse changes
@@ -822,6 +986,7 @@
         this.effect.getComputedTiming().progress === null
           ? underlying(this.effect.target, this)
           : null;
+      if (origin) origin.consumers = consumerOrigins(inheritedBindings(this));
       const at = nativePerformance.now();
       const result = original.apply(this, args);
       if (beginning) {
@@ -835,7 +1000,7 @@
   const readMotion = (at, ending = null) => {
     const effects = [
       ...new Set([...allAnimations(), ...(ending?.effect?.target ? [ending] : [])]),
-    ].filter((animation) => animation.effect?.target && moves(animation));
+    ].filter((animation) => animation.effect?.target?.isConnected && moves(animation));
     const uses = new Map();
     for (const animation of effects) {
       const priorState = observedStates.get(animation);
@@ -908,6 +1073,9 @@
         axes: translationAxes(effect.target),
         scroll: scrollBinding(animation),
         keyframes: effect.getKeyframes(),
+        consumers: inheritedBindings(animation).map((binding) =>
+          inheritedReading(animation, binding, returning),
+        ),
       });
       pruneSamples(readings);
       animated.set(animation, readings);
@@ -1382,6 +1550,8 @@
     open = null;
   };
   const begin = (start, typing = null, own = new Set(), event = null) => {
+    // A newer input ends the open one's aim, after a last look at where it stands.
+    if (open) judgeAim(open);
     end();
     open = {
       start,
@@ -1444,6 +1614,7 @@
     presentationChanged();
     const at = read(time);
     if (open) {
+      judgeAim(open);
       // Effects begun before news retain their exact property evidence below.
       // A persistent attachment or a still-running time effect does not keep the
       // creator's counted input rendering open after its declared completion.
@@ -1528,6 +1699,11 @@
     const next = presentationState();
     if (next.every((value, index) => value === presentation[index])) return;
     presentation = next;
+    // Layout can precede the native event, so this observation also makes the
+    // next reading complete, including clipping changes with no shift record.
+    announce();
+    // What the new presentation moves is its own, not the open gesture's.
+    if (open) open.aim = null;
     const before = frames.at(-1)?.at ?? nativePerformance.now();
     if (open?.typing?.until === Infinity) open.typing.until = before;
     begin(nativePerformance.now());
@@ -1540,6 +1716,235 @@
     if (open) open.told = true;
     for (const rendering of landing) rendering.told = true;
   }).observe(document, { subtree: true, attributeFilter: ["data-lf-reading"] });
+  // A gesture's aim: the control it was made on, which a scroll during the gesture's
+  // rendering may not carry on screen (Scrolls a gesture makes, above). A press aims
+  // at the control under the pointer, a key at whatever holds focus. A link's
+  // activation takes the user somewhere by the platform's own meaning, whether the
+  // browser follows it or the page's script travels in its place, and a key the
+  // page leaves to the browser, as Tab, Space or an arrow, does what the platform does
+  // with it; neither aims. Wheels and drags move the page by the user's own hand.
+  const aimOf = (event) => {
+    let node = null;
+    if (event.type === "keydown") {
+      // A key pressed in another document aims at nothing here.
+      if (event.target.ownerDocument !== document) return null;
+      node = document.activeElement;
+      while (node?.shadowRoot?.activeElement) node = node.shadowRoot.activeElement;
+      if (node === document.body || node === document.documentElement) node = null;
+    } else if (["pointerdown", "pointerup", "click"].includes(event.type)) {
+      const path = event.composedPath();
+      if (path.some((at) => at instanceof Element && at.matches("a[href], area[href]")))
+        return null;
+      node = path.find((at) => at instanceof Element && at.matches(interactive));
+    }
+    if (!node || node.ownerDocument !== document) return null;
+    const pose = aimPose(node);
+    // Focus can stand on a control scrolled off screen, which nobody aims at.
+    const { rect } = pose ?? {};
+    if (
+      !rect ||
+      rect.bottom <= 0 ||
+      rect.right <= 0 ||
+      rect.top >= innerHeight ||
+      rect.left >= innerWidth
+    )
+      return null;
+    return { node, event, ...pose };
+  };
+  // Where the aim stands on screen, and the scroll offset of each box whose scroll
+  // carries it: its rendered ancestors up to the first fixed box among it and them,
+  // with what each that scrolls shows (`shownBy`). Read fresh, not from the ledger,
+  // whose last reading can predate a script's scroll that the input follows within
+  // the frame.
+  const aimPose = (node) => {
+    if (!node.isConnected || !node.checkVisibility()) return null;
+    const rect = node.getBoundingClientRect();
+    if (!rect.width && !rect.height) return null;
+    const scrolls = new Map();
+    for (let child = node; ;) {
+      if (getComputedStyle(child).position === "fixed") break;
+      const parent = up(child);
+      if (!(parent instanceof Element)) break;
+      const scrolling =
+        parent.scrollWidth > parent.clientWidth ||
+        parent.scrollHeight > parent.clientHeight;
+      scrolls.set(parent, {
+        left: parent.scrollLeft,
+        top: parent.scrollTop,
+        shown: scrolling ? shownBy(parent) : null,
+      });
+      child = parent;
+    }
+    return { rect, scrolls };
+  };
+  // Where a scroller shows what it holds whole: its scrollport less its scroll-padding,
+  // the region the browser's own reveals bring a target into, clear of what the
+  // scroller declares stands over its edges (a stuck header, a strip's edge press).
+  const shownBy = (box) => {
+    const root = box === document.scrollingElement;
+    const rect = root ? { left: 0, top: 0 } : box.getBoundingClientRect();
+    const style = getComputedStyle(box);
+    const inset = (side) => pixels(style[`scrollPadding${side}`]) ?? 0;
+    const left = rect.left + (root ? 0 : box.clientLeft);
+    const top = rect.top + (root ? 0 : box.clientTop);
+    return {
+      left: left + inset("Left"),
+      top: top + inset("Top"),
+      right: left + box.clientWidth - inset("Right"),
+      bottom: top + box.clientHeight - inset("Bottom"),
+    };
+  };
+  // A control as a reveal brings it into view: out to its scroll-margin, its ring's room.
+  const ringed = (node, rect) => {
+    const style = getComputedStyle(node);
+    const margin = (side) => pixels(style[`scrollMargin${side}`]) ?? 0;
+    return {
+      left: rect.left - margin("Left"),
+      top: rect.top - margin("Top"),
+      right: rect.right + margin("Right"),
+      bottom: rect.bottom + margin("Bottom"),
+    };
+  };
+  const whole = (rect, shown, start, end) =>
+    rect[start] > shown[start] - 1 && rect[end] < shown[end] + 1;
+  // A scroll carried the aim on screen where both its edges moved one way on an axis
+  // and the scroll moved it that way too. A scroll that holds it still, or takes back
+  // part of what the gesture's own layout moved, carries it nowhere; layout motion
+  // stays the gesture's own (Scope). Nor does a box's scroll that brings the aim whole
+  // into what that box shows from partly past it, by no more than the part it hid, as
+  // the browser's own focus does: the user pressed the part they could see, and the
+  // reveal shows them the rest.
+  const judgeAim = (rendering) => {
+    const aim = rendering.aim;
+    if (!aim?.scrolled || aim.foreign) return;
+    if (
+      aim.event.type === "keydown" &&
+      (!aim.event.defaultPrevented ||
+        (caretKeys.includes(aim.event.key) &&
+          document.documentElement.lfInputs?.typesText(aim.node)))
+    ) {
+      rendering.aim = null;
+      return;
+    }
+    const now = aimPose(aim.node);
+    if (!now) return;
+    const scrolled = { left: 0, top: 0 };
+    let carriedBy = false;
+    const [from, to] = [aim.rect, now.rect].map((rect) => ringed(aim.node, rect));
+    for (const [axis, far] of [
+      ["left", "right"],
+      ["top", "bottom"],
+    ]) {
+      for (const [box, offset] of now.scrolls) {
+        const was = aim.scrolls.get(box);
+        if (!was || !aim.scrolled.has(box)) continue;
+        const past =
+          was.shown &&
+          Math.max(was.shown[axis] - from[axis], from[far] - was.shown[far]);
+        const reveals =
+          past >= 1 &&
+          Math.abs(offset[axis] - was[axis]) < past + 1 &&
+          offset.shown &&
+          whole(to, offset.shown, axis, far);
+        if (!reveals) scrolled[axis] -= offset[axis] - was[axis];
+      }
+      if (
+        carried(aim.rect, now.rect, axis, far) &&
+        Math.abs(scrolled[axis]) >= 1 &&
+        Math.sign(scrolled[axis]) === Math.sign(now.rect[axis] - aim.rect[axis])
+      )
+        carriedBy = true;
+    }
+    if (!carriedBy) return;
+    rendering.aim = null;
+    const input =
+      aim.event.type === "keydown"
+        ? `${aim.event.type} ${aim.event.key}`
+        : aim.event.type;
+    report(JSON.stringify(["scrolled", name(aim.node)]), {
+      code: "gesture-scrolled",
+      node: name(aim.node),
+      input,
+      by: by(aim.rect, now.rect),
+      beside: [],
+      evidence: {
+        kind: "gesture",
+        node: name(aim.node),
+        input,
+        before: box(aim.rect),
+        after: box(now.rect),
+        scrolled: [Math.round(scrolled.left), Math.round(scrolled.top)],
+      },
+    });
+  };
+  // Whose scroll it was (Scrolls a gesture makes, above): the aim is judged once the
+  // gesture's own work has called a scrolling API, and never once other work has
+  // during its rendering. A scroll the call starts, a smooth one too, is the gesture's
+  // through the rendering, on the boxes the call scrolls: the one it names, or for a
+  // reveal or focus every box holding its target.
+  const scrollCalled = (target, holders = false) => {
+    const aim = open?.aim;
+    if (!aim) return;
+    const source = window.lfInputWork.current();
+    const owner = source && inputRenderings.get(source.event);
+    if (!owner || (owner !== open && owner.own !== open.own)) {
+      aim.foreign = true;
+      return;
+    }
+    aim.scrolled ??= new Set();
+    if (target === window) aim.scrolled.add(document.scrollingElement);
+    else if (!holders) aim.scrolled.add(target);
+    else
+      for (let box = up(target); box instanceof Element; box = up(box))
+        aim.scrolled.add(box);
+  };
+  for (const [owner, names, holders] of [
+    [Element.prototype, ["scroll", "scrollTo", "scrollBy"], false],
+    [Element.prototype, ["scrollIntoView", "scrollIntoViewIfNeeded"], true],
+    [window, ["scroll", "scrollTo", "scrollBy"], false],
+    [HTMLElement.prototype, ["focus"], true],
+    [SVGElement.prototype, ["focus"], true],
+  ])
+    for (const key of names) {
+      const call = owner[key];
+      if (typeof call !== "function") continue;
+      owner[key] = function (...args) {
+        if (key !== "focus" || !args[0]?.preventScroll) scrollCalled(this, holders);
+        return call.apply(this, args);
+      };
+    }
+  for (const key of ["scrollTop", "scrollLeft"]) {
+    const offset = Object.getOwnPropertyDescriptor(Element.prototype, key);
+    Object.defineProperty(Element.prototype, key, {
+      ...offset,
+      set(value) {
+        scrollCalled(this);
+        offset.set.call(this, value);
+      },
+    });
+  }
+  // A command that takes the user somewhere declares it on its register row
+  // (`travels`, keyboard/bindings.js), which the dispatcher announces as it runs it.
+  listen(document, "lf-command-invoked", ({ detail }) => {
+    if (detail?.travels && open) open.aim = null;
+  });
+  // So does a gesture that adds a history entry, as a followed link or a root tab
+  // set's switch does; renaming the entry the user is on (`replaceState`) takes them
+  // nowhere. Back or Forward is the user's own gesture, made in the browser's chrome,
+  // which no input event here carries, so it opens a rendering as hearing an input does.
+  if (window.navigation)
+    listen(window.navigation, "navigate", ({ navigationType }) => {
+      if (navigationType === "traverse") begin(nativePerformance.now());
+      else if (navigationType === "push" && open) open.aim = null;
+    });
+  listen(
+    window,
+    "pointercancel",
+    (event) => {
+      if (open?.aim?.event.pointerId === event.pointerId) open.aim = null;
+    },
+    true,
+  );
   // Press, drag, release and native activation are phases of one pointer gesture.
   // Each phase keeps its own paint boundary while sharing the effects that press
   // began. A later press starts fresh; native timeline reassignment cannot adopt
@@ -1554,6 +1959,7 @@
       presses.get(event.pointerId) ?? new Set(),
       event,
     );
+    open.aim = aimOf(event);
     if (event.type === "click") presses.delete(event.pointerId);
   };
   // An input's credits look back to the poses it began from, so where frames left
@@ -1735,8 +2141,9 @@
   // Append declarations own a source, not all motion in a container. The retained
   // prefix proves that growth came after the old children; unchanged old boxes keep
   // a fold or a rewritten message from borrowing that growth. Only its normal-flow
-  // followers in the same stationary runtime scrollport may be carried by it. A
-  // scrollport sized to what it holds grows at its foot with that growth, keeping
+  // followers in the same stationary runtime scrollport or floating container may
+  // be carried by it. A container sized to what it holds grows at its foot with
+  // that growth, keeping
   // every other edge, and counts as stationary.
   //
   // A scrollport that declares it stands on its foot (`data-lf-rises`), as the floating
@@ -1801,8 +2208,14 @@
       lift = () => 0;
       const readings = around.map(({ at }) => paintAt(source, at));
       if (!readings.every((paint) => paint?.reflow === "append")) return [];
+      // A floating container owns its following controls even when it clips
+      // without scrolling, or temporarily exposes its contents during motion.
+      const containsAppend = (owner, at) => {
+        const paint = paintAt(owner, at);
+        return paint?.scrollportY || ["fixed", "absolute"].includes(paint?.position);
+      };
       const port = ancestryAt(source, first).find(
-        (owner) => owner !== source && paintAt(owner, first)?.scrollportY,
+        (owner) => owner !== source && containsAppend(owner, first),
       );
       const rise =
         port && around.every(({ at }) => paintAt(port, at)?.rises) ? headRise(port) : 0;
@@ -1884,7 +2297,7 @@
         !around.every(
           ({ at }) =>
             ancestryAt(source, at).includes(port) &&
-            paintAt(port, at)?.scrollportY &&
+            containsAppend(port, at) &&
             ancestryAt(port, at).some((owner) => paintAt(owner, at)?.runtime) &&
             ancestryAt(source, at)
               .slice(1, ancestryAt(source, at).indexOf(port) + 1)
@@ -2346,43 +2759,127 @@
         }
       : null;
   };
-  const inFlow = (element) => {
+  // A reading kept for the task that takes it. Each moved box a credit is weighed for
+  // asks the same questions of the same animations and ancestors, and nothing the watch
+  // does in one task restyles the page or edits an effect, so an answer read once holds
+  // until the task ends.
+  const endOfTask = window.lfWatchPlatform.microtask;
+  const forTask = (read) => {
+    let kept = null;
+    return (key) => {
+      if (!kept) {
+        kept = new Map();
+        endOfTask(() => {
+          kept = null;
+        });
+      }
+      if (!kept.has(key)) kept.set(key, read(key));
+      return kept.get(key);
+    };
+  };
+  // The computed values the layout path reads.
+  const flowStyle = forTask((element) => {
     const style = getComputedStyle(element);
+    return {
+      display: style.display,
+      position: style.position,
+      float: style.float,
+      writingMode: style.writingMode,
+    };
+  });
+  const effectProperties = forTask(animationProperties);
+  const inFlow = (element) => {
+    const style = flowStyle(element);
     return !["absolute", "fixed"].includes(style.position) && style.float === "none";
+  };
+  // The box a box's layout places it in: the rendered parent, past any that generates
+  // no box of its own, such as a slot. The layout path runs through the rendered tree,
+  // so a size change inside a widget's shadow root carries the page's boxes after its
+  // host, as a resolved thread folding in a diff carries the paragraphs below the diff.
+  const boxParent = (element) => {
+    let parent = up(element);
+    while (parent && flowStyle(parent).display === "contents") parent = up(parent);
+    return parent;
+  };
+  // Whether `element` may follow `target` in the page as rendered, read from each
+  // node's tree and its hosts alone, without a style or layout read: it runs ahead of
+  // those for every pair of a size change and a moved box. The two climb their hosts to
+  // a shared tree, which orders them; a box inside a later host follows. It is a filter,
+  // not the decision: `sizeReaches` still walks the layout path, which can still refuse.
+  const hosts = (node) => {
+    const chain = [node];
+    for (let host = node.getRootNode().host; host; host = host.getRootNode().host)
+      chain.push(host);
+    return chain;
+  };
+  const mayFollow = (target, element) => {
+    const from = hosts(target);
+    for (const at of hosts(element)) {
+      const root = at.getRootNode();
+      const shared = from.find((node) => node.getRootNode() === root);
+      if (shared)
+        return (
+          shared !== at &&
+          !!(shared.compareDocumentPosition(at) & Node.DOCUMENT_POSITION_FOLLOWING)
+        );
+    }
+    return false;
   };
   const sizeReaches = (target, element, from, to, axis, change) => {
     const size = axis === "top" ? "height" : "width";
+    // The moved box's own path, read once: the branch climb asks at each step whether
+    // it has reached a box holding it, and the follower is the box on that path just
+    // under the flow they share.
+    const path = [];
+    for (let at = element; at; at = boxParent(at)) path.push(at);
+    const holding = new Set(path);
     let branch = target;
-    while (branch.parentElement && !branch.parentElement.contains(element)) {
+    while (boxParent(branch) && !holding.has(boxParent(branch))) {
       if (!inFlow(branch)) return false;
-      branch = branch.parentElement;
+      branch = boxParent(branch);
       const before = boxAt(branch, from),
         after = boxAt(branch, to);
       if (!before || !after || Math.abs(after[size] - before[size] - change) >= 1)
         return false;
     }
-    if (!inFlow(branch) || !branch.parentElement) return false;
-    let follower = element;
-    while (follower.parentElement !== branch.parentElement) {
-      if (!inFlow(follower) || !follower.parentElement) return false;
-      follower = follower.parentElement;
+    const flow = boxParent(branch);
+    if (!inFlow(branch) || !flow) return false;
+    // An in-flow box moves with its parent, and an absolutely positioned one with its
+    // containing block: its nearest positioned ancestor or a box nearer still, such as
+    // a transformed one. So an absolute box is carried only where a positioned box
+    // between it and the follower holds it, as a diff line holds its comment button.
+    const reach = path.indexOf(flow);
+    if (reach < 1) return false;
+    const follower = path[reach - 1];
+    let placed = true;
+    for (const box of path.slice(0, reach - 1)) {
+      const style = flowStyle(box);
+      if (style.position === "fixed" || style.float !== "none") return false;
+      if (style.position === "absolute") placed = false;
+      else if (!placed && style.position !== "static") placed = true;
     }
+    if (!placed && flowStyle(follower).position === "static") return false;
     // Block-level children stack vertically in a horizontal-writing block flow.
     // A block container can also hold inline siblings, whose height does not carry
     // the next sibling down; flex, grid, and vertical writing have other axes.
     if (
       axis !== "top" ||
-      !["block", "flow-root"].includes(
-        getComputedStyle(branch.parentElement).display,
-      ) ||
-      getComputedStyle(branch.parentElement).writingMode !== "horizontal-tb" ||
-      !["block", "flow-root"].includes(getComputedStyle(branch).display) ||
-      !["block", "flow-root"].includes(getComputedStyle(follower).display)
+      !["block", "flow-root"].includes(flowStyle(flow).display) ||
+      flowStyle(flow).writingMode !== "horizontal-tb" ||
+      !["block", "flow-root"].includes(flowStyle(branch).display) ||
+      !["block", "flow-root"].includes(flowStyle(follower).display)
     )
       return false;
+    // The two are ordered by the DOM of the tree they share. Two boxes in one flow can
+    // stand in different trees, as a slotted node beside its slot's shadow siblings,
+    // where the DOM gives no order; those are not credited. Known limit: within one
+    // tree, named slots can render a host's children in another order than the DOM's,
+    // so a scripted move of a child the DOM puts after the size change but a slot
+    // renders before it is credited.
     return (
       inFlow(follower) &&
       branch !== follower &&
+      branch.getRootNode() === follower.getRootNode() &&
       !!(branch.compareDocumentPosition(follower) & Node.DOCUMENT_POSITION_FOLLOWING)
     );
   };
@@ -2391,7 +2888,7 @@
     const motion = { left: 0, top: 0, terms: [] };
     if (!element) return motion;
     for (const details of nativeClosures.keys()) {
-      if (details.getRootNode() !== element.getRootNode()) continue;
+      if (!mayFollow(details, element)) continue;
       const before = boxAt(details, from),
         after = boxAt(details, to),
         first = layoutAt(element, from),
@@ -2414,14 +2911,44 @@
     for (const animation of new Set(animations)) {
       const target = animation.effect.target;
       if (!target) continue;
+      const samples = animated.get(animation);
+      const earlier = samples?.findLast((reading) => reading.at <= from);
+      const later = samples?.findLast((reading) => reading.at <= to);
+      for (let index = 0; index < (earlier?.consumers?.length ?? 0); index++) {
+        const first = earlier.consumers[index],
+          last = later?.consumers?.[index];
+        if (
+          !first ||
+          !last ||
+          first.node !== last.node ||
+          !ancestryAt(element, from).includes(first.node) ||
+          !ancestryAt(element, to).includes(first.node)
+        )
+          continue;
+        const prior = animationTranslation("translate", first.value);
+        const next = animationTranslation("translate", last.value);
+        if (!prior || !next) continue;
+        const by = viewportTranslation(
+          "translate",
+          { axes: first.axes },
+          { axes: last.axes },
+          { left: next.left - prior.left, top: next.top - prior.top },
+        );
+        if (!by) continue;
+        for (const axis of ["left", "top"])
+          credit(motion, "inherited_translation", first.node, axis, by[axis], {
+            property: first.key,
+            before: first.value,
+            after: last.value,
+          });
+      }
       if (!ancestryAt(element, to).includes(target)) {
         // A size animation can move boxes later in its flow. The size change
         // must propagate through its ancestors to a following in-flow branch.
-        const properties = animationProperties(animation);
+        const properties = effectProperties(animation);
         if (
           !properties.some((property) => SIZE_GEOMETRY.has(property)) ||
-          target.getRootNode() !== element.getRootNode() ||
-          !(target.compareDocumentPosition(element) & Node.DOCUMENT_POSITION_FOLLOWING)
+          !mayFollow(target, element)
         )
           continue;
         const before = boxAt(target, from),
@@ -2460,7 +2987,7 @@
       const after = readings?.findLast((reading) => reading.at <= to);
       if (!before || !after) continue;
       const properties = seen.get(target) ?? new Set();
-      for (const property of animationProperties(animation)) {
+      for (const property of effectProperties(animation)) {
         if (properties.has(property)) continue;
         properties.add(property);
         if (!(property in before.values) || !(property in after.values)) continue;

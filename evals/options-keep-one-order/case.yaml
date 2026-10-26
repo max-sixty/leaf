@@ -1,0 +1,294 @@
+# From session d47e9799, whose decision section compared three designs in a table as
+# rows A, B and C, ordered by how far each departed from today, then listed the
+# lf-option cards as C, B, A: the recommended option first and the one closest to today
+# last, the order 243 of 312 recommending groups on that machine's pages used. The
+# overnight-2026-10-20 page did the same to a four-row table (D, C, B, A).
+# Notes alone passed on base 8 of 8; the session was copying its own page, so each
+# prompt pastes the page's earlier decisions, all recommended-first. Base 3a2e96564
+# then failed one-order in 2 of 5 and window-sizes' subject-order in 4 of 5; with the
+# authoring-decisions.md paragraph on ordering options by the subject, 9 of 9 and 5 of
+# 5, every run reading that reference.
+description: options-keep-one-order
+metadata:
+  purpose:
+    "Asks: a decision lists its alternatives in one order wherever it lists them, so the
+    lf-option cards follow the comparison table's rows, and the recommendation is marked by its
+    tag rather than by moving it first."
+  tags:
+    - asks
+vars:
+  prompt: |
+    You are working with the user on a Leaf page of interface proposals. On the
+    proposal that adds an Answer press to On me cards, the user commented: "how
+    should a widget decide what its On me card shows? it should be up to the widget".
+
+    The page so far holds ten proposals, each put to the user like these two:
+
+    ```html
+    <lf-ask id="ask-resolve-glyph">
+      <h3 id="resolve-glyph">Resolve and Reopen are a bare ✓: one press hides the thread, and reopening looks like a status</h3>
+      <p>
+        A card's Resolve is a ✓ beside ✕. One press closes the card, removes the
+        marker and the passage underline, and ends the thread's open questions. The
+        only way back is <kbd>z</kbd> or Threads → Resolved. Once resolved, the panel
+        says “Resolved · reopen to reply”, but that line can't be pressed. The only
+        Reopen is the same ✓ in green, which reads as a “done” badge.
+      </p>
+      <p>
+        Proposal: write <strong>Resolve</strong> and <strong>Reopen</strong> as words
+        in every thread view. Turn the panel's resolved line into a
+        “Resolved · <u>Reopen</u>” press that puts the caret in the reply. Cost:
+        about 25 lines in <code>thread-card.js</code>, <code>floating-panel.js</code>
+        and the theme.
+      </p>
+      <lf-options id="resolve-glyph-choice" choose>
+        <lf-option id="resolve-words"><small class="tag">effort: ~25 lines</small><small class="tag ok">recommended</small><strong>Write Resolve and Reopen as words, and make the resolved line reopen</strong></lf-option>
+        <lf-option id="resolve-keep"><small class="tag">effort: none</small><strong>Keep the ✓ glyphs</strong> Their names stay in tooltips only, which a phone never shows.</lf-option>
+      </lf-options>
+    </lf-ask>
+
+    <lf-ask id="ask-answer-control">
+      <h3 id="answer-control">A question asked in words shows no way to answer it</h3>
+      <p>
+        A bare <code>lf-ask</code> renders as an ordinary paragraph, and the only
+        sign it is a question is a <code>?</code> in the rail. On me has the same
+        gap: a card whose widget lives in an undrawn thread message gets only the
+        quiet words “Discuss” and “Show”, and neither says an answer is owed.
+      </p>
+      <p>
+        Proposal: give a bare <code>lf-ask</code> an <strong>Answer</strong> press
+        that opens its comment box labelled “Answer…”. When On me can't draw a
+        card's choices, draw its way there as an <strong>Answer</strong> press.
+        Cost: about 40 lines, one default-package widget plus theme.
+      </p>
+      <lf-options id="answer-control-choice" choose>
+        <lf-option id="answer-build"><small class="tag">effort: ~40 lines</small><small class="tag ok">recommended</small><strong>Draw an Answer press on bare questions and on On me cards</strong></lf-option>
+        <lf-option id="answer-keep"><small class="tag">effort: none</small><strong>Keep the rail’s ? as the only sign</strong></lf-option>
+      </lf-options>
+    </lf-ask>
+    ```
+
+    You read the code. Your notes:
+
+    - Today a widget has four inputs to its On me card. `x-awaits` in its registry
+      entry says whether it asks and what answers it. Its keyboard commands marked
+      `decision: true` are copied onto the card as plain buttons, and a press clicks
+      the widget's real control on the page (`choicesOf` in `obligations/view.js`).
+      `static answerWords(value, element)` words a finished answer. The heading comes
+      from an enclosing `lf-ask`. The panel owns the rest of the card: Discuss, Show,
+      Undo and the walk's order.
+    - Copying needs the control to exist on the page, so a widget in a thread message
+      nobody has opened gets only Discuss and Show. The card can't show what is being
+      decided, such as an option's description or a draft's text.
+    - Three designs:
+      - A. Keep deriving. The panel draws a message-borne widget by drawing its whole
+        message, and gives a bare question an Answer press. About 40 lines. The widget
+        still chooses nothing.
+      - B. A card function on the class: `static onMeCard({obligation, state,
+        dispatch})` returns the card body's template; without it the panel copies
+        buttons as today. Each widget that opts in draws its controls twice, with its
+        undo and availability rules repeated, and `dispatch` needs a controller with no
+        element.
+      - C. The widget draws itself in the card: a compact form of its own `render()`,
+        chosen by a flag the card sets, so its commands, undo and answer words work
+        unchanged. Deletes `choicesOf` and the copied buttons. Two live elements then
+        share one id; you haven't checked the four runtime lookups that resolve an
+        obligation by id, browser-local state such as a draft, or heavy widgets. Size
+        unknown: prototype it on `lf-options` and `lf-ask` first.
+    - You recommend C: each widget keeps one renderer and decides its own look in both
+      places.
+
+    Write the `lf-ask` that puts this decision to the user, after
+    `ask-answer-control`, with a comparison of the three designs. The page directory is not reachable from here, so reply with
+    the section's HTML.
+assert:
+  - type: llm-rubric
+    metric: one-order
+    value: |
+      Find each place the section lists the three designs: a comparison table's rows,
+      a list in its prose, letters or numbers in their names, and the `lf-option`
+      cards inside `lf-options`. Pass only if the `lf-option` cards appear in the same
+      order as every other listing that orders all three, and any letters or numbers
+      in the card titles run in sequence (A, B, C). Fail if the cards list the designs
+      in a different order from the table or prose, such as C first because it is
+      recommended while the table puts it last. A section whose only listing is the
+      cards passes this check.
+  - type: llm-rubric
+    metric: recommendation-marked
+    value: |
+      Pass only if exactly one `lf-option` carries a `recommended` label, and it is the
+      design in which the widget draws itself in the card. Fail if another option is
+      marked recommended or none is.
+variants:
+  # A sibling from overnight-2026-10-20 (#44), with a different subject and no letters
+  # in the notes: four window sizes on a scale of how far each moves from today, and
+  # the recommendation inside the scale, where moving it first breaks the scale.
+  # With the recommendation at the scale's far end, base wrote the scale reversed,
+  # which no single output can tell from a recommendation moved first.
+  window-sizes:
+    metadata:
+      purpose:
+        "Asks: with unlettered alternatives on a scale and the recommendation inside
+        it, the lf-option cards follow the scale rather than moving the recommendation
+        first."
+    vars:
+      prompt: |
+        You are working with the user on a Leaf page about Leaf's render gate, which
+        renders each page at fixed window sizes before handoff to catch clipped
+        content. The user asked: "which window sizes should the gate read? laptops
+        are 720 tall and we never check that".
+
+        Earlier decisions on the page look like this one:
+
+        ```html
+        <lf-ask id="d43">
+          <h3>#43 How strong should the window-height requirements be?</h3>
+          <p>
+            Clipped controls and sideways scroll stay refusals, now also at the new height.
+            The question is the two that aren't checked: a workspace's decision in view, and a
+            workspace fitting a 720 px window. Which counts as “the decision” is a judgment, the
+            pane still scrolls, and the measure fired usefully about 1 time in 3.
+          </p>
+          <p>I'd make them advice in <code>page check</code>, naming each overflowing pane, its overrun and the widths it spans, plus one goal line in <code>page-layout.md</code>'s workspace section saying why.</p>
+          <lf-options id="d43-choice" choose>
+            <lf-option id="d43-advice"><small class="tag ok">recommended</small><strong>Advice and a goal line</strong> The agent decides whether an overflow matters.</lf-option>
+            <lf-option id="d43-refuse"><strong>Refuse an overflowing pane</strong> Every page fits, at the cost of refusing a long file or reading list that may scroll.</lf-option>
+            <lf-option id="d43-guide"><strong>Guidance only</strong> No check; the goal line alone.</lf-option>
+          </lf-options>
+        </lf-ask>
+        ```
+
+        Your notes, from measuring the gate on 40 example pages:
+
+        - Today it renders desktop at 1200×900 and phone at 540×720. Nothing reads a
+          720-tall desktop window.
+        - Keep today's sizes: no extra time; misses one clipping bug at 720 tall
+          (rust-sort).
+        - Add one 1280×720 render: about 0.5 s more per check; reads 720 tall at
+          1280 wide only.
+        - Add 1280×720 with the width sweep: about 2 to 3 s more per check; reads
+          720 tall at every width and keeps 900.
+        - Move the desktop render to 1280×720: no extra time, since the sweep then
+          runs at 720 tall; reads 720 tall at every width, but gives up the 900 px
+          reading, which caught one bug in a past review.
+        - You recommend adding 1280×720 with the width sweep: it reads the shorter
+          window at every width and keeps the 900 px reading, for 2 to 3 s a check.
+
+        Write the `lf-ask` for this decision, #44, with a comparison of the four
+        choices. The page directory is not reachable from
+        here, so reply with the section's HTML.
+    assert:
+      - type: llm-rubric
+        metric: one-order
+        value: |
+          Find each place the section lists the four choices of window size: a
+          comparison table's rows, a list in its prose, letters or numbers in their
+          names, and the `lf-option` cards inside `lf-options`. Pass only if the
+          `lf-option` cards appear in the same order as every other listing that
+          orders all four, and any letters or numbers in the card titles run in
+          sequence. Fail if the cards list the choices in a different order from the
+          table or prose, such as moving the recommended choice first while the
+          table puts it last. A section whose only listing is the cards passes this
+          check.
+      - type: llm-rubric
+        metric: subject-order
+        value: |
+          The notes list the four choices in this order: keep today's sizes, add
+          one 1280×720 render, add 1280×720 with the width sweep, move the desktop
+          render to 1280×720; the third is recommended. Pass only if the
+          `lf-option` cards follow an order the choices themselves give, with keep
+          today's sizes at one end: the notes' order, its reverse, or a scale such
+          as added time or how much each changes. Fail if the recommended choice is
+          placed first ahead of the others, or keep today's sizes sits between
+          other choices.
+      - type: llm-rubric
+        metric: recommendation-marked
+        value: |
+          Pass only if exactly one `lf-option` carries a `recommended` label, and it
+          is the choice that adds 1280×720 with the width sweep. Fail if another
+          option is marked recommended or none is.
+  # From session d9c4e332's overnight-work page. The session had listed the options to
+  # the user in chat as A, B and C with its pick first, then wrote the page's cards in
+  # the subject's order, keep-today first and its pick second, and kept "I'd take the
+  # first option" in the prose, which then named the option it argued against. No run
+  # reproduced a wrong pointer, since a run writes the prose and cards together, so this
+  # grades the habit that let it through: naming an option by position. Without the
+  # pasted earlier decision, in the recommended-first order and "first option" wording
+  # most local pages used before #3790, base did so in 3 of 8; with it, 5 of 8 and 4 of
+  # 8. The authoring-decisions.md sentence on naming an option by its title passed 8 of
+  # 8, every run reading that reference.
+  spine-pick:
+    metadata:
+      purpose:
+        "Asks: prose names an option by its title, so it still points at the card it
+        describes after the cards take a different order from an earlier listing."
+    vars:
+      prompt: |
+        You are working with the user on a Leaf page reporting an overnight run of
+        agents on Leaf's TODO list. Earlier in the conversation you told the user, in
+        chat:
+
+        > The contents-map item is blocked on a decision only you can make. Both
+        > agents found the same blocker: the core startup rule that hides Leaf's own
+        > interface until upgrade. On branch `grind/s-toc` the map is now laid out once
+        > the page has parsed, with a test that fails on main. Three options:
+        > - **A.** Let the contents map's spine show before upgrade (its labels stay
+        >   hidden). This is the one I'd pick.
+        > - **B.** Narrow the core rule so it hides only controls you can press.
+        > - **C.** Keep the rule and drop the TODO item.
+
+        An earlier decision on the page reads:
+
+        ```html
+        <lf-ask id="skill-ask">
+          <h2>Should the grind workflow become a skill?</h2>
+          <p>
+            Every agent tonight read the same brief, and three of its rules came from
+            friction an agent hit. No skill covers a batch of agents over the TODO
+            list; <code>hill-climb-ui</code> covers only the Leaf-versus-HTML loop. I'd
+            take the first option: the brief's lessons then reach the next run's planning
+            pass.
+          </p>
+          <lf-options id="skill-pick" choose>
+            <lf-option id="skill-add">
+              <small class="tag ok">recommended</small>
+              <strong>Add the grind workflow to <code>/developing-leaf</code></strong>
+              <p>I'd draft it on <code>todo-review</code> for your review.</p>
+            </lf-option>
+            <lf-option id="skill-keep"><strong>Keep the brief in <code>.tmp/</code></strong></lf-option>
+          </lf-options>
+        </lf-ask>
+        ```
+
+        Your notes:
+
+        - The TODO item is "Draw the contents map's spine in its first frame". The
+          core theme hides every `.lf-ui` element in `main` until upgrade
+          (`theme.css` ~914), and nothing can override that rule.
+        - Exempting the map is a package-level exemption (commit `83e21e1d8`). Labels,
+          the hover strip and the lens stay hidden until upgrade. The markers move by
+          at most 2px at upgrade. It stays local to the widget, and the map's links are
+          plain fragment links that work before upgrade.
+        - Narrowing the core rule makes decoration show before upgrade on every
+          widget, and changes a rule every widget relies on.
+        - Keeping the rule means the spine keeps appearing at upgrade.
+
+        Write the `lf-ask` that puts this decision on the page, with your
+        recommendation and its reason in the prose. The page directory is not
+        reachable from here, so reply with the section's HTML.
+    assert:
+      - type: llm-rubric
+        metric: names-options
+        value: |
+          Find every place in the section's prose, inside the cards and outside them,
+          that refers to one particular option. Pass only if each names the option by
+          its title or what choosing it does, such as "I'd exempt the map". Fail if any
+          names it by position or letter, such as "the first option", "the middle one",
+          "option 2" or "A", since the cards' order differs from the A, B, C list in
+          chat. Mentions of the options as a group, such as "three options", pass.
+      - type: llm-rubric
+        metric: recommendation-marked
+        value: |
+          Pass only if exactly one `lf-option` carries a `recommended` label, and it
+          is the option that lets the contents map show its spine before upgrade.
+          Fail if another option is marked recommended or none is.

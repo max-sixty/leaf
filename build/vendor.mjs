@@ -136,7 +136,7 @@ const bundles = {
   // document's origin is opaque, so every request is cross-origin and Leaf's server
   // answers it `Access-Control-Allow-Origin: *`, which a credentialed request may not
   // read: the child's own icon.svg mask failed with a CORS error in every capture.
-  // Compare with the document's origin, `self.origin`, instead (SnapDOM 3.3.6).
+  // Compare with the document's origin, `self.origin`, instead (SnapDOM 3.3.7).
   snapdom: () => ({
     out: `${assets}/vendor/snapdom.esm.js`,
     entry: 'export { snapdom } from "@zumer/snapdom";\n',
@@ -151,8 +151,8 @@ const bundles = {
               'y.origin===self.origin?"include":"omit"',
               "SnapDOM credentials origin",
             ),
-            'D.warnedReconcile||(D.warnedReconcile=!0,console.warn("[SnapDOM] Some text may wrap differently in the capture. Pass { reconcile: true } to fix it (about 2x slower)."))',
-            "D.warnedReconcile=!0",
+            'O.warnedReconcile||(O.warnedReconcile=!0,console.warn("[SnapDOM] Some text may wrap differently in the capture. Pass { reconcile: true } to fix it (about 2x slower)."))',
+            "O.warnedReconcile=!0",
             "SnapDOM reconcile console warning",
           ),
       },
@@ -323,15 +323,15 @@ const bundles = {
     adapt: [
       {
         file: /pele\/dist\/pele\.js$/,
-        // Pele 1.6.0 consumes every HTML-looking label tag, discarding unsupported
+        // Pele consumes every HTML-looking label tag, discarding unsupported
         // tags such as a literal <img> code sample. Consume only the formatting
         // tags its tokenizer recognizes; other characters stay in its text buffer
         // and the SVG builder escapes them. Breaks are handled before this scan.
         edit: (source) =>
           seam(
             source,
-            "h&&(l(),o=m?o&~h|r&h:o|h),i+=p[0].length;continue",
-            "if(h){l();o=m?o&~h|r&h:o|h;i+=p[0].length;continue}",
+            "if(b||o_.has(m)){c+=u[0].length;continue}",
+            "if(b){c+=u[0].length;continue}",
             "Pele literal unsupported label tags",
           ),
       },
@@ -454,7 +454,7 @@ const bundles = {
 
   // Share one Shiki engine between code blocks and Pierre, loading grammars only for
   // languages the page draws. Static imports share embedded grammars; the runtime's
-  // loader map (`build/registry.mjs`) names each registry language's entry point.
+  // loader map (`syntaxLoaders`) names each registry language's entry point.
   syntax: () => ({
     out: `${assets}/vendor/syntax.esm.js`,
     entryPoints: {
@@ -478,9 +478,14 @@ const bundles = {
       'export { diffArrays } from "diff/lib/diff/array.js";\n',
   }),
 
+  blazediff: () => ({
+    out: `${packageVendor("default")}/blazediff.js`,
+    entry: 'export { default } from "@blazediff/core";\n',
+  }),
+
   // DBSCAN groups screenshot fragments by their original neighborhoods.
   "density-clustering": () => ({
-    out: `${assets}/vendor/density-clustering.esm.js`,
+    out: `${packageVendor("default")}/density-clustering.esm.js`,
     entry: 'export { default as DBSCAN } from "density-clustering/lib/DBSCAN.js";\n',
   }),
 
@@ -506,8 +511,9 @@ const bundles = {
   // Parsing is needed before a metadata row appears; static rendering waits for
   // textual evidence to open. Independent builds keep the shared public barrel
   // from hoisting the renderer into the parser's eager dependency graph.
-  // Pierre's static renderer uses the shared Leaf syntax engine: Shiki binds to
-  // `syntax.esm.js`, and Pierre's theme registry binds to Leaf's theme shim.
+  // Pierre's static renderer reads Leaf's syntax module for grammars, Shiki core
+  // and the token theme. Its grammar and core imports are made static below so
+  // offline exports can inline them without bundling Shiki's full catalogs.
   // The unused WASM import carries no binary or separate module.
   pierre: () => ({
     out: `${packageVendor("default")}/pierre-diffs.esm.js`,
@@ -521,13 +527,35 @@ const bundles = {
     },
     adapt: [
       {
-        file: /@pierre\/diffs\/dist\/highlighter\/shared_highlighter\.js$/,
+        file: /@pierre\/diffs\/dist\/highlighter\/backends\/shiki\.js$/,
         edit: (source) =>
           seam(
             source,
             'import("shiki/wasm")',
             "Promise.resolve({default: undefined})",
             "Pierre unused WASM import",
+          ),
+      },
+      {
+        file: /@pierre\/diffs\/dist\/highlighter\/languages\/resolveLanguage\.js$/,
+        edit: (source) =>
+          'import { bundledLanguages } from "shiki/langs";\n' +
+          seam(
+            source,
+            'const { bundledLanguages } = await import("shiki/langs");',
+            "",
+            "Pierre shared grammar catalog",
+          ),
+      },
+      {
+        file: /@pierre\/diffs\/dist\/highlighter\/themes\/themeResolver\.js$/,
+        edit: (source) =>
+          'import * as leafShikiCore from "shiki/core";\n' +
+          seam(
+            source,
+            'createCachedLoader(() => import("shiki/core"))',
+            "createCachedLoader(() => Promise.resolve(leafShikiCore))",
+            "Pierre shared Shiki core",
           ),
       },
     ],
@@ -538,7 +566,7 @@ const bundles = {
       js: `/*! @pierre/diffs ${version("@pierre/diffs")} — Apache-2.0 — licenses: pierre-diffs.LICENSES.txt */`,
     },
     plugins: [
-      bindTo(/^shiki$/, "./syntax.esm.js"),
+      bindTo(/^shiki(?:\/(?:core|langs))?$/, "./syntax.esm.js"),
       {
         name: "leaf-pierre-shims",
         setup(builder) {
@@ -637,6 +665,25 @@ const bundles = {
         file: /webawesome\/dist\/chunks\/chunk\.ZAVDMBWV\.js$/,
         edit: patchTransitions,
       },
+      // A radio group's arrow moves focus to the next radio in its row, which the user
+      // already sees. Leaf places focus without scrolling (focus.js, `focusDestination`),
+      // and the focused-control landing margin made the native scroll move the chooser
+      // under the arrow wherever a landing had left it at the window's top edge.
+      {
+        file: /webawesome\/dist\/chunks\/chunk\.7YHRZ7G7\.js$/,
+        edit: (source) =>
+          seam(
+            seam(
+              source,
+              "radios[index].focus();",
+              "radios[index].focus({ preventScroll: true });",
+              "Web Awesome radio group arrow focus",
+            ),
+            'radios[index].shadowRoot.querySelector("button").focus();',
+            'radios[index].shadowRoot.querySelector("button").focus({ preventScroll: true });',
+            "Web Awesome radio button arrow focus",
+          ),
+      },
     ],
     platform: "browser",
     target: "chrome105",
@@ -708,10 +755,42 @@ async function bundle(spec) {
   return outputs;
 }
 
-/** Every bundle's outputs, keyed by repository path. */
+/**
+ * The runtime's table of the grammars `syntax` bundles (`runtime/syntax-languages.js`):
+ * a literal import for each, so an export binds it, and each name and alias Shiki
+ * gives a grammar, which a native Markdown fence uses, read here so that identifying a
+ * block loads no grammar. Both come from this build, which a page's grammars need
+ * anyway, so the browser doesn't read `$languages.names` itself.
+ */
+async function syntaxLoaders() {
+  const names = languages();
+  const labels = {};
+  for (const name of names) {
+    const { default: grammars } = await import(`@shikijs/langs/${name}`);
+    const grammar = grammars.find(
+      (grammar) => grammar.name === name || grammar.aliases?.includes(name),
+    );
+    for (const label of [grammar.name, ...(grammar.aliases ?? [])])
+      labels[label] = name;
+  }
+  return Buffer.from(
+    "// Generated by build/vendor.mjs from registry.json's $languages.names.\n" +
+      "// prettier-ignore\nexport const syntaxLanguages = {\n" +
+      names
+        .map((name) => `  "${name}": () => import("/vendor/syntax/${name}.js"),\n`)
+        .join("") +
+      "};\n" +
+      `// prettier-ignore\nexport const syntaxLanguageNames = ${JSON.stringify(labels)};\n`,
+  );
+}
+
+/** Every bundle's outputs, and the runtime's syntax table, keyed by repository path. */
 export async function vendorOutputs() {
   const built = await Promise.all(
     Object.values(bundles).map(async (spec) => bundle(await spec())),
   );
-  return new Map(built.flatMap((outputs) => [...outputs]));
+  return new Map([
+    ...built.flatMap((outputs) => [...outputs]),
+    [`${assets}/runtime/syntax-languages.js`, await syntaxLoaders()],
+  ]);
 }

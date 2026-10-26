@@ -29,9 +29,9 @@ async function option(page, name) {
 }
 
 async function active(control) {
-  return control.getAttribute("aria-checked").then((value) =>
-    value === null ? control.isChecked() : value === "true",
-  );
+  return control
+    .getAttribute("aria-checked")
+    .then((value) => (value === null ? control.isChecked() : value === "true"));
 }
 
 async function selectionAfter(choices, expected) {
@@ -47,15 +47,23 @@ async function selectionAfter(choices, expected) {
 
 async function receipts(page) {
   return page.evaluate(() =>
-    Array.from(document.querySelectorAll(
-      "#eval-action-receipt, main output, main [role='status'], main [aria-live]",
-    )).filter((element) =>
-      !element.hidden && element.checkVisibility({ checkVisibilityCSS: true }) &&
-      !element.querySelector("input, textarea, select, [role='radio'], [role='textbox']"),
-    ).map((element) => ({
-      text: element.innerText.replace(/\s+/g, " ").trim(),
-      id: element.id || element.tagName.toLowerCase(),
-    })),
+    Array.from(
+      document.querySelectorAll(
+        "#eval-action-receipt, main output, main [role='status'], main [aria-live]",
+      ),
+    )
+      .filter(
+        (element) =>
+          !element.hidden &&
+          element.checkVisibility({ checkVisibilityCSS: true }) &&
+          !element.querySelector(
+            "input, textarea, select, [role='radio'], [role='textbox']",
+          ),
+      )
+      .map((element) => ({
+        text: element.innerText.replace(/\s+/g, " ").trim(),
+        id: element.id || element.tagName.toLowerCase(),
+      })),
   );
 }
 
@@ -66,7 +74,10 @@ async function choice(page) {
     await option(page, /Roll back EU/i),
   ];
   if (choices.some((entry) => !entry)) {
-    return ["insufficient_evidence", "Could not identify all three visible choice controls."];
+    return [
+      "insufficient_evidence",
+      "Could not identify all three visible choice controls.",
+    ];
   }
   observations.push({ controls: choices.map(({ role }) => role) });
   const roles = new Set(choices.map(({ role }) => role));
@@ -78,21 +89,34 @@ async function choice(page) {
     await choices[1].control.click();
     const hold = await selectionAfter(choices, [false, true, false]);
     observations.push({ afterHold: hold });
-    await page.screenshot({ path: join(evidencePath, "after-hold.png"), fullPage: true });
+    await page.screenshot({
+      path: join(evidencePath, "after-hold.png"),
+      fullPage: true,
+    });
     await choices[2].control.click();
     const rollback = await selectionAfter(choices, [false, false, true]);
     observations.push({ afterRollback: rollback });
-    await page.screenshot({ path: join(evidencePath, "after-rollback.png"), fullPage: true });
+    await page.screenshot({
+      path: join(evidencePath, "after-rollback.png"),
+      fullPage: true,
+    });
     return hold.join() === "false,true,false" && rollback.join() === "false,false,true"
-      ? ["proven", "Browser selection moved from Hold to Roll back, one choice at a time."]
-      : ["defect", "The operated controls did not leave exactly the selected choice active."];
+      ? [
+          "proven",
+          "Browser selection moved from Hold to Roll back, one choice at a time.",
+        ]
+      : [
+          "defect",
+          "The operated controls did not leave exactly the selected choice active.",
+        ];
   }
   // Adaptive Cards submits each option through the local host action handler.
   if (!(await page.locator("#eval-action-receipt").count())) {
     return ["insufficient_evidence", "Buttons have no known current-choice reading."];
   }
   await choices[1].control.click();
-  await page.waitForFunction(() => window.__evalActions?.length >= 1, null, { timeout: 2000 })
+  await page
+    .waitForFunction(() => window.__evalActions?.length >= 1, null, { timeout: 2000 })
     .catch(() => {});
   const hold = await page.evaluate(() => ({
     actions: window.__evalActions,
@@ -101,19 +125,29 @@ async function choice(page) {
   observations.push({ afterHold: hold });
   await page.screenshot({ path: join(evidencePath, "after-hold.png"), fullPage: true });
   await choices[2].control.click();
-  await page.waitForFunction(() => window.__evalActions?.length >= 2, null, { timeout: 2000 })
+  await page
+    .waitForFunction(() => window.__evalActions?.length >= 2, null, { timeout: 2000 })
     .catch(() => {});
   const rollback = await page.evaluate(() => ({
     actions: window.__evalActions,
     receipt: document.querySelector("#eval-action-receipt")?.innerText ?? "",
   }));
   observations.push({ afterRollback: rollback });
-  await page.screenshot({ path: join(evidencePath, "after-rollback.png"), fullPage: true });
-  const chosen = (snapshot) => JSON.stringify(snapshot.actions?.at(-1) ?? {}) + snapshot.receipt;
-  return hold.actions?.length === 1 && rollback.actions?.length === 2 &&
-    /hold/i.test(chosen(hold)) && /roll.?back/i.test(chosen(rollback)) &&
+  await page.screenshot({
+    path: join(evidencePath, "after-rollback.png"),
+    fullPage: true,
+  });
+  const chosen = (snapshot) =>
+    JSON.stringify(snapshot.actions?.at(-1) ?? {}) + snapshot.receipt;
+  return hold.actions?.length === 1 &&
+    rollback.actions?.length === 2 &&
+    /hold/i.test(chosen(hold)) &&
+    /roll.?back/i.test(chosen(rollback)) &&
     !/hold/i.test(rollback.receipt)
-    ? ["proven", "Both SDK actions ran, and the visible local receipt shows the latest choice."]
+    ? [
+        "proven",
+        "Both SDK actions ran, and the visible local receipt shows the latest choice.",
+      ]
     : ["defect", "The operated buttons did not record and show the current choice."];
 }
 
@@ -121,7 +155,10 @@ async function form(page) {
   const title = await visible(page.getByRole("textbox", { name: /title/i }));
   const impact = await visible(page.getByRole("textbox", { name: /customer impact/i }));
   if (!title || !impact) {
-    return ["insufficient_evidence", "Could not identify labeled title and impact fields."];
+    return [
+      "insufficient_evidence",
+      "Could not identify labeled title and impact fields.",
+    ];
   }
   const titleValue = "Atlas search review probe";
   const impactValue = "37 EU workspaces saw stale search results";
@@ -136,16 +173,21 @@ async function form(page) {
     } else {
       await severity.click();
       const highOption = await visible(page.getByRole("option", { name: /^High$/i }));
-      if (!highOption) return ["insufficient_evidence", "Could not select High severity."];
+      if (!highOption)
+        return ["insufficient_evidence", "Could not select High severity."];
       await highOption.click();
     }
-  }
-  else return ["insufficient_evidence", "Could not identify the severity control."];
-  const submit = await visible(page.locator("main").getByRole("button", {
-    name: /submit|record|save|finish|create/i,
-  }));
-  if (!submit) return ["insufficient_evidence", "Could not identify a visible submit control."];
-  observations.push({ filled: { title: titleValue, severity: "High", impact: impactValue } });
+  } else return ["insufficient_evidence", "Could not identify the severity control."];
+  const submit = await visible(
+    page.locator("main").getByRole("button", {
+      name: /submit|record|save|finish|create/i,
+    }),
+  );
+  if (!submit)
+    return ["insufficient_evidence", "Could not identify a visible submit control."];
+  observations.push({
+    filled: { title: titleValue, severity: "High", impact: impactValue },
+  });
   await page.screenshot({ path: join(evidencePath, "filled.png"), fullPage: true });
   const before = await receipts(page);
   await submit.click();
@@ -153,25 +195,48 @@ async function form(page) {
   const deadline = Date.now() + 2000;
   do {
     after = await receipts(page);
-    if (after.some(({ text }) =>
-      text.includes(titleValue) && text.includes(impactValue) && /\bhigh\b/i.test(text)
-      && !before.some((entry) => entry.text === text)
-    )) break;
+    if (
+      after.some(
+        ({ text }) =>
+          text.includes(titleValue) &&
+          text.includes(impactValue) &&
+          /\bhigh\b/i.test(text) &&
+          !before.some((entry) => entry.text === text),
+      )
+    )
+      break;
     await new Promise((resolve) => setTimeout(resolve, 30));
   } while (Date.now() < deadline);
-  await page.screenshot({ path: join(evidencePath, "after-submit.png"), fullPage: true });
+  await page.screenshot({
+    path: join(evidencePath, "after-submit.png"),
+    fullPage: true,
+  });
   const actions = await page.evaluate(() => window.__evalActions ?? null);
   observations.push({ beforeReceipts: before, afterReceipts: after, actions });
   if (actions && actions.length !== 1) {
     return ["defect", "The SDK did not record one submit action."];
   }
-  const changed = after.filter(({ text }) => !before.some((entry) => entry.text === text));
-  if (changed.some(({ text }) =>
-    text.includes(titleValue) && text.includes(impactValue) && /\bhigh\b/i.test(text)
-  )) return ["proven", "A new visible receipt contains the submitted title, severity and impact."];
+  const changed = after.filter(
+    ({ text }) => !before.some((entry) => entry.text === text),
+  );
+  if (
+    changed.some(
+      ({ text }) =>
+        text.includes(titleValue) &&
+        text.includes(impactValue) &&
+        /\bhigh\b/i.test(text),
+    )
+  )
+    return [
+      "proven",
+      "A new visible receipt contains the submitted title, severity and impact.",
+    ];
   return changed.length
     ? ["defect", "A visible receipt changed, but did not contain all submitted values."]
-    : ["insufficient_evidence", "No distinct visible submission receipt could be identified."];
+    : [
+        "insufficient_evidence",
+        "No distinct visible submission receipt could be identified.",
+      ];
 }
 
 try {
@@ -181,11 +246,19 @@ try {
   page.on("pageerror", (error) => errors.push(String(error)));
   await page.goto(url, { waitUntil: "load" });
   if (await page.locator("script[data-lf-entry]").count()) {
-    await page.waitForFunction(() =>
-      document.querySelector("script[data-lf-entry]")?.lfReadiness?.(null, "rendering") === null,
-    null, { timeout: 10000 });
+    await page.waitForFunction(
+      () =>
+        document
+          .querySelector("script[data-lf-entry]")
+          ?.lfReadiness?.(null, "rendering") === null,
+      null,
+      { timeout: 10000 },
+    );
   } else if (await page.locator("#card").count()) {
-    await page.locator("#card > *").first().waitFor({ state: "visible", timeout: 10000 });
+    await page
+      .locator("#card > *")
+      .first()
+      .waitFor({ state: "visible", timeout: 10000 });
   }
   await page.screenshot({ path: join(evidencePath, "before.png"), fullPage: true });
   [status, reason] = caseName.endsWith("choice")

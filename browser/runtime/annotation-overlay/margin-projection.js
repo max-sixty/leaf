@@ -46,6 +46,7 @@ import {
   layoutMarginRows,
   marginColumn,
   mountMarginLayer,
+  paintedBox,
   registerMarginRow,
   scheduleMarginEntryLabels,
   scheduleMarginLayout,
@@ -95,7 +96,7 @@ import {
   holdFocus,
   layerLanding,
   letGo,
-  onPress,
+  onPressAway,
   onCurrentLocation,
   pressLed,
   focused,
@@ -104,10 +105,10 @@ import {
   currentLocationIn,
 } from "../focus.js";
 
-import { el, offer } from "../widget-elements.js";
+import { el, generatedElement, offer } from "../widget-elements.js";
 import { keeps, keepsHidden } from "../keeps.js";
 
-import { PRESS, rowArrows } from "../keyboard/bindings.js";
+import { PRESS, cycledRow, rowArrows } from "../keyboard/bindings.js";
 import { beginWalk, listWalkPosition, rowWalk } from "../walk-position.js";
 
 import { readingRegionFor } from "../reading-regions.js";
@@ -151,6 +152,7 @@ export function createMarginProjection({
   placedAt,
   marksFor,
   scrollToElement,
+  openInPanel,
 }) {
   const {
     targetFor,
@@ -165,7 +167,7 @@ export function createMarginProjection({
   const nav = el("nav", "lf-ui lf-margin-projection");
   // Every live page can gain an anchored comment, including one made entirely of prose.
 
-  nav.dataset.lfGen = "1";
+  generatedElement(nav, { says: false });
   nav.setAttribute("aria-label", "Page Map");
   const toolbar = el("div", "lf-margin-toolbar");
   toolbar.setAttribute("role", "toolbar");
@@ -182,6 +184,7 @@ export function createMarginProjection({
     openPageThread,
     scrollThreadIntoView,
     scrollToElement,
+    openInPanel,
     onClose: closedPreview,
   });
   const preview = card.element;
@@ -402,9 +405,12 @@ export function createMarginProjection({
     const face = markerFace(entry).face;
     const count = choice?.items.length ?? 0;
     const userContext = spokenContext(choice);
-    const reading = `${face.label}${count > 1 ? `s (${count})` : ""}${userContext ? `, ${userContext}` : ""}`;
     const subject =
       count === 1 && choice.items[0].workflowFace ? choice.text : entry.title;
+    // A lone item's own words, such as a to-do's title, which its subject does not say.
+    const own = count === 1 ? choice.items[0].label : null;
+    const said = own && !subject?.includes(own) ? `, ${own}` : "";
+    const reading = `${face.label}${count > 1 ? `s (${count})` : ""}${said}${userContext ? `, ${userContext}` : ""}`;
     return `${reading}, ${index + 1} of ${anchored}${position == null ? "" : `, ${Math.max(0, Math.min(100, position))} percent down`}, ${spokenSubject(subject)}`;
   }
 
@@ -418,11 +424,15 @@ export function createMarginProjection({
     );
   }
 
+  // Where a row's marker is painted (margin-layout.js, `paintedBox`).
+  const markerBox = (row) =>
+    paintedBox(row, closestAcross(row, "[data-lf-margin-for]"));
+
   // The rows in front of the user (`seenRect`): one under the floating panel,
   // or scrolled out of a pane, is no row the walk or the rail's way in may land on.
   function visibleRows() {
     const clips = new Map();
-    return availableRows().filter((row) => seenRect(row, clips));
+    return availableRows().filter((row) => seenRect(row, clips, markerBox(row)));
   }
 
   function clusterMarginEntries(host) {
@@ -452,10 +462,7 @@ export function createMarginProjection({
     const at = buttons.indexOf(active);
     if (at < 0 || buttons.length < 2) return;
     const direction = binding === rowArrows(active)[1] ? 1 : -1;
-    focusDestination(
-      buttons[(at + direction + buttons.length) % buttons.length],
-      "move",
-    );
+    focusDestination(cycledRow(buttons, active, direction), "move");
     beginWalk("margin-entry", "Action", () => {
       const currentLocation = focused();
       const currentLocationHost = closestAcross(
@@ -631,21 +638,28 @@ export function createMarginProjection({
     }
     const currentLocation = available.find((row) => row === focused());
     const candidates = visible.length ? visible : available;
-    // A stop in view stays where it is. With none in view the stop is the row nearest
-    // the window, whatever held it before, so the way in follows from the page as it
-    // stands rather than from the widths and scrolls it passed through.
-    const held = visible.find((row) => row.tabIndex === 0);
+    // The stop is the highest row in view, or with none in view the row nearest the
+    // window, whatever held it before, so the way in follows from the page as it
+    // stands rather than from the widths and scrolls it passed through. A stop kept
+    // where it stood while in view moved for good once a narrower width had shown
+    // another row first.
     const room = shownWindow();
-    const distance = (row) => {
-      const box = row.getBoundingClientRect();
-      if (box.bottom < room.top) return room.top - box.bottom;
-      if (box.top > room.bottom) return box.top - room.bottom;
-      return 0;
+    const place = (row) => {
+      const box = markerBox(row);
+      const away =
+        box.bottom < room.top
+          ? room.top - box.bottom
+          : box.top > room.bottom
+            ? box.top - room.bottom
+            : 0;
+      return [away, box.top, box.left];
     };
-    const next =
-      currentLocation ??
-      held ??
-      candidates.reduce((best, row) => (distance(row) < distance(best) ? row : best));
+    const before = (a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
+    const nearest = () =>
+      candidates
+        .map((row) => ({ row, at: place(row) }))
+        .reduce((best, next) => (before(next.at, best.at) < 0 ? next : best)).row;
+    const next = currentLocation ?? nearest();
     holdTabStop(next);
   }
 
@@ -937,6 +951,15 @@ export function createMarginProjection({
       const destination = primary ?? (primaryReading(entry) ? marker : null);
       if (destination === marker && marker.hidden) marker.lfTakeFocus = true;
       else if (destination) focusDestination(destination, "return");
+    } else if (focus.focusedToggle && more.hidden) {
+      // An unfolded face shows its options inline and hides the toggle that opened
+      // them, as a folded pin does when `e` stands reactions in it: the user goes on to
+      // the first of them, as a press on the toggle would land them.
+      focus.restore?.(
+        clusterMarginEntries(options)[0],
+        primary,
+        clusterMarginEntries(host)[0],
+      );
     } else if (lostOptionFocus || lostPrimaryFocus) {
       // A changed contribution can replace either the focused primary or an option.
       // Return to the corresponding control in the new projection.
@@ -1068,6 +1091,7 @@ export function createMarginProjection({
       const focus = {
         focusedPrimary: Boolean(host.primary && currentLocationIn(host.primary)),
         focusedOption: Boolean(host.options && currentLocationIn(host.options)),
+        focusedToggle: focused() === more,
         // The entry the user is on, by its contribution's key, across the projection
         // that may replace its control (focus.js, keyed `holdFocus`).
         restore: holdFocus(host, { key: "data-lf-margin-entry-identity" }),
@@ -1680,9 +1704,7 @@ export function createMarginProjection({
   declareRelease(() => {
     if (previewOpen()) closePreview();
   });
-  // A press away is judged where it starts and acted on where it ends, both outside,
-  // as the platform's light dismissal is: the press's own handlers read the scene
-  // first.
+  // A press away from the card puts it away (focus.js, `onPressAway`).
   const pressedAway = (path) => {
     if (!previewOpen()) return false;
     // A pointer mode reinterprets a press on the page as a stroke or an interface
@@ -1697,12 +1719,6 @@ export function createMarginProjection({
     if (currentTargets.some((node) => node && path.includes(node))) return false;
     return !path.some(inRetainedContext);
   };
-  const pressAway = (start, path) =>
-    pressedAway(path)
-      ? (end, completed) => {
-          if (completed && pressedAway(end.composedPath())) closePreview();
-        }
-      : null;
 
   const marginEntryChoices = (target) => clusterMarginEntries(marginEntryHost(target));
   // The conversation accompanying a page target while no Thread holds focus.
@@ -1850,22 +1866,16 @@ export function createMarginProjection({
       queueMicrotask(followCurrentLocation);
     });
     // Ahead of the document, where a mode claims its presses before anyone else hears
-    // them: whatever a press becomes, it is still the user's attention moving.
-    onPress(pressAway);
-    document.addEventListener(
-      "pointerdown",
-      (event) => {
-        if (!expandedOptionsKey) return;
-        const host = hosts.get(expandedOptionsKey);
-        if (
-          !host ||
-          event.composedPath().includes(host) ||
-          event.composedPath().some(inRetainedContext)
-        )
-          return;
-        setOptionsOpen(host.lfEntry, false);
+    // them: whatever a press becomes, it is still the user's attention moving. A press
+    // away from the card, or from the cluster whose options stand unfolded, puts it away.
+    onPressAway(pressedAway, () => closePreview());
+    const unfolded = () => hosts.get(expandedOptionsKey) ?? null;
+    onPressAway(
+      (path) => {
+        const host = unfolded();
+        return Boolean(host) && !path.includes(host) && !path.some(inRetainedContext);
       },
-      { capture: true },
+      () => setOptionsOpen(unfolded().lfEntry, false),
     );
     watchRoom(() => scheduleRoving());
     window.addEventListener("resize", () => scheduleWidthRender());

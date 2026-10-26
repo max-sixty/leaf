@@ -65,12 +65,17 @@ import {
 import { repaint } from "./repaint.js";
 
 import { allButCommandReference, pageCommand, pageScope } from "./keyboard/register.js";
-import { PRESS, rowArrows, savedReadingSettled } from "./keyboard/bindings.js";
+import {
+  PRESS,
+  cycledRow,
+  rowArrows,
+  savedReadingSettled,
+} from "./keyboard/bindings.js";
 import { beginWalk, listWalkPosition } from "./walk-position.js";
 import { anchorLabel } from "./thread/messages.js";
 import { reactionsAt, tokenChoices } from "./thread/model.js";
 import { allThreads, readThreads } from "./thread/state.js";
-import { effect, untracked } from "/vendor/browser-runtime.js";
+import { effect, untracked } from "/runtime/framework.js";
 import { annotationSelection } from "./annotation-inventory.js";
 import { readPart } from "./semantic-state.js";
 import { raiseError } from "./errors.js";
@@ -459,17 +464,10 @@ export function createReactionController({
   function stepResponse(binding) {
     const choices = responseChoices(reactSurface);
     if (!choices.length) return;
-    const at = choices.indexOf(focused());
     const backward = [rowArrows(choices[0])[0], "ArrowUp", "Shift+Tab"].includes(
       binding,
     );
-    const next =
-      at < 0
-        ? backward
-          ? choices.length - 1
-          : 0
-        : (at + (backward ? -1 : 1) + choices.length) % choices.length;
-    focusDestination(choices[next], "move");
+    focusDestination(cycledRow(choices, focused(), backward ? -1 : 1), "move");
     beginWalk("reaction", "Reaction", () =>
       listWalkPosition(responseChoices(reactSurface), focused()),
     );

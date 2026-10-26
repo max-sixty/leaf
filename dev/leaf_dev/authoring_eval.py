@@ -6,7 +6,9 @@ registration use the same boundary as a real authoring run. The agent may edit,
 run commands and check rendering; this executor independently checks the final
 page, plain and with `--render`, without repairing it. Existing assertions read
 the authored HTML, not a claim in the reply. Page files, prompts, native traces
-and both checks' output survive in the sample's evidence directory. `check_log`
+and both checks' output survive in the sample's evidence directory. The final
+render check's screenshots survive alongside the sample, with their measured
+dimensions and the saved page recorded in the standard report metadata. `check_log`
 lists the author's tool calls in order with the output of each page check it ran,
 so a grader can tell what the checks told the author and what it did next. Reading
 and instruction-only probes stay with native providers.
@@ -21,6 +23,8 @@ import sys
 import tempfile
 import time
 from pathlib import Path
+
+from PIL import Image
 
 from leaf.media import media_name
 from leaf_dev import ROOT
@@ -85,6 +89,12 @@ def capture_evidence(
     }
 
 
+def leaf_command(call: dict) -> str:
+    """The command line a tool call ran: a shell's `command`, or the arguments of
+    Codex's `leaf` MCP tool, which runs a Leaf command without a shell."""
+    return str(call.get("command") or " ".join(map(str, call.get("args", []))))
+
+
 def check_log(trace: list[dict]) -> list[dict]:
     """Each tool call the author made, in order and whole, with the whole output of
     its page checks, so a reader can tell what a check reported and whether a later
@@ -101,7 +111,7 @@ def check_log(trace: list[dict]) -> list[dict]:
         if block.get("type") != "tool_use":
             continue
         entry = {"tool": block["name"], "input": block["input"]}
-        if "page check" in str(block["input"].get("command", "")):
+        if "page check" in leaf_command(block["input"]):
             output = results.get(block["id"])
             if isinstance(output, list):
                 output = "\n".join(part.get("text", "") for part in output)
@@ -146,6 +156,24 @@ def operated_interaction(
             "observations": [],
         }
     return json.loads(probe.stdout)
+
+
+def render_captures(check: dict, shots: Path) -> tuple[dict, dict]:
+    """Retain the check's exact captures before its isolated state is removed."""
+    screens = (check.get("browser") or {}).get("screens")
+    captures, widths = {}, {}
+    if screens is not None:
+        shots.mkdir(parents=True, exist_ok=True)
+        for shot in screens["files"]:
+            source = Path(screens["directory"]) / shot["file"]
+            target = shots / shot["file"]
+            shutil.copy2(source, target)
+            with Image.open(target) as image:
+                width, height = image.size
+            name = f"{width}x{height}"
+            widths[name] = [width, height]
+            captures.setdefault(name, []).append(str(target))
+    return captures, widths
 
 
 def execute(
@@ -216,7 +244,8 @@ def execute(
                 "final turn. Its visible submit receipt is a test harness record "
                 "of the SDK action, not an app submission."
             )
-        (evidence / "prompt.txt").write_text(request)
+        (evidence / "prompt-1.txt").write_text(request)
+
         try:
             author_started = time.monotonic()
             trace = run_agent(
@@ -272,6 +301,7 @@ def execute(
                 format_output = rendered.stdout + rendered.stderr
                 (evidence / "compile.txt").write_text(format_output)
             operable = False
+            captures, widths = {}, {}
             if format_valid:
                 if condition == "adaptive":
                     from leaf_dev.arrangement_plain import load, serving
@@ -286,7 +316,13 @@ def execute(
                         view.on("pageerror", lambda error: errors.append(str(error)))
                         load(view, url)
                         rendered = view.locator("#card > *").count() > 0
-                        view.screenshot(path=evidence / "rendered.png", full_page=True)
+                        rendered_path = evidence / "rendered.png"
+                        view.screenshot(path=rendered_path, full_page=True)
+                        with Image.open(rendered_path) as image:
+                            width, height = image.size
+                        size = f"{width}x{height}"
+                        captures[size] = [str(rendered_path)]
+                        widths[size] = [width, height]
                     plain_output = "Adaptive Cards SDK parsed the source\n"
                     render_output = (
                         "\n".join(errors)
@@ -304,6 +340,14 @@ def execute(
                     render_output = check.stdout + check.stderr
                     page_valid = check.returncode == 0
                     operable = plain.returncode == 0 and (page / "index.html").is_file()
+                    captures, widths = (
+                        render_captures(
+                            json.loads(check.stdout),
+                            (shots or evidence / "screens") / "render",
+                        )
+                        if check.stdout
+                        else ({}, {})
+                    )
             else:
                 plain_output = render_output = "not run: source did not compile\n"
                 page_valid = False
@@ -314,6 +358,7 @@ def execute(
                 )
             (evidence / "check-plain.txt").write_text(plain_output)
             (evidence / "check.txt").write_text(render_output)
+
             document = page / "index.html"
             if condition == "adaptive":
                 source = page / "card.json"
@@ -334,6 +379,26 @@ def execute(
                         and interaction["status"] == "proven",
                     },
                     "trace": summary,
+                    "diagnostics": {
+                        "subject": metadata["case"],
+                        "harness": harness,
+                        "condition": condition,
+                        "payload": str(payload),
+                        "comparison": {
+                            "brief": prompt,
+                            "decision_task": None,
+                            "phases": {"": "1"},
+                            "author_phases": [1],
+                            "widths": widths,
+                        },
+                        "phases": {
+                            "1": {
+                                "page": str(evidence / "page"),
+                                "trace": summary,
+                                "captures": captures,
+                            }
+                        },
+                    },
                     "check_output": {
                         "plain": plain_output,
                         "render": render_output,

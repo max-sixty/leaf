@@ -37,7 +37,7 @@ def compile_document(spec: object) -> str:
         raise ValueError("document needs exactly root and elements")
     root, elements = spec["root"], spec["elements"]
     if not isinstance(root, str) or not isinstance(elements, dict):
-        raise ValueError("root must be an ID and elements must be an object")
+        raise TypeError("root must be an ID and elements must be an object")
     if root not in elements:
         raise ValueError(f"unknown root: {root}")
     visited = set()
@@ -55,7 +55,7 @@ def compile_document(spec: object) -> str:
         if not isinstance(tag, str) or not TAG.fullmatch(tag):
             raise ValueError(f"invalid tag on {node_id}")
         if not isinstance(props, dict) or not isinstance(children, list):
-            raise ValueError(f"element {node_id} needs object props and array children")
+            raise TypeError(f"element {node_id} needs object props and array children")
         attributes = []
         for name, value in props.items():
             if not isinstance(name, str) or not ATTR.fullmatch(name):

@@ -81,11 +81,9 @@ function stepThread(dir, destinations, placedAt) {
   const targetId =
     !current && origin.kind === "current-location" && threadAtCurrentLocation();
   const atTarget = targetId && threads.includes(targetId) ? targetId : null;
-  const { row: next, wrapped } = current
+  const next = current
     ? cycledRow(threads, current, dir)
-    : atTarget
-      ? { row: atTarget, wrapped: false }
-      : stepFrom(threads, origin, dir, threadPlace);
+    : (atTarget ?? stepFrom(threads, origin, dir, threadPlace));
   if (!next) return;
   // The walk reads the current destination, so begin it once the arrival has moved
   // focus, as the queue walk does; an arrival that failed registers nothing.
@@ -93,12 +91,8 @@ function stepThread(dir, destinations, placedAt) {
     (arrived) => {
       if (!arrived) return;
       announce(
-        beginWalk(
-          "thread",
-          "Thread",
-          () => threadPosition(threadHere, placedAt),
-          wrapped,
-        ) ?? walkPositionLabel("Thread", threads.indexOf(next) + 1, threads.length),
+        beginWalk("thread", "Thread", () => threadPosition(threadHere, placedAt)) ??
+          walkPositionLabel("Thread", threads.indexOf(next) + 1, threads.length),
       );
     },
   );
@@ -297,6 +291,7 @@ export function createNavigation({ threadDestinations, placedAt, heldPlace }) {
     touch: "Align current item at top",
     menu: "keys",
     retainCurrentLocation: true,
+    travels: true,
     run: () => {
       const item = currentItem();
       if (!item) return;
@@ -332,6 +327,7 @@ export function createNavigation({ threadDestinations, placedAt, heldPlace }) {
     title: "threads",
     when: () => openThreads(placedAt).length > 0,
     repeat: true,
+    travels: true,
     // The walk moves the user laterally: it is the surface it reaches through, rather
     // than the walk, that Escape takes off. It stands them on a thread a widget seats on
     // the page, or opens the margin's thread view, or the floating panel's, for a thread
@@ -364,6 +360,7 @@ export function createNavigation({ threadDestinations, placedAt, heldPlace }) {
     ],
     title: "page down / up",
     repeat: true,
+    travels: true,
     run: (binding) => move(binding === "d" ? 0.6 : -0.6, "page"),
   });
   pageCommand({
@@ -384,6 +381,7 @@ export function createNavigation({ threadDestinations, placedAt, heldPlace }) {
     ],
     title: "scroll down / up",
     repeat: true,
+    travels: true,
     run: (binding) => move(binding === "j" ? 60 : -60, "pixel"),
   });
 

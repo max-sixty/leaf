@@ -25,7 +25,8 @@
    - `title` is the command's required concise name, or a function when state changes
      it. The obligation, menu rows, reference, and announcements read these same words.
    - `description` is the row's tooltip in the reference, its meta line when the row
-     is selected, and a line under its title on a touch screen. Most rows need none. Write one only for something the title and
+     is selected, and a line under its title on a touch screen and on an On me card that
+     answers a Decision command. Most rows need none. Write one only for something the title and
      section heading leave out and a short title can't hold, such as "Keeps what is
      typed" or the action Undo would take back. If the missing words fit in the title,
      put them there ("discard" rather than "stop editing").
@@ -37,7 +38,8 @@
      owns several results. No caller allocates or renumbers another widget's bindings.
    - `control` is the visible element activating the command. `decision: true` marks a
      command that starts, advances, answers, or revises an obligation; the role does not assign
-     bindings. `bindingBadge` independently requests an inline hint: an Element lends
+     bindings. `recommended: true` marks the answer the page advises, so a surface that
+     answers the obligation away from its widget, as On me does, can say so. `bindingBadge` independently requests an inline hint: an Element lends
      the widget's seat, null requests a corner badge, absence requests none. A route
      inherits its row's seat only when its own field is undefined.
    - `when` says whether the capability exists. An owned native button derives its
@@ -58,6 +60,11 @@
      terse reading that row shows at its end, past words the row may cut, such as how
      long ago the gesture Undo would take back was made; the row's hover reads the
      description whole.
+   - `travels: true` says the command takes the user somewhere, as a walk, a scroll or
+     a Go-to destination does, so its result may move what they pressed it on. Every
+     other command leaves the control it was pressed on where it stood on screen
+     (browser/AGENTS.md, "Stability"). The dispatcher announces it with the
+     invocation, where the suite's shift watch reads it.
    - A command that enters a layer declares no way back out of it. The layer's own
      owner declares that step, against the open layer rather than against the press
      that opened it, so one state has one way out however the user reached it.
@@ -451,7 +458,8 @@ export function activeRows(rows, where = "a scope") {
 }
 
 // The controls one ordered command set contributes to an obligation. `decision: true` marks
-// its answering role; the command's title supplies its name. The obligation view reads these controls
+// its answering role; the command's title supplies its name, and its description and
+// `recommended` what a surface answering it elsewhere says beside the name. The obligation view reads these controls
 // for arrival and visibility, while the shared compiler forwards context bindings from
 // the original declarations. Routes may name distinct controls when one compact row
 // owns a family of parameterized bindings. Each result retains its scoped identity so
@@ -468,6 +476,7 @@ export function decisionControls(commands, where = "an obligation") {
       const contribution = route ?? row;
       const control = word(contribution.control ?? row.control);
       const label = titleOf(contribution);
+      const description = descriptionOf(route?.description !== undefined ? route : row);
       const bindingBadge =
         word(
           contribution.bindingBadge !== undefined
@@ -495,6 +504,8 @@ export function decisionControls(commands, where = "an obligation") {
         source,
         control,
         label,
+        description,
+        recommended: Boolean(contribution.recommended ?? row.recommended),
         bindingBadge,
         intrinsicBindings: active,
         command: Object.freeze({
@@ -718,9 +729,8 @@ export const rowArrows = (node) =>
   node.matches(":dir(rtl)") ? ["ArrowRight", "ArrowLeft"] : ["ArrowLeft", "ArrowRight"];
 
 // The one-dimensional list policy. Every step inside the list clamps; a caller may name
-// the row where its own off-list arrival enters. The page walks cycle (`cycledRow`), and
-// tabs and spatial grids own their cyclic policies instead of passing through this
-// primitive.
+// the row where its own off-list arrival enters. A walk that comes round at its ends
+// steps with `cycledRow` instead.
 export const clampedRow = (
   rows,
   current,
@@ -733,14 +743,13 @@ export const clampedRow = (
   return rows[Math.max(0, Math.min(rows.length - 1, next))];
 };
 
-// The page walks' policy (`t`, `m`, `n`): a step past either end comes round to the
-// other. `wrapped` says it came round, which the landing's ordinal alone does not, so
-// the walk can mark it (walk-position.js, `beginWalk`). Entry from off the list takes
-// the end the step faces and comes round nothing.
+// The cyclic list policy, the one step of every walk that comes round at its ends, from
+// the page walks (`t`, `m`, `n`) to a tab strip. A step past either end comes round to
+// the other. Entry from off the list takes the end the step faces. A walk kept by index
+// passes the row at its index, or none, and reads the landing's index back.
 export const cycledRow = (rows, current, dir) => {
-  if (!rows.length) return { row: undefined, wrapped: false };
+  if (!rows.length) return undefined;
   const at = rows.indexOf(current);
   const next = at < 0 ? (dir > 0 ? 0 : rows.length - 1) : at + dir;
-  const wrapped = next < 0 || next >= rows.length;
-  return { row: rows[(next + rows.length) % rows.length], wrapped };
+  return rows[(next + rows.length) % rows.length];
 };

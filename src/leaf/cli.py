@@ -6,8 +6,7 @@ stderr, one JSON object per line. That is a note, a finding (`findings.note`), o
 refusal ending the command, `{"error", "findings"}` (`LeafGroup`). So a reader that
 merges the streams still parses every line, one that pipes stdout alone still sees
 what was said beside it, and a refusal never reads as a result. `--help`, `--version`
-and `--root` print text, as `page transcript` prints Markdown and `package run` prints
-what its script does.
+and `--root` print text, and `package run` prints what its script does.
 
 A command returns its result and never prints it: `LeafGroup.main` prints what it
 returns, so every result has one presentation and a `cmd_*` function answers its
@@ -25,6 +24,7 @@ from typing import NamedTuple, TextIO
 
 import click
 
+from leaf.render_gate.browser import VARIABLES as BROWSER_VARIABLES
 from leaf.schema import WAIT_BATCH_OUTPUT_INSTRUCTION
 from leaf.state import EVENTS_FILE, PLUGIN_ROOT
 
@@ -36,15 +36,12 @@ class Reported(NamedTuple):
     status: int
 
 
-def resolve_dir(dir_arg: str, must_exist: bool = True, *, renew: bool = True) -> Path:
+def resolve_dir(dir_arg: str, *, renew: bool = True) -> Path:
     """The page a command names. A write may renew an older layer for its owning
     session (`vendoring.renew_layer`); reads and service stops leave it alone."""
     from leaf.interaction_log import acting_on
-    from leaf.locations import canonical_path
 
-    page_dir = canonical_path(Path(dir_arg).expanduser())
-    if not must_exist:
-        return page_dir
+    page_dir = page_path(dir_arg)
     if page_dir.is_file():
         raise click.ClickException(
             f"{page_dir} is a file; a page command takes the page's directory"
@@ -64,6 +61,34 @@ def resolve_dir(dir_arg: str, must_exist: bool = True, *, renew: bool = True) ->
     if unready := renew_layer(page_dir, session_harness()):
         note(unready)
     return page_dir
+
+
+def page_path(dir_arg: str) -> Path:
+    """The directory a page argument spells, whether or not it holds a page yet."""
+    from leaf.locations import canonical_path
+
+    return canonical_path(Path(dir_arg).expanduser())
+
+
+class _Page(click.ParamType):
+    """A PAGE argument, resolved by `resolve_dir` before the command runs."""
+
+    name = "page"
+
+    def __init__(self, *, renew: bool):
+        self.renew = renew
+
+    def convert(self, value, param, ctx) -> Path:
+        return resolve_dir(value, renew=self.renew)
+
+
+def page_argument(*, renew: bool, required: bool = True):
+    """Declare a command's PAGE, passed as `page_dir`, the page it names. Every
+    command says whether naming the page renews its layer: a write may, while a read
+    or a service stop must not re-vendor the page it acts on."""
+    return click.argument(
+        "page_dir", metavar="PAGE", type=_Page(renew=renew), required=required
+    )
 
 
 def body_options(subject: str):
@@ -248,7 +273,7 @@ def cli() -> None:
     """Build and run interactive pages a session shares with its user."""
 
 
-@cli.group(short_help="Launch Codex and connect Leaf pages to its tasks.")
+@cli.group(short_help="Launch the experimental Codex terminal.")
 def codex() -> None:
     """Launch Codex or run Leaf's delivery adapter."""
 
@@ -263,25 +288,6 @@ def codex_launch(codex_path: str | None) -> int:
     from leaf.codex_adapter import cmd_codex_launch
 
     return cmd_codex_launch(codex_path)
-
-
-@codex.command("start", short_help="Keep PAGE connected after this turn ends.")
-@click.argument("dir", metavar="PAGE")
-@click.option("--codex-path", hidden=True)
-@click.option(
-    "--app-server",
-    metavar="ENDPOINT",
-    help="deliver input and observe activity through this local App Server; `codex launch` supplies it",
-)
-def codex_start(
-    dir: str,
-    codex_path: str | None,
-    app_server: str | None,
-) -> dict:
-    """Start one task-wide delivery adapter and claim PAGE for it."""
-    from leaf.codex_adapter import cmd_codex_start
-
-    return cmd_codex_start(resolve_dir(dir), codex_path, app_server)
 
 
 @codex.command("run", hidden=True)
@@ -322,14 +328,29 @@ def page() -> None:
 @click.option(
     "--no-packages",
     is_flag=True,
-    help="remove all explicit packages from an existing page",
+    help="remove all explicit packages and the selected personal theme",
+)
+@click.option(
+    "--theme", metavar="NAME", help="select a personal theme from `leaf theme list`"
+)
+@click.option(
+    "--no-theme",
+    is_flag=True,
+    help="clear the personal theme while keeping content packages",
 )
 @click.option(
     "--dry-run",
     is_flag=True,
     help="report whether re-vendoring would change an initialized page",
 )
-def init(dir: str, selected: tuple[str, ...], no_packages: bool, dry_run: bool) -> dict:
+def init(
+    dir: str,
+    selected: tuple[str, ...],
+    no_packages: bool,
+    theme: str | None,
+    no_theme: bool,
+    dry_run: bool,
+) -> dict:
     """Create or re-vendor a page directory.
 
     Creates PAGE/revisions/, then vendors the widget layer.
@@ -344,12 +365,33 @@ def init(dir: str, selected: tuple[str, ...], no_packages: bool, dry_run: bool) 
 
     if selected and no_packages:
         raise click.UsageError("--package and --no-packages cannot be used together")
+    if theme is not None and no_packages:
+        raise click.UsageError("--theme and --no-packages cannot be used together")
+    if theme is not None and no_theme:
+        raise click.UsageError("--theme and --no-theme cannot be used together")
     if any(not selection for selection in selected):
         raise click.UsageError("--package selections cannot be empty")
     if len(set(selected)) != len(selected):
         raise click.UsageError("each --package selection may appear only once")
     selections = () if no_packages else selected or None
-    return cmd_init(resolve_dir(dir, must_exist=False), selections, dry_run=dry_run)
+    return cmd_init(
+        page_path(dir),
+        selections,
+        theme=False if no_packages or no_theme else theme,
+        dry_run=dry_run,
+    )
+
+
+@cli.group(short_help="Discover personal themes for page authoring.")
+def theme() -> None:
+    """Discover personal themes for page authoring."""
+
+
+@theme.command("list", short_help="List personal themes and their author instructions.")
+def theme_list() -> dict:
+    from leaf.themes import cmd_list
+
+    return cmd_list()
 
 
 @cli.group(short_help="Create, check, install, and run packages.")
@@ -441,39 +483,46 @@ def package_run(name: str, script: str, arguments: tuple[str, ...]) -> None:
     cmd_package_run(name, script, arguments)
 
 
-@page.command(short_help="Check the mutable page source.")
-@click.argument("dir", metavar="PAGE")
+@page.command(
+    short_help="Check the mutable page source.",
+    help=(
+        "Check PAGE/index.html.\n\nRuns the markup checks and, where the page has "
+        "scripts or widgets only a browser can judge, runs them in the host's "
+        "browser. --render also checks the drawn page. The browser is the executable "
+        f"{' or '.join(BROWSER_VARIABLES)} names, else the installed Chrome, else "
+        "the first browser on PATH; a host with none is told why in place of each "
+        "browser check."
+    ),
+)
+@page_argument(renew=False)
 @click.option(
     "--render", is_flag=True, help="also check the rendered page in the host's browser"
 )
-def check(dir: str, render: bool) -> Reported:
-    """Check PAGE/index.html.
-
-    Runs deterministic markup checks. --render also checks the drawn page in the
-    host's browser: whichever executable LEAF_BROWSER_EXECUTABLE, CHROME_PATH, or
-    CHROME_BIN names, else the installed Chrome, else the first browser on PATH.
-    A host with no browser is told why in place of each browser check. Prints one
-    object: the exit status, every finding with its code, element, measured values,
-    severity and words, and what each browser check ran in.
-    """
+def check(page_dir: Path, render: bool) -> Reported:
     from leaf.validation.command import cmd_check
 
-    report = cmd_check(resolve_dir(dir, renew=False), render)
+    report = cmd_check(page_dir, render)
     return Reported(report, report["status"])
 
 
 @page.command(
     "inspect", short_help="Read page source metrics and browser observations."
 )
-@click.argument("dir", metavar="PAGE")
+@page_argument(renew=False)
 @click.option(
     "--revision",
     type=click.IntRange(min=1),
     metavar="N",
     help="inspect captured revision N instead of mutable source",
 )
-def inspect_page(dir: str, revision: int | None) -> dict:
-    """Report attributed CSS counts and retained browser views as JSON.
+@click.option(
+    "--compare-to",
+    type=click.IntRange(min=1),
+    metavar="N",
+    help="compare inspected source with captured revision N",
+)
+def inspect_page(page_dir: Path, revision: int | None, compare_to: int | None) -> dict:
+    """Report attributed source inventories and retained browser views as JSON.
 
     Metrics are observations, not a quality score or a pass/fail check. Opens no
     browser and changes no page state. Browser observations name their own revision,
@@ -481,11 +530,11 @@ def inspect_page(dir: str, revision: int | None) -> dict:
     """
     from leaf.page_inspection import cmd_inspect
 
-    return cmd_inspect(resolve_dir(dir, renew=False), revision)
+    return cmd_inspect(page_dir, revision, compare_to)
 
 
 @page.command()
-@click.argument("dir", metavar="PAGE")
+@page_argument(renew=True)
 @click.argument(
     "files",
     nargs=-1,
@@ -493,7 +542,7 @@ def inspect_page(dir: str, revision: int | None) -> dict:
     type=click.Path(exists=True, dir_okay=False),
     metavar="FILE...",
 )
-def media(dir: str, files) -> list[dict]:
+def media(page_dir: Path, files) -> list[dict]:
     """Add images, video, or audio and print their page paths.
 
     Copies each file into the page under a content-addressed name and prints
@@ -501,18 +550,27 @@ def media(dir: str, files) -> list[dict]:
     """
     from leaf.media import cmd_media
 
-    return [
-        {"path": url, "source": str(src)}
-        for src, url in cmd_media(resolve_dir(dir), [Path(f) for f in files])
-    ]
+    return cmd_media(page_dir, [Path(f) for f in files])
 
 
 @page.command(short_help="Read selected vocabulary instructions by audience as JSON.")
-@click.argument("dir", metavar="PAGE")
-@click.option("--use", "entries", multiple=True, metavar="ENTRY")
-@click.option("--contract", "contracts", multiple=True, metavar="ID")
+@page_argument(renew=False)
+@click.option(
+    "--use",
+    "entries",
+    multiple=True,
+    metavar="ENTRY",
+    help="a registry entry you will use, as its key names it; repeat for more",
+)
+@click.option(
+    "--contract",
+    "contracts",
+    multiple=True,
+    metavar="ID",
+    help="a data contract you will produce or read; repeat for more",
+)
 def instructions(
-    dir: str, entries: tuple[str, ...], contracts: tuple[str, ...]
+    page_dir: Path, entries: tuple[str, ...], contracts: tuple[str, ...]
 ) -> dict[str, str]:
     """Print a JSON object mapping each audience, such as `author`, to its instructions.
 
@@ -523,14 +581,28 @@ def instructions(
     """
     from leaf.page import page_instructions
 
-    return page_instructions(
-        resolve_dir(dir, renew=False), entries=entries, contracts=contracts
-    )
+    return page_instructions(page_dir, entries=entries, contracts=contracts)
+
+
+@page.command("list", short_help="List this machine's pages and who holds each.")
+def page_list() -> list:
+    """Print each page on this machine as a JSON line: every serving page, and
+    every page a session claimed, served or not.
+
+    A line names the page directory, its title, its `url` (null when nothing
+    serves it), and the session that holds it: `claim_session`, the name its
+    harness gives it now (`session_name`), the directory it claimed from
+    (`session_cwd`), and whether it still runs (`session_alive`). A serving
+    page also carries how many rows On me holds (`on_user`) and its open and
+    unread thread counts (`threads`). `page state PAGE` reads one page whole."""
+    from leaf.presence import page_list as listing
+
+    return listing()
 
 
 @page.command(short_help="Print where the page, a thread, or a widget stands.")
-@click.argument("dir", metavar="PAGE")
-@click.argument("target", metavar="[ID]", required=False)
+@page_argument(renew=False)
+@click.argument("target", metavar="[MESSAGE_OR_WIDGET]", required=False)
 @click.option(
     "--after",
     type=click.IntRange(min=0),
@@ -542,38 +614,33 @@ def instructions(
     type=click.IntRange(min=1, max=100),
     help="how many of a thread's messages to print (default: 50)",
 )
-def state(dir: str, target: str | None, after: int | None, limit: int | None) -> dict:
+def state(
+    page_dir: Path, target: str | None, after: int | None, limit: int | None
+) -> dict:
     """Print the page as it is now, as one JSON object: the active revision's
     file, the current widget actions and workers' reports, the user's On me list and
     yours, thread summaries, versions, presence, and bound data. Read the active
     revision's HTML beside it for the document.
 
-    ID narrows the output to what it names. A message, or a widget frozen into
-    one, names its thread: the output is that thread with a page of its messages,
-    their frozen markup, and the state of its widgets, paged by --after and
-    --limit. A widget on the page names itself: its element, its current actions
-    and reports, its obligations and to-dos, and its workflows."""
+    MESSAGE_OR_WIDGET narrows the output to what it names. A message, or a widget
+    frozen into one, names its thread: the output is that thread with a page of its
+    messages, their frozen markup, and the state of its widgets, paged by --after
+    and --limit. A widget on the page names itself: its element, its current
+    actions and reports, its obligations and to-dos, and its workflows."""
     from leaf.agent_state import cmd_page_state
 
-    if target is None and (after is not None or limit is not None):
-        raise click.UsageError("--after and --limit page a thread; name one as ID")
-    return cmd_page_state(
-        resolve_dir(dir, renew=False), target, after=after, limit=limit
-    )
+    return cmd_page_state(page_dir, target, after=after, limit=limit)
 
 
 @page.command(short_help="Stamp the current source as the next version.")
-@click.argument("dir", metavar="PAGE")
+@page_argument(renew=True)
 @body_options("the changelog")
 @click.option(
-    "--from-directory",
-    type=click.Path(exists=True, file_okay=False, path_type=Path),
-    help="replace index.html and page/ together from this candidate directory",
-)
-@click.option(
-    "--if-source",
-    help="the page's current index.html and page/ digest "
-    "(leaf.publishing.authored_digest), required with --from-directory",
+    "--replace",
+    type=(click.Path(exists=True, file_okay=False, path_type=Path), str),
+    metavar="DIR DIGEST",
+    help="replace index.html and page/ together from candidate DIR, if the "
+    "source still has DIGEST, the source.digest page state printed",
 )
 @click.option(
     "--completes",
@@ -582,12 +649,11 @@ def state(dir: str, target: str | None, after: int | None, limit: int | None) ->
     help="a widget whose open to-dos this version completes (repeatable)",
 )
 def stamp(
-    dir: str,
+    page_dir: Path,
     text: str | None,
     body_file,
     completes: tuple[str, ...],
-    from_directory: Path | None,
-    if_source: str | None,
+    replace: tuple[Path, str] | None,
 ) -> dict:
     """Stamp PAGE/index.html with a changelog.
 
@@ -596,23 +662,23 @@ def stamp(
     them done, citing the version. Other to-dos stay open, even when the version
     removes their widget.
 
-    --from-directory replaces index.html and the whole page/ tree and stamps them in
-    one step. Pass --if-source with the digest of the files you started from; if
-    they have changed since, the stamp is refused and the page is left as it was.
+    --replace DIR DIGEST replaces index.html and the whole page/ tree from DIR and
+    stamps them in one step. DIGEST is source.digest from page state before editing;
+    if the source has changed since, the stamp is refused and the page is left as it
+    was.
     """
     from leaf.publishing import cmd_stamp
 
     return cmd_stamp(
-        resolve_dir(dir),
+        page_dir,
         read_body(text, body_file),
         completes,
-        from_directory=from_directory,
-        if_source=if_source,
+        replace=replace,
     )
 
 
 @page.command(short_help="Export a stamped version to one HTML file.")
-@click.argument("dir", metavar="PAGE")
+@page_argument(renew=False)
 @click.option(
     "-o",
     "--out",
@@ -622,11 +688,11 @@ def stamp(
 )
 @click.option(
     "--version",
-    type=int,
+    type=click.IntRange(min=1),
     metavar="N",
     help="stamped version to export (default: latest)",
 )
-def export(dir: str, out: Path, version: int) -> dict:
+def export(page_dir: Path, out: Path, version: int) -> dict:
     """Export a stamped version to one HTML file that opens offline.
 
     The file runs the page's own runtime against its captured state, with no Leaf
@@ -634,14 +700,14 @@ def export(dir: str, out: Path, version: int) -> dict:
     """
     from leaf.exporting import cmd_export
 
-    return cmd_export(resolve_dir(dir, renew=False), out, version)
+    return cmd_export(page_dir, out, version)
 
 
 @page.command(short_help="Picture a drawing comment as the user saw it.")
-@click.argument("dir", metavar="PAGE")
-@click.argument("message", metavar="ID")
-def picture(dir: str, message: str) -> dict:
-    """Draw comment ID's drawing over the page as the user saw it, and print the
+@page_argument(renew=False)
+@click.argument("message", metavar="MESSAGE")
+def picture(page_dir: Path, message: str) -> dict:
+    """Draw comment MESSAGE's drawing over the page as the user saw it, and print the
     PNG's path as `file`.
 
     Opens the comment's revision in the host's browser, with the log applied
@@ -651,35 +717,34 @@ def picture(dir: str, message: str) -> dict:
     """
     from leaf.render_gate.picture import cmd_picture
 
-    return cmd_picture(resolve_dir(dir, renew=False), message)
+    return cmd_picture(page_dir, message)
 
 
 @page.command(
     short_help="Report a state change onto a page widget, as a worker.",
 )
-@click.argument("dir", metavar="PAGE")
+@page_argument(renew=True)
 @click.argument("widget", metavar="WIDGET")
 @click.argument("verb", metavar="VERB")
 @click.argument("fields", metavar="[NAME=VALUE]...", nargs=-1)
-def report(dir: str, widget: str, verb: str, fields: tuple) -> dict:
+def report(page_dir: Path, widget: str, verb: str, fields: tuple) -> dict:
     """Report a state change onto a page widget, as a worker.
 
     VERB is one of the widget's agent-written x-state verbs, and each NAME=VALUE one of
     its fields: `leaf page report <page> t-parser status value=review text="Ready for
     review"` moves a task. The page shows the report at once, marked provisional,
-    until a stamped version writes it into the markup or overrules it. The page's
-    watcher wakes so the agent can do that.
+    until a stamped version writes it into the markup or overrules it.
     """
-    from leaf.thread import cmd_report
+    from leaf.reports import cmd_report
 
-    return cmd_report(resolve_dir(dir), widget, verb, fields)
+    return cmd_report(page_dir, widget, verb, fields)
 
 
 @page.command(short_help="Print the event log as JSON lines.")
-@click.argument("dir", metavar="PAGE")
+@page_argument(renew=False)
 @click.option(
     "--after",
-    type=int,
+    type=click.IntRange(min=0),
     default=0,
     metavar="SEQ",
     help="print events after this sequence",
@@ -689,41 +754,42 @@ def report(dir: str, widget: str, verb: str, fields: tuple) -> dict:
     is_flag=True,
     help="keep printing each event as it is appended, until stopped",
 )
-def events(dir: str, after: int, follow: bool) -> None:
+def events(page_dir: Path, after: int, follow: bool) -> None:
     """Print the event log as JSON lines.
 
     Each line is one stored event record; `seq` is its position, and `--after`
     resumes from the last one a reader saw. This is read-only and does not
-    acknowledge user events. `page state PAGE ID` reads one thread or widget.
+    acknowledge user events. `page state PAGE MESSAGE_OR_WIDGET` reads one thread or
+    widget.
     """
     from leaf.event_log import cmd_events
 
-    cmd_events(resolve_dir(dir, renew=False), after, follow=follow)
+    cmd_events(page_dir, after, follow=follow)
 
 
 @page.command(short_help="Read browser interactions and request diagnostics.")
-@click.argument("dir", metavar="PAGE")
+@page_argument(renew=False)
 @click.option(
-    "--session", help="Select one browser tab; excludes unassociated server requests."
+    "--session", help="one browser tab's records, without unassociated server requests"
 )
 @click.option(
     "--since",
     metavar="ISO_TIME",
-    help="Include observations at or after this time, with timezone offset.",
+    help="include observations at or after this time, with its timezone offset",
 )
 @click.option(
     "--until",
     metavar="ISO_TIME",
-    help="Exclude observations at or after this time, with timezone offset.",
+    help="exclude observations at or after this time, with its timezone offset",
 )
 @click.option(
     "--type",
     "types",
     multiple=True,
-    help="Select an observation type; repeat to select several.",
+    help="an observation type to include; repeat for more",
 )
 def interactions(
-    dir: str,
+    page_dir: Path,
     session: str | None,
     since: str | None,
     until: str | None,
@@ -745,7 +811,7 @@ def interactions(
     if start is not None and stop is not None and start >= stop:
         raise click.ClickException("--since must precede --until")
     return read_interactions(
-        resolve_dir(dir, renew=False),
+        page_dir,
         session=session,
         since=start,
         until=stop,
@@ -753,24 +819,22 @@ def interactions(
     )
 
 
-@page.command(short_help="Take a page this session did not serve.")
-@click.argument("dir", metavar="PAGE")
-def claim(dir: str) -> None:
-    """Make PAGE this session's, so the user's updates on it come to this session.
-    A watch another session runs on PAGE stops watching it."""
-    from leaf.service import claim_page
+@page.command(short_help="Connect a page to this session.")
+@page_argument(renew=True)
+@click.option(
+    "--manual-delivery",
+    is_flag=True,
+    help="claim for an explicit leaf wait watcher instead of preparing harness delivery",
+)
+def claim(page_dir: Path, manual_delivery: bool) -> dict:
+    """Connect PAGE's updates to this session without changing its server.
 
-    if not claim_page(resolve_dir(dir)):
-        raise click.ClickException("only an agent harness session can claim a page")
+    Delivery is ready before ownership moves. A watch another session runs on PAGE
+    stops watching it. --manual-delivery leaves delivery to your explicit leaf wait.
+    """
+    from leaf.service import cmd_claim
 
-
-@page.command(short_help="Print the page's exchange as Markdown.")
-@click.argument("dir", metavar="PAGE")
-def transcript(dir: str) -> str:
-    """Print the page's exchange as Markdown."""
-    from leaf.transcript import cmd_transcript
-
-    return cmd_transcript(resolve_dir(dir, renew=False))
+    return cmd_claim(page_dir, manual_delivery=manual_delivery)
 
 
 @cli.group(short_help="Read a delivery by its id, and confirm you received it.")
@@ -789,7 +853,7 @@ def delivery() -> None:
     "--part",
     type=click.IntRange(min=1),
     default=1,
-    help="Read this numbered part of a large delivery.",
+    help="this numbered part of a large delivery",
 )
 def delivery_read(delivery_id: str, part: int) -> dict:
     """Print DELIVERY_ID, or one part of a large one, without confirming it.
@@ -805,30 +869,40 @@ def delivery_read(delivery_id: str, part: int) -> dict:
 @click.argument("delivery_id", metavar="DELIVERY_ID")
 def delivery_ack(delivery_id: str) -> None:
     """Confirm that every part of DELIVERY_ID is in your context, so its updates
-    read Delivered. Reread any part whose output is missing first. Where an
-    earlier turn already picked it up, a note says so and names what its updates
-    still owe."""
+    read Delivered."""
     from leaf.delivery import cmd_delivery_ack
 
     cmd_delivery_ack(delivery_id)
 
 
-@cli.group(short_help="Open, answer, edit, summarize, or resolve a thread.")
+@cli.group(short_help="Create, answer, edit, summarize, or resolve a thread.")
 def thread() -> None:
-    """Open and answer threads as the agent, and maintain them.
+    """Create and answer threads as the agent, and maintain them.
 
     Every write prints the records it appended, one JSON line each, as `page
-    events` prints them. `page state PAGE ID` reads one thread."""
+    events` prints them. `page state PAGE MESSAGE` reads one thread."""
 
 
 @thread.command("summarize", short_help="Summarize a contiguous message range.")
-@click.argument("dir", metavar="PAGE")
-@click.option("--from", "from_message", required=True, metavar="MESSAGE")
-@click.option("--through", "through_message", required=True, metavar="MESSAGE")
+@page_argument(renew=True)
+@click.option(
+    "--from",
+    "from_message",
+    required=True,
+    metavar="MESSAGE",
+    help="the first message folded",
+)
+@click.option(
+    "--through",
+    "through_message",
+    required=True,
+    metavar="MESSAGE",
+    help="the last message folded",
+)
 @body_options("the summary's Markdown")
 @click.option("--label", help="disclosure label (default: Earlier discussion)")
 def thread_summarize(
-    dir: str,
+    page_dir: Path,
     from_message: str,
     through_message: str,
     text: str | None,
@@ -845,7 +919,7 @@ def thread_summarize(
     from leaf.thread import cmd_summarize
 
     return cmd_summarize(
-        resolve_dir(dir),
+        page_dir,
         from_message,
         through_message,
         read_body(text, body_file),
@@ -853,24 +927,32 @@ def thread_summarize(
     )
 
 
-@cli.group(short_help="Bind existing local files for editing on a page.")
+@cli.group(short_help="Manage a page's access to local files.")
 def file() -> None:
-    """Grant a page access to an explicitly chosen local text file."""
+    """Grant or withdraw access to explicitly chosen local text files."""
 
 
 @file.command("bind", short_help="Grant a page read/write access to one file.")
-@click.argument("dir", metavar="PAGE")
+@page_argument(renew=True)
 @click.argument("binding", metavar="ID")
 @click.argument("path", type=click.Path(path_type=Path), metavar="PATH")
-def file_bind(dir: str, binding: str, path: Path) -> dict:
+def file_bind(page_dir: Path, binding: str, path: Path) -> dict:
     """Use ID in <lf-file-editor binding=\"ID\"> to edit PATH. Prints the binding,
     the file it grants, and its size in bytes."""
-    from leaf.file_bindings import bind_file, bound_paths
+    from leaf.file_bindings import bind_file
 
-    page_dir = resolve_dir(dir)
-    bind_file(page_dir, binding, path)
-    bound = bound_paths(page_dir)[binding]
-    return {"binding": binding, "path": str(bound), "bytes": bound.stat().st_size}
+    return bind_file(page_dir, binding, path)
+
+
+@file.command("unbind", short_help="Withdraw a page's access to one bound file.")
+@page_argument(renew=True)
+@click.argument("binding", metavar="ID")
+def file_unbind(page_dir: Path, binding: str) -> dict:
+    """Remove ID's grant. The file and its saved edits stay intact; later reads
+    find no file and saves are refused, including from already-open editors."""
+    from leaf.file_bindings import unbind_file
+
+    return unbind_file(page_dir, binding)
 
 
 def json_body(text: str | None, body_file: TextIO | None):
@@ -896,21 +978,35 @@ def connection() -> None:
 @connection.command(
     "bind", short_help="Grant authenticated GET access to an HTTPS origin."
 )
-@click.argument("dir", metavar="PAGE")
+@page_argument(renew=True)
 @click.argument("name")
 @click.argument("origin")
 @click.option(
     "--credential-env",
     required=True,
-    help="Binding environment variable containing the credential.",
+    help="the environment variable holding the credential, read as you bind",
 )
-@click.option("--header", default="Authorization", show_default=True)
-@click.option("--prefix", default="Bearer ", show_default=True)
 @click.option(
-    "--max-requests", default=200, type=click.IntRange(min=1), show_default=True
+    "--header",
+    default="Authorization",
+    show_default=True,
+    help="the request header that carries the credential",
+)
+@click.option(
+    "--prefix",
+    default="Bearer ",
+    show_default=True,
+    help="text sent before the credential in that header",
+)
+@click.option(
+    "--max-requests",
+    default=200,
+    type=click.IntRange(min=1),
+    show_default=True,
+    help="requests the page may make before it must be bound again",
 )
 def connection_bind(
-    dir: str,
+    page_dir: Path,
     name: str,
     origin: str,
     credential_env: str,
@@ -926,7 +1022,7 @@ def connection_bind(
     from leaf.http_connections import bind
 
     return bind(
-        resolve_dir(dir),
+        page_dir,
         name,
         origin,
         credential_env=credential_env,
@@ -937,12 +1033,13 @@ def connection_bind(
 
 
 @connection.command("unbind", short_help="Withdraw one page connection.")
-@click.argument("dir", metavar="PAGE")
+@page_argument(renew=True)
 @click.argument("name")
-def connection_unbind(dir: str, name: str) -> dict:
+def connection_unbind(page_dir: Path, name: str) -> dict:
+    """Withdraw NAME's grant for later requests; one already sent may finish."""
     from leaf.http_connections import unbind
 
-    return unbind(resolve_dir(dir), name)
+    return unbind(page_dir, name)
 
 
 @cli.group(short_help="Set or clear page-bound external data.")
@@ -951,25 +1048,25 @@ def data() -> None:
 
 
 @data.command("set", short_help="Replace one bound source value.")
-@click.argument("dir", metavar="PAGE")
+@page_argument(renew=True)
 @click.argument("source", metavar="SOURCE")
 @body_options("the JSON value")
-def data_set(dir: str, source: str, text: str | None, body_file) -> dict:
+def data_set(page_dir: Path, source: str, text: str | None, body_file) -> dict:
     """Validate and replace SOURCE with one complete JSON value."""
     from leaf.data import cmd_data_set
 
     value = json_body(text, body_file)
-    return cmd_data_set(resolve_dir(dir), source, value)
+    return cmd_data_set(page_dir, source, value)
 
 
 @data.command("clear", short_help="Remove one source's current value.")
-@click.argument("dir", metavar="PAGE")
+@page_argument(renew=True)
 @click.argument("source", metavar="SOURCE")
-def data_clear(dir: str, source: str) -> dict:
+def data_clear(page_dir: Path, source: str) -> dict:
     """Remove SOURCE's current value; its next write uses the current binding."""
     from leaf.data import cmd_data_clear
 
-    return cmd_data_clear(resolve_dir(dir), source)
+    return cmd_data_clear(page_dir, source)
 
 
 @cli.group(short_help="Start, run, or stop the local server.")
@@ -977,64 +1074,69 @@ def server() -> None:
     """Start, run, or stop the local server."""
 
 
-def serve_flags(command):
-    """The two statements a serve takes, worn by the launcher and by the process
-    it launches alike: `server start` forwards them verbatim to the `server run`
-    it spawns, so one spelling is what keeps the pair from drifting."""
-    for option in (
-        click.option(
-            "--persistent",
-            is_flag=True,
-            help="decline the session claim, so the server outlives this session "
-            "and only `leaf server stop` ends it — for a page kept up across "
-            "sessions",
-        ),
-        click.option(
+LIFETIMES = {
+    "session": "claimed by this agent session, ending when no live session claims "
+    "the page (persistent from a shell outside any session)",
+    "persistent": "declines the session claim, so only `leaf server stop` ends it, "
+    "for a page kept up across sessions",
+    "temporary": "serves on loopback for this command only, without claiming the page",
+}
+
+
+def serve_flags(*lifetimes: str):
+    """The statements a serve takes: `--lifetime`, among `lifetimes`, and `--host`.
+    `server start` hands both to the `server _serve` it spawns
+    (`hosting._starting_server`), so one spelling keeps the pair from drifting. The values are the `lifetime` a started
+    server prints (`hosting.server_reading`)."""
+
+    def decorate(command):
+        command = click.option(
             "--host",
             metavar="NAME",
             help="bind every interface and put NAME in the URL, for a user the "
             "derived address can't reach; recorded in service.json",
-        ),
-    ):
-        command = option(command)
-    return command
+        )(command)
+        return click.option(
+            "--lifetime",
+            type=click.Choice(lifetimes),
+            default="session",
+            show_default=True,
+            help="; ".join(f"{name}: {LIFETIMES[name]}" for name in lifetimes),
+        )(command)
+
+    return decorate
 
 
 @server.command(short_help="Start a page's server and print its URL.")
-@click.argument("dir", metavar="PAGE")
-@serve_flags
-def start(dir: str, host: str | None, persistent: bool) -> dict:
+@page_argument(renew=True)
+@serve_flags("session", "persistent")
+def start(page_dir: Path, host: str | None, lifetime: str) -> dict:
     """Start a page's server and print its URL.
 
     Returns once the server and this harness's watcher are ready; the server
     itself keeps running in a session of its own. `leaf server stop` takes one
     down, and a session server goes down with the session that claimed it
     besides. A page already served reconnects delivery and prints that server's
-    URL. `--persistent` claims no page and prepares no agent delivery. Beside the
-    URL it prints the server's lifetime, the page's layer and the Leaf serving it.
+    URL. A persistent server claims no page and prepares no agent delivery. Beside
+    the URL it prints the server's lifetime, the page's layer and the Leaf serving
+    it.
     """
     from leaf.hosting import claim_and_start, started_server
 
-    page_dir = resolve_dir(dir)
-    with claim_and_start(page_dir, host, persistent) as started:
+    with claim_and_start(page_dir, host, lifetime == "persistent") as started:
         pass
     return started_server(page_dir, started.url)
 
 
 @server.command(short_help="Serve a page in the foreground until stopped.")
-@click.argument("dir", metavar="PAGE")
-@serve_flags
-@click.option(
-    "--temporary",
-    is_flag=True,
-    help="serve on loopback for this command only, without claiming the page",
-)
-def run(dir: str, host: str | None, persistent: bool, temporary: bool) -> None:
+@page_argument(renew=True)
+@serve_flags("session", "persistent", "temporary")
+def run(page_dir: Path, host: str | None, lifetime: str) -> None:
     """Serve a page in the foreground, printing its URL and running until stopped.
 
     Run this in a terminal of your own to hold a page up where you can watch it.
-    Browser harnesses use `--temporary`; a user page in an agent session uses
-    `server start`. A page already served prints that server's URL and exits.
+    Browser harnesses use `--lifetime temporary`; a user page in an agent session
+    uses `server start`. A page already served prints that server's URL and exits.
     """
     from leaf.harness import session_harness
     from leaf.hosting import cmd_serve, cmd_serve_temporary
@@ -1043,29 +1145,31 @@ def run(dir: str, host: str | None, persistent: bool, temporary: bool) -> None:
     # As for `_serve`, except that a temporary server, which holds no lease,
     # unwinds on every stop.
     release_on_termination()
-    page_dir = resolve_dir(dir)
-    if temporary:
-        if persistent:
-            raise click.UsageError("choose --temporary or --persistent")
-        if host:
-            raise click.UsageError("--temporary is loopback-only; omit --host")
-        cmd_serve_temporary(page_dir)
+    if lifetime == "temporary":
+        cmd_serve_temporary(page_dir, host)
         return
-    cmd_serve(page_dir, host, persistent, harness=session_harness(), acquire=True)
+    cmd_serve(
+        page_dir,
+        host,
+        lifetime == "persistent",
+        harness=session_harness(),
+        acquire=True,
+    )
 
 
 @server.command("_serve", hidden=True)
-@click.argument("dir", metavar="PAGE")
-@serve_flags
+# A re-vendor here would restart the server this process is becoming.
+@page_argument(renew=False)
+@serve_flags("session", "persistent")
 @click.option("--revive", is_flag=True, hidden=True)
 @click.option("--acquire", is_flag=True, hidden=True)
 @click.option("--claim", hidden=True)
 @click.option("--harness", required=True, hidden=True)
 @click.option("--handshake", type=int, required=True, hidden=True)
 def _serve(
-    dir: str,
+    page_dir: Path,
     host: str | None,
-    persistent: bool,
+    lifetime: str,
     revive: bool,
     acquire: bool,
     claim: str | None,
@@ -1084,10 +1188,9 @@ def _serve(
     release_on_termination()
     with Handshake(handshake) as answer:
         cmd_serve(
-            # A re-vendor here would restart the server this process is becoming.
-            resolve_dir(dir, renew=False),
+            page_dir,
             host,
-            persistent,
+            lifetime == "persistent",
             revive,
             harness=harness_from_argument(harness),
             handshake=answer,
@@ -1097,68 +1200,58 @@ def _serve(
 
 
 @server.command(short_help="Stop a page's server.")
-@click.argument("dir", metavar="PAGE")
-def stop(dir: str) -> dict:
+@page_argument(renew=False)
+def stop(page_dir: Path) -> dict:
     """Stop a page's server."""
     from leaf.hosting import cmd_stop
 
-    return {"stopped": cmd_stop(resolve_dir(dir, renew=False))}
+    return {"stopped": cmd_stop(page_dir)}
 
 
-@cli.command(short_help="Say the page waits on its user, or is done.")
-@click.argument("dir", metavar="PAGE")
-@click.argument("state", type=click.Choice(["waiting", "idle"]))
-@click.argument("detail", required=False, default="")
-def status(dir: str, state: str, detail: str) -> dict:
-    """Say the page waits on its user, or that you are done with it.
+@page.command("open", short_help="Keep a page available for feedback.")
+@page_argument(renew=True)
+def page_open(page_dir: Path) -> dict:
+    """Keep PAGE available for feedback and put down current work.
 
-    Use waiting with DETAIL naming the answer you want from the user; waiting
-    without DETAIL invites text comments. Use idle when you are finished; it is
-    refused while the page has updates, workers' reports or page errors nobody has
-    picked up, updates you owe an answer, or to-dos of yours still open. Either one clears every
-    `leaf task start` you made, so no update or to-do reads Working; your to-dos
-    stay open. Status has no working state: to show what you are working on, run
-    `leaf task start`.
+    This clears every task start; to-dos and unanswered updates stay owed.
+    To request an answer, send a thread message with --obligation so the
+    question appears in On me. Opening a page creates no obligation.
     """
-    from leaf.activity import answer_command
-    from leaf.findings import Finding, note
-    from leaf.session import cmd_idle, cmd_waiting
+    from leaf.session import cmd_waiting
 
-    page_dir = resolve_dir(dir)
-    owed = []
-    if state == "idle":
-        written = cmd_idle(page_dir, detail)
-    else:
-        written, owed = cmd_waiting(page_dir, detail)
-    if owed:
-        answers = [answer_command(item["answer"], page_dir) for item in owed]
-        note(Finding("waiting-owes", values={"answers": answers}, severity="advice"))
-    return written
+    return cmd_waiting(page_dir)
+
+
+@page.command("close", short_help="Finish a page and stop watching for feedback.")
+@page_argument(renew=True)
+def page_close(page_dir: Path) -> dict:
+    """Finish PAGE and stop watching for feedback.
+
+    Refuses while updates, workers' reports or page errors remain unread,
+    updates need an answer, or agent to-dos remain open. Closing puts down
+    every task start and settles no obligation.
+    """
+    from leaf.session import cmd_idle
+
+    return cmd_idle(page_dir)
 
 
 @cli.command(
-    short_help="Confirm a delivery, if given, then wait for the next batch.",
+    short_help="Wait for the next batch.",
     help=(
         "Watch every page this session holds, or observe PAGE without taking "
         "ownership. Claim a foreign page explicitly with `leaf page claim`.\n\n"
         + WAIT_BATCH_OUTPUT_INSTRUCTION
     ),
 )
-@click.argument("dir", metavar="PAGE", required=False)
-@click.option(
-    "--ack",
-    metavar="DELIVERY_ID",
-    help="Confirm receipt of this complete delivery before waiting.",
-)
-def wait(dir: str | None, ack: str | None) -> int:
-    """Confirm a delivery, if given, then wait for the next batch."""
+@page_argument(renew=False, required=False)
+def wait(page_dir: Path | None) -> int:
+    """Wait for the next batch."""
     from leaf.leases import release_on_termination
     from leaf.session import cmd_wait
 
-    if dir is not None and ack is not None:
-        raise click.UsageError("PAGE and --ack cannot be used together")
     release_on_termination()
-    return cmd_wait(resolve_dir(dir, renew=False) if dir else None, ack=ack)
+    return cmd_wait(page_dir)
 
 
 def _obligation_option(command):
@@ -1180,9 +1273,9 @@ def _title_option(command):
 
 
 @thread.command(
-    "open", short_help="Open an agent thread — on a passage, or on the page whole."
+    "create", short_help="Create an agent thread — on a passage, or on the page whole."
 )
-@click.argument("dir", metavar="PAGE")
+@page_argument(renew=True)
 @click.option("--quote", help="passage text from the active revision")
 @click.option("--section", metavar="ID", help="element ID to anchor or scope --quote")
 @click.option("--part", metavar="ID", help="declared visual part within --section")
@@ -1190,8 +1283,8 @@ def _title_option(command):
 @click.option("--markup", help="HTML fragment after the text, validated here")
 @_title_option
 @_obligation_option
-def thread_open(
-    dir: str,
+def thread_create(
+    page_dir: Path,
     quote: str,
     section: str,
     part: str,
@@ -1201,7 +1294,7 @@ def thread_open(
     title: str | None,
     obligation: bool,
 ) -> dict:
-    """Open a thread as the agent: anchored where --quote or
+    """Create a thread as the agent: anchored where --quote or
     --section points at a passage, general where neither does — a question about
     the work as a whole.
 
@@ -1212,7 +1305,7 @@ def thread_open(
     from leaf.thread import cmd_comment
 
     return cmd_comment(
-        resolve_dir(dir),
+        page_dir,
         quote,
         section,
         part,
@@ -1224,20 +1317,10 @@ def thread_open(
 
 
 @thread.command(
-    "reply", short_help="Reply using an answer reference or a page and thread."
+    "reply", short_help="Reply using an answer reference or a page and message."
 )
 @click.argument("destination", metavar="REFERENCE_OR_PAGE")
-@click.argument("thread", required=False)
-@click.option(
-    "--attempt",
-    help="retry key: a rerun with the same key posts nothing new (default: the "
-    "reference, except with --ephemeral)",
-)
-@click.option(
-    "--failure",
-    help="failure code when no answer is coming; refused while your turn's final "
-    "message is to be the reply",
-)
+@click.argument("message", metavar="[MESSAGE]", required=False)
 @click.option(
     "--done", is_flag=True, help="the reply delivers what the message asked for"
 )
@@ -1258,57 +1341,32 @@ def thread_open(
 @click.option("--detach", is_flag=True, help="remove the thread's page target")
 def thread_reply(
     destination: str,
-    thread: str | None,
-    attempt: str | None,
-    failure: str | None,
+    message: str | None,
     done: bool,
     **options,
 ) -> dict | None:
-    """Reply to a delivered update using its `answer.ref` as the only argument, or
-    post an agent-initiated message using PAGE THREAD. A page and thread cannot
-    bypass an owed answer: use its delivered reference instead.
+    """Answer a delivered update by its `answer.ref` alone, or post into the
+    thread PAGE MESSAGE names, which is refused while that thread owes an answer.
 
-    With a reference, mark every answer with --done (it delivers what the message
-    asked for) or --todo TITLE (it promises work it doesn't deliver, which stays
-    on you as a to-do), or --obligation when the next move is the user's. A widget
-    in --markup can also register its own obligation. A progress line
-    (--ephemeral) or a failure (--failure) takes none of them.
-
-    The reply can also set frozen HTML, the thread's title and a new anchor. It
-    publishes your saved page edits with it, checking them as `page check` does
-    without a browser: an error refuses the reply, and the first reply on a revision
-    notes the advice `page check` gives on its source. Nothing runs in a browser,
-    where `page check` runs a page's scripts and data widgets; one that fails for
-    the user arrives as an `error` event.
-
-    With a reference, an answer suppresses your turn's final message as a second
-    reply; an --ephemeral line does not. Rerunning a reply that already posted
-    prints the earlier one; give a retried --ephemeral line an --attempt so it
-    posts once. --done, --failure and --attempt require a reference.
-    PAGE THREAD accepts --obligation when the message needs the user's next move,
-    or --todo for promised work.
+    An answer declares what it leaves with --done, --todo or --obligation, or
+    carries a widget in --markup that asks; --ephemeral progress declares nothing,
+    and --done needs a reference. The reply
+    publishes your saved page edits, checked as `page check` checks them without a
+    browser. The Leaf skill's references/threads.md says which to use and what
+    each leaves.
     """
     from leaf.thread import post_reply, post_response
 
     text = read_body(options.pop("text"), options.pop("body_file"))
-    if thread is not None:
-        addressed = [
-            flag
-            for flag, given in (
-                ("--done", done),
-                ("--failure", failure is not None),
-                ("--attempt", attempt is not None),
-            )
-            if given
-        ]
-        if addressed:
+    if message is not None:
+        if done:
             raise click.UsageError(
-                f"use an answer reference with {' and '.join(addressed)}; "
+                "use an answer reference with --done; "
                 "use `leaf thread reply <answer.ref>`"
             )
         return post_reply(
             resolve_dir(destination),
-            {"parent": thread},
+            {"parent": message},
             text,
             validate_source=True,
             **options,
@@ -1325,26 +1383,19 @@ def thread_reply(
     ]
     if len(declared) > 1:
         raise click.UsageError(f"{' and '.join(declared)} cannot be used together")
-    answers = not options["ephemeral"] and failure is None
+    answers = not options["ephemeral"]
     if declared and not answers:
         raise click.UsageError(
-            f"{declared[0]} declares what an answer leaves; progress and failure "
-            "receipts answer nothing"
+            f"{declared[0]} declares what an answer leaves; progress answers nothing"
         )
-    if not declared and answers and not options["markup"]:
-        raise click.UsageError(
-            "say what the answer leaves: --done when it delivers what was asked, "
-            "--todo TITLE when it promises work it doesn't deliver, or --obligation "
-            "when it needs the user's next move (a widget in --markup may also ask)"
-        )
+    # An answer that declares nothing must carry a widget that asks; `post_reply`
+    # refuses it otherwise (`undeclared-answer`).
     options["asks_back"] = not declared and answers
-    if attempt is not None:
-        options["attempt"] = attempt
-    return post_response(destination, text, failure=failure, **options)
+    return post_response(destination, text, **options)
 
 
 @thread.command("edit", short_help="Edit a message's text, or its thread's title.")
-@click.argument("dir", metavar="PAGE")
+@page_argument(renew=True)
 @click.argument("message", metavar="MESSAGE")
 @body_options("the replacement text")
 @click.option(
@@ -1352,69 +1403,63 @@ def thread_reply(
     help="rename MESSAGE's thread for the panel: a few words, at most 80 characters",
 )
 def thread_edit(
-    dir: str, message: str, text: str | None, body_file, title: str | None
+    page_dir: Path, message: str, text: str | None, body_file, title: str | None
 ) -> list[dict]:
     """Replace the visible text of MESSAGE, an agent-authored comment or reply,
     or with --title rename the thread MESSAGE is in, whoever opened it. --title
     alone leaves the text as it is.
 
-    The original and every revision remain in the append-only event log. Frozen
-    markup is not editable. Keep a title stable unless the thread's
-    subject changes.
+    Frozen markup is not editable. Keep a title stable unless the thread's subject
+    changes.
     """
     from leaf.thread import cmd_edit
 
     renames_only = title is not None and text is None and body_file is None
     body = None if renames_only else read_body(text, body_file)
-    return cmd_edit(resolve_dir(dir), message, body, title=title)
+    return cmd_edit(page_dir, message, body, title=title)
 
 
 @thread.command("resolve", short_help="Close a thread as the agent.")
-@click.argument("dir", metavar="PAGE")
-@click.argument("thread", metavar="THREAD")
-def thread_resolve(dir: str, thread: str) -> dict:
-    """Close THREAD, by any message in it, as the agent.
+@page_argument(renew=True)
+@click.argument("message", metavar="MESSAGE")
+def thread_resolve(page_dir: Path, message: str) -> dict:
+    """Close the thread MESSAGE is in, as the agent.
 
     The user ordinarily closes a thread; the Leaf skill's
-    references/threads.md says when the agent does. The panel names who resolved it.
+    references/threads.md says when the agent does.
     """
     from leaf.thread import cmd_resolve
 
-    return cmd_resolve(resolve_dir(dir), thread)
+    return cmd_resolve(page_dir, message)
 
 
-@cli.group(short_help="Open or end to-dos, start work on your list, and plan.")
+@cli.group(short_help="Create or end to-dos, start work on your list, and plan.")
 def task() -> None:
-    """Open and end to-dos, say which item on your list you are working on, and
+    """Create and end to-dos, say which item on your list you are working on, and
     lay out your plan.
 
-    Your list, which the user sees as On <your name>, holds each user update you owe
-    an answer, named by the update's event id, and each to-do you opened. Before
-    working on one, run `leaf task start` with a line saying what you are doing:
-    the item reads Working with that line, beside it and in Leaf's panel. A to-do
-    stays on your list through replies, resolutions, versions and the end of the
-    session that opened it, until `leaf task end` or a stamp that `--completes` its
-    widget ends it. A to-do you open `--on user` goes on the user's On me list
-    instead, until they press its Done or you end it. `leaf task plan` arranges
-    to-dos, obligations and plain steps into one outline of the work. Every write prints
-    the record it appended, one JSON line, as `page events` prints it.
+    Your list, On <your name>, holds each update you owe an answer and each to-do
+    you opened; a to-do `--on user` is on the user's On me instead. Every write
+    prints the record it appended, one JSON line, as `page events` prints it. The
+    Leaf skill's references/conversation-loop.md, "Long-running work" and "The On
+    lists", says when to use each.
     """
 
 
-@task.command("open", short_help="Open a to-do, yours or the user's.")
-@click.argument("dir", metavar="PAGE")
+@task.command("create", short_help="Create a to-do, yours or the user's.")
+@page_argument(renew=True)
 @click.argument("subject", metavar="SUBJECT")
-@click.argument("title", metavar="TITLE")
+@click.option("--title", required=True, help="the to-do, in a few words")
 @click.option(
     "--on",
     "owner",
     type=click.Choice(["agent", "user"]),
     default="agent",
     show_default=True,
-    help="Whose list the to-do is on: yours, or the user's On me.",
+    help="whose list the to-do is on: yours, or the user's On me",
 )
-def task_open(dir: str, subject: str, title: str, owner: str) -> dict:
-    """Open a to-do titled TITLE on SUBJECT and print it; its `id` names it later.
+def task_create(page_dir: Path, subject: str, title: str, owner: str) -> dict:
+    """Create a to-do titled --title on SUBJECT and print it; its `id` names it later.
 
     SUBJECT is a thread id, an element's id, or `page` for the whole page.
     Your own to-do on a widget needs a widget that declares x-work or holds an
@@ -1422,54 +1467,58 @@ def task_open(dir: str, subject: str, title: str, owner: str) -> dict:
     and you can end it too. A thread attachment provides discussion context;
     replying does not complete the task. For a conversational request instead,
     send the message with --obligation."""
-    from leaf.todos import cmd_open
+    from leaf.todos import cmd_create
 
-    return cmd_open(resolve_dir(dir), subject, title, owner)
+    return cmd_create(page_dir, subject, title, owner)
 
 
 @task.command(
     "start", short_help="Start work on an update or to-do, with its status line."
 )
-@click.argument("dir", metavar="PAGE")
+@page_argument(renew=True)
 @click.argument("item", metavar="ID")
-@click.argument("text", metavar="LINE")
-def task_start(dir: str, item: str, text: str) -> dict:
-    """Mark ID Working for this turn, with LINE saying what you are doing.
+@click.option(
+    "--text", "line", required=True, help="what you are doing, in one sentence"
+)
+def task_start(page_dir: Path, item: str, line: str) -> dict:
+    """Mark ID Working for this turn, with --text saying what you are doing.
 
     ID is the event id of a user update you owe, as its delivery names it, or an
-    open to-do's id. LINE names the work and its subject in one sentence; it shows
+    open to-do's id. --text names the work and its subject in one sentence; it shows
     beside the update or to-do and in Leaf's panel. Your answer to the update, or the
     to-do's end, ends the start. If your turn ends first, the update or to-do reads stalled
     until you answer it or start it again."""
     from leaf.todos import cmd_start
 
-    return cmd_start(resolve_dir(dir), item, text)
+    return cmd_start(page_dir, item, line)
 
 
-@task.command("end", short_help="End a to-do: done, failed, or dropped.")
-@click.argument("dir", metavar="PAGE")
-@click.argument("task_id", metavar="TODO")
+@task.command("end", short_help="End a to-do or settle a conversational obligation.")
+@page_argument(renew=True)
+@click.argument("task_id", metavar="ID")
 @click.argument("outcome", type=click.Choice(["done", "failed", "dropped"]))
-@click.argument("detail", metavar="[DETAIL]", required=False)
-def task_end(dir: str, task_id: str, outcome: str, detail: str | None) -> dict:
-    """End TODO with OUTCOME. DETAIL says where the result is, such as the
-    version or reply holding it, or why there is none. TODO may be yours or the
-    user's.
+@click.option("--text", "detail", help="where the result is, or why there is none")
+def task_end(page_dir: Path, task_id: str, outcome: str, detail: str | None) -> dict:
+    """End the to-do or conversational obligation named by ID in `page state`.
 
-    TODO may also be the id of a question the user answers in words, such as an
-    `lf-ask` in a reply (`widget:<id>`): `done` records that the user answered it
-    elsewhere, DETAIL saying where, and `dropped` withdraws it. Neither records an
-    answer from the user. An obligation a widget's state answers ends through that state
-    or an authored withdrawal."""
+    A to-do, yours or the user's, ends done, failed or dropped. --text says where
+    the result is, such as the version or reply holding it, or why there is none.
+
+    For a message obligation (`message:<id>`) or a question widget answered in
+    words (`widget:<id>`), done records that the user answered elsewhere, --text
+    saying where; dropped withdraws the question. These outcomes record no answer
+    from the user. A widget answered through its controls ends through its state
+    or an authored withdrawal.
+    """
     from leaf.todos import cmd_end
 
-    return cmd_end(resolve_dir(dir), task_id, outcome, detail)
+    return cmd_end(page_dir, task_id, outcome, detail)
 
 
 @task.command("plan", short_help="Write your plan for the page's work as one outline.")
-@click.argument("dir", metavar="PAGE")
+@page_argument(renew=True)
 @body_options("the JSON outline")
-def task_plan(dir: str, text: str | None, body_file) -> dict:
+def task_plan(page_dir: Path, text: str | None, body_file) -> dict:
     """Replace the page's plan with the JSON list of steps given, in order.
 
     Each step has a `depth`, 0 for a goal and one more for each level under it.
@@ -1489,4 +1538,4 @@ def task_plan(dir: str, text: str | None, body_file) -> dict:
     from leaf.plans import cmd_plan
 
     steps = json_body(text, body_file)
-    return cmd_plan(resolve_dir(dir), steps)
+    return cmd_plan(page_dir, steps)

@@ -29,9 +29,11 @@ from render_harness import (
     is_problem,
     leaf_page,
     open_page,
+    open_threads,
     open_versions,
     panel_field,
     panel_settled,
+    panel_view,
     resized,
     told,
     write,
@@ -165,16 +167,16 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
     page.set_viewport_size({"width": 1200, "height": 844})
     on_body = "() => document.activeElement === document.body"
     preview = page.locator(".lf-margin-preview")
-    toggle = page.locator(".lf-fp-threads")
+    toggle = page.locator(".lf-fp-on-user")
     marker = page.locator('[data-lf-margin-for="p"] > .lf-margin-marker')
     threads = [
         page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
         for root in roots
     ]
 
-    # Threads by pointer: out with the panel's view.
+    # On me by pointer: out with the panel's view.
     toggle.click()
-    panel_settled(page, view="threads")
+    panel_settled(page, view="queue")
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
     assert page.evaluate(on_body)
@@ -195,7 +197,12 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
     expect(threads[0]).to_be_focused()
     rendered(page)
     # The pointer route keeps keyboard standing without showing a keyboard ring.
-    assert preview.evaluate("node => getComputedStyle(node).outlineStyle") == "none"
+    assert (
+        preview.locator(".lf-margin-preview-card").evaluate(
+            "node => getComputedStyle(node).outlineStyle"
+        )
+        == "none"
+    )
     page.keyboard.press("t")
     expect(threads[1]).to_be_focused()
     out_through("#p2")
@@ -217,7 +224,7 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
 
     toggle.focus()
     page.keyboard.press("Enter")
-    panel_settled(page, view="threads")
+    panel_settled(page, view="queue")
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
     assert page.evaluate(on_body)
@@ -266,7 +273,7 @@ def test_a_view_reached_from_another_view_leaves_both_of_them_shut(browser, serv
 
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    threads = page.locator('.lf-fp-view[data-view="threads"]')
+    threads = page.locator(panel_view("threads"))
     page.wait_for_function(
         "view => view.contains(document.activeElement)", arg=threads.element_handle()
     )
@@ -1199,7 +1206,9 @@ def test_native_controls_need_no_generic_space_binding(browser, serve):
     page.keyboard.press("?")
     help_el = page.locator(".lf-command-reference")
     expect(help_el).not_to_contain_text("On a control")
-    expect(help_el.locator("tr", has_text="Grab the card")).to_contain_text("space")
+    expect(help_el.get_by_role("row").filter(has_text="Grab the card")).to_contain_text(
+        "space"
+    )
     page.keyboard.press("Escape")
 
     # And the key does what the reference says it does.
@@ -1244,7 +1253,7 @@ def test_holding_a_key_repeats_only_where_the_press_is_a_walk(
     page.evaluate(press, ["m", True])  # the same grammar repeats for obligations
     expect(page.locator("#sug-refill[data-lf-obligation]")).to_have_count(1)
 
-    leaves = page.locator('.lf-fp-view[data-view="leaves"]')
+    leaves = page.locator(panel_view("leaves"))
     page.keyboard.press("g")
     page.evaluate(press, ["l", True, True])  # a panel destination does not repeat
     expect(leaves).to_be_hidden()
@@ -1297,8 +1306,7 @@ def test_escape_backs_out_from_a_control_nothing_is_typed_into(browser, serve):
     # The mouse opens between rounds because c is the select's own letter, and the
     # press has to be made the same way on both to be comparing anything.
     for control in ("#zoom", "#pick"):
-        page.locator(".lf-fp-threads").click()
-        panel_settled(page, view="threads")
+        open_threads(page)
         page.locator(control).focus()
         page.keyboard.press("Escape")
         assert page.evaluate("() => document.activeElement === document.body")
@@ -1321,7 +1329,7 @@ def test_a_margin_marker_backs_out_onto_the_page_like_the_toggle(browser, serve)
     marker = page.locator('[data-lf-margin-for="p"] > .lf-margin-marker')
     expect(marker).to_be_visible()
 
-    for control in (page.locator(".lf-fp-threads"), marker):
+    for control in (page.locator(".lf-fp-on-user"), marker):
         control.focus()
         expect(control).to_be_focused()
         page.keyboard.press("Escape")
@@ -1495,7 +1503,7 @@ def test_a_label_press_keeps_the_controls_current_keyboard_location(browser, ser
     assert offered_routes(page) == current_location
     held_obligation = page.locator("#first-question-decision[data-lf-obligation]")
     expect(held_obligation).to_have_count(1)
-    assert "[data-lf-obligation]" in ring_rule(held_obligation)
+    assert "[data-lf-obligation]" in ring_rule(held_obligation, pseudo="after")
     # Native label activation temporarily blurs the radio. Its logical input
     # destination remains in place until the label's click transfers focus. The
     # pointer press removes its keyboard cue without moving that location.
@@ -1640,8 +1648,7 @@ def test_a_page_element_named_host_leaves_the_keyboard_climb_at_the_document(
         ),
     )
     assert page.evaluate("document.host instanceof HTMLFormElement")
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    open_threads(page)
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
 

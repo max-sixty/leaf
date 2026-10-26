@@ -29,6 +29,7 @@ from render_harness import (
     panel_control,
     panel_field,
     panel_settled,
+    panel_view,
     refuse,
     resized,
     round_trip,
@@ -69,7 +70,9 @@ def test_reactionless_other_responses_can_turn_the_compact_field_into_a_suggesti
     expect(send.locator('svg[data-lf-icon="send"]')).to_have_count(1)
     expect(page.locator(".lf-composer-row")).to_have_count(0)
     field_box = box.bounding_box()
-    action = page.locator(".lf-composer > .lf-compose-field > button:visible")
+    action = page.locator(".lf-compose-field").get_by_role(
+        "button", name="Other responses", exact=True
+    )
     send_box = action.bounding_box()
     assert (
         field_box["x"]
@@ -907,7 +910,7 @@ def test_c_comments_and_g_t_navigates_to_threads(browser, serve):
 
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    threads = page.locator('.lf-fp-view[data-view="threads"]')
+    threads = page.locator(panel_view("threads"))
     expect(threads).to_be_focused()
     # An empty list holds nothing to comment on, so `c` opens the page comment.
     page.keyboard.press("c")
@@ -939,7 +942,7 @@ def test_the_panels_own_c_answers_a_page_whose_log_has_not_arrived(browser, serv
     expect(comment).not_to_be_focused()
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    expect(page.locator('.lf-fp-view[data-view="threads"]')).to_be_focused()
+    expect(page.locator(panel_view("threads"))).to_be_focused()
 
     # The missing list leaves the panel's own search: a search over nothing still
     # belongs to the view in front of the page.

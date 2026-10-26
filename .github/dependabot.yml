@@ -6,10 +6,10 @@ version: 2
 #
 # The npm ecosystem also supports pnpm: it watches the root `package.json` and
 # `pnpm-lock.yaml`, which name the browser, Worker and eval dependencies. The
-# dependency-bundles workflow rebuilds the browser framework's page payload and every
-# bundle `build/vendor.mjs` makes, and updates the same PR. `esbuild` is left out: it is
-# the tool every bundle shares rather than payload, so it moves when a bundle needs
-# it rather than on every release.
+# dependency-bundles workflow rebuilds every committed browser bundle (`pnpm run
+# build:browser`) and updates the same PR. The compilers, esbuild
+# and Rolldown, are left out: upgrade them when a build needs it rather than
+# regenerating the payload on every compiler release.
 #
 # Grouped so each ecosystem opens one PR a week rather than one per dependency;
 # on a repo this size the review cost of a group is the same as a single bump.
@@ -42,6 +42,7 @@ updates:
       interval: weekly
     ignore:
       - dependency-name: esbuild
+      - dependency-name: rolldown
     groups:
       dependencies:
         patterns: ["*"]

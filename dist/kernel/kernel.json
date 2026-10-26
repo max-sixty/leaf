@@ -212,7 +212,7 @@
     "runtime/thread/inline.js": "92d5ef50ecfe91aff4e1bb8589e82de88eb8965da8e6e668f8cea096020ccd4c",
     "runtime/thread/landing.js": "6fe39854081ce85baaec161086c3d98da2f95fae94ad18789e024b6385ee602a",
     "runtime/thread/message-edit.js": "e4c2a5a4686a55a1175dbadbaad0895cd86cbaa11f7339697e7af46d0795d57a",
-    "runtime/thread/messages.js": "0f5823ba925ba166a1e0d15ded4195a8a6a9b13edfa6d268173616bc247cf044",
+    "runtime/thread/messages.js": "0c0b60dd05da505c3f85fd5f4f7b1cc8251a68e40bd149b696497dd9e282aa11",
     "runtime/thread/model.js": "e662ab9a0d85d079ea15c99ff79d0865410e74cf461e016f9f98b3a854107cbf",
     "runtime/thread/placement.js": "bbe15932962ef88d36ff142b8f812f086faecd5d974ca20692ebdb21a2133257",
     "runtime/thread/presentation.js": "3934d173f7a7c88e16db6208e4d3c031da2530fb58a968b49efb9953f802b9be",

@@ -1,22 +1,20 @@
 ---
 name: leaf
-description: Presents designs, decisions, findings, or live work as an HTML page the user can comment on and manipulate, and processes user input delivered from an existing Leaf page. Use for “explain this in HTML,” “write up the findings,” “show me the options,” building a playground, explorer, simulator, or interactive tool, work whose progress or review belongs in a shared page, a `leaf_delivery` tool output, or a `leaf-delivery` message.
+description: Builds an interface for the user to inspect, explore and act on their work with an agent, and responds to input from an existing Leaf page. Use for “explain this in HTML,” “write up the findings,” “show me the options,” building a playground, explorer, simulator, or interactive tool, work whose progress or review belongs in a shared page, a `leaf_delivery` tool output, or a `leaf-delivery` message.
 allowed-tools:
   - Bash(leaf:*)
   - Bash(jq:*)
 ---
 
-You work with the user through a live HTML page. They read it, comment on exact
-passages and act through widgets while the work continues. Success means
-completing the task while the user can understand and redirect the work. Their
-questions and changes of direction take priority over work in progress. Keep the
-page current as the work proceeds.
+Develop material the user can judge or use directly. The user can inspect and
+operate it, comment on exact passages and steer revisions.
+Keep the page current and give their questions and changes of direction priority.
 
-The input is either a subject to present or a delivery from a page already handed
-over: a `leaf_delivery` tool output, a `leaf-delivery` element, or the envelope
-`leaf wait` printed. A delivery starts at step 6 below; don't initialize or hand
-the page over again. With no subject in `$ARGUMENTS`, present the work already
-under discussion.
+The input is either work to develop on a page or a delivery from a page already
+handed over: a `leaf_delivery` tool output, a `leaf-delivery` element, or the
+envelope `leaf wait` printed. A delivery starts at step 6 below; continue that
+page rather than initializing or handing it over again. With no subject in
+`$ARGUMENTS`, develop the work already under discussion.
 
 $ARGUMENTS
 
@@ -54,13 +52,14 @@ words in `error` or `text`.
    sending it; its choices can contain the previews themselves. Simple decisions
    use `lf-options` (`references/authoring-decisions.md`). Running `page init`
    again with a package adds it to a page already written.
-2. Read all of `references/page-authoring.md`, then each reference the page
-   needs, listed under "Author a version" below. Choose elements and class idioms
-   from the registry as it says, and read their examples and instructions first.
-   Write `<page>/index.html` in the registry's vocabulary. Each valid save
-   becomes the live immutable revision. An invalid save leaves the last valid one
-   live and reports the error in page state and the browser. You write
-   `index.html` and `page/`; only Leaf writes revisions and version mappings.
+2. Read `references/page-authoring.md` and choose the subject and concrete case
+   the user will examine. Construct that subject in the chosen situation, then
+   compose the explanation around the result. Follow
+   `references/authoring-revisions.md` when changing an existing page, then write
+   `<page>/index.html`. Each valid save becomes the live immutable revision. An
+   invalid save leaves the last valid one live and reports the error in page state
+   and the browser. You write `index.html` and `page/`; only Leaf writes revisions
+   and version mappings.
 3. **Check the page.** Before you first hand the page over, run
    `leaf page check <page>` and fix every failure. That is the whole check for a
    quick page, one the user reacts to once and then revises or drops: hand it over
@@ -103,7 +102,7 @@ Pick the contract for the session that owns the page:
 `references/conversation-loop.md`, "When to write", owns the immediate reply and
 work status for each user update. The parent session owns the Leaf conversation:
 answer the user, keep the page current, and direct background subagents doing the
-substantive research, editing and testing. Keep direct answers, small page changes,
+substantive research, editing and testing. Keep direct answers, revisions of existing material,
 and the review and integration of worker results with you. Having more work to do
 is a reason to delegate it, while you remain available for the user's next move.
 
@@ -114,19 +113,8 @@ between bounded steps.
 
 ## Page contract
 
-Unless the user sets the page's shape or depth, a Leaf page is a short sequence
-of visually distinct, self-contained views. Each view makes one point, shows one
-state or offers one move, so the user takes it in at a glance and moves on.
-`references/page-authoring.md`, "Show the subject", applies SOUL.md’s "Make the
-work concrete and playable" principle; "Reading cost" owns what stays visible
-and what goes in a disclosure. Read it when choosing that presentation.
-
-The page's shape follows the subject: prose read in order, regions read side by
-side on a sidebar page, or a workspace the user moves through instead of
-scrolling. A Layout class on `main` sets the shape, and the page's own CSS
-adjusts it. `references/page-authoring.md`, "Composing a page", owns the choice
-of shape, `references/page-layout.md` each shape's geometry, and
-`references/authoring-decisions.md` where each decision goes.
+`references/page-authoring.md` owns content, reading cost and composition. `references/page-layout.md` owns Layout geometry;
+`references/authoring-decisions.md` owns decisions and their controls.
 
 Choose controls, gestures and options whose benefit to the user's task outweighs
 the attention and effort they require. Remove redundant actions before making

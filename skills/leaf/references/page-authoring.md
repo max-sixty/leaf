@@ -1,126 +1,113 @@
 # Page authoring
 
-This reference covers what every page needs. Choices only some pages make have their
-own references, named where each choice comes up.
+## Develop the content
 
-## Show the subject
+Show the page's subject at work in a concrete case. For a recommendation, construct
+the proposed result in use, with the content it operates on and the outcome the
+change would produce. Research notes supply facts and constraints; develop this
+material before composing the explanation. Make reasonable illustrative choices to
+complete the case, labeling invented content and untested behavior as proposed.
 
-Before writing a view's words, decide what it shows. Ask what the user would otherwise
-have to picture from a description, and put that thing on the page in its own form:
+For example, an operator needs to locate failed imports in the original file. A
+proposed report groups them by cause and keeps their original row numbers:
 
-- An existing interface is a screenshot, cropped or marked so the eye lands on the
-  point, with crops cutting through background rather than text. Capture a panel,
-  card or menu with enough of the page around it to hold its whole shadow: a clip
-  at its bounding box cuts the shadow off and squares its rounded corners. A visual change between two versions is an
-  `lf-shot` before-and-after pair, and captures that vary along other axes go in a
-  table of captures (`authoring-evidence.md`, "Source files and media").
-- A behavior, such as an interaction, a motion or a process over time, runs: in a live
-  sample the user operates (`live-samples.md`), or in `lf-motion` from the `motion`
-  package. Its shared playback controls let the user slow, pause and scrub authored
-  animations or video recordings, so each moment stays readable and commentable.
-  The package’s authoring instructions cover both forms and their evidence limits.
-- A proposal or mechanism nothing can show yet is drawn: where things sit, what
-  contains, calls or feeds what, how a state changes, today beside the proposal, and
-  alternatives in one frame at one scale.
-- Numbers whose shape is the point, such as a trend, a ranking or groups on one scale,
-  are an `lf-chart`, even when they compare the same measures across items. Label the
-  values the argument cites, and put exact values in a table below it when readers
-  need them. "Reading cost" below governs whether to collapse that table.
-- Wording the user judges, such as code, a command or a message, is shown as the text
-  itself. When the point is what code does, such as what it draws or which rule wins,
-  show that effect in one of the forms above, with the code beside it.
+```html
+<lf-sample id="import-report" label="Proposed report — fictional data">
+  <h3>Missing currency — 12 rows</h3>
+  <p>Three representative rows shown.</p>
+  <table>
+    <thead>
+      <tr>
+        <th>Original row</th>
+        <th>Supplier</th>
+        <th>Amount</th>
+        <th>Currency</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>8</td>
+        <td>Northwind</td>
+        <td>29.00</td>
+        <td>Missing</td>
+      </tr>
+      <tr>
+        <td>19</td>
+        <td>Acme</td>
+        <td>15.50</td>
+        <td>Missing</td>
+      </tr>
+      <tr>
+        <td>27</td>
+        <td>Northwind</td>
+        <td>8.00</td>
+        <td>Missing</td>
+      </tr>
+    </tbody>
+  </table>
+</lf-sample>
+```
 
-Pages that decide, plan or review show their subject the same way: a work item that
-fixes a visible fault shows the fault, and a decision's options show what each answer gives
-the user (`authoring-decisions.md`). A table or list whose rows say where things sit, how
-large they are or what connects to what should be a drawing.
+The reader can inspect the proposed grouping and locate its records. The missing
+currencies remain visible: grouping the failures does not establish the correction.
+Explain why this report would help and what remains untested beside the sample.
 
-A drawing or chart makes its point through its geometry: where its marks sit, their
-sizes, and what contains or links them. One that only restates the words or numbers
-beside it, as boxes holding its sentences or a mark or bar per counted item, shows
-nothing. When the user has nothing to picture, as when they weigh a refactor's reasons
-and cost, leave the case in words and draw nothing.
+Choose the material by what is being judged. Draw relationships for a mechanism,
+use a shared scale when comparing quantities by size, show arrangements for a layout,
+and show behavior through the actual or proposed subject before and after an action.
+For an interface, depict its content, controls and arrangement, showing where the
+action happens and what changes. Make behavior operable when trying it reveals more
+than seeing those states together. A wording choice can show the actual candidate
+sentences; a reasoning question can present the
+argument directly. These are all ways to let the reader examine the work itself.
 
-Use a table for looking up values, for mixed units that can't share an axis, or for
-comparisons with text-heavy cells. Use native sections for a few alternatives read as
-wholes, and `lf-options` when the user must choose among them. Use images only when
-they carry information. `authoring-evidence.md` says which element draws each kind of
-evidence, and how to draw a figure of your own.
+Compose the explanation around the result: the claim, reason, cost and limits
+the material cannot show. Select from the research for the current question
+and remove descriptions the example makes unnecessary. Let using the material
+determine the page's arrangement and sequence.
 
-Prose says only what the page can't show: the claim, why it holds, its cost, and the
-question the page asks.
+`authoring-evidence.md` owns captures, drawings, charts, recordings and code
+excerpts; `live-samples.md` owns operable Leaf examples.
+A demonstration on the page illustrates a proposal; it does not implement that change
+in the product being discussed.
+
+An author assigned to construct material builds it directly and returns candidate
+files to the parent. `SKILL.md`’s operating workflow belongs to the session talking
+with the user, which composes and publishes the page.
 
 ## Reading cost
 
-Readers skip collapsed text unless they go looking. Keep open everything the page asks
-the reader to take in or answer: the finding, its evidence, and what they are asked to
-review, decide or comment on, including a proposed plan. Keep short supporting notes
-and excerpts visible. Collapse long optional material when the space and attention
-saved repay its label and click. Keep the resulting disclosure controls directly
-reachable; another level should reveal substantial content of its own. Leaf opens a
-disclosure when a comment lands inside it.
+Give the main result and the material supporting it the most attention and space.
+Write headings that tell a scanning reader what each part establishes. Use the
+user's context to leave out explanations and background they already have.
 
-The title names the page, and the lede under it states the finding. A section that
-reaches a finding states it in its heading, short enough to scan in an `lf-toc`; put
-qualifications in the first sentence. A `<summary>` and an option's `<strong>` do the
-same. "Why the prefixes matter" and "What we learned" promise a finding and withhold
-it. Use a plain label only where there is no finding, as over a list, table or board
-that speaks for itself.
+Keep essential content visible. Collapse optional detail when it saves enough reading
+to justify finding and opening it; short qualifications and evidence needed for a
+judgment belong beside that judgment. Keep disclosure controls reachable, and make
+nested disclosures reveal substantial content of their own. Leaf opens a disclosure
+when a comment lands inside it.
 
-Write for what the user has seen: this conversation and the page so far. Introduce the
-names a decision depends on, show evidence for any claim they could doubt, and drop the
-story of how you got there.
-
-The user knows the facts they gave you and reads the page against them, so one figure
-that differs from theirs makes them doubt the rest. Keep each supplied fact as given,
-with the measure it belongs to. A number, trend, count or consequence you work out from
-them is your claim: check it against the figures it rests on, and keep those figures
-beside it. Where your working contradicts a supplied fact, show both and say which the
-page uses, rather than correcting theirs in place.
-
-Use `lf-gloss` for a local term, acronym or premise the reader can open beside a
-phrase. Keep citations as links and keep visible any qualification the argument rests
-on.
+Preserve the meaning and units of facts you use. Check derived quantities against their
+inputs, and keep uncertainty and evidence limits beside the claims they qualify. When
+your findings contradict the user's supplied facts, show the discrepancy explicitly.
+Use links for citations and `lf-gloss` for unfamiliar terms the reader can open locally.
 
 ## Composing a page
 
-Most pages are read top to bottom and use the reading column,
-`<main class="layout-column">`, where text stays within the measure and wider blocks
-extend beside it. Without a Layout class, the page lays out as plain HTML. A diagram or
-board declares its width; `data-width` asks for one on other blocks, such as a wide
-table (`page-layout.md`, "Bounds and widths"). Compose the page from these:
+Arrange the material so the reader can do the task with little navigation or memory.
+Put alternatives at a comparable scale, controls beside the results they change, and
+an explanation beside the evidence it interprets. Use the registry's semantic HTML,
+widgets and class idioms for those roles.
 
-- **Prose read in order**, such as a plan, review or decision, is plain semantic HTML.
-- **Independent status tiles** are a block with `class="layout-tiles"`, whose children
-  sit in equal cells. Each cell holds a metric, chart, table, list or log, with at most
-  a caption; tiles of paragraphs read worse than the column.
-- **A comparison** is a table, or native sections arranged by the page's CSS.
-- **Controls beside evidence** is a playground. Aim for one coherent experience to
-  read, operate and comment on. Embedded documents can isolate a demonstration, but
-  also separate its navigation and interaction from the surrounding Leaf page
-  (`live-samples.md`).
-- **A screen the reader works in rather than scrolls**, like a mail client, a queue
-  worked one item at a time, a log beside its chart, or a desktop interface the reader
-  tunes, is a workspace (`page-layout.md`, "A workspace"). Its surface fills the
-  window from the title's left edge. Let that surface lead when it is the main task;
-  supporting reading, such as the review behind a design the reader tunes, goes in
-  later parts on a page of parts (below). A document read top to bottom beside a
-  panel kept in view, such as a postmortem beside its timeline, is a `layout-sidebar` page
-  (`page-layout.md`, "A sidebar page").
-- **Several views of one artifact** are one `lf-tabs` set. Page tabs hold project-scale
-  views that share one history, Threads list and On me list; a tabbed section holds
-  local alternatives within a view. The `lf-tabs` entry says which placement makes
-  which.
-- **Parts of one subject that each want their own Layout**, such as a playground to try
-  beside the proposal it argues for and the reasoning behind it, are a page of parts:
-  one `lf-parts` in a `main` with no Layout, each part with a Layout of its own
-  (`page-layout.md`, "A page of parts"). Where the views share the page's Layout and
-  a header across the top, such as one shared with a site's other pages, they are page
-  tabs instead.
+Choose the Layout after the content: `layout-column` supports a sequence of views,
+including wide diagrams and comparisons; `layout-sidebar` keeps context beside a
+working region; `layout-workspace` lets the user work within one screen. A Layout is a
+class on `main`; a page can also use its own grid or flex arrangement. `page-layout.md`
+owns their geometry, bounds, tiles, and pages with tabs or parts.
 
-A page can grow without changing its Layout: a report that gains live status gains a
-row of tiles. Leaf's panel takes its own room at the window's foot, and comment markers
-go in the margin or over their targets, so leave room for neither.
+Leaf supplies the theme and its own panel and comment margins. Use page CSS for the
+task's arrangement or visualization, or a design the user requests. Let the content
+supply the hierarchy; give a card surface a grouping or interaction to express.
 
 ## Contents navigation
 

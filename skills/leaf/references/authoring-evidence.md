@@ -23,6 +23,12 @@ measurement, and plain HTML for numbers with no repeatable source.
 
 ## Interactive and visual evidence
 
+For an existing interface, capture the relevant panel, card or menu with enough
+surrounding background to preserve its shadow; a clip at the bounding box cuts the
+shadow off. Crop or mark the capture so the eye lands on the point, cutting through
+background rather than text. Use `lf-shot` for before-and-after captures and a table
+for captures that vary along other axes ("Source files and media").
+
 Introduce each interaction in the page's own words, such as that a board takes a drag
 or an options group a click, rather than copying the sentence from another page.
 

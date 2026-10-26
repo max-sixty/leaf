@@ -629,7 +629,9 @@ def test_a_short_workspace_shows_more_below_its_playground_regions(browser, serv
     assert cue(page, preview) > 100
 
     page = open_page(browser, serve(ROOT / "examples" / "notification-playground.html"))
-    resized(page, 1100, 700)
+    # Without a Controls label or a Starting points label over them, the list fits
+    # at 700px tall; 600 still runs it past the rail's foot.
+    resized(page, 1100, 600)
     playground = page.locator("#notification-playground")
     controls = playground.locator(".lf-playground-controls")
     assert controls.evaluate("el => el.scrollHeight > el.clientHeight + 1")

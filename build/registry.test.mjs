@@ -44,7 +44,6 @@ const browser = tracked(
   "browser/*.js",
   "packages/*.css",
   "packages/*.js",
-  "browser/framework/*.ts",
 );
 
 // Each `data-lf-` name the files spell, as markup or a selector writes it or as an

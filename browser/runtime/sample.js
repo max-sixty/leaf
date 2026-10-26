@@ -446,7 +446,7 @@ export function mountSample(frame, { template, window: asWindow = false }) {
       loadWithinLimit(async (release) => {
         if (destroyed) throw new DOMException("sample destroyed", "AbortError");
         record("allocating");
-        /** @type {import("../framework/contract.js").ServedSampleAnswer} */
+        /** @type {import("../types/contract.js").ServedSampleAnswer} */
         const { url, page } = await request(
           pageUrl("api/samples"),
           { template, message },

@@ -4,8 +4,8 @@
    lists it starts from are the ones `page state` prints. */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createSemanticApplication } from "./application.ts";
-import { servedReading } from "../../tests/served.mjs";
+import { createSemanticApplication } from "../../browser/runtime/framework/application.js";
+import { servedReading } from "../served.mjs";
 
 const adopted = (name) => {
   const served = servedReading(name);

@@ -11,8 +11,12 @@
 // only when the page asks for it, and `core-independent-of-overlay` keeps every other
 // owner from reaching it. Site-absolute `/vendor/` and `/checks/` specifiers, which the
 // browser resolves and Node does not, are excluded by name; every other unresolvable
-// specifier is a missing module and an error. JSON, such as the kernel registry
-// `kernel-facts.js` imports, is excluded too: data holds no route between owners.
+// specifier is a missing module and an error. So is the framework's facade by its
+// served path, `/runtime/framework.js`: like Lit beneath it, the framework is a
+// dependency every owner may hold, not one of the owners whose routes these rules
+// read. Its own modules, under `framework/`, are checked as any owner is. JSON, such as
+// the kernel registry `kernel-facts.js` imports, is excluded too: data holds no route
+// between owners.
 
 import fs from "node:fs";
 
@@ -218,7 +222,13 @@ export default {
     moduleSystems: ["es6"],
     // /checks probes are supplied by the Python server, outside the runtime graph.
     exclude: {
-      path: [`^${assets}(?!runtime/)`, "^/vendor/", "^/checks/", "\\.json$"],
+      path: [
+        `^${assets}(?!runtime/)`,
+        "^/vendor/",
+        "^/checks/",
+        "^/runtime/framework\\.js$",
+        "\\.json$",
+      ],
     },
     // Resolve as the browser does: a specifier names its file exactly. Without this,
     // `./repaint` finds `repaint.js` and passes here while the browser 404s it.

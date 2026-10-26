@@ -187,11 +187,6 @@ const publicRuntimeBoundary = {
           regex: "^\\.{1,2}/(?:.*/)?(?:leaf|widget-api)\\.js$",
           message: "Do not create a relative edge to the entry or public facade.",
         },
-        {
-          regex: "^(?:/|\\.{1,2}/(?:.*/)?)vendor/browser-runtime(?:\\.js$|/)",
-          message:
-            "Content modules import Lit and Leaf capabilities from /runtime/widget-api.js.",
-        },
       ],
     },
   ],
@@ -214,12 +209,6 @@ const publicRuntimeBoundary = {
       selector:
         "ImportExpression[source.value=/^\\.{1,2}\\/(?:.*\\/)?(?:leaf|widget-api)\\.js$/]",
       message: "Do not create a relative edge to the entry or public facade.",
-    },
-    {
-      selector:
-        "ImportExpression[source.value=/^(?:\\/|\\.{1,2}\\/(?:.*\\/)?)vendor\\/browser-runtime(?:\\.js$|\\/)/]",
-      message:
-        "Content modules import Lit and Leaf capabilities from /runtime/widget-api.js.",
     },
     {
       selector: 'ImportExpression:not([source.type="Literal"])',
@@ -337,28 +326,25 @@ export const semanticStoreOwnershipRule = {
   create(context) {
     const file = runtimeName(context.filename ?? context.getFilename());
     // A module behind the facade is reached only through it, so the facade's
-    // exports are every framework capability a runtime module can name.
+    // exports are every framework capability a runtime module can name. The facade
+    // and the modules behind it reach one another directly.
+    const inFramework = file === "framework.js" || file.startsWith("framework/");
     const browserFrameworkSource = (source) => {
       if (typeof source?.value !== "string") return false;
-      if (/(?:^|\/)vendor\/browser-runtime\//u.test(source.value)) {
-        context.report({
-          node: source,
-          message:
-            "Import browser framework capabilities from its facade, vendor/browser-runtime.js.",
-        });
+      if (
+        /(?:^|\/)runtime\/framework\/|^\.{1,2}\/(?:.*\/)?framework\//u.test(
+          source.value,
+        )
+      ) {
+        if (!inFramework)
+          context.report({
+            node: source,
+            message:
+              "Import browser framework capabilities from its facade, runtime/framework.js.",
+          });
         return false;
       }
-      if (!/(?:^|\/)vendor\/browser-runtime\.js$/u.test(source.value)) return false;
-      // The type check maps the facade's served path to the framework's source; a
-      // relative path reaches the compiled facade, whose types are blanked, so what a
-      // module imports through it goes unchecked (`build/browser/build.mjs`, `typecheck`).
-      if (source.value.startsWith("."))
-        context.report({
-          node: source,
-          message:
-            "Import the browser framework's facade by its served path, /vendor/browser-runtime.js.",
-        });
-      return true;
+      return /(?:^\/runtime\/|^\.{1,2}\/(?:.*\/)?)framework\.js$/u.test(source.value);
     };
     const report = (node) =>
       context.report({
@@ -1388,11 +1374,7 @@ export default [
     // The browser framework's and runtime's own fold tests exercise private owners,
     // which the facade rule would forbid; the entry stays out of reach, because a
     // test is not a page and booting one would import the whole layer to read one fold.
-    files: [
-      "tests/runtime/**/*.mjs",
-      "build/browser/**/*.test.mjs",
-      "browser/framework/**/*.test.mjs",
-    ],
+    files: ["tests/runtime/**/*.mjs", "build/browser/**/*.test.mjs"],
     rules: {
       "no-restricted-imports": [
         "error",

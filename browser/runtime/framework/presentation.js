@@ -1,3 +1,4 @@
+// @ts-check
 /** Mechanical presentation proof for immutable semantic publications.
  *
  * The semantic owner supplies an opaque document token and monotonically increasing
@@ -9,42 +10,50 @@
  * outside a notifier's snapshot collection; their reads belong to their own owner.
  */
 
-import { signal } from "@preact/signals-core";
-import { untracked } from "./snapshot.ts";
+import { signal } from "/vendor/signals-core.js";
+import { untracked } from "./snapshot.js";
 
-type PresentationOutcome = "presented" | "superseded";
-type PresentationStatus = "committed" | "failed";
+/** @typedef {"presented" | "superseded"} PresentationOutcome */
+/** @typedef {"committed" | "failed"} PresentationStatus */
 
-interface PresentationPublication<DocumentToken extends object> {
-  readonly document: DocumentToken;
-  readonly semanticEpoch: number;
-}
+/**
+ * @template {object} DocumentToken
+ * @typedef {{
+ *   readonly document: DocumentToken;
+ *   readonly semanticEpoch: number;
+ * }} PresentationPublication
+ */
 
-interface PresentationCommit<
-  DocumentToken extends object,
-  Region,
-  Renderer extends object,
-  Value,
-  Proof,
-> {
-  readonly document: DocumentToken;
-  readonly semanticEpoch: number;
-  readonly region: Region;
-  readonly renderer: Renderer;
-  readonly rendererGeneration: number;
-  readonly ticketGeneration: number;
-  readonly value: Value;
-  readonly status: PresentationStatus;
-  readonly proof: Proof | undefined;
-}
+/**
+ * @template {object} DocumentToken
+ * @template Region
+ * @template {object} Renderer
+ * @template Value
+ * @template Proof
+ * @typedef {{
+ *   readonly document: DocumentToken;
+ *   readonly semanticEpoch: number;
+ *   readonly region: Region;
+ *   readonly renderer: Renderer;
+ *   readonly rendererGeneration: number;
+ *   readonly ticketGeneration: number;
+ *   readonly value: Value;
+ *   readonly status: PresentationStatus;
+ *   readonly proof: Proof | undefined;
+ * }} PresentationCommit
+ */
 
-interface PresentationReading<DocumentToken extends object, Region> {
-  readonly document: DocumentToken | null;
-  readonly semanticEpoch: number;
-  readonly presentedEpoch: number;
-  readonly sealed: boolean;
-  readonly pending: readonly Region[];
-}
+/**
+ * @template {object} DocumentToken
+ * @template Region
+ * @typedef {{
+ *   readonly document: DocumentToken | null;
+ *   readonly semanticEpoch: number;
+ *   readonly presentedEpoch: number;
+ *   readonly sealed: boolean;
+ *   readonly pending: readonly Region[];
+ * }} PresentationReading
+ */
 
 /** One presentation of a value, which the renderer settles with its proof once the
  * value is on screen, or rejects when painting it failed. `resolve` adopts a promise of
@@ -60,105 +69,123 @@ interface PresentationReading<DocumentToken extends object, Region> {
  * to that paint: it is what reports the paint's failure, and the document keeps
  * whatever state that failure reached. The release waits a microtask, so a paint whose
  * synchronous part supersedes its own ticket, by claiming the region again, still
- * hands its promise over first. */
-interface PresentationTicket<Proof> {
-  readonly resolve: (proof?: Proof | PromiseLike<Proof | undefined>) => void;
-  readonly reject: (reason: unknown) => void;
-  readonly ready: Promise<void>;
-}
+ * hands its promise over first.
+ *
+ * @template Proof
+ * @typedef {{
+ *   readonly resolve: (proof?: Proof | PromiseLike<Proof | undefined>) => void;
+ *   readonly reject: (reason: unknown) => void;
+ *   readonly ready: Promise<void>;
+ * }} PresentationTicket
+ */
 
-interface PresentationHandle<Value, Proof> {
-  present(
-    value: Value,
-    failSoft?: (reason: unknown) => Proof,
-  ): PresentationTicket<Proof>;
-  disconnect(): void;
-}
+/**
+ * @template Value
+ * @template Proof
+ * @typedef {{
+ *   present(
+ *     value: Value,
+ *     failSoft?: (reason: unknown) => Proof,
+ *   ): PresentationTicket<Proof>;
+ *   disconnect(): void;
+ * }} PresentationHandle
+ */
 
-interface Ticket<
-  DocumentToken extends object,
-  Region,
-  Renderer extends object,
-  Value,
-  Proof,
-> {
-  readonly documentGeneration: number;
-  readonly record: RegionRecord<DocumentToken, Region, Renderer, Value, Proof>;
-  readonly ticketGeneration: number;
-  readonly value: Value;
-}
+/**
+ * @template {object} DocumentToken
+ * @template Region
+ * @template {object} Renderer
+ * @template Value
+ * @template Proof
+ * @typedef {{
+ *   readonly documentGeneration: number;
+ *   readonly record: RegionRecord<DocumentToken, Region, Renderer, Value, Proof>;
+ *   readonly ticketGeneration: number;
+ *   readonly value: Value;
+ * }} Ticket
+ */
 
-interface RegionRecord<
-  DocumentToken extends object,
-  Region,
-  Renderer extends object,
-  Value,
-  Proof,
-> {
-  readonly region: Region;
-  readonly renderer: Renderer;
-  readonly rendererGeneration: number;
-  ticketGeneration: number;
-  ticket: Ticket<DocumentToken, Region, Renderer, Value, Proof> | null;
-  commit: PresentationCommit<DocumentToken, Region, Renderer, Value, Proof> | null;
-}
+/**
+ * @template {object} DocumentToken
+ * @template Region
+ * @template {object} Renderer
+ * @template Value
+ * @template Proof
+ * @typedef {{
+ *   readonly region: Region;
+ *   readonly renderer: Renderer;
+ *   readonly rendererGeneration: number;
+ *   ticketGeneration: number;
+ *   ticket: Ticket<DocumentToken, Region, Renderer, Value, Proof> | null;
+ *   commit: PresentationCommit<DocumentToken, Region, Renderer, Value, Proof> | null;
+ * }} RegionRecord
+ */
 
-interface BarrierMember<
-  DocumentToken extends object,
-  Region,
-  Renderer extends object,
-  Value,
-  Proof,
-> {
-  readonly record: RegionRecord<DocumentToken, Region, Renderer, Value, Proof>;
-  ticket: Ticket<DocumentToken, Region, Renderer, Value, Proof> | null;
-  commit: PresentationCommit<DocumentToken, Region, Renderer, Value, Proof> | null;
-  retired: boolean;
-}
+/**
+ * @template {object} DocumentToken
+ * @template Region
+ * @template {object} Renderer
+ * @template Value
+ * @template Proof
+ * @typedef {{
+ *   readonly record: RegionRecord<DocumentToken, Region, Renderer, Value, Proof>;
+ *   ticket: Ticket<DocumentToken, Region, Renderer, Value, Proof> | null;
+ *   commit: PresentationCommit<DocumentToken, Region, Renderer, Value, Proof> | null;
+ *   retired: boolean;
+ * }} BarrierMember
+ */
 
-interface Barrier<
-  DocumentToken extends object,
-  Region,
-  Renderer extends object,
-  Value,
-  Proof,
-> {
-  readonly publication: PresentationPublication<DocumentToken>;
-  readonly members: Map<
-    Region,
-    BarrierMember<DocumentToken, Region, Renderer, Value, Proof>
-  >;
-  sealed: boolean;
-  completed: boolean;
-}
+/**
+ * @template {object} DocumentToken
+ * @template Region
+ * @template {object} Renderer
+ * @template Value
+ * @template Proof
+ * @typedef {{
+ *   readonly publication: PresentationPublication<DocumentToken>;
+ *   readonly members: Map<
+ *     Region,
+ *     BarrierMember<DocumentToken, Region, Renderer, Value, Proof>
+ *   >;
+ *   sealed: boolean;
+ *   completed: boolean;
+ * }} Barrier
+ */
 
-interface Waiter<DocumentToken extends object> {
-  readonly document: DocumentToken;
-  readonly semanticEpoch: number;
-  readonly resolve: (outcome: PresentationOutcome) => void;
-}
+/**
+ * @template {object} DocumentToken
+ * @typedef {{
+ *   readonly document: DocumentToken;
+ *   readonly semanticEpoch: number;
+ *   readonly resolve: (outcome: PresentationOutcome) => void;
+ * }} Waiter
+ */
 
-interface RegionWaiter<
-  DocumentToken extends object,
-  Region,
-> extends Waiter<DocumentToken> {
-  readonly regions: ReadonlySet<Region>;
-  readonly cancelled?: () => boolean;
-}
+/**
+ * @template {object} DocumentToken
+ * @template Region
+ * @typedef {Waiter<DocumentToken> & {
+ *   readonly regions: ReadonlySet<Region>;
+ *   readonly cancelled?: () => boolean;
+ * }} RegionWaiter
+ */
 
-export function describeFailure(reason: unknown): string {
+/** @param {unknown} reason @returns {string} */
+export function describeFailure(reason) {
   const message = reason instanceof Error ? reason.message : String(reason);
   if (!(reason instanceof AggregateError) || reason.errors.length === 0) return message;
   return `${message}: ${reason.errors.map(describeFailure).join("; ")}`;
 }
 
-export function createPresentationCoordinator<
-  DocumentToken extends object,
-  Region,
-  Renderer extends object,
-  Value,
-  Proof,
->({ reportFailure }: { reportFailure: (reason: unknown) => void }) {
+/**
+ * @template {object} DocumentToken
+ * @template Region
+ * @template {object} Renderer
+ * @template Value
+ * @template Proof
+ * @param {{ reportFailure: (reason: unknown) => void }} options
+ */
+export function createPresentationCoordinator({ reportFailure }) {
   // Mechanical observers use the same Signals primitive as semantic selections.
   // Changes wake a blocked reading; they never publish a semantic epoch.
   const changes = signal(0);
@@ -167,20 +194,24 @@ export function createPresentationCoordinator<
     // must not make the containing paint a subscriber to its own completion.
     changes.value = changes.peek() + 1;
   };
-  let document: DocumentToken | null = null;
+  /** @type {DocumentToken | null} */
+  let document = null;
   let documentGeneration = 0;
   let semanticEpoch = -1;
   let presentedEpoch = -1;
-  let barrier: Barrier<DocumentToken, Region, Renderer, Value, Proof> | null = null;
-  let waiters: Waiter<DocumentToken>[] = [];
-  let regionWaiters: RegionWaiter<DocumentToken, Region>[] = [];
-  const rendererGenerations = new Map<Region, number>();
-  const regions = new Map<
-    Region,
-    RegionRecord<DocumentToken, Region, Renderer, Value, Proof>
-  >();
+  /** @type {Barrier<DocumentToken, Region, Renderer, Value, Proof> | null} */
+  let barrier = null;
+  /** @type {Waiter<DocumentToken>[]} */
+  let waiters = [];
+  /** @type {RegionWaiter<DocumentToken, Region>[]} */
+  let regionWaiters = [];
+  /** @type {Map<Region, number>} */
+  const rendererGenerations = new Map();
+  /** @type {Map<Region, RegionRecord<DocumentToken, Region, Renderer, Value, Proof>>} */
+  const regions = new Map();
 
-  const validEpoch = (epoch: number) => {
+  /** @param {number} epoch */
+  const validEpoch = (epoch) => {
     if (!Number.isSafeInteger(epoch) || epoch < 0)
       throw new TypeError("presentation epoch must be a non-negative safe integer");
   };
@@ -196,7 +227,8 @@ export function createPresentationCoordinator<
     waiters = remaining;
   }
 
-  function regionOutcome(waiter: RegionWaiter<DocumentToken, Region>) {
+  /** @param {RegionWaiter<DocumentToken, Region>} waiter */
+  function regionOutcome(waiter) {
     if (waiter.cancelled?.()) return "superseded";
     if (document === null || !Object.is(waiter.document, document)) return "superseded";
     if (semanticEpoch > waiter.semanticEpoch) return "superseded";
@@ -226,10 +258,12 @@ export function createPresentationCoordinator<
     resolveWaiters();
   }
 
-  function begin(
-    nextDocument: DocumentToken,
-    nextSemanticEpoch: number,
-  ): PresentationPublication<DocumentToken> {
+  /**
+   * @param {DocumentToken} nextDocument
+   * @param {number} nextSemanticEpoch
+   * @returns {PresentationPublication<DocumentToken>}
+   */
+  function begin(nextDocument, nextSemanticEpoch) {
     validEpoch(nextSemanticEpoch);
     const replacingDocument = document === null || !Object.is(document, nextDocument);
     if (!replacingDocument && nextSemanticEpoch < semanticEpoch)
@@ -252,10 +286,8 @@ export function createPresentationCoordinator<
       document: nextDocument,
       semanticEpoch: nextSemanticEpoch,
     });
-    const members = new Map<
-      Region,
-      BarrierMember<DocumentToken, Region, Renderer, Value, Proof>
-    >();
+    /** @type {Map<Region, BarrierMember<DocumentToken, Region, Renderer, Value, Proof>>} */
+    const members = new Map();
     for (const [region, record] of regions) {
       let commit = record.commit;
       if (commit !== null) {
@@ -280,7 +312,8 @@ export function createPresentationCoordinator<
     return publication;
   }
 
-  function seal(publication: PresentationPublication<DocumentToken>): boolean {
+  /** @param {PresentationPublication<DocumentToken>} publication @returns {boolean} */
+  function seal(publication) {
     if (!barrier || barrier.publication !== publication) return false;
     barrier.sealed = true;
     completeBarrier();
@@ -289,9 +322,8 @@ export function createPresentationCoordinator<
     return true;
   }
 
-  function currentTicket(
-    ticket: Ticket<DocumentToken, Region, Renderer, Value, Proof>,
-  ) {
+  /** @param {Ticket<DocumentToken, Region, Renderer, Value, Proof>} ticket */
+  function currentTicket(ticket) {
     const record = ticket.record;
     return (
       ticket.documentGeneration === documentGeneration &&
@@ -300,11 +332,12 @@ export function createPresentationCoordinator<
     );
   }
 
-  function finish(
-    ticket: Ticket<DocumentToken, Region, Renderer, Value, Proof>,
-    status: PresentationStatus,
-    proof: Proof | undefined,
-  ) {
+  /**
+   * @param {Ticket<DocumentToken, Region, Renderer, Value, Proof>} ticket
+   * @param {PresentationStatus} status
+   * @param {Proof | undefined} proof
+   */
+  function finish(ticket, status, proof) {
     if (!currentTicket(ticket) || document === null) return;
     const record = ticket.record;
     const commit = Object.freeze({
@@ -330,13 +363,16 @@ export function createPresentationCoordinator<
     changed();
   }
 
-  function attach(
-    region: Region,
-    renderer: Renderer,
-  ): PresentationHandle<Value, Proof> {
+  /**
+   * @param {Region} region
+   * @param {Renderer} renderer
+   * @returns {PresentationHandle<Value, Proof>}
+   */
+  function attach(region, renderer) {
     if (document === null || barrier === null)
       throw new Error("begin a presentation publication before attaching a renderer");
-    const record: RegionRecord<DocumentToken, Region, Renderer, Value, Proof> = {
+    /** @type {RegionRecord<DocumentToken, Region, Renderer, Value, Proof>} */
+    const record = {
       region,
       renderer,
       rendererGeneration: (rendererGenerations.get(region) ?? 0) + 1,
@@ -361,17 +397,17 @@ export function createPresentationCoordinator<
 
     // Releases the newest presentation. Resolving a ticket again does nothing, so this
     // settles only a hold its renderer left open.
-    let latest: (() => void) | null = null;
+    /** @type {(() => void) | null} */
+    let latest = null;
 
-    const present = (
-      value: Value,
-      failSoft?: (reason: unknown) => Proof,
-    ): PresentationTicket<Proof> => {
-      const {
-        promise: completion,
-        resolve,
-        reject,
-      } = Promise.withResolvers<Proof | undefined>();
+    /**
+     * @param {Value} value
+     * @param {(reason: unknown) => Proof} [failSoft]
+     * @returns {PresentationTicket<Proof>}
+     */
+    const present = (value, failSoft) => {
+      /** @type {PromiseWithResolvers<Proof | undefined>} */
+      const { promise: completion, resolve, reject } = Promise.withResolvers();
       const superseded = latest;
       latest = () => queueMicrotask(() => resolve(undefined));
       const ready = (async () => {
@@ -379,7 +415,8 @@ export function createPresentationCoordinator<
           await completion.catch(() => undefined);
           return;
         }
-        const ticket: Ticket<DocumentToken, Region, Renderer, Value, Proof> = {
+        /** @type {Ticket<DocumentToken, Region, Renderer, Value, Proof>} */
+        const ticket = {
           documentGeneration,
           record,
           ticketGeneration: ++record.ticketGeneration,
@@ -409,7 +446,8 @@ export function createPresentationCoordinator<
           // document. What a superseded ticket may not do is commit.
           const superseded = !currentTicket(ticket);
           if (superseded && regions.get(record.region) !== record) return;
-          let proof: Proof | undefined;
+          /** @type {Proof | undefined} */
+          let proof;
           let reported = reason;
           let recovered = false;
           if (failSoft) {
@@ -474,11 +512,13 @@ export function createPresentationCoordinator<
     return Object.freeze({ present, disconnect });
   }
 
-  function committed(
-    region: Region,
-    renderer: Renderer,
-    value: Value,
-  ): PresentationCommit<DocumentToken, Region, Renderer, Value, Proof> | null {
+  /**
+   * @param {Region} region
+   * @param {Renderer} renderer
+   * @param {Value} value
+   * @returns {PresentationCommit<DocumentToken, Region, Renderer, Value, Proof> | null}
+   */
+  function committed(region, renderer, value) {
     const record = regions.get(region);
     return record &&
       record.renderer === renderer &&
@@ -488,10 +528,12 @@ export function createPresentationCoordinator<
       : null;
   }
 
-  function whenPresented(
-    targetDocument: DocumentToken,
-    targetSemanticEpoch: number,
-  ): Promise<PresentationOutcome> {
+  /**
+   * @param {DocumentToken} targetDocument
+   * @param {number} targetSemanticEpoch
+   * @returns {Promise<PresentationOutcome>}
+   */
+  function whenPresented(targetDocument, targetSemanticEpoch) {
     validEpoch(targetSemanticEpoch);
     if (document === null || !Object.is(targetDocument, document))
       return Promise.resolve("superseded");
@@ -508,9 +550,11 @@ export function createPresentationCoordinator<
     });
   }
 
-  async function whenCurrentPresented(
-    current: () => PresentationPublication<DocumentToken>,
-  ): Promise<PresentationOutcome> {
+  /**
+   * @param {() => PresentationPublication<DocumentToken>} current
+   * @returns {Promise<PresentationOutcome>}
+   */
+  async function whenCurrentPresented(current) {
     for (;;) {
       const target = current();
       await whenPresented(target.document, target.semanticEpoch);
@@ -521,9 +565,8 @@ export function createPresentationCoordinator<
     }
   }
 
-  function currentPresented(
-    current: () => PresentationPublication<DocumentToken>,
-  ): boolean {
+  /** @param {() => PresentationPublication<DocumentToken>} current @returns {boolean} */
+  function currentPresented(current) {
     const latest = current();
     const reading = read();
     return (
@@ -535,10 +578,12 @@ export function createPresentationCoordinator<
     );
   }
 
-  function currentRegionsPresented(
-    current: () => PresentationPublication<DocumentToken> | null,
-    wanted: readonly Region[],
-  ): boolean {
+  /**
+   * @param {() => PresentationPublication<DocumentToken> | null} current
+   * @param {readonly Region[]} wanted
+   * @returns {boolean}
+   */
+  function currentRegionsPresented(current, wanted) {
     const target = current();
     return (
       target !== null &&
@@ -550,25 +595,29 @@ export function createPresentationCoordinator<
     );
   }
 
-  async function whenCurrentRegionsPresented(
-    current: () => PresentationPublication<DocumentToken> | null,
-    regions: readonly Region[],
-  ): Promise<PresentationOutcome> {
+  /**
+   * @param {() => PresentationPublication<DocumentToken> | null} current
+   * @param {readonly Region[]} regions
+   * @returns {Promise<PresentationOutcome>}
+   */
+  async function whenCurrentRegionsPresented(current, regions) {
     const wanted = [...new Set(regions)];
     for (;;) {
       const target = current();
       if (target === null) return "superseded";
-      await new Promise<PresentationOutcome>((resolve) => {
-        const waiter = {
-          ...target,
-          regions: new Set(wanted),
-          cancelled: () => current() === null,
-          resolve,
-        };
-        const outcome = regionOutcome(waiter);
-        if (outcome) resolve(outcome);
-        else regionWaiters.push(waiter);
-      });
+      await /** @type {Promise<PresentationOutcome>} */ (
+        new Promise((resolve) => {
+          const waiter = {
+            ...target,
+            regions: new Set(wanted),
+            cancelled: () => current() === null,
+            resolve,
+          };
+          const outcome = regionOutcome(waiter);
+          if (outcome) resolve(outcome);
+          else regionWaiters.push(waiter);
+        })
+      );
       const latest = current();
       if (latest === null) return "superseded";
       const outcome = regionOutcome({
@@ -580,7 +629,8 @@ export function createPresentationCoordinator<
     }
   }
 
-  function read(): PresentationReading<DocumentToken, Region> {
+  /** @returns {PresentationReading<DocumentToken, Region>} */
+  function read() {
     return Object.freeze({
       document,
       semanticEpoch,
@@ -606,7 +656,8 @@ export function createPresentationCoordinator<
     currentPresented,
     whenCurrentRegionsPresented,
     currentRegionsPresented,
-    subscribe: (callback: () => void) =>
+    /** @param {() => void} callback */
+    subscribe: (callback) =>
       changes.subscribe(() =>
         untracked(() => {
           try {
@@ -636,37 +687,58 @@ export function createPresentationCoordinator<
  * even late failures reach the coordinator. `passed` joins the whole pass's proof.
  */
 
-interface EpochPresenter<Value> {
-  /** Claim this value's ticket now and paint it on the pass that follows. */
-  sync(value: Value): Promise<void>;
-  /** DOM needed by dependents has committed, regardless of held semantic proof. */
-  committed(): Promise<void>;
-  /** Retire this renderer: release what it holds and leave the region to its successor. */
-  disconnect(): void;
-}
+/**
+ * `sync` claims a value's ticket now and paints it on the pass that follows.
+ * `committed` settles once the DOM its dependents need has committed, regardless of
+ * held semantic proof. `disconnect` retires the renderer: it releases what it holds
+ * and leaves the region to its successor.
+ *
+ * @template Value
+ * @typedef {{
+ *   sync(value: Value): Promise<void>;
+ *   committed(): Promise<void>;
+ *   disconnect(): void;
+ * }} EpochPresenter
+ */
 
-export function createPresentationSchedule(
-  bindJob: <Result>(callback: () => Result) => () => Result,
-) {
-  let queued: (() => Promise<void>)[] = [];
-  let running: Promise<void>[] = [];
+/**
+ * One value a presenter claimed, awaiting its paint.
+ *
+ * @template Value
+ * @template Proof
+ * @typedef {{
+ *   readonly claimed: number;
+ *   readonly dom: PromiseWithResolvers<void>;
+ *   readonly value: Value;
+ *   readonly presentation: PresentationTicket<Proof>;
+ * }} Claim
+ */
+
+/** @param {<Result>(callback: () => Result) => () => Result} bindJob */
+export function createPresentationSchedule(bindJob) {
+  /** @type {(() => Promise<void>)[]} */
+  let queued = [];
+  /** @type {Promise<void>[]} */
+  let running = [];
   let scheduled = false;
   let settling = false;
-  let pass: PromiseWithResolvers<void> | null = null;
+  /** @type {PromiseWithResolvers<void> | null} */
+  let pass = null;
 
   function open() {
     if (pass) return;
-    pass = Promise.withResolvers<void>();
+    pass = /** @type {PromiseWithResolvers<void>} */ (Promise.withResolvers());
     // A caller that ignores this promise reads the failure from the coordinator's
     // report instead, so it must not raise a browser-level unhandled rejection.
     void pass.promise.catch(() => undefined);
   }
 
-  function collect(
-    after: (() => readonly PromiseLike<unknown>[]) | undefined,
-    run: () => Promise<void>,
-    retired?: { ready: Promise<void>; current: () => boolean },
-  ) {
+  /**
+   * @param {(() => readonly PromiseLike<unknown>[]) | undefined} after
+   * @param {() => Promise<void>} run
+   * @param {{ ready: Promise<void>; current: () => boolean }} [retired]
+   */
+  function collect(after, run, retired) {
     open();
     // Bind the actual synchronous paint, not the wait preceding it.
     const paint = bindJob(run);
@@ -703,7 +775,8 @@ export function createPresentationSchedule(
   async function drain() {
     if (settling) return;
     settling = true;
-    let failure: unknown = null;
+    /** @type {unknown} */
+    let failure = null;
     let failed = false;
     while (running.length || queued.length || scheduled) {
       const started = running;
@@ -715,7 +788,7 @@ export function createPresentationSchedule(
         }
     }
     settling = false;
-    const finished = pass!;
+    const finished = /** @type {PromiseWithResolvers<void>} */ (pass);
     pass = null;
     if (failed) finished.reject(failure);
     else finished.resolve();
@@ -724,14 +797,16 @@ export function createPresentationSchedule(
   /** The page has caught up with the root it is reading. */
   const passed = () => pass?.promise ?? Promise.resolve();
 
-  /** Queue a native renderer, separating its scheduling return from committed DOM. */
-  function enqueue(
-    after: () => readonly PromiseLike<unknown>[],
-    run: () => void | PromiseLike<void>,
-    committed: () => PromiseLike<unknown>,
-  ) {
-    const completion = Promise.withResolvers<void>();
-    const dom = Promise.withResolvers<void>();
+  /** Queue a native renderer, separating its scheduling return from committed DOM.
+   * @param {() => readonly PromiseLike<unknown>[]} after
+   * @param {() => void | PromiseLike<void>} run
+   * @param {() => PromiseLike<unknown>} committed
+   */
+  function enqueue(after, run, committed) {
+    /** @type {PromiseWithResolvers<void>} */
+    const completion = Promise.withResolvers();
+    /** @type {PromiseWithResolvers<void>} */
+    const dom = Promise.withResolvers();
     collect(after, async () => {
       try {
         await run();
@@ -749,41 +824,41 @@ export function createPresentationSchedule(
     return Object.freeze({ ready: completion.promise, committed: dom.promise });
   }
 
-  function presenter<Value, Proof>({
-    attach,
-    paint,
-    failSoft,
-    after,
-  }: {
-    attach: () => PresentationHandle<Value, Proof>;
-    paint: (value: Value, current: () => boolean) => Proof | PromiseLike<Proof>;
-    failSoft?: (reason: unknown) => Proof;
-    after?: () => readonly PromiseLike<unknown>[];
-  }): EpochPresenter<Value> {
-    interface Claim {
-      readonly claimed: number;
-      readonly dom: PromiseWithResolvers<void>;
-      readonly value: Value;
-      readonly presentation: PresentationTicket<Proof>;
-    }
-    let handle: PresentationHandle<Value, Proof> | null = null;
+  /**
+   * @template Value
+   * @template Proof
+   * @param {{
+   *   attach: () => PresentationHandle<Value, Proof>;
+   *   paint: (value: Value, current: () => boolean) => Proof | PromiseLike<Proof>;
+   *   failSoft?: (reason: unknown) => Proof;
+   *   after?: () => readonly PromiseLike<unknown>[];
+   * }} options
+   * @returns {EpochPresenter<Value>}
+   */
+  function presenter({ attach, paint, failSoft, after }) {
+    /** @type {PresentationHandle<Value, Proof> | null} */
+    let handle = null;
     let generation = 0;
-    let dom = Promise.withResolvers<void>();
+    /** @type {PromiseWithResolvers<void>} */
+    let dom = Promise.withResolvers();
     dom.resolve();
 
-    function claim(value: Value): Claim {
+    /** @param {Value} value @returns {Claim<Value, Proof>} */
+    function claim(value) {
       const claimed = ++generation;
       handle ??= attach();
       const previous = dom;
-      dom = Promise.withResolvers<void>();
+      dom = Promise.withResolvers();
       previous.resolve();
       return { claimed, value, dom, presentation: handle.present(value, failSoft) };
     }
 
-    async function run({ claimed, value, presentation, dom }: Claim) {
+    /** @param {Claim<Value, Proof>} claim */
+    async function run({ claimed, value, presentation, dom }) {
       // Superseded before it painted: the newer claim's ticket already released this one.
       if (claimed !== generation) return;
-      let painted: Proof | PromiseLike<Proof>;
+      /** @type {Proof | PromiseLike<Proof>} */
+      let painted;
       try {
         painted = paint(value, () => claimed === generation);
       } catch (error) {
@@ -799,7 +874,8 @@ export function createPresentationSchedule(
       await presentation.ready;
     }
 
-    function sync(value: Value): Promise<void> {
+    /** @param {Value} value @returns {Promise<void>} */
+    function sync(value) {
       // The claim is synchronous, inside the publication that opened the epoch. Only
       // the paint waits for the pass.
       const ticket = claim(value);

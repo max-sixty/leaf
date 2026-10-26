@@ -1,7 +1,6 @@
-import { describeFailure } from "./bundle-browser-runtime.js";
 import { TEXT_BOX, focused, isNativeLayer } from "./bundle-dom-move.js";
 import { holdingError, notice } from "./bundle-errors.js";
-import { DELIVERY, PAGE_ROOT, offlineInteractive, pageUrl, runtime } from "./bundle-context.js";
+import { DELIVERY, PAGE_ROOT, describeFailure, offlineInteractive, pageUrl, runtime } from "./bundle-context.js";
 
 //#region runtime/page-paint.js
 const PAGE_PAINT_ATTRIBUTE = Object.freeze({

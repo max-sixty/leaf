@@ -74,7 +74,9 @@
           label: event.getAttribute("label") ?? "",
           lane: index,
           at,
-          end: end === at ? null : end
+          end: end === at ? null : end,
+          // The index of the step it starts on, once the steps are known.
+          step: 0
         };
       })
     }));

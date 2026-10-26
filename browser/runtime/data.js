@@ -15,7 +15,7 @@
    (`joinDataDelivery`). Modules draw the value into the authored seat; they do not
    fetch it, mutate the accepted copy, or keep a hidden current-value map of their own.*/
 
-import { computed, signal, untracked } from "/vendor/browser-runtime.js";
+import { computed, signal, untracked } from "/runtime/framework.js";
 import { offlineData, offlineInteractive, pageUrl, runtime } from "./context.js";
 import { applicationState, whenApplicationRegionsPresented } from "./semantic-state.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";

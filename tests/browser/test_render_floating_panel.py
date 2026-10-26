@@ -3180,6 +3180,10 @@ def test_the_leaf_paints_inside_its_focus_ring_after_folding(browser, serve):
       ring: getComputedStyle(node).outlineColor,
       mark: getComputedStyle(node.querySelector('.lf-dot')).backgroundColor
     })""")
+    # Authored words can share the mark's colour; only the panel's pixels count.
+    page.locator("#title").evaluate(
+        "(node, colour) => node.style.color = colour", colours["mark"]
+    )
     colours = {name: ImageColor.getrgb(value) for name, value in colours.items()}
 
     for route, action in (
@@ -3208,7 +3212,13 @@ def test_the_leaf_paints_inside_its_focus_ring_after_folding(browser, serve):
             "data-rest", "mark" if action in (".", ".lf-fp-minimize") else "row"
         )
         box = leaf.bounding_box()
-        pixels = Image.open(BytesIO(page.screenshot())).convert("RGB")
+        top = page.viewport_size["height"] - 70
+        pixels = (
+            Image.open(BytesIO(page.screenshot()))
+            .convert("RGB")
+            .crop((0, top, page.viewport_size["width"], page.viewport_size["height"]))
+        )
+        box["y"] -= top
         mark = ink_box(pixels, colours["mark"])
         assert mark is not None, (route, action)
         mark_center = ((mark[0] + mark[2]) / 2, (mark[1] + mark[3]) / 2)

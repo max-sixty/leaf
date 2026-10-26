@@ -608,7 +608,8 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_thread(page_dir, capsy
             "revision": 1,
             "text": "Which mitigations should I carry into the patch?",
             "markup": '<lf-options id="gm" choose>'
-            '<lf-option id="m-cap"><strong>Cap retries</strong></lf-option>'
+            '<lf-option id="m-cap"><small class="tag">recommended</small>'
+            "<strong>Cap retries</strong> Bound retry load.</lf-option>"
             '<lf-option id="m-alert"><strong>Alert</strong></lf-option>'
             "</lf-options>",
         },
@@ -635,7 +636,8 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_thread(page_dir, capsy
     assert 'id="m-cap"' in thread["messages"][0]["markup"]
     # And the pick in words, read from that frozen message: the group is left
     # out because it only encloses the option chosen in it.
-    assert shown[0]["says"] == {"m-cap": "Cap retries"}
+    assert shown[0]["says"] == {"m-cap": "recommended Cap retries Bound retry load."}
+    assert shown[0]["names"] == {"m-cap": "Cap retries"}
 
     # In force, so a later delivery in this thread carries what the user
     # settled. Without it the agent meets the question with no answer under it
@@ -685,7 +687,9 @@ def test_a_delivered_gesture_says_what_the_user_chose_on_their_version(
     (page_dir / "index.html").write_text(asked)
     publish(page_dir)
     (page_dir / "index.html").write_text(
-        asked.replace("Ship dark.", "Ship behind the flag, reworded.")
+        asked.replace("Ship dark.", "Ship behind the flag, reworded.").replace(
+            "<strong>Flag first</strong>", "<strong>Reworded choice</strong>"
+        )
     )
     advanced = stamp(page_dir, "Reworded the first plan")
     assert advanced.exit_code == 0, advanced.output
@@ -718,6 +722,8 @@ def test_a_delivered_gesture_says_what_the_user_chose_on_their_version(
     _, _, shown = delivered(capsys)
     assert [e["id"] for e in shown] == [answered["id"]]
     assert chose["attention"] is False
+    [chosen] = freeze_events(page_dir, [chose])["batches"][0]["events"]
+    assert chosen["names"] == {"flag-first": "Flag first"}
     [(widget, whole)] = shown[0]["says"].items()
     assert widget == "plan-choice"
     assert "Ship behind the flag, reworded." in whole and "Backfill first" in whole
@@ -731,6 +737,7 @@ def test_a_delivered_gesture_says_what_the_user_chose_on_their_version(
     assert undone["says"] == {
         "flag-first": "effort: low risk: med Flag first Ship dark."
     }
+    assert undone["names"] == {"flag-first": "Flag first"}
 
 
 def test_one_action_can_belong_to_its_widget_thread_and_the_thread_it_resolves(

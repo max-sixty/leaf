@@ -121,11 +121,11 @@ itself, and `:scope:is(lf-tag)` picks one of the package's widgets; in
 `widget-shadow.css`, `:scope:host(.state)` reads the host's state.
 Write outside conditions as a nested scope, such as
 `@scope (html[data-lf-interactive] :scope)`. Widget sheets require a declared widget.
-Their scope ends below a nested foreign widget, whether declared by another package
-or the page: an outer widget can arrange its host, while the nested widget styles its
-own interior, including authored content. The boundary applies before modules load
-and when a revision introduces a new page declaration. Widgets from the same package
-can share their compound structure. Replacing a widget's declaration or module does
+In the document, their scope ends below a nested foreign widget, whether declared by
+another package or the page: an outer widget can arrange its host, while the nested
+widget styles its own interior, including authored content. The boundary applies
+before modules load and when a revision introduces a new page declaration. Widgets
+from the same package can share their compound structure. Replacing a widget's declaration or module does
 not withdraw the selected package's independent stylesheet contribution. Inherited
 values still cross these boundaries. Adjust another widget's internals through its
 inputs or API; theme contributions are deliberately page-wide.

@@ -253,6 +253,11 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     Inheritance still crosses the boundary, and a nested widget belonging to the
     outer package starts its own scope. CSS owns matching and scope proximity.
 
+    The shadow scope takes no limit. A widget's shadow tree holds only what its
+    own module built, so there is no nested widget's authored content for a
+    limit to protect, and Firefox 158 applies none of the rules in a `:host`
+    scope that has one.
+
     The kernel supplies the unscoped base and shared shadow defaults. Its Layouts
     and semantic state retain their own tiers. Page CSS remains unlayered. The
     browser filters ordinary document lf-theme rules off Leaf controls
@@ -292,7 +297,7 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
             else:
                 placed = css
             if shared:
-                shadow_css = scoped(css, f":host({scope})", limit) if widget else css
+                shadow_css = scoped(css, f":host({scope})") if widget else css
                 tier = "lf-shadow" if kernel or widget else "lf-theme"
                 shadow.append(f"@layer {tier} {{\n{shadow_css}}}\n")
             tier = "lf-base" if kernel or widget else "lf-theme"

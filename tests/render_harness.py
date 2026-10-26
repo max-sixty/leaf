@@ -1324,6 +1324,23 @@ def judge_watches():
                         raise
 
 
+def capture_failed_pages(test):
+    """Save what each page a failing test still holds shows, under
+    `.tmp/test-results/screens/`, which CI uploads with the junit results: an
+    assertion names only what it read, and the picture shows the rest, such as a
+    widget drawn without its styles. A page that can't answer leaves no picture,
+    since the test's own failure is the one to report."""
+    screens = ROOT / ".tmp/test-results/screens"
+    name = re.sub(r"[^\w.-]+", "_", test.nodeid)
+    for n, (page, _) in enumerate(_BROWSER_PROBLEM_LISTS or ()):
+        if page.is_closed():
+            continue
+        try:
+            page.screenshot(path=screens / f"{name}-{n}.png", timeout=5000)
+        except PlaywrightError:
+            continue
+
+
 def _reachable(frame):
     """Whether Playwright holds a document in `frame` that can answer it.
 

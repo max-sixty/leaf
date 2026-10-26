@@ -280,10 +280,11 @@ def first_hook_for_tool(session_id: str, tool_use_id: str | None) -> bool:
     them (`hooks/hooks.json`, measured at 2.1.310). It starts the call only once
     every one has exited, so the first does the hook's work for the others. The
     calls named last are kept, enough for a batch of calls whose hooks
-    interleave."""
+    interleave. The hook marks that it ran (`mark_hooks`) before asking, which
+    creates the session's directory."""
     if not tool_use_id:
         return True
-    with flocked(session_state_path(session_id, TOOLS_SUFFIX)) as held:
+    with flocked(session_file(session_id, TOOLS_SUFFIX)) as held:
         held.seek(0)
         seen = held.read().decode().split()
         if tool_use_id in seen:

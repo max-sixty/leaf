@@ -16,6 +16,7 @@ from render_cases_interaction import (
 from render_harness import (
     PANEL,
     expect_obligations_answered,
+    holding,
     leaf_page,
     open_page,
     panel_settled,
@@ -26,7 +27,7 @@ from render_harness import (
     told,
 )
 
-from browser.navigation import expect_walk_position
+from browser.navigation import expect_walk_position, walk_position
 from leaf.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -698,3 +699,221 @@ def test_an_item_arriving_above_takes_its_walk_place_and_moves_no_card_read(
     # Scroll anchoring restores the offset to the scroller's subpixel precision.
     after = read.bounding_box()
     assert after["y"] == pytest.approx(before["y"], abs=1), (before, after)
+
+
+# Two decisions, the first under a heading a thread can be anchored on.
+TWO_DECISIONS_PAGE = leaf_page(
+    "two decisions",
+    """<h1 id="title">Review</h1>
+<section id="timeline-ask"><h2>Land the timeline prototype?</h2>
+<lf-options id="timeline" choose>
+  <lf-option id="tl-land">Land it</lf-option>
+  <lf-option id="tl-keep">Keep it on its branch</lf-option>
+</lf-options></section>
+<lf-ask id="ship-ask"><h2>Ship on Friday?</h2>
+<lf-options id="ship" choose>
+  <lf-option id="ship-friday">Ship Friday</lf-option>
+  <lf-option id="ship-wait">Wait a week</lf-option>
+</lf-options></lf-ask>""",
+)
+
+
+def thread_about_the_timeline(d):
+    """The user's comment on the timeline decision, and the agent's answer, which leaves
+    the user the next move."""
+    root = append_carried_log_record(
+        d,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "These need previews.",
+            "anchor": {"section": "timeline-ask"},
+        },
+    )["id"]
+    reply = append_carried_log_record(
+        d,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "revision": 1,
+            "parent": root,
+            "responds": root,
+            "text": "Previews added; try each before deciding.",
+            "obligation": True,
+        },
+    )["id"]
+    return root, reply
+
+
+def test_an_answer_about_a_decision_rides_on_the_decisions_card(browser, serve):
+    """An agent's answer that leaves the user a move, in a thread about a decision, is
+    one place with the decision: `m` stops there once and On me draws one card, the
+    decision's, carrying the answer. Choosing on the card keeps the answer there with
+    its Reply, rather than moving it to a card of its own above."""
+    url = serve(TWO_DECISIONS_PAGE)
+    _, reply = thread_about_the_timeline(serve.page_dir)
+    page = open_page(browser, url)
+    for decision, at in [("timeline", 1), ("ship-ask", 2), ("timeline", 1)]:
+        page.keyboard.press("m")
+        expect_walk_position(page, f"{at} of 2 waiting on me · Options")
+        expect(page.locator(f"#{decision}")).to_be_focused()
+    view = open_on_me(page)
+    cards = view.locator(".lf-fp-on-item")
+    expect(cards).to_have_count(2)
+    carrier = on_card(page, "widget:timeline")
+    expect(carrier.locator(".lf-fp-asked")).to_contain_text("Previews added")
+    before = on_card(page, "widget:ship").bounding_box()
+    carrier.get_by_role("button", name="Land it").click()
+    expect(carrier.locator(".lf-fp-said")).to_have_text("Answered: Land it")
+    expect(carrier.get_by_role("button", name="Reply")).to_be_visible()
+    told(page)
+    expect(cards).to_have_count(2)
+    expect(carrier.locator(".lf-fp-asked")).to_contain_text("Previews added")
+    assert on_card(page, "widget:ship").bounding_box()["y"] == pytest.approx(
+        before["y"], abs=1
+    )
+    # Opened afresh, the answer stands on its own card, until the user replies.
+    page.keyboard.press("Escape")
+    view = open_on_me(page)
+    expect(
+        view.locator(f'.lf-fp-on-item[data-key=\'["message","message:{reply}"]\']')
+    ).to_be_visible()
+
+
+def test_m_steps_off_a_decision_its_threads_card_stands_beside(browser, serve):
+    """A to-do in a thread about a decision is a stop of its own, though the thread's card
+    stands beside the decision: standing at the decision is being on the decision, so
+    `m` steps on from each to the next and reaches all three."""
+    url = serve(TWO_DECISIONS_PAGE)
+    root, _ = thread_about_the_timeline(serve.page_dir)
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "todo",
+            "author": "agent",
+            "agent": "Claude",
+            "session": "previews",
+            "owner": "user",
+            "subject": {"kind": "thread", "id": root},
+            "title": "Try the previews",
+        },
+    )
+    page = open_page(browser, url)
+    reached = [None]
+    for _ in range(3):
+        page.keyboard.press("m")
+        walk_position(page)
+        page.wait_for_function(
+            "said => (window.__lfWalkPosition()?.text ?? null) !== said",
+            arg=reached[-1],
+        )
+        reached.append(walk_position(page)["text"])
+    reached = reached[1:]
+    assert sorted(reached) == [
+        "1 of 3 waiting on me · To-do",
+        "2 of 3 waiting on me · Options",
+        "3 of 3 waiting on me · Options",
+    ], reached
+
+
+def test_a_decision_answered_on_the_page_keeps_the_answer_it_carries_listed(
+    browser, serve
+):
+    """Answered on the page, a decision keeps its row, and the agent's answer it
+    carries, until the server's reading of the choice moves them: the browser keeps a
+    widget record's status as the server last read it, so nothing it carried drops off
+    On me in between."""
+    url = serve(TWO_DECISIONS_PAGE)
+    _, reply = thread_about_the_timeline(serve.page_dir)
+    page = open_page(browser, url)
+    expect(page.locator(".lf-fp-on-user")).to_have_text("2")
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    page.locator("#tl-land").click()
+    holding(page, held, 1, "the held choice")
+    on_me = """async () => (await window.__lfWidgetApi()).readQueues().on_user
+      .map((row) => [row.id, row.also])"""
+    assert sorted(page.evaluate(on_me)) == [
+        ["widget:ship", []],
+        ["widget:timeline", [f"message:{reply}"]],
+    ]
+    expect(page.locator(".lf-fp-on-user")).to_have_text("2")
+    held[0].continue_()
+    page.unroute("**/api/event")
+
+
+def test_an_answer_about_two_decisions_stays_on_the_card_that_carried_it(
+    browser, serve
+):
+    """A thread about a section holding two decisions rides on the first; once that one
+    is answered the server moves it to the second, but the open view keeps it on the
+    card the user answered, drawn once."""
+    source = TWO_DECISIONS_PAGE.replace(
+        '<lf-ask id="ship-ask">', '<section id="both-asks"><lf-ask id="ship-ask">'
+    ).replace("</lf-ask>", "</lf-ask></section>")
+    source = source.replace(
+        '<section id="timeline-ask">',
+        '<section id="both-outer"><section id="timeline-ask">',
+    ).replace('</section>\n<section id="both-asks">', "</section>\n")
+    url = serve(source)
+    root = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Both need previews.",
+            "anchor": {"section": "both-outer"},
+        },
+    )["id"]
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "revision": 1,
+            "parent": root,
+            "responds": root,
+            "text": "Previews added for both.",
+            "obligation": True,
+        },
+    )
+    page = open_page(browser, url)
+    view = open_on_me(page)
+    carrier = on_card(page, "widget:timeline")
+    expect(carrier.locator(".lf-fp-asked")).to_contain_text("Previews added")
+    carrier.get_by_role("button", name="Land it").click()
+    told(page)
+    expect(on_card(page, "widget:ship").locator(".lf-fp-asked")).to_have_count(0)
+    expect(view.locator(".lf-fp-asked")).to_have_count(1)
+    expect(carrier.locator(".lf-fp-asked")).to_contain_text("Previews added")
+
+
+def test_a_carried_answer_the_agent_ends_stays_on_its_card_not_in_done(browser, serve):
+    """Once the user answers a decision on its card, the agent may end the question it
+    carries as settled (`waiting`). The open view keeps the question on that card and
+    lists it in Done no second time, so its message is drawn once."""
+    url = serve(TWO_DECISIONS_PAGE)
+    _, reply = thread_about_the_timeline(serve.page_dir)
+    page = open_page(browser, url)
+    view = open_on_me(page)
+    carrier = on_card(page, "widget:timeline")
+    carrier.get_by_role("button", name="Land it").click()
+    told(page)
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "todo_end",
+            "author": "agent",
+            "agent": "Claude",
+            "todo": f"message:{reply}",
+            "outcome": "done",
+            "detail": "The pick settles it.",
+        },
+    )
+    told(page)
+    expect(view.locator(".lf-fp-asked")).to_have_count(1)
+    expect(carrier.locator(".lf-fp-asked")).to_contain_text("Previews added")

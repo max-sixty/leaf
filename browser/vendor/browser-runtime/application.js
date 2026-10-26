@@ -227,6 +227,8 @@ function advance(
 
 
 
+
+
 /** A finished item, in the Done of the list `owner` names: how it ended, when, and the
  * outcome's detail. */
 
@@ -578,6 +580,7 @@ function localQueues(
       owner: item.next_actor                    ,
       subject: source.subject,
       thread: item.thread,
+      also: [],
       live: false,
     });
   };

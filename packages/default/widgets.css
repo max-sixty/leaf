@@ -1,4 +1,4 @@
-/* @noformat Generated from packages/default/styles/theme.css by build/styles.mjs. */
+/* @noformat Generated from packages/default/styles/widgets.css by build/styles.mjs. */
 /* packages/default/styles/shot.css */
 :scope:is(lf-shot) {
   display: flex;
@@ -3227,4 +3227,4 @@ html[data-lf-interactive] :scope:is(lf-text-document):not(:has(> *))::before {
   }
 }
 
-/* packages/default/styles/theme.css */
+/* packages/default/styles/widgets.css */

@@ -49,6 +49,9 @@ must outlive the page directory.
    sending it; its choices can contain the previews themselves. Simple decisions
    use `lf-options` (`references/authoring-decisions.md`). Running `page init`
    again with `--package` replaces the page's packages, so name every package the page keeps.
+   Personal themes and their author instructions are discoverable with
+   `leaf theme list`; `references/package-themes.md`, "Personal themes", covers
+   choosing one for the task and how the page captures it.
 2. Read all of `references/page-authoring.md`, then each reference the page
    needs, listed under "Author a version" below.
    Write `<page>/index.html` in the registry's vocabulary. Each valid save

@@ -33,6 +33,17 @@ def test_corpus_is_generated_from_the_examples():
     registry = json.loads((page_files(source) / "registry.json").read_text())
     assert "lf-conversation-workspace" in registry
     assert (page_files(source) / "widgets/lf-conversation-workspace.js").is_file()
+    # Each instance keeps the same payload contract on its own and in the corpus.
+    for example in corpus.sources():
+        declaration = page_files(example) / "registry.json"
+        if declaration.is_file():
+            contracts = (
+                json.loads(declaration.read_text())
+                .get("$data", {})
+                .get("contracts", {})
+            )
+            for name, contract in contracts.items():
+                assert registry["$data"]["contracts"][name] == contract
     # Repeated requests leave an unchanged snapshot alone, including its preview watcher.
     modified = source.stat().st_mtime_ns
     assert named_source("corpus") == source

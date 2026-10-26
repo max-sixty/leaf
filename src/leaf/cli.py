@@ -328,14 +328,29 @@ def page() -> None:
 @click.option(
     "--no-packages",
     is_flag=True,
-    help="remove all explicit packages from an existing page",
+    help="remove all explicit packages and the selected personal theme",
+)
+@click.option(
+    "--theme", metavar="NAME", help="select a personal theme from `leaf theme list`"
+)
+@click.option(
+    "--no-theme",
+    is_flag=True,
+    help="clear the personal theme while keeping content packages",
 )
 @click.option(
     "--dry-run",
     is_flag=True,
     help="report whether re-vendoring would change an initialized page",
 )
-def init(dir: str, selected: tuple[str, ...], no_packages: bool, dry_run: bool) -> dict:
+def init(
+    dir: str,
+    selected: tuple[str, ...],
+    no_packages: bool,
+    theme: str | None,
+    no_theme: bool,
+    dry_run: bool,
+) -> dict:
     """Create or re-vendor a page directory.
 
     Creates PAGE/revisions/, then vendors the widget layer.
@@ -350,12 +365,33 @@ def init(dir: str, selected: tuple[str, ...], no_packages: bool, dry_run: bool) 
 
     if selected and no_packages:
         raise click.UsageError("--package and --no-packages cannot be used together")
+    if theme is not None and no_packages:
+        raise click.UsageError("--theme and --no-packages cannot be used together")
+    if theme is not None and no_theme:
+        raise click.UsageError("--theme and --no-theme cannot be used together")
     if any(not selection for selection in selected):
         raise click.UsageError("--package selections cannot be empty")
     if len(set(selected)) != len(selected):
         raise click.UsageError("each --package selection may appear only once")
     selections = () if no_packages else selected or None
-    return cmd_init(page_path(dir), selections, dry_run=dry_run)
+    return cmd_init(
+        page_path(dir),
+        selections,
+        theme=False if no_packages or no_theme else theme,
+        dry_run=dry_run,
+    )
+
+
+@cli.group(short_help="Discover personal themes for page authoring.")
+def theme() -> None:
+    """Discover personal themes for page authoring."""
+
+
+@theme.command("list", short_help="List personal themes and their author instructions.")
+def theme_list() -> dict:
+    from leaf.themes import cmd_list
+
+    return cmd_list()
 
 
 @cli.group(short_help="Create, check, install, and run packages.")

@@ -49,7 +49,7 @@ vars:
     page keeps it where the user put it."}, "events": [{"kind": "action", "author": "user", "revision":
     1, "widget": "proto-timeline", "action": "choose", "detail": {"value": ["timeline-land"]}, "id": "3843a3a5",
     "meaning": {"scope": "page", "unit": "proto-timeline", "depends": ["proto-timeline", "timeline-land"],
-    "state": {"origin": "lf-options", "unit": "widget", "record": {"kind": "attribute", "attr": "chosen"},
+    "state": {"origin": "lf-options", "decides": false, "unit": "widget", "record": {"kind": "attribute", "attr": "chosen"},
     "creates": null, "detail": {"type": "object", "properties": {"value": {"type": "array", "items": {"type":
     "string", "minLength": 1}, "uniqueItems": true}}, "required": ["value"], "additionalProperties": false}},
     "answer": null}, "attention": true, "ts": "2026-10-25T17:50:09.949-07:00", "seq": 4, "subject": {"kind":
@@ -109,7 +109,7 @@ variants:
         writing in; the page keeps it where the user put it."}, "events": [{"kind": "action", "author":
         "user", "revision": 1, "widget": "proto-timeline", "action": "choose", "detail": {"value": ["timeline-land"]},
         "id": "19b4437a", "meaning": {"scope": "page", "unit": "proto-timeline", "depends": ["proto-timeline",
-        "timeline-land"], "state": {"origin": "lf-options", "unit": "widget", "record": {"kind": "attribute",
+        "timeline-land"], "state": {"origin": "lf-options", "decides": false, "unit": "widget", "record": {"kind": "attribute",
         "attr": "chosen"}, "creates": null, "detail": {"type": "object", "properties": {"value": {"type":
         "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true}}, "required": ["value"],
         "additionalProperties": false}}, "answer": null}, "attention": true, "ts": "2026-10-25T17:50:09.917-07:00",

@@ -10,8 +10,10 @@ content inputs in their callers.
 
 import functools
 import json
+import os
 import shutil
 import subprocess
+import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -186,8 +188,28 @@ def read_fixture(
     )
 
 
+@functools.cache
+def _configuration_home() -> tempfile.TemporaryDirectory:
+    """Keep one empty configuration directory alive for this builder process."""
+    return tempfile.TemporaryDirectory(prefix="leaf-fixture-config-")
+
+
+def fixture_environment(base: dict[str, str] | None = None) -> dict[str, str]:
+    """Build authored fixtures without the developer's personal configuration.
+
+    Each CLI runner applies this at its subprocess boundary, including site templates
+    and preview refreshes outside prepare_page. Keep identities and state selected by
+    the runner; only configuration is empty. This also works with older comparison
+    arms, whose CLI need not know any current theme-selection options.
+    """
+    return {
+        **(os.environ if base is None else base),
+        "XDG_CONFIG_HOME": _configuration_home().name,
+    }
+
+
 def package_selection_args(packages) -> list[str]:
-    """Render one package selection, including the explicit empty layer."""
+    """The source's explicit content packages, including an empty selection."""
     return [arg for package in packages for arg in ("--package", package)] or [
         "--no-packages"
     ]

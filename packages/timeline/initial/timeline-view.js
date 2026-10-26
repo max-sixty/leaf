@@ -166,10 +166,13 @@ export function drawTimeline(host, tools) {
   tools.generatedElement(list, { says: true });
   const rows = model.steps.map((step, index) => {
     const item = document.createElement("li");
-    // A row is the step's press and also its words, so paper keeps it as text.
-    const button = tools.generatedElement(tools.offer("button", "lf-timeline-step"), {
-      says: true,
-    });
+    // The step is selectable page text as well as a press; paper keeps its words.
+    const button = tools.generatedElement(
+      tools.selectableOffer("button", "lf-timeline-step"),
+      {
+        says: true,
+      },
+    );
     button.dataset.step = String(index);
     const at = document.createElement("span");
     at.className = "lf-timeline-step-time";

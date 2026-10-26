@@ -101,7 +101,10 @@ names a language.
 Leaf adds a Copy button to each `pre > code` in the page. For other source text a widget
 draws, such as code in its shadow stage, append the button `copyBlock(block, source,
 noun)` returns once the block is connected; it copies `source()`, and `noun`, such as
-`"code"`, names what it copies.
+`"code"`, names what it copies. A copy that stands among a widget's own controls rather
+than over a block, such as in a popover's header, is `copyControl(className, {label,
+success, error})`: set its `value` before it copies, and it reports `success` or
+`error` as a code block's does.
 
 ### Text alignment
 
@@ -167,7 +170,7 @@ arrives. Each `source.kind` adds its own facts:
   `answered_elsewhere` or `withdrawn` and `end.detail` says why.
 - An `update` is what a message the user sent, or an action in an answered widget's
   obligation, is owed. `source.id` names the event and `source.subject` the thread or
-  widget it stands on. Its next actor is the agent while it owes a reply or a version,
+  widget the update concerns. Its next actor is the agent while it owes a reply or a version,
   the user when it was handed back to send again, and `null` once a reply, named by
   `answer.event`, answered it. Of several messages the user sent in a row, only the
   newest has one. `obligationsIn` never counts an update.

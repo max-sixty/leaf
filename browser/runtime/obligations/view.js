@@ -37,7 +37,7 @@ import { landingBand, shownBox, shownParts } from "../geometry.js";
 import { PAGE_CONTROL_RANK, registerPageControl } from "../page-controls.js";
 import { decisionControls } from "../keyboard/bindings.js";
 import { closestAcross, elementById, inChrome, showsWords } from "../passages.js";
-import { TEXT_BLOCK } from "../passage-facts.js";
+import { TEXT_BLOCK } from "../kernel-facts.js";
 import { scrollerFor } from "../reading-regions.js";
 import { keeps } from "../keeps.js";
 import { decisionFor, registry, tagsDeclaring } from "../registry.js";
@@ -255,23 +255,27 @@ export function createObligationView({
     return source ? actionsFor(source, sourceOwner(item)) : [];
   };
   // The answers an obligation offers, for a surface that answers it away from where it stands,
-  // as the floating panel's On view does: each Decision control's own words and
-  // its own press, so the answer is the widget's, recorded as a press there would be.
+  // as the floating panel's On view does: each Decision control's own words, whether
+  // the page advises it, and its own press, so the answer is the widget's, recorded as
+  // a press there would be.
   // Null while the obligation's source has no node, as in a thread turn not yet drawn; the
   // caller then offers the arrival instead.
   function choicesOf(item) {
     const source = sourceNode(item);
     if (!source) return null;
-    return actionsFor(source, sourceOwner(item)).map(({ id, label, control }) =>
-      Object.freeze({
-        id,
-        label,
-        chosen:
-          control.getAttribute("aria-pressed") === "true" ||
-          control.getAttribute("aria-checked") === "true" ||
-          (control.localName === "input" && control.checked),
-        press: () => presentedActionControl(control).click(),
-      }),
+    return actionsFor(source, sourceOwner(item)).map(
+      ({ id, label, description, recommended, control }) =>
+        Object.freeze({
+          id,
+          label,
+          description,
+          recommended,
+          chosen:
+            control.getAttribute("aria-pressed") === "true" ||
+            control.getAttribute("aria-checked") === "true" ||
+            (control.localName === "input" && control.checked),
+          press: () => presentedActionControl(control).click(),
+        }),
     );
   }
   // The widget obligation whose commands answer where `node` stands. A to-do has no

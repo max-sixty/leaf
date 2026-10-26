@@ -1349,11 +1349,12 @@ flowchart TD
                 </lf-diagram>
                 <figcaption>
                   Leaf captures valid changed source under <code>revisions/</code> and
-                  admits gestures and commands through the same door into
-                  <code>events.jsonl</code>. Any process can publish whole values with
-                  <code>leaf data set</code>. These stores travel with the page
-                  directory. View state and drafts remain in the browser; session claims
-                  and delivery coordination remain in the machine’s state home.
+                  validates gestures and commands at the same entry point before
+                  appending them to <code>events.jsonl</code>. Any process can publish
+                  whole values with <code>leaf data set</code>. These stores travel with
+                  the page directory. View state and drafts remain in the browser;
+                  session claims and delivery coordination remain in the machine’s state
+                  home.
                 </figcaption>
               </figure>
               <p id="data-bookkeeping-lede">
@@ -1646,7 +1647,7 @@ flowchart TD
               action's original meaning.
             </p>
             <p id="undo">
-              <kbd>z</kbd> withdraws the user's latest action, saying what it takes and
+              <kbd>z</kbd> withdraws the user's latest action, naming that action and
               how long ago it was made. Where that action is out of view, or the agent
               has already picked it up, the first press shows it and the second takes it
               back. Each undo appends an event naming its target, so the recomputed
@@ -1790,8 +1791,8 @@ flowchart TD
                 <tr id="stages-working">
                   <td>Working</td>
                   <td>
-                    The agent took the update in hand with one line naming the work, as
-                    a progress message in its thread or with
+                    The agent started work on the update and named the work in one line,
+                    as a progress message in its thread or with
                     <code>leaf task start</code>, or started a to-do on the update's
                     widget.
                   </td>
@@ -2689,11 +2690,11 @@ flowchart LR
               <p id="browser-revisions-carry">
                 Replaced elements with matching authored ids inherit local values
                 differing from authored defaults: typed values, checked state,
-                disclosures, inner scroll, focus and caret. Unidentified replacements
-                carry nothing. Reading position follows a passage, not a pixel offset.
-                Fresh documents use a one-time tab handoff that later reloads and Back
-                do not replay; drafts and control arrangements use separate browser
-                stores.
+                disclosures, inner scroll, focus and caret. Replacements without
+                matching ids do not preserve those values. Reading position follows a
+                passage, not a pixel offset. Fresh documents use a one-time tab handoff
+                that later reloads and Back do not replay; drafts and control
+                arrangements use separate browser stores.
               </p>
             </details>
             <p id="browser-revisions-wait">

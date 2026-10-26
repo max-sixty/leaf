@@ -9,6 +9,8 @@
  * setting's and value slot's `for` naming a control of this playground (a keyed
  * x-refers). This producer checks only what needs the values themselves, such as a
  * range value against its bounds or a choice control's value among its choices. */
+import { iconElement } from "../../../browser/runtime/icon-paths.js";
+
 const own = (root, tag) => [...root.querySelectorAll(`:scope > ${tag}`)];
 const belongsTo = (host, member) =>
   member.parentElement.closest("lf-playground, [data-lf-exhibit]") === host;
@@ -202,7 +204,9 @@ function render(host, { tabStore, offer, generatedElement, keeps }) {
     }),
   );
   let submit = null,
-    reset = null;
+    reset = null,
+    reveal = null,
+    instruction = null;
   if (interactive) {
     const railed = controls.filter((control) => control.parentElement === host);
     const panel = node("div", "lf-playground-controls");
@@ -218,7 +222,19 @@ function render(host, { tabStore, offer, generatedElement, keeps }) {
       control.classList.add(`lf-playground-${kind}`);
       const heading = node("span", "lf-playground-control-label", label);
       control.prepend(heading);
-      if (kind === "choice") {
+      if (kind === "choice" && control.getAttribute("appearance") === "select") {
+        const input = offer("select", "lf-playground-input");
+        input.name = `${host.id}-${name}`;
+        input.setAttribute("aria-label", label);
+        for (const choice of choicesByName.get(name)) {
+          const option = node("option", "", choice.getAttribute("label"));
+          option.value = choice.getAttribute("value");
+          input.append(option);
+          choice.remove();
+        }
+        inputs.set(name, input);
+        control.append(input);
+      } else if (kind === "choice") {
         const group = node("div", "lf-playground-input lf-playground-choices");
         group.setAttribute("role", "radiogroup");
         group.setAttribute("aria-label", label);
@@ -282,13 +298,41 @@ function render(host, { tabStore, offer, generatedElement, keeps }) {
       preset.append(button);
       presetButtons.set(preset, button);
     }
-    const actions = node("footer", "lf-playground-actions");
-    reset = offer("button", "lf-btn lf-playground-reset", "Reset");
+    // The instruction pane is a bar of its actions: Reset and the instruction's
+    // reveal as symbols, and the one worded action, the submission. The instruction
+    // opens over the page in a popover (lf-playground.js); its words also reach the
+    // agent's thread once sent. Shown at rest, a long instruction took more of the
+    // playground's room than the controls that wrote it (2026-10-25).
+    const actions = node("div", "lf-playground-actions");
+    reset = offer("button", "lf-btn lf-playground-reset");
+    reset.ariaLabel = reset.title = "Reset";
+    reset.append(iconElement("retry", "lf-action-icon"));
+    instruction = node("div", "lf-playground-instruction");
+    instruction.id = `${host.id}-instruction`;
+    instruction.popover = "auto";
+    instruction.setAttribute("role", "dialog");
+    const instructionTitle = node(
+      "p",
+      "lf-playground-instruction-title lf-label",
+      "Instruction to agent",
+    );
+    instructionTitle.id = `${host.id}-instruction-title`;
+    instruction.setAttribute("aria-labelledby", instructionTitle.id);
+    const instructionHead = node("div", "lf-playground-instruction-head");
+    instructionHead.append(instructionTitle);
+    const instructionBody = node("div", "lf-playground-instruction-body");
+    instructionBody.append(output);
+    instruction.append(instructionHead, instructionBody);
+    reveal = offer("button", "lf-btn lf-playground-reveal");
+    reveal.ariaLabel = reveal.title = "Show instruction";
+    reveal.setAttribute("aria-controls", instruction.id);
+    reveal.setAttribute("aria-expanded", "false");
+    reveal.append(iconElement("more", "lf-action-icon"));
     submit = offer("button", "lf-btn primary lf-playground-submit");
     const submitLabel = host.getAttribute("submit-label") ?? "Use these settings";
     submit.dataset.room = `${submitLabel}\nUndo choice`;
     submit.append(node("span", "", submitLabel));
-    actions.append(reset, submit);
+    actions.append(reset, reveal, submit, instruction);
     if (document.querySelector("script[data-lf-offline]"))
       actions.append(
         node(
@@ -297,7 +341,7 @@ function render(host, { tabStore, offer, generatedElement, keeps }) {
           "Submission unavailable: no agent or server is available.",
         ),
       );
-    const pane = (name, label, header, body, footer) => {
+    const pane = (name, label, header, body) => {
       const element = node("div", `lf-playground-${name}-region`);
       element.dataset.lfReadingRole = "pane";
       element.dataset.lfGenerated = "";
@@ -305,7 +349,6 @@ function render(host, { tabStore, offer, generatedElement, keeps }) {
       element.setAttribute("aria-label", label);
       if (header) element.append(header);
       element.append(body);
-      if (footer) element.append(footer);
       regions.push({ name, host: element, body });
       return element;
     };
@@ -322,17 +365,7 @@ function render(host, { tabStore, offer, generatedElement, keeps }) {
     rail.dataset.lfTrack = "";
     rail.append(
       ...(railed.length ? [pane("controls", "Controls", presetBar, panel)] : []),
-      pane(
-        "instruction",
-        "Instruction to agent",
-        node(
-          "header",
-          "lf-playground-instruction-title lf-label",
-          "Instruction to agent",
-        ),
-        output,
-        actions,
-      ),
+      pane("instruction", "Instruction to agent", null, actions),
     );
     regions.push({ name: "rail", host: rail, body: rail });
     split.append(pane("preview", "Preview", null, previewBody), rail);
@@ -343,7 +376,7 @@ function render(host, { tabStore, offer, generatedElement, keeps }) {
       kind = control.getAttribute("kind"),
       input = inputs.get(name);
     if (!input) return;
-    if (kind === "choice")
+    if (Array.isArray(input))
       for (const radio of input) radio.checked = radio.value === value;
     else if (kind === "toggle") input.checked = value;
     else input.value = value;
@@ -353,7 +386,7 @@ function render(host, { tabStore, offer, generatedElement, keeps }) {
   const readInput = (control) => {
     const kind = control.getAttribute("kind"),
       input = inputs.get(control.getAttribute("name"));
-    return kind === "choice"
+    return Array.isArray(input)
       ? input.find((radio) => radio.checked)?.value
       : kind === "toggle"
         ? input.checked
@@ -416,6 +449,8 @@ function render(host, { tabStore, offer, generatedElement, keeps }) {
     preview,
     submit,
     reset,
+    reveal,
+    instruction,
     regions,
     presetButtons,
     inputs,

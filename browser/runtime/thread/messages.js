@@ -333,15 +333,23 @@ export class MessageView {
   #editor = null;
   #kept = false;
   #stopKept = null;
+  // Whether the head says the message's age, which a transcript leaves out where the
+  // message above already says it (transcript.js). A presentation that doesn't say,
+  // as a drawing taking back its widgets doesn't, keeps the last answer.
+  #dated = true;
 
   constructor(commands) {
     this.#commands = commands;
     this.node = document.createElement("div");
   }
 
-  present(model, { arrived = false, headerControls = nothing } = {}) {
+  present(
+    model,
+    { arrived = false, dated = this.#dated, headerControls = nothing } = {},
+  ) {
     const prior = this.#model;
     this.#model = model;
+    this.#dated = dated;
     // A view presents messages of one surface for its whole life, so what the surface
     // makes of the node is written once, on the first presentation.
     if (!prior) {
@@ -450,7 +458,11 @@ export class MessageView {
       html`
         <b>${model.by}</b
         ><span class="lf-msg-meta"
-          ><time datetime=${model.timestamp}>${model.age}</time>${
+          >${
+            dated
+              ? html`<time datetime=${model.timestamp}>${model.age}</time>`
+              : nothing
+          }${
             model.unread
               ? html`<span class="lf-msg-new"><span class="lf-quiet">New</span></span>`
               : nothing

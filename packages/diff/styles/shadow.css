@@ -1,4 +1,5 @@
 @import "./palette.css";
+@import "./geometry.css";
 @import "./disclosure.css";
 
 /* The diff's rules inside its own shadow tree (x-shadow). A selector in theme.css stops
@@ -244,7 +245,7 @@
   display: block;
   width: 100%;
   min-width: 0;
-  margin: 0 0 8px;
+  margin: 0 0 var(--lf-diff-gap);
 }
 .lf-diff-progress {
   color: var(--code-muted);
@@ -268,35 +269,18 @@
   margin: -1px 0 0;
   --lf-diff-r-start: 0px;
   --lf-diff-r-end: 0px;
-  /* How tall the bar of presses on the file's name line stands, and how far
-                   down the name it starts. Both are said here because the pull below is
-                   the same distance in the other direction: the bar is laid out above the
-                   file's body and the body is drawn back over it, so a number restated
-                   there would put the presses off the name the moment either changed.
-                   A finger's floor is each press's reach, which the bar starts low
-                   enough to hold inside the row. */
-  --lf-diff-action-h: 26px;
-  --lf-diff-action-top: max(6px, (var(--aim-floor) - var(--lf-diff-action-h)) / 2);
   --lf-diff-actions: var(--lf-diff-action-h);
-  /* The file's row: 7px above and below a path's line, 35px in all, or the
-                   bar of presses where that stands taller. Closed files stand one row on
-                   the next with no room between for a reach, so a row is at least the aim
-                   floor, and the bar stands in its middle. */
-  --lf-diff-head-h: 35px;
+  --lf-diff-head-h: var(--lf-diff-head-line);
 }
 .lf-diff-run-start {
-  margin-top: 8px;
+  margin-top: var(--lf-diff-gap);
   --lf-diff-r-start: var(--r);
 }
 .lf-diff-run-end {
   --lf-diff-r-end: var(--r);
 }
 .lf-diff-file:has(> .lf-diff-file-actions > *) {
-  --lf-diff-head-h: max(
-    35px,
-    calc(var(--lf-diff-action-top) + var(--lf-diff-action-h)),
-    var(--aim-floor)
-  );
+  --lf-diff-head-h: var(--lf-diff-head-pressed);
 }
 .lf-diff-file:has(> .lf-diff-file-actions > *) > :is(.lf-diff-fold, .lf-diff-metadata) {
   margin-top: calc(-1 * (var(--lf-diff-action-h) + var(--lf-diff-action-top)));
@@ -388,7 +372,7 @@
   inset-inline-start: 1px;
   inset-block-start: 0;
   width: calc(2ch - 2px);
-  border-radius: 3px;
+  border-radius: var(--r-s);
   background: var(--accent-tint);
   color: var(--accent);
   font-weight: 700;
@@ -561,6 +545,14 @@ pre[data-overflow="wrap"] .lf-diff-rows {
 }
 [data-separator] svg {
   display: none;
+}
+/* A separator's label describes the source rather than quoting it, so it takes the
+   chrome's face, as the path does the reverse. The row keeps the source's face,
+   so its inset measures the code column in the code's `ch`; the label is a block so
+   its line box holds only its own face and the row stays one source line tall. */
+:is([data-separator-wrapper], [data-no-newline] > span) {
+  display: block;
+  font: var(--t-6) / var(--code-line) var(--sans);
 }
 /* A sibling carries the viewport's ring above its positioned rows without
    scrolling with them. Unlike a parent's :has() pseudo-element, its selector

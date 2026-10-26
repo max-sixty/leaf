@@ -789,6 +789,7 @@ export function createWritingResume({
     title: "Resume writing",
     touch: "Resume writing",
     menu: "keys",
+    travels: true,
     when: () => writingPlace !== null,
     run: resume,
   };

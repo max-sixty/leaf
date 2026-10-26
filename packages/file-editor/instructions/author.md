@@ -20,6 +20,14 @@ an ordinary edit that saves too. Show a file the reader should not change with `
 instead.
 
 `leaf file bind` records the binding in the page's directory, and only the local Leaf
-server serving that page can use it. An exported page shows the editor as unavailable,
-and a stamped revision is read-only. Use `lf-code` with the exact source when the reader
-needs a copy that travels with the page.
+server serving that page can use it. Withdraw that page's access when it is no longer
+needed:
+
+```bash
+leaf file unbind PAGE notes
+```
+
+Unbinding leaves the file and its saved edits intact. Later reads find no file and
+saves are refused, including from an already-open editor. An exported page shows the
+editor as unavailable, and a stamped revision is read-only. Use `lf-code` with the
+exact source when the reader needs a copy that travels with the page.

@@ -181,11 +181,18 @@ def run_leaf(
 
 @contextmanager
 def serving(arm: Path, state: Path, page: Path):
-    """Serve `page` with the arm's `leaf server run --temporary` under the state home
+    """Serve `page` with the arm's `leaf server run --lifetime temporary` under the state home
     `state`, and yield the tokened URL it prints. Retirement joins the owned process
     through its active requests and sample cleanup before the caller reuses its page."""
     server = subprocess.Popen(
-        [str(arm / "bin" / "leaf"), "server", "run", "--temporary", str(page)],
+        [
+            str(arm / "bin" / "leaf"),
+            "server",
+            "run",
+            "--lifetime",
+            "temporary",
+            str(page),
+        ],
         env=environment(XDG_STATE_HOME=str(state)),
         stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL,
@@ -201,18 +208,13 @@ def serving(arm: Path, state: Path, page: Path):
 
 def build_source(arm: Path, state: Path, source: Path, page: Path) -> None:
     """Build the authored `source` into the page directory `page` with the arm's own
-    launcher under the state home `state`. The checkout is an arm too: `ROOT` runs
-    its working tree. Developer pages use the same compiled kernel as the website.
+    launcher under the state home `state`. Callers select a prepared installation
+    before building, then use that same installation to serve or check the page.
     """
-    from leaf_dev.commands.distribution import cached_installation
-
-    installed = cached_installation(arm)
     prepare_page(
         page,
-        read_fixture(
-            source, runtime=installed, env=environment(XDG_STATE_HOME=str(state))
-        ),
-        partial(run_leaf, installed, state, check=True),
+        read_fixture(source, runtime=arm, env=environment(XDG_STATE_HOME=str(state))),
+        partial(run_leaf, arm, state, check=True),
     )
     record_run_context(page, purpose="automated", run=state, authored_source=source)
 
@@ -234,7 +236,10 @@ served_page: ContextVar[ServedPage] = ContextVar("served_page")
 @contextmanager
 def serving_source(arm: Path, source: Path, scratch: Path):
     """Build `source` into a page under `scratch` (`build_source`), serve it
-    (`serving`), and yield the address."""
+    (`serving`), and yield the address, all using one prepared installation."""
+    from leaf_dev.commands.distribution import cached_installation
+
+    arm = cached_installation(arm)
     state, page = scratch / "state", scratch / "page"
     build_source(arm, state, source, page)
     with serving(arm, state, page) as address:

@@ -23,8 +23,8 @@ from render_harness import (
     any_suggestion_control,
     leaf_page,
     open_page,
+    open_threads,
     page_comment,
-    panel_settled,
     scroll_settled,
 )
 
@@ -513,6 +513,9 @@ def test_the_ring_reading_distinguishes_element_marks_from_focus(browser, serve)
         box.classList.toggle(name, false);
       box.toggleAttribute('data-lf-focus-visible', how === 'focused mark');
       box.style.outline = '';
+      // Keep the paints identical so the mark's role is what excludes it.
+      box.style.setProperty('--mark-contour-w', 'var(--focus-ring-w)');
+      box.style.setProperty('--mark-contour-ink', 'var(--accent)');
       if (how === 'mark') box.classList.add('lf-mark-el', 'lf-mark-hover');
       if (how === 'focused mark') box.classList.add('lf-mark-el');
       if (how === 'the ring itself') box.style.outline = 'var(--focus-ring)';
@@ -971,8 +974,7 @@ def test_a_user_who_asked_for_no_motion_gets_a_ring_that_does_not_arrive(
     assert page.evaluate(
         "() => matchMedia('(prefers-reduced-motion: reduce)').matches"
     ), "the context did not ask for reduced motion, so the guard under test is off"
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    open_threads(page)
     control = page.locator(".lf-fp-thread").first
     control.focus()
     page.keyboard.press("Tab")

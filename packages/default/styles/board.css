@@ -279,7 +279,7 @@
   block-size: var(--lf-grip-block);
   min-height: var(--aim-floor);
   min-width: var(--aim-floor);
-  border-radius: 4px;
+  border-radius: var(--r-s);
   user-select: none;
   -webkit-user-select: none;
   line-height: 1;

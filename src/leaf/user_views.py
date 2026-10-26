@@ -160,7 +160,7 @@ USER_VIEWS = Record(
             },
         ),
     ),
-    since=23,
+    since=27,
 )
 
 

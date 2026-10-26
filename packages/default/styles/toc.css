@@ -45,6 +45,9 @@
   margin: 0;
   padding-block: max(7px, (var(--aim-floor) - 1lh) / 2);
 }
+:scope:is(lf-toc) .lf-toc-toggle[data-lf-focus-visible] {
+  outline-offset: calc(-1 * var(--focus-ring-w));
+}
 :scope:is(lf-toc) .lf-toc-disclosure[open] .lf-toc-toggle {
   margin-bottom: 7px;
 }
@@ -54,6 +57,24 @@
   }
   :scope:is(lf-toc) .lf-toc-toggle {
     display: none;
+  }
+}
+/* A track standing beside the body (`--lf-sidebar-slot: beside`, layouts.css) is room the
+ * page gave to navigation, so the outline stands open there under its label, and the
+ * section in view takes the ink. Folded, it left a third of the window empty beside a
+ * long review. Where the track stacks above the body, the disclosure returns with the
+ * reader's own choice (lf-toc.js, `#measure`). */
+@media screen {
+  @container style(--lf-sidebar-slot: beside) {
+    :scope:is(lf-toc) .lf-toc-heading {
+      display: block;
+    }
+    :scope:is(lf-toc) .lf-toc-toggle {
+      display: none;
+    }
+    :scope:is(lf-toc) a[aria-current="location"] {
+      color: var(--ink);
+    }
   }
 }
 :scope:is(lf-toc) .lf-toc-start,

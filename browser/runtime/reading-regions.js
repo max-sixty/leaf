@@ -125,13 +125,14 @@ export function registerReadingRegion({
 
 // The boxes a page's Layout makes scroll, which no widget owns: the workspace's body,
 // which scrolls as a whole where a pane in it does not bound itself, a column page's
-// sidebar standing in the margin, and the one block a sidebar page's track holds, which
-// scrolls while it stands beside the body (layouts.css). The stylesheet marks each one
+// sidebar standing in the margin, and the box a sidebar page's track holds its blocks in
+// (prepaint.js, `holdTrack`), which scrolls while it stands beside the body
+// (layouts.css). The stylesheet marks each one
 // (`--lf-reading-region: layout`): a child of `main`, or the only child of one that is
 // not itself marked. Each is registered like any other region, so what it holds is
 // carried by it rather than by the page, and its scroll behavior is read from whether it
 // scrolls. Its id is the authored id of the box or, for an only child, of the child of
-// `main` holding it, as a sidebar's `aside` names the block it holds, so a neighbour's
+// `main` holding it, as a sidebar page's `aside` names that box, so a neighbour's
 // arrival or removal never renames it; an unnamed one takes its place among the unnamed
 // ones, in a namespace of its own. Chrome layout asks on every pass, since a revision can
 // replace `main`'s children and a resize can change which of them the stylesheet marks.

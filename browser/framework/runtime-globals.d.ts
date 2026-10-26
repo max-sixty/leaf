@@ -37,6 +37,8 @@ type LeafInitialRenderer = (
     offerElement: LeafInitial["offerElement"];
     generatedElement: LeafInitial["generatedElement"];
     keeps: LeafInitial["keepsAttribute"];
+    /** Moves every child of the host into `node`, the box that holds its authored body. */
+    authoredBody<T extends Element>(node: T): T;
   },
 ) => unknown;
 
@@ -88,6 +90,8 @@ interface LeafInitial {
   generatedElement<T extends Element>(node: T, options: { says: boolean | "echo" }): T;
   origin(node: Node): Node | undefined;
   parent(node: Node): Element | null;
+  /** The box a producer built to hold the host's authored children, if it built one. */
+  authoredBody(host: Element): Element | null;
 }
 
 /** A sample child's channel to the page that embeds it (`bootstrap.js`). */
@@ -121,6 +125,11 @@ interface HTMLElement {
     userStore: LeafStore;
   };
   lfKeyboard?: { readonly quick: boolean; setQuick(on: boolean): void };
+  /** Whether a link's target leaves the page, and the mark that says so (prepaint.js). */
+  lfExternalLink?: {
+    opensElsewhere(href: string | null): boolean;
+    mark(): SVGSVGElement;
+  };
   /** The floating panel's resting size. */
   lfChrome?: {
     /** `row` or `mark`. */
@@ -190,6 +199,7 @@ interface DocumentEventMap {
     binding: unknown;
     title: string;
     description: string;
+    travels: boolean;
   }>;
   /** The reading column's box, once the margin has laid out against it. */
   "lf-margin-layout": CustomEvent<{ column: DOMRect; height: number }>;

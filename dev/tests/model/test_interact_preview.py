@@ -140,54 +140,6 @@ def test_a_preview_source_uses_its_checkout_layer_and_media(tmp_path):
     assert str(ROOT / "uv.lock") in watched.paths
 
 
-def test_fixture_acknowledges_seed_with_its_selected_runtime(tmp_path):
-    """A comparison's history is acknowledged even across a protocol change."""
-    from leaf.event_log import read_events
-
-    runtime = tmp_path / "runtime"
-    arms.build_arm(None, runtime)
-    registry_path = runtime / "browser/registry.json"
-    registry = json.loads(registry_path.read_text())
-    registry["$events"]["protocol"] += 1
-    registry_path.write_text(json.dumps(registry))
-    source = tmp_path / "fixture.html"
-    source.write_text(
-        "<!doctype html><html><head><title>History</title></head>"
-        "<body><main><h1>History</h1></main></body></html>"
-    )
-    (tmp_path / "layer.json").write_text("[]")
-    source.with_suffix(".jsonl").write_text(
-        json.dumps(
-            {
-                "kind": "comment",
-                "author": "user",
-                "revision": 1,
-                "text": "Historical input",
-                "id": "seed-comment",
-                "ts": "2026-10-23T00:00:00Z",
-            }
-        )
-        + "\n"
-    )
-    page = tmp_path / "page"
-    state = tmp_path / "arm-state"
-    fixture = read_fixture(
-        source, runtime=runtime, env=arms.environment(XDG_STATE_HOME=str(state))
-    )
-    prepare_page(
-        page,
-        fixture,
-        partial(arms.run_leaf, runtime, state, check=True),
-        final_status=None,
-    )
-    installed = json.loads((page / "registry.json").read_text())
-    assert installed["$events"]["protocol"] == registry["$events"]["protocol"]
-    events = read_events(page)
-    assert events[-1]["kind"] == "receipt"
-    assert events[-1]["through"] == events[-2]["seq"]
-    assert events[-2]["id"] == "seed-comment"
-
-
 @pytest.mark.parametrize("name", ["how-it-works", "index", "examples"])
 def test_product_previews_prepare_the_authored_layer_and_media(
     tmp_path, monkeypatch, name
@@ -830,7 +782,7 @@ finally:
         assert codex_adapter.adapter_is_live("preview-thread")
         if initially_idle:
             assert declared(page_dir)["state"] == "idle"
-            session.cmd_waiting(page_dir, "Review this page")
+            session.cmd_waiting(page_dir)
         endpoint = urlsplit(url)._replace(path="/api/event").geturl()
         status, body = fetch(
             endpoint,
@@ -1168,6 +1120,34 @@ def test_fixture_captures_use_the_selected_runtime_producer(
         {"kind": "capture", "source": "notes", "value": "second\n"},
         {"kind": "seed", "source": "written", "value": "Authored value"},
     )
+
+
+def test_a_fixture_acknowledges_its_seed_with_the_runtime_it_was_read_for(tmp_path):
+    """An arm at another protocol acknowledges a seeded page it vendored, so a paired
+    comparison across a protocol bump builds both arms (`leaf-dev stills`)."""
+    runtime = tmp_path / "runtime"
+    arms.extract_payload(runtime)
+    registry = runtime / "browser/registry.json"
+    layer = json.loads(registry.read_text())
+    layer["$events"]["protocol"] += 1
+    registry.write_text(json.dumps(layer, ensure_ascii=False))
+    state = tmp_path / "state"
+    page = tmp_path / "page"
+    prepare_page(
+        page,
+        read_fixture(
+            ROOT / "examples/log-retention.html",
+            runtime=runtime,
+            env=arms.environment(XDG_STATE_HOME=str(state)),
+        ),
+        partial(arms.run_leaf, runtime, state, check=True),
+        final_status=None,
+    )
+    events = [
+        json.loads(line) for line in (page / "events.jsonl").read_text().splitlines()
+    ]
+    assert events[-1]["kind"] == "receipt"
+    assert events[-1]["through"] == len(events) - 1
 
 
 def test_resumed_preview_follows_capture_bindings_and_files_without_replaying_seeds(

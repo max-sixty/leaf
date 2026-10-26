@@ -15,6 +15,7 @@ from render_harness import (
     leaf_page,
     margins_laid_out,
     open_page,
+    open_threads,
     panel_settled,
     resized,
     sending,
@@ -627,8 +628,7 @@ def test_lit_inline_margin_projection_keys_controls_inside_thread_chrome(
 ):
     """The inline Lit seat reorders one retained control tree and completes its press."""
     page = open_page(browser, serve(PANEL_PAGE))
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    open_threads(page)
     page.evaluate(
         """async () => {
           const {contributionEntry, registerContribution} =
@@ -963,7 +963,7 @@ def test_every_pin_entry_shares_its_face_and_keeps_its_behavior(browser, serve):
             )
             faces.append(control.evaluate(read_face))
         assert faces == [faces[0]] * len(faces), faces
-        assert faces[0]["radius"] == "50% 50% 50% 3px", faces[0]
+        assert faces[0]["radius"] == "6px 6px 6px 0px", faces[0]
         assert faces[0]["background"] == token_colour(page, "--pin-fill"), faces[0]
         assert faces[0]["border"] == ["2px", token_colour(page, "--paper")], faces[0]
         assert faces[0]["ink"] == "rgb(255, 255, 255)", faces[0]
@@ -1079,7 +1079,7 @@ def test_shadow_targets_keep_common_shape_identity_and_composed_order(browser, s
                 "commonAction": True,
                 "width": "32px",
                 "minHeight": "32px",
-                "radius": "50%",
+                "radius": "6px",
                 "visibleWord": "first controls",
             },
             {
@@ -1089,7 +1089,7 @@ def test_shadow_targets_keep_common_shape_identity_and_composed_order(browser, s
                 "commonAction": True,
                 "width": "32px",
                 "minHeight": "32px",
-                "radius": "50%",
+                "radius": "6px",
                 "visibleWord": "nested controls",
             },
             {
@@ -1099,7 +1099,7 @@ def test_shadow_targets_keep_common_shape_identity_and_composed_order(browser, s
                 "commonAction": True,
                 "width": "32px",
                 "minHeight": "32px",
-                "radius": "50%",
+                "radius": "6px",
                 "visibleWord": "second controls",
             },
             {
@@ -1109,7 +1109,7 @@ def test_shadow_targets_keep_common_shape_identity_and_composed_order(browser, s
                 "commonAction": True,
                 "width": "32px",
                 "minHeight": "32px",
-                "radius": "50%",
+                "radius": "6px",
                 "visibleWord": "slot a controls",
             },
             {
@@ -1119,7 +1119,7 @@ def test_shadow_targets_keep_common_shape_identity_and_composed_order(browser, s
                 "commonAction": True,
                 "width": "32px",
                 "minHeight": "32px",
-                "radius": "50%",
+                "radius": "6px",
                 "visibleWord": "slot b controls",
             },
         ],

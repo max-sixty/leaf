@@ -562,9 +562,8 @@ def refresh_preview(
                     str(page),
                     "--text",
                     "Updated in the checkout",
-                    "--from-directory",
+                    "--replace",
                     str(candidate),
-                    "--if-source",
                     authored_digest(previous),
                 )
         else:

@@ -2,7 +2,7 @@
 
 ## Pre-handover review
 
-The main skill's "Review and stamp a record" step says when a page takes this review.
+The main skill's "Review an important page in the browser" step says when a page takes this review.
 It adds the browser render check, in both colour schemes, to the markup check every
 activation runs:
 
@@ -10,12 +10,10 @@ activation runs:
 leaf page check <page> --render
 ```
 
-Fix every failure; a screenshot is no substitute. The command prints one JSON object
-with the exit `status`, the browser that ran, the screens it saved, and each finding
-with its `code`, the element it names as `at`, its `severity` (`error` or `advice`) and
-its `text`. The check reads the desktop at the size of the window the user last viewed
-the page in, over the last day, or in a 1280x720 laptop window before they have;
-`browser.desktop` names the size it read and which of the two it was.
+Fix every failure; a screenshot is no substitute. The check reads the desktop at the
+size of the window the user last viewed the page in, over the last day, or in a
+1280x720 laptop window before they have; `browser.desktop` names the size it read and
+which of the two it was.
 
 A clean check saves screens at desktop, widest-window and phone widths, up to eight down
 the page at each width, plus one just before each layout change, such as a sidebar
@@ -23,12 +21,22 @@ stacking. Inspect the end of a longer page yourself. Look in every screen for il
 labels in drawings, lone tiles, pins covering headings, and a summary that comes too
 late on a phone, and fix what the page controls.
 
-Then give a subagent only the user's request and the saved screens, and have it report
-anything it can't follow, has to guess, or has to picture from a description. Give it
-none of your notes: the user hasn't seen them either. Fix what it finds. In your own
-read-through, check that headings state findings, claims have evidence, decisions have
-controls, and every line of prose is needed, and draw anything the page explains only
-in words when a picture would show it.
+Then decide whether a fresh reader sees the page before the user does. A reader with
+only the user's request and the saved screens catches what your own notes fill in for
+you: a step you skipped, a term you never defined, something you only described in words
+when it needed a picture. A subagent can be that reader, and it costs the time it takes
+before the user gets the page. Give the page one when it will be read later or by other
+people, who can't ask you what you meant, or when it makes an argument the user must
+follow to decide, where one gap breaks the chain. Hand over without one when the page is
+short and the user is waiting on it in the middle of their own work: there the wait
+costs more than the reader would find, and the user can ask about anything unclear as
+they read. When you run one, give it only the request and the screens and none of your
+notes, since the user hasn't seen them either; have it report anything it can't follow,
+has to guess or has to picture from a description, and fix what it finds.
+
+In your own read-through, check that headings state findings, claims have evidence,
+decisions have controls, and every line of prose is needed, and draw anything the page
+explains only in words when a picture would show it.
 
 For a page with contents, start at the top at desktop and phone widths and jump to a
 later section without first scrolling to find the navigation. Follow the page's links
@@ -68,8 +76,8 @@ It is optional and adds no handoff gate.
 
 Stamp a record at each checkpoint the user would name, such as an approved plan or the end of
 the conversation, and wherever a reference requires a stamped version, as taking in an
-answer to a page's obligation does (`authoring-revisions.md`). Answering a message is not a
-checkpoint.
+answer to a page's obligation does (`authoring-revisions.md`). Answering a message is not by
+itself a checkpoint.
 
 ```bash
 leaf page stamp <page> --text "<what changed>"
@@ -84,7 +92,7 @@ version.
 To finish, handle every event in the delivered batch and write the answer each
 acknowledged update's `answer` names (`event-batches.md`). A finished record ends on a
 stamped final version that honours open obligations and the reports still in force; an
-unstamped quick page can close directly. Then run:
+unstamped page can close directly. Then run:
 
 ```bash
 leaf page close <page>

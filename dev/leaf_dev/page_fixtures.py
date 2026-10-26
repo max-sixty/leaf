@@ -38,14 +38,14 @@ DEFAULT_PACKAGES = ROOT / "examples" / "layer.json"
 @dataclass(frozen=True, slots=True)
 class PageFixture:
     source: Path
-    runtime: Path
-    environment: dict[str, str] | None
     page_files: Path | None
     packages: tuple[str, ...]
     media: Path
     data: tuple[dict, ...]
     versions: tuple[Path, ...]
     seed: Path | None
+    runtime: Path
+    env: dict[str, str] | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -168,20 +168,21 @@ def read_fixture(
     """Read authored companions using the runtime that will consume produced data.
 
     Source and runtime are independent: a paired preview can share one authored input
-    while each arm supplies its own package producer and matching data contract.
+    while each arm supplies its own package producer and matching data contract, and
+    acknowledges the seed with its own Leaf (`_acknowledge_seed`).
     """
     seed = seed_log(source)
     files = page_files(source)
     return PageFixture(
         source=source,
-        runtime=runtime.resolve(),
-        environment=env,
         page_files=files if files.is_dir() else None,
         packages=tuple(source_packages(source)),
         media=media_source(source),
         data=tuple(data_operations(source, runtime=runtime, env=env)),
         versions=tuple(example_versions(source)),
         seed=seed if seed.is_file() else None,
+        runtime=runtime,
+        env=env,
     )
 
 
@@ -299,34 +300,30 @@ def _seed_log(fixture: PageFixture, page: Path) -> None:
         log.write(fixture.seed.read_text(encoding="utf-8"))
 
 
-def _acknowledge_seed(fixture: PageFixture, page: Path) -> None:
-    if fixture.seed is None:
-        return
-    # The selected runtime owns admission, including a comparison arm whose
-    # protocol differs from the developer process preparing its fixture. Stamping
-    # has already prepared its environment; acknowledging must not resync it.
-    subprocess.run(
-        [
-            "uv",
-            "run",
-            "-q",
-            "--no-sync",
-            "--project",
-            str(fixture.runtime),
-            "python",
-            "-c",
-            """from pathlib import Path
+# Run by the fixture's runtime, so its own admission writes the receipt: another
+# Leaf refuses a page vendored at a different protocol, and would write the receipt
+# in its own shape rather than the page's.
+ACKNOWLEDGE_SEED = """
 import sys
+from pathlib import Path
 from leaf.delivery import record_receipt
 from leaf.service import PageTransaction
 
-with PageTransaction(Path(sys.argv[1])) as page:
-    if page.events:
-        record_receipt(page, page.events[-1]["seq"])
-""",
-            str(page),
+with PageTransaction(Path(sys.argv[1])) as transaction:
+    if transaction.events:
+        record_receipt(transaction, transaction.events[-1]["seq"])
+"""
+
+
+def _acknowledge_seed(fixture: PageFixture, page: Path) -> None:
+    if fixture.seed is None:
+        return
+    subprocess.run(
+        [
+            *("uv", "run", "-q", "--no-dev", "--project", str(fixture.runtime)),
+            *("python", "-c", ACKNOWLEDGE_SEED, str(page)),
         ],
-        env=fixture.environment,
+        env=fixture.env,
         check=True,
     )
 

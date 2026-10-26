@@ -839,7 +839,7 @@ def test_a_user_preview_update_keeps_the_sessions_wait_watching(
     )
     assert waiter.wait(timeout=STATED_TIMEOUT) == 0, waited.read_text()
     payload, _, events = woken(waited.read_text(), session=session)
-    assert f"leaf wait --ack {payload['id']}" in payload["acknowledge"]
+    assert f"leaf delivery ack {payload['id']} && leaf wait" in payload["acknowledge"]
     assert [event["text"] for event in events] == ["still there?"]
 
 

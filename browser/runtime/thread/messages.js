@@ -29,6 +29,7 @@ import {
   OPEN_MESSAGE_EDIT,
   holdsMessageEdit,
   keptRewrite,
+  messageDrawn,
   releaseMessageEdit,
   watchRewrite,
 } from "./message-edit.js";
@@ -449,7 +450,12 @@ export class MessageView {
       html`
         <b>${model.by}</b
         ><span class="lf-msg-meta"
-          ><time datetime=${model.timestamp}>${model.age}</time> ${receipt}
+          ><time datetime=${model.timestamp}>${model.age}</time>${
+            model.unread
+              ? html`<span class="lf-msg-new"><span class="lf-quiet">New</span></span>`
+              : nothing
+          }
+          ${receipt}
           ${
             model.leaves
               ? html`<span class="lf-msg-leaves">${model.leaves}</span>`
@@ -542,6 +548,9 @@ export class MessageView {
         flashDuration(),
       );
     }
+    // Whether this message can be rewritten may have moved, which the reply box's ↑
+    // reads (`threadRewrites`).
+    messageDrawn();
     return this.node;
   }
 

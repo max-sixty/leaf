@@ -5,6 +5,7 @@ import json
 import math
 import re
 from datetime import datetime, timedelta
+from itertools import pairwise
 
 import pytest
 from interact_support import (
@@ -68,6 +69,7 @@ from render_harness import (
     judge_watches,
     leaf_page,
     open_page,
+    open_threads,
     pane_scroll_behavior,
     panel_settled,
     panel_view,
@@ -1872,7 +1874,9 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     page.keyboard.press("?")
     reference = page.locator(".lf-command-reference")
     expect(reference).to_be_visible()
-    expect(reference.locator('tr[data-lf-command="aim.comment"]')).to_have_count(0)
+    expect(
+        reference.locator('[role=row][data-lf-command="aim.comment"]')
+    ).to_have_count(0)
     page.keyboard.press("Escape")
     expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
 
@@ -2398,7 +2402,7 @@ def test_design_mode_leaves_the_chrome_working(browser, serve):
     assert comments() == seeded, "a press on the chrome posted a comment"
     exit_mode.click()
     expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode")
-    page.locator(".lf-fp-threads").click()
+    open_threads(page)
     expect(panel).to_be_visible()
 
 
@@ -3563,12 +3567,12 @@ def test_the_chrome_keeps_its_presses_while_the_page_is_armed(browser, serve):
     from a user who happens to be holding the key — and there is nothing in the layer
     to aim at anyway, since an anchor names an element of the page."""
     page = open_page(browser, serve(LONG_PAGE))
-    comments = page.locator(".lf-fp-threads")
-    comments.hover()
+    on_me = page.locator(".lf-fp-on-user")
+    on_me.hover()
     page.keyboard.down("Alt")
-    comments.click()
+    on_me.click()
     page.keyboard.up("Alt")
-    panel_settled(page, view="threads")
+    panel_settled(page, view="queue")
     expect(page.locator(".lf-composer")).to_be_hidden()
 
 
@@ -5415,3 +5419,84 @@ def test_native_textarea_defaults_never_supply_design_passage_context(browser, s
     fields.nth(0).press("End")
     fields.nth(0).press_sequentially(" still editable")
     expect(fields.nth(0)).to_have_value("Changed live value. still editable")
+
+
+@pytest.mark.parametrize("shift, placement", [(0, "right-start"), (250, "left-start")])
+def test_a_side_comment_grows_down_from_the_line_it_was_opened_on(
+    browser, serve, shift, placement
+):
+    """Beside a passage, a draft that wraps keeps what the user has written where they
+    wrote it: the field's top holds and its foot, with Send, moves down a line per wrap,
+    as in an editor. Enter sends, so a hand on the keys never chases Send. (#1159 held
+    the foot and raised the words above it; the user chose this instead.)"""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Side comment growth",
+                '<div style="height: 240px"></div>'
+                f'<p id="passage" style="position:relative;left:{shift}px">'
+                "This passage has room beside it for a response.</p>"
+                '<div style="height: 700px"></div>',
+            )
+        ),
+    )
+    resized(page, 1440, 900)
+    page.locator("#passage").click(modifiers=["Alt"])
+    field = open_compact_comment(page)
+    bar = page.locator(".lf-fab-bar")
+    assert bar.get_attribute("data-lf-placement") == placement
+    resting = page.evaluate(SIDE_COMMENT)
+
+    # Word by word until the field has wrapped twice, reading every keystroke's result.
+    readings = [resting]
+    words = iter(("the words keep coming as the user writes " * 12).split())
+    while len({round(reading["height"]) for reading in readings}) < 3:
+        page.keyboard.type(next(words) + " ")
+        rendered(page)
+        readings.append(page.evaluate(SIDE_COMMENT))
+    for reading in readings:
+        assert reading["top"] == pytest.approx(resting["top"], abs=0.5), reading
+        assert reading["field"] == pytest.approx(resting["field"], abs=0.5), reading
+        assert reading["scrolled"] == 0, reading
+    for before, after in pairwise(readings):
+        assert after["bottom"] >= before["bottom"] - 0.5, (before, after)
+    grown = readings[-1]
+    assert grown["bottom"] > resting["bottom"] + 30, (resting, grown)
+    assert grown["send"] > resting["send"] + 30, (resting, grown)
+
+    write(field, "Short again")
+    rendered(page)
+    shortened = page.evaluate(SIDE_COMMENT)
+    assert shortened["top"] == pytest.approx(resting["top"], abs=0.5), shortened
+    assert shortened["bottom"] == pytest.approx(resting["bottom"], abs=0.5), shortened
+
+    # A restored draft opens from the same line, its lines under it.
+    write(field, "First line\nSecond line\nThird line")
+    page.reload()
+    rendered(page)
+    # Startup recovery has already reopened the editor at its saved passage.
+    field = open_compact_comment(page)
+    expect(field).to_have_js_property("value", "First line\nSecond line\nThird line")
+    rendered(page)
+    restored = page.evaluate(SIDE_COMMENT)
+    assert restored["top"] == pytest.approx(resting["top"], abs=1), restored
+    assert restored["bottom"] > resting["bottom"] + 30, restored
+
+
+def test_design_mode_survives_the_reload_a_new_version_brings(browser, serve):
+    """A version landing mid-batch reloads the document, and a user put out of the
+    mode by news they never asked for is a mode error the page made — so the mode is
+    this tab's working state, kept the way the panel's open state is."""
+    page = open_page(browser, serve(REPLAYED_PAGE))
+    page.keyboard.press("l")
+    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+    page.reload()
+    wait_until_ready(page)
+    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+    expect(page.locator('.lf-legend-box[data-for="approach"]')).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
+    page.reload()
+    wait_until_ready(page)
+    expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")

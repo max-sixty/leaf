@@ -39,6 +39,8 @@ BOX = """<!doctype html><body style="margin:0">
     event.key === "Escape" && on("escape-hides", () => { box.hidden = true; }));
   document.getElementById("elsewhere").addEventListener("click", () =>
     on("press-hides", () => { box.remove(); }));
+  document.getElementById("field").addEventListener("blur", () =>
+    on("blur-hides", () => { box.remove(); }));
 </script>"""
 
 
@@ -588,6 +590,24 @@ def test_words_a_press_elsewhere_puts_away_are_put_away(browser):
     page = box_page(browser, "press-hides")
     page.locator("#elsewhere").click()
     judge_watches()
+
+
+@pytest.mark.parametrize("route", ["press", "tab", "passive"])
+def test_words_a_box_closing_on_blur_is_put_away_only_by_a_press(browser, route):
+    """A press elsewhere moves focus as its native default, after its own listeners
+    return, so a box that closes on blur closes for that press. Tab moves focus too
+    and only moves the user, and a blur no input caused is nobody's: both still fail."""
+    page = box_page(browser, "blur-hides")
+    if route == "press":
+        page.locator("#elsewhere").click()
+    elif route == "tab":
+        page.keyboard.press("Tab")
+    else:
+        page.evaluate("document.getElementById('field').blur()")
+    expect(page.locator("#field")).to_have_count(0)
+    judge_watches()
+    if route != "press":
+        consume_browser_errors(page, {"code": "words-left-screen"})
 
 
 def test_words_a_passive_selection_change_cannot_close_a_draft(browser):

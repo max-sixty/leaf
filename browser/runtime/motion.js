@@ -8,8 +8,8 @@
 // change can arrive from another tab or the agent. A resolved thread leaves the
 // open-thread vocabulary at once, folds in place, then moves under the resolved
 // disclosure. A message leaving a thread, as a reply the log refuses does, folds where
-// it stood (thread/transcript.js); where the thread holds the turn's room for its reply
-// box, the room it gives back stays held (thread/reply-continuity.js).
+// it stood (thread/transcript.js), and the thread gives its room back as it folds
+// (thread/reply-continuity.js).
 //
 // Projection composes the complete final state before rendering. Ordered containers
 // measure once around that composition and show one FLIP from the current layout to the

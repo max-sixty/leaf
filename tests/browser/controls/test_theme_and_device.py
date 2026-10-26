@@ -9,6 +9,7 @@ from render_harness import (
     displayed,
     leaf_page,
     open_page,
+    open_threads,
     page_comment,
     panel_settled,
     resized,
@@ -18,6 +19,51 @@ from render_harness import (
 from leaf.render_checks import wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
+
+
+def test_the_type_scale_follows_root_font_size_with_rounded_key_badges(browser, serve):
+    """Prose, working density and code follow the reader's root size; the badge
+    allocation remains whole pixels and controls retain their input routes."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Readable controls",
+                '<h1>Readable controls</h1><p id="prose">Body words.</p>'
+                '<pre id="code">const answer = 42;</pre>'
+                '<span id="badge" style="display:inline-block;inline-size:var(--lf-key-badge-size)">A</span>'
+                '<section class="density-working"><p id="dense">Working words.</p>'
+                '<pre id="dense-code">const answer = 42;</pre>'
+                '<span id="dense-badge" style="display:inline-block;inline-size:var(--lf-key-badge-size)">B</span>'
+                '<label class="choice"><input type="checkbox">Include notes</label></section>',
+            )
+        ),
+    )
+
+    def sizes():
+        return page.evaluate("""() => Object.fromEntries(
+          ['prose', 'code', 'badge', 'dense', 'dense-code', 'dense-badge'].map(id => {
+            const style = getComputedStyle(document.getElementById(id));
+            return [id, parseFloat(id.includes('badge') ? style.inlineSize : style.fontSize)];
+          }))""")
+
+    before = sizes()
+    assert before == {
+        "prose": 17,
+        "code": 13.5,
+        "badge": 19,
+        "dense": 14,
+        "dense-code": 13,
+        "dense-badge": 18,
+    }
+    page.add_style_tag(content=":root { font-size: 20px; }")
+    after = sizes()
+    for name in ("prose", "code", "dense", "dense-code"):
+        assert after[name] == before[name] * 1.25, after
+    assert after["badge"] == 23 and after["dense-badge"] == 21, after
+    choice = page.get_by_role("checkbox", name="Include notes")
+    choice.press("Space")
+    expect(choice).to_be_checked()
 
 
 @pytest.mark.parametrize("touch", [False, True])
@@ -178,9 +224,7 @@ def test_coarse_pointer_panel_lists_give_humane_aims(browser, serve):
             )
 
     # The rows of the panel's lists, which a finger picks among.
-    page.locator(".lf-fp-threads").tap()
-    panel_settled(page, view="threads")
-    page.locator(".lf-fp-filters button", has_text="Open").tap()
+    open_threads(page)
     humane(page.locator(".lf-fp-thread:visible"), "Threads row")
     page.locator(".lf-fp-close").tap()
     panel_settled(page, open=False)
@@ -232,7 +276,7 @@ def test_dynamic_chrome_offsets_keep_the_safe_area_in_their_arithmetic(browser, 
         resized(page, width, 700)
         for opened in (False, True):
             if opened:
-                page.locator(".lf-fp-threads").click()
+                page.locator(".lf-fp-on-user").click()
             panel_settled(page, open=opened)
             box = page.evaluate(reading)
             assert box["bottom"] <= box["height"] - insets["bottom"], (width, box)

@@ -36,7 +36,7 @@ def test_thread_rows_name_action_in_existing_status(browser, serve):
     resized(page, 1440, 900)
     asked = thread_row(page, PHOTO_THREAD)
     expect(asked.locator(".lf-fp-label")).to_have_text("Workshop room photo")
-    expect(asked.locator(".lf-fp-value")).to_have_text("My turn to answer")
+    expect(asked.locator(".lf-fp-value")).to_have_text("New · My turn to answer")
     line = asked.evaluate(
         """row => {
           const label = row.querySelector('.lf-fp-label').getBoundingClientRect();

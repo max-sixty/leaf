@@ -684,18 +684,20 @@ MESSAGE_ROOM_PAGE = leaf_page(
 )
 
 
-# What each card of the panel's On me view says: its obligation's kind and id (queue-api.js,
-# `queueItemKey`), the list it stands in ("you", "agent" or "done"), its title, its
-# prompt and what it says of its ending (such as "Answered: …"), each null where the
-# card has none, and its box.
+# What each item of the panel's On view says, as On me's card or On <agent>'s line: its
+# obligation's kind and id (queue-api.js, `queueItemKey`), the list it stands in ("you",
+# "agent" or "done"), its title, its prompt where its card is open, and what it says of
+# its ending (such as "Answered: …"), each null where the item has none, and its box.
 ON_ITEM_SAYS = """() => [...document.querySelectorAll(
     '.lf-fp-view[data-view="queue"]:not([data-leaving]) .lf-fp-on-item')].map((c) => ({
   kind: JSON.parse(c.dataset.key)[0],
   id: JSON.parse(c.dataset.key)[1],
   list: c.dataset.list,
-  title: c.querySelector('.lf-fp-on-title')?.textContent ?? null,
+  title: c.querySelector('.lf-fp-on-title, .lf-fp-on-line .lf-fp-label')?.textContent
+    ?? null,
   prompt: c.querySelector('.lf-fp-prompt')?.textContent ?? null,
-  said: c.querySelector('.lf-fp-said')?.textContent ?? null,
+  said: (c.querySelector('.lf-fp-said')
+    ?? c.querySelector('.lf-fp-on-says > .lf-fp-value'))?.textContent ?? null,
   w: Math.round(c.getBoundingClientRect().width),
   h: Math.round(c.getBoundingClientRect().height),
 }))"""

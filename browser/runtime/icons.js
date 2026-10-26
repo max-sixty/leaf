@@ -2,7 +2,7 @@
    module: composing/selection.js builds its response button with an icon as it
    evaluates. */
 
-import { html, render } from "/vendor/browser-runtime.js";
+import { html, render } from "/runtime/framework.js";
 
 import { PLAY, PAUSE } from "./motion-icon-paths.js";
 
@@ -18,7 +18,9 @@ const ICONS = {
     '<path d="M3 5.25h8.5M9.25 3l2.25 2.25L9.25 7.5M13 10.75H4.5M6.75 8.5 4.5 10.75 6.75 13"/>',
   check: '<path d="m3 8.25 3.15 3.15L13 4.75"/>',
   comment: '<path d="M3 3.25h10v7H7.25L4 12.75v-2H3z"/>',
-  copy: '<path d="M3 6h7v7H3zM6 6V3h7v7h-3"/>',
+  // The common copy glyph: the front sheet at the bottom right. Mirrored, with the front
+  // sheet at the bottom left, two squares read as a window's Restore button.
+  copy: '<rect x="6" y="6" width="7" height="7" rx="1.25"/><path d="M10 6V4.25C10 3.56 9.44 3 8.75 3h-4.5C3.56 3 3 3.56 3 4.25v4.5C3 9.44 3.56 10 4.25 10H6"/>',
   cross: '<path d="m4 4 8 8M12 4l-8 8"/>',
   dot: '<circle cx="8" cy="8" r="1.5" fill="currentColor" stroke="none"/>',
   down: '<path d="m4 6.25 4 4 4-4"/>',
@@ -40,6 +42,8 @@ const ICONS = {
   pause: PAUSE,
   play: PLAY,
   previous: '<path d="m10 3.5-4.5 4.5 4.5 4.5"/>',
+  // How a list is arranged: its lines, shortening, the choosers' symbol.
+  arrange: '<path d="M3 4.5h10M3 8h7M3 11.5h4"/>',
   all: '<path d="M3 4h6M3 8h6M3 12h6M12 8v4M10 10h4"/>',
   pickup: '<path d="M8 2.75v6.5M5.5 6.75 8 9.25l2.5-2.5M3 10.5v2h10v-2"/>',
   question:

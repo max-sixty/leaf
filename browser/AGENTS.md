@@ -74,20 +74,28 @@ representative desktop viewport.
   ancestors or siblings, and typing may grow a field but never moves it. Check:
   `tests/shift_watch.js`, run on every browser test outside a module marked
   `shifts_unsurveyed` (`tests/AGENTS.md`, "Browser errors").
-- **What takes turns in a place doesn't size it.** Where several modes share one seat,
-  as the comment field, page search, Threads' search, a thread's reply and the seated
-  comment box share the floating panel's field, the place sets the box from a theme
-  token and each occupant fills it. Only content grows it, such as typed words, or a
-  gesture that asks for room, such as More room. A label's words (`data-room`, below)
-  and a widget's first paint (`keeps-first-box`) are cases of the same rule. A
-  one-line control's face is the line (`--lf-line`, theme.css) and a finger's floor its
-  reach (surfaces.css); a control that brings its own height instead, from its type or
-  the floor, sizes every place it is seated in. Check:
+- **Stability is owed to the common path.** Every hold costs code on each later
+  change, so a rare path the user reads at a glance moves what is on screen rather
+  than carry a mechanism of its own. Words a refused send hands back, and a draft typed
+  in another tab, grow the reply field as typing does, in a card as in the floating
+  panel, and a refused turn gives its room back as it folds: what the user is about to
+  send shows whole before the layout holds (the user's choice, 25 October 2026).
+- **Shared containers determine control dimensions.** When several modes share a
+  container, that container sets its dimensions from a theme token and each mode's
+  controls fill it. For example, the comment field, page search, Threads' search,
+  a thread's reply and the seated comment box share the floating panel's field.
+  The container grows only for content, such as typed words, or an explicit action,
+  such as More room. Changing labels (`data-room`, below) and rendering a widget
+  after its first paint (`keeps-first-box`) follow the same sizing rule. A
+  one-line control's visible height is `--lf-line` (theme.css); its touch target meets
+  the minimum size set by surfaces.css. A control that instead derives its visible
+  height from its font or the touch-target minimum changes the height of every
+  container that holds it. Check:
   `test_whatever_the_field_holds_the_row_keeps_its_line`
-  compares the row with its token in each mode; that a place still contains its
-  occupant proves nothing, since a grown place always does. `tests/swap_watch.js`,
-  which the browser fixture runs on every test, fails a flex row whose height follows
-  an occupant that took another's seat in it.
+  compares the row's height with its token in each mode. Checking only that controls
+  fit inside the row would miss a row that grew to fit them. `tests/swap_watch.js`,
+  which the browser fixture runs on every test, fails the test if a flex row's height
+  changes to match a replacement child control.
 - **A runtime region whose contents rearrange inside it declares `data-lf-reflow`**
   on the box that owns the space: `text` where its labels may rewrap while its controls
   stay put, as in a message header, and `append` where it grows only at its end, as a
@@ -183,7 +191,7 @@ representative desktop viewport.
   heights, `--raise-1` to `--raise-3` (`styles/theme.css`). Check:
   `test_every_lift_names_one_of_the_theme_s_heights_cast_in_the_scheme_s_ink`.
 - **Every surface paints a thread's `unread` and `attention` from one value**, so the
-  Threads toggle, filters, panel, margin entry and Page Map change together. Green marks
+  On me mark's dot, Threads, panel, margin entry and Page Map change together. Green marks
   the user's turn; other thread controls stay blue. Marking read never moves the user.
 
 ### Motion
@@ -421,6 +429,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | The thread id a drawn thread carries                                                                  | `thread/selectors.js` `drawnThreadId`                                              |
 | The draft a thread holds: its reply box or a rewrite                                                  | `drafts.js` `replyContext`, `rewriteContext`, `threadDraft`                        |
 | Which obligations a region of the page holds                                                          | `obligations/place.js` `obligationsIn`                                             |
+| What names the part of the page a node stands in: its heading, or a named region                      | `thread/placement.js` `partOver`                                                   |
 
 ### Facts both runtimes know
 
@@ -503,8 +512,9 @@ through `readPart` selectors that return exactly what it draws, so it reruns onl
 that answer changes (`semantic-state.js`).
 
 Test what one module decides on its own under `tests/runtime/`
-(`pnpm run test:runtime`). The browser framework's TypeScript and its module tests live
-in `framework/`, which `build/browser/` compiles into `vendor/`. `pnpm run
-check:browser` type-checks the runtime and widget modules, strictly where a module is
-marked `// @ts-check`. Declare a new global, event detail or runtime element tag in
-`framework/runtime-globals.d.ts`.
+(`pnpm run test:runtime`). The browser framework, `runtime/framework.js` and the
+modules behind it, is JavaScript a page runs as written. `pnpm run check:browser`
+type-checks the runtime and widget modules, strictly where a module is marked
+`// @ts-check`, which the build requires of every framework module; `types/` holds the
+check's configuration and the declarations it reads. Declare a new global, event detail or runtime element tag in
+`types/runtime-globals.d.ts`.

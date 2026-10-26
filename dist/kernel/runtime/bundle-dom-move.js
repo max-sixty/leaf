@@ -1,4 +1,4 @@
-import { Z, cancelWork, enqueueWork, runWork } from "./bundle-browser-runtime.js";
+import { Z, cancelWork, enqueueWork, runWork } from "./bundle-signals-core.js";
 
 //#region runtime/frame-visibility.js
 const child = document.documentElement.lfSample;
@@ -432,7 +432,7 @@ function* renderedElements(node) {
 }
 const SEQUENTIAL = `${TAB_STOP}, iframe, audio[controls], video[controls]`;
 const tabStops = (root) => [...renderedElements(root)].filter((node) => node.matches(SEQUENTIAL) && node.tabIndex >= 0 && !node.shadowRoot?.delegatesFocus && !node.matches(":disabled") && !node.inert && node.checkVisibility({ visibilityProperty: true }));
-const canPlaceFocus = () => !document.documentElement.lfSample || document.hasFocus();
+const canPlaceFocus = () => window === window.top || document.hasFocus();
 const CAUSES = /* @__PURE__ */ new Set([
 	"move",
 	"step",

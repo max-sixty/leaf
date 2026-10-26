@@ -809,6 +809,17 @@ button.lf-primary-news {
         transparent);
   }
 }
+.lf-media-frame,
+:where(:root, .lf-thread-transcript) img:where(:not(.lf-media-frame img)) {
+  border-radius: var(--r);
+  box-shadow: 0 0 0 1px var(--lf-ring, var(--border-2)), var(--raise-1);
+}
+@media (forced-colors: active) {
+  .lf-media-frame,
+  :where(:root, .lf-thread-transcript) img:where(:not(.lf-media-frame img)) {
+    outline: 1px solid CanvasText;
+  }
+}
 :where(:root, .lf-thread-transcript) table:has(> * > tr > td > img:only-child, > * > tr > td > a:only-child > img:only-child) > * > tr > :is(th, td) {
   vertical-align: middle;
 }
@@ -865,6 +876,9 @@ leaf-text.lf-fab-input,
 }
 .lf-msg-body :is(p, ul, ol, pre, blockquote, table, hr) {
   margin: 6px 0;
+}
+.lf-msg-body > :is(.lf-msg-text:not(:empty), .lf-msg-media):has(+ :not(.lf-msg-media, .lf-drawing-reference)) {
+  margin-block-end: 6px;
 }
 .lf-msg-text > p {
   font: inherit;
@@ -1199,11 +1213,9 @@ svg[data-lf-icon] {
 .lf-msg-new {
   flex: none;
   align-self: center;
-  padding: 1px 5px;
-  border-radius: 3px;
-  font: 600 10.5px/1.3 var(--sans);
-  letter-spacing: 0.02em;
-  color: var(--paper);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
   background: var(--accent);
 }
 :where(.scroll) {
@@ -1519,13 +1531,13 @@ svg[data-lf-icon] {
   z-index: 1;
   pointer-events: none;
 }
-:is(.lf-compose-submit, .lf-compose-dictate),
+:is(.lf-compose-submit, .lf-compose-dictate, .lf-response-trigger),
 :is(.lf-resolve, .lf-reopen).lf-icon-action {
   border: 0;
   background: transparent;
   box-shadow: none;
 }
-:is(.lf-compose-submit, .lf-compose-dictate, .lf-resolve.lf-icon-action, .lf-reopen.lf-icon-action)::before {
+:is(.lf-compose-submit, .lf-compose-dictate, .lf-response-trigger, .lf-resolve.lf-icon-action, .lf-reopen.lf-icon-action)::before {
   content: "";
   position: absolute;
   box-sizing: border-box;
@@ -1534,7 +1546,7 @@ svg[data-lf-icon] {
   border-radius: var(--r);
   background: transparent;
 }
-:is(.lf-compose-submit, .lf-compose-dictate, .lf-resolve.lf-icon-action, .lf-reopen.lf-icon-action):hover {
+:is(.lf-compose-submit, .lf-compose-dictate, .lf-response-trigger, .lf-resolve.lf-icon-action, .lf-reopen.lf-icon-action):hover {
   background: transparent;
   box-shadow: none;
 }
@@ -1545,17 +1557,18 @@ svg[data-lf-icon] {
   inset-block-end: var(--lf-compose-action-inset);
   color: var(--accent);
 }
-:is(.lf-compose-submit, .lf-compose-dictate):not(:disabled, [aria-disabled=true]):hover::before {
+:is(.lf-compose-submit, .lf-compose-dictate, .lf-response-trigger):not(:disabled, [aria-disabled=true]):hover::before,
+.lf-response-trigger[aria-expanded=true]::before {
   background: var(--accent-tint);
 }
 :is(.lf-compose-submit, .lf-compose-dictate):is(:disabled, [aria-disabled=true]) {
   opacity: 1;
   color: var(--muted);
 }
-.lf-compose-dictate {
+:is(.lf-compose-dictate, .lf-response-trigger) {
   color: var(--muted);
 }
-.lf-compose-dictate:hover {
+:is(.lf-compose-dictate, .lf-response-trigger):hover {
   color: var(--ink);
 }
 .lf-compose-dictate:is([data-dictation=starting], [data-dictation=listening]) {
@@ -1642,11 +1655,6 @@ button.lf-media-open {
   outline: var(--focus-ring);
   outline-offset: 2px;
 }
-.lf-media-frame,
-.lf-composer-media-item > .lf-composer-media-open {
-  border-radius: var(--r);
-  box-shadow: 0 0 0 1px var(--lf-ring, var(--border-2)), var(--raise-1);
-}
 .lf-composer-media-item:not(.lf-composer-drawing) > .lf-composer-media-open {
   height: var(--lf-media-h);
   min-height: 0;
@@ -1673,11 +1681,6 @@ button.lf-media-open {
   }
   .lf-composer-media-item > .lf-corner-mark {
     transition: opacity var(--lf-motion-disclosure);
-  }
-}
-@media (forced-colors: active) {
-  .lf-composer-media-item > .lf-composer-media-open:not([data-lf-focus-visible]) {
-    outline: 1px solid CanvasText;
   }
 }
 .lf-msg-media > .lf-composer-media-item {
@@ -1864,6 +1867,18 @@ leaf-text.lf-fab-input {
   inset-inline-end: var(--lf-comment-send-inset);
   inset-block-end: var(--lf-comment-send-inset);
 }
+.lf-fab-bar .lf-compose-field > .lf-response-trigger {
+  position: absolute;
+  z-index: 1;
+  inset-inline-end: calc(var(--lf-comment-send-inset) + var(--lf-icon-action-hit));
+  inset-block-end: var(--lf-comment-send-inset);
+}
+.lf-fab-bar .lf-compose-field[data-words] > .lf-response-trigger {
+  display: none;
+}
+.lf-fab-bar .lf-compose-field:not([data-words]):has(> .lf-response-trigger:not([hidden])) > leaf-text.lf-fab-input {
+  padding-inline-end: calc(var(--lf-comment-text-end) + var(--lf-icon-action-hit) - 1px);
+}
 .lf-response-action {
   min-width: max(30px, var(--aim-floor));
   padding-inline: 9px;
@@ -1890,14 +1905,13 @@ leaf-text.lf-fab-input {
 .lf-fab-bar:not([data-lf-target-only]) > .lf-fab {
   display: none !important;
 }
-.lf-response-trigger {
-  anchor-name: --lf-response-trigger;
-  flex: none;
-  min-height: var(--lf-response-height);
+.lf-response-trigger,
+.lf-fab-bar .lf-compose-field[data-words] {
+  anchor-name: --lf-response-options;
 }
 .lf-response-options {
   position: fixed;
-  position-anchor: --lf-response-trigger;
+  position-anchor: --lf-response-options;
   position-visibility: anchors-visible;
   position-area: block-start span-all;
   position-try-fallbacks: flip-block;
@@ -1982,7 +1996,6 @@ leaf-text.lf-fab-input {
   display: block;
   max-width: 100%;
   max-height: min(60vh, 480px);
-  border-radius: var(--r);
 }
 :is(.lf-btn, .button):is([aria-pressed=true], [aria-checked=true]) {
   border-color: var(--accent);
@@ -2193,9 +2206,6 @@ html[data-lf-draw-mode] main {
   block-size: var(--lf-reply-space, 0px);
   min-block-size: 0;
   max-block-size: 100%;
-}
-.lf-reply-continuity > .lf-thread-reply leaf-text:not(:state(placeholder-shown)) {
-  block-size: var(--lf-reply-writing-room, auto);
 }
 
 /* browser/styles/components/webawesome.css */

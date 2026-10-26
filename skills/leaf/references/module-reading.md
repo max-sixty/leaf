@@ -167,7 +167,7 @@ arrives. Each `source.kind` adds its own facts:
   `answered_elsewhere` or `withdrawn` and `end.detail` says why.
 - An `update` is what a message the user sent, or an action in an answered widget's
   obligation, is owed. `source.id` names the event and `source.subject` the thread or
-  widget it stands on. Its next actor is the agent while it owes a reply or a version,
+  widget the update concerns. Its next actor is the agent while it owes a reply or a version,
   the user when it was handed back to send again, and `null` once a reply, named by
   `answer.event`, answered it. Of several messages the user sent in a row, only the
   newest has one. `obligationsIn` never counts an update.
@@ -199,7 +199,9 @@ through `answer`, so the view records nothing of its own.
 `readQueues()` returns the `{phase, on_user, on_agent, done}` lists Leaf's panel shows
 under On me and On <agent>. Each row has a `kind`, which is its obligation's
 `source.kind` (with the obligation as `obligation`) or `todo` (with the to-do as
-`todo`), and an `owner`, `user` or `agent`. Rows not done carry `offers: {open, done}`.
+`todo`), and an `owner`, `user` or `agent`. An obligation's row lists in `also` the ids
+of the other obligations the user answers at the same place, such as the agent's answer
+in a thread about it. Rows not done carry `offers: {open, done}`.
 `queueItemKey(row)` names a row across moves between lists, and `queueTitle(row)` gives
 its title. `queueActions.open(key)` goes to a row. `queueActions.done(key)` ends a to-do
 the agent opened on the user, returning its admission promise, and returns `null` for

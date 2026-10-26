@@ -6,9 +6,9 @@
    over HTTP from the served page, as `/runtime/widget-api.js`. What only the render
    gate's probes read belongs in check-api.js instead.
 
-   Every export above the `// Internal:` comment is the authoring API, and
-   the references/module-*.md files document each one; the exports below it serve Leaf's
-   bundled packages and kernel widgets alone (tests/runtime/widget-api.test.mjs). */
+   Every export is supported for independent and bundled packages alike; the
+   references/module-*.md files document each one. Kernel widgets import private
+   capabilities from their owners rather than lending them through this surface. */
 export {
   html,
   noChange,
@@ -24,7 +24,7 @@ export {
   styleMap,
   unsafeHTML,
   signal,
-} from "/vendor/browser-runtime.js";
+} from "/runtime/framework.js";
 export { move } from "./dom-move.js";
 export { iconElement, iconTemplate } from "./icons.js";
 export { widgetController } from "./widget-controller.js";
@@ -50,6 +50,7 @@ export { indicate } from "./indication.js";
 // `growthIsSeen(element)`: whether the element changing size now would move what the
 // user sees, as scroll anchoring and the chrome leave it.
 export { growthIsSeen, landingInsets, shownWindow } from "./geometry.js";
+export { registerRootHeader } from "./page-layout.js";
 // Holding the user's place in a scroller whose contents a widget re-renders.
 export { placeKeeper } from "./user-place.js";
 export { under } from "./shadow.js";
@@ -107,7 +108,7 @@ export { turns as threadTurns } from "./thread/model.js";
 export { threadSummary } from "./thread/messages.js";
 // Holding a region's rows the log or the clock decides while their growth would be seen
 // (assets/AGENTS.md, "Stability").
-export { HeldReading } from "./thread/held-news.js";
+export { HeldReading, heldGrowth } from "./thread/held-news.js";
 export { wireInput } from "./application.js";
 export { DISCLOSE } from "./keyboard/disclosure.js";
 export { showNativeLayer, closeNativeLayer } from "./keyboard/layer-stack.js";
@@ -243,6 +244,7 @@ export {
 // The one watcher of the page's readings (module-reading.md, "Page readings").
 export {
   LAYOUT,
+  PRESSABLE,
   dragging,
   el,
   generated,
@@ -263,20 +265,14 @@ export { atLayoutPrecision, keeps, keepsHidden, keepsText, layoutPx } from "./ke
 
 export { LeafEditorView } from "./editor-view.js";
 
-// Internal: what Leaf's own bundled packages and kernel widgets import beyond the
-// authoring API the references/module-*.md files document. Package authors do not use these.
+// Optional child runtimes are loaded only by packages that mount a sample.
 export async function mountSample(frame, options) {
   const owner = await import("./sample.js");
   return owner.mountSample(frame, options);
 }
-export { dressSamples, wear } from "./dress.js";
+export { wear } from "./dress.js";
 export { landInThread } from "./application.js";
 export { threadInput } from "./thread/landing.js";
-export { removeRuntimeRootStyle, setRuntimeRootStyle } from "./root-state.js";
-export { shownParts } from "./geometry.js";
-export { renderRetired, textNodesUnder } from "./passages.js";
-export { heldGrowth } from "./thread/held-news.js";
-export { PRESSABLE } from "./widget-elements.js";
 // What the page calls its agent, as On <agent> names it, for `lf-tally`'s words.
 export { agentName } from "./semantic-state.js";
 // A region's open obligations by whose turn each is, in the words `lf-tally` and

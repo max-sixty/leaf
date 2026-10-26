@@ -26,7 +26,7 @@ def test_new_reply_and_user_question_share_one_notice_without_moving_focus(
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "What should change?")
     page = open_page(browser, url)
-    toggle = page.locator(".lf-fp-threads")
+    toggle = page.locator(".lf-fp-on-user")
     toggle.focus()
     expect(toggle).to_be_focused()
     said(page).not_to_have_attribute(
@@ -48,7 +48,7 @@ def test_new_reply_and_user_question_share_one_notice_without_moving_focus(
 
 def test_a_new_agent_comment_is_announced_without_moving_focus(browser, serve):
     page = open_page(browser, serve(PANEL_PAGE))
-    toggle = page.locator(".lf-fp-threads")
+    toggle = page.locator(".lf-fp-on-user")
     toggle.focus()
     expect(toggle).to_be_focused()
     said(page).not_to_have_attribute(

@@ -59,7 +59,7 @@ from leaf.shown_answers import shown_widget
 from leaf.todos import todo_error
 from leaf.validation.instances import attribute_slot_errors
 from leaf.work import widget_seat_error
-from leaf.workflows import agent_inputs, obligation_reading
+from leaf.workflows import agent_inputs, attention_reading
 
 
 def event_record_error(contract: dict, event: dict) -> Finding | None:
@@ -125,10 +125,11 @@ def command_error(event: dict, contracts: dict) -> Finding | None:
     )
 
 
-def declared_event_error(event: dict, tag: str, registry: dict):
+def declared_event_error(event: dict, rec: dict, registry: dict):
     """Why a known widget's verb or detail violates its x-state declaration, or
     names a verb the event's own writer does not write."""
     kind = event["kind"]
+    tag = rec["tag"]
     entry = registry.get(tag)
     if entry is None:
         return Finding(
@@ -152,7 +153,10 @@ def declared_event_error(event: dict, tag: str, registry: dict):
             verb for verb, _spec in state_specs(entry, writer=verb_writers()[kind])
         )
         return Finding("undeclared-verb", values={**named, "declared": declared})
-    if complaint := schema_complaint(detail_schema(entry, spec), event["detail"]):
+    if complaint := schema_complaint(
+        detail_schema(entry, spec, attrs=rec["attrs"], registry=registry),
+        event["detail"],
+    ):
         return Finding("invalid-detail", values={**named, **complaint})
     return None
 
@@ -178,7 +182,7 @@ def declared_action_error(
             },
         )
     tag = rec["tag"]
-    if error := declared_event_error(event, tag, registry):
+    if error := declared_event_error(event, rec, registry):
         return error
     # The exhibit rule at the door, not only in the shipped runtime's
     # browser controller: an exhibited widget is a mention, and the log outranks the
@@ -469,7 +473,7 @@ def declared_report_error(event: dict, page, registry: dict):
                 "revision": event["revision"],
             },
         )
-    return declared_event_error(event, tag, registry)
+    return declared_event_error(event, rec, registry)
 
 
 def admitting_registry(view, event: dict) -> dict:
@@ -838,7 +842,7 @@ def _reanchor_error(view, event: dict, events: list) -> Finding | None:
 
 def settled_attention(event: dict, contract: dict) -> bool | None:
     """The attention an event's kind and author decide alone, or None for the
-    user's input, which needs attention only when it changes what the agent owes.
+    user's input, which needs attention when it changes work or requests it.
 
     A report or an error always wakes the agent; the agent's own events and the
     user's bookkeeping never do.
@@ -897,7 +901,7 @@ def admitted_event(view, events: list, event: dict) -> dict:
         active_registry = view.registry(revisions[-1] if revisions else None)
         before = AdmissionReadings(view, events, active_registry)
         after = AdmissionReadings(view, [*events, candidate], active_registry)
-        attention = obligation_reading(before) != obligation_reading(after)
+        attention = attention_reading(before) != attention_reading(after)
     event = {**event, "attention": attention}
     return event
 

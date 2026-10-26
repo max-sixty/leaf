@@ -27,8 +27,11 @@ long it lives across revisions. A widget's declarations are in
 Import Leaf's helpers only from `/runtime/widget-api.js`. Don't import the runtime's
 other modules, query Leaf's own chrome, or copy a runtime helper. Each helper is
 described in the section for the task it serves, and its full contract is in the header
-of the module `widget-api.js` re-exports it from. A DOM helper takes the element it acts
-for as its first argument.
+of the module `widget-api.js` re-exports it from. Every export is public for independent
+and bundled packages alike;
+there is no separate bundled-package tier. Kernel implementation and check-only
+observations live outside this surface. A DOM helper takes the element it acts for as
+its first argument.
 
 From Lit, `widget-api.js` exports `render`, `html`, `nothing`, `repeat`, `keyed`,
 `live`, `ref`, `createRef`, `classMap`, `styleMap`, `guard` and `unsafeHTML`. From
@@ -282,7 +285,52 @@ back differently; pass booleans and counts as they are, and `null` to remove it.
 `hidden`. Write a measured length into a style as `layoutPx(length)`, which rounds to
 layout's 1/64px; `atLayoutPrecision(length)` returns the rounded number.
 
+## Time axes
+
+`axisTicks(from, to, duration, pxPerMs)` returns `{time, major, label, step}` ticks
+for a visible time span, clipped to the duration. Times and steps are milliseconds;
+major labels use seconds. `assignRows(items, start, end)` maps each item's `id` to a
+zero-based row, arranging the extents returned by `start(item)` and `end(item)` so
+overlapping extents use different rows. `textWidth(text, font)` measures text in
+pixels using a CSS font shorthand. These helpers support a drawing before widget
+upgrade as well as later updates.
+
+## Contained examples and scoped appearance
+
+`mountSample(frame, {template, window})` asynchronously mounts the authored template
+with that id as a contained Leaf page in an iframe. `window` defaults to `false`;
+`true` gives the child a full-window layout. Await the returned host, then its `ready`
+promise before reading its presentation. `reset()` replaces the child's isolated
+history, `setWindow(boolean)` changes its allocation, and `destroy()` releases the
+child and its listeners; call it when the owning widget is disposed. A sample keeps
+its own state and theme scope. Declare its template in the authored document, following
+[live-samples.md](live-samples.md).
+
+The host's `ready` promise belongs to its current child, and changes when loading
+starts again. `on(type, callback)` returns an unsubscribe function. Its notices are
+`loading`, `departed`, `arriving`, `arrived`, `input`, `current-location` (with `{focused}`),
+and `height` (with `{height, gesture}`). Use the latter to size a block frame, holding
+a growth the user did not request as described in `module-scroll-and-motion.md`.
+`restoreCurrentLocation()` returns focus to the child's last focused control;
+`showThread(id, {surface, status, signal})` opens a child Thread with an AbortSignal
+for the owning gesture's lifetime. `surface: "panel"` selects the child's panel,
+with `status` selecting its thread list; otherwise the child's own thread presentation
+opens the conversation. Showing a child Thread does not take focus. These operations
+wait for the current child's `ready` and reject if that child is replaced or destroyed.
+
+`wear(element, {attributes, properties})` applies a complete scoped appearance: each
+map contains its CSS attributes or custom properties, and a later call removes members
+missing from the replacement. Use it on an element the package owns, with the public
+style inputs from [package-themes.md](package-themes.md). The same appearance reaches
+contained samples under that element, including their first paint and resets. Calling
+`wear` on an inner owner replaces an outer owner's appearance for samples beneath it:
+the nearest dressed ancestor owns a sample's appearance. This does not authorize writing
+Leaf's computed geometry or styling another package's internals.
+
 ## Generated controls
+
+`PRESSABLE` is the selector for a generated control that offers a press. Use it when
+a compound widget delegates events to its own controls.
 
 `offer(tag, className, label, inputType, pressable)` makes a native control, or a box of
 controls, marked as Leaf-generated; the browser keeps its activation, focus and

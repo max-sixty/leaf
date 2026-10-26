@@ -36,7 +36,7 @@ import {
   currentLocationTouches,
   currentLocationIn,
 } from "../focus.js";
-import { html, render, nothing, share, signal } from "/vendor/browser-runtime.js";
+import { html, render, nothing, share, signal } from "/runtime/framework.js";
 import { turns, threadKey } from "./model.js";
 import { anchorLabel, messageReading, threadSummary } from "./messages.js";
 import { generatedElement, offer, measure } from "../widget-elements.js";
@@ -534,10 +534,15 @@ export class ThreadView {
     // Capture the current words only when news starts waiting, before its update
     // removes a receipt. This allocation lives with the held view, not its reading.
     if (model.news && !prior?.news) this.#retainHeaderSlot({ observe: false });
-    const rewritten = this.#transcript.views
-      .filter((view) => view.editing)
-      .map(({ node }) => node);
-    const bodyPlace = published ? this.#continuity?.before(rewritten) : null;
+    // The rewrites the user has open, and the messages leaving, change their own room.
+    const bodyPlace = published
+      ? this.#continuity?.before([
+          ...this.#transcript.views
+            .filter((view) => view.editing)
+            .map(({ node }) => node),
+          ...this.#transcript.leaving(model),
+        ])
+      : null;
     const restoreFocus = holdFocus(this.node);
     this.#model = model;
     const reply = model.reply || replyIsEditing(model.key);
@@ -615,7 +620,7 @@ export class ThreadView {
     if (!marginControls && model.news)
       measure(this.node, () => this.#retainHeaderSlot());
     else this.#releaseHeaderSlot();
-    this.#continuity?.after(bodyPlace, this.#transcript.folds);
+    this.#continuity?.after(bodyPlace);
     // A page thread whose render took the user's place puts them in its reply, or on
     // the thread itself.
     // Handing it on is the card's own act, which the list holding the card defers to.
@@ -880,6 +885,8 @@ export class ThreadView {
       {
         onChange: replyChanged,
         editLast: this.#rewrites.editLast,
+        // A margin card moves with the send it presents (thread-preview.js).
+        sending: () => this.#marginControls?.sending?.(),
       },
     );
   }

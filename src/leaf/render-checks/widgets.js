@@ -1,12 +1,7 @@
-import {
-  inChrome,
-  matchesWhen,
-  quoted,
-  TEXT_BOX,
-  textNodesUnder,
-} from "/runtime/widget-api.js";
+import { inChrome, matchesWhen, quoted, TEXT_BOX } from "/runtime/widget-api.js";
 import {
   ADDRESSABLE,
+  textNodesUnder,
   commandDeclarationsWithin,
   commandRoutes,
   pageDocument,

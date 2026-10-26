@@ -16,6 +16,7 @@ const current = {
   unit: "widget",
   record: { kind: "attribute", attr: "chosen" },
   creates: null,
+  decides: false,
   detail: { type: "object" },
 };
 

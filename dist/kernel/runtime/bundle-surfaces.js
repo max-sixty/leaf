@@ -11,7 +11,7 @@ import { ADDRESSABLE, addressableWord, aimTargetAt, anchorBox, anchorForPassage,
 import { initialOrigin, initialSource } from "./bundle-initial-render.js";
 import { alreadyShown, copyControl, fitsWhole, passOn, restrictUserIntent, retainUserIntent, scrollIntoReadingBand, scrollIntoView } from "./bundle-copy-control.js";
 import { aborted, commitWidgetDescriptors, dataBody, rememberAuthoredParents, setChildren, stageAuthoredStates, stageWidgetDescriptors } from "./bundle-abort.js";
-import { flashDuration, foldBlock, motion, scrollBehavior } from "./bundle-motion.js";
+import { flashDuration, foldBlock, motion, motionPlays, scrollBehavior } from "./bundle-motion.js";
 import { isCanonicalMediaUrl, readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "./bundle-media.js";
 
 //#region runtime/user-place.js
@@ -3548,13 +3548,14 @@ function proseReading(message) {
 	return reading;
 }
 function messageText(message) {
+	if (message.body?.kind === "authored") return message.body.text;
 	if (message.token) return `${tokenEntry(message.token)?.glyph ?? ""} ${message.token}`.trim();
 	return message.suggestion ? message.text ?? "" : proseReading(message).plainText;
 }
 function threadName(thread) {
 	if (thread.title != null) return thread.title;
 	const { root } = thread;
-	return labelWords(root.body.kind === "authored" ? root.body.text : messageText(root)) || (root.drawing ? "Drawing" : "");
+	return labelWords(messageText(root)) || (root.drawing ? "Drawing" : "");
 }
 const titlePending = (thread) => thread.title == null && thread.attention?.kind === "waiting" && thread.attention.reason === "workflow" && pageClaimed();
 const threadHeading = (thread) => titlePending(thread) ? html`<span class="lf-thread-name-pending">Generating thread name…</span
@@ -5442,7 +5443,7 @@ var Transcript = class Transcript {
 		for (const [key, view] of this.#messages) {
 			if (wanted.has(key)) continue;
 			const { node } = view;
-			if (!this.#folding.has(key) && node.parentNode === this.node && node.checkVisibility()) {
+			if (motionPlays() && !this.#folding.has(key) && node.parentNode === this.node && node.checkVisibility()) {
 				const names = MESSAGE_NAMES.map((name) => [name, node.getAttribute(name)]);
 				for (const [name] of names) node.removeAttribute(name);
 				node.inert = true;

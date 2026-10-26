@@ -97,8 +97,11 @@ function proseReading(message) {
   return reading;
 }
 
-/** @param {{readonly id?: string, readonly attempt?: string, readonly text?: string, readonly token?: string, readonly suggestion?: boolean, readonly edited?: {readonly id?: string} | null}} message @returns {string} */
+// Authored messages hold the complete captured reading of prose and islands.
+// Other messages and summaries still need their prose rendered here.
+/** @param {{readonly id?: string, readonly attempt?: string, readonly text?: string, readonly token?: string, readonly suggestion?: boolean, readonly body?: {readonly kind: string, readonly text: string}, readonly edited?: {readonly id?: string} | null}} message @returns {string} */
 export function messageText(message) {
+  if (message.body?.kind === "authored") return message.body.text;
   if (message.token) {
     const token = tokenEntry(message.token);
     return `${token?.glyph ?? ""} ${message.token}`.trim();
@@ -114,9 +117,7 @@ export function messageText(message) {
 export function threadName(thread) {
   if (thread.title != null) return thread.title;
   const { root } = thread;
-  const words = labelWords(
-    root.body.kind === "authored" ? root.body.text : messageText(root),
-  );
+  const words = labelWords(messageText(root));
   return words || (root.drawing ? "Drawing" : "");
 }
 

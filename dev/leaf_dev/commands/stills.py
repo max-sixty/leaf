@@ -82,6 +82,14 @@ def at_rest(page: Page) -> None:
     """The page as it loads."""
 
 
+def worktree_summaries(page: Page) -> None:
+    """Close the initially open worktree so the list's summary columns stand together."""
+    page.locator("#worktree-example-worktree-0 > details > summary").click()
+    expect(
+        page.locator("#worktree-example-worktree-0 > details")
+    ).not_to_have_attribute("open")
+
+
 def plan_execution(page: Page) -> None:
     """The execution step with its security qualification in view."""
     page.locator("#plan-execute > h3").evaluate(
@@ -1682,6 +1690,27 @@ STATES = (
     State("diff-file-threads", "developer/diff-thread-gallery", at_rest),
     State("diff-long-lines", "developer/diff-thread-gallery", diff_long_lines),
     State("worktree-diffs", "developer/worktree-diffs", at_rest),
+    State(
+        "worktree-summaries",
+        "developer/worktree-diffs",
+        worktree_summaries,
+        region="#worktree-example-workbench",
+    ),
+    State(
+        "worktree-summaries-dark",
+        "developer/worktree-diffs",
+        worktree_summaries,
+        scheme="dark",
+        region="#worktree-example-workbench",
+    ),
+    State(
+        "worktree-summaries-phone",
+        "developer/worktree-diffs",
+        worktree_summaries,
+        viewport=(390, 844),
+        touch=True,
+        region="#worktree-example-workbench",
+    ),
     State("diff-file-reply", "developer/diff-thread-gallery", diff_file_reply),
     State(
         "diff-file-resolved-closed",

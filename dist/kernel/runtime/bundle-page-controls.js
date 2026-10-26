@@ -1,5 +1,7 @@
-import { renderedParent } from "./bundle-dom-move.js";
+import { Z } from "./bundle-signals-core.js";
+import { afterScript, renderedParent } from "./bundle-dom-move.js";
 import { shownBox } from "./bundle-geometry.js";
+import "./bundle-context.js";
 
 //#region runtime/chrome.js
 const chromeRoot = document.createElement("div");
@@ -252,4 +254,68 @@ function localScrollBy(source, { x, y }) {
 }
 
 //#endregion
-export { chromeForeground, chromeRoot, elementFrame, localScrollBy, scrollAxes };
+//#region runtime/page-controls.js
+const EMPTY = Object.freeze([]);
+const PAGE_CONTROL_RANK = Object.freeze({
+	session: 10,
+	claimant: 15,
+	preview: 20,
+	layer: 30,
+	inspection: 32,
+	share: 35,
+	leaves: 40,
+	latest: 50,
+	map: 70,
+	commands: 75,
+	blanket: 80,
+	versions: 90,
+	keyboard: 95,
+	exit: 120
+});
+const GROUPS = Object.freeze([
+	"page",
+	"navigate",
+	"annotate",
+	"keys"
+]);
+const rows = /* @__PURE__ */ new Map();
+let sequence = 0;
+const revision = Z(0);
+const read = (value) => typeof value === "function" ? value() : value;
+function registerPageControl(row) {
+	if (!row.key || !Number.isFinite(row.rank) || !row.label || !row.group) throw new TypeError(`Page control ${row.key} needs a key, a numeric rank, a label and a group`);
+	if (rows.has(row.key)) throw new TypeError(`Page control ${row.key} is registered`);
+	rows.set(row.key, Object.freeze({
+		...row,
+		sequence: sequence++
+	}));
+	pageControlsChanged();
+}
+function pageControls() {
+	revision.value;
+	return [...rows.values()].sort((a, b) => a.rank - b.rank || a.sequence - b.sequence).filter((row) => read(row.offered) ?? true).map((row) => {
+		const group = read(row.group);
+		if (!GROUPS.includes(group)) throw new TypeError(`Page control ${row.key} is in group ${group}, not one of ${GROUPS.join(", ")}`);
+		return Object.freeze({
+			key: row.key,
+			label: read(row.label),
+			value: read(row.value) ?? "",
+			title: read(row.title) ?? "",
+			shortcut: read(row.shortcut) ?? EMPTY,
+			group,
+			copies: read(row.copies) ?? "",
+			urgent: read(row.urgent) ?? null,
+			exit: Boolean(row.exit),
+			icon: read(row.icon) ?? null,
+			disabled: Boolean(read(row.disabled)),
+			press: row.press ?? null
+		});
+	});
+}
+const pageControlsChanged = () => afterScript(tell);
+function tell() {
+	revision.value = revision.peek() + 1;
+}
+
+//#endregion
+export { PAGE_CONTROL_RANK, chromeForeground, chromeRoot, elementFrame, localScrollBy, pageControls, pageControlsChanged, registerPageControl, scrollAxes };

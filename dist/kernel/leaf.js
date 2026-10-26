@@ -8,9 +8,9 @@ import { EVERYTHING, LAYOUT, LINK, PRESS, PRESSABLE, advertisesKeys, allBindings
 import { JUST_NOW, PRESENTATION, UPGRADE, afterPresentation, ago, atScrollEnd, effectiveScroller, markPagePresented, markPageUpgraded, moveScrollerBy, pageReadiness, pageScroller, reachScrollers, readingRegionFor, registerReadingRegion, scrollChainOf, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, settlePageInterface, shortAgo, userReadingRegion, whenArrived } from "./runtime/bundle-reading-regions.js";
 import { activeCommandLabel, availableCommandRoutes, dispatchKey, executeCommand, innermostStance, invokePress, keyReady, onSampleNotice, registerSampleCommand, sampleNotice, userIn } from "./runtime/bundle-dispatch.js";
 import { acceptData, claimTraversals, commandSteps, createAnchorTravel, createVersionController, initializeServedDocument, keepPageRulesOffLayer, mountHistory, notifyDataSubscribers, paintCoreControls, readPlace, replaceEntry, returnPlace, versionPicker, versionsReading } from "./runtime/bundle-data.js";
-import { chromeForeground, chromeRoot, elementFrame } from "./runtime/bundle-element-frame.js";
+import { PAGE_CONTROL_RANK, chromeForeground, chromeRoot, elementFrame, pageControls, pageControlsChanged, registerPageControl } from "./runtime/bundle-page-controls.js";
 import { LEAF_SURFACE, authoredScope, blockAt, closestAcross, contextAround, elementById, elementFromPointAcross, elementOver, excerptWords, findText, inChrome, leafSurface, pageDocument, pageParts, pageQueryAll, pageRange, pageReadingVersion, pageText, pageWords, programmaticSelection, quoteFrom, rangeOf, says, segmentBlock, selectEnds, selectionBackward, showsWords } from "./runtime/bundle-passages.js";
-import { ADDRESSABLE, PAGE_CONTROL_RANK, addressableLabel, addressableSays, addressableWord, aimTargetAt, aimTargets, anchorFor, anchoringIsReady, annotationAt, designPressAt, exactTarget, fragmentTarget, holdArrivingBounds, isAddressable, lightSeat, livePoint, openMarginContentLayout, pageControls, pageControlsChanged, placePoints, pointInto, railStands, registerPageControl, resolveAnchor, resolvedInMessage, revealAddressed, sectionLabel, sectionOf, setAnchoringReady, targetElement, targetParts, targetPlace, targetRange, targetSegments, unclaimedVisualGesture, visualAt, visualParts, visualSelector } from "./runtime/bundle-content-layout.js";
+import { ADDRESSABLE, addressableLabel, addressableSays, addressableWord, aimTargetAt, aimTargets, anchorFor, anchoringIsReady, annotationAt, designPressAt, exactTarget, fragmentTarget, holdArrivingBounds, isAddressable, lightSeat, livePoint, openMarginContentLayout, placePoints, pointInto, railStands, resolveAnchor, resolvedInMessage, revealAddressed, sectionLabel, sectionOf, setAnchoringReady, targetElement, targetParts, targetPlace, targetRange, targetSegments, unclaimedVisualGesture, visualAt, visualParts, visualSelector } from "./runtime/bundle-content-layout.js";
 import { fragmentId } from "./runtime/bundle-initial-render.js";
 import { copyControl, landingRoom, restrictUserIntent, retainUserIntent, scrollIntoReadingBand, scrollIntoView } from "./runtime/bundle-copy-control.js";
 import { DESIGN_MODE_KEY, ELEMENTS, PAGE_DRAFT, THREAD, allButCommandReference, allThreads, anchorLabel, answeredInWords, beginWalk, bringBackSurfaceOf, createPassageSelection, createWritingResume, currentLocationOrigin, currentLocationThreadId, declareSide, declareThreadParts, designName, dismissReply, draftHasContent, drawnThreadId, focusedThreadTarget, followBoxGrowth, heldObligation, heldThread, holdToRead, isExternalPageLink, landingPlace, leftThePage, listWalkPosition, loadDraft, messageHolding, messageReading, messageText, mirrorDraft, obligationEntry, obligationHolding, obligationPlace, obligationsIn, onReadingInterrupted, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, placeKeeper, placeOf, quoteReading, readBoxPlace, readObligations, readThreads, readingBlock, readingIsContinuous, releaseReplies, rememberWriting, replyAvailable, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, rowWalk, saveDraft, scrollThreadIntoView, selectionAnchor, sendMessage, settleThread, showHeld, showReturnTurn, snapSelection, stepFrom, subjectPlace, tabStore, tellDraft, threadAttention, threadHeading, threadList, threadName, threadNamed, threadTodos, todoLabel, touchPresses, upgradeWidgets, userChoice, walkOrigin, walkPosition, walkPositionLabel, workflowLabel, workflowStep } from "./runtime/bundle-surfaces.js";
@@ -4762,15 +4762,14 @@ function paintStatusContext(goToStatus) {
 const prefs = () => document.documentElement.lfChrome;
 const GROUPS = Object.freeze({
 	navigate: "Navigate",
-	annotate: "Annotations",
-	about: "About this page"
+	annotate: "Annotations"
 });
 const FOLD = "panel.floating.fold";
 const HELD_ELSEWHERE = Object.freeze(["keyboard", `command:${FOLD}`]);
-const listed = (entry) => !entry.exit && !HELD_ELSEWHERE.includes(entry.key);
+const listed = (entry) => !entry.exit && !HELD_ELSEWHERE.includes(entry.key) && (!entry.copies || canCopy());
 let copyRefused = false;
 const canCopy = () => !copyRefused && Boolean(navigator.clipboard?.writeText);
-const groupOf = (entry) => entry.group === "keys" && !advertisesKeys() ? "navigate" : entry.copies && !canCopy() ? "about" : entry.group;
+const groupOf = (entry) => entry.group === "keys" && !advertisesKeys() ? "navigate" : entry.group;
 const capital = (word) => word[0].toUpperCase() + word.slice(1);
 const coarse = () => matchMedia("(pointer: coarse)").matches;
 function passing() {
@@ -5762,10 +5761,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			copy.addEventListener("wa-copy", () => putAwayThen(() => {}));
 			copy.addEventListener("wa-error", () => {
 				copyRefused = true;
-				showMenuAt({
-					view: "group",
-					group: "about"
-				});
+				putAwayThen(() => rows().find((row) => row.key === "inspection").press());
 			});
 			copyItems.set(entry.key, copy);
 		}
@@ -5892,38 +5888,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	}
 	const groupValue = (group) => group === "annotate" ? rows().find((entry) => entry.key === "command:annotations.toggle")?.label === "Show annotations" ? "Hidden" : "" : "";
 	function groupList(group) {
-		return rows().filter((entry) => groupOf(entry) === group && listed(entry)).map((entry) => entry.copies ? copyRow(entry) : rowFor(entry));
-	}
-	const copies = /* @__PURE__ */ new Map();
-	function copyFor(entry) {
-		if (!copies.has(entry.key)) copies.set(entry.key, copyControl("lf-fp-copy-press", {
-			label: `Copy ${entry.label}`,
-			success: `${capital(entry.label)} copied`,
-			error: `${capital(entry.label)} not copied · select it to copy`
-		}));
-		const copy = copies.get(entry.key);
-		copy.value = entry.copies;
-		copy.disabled = entry.disabled;
-		keepsHidden(copy, !canCopy());
-		return copy;
-	}
-	function copyRow(entry) {
-		const field = `lf-fp-copy-${entry.key}`;
-		return html`<div class="lf-fp-copy" role="none">
-      <label class="lf-fp-copy-label" for=${field}>${capital(entry.label)}</label>
-      <textarea
-        id=${field}
-        class="lf-fp-face lf-fp-copy-text"
-        readonly
-        wrap="off"
-        spellcheck="false"
-        rows=${Math.min(entry.copies.split("\n").length, 3)}
-        .value=${entry.copies}
-        @focus=${(event) => event.target.select()}
-      ></textarea
-      >${copyFor(entry)}
-      ${entry.value ? html`<p class="lf-fp-copy-note">${entry.value}</p>` : nothing}
-    </div>`;
+		return rows().filter((entry) => groupOf(entry) === group && listed(entry)).map(rowFor);
 	}
 	const showVersion = (entry) => putAwayThen(() => versionPicker.activate(entry));
 	function versionsList() {
@@ -6987,7 +6952,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		keeps(menu, "data-leaving", menuFade ? "" : null);
 		keeps(menu, "inert", menuFade ? "" : null);
 		if (!menuFade) render(menuOpen.value ? menuTemplate() : nothing, menu);
-		for (const copy of [...copyItems.values(), ...copies.values()]) if (!copy.isConnected) copy.remove();
+		for (const copy of copyItems.values()) if (!copy.isConnected) copy.remove();
 		if (!menuFade) {
 			keeps(menu, "data-level", menuOpen.value && menuAt.value ? menuAt.value.view : null);
 			keeps(menu, "style", menuOpen.value && menuRoom ? `height: ${menuRoom}px` : null);
@@ -8558,11 +8523,11 @@ function createDesignMode({ pageGeometry, syncGeneral, composer, closePreview, m
 registerPageControl({
 	key: "inspection",
 	rank: PAGE_CONTROL_RANK.inspection,
-	label: "Page diagnostics",
+	label: "About this page",
 	group: "page",
 	press: () => {
 		const intent = retainUserIntent();
-		import("./runtime/bundle-page-inspection.js").then(({ openPageInspection }) => openPageInspection(intent)).catch((error) => raiseError(`Page diagnostics could not open: ${error.message}. Open the menu to retry.`));
+		import("./runtime/bundle-page-inspection.js").then(({ openPageInspection }) => openPageInspection(intent)).catch((error) => raiseError(`About this page could not open: ${error.message}. Open the menu to retry.`));
 	}
 });
 const payloadAge = (provenance) => ago(provenance.committed ?? provenance.installed);

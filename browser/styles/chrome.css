@@ -1045,6 +1045,25 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     overflow-wrap: anywhere;
     font-size: var(--t-6);
   }
+  .lf-copyable-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .lf-copyable-head wa-copy-button::part(button) {
+    min-width: var(--aim-floor);
+    min-height: var(--aim-floor);
+  }
+  .lf-copyable-text pre {
+    margin-block: 0 10px;
+    padding: 8px;
+    border: 1px solid var(--border-2);
+    border-radius: var(--r);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font: var(--t-6) / 1.5 var(--mono);
+  }
   .lf-inspection-metrics {
     display: flex;
     flex-wrap: wrap;

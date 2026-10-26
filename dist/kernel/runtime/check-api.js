@@ -7,7 +7,7 @@ import { allBindings, commandDeclarationsWithin, commandEntries, commandPresenta
 import { effectiveScroller, reachScrollers, readingRegion, readingRegionFor, readingRegions, releaseReachStop, scrollersOf, shownRegionBounds, unconcealedReadingRegions, userReadingRegion } from "./bundle-reading-regions.js";
 import { availableCommandRoutes, executeCommand, registerSampleCommand, stack } from "./bundle-dispatch.js";
 import { observeOutputs, selfComparison, servedElements, shallowSigs } from "./bundle-data.js";
-import { elementFrame, scrollAxes } from "./bundle-element-frame.js";
+import { elementFrame, scrollAxes } from "./bundle-page-controls.js";
 import { alignInlineText, closestAcross, elementById, fencePassageParts, findQuote, layoutBox, pageDocument, pageRange, pageText, quoteFrom, segmentsIn, sentenceUnits, settledAway, spanIn, textNodesUnder, verbatimBoundaryIdentity, verbatimOwnerIdentity } from "./bundle-passages.js";
 import { ADDRESSABLE, aimTargetAt, aimTargets, anchorForRange, resolveAnchor, visualPartProblems } from "./bundle-content-layout.js";
 import { authoredBody } from "./bundle-initial-render.js";

@@ -304,6 +304,15 @@ def playground_text(page: Page) -> None:
     expect(field).to_have_value("Deployment ready")
 
 
+def page_about(page: Page) -> None:
+    """The page's identity and captured diagnostics in the menu's inspection dialog."""
+    page.locator(".lf-fp-leaf").click()
+    page.locator('.lf-fp-item[data-row="inspection"]').click()
+    expect(page.locator(".lf-inspection-dialog")).to_contain_text(
+        re.compile(r"Source captured for r\d+")
+    )
+
+
 def panel_leaf(page: Page) -> None:
     """The floating panel's leaf, which opens the page's menu, with its keyboard focus
     paint."""
@@ -1409,6 +1418,22 @@ class State:
 
 
 STATES = (
+    State("page-about", "review-a-plan", page_about, region=".lf-inspection-dialog"),
+    State(
+        "page-about-dark",
+        "review-a-plan",
+        page_about,
+        scheme="dark",
+        region=".lf-inspection-dialog",
+    ),
+    State(
+        "page-about-phone",
+        "review-a-plan",
+        page_about,
+        viewport=(390, 844),
+        touch=True,
+        region=".lf-inspection-dialog",
+    ),
     State("authored-timeline", "lost-update", at_rest, region="#race-before"),
     State(
         "authored-timeline-keyboard",

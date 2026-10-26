@@ -119,13 +119,29 @@ export function applyShotGeometry(host, geometry, keeps) {
   keeps(host, "data-lf-shot-crop", geometry.crop);
   keeps(host, "data-lf-shot-focus", geometry.focus);
   // Only the visible copy is page text, so a source name remains a unique
-  // comment target as the pair stacks or the reader changes views.
+  // comment target as the pair stacks or the reader changes views. The other copy
+  // echoes it, which paper prints as a plain label: paper shows the frames' copies
+  // whichever one the screen shows.
   const stacked = host.dataset.lfShotMode === "compare" && geometry.layout === "stack";
   for (const caption of host.querySelectorAll(".lf-shotcap"))
     document.documentElement.lfInitial.generatedElement(caption, {
-      says: caption.parentElement.classList.contains("lf-shot-frame-label") === stacked,
+      says:
+        caption.parentElement.classList.contains("lf-shot-frame-label") === stacked ||
+        "echo",
     });
 }
+
+// A box that holds the screenshot: the stage, its frames and labels' rows, the image
+// windows and the slider. These are the widget's drawing, which paper prints with the
+// page, where it drops what `offer` makes. A press on the image or the slider runs
+// through the link's and the widget's own handlers, and inside a container the
+// lf-shot itself is what holds the gesture (`worksInside`), so none needs an offer;
+// the toolbar's controls and the source labels stay offers.
+export const shotBox = (tag, cls) =>
+  document.documentElement.lfInitial.generatedElement(
+    Object.assign(document.createElement(tag), { className: cls }),
+    { says: false },
+  );
 
 export function drawShot(host, { offer, generatedElement, keeps }) {
   const buttons = (label, values, selected) => {
@@ -177,28 +193,18 @@ export function drawShot(host, { offer, generatedElement, keeps }) {
   const full = checkbox("Full frame");
   full.label.hidden = true;
   const key = offer("div", "lf-shot-pixel-key");
-  key.append(offer("div", "lf-shot-key-label", "Pixel colors"));
-  for (const [side, text] of [
-    ["before", "Before only"],
-    ["after", "After only"],
-    ["both", "Recolored"],
-  ]) {
-    const item = offer("div", "lf-shot-key-item");
-    const swatch = offer("span", "lf-shot-key-swatch");
-    swatch.dataset.lfShotSide = side;
-    swatch.ariaHidden = "true";
-    item.append(swatch, offer("span", "", text));
-    key.append(item);
-  }
+  const swatch = offer("span", "lf-shot-key-swatch");
+  swatch.ariaHidden = "true";
+  key.append(swatch, offer("span", "", "Changed pixels"));
   options.append(scale.group, full.label, key);
   tools.append(scaleTrigger, outlines, options);
   actions.append(views.group, tools);
   toolbar.append(actions);
-  const stage = offer("div", "lf-shotstage");
+  const stage = shotBox("div", "lf-shotstage");
   stage.tabIndex = 0;
   stage.role = "region";
   stage.ariaLabel = `Screenshot comparison — ${host.getAttribute("alt")}`;
-  const canvas = offer("div", "lf-shotcanvas");
+  const canvas = shotBox("div", "lf-shotcanvas");
   stage.append(canvas);
   const frames = [],
     viewports = [],
@@ -207,14 +213,14 @@ export function drawShot(host, { offer, generatedElement, keeps }) {
     frameCaptions = new Map(),
     openers = new Map();
   for (const state of ["before", "after"]) {
-    const frame = offer("div", "lf-shotframe lf-media-frame");
+    const frame = shotBox("div", "lf-shotframe lf-media-frame");
     frame.dataset.lfState = state;
     const caption = generatedElement(
       offer("span", "lf-shotcap lf-label", state === "before" ? "Before" : "After"),
       { says: true },
     );
     caption.dataset.lfState = state;
-    const heading = offer("div", "lf-shot-frame-label lf-ui");
+    const heading = shotBox("div", "lf-shot-frame-label");
     heading.dataset.lfState = state;
     const frameCaption = offer("span", "lf-shotcap lf-label", caption.textContent);
     frameCaption.dataset.lfState = state;
@@ -222,13 +228,13 @@ export function drawShot(host, { offer, generatedElement, keeps }) {
     frameCaptions.set(state, frameCaption);
     if (state === "before") toolbar.prepend(caption);
     else toolbar.append(caption);
-    const viewport = offer("div", "lf-shotviewport");
+    const viewport = shotBox("div", "lf-shotviewport");
     viewport.role = "region";
     viewport.ariaLabel = `${state}: ${host.getAttribute("alt")}`;
-    const imageBox = offer("a", "lf-shotimage lf-shot-open");
+    const imageBox = shotBox("a", "lf-shotimage lf-shot-open");
     imageBox.dataset.lfShotOpen = state;
     imageBox.tabIndex = -1;
-    const plane = offer("div", "lf-shotplane");
+    const plane = shotBox("div", "lf-shotplane");
     const image = document.createElement("img");
     image.crossOrigin = "anonymous";
     image.alt = `${state}: ${host.getAttribute("alt")}`;

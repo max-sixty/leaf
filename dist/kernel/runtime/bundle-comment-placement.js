@@ -1,9 +1,9 @@
 import { TAB_STOP, afterScript, atLayoutPrecision, cancelRender, keeps, layoutPx, move, nextRender, renderedParent, renderedUnder, shadowHost, sizeObserver, under, upFrom } from "./bundle-dom-move.js";
-import { LAYOUT, clamp, clippingAxes, coarsePointer, hoveringPointer, overlaps, overlapsAcross, renderedChildren, scrollsContent, shellRight, shownBand, shownExtent, shownParts, shownRect, shownWindow, skipped, union } from "./bundle-layer-client.js";
+import { LAYOUT, clamp, clippingAxes, coarsePointer, hoveringPointer, overlaps, overlapsAcross, renderedChildren, scrollsContent, shellRight, shownBand, shownExtent, shownParts, shownRect, shownWindow, skipped, union } from "./bundle-errors.js";
 import { afterPresentation, containingReadingRegionFor, effectiveScroller, moveScrollerBy, pageScroller, scrollLimit, scrollerFor, shownRegionBounds } from "./bundle-reading-regions.js";
 import { inChrome, layoutBox } from "./bundle-passages.js";
-import { anchorBox, anchorElement, anchorFor, anchorName, anchorReading, boundedBlockOf, carriedAnchor, cutFrames, headerLevels, nameAnchor, passageBoxes, scrollAxes, scrollsWith, targetRange, targetSegments } from "./bundle-css-anchors.js";
-import { pointBand, railStands, visibleTargetParts } from "./bundle-visible-target-parts.js";
+import { anchorBox, anchorElement, anchorFor, anchorName, anchorReading, boundedBlockOf, carriedAnchor, cutFrames, headerLevels, nameAnchor, passageBoxes, pointBand, railStands, scrollAxes, scrollsWith, targetRange, targetSegments } from "./bundle-content-layout.js";
+import { visibleTargetParts } from "./bundle-visible-target-parts.js";
 
 //#region runtime/annotation-overlay/margin-placement.js
 function rowPlacement({ railStands, besideRail, blockRight, railInner, half, noted }) {
@@ -541,6 +541,17 @@ function contentBox(scroller) {
 const seats = /* @__PURE__ */ new WeakMap();
 const folded = /* @__PURE__ */ new WeakSet();
 const standsFolded = (row) => folded.has(row);
+function paintedBox(part, row) {
+	const box = part.getBoundingClientRect();
+	const by = standsBy.get(row);
+	const target = by && isCarrier(row.parentElement) ? rows.get(row)?.anchor() : null;
+	if (!target?.isConnected || skipped(target)) return box;
+	const whole = shownExtent(target);
+	if (!whole) return box;
+	const own = part === row ? box : row.getBoundingClientRect();
+	const across = row.dataset.lfPlace === "pin" ? whole.right + by.right - own.right : 0;
+	return new DOMRect(box.x + across, box.y + whole.top + by.top - own.top, box.width, box.height);
+}
 function standFolded(row, fold, on) {
 	if (folded.has(row) === on) return;
 	if (on) folded.add(row);
@@ -1228,6 +1239,13 @@ const INSETS = [
 ];
 const stood = /* @__PURE__ */ new Map();
 const floatingSelections = () => [...stood.values()];
+const heldEdges = (floating) => {
+	const edges = stood.get(floating)?.edges;
+	return edges ? {
+		x: edges.left,
+		y: edges.top
+	} : null;
+};
 const physicalContext = (context) => context instanceof Element ? context : context?.parentElement;
 function floatingGeometry(contexts) {
 	const anchors = /* @__PURE__ */ new Map();
@@ -1630,6 +1648,7 @@ function commentPlacement() {
 			} else if (input && key.some((value, index) => Math.abs(value - input[index]) > .5)) forget();
 			input = key;
 			const fresh = side === null;
+			const opening = held === null && initialHold === null;
 			side ??= unanchored ? "bottom" : commentSide({
 				clear,
 				extent,
@@ -1641,11 +1660,11 @@ function commentPlacement() {
 			return {
 				side,
 				fresh,
-				adopted: initialHold !== null,
-				floored: held?.floored ?? false
+				opening,
+				adopted: initialHold !== null
 			};
 		},
-		options(ui, { clear, row, lastRow = row, column = null, margin = null, boundary, fit, edge = side === "top" ? "foot" : "top" }) {
+		options(ui, { clear, row, lastRow = row, column = null, margin = null, boundary, fit, edge = side === "top" ? "foot" : "top", rises = false }) {
 			const minimumWidth = cardMinimum();
 			const across = vertical(side);
 			const unanchored = !clear;
@@ -1678,8 +1697,7 @@ function commentPlacement() {
 						column: rects.reference.x + (inlineStart - box.left) / scale.x,
 						attachmentInline: rects.reference.x + ((column ?? clear.left) - box.left) / scale.x,
 						line: column !== null ? rects.reference.y + (row - box.top) / scale.y : side === "bottom" ? rects.reference.y + rects.reference.height : side === "top" ? rects.reference.y : rects.reference.y + (row - box.top) / scale.y,
-						last: rects.reference.y + (lastRow - box.top) / scale.y,
-						foot: rects.reference.y + (boundary.bottom - box.top) / scale.y
+						last: rects.reference.y + (lastRow - box.top) / scale.y
 					} };
 				}
 			};
@@ -1721,7 +1739,7 @@ function commentPlacement() {
 					fit({
 						side,
 						width: Math.max(Math.min(minimumWidth, boundary.width) / scale.x, Math.min(state.availableWidth, lane / scale.x)),
-						height: state.availableHeight,
+						height: rises ? boundary.height / scale.y : state.availableHeight,
 						stood,
 						scale
 					});
@@ -1801,22 +1819,18 @@ function commentPlacement() {
 		},
 		landed({ x, y, middlewareData }) {
 			initialHold = null;
-			const { scale, column, attachmentInline, line, foot } = middlewareData.scaled;
+			const { scale, column, attachmentInline, line } = middlewareData.scaled;
 			if (vertical(side)) inline ??= x - column;
 			else if (side !== "left") carriedInline ??= (x - attachmentInline) * scale.x;
 			const top = (y - (middlewareData.shift?.y ?? 0) - line) * scale.y;
 			const height = middlewareData.held.height * scale.y;
-			const spot = {
-				top,
-				foot: top + height
-			};
 			tallest = {
 				height: tallest && Math.abs(tallest.line - line) < .5 ? Math.max(tallest.height, height) : height,
 				line
 			};
 			held = {
-				...spot,
-				floored: y + middlewareData.held.height >= foot - .5
+				top,
+				foot: top + height
 			};
 			return { scale };
 		}
@@ -1824,4 +1838,4 @@ function commentPlacement() {
 }
 
 //#endregion
-export { COMMENT_GAP, THREAD_CARD, cardMeasure, cardMinimum, commentAttachment, commentBoundary, commentPlacement, commentReference, floatingPlacement, floatingSelections, floatingUi, layoutMarginRows, makeRoom, marginColumn, marginSpot, mountMarginLayer, registerMarginRow, scheduleMarginEntryLabels, scheduleMarginLayout, standsFolded, syncMarginContentLayout, unregisterMarginRow };
+export { COMMENT_GAP, THREAD_CARD, cardMeasure, cardMinimum, commentAttachment, commentBoundary, commentPlacement, commentReference, floatingPlacement, floatingSelections, floatingUi, heldEdges, layoutMarginRows, makeRoom, marginColumn, marginSpot, mountMarginLayer, paintedBox, registerMarginRow, scheduleMarginEntryLabels, scheduleMarginLayout, standsFolded, syncMarginContentLayout, unregisterMarginRow };

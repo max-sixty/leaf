@@ -109,17 +109,6 @@ noun)` returns once the block is connected; it copies `source()`, and `noun`, su
 with `kind` `same`, `delete` or `insert`. To align by sentences, pass an
 `Intl.Segmenter` with `granularity: "sentence"` as the third argument.
 
-### Image comparison (experimental)
-
-`compareImages(a, b)` compares two decoded, untainted images at natural size. It
-resolves to `{width, height, changed, throughout, regions}`: the compared size, the
-number of differing pixels, whether they differ almost everywhere, and outlines
-`{x, y, width, height, side, kind}` around content that `changed` or `moved`, on the
-before image (`a`) or the after (`b`). `differenceKind(reading)`,
-`describeDifference(reading)` and `countAreas(regions)` classify, word and count the
-result. `compareImagePixels(a, b)` returns masks `{width, height, before, after, both}`,
-more opaque where a pixel changed more. `lf-shot` is the worked example.
-
 ### Media URLs
 
 Pass a `/media/…` path from typed data through `scopedMediaUrl(path)` before putting it
@@ -196,10 +185,23 @@ me, and resolves to whether it arrived. A control that calls it prevents `moused
 default, so focus stays put and a second press steps on. The user answers an obligation
 through the widget's own command.
 
+An element declaring `x-shows`, such as a board card, is a view of another widget's
+answer ([package-data.md, "Views of an answer"](package-data.md#views-of-an-answer)).
+`shownAnswer(element)` reads it in `render()`, which then redraws with every change to
+that widget's state, and returns `null` where the element shows no answer. Otherwise
+it returns `{owner, value, available, takes, answer}`: the widget, the value its
+answer names now (`null` for none), whether the user can change it, `takes(value)`,
+whether the widget can answer `value` (`null` clears it), and `answer(value, says)`,
+which sends the widget's own command and returns what `dispatch` returns, or `null`
+where the widget can't take `value`. Place the view by `value`, and change it only
+through `answer`, so the view records nothing of its own.
+
 `readQueues()` returns the `{phase, on_user, on_agent, done}` lists Leaf's panel shows
 under On me and On <agent>. Each row has a `kind`, which is its obligation's
 `source.kind` (with the obligation as `obligation`) or `todo` (with the to-do as
-`todo`), and an `owner`, `user` or `agent`. Rows not done carry `offers: {open, done}`.
+`todo`), and an `owner`, `user` or `agent`. An obligation's row lists in `also` the ids
+of the other obligations the user answers at the same place, such as the agent's answer
+in a thread about it. Rows not done carry `offers: {open, done}`.
 `queueItemKey(row)` names a row across moves between lists, and `queueTitle(row)` gives
 its title. `queueActions.open(key)` goes to a row. `queueActions.done(key)` ends a to-do
 the agent opened on the user, returning its admission promise, and returns `null` for

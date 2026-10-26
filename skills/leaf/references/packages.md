@@ -50,6 +50,7 @@ The optional bundled packages are:
 | `motion`        | `lf-motion`, shared playback and scrubbing for authored animations and video comparisons.                                                                   |
 | `visual-review` | Website cases with aligned before-and-after captures and a verdict per case.                                                                                |
 | `playwright`    | Trace import and `lf-trace`, which steps through recorded actions and screenshots.                                                                          |
+| `timeline`      | `lf-timeline`, an authored sequence of events in lanes that the reader steps through, with a playhead and a step list.                                      |
 
 Packages declare no dependencies on each other; a page lists every package it needs.
 
@@ -208,7 +209,18 @@ state is in [package-data.md, "User state"](package-data.md#user-state).
 `leaf package check PACKAGE --render` draws the worked examples of the package's
 widgets, once in a reading column and once in a workspace pane. Widget findings are advice for the widget's author and don't
 change the exit status; the command fails only when the package check fails or the
-examples can't be drawn. The checks:
+examples can't be drawn.
+
+For a data-bound example, add `x-example-data` beside `x-example`, mapping each
+source id in that markup to its sample JSON value. For example,
+`"x-example-data": {"release-ci": {"main": "passing"}}` supplies the source in
+`<lf-builds id="builds" source="release-ci"></lf-builds>` when its contract accepts
+that value. Package checks validate these values against the bound contracts; a
+source without a sample stays unset. The render check supplies the values through
+ordinary bound data in both Layouts. Examples that reuse a source id render on
+separate pages, so each keeps its own values.
+
+The checks:
 
 - `example`: no worked example shows the tag, so no other check can read it.
 - `keeps-first-box`: the widget's box changed size after first paint. Size the widget

@@ -1,11 +1,12 @@
 import { PENDING, Z, bindQueuedWork, editable, html, isElementName, isReaction, keyed, lastMovedAt, messageKey, moved, nothing, pendingForParent, render as render$1, repeat, sameAnchor, seatRoot, share, threadKey, threadNames, turns } from "./bundle-browser-runtime.js";
-import { CARET_KEYS, TEXT_FIELD, afterScript, atLayoutPrecision, cancelRender, caretAtKey, carriedFrom, currentLocationIn, currentLocationNodes, currentLocationTouches, deepFocus, drawn as drawn$1, focusDestination, focused, holdCurrentLocation, holdFocus, inputCount, keeps, keepsHidden, layoutPx, move, nextFrame, nextRender, onCurrentLocation, onPress, onPressAway, readCaret, recentPlaceInput, renderedOrder, renderedParent, renderedUnder, ringBox, selectsAll, sizeObserver, takesLetters, under, upFrom } from "./bundle-dom-move.js";
-import { PAGE_PAINT_ATTRIBUTE, PRESS, admitResponse, adoptRegistry, announce, bindings, checked, clampedRow, clippedContents, clippingAxes, commandScope, cycledRow, declarationFor, declareCommandReadiness, descriptionOf, el, elementDeclarations, elementsDeclaring, exhibits, generatedElement, growthAfterIsSeen, growthIsSeen, headerInset, holdStatus, iconElement, iconTemplate, inUi, inWindowChrome, keys, landingBand, loadShadowRules, measure, nearestScrollBy, notice, offer, offered, pagePresented, paintKeys, passErrorsAt, placeBox, placeHolder, plainPress, pointerAt, pressIsKeyboardActivation, projectCommandScope, raiseError, randomId, registry as registry$1, repaint, reportPageError, revealLayer, sameLayer, seenRect, shownBox, shownRect, shownWindow, skipped, stuckBox, tagsDeclaring, titleOf, tokenEntry, touchPresses as touchPresses$1, union, userScrollport, visibleBand, watchArrivals, watchCommandScopes, watchOwner, whenNone } from "./bundle-layer-client.js";
+import { CARET_KEYS, TEXT_FIELD, afterScript, cancelRender, caretAtKey, carriedFrom, currentLocationIn, currentLocationNodes, currentLocationTouches, deepFocus, drawn as drawn$2, focusDestination, focused, holdCurrentLocation, holdFocus, inputCount, keeps, keepsHidden, layoutPx, move, nextFrame, nextRender, onCurrentLocation, onPress, onPressAway, readCaret, recentPlaceInput, renderedOrder, renderedParent, renderedUnder, ringBox, selectsAll, sizeObserver, takesLetters, under, upFrom } from "./bundle-dom-move.js";
+import { PAGE_PAINT_ATTRIBUTE, admitResponse, pagePresented, randomId, reportPageError, revealLayer, sameLayer } from "./bundle-layer-client.js";
+import { PRESS, adoptRegistry, announce, bindings, checked, claimReleaseClick, clampedRow, clippedContents, clippingAxes, commandScope, cycledRow, declarationFor, declareCommandReadiness, descriptionOf, el, elementDeclarations, elementsDeclaring, exhibits, generatedElement, growthAfterIsSeen, growthIsSeen, headerInset, holdStatus, iconElement, iconTemplate, inUi, inWindowChrome, keys, landingBand, loadShadowRules, measure, nearestScrollBy, notice, offer, offered, paintKeys, passErrorsAt, placeBox, placeHolder, plainPress, pointerAt, projectCommandScope, raiseError, registry as registry$1, repaint, seenRect, shownBox, shownRect, shownWindow, skipped, slotTop, stuckBox, tagsDeclaring, titleOf, tokenEntry, touchPresses as touchPresses$1, union, userScrollport, visibleBand, watchArrivals, watchCommandScopes, watchOwner, whenNone } from "./bundle-errors.js";
 import { applicationState, attachApplicationPresentation, offlineInteractive, pageClaimed, readApplication, readPart, runtime, runtimeModule, runtimeResource, whenApplicationPresented, whenDocumentPresented, whenWidgetsPresented } from "./bundle-context.js";
 import { ago, aimedTop, atScrollEnd, claimReachStop, containingReadingRegionFor, effectiveScroller, moveScrollerBy, pageReadingRegion, pageScroller, placeKept, reachScrollers, reachable, readingRegionFor, readingRegions, releaseReachStop, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, shortAgo, shownRegionBounds, startScroll } from "./bundle-reading-regions.js";
 import { chromeForeground, chromeRoot } from "./bundle-chrome.js";
-import { COLLAPSE, alignText, closestAcross, elementById, fencePassageParts, inChrome, labelWords, pageBlocks, pageDocument, pageRange, pageText, pageWords, pointAt, quoteFrom, rangeOf, readingFrom, segmentBlock, segmentsIn, selectEnds, selectionBackward, spanIn, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity } from "./bundle-passages.js";
-import { ADDRESSABLE, addressableWord, aimTargetAt, anchorBox, anchorForPassage, anchorForRange, anchorReading, anchorView, anchoringIsReady, cutFrames, datumAimTarget, datumLabel, followingItsEnd, headerLevels, localScrollBy, marks, nameAnchor, nameable, projectedDatum, refreshAnchorView, resolveAnchor, scrollAxes, sectionLabel, sectionOf, targetElement, targetSegments, visualPartLabel } from "./bundle-css-anchors.js";
+import { COLLAPSE, alignText, closestAcross, elementById, fencePassageParts, inChrome, labelWords, pageBlocks, pageDocument, pageQueryAll, pageRange, pageText, pageWords, pointAt, quoteFrom, rangeOf, readingFrom, segmentBlock, segmentsIn, selectEnds, selectionBackward, spanIn, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity } from "./bundle-passages.js";
+import { ADDRESSABLE, addressableWord, aimTargetAt, anchorBox, anchorForPassage, anchorForRange, anchorReading, anchorView, anchoringIsReady, cutFrames, datumAimTarget, datumLabel, followingItsEnd, headerLevels, isAddressable, leadingTitle, localScrollBy, marks, nameAnchor, nameable, projectedDatum, refreshAnchorView, resolveAnchor, scrollAxes, sectionLabel, sectionOf, targetElement, targetSegments, visualPartLabel } from "./bundle-content-layout.js";
 import { initialOrigin, initialSource } from "./bundle-initial-render.js";
 import { copyControl } from "./bundle-copy-control.js";
 import { aborted, commitWidgetDescriptors, dataBody, rememberAuthoredParents, setChildren, stageAuthoredStates, stageWidgetDescriptors } from "./bundle-abort.js";
@@ -374,10 +375,11 @@ function scrollIntoView(where, { alignment = where, behavior = "auto", block = "
 			const destination = destinationBox(where);
 			const byX = nearestScrollBy(destination.left - scrollMargin(where, "Left"), destination.right + scrollMargin(where, "Right"), left, right);
 			const byY = inside ? placementBy(where, "nearest", box, topMargin(where, box, start)) : 0;
-			if (byX || byY) land(box, localScrollBy(box, {
+			const by = localScrollBy(box, {
 				x: byX,
 				y: byY
-			}), "instant");
+			});
+			if (by.left || by.top) land(box, by, "instant");
 		}
 		if (box === within || box === pageScroller || getComputedStyle(box).position === "fixed") break;
 	}
@@ -424,7 +426,7 @@ const DRAWING = "img, svg, canvas, video, picture, iframe, object, embed";
 const draws = (element) => element.matches(DRAWING) || element.localName.includes("-");
 const LANDMARK_CAP = 160;
 const QUOTABLE = 24;
-const HEADING = "h1, h2, h3, h4, h5, h6";
+const HEADING$1 = "h1, h2, h3, h4, h5, h6";
 const textBlocks = (root = pageDocument()) => pageBlocks().filter((block) => under(block, root));
 const drawsLandmark = (parent) => {
 	if (!parent || skipped(parent) || getComputedStyle(parent).visibility !== "visible") return false;
@@ -432,48 +434,42 @@ const drawsLandmark = (parent) => {
 	while (box && getComputedStyle(box).display === "contents") box = renderedParent(box);
 	return Boolean(box?.checkVisibility({ opacityProperty: true }));
 };
-const blockWords = /* @__PURE__ */ new WeakMap();
-const drawnInside = (block, segments, known) => {
-	if (!known.has(block)) {
-		const asked = /* @__PURE__ */ new Set();
-		let inside = true;
-		for (const { node } of segments) {
-			for (let at = renderedParent(node); inside && at && at !== block;) {
-				if (asked.has(at)) break;
-				asked.add(at);
-				const style = getComputedStyle(at);
-				inside = (style.position === "static" || style.position === "sticky") && style.transform === "none" && style.translate === "none";
-				at = renderedParent(at);
-			}
-			if (!inside) break;
-		}
-		known.set(block, inside);
-	}
-	return known.get(block);
+const blockRuns = /* @__PURE__ */ new WeakMap();
+const textEnvelope = (block, segments, range) => {
+	if (!segments.every(({ node }) => block.contains(node)) || [...block.querySelectorAll("*")].some(skipped)) return null;
+	range.selectNodeContents(block);
+	return range.getBoundingClientRect();
 };
 function* renderedBlocks(blocks, within = null) {
 	const reading = pageText();
-	if (!blockWords.has(reading)) {
-		const words = /* @__PURE__ */ new Map();
+	if (!blockRuns.has(reading)) {
+		const groups = [];
 		for (const segment of reading.segments) {
-			if (!words.has(segment.block)) words.set(segment.block, []);
-			words.get(segment.block).push(segment);
+			let group = groups.at(-1);
+			if (!group || group.block !== segment.block) groups.push(group = {
+				block: segment.block,
+				segments: []
+			});
+			group.segments.push(segment);
 		}
-		blockWords.set(reading, words);
+		blockRuns.set(reading, groups);
 	}
-	const words = blockWords.get(reading);
-	const inside = /* @__PURE__ */ new Map();
+	const allowed = new Set(blocks);
 	const drawn = /* @__PURE__ */ new Map();
 	const range = document.createRange();
-	for (const block of blocks) {
+	for (const { block, segments } of blockRuns.get(reading)) {
+		if (!allowed.has(block)) continue;
 		if (inChrome(block) || skipped(block)) continue;
 		if (within) {
 			const own = block.getBoundingClientRect();
-			if (own.height && (own.bottom <= within.top || own.top >= within.bottom) && drawnInside(block, words.get(block), inside)) continue;
+			if (own.height && (own.bottom <= within.top || own.top >= within.bottom)) {
+				const envelope = textEnvelope(block, segments, range);
+				if (envelope && (envelope.bottom <= within.top || envelope.top >= within.bottom)) continue;
+			}
 		}
 		const boxes = [], runs = [];
 		let run = null;
-		for (const segment of words.get(block)) {
+		for (const segment of segments) {
 			const { node, start, end } = segment;
 			const parent = renderedParent(node);
 			if (!drawn.has(parent)) drawn.set(parent, drawsLandmark(parent));
@@ -646,7 +642,7 @@ function drawnAt(body, box, x, edge, blocks) {
 function capturePlace(region = null, blocks = textBlocks()) {
 	const box = region ? effectiveScroller(region) : pageScroller;
 	const boxTop = landingBand(box).top + aimedTop(box) - box.scrollTop;
-	const landmarkTop = (top, block, blockTop = top) => block?.matches(HEADING) ? top + Math.max(0, -blockTop) : top;
+	const landmarkTop = (top, block, blockTop = top) => block?.matches(HEADING$1) ? top + Math.max(0, -blockTop) : top;
 	const view = {
 		y: box.scrollTop,
 		scroller: scrollerIdentity(box),
@@ -654,6 +650,7 @@ function capturePlace(region = null, blocks = textBlocks()) {
 		revision: runtime.currentRevision,
 		[READ_BOX]: new WeakRef(box)
 	};
+	if (box.scrollTop === 0) view.start = true;
 	const currentLocation = focusedInView();
 	const body = region?.body ?? pageDocument();
 	const currentLocationBody = readingRegionFor(currentLocation)?.body ?? body;
@@ -676,7 +673,7 @@ function capturePlace(region = null, blocks = textBlocks()) {
 	const lineOf = (block, rect, runs) => {
 		for (const run of runs) {
 			if (quoteFrom(run).length < QUOTABLE) continue;
-			const segments = lineAt(run, boxTop, range, block.matches(HEADING));
+			const segments = lineAt(run, boxTop, range, block.matches(HEADING$1));
 			if (!segments) continue;
 			const landmark = lineAnchor(segments);
 			if (!landmark) return null;
@@ -725,13 +722,7 @@ function capturePlace(region = null, blocks = textBlocks()) {
 	if (line) {
 		const { block, rect, landmark } = line;
 		named = block;
-		const { section: id, quote, prefix, suffix } = landmark.anchor;
-		Object.assign(view, {
-			section: id,
-			quote,
-			prefix,
-			suffix
-		});
+		Object.assign(view, landmark.anchor);
 		const section = sectionOf(view);
 		view.sectionTop = section && landmarkTop(shownBox(section).top - boxTop, block, rect.top - boxTop);
 		view.quoteTop = landmarkTop(landmark.range.getBoundingClientRect().top - boxTop, block);
@@ -796,6 +787,10 @@ function restorePlace(view, region = null, currentIntent = retainUserIntent()) {
 	const currentLocation = destination && under(destination, body) ? destination : null;
 	if (!currentLocation || !sameScroller(view, box)) {
 		if (view.end) scrollToEnd(box);
+		else if (view.start && sameScroller(view, box)) box.scrollTo({
+			top: 0,
+			behavior: "instant"
+		});
 		else {
 			const boxTop = landingBand(box).top;
 			const drawn = drawnPlace(view);
@@ -830,12 +825,21 @@ const answeredInWords = (obligation) => obligation?.source.kind === "message" ||
 
 //#endregion
 //#region runtime/obligations/place.js
+const NOWHERE = Object.freeze({
+	source: null,
+	context: null,
+	node: null
+});
 function obligationPlace(item, items = readObligations().all) {
-	if (!item || item.source.kind !== "widget") return {
-		source: null,
-		context: null,
-		node: null
-	};
+	if (item?.source.kind === "todo") {
+		const node = subjectPlace(item.source.subject);
+		return node ? {
+			source: null,
+			context: node,
+			node
+		} : NOWHERE;
+	}
+	if (item?.source.kind !== "widget") return NOWHERE;
 	const owner = elementById(item.source.id);
 	const source = item.source.unit ? projectedDatum(owner, item.source.unit) : owner;
 	const context = elementById(item.prompt.target);
@@ -846,9 +850,19 @@ function obligationPlace(item, items = readObligations().all) {
 		node: item.source.unit || shared ? source : context
 	};
 }
+const subjectPlace = (subject) => subject.kind === "page" ? pageHead() : subject.kind === "thread" ? null : elementById(subject.id);
+const HEADINGS = ["h1", "h1, h2, h3, h4, h5, h6"];
+function pageHead() {
+	for (const selector of HEADINGS) {
+		const heading = [...document.querySelectorAll(selector)].find((candidate) => !inChrome(candidate));
+		if (heading) return heading;
+	}
+	const content = pageDocument();
+	return content?.firstElementChild ?? content ?? document.body.firstElementChild;
+}
 function obligationsIn(region, items = readObligations().all) {
 	return items.filter((item) => {
-		if (item.source.kind !== "widget" || item.status === "withdrawn") return false;
+		if (item.status === "withdrawn") return false;
 		const { source } = obligationPlace(item, items);
 		return Boolean(source && under(source, region));
 	});
@@ -861,15 +875,14 @@ function declareSide(bridge, { beside = false } = {}) {
 	sides.set(bridge, beside);
 	return () => sides.delete(bridge);
 }
-function obligationHolding(items, node) {
+function obligationHolding(items, node, inventory = items) {
 	if (!node) return null;
 	const holds = (element) => element && under(node, element);
 	let held = null;
 	for (const item of items) {
-		if (item.source.kind !== "widget") continue;
-		const { source, node: target } = obligationPlace(item, items);
+		const { source, node: target } = obligationPlace(item, inventory);
 		const at = holds(source) ? source : holds(target) ? target : null;
-		if (at && (!held || under(at, held.at))) held = {
+		if (at && (!held || at !== held.at && under(at, held.at))) held = {
 			item,
 			at
 		};
@@ -1180,6 +1193,25 @@ const makeCut = () => {
 	return frame;
 };
 const placed = /* @__PURE__ */ new Map();
+const wired$1 = /* @__PURE__ */ new WeakSet();
+let hoveredControl = null;
+let focusedControl = null;
+const activeBlock = (control) => control && placed.get(control);
+const syncActive = (block) => {
+	if (block) block.toggleAttribute("data-lf-control-active", activeBlock(hoveredControl) === block || activeBlock(focusedControl) === block);
+};
+const setActiveControl = (kind, control) => {
+	const previous = kind === "hover" ? hoveredControl : focusedControl;
+	if (previous === control) return;
+	if (kind === "hover") hoveredControl = control;
+	else focusedControl = control;
+	syncActive(activeBlock(previous));
+	syncActive(activeBlock(control));
+};
+onCurrentLocation((node) => {
+	for (let at = node; at; at = upFrom(at)) if (placed.has(at)) return setActiveControl("focus", at);
+	setActiveControl("focus", null);
+});
 let resized = 0;
 addEventListener("resize", () => {
 	resized ||= nextRender(() => {
@@ -1193,9 +1225,21 @@ addEventListener("resize", () => {
 	});
 });
 function standInChrome(control, block, levels) {
+	const previousBlock = placed.get(control);
 	const frames = cutFrames(levels, cuts.get(control) ?? [], makeCut);
 	cuts.set(control, frames);
 	placed.set(control, block);
+	if (!wired$1.has(control)) {
+		wired$1.add(control);
+		control.addEventListener("pointerenter", () => setActiveControl("hover", control));
+		control.addEventListener("pointerleave", () => {
+			if (hoveredControl === control) setActiveControl("hover", null);
+		});
+	}
+	if (previousBlock !== block) {
+		syncActive(previousBlock);
+		syncActive(block);
+	}
 	if (home.parentNode !== chromeRoot) move(chromeRoot, home, null);
 	if (frames[0] && frames[0].parentNode !== home) move(home, frames[0], null);
 	const frame = frames.at(-1) ?? home;
@@ -1239,11 +1283,18 @@ function tabFromBlock(control, block, signal) {
 		if (event.key === "Tab") focusDestination(block, "step");
 	}, { signal });
 }
+let pressedPath = /* @__PURE__ */ new WeakSet();
+addEventListener("pointerdown", (event) => pressedPath = new WeakSet(event.composedPath()), { capture: true });
+const pressedElsewhere = (event, control) => event.detail > 0 && !pressedPath.has(control);
 function releaseControl(control) {
+	const block = placed.get(control);
+	if (hoveredControl === control) hoveredControl = null;
+	if (focusedControl === control) focusedControl = null;
 	control.remove();
 	cuts.get(control)?.[0]?.remove();
 	cuts.delete(control);
 	placed.delete(control);
+	syncActive(block);
 }
 
 //#endregion
@@ -1251,8 +1302,6 @@ function releaseControl(control) {
 const controls = /* @__PURE__ */ new WeakMap();
 const wired = /* @__PURE__ */ new WeakMap();
 const COPY_SCOPE = Symbol("code copy");
-let pressedPath = /* @__PURE__ */ new WeakSet();
-addEventListener("pointerdown", (event) => pressedPath = new WeakSet(event.composedPath()), { capture: true });
 onCurrentLocation((node) => {
 	for (let at = node; at; at = upFrom(at)) {
 		const copy = controls.get(at);
@@ -1262,13 +1311,13 @@ onCurrentLocation((node) => {
 function prepareCodeBlock(pre, source, noun) {
 	let copy = controls.get(pre);
 	if (!copy) {
-		copy = copyControl("lf-code-copy", {
+		copy = copyControl("lf-code-copy lf-mark", {
 			label: `Copy ${noun}`,
 			success: `${noun[0].toUpperCase()}${noun.slice(1)} copied`,
 			error: `Unable to copy ${noun}`
 		});
 		copy.addEventListener("click", (event) => {
-			if (event.detail && !pressedPath.has(copy)) {
+			if (pressedElsewhere(event, copy)) {
 				event.preventDefault();
 				event.stopImmediatePropagation();
 			} else copy.value = source();
@@ -1333,6 +1382,345 @@ function watchCodeBlocks() {
 			releaseReachStop(pre);
 			projectCommandScope(pre, COPY_SCOPE, null);
 		}
+	});
+}
+
+//#endregion
+//#region runtime/keyboard/register.js
+watchCommandScopes(() => [...[...scopes.values()].flat(), { rows: [...commands.values()] }]);
+const ELEMENTS = Symbol("the scopes of the focused element");
+const PAGE = Symbol("the page's own keys");
+const RUNGS = Symbol("Escape's fallback ladder");
+const COMMAND_REFERENCE = "command.reference.open";
+const GO_TO = "navigation.go-to.open";
+const STACK = [
+	"command reference",
+	"page map",
+	"go to",
+	"response options",
+	"reactions",
+	"page search",
+	"target picker",
+	ELEMENTS,
+	"region capture",
+	"current-location",
+	"versions",
+	"composer",
+	"text entry",
+	"thread",
+	"link",
+	"disclosure",
+	"heading",
+	"draw mode",
+	"design mode",
+	"todo",
+	PAGE,
+	RUNGS
+];
+const RUNG_LADDER = [
+	"selection",
+	"margin options",
+	"floating panel",
+	"draw mode",
+	"design mode",
+	"page"
+];
+const PAGE_COMMANDS = [
+	"comment.create",
+	"writing.resume",
+	"selection.restore",
+	"target.picker.open",
+	"reaction.open",
+	"page.search.open",
+	"page.search.repeat",
+	"thread.walk",
+	"queue.walk",
+	"page.move",
+	"scroll.move",
+	"reading.align.top",
+	"thread.unread.first",
+	"navigation.panel.threads",
+	"navigation.panel.queue",
+	"navigation.panel.leaves",
+	"navigation.page-map",
+	"version.open",
+	"history.undo",
+	GO_TO,
+	"draw.mode.enter",
+	"capture.region.open",
+	"design.mode.enter",
+	"annotations.toggle",
+	"panel.floating.fold",
+	COMMAND_REFERENCE,
+	"browser.caret",
+	"aim.comment"
+];
+const scopes = /* @__PURE__ */ new Map();
+const commands = /* @__PURE__ */ new Map();
+const rungs = /* @__PURE__ */ new Map();
+let resolved = null;
+let validated = false;
+const place = (where, name) => {
+	if (!where.includes(name)) throw new Error(`leaf: ${String(name)} has no place in the page's keyboard`);
+};
+function pageScope(name, declaration) {
+	place(STACK, name);
+	if (declaration.ready !== void 0) declareCommandReadiness(declaration.rows, declaration.ready);
+	const declarations = scopes.get(name) ?? [];
+	declarations.push(declaration);
+	scopes.set(name, declarations);
+	resolved = null;
+	validated = false;
+	paintKeys();
+	return () => {
+		const remaining = scopes.get(name)?.filter((item) => item !== declaration) ?? [];
+		if (remaining.length) scopes.set(name, remaining);
+		else scopes.delete(name);
+		resolved = null;
+		validated = false;
+		paintKeys();
+	};
+}
+function pageCommand(row) {
+	place(PAGE_COMMANDS, row.id);
+	if (commands.has(row.id)) throw new Error(`leaf: ${row.id} is declared twice`);
+	commands.set(row.id, row);
+	resolved = null;
+	validated = false;
+	paintKeys();
+	return row;
+}
+function pageRung(name, reading) {
+	place(RUNG_LADDER, name);
+	const readings = rungs.get(name) ?? [];
+	readings.push(reading);
+	rungs.set(name, readings);
+	return () => {
+		const remaining = rungs.get(name)?.filter((item) => item !== reading) ?? [];
+		if (remaining.length) rungs.set(name, remaining);
+		else rungs.delete(name);
+	};
+}
+function rung() {
+	const steps = [];
+	for (const name of RUNG_LADDER) for (const reading of rungs.get(name) ?? []) {
+		const step = reading();
+		if (step) steps.push({
+			...step,
+			name
+		});
+	}
+	const here = focused();
+	let surface = null;
+	for (const { root } of steps) {
+		if (!root || root === document || !renderedUnder(here, root)) continue;
+		if (!surface || renderedUnder(root, surface)) surface = root;
+	}
+	const holds = (step) => renderedUnder(step.root ?? document, surface);
+	return (surface && steps.find(holds)) ?? steps[0] ?? null;
+}
+const BACK_OUT = {
+	id: "navigation.back",
+	keys: ["Escape"],
+	title: () => rung() ? titleOf(rung()) : "Back",
+	description: () => rung() ? descriptionOf(rung()) : void 0,
+	when: () => Boolean(rung()),
+	run: () => rung().out()
+};
+function assemble() {
+	const rows = PAGE_COMMANDS.flatMap((id) => commands.has(id) ? [commands.get(id)] : []);
+	const unanswered = rows.filter((row) => row.touch === void 0).map((row) => row.id);
+	if (unanswered.length) throw new Error(`leaf: ${unanswered.join(", ")} must declare \`touch\`: its words under a finger, or false where a finger reaches it directly`);
+	const unreached = [...scopes.values()].flat().flatMap((scope) => scope.rows).filter((row) => row.run && !row.exit && row.touch !== false).map((row) => row.id);
+	if (unreached.length) throw new Error(`leaf: ${unreached.join(", ")} must be its stance's \`exit\` or declare \`touch: false\`: only a page command takes a finger's words`);
+	return STACK.flatMap((name) => {
+		if (name === PAGE) return { rows };
+		if (name === RUNGS) return {
+			root: () => rung()?.root ?? document,
+			rows: [BACK_OUT]
+		};
+		if (typeof name !== "string") return name;
+		return scopes.get(name) ?? [];
+	});
+}
+function pageScopes() {
+	if (offlineInteractive) return [ELEMENTS];
+	resolved ??= assemble();
+	if (!validated) {
+		validated = true;
+		for (const scope of resolved) if (typeof scope !== "symbol") checked(scope.rows, scope.title ?? "the page's own keys");
+	}
+	return resolved;
+}
+const namedScopes = () => STACK.flatMap((name) => typeof name === "string" ? scopes.get(name) ?? [] : []);
+const exitOf = (scope) => scope.rows.find((row) => row.exit) ?? null;
+function touchPresses() {
+	pageScopes();
+	return PAGE_COMMANDS.flatMap((id) => commands.has(id) ? touchPresses$1(commands.get(id)) : []);
+}
+function stances() {
+	pageScopes();
+	return namedScopes().flatMap((scope) => {
+		const exit = exitOf(scope);
+		return exit ? [{
+			scope,
+			exit
+		}] : [];
+	});
+}
+const universalCommandReference = () => offlineInteractive ? void 0 : commands.get(COMMAND_REFERENCE);
+const textEntryScope = () => scopes.get("text entry")?.[0];
+const allButCommandReference = (binding) => !bindings(universalCommandReference()).includes(binding);
+const pageDoor = (binding) => [COMMAND_REFERENCE, GO_TO].some((id) => commands.has(id) && bindings(commands.get(id)).includes(binding));
+
+//#endregion
+//#region runtime/heading-links.js
+const HEADING = "h1, h2, h3, h4, h5, h6";
+const links = /* @__PURE__ */ new Map();
+const owners = /* @__PURE__ */ new WeakMap();
+function headingAddress(heading) {
+	let address = isAddressable(heading) ? heading : null;
+	for (let at = heading.parentElement; at && leadingTitle(at) === heading;) {
+		if (isAddressable(at)) address = at;
+		at = at.parentElement;
+	}
+	return address;
+}
+function headingAt(node) {
+	const heading = (node?.nodeType === Node.ELEMENT_NODE ? node : node?.parentElement)?.closest(HEADING);
+	return heading && heading.getRootNode() === document && !inChrome(heading) ? heading : null;
+}
+function headingOn(node) {
+	if (node?.nodeType !== Node.ELEMENT_NODE) return null;
+	if (headingAt(node) === node) return headingAddress(node) ? node : null;
+	const title = leadingTitle(node);
+	return title && headingAt(title) === title && headingAddress(title) === node ? title : null;
+}
+const linkUrl = (address) => new URL(`#${encodeURIComponent(address.id)}`, location.href).href;
+function makeLink(heading) {
+	const control = copyControl("lf-heading-link", {
+		label: "Copy link to section",
+		success: "Link copied",
+		error: "Unable to copy link",
+		icon: "link"
+	});
+	control.tabIndex = -1;
+	const link = {
+		heading,
+		control,
+		shown: /* @__PURE__ */ new Set(),
+		events: new AbortController(),
+		stop: () => {}
+	};
+	control.addEventListener("click", (event) => {
+		const address = headingAddress(heading);
+		if (address && !pressedElsewhere(event, control)) {
+			control.value = linkUrl(address);
+			return;
+		}
+		event.preventDefault();
+		event.stopImmediatePropagation();
+	}, { capture: true });
+	tabFromBlock(control, heading, link.events.signal);
+	owners.set(control, heading);
+	links.set(heading, link);
+	link.stop = watchOwner(heading, { disconnect: () => retire(link) });
+	const reading = anchorControl(control, heading);
+	const levels = headerLevels(heading);
+	const insets = readInsets(heading);
+	const line = firstLine(heading);
+	aimControl(reading);
+	writeInsets(control, insets);
+	standInChrome(control, heading, levels);
+	writeLine(control, line);
+	return link;
+}
+function firstLine(heading) {
+	const box = heading.getBoundingClientRect();
+	const range = document.createRange();
+	range.selectNodeContents(heading);
+	const line = range.getClientRects()[0];
+	return line ? {
+		top: line.top - box.top,
+		height: line.height
+	} : {
+		top: 0,
+		height: box.height
+	};
+}
+function writeLine(control, { top, height }) {
+	for (const [property, length] of [["--lf-heading-link-top", top], ["--lf-heading-link-line", height]]) {
+		const value = layoutPx(length);
+		if (control.style.getPropertyValue(property) !== value) control.style.setProperty(property, value);
+	}
+}
+function retire(link) {
+	link.stop();
+	link.events.abort();
+	releaseControl(link.control);
+	links.delete(link.heading);
+}
+function show(heading, reason, force) {
+	let link = links.get(heading);
+	if (force && !headingAddress(heading)) {
+		if (link) retire(link);
+		return null;
+	}
+	if (force && !link) link = makeLink(heading);
+	else if (force) {
+		revealControl(link.control, heading);
+		writeLine(link.control, firstLine(heading));
+	}
+	if (!link) return null;
+	link.shown[force ? "add" : "delete"](reason);
+	link.control.classList.toggle("lf-heading-link-shown", link.shown.size > 0);
+	return link;
+}
+function watchHeadingLinks() {
+	if (document.documentElement.lfSample) return;
+	let hovered = null;
+	const hover = (heading) => {
+		if (heading === hovered) return;
+		if (hovered) show(hovered, "hover", false);
+		hovered = heading;
+		if (heading) show(heading, "hover", true);
+	};
+	addEventListener("pointerover", (event) => {
+		if (event.pointerType === "touch") return;
+		const target = event.target;
+		const control = target instanceof Element && target.closest(".lf-heading-link");
+		hover(control ? owners.get(control) : headingAt(target));
+	}, { capture: true });
+	addEventListener("pointerout", (event) => {
+		if (!event.relatedTarget) hover(null);
+	}, { capture: true });
+	addEventListener("pointerdown", (event) => {
+		if (event.pointerType !== "touch") return;
+		const heading = headingAt(event.target);
+		if (heading && headingAddress(heading)) focusDestination(heading, "move");
+	}, { capture: true });
+	let current = null;
+	const stand = (heading) => {
+		if (heading === current) return links.get(heading);
+		if (current) show(current, "current", false);
+		current = heading;
+		return heading && show(heading, "current", true);
+	};
+	onCurrentLocation((node) => stand(node?.nodeType === Node.ELEMENT_NODE ? headingAt(node) : null));
+	pageScope("heading", {
+		title: "On a section heading",
+		root: focused,
+		at: () => Boolean(headingOn(focused())),
+		when: () => pageQueryAll(HEADING).some((heading) => headingOn(heading)),
+		rows: [{
+			id: "heading.link.copy",
+			keys: ["Enter"],
+			title: "copy link to section",
+			touch: false,
+			run: () => {
+				stand(headingOn(focused()))?.control.shadowRoot.querySelector("button").click();
+			}
+		}]
 	});
 }
 
@@ -2105,6 +2493,7 @@ async function installDocument(scope) {
 		commitWidgetDescriptors(descriptors);
 		watchExternalLinks();
 		watchCodeBlocks();
+		watchHeadingLinks();
 		watchVideos();
 		await importWidgets(scope);
 		await settle(presentation, scope, [scope], whenApplicationPresented);
@@ -2152,6 +2541,13 @@ const openingView = (holder, members) => views$1(holder).opening(holder, members
 const keepView = (holder, member) => views$1(holder).keep(holder, member);
 const draftStore = stored(() => localStorage, "local", PAGE_SCOPE);
 const userStore = document.documentElement.lfStorage.userStore;
+const userChoice = (key, values) => Object.freeze({
+	read: () => {
+		const value = userStore.get(key);
+		return values.includes(value) ? value : null;
+	},
+	write: (value) => userStore.set(key, value)
+});
 
 //#endregion
 //#region runtime/drafts.js
@@ -2569,6 +2965,7 @@ function createWritingResume({ revealInThread, arriveEditor, holdsThreadDraft })
 		title: "Resume writing",
 		touch: "Resume writing",
 		menu: "keys",
+		travels: true,
 		when: () => writingPlace !== null,
 		run: resume
 	};
@@ -2712,8 +3109,9 @@ const separateTranscript = (held) => {
 	return transcript && userScrollport(getComputedStyle(transcript).overflowY) ? transcript : null;
 };
 const landingTarget = (held, control) => {
-	if (fitsWhole(held)) return { node: held };
 	const reply = replyRowOf(held, control);
+	if (control !== held && !replyPinned(reply) && alreadyShown(control)) return { node: null };
+	if (fitsWhole(held)) return { node: held };
 	if (replyPinned(reply)) return control === held ? { node: null } : {
 		node: held,
 		block: "end"
@@ -2723,13 +3121,21 @@ const landingTarget = (held, control) => {
 	return { node: control };
 };
 const onScreen = (node) => seenRect(node, /* @__PURE__ */ new Map()) !== null;
-const latestTurn = (transcript) => [...transcript.querySelectorAll(":scope > :is(.lf-msg, .lf-thread-checkpoint)")].findLast((node) => node.checkVisibility()) ?? null;
-function showLatestTurn(transcript) {
-	scrollToEnd(transcript);
-	const latest = latestTurn(transcript);
-	if (!latest) return;
-	const over = transcript.getBoundingClientRect().top + transcript.clientTop - latest.getBoundingClientRect().top;
-	if (over > (latest.firstElementChild?.getBoundingClientRect().height ?? 0)) moveScrollerBy(transcript, -over);
+const returnTurn = (transcript, unread) => {
+	const turns = [...transcript.querySelectorAll(":scope > :is(.lf-msg, .lf-thread-checkpoint)")];
+	let start = unread && turns.find((node) => node.dataset.message === unread);
+	while (start && !start.checkVisibility()) start = start.previousElementSibling;
+	return start ?? turns.findLast((node) => node.checkVisibility()) ?? null;
+};
+function showReturnTurn(transcript, thread) {
+	const scroller = scrollerFor(transcript);
+	scrollToEnd(scroller);
+	const unread = thread?.unread[0]?.message;
+	const start = thread?.msgs.find((message) => message.id === unread)?.key;
+	const turn = returnTurn(transcript, start ?? null);
+	if (!turn) return;
+	const over = scroller.getBoundingClientRect().top + scroller.clientTop + slotTop(scroller) - turn.getBoundingClientRect().top;
+	if (over > (turn.firstElementChild?.getBoundingClientRect().height ?? 0)) moveScrollerBy(scroller, -over);
 }
 function landThread(held, control, behavior, block) {
 	bringBackSurfaceOf(held, behavior);
@@ -2876,6 +3282,10 @@ function holdBox(control) {
 const OPEN_MESSAGE_EDIT = "lf-open-message-edit";
 const open = /* @__PURE__ */ new Map();
 const sending = /* @__PURE__ */ new Set();
+const drawn$1 = Z(0);
+const messageDrawn = () => {
+	drawn$1.value = drawn$1.peek() + 1;
+};
 function holdsMessageEdit(id, view) {
 	const holder = open.get(id);
 	if (!holder) return false;
@@ -2940,7 +3350,10 @@ function threadRewrites({ thread, views, send, paint, box, home, opening = () =>
 			reveal: (message, caretLine) => revealEditor(message, caretLine)
 		},
 		editLast: {
-			available: () => Boolean(lastEditable()),
+			available: () => {
+				drawn$1.value;
+				return Boolean(lastEditable());
+			},
 			open: () => lastEditable()?.openEdit()
 		}
 	};
@@ -2972,7 +3385,9 @@ var MessageEditor = class {
 		const save = offer("button", "lf-msg-control lf-msg-edit-save");
 		const cancel = offer("button", "lf-msg-control lf-msg-edit-cancel");
 		cancel.type = "button";
-		cancel.textContent = "Discard";
+		cancel.setAttribute("aria-label", "Discard");
+		cancel.title = "Discard";
+		cancel.append(iconElement("undo", "lf-msg-control-icon"));
 		actions.append(cancel);
 		this.foot = document.createElement("span");
 		this.foot.className = "lf-msg-edit-foot";
@@ -3010,8 +3425,8 @@ var MessageEditor = class {
 			hint: "Edit message",
 			accessibleName: () => `Edit message: ${said().slice(0, 60)}`,
 			sends: "save",
-			icon: null,
 			sendBtn: save,
+			icon: "save",
 			submitIn: actions,
 			sentMedia: true,
 			save: (value) => {
@@ -3178,7 +3593,6 @@ const HOLDS_WORD = "lf-holds-word";
 const HOLDER = `.${HOLDS_WORD}`;
 function holdToRead() {
 	let hold = null;
-	let released = null;
 	const holderIn = (event) => event.composedPath().find((node) => node instanceof Element && node.matches(HOLDER));
 	const read = (holder) => {
 		if (hold.reading === holder) return;
@@ -3196,7 +3610,11 @@ function holdToRead() {
 		read(null);
 		hold = null;
 		if (!holder) return;
-		released = holder;
+		claimReleaseClick();
+		holder.focus({
+			preventScroll: true,
+			focusVisible: false
+		});
 		holder.dispatchEvent(new MouseEvent("click", {
 			bubbles: true,
 			cancelable: true,
@@ -3207,7 +3625,6 @@ function holdToRead() {
 		}));
 	};
 	document.addEventListener("pointerdown", (event) => {
-		released = null;
 		if (hold) read(null);
 		hold = null;
 		if (!event.isPrimary || !plainPress(event)) return;
@@ -3227,12 +3644,6 @@ function holdToRead() {
 	}, { capture: true });
 	document.addEventListener("pointerup", (event) => end(event, true), { capture: true });
 	document.addEventListener("pointercancel", (event) => end(event, false), { capture: true });
-	document.addEventListener("click", (event) => {
-		if (!released || !event.isTrusted || pressIsKeyboardActivation(event)) return;
-		released = null;
-		event.preventDefault();
-		event.stopImmediatePropagation();
-	}, { capture: true });
 	document.addEventListener("contextmenu", (event) => {
 		if (hold) event.preventDefault();
 	}, { capture: true });
@@ -3560,7 +3971,8 @@ var MessageView = class {
 		render$1(html`
         <b>${model.by}</b
         ><span class="lf-msg-meta"
-          ><time datetime=${model.timestamp}>${model.age}</time> ${receipt}
+          ><time datetime=${model.timestamp}>${model.age}</time>${model.unread ? html`<span class="lf-msg-new"><span class="lf-quiet">New</span></span>` : nothing}
+          ${receipt}
           ${model.leaves ? html`<span class="lf-msg-leaves">${model.leaves}</span>` : nothing}
           ${model.failure ? html`<span class="lf-msg-failure">${FAILURE_LABEL}</span>` : nothing}
           ${model.body.kind === "suggestion" ? html`<span class="lf-suggest-label">Suggestion</span>` : nothing}
@@ -3606,6 +4018,7 @@ var MessageView = class {
 			"--lf-msg-arrival": 1,
 			offset: 0
 		}], flashDuration());
+		messageDrawn();
 		return this.node;
 	}
 	openEdit() {
@@ -3699,193 +4112,6 @@ function anchorLabel(anchor, about) {
 		label
 	].filter(Boolean).join(" · ");
 }
-
-//#endregion
-//#region runtime/keyboard/register.js
-watchCommandScopes(() => [...[...scopes.values()].flat(), { rows: [...commands.values()] }]);
-const ELEMENTS = Symbol("the scopes of the focused element");
-const PAGE = Symbol("the page's own keys");
-const RUNGS = Symbol("Escape's fallback ladder");
-const COMMAND_REFERENCE = "command.reference.open";
-const GO_TO = "navigation.go-to.open";
-const STACK = [
-	"command reference",
-	"page map",
-	"go to",
-	"response options",
-	"reactions",
-	"page search",
-	"target picker",
-	ELEMENTS,
-	"region capture",
-	"current-location",
-	"todo",
-	"versions",
-	"composer",
-	"text entry",
-	"thread",
-	"link",
-	"disclosure",
-	"draw mode",
-	"design mode",
-	PAGE,
-	RUNGS
-];
-const RUNG_LADDER = [
-	"selection",
-	"margin options",
-	"floating panel",
-	"draw mode",
-	"design mode",
-	"page"
-];
-const PAGE_COMMANDS = [
-	"comment.create",
-	"writing.resume",
-	"selection.restore",
-	"target.picker.open",
-	"reaction.open",
-	"page.search.open",
-	"page.search.repeat",
-	"thread.walk",
-	"queue.walk",
-	"page.move",
-	"scroll.move",
-	"reading.align.top",
-	"thread.unread.first",
-	"navigation.panel.threads",
-	"navigation.panel.queue",
-	"navigation.panel.leaves",
-	"navigation.page-map",
-	"version.open",
-	"history.undo",
-	GO_TO,
-	"draw.mode.enter",
-	"capture.region.open",
-	"design.mode.enter",
-	"annotations.toggle",
-	"panel.floating.fold",
-	COMMAND_REFERENCE,
-	"browser.caret",
-	"aim.comment"
-];
-const scopes = /* @__PURE__ */ new Map();
-const commands = /* @__PURE__ */ new Map();
-const rungs = /* @__PURE__ */ new Map();
-let resolved = null;
-let validated = false;
-const place = (where, name) => {
-	if (!where.includes(name)) throw new Error(`leaf: ${String(name)} has no place in the page's keyboard`);
-};
-function pageScope(name, declaration) {
-	place(STACK, name);
-	if (declaration.ready !== void 0) declareCommandReadiness(declaration.rows, declaration.ready);
-	const declarations = scopes.get(name) ?? [];
-	declarations.push(declaration);
-	scopes.set(name, declarations);
-	resolved = null;
-	validated = false;
-	paintKeys();
-	return () => {
-		const remaining = scopes.get(name)?.filter((item) => item !== declaration) ?? [];
-		if (remaining.length) scopes.set(name, remaining);
-		else scopes.delete(name);
-		resolved = null;
-		validated = false;
-		paintKeys();
-	};
-}
-function pageCommand(row) {
-	place(PAGE_COMMANDS, row.id);
-	if (commands.has(row.id)) throw new Error(`leaf: ${row.id} is declared twice`);
-	commands.set(row.id, row);
-	resolved = null;
-	validated = false;
-	paintKeys();
-	return row;
-}
-function pageRung(name, reading) {
-	place(RUNG_LADDER, name);
-	const readings = rungs.get(name) ?? [];
-	readings.push(reading);
-	rungs.set(name, readings);
-	return () => {
-		const remaining = rungs.get(name)?.filter((item) => item !== reading) ?? [];
-		if (remaining.length) rungs.set(name, remaining);
-		else rungs.delete(name);
-	};
-}
-function rung() {
-	const steps = [];
-	for (const name of RUNG_LADDER) for (const reading of rungs.get(name) ?? []) {
-		const step = reading();
-		if (step) steps.push({
-			...step,
-			name
-		});
-	}
-	const here = focused();
-	let surface = null;
-	for (const { root } of steps) {
-		if (!root || root === document || !renderedUnder(here, root)) continue;
-		if (!surface || renderedUnder(root, surface)) surface = root;
-	}
-	const holds = (step) => renderedUnder(step.root ?? document, surface);
-	return (surface && steps.find(holds)) ?? steps[0] ?? null;
-}
-const BACK_OUT = {
-	id: "navigation.back",
-	keys: ["Escape"],
-	title: () => rung() ? titleOf(rung()) : "Back",
-	description: () => rung() ? descriptionOf(rung()) : void 0,
-	when: () => Boolean(rung()),
-	run: () => rung().out()
-};
-function assemble() {
-	const rows = PAGE_COMMANDS.flatMap((id) => commands.has(id) ? [commands.get(id)] : []);
-	const unanswered = rows.filter((row) => row.touch === void 0).map((row) => row.id);
-	if (unanswered.length) throw new Error(`leaf: ${unanswered.join(", ")} must declare \`touch\`: its words under a finger, or false where a finger reaches it directly`);
-	const unreached = [...scopes.values()].flat().flatMap((scope) => scope.rows).filter((row) => row.run && !row.exit && row.touch !== false).map((row) => row.id);
-	if (unreached.length) throw new Error(`leaf: ${unreached.join(", ")} must be its stance's \`exit\` or declare \`touch: false\`: only a page command takes a finger's words`);
-	return STACK.flatMap((name) => {
-		if (name === PAGE) return { rows };
-		if (name === RUNGS) return {
-			root: () => rung()?.root ?? document,
-			rows: [BACK_OUT]
-		};
-		if (typeof name !== "string") return name;
-		return scopes.get(name) ?? [];
-	});
-}
-function pageScopes() {
-	if (offlineInteractive) return [ELEMENTS];
-	resolved ??= assemble();
-	if (!validated) {
-		validated = true;
-		for (const scope of resolved) if (typeof scope !== "symbol") checked(scope.rows, scope.title ?? "the page's own keys");
-	}
-	return resolved;
-}
-const namedScopes = () => STACK.flatMap((name) => typeof name === "string" ? scopes.get(name) ?? [] : []);
-const exitOf = (scope) => scope.rows.find((row) => row.exit) ?? null;
-function touchPresses() {
-	pageScopes();
-	return PAGE_COMMANDS.flatMap((id) => commands.has(id) ? touchPresses$1(commands.get(id)) : []);
-}
-function stances() {
-	pageScopes();
-	return namedScopes().flatMap((scope) => {
-		const exit = exitOf(scope);
-		return exit ? [{
-			scope,
-			exit
-		}] : [];
-	});
-}
-const universalCommandReference = () => offlineInteractive ? void 0 : commands.get(COMMAND_REFERENCE);
-const textEntryScope = () => scopes.get("text entry")?.[0];
-const allButCommandReference = (binding) => !bindings(universalCommandReference()).includes(binding);
-const pageDoor = (binding) => [COMMAND_REFERENCE, GO_TO].some((id) => commands.has(id) && bindings(commands.get(id)).includes(binding));
 
 //#endregion
 //#region runtime/composing/capture.js
@@ -4116,12 +4342,14 @@ function rowWalk({ id, noun, plural, rows, position = () => listWalkPosition(row
 		routes: [route("ArrowUp", up), route("ArrowDown", down)],
 		title: `walk the ${plural}`,
 		repeat: true,
+		travels: scroll,
 		run: (binding) => land((list) => clampedRow(list, focused(), binding === "ArrowDown" ? 1 : -1, 0))
 	}, {
 		id: `${id}.edge`,
 		keys: ["Home", "End"],
 		routes: [route("Home", home), route("End", end)],
 		title: `${home} / ${end}`,
+		travels: scroll,
 		run: (binding) => land((list) => binding === "Home" ? list[0] : list.at(-1))
 	}];
 }
@@ -4292,8 +4520,7 @@ function replyControlDestination(node) {
 	};
 }
 function sendReply(draftCtx, key, text, owns, actions) {
-	let flight = null;
-	return sendMessage(draftCtx, owns, (attempt) => flight = actions.reply(key, text, { attempt })) && { flight };
+	return sendMessage(draftCtx, owns, (attempt) => actions.reply(key, text, { attempt }));
 }
 function wireReply(key, row, input, send, wireInput, { hint, hintAside, accessibleName, busy }) {
 	row.classList.add("lf-comment-box");
@@ -4324,11 +4551,11 @@ function wireReply(key, row, input, send, wireInput, { hint, hintAside, accessib
 			remember(composition);
 		},
 		send: (_text, raw, owns) => {
-			const { actions, landSent, sent } = composition.binding;
+			const { actions, landSent, sending, sent } = composition.binding;
 			const land = sendLanding(input);
-			const reply = sendReply(draftCtx, key, raw, owns, actions);
-			if (!reply) return;
-			if (sent) return sent(reply.flight);
+			sending?.();
+			if (!sendReply(draftCtx, key, raw, owns, actions)) return;
+			if (sent) return sent();
 			landSent(closestAcross(input, THREAD));
 			land(focused());
 		},
@@ -4391,7 +4618,7 @@ async function restoreReplyEditing(editing, land) {
 		if (compositions.get(context) === session && !available(session.owner)) compositions.delete(context);
 	}
 }
-function createReplyView(key, commands, redraw, { onChange = () => {}, editLast = null, hint = "Reply", hintAside = () => "", accessibleName = "Reply", busy = () => false, sent = null } = {}) {
+function createReplyView(key, commands, redraw, { onChange = () => {}, editLast = null, hint = "Reply", hintAside = () => "", accessibleName = "Reply", busy = () => false, sending = null, sent = null } = {}) {
 	const fresh = () => {
 		const row = offer("div", "lf-thread-reply");
 		const input = offer(TEXT_FIELD);
@@ -4410,6 +4637,7 @@ function createReplyView(key, commands, redraw, { onChange = () => {}, editLast 
 		...commands,
 		onChange,
 		editLast,
+		sending,
 		sent
 	};
 	let detach = attach(composition, binding);
@@ -4561,7 +4789,7 @@ async function replyDestination(id, open, intent, { destination = (thread) => th
 }
 async function threadDestination(id, open, may) {
 	const at = focused();
-	if (at && at !== document.body && drawn$1(at)) return null;
+	if (at && at !== document.body && drawn$2(at)) return null;
 	const shown = await open(id, {
 		part: "thread",
 		intent: may
@@ -5162,26 +5390,17 @@ var HeldArrivals = class {
 
 //#endregion
 //#region runtime/thread/reply-continuity.js
+const room = (node) => {
+	if (!node.isConnected) return 0;
+	const { marginBlockStart, marginBlockEnd } = getComputedStyle(node);
+	return node.getBoundingClientRect().height + parseFloat(marginBlockStart) + parseFloat(marginBlockEnd);
+};
 var ReplyContinuity = class {
 	#owner;
 	#row = null;
 	#departure = null;
 	#space = 0;
-	#returningWriting = 0;
 	#presenting = [];
-	#writing = null;
-	#measure = null;
-	#sizes = sizeObserver((entries) => {
-		const writing = this.#writing;
-		if (!writing || !entries.some(({ target, borderBoxSize }) => target === writing.input && atLayoutPrecision(borderBoxSize[0].inlineSize) !== writing.width) || this.#measure != null) return;
-		this.#measure = nextRender(() => {
-			this.#measure = null;
-			if (this.#writing !== writing) return;
-			if (!this.#visible()) return this.#releaseSpace();
-			writing.width = atLayoutPrecision(parseFloat(getComputedStyle(writing.input).inlineSize));
-			this.#allocateWriting(writing.input, layoutPx(writing.input.naturalBlockSize));
-		});
-	});
 	gap = document.createElement("div");
 	constructor(owner) {
 		this.#owner = owner;
@@ -5191,23 +5410,17 @@ var ReplyContinuity = class {
 		owner.addEventListener("toggle", () => {
 			if (!this.#visible()) this.release();
 		});
-		owner.addEventListener("input", (event) => {
-			if (!this.#row?.contains(event.target)) return;
-			const input = this.#row.querySelector(TEXT_FIELD);
-			if (input.value) this.#allocateWriting(input, layoutPx(input.naturalBlockSize));
-			else this.#releaseWriting();
-		}, { capture: true });
 	}
 	#visible() {
 		return this.#owner.isConnected && this.#row?.isConnected && growthIsSeen(this.#row);
 	}
-	before(writing = []) {
+	before(own = []) {
 		this.#row = this.#owner.querySelector(":scope > .lf-thread-reply");
 		this.#presenting = [];
 		if (!this.#visible()) return null;
-		this.#presenting = writing.filter((node) => node.isConnected).map((node) => ({
+		this.#presenting = own.filter((node) => node.isConnected).map((node) => ({
 			node,
-			height: node.getBoundingClientRect().height
+			height: room(node)
 		}));
 		const extent = parseFloat(getComputedStyle(this.#owner).blockSize);
 		const place = offFlowSurfaceOf(this.#owner) ? null : placeKeeper(scrollerFor(this.#owner), {
@@ -5228,26 +5441,18 @@ var ReplyContinuity = class {
 		if (!this.#row?.isConnected) return this.release();
 		if (!this.#visible()) {
 			reading?.place?.finish(reading.held);
-			return this.#releaseSpace();
+			return this.release();
 		}
-		this.#retainWriting();
 		if (reading != null) {
 			const { extent, place, held } = reading;
-			const body = getComputedStyle(this.#owner);
-			const written = presenting.filter(({ node }) => node.isConnected).reduce((sum, { node, height }) => sum + node.getBoundingClientRect().height - height, 0);
-			const input = this.#row.querySelector(TEXT_FIELD);
-			const context = input && replyDraftContext(input);
-			const returning = this.#writing?.input === input && context && draftHasContent(context) && !this.#owner.querySelector(".lf-msg.user[data-attempt]") ? Math.max(0, parseFloat(this.#writing.room) - input.getBoundingClientRect().height) : 0;
-			this.#keep(Math.max(0, this.#space + extent - parseFloat(body.blockSize) + written + this.#returningWriting - returning));
-			this.#returningWriting = returning;
+			const own = presenting.reduce((sum, { node, height }) => sum + room(node) - height, 0);
+			const now = parseFloat(getComputedStyle(this.#owner).blockSize);
+			this.#keep(Math.max(0, this.#space + extent - now + own));
 			place?.finish(held);
 		}
-		if (!this.#visible()) return this.#releaseSpace();
+		if (!this.#visible()) return this.release();
 		this.#departure?.();
-		this.#departure = whenNone([this.#row], growthIsSeen, () => {
-			if (!this.#owner.isConnected) this.release();
-			else this.#releaseSpace();
-		});
+		this.#departure = whenNone([this.#row], growthIsSeen, () => this.release());
 	}
 	#keep(space) {
 		if (space === this.#space) return;
@@ -5255,52 +5460,11 @@ var ReplyContinuity = class {
 		const value = layoutPx(space);
 		if (this.gap.style.getPropertyValue("--lf-reply-space") !== value) this.gap.style.setProperty("--lf-reply-space", value);
 	}
-	#retainWriting() {
-		const input = this.#row?.querySelector(TEXT_FIELD);
-		if (!input?.value) {
-			const context = input && replyDraftContext(input);
-			if (context && draftHasContent(context) && this.#writing?.context === context) {
-				if (this.#writing.input === input) return;
-				if (atLayoutPrecision(parseFloat(getComputedStyle(input).inlineSize)) === this.#writing.width) return this.#allocateWriting(input, this.#writing.room);
-			}
-			return this.#releaseWriting();
-		}
-		if (this.#writing?.input === input) return;
-		this.#allocateWriting(input, getComputedStyle(input).blockSize);
-	}
-	#allocateWriting(input, room) {
-		if (this.#writing?.input !== input) {
-			this.#releaseWriting();
-			this.#writing = {
-				input,
-				context: replyDraftContext(input),
-				width: atLayoutPrecision(parseFloat(getComputedStyle(input).inlineSize)),
-				room: null
-			};
-			this.#sizes.observe(input, { box: "border-box" });
-		}
-		if (this.#writing.room === room) return;
-		this.#writing.room = room;
-		input.style.setProperty("--lf-reply-writing-room", room);
-	}
-	#releaseWriting() {
-		if (!this.#writing) return;
-		this.#returningWriting = 0;
-		const { input } = this.#writing;
-		input.style.removeProperty("--lf-reply-writing-room");
-		this.#sizes.unobserve(input);
-		this.#writing = null;
-	}
-	#releaseSpace() {
+	release() {
 		this.#departure?.();
 		this.#departure = null;
 		this.#space = 0;
-		this.#returningWriting = 0;
 		if (this.gap.style.getPropertyValue("--lf-reply-space")) this.gap.style.removeProperty("--lf-reply-space");
-	}
-	release() {
-		this.#releaseSpace();
-		this.#releaseWriting();
 	}
 };
 
@@ -5369,6 +5533,11 @@ function workingPlace(ranges, after) {
 
 //#endregion
 //#region runtime/thread/transcript.js
+const MESSAGE_NAMES = [
+	"data-message",
+	"data-event",
+	"data-attempt"
+];
 function workingView(working, controls = nothing) {
 	return html`<div class="lf-thread-working-head">
       ${working.who ? html`<b>${working.who}</b>` : nothing}
@@ -5403,6 +5572,7 @@ var Transcript = class Transcript {
 	#pendingCovers = /* @__PURE__ */ new Map();
 	#pendingOpen = false;
 	#checkpoints = /* @__PURE__ */ new Map();
+	#folding = /* @__PURE__ */ new Map();
 	#expandedSummaries = /* @__PURE__ */ new Set();
 	#id = ++nextTranscriptId;
 	#named = 0;
@@ -5425,6 +5595,10 @@ var Transcript = class Transcript {
 	}
 	messageNode(key) {
 		return this.#messages.get(key)?.node ?? null;
+	}
+	leaving(model) {
+		const wanted = new Set(model.messages.map(({ key }) => key));
+		return [...this.#messages].flatMap(([key, { node }]) => wanted.has(key) || !node.isConnected ? [] : [node]);
 	}
 	summaryNode(id) {
 		return this.#checkpoints.get(id)?.node ?? null;
@@ -5460,7 +5634,22 @@ var Transcript = class Transcript {
 		}
 		this.#model = model;
 		const wanted = new Set(model.messages.map((message) => message.key));
-		for (const [key, view] of this.#messages) if (!wanted.has(key)) view.retire();
+		for (const key of [...this.#folding.keys()]) if (wanted.has(key)) this.#endFold(key, false);
+		for (const [key, view] of this.#messages) {
+			if (wanted.has(key)) continue;
+			const { node } = view;
+			if (!this.#folding.has(key) && node.parentNode === this.node && node.checkVisibility()) {
+				const names = MESSAGE_NAMES.map((name) => [name, node.getAttribute(name)]);
+				for (const [name] of names) node.removeAttribute(name);
+				node.inert = true;
+				this.#folding.set(key, {
+					node,
+					names,
+					played: null
+				});
+			}
+			view.retire();
+		}
 		const summarized = summaryRanges(model.messages, model.summaries);
 		const describedRanges = model.resolved ? summarized : withPendingProgress(summarized);
 		const summaries = new Set(describedRanges.flatMap((range) => range.summary ? [range.summary.id] : []));
@@ -5551,11 +5740,40 @@ var Transcript = class Transcript {
 			else node.style.removeProperty("--lf-fold-foot");
 		}
 		keeps(this.node, "data-lf-reflow", appends ? "append" : null);
-		setChildren(this.node, transcript);
+		setChildren(this.node, this.#withFolds(transcript));
+		for (const [key, fold] of this.#folding) {
+			if (fold.played) continue;
+			fold.played = foldBlock(fold.node);
+			if (!fold.played) {
+				this.#endFold(key, true);
+				continue;
+			}
+			fold.played.finished.then(() => {
+				if (this.#folding.get(key) === fold) this.#endFold(key, true);
+			}, () => {});
+		}
 		if (!currentLocationToggle || currentLocationToggle.isConnected) return null;
 		const toggleFor = (id) => this.node.querySelector(`.lf-summary-expand[data-summary-toggle="${CSS.escape(id)}"]`);
 		const succeeded = currentLocationToggle.dataset.summaryToggle;
 		return [succeeded, ...(successors.get(succeeded) ?? []).map(({ summary }) => summary.id)].map(toggleFor).find(Boolean) ?? null;
+	}
+	#withFolds(nodes) {
+		if (!this.#folding.size) return nodes;
+		const folding = new Set([...this.#folding.values()].map(({ node }) => node));
+		const staying = new Set(nodes);
+		const after = /* @__PURE__ */ new Map();
+		let anchor = null;
+		for (const child of this.node.children) if (folding.has(child)) after.set(anchor, [...after.get(anchor) ?? [], child]);
+		else if (staying.has(child)) anchor = child;
+		return [...after.get(null) ?? [], ...nodes.flatMap((node) => [node, ...after.get(node) ?? []])];
+	}
+	#endFold(key, removed) {
+		const fold = this.#folding.get(key);
+		this.#folding.delete(key);
+		if (removed) fold.node.remove();
+		else fold.played?.cancel();
+		fold.node.inert = false;
+		for (const [name, value] of fold.names) if (value !== null) fold.node.setAttribute(name, value);
 	}
 	static #face(id) {
 		const node = document.createElement("div");
@@ -5633,6 +5851,10 @@ var Transcript = class Transcript {
 	retire() {
 		this.#stopWorkingExposure?.();
 		this.#stopWorkingExposure = null;
+		for (const [key, { played }] of this.#folding) {
+			played?.cancel();
+			this.#endFold(key, true);
+		}
 		for (const view of this.#messages.values()) view.retire();
 	}
 };
@@ -5731,6 +5953,21 @@ function workingMessage(thread, attention, messages) {
 		condition
 	});
 }
+function threadTodos(todos, done) {
+	if (!todos.length) return nothing;
+	return html`<ul class="lf-thread-todos">
+    ${todos.map((todo) => html`<li class="lf-thread-todo">
+          <span class="lf-thread-todo-title">To-do · ${todo.title}</span
+          ><button
+            type="button"
+            class="lf-btn lf-thread-action"
+            @click=${() => done(todo.id)}
+          >
+            Done
+          </button>
+        </li>`)}
+  </ul>`;
+}
 function threadReading(thread, surface, commands) {
 	const resolved = Boolean(thread.resolved);
 	const settling = Boolean(thread.settling);
@@ -5769,6 +6006,10 @@ function threadReading(thread, surface, commands) {
 			pending: settling
 		}),
 		reply: replyAvailable(thread),
+		todos: Object.freeze(thread.userTodos.map(({ id, title }) => Object.freeze({
+			id,
+			title
+		}))),
 		summaries: Object.freeze(thread.summaries),
 		messages: Object.freeze(messages),
 		working: workingMessage(thread, attention, messages),
@@ -5916,8 +6157,7 @@ var ThreadView = class {
 		this.#drawnWith = this.#outside(model);
 		const prior = this.#model;
 		if (model.news && !prior?.news) this.#retainHeaderSlot({ observe: false });
-		const rewritten = this.#transcript.views.filter((view) => view.editing).map(({ node }) => node);
-		const bodyPlace = published ? this.#continuity?.before(rewritten) : null;
+		const bodyPlace = published ? this.#continuity?.before([...this.#transcript.views.filter((view) => view.editing).map(({ node }) => node), ...this.#transcript.leaving(model)]) : null;
 		const restoreFocus = holdFocus(this.node);
 		this.#model = model;
 		const reply = model.reply || replyIsEditing(model.key);
@@ -5937,6 +6177,7 @@ var ThreadView = class {
 		const actions = marginControls ? [
 			model.news ? notice.node : null,
 			marginControls.nav,
+			marginControls.expand,
 			settlement,
 			marginControls.close
 		].filter(Boolean) : [settlement].filter(Boolean);
@@ -5948,7 +6189,7 @@ var ThreadView = class {
 		});
 		if (reply && !this.#reply) this.#reply = this.#createReply(model);
 		const body = html`
-      ${this.#transcript.node}
+      ${threadTodos(model.todos, (id) => this.#commands.todos.done(id))}${this.#transcript.node}
       ${threadActions ? marginControls ? html`<div class="lf-margin-thread-controls">${threadActions}</div>` : html`<div class="lf-thread-controls" data-lf-reflow="text">
                 ${news}${threadActions}
               </div>` : nothing}
@@ -6145,7 +6386,8 @@ var ThreadView = class {
 			}
 		}, () => this.repaint(), {
 			onChange: replyChanged,
-			editLast: this.#rewrites.editLast
+			editLast: this.#rewrites.editLast,
+			sending: () => this.#marginControls?.sending?.()
 		});
 	}
 	commit() {
@@ -6758,4 +7000,4 @@ function surfaceFocusTarget(name, { part = "reply" } = {}) {
 }
 
 //#endregion
-export { DESIGN_MODE_KEY, ELEMENTS, HOLDS_WORD, HeldNews, HeldReading, MessageView, PAGE_DRAFT, PAGE_SCOPE, SAYS_IN, SAY_BOX, THREAD, ThreadView, Transcript, allButCommandReference, allThreads, alreadyShown, anchorLabel, answeredInWords, arrivalOf, authoredHolder, beginThreadSeats, beginWalk, blocksOnScreen, bringBackSurfaceOf, captureDraftEditing, capturePlace, carryingThreadPlace, claimSeatReplies, claimed, clearDraft, commitThreadSeats, completeReadingReturn, copyBlock, createPassageSelection, createReplyView, createWritingResume, currentLocationOrigin, currentLocationThreadId, declareOffFlowSurface, declareSide, declareThreadParts, designName, dismissReply, dismissReplyAt, draftContexts, draftEditingDestination, draftEditingStands, draftHasContent, draftStore, drawnThreadId, ensureSyntaxLanguage, fitsWhole, focusThread, focusedInView, focusedThreadTarget, followBoxGrowth, formatDeclaredMarkdown, hasLandmark, heldGrowth, heldObligation, heldOut, heldThread, heldThreadId, highlightBlocks, holdReplyCompositions, holdThreadPlace, holdToRead, importWidgets, inlineMarkdownFragment, isExternalPageLink, isPagePaint, isPageWidgetWorkflow, isWorkflowProgress, keepRefusedWords, keepThreadLanding, keepView, landingPlace, landingRoom, langForPath, leftThePage, listWalkPosition, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, markdownSourceOffset, markdownWords, messageHolding, messageReading, messageText, mirrorDraft, mountFirstMessage, newsNotice, obligationEntry, obligationHolding, obligationPlace, obligationsIn, onReadingInterrupted, openMessageEditIn, openingPassage, openingView, pageCommand, pageDoor, pageReadingBlock, pageRung, pageScope, pageScopes, pageSelection, paintMarkdown, passageBlock, patchDocument, placeKeeper, placeNode, placeOf, placeOffset, placePageThreads, placedMarkdownTokens, preloadWidgets, prepareAuthoredMessage, prepareDeclaredMarkdown, progressFace, quietWord, quoteReading, rawOffsetFits, readBoxPlace, readObligations, readThreads, readingBlock, readingIsContinuous, readingReturn, registerWritingDestination, reindexPassageOwners, releaseAuthoredUnder, releaseOutlets, releaseReplies, rememberPassageParts, rememberWriting, renderMarginThread, renderMarkdown, renderQuiet, renderSeats, renderSurfaces, replyAvailable, replyCompositionHasDraft, replyContext, replyDestination, replyDraftContext, replyDraftsHold, replyIsEditing, restoreDraftEditing, restorePlace, restoreReplyEditing, restrictUserIntent, retainThreadSeats, retainUserIntent, revealHeld, rowWalk, saveDraft, scrollIntoReadingBand, scrollIntoView, scrollThreadIntoView, selectionAnchor, sendDraft, sendLanding, sendMessage, settleAcceptedDrafts, settleThread, showHeld, showHeldThread, showLatestTurn, snapSelection, stances, stepFrom, storedDraft, strongestWorkflow, surfaceFocusTarget, synNodes, syntax, tabStore, tellDraft, textBlocks, textEntryScope, threadAttention, threadDraft, threadFocusDestination, threadHeading, threadIdNamed, threadList, threadName, threadNamed, threadPart, threadReading, threadReplyInput, threadRewrites, threadState, threadSummary, threadSurface, todoLabel, tokenLines, touchPresses, transferDraft, universalCommandReference, upgradeWidgets, userStore, walkOrigin, walkPosition, walkPositionLabel, watchDraft, watchDrafts, watchThreadSurfaces, whereDraft, wholeThread, workflowLabel, workflowStep };
+export { DESIGN_MODE_KEY, ELEMENTS, HOLDS_WORD, HeldNews, HeldReading, MessageView, PAGE_DRAFT, PAGE_SCOPE, SAYS_IN, SAY_BOX, THREAD, ThreadView, Transcript, allButCommandReference, allThreads, alreadyShown, anchorLabel, answeredInWords, arrivalOf, authoredHolder, beginThreadSeats, beginWalk, blocksOnScreen, bringBackSurfaceOf, captureDraftEditing, capturePlace, carryingThreadPlace, claimSeatReplies, claimed, clearDraft, commitThreadSeats, completeReadingReturn, copyBlock, createPassageSelection, createReplyView, createWritingResume, currentLocationOrigin, currentLocationThreadId, declareOffFlowSurface, declareSide, declareThreadParts, designName, dismissReply, dismissReplyAt, draftContexts, draftEditingDestination, draftEditingStands, draftHasContent, draftStore, drawnThreadId, ensureSyntaxLanguage, fitsWhole, focusThread, focusedInView, focusedThreadTarget, followBoxGrowth, formatDeclaredMarkdown, hasLandmark, heldGrowth, heldObligation, heldOut, heldThread, heldThreadId, highlightBlocks, holdReplyCompositions, holdThreadPlace, holdToRead, importWidgets, inlineMarkdownFragment, isExternalPageLink, isPagePaint, isPageWidgetWorkflow, isWorkflowProgress, keepRefusedWords, keepThreadLanding, keepView, landingPlace, landingRoom, langForPath, leftThePage, listWalkPosition, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, markdownSourceOffset, markdownWords, messageHolding, messageReading, messageText, mirrorDraft, mountFirstMessage, newsNotice, obligationEntry, obligationHolding, obligationPlace, obligationsIn, onReadingInterrupted, openMessageEditIn, openingPassage, openingView, pageCommand, pageDoor, pageReadingBlock, pageRung, pageScope, pageScopes, pageSelection, paintMarkdown, passageBlock, patchDocument, placeKeeper, placeNode, placeOf, placeOffset, placePageThreads, placedMarkdownTokens, preloadWidgets, prepareAuthoredMessage, prepareDeclaredMarkdown, progressFace, quietWord, quoteReading, rawOffsetFits, readBoxPlace, readObligations, readThreads, readingBlock, readingIsContinuous, readingReturn, registerWritingDestination, reindexPassageOwners, releaseAuthoredUnder, releaseOutlets, releaseReplies, rememberPassageParts, rememberWriting, renderMarginThread, renderMarkdown, renderQuiet, renderSeats, renderSurfaces, replyAvailable, replyCompositionHasDraft, replyContext, replyDestination, replyDraftContext, replyDraftsHold, replyIsEditing, replyThreadKey, restoreDraftEditing, restorePlace, restoreReplyEditing, restrictUserIntent, retainThreadSeats, retainUserIntent, revealHeld, rowWalk, saveDraft, scrollIntoReadingBand, scrollIntoView, scrollThreadIntoView, selectionAnchor, sendDraft, sendLanding, sendMessage, settleAcceptedDrafts, settleThread, showHeld, showHeldThread, showReturnTurn, snapSelection, stances, stepFrom, storedDraft, strongestWorkflow, subjectPlace, surfaceFocusTarget, synNodes, syntax, tabStore, tellDraft, textBlocks, textEntryScope, threadAttention, threadDraft, threadFocusDestination, threadHeading, threadIdNamed, threadList, threadName, threadNamed, threadPart, threadReading, threadReplyInput, threadRewrites, threadState, threadSummary, threadSurface, threadTodos, todoLabel, tokenLines, touchPresses, transferDraft, universalCommandReference, upgradeWidgets, userChoice, userStore, walkOrigin, walkPosition, walkPositionLabel, watchDraft, watchDrafts, watchThreadSurfaces, whereDraft, wholeThread, workflowLabel, workflowStep };

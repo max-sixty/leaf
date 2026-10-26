@@ -85,7 +85,9 @@ def _render_version_attempt(
     widget that its entry never declared (a file's reading sees one writer, and this is
     the other), a version that authors widget state the log replays over, a widget whose
     render() is relative, so a read's replay of the sender's own gesture moves the
-    page again (none of the three is CSS), a settled holder whose mark or still-showing
+    page again (none of the three is CSS), a block a comparison of the version with
+    itself marks, because a module wrote words there without marking them, a settled
+    holder whose mark or still-showing
     slot words disagree with the log's decision (read once: the palettes carry no
     geometry between them), and an SVG paint token that does not resolve to valid paint
     in that scheme. Once per version, on the settled desktop page in the light scheme,
@@ -94,7 +96,8 @@ def _render_version_attempt(
     360px to 1920px (`readings.sweep`), the geometry that moves with the window: the
     page scrolling sideways, content set past the column and out into the margin, a
     horizontal scrollbar with no room below what it scrolls, a control clipped out of
-    reach, words drawn on top of other words. There it also reads, as advice naming
+    reach, a box cutting off its own content where no scroll reaches it, words drawn on
+    top of other words. There it also reads, as advice naming
     the widths it spans, whether a drawing's fit to its box shrinks its labels past
     reading, and whether a table scrolls sideways with a cell in it wrapped. That pass
     also finds each width where the page's margin content changes (a sidebar,

@@ -519,6 +519,7 @@ export function createGoToSequence({
           },
         ],
         title: "thread top / bottom",
+        travels: true,
         when: () => atGoToTargets() && Boolean(focusedThreadTarget()),
         run: (binding) => {
           const thread = focusedThreadTarget();
@@ -556,6 +557,7 @@ export function createGoToSequence({
           "letters",
         ],
         title: "visible target",
+        travels: true,
         // Once armed, keep the alphabet claimed even when a filter has no members. A key
         // then reports the miss inside this sequence rather than falling through to a page
         // command whose letter happened to match it.
@@ -617,6 +619,7 @@ export function createGoToSequence({
           },
         ],
         title: "top / bottom",
+        travels: true,
         when: atGoToTargets,
         run: (binding) => {
           setGoToSequence(false); // before the travel, so the arrival's own scrolling paints nothing

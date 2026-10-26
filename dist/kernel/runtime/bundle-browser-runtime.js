@@ -743,11 +743,12 @@ const editable = (message) => message.author === "user" && !message.pending && !
 const bareReaction = (thread) => thread.bare_reaction;
 const discussed = (thread) => !bareReaction(thread);
 const hasUnread = (thread) => thread.unread.length > 0;
+const isNews = (thread) => !thread.resolved && hasUnread(thread);
 function threadCounts(threads) {
 	const listed = threads.filter(discussed);
 	return {
 		open: listed.filter((thread) => !thread.resolved).length,
-		unread: listed.filter(hasUnread).length
+		unread: listed.filter(isNews).length
 	};
 }
 const pendingSeat = (message) => message.about || !message.anchor || Object.keys(message.anchor).length !== 1 ? null : message.anchor.section ?? null;
@@ -900,6 +901,7 @@ function readThreadRecords(threads, document, widgets, workflows, todos = [], ob
 			attention: thread.attention,
 			obligations: obligations.filter((obligation) => obligation.thread === thread.id),
 			todos: todos.filter((todo) => todo.owner === "agent" && todo.thread === thread.id),
+			userTodos: todos.filter((todo) => todo.owner === "user" && todo.thread === thread.id),
 			workflows: workflows.filter((workflow) => workflow.thread === thread.id),
 			bare_reaction: thread.bare_reaction,
 			seat: thread.seat,
@@ -1234,6 +1236,7 @@ function localQueues(served, workflows, todos, items, local) {
 			owner: item.next_actor,
 			subject: source.subject,
 			thread: item.thread,
+			also: [],
 			live: false
 		});
 	};
@@ -2312,4 +2315,4 @@ function createPresentationSchedule(bindJob) {
 }
 
 //#endregion
-export { AsyncDirective, Directive, J, LitElement, PENDING, PartType, W, Z, actionForWidget, anchorKey, authoredRank, bareReaction, bindQueuedWork, cancelWork, carriesObligation, classMap, createPresentationCoordinator, createPresentationSchedule, createRef, createSemanticApplication, d, describeFailure, directive, discussed, editable, enqueueWork, foldWidgetStates, guard, hasUnread, html, isElementName, isMessageEvent, isReaction, isThreadEvent, itemNoun, itemOutcome, keyed, lastMovedAt, live, messageKey, moved, noChange, nothing, obligationValue, observeQueuedWork, pendingForParent, projectionOrigins, q, rankAt, reactionsAt, ref, render, repeat, runWork, sameAnchor, seatRoot, share, stateCoordinate, styleMap, threadCounts, threadKey, threadNames, tokenChoices, turns, unsafeHTML, x };
+export { AsyncDirective, Directive, J, LitElement, PENDING, PartType, W, Z, actionForWidget, anchorKey, authoredRank, bareReaction, bindQueuedWork, cancelWork, carriesObligation, classMap, createPresentationCoordinator, createPresentationSchedule, createRef, createSemanticApplication, d, describeFailure, directive, discussed, editable, enqueueWork, foldWidgetStates, guard, html, isElementName, isMessageEvent, isNews, isReaction, isThreadEvent, itemNoun, itemOutcome, keyed, lastMovedAt, live, messageKey, moved, noChange, nothing, obligationValue, observeQueuedWork, pendingForParent, projectionOrigins, q, rankAt, reactionsAt, ref, render, repeat, runWork, sameAnchor, seatRoot, share, stateCoordinate, styleMap, threadCounts, threadKey, threadNames, tokenChoices, turns, unsafeHTML, x };

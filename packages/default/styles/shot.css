@@ -117,12 +117,6 @@
   border-block-start: 1px solid var(--rule);
   margin-block-start: var(--sp-2);
   padding-block-start: var(--sp-2);
-}
-.lf-shot-key-label {
-  color: var(--muted);
-  margin-block-end: var(--sp-1);
-}
-.lf-shot-key-item {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
@@ -131,16 +125,17 @@
   inline-size: 0.75em;
   block-size: 0.75em;
   flex: none;
-  border-radius: 2px;
+  border-radius: var(--r-s);
 }
-@container lf-shot (max-width: 540px) {
+/* The source blocks and controls fit one row down to this width, including
+   touch targets. Reserve a second row only below that combined width. */
+@container lf-shot (max-width: 450px) {
   .lf-shot-toolbar {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-template-areas: "actions actions" "before after";
-  }
-  :scope:is(lf-shot)[data-lf-shot-mode="compare"][data-lf-shot-layout="stack"]
-    .lf-shot-toolbar {
-    grid-template-areas: "actions actions";
+    /* A stacked pair moves the words into its frames, without collapsing their
+       toolbar row or moving the image viewport beneath the reader's pointer. */
+    grid-template-rows: auto var(--lf-shot-label-height);
   }
   .lf-shot-actions {
     justify-content: space-between;
@@ -152,12 +147,20 @@
     gap: 0;
   }
 }
+/* The drawing is the widget's own and not chrome (`shotBox`, shot-view.js), so it
+   states the border-box sizing every frame width here is reckoned in, which `.lf-ui`
+   gives the chrome. */
+.lf-shotstage,
+.lf-shotstage *,
+.lf-shotstage *::before,
+.lf-shotstage *::after {
+  box-sizing: border-box;
+}
 .lf-shotstage {
   /* Keep the shared image frame's shadow inside the scrollport. */
   --lf-shot-frame-room: calc(var(--raise-1-drop) + var(--raise-1-blur));
   padding: var(--lf-shot-frame-room);
-  /* Grow into a bounded host's allocation; in flow the auto basis keeps the
-     evidence's intrinsic height. The host consumes the parent's height token. */
+  /* Bounded hosts fill their allocation; flow pairs take their fitted height. */
   flex: 1 1 auto;
   min-inline-size: 0;
   min-block-size: 0;
@@ -169,8 +172,8 @@
   scrollbar-gutter: stable;
 }
 :scope:is(lf-shot)[data-lf-shot-mode="compare"] .lf-shotstage {
-  overflow: clip;
-  scrollbar-gutter: auto;
+  /* Keep the same content width as the other modes on classic-scrollbar hosts. */
+  overflow: hidden;
 }
 .lf-shotcanvas {
   display: grid;
@@ -247,7 +250,6 @@
 .lf-shotcap[data-lf-shot-hidden] {
   background: transparent;
   color: var(--muted);
-  font-weight: 400;
 }
 /* The window onto the capture: a crop to its focus hides the rest of the plane on
    purpose, so the image's coordinates are its own (`--lf-drawing`). */
@@ -385,6 +387,8 @@
 .lf-shotpixels {
   display: none;
   grid-area: 1 / 1;
+  inline-size: calc(var(--lf-shot-frame-width) + 2px);
+  block-size: calc(var(--lf-shot-frame-height) + 2px);
   border: 1px solid transparent;
 }
 :scope:is(lf-shot)[data-lf-shot-mode="pixels"] .lf-shotpixels {
@@ -400,14 +404,9 @@
   mask: var(--lf-shot-pixels, linear-gradient(transparent, transparent)) 0 0 / 100% 100%
     no-repeat;
 }
-:is(.lf-shotpixels, .lf-shot-pixel-key) [data-lf-shot-side="both"] {
+.lf-shot-pixel-mask,
+.lf-shot-key-swatch {
   background: var(--warn);
-}
-:is(.lf-shotpixels, .lf-shot-pixel-key) [data-lf-shot-side="before"] {
-  background: var(--danger);
-}
-:is(.lf-shotpixels, .lf-shot-pixel-key) [data-lf-shot-side="after"] {
-  background: var(--ok);
 }
 @container style(--lf-full-height:1) {
   :scope:is(lf-shot) {
@@ -416,14 +415,22 @@
     overflow: clip;
   }
 }
+/* A shot that holds its height scrolls its drawing in the stage, which holds that
+   height too; the declaration doesn't inherit, so the stage states it. */
+@container style(--lf-holds-height:1) {
+  :scope:is(lf-shot) > .lf-shotstage {
+    --lf-holds-height: 1;
+  }
+}
 @media print {
   :scope:is(lf-shot) {
     block-size: auto;
     overflow: visible;
   }
-  .lf-shot-toolbar,
-  .lf-shotpixels,
-  .lf-shotdiff {
+  /* Paper drops the toolbar and the outlines, which are offers (state.css), and prints
+     the drawing (`shotBox`, shot-view.js): both complete sources, one above the
+     other at the sheet's width, whichever view the screen shows. */
+  .lf-shotpixels {
     display: none !important;
   }
   .lf-shotstage {
@@ -433,12 +440,12 @@
   .lf-shotcanvas,
   .lf-shotcomparison,
   .lf-shotframe,
+  :scope:is(lf-shot)[data-lf-shot-mode="pixels"] .lf-shotframe,
   .lf-shot-frame-label,
-  .lf-shotcap,
   .lf-shotviewport,
   .lf-shotimage,
   .lf-shotplane {
-    display: block !important;
+    display: block;
     inline-size: 100% !important;
     block-size: auto !important;
     visibility: visible !important;

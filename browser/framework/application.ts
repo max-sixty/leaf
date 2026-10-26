@@ -218,6 +218,8 @@ interface QueueItem {
   owner: "user" | "agent";
   subject: ServedSubject;
   thread: string | null;
+  /** A record's row: the other records the user answers at its place. */
+  also?: readonly string[];
   /** Whether the agent has it in hand now. */
   live: boolean;
   /** A widget row's current record, which `localQueues` joins on. */
@@ -578,6 +580,7 @@ function localQueues(
       owner: item.next_actor as "user" | "agent",
       subject: source.subject,
       thread: item.thread,
+      also: [],
       live: false,
     });
   };

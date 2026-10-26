@@ -13,26 +13,6 @@
         color: var(--mark-ink);
       }
 
-      #bg-metrics > dl {
-        margin: 0;
-        padding: var(--sp-3);
-        border: 1px solid var(--rule);
-        border-radius: var(--r);
-        background: var(--card);
-      }
-      #bg-metrics dt {
-        color: var(--muted);
-        font: 600 var(--t-6)/1.3 var(--sans);
-      }
-      #bg-metrics dd {
-        margin: var(--sp-1) 0 0;
-        font: 600 var(--t-2)/1.2 var(--sans);
-        overflow-wrap: anywhere;
-      }
-      #bg-metrics dd small {
-        font: 500 var(--t-6)/1.3 var(--sans);
-      }
-
       #bg-outcome > lf-option {
         padding: 1rem;
         min-block-size: 5rem;
@@ -391,7 +371,8 @@
         const frame = document.querySelector("#bg-durable-frame");
         frame.src = new URL("versions/v2.html?pin", pageRoot).href;
         frame.hidden = false;
-        frame.scrollIntoView({ block: "center" });
+        // Only as far as the frame needs, so the press leaves its button where it was.
+        frame.scrollIntoView({ block: "nearest" });
         frameOpener.disabled = true;
       });
 
@@ -500,8 +481,9 @@
                 goes where <kbd>m</kbd> would.
               </li>
               <li>
-                Find the sample picnic approval among the obligations. Its row takes you
-                to the request, where Approve answers it and Undo approval reopens it.
+                Find the sample picnic booking among the obligations. Its row takes you
+                to the request, where a pick answers it and pressing it again reopens
+                it.
               </li>
               <li>
                 Comment on the map question, then press <kbd>m</kbd> until it lands
@@ -535,9 +517,9 @@
               <h3>A to-do on you</h3>
               <p>
                 The agent put a to-do on you about this section with
-                <code>leaf task open … --on user</code>: check that the trail map marks
-                the shelter. Nothing on the page answers it, so it ends only when you
-                press Done.
+                <code>leaf task create … --on user</code>: check that the trail map
+                marks the shelter. Nothing on the page answers it, so it ends only when
+                you press Done.
               </p>
               <ul>
                 <li>
@@ -773,7 +755,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             <p id="bg-readings-guide">
               The meeting point is decided. Open <strong>Settled: At reception</strong>
               to inspect the alternatives, then close it. The spacious cards return to
-              one disclosure line, leaving no empty card space before Approval.
+              one disclosure line, leaving no empty card space before Permission.
             </p>
             <lf-ask id="bg-outcome-ask">
               <h3>Where should the sample group meet?</h3>
@@ -791,24 +773,34 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
           <section id="bg-user-workflows">
             <h2>
               <strong>User workflows</strong
-              ><span class="bg-feature-detail">: approval and interface comments</span>
+              ><span class="bg-feature-detail"
+                >: permission and interface comments</span
+              >
             </h2>
 
             <section id="bg-signoff">
-              <p class="eyebrow bg-feature-elements">lf-approval</p>
-              <h3>Approval of a stated action</h3>
+              <p class="eyebrow bg-feature-elements">lf-ask · lf-options</p>
+              <h3>Permission for a stated action</h3>
               <p id="bg-signoff-guide">
-                Press Approve on the sample request, then Undo approval to reopen it.
-                Other questions can stay unanswered. The request keeps its approval
-                through unrelated page edits until its author explicitly restates it.
+                Choose Book the shelter, then press it again to reopen the request.
+                Other questions can stay unanswered. The pick stays through unrelated
+                page edits until its author explicitly restates the request.
               </p>
-              <lf-approval id="bg-picnic-approval">
+              <lf-ask id="bg-picnic-decision">
                 <h4>Book the covered picnic shelter?</h4>
                 <p>
                   Reserve the park's covered shelter for the sample group's Saturday
                   lunch.
                 </p>
-              </lf-approval>
+                <lf-options id="bg-picnic" choose>
+                  <lf-option id="bg-picnic-skip"
+                    ><strong>Leave it unbooked</strong></lf-option
+                  >
+                  <lf-option id="bg-picnic-book"
+                    ><strong>Book the shelter</strong></lf-option
+                  >
+                </lf-options>
+              </lf-ask>
             </section>
 
             <section id="bg-page-comment-card">
@@ -1112,6 +1104,58 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </ul>
             </section>
           </section>
+
+          <section id="bg-ask-board">
+            <p class="eyebrow bg-feature-elements">lf-options · lf-board · lf-card</p>
+            <h2>
+              <strong>One answer in its section and on a board</strong
+              ><span class="bg-feature-detail"
+                >: the card stands where the pick puts it</span
+              >
+            </h2>
+            <p id="bg-ask-board-guide">
+              Each proposal is answered beside its case, and the board's cards show
+              those answers. Pick Next for the flask, and its card moves to Next; drag
+              the stove's card to Drop, or grab it and press the arrows, and its
+              section's pick follows. Undo takes either gesture back in both places.
+            </p>
+            <section id="bg-board-stove">
+              <h3>Replace the sample camp stove</h3>
+              <p id="bg-board-stove-case">
+                The old stove takes ten minutes to boil a litre.
+              </p>
+              <lf-options id="bg-board-stove-choice" choose>
+                <lf-option id="bg-board-stove-next" value="next">Next</lf-option>
+                <lf-option id="bg-board-stove-later" value="later" chosen
+                  >Later</lf-option
+                >
+                <lf-option id="bg-board-stove-drop" value="drop">Drop</lf-option>
+              </lf-options>
+            </section>
+            <section id="bg-board-flask">
+              <h3>Pack a second sample flask</h3>
+              <p id="bg-board-flask-case">One flask ran dry on the last long walk.</p>
+              <lf-options id="bg-board-flask-choice" choose>
+                <lf-option id="bg-board-flask-next" value="next">Next</lf-option>
+                <lf-option id="bg-board-flask-later" value="later">Later</lf-option>
+                <lf-option id="bg-board-flask-drop" value="drop">Drop</lf-option>
+              </lf-options>
+            </section>
+            <lf-board id="bg-board-plan">
+              <lf-column id="bg-board-open" label="Undecided">
+                <lf-card id="bg-board-flask-card" shows="bg-board-flask-choice"
+                  ><strong>Second flask</strong></lf-card
+                >
+              </lf-column>
+              <lf-column id="bg-board-next" label="Next" value="next"></lf-column>
+              <lf-column id="bg-board-later" label="Later" value="later">
+                <lf-card id="bg-board-stove-card" shows="bg-board-stove-choice"
+                  ><strong>New stove</strong></lf-card
+                >
+              </lf-column>
+              <lf-column id="bg-board-drop" label="Drop" value="drop"></lf-column>
+            </lf-board>
+          </section>
         </lf-tab>
 
         <lf-tab id="bg-view-threads" label="Threads">
@@ -1119,7 +1163,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             <h2><strong>Threads in the panel</strong></h2>
             <p id="bg-panel-views-guide">
               Choose a view to open its thread in this practice page's Leaf panel. The
-              controls, messages, filters, and unread state are live. Reset restores the
+              controls, messages, search, and unread state are live. Reset restores the
               seeded discussion after trying a reply or changing a thread.
             </p>
             <div id="bg-panel-presets" role="group" aria-label="Threads in the panel">
@@ -1239,10 +1283,11 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 <kbd>T</kbd>: the same thread stays focused in the list.
               </li>
               <li>
-                Choose “Open”, “Unread”, “Drafts” or “Resolved” at the head of Threads
-                to narrow the list, each tab keeping its count, or search the threads'
-                words with the find button beside them. The panel’s main field changes
-                to “Search threads”; closing search brings back the unfinished comment.
+                Read Threads down: the open threads, each saying New or Draft where it
+                holds one, then the resolved ones under Resolved. Search the threads'
+                words with the find button beside the tabs. The panel’s main field
+                changes to “Search threads”; closing search brings back the unfinished
+                comment.
               </li>
               <li>
                 Look at a row: its title leads, and a thread waiting on you says so.
@@ -1254,8 +1299,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </li>
               <li>
                 Resolve an inline thread: its state changes immediately while its space
-                folds away into Resolved. Open Resolved during the fold to read it
-                immediately, or Undo to restore the open thread.
+                folds away into Resolved. Open Threads during the fold to read it under
+                Resolved immediately, or Undo to restore the open thread.
               </li>
               <li>
                 Send a reply: focus stays on the card or its title, in the floating card
@@ -1421,8 +1466,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </li>
               <li>
                 Reopen the thread, start a reply, and press Resolve yourself: the editor
-                closes and keeps its draft. Reload, choose Resolved under View, and open
-                that thread: the editor stays closed until Reopen recovers the words.
+                closes and keeps its draft. Reload, open Threads, and open that thread
+                under Resolved: the editor stays closed until Reopen recovers the words.
               </li>
             </ul>
             <section id="bg-message-obligations">
@@ -1637,9 +1682,9 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               <h3>Resolved</h3>
               <p id="bg-resolved-text">
                 <strong>A resolved thread.</strong> The room has a projector. Its
-                earlier question is resolved. Open Threads in Leaf's panel, choose
-                “Resolved”, open the thread, and press its underlined “Resolved” to
-                bring its Thread control back to the page.
+                earlier question is resolved. Open Threads in Leaf's panel, open the
+                thread under “Resolved”, and press its underlined “Resolved” to bring
+                its Thread control back to the page.
               </p>
             </section>
             <section id="bg-retained-quote">
@@ -1687,8 +1732,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </p>
               <p id="bg-thread-unread">
                 <strong>Unread replies.</strong> The seeded agent replies start unread,
-                and a blue rail marks each unread message without shifting the
-                transcript.
+                and each unread message says New beside its time until it has been shown
+                whole.
               </p>
               <ul id="bg-thread-unread-steps">
                 <li>
@@ -2116,14 +2161,14 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               delivery or work status beside the content they concern. With enough room
               beside the reading column, their controls stand in the rail. Where the
               rail is absent, the same controls appear as pins near their targets on the
-              page. Every annotation uses the same filled teardrop face as a pin. Its
-              glyph and label keep their meaning: a Thread opens a conversation, Accept
-              acts on a suggestion, and Sent reports delivery. Targets inside scrolling
-              panes or extending into the rail also use pins. Related controls share a
-              compact group; “More options” opens additional controls. When space is
-              tight, a group can fold to one pin; opening it reveals its controls over
-              the page. A workflow status can appear on an existing control, as the
-              samples above show.
+              page. Every annotation uses the same filled face as a pin, one corner left
+              square to point at its target. Its glyph and label keep their meaning: a
+              Thread opens a conversation, Accept acts on a suggestion, and Sent reports
+              delivery. Targets inside scrolling panes or extending into the rail also
+              use pins. Related controls share a compact group; “More options” opens
+              additional controls. When space is tight, a group can fold to one pin;
+              opening it reveals its controls over the page. A workflow status can
+              appear on an existing control, as the samples above show.
             </p>
             <p id="bg-margin-layer-placement">
               Pins sit clear of text and controls when nearby space permits. In a
@@ -2251,7 +2296,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 ><span class="bg-feature-detail">: values and trends</span>
               </h3>
               <p id="bg-metrics-guide">
-                Metrics show individual values as tiles, in a
+                Metrics show individual values as <code>metric</code> tiles, in a
                 <code>layout-tiles</code> row, and a Chart compares the values across
                 runs. The metric tiles and the run under them keep to the column, and
                 the three charts take the wide width. Narrow the window: the metric
@@ -2261,15 +2306,15 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </p>
               <div id="bg-metrics-room">
                 <div id="bg-metrics" class="layout-tiles">
-                  <dl id="bg-metric-complete" class="panel">
+                  <dl id="bg-metric-complete" class="metric">
                     <dt>checks complete</dt>
                     <dd><strong>12</strong> <small>change: +3</small></dd>
                   </dl>
-                  <dl id="bg-metric-open" class="panel">
+                  <dl id="bg-metric-open" class="metric">
                     <dt>open failures</dt>
                     <dd><strong>2</strong> <small>change: -1</small></dd>
                   </dl>
-                  <dl id="bg-metric-neutral" class="panel">
+                  <dl id="bg-metric-neutral" class="metric">
                     <dt>sample duration</dt>
                     <dd><strong>4 min</strong></dd>
                   </dl>

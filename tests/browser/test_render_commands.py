@@ -16,6 +16,7 @@ from interact_support import (
 from playwright.sync_api import expect
 from render_cases_layout import (
     BADGE_CHROME,
+    SHORT_CHIP_PAGE,
     SHOT_PAGE,
     SHOT_SRC,
     SHOTS,
@@ -25,6 +26,7 @@ from render_cases_layout import (
 from render_harness import (
     CARRIED_PAGE,
     EXAMPLE_PACKAGES,
+    INLINE_PAGE,
     LONG_PAGE,
     REPLY_HOST_PAGE,
     SAMPLE_MARKUP,
@@ -179,8 +181,12 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
     captions = toolbar.locator(".lf-shotcap")
     expect(captions).to_have_text(["Before", "After"])
     label_colors = captions.evaluate_all(
+        "nodes => nodes.map(n => getComputedStyle(n).color)"
+    )
+    label_fills = captions.evaluate_all(
         "nodes => nodes.map(n => getComputedStyle(n).backgroundColor)"
     )
+    assert all(fill != "rgba(0, 0, 0, 0)" for fill in label_fills)
     for caption in captions.all():
         caption.tap() if touch else caption.click()
         expect(shot.locator("wa-comparison")).to_have_attribute("position", "50")
@@ -226,8 +232,10 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
         hidden = 1 if endpoint == "100" else 0
         expect(captions.nth(hidden)).to_have_css("background-color", "rgba(0, 0, 0, 0)")
         expect(captions.nth(1 - hidden)).to_have_css(
-            "background-color", label_colors[1 - hidden]
+            "background-color", label_fills[1 - hidden]
         )
+        expect(captions.nth(hidden)).not_to_have_css("color", label_colors[hidden])
+        expect(captions.nth(1 - hidden)).to_have_css("color", label_colors[1 - hidden])
         expect(shot.get_by_role("button", name="Slider", exact=True)).to_have_attribute(
             "aria-pressed", "true"
         )
@@ -240,31 +248,51 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
             hidden = (index == 0 and position == "0") or (
                 index == 1 and position == "100"
             )
-            expect(captions.nth(index)).to_have_css(
-                "background-color",
-                "rgba(0, 0, 0, 0)" if hidden else label_colors[index],
-            )
+            if hidden:
+                expect(captions.nth(index)).not_to_have_css(
+                    "color", label_colors[index]
+                )
+            else:
+                expect(captions.nth(index)).to_have_css("color", label_colors[index])
     shot.get_by_role("button", name="Pair", exact=True).click()
     for index in (0, 1):
-        expect(captions.nth(index)).to_have_css("background-color", label_colors[index])
-    for view in ("Slider", "Pixels", "Pair"):
-        geometry = shot.evaluate(
-            """async (node, view) => {
-              const boxes = () => [...node.querySelectorAll(
-                '.lf-shot-toolbar, .lf-shotstage, .lf-shotcanvas'
-              )].map(box => box.getBoundingClientRect().toJSON());
-              [...node.querySelectorAll('.lf-shot-views button')]
-                .find(button => button.textContent === view).click();
-              const immediate = boxes();
-              await new Promise(requestAnimationFrame);
-              await new Promise(requestAnimationFrame);
-              return {immediate, painted: boxes()};
-            }""",
-            view,
-        )
-        assert geometry["painted"] == geometry["immediate"], (view, geometry)
-        assert_source_words()
+        expect(captions.nth(index)).to_have_css("color", label_colors[index])
+    # Controls and the image area's top stay put; Pair may shrink the content
+    # below them instead of reserving unused space for the other views.
+    # This fixture ends at the widget: a shorter document may clamp scrollY.
+    # Compare document coordinates rather than requiring empty space below it.
+    boxes = """node => {
+      const box = element => {
+        const r = element.getBoundingClientRect();
+        return {x: r.x, y: r.y + scrollY, width: r.width, height: r.height};
+      };
+      return {toolbar: box(node.querySelector('.lf-shot-toolbar')),
+        controls: [...node.querySelectorAll(
+          '.lf-shot-views button, .lf-shot-tools > button'
+        )].map(box), stageTop: box(node.querySelector('.lf-shotstage')).y};
+    }"""
+    for width in (390, 500, 1000):
+        page.set_viewport_size({"width": width, "height": 844})
+        shot.get_by_role("button", name="Slider", exact=True).click()
+        toolbar.scroll_into_view_if_needed()
+        allocation = shot.evaluate(boxes)
+        for view in ("Pair", "Pixels", "Slider"):
+            shot.get_by_role("button", name=view, exact=True).click()
+            assert shot.evaluate(boxes) == allocation, view
+            page.evaluate("() => new Promise(requestAnimationFrame)")
+            assert shot.evaluate(boxes) == allocation, view
+            assert_source_words()
+            if view == "Pair":
+                unused_height = shot.evaluate("""node => {
+                  const stage = node.querySelector('.lf-shotstage');
+                  const style = getComputedStyle(stage);
+                  return stage.clientHeight - parseFloat(style.paddingTop)
+                    - parseFloat(style.paddingBottom)
+                    - node.querySelector('.lf-shotcanvas').getBoundingClientRect().height;
+                }""")
+                assert abs(unused_height) <= 1
     # Pair takes the arrangement that draws the 2:1 captures larger on screen.
+    shot.get_by_role("button", name="Pair", exact=True).click()
     for width, height, layout in (
         (1000, 844, "stack"),
         (1000, 360, "side"),
@@ -716,8 +744,12 @@ def test_a_shot_owns_cropped_inspection_and_preserves_choices_when_metadata_chan
                 shot.get_by_role("button", name="100%", exact=True, include_hidden=True)
             ).to_have_attribute("aria-pressed", "true")
             viewport = shot.locator(".lf-shotpixels") if view == "Pixels" else image
-            assert viewport.bounding_box()["width"] == pytest.approx(100, abs=1)
-            assert viewport.bounding_box()["height"] == pytest.approx(50, abs=1)
+            assert viewport.evaluate(
+                "node => [node.clientWidth, node.clientHeight]"
+            ) == [
+                100,
+                50,
+            ]
             source_box = viewport.locator(".lf-shotplane").bounding_box()
             assert source_box["x"] == pytest.approx(
                 viewport.bounding_box()["x"] - 5, abs=1
@@ -940,20 +972,14 @@ def test_a_shot_outlines_and_explains_its_pixel_difference(browser, serve):
     colors = patch.locator(".lf-shotpixels .lf-shotplane > span").evaluate_all(
         "nodes => nodes.map(node => getComputedStyle(node).backgroundColor)"
     )
-    assert len(set(colors)) == 3
+    assert len(colors) == 1
     options = patch.get_by_role("group", name="Image options", exact=True)
     expect(options).not_to_be_visible()
     patch.get_by_role("button", name="Image options").click()
-    expect(options.locator(".lf-shot-key-item")).to_have_text(
-        ["Before only", "After only", "Recolored"]
+    expect(options.locator(".lf-shot-pixel-key")).to_have_text("Changed pixels")
+    expect(options.locator(".lf-shot-key-swatch")).to_have_css(
+        "background-color", colors[0]
     )
-    key_colors = options.locator(".lf-shot-key-swatch").evaluate_all(
-        "nodes => Object.fromEntries(nodes.map(node => [node.dataset.lfShotSide, getComputedStyle(node).backgroundColor]))"
-    )
-    mask_colors = patch.locator(".lf-shotpixels .lf-shotplane > span").evaluate_all(
-        "nodes => Object.fromEntries(nodes.map(node => [node.dataset.lfShotSide, getComputedStyle(node).backgroundColor]))"
-    )
-    assert key_colors == mask_colors
     expect(options.get_by_role("link")).to_have_count(0)
     page.keyboard.press("Escape")
     expect(options).not_to_be_visible()
@@ -1158,8 +1184,18 @@ def test_render_reads_widget_chrome_where_it_stands(
         ("clipped-offer", (360, 1920))
     ], failures
     assert all(f.values["by"] == "<div id=clipped-holder>" for f in clipped), clipped
+    # The planted button speaks through a hand-written data-lf-said with no data-lf-gen,
+    # so a comparison reads its words as the option's author's, and as changed.
+    changed = [f for f in failures if f.code == "read-as-changed"]
+    assert [(f.at, f.values["words"][:30]) for f in changed] == [
+        ("<lf-option id=c-lax>", "Lax, host-only Lax cookie Host")
+    ], failures
     words = sorted(
-        {(f.code, f.at, f.values["words"]) for f in failures if f not in pair + clipped}
+        {
+            (f.code, f.at, f.values["words"])
+            for f in failures
+            if f not in pair + clipped + changed
+        }
     )
     assert words == [
         ("chrome-words", "<lf-badge id=rp-badge>", "Sent by the reviewer"),
@@ -1225,26 +1261,41 @@ FILM_PAGE = LONG_PAGE.replace(
 )
 
 
-def test_a_widget_that_fails_in_a_message_reports_when_its_thread_draws(
-    browser, serve, tmp_path
+def test_a_widget_that_fails_in_a_message_is_refused_where_a_browser_draws_it(
+    browser, serve, tmp_path, headless_shell
 ):
-    """A message's markup is validated as it is posted, and drawn only where a browser
-    shows it, so a reply carrying a chart posts as fast as one without and needs no
-    browser. A body its module cannot draw reports to the author when the user opens
-    its thread, as the page's own widgets do, naming the widget; the log freezes the
-    message, so the author answers with a corrected reply."""
+    """Nothing draws a message's widgets before the user opens its thread, and the
+    log freezes the message, so a thread command runs markup holding a widget only a
+    browser can judge once before it posts, and refuses it with the widget's own
+    error, as plain `page check` refuses a page. A host with no browser posts it
+    unrun; the body its module cannot draw then reports to the author when the user
+    opens its thread, naming the widget, and the author answers with a corrected
+    reply."""
     url = serve(LONG_PAGE)
     d = serve.page_dir
-    posted = subprocess.run(
-        [*LEAF_COMMAND, "thread", "open", str(d), "--text", "See this."]
-        + ["--markup", '<lf-chart id="t-bad"><pre>\n{ marks: [ }\n</pre></lf-chart>'],
-        capture_output=True,
-        text=True,
-        check=False,
-        env=unnamed_browser() | {"LEAF_BROWSER_EXECUTABLE": str(tmp_path / "none")},
-    )
+
+    def post(executable):
+        return subprocess.run(
+            [*LEAF_COMMAND, "thread", "create", str(d), "--text", "See this."]
+            + [
+                "--markup",
+                '<lf-chart id="t-bad"><pre>\n{ marks: [ }\n</pre></lf-chart>',
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=unnamed_browser() | {"LEAF_BROWSER_EXECUTABLE": executable},
+        )
+
+    refused = post(headless_shell)
+    assert refused.returncode != 0, refused.stdout + refused.stderr
+    refusal = json.loads(refused.stderr)["error"]
+    assert refusal.startswith("comment markup doesn't draw:"), refusal
+    assert '<lf-chart id="t-bad"> failed: ' in refusal
+    assert not [e for e in events_model.read_events(d) if e["kind"] == "comment"]
+
+    posted = post(str(tmp_path / "none"))
     assert posted.returncode == 0, posted.stdout + posted.stderr
-    assert not posted.stderr, "posting asks for no browser"
 
     [root] = [e["id"] for e in events_model.read_events(d) if e["kind"] == "comment"]
     page = open_page(browser, url)
@@ -1262,3 +1313,131 @@ def test_a_widget_that_fails_in_a_message_reports_when_its_thread_draws(
         failure="the page never reported the chart",
     )
     assert len(reported) == 1 and reported[0].startswith(report), reported
+
+
+def test_the_gate_passes_collapsed_words_that_overlap_when_visible(browser, serve):
+    """Collapsing overlapping words removes them from the gate's screen reading."""
+    url = serve(
+        leaf_page(
+            "collapsed words",
+            '<h1>Collapsed words</h1><div id="collapsed" hidden="until-found">'
+            '<p style="position:absolute;top:100px;left:100px;margin:0">First hidden line</p>'
+            '<p style="position:absolute;top:100px;left:100px;margin:0">Second hidden line</p>'
+            "</div>",
+        )
+    )
+    page = open_page(browser, url)
+    collapsed = page.locator("#collapsed")
+    collapsed.evaluate("node => node.removeAttribute('hidden')")
+    expect(collapsed.locator("p").first).to_be_visible()
+    visible = render_checks_model.evaluate_probe(page, "coveredWords")
+    assert any(
+        {found["words"], found["covered"]}
+        == {"First hidden line", "Second hidden line"}
+        for found in visible
+    ), (
+        "the visible lines fell on nobody, so a gate that never looked would pass this too"
+    )
+    collapsed.evaluate("node => node.setAttribute('hidden', 'until-found')")
+    expect(collapsed.locator("p").first).to_be_hidden()
+
+    assert render_checks_model.evaluate_probe(page, "coveredWords") == []
+
+
+def test_the_gate_passes_a_page_that_carries_a_comment(browser, serve):
+    """A comment on a widget's option leaves a page the gate passes
+    (`test_every_table_the_theme_sets_honestly_passes_the_gate` gates one): the mark
+    and the note counting the comment are the runtime's, and none of it is words the
+    widget wrote.
+
+    The pass hunting words drawn on other words holds out a control the runtime hangs out
+    of flow over the page (`floating` in words.js). A control planted over the option's
+    words is held out by the normal reading and reported by the reading with that hold
+    disabled, so the hold is what keeps such a control from failing the page."""
+    url = serve(INLINE_PAGE, anchored=[("opt-b", "quietly puts one back")])
+    page = open_page(browser, url)
+    # Vacuous otherwise: the gate has to be looking at a page that carries the comment.
+    expect(page.locator(".lf-mark-note")).to_have_count(1)
+    page.evaluate(
+        """() => {
+          const text = document.querySelector('#opt-b strong').firstChild;
+          const range = document.createRange();
+          range.selectNodeContents(text);
+          const word = range.getClientRects()[0];
+          const float = Object.assign(document.createElement('span'), {
+            className: 'lf-ui', textContent: 'planted float',
+          });
+          Object.assign(float.dataset, { lfGen: '1', lfOffer: 'button' });
+          Object.assign(float.style, {
+            position: 'absolute', whiteSpace: 'nowrap',
+            left: `${word.left + scrollX}px`, top: `${word.top + scrollY}px`,
+          });
+          document.body.append(float);
+        }"""
+    )
+    held = render_checks_model.evaluate_probe(page, "coveredWords")
+    reported = render_checks_model.evaluate_probe(
+        page, "coveredWords", {"holdFloating": False}
+    )
+    page.close()
+    assert held == []
+    assert any(
+        "planted float" in (found["words"], found["covered"]) for found in reported
+    ), "the planted control covers no words, so a gate that never looked would pass too"
+
+
+def test_the_gate_measures_an_inline_widget_by_its_words(browser, serve):
+    """A gloss is set among the words around it, so its box is the words in it and there is
+    no width it was ever going to reach. Held to the floor written for a widget that lays
+    out a region, a gloss saying `£9` reads as a collapse, and the gate refuses a page with
+    nothing wrong with it — for a price, which is the shortest thing an author is likely to
+    put in one. A suggestion swapping one short word is the same case in a second tag,
+    there because the gate dispatches on the declaration: the day the wrapper took a box
+    it stood in front of this floor, and only x-inline says whose floor is whose.
+
+    The floor a gloss does keep is the height, since a line of words is a line tall under
+    any layout. Both halves are asserted, because a floor deleted outright passes the
+    first on its own."""
+    url = serve(SHORT_CHIP_PAGE)
+    page = open_page(browser, url)
+    widths = page.locator("lf-gloss").evaluate_all(
+        "els => els.map(el => Math.round(el.getBoundingClientRect().width))"
+    )
+    assert widths and max(widths) < 40, (
+        f"these glosses are {widths}px, so they clear the floor and prove nothing"
+    )
+    sug_width = page.locator("#sug-flag").evaluate(
+        "el => Math.round(el.getBoundingClientRect().width)"
+    )
+    assert sug_width < 40, (
+        f"the suggestion is {sug_width}px, so it clears the floor and proves nothing"
+    )
+
+    assert (
+        render_checks_model.evaluate_probe(page, "tinyBoxes", page_registry(page)) == []
+    ), "the gate refuses glosses and a suggestion with nothing wrong with them"
+
+    # Asked without the declaration, the same floor flags it — so what passes the page
+    # is the declaration, not a floor gone missing.
+    undeclared = json.loads(json.dumps(page_registry(page)))
+    del undeclared["lf-suggestion"]["x-inline"]
+    assert [
+        box
+        for box in render_checks_model.evaluate_probe(page, "tinyBoxes", undeclared)
+        if box["tag"] == "lf-suggestion"
+    ], (
+        "with x-inline stripped the gate stays quiet, so the floor is gone rather than declared"
+    )
+
+    # Flattened, the same glosses are a collapse and the gate says so — the reading the
+    # declaration narrows rather than switches off.
+    page.add_style_tag(
+        content="lf-gloss { display: block; height: 2px; overflow: hidden; }"
+    )
+    flattened = render_checks_model.evaluate_probe(
+        page, "tinyBoxes", page_registry(page)
+    )
+    page.close()
+    assert [box for box in flattened if box["tag"] == "lf-gloss"], (
+        "a gloss with no height left reports nothing, so the floor is gone rather than declared"
+    )

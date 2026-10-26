@@ -1,5 +1,6 @@
 import { shadowHost, under, upFrom } from "./bundle-dom-move.js";
-import { PAGE_PAINT_ATTRIBUTE, SAID, UI_MARKS, decisionFor, declaredRoot, hostIn, inUi, overIn, pageShadowRoots, pageUpgraded, refuseShadowRoot, registry, reportPageError, shadowRootsIn, uiInside } from "./bundle-layer-client.js";
+import { PAGE_PAINT_ATTRIBUTE, pageUpgraded, reportPageError } from "./bundle-layer-client.js";
+import { SAID, UI_MARKS, decisionFor, declaredRoot, hostIn, inUi, overIn, pageShadowRoots, refuseShadowRoot, registry, shadowRootsIn, uiInside } from "./bundle-errors.js";
 import { readPart } from "./bundle-context.js";
 import { diffArrays } from "/vendor/jsdiff.esm.js";
 
@@ -156,6 +157,7 @@ const NO_CONTEXT = Object.freeze({
 	generated: false,
 	gen: null,
 	block: null,
+	textBlock: null,
 	island: null,
 	cells: null
 });
@@ -167,6 +169,7 @@ const MARKS = [
 	ISLAND
 ].join(", ");
 const BLOCK_TAGS = new Set(TEXT_BLOCK.split(","));
+const BLOCKS = `${TEXT_BLOCK}, ${DATUM}`;
 const chromeMark = (el) => el.matches(".lf-ui, [data-lf-said]") ? !el.matches(SAID) : null;
 const SILENT_TAGS = /* @__PURE__ */ new Set([
 	"script",
@@ -183,7 +186,8 @@ const opaque = (el) => passageFences.has(el);
 const editingBoundary = (el) => Boolean(el.isContentEditable) !== Boolean(el.parentElement?.isContentEditable);
 function enter(ctx, el, inFrame = true) {
 	const marked = el.hasAttributes() && el.matches(MARKS);
-	const block = BLOCK_TAGS.has(el.localName);
+	const textBlock = BLOCK_TAGS.has(el.localName);
+	const block = textBlock || el.matches("[data-lf-projection][data-lf-datum]");
 	const editing = editingBoundary(el);
 	const cell = opaque(el) || editing || marked && el.matches(GEN) && unmodelled(el);
 	const silent = !ctx.silenced && silences(el);
@@ -196,6 +200,7 @@ function enter(ctx, el, inFrame = true) {
 		generated,
 		gen: marked && el.matches(GEN) ? el : ctx.gen,
 		block: block ? el : ctx.block,
+		textBlock: textBlock ? el : ctx.textBlock,
 		island: marked && el.matches(ISLAND) ? el : ctx.island,
 		cells: cell ? {
 			el,
@@ -229,6 +234,7 @@ const segmentIn = (node, ctx) => ({
 	start: 0,
 	end: node.data.length,
 	block: ctx.block ?? (ctx.island ? upFrom(ctx.island) : null),
+	textBlock: ctx.textBlock ?? (ctx.island ? upFrom(ctx.island) : null),
 	gen: ctx.gen
 });
 const READINGS = {
@@ -396,12 +402,13 @@ function segmentsIn(range) {
 	return segments;
 }
 const blockAt = (node) => {
-	const block = closestAcross(node, TEXT_BLOCK);
+	const block = closestAcross(node, BLOCKS);
 	if (block) return block;
 	const island = closestAcross(node, ISLAND);
 	return island ? upFrom(island) : null;
 };
 const segmentBlock = (segment) => segment.block ?? segment.node.parentElement;
+const segmentTextBlock = (segment) => segment.textBlock ?? segment.node.parentElement;
 const COLLAPSIBLE = new RegExp(`^(?:${COLLAPSE.source})$`, "u");
 function readSegments(segments, mapCharacters) {
 	let text = "";
@@ -434,7 +441,7 @@ function readSegments(segments, mapCharacters) {
 		});
 	};
 	segments.forEach((seg, i) => {
-		if (i && (seg.breakBefore || segmentBlock(seg) !== segmentBlock(segments[i - 1]))) {
+		if (i && (seg.breakBefore || segmentTextBlock(seg) !== segmentTextBlock(segments[i - 1]))) {
 			const point = {
 				node: seg.node,
 				offset: seg.start
@@ -503,11 +510,9 @@ function spanOf(reading, lo, hi) {
 		const a = Math.max(lo, from);
 		const b = Math.min(hi, from + seg.end - seg.start);
 		if (b > a) out.push({
-			node: seg.node,
+			...seg,
 			start: seg.start + a - from,
 			end: seg.start + b - from,
-			block: seg.block,
-			gen: seg.gen,
 			breakBefore: seg.breakBefore && a === from
 		});
 	}
@@ -538,6 +543,8 @@ const WATCH_READING = {
 		"class",
 		"data-lf-said",
 		"data-lf-gen",
+		"data-lf-projection",
+		"data-lf-datum",
 		"slot",
 		"name",
 		"contenteditable"

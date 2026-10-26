@@ -1,4 +1,4 @@
-# Decisions and approval
+# Decisions
 
 Put every decision waiting on the user on their list, On me. A widget records a
 structured answer; a thread message with `--obligation` requests an answer in words. Recommending an answer doesn't make the decision. `conversation-loop.md`,
@@ -18,10 +18,16 @@ a record or system page, put each decision in the part of the page it decides: a
 decision about one entry goes with that entry, and one that turns on a claim contains
 the claim and its evidence. Only a decision about the whole record comes last.
 
-Keep the question, its evidence and the options on screen together. Where a table,
-chart or playground inside the decision, or the pictures in its options, can't be read
-at the prose's width, give that block, or the `lf-options`, its own `data-width`
-(`page-layout.md`, "Bounds and widths").
+Keep the question, its evidence and the options on screen together, so the user
+compares the options without scrolling between them and always sees which one they
+are reading. Where a table, chart or playground inside the decision, or the pictures in
+its options, can't be read at the prose's width, give that block, or the `lf-options`,
+its own `data-width` (`page-layout.md`, "Bounds and widths"). Size an option's picture
+by the difference the user weighs between the options rather than by the capture: crop
+it to the region that differs, and scale it down as far as that difference still reads,
+so all the options fit the window together. A difference of size or extent, such as how
+much of a thread a panel shows, reads at a scale where the words inside it don't, and a
+picture that links its original keeps the detail a click away.
 
 Write decisions the user can answer independently in page order. If a later one depends
 on an earlier answer, pose it in the next turn rather than writing every branch.
@@ -51,7 +57,9 @@ Order the options by the subject, such as from today's behavior to the largest
 change, and keep that one order wherever the decision lists them, including a
 comparison table and lettered names, so the user matches each option to its row by
 position. The recommended option stays where that order puts it; its `recommended`
-label marks your advice.
+label marks your advice. Prose that recommends or discusses an option names it by
+its title, as in “I'd keep handwritten types”, never by its position or by a letter
+from an earlier list, since the options' order can change after you write it.
 
 Let the user judge each option by its result rather than a description of it, on plans
 and work-item lists too: an interaction they can try, a drawing of an arrangement or
@@ -76,29 +84,62 @@ How to build an alternative waits for the user's pick.
 
 The `lf-ask`, `lf-options` and `lf-option` entries give their markup and presentation.
 
-## Approval
+## One decision in its section and on a board
 
-Use `lf-approval` when the user must explicitly permit a stated action. Put the exact
-subject and the evidence they need in its heading and prose:
+When the user answers proposals beside their cases and also needs every answer in one
+view to compare or rearrange, keep each answer in its section's `lf-options` and add a
+board whose cards show those answers, rather than asking twice. Give each option a
+`value` naming the answer it gives, in words every section shares, and the board one
+column per value with that `value`, plus one column without a value for proposals not
+yet answered or answered in the user's own words. Each card's `shows` names its
+section's group, and the card stands in the column of that group's pick:
 
 ```html
-<lf-approval id="publish-report">
-  <h2>Publish this report to the team workspace?</h2>
-  <p>Publish the report shown above, including the revised cost estimate.</p>
-</lf-approval>
+<lf-options id="rail-choice" choose>
+  <lf-option id="rail-next" value="next">Next</lf-option>
+  <lf-option id="rail-later" value="later">Later</lf-option>
+</lf-options>
+<!-- … the other proposals' sections … -->
+<lf-board id="plan">
+  <lf-column id="plan-open" label="Undecided">
+    <lf-card id="plan-rail" shows="rail-choice"><strong>Keep the rail</strong></lf-card>
+  </lf-column>
+  <lf-column id="plan-next" label="Next" value="next"></lf-column>
+  <lf-column id="plan-later" label="Later" value="later"></lf-column>
+</lf-board>
 ```
 
-The widget registers an ordinary obligation on On me. Approve records permission;
-Undo approval takes it back and reopens the request. Other unanswered questions do
-not block it. When permission depends on an earlier choice, resolve that choice
-first, then present the resulting action for approval. Use `lf-options` when the
-user needs to choose between outcomes, including an explicit rejection.
+A drop on the board answers through the group, so the page holds one answer, which
+Undo and `restated` take back in both views. When a revision writes the user's pick
+into the group, move the card to that pick's column too. A card that shows an answer
+keeps the order you wrote it in; where the order within a column is itself the user's
+call, ask for it as its own decision.
 
-Approval belongs to the request with that id. Unrelated edits and page stamps keep
-it approved. If the action or evidence changes enough to invalidate the permission,
-explain the change and mark the widget `restated` before asking again
-(`authoring-revisions.md`, "Honor user state"). Distinguish approved wording from
-later edits to a draft. A new stamp neither requests nor renews approval.
+## Permission
 
-Process approval through the ordinary widget-action workflow (`event-batches.md`).
-It does not end the page or report that the approved work has been done.
+When the user must permit an action, ask for it as a decision whose options keep
+things as they are and take the action, so declining is an answer too. Put the exact
+action and the evidence the user needs in the `lf-ask` heading and prose:
+
+```html
+<lf-ask id="publish-report-decision">
+  <h2>Publish this report to the team workspace?</h2>
+  <p>The report shown above, including the revised cost estimate.</p>
+  <lf-options id="publish-report" choose>
+    <lf-option id="publish-report-keep"><strong>Keep it private</strong></lf-option>
+    <lf-option id="publish-report-publish"
+      ><strong>Publish it to the team workspace</strong></lf-option
+    >
+  </lf-options>
+</lf-ask>
+```
+
+Other unanswered questions do not block it. When permission depends on an earlier
+choice, resolve that choice first, then ask for the resulting action.
+
+The pick belongs to the group with that id. Unrelated edits and page stamps keep it.
+If the action or evidence changes enough to invalidate the permission, explain the
+change and mark the group `restated` before asking again (`authoring-revisions.md`,
+"Honor user state"). Distinguish approved wording from later edits to a draft. A new
+stamp neither requests nor renews permission, and recording it does not end the page
+or report that the permitted work has been done.

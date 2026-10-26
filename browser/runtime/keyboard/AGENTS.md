@@ -40,7 +40,7 @@ keep the browser's order.
 - The document is the base. In a live sample, one more Escape returns focus to the
   containing page.
 - Draw and Design are page modes; surfaces opened inside them close first.
-- A surface's own state, such as a Threads filter, clears before the surface closes.
+- A surface's own state, such as Threads' search, clears before the surface closes.
   Page-side selections, targets, margin clusters and the page composer coexist beside a view the
   floating panel opens, and focus decides which answers first.
 - A composer, reply box or find box returns to its container: an element comment's
@@ -63,7 +63,10 @@ reopens it.
 Page scope holds commands about the page; a surface's scope holds commands about its
 contents. A page-level letter must be useful on every page; any other control is
 reachable by Tab, native activation, obligation digits or Go-to hints. A lowercase
-letter steps a walk forward and Shift steps it back, wrapping at either end. A surface
+letter steps a walk forward and Shift steps it back, wrapping at either end. A walk, a
+scroll, Go-to and any other command that takes the user somewhere declares `travels`
+on its row; every other command leaves the control it was pressed on where it stood on
+screen (`bindings.js`). A surface
 may reuse a page key for the same intent with a nearer destination. While the user is
 on an obligation, or its margin or thread representative, core forwards only the
 widget's declared `contextKeys`, and widgets assign their own `1`–`9`.
@@ -77,17 +80,19 @@ finger does on what the gesture acts on: a search's arrows walk its matches from
 box, a drawing's composer undoes its stroke, and the page's field comments on selected
 words. So a page scope's rows take no words: each that runs a press says
 `touch: false` or is the `exit` of a stance a finger can enter, such as page search,
-the target picker or Draw mode. While that stance is the innermost one standing, the
-panel offers its exit as one ✕, which leaves the stance even where Escape would first
-close something inside it. The picker's ✕ is the exception: while typed hint letters
+the target picker or Draw mode, or a to-do on the user that they stand on, whose exit is
+its Done. While that stance is the innermost one standing, the panel offers its exit as
+one ✕, or the icon the row names (the to-do's check), which leaves the stance even
+where Escape would first close something inside it. The picker's ✕ is the exception: while typed hint letters
 stand, it takes back one (`target-picker.js`). The register refuses a page command
 without `touch` and a scope row whose `run` is neither `exit` nor `touch: false`.
 `false` says a finger reaches the result directly, by scrolling and tapping or through
 a control of the row's own beside what it changes.
 
 The comment field has one primary action, Dictate while empty and Send once it has
-words. Suggest and reactions share an anchored Other responses picker, reached by its
-button, Tab from the field, or the contextual reaction command. Opening the picker
+words. Suggest and reactions share an anchored Other responses picker, reached by the
+⋯ beside Dictate while the field is empty, Tab from the field, or the contextual
+reaction command. Opening the picker
 keeps the field in place on desktop and touch surfaces alike.
 
 A command that should leave the user where they are declares `retainCurrentLocation`: the

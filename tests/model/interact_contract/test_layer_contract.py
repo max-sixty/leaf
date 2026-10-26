@@ -441,6 +441,12 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
             "meaning": on_page,
         },
         "pick before Done": {"kind": "action", "meaning": on_page},
+        "pick a thread's open question is about": {
+            "kind": "action",
+            "meaning": on_page,
+            "waiting": [{"id": "message:m1", "text": "Try the previews first."}],
+            **owes("markup"),
+        },
         "decided suggestion": {
             "kind": "action",
             "action": "decide",
@@ -501,7 +507,7 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
     (page_dir / "index.html").write_text(WALKTHROUGH_PAGE)
     publish(page_dir)
     service_model.claim_page(page_dir)
-    session_model.cmd_waiting(page_dir, "")
+    session_model.cmd_waiting(page_dir)
     posted = {
         "kind": "comment",
         "revision": 1,
@@ -621,10 +627,11 @@ A route is how new user input reaches the agent's task:
   leaf wait          The agent runs `leaf wait` in the background. It prints
                      the delivery as JSON and exits, and the harness hands that
                      output to the agent as the command's result, which wakes
-                     it. The agent acknowledges the delivery itself, with
-                     `leaf wait --ack <delivery-id>`, and answers with
-                     `leaf thread reply <answer.ref>`. A Codex task without Leaf's
-                     adapter uses this route, and so does a bare shell.
+                     it. The agent acknowledges the delivery itself and waits
+                     again, with `leaf delivery ack <delivery-id> && leaf wait`,
+                     and answers with `leaf thread reply <answer.ref>`. A Codex
+                     task without Leaf's adapter uses this route, and so does a
+                     bare shell.
   Claude Code hook   Leaf's native hook watcher runs between turns. When input
                      arrives it wakes the session with one line naming the page,
                      which opens a turn. Leaf's prompt hook runs as that
@@ -707,7 +714,7 @@ def test_each_route_hands_the_agent_what_the_snapshot_shows(
     assert status == 200, answer
     logged = events_model.read_events(page_dir)[-1]
 
-    session_model.cmd_waiting(page_dir, "")
+    session_model.cmd_waiting(page_dir)
     capsys.readouterr()
     # A bare shell's wait, the printing kind, which claims nothing.
     session = harness_model.session_harness().session

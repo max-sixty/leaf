@@ -1,6 +1,9 @@
-/* How a floating box follows a change of its layout: the floating panel's one model of
- * motion (floating-panel.js, `followBox`), whatever made the change, a line the field
- * gained, more room, a view opening, the box folding to its leaf.
+/* How a floating box follows a change of its layout, whatever made the change, a line
+ * the field gained, more room, a view opening, the box folding to its leaf: the one model
+ * of motion for the floating panel (floating-panel.js, `followBox`) and the margin
+ * thread card (thread-preview.js, `followCard`). The user asked on 25 October for one
+ * canonical animation, after a card's send jumped to its new turn's head while a second
+ * mechanism slid its words by scrolling.
  *
  * The layout changes in one step, so nothing a press aims at waits on a tween, and what
  * the user sees then travels from where it was drawn to where it now stands, every part
@@ -8,8 +11,10 @@
  *
  * - The box's outline is drawn by its surface, layers of their own behind it cut to
  *   the outline, so the outline moves by its cut from where it was drawn to where it
- *   stands. A ring a part of the box wears, such as the field's focus ring, is drawn
- *   there too while it moves (`ring`), since no transform draws a box changing size.
+ *   stands. A ring the box or a part of it wears, such as the field's focus ring, is
+ *   drawn there too while it moves (`ring`), since no transform draws a box changing
+ *   size. A box anchored in the page holds its surface inside itself, so the page's
+ *   scroll carries both.
  * - A part that kept its size is carried: drawn where it stood, and moved by a
  *   transform to where it stands.
  * - A part that changed size and holds parts of its own leaves each of them to these
@@ -20,6 +25,9 @@
  *   carry or clip it, so leaves its face at rest.
  * - A part that changed size and holds only its own content, such as words, carries
  *   that content by its start corner, cut to its outline growing from where it stood.
+ *   On an axis where a face or content shrank while its far edge stayed, as a field a
+ *   send empties at its box's foot does, it travels by that edge instead, since no
+ *   cut draws a part larger than it stands.
  *   An editor carries its words inside its own box (`--lf-field-carry`,
  *   `--lf-field-cut`, composing/text-field.js), since a transform on the editor would
  *   move the field under the user's typing. That box cuts its words off at its edges,
@@ -53,14 +61,36 @@
  *
  * A change arriving during the tween starts each part from where it is drawn then;
  * news arriving while the user's change still carries parts shows them where they now
- * stand. A part placed against the window, as the attachment shelf is, moves with no
- * ancestor's transform, so a part holding one is never carried whole: its parts are
- * placed one by one. The motion is presentation only: each part's layout is where it
- * stands from the change on, and a part's motion ends with the tween, so nothing it
- * leaves behind needs undoing. Each part's motion plays through motion.js's `playMotion`,
- * so reduced motion and the presentation boundary are answered there: while motion
- * does not play, each reading takes the box as it stands, and a user asking for
- * stillness mid-tween finishes what is moving.
+ * stand, but for a send's ride (below). A part placed against the window, as the
+ * attachment shelf is, moves with no ancestor's transform, so a part holding one is
+ * never carried whole: its parts are placed one by one. The motion is presentation
+ * only: each part's layout is where it stands from the change on, and a part's motion
+ * ends with the tween, so nothing it leaves behind needs undoing. Each part's motion
+ * plays through motion.js's `playMotion`, so reduced motion and the presentation
+ * boundary are answered there: while motion does not play, each reading takes the box
+ * as it stands, and a user asking for stillness mid-tween finishes what is moving.
+ *
+ * Every reading is taken in the box's own plane: a box the page's scroll or its
+ * placement carries whole is read from the edges that hold it (`held`), so only a change
+ * of its layout moves anything.
+ *
+ * A send is the user's change joining a stream ("send" from `theirs()`, read where
+ * the stream starts from with `stream`). What the box shows above its field then
+ * moves as one stream sliding up to take the new turn: a scroller's content, every
+ * child of it, is carried from where it was drawn when the send began, its own scroll
+ * included, so the new turn comes up at the scroller's foot while every turn above it
+ * rides up with the name over them; and a part new to the box, as a view the send
+ * opens is, rises with the box's top edge out of the box's old outline rather than
+ * being uncovered in place. The user asked for this on 25 October: a stream that slides
+ * up to take the new message, its header moving with it. A head stuck to the scroller's
+ * edge rides as a scroll that far back would stick it (`streamContent`). While the
+ * content rides, the scroller's end stays where its layout puts it
+ * (scrolling.js, `contentRides`), and its scroll is anchored to nothing, so neither
+ * a landing at its end nor the browser's scroll anchoring chases the ride, and a reading
+ * meanwhile, news included, carries the ride on from where it is drawn. Rejected:
+ * scrolling the scroller through the ride, which a card's send once did on its own
+ * clock after its box had already grown, so its new turn's head jumped into view
+ * before its words slid; every landing during the ride would also stop it.
  *
  * The platform's own way to move a layout change, a view transition, draws the old
  * state as a picture, sends every press to the root while it runs, and abandons a
@@ -69,7 +99,44 @@
 import { keeps } from "./keeps.js";
 import { motionPlays, playMotion } from "./motion.js";
 import { TEXT_FIELD } from "./control-selectors.js";
-import { nextRender } from "./rendering.js";
+import { onUserInput } from "./focus.js";
+import { afterSettling, nextRender } from "./rendering.js";
+import { contentRides } from "./scrolling.js";
+
+// Whose change it is, one clock for every box, since an input anywhere is the user's:
+// their key, press or typing owns what it sets going until that rendering settles
+// (rendering.js, `afterSettling`), so changes to a box meanwhile are theirs, and what
+// changes it after, such as an answer arriving, is news. News landing before the
+// gesture's rendering settles, a reading back within a frame or two, is taken as
+// theirs. Typing is told apart, since the field it types in must not move under it.
+// Activation is a new gesture too: a held press can settle before its click.
+let gesture = null;
+let gestures = 0;
+function beginGesture(event) {
+  if (!["keydown", "pointerdown", "input", "touchstart", "click"].includes(event.type))
+    return;
+  gesture = event.type === "input" ? "typing" : "press";
+  const own = ++gestures;
+  afterSettling(() => {
+    if (gestures === own) gesture = null;
+  });
+}
+let listening = false;
+function listen() {
+  if (listening) return;
+  listening = true;
+  onUserInput(beginGesture);
+  window.addEventListener("click", beginGesture, { capture: true, passive: true });
+}
+
+// How far a lift of the theme's (`--raise-N`, theme.css) paints past the box it raises:
+// its drop and its blur, read off `element`, where the theme registers them as lengths.
+export const liftReach = (element, level) => {
+  const lift = getComputedStyle(element);
+  return ["drop", "blur"]
+    .map((part) => Number.parseFloat(lift.getPropertyValue(`--raise-${level}-${part}`)))
+    .reduce((reach, part) => reach + part);
+};
 
 const near = (a, b) => Math.abs(a - b) < 0.5;
 const boxOf = (rect) => ({
@@ -112,12 +179,16 @@ const paints = (style) =>
 const rings = (style) =>
   style.outlineStyle !== "none" && Number.parseFloat(style.outlineWidth) > 0;
 
-// root: the element whose parts move, the box among them. box: the part the surface
-// draws. room: the surface's layer, fixed over the whole window, against which its
-// cuts are measured. surface(): each layer drawing the box, with how far past the
-// outline it reaches. ring: the two layers that draw a part's ring, a ring and a fill
-// inside it. observer: reads the box again when any part changes size. theirs():
-// whose change is being read, "typing" or "press" for the user's own, null for news.
+// root: the element whose parts move, the box among them, and only what moves with the
+// box: a part with a job of its own beside it, such as a grip whose clip leaves its
+// middle open to presses, stands outside it, since a cut would replace that clip. box:
+// the part the surface draws. room: the surface's layer, reaching past every outline
+// the box can travel through, against which its cuts are measured; it moves with the
+// box's plane. surface(): each layer drawing the box, with how far past the outline it
+// reaches. ring: the two layers that draw a part's ring, a ring and a fill inside it.
+// observer: reads the box again when any part changes size. held(): the root's edges
+// that hold it in its plane, as `{x: "left" | "right", y: "top" | "bottom"}`, or null
+// for a box fixed in the window.
 export function boxMotion({
   root,
   box,
@@ -125,10 +196,22 @@ export function boxMotion({
   surface,
   ring: [ringLayer, ringFill],
   observer,
-  theirs,
+  held = () => null,
 }) {
+  listen();
+  // Whether this box's send is the gesture under way (`stream`): the gesture's number.
+  let sent = -1;
+  const theirs = () => (gesture !== null && sent === gestures ? "send" : gesture);
   // Each part's box as its layout placed it at the last reading, in the window.
   let rests = null;
+  // The root's box when the readings kept were taken, in the window. A box anchored in
+  // the page moves with the page's scroll, and a placement can carry it whole, as
+  // dragging it does; neither is a change of its layout. So every reading kept is moved
+  // first as far as the edges holding the root moved since (`rebase`), and a box held
+  // by its foot that grows at its top reads as growing, not as moving.
+  let frame = null;
+  // The timing of the last reading, which a send's scroll reads again with (`stream`).
+  let timing = null;
   // Each part moving, from the box it was drawn at to its rest, on one clock.
   let motions = new Map();
   let running = [];
@@ -137,6 +220,34 @@ export function boxMotion({
   // from the shape on screen, not the rectangle a simultaneous resize would draw.
   let shapeUntil = 1;
   let rtl = false;
+  // Where each scroller's content was drawn when a send began, in the window, read by
+  // one of its children: the send's stream starts from there (`stream`).
+  let streamFrom = new Map();
+  // Each scroller's content riding a stream, by that child, from where it was drawn to
+  // where it stands, on the clock every part shares.
+  let streams = new Map();
+  let stopStreaming = new AbortController();
+  function rebase() {
+    const at = boxOf(root.getBoundingClientRect());
+    const edges = held();
+    const dx = frame && edges ? at[edges.x] - frame[edges.x] : 0;
+    const dy = frame && edges ? at[edges.y] - frame[edges.y] : 0;
+    frame = at;
+    if (near(dx, 0) && near(dy, 0)) return;
+    if (rests)
+      rests = new Map(
+        [...rests].map(([element, rest]) => [element, shifted(rest, dx, dy)]),
+      );
+    for (const moving of motions.values()) {
+      moving.from = shifted(moving.from, dx, dy);
+      moving.to = shifted(moving.to, dx, dy);
+    }
+    for (const then of streamFrom.values()) then.top += dy;
+    for (const riding of streams.values()) {
+      riding.from += dy;
+      riding.to += dy;
+    }
+  }
   const interpolate = (from, to, progress) => {
     const rect = between(from, to, progress);
     const shape = Math.min(1, progress / shapeUntil);
@@ -170,9 +281,12 @@ export function boxMotion({
     const offsets = new Map();
     const offset = (carrier) => {
       if (!offsets.has(carrier)) {
-        const { from, to, carries: edge } = motions.get(carrier);
+        const { from, to, carries } = motions.get(carrier);
         const now = between(from, to, progress);
-        offsets.set(carrier, [now[edge] - to[edge], now.top - to.top]);
+        offsets.set(
+          carrier,
+          carries.map((edge) => now[edge] - to[edge]),
+        );
       }
       return offsets.get(carrier);
     };
@@ -185,6 +299,8 @@ export function boxMotion({
 
   // A part, with its box as its layout places it and what decides how it moves.
   function read(element, into, carried) {
+    // The surface draws the box, and is no part of it.
+    if (element === room) return;
     const style = getComputedStyle(element);
     if (style.display === "contents") {
       for (const child of element.children) read(child, into, carried);
@@ -268,6 +384,8 @@ export function boxMotion({
   }).observe(root, { subtree: true, childList: true, attributeFilter: ["hidden"] });
 
   function follow({ duration, easing }, compact = false) {
+    timing = { duration, easing };
+    rebase();
     const progress = running[0]?.effect.getComputedTiming().progress ?? 1;
     const carried = carriedBy(progress);
     const parts = [];
@@ -280,15 +398,27 @@ export function boxMotion({
     };
     parts.forEach(note);
     watch();
+    // A send's scroll moves a scroller's content without changing any part's layout,
+    // as in a view already at its cap: that content still rides.
+    const scrolled =
+      theirs() === "send" &&
+      [...streamFrom].some(
+        ([scroller, then]) =>
+          !(streams.has(scroller) && progress < 1) &&
+          scroller.contains(then.child) &&
+          !near(then.child.getBoundingClientRect().top, then.top),
+      );
     // Nothing's layout changed, as when the observer reads a part it starts observing:
     // whatever moves keeps moving.
     if (
+      !scrolled &&
       rests?.size === next.size &&
       [...next].every(
         ([element, at]) => rests.has(element) && same(rests.get(element), at),
       )
     )
       return;
+    for (const scroller of streams.keys()) contentRides(scroller, false);
     for (const animation of running) animation.cancel();
     running = [];
     // A box not drawn at all, as in print, has nothing to move, and its next reading
@@ -297,6 +427,7 @@ export function boxMotion({
       restoreTranslations();
       rests = null;
       motions = new Map();
+      streams = new Map();
       return;
     }
     // The first reading, and any while motion does not play, is taken as it stands.
@@ -308,6 +439,12 @@ export function boxMotion({
       [...motions].filter(([, moving]) => moving.frames).map(([element]) => element),
     );
     const before = rests;
+    // A stream's content mid-ride starts the next reading from where it is drawn.
+    const streamed = new Map();
+    if (progress < 1)
+      for (const [scroller, { child, from, to }] of streams)
+        streamed.set(scroller, { child, top: from + (to - from) * progress });
+    streams = new Map();
     motions = new Map();
     rests = next;
 
@@ -322,7 +459,8 @@ export function boxMotion({
       radius + grow,
     ];
     const boxAt = rests.get(box);
-    const boxRadius = radiusOf(getComputedStyle(box));
+    const boxStyle = getComputedStyle(box);
+    const boxRadius = radiusOf(boxStyle);
     for (const [layer, reach] of surface())
       keeps(
         layer,
@@ -380,22 +518,43 @@ export function boxMotion({
       const dy = from.top - part.box.top;
       const [carriedX, carriedY] = carriedBy(0)(part.element.parentElement);
       if (near(dx, carriedX) && near(dy, carriedY)) return;
-      motions.set(part.element, { from, to: part.box, carries: "left" });
+      motions.set(part.element, { from, to: part.box, carries: ["left", "top"] });
       move(part.element, dx, dy);
     }
 
     // Its content carried by its start corner, cut to its outline growing from where
-    // it stood.
+    // it stood. On an axis where it shrank and its far edge stayed, it travels by that
+    // edge instead: no cut draws it larger than it stands, so carried by its start it
+    // would carry the edge that stayed away and back, as the field a send emptied,
+    // standing at its box's foot, once showed at its old top and slid down to its foot.
     function carryContent(part, from) {
       const to = part.box;
-      if (part.scrolls && !part.element.matches(TEXT_FIELD)) return grow(part, from);
-      let dx = rtl ? from.right - to.right : from.left - to.left;
-      let dy = from.top - to.top;
-      // A shrinking frame starts outside its final box, so children remain visible
-      // in the larger outline they occupied before the change.
-      const end = width(to) - width(from);
-      const foot = height(to) - height(from);
-      const cut = rtl ? [0, 0, foot, end] : [0, end, foot, 0];
+      if (part.scrolls && !part.element.matches(TEXT_FIELD)) {
+        grow(part, from);
+        if (gesture === "send") streamContent(part);
+        return;
+      }
+      const edgeBy = (start, end, length) =>
+        length(to) < length(from) - 0.5 &&
+        near(from[end], to[end]) &&
+        !near(from[start], to[start])
+          ? end
+          : start;
+      const carries = [
+        rtl ? edgeBy("right", "left", width) : edgeBy("left", "right", width),
+        edgeBy("top", "bottom", height),
+      ];
+      let dx = from[carries[0]] - to[carries[0]];
+      let dy = from[carries[1]] - to[carries[1]];
+      // Cut to where it stood, as far as its box carried there reaches: a shrinking
+      // frame starts outside its final box, so children remain visible in the larger
+      // outline they occupied before the change.
+      const cut = [
+        from.top - (to.top + dy),
+        to.right + dx - from.right,
+        to.bottom + dy - from.bottom,
+        from.left - (to.left + dx),
+      ];
       // The editor's own box cuts its words off at its edges, so it carries them
       // inside itself only as far as that box holds them. Where its start moved up or
       // back, the editor is carried whole instead, unless the user is typing in it,
@@ -403,7 +562,7 @@ export function boxMotion({
       const editor = part.element.matches(TEXT_FIELD);
       const inside = (rtl ? dx <= 0 : dx >= 0) && dy >= 0;
       if (!editor || (!inside && gesture !== "typing")) {
-        motions.set(part.element, { from, to, carries: rtl ? "right" : "left" });
+        motions.set(part.element, { from, to, carries });
         move(part.element, dx, dy);
         cutFrom(part.element, cut, radiusOf(part.style));
         return;
@@ -421,16 +580,19 @@ export function boxMotion({
     }
 
     // Drawn where its layout puts it, cut to its outline growing from where it stood.
+    // A part a carried part holds starts drawn where that carry puts it, and its cut
+    // closes with the carry on the same clock.
     function grow(part, from) {
       const to = part.box;
       motions.set(part.element, { from, to });
+      const drawnTo = shifted(to, ...carriedBy(0)(part.element.parentElement));
       cutFrom(
         part.element,
         [
-          from.top - to.top,
-          to.right - from.right,
-          to.bottom - from.bottom,
-          from.left - to.left,
+          from.top - drawnTo.top,
+          drawnTo.right - from.right,
+          drawnTo.bottom - from.bottom,
+          from.left - drawnTo.left,
         ].map((inset) => Math.max(0, inset)),
         radiusOf(part.style),
       );
@@ -485,10 +647,99 @@ export function boxMotion({
       start(part.element, [clipFrame(from), clipFrame(end)]);
     }
 
+    // A part new to the box, in a send: it rises with the box's top edge, from as far
+    // below its rest as that edge rises, cut where the box's old outline stood, so it
+    // comes up out of the box as the stream does.
+    function rise(part, frame, siblings) {
+      const to = part.box;
+      const dy = boxFrom.top - boxAt.top;
+      if (dy < 0.5) return reveal(part, frame, siblings);
+      motions.set(part.element, {
+        from: shifted(to, 0, dy),
+        to,
+        carries: ["left", "top"],
+      });
+      move(part.element, 0, dy);
+      // How far it stands below the old outline's top at its start; the cut reaches
+      // nothing once the part has risen clear of it.
+      const first = Math.max(0, to.bottom + dy - boxFrom.top);
+      if (first < 0.5) return;
+      const clear = 1 - Math.max(0, boxFrom.top - to.bottom) / dy;
+      const frames = [clipFrame([0, 0, first, 0])];
+      if (clear > 0 && clear < 1)
+        frames.push({ ...clipFrame([0, 0, 0, 0]), offset: clear });
+      frames.push(clipFrame([0, 0, 0, 0]));
+      start(part.element, frames);
+    }
+
+    // A scroller's content in a send: carried from where it was drawn when the send
+    // began, or from where it is drawn while the stream already carries it, so its new
+    // turn comes up at the scroller's foot under the scroller's own clip. Every child
+    // rides by the one distance its first child travels, which keeps whichever child
+    // was read first. A box stuck to the scroller's edge inside it (`position:
+    // sticky`) sticks in layout where the scroll stands now, which the carry would
+    // move off that edge, so its inset travels against the carry on the same clock:
+    // layout then sticks it where it stuck with the content standing that far back,
+    // which is where a scroll that far back would stick it, and it changes over from
+    // one head to the next as the content rides past.
+    function streamContent(part) {
+      const scroller = part.element;
+      const then = streamed.get(scroller) ?? streamFrom.get(scroller);
+      if (!then || !scroller.contains(then.child)) return;
+      // Where layout stands the child: a part holding the scroller may already be
+      // carried, which its box includes and `move` subtracts again.
+      const to = then.child.getBoundingClientRect().top - carriedBy(0)(then.child)[1];
+      const dy = then.top - to;
+      if (Math.abs(dy) < 0.5) return;
+      contentRides(scroller, true);
+      // Firefox anchors the scroll to where a child is drawn, so it would scroll the
+      // ride away frame by frame.
+      hold(scroller, "overflowAnchor", "none");
+      streams.set(scroller, { child: then.child, from: then.top, to });
+      for (const child of scroller.children)
+        if (child.checkVisibility()) move(child, 0, dy);
+      for (const stuck of scroller.querySelectorAll("*")) {
+        const style = getComputedStyle(stuck);
+        if (style.position !== "sticky") continue;
+        for (const [side, against] of /** @type {const} */ ([
+          ["top", -dy],
+          ["bottom", dy],
+        ]))
+          if (style[side] !== "auto") {
+            const at = Number.parseFloat(style[side]);
+            start(stuck, [{ [side]: `${at + against}px` }, { [side]: `${at}px` }]);
+          }
+      }
+    }
+
+    // The surface draws a ring that changes size while it moves, in the ring's own
+    // colour, the box's own ring among them.
+    function drawRing(element, style, from, to, compact = false) {
+      const offset = Number.parseFloat(style.outlineOffset);
+      const reach = Number.parseFloat(style.outlineWidth) + offset;
+      const radius = radiusOf(style);
+      keeps(ringLayer, "style", `background: ${style.outlineColor}`);
+      hold(element, "outlineColor", "transparent");
+      for (const [layer, grown] of [
+        [ringLayer, reach],
+        // The fill meets the outline's inner edge, including an inward ring.
+        [ringFill, offset],
+      ])
+        start(layer, contour(from, to, grown, radius, compact));
+    }
+
+    function streamWithin(part) {
+      if (part.scrolls) streamContent(part);
+      else part.parts.forEach(streamWithin);
+    }
+
     function place(part, frame, siblings = []) {
       const { element, style, box: to } = part;
       const from = was.get(element);
-      if (!from) return reveal(part, frame, siblings);
+      if (!from)
+        return gesture === "send"
+          ? rise(part, frame, siblings)
+          : reveal(part, frame, siblings);
       const rest = before.get(element);
       const sized =
         !framed.has(element) &&
@@ -497,24 +748,17 @@ export function boxMotion({
       let within = frame;
       if (element !== box && element !== root) {
         const carries = gesture !== null;
-        if (sized && !part.holdsWindow)
-          return carries ? carry(part, from) : reveal(part, frame, siblings);
+        if (sized && !part.holdsWindow) {
+          if (!carries) return reveal(part, frame, siblings);
+          carry(part, from);
+          // A part carried whole still holds the stream a send moves.
+          if (gesture === "send") streamWithin(part);
+          return;
+        }
         if (part.whole) return carries ? carryContent(part, from) : grow(part, from);
         if (!same(from, to)) within = { from, to };
-        if (!sized && rings(style)) {
-          // The surface draws the ring while it moves, in the ring's own colour.
-          const offset = Number.parseFloat(style.outlineOffset);
-          const reach = Number.parseFloat(style.outlineWidth) + offset;
-          const radius = radiusOf(style);
-          keeps(ringLayer, "style", `background: ${style.outlineColor}`);
-          hold(element, "outlineColor", "transparent");
-          for (const [layer, grown] of [
-            [ringLayer, reach],
-            // The fill meets the outline's inner edge, including an inward ring.
-            [ringFill, offset],
-          ])
-            start(layer, contour(from, to, grown, radius));
-        } else if (!sized && paints(style) && !part.holdsWindow)
+        if (!sized && rings(style)) drawRing(element, style, from, to);
+        else if (!sized && paints(style) && !part.holdsWindow)
           carries ? carryContent(part, from) : grow(part, from);
         if (!same(from, to))
           motions.set(element, { ...motions.get(element), from, to, frames: true });
@@ -527,23 +771,72 @@ export function boxMotion({
     }
 
     for (const part of parts) place(part, { from: boxFrom, to: boxAt });
+    // A ride under way goes on from where it is drawn through any reading, news
+    // included, since stopping it would move every turn the reader reads at once.
+    for (const scroller of streamed.keys())
+      if (!streams.has(scroller) && rests.has(scroller))
+        streamContent({ element: scroller });
     restoreTranslations(translated);
     if (running.length === 0 && same(boxFrom, boxAt)) return;
     motions.set(box, { from: boxFrom, to: boxAt });
     for (const [layer, reach] of surface())
       start(layer, contour(boxFrom, boxAt, reach, boxRadius, compact));
+    if (rings(boxStyle)) drawRing(box, boxStyle, boxFrom, boxAt, compact);
     // The box stands transparent over the surface's own fill while everything moves,
     // and lets what it carries stand past its rest outline on the way.
     hold(box, "backgroundColor", "transparent");
     hold(box, "overflow", "visible");
     const animations = running;
     animations.at(-1).onfinish = () => {
-      if (running === animations) restoreTranslations();
+      if (running !== animations) return;
+      restoreTranslations();
+      for (const scroller of streams.keys()) contentRides(scroller, false);
     };
   }
 
   return {
     follow,
+    // whose change is being read: "typing" or "press" for the user's own, "send" once
+    // that gesture sends from this box (`stream`), null for news.
+    theirs,
+    // A send begins, from within the user's gesture: read where each scroller's
+    // content is drawn now, before the send draws, so the readings the send makes
+    // carry it from here. A send that only scrolls a scroller, as one at its cap does,
+    // changes no part's size, so that scroll is read too.
+    stream() {
+      if (gesture === null) return;
+      sent = gestures;
+      rebase();
+      streamFrom = new Map();
+      stopStreaming.abort();
+      stopStreaming = new AbortController();
+      const { signal } = stopStreaming;
+      for (const element of rests?.keys() ?? []) {
+        if (
+          element.matches(TEXT_FIELD) ||
+          !/auto|scroll/.test(getComputedStyle(element).overflowY)
+        )
+          continue;
+        const child = [...element.children].find((node) => node.checkVisibility());
+        if (!child) continue;
+        streamFrom.set(element, { child, top: child.getBoundingClientRect().top });
+        element.addEventListener(
+          "scroll",
+          () => {
+            if (theirs() === "send" && timing) follow(timing);
+            else stopStreaming.abort();
+          },
+          { signal, passive: true },
+        );
+        // A wheel or a finger in the scroller starts no gesture, but the scroll it
+        // makes is the user's, which the content follows rather than rides.
+        for (const type of ["wheel", "touchstart"])
+          element.addEventListener(type, () => stopStreaming.abort(), {
+            signal,
+            passive: true,
+          });
+      }
+    },
     // The window changed size: the next reading takes the box as it stands.
     forget() {
       rests = null;

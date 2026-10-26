@@ -240,6 +240,24 @@
   border-radius: var(--r);
   background: var(--paper);
 }
+/* While the user is on the frame, their keys go to the sample's page rather than this
+ * one, and its gutter takes the focus ring's colour to say so, whether a press or a Tab
+ * put them there. The frame wears the ring itself only where a ring belongs, after a
+ * Tab: a press rings no control, and a ring round the frame would ring the whole
+ * sample. A sandboxed frame matches neither :focus nor :focus-visible on its host, so
+ * both read the runtime's marks (focus.js, `inputInFrame`). */
+.lf-sample-exhibit:has(> .lf-sample-frame[data-lf-focus]) {
+  border-left-color: var(--accent);
+}
+@media (forced-colors: active) {
+  .lf-sample-exhibit:has(> .lf-sample-frame[data-lf-focus]) {
+    border-left-color: Highlight;
+  }
+}
+.lf-sample-frame[data-lf-focus-visible] {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
 /* A window sample keeps its outer height rather than its page's, and scrolls inside.
  * Three quarters of the viewport leaves its label, Reset, and the containing page's
  * floating panel in view with the whole frame. */
@@ -269,11 +287,11 @@
 .lf-sample-view:modal > .lf-sample-controls {
   flex: none;
 }
+/* Full view keeps the gutter: the view's own controls take the user's keys there as
+ * well as the sample, and the gutter says which has them. */
 .lf-sample-view:modal > .lf-sample-exhibit {
   flex: 1;
   min-height: 0;
-  padding: 0;
-  border: 0;
 }
 .lf-sample-view:modal .lf-sample-frame {
   flex: 1;

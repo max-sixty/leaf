@@ -29,6 +29,7 @@ from render_cases_navigation import (
     TWICE_PAGE,
 )
 from render_harness import (
+    CARRIED_PAGE,
     EXAMPLE_PACKAGES,
     EXAMPLES,
     REPLAYED_PAGE,
@@ -95,7 +96,7 @@ def test_the_runtime_does_not_replace_a_pages_keyframes(browser, serve):
         pageAnimation.currentTime = pageAnimation.effect.getTiming().duration / 2;
         const transform = getComputedStyle(document.getElementById("page-pulse")).transform;
 
-        const control = document.querySelector(".lf-fp-threads");
+        const control = document.querySelector(".lf-fp-on-user");
         control.setAttribute("aria-busy", "true");
         const runtimeAnimation = control.getAnimations()[0];
         return {
@@ -1354,10 +1355,11 @@ def test_a_group_of_bare_labels_reads_as_a_question_about_the_page(browser, serv
         "a row nobody can press draws cell edges anyway"
     )
 
-    # The block a row is about, reachable as a link and written as the id it names —
-    # the same way the thread panel writes an element anchor.
+    # The block a row is about, reachable as a link and named by the block's own words
+    # rather than its id; after § the kind word ("section") would say nothing.
     ref = page.locator("#job-mounts .lf-ref")
-    expect(ref).to_have_text("§ sec-mounts")
+    expect(ref).to_have_text("§ The mounts")
+    expect(ref).to_have_attribute("title", "Jump to § The mounts")
     assert ref.get_attribute("href") == "#sec-mounts"
     assert page.locator("#job-camera .lf-ref").count() == 0
 
@@ -1773,6 +1775,44 @@ def test_a_row_holds_its_mark_still_under_its_own_press(browser, serve):
     page.locator("#job-heater").click()
     expect(mark).to_have_text("selected")
     assert mark.evaluate(box) == before, "the press moved the mark it landed on"
+
+
+@pytest.mark.parametrize("width", [390, 1200])
+def test_a_rows_block_reference_never_costs_its_words_a_line(browser, serve, width):
+    """A row's § reference rides at the end of the words' last line where it fits, and
+    drops under them where it doesn't, so on a phone the words keep the row's width
+    rather than wrapping into a column beside it."""
+    source = leaf_page(
+        "Block references",
+        """<h1>Follow-up</h1>
+<lf-options id="follow" choose>
+  <lf-option id="short" for="stall">Ship it.</lf-option>
+  <lf-option id="long" for="stall">Ship with the resend and keep chasing the upstream
+  fix until the vendor names a release.</lf-option>
+</lf-options>
+<section id="stall"><h2>iOS reconnect stall</h2><p>One reconnect in about 40.</p>
+</section>""",
+    )
+    context = browser.new_context(viewport={"width": width, "height": 900})
+    page = open_page(browser, serve(source), context=context)
+    lines = """option => {
+      const words = document.createRange();
+      words.setStartBefore(option.querySelector('.lf-pick').nextSibling);
+      words.setEndBefore(option.querySelector('.lf-ref'));
+      const height = () => words.getBoundingClientRect().height;
+      const ref = option.querySelector('.lf-ref');
+      const withRef = height();
+      ref.style.display = 'none';
+      const without = height();
+      ref.style.display = '';
+      const box = option.getBoundingClientRect(), at = ref.getBoundingClientRect();
+      return {withRef, without, inside: at.right <= box.right && at.bottom <= box.bottom};
+    }"""
+    for option in ("#short", "#long"):
+        reading = page.locator(option).evaluate(lines)
+        assert reading["withRef"] == reading["without"], (option, reading)
+        assert reading["inside"], (option, reading)
+    expect(page.locator("#long .lf-ref")).to_have_text("§ iOS reconnect stall")
 
 
 def test_a_chip_an_option_says_stands_with_the_rest_of_its_words(browser, serve):
@@ -2217,8 +2257,9 @@ def test_widget_work_keeps_its_button_style_in_a_declared_shadow_tree(browser, s
             document.getElementById('shadow-card'))"""
     )
     expect(work_button).to_have_css("display", "flex")
-    expect(work_button).to_have_css("border-radius", "50%")
-    expect(work_button).to_have_css("height", "32px")
+    # The page opens with pins (`pin=True`), so the marker wears the pin's face.
+    expect(work_button).to_have_css("border-radius", "6px 6px 6px 0px")
+    expect(work_button).to_have_css("height", "26px")
 
 
 def test_the_box_is_offered_only_where_something_can_answer_it(browser, serve):
@@ -2568,3 +2609,107 @@ def test_an_obligation_digit_hangs_off_a_corner_clear_of_its_neighbours(browser,
         }"""
     )
     assert reading == {"covers": 0, "touches": True}, reading
+
+
+def test_a_pick_the_page_only_reports_can_still_be_pointed_at(browser, serve):
+    """An authored pick without a live control is a check with an accessible name.
+
+    The selected state does not introduce a visible status caption or new page words,
+    and the generated fallback remains outside the diff's authored-text reading.
+    """
+    url = serve(CARRIED_PAGE)
+    page = open_page(browser, live_url(url))
+    mark = page.locator("#c-lax .lf-pick")
+    assert mark.get_attribute("role") == "img"
+    assert mark.get_attribute("aria-label") == "selected: Lax cookie"
+    assert mark.evaluate("el => getComputedStyle(el).fontSize") == "0px"
+    assert mark.evaluate("el => getComputedStyle(el, '::before').content") == '"✓"'
+
+    # The generated check is not authored text, so rewording another option marks only
+    # that option in the version comparison.
+    d = serve.page_dir
+    stamp_page(
+        d,
+        CARRIED_PAGE.replace("Suits the mobile client", "Suits the mobile client best"),
+        "two",
+    )
+    wait_for_revision(page, 2)
+    compare_with(page)
+    page.wait_for_function(
+        "() => document.querySelectorAll('.lf-ins-block').length > 0"
+    )
+    assert page.evaluate(
+        "() => [...document.querySelectorAll('.lf-ins-block')].map(e => e.id)"
+    ) == ["c-bearer"], "the diff read the mark as text the base version lacked"
+
+
+def test_option_words_render_markdown_without_losing_the_user_draft(browser, serve):
+    source = OBLIGATION_PAGE.replace(
+        "Replace the <code>M8</code> mounts", "Ask the _widget_ to decide"
+    )
+    url = serve(source)
+    page = open_page(browser, url)
+    authored = page.locator("#job-mounts")
+    expect(authored.locator(":scope > .lf-markdown-words em")).to_have_text("widget")
+    expect(authored.locator(":scope > .lf-pick")).to_have_attribute(
+        "aria-label", re.compile(r"Ask the widget to decide — option 1")
+    )
+
+    group = page.locator("#jobs")
+    write(group.get_by_role("textbox", name="Another option"), "Keep **both** routes")
+    group.get_by_role("button", name="Add and select option").click()
+    added = group.locator(":scope > lf-option[data-lf-added]")
+    expect(added.locator("strong")).to_have_text("both")
+    round_trip(page)
+    page.reload(wait_until="load")
+    expect(added.locator("strong")).to_have_text("both")
+
+    group.locator("#job-heater").click()
+    round_trip(page)
+    adds = [
+        event["detail"]
+        for event in events_model.read_events(serve.page_dir)
+        if event.get("kind") == "action" and event.get("action") == "add"
+    ]
+    assert adds == [
+        {"option": added.get_attribute("id"), "text": "Keep **both** routes"}
+    ]
+    expect(added.locator("strong")).to_have_text("both")
+
+
+def test_an_option_set_as_a_paragraph_starts_under_its_title_as_a_sentence_does(
+    browser, serve
+):
+    """Authors write a card's consequence after its title either as a sentence or as a
+    paragraph, and both read as one card: the paragraph's own margin had set it three
+    times as far under the title."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "option shapes",
+                '<lf-options id="shapes" choose>'
+                '<lf-option id="sentence"><strong>Ship it</strong> The cohort gets it now.'
+                "</lf-option>"
+                '<lf-option id="paragraph"><strong>Hold it</strong>'
+                "<p>The cohort waits for the fix.</p></lf-option>"
+                "</lf-options>",
+            )
+        ),
+    )
+    gaps = page.evaluate(
+        """() => {
+          const below = (id) => {
+            const option = document.getElementById(id);
+            const title = option.querySelector(':scope > strong').getBoundingClientRect();
+            const range = document.createRange();
+            const body = id === 'sentence'
+              ? option.querySelector(':scope > strong').nextSibling
+              : option.querySelector(':scope > p').firstChild;
+            range.selectNodeContents(body);
+            return range.getClientRects()[0].top - title.bottom;
+          };
+          return { sentence: below('sentence'), paragraph: below('paragraph') };
+        }"""
+    )
+    assert gaps["paragraph"] == pytest.approx(gaps["sentence"], abs=1), gaps

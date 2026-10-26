@@ -775,7 +775,7 @@ def test_fresh_exact_reply_supersedes_an_older_workflow_condition():
         "response": None,
     }
     present = {
-        "status": {"state": "idle", "ts": now.isoformat(), "detail": ""},
+        "status": {"state": "idle", "ts": now.isoformat()},
         "claim_session": "session-1",
         "claim_turn": "turn-1",
         "cursor": 0,
@@ -888,7 +888,7 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(
     claimed, printing, capsys
 ):
     page_dir = claimed
-    session_model.cmd_waiting(page_dir, "")
+    session_model.cmd_waiting(page_dir)
     session = service_model.page_claim(page_dir)
     lease = leases_model.take_lease(
         leases_model.waiter_lease_path(page_dir, session["id"])

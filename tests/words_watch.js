@@ -50,7 +50,15 @@
   const { frame, later: task, listen } = window.lfWatchPlatform;
   const text = (field) =>
     typeof field.value === "string" ? field.value : (field.textContent ?? "");
-  const drawn = (node) => node.isConnected && node.checkVisibility();
+  // A closed dialog has put its words away, though its pixels may still be fading out
+  // (an exit transition keeps it drawn in the top layer meanwhile).
+  const inClosedDialog = (node) => {
+    for (let at = node; at; at = at.parentElement ?? at.getRootNode().host)
+      if (at.localName === "dialog" && !at.open) return true;
+    return false;
+  };
+  const drawn = (node) =>
+    node.isConnected && node.checkVisibility() && !inClosedDialog(node);
   // Every field of the page, through its open shadow roots; a `leaf-text` is its host.
   const FIELDS = "textarea, input, [contenteditable], leaf-text";
   function* fields(root = document) {

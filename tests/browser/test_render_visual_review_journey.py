@@ -22,6 +22,7 @@ from render_harness import (
     sending,
     stamp_page,
     told,
+    undo,
 )
 
 from leaf import data as data_model
@@ -388,22 +389,22 @@ def test_visual_review_refresh_retains_inspection_and_hands_focus_off_removed_ca
         "images => images.map(image => [image.naturalWidth, image.naturalHeight, image.getBoundingClientRect().width])"
     ) == [[1200, 1000, 600], [1200, 1000, 600]]
 
-    # Refreshing captures also replaces cached pixel masks and their background.
+    # Refreshing captures also replaces the cached pixel mask and its background.
     pixels = case.get_by_role("button", name="Pixels", exact=True)
     pixels.click()
     page.wait_for_function(
-        """() => [...document.querySelectorAll(
-          '.lf-vr-case[aria-hidden="false"] .lf-shotpixels [data-lf-shot-side]'
-        )].every(node => node.style.getPropertyValue('--lf-shot-pixels'))"""
+        """() => document.querySelector(
+          '.lf-vr-case[aria-hidden="false"] .lf-shotpixels .lf-shot-pixel-mask'
+        )?.style.getPropertyValue('--lf-shot-pixels')"""
     )
     painted_pixels = """node => ({
       ground: node.querySelector('.lf-shotpixels img').src,
-      masks: [...node.querySelectorAll('.lf-shotpixels [data-lf-shot-side]')]
-        .map(paint => paint.style.getPropertyValue('--lf-shot-pixels')),
+      mask: node.querySelector('.lf-shotpixels .lf-shot-pixel-mask')
+        .style.getPropertyValue('--lf-shot-pixels'),
     })"""
     previous_pixels = shot.evaluate(painted_pixels)
     # Hold the platform's mask encoding at an actual asynchronous boundary.
-    # Refresh must keep the whole old difference until the new masks are ready.
+    # Refresh must keep the whole old difference until the new mask is ready.
     page.evaluate(
         """() => {
           const encode = OffscreenCanvas.prototype.convertToBlob;
@@ -427,7 +428,7 @@ def test_visual_review_refresh_retains_inspection_and_hands_focus_off_removed_ca
     }
     data_model.cmd_data_set(serve.page_dir, "gallery-visual-run", identical)
     told(page)
-    page.wait_for_function("window.heldShotMasks.length === 3")
+    page.wait_for_function("window.heldShotMasks.length === 1")
     assert shot.evaluate(painted_pixels) == previous_pixels
     # Metadata arriving after image validation owns a new request; it cannot
     # smuggle an invalid crop into the already-preparing pair.
@@ -456,8 +457,8 @@ def test_visual_review_refresh_retains_inspection_and_hands_focus_off_removed_ca
         "aria-description", "identical"
     )
     corrected_pixels = shot.evaluate(painted_pixels)
-    assert all(corrected_pixels["masks"])
-    assert corrected_pixels["masks"] != previous_pixels["masks"]
+    assert corrected_pixels["mask"]
+    assert corrected_pixels["mask"] != previous_pixels["mask"]
     assert shot.locator(".lf-shotpixels img").evaluate(
         "node => node.src"
     ) == shot.locator('.lf-shotframe[data-lf-state="after"] img').evaluate(
@@ -641,3 +642,28 @@ def test_visual_review_returns_to_case_feedback_on_phone(browser, serve):
     selected = case.locator(f'.lf-page-thread[data-thread="{first_thread}"]')
     expect(selected).to_be_focused()
     expect(selected).to_be_in_viewport(ratio=1)
+
+
+def test_visual_review_approvals_survive_reload_and_undo(browser, serve):
+    """Approval is reversible and independent of case navigation."""
+    page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
+    resized(page, 702, 898)
+    widget = page.locator("#visual-review-run")
+    case = widget.locator('.lf-vr-case[aria-hidden="false"]')
+    ids = []
+    for _ in range(3):
+        ids.append(case.get_attribute("data-lf-datum"))
+        with sending(page, "approve selected case"):
+            case.get_by_role("checkbox", name="Looks right").check()
+        expect(case).to_have_attribute("data-lf-datum", ids[-1])
+        if len(ids) < 3:
+            case.get_by_role("button", name="Next unchecked").click()
+    assert len(set(ids)) == 3
+    expect(case.get_by_role("button", name="Next unchecked")).to_be_disabled()
+    page.reload()
+    expect(widget.locator(".lf-vr-progress")).to_contain_text("3 of 3")
+    undo(page)
+    expect(widget.locator(".lf-vr-progress")).to_contain_text("2 of 3")
+    case.get_by_role("button", name="Next unchecked").click()
+    expect(case).to_have_attribute("data-lf-datum", ids[-1])
+    expect(case.get_by_role("checkbox", name="Looks right")).not_to_be_checked()

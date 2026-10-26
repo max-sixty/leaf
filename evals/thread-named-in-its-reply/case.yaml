@@ -1,4 +1,4 @@
-# Added with `--title` on `thread reply` and `page state <page> <id>` for a thread's
+# Added with `--title` on `thread reply` and `page state <page> <message>` for a thread's
 # history (#1374). Base at 69bee09a8 ran a separate `leaf thread title` (0 of 3);
 # the change 3 of 3. No other case fell across all 16 run at once, x3 per arm.
 # Reworded by #2329 (updates to progress messages); at 3fe3eb0af it passed 1/1 on
@@ -7,7 +7,7 @@ description: thread-named-in-its-reply
 metadata:
   purpose:
     "Threads reference: an untitled thread is named by `--title` on the reply that answers it,
-    and a long thread's elided middle is read with `leaf page state <page> <thread-id>`."
+    and a long thread's elided middle is read with `leaf page state <page> <message>`."
   tags:
     - threads
 vars:

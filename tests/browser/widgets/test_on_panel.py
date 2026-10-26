@@ -119,7 +119,7 @@ def test_on_me_lists_open_and_answered_obligations(browser, serve):
     assert suggestion["said"].startswith("Answered: Accepted"), suggestion
 
     # And closing takes the rest with it, for the reason the docstring gives.
-    page.locator(".lf-fp-on-user").focus()
+    page.locator(".lf-fp-close").focus()
     page.keyboard.press("Enter")
     panel_settled(page, open=False)
     assert page.evaluate(ON_ITEM_SAYS) == [], "a closed view keeps its cards"

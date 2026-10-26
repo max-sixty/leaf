@@ -918,7 +918,8 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 				if (gesture === "send") streamContent(part);
 				return;
 			}
-			const edgeBy = (start, end, length) => length(to) < length(from) - .5 && near(from[end], to[end]) && !near(from[start], to[start]) ? end : start;
+			const emptied = gesture === "send" || part.element.matches(":state(placeholder-shown)");
+			const edgeBy = (start, end, length) => emptied && length(to) < length(from) - .5 && near(from[end], to[end]) && !near(from[start], to[start]) ? end : start;
 			const carries = [rtl ? edgeBy("right", "left", width) : edgeBy("left", "right", width), edgeBy("top", "bottom", height)];
 			let dx = from[carries[0]] - to[carries[0]];
 			let dy = from[carries[1]] - to[carries[1]];
@@ -942,14 +943,16 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 				from,
 				to
 			});
-			dx = rtl ? Math.min(0, dx) : Math.max(0, dx);
-			dy = Math.max(0, dy);
+			const reach = Math.max(0, rtl ? dx : -dx, -dy);
+			if (reach > 0) hold(part.element, "overflow", "visible");
 			start(part.element, [{
 				"--lf-field-carry": `${dx}px ${dy}px`,
-				"--lf-field-cut": cut.map((side) => `${side}px`).join(" ")
+				"--lf-field-cut": cut.map((side) => `${side}px`).join(" "),
+				"--lf-field-reach": `${reach}px`
 			}, {
 				"--lf-field-carry": "0px 0px",
-				"--lf-field-cut": "0px 0px 0px 0px"
+				"--lf-field-cut": "0px 0px 0px 0px",
+				"--lf-field-reach": `${reach}px`
 			}]);
 		}
 		function grow(part, from) {
@@ -1033,7 +1036,7 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 		function rise(part, frame, siblings) {
 			const to = part.box;
 			const dy = boxFrom.top - boxAt.top;
-			if (dy < .5) return reveal(part, frame, siblings);
+			if (dy < .5 || to.top >= boxFrom.top - .5) return reveal(part, frame, siblings);
 			motions.set(part.element, {
 				from: shifted(to, 0, dy),
 				to,

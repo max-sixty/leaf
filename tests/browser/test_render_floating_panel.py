@@ -4854,6 +4854,120 @@ def test_a_line_the_field_grows_rides_the_box_s_top_edge(browser, serve):
     assert page.evaluate(gaps) == resting
 
 
+# How far the field's first line of words and the more-room mark stand below the box's
+# top edge as drawn, and how opaque the mark is.
+BELOW_THE_EDGE = r"""() => {
+  const ground = document.querySelector('.lf-fp-ground');
+  const cut = /inset\(([-\d.]+)px/.exec(
+    getComputedStyle(ground.querySelector('.lf-fp-fill')).clipPath,
+  )[1];
+  const edge = ground.getBoundingClientRect().top + Number.parseFloat(cut);
+  const host = document.querySelector('.lf-fp-field leaf-text');
+  const words = window.editorRoots.get(host).querySelector('.cm-line');
+  const mark = document.querySelector('.lf-fp-expand');
+  return {
+    words: words.getBoundingClientRect().top - edge,
+    mark: mark.getBoundingClientRect().top - edge,
+    opacity: Number(getComputedStyle(mark).opacity),
+  };
+}"""
+SEEK_MOTION = (
+    "at => document.getAnimations().forEach(motion => {"
+    " motion.pause(); motion.currentTime = at; })"
+)
+
+
+def test_the_field_s_words_and_mark_ride_its_top_edge_both_ways(browser, serve):
+    """A line removed carries the field's words down with the box's top edge, as a
+    line added carries them up, and the more-room mark rides that edge's corner, fading
+    in with the fourth line and out with it. The words used to jump to their place on
+    removal while the edge travelled, and the mark stood still while the rising edge
+    uncovered it. The tween's first frame shows the panel as it stood, so no word is
+    cut off where the field's box no longer reaches."""
+    from io import BytesIO
+
+    from PIL import Image, ImageChops
+
+    def picture(card):
+        region = {
+            "x": card["x"] - 8,
+            "y": card["y"] - 40,
+            "width": card["width"] + 16,
+            "height": card["height"] + 48,
+        }
+        return Image.open(BytesIO(page.screenshot(clip=region))).convert("L")
+
+    page = open_page(browser, serve(LONG_PAGE), init_script=EDITOR_ROOTS)
+    page.emulate_media(reduced_motion="no-preference")
+    field(page).click()
+    page.keyboard.type("The first line of a draft")
+    for line in ("and its second line", "and its third"):
+        page.keyboard.press("Shift+Enter")
+        page.keyboard.type(line)
+    settled(page)
+    three = page.evaluate(BELOW_THE_EDGE)
+    assert three["opacity"] == 0, three
+    for key, opacity in (("Shift+Enter", 1), ("Backspace", 0)):
+        card = page.locator(".lf-fp-card").bounding_box()
+        stood = picture(card)
+        page.keyboard.press(key)
+        page.wait_for_function(
+            "() => document.querySelector('.lf-fp-ground').getAnimations()"
+            ".some(motion => motion.playState === 'running')"
+        )
+        page.evaluate(SEEK_MOTION, 0)
+        moved = ImageChops.difference(stood, picture(card)).point(
+            lambda v: 255 if v > 16 else 0
+        )
+        # The caret blinks, and Linux rasterizes the travelling words a little
+        # differently; a line cut off or jumping ahead moves thousands of pixels.
+        assert moved.histogram()[255] < 300, (key, moved.getbbox())
+        for at in (0, 60, 150):
+            page.evaluate(SEEK_MOTION, at)
+            drawn = page.evaluate(BELOW_THE_EDGE)
+            assert [drawn["words"], drawn["mark"]] == pytest.approx(
+                [three["words"], three["mark"]], abs=1
+            ), (key, at, drawn)
+        page.evaluate(SEEK_MOTION, 0)
+        assert page.evaluate(BELOW_THE_EDGE)["opacity"] == 1 - opacity, key
+        page.evaluate("() => document.getAnimations().forEach(motion => motion.play())")
+        settled(page)
+        rest = page.evaluate(BELOW_THE_EDGE)
+        assert [rest["words"], rest["mark"]] == pytest.approx(
+            [three["words"], three["mark"]], abs=1
+        ), rest
+        assert rest["opacity"] == opacity, (key, rest)
+
+
+def test_a_send_s_reply_field_takes_the_row_s_seat_where_it_stands(browser, serve):
+    """Sending a page comment of several lines opens its thread above the row, and the
+    thread's reply field takes the page field's seat in the row from the tween's first
+    frame. It
+    used to rise from below the window with the box's top edge, so the row showed no
+    field until the tween's last frames."""
+    page = floating(browser, serve(LONG_PAGE))
+    page.emulate_media(reduced_motion="no-preference")
+    field(page).click()
+    page.keyboard.type("A comment")
+    for line in ("that opens", "its thread"):
+        page.keyboard.press("Shift+Enter")
+        page.keyboard.type(line)
+    settled(page)
+    page.keyboard.press("Enter")
+    # The box's tween as the thread's view opens over the row.
+    page.wait_for_function(
+        "() => document.querySelector('.lf-fp-opened')?.getAnimations()"
+        ".some(motion => motion.playState === 'running')"
+    )
+    page.evaluate(SEEK_MOTION, 0)
+    reply = page.locator(".lf-fp-reply")
+    drawn = "reply => [reply.getBoundingClientRect().top, getComputedStyle(reply).clipPath]"
+    first = reply.evaluate(drawn)
+    page.evaluate("() => document.getAnimations().forEach(motion => motion.play())")
+    settled(page)
+    assert first == reply.evaluate(drawn), first
+
+
 def test_looking_at_an_attached_image_keeps_the_draft_where_it_stands(browser, serve):
     """The image viewer opened from a draft's attachment stands over the panel, and
     Escape hands the user back to the attachment: they never left what they were

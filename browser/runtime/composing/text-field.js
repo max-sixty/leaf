@@ -263,7 +263,10 @@ sheet.replaceSync(`
     fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round;
     stroke-linejoin: round; overflow: visible; user-select: none;
     -webkit-user-select: none; }
-  /* Code with no fence lines takes the message's padding at its ends instead. */
+  /* A fence's line, while the caret is away from it, stands for the sent pre's padding,
+     and code with no fence lines takes that padding at its ends instead. A field that
+     edits in place reads its display's padding over this (\`readFaces\`). */
+  .lf-face-fence-open, .lf-face-fence-close { line-height: var(--pre-pad-block); }
   .lf-md-code-bare.lf-md-code-first { padding-block-start: var(--pre-pad-block); }
   .lf-md-code-bare.lf-md-code-last { padding-block-end: calc(var(--pre-pad-block) + 8px); }
 `);
@@ -521,8 +524,8 @@ function decorate(state, placed) {
         const lead = each.text.match(/^[ \t]*/)[0].length;
         add(each.from, each.from + lead - kept.match(/^[ \t]*/)[0].length, hide);
       });
-      // A fence's lines keep their room, as the message's code keeps its padding, and
-      // each shows its marks while the caret is on it.
+      // A fence's lines stand for the message's code padding (`standBlocks`), and each
+      // shows its marks, at a line's height, while the caret is on it.
       for (const [a, b] of markers ?? []) {
         const fence = state.doc.lineAt(a);
         add(a, b, touches(state, fence.from, fence.to) ? dim : unseen);
@@ -585,7 +588,7 @@ function decorate(state, placed) {
 // Each outermost block's lines name its face, and the lines between two blocks the gap
 // the display leaves there: the blank lines that part them in the source, or the
 // second's first line where none do. A field that edits in place has rules for the
-// names (`readFaces`); elsewhere they draw nothing. A code fence's lines stand for its
+// names (`readFaces`); elsewhere only a fence's do. A code fence's lines stand for its
 // block's padding while the caret is away, and an item after the first in a list stands
 // its gap above it. The display trims the outer margins of its first and last blocks,
 // so the field leaves none there, but a list's first and last items keep theirs.

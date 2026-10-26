@@ -14,7 +14,9 @@
 // specifier is a missing module and an error. So is the framework's facade by its
 // served path, `/runtime/framework.js`: like Lit beneath it, the framework is a
 // dependency every owner may hold, not one of the owners whose routes these rules
-// read. Its own modules, under `framework/`, are checked as any owner is.
+// read. Its own modules, under `framework/`, are checked as any owner is. JSON, such as
+// the kernel registry `kernel-facts.js` imports, is excluded too: data holds no route
+// between owners.
 
 import fs from "node:fs";
 
@@ -35,21 +37,21 @@ const exactClosures = {
   "queued-work.js": [],
   "control-selectors.js": [],
   "shadow-tree.js": [],
-  "contribution-model.js": ["words.js", "passage-facts.js"],
+  "contribution-model.js": ["words.js", "kernel-facts.js"],
   "margin-model.js": [
     "contribution-model.js",
     "words.js",
-    "passage-facts.js",
+    "kernel-facts.js",
     "thread/workflow.js",
   ],
   "margin-map-model.js": [
     "margin-model.js",
     "contribution-model.js",
     "words.js",
-    "passage-facts.js",
+    "kernel-facts.js",
     "thread/workflow.js",
   ],
-  "projection/model.js": ["passage-facts.js"],
+  "projection/model.js": ["kernel-facts.js"],
   "projection/state.js": ["semantic-state.js", "queued-work.js"],
   "thread/model.js": [
     "anchor-coordinate.js",
@@ -65,7 +67,7 @@ const exactClosures = {
     "thread/workflow.js",
   ],
   "thread/workflow.js": [],
-  "pending/model.js": ["thread/identity.js", "event-kinds.js"],
+  "pending/model.js": ["thread/identity.js", "kernel-facts.js"],
   "pending/state.js": ["semantic-state.js", "queued-work.js"],
   "keyboard/dispatch.js": [
     "context.js",
@@ -88,8 +90,7 @@ const exactClosures = {
     "user-intent.js",
     "registry.js",
     "registry-contract.js",
-    "event-kinds.js",
-    "names.js",
+    "kernel-facts.js",
     "rendering.js",
     "frame-visibility.js",
     "repaint.js",
@@ -226,6 +227,7 @@ export default {
         "^/vendor/",
         "^/checks/",
         "^/runtime/framework\\.js$",
+        "\\.json$",
       ],
     },
     // Resolve as the browser does: a specifier names its file exactly. Without this,

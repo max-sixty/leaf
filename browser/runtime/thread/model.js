@@ -136,7 +136,7 @@ export const bareReaction = (thread) => thread.bare_reaction;
 export const discussed = (thread) => !bareReaction(thread);
 /** Whether a thread holds words the user hasn't read.
  * @param {Pick<Thread, "unread">} thread */
-export const hasUnread = (thread) => thread.unread.length > 0;
+const hasUnread = (thread) => thread.unread.length > 0;
 /**
  * Whether a thread is news: still open and holding words the user hasn't read. A
  * resolved thread's unread words aren't, so the news the panel counts never outnumbers

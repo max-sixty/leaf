@@ -45,7 +45,7 @@ const time = (value) => (value === null || value === "" ? null : Number(value));
 export const clock = (ms) => `${Number((ms / 1000).toFixed(3))} s`;
 
 /** The authored lanes and events, and the steps they make. */
-export function readTimeline(host) {
+function readTimeline(host) {
   const problems = [];
   const lanes = [...host.querySelectorAll(":scope > lf-lane")].map((lane, index) => ({
     index,
@@ -93,7 +93,7 @@ function stateAt(event, now) {
 /** Lay out labels for a track `width` pixels wide, in the font `font`: each label's
  * row, and whether it reads on from its mark (`start`), back from it (`flip`), or,
  * fitting neither way, against the axis end (`end`). */
-export function layoutLabels(model, width, font) {
+function layoutLabels(model, width, font) {
   const span = Math.max(1, width - 2 * EDGE);
   const x = (ms) => EDGE + (ms / model.duration) * span;
   const placed = new Map();

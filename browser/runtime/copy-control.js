@@ -13,11 +13,12 @@ import { iconElement } from "./icons.js";
 import { notice } from "./notifications.js";
 import { raiseError } from "./errors.js";
 import { focused, focusDestination } from "./focus.js";
+import { nativeLayerHolding } from "./shadow-tree.js";
 
 // Plain HTTP on a machine name has no Clipboard API. A copy press can still use the
 // browser's selection command there. Embedded samples deliberately cannot write the
 // clipboard, so a frame never bypasses its own permission path.
-function copyThroughSelection(value) {
+function copyThroughSelection(value, trigger) {
   if (!value) return false;
   const selection = document.getSelection();
   const ranges = selection
@@ -27,7 +28,8 @@ function copyThroughSelection(value) {
   const field = document.createElement("textarea");
   field.value = value;
   field.style.cssText = "position: fixed; left: -9999px; top: 0";
-  document.body.append(field);
+  // A modal makes the rest of the document inert, including a field at body level.
+  (nativeLayerHolding(trigger) ?? document.body).append(field);
   try {
     focusDestination(field, "return");
     field.select();
@@ -79,7 +81,7 @@ export function copyControl(
         event.stopPropagation();
         if (event.defaultPrevented || copy.disabled || copy.isCopying) return;
         copy.isCopying = true;
-        const copied = copyThroughSelection(copy.value);
+        const copied = copyThroughSelection(copy.value, copy);
         // Use the component's normal icon, announcement and lock reset.
         /** @type {any} */ (copy).showStatus(copied ? "success" : "error");
         copy.dispatchEvent(

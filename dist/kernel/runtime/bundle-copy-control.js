@@ -1,8 +1,8 @@
-import { carriedFrom, deepFocus, focusDestination, focused, inputCount, nextRender, onCurrentLocation, renderedParent, renderedUnder, ringBox } from "./bundle-dom-move.js";
+import { carriedFrom, deepFocus, focusDestination, focused, inputCount, nativeLayerHolding, nextRender, onCurrentLocation, renderedParent, renderedUnder, ringBox } from "./bundle-dom-move.js";
 import { clippingAxes, landingBand, nearestScrollBy, placeBox, placeHolder, seenRect, shownWindow, visibleBand } from "./bundle-geometry.js";
 import { iconElement, notice, offer, offerActionElement, raiseError } from "./bundle-errors.js";
 import { pageScroller, reachable, scrollersOf, startScroll } from "./bundle-reading-regions.js";
-import { localScrollBy, scrollAxes } from "./bundle-element-frame.js";
+import { localScrollBy, scrollAxes } from "./bundle-page-controls.js";
 
 //#region runtime/user-intent.js
 const passed = /* @__PURE__ */ new WeakMap();
@@ -202,7 +202,7 @@ onCurrentLocation((node, cause) => {
 
 //#endregion
 //#region runtime/copy-control.js
-function copyThroughSelection(value) {
+function copyThroughSelection(value, trigger) {
 	if (!value) return false;
 	const selection = document.getSelection();
 	const ranges = selection ? Array.from({ length: selection.rangeCount }, (_, i) => selection.getRangeAt(i)) : [];
@@ -210,7 +210,7 @@ function copyThroughSelection(value) {
 	const field = document.createElement("textarea");
 	field.value = value;
 	field.style.cssText = "position: fixed; left: -9999px; top: 0";
-	document.body.append(field);
+	(nativeLayerHolding(trigger) ?? document.body).append(field);
 	try {
 		focusDestination(field, "return");
 		field.select();
@@ -242,7 +242,7 @@ function copyControl(className, { label = "", success, error, icon = "copy", rol
 		event.stopPropagation();
 		if (event.defaultPrevented || copy.disabled || copy.isCopying) return;
 		copy.isCopying = true;
-		const copied = copyThroughSelection(copy.value);
+		const copied = copyThroughSelection(copy.value, copy);
 		copy.showStatus(copied ? "success" : "error");
 		copy.dispatchEvent(copied ? new CustomEvent("wa-copy", {
 			bubbles: true,

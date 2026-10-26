@@ -140,7 +140,7 @@ To change an existing interface, take this checkout's rendered interface as the
 baseline, covering the controls and states the requested property affects. Build
 runtime candidates in the runtime and theme that own the surface. A separate sketch
 copies Leaf's mark from `browser/icon.svg` and each icon's path from
-`browser/runtime/icons.js`. Drive the baseline and every candidate through
+`browser/runtime/icon-paths.js`. Drive the baseline and every candidate through
 the same journey before handoff.
 
 ## Choose what the user reviews

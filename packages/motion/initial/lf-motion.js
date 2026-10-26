@@ -1,4 +1,4 @@
-import { PLAY, PAUSE } from "../../../browser/runtime/motion-icon-paths.js";
+import { ICONS } from "../../../browser/runtime/icon-paths.js";
 
 /* Build the transport before first paint; upgrade adopts these exact controls. */
 document.documentElement.lfInitial.register(
@@ -25,7 +25,7 @@ document.documentElement.lfInitial.register(
         lastLabel = label;
       }
       if (playing !== lastPlaying) {
-        symbol.innerHTML = playing ? PAUSE : PLAY;
+        symbol.innerHTML = playing ? ICONS.pause : ICONS.play;
         lastPlaying = playing;
       }
     };

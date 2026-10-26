@@ -651,10 +651,9 @@ def test_page_tabs_take_the_page_width_and_its_one_left_edge(browser, serve):
 def test_a_workspace_page_tab_gives_its_only_block_its_box_before_upgrade(
     browser, serve
 ):
-    """A full-height page tab's only block takes the height the strip leaves from the
-    first paint, and the box it has then is the box the upgrade keeps. Before upgrade the
-    set lacked the ring's room the upgraded set keeps under the panel, so the block
-    stood 5px taller and shrank when the module drew."""
+    """A full-height page tab's only block fills its content box from first paint,
+    leaving the tab's panel clearance below it. Upgrade keeps that same box, including
+    the ring's room around the set and the clearance after the reading content."""
     source = leaf_page(
         "Workspace page tab",
         '<header><h1>Review</h1></header><lf-tabs id="views">'
@@ -675,9 +674,11 @@ def test_a_workspace_page_tab_gives_its_only_block_its_box_before_upgrade(
 
         def heights():
             return page.evaluate("""() => {
-              const tab = document.querySelector('#work').getBoundingClientRect();
+              const panel = document.querySelector('#work');
+              const tab = panel.getBoundingClientRect();
               const block = document.querySelector('#surface').getBoundingClientRect();
-              return {tab: tab.height, block: block.height, bottom: tab.bottom - block.bottom,
+              const end = parseFloat(getComputedStyle(panel).paddingBottom);
+              return {tab: tab.height, block: block.height, bottom: tab.bottom - end - block.bottom,
                       sides: [block.left, block.right]};
             }""")
 

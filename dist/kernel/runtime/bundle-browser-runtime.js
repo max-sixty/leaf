@@ -1,5 +1,4 @@
 import { AsyncDirective, Directive, LitElement, PartType, classMap, createRef, directive, guard, html, keyed, live, noChange, nothing, ref, render, repeat, styleMap, unsafeHTML } from "/vendor/lit.js";
-import kernel from "/runtime/kernel-registry.json" with { type: "json" };
 
 //#region runtime/queued-work.js
 const jobObservers = /* @__PURE__ */ new Set();
@@ -655,19 +654,189 @@ const isProjectionEntry = (entry) => entry.coordinate !== void 0;
 
 //#endregion
 //#region runtime/kernel-facts.js
-const { collapse, blocks, context } = kernel.$passages;
-const escaped = [...collapse].map((ch) => `\\u${ch.codePointAt(0).toString(16).padStart(4, "0")}`).join("");
-const COLLAPSE = new RegExp(`[${escaped}]+`, "g");
-const TEXT_BLOCK = blocks.join(",");
-const CONTEXT = context;
-const WIDGET_NAME = new RegExp(`^${kernel.$names.widget}$`);
-const { description: _description, ...declaredMarks } = kernel.$marks;
-const marks = declaredMarks;
-const kinds = Object.entries(kernel.$events.kinds);
-const MESSAGE_KINDS = new Set(kinds.filter(([, kind]) => "message" in kind && kind.message).map(([name]) => name));
-const VERB_WRITERS = Object.fromEntries(kinds.flatMap(([name, kind]) => "verb_writer" in kind ? [[name, kind.verb_writer]] : []));
-const drawingSchema = kernel.$events.kinds.comment.record.properties.drawing;
-const DRAFT_FORMAT = `leaf-draft/${kernel.$events.draft.since}`;
+const COLLAPSE = /[\u0009\u000a\u000b\u000c\u000d\u0020\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff]+/g;
+const DRAFT_FORMAT = "leaf-draft/17";
+const MESSAGE_KINDS = /* @__PURE__ */ new Set(["comment", "reply"]);
+const TEXT_BLOCK = "p,li,h1,h2,h3,h4,h5,h6,td,th,pre,blockquote,dd,dt,figcaption,summary";
+const VERB_WRITERS = {
+	"action": "user",
+	"report": "agent"
+};
+const WIDGET_NAME = /^lf-[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const drawingSchema = {
+	"type": "object",
+	"properties": {
+		"strokes": {
+			"type": "array",
+			"minItems": 1,
+			"maxItems": 32,
+			"items": {
+				"type": "array",
+				"minItems": 2,
+				"maxItems": 256,
+				"items": {
+					"type": "array",
+					"minItems": 2,
+					"maxItems": 2,
+					"prefixItems": [{
+						"type": "number",
+						"minimum": -33554432,
+						"maximum": 33554432
+					}, {
+						"type": "number",
+						"minimum": -33554432,
+						"maximum": 33554432
+					}],
+					"items": false
+				}
+			}
+		},
+		"box": {
+			"type": "array",
+			"minItems": 2,
+			"maxItems": 2,
+			"prefixItems": [{
+				"type": "number",
+				"exclusiveMinimum": 0,
+				"maximum": 33554432
+			}, {
+				"type": "number",
+				"exclusiveMinimum": 0,
+				"maximum": 33554432
+			}],
+			"items": false
+		},
+		"frame": {
+			"type": "object",
+			"properties": {
+				"root": {
+					"type": "string",
+					"maxLength": 128,
+					"pattern": "^[A-Za-z][A-Za-z0-9_.:-]*$"
+				},
+				"path": {
+					"type": "array",
+					"maxItems": 32,
+					"items": {
+						"type": "object",
+						"properties": {
+							"tag": {
+								"type": "string",
+								"maxLength": 128,
+								"pattern": "^[A-Za-z][A-Za-z0-9_.:-]*$"
+							},
+							"index": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 65535
+							},
+							"siblings": {
+								"type": "integer",
+								"minimum": 1,
+								"maximum": 65536
+							},
+							"shadow": { "type": "boolean" }
+						},
+						"required": [
+							"tag",
+							"index",
+							"siblings"
+						],
+						"additionalProperties": false
+					}
+				}
+			},
+			"required": ["root", "path"],
+			"additionalProperties": false
+		},
+		"says": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 500
+		},
+		"viewport": {
+			"type": "array",
+			"minItems": 2,
+			"maxItems": 2,
+			"prefixItems": [{
+				"type": "number",
+				"exclusiveMinimum": 0,
+				"maximum": 33554432
+			}, {
+				"type": "number",
+				"exclusiveMinimum": 0,
+				"maximum": 33554432
+			}],
+			"items": false
+		},
+		"scheme": { "enum": ["light", "dark"] }
+	},
+	"required": [
+		"strokes",
+		"box",
+		"viewport",
+		"scheme"
+	],
+	"additionalProperties": false
+};
+const marks = {
+	"x-content": {
+		"paint": "data-lf-content",
+		"message": true
+	},
+	"x-verbatim": {
+		"paint": "data-lf-verbatim",
+		"message": true
+	},
+	"x-space": {
+		"paint": "data-lf-space",
+		"authored": "data-width",
+		"authored_on": "content",
+		"message": false
+	},
+	"x-inline": {
+		"paint": "data-lf-inline",
+		"message": true
+	},
+	"x-exhibit": {
+		"paint": "data-lf-exhibit",
+		"message": true
+	},
+	"x-bound": {
+		"paint": "data-lf-bound",
+		"authored": "data-bound",
+		"authored_on": "content",
+		"message": true
+	},
+	"x-height": {
+		"paint": "data-lf-height",
+		"authored": "data-height",
+		"authored_on": "declared",
+		"message": true
+	},
+	"x-reading-role": {
+		"paint": "data-lf-reading-role",
+		"message": true
+	},
+	"x-margin-content": {
+		"paint": "data-lf-margin-content",
+		"message": false
+	},
+	"x-views": {
+		"paint": "data-lf-views",
+		"message": true
+	},
+	"x-visual": {
+		"paint": "data-lf-visual",
+		"presence": true,
+		"message": true
+	},
+	"x-awaits": {
+		"paint": "data-lf-awaits",
+		"presence": true,
+		"message": true
+	}
+};
 
 //#endregion
 //#region runtime/registry-contract.js
@@ -2320,4 +2489,4 @@ function createPresentationSchedule(bindJob) {
 }
 
 //#endregion
-export { AsyncDirective, COLLAPSE, CONTEXT, DRAFT_FORMAT, Directive, J, LitElement, PENDING, PartType, TEXT_BLOCK, W, Z, actionForWidget, anchorKey, authoredRank, bareReaction, bindQueuedWork, cancelWork, carriesObligation, classMap, createPresentationCoordinator, createPresentationSchedule, createRef, createSemanticApplication, d, describeFailure, directive, discussed, drawingSchema, editable, enqueueWork, foldWidgetStates, guard, html, isElementName, isMessageEvent, isNews, isReaction, isThreadEvent, itemNoun, itemOutcome, keyed, lastMovedAt, live, marks, messageKey, moved, noChange, nothing, obligationValue, observeQueuedWork, pendingForParent, projectionOrigins, q, rankAt, reactionsAt, ref, render, repeat, runWork, sameAnchor, seatRoot, share, stateCoordinate, styleMap, threadCounts, threadKey, threadNames, tokenChoices, turns, unsafeHTML, x };
+export { AsyncDirective, COLLAPSE, DRAFT_FORMAT, Directive, J, LitElement, PENDING, PartType, TEXT_BLOCK, W, Z, actionForWidget, anchorKey, authoredRank, bareReaction, bindQueuedWork, cancelWork, carriesObligation, classMap, createPresentationCoordinator, createPresentationSchedule, createRef, createSemanticApplication, d, describeFailure, directive, discussed, drawingSchema, editable, enqueueWork, foldWidgetStates, guard, html, isElementName, isMessageEvent, isNews, isReaction, isThreadEvent, itemNoun, itemOutcome, keyed, lastMovedAt, live, marks, messageKey, moved, noChange, nothing, obligationValue, observeQueuedWork, pendingForParent, projectionOrigins, q, rankAt, reactionsAt, ref, render, repeat, runWork, sameAnchor, seatRoot, share, stateCoordinate, styleMap, threadCounts, threadKey, threadNames, tokenChoices, turns, unsafeHTML, x };

@@ -1313,7 +1313,7 @@ function createSelectionComposer({ setReact, reactionTokens, reactionAvailable, 
 	const saveComposerDraft = (text = syncComposer.value()) => saveDraft(composerCtx(pendingAnchor), text, composerDraftPayload());
 	const composerRecord = (ctx) => {
 		const payload = loadDraftPayload(ctx);
-		return payload?.format === DRAFT_FORMAT ? {
+		return payload?.format === "leaf-draft/17" ? {
 			...payload,
 			text: loadDraft(ctx)
 		} : null;

@@ -1,4 +1,4 @@
-import { CONTEXT, TEXT_BLOCK, Z, anchorKey, isElementName, marks } from "./bundle-browser-runtime.js";
+import { TEXT_BLOCK, Z, anchorKey, isElementName, marks } from "./bundle-browser-runtime.js";
 import { PRESSES, WORKS, afterScript, keeps, layoutPx, move, nativeLayerHolding, nextFrame, nextRender, renderedParent, shadowHost, sizeObserver, under, upFrom } from "./bundle-dom-move.js";
 import { PRESSABLE, clamp, clippedContents, headerCuts, hostIn, inUi, layoutChanged, nearObserver, nearWindow, overlaps, registry, repaintPage, scrollContainer, scrollsContent, shownBox, shownParts, skipped, tagsDeclaring, uiInside, watchArrivals } from "./bundle-errors.js";
 import { documentChanged } from "./bundle-context.js";
@@ -217,7 +217,7 @@ const captionOf = (element) => {
 };
 const accessibleName = (element) => element.getAttribute("aria-label")?.trim() || (element.labels?.[0] ? elementReading(element.labels[0]) : "") || element.alt?.trim() || "";
 const ownName = (element) => addressableName(element) || captionOf(element) || accessibleName(element);
-const saysItself = (element) => element.matches(TEXT_BLOCK) || registry[element.localName]?.["x-word"] === "module" && element.lfSays?.() || [...element.childNodes].some((node) => node.nodeType === Node.TEXT_NODE && node.data.trim());
+const saysItself = (element) => element.matches("p,li,h1,h2,h3,h4,h5,h6,td,th,pre,blockquote,dd,dt,figcaption,summary") || registry[element.localName]?.["x-word"] === "module" && element.lfSays?.() || [...element.childNodes].some((node) => node.nodeType === Node.TEXT_NODE && node.data.trim());
 function addressableLabel(element) {
 	if (!element) return "";
 	const own = ownName(element);
@@ -397,7 +397,7 @@ function anchorForPassage(segments, node) {
 	if (!quote) return { section };
 	const reading = pageText();
 	const [start, stop] = spanIn(reading, segments);
-	for (let width = CONTEXT;; width *= 2) {
+	for (let width = 24;; width *= 2) {
 		const prefix = cut(neighbourhood(reading, start, width, true), -width, Infinity);
 		const suffix = cut(neighbourhood(reading, stop, width, false), 0, width);
 		const anchor = {

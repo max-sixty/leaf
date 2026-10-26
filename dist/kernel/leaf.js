@@ -8001,7 +8001,7 @@ function createObligationView({ prepareNavigationStep, arrive, openPageThread, f
 		return [
 			declared ? context : null,
 			partOver(item),
-			closestAcross(item, TEXT_BLOCK) ?? before.at(-1)
+			closestAcross(item, "p,li,h1,h2,h3,h4,h5,h6,td,th,pre,blockquote,dd,dt,figcaption,summary") ?? before.at(-1)
 		].find(fits) ?? item;
 	}
 	function framed(record, region, item, box, readable) {

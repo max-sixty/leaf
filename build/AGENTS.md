@@ -13,8 +13,9 @@ committed bytes without writing.
 
 After `pnpm install --frozen-lockfile`, a build reproduces the committed bytes, so a
 diff after rebuilding means the lock, a build script, a runtime module or a registry
-input changed. A change to `browser/leaf.js`, or to a `.js` module under its
-`runtime/`, `vendor/` or `widgets/`, takes a rebuild in the same change. Resolve a
+input changed. A change to `browser/leaf.js`, to a `.js` module under its `runtime/`,
+`vendor/` or `widgets/`, or to the kernel registry `runtime/kernel-registry.json`,
+which the kernel compiles in, takes a rebuild in the same change. Resolve a
 kernel file that conflicts in a merge by merging `main` and rebuilding, never by hand.
 
 `package.json` pins each package an entry imports, and the lock pins the rest.

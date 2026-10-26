@@ -4020,10 +4020,9 @@ function activityFacts({ activity }) {
 	const { counts } = activity;
 	return Object.freeze({
 		tone: TONE[activity.kind],
-		work: activity.observed_kind ? WORK_WORDS[activity.observed_kind] : "working",
+		work: (activity.observed_kind ? WORK_WORDS[activity.observed_kind] : "working") + (activity.awaiting ? " in the terminal" : ""),
 		left: Boolean(activity.dropped),
 		silentSince: ago(activity.ts),
-		listening: Boolean(counts.pending || counts.queued),
 		waiting: Object.freeze(phrased(counts, ["queued", "pending"])),
 		owed: Object.freeze(phrased(counts, [
 			"active",
@@ -4048,7 +4047,7 @@ const appendWords = (parts, words, step = false) => {
 	const head = textOf(parts);
 	parts.push({ text: after(head, words, step).slice(head.length) });
 };
-function statusWords({ age, agent, dated, detail, detailSource, handling, invite, kind, listening, overdue, saved, work }) {
+function statusWords({ age, agent, dated, detail, detailSource, handling, invite, kind, overdue, saved, work }) {
 	if (kind === "closed") return [
 		"Page closed",
 		"Page closed",
@@ -4074,11 +4073,7 @@ function statusWords({ age, agent, dated, detail, detailSource, handling, invite
 			detail || !delivered ? "" : "It hasn't said what it's doing yet."
 		];
 	}
-	if (kind === "listening") return listening ? [
-		`${agent} listening`,
-		`${agent} is listening.`,
-		""
-	] : [
+	if (kind === "listening") return [
 		invite,
 		invite,
 		""
@@ -4103,7 +4098,7 @@ function statusWords({ age, agent, dated, detail, detailSource, handling, invite
 		] : [], saved]
 	];
 	return overdue ? [
-		`Nudge ${agent} in terminal`,
+		`Nudge ${agent} in the terminal`,
 		`${dated}. ${saved} Nothing is answering them, so nudge it in the terminal.`,
 		`${dated}. ${saved} Nothing is answering them.`,
 		true
@@ -4168,7 +4163,6 @@ function pageStatus(state, { reach = "reached", fault = null } = {}) {
 		},
 		invite: publication ? `${agent} awaits — comment to revise this copy` : `${agent} awaits — select text to comment`,
 		kind,
-		listening: facts.listening,
 		overdue: activity.counts.overdue,
 		saved,
 		work: facts.work
@@ -4185,7 +4179,6 @@ function pageStatus(state, { reach = "reached", fault = null } = {}) {
 	if (facts.waiting.length && ["working", "listening"].includes(kind)) append(`${facts.waiting.join(" · ")}.`);
 	const actionableWork = activity.awaiting ? activity.observed_kind : null;
 	const waitsThere = Boolean(actionableWork) && kind === "working";
-	if (waitsThere) append("It waits in its own session, not on this page.");
 	return {
 		kind,
 		tone: TONE[kind],
@@ -4271,7 +4264,7 @@ function leafRow(entry) {
 	const since = facts.silentSince ? ` ${facts.silentSince}` : "";
 	const silence = facts.left ? `Turn ended${since}` : since ? `Last checked in${since}` : "No check-in";
 	const work = facts.work.replace(/^./, (letter) => letter.toUpperCase());
-	const primary = kind === "working" ? stated(work) : kind === "listening" ? facts.listening ? "Listening" : "Awaits" : kind === "stalled" ? stated(silence) : kind === "away" ? counts.overdue ? silence : "Away" : kind === "unheld" ? "No session" : "Closed";
+	const primary = kind === "working" ? stated(work) : kind === "listening" ? "Awaits" : kind === "stalled" ? stated(silence) : kind === "away" ? counts.overdue ? silence : "Away" : kind === "unheld" ? "No session" : "Closed";
 	const line = facts.waiting.length ? `${primary} · ${facts.waiting.join(" · ")}` : primary;
 	return {
 		tone: facts.tone,

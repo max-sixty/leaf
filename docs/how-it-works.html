@@ -2027,7 +2027,7 @@ flowchart TD
   Owner --&gt;|otherwise| Work["Work active&lt;br/&gt;Status: Working"]
   Work --&gt;|otherwise| Stale["Takes input, start stale&lt;br/&gt;Status: Turn ended /&lt;br/&gt;last checked in"]
   Stale --&gt;|otherwise| Input["Takes input&lt;br/&gt;Status: Awaits"]
-  Input --&gt;|otherwise| Stalled["Input stalled&lt;br/&gt;Nudge in terminal"]
+  Input --&gt;|otherwise| Stalled["Input stalled&lt;br/&gt;Nudge in the terminal"]
   Stalled --&gt;|otherwise| Away["Status: Away"]
 </pre>
               </lf-diagram>
@@ -2064,18 +2064,21 @@ flowchart TD
                   </td>
                 </tr>
                 <tr id="updates-reading-steps">
-                  <td>Codex thinking, Codex using a tool, Claude waiting for me</td>
                   <td>
-                    The harness reports the session's current activity. Waiting for the
-                    user, for input, or for approval refers to a dialog in the harness's
-                    own window; Leaf announces that wait on the page.
+                    Codex thinking, Codex using a tool, Claude waiting for approval in
+                    the terminal
+                  </td>
+                  <td>
+                    The harness reports the session's current activity. A wait for the
+                    user, for input, or for approval is a dialog in the harness's own
+                    window, so the status says to answer it in the terminal.
                   </td>
                 </tr>
                 <tr id="updates-reading-awaits">
                   <td>Claude awaits — select text to comment</td>
                   <td>
-                    The agent is taking input. While an update is on its way to the
-                    agent it reads <em>Claude listening · 1 waiting</em> instead.
+                    The agent is taking input. An update still on its way to the agent
+                    says so on its own label, and the menu's full status counts it.
                   </td>
                 </tr>
                 <tr id="updates-reading-ended">
@@ -2103,7 +2106,7 @@ flowchart TD
                   </td>
                 </tr>
                 <tr id="updates-reading-nudge">
-                  <td>Nudge Claude in terminal</td>
+                  <td>Nudge Claude in the terminal</td>
                   <td>
                     No integration is receiving updates, and an update has stalled.
                     Sending a message in the agent's terminal starts another turn.

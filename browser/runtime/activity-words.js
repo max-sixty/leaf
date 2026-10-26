@@ -47,18 +47,20 @@ const phrased = (counts, kinds) =>
 // - `left` says the turn's ending retired the belief, and `silentSince` dates the
 //   silence by the reading's own `ts`, which the server already sets to that ending
 //   for a dropped claim.
-// - `listening` is whether input is still on its way to the agent (pending or queued),
-//   which turns a listening page's open request into "listening".
+// - `work` names the step, and where a dialog in the agent's own window holds it
+//   (`awaiting`), that the user answers it in the terminal, since nothing on the page
+//   does.
 // - `waiting` phrases the queued and pending updates, in that order, and `owed` the
 //   other counts, for a seat with room to say them beside `waiting`.
 export function activityFacts({ activity }) {
   const { counts } = activity;
   return Object.freeze({
     tone: TONE[activity.kind],
-    work: activity.observed_kind ? WORK_WORDS[activity.observed_kind] : "working",
+    work:
+      (activity.observed_kind ? WORK_WORDS[activity.observed_kind] : "working") +
+      (activity.awaiting ? " in the terminal" : ""),
     left: Boolean(activity.dropped),
     silentSince: ago(activity.ts),
-    listening: Boolean(counts.pending || counts.queued),
     waiting: Object.freeze(phrased(counts, ["queued", "pending"])),
     owed: Object.freeze(phrased(counts, ["active", "handling", "picked_up"])),
   });
@@ -136,7 +138,6 @@ function statusWords({
   handling,
   invite,
   kind,
-  listening,
   overdue,
   saved,
   work,
@@ -171,11 +172,11 @@ function statusWords({
       detail || !delivered ? "" : "It hasn't said what it's doing yet.",
     ];
   }
-  // The stock words say where a comment starts; they report and ask nothing.
-  if (kind === "listening")
-    return listening
-      ? [`${agent} listening`, `${agent} is listening.`, ""]
-      : [invite, invite, ""];
+  // The stock words say where a comment starts; they report and ask nothing. An
+  // update still on its way says so on its own label and in the explanation's count,
+  // so the line keeps the invitation (the user's choice, 26 October 2026, over a
+  // separate "listening" while one was).
+  if (kind === "listening") return [invite, invite, ""];
   if (kind === "stalled")
     return [
       dated,
@@ -196,7 +197,7 @@ function statusWords({
   // can reach once it has seen the turn end.
   return overdue
     ? [
-        `Nudge ${agent} in terminal`,
+        `Nudge ${agent} in the terminal`,
         `${dated}. ${saved} Nothing is answering them, so nudge it in the terminal.`,
         `${dated}. ${saved} Nothing is answering them.`,
         true,
@@ -299,7 +300,6 @@ export function pageStatus(state, { reach = "reached", fault = null } = {}) {
       ? `${agent} awaits — comment to revise this copy`
       : `${agent} awaits — select text to comment`,
     kind,
-    listening: facts.listening,
     overdue: activity.counts.overdue,
     saved,
     work: facts.work,
@@ -320,10 +320,10 @@ export function pageStatus(state, { reach = "reached", fault = null } = {}) {
   if (facts.waiting.length && ["working", "listening"].includes(kind))
     append(`${facts.waiting.join(" · ")}.`);
   const actionableWork = activity.awaiting ? activity.observed_kind : null;
-  // An approval or a question the agent's own window holds is answered there, and
-  // the page is the one place the user may be looking instead.
+  // An approval or a question the agent's own window holds is answered there, which
+  // the work's words say (`activityFacts`), and the page is the one place the user may
+  // be looking instead, so the status asks.
   const waitsThere = Boolean(actionableWork) && kind === "working";
-  if (waitsThere) append("It waits in its own session, not on this page.");
   return {
     kind,
     tone: TONE[kind],
@@ -440,9 +440,7 @@ export function leafRow(entry) {
     kind === "working"
       ? stated(work)
       : kind === "listening"
-        ? facts.listening
-          ? "Listening"
-          : "Awaits"
+        ? "Awaits"
         : kind === "stalled"
           ? stated(silence)
           : kind === "away"

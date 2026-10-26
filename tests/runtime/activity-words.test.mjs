@@ -135,20 +135,20 @@ test("work waiting in the agent's own session says where it is answered, and is 
   );
   assert.equal(
     status.explanation,
-    "Claude is waiting for approval (just now). It waits in its own session, not on this page.",
+    "Claude is waiting for approval in the terminal (just now)",
   );
   assert.equal(status.actionableWork, "awaiting_approval");
   assert.equal(pageStatus(state({ kind: "working" })).actionableWork, null);
 });
 
-test("listening says where a comment starts until input is on its way", () => {
+test("listening says where a comment starts, with input on its way counted after", () => {
   assert.equal(
     said({ kind: "listening", detail: "" })[0],
     "Claude awaits — select text to comment",
   );
   assert.deepEqual(said({ kind: "listening", detail: "", counts: { pending: 1 } }), [
-    "Claude listening",
-    "Claude is listening. 1 response owed on updates awaiting delivery.",
+    "Claude awaits — select text to comment",
+    "Claude awaits — select text to comment. 1 response owed on updates awaiting delivery.",
   ]);
 });
 
@@ -180,7 +180,7 @@ test("away asks for a nudge only once input is overdue", () => {
   assert.deepEqual(
     said({ kind: "away", dropped: true, ts: minutesAgo(5), counts: { overdue: 1 } }),
     [
-      "Nudge Claude in terminal",
+      "Nudge Claude in the terminal",
       "Claude’s turn ended 5m ago. Updates are saved. Nothing is answering them, so nudge it in the terminal.",
     ],
   );
@@ -392,7 +392,7 @@ test("a leaves row says each kind in a row's words, with the updates still waiti
   assert.equal(row({ kind: "listening", detail: "" }), "Awaits");
   assert.equal(
     row({ kind: "listening", detail: "", counts: { pending: 1 } }),
-    "Listening · 1 response owed on updates awaiting delivery",
+    "Awaits · 1 response owed on updates awaiting delivery",
   );
   assert.equal(
     row({ kind: "stalled", detail: "revising", ts: minutesAgo(20) }),
@@ -425,6 +425,4 @@ test("the facts both seats share count what the agent owes apart from what waits
     "2 responses owed on delivered updates",
     "1 response owed on delivered updates; no current turn observed",
   ]);
-  assert.equal(facts.listening, true);
-  assert.equal(activityFacts(state({})).listening, false);
 });

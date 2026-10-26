@@ -33,8 +33,13 @@ ON_ME = panel_view("queue")
 
 
 def open_on_me(page):
-    """Open On me by its mark, unless it stands open, and return its view."""
-    if page.locator(PANEL).get_attribute("data-open") != "queue":
+    """Open On me by its mark, unless it stands open, and return its view; another
+    view standing open is put away first, by the ✕ in the mark's seat."""
+    shown = page.locator(PANEL).get_attribute("data-open")
+    if shown not in (None, "queue"):
+        page.locator(".lf-fp-close").click()
+        panel_settled(page, open=False)
+    if shown != "queue":
         page.locator(".lf-fp-on-user").click()
     panel_settled(page, view="queue")
     return page.locator(ON_ME)
@@ -113,7 +118,7 @@ def test_on_me_lists_open_and_answered_obligations(browser, serve):
     assert suggestion["said"].startswith("Answered: Accepted"), suggestion
 
     # And closing takes the rest with it, for the reason the docstring gives.
-    page.locator(".lf-fp-on-user").focus()
+    page.locator(".lf-fp-close").focus()
     page.keyboard.press("Enter")
     panel_settled(page, open=False)
     assert page.evaluate(ON_ITEM_SAYS) == [], "a closed view keeps its cards"

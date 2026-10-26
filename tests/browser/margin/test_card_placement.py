@@ -75,12 +75,12 @@ def test_a_thread_card_is_unseen_until_its_first_placement_lands(browser, serve)
         expect(preview).to_contain_text("Check the tools separately.")
         page.keyboard.press("Escape")
         expect(preview).to_be_hidden()
-        page.locator(".lf-fp-threads").focus()
+        page.locator(".lf-fp-on-user").focus()
 
         held.pop(0).continue_()
         rendered(page)
         expect(preview).to_be_hidden()
-        expect(page.locator(".lf-fp-threads")).to_be_focused()
+        expect(page.locator(".lf-fp-on-user")).to_be_focused()
         expect(preview).not_to_have_attribute("data-lf-thread-placement")
 
         first.click()
@@ -689,6 +689,35 @@ def test_a_scroll_that_carries_the_card_only_updates_the_rail_tab_stop(browser, 
         for change in writes
     ), writes
     assert page.evaluate(offset) == pytest.approx(before, abs=0.5)
+
+
+def test_the_rail_tab_stop_follows_a_carried_row_back_into_view(browser, serve):
+    """The rail's one Tab stop is its highest row in view, whichever way the page got
+    there. ship-review's first row stands in a carrier, which the browser moves with
+    the scroll but whose own box reads a frame late: read there, a scroll back to the
+    top left the stop on the second row, below the first, until something else
+    re-read the rail."""
+    example = next(p for p in EXAMPLES if p.stem == "ship-review")
+    page = open_page(browser, serve(example))
+    resized(page, 1200, 900)
+    rendered(page)
+    first = page.locator('[data-lf-margin-for="off-t-resync"] .lf-margin-marker')
+    second = page.locator('[data-lf-margin-for="off-t-vendor"] .lf-margin-marker')
+    assert first.evaluate("row => row.closest('.lf-margin-carrier') !== null"), (
+        "the fixture's first row no longer stands in a carrier"
+    )
+    expect(first).to_have_attribute("tabindex", "0")
+
+    page.mouse.move(300, 300)
+    page.mouse.wheel(0, 600)
+    scroll_settled(page)
+    rendered(page)
+    expect(second).to_have_attribute("tabindex", "0")
+    page.mouse.wheel(0, -600)
+    scroll_settled(page)
+    rendered(page)
+    expect(first).to_have_attribute("tabindex", "0")
+    expect(second).to_have_attribute("tabindex", "-1")
 
 
 @pytest.mark.parametrize("target", ["sec-mounts", "bracket"])

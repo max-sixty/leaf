@@ -239,9 +239,12 @@ change overflow at a breakpoint; Leaf measures the declared surface, never all o
 descendants. Use a bounded reading region for independently scrolling vertical content.
 
 The theme scrolls a `<pre>` or table wider than its container and fits an image or SVG
-to it, so none needs a width. In a table that scrolls sideways, prose wraps a word per
-line. Put identifiers in `<code>`, which can break inside a cell, and keep the columns
-to what fits at the narrowest width the page's readers use. Write each row's name as its
+to it, so none needs a width. A table's columns size to their content, so leave its
+cells' widths and wrapping to the theme too. Text that can't break, such as a bare
+identifier or a cell kept on one line, holds its column at its full length, and once
+the table scrolls sideways, prose in the other columns wraps a word per line. Put
+identifiers in `<code>`, which can break inside a cell, and keep the columns to what
+fits at the narrowest width the page's readers use. Write each row's name as its
 first cell, a `<th scope="row">`, and the names stay in view while the other columns
 scroll.
 

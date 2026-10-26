@@ -89,6 +89,7 @@ from browser.test_render_gate import (
     typed_box_findings,
     unread_syntax,
     unshown_key_findings,
+    untouched_resize_findings,
 )
 
 
@@ -743,7 +744,8 @@ def test_page_fixture_renders(browser, serve, source):
     Resting reads the untouched page, so it goes first, and the framing readings and
     the scroll want the page as a reader first opens it, so they follow. A resize
     starting narrow needs a page that first painted narrow, so that journey gets a
-    page of its own."""
+    page of its own, as does a narrowing no one scrolled before
+    (`untouched_resize_findings`)."""
     url = serve(source)
     revision = latest_revision(serve.page_dir)
     with preview_server(
@@ -782,6 +784,9 @@ def test_page_fixture_renders(browser, serve, source):
         "unread syntax": unread_syntax(page),
         "resized from the narrowest": resize_findings(
             still_page(browser, url, width=RESIZE_PATH[-1]), RESIZE_PATH[::-1]
+        ),
+        "narrowed untouched": untouched_resize_findings(
+            still_page(browser, url, width=RESIZE_PATH[0])
         ),
     }
     failed = {journey: found for journey, found in findings.items() if found}

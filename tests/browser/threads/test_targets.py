@@ -14,6 +14,7 @@ from render_harness import (
     any_owner_entry,
     leaf_page,
     open_page,
+    open_threads,
     panel_settled,
     resized,
     select_words,
@@ -30,7 +31,6 @@ from browser.threads import (
     REPLY_CHANGE,
     append_agent_reply,
     open_panel_thread,
-    open_threads,
     seed_reply,
     thread_row,
 )

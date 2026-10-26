@@ -104,6 +104,7 @@ export function createThreadPreview({
   openPageThread,
   scrollThreadIntoView,
   scrollToElement,
+  openInPanel,
   onClose,
 }) {
   const { targetFor, entryPoint, entryPlace, sourceItem } = inventory;
@@ -135,7 +136,19 @@ export function createThreadPreview({
   previewNext.setAttribute("aria-label", "Next thread");
   previewNext.title = "Next thread";
   previewNav.append(previewPrevious, previewPosition, previewNext);
+  // Open in panel moves the card's thread into the floating panel's view of it, which
+  // reads a long thread wider than the card's room beside the column. The card closes,
+  // so one thread stands open, and the view's Show on page comes back.
+  const previewOpenInPanel = offer(
+    "button",
+    "lf-btn lf-icon-action lf-quiet-action lf-margin-preview-expand",
+  );
+  previewOpenInPanel.type = "button";
+  previewOpenInPanel.append(iconElement("expand", "lf-action-icon"));
+  previewOpenInPanel.setAttribute("aria-label", "Open in panel");
+  previewOpenInPanel.title = "Open in panel";
   const previewList = el("div", "lf-margin-preview-list");
+  let dismiss = () => {};
   // Carried by its grip, the card stands where the user drops it, relative to what it is
   // about, at the width it was carried at, until its placement chooses afresh.
   const carry = surfaceGrip({
@@ -761,11 +774,19 @@ export function createThreadPreview({
       const body = el("div", "lf-margin-thread-body");
       node.append(body);
     }
+    const shownThread = sourceItem(item).thread;
+    // The panel's view carries the reply being written along from the closed card
+    // (thread/replies.js, `carry`).
+    previewOpenInPanel.onclick = () => {
+      dismiss();
+      openInPanel(shownThread.id);
+    };
     renderMarginThread(
       node.querySelector(":scope > .lf-margin-thread-body"),
-      sourceItem(item).thread,
+      shownThread,
       {
         nav: previewNav.hidden ? null : previewNav,
+        expand: previewOpenInPanel,
         close: previewClose,
         anchor: previewSession.anchor,
         // A resolved thread with no draft has no margin card, so resolving closes it and
@@ -941,6 +962,7 @@ export function createThreadPreview({
   }
 
   function mount(onDismiss) {
+    dismiss = onDismiss;
     previewClose.onclick = onDismiss;
     previewPrevious.onclick = () => stepPreviewThread(-1);
     previewNext.onclick = () => stepPreviewThread(1);

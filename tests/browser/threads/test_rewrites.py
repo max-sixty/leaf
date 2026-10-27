@@ -372,7 +372,9 @@ def test_a_rewrite_is_the_reply_box_where_the_words_stood(browser, serve, surfac
         first_line,
     )
     unmoved()
-    field = message.locator(".lf-msg-editor > .lf-compose-field").bounding_box()
+    field = message.locator(
+        ".lf-msg-editor > leaf-composition-field > .lf-compose-field"
+    ).bounding_box()
     reply_field = reply_row(page, thread).locator(".lf-compose-field").bounding_box()
     # The panel's reply box stands in its field, under the view and across the row, so
     # there the rewrite takes its height alone; Feed draws its reply box at the part's
@@ -722,6 +724,43 @@ def test_an_emptied_rewrite_keeps_nothing(browser, serve):
     expect(message.locator(".lf-msg-kept")).to_have_count(0)
     words.dblclick()
     expect(editor).to_have_js_property("value", "Fit the north bracket.")
+
+
+def test_a_discarded_rewrite_comes_back(browser, serve):
+    """Escape throws a rewrite's changed words away, so an accidental press lost a long
+    rewrite for good. Restore discarded edit opens the message on those exact words
+    again, without sending them, by `g D`; Save then sends them as any rewrite, and nothing is left to restore."""
+    page, _, message = _rewrite_surface(browser, serve, "panel")
+    editor = message.locator(".lf-msg-editor leaf-text")
+    rewritten = "  Fit both brackets and keep the longer explanation.  "
+
+    def edits():
+        return [
+            e["text"]
+            for e in events_model.read_events(serve.page_dir)
+            if e["kind"] == "edit"
+        ]
+
+    message.locator(".lf-msg-text").dblclick()
+    write(editor, rewritten)
+    page.keyboard.press("Escape")
+    expect(editor).to_have_count(0)
+    expect(message.locator(".lf-msg-text")).to_have_text("Fit the north bracket.")
+    page.keyboard.press("Escape")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+d")
+    expect(editor).to_be_focused()
+    expect(editor).to_have_js_property("value", rewritten)
+    expect(editor).to_have_js_property("selectionStart", len(rewritten))
+    assert edits() == []
+    message.get_by_role("button", name="Save", exact=True).click()
+    round_trip(page)
+    expect(editor).to_have_count(0)
+    assert edits() == [rewritten]
+    page.keyboard.press("Escape")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+d")
+    expect(editor).to_have_count(0)
 
 
 def test_a_rewrite_saves_its_exact_words(browser, serve):

@@ -1,21 +1,12 @@
-import { Z, bindQueuedWork, d, q, x } from "./bundle-signals-core.js";
-import { TEXT_FIELD, afterScript, byRenderedOrder, canPlaceFocus, closeLayer, composedParentNode, deepFocus, drawn, focusDestination, focused, frameVisibility, handBack, holdFocus, holdRendering, inputCount, isNativeLayer, keeps, keepsHidden, move, nextRender, onCurrentLocation, onFrameVisibility, onUserInput, openLayer, openerOf, readSampleVisibility, renderedOrder, renderedParent, renderedUnder, shadowHost, sizeObserver, takesLetters, under, upFrom, whenLeft } from "./bundle-dom-move.js";
-import { admitResponse, completeData, countTraffic, dataHeaders, layerHeaders, postEvent, randomId, recordInteraction, removeRuntimeRootStyle, reportCarried, reportPageError, sameLayer, sessionIsActive, setRuntimeRootStyle, watchPendingTraffic } from "./bundle-layer-client.js";
-import { clamp, clippedContents, clipsPastSurfaces, closeNativeLayer, growthIsSeen, hasArea, intersect, layoutWindow, matchesWhen, placeBox, placeHolder, presented, registry, seenRect, shadowRootsIn, showNativeLayer, shownWindow, tagsDeclaring, union, watchOwner, watchRoom, whenNone, whileConnected } from "./bundle-geometry.js";
-import { DRAFT_FORMAT, LitElement, PENDING, PRESENTATION_DOM, actionForWidget, anchorKey, annotationMode, applicationPresenter, applicationState, attachApplicationPresentation, attachWidgetPresentation, discussed, documentChanged, drawingSchema, editable, isMessageEvent, isThreadEvent, moved, offlineInteractive, offlineState, pageUrl, presentDocument, projectionOrigins, queueWidgetUpdate, reactionsAt, readApplication, readPart, render, runtime, setPresentationFailureReporter, stateCoordinate, threadKey, tokenChoices, turns, watchPresentation, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented } from "./bundle-context.js";
-import { PRESS, TEXT_ENTRY, announce, claimsEsc, cycledRow, el, generatedElement, holdingError, keys, notice, offer, offerAction, paintKeys, paintKeysWithin, raiseError, repaint, responseAction, reveal as reveal$1, rowArrows, savedReadingSettled, saying } from "./bundle-errors.js";
-import { activityTransitionDue, ago, markStateApplied, moveScrollerBy, observeServerNow, observeWorkingGrace, reachScrollers, readingRegionFor, saidNow, settlePageInterface, syncLayoutRegion, tickClock } from "./bundle-reading-regions.js";
-import { awaitsData, bindsInput, comparisonBase, comparisonChanges, createProjectionPresentation, dataReader, inlineComparison, joinDataDelivery, suppliedSnapshot, toggleInlineComparison } from "./bundle-data.js";
+import { TEXT_FIELD, Z, afterScript, bindQueuedWork, byRenderedOrder, canPlaceFocus, closeLayer, composedParentNode, d, deepFocus, drawn, focusDestination, focused, frameVisibility, handBack, holdFocus, holdRendering, inputCount, isNativeLayer, keeps, keepsHidden, keepsText, move, nextRender, onCurrentLocation, onFrameVisibility, onUserInput, openLayer, openerOf, q, readSampleVisibility, renderedOrder, renderedParent, renderedUnder, shadowHost, sizeObserver, takesLetters, under, upFrom, whenLeft, x } from "./bundle-dom-move.js";
+import { PRESS, TEXT_ENTRY, admitResponse, announce, claimsEsc, commandAvailable, commandBinding, commandRoutes, completeData, controlAvailabilityOutput, countTraffic, cycledRow, dataHeaders, el, elementDirective, generatedElement, holdingError, iconTemplate, isCommandScope, keys, layerHeaders, notice, offer, offerAction, paintKeys, paintKeysWithin, postEvent, pressIsKeyboardActivation, projectCommandScope, raiseError, randomId, recordInteraction, removeRuntimeRootStyle, repaint, reportCarried, reportPageError, responseAction, reveal, rowArrows, sameLayer, savedReadingSettled, saying, sessionIsActive, setRuntimeRootStyle, watchCommandAvailability, watchPendingTraffic } from "./bundle-layer-client.js";
+import { DRAFT_FORMAT, LitElement, PENDING, PRESENTATION_DOM, actionForWidget, anchorKey, annotationMode, applicationPresenter, applicationState, attachApplicationPresentation, attachWidgetPresentation, clamp, clippedContents, clipsPastSurfaces, closeNativeLayer, discussed, documentChanged, drawingSchema, editable, growthIsSeen, hasArea, html, intersect, isMessageEvent, isThreadEvent, layoutWindow, matchesWhen, moved, offlineInteractive, offlineState, pageUrl, placeBox, placeHolder, presentDocument, presented as presented$1, projectionOrigins, queueWidgetUpdate, reactionsAt, readApplication, readPart, regionCommitted, registry, render, runtime, seenRect, setPresentationFailureReporter, shadowRootsIn, showNativeLayer, shownWindow, stateCoordinate, tagsDeclaring, threadKey, tokenChoices, turns, union, watchOwner, watchPresentation, watchRoom, whenApplicationRegionsPresented, whenDocumentPresented, whenNone, whenWidgetsPresented, whileConnected } from "./bundle-geometry.js";
+import { activityTransitionDue, addressableLabel, addressableWord, afterPresentation, ago, anchorForRange, anchoringIsReady, commitPoint, declaredName, livePoint, markStateApplied, moveScrollerBy, observeServerNow, observeWorkingGrace, reachScrollers, readingRegionFor, saidNow, scheduleMarginContentLayout, sectionOf, settlePageInterface, syncLayoutRegion, targetSegments, tickClock, visualPartLabel, widgetWord } from "./bundle-content-layout.js";
+import { HOLDS_WORD, HeldNews, MessageView, SAYS_IN, THREAD, ThreadView, Transcript, aborted, allButCommandReference, allThreads, anchorLabel, answeredInWords, authoredHolder, authoredStates, awaitsData, beginThreadSeats, beginWalk, bindsInput, bringBackSurfaceOf, claimed, clearDraft, commitThreadSeats, commitWidgetDescriptors, comparisonBase, comparisonChanges, completeReadingReturn, createProjectionPresentation, createReplyView, dataReader, declareSide, descriptorStillMatches, dismissReplyAt, draftContexts, drawnThreadId, failSoft, failSoftUnreported, focusThread, focusedThreadTarget, heldOut, heldThread, holdReplyCompositions, holdThreadPlace, importWidgets, inlineComparison, isPageWidgetWorkflow, isWorkflowProgress, joinDataDelivery, keepRefusedWords, listWalkPosition, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, messageHolding, messageReading, messageText, mountFirstMessage, newsNotice, obligationHolding, obligationPlace, once, openMessageEditIn, orderChildren, pageCommand, pageScope, pageSelection, placeOf as placeOf$1, placePageThreads as placePageThreads$1, placedMarkdownTokens, placesFailure, prepareAuthoredMessage, progressFace, quoted as quoted$1, readObligations, readThreads, readingReturn, registerWritingDestination, rememberWriting, renderMarginThread, renderSeats, renderSurfaces, replyAvailable, replyDraftContext, replyThreadKey, reportFailure, retainThreadSeats, revealHeld, saveDraft, sendLanding, sendMessage, setChildren, settleAcceptedDrafts, showHeld, showHeldThread, strongestWorkflow, suppliedSnapshot, surfaceFocusTarget, threadAttention, threadDraft, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading as threadReading$1, threadReplyInput, threadRewrites, threadState, todoLabel, toggleInlineComparison, transferDraft, watchDraft, watchDrafts, watchThreadSurfaces, wholeThread, widgetDescriptor, workflowLabel } from "./bundle-data.js";
 import { closestAcross, elementById, excerptWords, inChrome, labelWords, leafSurface, pageParts, pageReadingVersion, quoteFrom, textNodesUnder } from "./bundle-passages.js";
-import { addressableLabel, addressableWord, anchorForRange, anchoringIsReady, commitPoint, declaredName, livePoint, scheduleMarginContentLayout, sectionOf, targetSegments, visualPartLabel, widgetWord } from "./bundle-content-layout.js";
 import { alreadyShown, fitsWhole, restrictUserIntent, retainUserIntent, scrollIntoReadingBand, scrollIntoView } from "./bundle-copy-control.js";
-import { HOLDS_WORD, HeldNews, MessageView, SAYS_IN, THREAD, ThreadView, Transcript, allButCommandReference, allThreads, anchorLabel, answeredInWords, authoredHolder, beginThreadSeats, beginWalk, bringBackSurfaceOf, claimed, clearDraft, commitThreadSeats, completeReadingReturn, createReplyView, declareSide, dismissReplyAt, draftContexts, drawnThreadId, focusThread, focusedThreadTarget, heldOut, heldThread, holdReplyCompositions, holdThreadPlace, importWidgets, isPageWidgetWorkflow, isWorkflowProgress, keepRefusedWords, listWalkPosition, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, messageHolding, messageReading, messageText, mountFirstMessage, newsNotice, obligationHolding, obligationPlace, openMessageEditIn, pageCommand, pageScope, pageSelection, placeOf as placeOf$1, placePageThreads as placePageThreads$1, placedMarkdownTokens, prepareAuthoredMessage, readObligations, readThreads, readingReturn, registerWritingDestination, rememberWriting, renderMarginThread, renderSeats, renderSurfaces, replyAvailable, replyDraftContext, replyThreadKey, retainThreadSeats, revealHeld, saveDraft, sendLanding, sendMessage, settleAcceptedDrafts, showHeld, showHeldThread, strongestWorkflow, surfaceFocusTarget, threadDraft, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading, threadReplyInput, threadRewrites, threadState, todoLabel, transferDraft, watchDraft, watchDrafts, watchThreadSurfaces, wholeThread, workflowLabel } from "./bundle-surfaces.js";
-import { aborted, authoredStates, commitWidgetDescriptors, descriptorStillMatches, failSoft, failSoftUnreported, once, orderChildren, placesFailure, quoted as quoted$1, reportFailure, setChildren, widgetDescriptor } from "./bundle-abort.js";
-import { scrollBehavior } from "./bundle-motion.js";
-import { isCanonicalMediaUrl, scopedMediaUrl } from "./bundle-media.js";
-import { KINDS, activateContributionControl, annotationItems, clearContributionControls, compareContributions, contributionControlKey, contributionEntries, contributionEntryRecord, contributionSource, entryControls, marginInventory, materializeContributionControls, presentContributionReceipts, presentingContributions, registerContribution, spokenSubject, threadMarks, watchContributions } from "./bundle-margin-model.js";
+import { agentArrivalDuration, isCanonicalMediaUrl, reducedMotion, scopedMediaUrl, scrollBehavior } from "./bundle-media.js";
 import { visibleTargetParts } from "./bundle-visible-target-parts.js";
-import { Compartment, Decoration, Direction, EditorState, EditorView, LanguageSupport, StateEffect, ViewPlugin, WidgetType, history, historyKeymap, insertNewlineContinueMarkup, invertedEffects, isolateHistory, keymap, markdownLanguage, standardKeymap } from "/vendor/codemirror.esm.js";
 
 //#region runtime/pending/state.js
 function createPendingLedger({ newAttempt, enqueue }) {
@@ -259,6 +250,803 @@ async function deliverBookkeeping(event, applyState) {
 }
 
 //#endregion
+//#region runtime/contribution-model.js
+const entryRecords = /* @__PURE__ */ new WeakSet();
+const isContributionEntry = (entry) => entryRecords.has(entry);
+const CONTRIBUTION_ENTRY_SCHEMA = Object.freeze({
+	tones: Object.freeze([
+		"neutral",
+		"positive",
+		"negative"
+	]),
+	behaviors: Object.freeze([
+		"action",
+		"disclosure",
+		"status"
+	]),
+	states: Object.freeze([
+		"idle",
+		"engaged",
+		"busy",
+		"failed"
+	]),
+	ranks: Object.freeze([
+		"complete",
+		"escape",
+		"primary",
+		"secondary",
+		"reading",
+		"overflow"
+	])
+});
+const TONES = new Set(CONTRIBUTION_ENTRY_SCHEMA.tones);
+const BEHAVIORS = new Set(CONTRIBUTION_ENTRY_SCHEMA.behaviors);
+const STATES = new Set(CONTRIBUTION_ENTRY_SCHEMA.states);
+const RANKS = new Set(CONTRIBUTION_ENTRY_SCHEMA.ranks);
+const STATE_PRIORITY = /* @__PURE__ */ new Map([
+	["failed", 0],
+	["busy", 1],
+	["engaged", 2],
+	["idle", 3]
+]);
+const RANK_PRIORITY = /* @__PURE__ */ new Map([
+	["complete", 0],
+	["escape", 1],
+	["primary", 2],
+	["secondary", 3],
+	["reading", 4],
+	["overflow", 5]
+]);
+const ENTRY_OPTIONS = /* @__PURE__ */ new Set([
+	"key",
+	"glyph",
+	"icon",
+	"label",
+	"accessibleLabel",
+	"context",
+	"description",
+	"behavior",
+	"tone",
+	"rank",
+	"state",
+	"visible",
+	"disabled",
+	"count",
+	"pressed",
+	"workflowReceipt",
+	"relation",
+	"activation",
+	"title",
+	"className",
+	"scope"
+]);
+const KINDS = Object.freeze(Object.fromEntries(Object.entries({
+	action: {
+		label: "Action",
+		icon: "dot",
+		priority: -1
+	},
+	change: {
+		label: "Change",
+		icon: "change",
+		priority: 0
+	},
+	restated: {
+		label: "Rewritten",
+		icon: "change",
+		priority: 0,
+		indication: true
+	},
+	comment: {
+		label: "Thread",
+		icon: "comment",
+		priority: 1
+	},
+	"on-me": {
+		label: "On me",
+		icon: "question",
+		priority: 2
+	},
+	sent: {
+		label: "Saved",
+		icon: "sent",
+		priority: 3,
+		indication: true
+	},
+	queued: {
+		label: "Up next",
+		icon: "pickup",
+		priority: 3,
+		indication: true
+	},
+	pickup: {
+		label: "Got it",
+		icon: "pickup",
+		priority: 3,
+		indication: true
+	},
+	waiting: {
+		label: "Stalled update",
+		icon: "waiting",
+		priority: 3,
+		indication: true
+	},
+	user: {
+		label: "My change",
+		icon: "change",
+		priority: 4,
+		indication: true
+	},
+	reported: {
+		label: "Reported state",
+		icon: "activity",
+		priority: 4,
+		indication: true
+	},
+	activity: {
+		label: "Working",
+		icon: "activity",
+		priority: 4
+	}
+}).map(([kind, face]) => [kind, Object.freeze(face)])));
+const READING_OPTIONS = /* @__PURE__ */ new Set([
+	"kind",
+	"subject",
+	"state",
+	"side",
+	"notice",
+	"entries",
+	"readings"
+]);
+const text$1 = (value) => String(value ?? "").trim();
+const unknownOptions = (offered, allowed, kind) => {
+	const unknown = Object.keys(offered).filter((key) => !allowed.has(key));
+	if (unknown.length) throw new TypeError(`Unknown contribution ${kind} option: ${unknown.sort().join(", ")}`);
+};
+const freezeRelation = (relation) => {
+	if (relation == null) return null;
+	if (relation.kind === "entries") {
+		const keys = relation.keys?.map(text$1).filter(Boolean) ?? [];
+		if (!keys.length) throw new TypeError("A contribution entry relation needs at least one entry key");
+		return Object.freeze({
+			kind: "entries",
+			keys: Object.freeze(keys),
+			expanded: Boolean(relation.expanded)
+		});
+	}
+	if (relation.kind === "element") {
+		const id = text$1(relation.id);
+		if (!id) throw new TypeError("A margin element relation needs an id");
+		return Object.freeze({
+			kind: "element",
+			id,
+			expanded: Boolean(relation.expanded),
+			popup: relation.popup == null ? null : text$1(relation.popup)
+		});
+	}
+	throw new TypeError(`Unknown contribution entry relation: ${String(relation.kind)}`);
+};
+function contributionEntry$1(offered) {
+	unknownOptions(offered, ENTRY_OPTIONS, "entry");
+	const { key, glyph = null, icon = null, label, accessibleLabel = null, context = null, description = null, behavior = "action", tone = "neutral", rank = "primary", state = "idle", visible = true, disabled = false, count = 1, pressed = null, workflowReceipt = void 0, relation = null, activation = key, title = null, className = null, scope = null } = offered;
+	if (!text$1(key)) throw new TypeError("A contribution entry needs a key");
+	if (Boolean(text$1(glyph)) === Boolean(icon)) throw new TypeError("A contribution entry needs exactly one glyph or icon");
+	if (!text$1(label)) throw new TypeError("A contribution entry needs a label");
+	if (!TONES.has(tone)) throw new TypeError(`Unknown contribution entry tone: ${tone}`);
+	if (!BEHAVIORS.has(behavior)) throw new TypeError(`Unknown contribution entry behavior: ${behavior}`);
+	if (!RANKS.has(rank)) throw new TypeError(`Unknown contribution entry rank: ${rank}`);
+	if (!STATES.has(state)) throw new TypeError(`Unknown contribution entry state: ${state}`);
+	if (!Number.isSafeInteger(count) || count < 0) throw new TypeError("A contribution entry count must be a non-negative integer");
+	if (behavior !== "status" && !text$1(activation)) throw new TypeError("An actionable contribution entry needs an activation");
+	if (behavior === "status" && scope != null) throw new TypeError("A status contribution entry cannot have a command scope");
+	const record = Object.freeze({
+		key: text$1(key),
+		glyph: glyph == null ? null : String(glyph),
+		icon,
+		label: text$1(label),
+		accessibleLabel: text$1(accessibleLabel) || text$1(label),
+		context: text$1(context) || null,
+		description: text$1(description) || null,
+		behavior,
+		tone,
+		rank,
+		state,
+		visible: Boolean(visible),
+		disabled: Boolean(disabled),
+		count,
+		pressed: pressed == null ? null : Boolean(pressed),
+		workflowReceipt,
+		relation: freezeRelation(relation),
+		activation: behavior === "status" ? null : text$1(activation),
+		title: text$1(title) || null,
+		className: text$1(className) || null
+	});
+	entryRecords.add(record);
+	return record;
+}
+function normalizeContributionReading(reading, owner) {
+	unknownOptions(reading, READING_OPTIONS, "contribution");
+	const { kind = null, subject = null, state = "idle", side = "before", notice = null, entries = [], readings = [] } = reading;
+	if (!STATES.has(state)) throw new TypeError(`Unknown contribution state: ${state}`);
+	if (kind != null && !Object.hasOwn(KINDS, kind)) throw new TypeError(`Unknown contribution kind "${kind}" in contribution "${owner}"`);
+	if (side !== "before" && side !== "after") throw new TypeError(`Unknown contribution side: ${side}`);
+	const keys = /* @__PURE__ */ new Set();
+	const normalizedEntries = entries.map((entry) => {
+		const normalized = entryRecords.has(entry) ? entry : contributionEntry$1(entry);
+		if (keys.has(normalized.key)) throw new TypeError(`Duplicate contribution entry key "${normalized.key}" in contribution "${owner}"`);
+		keys.add(normalized.key);
+		const owned = Object.freeze({
+			...normalized,
+			owner
+		});
+		entryRecords.add(owned);
+		return owned;
+	});
+	const ids = /* @__PURE__ */ new Set();
+	for (const item of readings) {
+		if (typeof item.id !== "string" || !item.id.trim() || ids.has(item.id)) throw new TypeError(`Contribution reading IDs must be nonempty and unique in contribution "${owner}"`);
+		ids.add(item.id);
+	}
+	const normalizedNotice = notice == null ? null : Object.freeze({
+		text: text$1(notice.text),
+		tone: text$1(notice.tone) || "negative"
+	});
+	return Object.freeze({
+		kind: text$1(kind) || null,
+		subject: text$1(subject) || null,
+		state,
+		side,
+		notice: normalizedNotice,
+		entries: Object.freeze(normalizedEntries),
+		readings: Object.freeze(readings.map(({ activate, ...item }) => Object.freeze(item)))
+	});
+}
+const contributionEntryStateRank = (state) => STATE_PRIORITY.get(state);
+const contributionState = (offered) => offered.reading.state;
+function compareContributions(left, right) {
+	return STATE_PRIORITY.get(left.reading.state) - STATE_PRIORITY.get(right.reading.state) || left.key.localeCompare(right.key);
+}
+function compareContributionEntryRecords(left, right) {
+	const state = STATE_PRIORITY.get(left.offered.reading.state) - STATE_PRIORITY.get(right.offered.reading.state);
+	if (state) return state;
+	const rank = RANK_PRIORITY.get(left.record.rank) - RANK_PRIORITY.get(right.record.rank);
+	if (rank) return rank;
+	return left.offered.key.localeCompare(right.offered.key) || left.record.key.localeCompare(right.record.key);
+}
+const visibleContributionEntryLabel = ({ behavior, label }) => behavior !== "disclosure" || /[…?]$/.test(label) ? label : `${label}…`;
+const contributionItemKey = (item) => JSON.stringify([item.owner ?? null, item.id]);
+const SPOKEN_SUBJECT_CAP = 120;
+const spokenSubject = (value) => excerptWords(value, SPOKEN_SUBJECT_CAP);
+
+//#endregion
+//#region runtime/contribution-controls.js
+const commandScopes = /* @__PURE__ */ new WeakMap();
+const commandEntries = /* @__PURE__ */ new WeakSet();
+const contributionOwnsCommand = (record) => commandEntries.has(record);
+const CONTRIBUTION_ENTRY = Symbol("contribution entry");
+function bindScope(record, declared) {
+	const scope = commandScopes.get(declared) ?? declared.scope;
+	if (scope != null) commandScopes.set(record, scope);
+	if (contributionOwnsCommand(declared)) commandEntries.add(record);
+	return record;
+}
+function contributionEntry(offered) {
+	const scope = commandScopes.get(offered) ?? offered.scope;
+	if (scope != null && !isCommandScope(scope)) throw new TypeError("A margin entry scope needs a commandScope capability");
+	const command = entryCommand(scope, offered.activation);
+	if (command) commandEntries.add(offered);
+	return bindScope(contributionEntry$1(contributionOwnsCommand(offered) ? {
+		...offered,
+		disabled: commandDisabled(scope, command)
+	} : offered), offered);
+}
+function contributionCommand(record) {
+	if (!contributionOwnsCommand(record)) return null;
+	return entryCommand(commandScopes.get(record), record.activation);
+}
+function contributionCommandDisabled(record) {
+	const scope = commandScopes.get(record);
+	const command = contributionCommand(record);
+	return contributionOwnsCommand(record) && commandDisabled(scope, command);
+}
+const commandDisabled = (scope, command) => Boolean(!command || scope.scope.when && !scope.scope.when() || !commandAvailable(command.row, command.route));
+function entryCommand(scope, id) {
+	for (const row of scope?.scope.rows ?? []) {
+		if (!row.run) continue;
+		const routes = commandRoutes(row);
+		if (!routes.length && row.id === id) return {
+			row,
+			route: null,
+			binding: commandBinding(row)
+		};
+		const route = routes.find((route) => route.id === id);
+		if (route) return {
+			row,
+			route,
+			binding: commandBinding(row, route)
+		};
+	}
+	return null;
+}
+function normalizeReading(reading, owner, previous = null) {
+	const priorEntries = new Map((previous?.entries ?? []).map((entry) => [entry.key, entry]));
+	const entries = (reading.entries ?? []).map((entry) => {
+		const prior = priorEntries.get(entry.key);
+		if (contributionOwnsCommand(prior) && entry.activation === prior.activation && (commandScopes.get(entry) ?? entry.scope) === commandScopes.get(prior)) commandEntries.add(entry);
+		if (!isContributionEntry(entry)) return contributionEntry(entry);
+		if (!contributionOwnsCommand(entry)) return entry;
+		const { owner: _owner, ...fields } = entry;
+		const declaration = {
+			...fields,
+			scope: commandScopes.get(entry)
+		};
+		commandEntries.add(declaration);
+		return contributionEntry(declaration);
+	});
+	const normalized = normalizeContributionReading({
+		...reading,
+		entries
+	}, owner);
+	normalized.entries.forEach((entry, index) => bindScope(entry, entries[index]));
+	return normalized;
+}
+const contributionControls = /* @__PURE__ */ new WeakMap();
+let relationOrdinal = 0;
+const presented = /* @__PURE__ */ new WeakMap();
+const records = /* @__PURE__ */ new WeakMap();
+const controlContributions = /* @__PURE__ */ new WeakMap();
+const contributorClasses = /* @__PURE__ */ new WeakMap();
+function createContributionControl(record, className = "") {
+	return offer(record.behavior === "status" ? "span" : "button", className);
+}
+const contributionControlMatches = (control, record) => record.behavior === "status" ? control instanceof HTMLSpanElement : control instanceof HTMLButtonElement;
+function contributionEntryRecord(control) {
+	const record = records.get(control);
+	if (!record) throw new TypeError("A presented margin control needs a margin entry record");
+	return record;
+}
+function contributionControlKey(control) {
+	const { owner, key } = contributionEntryRecord(control);
+	return JSON.stringify([owner, key]);
+}
+function contributionEntrySource(control) {
+	const offered = controlContributions.get(control);
+	if (!offered) return null;
+	return offered.source();
+}
+const agentWorkflowDescriptions = /* @__PURE__ */ new WeakMap();
+const claimArrivals = /* @__PURE__ */ new Map();
+const controlArrivals = /* @__PURE__ */ new WeakMap();
+function agentWorkflowDescription(control) {
+	let reading = agentWorkflowDescriptions.get(control);
+	if (!reading) {
+		reading = {
+			description: control.getAttribute("aria-description"),
+			title: control.getAttribute("title"),
+			stage: null,
+			word: null,
+			detail: null
+		};
+		agentWorkflowDescriptions.set(control, reading);
+	}
+	return reading;
+}
+function syncAgentArrival(control, claim, stage) {
+	if (stage !== "working") {
+		control.removeAttribute("data-lf-agent-arrival");
+		return;
+	}
+	if (!claimArrivals.has(claim)) claimArrivals.set(claim, performance.now());
+	const elapsed = performance.now() - claimArrivals.get(claim);
+	if (controlArrivals.get(control) === claim) return;
+	controlArrivals.set(control, claim);
+	if (elapsed >= agentArrivalDuration() || reducedMotion()) return;
+	control.style.setProperty("--lf-agent-arrival-delay", `${-elapsed}ms`);
+	keeps(control, "data-lf-agent-arrival", "1");
+	control.addEventListener("animationend", () => control.removeAttribute("data-lf-agent-arrival"), { once: true });
+}
+function paintAgentDescription(control) {
+	const reading = agentWorkflowDescriptions.get(control);
+	if (!reading) {
+		control.removeAttribute("aria-description");
+		control.removeAttribute("title");
+		paintLabelMore(control, null);
+		return;
+	}
+	const record = records.get(control);
+	paintLabelMore(control, [
+		reading.title !== record?.label && reading.title,
+		reading.stage && reading.word,
+		reading.stage && reading.detail
+	].filter(Boolean).join(" · "));
+	if (!reading.stage) {
+		for (const [attribute, value] of [["aria-description", reading.description], ["title", reading.title]]) keeps(control, attribute, value);
+		return;
+	}
+	const work = [reading.word, reading.detail].filter(Boolean).join(" · ");
+	keeps(control, "aria-description", [reading.description, work].filter(Boolean).join(" · "));
+	keeps(control, "title", [
+		record?.title ?? record?.label,
+		reading.title !== (record?.title ?? record?.label) && reading.title,
+		work
+	].filter(Boolean).join(" · "));
+}
+function paintLabelMore(control, more) {
+	const line = control.querySelector(":scope > .lf-margin-entry-label > .lf-margin-entry-more");
+	if (line) keepsText(line, more ?? "");
+}
+function syncAgentDescriptionBase(control, description, title) {
+	Object.assign(agentWorkflowDescription(control), {
+		description,
+		title
+	});
+	paintAgentDescription(control);
+}
+function syncContributionAgentWorkflow(control, receipt) {
+	const paintedStage = progressFace(receipt);
+	syncAgentArrival(control, receipt && JSON.stringify([
+		receipt.subject.kind,
+		receipt.subject.id,
+		receipt.id
+	]), paintedStage);
+	const reading = agentWorkflowDescription(control);
+	keeps(control, "data-lf-agent-workflow", paintedStage || null);
+	Object.assign(reading, paintedStage ? {
+		stage: paintedStage,
+		word: workflowLabel(receipt),
+		detail: receipt.detail
+	} : {
+		stage: null,
+		word: null,
+		detail: null
+	});
+	paintAgentDescription(control);
+}
+function syncContributionSelection(control, selected) {
+	control.toggleAttribute("data-lf-target-selected", Boolean(selected));
+}
+function syncContributionTurn(control, awaitsUser) {
+	keeps(control, "data-lf-turn", awaitsUser ? "user" : null);
+}
+function syncContributionUnread(control, count) {
+	control.toggleAttribute("data-lf-unread", Boolean(count));
+}
+function presentContributionHost(control, offered, { accessibleLabel = null, relatedControlIds = [], writesRelation = true, writesSeat = true } = {}) {
+	const record = isContributionEntry(offered) ? offered : contributionEntry(offered);
+	if (control instanceof HTMLButtonElement && record.behavior === "status") throw new TypeError("A status margin entry needs a stable span host");
+	controlAvailabilityOutput(control, CONTRIBUTION_ENTRY, contributionOwnsCommand(record) ? {
+		disabled: control instanceof HTMLButtonElement,
+		ariaDisabled: true
+	} : null);
+	records.set(control, record);
+	keeps(control, "data-lf-margin-entry-key", record.key);
+	keeps(control, "data-lf-margin-entry-owner", record.owner || null);
+	keeps(control, "data-lf-margin-entry-identity", JSON.stringify([record.owner, record.key]));
+	keeps(control, "data-lf-behavior", record.behavior);
+	keeps(control, "data-lf-tone", record.tone);
+	keeps(control, "data-lf-rank", record.rank);
+	keeps(control, "data-lf-state", record.state);
+	keeps(control, "data-lf-offer", record.behavior === "status" ? "" : "button");
+	keeps(control, "aria-pressed", record.pressed);
+	keeps(control, "aria-busy", record.state === "busy" ? "true" : null);
+	const relation = record.relation;
+	if (writesRelation) {
+		keeps(control, "aria-expanded", record.behavior === "disclosure" ? relation?.expanded ?? false : null);
+		keeps(control, "aria-controls", relation?.kind === "element" ? relation.id : relation?.kind === "entries" && relatedControlIds.length ? relatedControlIds.join(" ") : null);
+		keeps(control, "aria-haspopup", relation?.popup || null);
+	}
+	if (control instanceof HTMLButtonElement) {
+		const wasStatus = control.getAttribute("role") === "status";
+		control.removeAttribute("role");
+		if (writesSeat && wasStatus) control.removeAttribute("tabindex");
+		if (control.type !== "button") control.type = "button";
+		if (control.disabled) control.disabled = false;
+		keeps(control, "aria-disabled", record.disabled);
+	} else if (record.behavior === "status") {
+		keeps(control, "role", "status");
+		control.removeAttribute("aria-disabled");
+		if (writesSeat) keeps(control, "tabindex", -1);
+	} else {
+		keeps(control, "role", "button");
+		keeps(control, "aria-disabled", record.disabled);
+		if (writesSeat && control.tabIndex < 0) control.tabIndex = 0;
+	}
+	keeps(control, "aria-label", accessibleLabel ?? record.accessibleLabel);
+	syncAgentDescriptionBase(control, record.description || null, record.title || null);
+	projectCommandScope(control, CONTRIBUTION_ENTRY, commandScopes.get(record));
+	return record;
+}
+const contributionHost = elementDirective("contributionHost", (control, source, surface, record, options) => {
+	presentContributionHost(control, record, options);
+	trackContributionControl(source, surface, record.key, control);
+});
+function presentContributionReceipts(control, receipt, awaitsUser) {
+	syncContributionAgentWorkflow(control, receipt);
+	syncContributionTurn(control, awaitsUser);
+}
+const contributionReceipts = elementDirective("contributionReceipts", presentContributionReceipts);
+function presentContributionEntry(control, offered, options = {}) {
+	const record = presentContributionHost(control, offered, options);
+	if (Object.hasOwn(options, "selected")) syncContributionSelection(control, options.selected);
+	control.classList.toggle("lf-margin-entry", true);
+	control.classList.toggle(HOLDS_WORD, true);
+	const priorClasses = contributorClasses.get(control) ?? [];
+	const nextClasses = record.className?.split(/\s+/).filter(Boolean) ?? [];
+	for (const name of priorClasses) if (!nextClasses.includes(name)) control.classList.toggle(name, false);
+	for (const name of nextClasses) control.classList.toggle(name, true);
+	contributorClasses.set(control, nextClasses);
+	const visibleLabel = visibleContributionEntryLabel(record);
+	const glyph = record.icon ? iconTemplate(record.icon) : html`<span class="lf-margin-entry-glyph" aria-hidden="true"
+        >${record.glyph}</span
+      >`;
+	render(html`${glyph}<span class="lf-margin-entry-space" aria-hidden="true"> </span
+      ><span class="lf-margin-entry-label" aria-hidden="true"
+        ><span class="lf-margin-entry-label-word">${visibleLabel}</span>${record.context ? html`<span class="lf-margin-entry-context">${record.context}</span>` : null}<span class="lf-margin-entry-more"></span></span
+      >${record.count > 1 ? html`<span class="lf-margin-count" aria-hidden="true"
+              >${record.count}</span
+            >` : null}`, control);
+	paintAgentDescription(control);
+	return control;
+}
+function trackContributionControl(offered, surface, key, control) {
+	controlContributions.set(control, offered);
+	let surfaces = presented.get(offered);
+	if (!surfaces) {
+		surfaces = /* @__PURE__ */ new Map();
+		presented.set(offered, surfaces);
+	}
+	let controls = surfaces.get(surface);
+	if (!controls) {
+		controls = /* @__PURE__ */ new Map();
+		surfaces.set(surface, controls);
+	}
+	controls.set(key, control);
+}
+function clearContributionControls(offered, surface, liveKeys) {
+	const controls = presented.get(offered)?.get(surface);
+	if (!controls) return;
+	for (const [key, control] of controls) {
+		if (liveKeys.has(key)) continue;
+		controls.delete(key);
+		if (![...presented.get(offered).values()].some((seats) => [...seats.values()].includes(control))) releaseContributionControl(control);
+	}
+}
+function contributionControl(offered, entryKey, surface = null, visible = false) {
+	const surfaces = presented.get(offered);
+	for (const name of surface ? [surface] : [
+		"margin",
+		"page",
+		"map",
+		"inline"
+	]) {
+		const control = surfaces?.get(name)?.get(entryKey);
+		if (control?.isConnected && (!visible || control.checkVisibility())) return control;
+	}
+	return null;
+}
+function contributionContains(offered, node) {
+	if (!(node instanceof Node)) return false;
+	return [...presented.get(offered)?.values() ?? []].some((controls) => [...controls.values()].some((control) => control === node || control.contains(node)));
+}
+function releaseContributionControl(control) {
+	controlAvailabilityOutput(control, CONTRIBUTION_ENTRY);
+	projectCommandScope(control, CONTRIBUTION_ENTRY, null);
+	controlContributions.delete(control);
+}
+function forgetContributionControls(offered) {
+	for (const controls of presented.get(offered)?.values() ?? []) for (const control of controls.values()) releaseContributionControl(control);
+	presented.delete(offered);
+}
+function activateContributionControl({ offered, entry, control, surface, event }, reveal = null) {
+	return offered.registration.activate(entry.key, {
+		origin: control,
+		surface,
+		input: pressIsKeyboardActivation(event) ? "keyboard" : "pointer",
+		focus: (key) => {
+			const destination = offered.registration.control(key, surface, true);
+			if (!destination) return false;
+			reveal?.(destination);
+			focusDestination(destination, "return");
+			return true;
+		}
+	});
+}
+function materializeContributionControls(source, surface, activate) {
+	let controls = contributionControls.get(source);
+	if (!controls) {
+		controls = /* @__PURE__ */ new Map();
+		contributionControls.set(source, controls);
+	}
+	const entries = source.reading.entries.filter((entry) => entry.visible);
+	const liveKeys = new Set(entries.map((entry) => entry.key));
+	const changed = /* @__PURE__ */ new Set();
+	for (const key of controls.keys()) if (!liveKeys.has(key)) controls.delete(key);
+	for (const entry of entries) {
+		let control = controls.get(entry.key);
+		if (!control || !contributionControlMatches(control, entry)) {
+			control = createContributionControl(entry);
+			controls.set(entry.key, control);
+			changed.add(control);
+		} else if (contributionEntryRecord(control) !== entry) changed.add(control);
+		control.onclick = (event) => activate({
+			offered: source,
+			entry,
+			control,
+			surface,
+			event
+		});
+		trackContributionControl(source, surface, entry.key, control);
+	}
+	clearContributionControls(source, surface, liveKeys);
+	for (const entry of entries) {
+		const control = controls.get(entry.key);
+		const related = entry.relation?.kind === "entries" ? entry.relation.keys.map((key) => controls.get(key)).filter(Boolean) : [];
+		related.forEach((node, index) => {
+			if (!node.id) node.id = `lf-margin-related-${++relationOrdinal}-${index + 1}`;
+		});
+		if (changed.has(control)) presentContributionEntry(control, entry, { relatedControlIds: related.map((node) => node.id) });
+	}
+	return controls;
+}
+
+//#endregion
+//#region runtime/contributions.js
+const text = (value) => String(value ?? "").trim();
+const contributionSources = /* @__PURE__ */ new WeakMap();
+let publishing = 0;
+const contributionSource = (model) => contributionSources.get(model);
+function publishReading(offered) {
+	publishing++;
+	try {
+		const declared = offered.read();
+		const normalized = normalizeReading(declared, offered.key, offered.reading);
+		if (!offered.activate && normalized.entries.some((entry) => entry.behavior !== "status" && !contributionOwnsCommand(entry))) throw new TypeError("An unscoped contribution action needs an activate function");
+		offered.readingActions = new Map((declared.readings ?? []).map(({ id, activate }) => [id, activate]));
+		offered.reading = normalized;
+		const { readings, ...reading } = offered.reading;
+		offered.model = Object.freeze({
+			key: offered.key,
+			reading: Object.freeze({
+				...reading,
+				hasReadings: readings.length > 0
+			})
+		});
+		contributionSources.set(offered.model, offered);
+	} finally {
+		publishing--;
+	}
+}
+const contributions = /* @__PURE__ */ new Set();
+const listeners = /* @__PURE__ */ new Set();
+let owed = false;
+const changed = () => {
+	owed = true;
+	afterScript(settle);
+};
+function settle({ immediate = false } = {}) {
+	if (!owed || publishing) return;
+	owed = false;
+	for (const listener of listeners) listener({ immediate });
+}
+const contributionEntries = () => contributions.values();
+watchCommandAvailability(() => {
+	for (const offered of contributions) if (offered.reading.entries.some((entry) => contributionOwnsCommand(entry) && entry.disabled !== contributionCommandDisabled(entry))) offered.registration.update({ immediate: true });
+});
+function presentingContributions() {
+	owed = false;
+}
+function watchContributions(listener) {
+	listeners.add(listener);
+	return () => listeners.delete(listener);
+}
+function registerContribution({ key, target, source = target, read, activate }) {
+	const owner = text(key);
+	if (!owner) throw new TypeError("A contribution needs a key");
+	const targetOf = typeof target === "function" ? target : () => target;
+	const offered = {
+		key: owner,
+		target: targetOf,
+		source: source === target ? targetOf : typeof source === "function" ? source : () => source,
+		read,
+		activate,
+		reading: null
+	};
+	publishReading(offered);
+	contributions.add(offered);
+	changed();
+	const entry = (entryKey) => offered.reading.entries.find((candidate) => candidate.key === entryKey) ?? null;
+	const control = (entryKey, surface = null, visible = false) => {
+		settle();
+		return contributionControl(offered, entryKey, surface, visible);
+	};
+	let owedFocus = null;
+	const landFocus = () => {
+		const key = owedFocus;
+		owedFocus = null;
+		offered.focusRequest = null;
+		if (key != null) registration.focus(key, "move");
+	};
+	const arrive = (entryKey, surface, move) => {
+		const request = {
+			key: text(entryKey),
+			surface
+		};
+		const previous = offered.focusRequest;
+		offered.focusRequest = request;
+		try {
+			changed();
+			settle({ immediate: true });
+			const destination = control(request.key, surface, true);
+			if (!destination) return false;
+			return move(destination);
+		} finally {
+			if (offered.focusRequest === request) offered.focusRequest = previous;
+		}
+	};
+	const registration = Object.freeze({
+		entry(entryKey) {
+			return entry(text(entryKey));
+		},
+		control,
+		contains(node) {
+			return contributionContains(offered, node);
+		},
+		activate(entryKey, context = {}) {
+			if (!contributions.has(offered)) return false;
+			const current = entry(text(entryKey));
+			if (!current || !current.visible || (contributionOwnsCommand(current) ? contributionCommandDisabled(current) : current.disabled) || current.behavior === "status") return false;
+			const originOwnsFocus = context.origin == null || context.origin === focused();
+			const focusCurrentSurface = (key) => arrive(key, context.surface ?? null, (destination) => {
+				if (context.focus) return context.focus(key);
+				focusDestination(destination, "return");
+				return true;
+			});
+			const activationContext = {
+				...context,
+				entry: current,
+				focus: originOwnsFocus ? focusCurrentSurface : () => false
+			};
+			const command = contributionCommand(current);
+			if (command) command.row.run(command.binding, activationContext);
+			else offered.activate(current.activation, activationContext);
+			return true;
+		},
+		activateReading(id) {
+			const activate = offered.readingActions.get(id);
+			if (!activate) return false;
+			activate();
+			return true;
+		},
+		focus(entryKey, cause, surface = null) {
+			return arrive(entryKey, surface, (destination) => {
+				focusDestination(destination, cause);
+				return true;
+			});
+		},
+		update({ immediate = false, focus = null } = {}) {
+			publishReading(offered);
+			if (focus != null) {
+				owedFocus = text(focus);
+				offered.focusRequest = {
+					key: owedFocus,
+					surface: null
+				};
+				afterScript(landFocus);
+			}
+			changed();
+			if (immediate) settle({ immediate: true });
+		},
+		unregister() {
+			if (!contributions.delete(offered)) return;
+			forgetContributionControls(offered);
+			changed();
+		}
+	});
+	offered.registration = registration;
+	return registration;
+}
+
+//#endregion
 //#region runtime/composing/drawing-record.js
 const FIELDS = drawingSchema.properties;
 const MAX_DRAWING_STROKES = FIELDS.strokes.maxItems;
@@ -288,260 +1076,122 @@ function travel(start, end, low, high, alignment, margin, side) {
 	if (alignment === "center" && end - start <= high - low) return (start + end - low - high) / 2;
 	return alignment === "start" || alignment === "center" && side < 0 ? start - low - margin : end - high + margin;
 }
-function caretAt(view, at) {
-	const position = view.domAtPos(at);
-	const caret = document.createRange();
-	caret.setStart(position.node, position.offset);
-	caret.collapse(true);
-	if (caret.getClientRects().length) return {
-		destination: caret,
-		rectangle: caret.getBoundingClientRect()
-	};
-	const destination = position.node instanceof Element ? position.node : position.node.parentElement;
-	const box = destination.getBoundingClientRect();
-	const x = view.textDirection === Direction.LTR ? box.left : box.right;
-	return {
-		destination,
-		rectangle: {
-			left: x,
-			right: x,
-			top: box.top,
-			bottom: box.bottom
+const classes = /* @__PURE__ */ new WeakMap();
+function leafEditorView(codemirror) {
+	let made = classes.get(codemirror);
+	if (!made) classes.set(codemirror, made = editorViewOver(codemirror));
+	return made;
+}
+function editorViewOver({ Compartment, Direction, EditorState, EditorView, StateEffect }) {
+	function caretAt(view, at) {
+		const position = view.domAtPos(at);
+		const caret = document.createRange();
+		caret.setStart(position.node, position.offset);
+		caret.collapse(true);
+		if (caret.getClientRects().length) return {
+			destination: caret,
+			rectangle: caret.getBoundingClientRect()
+		};
+		const destination = position.node instanceof Element ? position.node : position.node.parentElement;
+		const box = destination.getBoundingClientRect();
+		const x = view.textDirection === Direction.LTR ? box.left : box.right;
+		return {
+			destination,
+			rectangle: {
+				left: x,
+				right: x,
+				top: box.top,
+				bottom: box.bottom
+			}
+		};
+	}
+	function placeWithinEditor(view, selection, options, head) {
+		const rectangle = union(selection.empty ? [head] : [head, caretAt(view, selection.anchor).rectangle]);
+		const margins = {
+			top: 0,
+			bottom: 0,
+			left: 0,
+			right: 0
+		};
+		for (const provider of view.state.facet(EditorView.scrollMargins)) {
+			const supplied = provider(view);
+			if (supplied) for (const edge of Object.keys(margins)) margins[edge] = Math.max(margins[edge], supplied[edge] ?? 0);
+		}
+		const port = view.scrollDOM;
+		const box = port.getBoundingClientRect();
+		const { scaleX, scaleY } = view;
+		const left = box.left + port.clientLeft * scaleX;
+		const top = box.top + port.clientTop * scaleY;
+		const right = left + port.clientWidth * scaleX;
+		const bottom = top + port.clientHeight * scaleY;
+		const side = selection.head < selection.anchor ? -1 : 1;
+		const horizontal = view.textDirection === Direction.RTL ? options.x === "start" ? "end" : options.x === "end" ? "start" : options.x : options.x;
+		const xMargin = clamp(options.xMargin, -port.offsetWidth, port.offsetWidth);
+		const yMargin = clamp(options.yMargin, -port.offsetHeight, port.offsetHeight);
+		const x = horizontal === "center" ? (rectangle.left - margins.left + rectangle.right + margins.right - left - right) / 2 : travel(rectangle.left - margins.left, rectangle.right + margins.right, left, right, horizontal, xMargin, side);
+		const y = travel(rectangle.top - margins.top, rectangle.bottom + margins.bottom, top, bottom, options.y, yMargin, side);
+		port.scrollBy({
+			left: port.scrollWidth > port.clientWidth ? x / scaleX : 0,
+			top: port.scrollHeight > port.clientHeight ? y / scaleY : 0,
+			behavior: "instant"
+		});
+	}
+	const navigation = new Compartment();
+	const reveal = EditorView.scrollHandler.of((view, selection, options) => {
+		const { destination, rectangle } = caretAt(view, selection.head);
+		placeWithinEditor(view, selection, options, rectangle);
+		scrollIntoView(destination, {
+			block: "nearest",
+			behavior: "instant"
+		});
+		return true;
+	});
+	const withNavigation = (state) => navigation.get(state) === void 0 ? state.update({ effects: StateEffect.appendConfig.of(navigation.of(reveal)) }).state : state;
+	return class LeafEditorView extends EditorView {
+		#focusing = false;
+		constructor(config = {}) {
+			super({
+				...config,
+				state: withNavigation(config.state ?? EditorState.create(config))
+			});
+			this.scrollDOM.classList.add("scroll");
+			this.contentDOM.addEventListener("focus", () => {
+				if (!this.#focusing) this.placeSelection();
+			});
+		}
+		caretAt(at) {
+			return caretAt(this, at);
+		}
+		setState(state) {
+			super.setState(withNavigation(state));
+		}
+		focus() {
+			if (!canPlaceFocus()) return;
+			const selection = this.#selection();
+			if (this.root.activeElement !== this.contentDOM && selection.getComposedRanges({ shadowRoots: this.root instanceof ShadowRoot ? [this.root] : [] }).some((range) => this.contentDOM.contains(range.startContainer) || this.contentDOM.contains(range.endContainer))) selection.removeAllRanges();
+			this.#focusing = true;
+			try {
+				this.contentDOM.focus({ preventScroll: true });
+			} finally {
+				this.#focusing = false;
+			}
+			this.placeSelection();
+		}
+		placeSelection() {
+			if (this.root.activeElement !== this.contentDOM) return;
+			const { anchor, head } = this.state.selection.main;
+			const from = this.domAtPos(anchor);
+			const to = this.domAtPos(head);
+			this.#selection().setBaseAndExtent(from.node, from.offset, to.node, to.offset);
+		}
+		#selection() {
+			return this.root.getSelection?.() ?? this.dom.ownerDocument.getSelection();
 		}
 	};
 }
-function placeWithinEditor(view, selection, options, head) {
-	const rectangle = union(selection.empty ? [head] : [head, caretAt(view, selection.anchor).rectangle]);
-	const margins = {
-		top: 0,
-		bottom: 0,
-		left: 0,
-		right: 0
-	};
-	for (const provider of view.state.facet(EditorView.scrollMargins)) {
-		const supplied = provider(view);
-		if (supplied) for (const edge of Object.keys(margins)) margins[edge] = Math.max(margins[edge], supplied[edge] ?? 0);
-	}
-	const port = view.scrollDOM;
-	const box = port.getBoundingClientRect();
-	const { scaleX, scaleY } = view;
-	const left = box.left + port.clientLeft * scaleX;
-	const top = box.top + port.clientTop * scaleY;
-	const right = left + port.clientWidth * scaleX;
-	const bottom = top + port.clientHeight * scaleY;
-	const side = selection.head < selection.anchor ? -1 : 1;
-	const horizontal = view.textDirection === Direction.RTL ? options.x === "start" ? "end" : options.x === "end" ? "start" : options.x : options.x;
-	const xMargin = clamp(options.xMargin, -port.offsetWidth, port.offsetWidth);
-	const yMargin = clamp(options.yMargin, -port.offsetHeight, port.offsetHeight);
-	const x = horizontal === "center" ? (rectangle.left - margins.left + rectangle.right + margins.right - left - right) / 2 : travel(rectangle.left - margins.left, rectangle.right + margins.right, left, right, horizontal, xMargin, side);
-	const y = travel(rectangle.top - margins.top, rectangle.bottom + margins.bottom, top, bottom, options.y, yMargin, side);
-	port.scrollBy({
-		left: port.scrollWidth > port.clientWidth ? x / scaleX : 0,
-		top: port.scrollHeight > port.clientHeight ? y / scaleY : 0,
-		behavior: "instant"
-	});
-}
-const navigation = new Compartment();
-const reveal = EditorView.scrollHandler.of((view, selection, options) => {
-	const { destination, rectangle } = caretAt(view, selection.head);
-	placeWithinEditor(view, selection, options, rectangle);
-	scrollIntoView(destination, {
-		block: "nearest",
-		behavior: "instant"
-	});
-	return true;
-});
-const withNavigation = (state) => navigation.get(state) === void 0 ? state.update({ effects: StateEffect.appendConfig.of(navigation.of(reveal)) }).state : state;
-var LeafEditorView = class extends EditorView {
-	#focusing = false;
-	constructor(config = {}) {
-		super({
-			...config,
-			state: withNavigation(config.state ?? EditorState.create(config))
-		});
-		this.scrollDOM.classList.add("scroll");
-		this.contentDOM.addEventListener("focus", () => {
-			if (!this.#focusing) this.placeSelection();
-		});
-	}
-	setState(state) {
-		super.setState(withNavigation(state));
-	}
-	focus() {
-		if (!canPlaceFocus()) return;
-		const selection = this.#selection();
-		if (this.root.activeElement !== this.contentDOM && selection.getComposedRanges({ shadowRoots: this.root instanceof ShadowRoot ? [this.root] : [] }).some((range) => this.contentDOM.contains(range.startContainer) || this.contentDOM.contains(range.endContainer))) selection.removeAllRanges();
-		this.#focusing = true;
-		try {
-			this.contentDOM.focus({ preventScroll: true });
-		} finally {
-			this.#focusing = false;
-		}
-		this.placeSelection();
-	}
-	placeSelection() {
-		if (this.root.activeElement !== this.contentDOM) return;
-		const { anchor, head } = this.state.selection.main;
-		const from = this.domAtPos(anchor);
-		const to = this.domAtPos(head);
-		this.#selection().setBaseAndExtent(from.node, from.offset, to.node, to.offset);
-	}
-	#selection() {
-		return this.root.getSelection?.() ?? this.dom.ownerDocument.getSelection();
-	}
-};
 
 //#endregion
-//#region runtime/composing/text-field.js
-const insertNewline = standardKeymap.find(({ key }) => key === "Enter").run;
-const sheet = new CSSStyleSheet();
-sheet.replaceSync(`
-  :host { display: block; cursor: text; }
-  /* CodeMirror's provider places its defaults in lf-base. This control owns the
-     unlayered editor face: the host supplies type and colour, and these are the
-     only internal padding declarations before Markdown's explicit insets below. */
-  .cm-editor { font: inherit; color: inherit; background-color: transparent; }
-  .cm-editor.cm-focused { outline: none; }
-  .cm-scroller { font-family: inherit; line-height: inherit; overflow: visible; }
-  .cm-content { padding: 0; caret-color: currentColor; min-height: 1lh; }
-  /* An empty field draws no editor until the user arrives in it (#build). This box
-     holds the empty line's place, as tall as the editor's line, and takes the focus
-     that builds the editor. */
-  .lf-field-rest { min-height: 1lh; outline: none; }
-  .cm-line { padding: 0; }
-  /* A space after a line's last word hangs past its end, as in a textarea and in the
-     sent message (reading.css, \`.lf-msg-text > p\`), rather than taking room on the
-     line and carrying the word to the next one, as CodeMirror's \`break-spaces\`
-     does. */
-  .cm-editor .cm-content.cm-lineWrapping { white-space: pre-wrap; }
-  /* CodeMirror's caret stops beside a widget hang from the text's top, which stands
-     above a line set tighter than its type, as a heading's is, and would make that
-     line taller than the heading it draws. The field's caret is the platform's. */
-  .cm-widgetBuffer { vertical-align: top; }
-  /* The placeholder is a layer under the words, as a textarea's is, never content in
-     the line: a widget in an empty line is what the platform would draw the caret
-     against. Both layers share one grid cell, inside the host's padding. */
-  .lf-field { display: grid; }
-  .lf-field > * { grid-area: 1 / 1; min-width: 0; }
-  /* An owner moving the field's edges can carry the words from where they were with
-     them, by the host's --lf-field-carry, and cut them to the box it draws growing, by
-     --lf-field-cut (theme.css): a transform and a cut that move neither the field nor
-     its layout. The field's content box cuts off what the field doesn't hold yet,
-     such as a new line and its caret, and keeps the travel from widening the host's
-     scrolling. A cut naming none is invalid, which leaves the words uncut. The clip
-     reaches 2px past that box, the caret's width at a line's end: Firefox paints the
-     caret from its offset onward and pulls it inside only a scroll container, so a
-     caret after a line that fills the box, as a trailing space can, was
-     cut away whole. Words an owner carries down from above the box, as a line removed
-     carries them, need more: it sets --lf-field-reach as far as they travel, and
-     stops the host scrolling meanwhile. Chrome refuses calc() here, so the reach
-     replaces the caret's margin rather than adding to it. */
-  .lf-field { overflow: clip; overflow-clip-margin: var(--lf-field-reach, 2px); }
-  .lf-field > * {
-    translate: var(--lf-field-carry);
-    clip-path: inset(var(--lf-field-cut));
-  }
-  /* The placeholder is one line that never widens the box — a response bar sizes to the
-     words — and shortens with an ellipsis where the box is narrow, so it reads the same
-     height whether it shows the plain words or a keyed hint. */
-  .lf-field-placeholder { pointer-events: none; white-space: nowrap;
-    contain: inline-size; overflow-x: clip; text-overflow: ellipsis;
-    color: var(--muted); }
-  :host(:not(:state(placeholder-shown))) .lf-field-placeholder { visibility: hidden; }
-  /* The trailing action's room, on every line. */
-  .lf-field { padding-inline-end: var(--lf-field-end-room); }
-  /* A draft wears the sent message's faces, or where it stands in place, those its
-     display gives each block (\`standBlocks\`), written on its lines over these. Strong,
-     emphasis and strikethrough are the elements themselves, which the platform dresses
-     here as it does in the message; the rest read the theme's tokens, since its element
-     rules stop at this root. A heading is bold, as the platform draws one, at the size
-     of the words around it. A block is drawn line by line, so a code block's frame is
-     each line's sides, closed above its first line and below its last. Syntax that holds
-     its room while the caret is away, as a code fence's line does, is there unseen and
-     unspoken. Its glyphs go unfilled while its colour stays the words', because the
-     caret can stand at the end of unseen text, as just past a new item's marker, and the
-     browser draws it in that text's colour. */
-  .lf-md-mark { color: var(--muted); }
-  .lf-md-unseen { -webkit-text-fill-color: transparent; }
-  code { font-family: var(--mono); font-size: var(--code-inline-size);
-    background: var(--code-bg); border-radius: var(--code-inline-r);
-    padding: var(--code-inline-pad); box-decoration-break: slice; }
-  .lf-md-heading { font-weight: bold; }
-  .lf-md-link { color: var(--accent); text-decoration: underline var(--link-underline);
-    text-underline-offset: var(--link-underline-offset); }
-  .lf-md-quote { border-inline-start: var(--quote-rule); font-style: var(--quote-style);
-    padding-inline-start: var(--quote-inset); color: var(--muted);
-    --lf-marker-inset: var(--quote-inset); }
-  /* A quote's and a list item's words stand where the message's do, and the source's
-     marker stands in the inset before them, unseen while the caret is away, so
-     revealing it moves no word. A list item's lines stand one list inset in per level,
-     under the platform's own list marker, as in the message, so it is the same bullet
-     or number at the same place. */
-  .lf-md-item { margin-inline-start: calc(var(--lf-list-depth) * var(--list-inset));
-    --lf-marker-inset: var(--list-inset); }
-  .lf-md-marker { display: inline-flex; justify-content: flex-end; white-space: pre;
-    inline-size: var(--lf-marker-inset);
-    margin-inline-start: calc(-1 * var(--lf-marker-inset)); }
-  .lf-md-listed { display: list-item; }
-  .lf-md-disc { list-style-type: disc; }
-  .lf-md-circle { list-style-type: circle; }
-  .lf-md-square { list-style-type: square; }
-  .lf-md-number { list-style-type: decimal; }
-  .lf-md-code-block { font-family: var(--mono); font-size: var(--code-size);
-    line-height: var(--code-line); color: var(--code-ink); background: var(--pre-bg);
-    font-variant-ligatures: none; border-inline: 1px solid var(--code-border);
-    padding-inline: var(--pre-inset); }
-  .lf-md-code-first { border-block-start: 1px solid var(--code-border);
-    border-start-start-radius: var(--r); border-start-end-radius: var(--r); }
-  /* A sent pre reserves 8px below its lines for a horizontal scrollbar. */
-  .cm-line.lf-md-code-last { border-block-end: 1px solid var(--code-border);
-    border-end-start-radius: var(--r); border-end-end-radius: var(--r);
-    padding-block-end: 8px; }
-  /* A picture fits the field as media fits its container on the page, centred on its
-     line (theme.css), and the mark after a link that leaves the page is the page's
-     own (surfaces.css). */
-  .lf-md-picture { max-width: 100%; height: auto; vertical-align: middle; }
-  .lf-external-mark { display: inline-block; width: 0.75em; height: 0.75em;
-    margin-inline-start: 0.24em; vertical-align: 0.03em; color: var(--accent);
-    fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round;
-    stroke-linejoin: round; overflow: visible; user-select: none;
-    -webkit-user-select: none; }
-  /* A fence's line, while the caret is away from it, stands for the sent pre's padding,
-     and code with no fence lines takes that padding at its ends instead. A field that
-     edits in place reads its display's padding over this (\`readFaces\`). */
-  .lf-face-fence-open, .lf-face-fence-close { line-height: var(--pre-pad-block); }
-  .lf-md-code-bare.lf-md-code-first { padding-block-start: var(--pre-pad-block); }
-  .lf-md-code-bare.lf-md-code-last { padding-block-end: calc(var(--pre-pad-block) + 8px); }
-`);
-const ownerStep = StateEffect.define();
-const hide = Decoration.replace({});
-const dim = Decoration.mark({ class: "lf-md-mark" });
-const link = Decoration.mark({ class: "lf-md-link" });
-const unseen = Decoration.mark({
-	class: "lf-md-unseen",
-	attributes: { "aria-hidden": "true" }
-});
-const marker = Decoration.mark({
-	class: "lf-md-marker lf-md-unseen",
-	attributes: { "aria-hidden": "true" }
-});
-const shownMarker = Decoration.mark({ class: "lf-md-marker lf-md-mark" });
-const line = (cls) => Decoration.line({ class: cls });
-const BULLETS = [
-	"lf-md-disc",
-	"lf-md-circle",
-	"lf-md-square"
-];
-const itemLine = (depth, kind, number) => Decoration.line({
-	class: kind ? `lf-md-item lf-md-listed ${kind}` : "lf-md-item",
-	attributes: { style: `--lf-list-depth: ${depth}${kind === "lf-md-number" ? `; counter-set: list-item ${number}` : ""}` }
-});
-const INLINE = {
-	code_inline: Decoration.mark({ tagName: "code" }),
-	em_open: Decoration.mark({ tagName: "em" }),
-	strong_open: Decoration.mark({ tagName: "strong" }),
-	s_open: Decoration.mark({ tagName: "s" })
-};
+//#region runtime/composing/field-editor.js
 const touches = (state, from, to) => state.selection.ranges.some((range) => range.from <= to && range.to >= from);
 const read = (state) => {
 	return placedMarkdownTokens(state.doc.toString());
@@ -587,156 +1237,8 @@ function readFaces(field, display) {
 	rules.push(`.lf-face-gap { line-height: ${GAP} }`, `.lf-face-gap.lf-face-share-2 { line-height: calc(${GAP} / 2) }`, `.lf-face-gap.lf-face-share-3 { line-height: calc(${GAP} / 3) }`, `.lf-face-rule { line-height: 0 }`, `.lf-face-gap-above { padding-block-start: ${GAP} }`, `.lf-face-fence-open { line-height: ${pre.padStart}px }`, `.lf-face-fence-close { line-height: ${pre.padEnd}px }`, `.lf-face-code { padding-inline: ${pre.inset} }`, `.lf-face-quote { margin-inline-start: ${quote.indent}; padding-inline-start: ${quote.inset}; --lf-marker-inset: ${quote.inset} }`, `.lf-face-quote-first { padding-block-start: ${quote.padStart}px }`, `.lf-face-gap-above.lf-face-quote-first { padding-block-start: calc(${GAP} + ${quote.padStart}px) }`, `.lf-face-quote-last { padding-block-end: ${quote.padEnd}px }`, `.lf-face-item { padding-block-start: ${collapsed(li.end, li.start)}px }`, `.lf-face-list-lead { padding-block-start: ${collapsed(0, li.start)}px }`, `.lf-face-list-tail { padding-block-end: ${collapsed(0, li.end)}px }`);
 	return rules.join("\n");
 }
-var Picture = class extends WidgetType {
-	constructor(src, alt) {
-		super();
-		this.src = isCanonicalMediaUrl(src) ? scopedMediaUrl(src) : src;
-		this.alt = alt;
-	}
-	eq(other) {
-		return other.src === this.src && other.alt === this.alt;
-	}
-	toDOM(view) {
-		const img = document.createElement("img");
-		img.className = "lf-md-picture";
-		img.alt = this.alt;
-		img.src = this.src;
-		img.addEventListener("load", () => view.requestMeasure(), { once: true });
-		return img;
-	}
-	ignoreEvent() {
-		return false;
-	}
-};
-var ExternalMark = class extends WidgetType {
-	eq() {
-		return true;
-	}
-	toDOM() {
-		return document.documentElement.lfExternalLink.mark();
-	}
-};
-const externalMark = Decoration.widget({
-	widget: new ExternalMark(),
-	side: -1
-});
-const opensElsewhere = (href) => document.documentElement.lfExternalLink?.opensElsewhere(href) ?? false;
-function decorate(state, placed) {
-	const out = [];
-	const lists = [];
-	const items = /* @__PURE__ */ new Map();
-	const code = [];
-	const add = (from, to, deco) => {
-		if (from >= to) return;
-		if (deco === hide && state.doc.sliceString(from, to).includes("\n")) deco = dim;
-		out.push(deco.range(from, to));
-	};
-	const lines = (from, to, each) => {
-		for (let at = from; at < to;) {
-			const current = state.doc.lineAt(at);
-			each(current);
-			at = current.to + 1;
-		}
-	};
-	for (const { token, from, to, contentFrom, contentTo, escapes, markers, contentLines, words: said } of placed) {
-		const syntax = touches(state, from, to) ? dim : hide;
-		if (token.type === "code_inline" || contentFrom !== void 0) {
-			const words = token.type === "code_inline" ? [from + token.markup.length, to - token.markup.length] : [contentFrom, contentTo];
-			if (words[0] > words[1]) continue;
-			if (INLINE[token.type]) add(from, to, INLINE[token.type]);
-			else if (token.type === "link_open" && token.meta.linked) {
-				add(words[0], words[1], link);
-				if (opensElsewhere(token.attrGet("href"))) out.push(externalMark.range(words[1]));
-			}
-			add(from, words[0], syntax);
-			add(words[1], to, syntax);
-		} else if (token.type === "image") {
-			if (said !== "" || state.doc.sliceString(from, to).includes("\n")) continue;
-			const widget = new Picture(token.attrGet("src"), token.content);
-			out.push(touches(state, from, to) ? Decoration.widget({
-				widget,
-				side: 1
-			}).range(to) : Decoration.replace({ widget }).range(from, to));
-		} else if (token.type === "text") for (const at of escapes ?? []) add(at, at + 1, touches(state, at, at + 2) ? dim : hide);
-		else if (token.type === "heading_open") {
-			lines(...contentLines, (each) => {
-				out.push(line("lf-md-heading").range(each.from));
-			});
-			for (const [a, b] of markers) {
-				const rule = state.doc.lineAt(a);
-				const shown = touches(state, rule.from, rule.to) ? dim : unseen;
-				add(a, b, token.markup.startsWith("#") ? syntax : shown);
-			}
-		} else if (token.type === "fence" || token.type === "code_block") {
-			code.push([from, to]);
-			const body = token.content.split("\n");
-			const opened = state.doc.lineAt(from).number + (token.type === "fence" ? 1 : 0);
-			lines(from, to, (each) => {
-				const ends = [
-					each.from <= from ? " lf-md-code-first" : "",
-					each.to + 1 >= to ? " lf-md-code-last" : "",
-					token.type === "code_block" ? " lf-md-code-bare" : ""
-				].join("");
-				out.push(line(`lf-md-code-block${ends}`).range(each.from));
-				const kept = body[each.number - opened];
-				if (kept === void 0 || each.number - opened >= body.length - 1) return;
-				const lead = each.text.match(/^[ \t]*/)[0].length;
-				add(each.from, each.from + lead - kept.match(/^[ \t]*/)[0].length, hide);
-			});
-			for (const [a, b] of markers ?? []) {
-				const fence = state.doc.lineAt(a);
-				add(a, b, touches(state, fence.from, fence.to) ? dim : unseen);
-			}
-		} else if (token.type === "blockquote_open") {
-			lines(from, to, (each) => {
-				out.push(line("lf-md-quote").range(each.from));
-			});
-			for (const [a, b] of markers) add(a, b, touches(state, a, b) ? shownMarker : marker);
-		} else if (token.type === "bullet_list_open" || token.type === "ordered_list_open") {
-			while (lists.at(-1)?.to <= from) lists.pop();
-			const ordered = token.type === "ordered_list_open";
-			lists.push({
-				to,
-				next: ordered ? Number(token.attrGet("start") ?? 1) : null
-			});
-		} else if (token.type === "list_item_open") {
-			while (lists.at(-1)?.to <= from) lists.pop();
-			const list = lists.at(-1);
-			const depth = lists.length;
-			const head = state.doc.lineAt(from);
-			const [at, end] = markers[0];
-			const start = at - head.text.slice(0, at - head.from).match(/[ \t]*$/)[0].length;
-			if (head.text.slice(0, start - head.from).trim()) {
-				add(start, end, dim);
-				continue;
-			}
-			lines(head.to + 1, Math.min(to, state.doc.length), (each) => {
-				items.set(each.from, {
-					depth,
-					continued: true
-				});
-			});
-			const kind = list.next === null ? BULLETS[Math.min(depth, BULLETS.length) - 1] : "lf-md-number";
-			const shown = state.selection.ranges.some((range) => range.from < end && range.to >= start);
-			items.set(head.from, {
-				depth,
-				kind: shown ? null : kind,
-				number: list.next
-			});
-			if (list.next !== null) list.next++;
-			add(start, end, shown ? shownMarker : marker);
-		}
-	}
-	for (const [from, { depth, kind, number, continued }] of items) {
-		out.push(itemLine(depth, kind, number).range(from));
-		if (!continued || code.some(([a, b]) => from >= a && from < b)) continue;
-		add(from, from + state.doc.lineAt(from).text.match(/^[ \t]*/)[0].length, hide);
-	}
-	standBlocks(state, placed, out);
-	return Decoration.set(out, true);
-}
 const blockTag = (token) => token.type === "fence" || token.type === "code_block" ? "pre" : token.tag;
-function standBlocks(state, placed, out) {
+function standBlocks(state, placed, out, line) {
 	const lines = (from, to, each) => {
 		for (let at = from; at < to;) {
 			const current = state.doc.lineAt(at);
@@ -818,36 +1320,469 @@ function standBlocks(state, placed, out) {
 	const final = before[0];
 	if (final && final.to < last.from) gapLines(final.to, last.from, `lf-ends-${final.tag} lf-starts-p`);
 }
-const livePreview = ViewPlugin.fromClass(class {
-	constructor(view) {
-		this.live = true;
-		this.placed = read(view.state);
-		this.decorations = decorate(view.state, this.placed);
-		this.judged = markdownReady();
-		if (!this.judged) loadMarkdown().then(() => this.live && view.dispatch({}), () => {});
+let loaded = null;
+const loadFieldEditor = () => loaded ??= import("/vendor/codemirror.esm.js").then((codemirror) => fieldEditor(codemirror, leafEditorView(codemirror)));
+function fieldEditor({ EditorView, EditorState, StateEffect, Compartment, WidgetType, Decoration, LanguageSupport, ViewPlugin, keymap, history, standardKeymap, historyKeymap, isolateHistory, invertedEffects, markdownLanguage, insertNewlineContinueMarkup }, LeafEditorView) {
+	const insertNewline = standardKeymap.find(({ key }) => key === "Enter").run;
+	const ownerStep = StateEffect.define();
+	const hide = Decoration.replace({});
+	const dim = Decoration.mark({ class: "lf-md-mark" });
+	const link = Decoration.mark({ class: "lf-md-link" });
+	const unseen = Decoration.mark({
+		class: "lf-md-unseen",
+		attributes: { "aria-hidden": "true" }
+	});
+	const marker = Decoration.mark({
+		class: "lf-md-marker lf-md-unseen",
+		attributes: { "aria-hidden": "true" }
+	});
+	const shownMarker = Decoration.mark({ class: "lf-md-marker lf-md-mark" });
+	const line = (cls) => Decoration.line({ class: cls });
+	const BULLETS = [
+		"lf-md-disc",
+		"lf-md-circle",
+		"lf-md-square"
+	];
+	const itemLine = (depth, kind, number) => Decoration.line({
+		class: kind ? `lf-md-item lf-md-listed ${kind}` : "lf-md-item",
+		attributes: { style: `--lf-list-depth: ${depth}${kind === "lf-md-number" ? `; counter-set: list-item ${number}` : ""}` }
+	});
+	const INLINE = {
+		code_inline: Decoration.mark({ tagName: "code" }),
+		em_open: Decoration.mark({ tagName: "em" }),
+		strong_open: Decoration.mark({ tagName: "strong" }),
+		s_open: Decoration.mark({ tagName: "s" })
+	};
+	class Picture extends WidgetType {
+		constructor(src, alt) {
+			super();
+			this.src = isCanonicalMediaUrl(src) ? scopedMediaUrl(src) : src;
+			this.alt = alt;
+		}
+		eq(other) {
+			return other.src === this.src && other.alt === this.alt;
+		}
+		toDOM(view) {
+			const img = document.createElement("img");
+			img.className = "lf-md-picture";
+			img.alt = this.alt;
+			img.src = this.src;
+			img.addEventListener("load", () => view.requestMeasure(), { once: true });
+			return img;
+		}
+		ignoreEvent() {
+			return false;
+		}
 	}
-	destroy() {
-		this.live = false;
+	class ExternalMark extends WidgetType {
+		eq() {
+			return true;
+		}
+		toDOM() {
+			return document.documentElement.lfExternalLink.mark();
+		}
 	}
-	update(update) {
-		const judged = markdownReady();
-		if (update.docChanged || judged !== this.judged) {
-			this.judged = judged;
-			this.placed = read(update.state);
-		} else if (!update.selectionSet) return;
-		this.decorations = decorate(update.state, this.placed);
+	const externalMark = Decoration.widget({
+		widget: new ExternalMark(),
+		side: -1
+	});
+	const opensElsewhere = (href) => document.documentElement.lfExternalLink?.opensElsewhere(href) ?? false;
+	function decorate(state, placed) {
+		const out = [];
+		const lists = [];
+		const items = /* @__PURE__ */ new Map();
+		const code = [];
+		const add = (from, to, deco) => {
+			if (from >= to) return;
+			if (deco === hide && state.doc.sliceString(from, to).includes("\n")) deco = dim;
+			out.push(deco.range(from, to));
+		};
+		const lines = (from, to, each) => {
+			for (let at = from; at < to;) {
+				const current = state.doc.lineAt(at);
+				each(current);
+				at = current.to + 1;
+			}
+		};
+		for (const { token, from, to, contentFrom, contentTo, escapes, markers, contentLines, words: said } of placed) {
+			const syntax = touches(state, from, to) ? dim : hide;
+			if (token.type === "code_inline" || contentFrom !== void 0) {
+				const words = token.type === "code_inline" ? [from + token.markup.length, to - token.markup.length] : [contentFrom, contentTo];
+				if (words[0] > words[1]) continue;
+				if (INLINE[token.type]) add(from, to, INLINE[token.type]);
+				else if (token.type === "link_open" && token.meta.linked) {
+					add(words[0], words[1], link);
+					if (opensElsewhere(token.attrGet("href"))) out.push(externalMark.range(words[1]));
+				}
+				add(from, words[0], syntax);
+				add(words[1], to, syntax);
+			} else if (token.type === "image") {
+				if (said !== "" || state.doc.sliceString(from, to).includes("\n")) continue;
+				const widget = new Picture(token.attrGet("src"), token.content);
+				out.push(touches(state, from, to) ? Decoration.widget({
+					widget,
+					side: 1
+				}).range(to) : Decoration.replace({ widget }).range(from, to));
+			} else if (token.type === "text") for (const at of escapes ?? []) add(at, at + 1, touches(state, at, at + 2) ? dim : hide);
+			else if (token.type === "heading_open") {
+				lines(...contentLines, (each) => {
+					out.push(line("lf-md-heading").range(each.from));
+				});
+				for (const [a, b] of markers) {
+					const rule = state.doc.lineAt(a);
+					const shown = touches(state, rule.from, rule.to) ? dim : unseen;
+					add(a, b, token.markup.startsWith("#") ? syntax : shown);
+				}
+			} else if (token.type === "fence" || token.type === "code_block") {
+				code.push([from, to]);
+				const body = token.content.split("\n");
+				const opened = state.doc.lineAt(from).number + (token.type === "fence" ? 1 : 0);
+				lines(from, to, (each) => {
+					const ends = [
+						each.from <= from ? " lf-md-code-first" : "",
+						each.to + 1 >= to ? " lf-md-code-last" : "",
+						token.type === "code_block" ? " lf-md-code-bare" : ""
+					].join("");
+					out.push(line(`lf-md-code-block${ends}`).range(each.from));
+					const kept = body[each.number - opened];
+					if (kept === void 0 || each.number - opened >= body.length - 1) return;
+					const lead = each.text.match(/^[ \t]*/)[0].length;
+					add(each.from, each.from + lead - kept.match(/^[ \t]*/)[0].length, hide);
+				});
+				for (const [a, b] of markers ?? []) {
+					const fence = state.doc.lineAt(a);
+					add(a, b, touches(state, fence.from, fence.to) ? dim : unseen);
+				}
+			} else if (token.type === "blockquote_open") {
+				lines(from, to, (each) => {
+					out.push(line("lf-md-quote").range(each.from));
+				});
+				for (const [a, b] of markers) add(a, b, touches(state, a, b) ? shownMarker : marker);
+			} else if (token.type === "bullet_list_open" || token.type === "ordered_list_open") {
+				while (lists.at(-1)?.to <= from) lists.pop();
+				const ordered = token.type === "ordered_list_open";
+				lists.push({
+					to,
+					next: ordered ? Number(token.attrGet("start") ?? 1) : null
+				});
+			} else if (token.type === "list_item_open") {
+				while (lists.at(-1)?.to <= from) lists.pop();
+				const list = lists.at(-1);
+				const depth = lists.length;
+				const head = state.doc.lineAt(from);
+				const [at, end] = markers[0];
+				const start = at - head.text.slice(0, at - head.from).match(/[ \t]*$/)[0].length;
+				if (head.text.slice(0, start - head.from).trim()) {
+					add(start, end, dim);
+					continue;
+				}
+				lines(head.to + 1, Math.min(to, state.doc.length), (each) => {
+					items.set(each.from, {
+						depth,
+						continued: true
+					});
+				});
+				const kind = list.next === null ? BULLETS[Math.min(depth, BULLETS.length) - 1] : "lf-md-number";
+				const shown = state.selection.ranges.some((range) => range.from < end && range.to >= start);
+				items.set(head.from, {
+					depth,
+					kind: shown ? null : kind,
+					number: list.next
+				});
+				if (list.next !== null) list.next++;
+				add(start, end, shown ? shownMarker : marker);
+			}
+		}
+		for (const [from, { depth, kind, number, continued }] of items) {
+			out.push(itemLine(depth, kind, number).range(from));
+			if (!continued || code.some(([a, b]) => from >= a && from < b)) continue;
+			add(from, from + state.doc.lineAt(from).text.match(/^[ \t]*/)[0].length, hide);
+		}
+		standBlocks(state, placed, out, line);
+		return Decoration.set(out, true);
 	}
-}, { decorations: (plugin) => plugin.decorations });
+	const livePreview = ViewPlugin.fromClass(class {
+		constructor(view) {
+			this.live = true;
+			this.placed = read(view.state);
+			this.decorations = decorate(view.state, this.placed);
+			this.judged = markdownReady();
+			if (!this.judged) loadMarkdown().then(() => this.live && view.dispatch({}), () => {});
+		}
+		destroy() {
+			this.live = false;
+		}
+		update(update) {
+			const judged = markdownReady();
+			if (update.docChanged || judged !== this.judged) {
+				this.judged = judged;
+				this.placed = read(update.state);
+			} else if (!update.selectionSet) return;
+			this.decorations = decorate(update.state, this.placed);
+		}
+	}, { decorations: (plugin) => plugin.decorations });
+	const editable = new Compartment();
+	const histories = new Compartment();
+	const attributes = new Compartment();
+	function fieldState(words, field) {
+		const { base, text } = words;
+		let from = 0;
+		while (from < Math.min(base.length, text.length) && base[from] === text[from]) from++;
+		let kept = 0;
+		while (kept < Math.min(base.length, text.length) - from && base[base.length - 1 - kept] === text[text.length - 1 - kept]) kept++;
+		let state = EditorState.create({
+			doc: base,
+			selection: { anchor: from },
+			extensions: [
+				EditorView.inputHandler.of((view, _from, _to, _text, insert) => {
+					field.typed(!view.contentDOM.editContext, () => view.dispatch(insert()));
+					return true;
+				}),
+				EditorView.scrollHandler.of((view, range) => {
+					field.revealed(view, range.head);
+					return false;
+				}),
+				histories.of(history()),
+				EditorState.transactionFilter.of((tr) => {
+					if (!tr.docChanged || !field.oneLine()) return tr;
+					const breaks = [];
+					tr.changes.iterChanges((_fromA, _toA, fromB, _toB, inserted) => {
+						const text = inserted.toString();
+						for (let at = text.indexOf("\n"); at !== -1; at = text.indexOf("\n", at + 1)) breaks.push({
+							from: fromB + at,
+							to: fromB + at + 1,
+							insert: " "
+						});
+					});
+					return breaks.length ? [tr, {
+						changes: breaks,
+						sequential: true
+					}] : tr;
+				}),
+				invertedEffects.of((tr) => tr.effects.filter((effect) => effect.is(ownerStep)).map(({ value }) => ownerStep.of({
+					run: value.back,
+					back: value.run
+				}))),
+				keymap.of([
+					{
+						key: "Shift-Enter",
+						run: () => field.oneLine()
+					},
+					{
+						key: "Enter",
+						run: (view) => field.returned() && insertNewline(view)
+					},
+					{
+						key: "Shift-Enter",
+						run: insertNewlineContinueMarkup
+					},
+					{
+						key: "Shift-Enter",
+						run: (view) => (view.dispatch(view.state.update(view.state.replaceSelection("\n"), {
+							scrollIntoView: true,
+							userEvent: "input"
+						})), true)
+					},
+					...standardKeymap.filter(({ key }) => key !== "Escape" && key !== "Enter" && key !== "Mod-Enter"),
+					...historyKeymap
+				]),
+				new LanguageSupport(markdownLanguage),
+				livePreview,
+				EditorView.lineWrapping,
+				editable.of(EditorState.readOnly.of(field.readOnly)),
+				attributes.of(EditorView.contentAttributes.of(field.attributes))
+			]
+		});
+		state = state.update({
+			...text !== base && {
+				changes: {
+					from,
+					to: base.length - kept,
+					insert: text.slice(from, text.length - kept)
+				},
+				annotations: isolateHistory.of("full"),
+				userEvent: "input.type"
+			},
+			selection: {
+				anchor: words.anchor,
+				head: words.head
+			}
+		}).state;
+		for (const [undo, redo] of words.steps) state = state.update(record(undo, redo)).state;
+		return state;
+	}
+	const readOnly = (on) => ({ effects: editable.reconfigure(EditorState.readOnly.of(on)) });
+	const contentAttributes = (wanted) => ({ effects: attributes.reconfigure(EditorView.contentAttributes.of(wanted)) });
+	const record = (undo, redo) => ({
+		effects: ownerStep.of({
+			run: redo,
+			back: undo
+		}),
+		annotations: isolateHistory.of("full")
+	});
+	const forgetHistory = { effects: histories.reconfigure([]) };
+	const startHistory = () => ({ effects: histories.reconfigure(history()) });
+	function runOwnerSteps(transactions) {
+		for (const tr of transactions) if (tr.isUserEvent("undo") || tr.isUserEvent("redo")) {
+			for (const effect of tr.effects) if (effect.is(ownerStep)) effect.value.run();
+		}
+	}
+	return {
+		LeafEditorView,
+		fieldState,
+		readOnly,
+		contentAttributes,
+		record,
+		forgetHistory,
+		startHistory,
+		runOwnerSteps
+	};
+}
+
+//#endregion
+//#region runtime/composing/text-field.js
+const sheet = new CSSStyleSheet();
+sheet.replaceSync(`
+  :host { display: block; cursor: text; }
+  /* CodeMirror's provider places its defaults in lf-base. This control owns the
+     unlayered editor face: the host supplies type and colour, and these are the
+     only internal padding declarations before Markdown's explicit insets below. */
+  .cm-editor { font: inherit; color: inherit; background-color: transparent; }
+  .cm-editor.cm-focused { outline: none; }
+  .cm-scroller { font-family: inherit; line-height: inherit; overflow: visible; }
+  .cm-content { padding: 0; caret-color: currentColor; min-height: 1lh; }
+  /* An empty field draws no editor until the user arrives in it (#build). This box
+     holds the empty line's place, as tall as the editor's line, and takes the focus
+     that builds the editor; while the editor loads, it holds the words, wrapped as
+     the editor wraps them. */
+  .lf-field-rest { min-height: 1lh; outline: none; white-space: pre-wrap;
+    overflow-wrap: break-word; }
+  .cm-line { padding: 0; }
+  /* A space after a line's last word hangs past its end, as in a textarea and in the
+     sent message (reading.css, \`.lf-msg-text > p\`), rather than taking room on the
+     line and carrying the word to the next one, as CodeMirror's \`break-spaces\`
+     does. */
+  .cm-editor .cm-content.cm-lineWrapping { white-space: pre-wrap; }
+  /* CodeMirror's caret stops beside a widget hang from the text's top, which stands
+     above a line set tighter than its type, as a heading's is, and would make that
+     line taller than the heading it draws. The field's caret is the platform's. */
+  .cm-widgetBuffer { vertical-align: top; }
+  /* The placeholder is a layer under the words, as a textarea's is, never content in
+     the line: a widget in an empty line is what the platform would draw the caret
+     against. Both layers share one grid cell, inside the host's padding. */
+  .lf-field { display: grid; }
+  .lf-field > * { grid-area: 1 / 1; min-width: 0; }
+  /* An owner moving the field's edges can carry the words from where they were with
+     them, by the host's --lf-field-carry, and cut them to the box it draws growing, by
+     --lf-field-cut (theme.css): a transform and a cut that move neither the field nor
+     its layout. The field's content box cuts off what the field doesn't hold yet,
+     such as a new line and its caret, and keeps the travel from widening the host's
+     scrolling. A cut naming none is invalid, which leaves the words uncut. The clip
+     reaches 2px past that box, the caret's width at a line's end: Firefox paints the
+     caret from its offset onward and pulls it inside only a scroll container, so a
+     caret after a line that fills the box, as a trailing space can, was
+     cut away whole. Words an owner carries down from above the box, as a line removed
+     carries them, need more: it sets --lf-field-reach as far as they travel, and
+     stops the host scrolling meanwhile. Chrome refuses calc() here, so the reach
+     replaces the caret's margin rather than adding to it, so the owner keeps at
+     least 2px there and at the moving content's inline clip edges. */
+  .lf-field { overflow: clip; overflow-clip-margin: var(--lf-field-reach, 2px); }
+  .lf-field > * {
+    translate: var(--lf-field-carry);
+    clip-path: inset(var(--lf-field-cut));
+  }
+  /* The placeholder is one line that never widens the box — a response bar sizes to the
+     words — and shortens with an ellipsis where the box is narrow, so it reads the same
+     height whether it shows the plain words or a keyed hint. */
+  .lf-field-placeholder { pointer-events: none; white-space: nowrap;
+    contain: inline-size; overflow-x: clip; text-overflow: ellipsis;
+    color: var(--muted); }
+  :host(:not(:state(placeholder-shown))) .lf-field-placeholder { visibility: hidden; }
+  /* The trailing action's room, on every line. */
+  .lf-field { padding-inline-end: var(--lf-field-end-room); }
+  /* A draft wears the sent message's faces, or where it stands in place, those its
+     display gives each block (\`standBlocks\`), written on its lines over these. Strong,
+     emphasis and strikethrough are the elements themselves, which the platform dresses
+     here as it does in the message; the rest read the theme's tokens, since its element
+     rules stop at this root. A heading is bold, as the platform draws one, at the size
+     of the words around it. A block is drawn line by line, so a code block's frame is
+     each line's sides, closed above its first line and below its last. Syntax that holds
+     its room while the caret is away, as a code fence's line does, is there unseen and
+     unspoken. Its glyphs go unfilled while its colour stays the words', because the
+     caret can stand at the end of unseen text, as just past a new item's marker, and the
+     browser draws it in that text's colour. */
+  .lf-md-mark { color: var(--muted); }
+  .lf-md-unseen { -webkit-text-fill-color: transparent; }
+  code { font-family: var(--mono); font-size: var(--code-inline-size);
+    background: var(--code-bg); border-radius: var(--code-inline-r);
+    padding: var(--code-inline-pad); box-decoration-break: slice; }
+  .lf-md-heading { font-weight: bold; }
+  .lf-md-link { color: var(--accent); text-decoration: underline var(--link-underline);
+    text-underline-offset: var(--link-underline-offset); }
+  .lf-md-quote { border-inline-start: var(--quote-rule); font-style: var(--quote-style);
+    padding-inline-start: var(--quote-inset); color: var(--muted);
+    --lf-marker-inset: var(--quote-inset); }
+  /* A quote's and a list item's words stand where the message's do, and the source's
+     marker stands in the inset before them, unseen while the caret is away, so
+     revealing it moves no word. A list item's lines stand one list inset in per level,
+     under the platform's own list marker, as in the message, so it is the same bullet
+     or number at the same place. */
+  .lf-md-item { margin-inline-start: calc(var(--lf-list-depth) * var(--list-inset));
+    --lf-marker-inset: var(--list-inset); }
+  .lf-md-marker { display: inline-flex; justify-content: flex-end; white-space: pre;
+    inline-size: var(--lf-marker-inset);
+    margin-inline-start: calc(-1 * var(--lf-marker-inset)); }
+  .lf-md-listed { display: list-item; }
+  .lf-md-disc { list-style-type: disc; }
+  .lf-md-circle { list-style-type: circle; }
+  .lf-md-square { list-style-type: square; }
+  .lf-md-number { list-style-type: decimal; }
+  .lf-md-code-block { font-family: var(--mono); font-size: var(--code-size);
+    line-height: var(--code-line); color: var(--code-ink); background: var(--pre-bg);
+    font-variant-ligatures: none; border-inline: 1px solid var(--code-border);
+    padding-inline: var(--pre-inset); }
+  .lf-md-code-first { border-block-start: 1px solid var(--code-border);
+    border-start-start-radius: var(--r); border-start-end-radius: var(--r); }
+  /* A sent pre reserves 8px below its lines for a horizontal scrollbar. */
+  .cm-line.lf-md-code-last { border-block-end: 1px solid var(--code-border);
+    border-end-start-radius: var(--r); border-end-end-radius: var(--r);
+    padding-block-end: 8px; }
+  /* A picture fits the field as media fits its container on the page, centred on its
+     line (theme.css), and the mark after a link that leaves the page is the page's
+     own (surfaces.css). */
+  .lf-md-picture { max-width: 100%; height: auto; vertical-align: middle; }
+  .lf-external-mark { display: inline-block; width: 0.75em; height: 0.75em;
+    margin-inline-start: 0.24em; vertical-align: 0.03em; color: var(--accent);
+    fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round;
+    stroke-linejoin: round; overflow: visible; user-select: none;
+    -webkit-user-select: none; }
+  /* A fence's line, while the caret is away from it, stands for the sent pre's padding,
+     and code with no fence lines takes that padding at its ends instead. A field that
+     edits in place reads its display's padding over this (\`readFaces\`). */
+  .lf-face-fence-open, .lf-face-fence-close { line-height: var(--pre-pad-block); }
+  .lf-md-code-bare.lf-md-code-first { padding-block-start: var(--pre-pad-block); }
+  .lf-md-code-bare.lf-md-code-last { padding-block-end: calc(var(--pre-pad-block) + 8px); }
+`);
+let editor = null;
+const loadEditor = () => loadFieldEditor().then((loaded) => editor = loaded);
+afterPresentation(loadEditor);
+var Draft = class {
+	steps = [];
+	constructor(text) {
+		this.text = this.base = text;
+		this.anchor = this.head = text.length;
+	}
+};
+const placeWords = (node) => node.nodeType === Node.TEXT_NODE ? node.data : node.nodeName === "BR" ? "\n" : [...node.childNodes].map(placeWords).join("");
 var LeafText = class extends HTMLElement {
-	#model;
+	#model = new Draft("");
 	#view = null;
 	#rest = document.createElement("div");
+	#waiting = null;
+	#composing = false;
 	#nativeInput = false;
 	#root;
 	#internals = null;
-	#editable = new Compartment();
-	#history = new Compartment();
-	#attributes = new Compartment();
 	facesOf = null;
 	#faces = new CSSStyleSheet();
 	#facesRead = "";
@@ -872,7 +1807,7 @@ var LeafText = class extends HTMLElement {
 		});
 	});
 	#rowTravel(view, pos) {
-		const { destination, rectangle: caret } = caretAt(view, pos);
+		const { destination, rectangle: caret } = view.caretAt(pos);
 		const node = destination instanceof Range ? destination.startContainer : destination;
 		const row = (node instanceof Element ? node : node.parentElement)?.closest(".cm-line") ?? this;
 		const { scaleY } = view;
@@ -928,9 +1863,14 @@ var LeafText = class extends HTMLElement {
 		this.#rest.className = "lf-field-rest";
 		this.#rest.append(document.createElement("br"));
 		this.#rest.addEventListener("focusin", () => this.#build());
+		for (const type of [
+			"beforeinput",
+			"input",
+			"compositionstart",
+			"compositionend"
+		]) this.#rest.addEventListener(type, (event) => this.#typeAtRest(event));
 		this.#frame.append(this.#placeholderLayer, this.#rest);
 		this.#root.append(this.#frame);
-		this.#model = this.#create("");
 		this.#dressRest();
 		this.addEventListener("mousedown", (event) => this.#pressPadding(event));
 		this.addEventListener("dragenter", () => {
@@ -940,81 +1880,113 @@ var LeafText = class extends HTMLElement {
 		this.#root.addEventListener("beforeinput", () => this.#beforeEdit(), { capture: true });
 		for (const type of ["input", "beforeinput"]) this.#root.addEventListener(type, (event) => event.stopPropagation());
 	}
-	#create(text) {
-		return EditorState.create({
-			doc: text,
-			selection: { anchor: text.length },
-			extensions: [
-				EditorView.inputHandler.of((view, _from, _to, _text, insert) => {
-					this.#nativeInput = !view.contentDOM.editContext;
-					try {
-						view.dispatch(insert());
-					} finally {
-						this.#nativeInput = false;
-					}
-					return true;
-				}),
-				EditorView.scrollHandler.of((view, range) => {
-					moveScrollerBy(this, this.#rowTravel(view, range.head));
-					return false;
-				}),
-				this.#history.of(history()),
-				EditorState.transactionFilter.of((tr) => {
-					if (!tr.docChanged || !this.#oneLine) return tr;
-					const breaks = [];
-					tr.changes.iterChanges((_fromA, _toA, fromB, _toB, inserted) => {
-						const text = inserted.toString();
-						for (let at = text.indexOf("\n"); at !== -1; at = text.indexOf("\n", at + 1)) breaks.push({
-							from: fromB + at,
-							to: fromB + at + 1,
-							insert: " "
-						});
-					});
-					return breaks.length ? [tr, {
-						changes: breaks,
-						sequential: true
-					}] : tr;
-				}),
-				invertedEffects.of((tr) => tr.effects.filter((effect) => effect.is(ownerStep)).map(({ value }) => ownerStep.of({
-					run: value.back,
-					back: value.run
-				}))),
-				keymap.of([
-					{
-						key: "Shift-Enter",
-						run: () => this.#oneLine
-					},
-					{
-						key: "Enter",
-						run: (view) => this.dispatchEvent(new Event("lf-edit-return", { cancelable: true })) && insertNewline(view)
-					},
-					{
-						key: "Shift-Enter",
-						run: insertNewlineContinueMarkup
-					},
-					{
-						key: "Shift-Enter",
-						run: (view) => (view.dispatch(view.state.update(view.state.replaceSelection("\n"), {
-							scrollIntoView: true,
-							userEvent: "input"
-						})), true)
-					},
-					...standardKeymap.filter(({ key }) => key !== "Escape" && key !== "Enter" && key !== "Mod-Enter"),
-					...historyKeymap
-				]),
-				new LanguageSupport(markdownLanguage),
-				livePreview,
-				EditorView.lineWrapping,
-				this.#editable.of(EditorState.readOnly.of(this.#readOnly)),
-				this.#attributes.of(EditorView.contentAttributes.of(this.#contentAttributes()))
-			]
+	#typeAtRest(event) {
+		if (this.#view || !(this.#model instanceof Draft)) return;
+		if (event.type === "compositionstart") {
+			this.#composing = true;
+			return;
+		}
+		if (event.type === "beforeinput") {
+			if (this.#readOnly || event.inputType === "insertParagraph" && !this.#returned() || event.inputType === "insertLineBreak" && this.#oneLine) event.preventDefault();
+			return;
+		}
+		if (event.type === "compositionend") this.#composing = false;
+		else if (this.#composing || event.isComposing) return;
+		this.#readRest();
+		this.#paintEmpty();
+		this.dispatchEvent(new Event("input", { bubbles: true }));
+		if (event.type === "compositionend" && editor) this.#build();
+	}
+	#readRest() {
+		const words = placeWords(this.#rest);
+		const kept = this.#rest.lastChild?.nodeName === "BR" ? words.slice(0, -1) : words;
+		const text = this.#oneLine ? kept.replaceAll("\n", " ") : kept;
+		const selection = this.#selection();
+		const [range] = selection.getComposedRanges({ shadowRoots: [this.#root] });
+		const at = (node, offset) => {
+			if (!this.#rest.contains(node)) return text.length;
+			const before = document.createRange();
+			before.setStart(this.#rest, 0);
+			before.setEnd(node, offset);
+			return Math.min(placeWords(before.cloneContents()).length, text.length);
+		};
+		const from = range ? at(range.startContainer, range.startOffset) : text.length;
+		const to = range ? at(range.endContainer, range.endOffset) : text.length;
+		const backward = selection.direction === "backward";
+		Object.assign(this.#model, {
+			text,
+			anchor: backward ? to : from,
+			head: backward ? from : to
 		});
+		if (text !== kept) this.#paintRest();
+	}
+	#selection() {
+		return this.#root.getSelection?.() ?? document.getSelection();
+	}
+	#paintRest() {
+		if (this.#composing) return;
+		const text = this.#view ? "" : this.#text;
+		const here = !this.#view && this.#root.activeElement === this.#rest;
+		const last = this.#rest.lastChild?.nodeName === "BR";
+		const shown = placeWords(this.#rest).slice(0, last ? -1 : void 0) === text;
+		const plain = (node) => node?.nodeType === Node.TEXT_NODE;
+		const one = this.#rest.childNodes.length === (text ? 1 : 0) + Number(last) && (!text || plain(this.#rest.firstChild));
+		if (shown && (!here || one)) return this.#placeRestCaret(here);
+		this.#rest.replaceChildren(...text ? [text] : [], ...!text || text.endsWith("\n") ? [document.createElement("br")] : []);
+		this.#placeRestCaret(here);
+	}
+	#placeRestCaret(here) {
+		if (!here) return;
+		const { anchor, head } = this.#range;
+		const words = this.#rest.firstChild;
+		if (words.nodeType === Node.TEXT_NODE) this.#selection().setBaseAndExtent(words, anchor, words, head);
+		else this.#selection().setBaseAndExtent(this.#rest, 0, this.#rest, 0);
+	}
+	#returned() {
+		return this.dispatchEvent(new Event("lf-edit-return", { cancelable: true }));
+	}
+	#hooks() {
+		return {
+			readOnly: this.#readOnly,
+			attributes: this.#contentAttributes(),
+			returned: () => this.#returned(),
+			oneLine: () => this.#oneLine,
+			revealed: (view, pos) => moveScrollerBy(this, this.#rowTravel(view, pos)),
+			typed: (native, insert) => {
+				this.#nativeInput = native;
+				try {
+					insert();
+				} finally {
+					this.#nativeInput = false;
+				}
+			}
+		};
+	}
+	get #state() {
+		return this.#view?.state ?? this.#model;
+	}
+	get #text() {
+		const state = this.#state;
+		return state instanceof Draft ? state.text : state.doc.toString();
+	}
+	get #length() {
+		const state = this.#state;
+		return state instanceof Draft ? state.text.length : state.doc.length;
+	}
+	get #range() {
+		const state = this.#state;
+		return state instanceof Draft ? state : state.selection.main;
+	}
+	#change(spec, draft = () => {}) {
+		if (this.#view) this.#view.dispatch(spec(editor));
+		else if (this.#model instanceof Draft) draft(this.#model);
+		else this.#model = this.#model.update(spec(editor)).state;
 	}
 	attributeChangedCallback(name) {
 		if (name === "placeholder") this.#placeholderText.data = this.placeholder;
 		if (name === "aria-describedby") return this.#describe();
 		this.#dressRest();
-		this.#apply({ effects: this.#attributes.reconfigure(EditorView.contentAttributes.of(this.#contentAttributes())) });
+		this.#change((module) => module.contentAttributes(this.#contentAttributes()));
 	}
 	connectedMoveCallback() {
 		this.#view?.placeSelection();
@@ -1027,7 +1999,7 @@ var LeafText = class extends HTMLElement {
 		if (!this.hasAttribute("tabindex")) this.tabIndex = 0;
 		this.#internals ??= this.attachInternals();
 		this.#root.adoptedStyleSheets = [sheet, this.#faces];
-		if (this.#model.doc.length) this.#build();
+		if (this.#length) this.#build();
 		else this.#describe();
 		this.#paintEmpty();
 		this.#internals.states.add("ready");
@@ -1047,18 +2019,30 @@ var LeafText = class extends HTMLElement {
 		for (const [name, value] of Object.entries(wanted)) if (this.#rest.getAttribute(name) !== value) this.#rest.setAttribute(name, value);
 	}
 	#build() {
+		if (this.#view) return;
+		if (!editor) {
+			this.#paintRest();
+			if (this.#waiting) return;
+			this.#waiting = holdRendering();
+			loadEditor().then(() => this.isConnected && this.#build()).finally(() => {
+				this.#waiting();
+				this.#waiting = null;
+			});
+			return;
+		}
+		if (this.#composing) return;
+		if (this.#model instanceof Draft && this.#root.activeElement === this.#rest) this.#readRest();
 		this.#readFaces();
-		this.#view = new LeafEditorView({
+		const module = editor;
+		this.#view = new module.LeafEditorView({
 			root: this.#root,
 			parent: this.#frame,
-			state: this.#model,
+			state: this.#model instanceof Draft ? module.fieldState(this.#model, this.#hooks()) : this.#model,
 			dispatchTransactions: (transactions, view) => {
 				const edited = transactions.some((tr) => tr.docChanged);
 				if (edited && !this.#nativeInput) this.#beforeEdit();
 				view.update(transactions);
-				for (const tr of transactions) if (tr.isUserEvent("undo") || tr.isUserEvent("redo")) {
-					for (const effect of tr.effects) if (effect.is(ownerStep)) effect.value.run();
-				}
+				module.runOwnerSteps(transactions);
 				this.#paintEmpty();
 				this.#measureOverflow();
 				if (edited) this.dispatchEvent(new Event("input", { bubbles: true }));
@@ -1076,6 +2060,7 @@ var LeafText = class extends HTMLElement {
 			this.#view.placeSelection();
 		}
 		this.#rest.hidden = true;
+		this.#paintRest();
 		this.#measureOverflow();
 	}
 	#beforeEdit() {
@@ -1103,14 +2088,15 @@ var LeafText = class extends HTMLElement {
 		if (described.length !== current.length || described.some((element, at) => element !== current[at])) content.ariaDescribedByElements = described;
 	}
 	focus(options) {
-		if (!this.#view && this.isConnected) this.#build();
-		if (!this.#view) return;
-		this.#view.focus();
-		if (this.#root.activeElement !== this.#view.contentDOM) return;
+		if (!this.isConnected) return;
+		this.#build();
+		if (this.#view) this.#view.focus();
+		else this.#rest.focus({ preventScroll: true });
+		if (this.#root.activeElement !== (this.#view?.contentDOM ?? this.#rest)) return;
 		if (!options?.preventScroll) scrollIntoView(this, { block: "nearest" });
 	}
 	blur() {
-		this.#view?.contentDOM.blur();
+		(this.#view?.contentDOM ?? this.#rest).blur();
 	}
 	#pressPadding(event) {
 		if (event.button !== 0) return;
@@ -1131,14 +2117,6 @@ var LeafText = class extends HTMLElement {
 		this.#view.focus();
 		this.#view.dispatch({ selection: { anchor: at } });
 	}
-	get #state() {
-		return this.#view?.state ?? this.#model;
-	}
-	#apply(spec) {
-		if (!this.#view && spec.changes && this.isConnected) this.#build();
-		if (this.#view) this.#view.dispatch(spec);
-		else this.#model = this.#model.update(spec).state;
-	}
 	get #oneLine() {
 		return this.getAttribute("aria-multiline") === "false";
 	}
@@ -1155,37 +2133,43 @@ var LeafText = class extends HTMLElement {
 		return attributes;
 	}
 	#paintEmpty() {
-		if (this.#state.doc.length) this.#internals.states.delete("placeholder-shown");
+		if (this.#length) this.#internals.states.delete("placeholder-shown");
 		else this.#internals.states.add("placeholder-shown");
 	}
 	get value() {
-		return this.#state.doc.toString();
+		return this.#text;
 	}
 	edit(text) {
 		text = String(text).replace(/\r\n?/g, "\n");
 		if (text === this.value) return;
-		this.#apply({
+		if (!this.#view && this.isConnected) this.#build();
+		this.#change(() => ({
 			changes: {
 				from: 0,
-				to: this.#state.doc.length,
+				to: this.#length,
 				insert: text
 			},
 			selection: { anchor: text.length },
 			userEvent: "input.dictation"
+		}), (draft) => {
+			if (this.isConnected) this.#beforeEdit();
+			draft.text = text;
+			draft.anchor = draft.head = text.length;
+			if (!this.isConnected) return;
+			this.#paintRest();
+			this.#paintEmpty();
+			this.dispatchEvent(new Event("input", { bubbles: true }));
 		});
 	}
 	record(undo, redo) {
-		this.#apply({
-			effects: ownerStep.of({
-				run: redo,
-				back: undo
-			}),
-			annotations: isolateHistory.of("full")
-		});
+		this.#change((module) => module.record(undo, redo), (draft) => draft.steps.push([undo, redo]));
 	}
 	restartHistory() {
-		this.#apply({ effects: this.#history.reconfigure([]) });
-		this.#apply({ effects: this.#history.reconfigure(history()) });
+		this.#change((module) => module.forgetHistory, (draft) => Object.assign(draft, {
+			steps: [],
+			base: draft.text
+		}));
+		this.#change((module) => module.startHistory());
 	}
 	get naturalBlockSize() {
 		const host = getComputedStyle(this);
@@ -1196,7 +2180,10 @@ var LeafText = class extends HTMLElement {
 		if (text === this.value) return;
 		if (!this.#view && this.isConnected) this.#build();
 		if (!this.#view) {
-			this.#model = this.#create(text);
+			this.#model = new Draft(text);
+			if (!this.isConnected) return;
+			this.#paintRest();
+			this.#paintEmpty();
 			return;
 		}
 		const content = this.#view.contentDOM;
@@ -1209,38 +2196,44 @@ var LeafText = class extends HTMLElement {
 				insert: text
 			},
 			selection: { anchor: text.length },
-			effects: this.#history.reconfigure([])
+			...editor.forgetHistory
 		});
-		const fresh = reset.state.update({ effects: this.#history.reconfigure(history()) });
+		const fresh = reset.state.update(editor.startHistory());
 		this.#view.update([reset, fresh]);
 		if (composing) content.editContext = composing;
 		this.#paintEmpty();
 		this.#measureOverflow();
 	}
 	get selectionStart() {
-		return this.#state.selection.main.from;
+		const { anchor, head } = this.#range;
+		return Math.min(anchor, head);
 	}
 	get selectionEnd() {
-		return this.#state.selection.main.to;
+		const { anchor, head } = this.#range;
+		return Math.max(anchor, head);
 	}
 	get selectionDirection() {
-		const { main } = this.#state.selection;
-		return main.empty ? "none" : main.head < main.anchor ? "backward" : "forward";
+		const { anchor, head } = this.#range;
+		return anchor === head ? "none" : head < anchor ? "backward" : "forward";
 	}
 	setSelectionRange(start, end, direction = "none") {
-		const length = this.#state.doc.length;
+		const length = this.#length;
 		const to = Math.min(Math.max(Number(end) || 0, 0), length);
 		const from = Math.min(Math.max(Number(start) || 0, 0), to);
-		this.#apply({ selection: direction === "backward" ? {
-			anchor: to,
-			head: from
-		} : {
-			anchor: from,
-			head: to
-		} });
+		const [anchor, head] = direction === "backward" ? [to, from] : [from, to];
+		this.#change(() => ({ selection: {
+			anchor,
+			head
+		} }), (draft) => {
+			Object.assign(draft, {
+				anchor,
+				head
+			});
+			this.#paintRest();
+		});
 	}
 	select() {
-		this.setSelectionRange(0, this.#state.doc.length);
+		this.setSelectionRange(0, this.#length);
 	}
 	get placeholder() {
 		return this.getAttribute("placeholder") ?? "";
@@ -1254,7 +2247,7 @@ var LeafText = class extends HTMLElement {
 	set readOnly(on) {
 		this.#readOnly = Boolean(on);
 		this.#dressRest();
-		this.#apply({ effects: this.#editable.reconfigure(EditorState.readOnly.of(this.#readOnly)) });
+		this.#change((module) => module.readOnly(this.#readOnly));
 	}
 	get name() {
 		return this.getAttribute("name") ?? "";
@@ -1307,10 +2300,9 @@ composerQuote.id = "lf-composer-quote";
 composerQuote.hidden = true;
 const composerInput = fabInput;
 composerInput.setAttribute("aria-describedby", composerQuote.id);
-const composerSend = el("button", "", "Comment");
 const composerField = document.createDocumentFragment();
 composerField.append(composerInput);
-composer.append(composerQuote, composerSend);
+composer.append(composerQuote);
 fabBar.prepend(composer);
 let pendingAnchor = null;
 let pendingAbout = null;
@@ -1627,7 +2619,6 @@ function createSelectionComposer({ setReact, reactionTokens, reactionAvailable, 
 		syncComposer = wireInput(composerInput, {
 			hint: () => suggestionMode ? "Replacement text" : pendingAbout ? "About the layer" : "Comment…",
 			sends: () => suggestionMode ? "suggest" : "comment",
-			sendBtn: composerSend,
 			allowsMedia: () => suggestionMode ? "Images can be added to comments, not replacement text" : true,
 			hasContent: holdsContent,
 			save: saveComposerDraft,
@@ -1789,6 +2780,270 @@ function createSelectionComposer({ setReact, reactionTokens, reactionAvailable, 
 		openDraft,
 		mount
 	};
+}
+
+//#endregion
+//#region runtime/margin-model.js
+const TOGGLE = Object.freeze({
+	icon: "more",
+	label: "More options"
+});
+const FOLDED = Object.freeze(Object.fromEntries(Object.entries(KINDS).map(([kind, { icon, label }]) => [kind, Object.freeze({
+	icon,
+	label
+})])));
+const EXPANDED_MARGIN_ENTRY_BUDGET = 6;
+function annotationItems(entry) {
+	const represented = new Set(entry.offers.flatMap(({ reading }) => reading.entries.filter((record) => record.visible).map((record) => record.owner)));
+	return entry.items.filter((item) => !item.owner || !represented.has(item.owner));
+}
+const noticeItems = (entry) => entry.offers.flatMap((offered) => {
+	const notice = offered.reading.notice;
+	if (!notice) return [];
+	return [Object.freeze({
+		kind: "notice",
+		key: offered,
+		notice,
+		offered
+	})];
+});
+const deriveEntryState = (entry) => {
+	return [...entry.offers.map(contributionState), ...entry.items.map((item) => item.state ?? item.workflowFace?.state ?? "idle")].sort((left, right) => contributionEntryStateRank(left) - contributionEntryStateRank(right))[0] ?? "idle";
+};
+const entryState = (entry) => entry.state;
+const entryEngaged = (entry) => entry.state !== "idle";
+const controlReceipt = (carrier, record) => carrier?.key === record.key && carrier.owner === record.owner ? carrier.receipt : record.workflowReceipt;
+const contributionItem = (offered, record, carrier, cluster = null) => Object.freeze({
+	cluster,
+	kind: "contribution",
+	offered,
+	record,
+	receipt: controlReceipt(carrier, record)
+});
+const visibleRecords = (offers) => offers.flatMap((offered) => offered.reading.entries.filter((record) => record.visible).map((record) => ({
+	offered,
+	record
+})));
+const entryControls = (entry) => [...entry.controls, ...entry.afterControls].sort(compareContributionEntryRecords);
+const choosePrimary = (entry) => entry.controls[0] ?? null;
+const entryHasMarginHost = (entry) => entry.hasMarginHost;
+const readingKey = (entry, choice) => JSON.stringify([entry.key, choice.key]);
+const deriveReadingChoices = (items) => {
+	const threadList = [];
+	const choices = [];
+	for (const item of items.filter((item) => item.marker !== false)) if (item.kind === "comment") threadList.push(item);
+	else choices.push({
+		key: contributionItemKey(item),
+		kind: item.kind,
+		items: [item],
+		text: item.text
+	});
+	if (threadList.length) choices.push({
+		key: "threadList",
+		kind: "comment",
+		items: threadList,
+		text: threadList[0].text
+	});
+	return Object.freeze(choices.map((choice) => Object.freeze({
+		...choice,
+		items: Object.freeze(choice.items)
+	})).sort((left, right) => KINDS[left.kind].priority - KINDS[right.kind].priority || left.items[0].id.localeCompare(right.items[0].id) || left.key.localeCompare(right.key)));
+};
+const readingChoices = (entry) => entry.choices;
+const primaryReading = (entry) => readingChoices(entry)[0] ?? null;
+const threadReading = (entry) => readingChoices(entry).find((choice) => choice.kind === "comment") ?? null;
+const secondaryReadings = (entry, primaryControl) => readingChoices(entry).slice(primaryControl ? 0 : 1);
+const secondaryCount = (entry, primary) => secondaryReadings(entry, primary).length + entry.controls.length - Number(Boolean(primary)) + entry.afterControls.length;
+const optionsOffered = (entry, primary) => secondaryCount(entry, primary) > 1;
+function readingLabel(choice) {
+	const face = readingFace(choice);
+	const items = choice?.items ?? [];
+	if (items.length > 1) return `${face.label}s`;
+	return items[0]?.label || face.label;
+}
+function markerFace(entry) {
+	const kinds = kindsIn(entry, { markerOnly: true });
+	const choice = primaryReading(entry);
+	const face = readingFace(choice);
+	const faceCount = choice?.items.length ?? 0;
+	return {
+		kinds,
+		face,
+		label: readingLabel(choice),
+		count: faceCount
+	};
+}
+function readingFace(choice) {
+	return choice?.items.length === 1 && choice.items[0].workflowFace || KINDS[choice?.kind] || KINDS.action;
+}
+function readingState(choice) {
+	return (choice?.items ?? []).map((item) => item.state ?? item.workflowFace?.state ?? "idle").sort((left, right) => contributionEntryStateRank(left) - contributionEntryStateRank(right))[0] ?? "idle";
+}
+const readingBehavior = (face) => face.indication ? "status" : "disclosure";
+const userAttention = (items) => {
+	let first = null;
+	for (const item of items) {
+		const attention = item.userAttention;
+		if (!attention) continue;
+		if (attention.reason === "obligation") return attention;
+		first ??= attention;
+	}
+	return first;
+};
+const awaitingUser = (items) => Boolean(userAttention(items));
+const unreadIn = (items) => items.reduce((sum, item) => sum + (item.unread ?? 0), 0);
+function threadMarks(thread) {
+	const attention = threadAttention(thread);
+	const onUser = attention?.kind === "needs_user";
+	const receipt = attention?.kind === "waiting" ? attention.workflow : null;
+	const unread = thread.unread.length;
+	const line = attention && (!receipt || receipt.condition) && attention.label || (unread ? `${unread} unread` : null);
+	return {
+		userAttention: onUser ? {
+			label: attention.label,
+			reason: thread.attention?.reason ?? "workflow"
+		} : null,
+		unread,
+		context: line,
+		mapContext: line,
+		workflowReceipt: receipt
+	};
+}
+function readingContext(choice) {
+	const items = choice?.items ?? [];
+	const attention = userAttention(items);
+	if (attention) return attention.label;
+	if (items.length === 1) return items[0].context ?? null;
+	const unread = unreadIn(items);
+	return unread ? `${unread} unread` : null;
+}
+const spokenContext = (choice) => {
+	const items = choice?.items ?? [];
+	return choice?.kind === "comment" || awaitingUser(items) || unreadIn(items) ? readingContext(choice) : null;
+};
+function kindsIn(entry, { markerOnly = false } = {}) {
+	const counts = /* @__PURE__ */ new Map();
+	for (const item of entry.items) if (!markerOnly || item.marker !== false) counts.set(item.kind, (counts.get(item.kind) ?? 0) + 1);
+	return [...counts].map(([kind, count]) => ({
+		kind,
+		count,
+		...KINDS[kind]
+	}));
+}
+const readingItem = (entry, choice) => Object.freeze({
+	kind: "reading",
+	key: `reading:${readingKey(entry, choice)}`,
+	entry,
+	choice
+});
+function optionItems(entry, primary, focusedOffer = null) {
+	if (focusedOffer) return focusedOffer.reading.entries.filter((record) => record.visible).map((record) => contributionItem(focusedOffer, record, entry.workflowCarrier, entry));
+	return [
+		...entry.controls.slice(primary ? 1 : 0).map((item) => Object.freeze({
+			...item,
+			cluster: entry
+		})),
+		...secondaryReadings(entry, primary).map((choice) => readingItem(entry, choice)),
+		...entry.afterControls.map((item) => Object.freeze({
+			...item,
+			cluster: entry
+		}))
+	];
+}
+function optionGroupProjection(entry, primary, optionsOpen, focusedOffer = null, forcedInlineKey = null, folded = false) {
+	const items = optionItems(entry, primary, focusedOffer);
+	const peerCapacity = Math.max(0, EXPANDED_MARGIN_ENTRY_BUDGET - (!focusedOffer && (primary || entry.choices.length) ? 1 : 0));
+	const needsSpill = items.length > peerCapacity;
+	const visibleCapacity = needsSpill ? peerCapacity - 1 : peerCapacity;
+	const hidden = Math.max(0, items.length - visibleCapacity);
+	const direct = items.slice(0, visibleCapacity);
+	const forcedThread = forcedInlineKey === entry.key ? items.find((item) => item.choice?.kind === "comment") : null;
+	if (forcedThread && direct.length && !direct.includes(forcedThread)) direct[direct.length - 1] = forcedThread;
+	const firstSpilled = items.find((item) => !direct.includes(item));
+	return Object.freeze({
+		entry,
+		entryKey: entry.key,
+		label: `${entryEngaged(entry) || folded ? "Actions" : "More options"} for ${spokenSubject(entry.title)}`,
+		hidden: !optionsOpen || direct.length === 0,
+		items: Object.freeze(items),
+		spill: needsSpill ? Object.freeze({
+			count: hidden,
+			first: firstSpilled,
+			label: `Show ${hidden} more in Page Map`
+		}) : null,
+		visible: Object.freeze(direct)
+	});
+}
+const focusedOfferOf = (entry, expandedKey, expandedOwner) => expandedKey === entry.key && expandedOwner ? entry.offers.find((offered) => offered.key === expandedOwner) ?? null : null;
+function canFold(entry, { expandedKey = null, expandedOwner = null } = {}) {
+	if (focusedOfferOf(entry, expandedKey, expandedOwner)) return false;
+	const primary = choosePrimary(entry);
+	return Boolean(primary) && secondaryCount(entry, primary) > 0 && entry.choices.length === 0 && noticeItems(entry).length === 0 && !entryEngaged(entry);
+}
+function clusterProjection(entry, { expandedKey = null, expandedOwner = null, forcedInlineKey = null, folded = false } = {}) {
+	const focusedOffer = focusedOfferOf(entry, expandedKey, expandedOwner);
+	const primary = focusedOffer ? null : choosePrimary(entry);
+	const folds = folded && canFold(entry, {
+		expandedKey,
+		expandedOwner
+	});
+	const shown = folds ? null : primary;
+	const subject = spokenSubject(entry.title);
+	const secondaries = focusedOffer ? focusedOffer.reading.entries.filter((record) => record.visible).length : secondaryCount(entry, primary);
+	const hasOptions = folds || secondaries > (focusedOffer ? 0 : 1);
+	const optionsOpen = secondaries > 0 && (!hasOptions || expandedKey === entry.key || entryEngaged(entry));
+	const kind = folds ? primary.offered.reading.kind ?? "action" : null;
+	return Object.freeze({
+		primary,
+		hasOptions,
+		optionsOpen,
+		optionsExpanded: optionsOpen && expandedKey === entry.key,
+		folded: folds,
+		options: optionGroupProjection(entry, shown, optionsOpen, focusedOffer, forcedInlineKey, folds),
+		direct: Object.freeze([...shown ? [shown] : [], ...noticeItems(entry)]),
+		entry,
+		kind: "page",
+		label: `Page actions for ${subject}`,
+		toggle: kind ? FOLDED[kind] : TOGGLE,
+		moreLabel: kind ? `${KINDS[kind].label}, ${subject}` : `More options for ${subject}`,
+		offers: entry.offers,
+		hasPrimary: Boolean(shown),
+		state: entryState(entry),
+		target: entry.targetId || entry.key
+	});
+}
+function marginInventory(groups) {
+	return Object.freeze(groups.map((group) => {
+		const represented = new Set(group.items.filter((item) => item.marker === false && item.represents).map((item) => item.kind));
+		let items = group.items.filter((item) => item.marker === false || item.workflowFace || !represented.has(item.kind)).sort((left, right) => KINDS[left.kind].priority - KINDS[right.kind].priority || (left.kind === "comment" ? 0 : left.id.localeCompare(right.id)));
+		const direct = group.offers.filter((offered) => offered.reading.side === "before" || offered.reading.hasReadings);
+		const after = group.offers.filter((offered) => offered.reading.side === "after" && !offered.reading.hasReadings).sort(compareContributions);
+		const directRecords = visibleRecords(direct).sort(compareContributionEntryRecords);
+		const primary = directRecords[0];
+		const receipt = group.workflowReceipt;
+		const workflowCarrier = primary && receipt ? Object.freeze({
+			key: primary.record.key,
+			owner: primary.record.owner,
+			receipt
+		}) : null;
+		const controlsFrom = (records) => records.map(({ offered, record }) => contributionItem(offered, record, workflowCarrier));
+		const controls = Object.freeze(controlsFrom(directRecords));
+		const afterControls = Object.freeze(after.flatMap((offered) => controlsFrom(visibleRecords([offered]).sort(compareContributionEntryRecords))));
+		if (workflowCarrier) items = items.filter((item) => !(item.workflowFace && item.carriesWorkflow));
+		return Object.freeze({
+			...group,
+			items: Object.freeze(items),
+			controls,
+			afterControls,
+			choices: deriveReadingChoices(items),
+			state: deriveEntryState({
+				offers: group.offers,
+				items
+			}),
+			hasMarginHost: controls.length > 0 || afterControls.length > 0 || items.some((item) => item.marker !== false),
+			workflowCarrier
+		});
+	}));
 }
 
 //#endregion
@@ -2377,7 +3632,6 @@ function createReactionController({ marginEntryChoices, marginEntryContextContai
 	}
 	function closeSurface(surface) {
 		if (surface === marginSurface) return;
-		surface?.classList.remove("lf-react-open");
 		reactDeparture?.();
 		reactDeparture = null;
 		const picker = pickerFor(surface);
@@ -2438,7 +3692,6 @@ function createReactionController({ marginEntryChoices, marginEntryContextContai
 			}
 			reactArmed = true;
 			if (reactSurface !== marginSurface) {
-				reactSurface.classList.add("lf-react-open");
 				const picker = pickerFor(reactSurface);
 				scrollIntoReadingBand(picker.trigger, picker.trigger, "nearest", "instant");
 				showNativeLayer(picker.palette, { source: picker.trigger });
@@ -2972,7 +4225,7 @@ function renderHolds(threads) {
 	for (const node of document.querySelectorAll("[data-lf-held]")) if (!held.has(node)) node.removeAttribute("data-lf-held");
 	for (const [target, id] of held) keeps(target, "data-lf-held", id);
 }
-function createThreadPresentation({ available = true, inlineView, surfaceView, anchorPlacement, anchorPaint, anchorControls, drawingPaint, pageGeometry, readDraft, activeActionAnchor, renderAnnotations, renderSurfaces, openThread, continueThread, returnToPage, threadAt, read }) {
+function createThreadPresentation({ available = true, inlineView, surfaceView, anchorPlacement, anchorPaint, anchorControls, drawingPaint, pageGeometry, readDraft, activeActionAnchor, renderSurfaces, openThread, continueThread, returnToPage, threadAt, read }) {
 	let primary = null;
 	const presenter = applicationPresenter({
 		region: "thread",
@@ -3033,10 +4286,9 @@ function createThreadPresentation({ available = true, inlineView, surfaceView, a
 					surfaces.commit();
 					commitThreadSeats(batch);
 					surfaceView.composition.finishPlacement();
-					d(renderAnnotations);
 					pageGeometry.pageShifted();
 					read.present();
-					continueReplies(restorePlace).then(returnToPage).catch((error) => reportPageError(error, `Reply continuation failed`));
+					Promise.resolve().then(() => regionCommitted("annotations")).then(() => continueReplies(restorePlace)).then(returnToPage).catch((error) => reportPageError(error, `Reply continuation failed`));
 				}));
 			};
 			await (primaryPreparation?.then ? primaryPreparation.then(resume(paintPrepared)) : paintPrepared(primaryPreparation));
@@ -3273,7 +4525,7 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 			surfaceFocusTarget(id, { part }),
 			preview?.focusTarget(id, { part })
 		].filter(Boolean);
-		return candidates.find(presented) ?? candidates[0] ?? null;
+		return candidates.find(presented$1) ?? candidates[0] ?? null;
 	};
 	const DECLINED = Symbol("declined");
 	const UNDRAWN = Symbol("undrawn");
@@ -3321,7 +4573,7 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 				if (destination === null) return UNDRAWN;
 				if (!(destination instanceof Element) || !destination.isConnected || !renderedUnder(destination, selected.owner) || !selected.reader.ownsDestination(destination)) throw new TypeError("A Thread destination must be a retained part of its registered presentation");
 				if (focus === false) {
-					await whileCurrent(reveal$1(destination, intent).ready);
+					await whileCurrent(reveal(destination, intent).ready);
 					return mayPresent() ? destination : null;
 				}
 				departure?.plan(destination);
@@ -3355,7 +4607,7 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 						history
 					})) return null;
 				} else if (focus === false) {
-					await reveal$1(surfaceFocusTarget(id, { part: localPart }), intent).ready;
+					await reveal(surfaceFocusTarget(id, { part: localPart }), intent).ready;
 					if (!mayPresent()) return null;
 				} else if (!await arrive(() => {
 					const current = surfaceFocusTarget(id, { part: localPart });
@@ -3376,7 +4628,7 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 			const place = preview && !navigationStep ? threadTarget(id) : null;
 			const placeDrawn = () => visibleTargetParts(place).length > 0;
 			if (place && scroll && !placeDrawn()) {
-				await reveal$1(place, intent).ready;
+				await reveal(place, intent).ready;
 				if (!mayPresent()) return null;
 			}
 			let opened = null;
@@ -3701,7 +4953,7 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
 		const abort = new AbortController();
 		pending = abort;
 		cancelled.then(() => abort.abort());
-		const candidate = held.prepare({ threads: collection.threads.map((thread) => threadReading(thread, "outlet", {
+		const candidate = held.prepare({ threads: collection.threads.map((thread) => threadReading$1(thread, "outlet", {
 			...commands,
 			authoredRank: 3
 		})) }, { row: false });
@@ -4036,7 +5288,7 @@ function mergeIntervals(intervals) {
 	return merged;
 }
 function visibleInterval(body, clips, band) {
-	if (!presented(body)) return null;
+	if (!presented$1(body)) return null;
 	const box = body.getBoundingClientRect();
 	const clipped = seenRect(body, clips);
 	if (!clipped || box.width <= 0 || box.height <= 0) return null;
@@ -4051,13 +5303,13 @@ function visibleInterval(body, clips, band) {
 	};
 }
 function wordsAreVisible(body, clips, band) {
-	if (!presented(body) || !body.checkVisibility({ opacityProperty: true })) return false;
+	if (!presented$1(body) || !body.checkVisibility({ opacityProperty: true })) return false;
 	const text = document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
 	const range = document.createRange();
 	for (let node = text.nextNode(); node; node = text.nextNode()) {
 		if (!node.textContent.trim()) continue;
 		const holder = node.parentElement;
-		if (!holder || !presented(holder) || !holder.checkVisibility({ opacityProperty: true })) continue;
+		if (!holder || !presented$1(holder) || !holder.checkVisibility({ opacityProperty: true })) continue;
 		range.selectNodeContents(node);
 		for (const box of range.getClientRects()) {
 			const clipped = clippedContents(box, holder, clips);
@@ -4311,12 +5563,10 @@ const threadBox$1 = (el, hint, { createComment, onDraftChanged, wireInput }) => 
 	const row = offer("div", "lf-say lf-comment-box");
 	const ta = offer(TEXT_FIELD);
 	ta.name = "comment";
-	const send = offer("button", "", "Send");
-	const hold = declaration.hold ? offerAction("word", "", declaration.hold) : null;
 	const ctx = "say:" + el.id;
 	ta.value = loadDraft(ctx) ?? "";
 	ta.setAttribute("aria-label", hint);
-	row.append(ta, send, ...hold ? [hold] : []);
+	row.append(ta);
 	const sendComment = (text, owns, holds = false) => {
 		const land = sendLanding(ta);
 		const sent = sendMessage(ctx, owns, (attempt) => createComment({
@@ -4331,13 +5581,12 @@ const threadBox$1 = (el, hint, { createComment, onDraftChanged, wireInput }) => 
 	const sync = wireInput(ta, {
 		hint,
 		sends: "send",
-		sendBtn: send,
-		altBtn: hold,
+		altLabel: declaration.hold ?? null,
 		save: (value) => saveDraft(ctx, value),
 		send: (_text, raw, owns) => {
 			sendComment(raw, owns);
 		},
-		altSend: hold ? (_text, raw, owns) => {
+		altSend: declaration.hold ? (_text, raw, owns) => {
 			if (sendComment(raw, owns, true)) notice("Replied — goal paused");
 		} : null
 	});
@@ -4659,15 +5908,16 @@ async function readState(bound) {
 				fault: (await res.json().catch(() => null))?.error ?? `HTTP ${res.status}`
 			};
 		}
+		let text;
 		try {
-			return {
-				state: completeData(await res.json(), held),
-				fault: null
-			};
-		} catch (error) {
-			if (signal.aborted) return NOTHING;
-			throw error;
+			text = await res.text();
+		} catch {
+			return NOTHING;
 		}
+		return {
+			state: completeData(JSON.parse(text), held),
+			fault: null
+		};
 	} finally {
 		countTraffic("heard");
 	}
@@ -4986,8 +6236,7 @@ function mountApplication(dependencies) {
 		actions: threadActions,
 		wireInput: dependencies.wireInput,
 		landSent: dependencies.landSent,
-		landInThread: dependencies.landInThread,
-		changed: refreshThread
+		landInThread: dependencies.landInThread
 	};
 	const settlementView = {
 		pendingEntries: ledger.snapshot,
@@ -5095,7 +6344,6 @@ function mountApplication(dependencies) {
 		pageGeometry: dependencies.pageGeometry,
 		readDraft: dependencies.readThreadDraft,
 		activeActionAnchor: dependencies.activeActionAnchor,
-		renderAnnotations,
 		renderSurfaces,
 		openThread: (id, options) => threadDestinations.openPageThread(id, {
 			...options,
@@ -6005,4 +7253,4 @@ function createPageLayout({ scheduleThreadPreviewPosition, syncReactLayout, refr
 }
 
 //#endregion
-export { DRAWING_COORDINATE_LIMIT, LeafEditorView, LeafElement, MAX_DRAWING_FRAME_DEPTH, MAX_DRAWING_POINTS, MAX_DRAWING_SAYS_LENGTH, MAX_DRAWING_STROKES, answerWords, beginRead, composerOpen, composerQuote, consumeAnnotations, createPageLayout, createReactionController, createSelectionComposer, createThreadLanding, currentLocationThread, currentProjection, declareThreadKeys, fabBar, fabInput, fabOptionsTrigger, inPageOrder, landInThread, leavesBox, mountApplication, navigateToDatum, obligationActions, obligationEnding, obligationWord, ownedObligationControl, paintBarReactions, partOver, pendingAbout, pendingAnchor, pendingDrawing, placePageThreads, queueActions, queueItemKey, queueTitle, reactionAvailable, reactionTokens, readPlan, readQueues, registerRootHeader, registerThreadPresentation, sendReaction, textField, threadActions, threadBox, threadInput, widgetController, wireInput };
+export { CONTRIBUTION_ENTRY_SCHEMA, DRAWING_COORDINATE_LIMIT, KINDS, LeafElement, MAX_DRAWING_FRAME_DEPTH, MAX_DRAWING_POINTS, MAX_DRAWING_SAYS_LENGTH, MAX_DRAWING_STROKES, activateContributionControl, annotationItems, answerWords, awaitingUser, beginRead, canFold, choosePrimary, clearContributionControls, clusterProjection, composerOpen, composerQuote, consumeAnnotations, contributionEntry, contributionEntryRecord, contributionEntrySource, contributionHost, contributionItemKey, contributionReceipts, contributionSource, createPageLayout, createReactionController, createSelectionComposer, createThreadLanding, currentLocationThread, currentProjection, declareThreadKeys, entryControls, entryEngaged, entryHasMarginHost, fabBar, fabInput, fabOptionsTrigger, focusedOfferOf, inPageOrder, landInThread, leafEditorView, leavesBox, markerFace, materializeContributionControls, mountApplication, navigateToDatum, obligationActions, obligationEnding, obligationWord, optionsOffered, ownedObligationControl, paintBarReactions, partOver, pendingAbout, pendingAnchor, pendingDrawing, placePageThreads, presentContributionEntry, presentContributionReceipts, primaryReading, queueActions, queueItemKey, queueTitle, reactionAvailable, reactionTokens, readPlan, readQueues, readingBehavior, readingChoices, readingContext, readingFace, readingKey, readingLabel, readingState, registerContribution, registerRootHeader, registerThreadPresentation, sendReaction, spokenContext, spokenSubject, syncContributionSelection, syncContributionUnread, textField, threadActions, threadBox, threadInput, threadReading, unreadIn, visibleContributionEntryLabel, widgetController, wireInput };

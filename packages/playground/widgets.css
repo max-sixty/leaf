@@ -12,7 +12,7 @@
  * preview's own well, and each rail pane is a panel as a sidebar page draws its regions
  * (theme.css, section.panel), so a candidate the page draws on the stage is the only
  * surface inside the well rather than a card in a well in a card. */
-:scope:is(lf-playground) {
+lf-playground {
   --lf-block-frame: 1;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -27,7 +27,7 @@
 
 /* Built, the playground holds its grid of regions alone, which takes the height it is
  * given in a bounded workspace and its content's anywhere else. */
-:scope:is(lf-playground):has(> .lf-playground-split) {
+lf-playground:has(> .lf-playground-split) {
   grid-template-rows: minmax(0, 1fr);
 }
 
@@ -117,7 +117,7 @@
   @container style(--lf-full-height: 1) {
     /* Each box passes the height on, so the panes in the split are told they have one
        (`--lf-full-height`, layouts.css) and scroll their bodies. */
-    :scope:is(lf-playground) {
+    lf-playground {
       min-block-size: 0;
       margin-block: 0;
       --lf-full-height: inherit;
@@ -163,7 +163,7 @@
   background: transparent;
 }
 
-:scope:is(lf-playground) .lf-playground-preview-region > .lf-playground-preview-body {
+lf-playground .lf-playground-preview-region > .lf-playground-preview-body {
   display: flex;
   flex-direction: column;
   --lf-pane-top: 0px;
@@ -208,7 +208,7 @@
   min-width: 0;
 }
 
-:scope:is(lf-playground-control) {
+lf-playground-control {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
@@ -224,14 +224,14 @@
 }
 
 /* Native fields have their full platform geometry before any component upgrade. */
-:scope:is(lf-playground-control) > .lf-playground-input {
+lf-playground-control > .lf-playground-input {
   grid-column: 1 / -1;
   box-sizing: border-box;
   inline-size: 100%;
   font: inherit;
   accent-color: var(--accent);
 }
-:scope:is(lf-playground-control) > input[type="color"] {
+lf-playground-control > input[type="color"] {
   border: 1px solid var(--rule);
   border-radius: var(--r);
   background: var(--card);
@@ -239,13 +239,13 @@
   padding: var(--sp-1) var(--sp-2);
   min-block-size: var(--aim-floor);
 }
-:scope:is(lf-playground-control) > .choice {
+lf-playground-control > .choice {
   grid-column: 2;
   grid-row: 1;
   justify-self: end;
   justify-content: center;
 }
-:scope:is(lf-playground-control) > input[type="range"] {
+lf-playground-control > input[type="range"] {
   margin: 0;
   min-block-size: var(--aim-floor);
 }
@@ -269,7 +269,7 @@
   flex-wrap: wrap;
   gap: var(--focus-ring-room);
 }
-:scope:is(lf-playground-choice) {
+lf-playground-choice {
   display: contents;
 }
 /* A rich choice keeps its preview mounted beside its own native radio label. The
@@ -289,7 +289,7 @@
  * grid, so a style query asks the group's parent, the control, whether the property is
  * set; `:scope`, the control, outweighs the rich default above. */
 @container style(--playground-choice-columns) {
-  :scope:is(lf-playground-control) > .lf-playground-choices {
+  lf-playground-control > .lf-playground-choices {
     display: grid;
     grid-template-columns: var(--playground-choice-columns);
   }
@@ -331,16 +331,18 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--sp-2);
+  /* Wrapped rows keep each button's reach, which stands past its face under a
+     finger, clear of the row above it. */
+  gap: max(var(--sp-2), 2 * var(--lf-reach-room)) var(--sp-2);
 }
 
 /* A preset is an addressable member; its generated button is chrome, so the
  * member itself supplies the box an element comment outlines. */
-:scope:is(lf-playground-preset) {
+lf-playground-preset {
   display: inline-flex;
 }
 
-:scope:is(lf-playground-setting) {
+lf-playground-setting {
   display: none;
 }
 
@@ -348,7 +350,7 @@
  * stretch it. Artifacts stay at the top so changes in their height or the rail don't
  * move what the reader is working on, and small previews leave no empty well between
  * their evidence and the controls below. */
-:scope:is(lf-playground-preview) {
+lf-playground-preview {
   --lf-ground: var(--field);
   --lf-block-frame: 1;
   display: grid;
@@ -362,7 +364,7 @@
 
 /* The instruction is the task the agent receives, read at the size of the controls
  * that wrote it rather than as a caption under them. */
-:scope:is(lf-playground-output) {
+lf-playground-output {
   --lf-block-frame: 1;
   display: block;
   margin: 0;
@@ -370,7 +372,7 @@
   font: var(--t-5)/1.55 var(--sans);
 }
 
-:scope:is(lf-playground-value) {
+lf-playground-value {
   display: inline;
   color: var(--ink);
   font-weight: 600;
@@ -446,7 +448,7 @@
 /* A quoted playground is its preview and instruction as authored, without the controls
  * written in either place (initial/lf-playground.js hides them). Candidates that are
  * previews stay, laid side by side. */
-:scope:is(lf-playground).lf-playground-quoted .lf-playground-candidates {
+lf-playground.lf-playground-quoted .lf-playground-candidates {
   grid-template-columns: var(
     --playground-choice-columns,
     repeat(auto-fit, minmax(min(100%, 20rem), 1fr))

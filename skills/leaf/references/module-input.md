@@ -31,10 +31,6 @@ const actions = commandScope("In a classifier", [
 commands(classifier, actions);
 ```
 
-`executeCommand(id)` runs a command by its id from the user's current location, as its
-key would there, and returns whether it ran; a control can use it to offer a command
-another owner declares, as `lf-deck`'s Reply runs `c`'s `comment.create`.
-
 In a template, `commandsOn(title, rows, options)` attaches a scope to the element it is
 bound on, takes the current rows on each render, and detaches when the element goes.
 Where the rows need the element, pass a function of it, such as
@@ -66,6 +62,12 @@ browser or an outer handler makes. `control` is the visible element that activat
 phrase the command reference shows while it isn't, such as `in an open draft editor`.
 Set `runFromCommandReference: false` for a step the reference can't run without a choice
 it lacks. `ready` is described in `module-authoring.md`, "Startup and presentation".
+
+Android's back gesture takes the step Escape would. A row whose `run` throws away words
+the user wrote and hasn't sent, such as an editor's Escape, also declares `keep`, which
+back runs instead: it closes the editor the same way, keeps the changed words where
+reopening finds them, shows that the widget holds them, and says so with
+`notice("Edit kept")`.
 
 Leaf re-evaluates a `when` or a computed field when the readings it uses change, such as
 a widget's state or the threads. For any other state it reads, hold the value in a
@@ -261,15 +263,16 @@ Wire the box with `wireInput(box, options)`. Enter sends on a physical keyboard,
 Shift+Enter writes a newline, and Mod+Enter sends anywhere; on a touch screen the
 visible control sends. A box for one line, such as a name, carries
 `aria-multiline="false"` before it is wired: Enter then sends from every keyboard, a
-phone's included, Shift+Enter writes nothing, and a pasted line break becomes a space. The options are `sendBtn`, the send control; `sends`, its action
-in words; `hint`, the placeholder; `save(value)`, called with the whole draft on each
+phone's included, Shift+Enter writes nothing, and a pasted line break becomes a space.
+The options are `sendClass`, placement classes for the generated send control (default
+empty); `sends`, its action in words; `hint`, the placeholder; `save(value)`, called with the whole draft on each
 edit; `send(text, raw, owns)`, called on send with the trimmed and raw draft; `busy()`
-and `hasContent(raw)`, which hold sending back; and `paint()`, the widget's own drawing
-from the box. Write `.value` only to seed the box before wiring it.
+and `hasContent(raw)`, which hold sending back. Write `.value` only to seed the box
+before wiring it.
 
 `wireInput` returns `sync`, which reads or sets the whole draft, a pasted image
 included: `sync.value()` reads it, `sync.load(value)` replaces it, and `sync()` repaints
-after the box's state changes.
+after the box's state changes. `sync.button` is the generated send control.
 
 Drafts survive a reload, a new version and a closed tab, and every tab of the page
 shares them. Keep each under a context string unique on the page, such as `option:` and
@@ -290,5 +293,6 @@ its id:
 
 `lf-options`' box for adding an option (`lf-options-addition.js`) is the worked example.
 
-For a CodeMirror editor, construct `LeafEditorView` in place of `EditorView`, so focus
-and reveals go through Leaf.
+For a CodeMirror editor, construct the class `leafEditorView(codemirror)` returns in
+place of `EditorView`, so focus and reveals go through Leaf. Pass the module your widget
+imports (`import * as codemirror from "/vendor/codemirror.esm.js"`).

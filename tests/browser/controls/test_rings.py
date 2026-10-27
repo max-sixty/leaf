@@ -14,6 +14,7 @@ from render_cases_layout import (
     current_location_ring,
     mark_edges,
     ring_faults,
+    ring_rule,
     rings_drawn,
     token_colour,
 )
@@ -38,6 +39,26 @@ from leaf import data as data_model
 from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
+
+
+def test_the_ring_rule_reading_uses_browser_serialization(browser):
+    """Formatting cannot hide a matched ring rule or credit an unmatched selector."""
+    page = browser.new_page()
+    page.set_content("""
+      <style>
+        @scope (.surface) {
+          .absent, .carrier:has(
+            > :is(button,input)
+          )[data-note="x,  y"] { outline: var(--focus-ring); }
+        }
+      </style>
+      <div class="surface"><div class="carrier" data-note="x,  y">
+        <button>Read</button>
+      </div></div>
+    """)
+    assert ring_rule(page.locator(".carrier")) == (
+        '@scope (.surface) { .carrier:has(> :is(button, input))[data-note="x,  y"]'
+    )
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])

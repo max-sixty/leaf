@@ -1,4 +1,4 @@
-:scope:is(lf-deck) {
+lf-deck {
   --lf-deck-bar-h: calc(var(--lf-line) + var(--sp-2));
   --lf-deck-edge: 6px;
   display: block;
@@ -8,7 +8,7 @@
 /* A leaving card flies out past the deck's sides, and the deck's height follows the
    card that comes up; clip both to the deck, with room for the stack's edges, and only
    while they move, so the open card's focus ring stands whole. */
-:scope:is(lf-deck)[data-lf-deck-flying] {
+lf-deck[data-lf-deck-flying] {
   overflow: clip;
   overflow-clip-margin: var(--lf-deck-edge);
 }
@@ -83,7 +83,7 @@
    (`data-lf-opening`) stands so already, below the bar's room. Elsewhere, as after a
    failed startup or on paper, the cards stand one after another. */
 @media screen {
-  @scope (html[data-lf-interactive] :scope) {
+  @scope (html[data-lf-interactive] lf-deck) {
     /* The room under the open card holds the edges of the cards waiting under it. */
     :scope:is(lf-deck) {
       padding-block-end: calc(2 * var(--lf-deck-edge));

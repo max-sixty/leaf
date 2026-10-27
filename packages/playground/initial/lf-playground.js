@@ -342,6 +342,8 @@ function render(host, { tabStore, offer, offerAction, generatedElement, keeps })
       instructionBody.append(output);
       instruction.append(instructionHead, instructionBody);
       reveal = offerAction("symbol", "lf-playground-reveal", "Show instruction");
+      reveal.popoverTargetElement = instruction;
+      // Leaf's disclosure keys and Go-to routes read this explicit relation.
       reveal.setAttribute("aria-controls", instruction.id);
       reveal.setAttribute("aria-expanded", "false");
       reveal.append(iconElement("more", "lf-action-icon"));

@@ -246,8 +246,8 @@ nodes)` edits only changed text and keeps a text selection the user made in it.
 These helpers, `render` and `repeat` keep the user's focus in a moved node, so a reorder
 needs no `holdFocus`; a plain `append` or `insertBefore` of a node already in the page
 blurs it. A moved editable loses its selection even under `moveBefore`, so a
-custom element holding a `LeafEditorView` calls the view's `placeSelection()` from its
-`connectedMoveCallback`.
+custom element holding a Leaf editor view (`leafEditorView()`) calls the view's
+`placeSelection()` from its `connectedMoveCallback`.
 
 ### Shadow stages and styles
 

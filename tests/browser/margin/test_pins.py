@@ -750,3 +750,38 @@ def test_each_pin_case_seats_its_pins_by_their_targets_clear_of_what_they_hide(
         for case in pin_cases.CASES
     }
     assert not {name: faults for name, faults in found.items() if faults}
+
+
+def test_pin_cover_leaves_hidden_panel_contents_unmeasured(browser, serve):
+    """A full-width hidden panel in the pin's band must not cost descendant layout."""
+    source = leaf_page(
+        "Hidden cover",
+        '<div id="subject" style="position:relative"><section hidden="until-found" style="position:absolute;inset:0">'
+        "Hidden text.<div data-cover-probe><p>Hidden words beside the pin.</p></div>"
+        "</section><h1>Shown title</h1></div>",
+        layout="sidebar",
+    )
+    page = open_page(
+        browser,
+        serve(source, events=[_comment_on("subject")]),
+        init_script="""(() => {
+          window.hiddenCoverReads = [];
+          const ranges = Range.prototype.getClientRects;
+          Range.prototype.getClientRects = function (...args) {
+            if (this.startContainer.parentElement?.closest('[hidden="until-found"]') &&
+                new Error().stack.includes('margin-layout')) hiddenCoverReads.push('text');
+            return ranges.apply(this, args);
+          };
+          const rect = Element.prototype.getBoundingClientRect;
+          Element.prototype.getBoundingClientRect = function (...args) {
+            if (this.hasAttribute('data-cover-probe') &&
+                new Error().stack.includes('margin-layout')) hiddenCoverReads.push('rect');
+            return rect.apply(this, args);
+          };
+        })()""",
+    )
+    margins_laid_out(page)
+    expect(
+        page.locator('.lf-margin-cluster[data-lf-margin-for="subject"]')
+    ).to_have_attribute("data-lf-place", "pin")
+    assert page.evaluate("hiddenCoverReads") == []

@@ -2553,6 +2553,39 @@ def test_a_save_goes_live_during_a_stamps_check_and_the_stamp_names_it(
     ]
 
 
+def test_stamp_checks_events_that_arrive_as_it_reads_the_log(monkeypatch, page_dir):
+    """The checked source cannot take an id a concurrently admitted message owns."""
+    (page_dir / "index.html").write_text(PAGE)
+    publish(page_dir)
+    (page_dir / "index.html").write_text(
+        PAGE.replace("</main>", '<p id="arriving-message">New paragraph.</p></main>')
+    )
+    original = publishing_model.read_events
+    arrived = False
+
+    def read_then_append(path):
+        nonlocal arrived
+        events = original(path)
+        if not arrived:
+            arrived = True
+            append_command(
+                page_dir,
+                {
+                    "kind": "comment",
+                    "author": "agent",
+                    "revision": 1,
+                    "text": "Keep this message address distinct.",
+                    "markup": '<p id="arriving-message">A concurrent reply.</p>',
+                },
+            )
+        return events
+
+    monkeypatch.setattr(publishing_model, "read_events", read_then_append)
+    with pytest.raises(Refused, match="arriving-message"):
+        publishing_model.cmd_stamp(page_dir, "next")
+    assert len([event for event in original(page_dir) if event["kind"] == "note"]) == 1
+
+
 def test_a_stamp_lands_on_a_page_that_moves_during_every_check(monkeypatch, page_dir):
     """A page written faster than the stamp checks it outside the transaction
     still gets its stamp: the last check runs under the transaction."""

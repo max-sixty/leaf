@@ -23,10 +23,11 @@ def css_block(css):
 
 @lru_cache(maxsize=32)
 def css_stylesheet(css: str):
-    """One independent stylesheet's read-only syntax tree, including EOF recovery."""
+    """One independent stylesheet's read-only syntax tree, including EOF recovery,
+    without its comments, which no reading needs and no page receives."""
     import tinycss2
 
-    return tinycss2.parse_stylesheet(css)
+    return tinycss2.parse_stylesheet(css, skip_comments=True)
 
 
 @lru_cache(maxsize=32)
@@ -78,16 +79,6 @@ def css_syntax_errors(css: str, source: str, *, block=False) -> tuple[Finding, .
 
     walk_rules(parse(css))
     return tuple(errors)
-
-
-def scoped(css: str, root: str, limit: str | None = None) -> str:
-    """Place one package stylesheet inside its browser-owned widget scope.
-
-    Package authors name their root with :scope; ordinary selectors name its
-    descendants. Native CSS owns selector parsing, nesting, and scope proximity.
-    """
-    boundary = f" to ({limit})" if limit else ""
-    return f"@scope ({root}){boundary} {{\n{css}}}\n"
 
 
 def inline_style_at(inline: dict) -> str:

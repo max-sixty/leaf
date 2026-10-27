@@ -128,10 +128,10 @@ def _print_result(result) -> None:
     """Print what a command returned: text as it is, a dict as one JSON line, and
     each item of a list, such as the records a write appended, as a line of its own,
     the way `page events` prints a record."""
-    from leaf.event_log import jsonl_line
-
     if result is None:
         return
+    from leaf.event_log import jsonl_line
+
     if isinstance(result, str):
         click.echo(result)
         return
@@ -184,6 +184,16 @@ class LeafGroup(click.Group):
     prints its help, and any other exception surfaces with its traceback.
     """
 
+    group_class = type
+
+    def resolve_command(self, ctx, args):
+        name, command, remaining = super().resolve_command(ctx, args)
+        # Click has resolved this path, including options before its subcommand.
+        ctx.ensure_object(dict)["leaf_command"] = (
+            f"{ctx.command_path} {name}".removeprefix(f"{ctx.find_root().info_name} ")
+        )
+        return name, command, remaining
+
     def invoke(self, ctx: click.Context):
         from leaf.machine import sandbox_refusal
         from leaf.refusals import Refused
@@ -208,22 +218,13 @@ class LeafGroup(click.Group):
     ):
         if not standalone_mode:
             return super().main(args, prog_name, complete_var, False, **extra)
-        from leaf.interaction_log import record_command
-
+        invocation = extra.setdefault("obj", {})
         try:
             self._run_standalone(args, prog_name, complete_var, **extra)
         finally:
-            record_command(self.command_name(sys.argv[1:] if args is None else args))
+            from leaf.interaction_log import record_command
 
-    def command_name(self, args: list[str]) -> str:
-        """The command words `args` begin with, such as `thread reply`."""
-        words, group = [], self
-        for word in args:
-            if not isinstance(group, click.Group) or word not in group.commands:
-                break
-            words.append(word)
-            group = group.commands[word]
-        return " ".join(words)
+            record_command(invocation.get("leaf_command", ""))
 
     def _run_standalone(self, args, prog_name, complete_var, **extra) -> None:
         try:
@@ -271,6 +272,28 @@ class LeafGroup(click.Group):
 )
 def cli() -> None:
     """Build and run interactive pages a session shares with its user."""
+
+
+@cli.command(hidden=True)
+@click.option("--harness", required=True)
+@click.option("--if-claimed", is_flag=True, expose_value=False)
+@click.option("--watch", is_flag=True)
+@click.option("--pages", is_flag=True)
+def hook(harness: str, watch: bool, pages: bool) -> None:
+    """Answer a native harness hook from its JSON payload on stdin."""
+    if watch and pages:
+        raise click.UsageError("--watch and --pages are mutually exclusive")
+    from leaf.hooks import main
+
+    main(harness, watch=watch, pages=pages)
+
+
+@cli.command(hidden=True)
+def session_end() -> None:
+    """End the harness instance named by the JSON payload on stdin."""
+    from leaf.state import main
+
+    main()
 
 
 @cli.group(short_help="Launch the experimental Codex terminal.")

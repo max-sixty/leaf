@@ -5,14 +5,14 @@
  * Plot lays its axes out for 10px labels, and at the theme's 11.5px an axis label lands
  * on the tick beside it. Plot writes its face as attributes, which any rule here
  * outranks; the same adapter below supplies the legend face. */
-:scope:is(lf-chart) .lf-chart-drawing {
+lf-chart .lf-chart-drawing {
   display: block;
   font: 10px var(--sans);
   color: var(--muted);
 }
 /* Where the runtime runs, the chart's box is laid out before it draws (x-height), and the source
  * waiting in it is code for the drawing rather than words for the reader. */
-@scope (html[data-lf-interactive] :scope) {
+@scope (html[data-lf-interactive] lf-chart) {
   :scope:is(lf-chart):not(.lf-rendered) > pre {
     visibility: hidden;
   }
@@ -22,14 +22,14 @@
  * keeps the height it was drawn at until its redraw for a new width lands a frame
  * later: Plot's sheet scales the height with the width, which would move everything
  * below the chart for that frame, under whatever measured the page then. */
-:scope:is(lf-chart) .lf-chart-drawing svg {
+lf-chart .lf-chart-drawing svg {
   display: block;
   font: inherit;
   height: attr(height px, auto);
 }
-:scope:is(lf-chart) .lf-chart-drawing svg[role="img"] {
+lf-chart .lf-chart-drawing svg[role="img"] {
   --plot-background: var(--paper);
 }
-:scope:is(lf-chart) .lf-chart-drawing [class*="-swatches"] {
+lf-chart .lf-chart-drawing [class*="-swatches"] {
   font-family: inherit;
 }

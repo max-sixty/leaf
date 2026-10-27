@@ -34,11 +34,23 @@
   const overlay = (el, over) =>
     !!closestAcross(over, ".lf-chrome") !== !!closestAcross(el, ".lf-chrome") ||
     closestAcross(over, TOP) !== closestAcross(el, TOP);
+  const holds = (outer, el) => {
+    for (let at = el; at; at = at.parentNode || at.host) if (at === outer) return true;
+    return false;
+  };
   const reachedBy = (el, x, y) => {
+    // A box hidden from the accessibility tree inside the control's own container is
+    // that container's other route to what it holds, as a tab strip's paging edge
+    // stands over the tab scrolled beneath it: it stands over a face by design and
+    // takes no aim from it. A hidden child of another control, such as an icon in a
+    // neighbouring button, still lies over this one.
+    let hidden = false;
     for (let at = pressed(x, y); at; at = at.parentNode || at.host) {
       if (at === el) return false;
-      if (at.nodeType !== 1 || !at.matches(PRESS)) continue;
-      return !overlay(el, at);
+      if (at.nodeType !== 1) continue;
+      if (at.matches('[aria-hidden="true"]')) hidden = true;
+      if (!at.matches(PRESS)) continue;
+      return !(hidden && holds(at, el)) && !overlay(el, at);
     }
     return false;
   };
@@ -170,6 +182,9 @@
         if (!box.width || !box.height) continue;
         const shown = getComputedStyle(el);
         if (shown.visibility === "hidden" || shown.pointerEvents === "none") continue;
+        // An inactive tab's panel is `hidden`, its content skipped rather than laid
+        // out, so the boxes it leaves are stale and press nothing.
+        if (closestAcross(el.parentNode || el.host, "[hidden]")) continue;
         seen += 1;
         const own = parseFloat(shown.getPropertyValue("--aim-floor"));
         const parent = el.parentElement ?? el.getRootNode().host;
@@ -178,7 +193,8 @@
           parseFloat(getComputedStyle(parent).getPropertyValue("--aim-floor")) === own;
         if (Math.min(w, h) < Math.max(inherited ? floor : own, 1) - 0.5)
           short.push(
-            `${Math.round(w)}x${Math.round(h)} ${el.className}${by ? ` under ${by}` : ""}`,
+            `${Math.round(w)}x${Math.round(h)} ${el.className || el.localName}${by ? ` under ${by}` : ""}` +
+              ` in ${el.closest("[id]")?.id ?? el.getRootNode().host?.closest?.("[id]")?.id ?? "?"}`,
           );
       }
       for (const el of root.querySelectorAll("*"))

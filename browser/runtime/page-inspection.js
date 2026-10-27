@@ -25,7 +25,13 @@ import { retainUserIntent } from "./user-intent.js";
 import { scrollIntoView } from "./landing-scroll.js";
 import { scrollBehavior } from "./motion.js";
 import { readCurrentUserView } from "./user-view.js";
-import { closeControl, el, offerAction, offeredAction, reveal } from "./widget-elements.js";
+import {
+  closeControl,
+  el,
+  offerAction,
+  offeredAction,
+  reveal,
+} from "./widget-elements.js";
 
 const dialog = el("dialog", "lf-ui lf-inspection-dialog");
 dialog.setAttribute("aria-label", "About this page");
@@ -58,7 +64,9 @@ for (const type of ["wa-copy", "wa-error"]) {
     if (!dialog.open) return;
     const failed = type === "wa-error";
     const fallback = failed
-      ? html`<button ${offeredAction("word")} @click=${selectReport}>Select report text</button>`
+      ? html`<button ${offeredAction("word")} @click=${selectReport}>
+          Select report text
+        </button>`
       : nothing;
     render(
       html`<span>${failed ? copy.errorLabel : copy.successLabel}</span> ${fallback}`,
@@ -136,7 +144,10 @@ const observations = (label, rows, describe) =>
                     <code>${row.at}</code>: ${describe(row)}
                     ${
                       destinations.has(row)
-                        ? html`<button ${offeredAction("word")} @click=${() => showOnPage(row)}>
+                        ? html`<button
+                            ${offeredAction("word")}
+                            @click=${() => showOnPage(row)}
+                          >
                             Show on page
                           </button>`
                         : nothing

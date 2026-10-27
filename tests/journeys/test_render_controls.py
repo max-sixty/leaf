@@ -451,7 +451,7 @@ RING_CASES = (
             "ship-review": (
                 (
                     ".lf-margin-preview .lf-resolve",
-                    ".lf-page-thread :is(.lf-btn, summary)",
+                    ".lf-icon-action",
                 ),
             )
         },

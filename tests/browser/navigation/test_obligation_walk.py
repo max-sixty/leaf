@@ -768,6 +768,34 @@ def test_the_obligation_walk_uses_the_visible_reading_after_its_focus_is_release
     expect(page.locator("#question-3")).to_be_focused()
 
 
+def test_letting_go_of_an_obligation_on_screen_leaves_the_user_beside_it(browser, serve):
+    """With several obligations in view, letting go of the second leaves the user beside
+    it rather than at the top of the view: `m` returns to it, and Tab carries on into
+    it."""
+    asks = "".join(
+        f"""<lf-ask id="ask-{index}"><h2>Question {index}</h2>
+<lf-options id="pick-{index}" choose>
+  <lf-option id="pick-{index}-yes">Yes</lf-option>
+  <lf-option id="pick-{index}-no">No</lf-option>
+</lf-options></lf-ask>"""
+        for index in range(1, 4)
+    )
+    page = open_page(
+        browser,
+        serve(leaf_page("asks in view", f"<h1>Asks</h1><p>Three asks.</p>{asks}")),
+    )
+    page.keyboard.press("m")
+    expect(page.locator("#ask-1")).to_be_focused()
+    page.keyboard.press("m")
+    expect(page.locator("#ask-2")).to_be_focused()
+    page.keyboard.press("Escape")
+    page.keyboard.press("m")
+    expect(page.locator("#ask-2")).to_be_focused()
+    page.keyboard.press("Escape")
+    page.keyboard.press("Tab")
+    expect(page.locator("#pick-2 lf-option-control").first).to_be_focused()
+
+
 def test_the_obligation_walk_measures_from_chrome_only_where_the_chrome_holds_an_obligation(
     browser, serve
 ):

@@ -1310,11 +1310,12 @@ export function controlNavigationKeys(node) {
 // user lands, since that is the whole of what the rung is for, and letting go of an obligation
 // names the act, since they were on the page all along.
 //
-// Where they land is the block they are reading in the page region they last acted in
-// (reading-regions.js, `pageReadingRegion`), which is a reading of that region's current
-// scroll rather than a place remembered from before the press: a surface closing moves
-// the page under them, and what they can see when it has gone is the answer. Only the
-// region is remembered, so no revision, repaint or reflow can strand the block.
+// Where they land is beside what they let go of, while they see it, since that is what
+// they were reading; otherwise the block they are reading in the page region they last
+// acted in (reading-regions.js, `pageReadingRegion`), which is a reading of that region's
+// current scroll rather than a place remembered from before the press: a surface closing
+// moves the page under them, and what they can see when it has gone is the answer. Only
+// the region is remembered, so no revision, repaint or reflow can strand the block.
 //
 // Focus and then blur, which is the pair and not either half. The focus moves the
 // browser's sequential focus navigation starting point to the block, so the user's next
@@ -1373,7 +1374,7 @@ export const onLetGo = (read) => {
 export function letGo() {
   letGoes++;
   const from = focused();
-  const block = readingBlock();
+  const block = readingBlock(from);
   if (!block?.isConnected) releaseFocus();
   else {
     focusDestination(block, "move");

@@ -167,6 +167,8 @@ export function createFloatingResponsePlacement({
         height * scaleY,
       ).toJSON(),
       placement: fabPlacement.capture(),
+      // The field the card grows out of (thread-preview.js, `followCard`).
+      field: field.toJSON(),
       // How far the words stand above their end: where the user was reading them,
       // which the card Send opens keeps (thread-preview.js, `showArrival`).
       fromEnd: fabInput.scrollHeight - fabInput.clientHeight - fabInput.scrollTop,

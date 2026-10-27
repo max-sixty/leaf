@@ -944,6 +944,14 @@ export function boxMotion({
       place();
       frame = boxOf(root.getBoundingClientRect());
     },
+    // The box was drawn a moment ago at `rect`, in the window, as the card a comment's
+    // Send opens was the field it replaces: the next reading draws the box's outline
+    // from there, and reveals each part as that outline's edges reach it.
+    drawnAt(rect) {
+      frame = boxOf(root.getBoundingClientRect());
+      motions = new Map();
+      rests = new Map([[box, boxOf(rect)]]);
+    },
     // Nothing stands the box where the next reading could move it from, such as a box
     // no placement stands yet: that reading takes it as it stands.
     forget,

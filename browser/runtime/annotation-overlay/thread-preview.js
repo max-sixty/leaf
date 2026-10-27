@@ -3,7 +3,7 @@
    One Floating UI driver follows this card across conversation changes and stops
    when the card closes. Each selected conversation owns its originating control,
    reading region, held edge, pending placement/focus, and growth out of the comment
-   box Send replaced (`growOut`). Replacing it retires that work before margin
+   box Send replaced (`sent`). Replacing it retires that work before margin
    preparation can synchronously render again.
    A retained refresh preserves the selection's reading and draft continuity.
    Margin disclosure remains the margin's; selection records only whether a walk
@@ -58,7 +58,6 @@ import { move } from "../dom-move.js";
 import { effectiveScroller, registerReadingRegion } from "../reading-regions.js";
 import { declareOffFlowSurface } from "../off-flow.js";
 import { chromeRoot, chromeForeground } from "../chrome.js";
-import { reducedMotion } from "../motion.js";
 import { boxMotion } from "../box-motion.js";
 import { closestAcross } from "../passages.js";
 import { threadIdNamed } from "../thread/state.js";
@@ -602,9 +601,15 @@ export function createThreadPreview({
           else preview.style.removeProperty(edge);
         });
         keeps(preview, "data-lf-thread-placement", THREAD_SIDES[side]);
-        // The card's first spot is the first reading its motion follows from.
+        // The card's first spot is the first reading its motion follows from. A card
+        // Send opened grows out of the field it replaces, as any box's outline travels
+        // (box-motion.js): the box paints only its field while it is written, and the
+        // user preferred (19 October) a field that opens into its card at Send to a box
+        // painted as the card throughout (#3157). The card stands whole under its
+        // outline from the first frame, so no word moves.
         if (!session.followed) {
           session.followed = true;
+          if (session.sent) following.drawnAt(session.sent.field);
           followCard();
         }
         keepThreadLanding(previewList.querySelector(".lf-page-thread"));
@@ -666,8 +671,9 @@ export function createThreadPreview({
       preparing: false,
       latest: null,
       arriving: true,
-      // The box Send replaced, whose reading the card keeps (`showArrival`).
-      sent: origin && { fromEnd: origin.fromEnd },
+      // The box Send replaced, whose reading the card keeps (`showArrival`) and whose
+      // field it grows out of (`followCard`).
+      sent: origin && { fromEnd: origin.fromEnd, field: origin.field },
       away: false,
       positionFrame: 0,
       positionResult: null,
@@ -688,6 +694,9 @@ export function createThreadPreview({
       followed: false,
     };
     if (origin) previewSession.side.adopt(origin);
+    // A card Send opened stands at once where its box stood and grows out of the box's
+    // field, rather than fade in (annotation-chrome.css).
+    keeps(preview, "data-lf-grows", origin ? "" : null);
     return previewSession;
   }
 
@@ -897,21 +906,8 @@ export function createThreadPreview({
     keeps(preview, "inert", null);
     buildThreadCard(entry, selected.id);
     const positioned = placedThreadPreview();
-    return session.sent ? growOut(session, positioned) : positioned;
+    return positioned;
   }
-
-  // A card Send opened grows out of the comment box it replaces, once it stands
-  // (`data-lf-grows`, annotation-chrome.css).
-  function growOut(session, positioned) {
-    return positioned.then((placed) => {
-      if (placed && previewSession === session && !reducedMotion())
-        keeps(preview, "data-lf-grows", "");
-      return placed;
-    });
-  }
-  preview.addEventListener("animationend", (event) => {
-    if (event.target === preview) keeps(preview, "data-lf-grows", null);
-  });
 
   function refresh(entry, control, carry = focused() === previewSession?.control) {
     if (!previewSession || previewSession.preparing) return;

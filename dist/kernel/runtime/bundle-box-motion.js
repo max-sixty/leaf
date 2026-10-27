@@ -1250,6 +1250,11 @@ function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer, h
 			place();
 			frame = boxOf(root.getBoundingClientRect());
 		},
+		drawnAt(rect) {
+			frame = boxOf(root.getBoundingClientRect());
+			motions = /* @__PURE__ */ new Map();
+			rests = /* @__PURE__ */ new Map([[box, boxOf(rect)]]);
+		},
 		forget
 	};
 }

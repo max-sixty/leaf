@@ -12,7 +12,6 @@ import { exactTarget, passageGeometry, pointBand, rangeGeometry, targetElement, 
 import { retainUserIntent } from "./bundle-copy-control.js";
 import { anchorLabel, arrivalOf, beginWalk, carryingThreadPlace, claimSeatReplies, claimed, currentLocationThreadId, declareOffFlowSurface, declareSide, keepThreadLanding, listWalkPosition, pageCommand, pageRung, pageScope, pageSelection, placeKeeper, releaseAuthoredUnder, releaseReplies, revealHeld, rowWalk, selectionAnchor, showReturnTurn, tabStore, threadFocusDestination, threadIdNamed, threadNamed } from "./bundle-surfaces.js";
 import { setChildLists, setChildren } from "./bundle-abort.js";
-import { reducedMotion } from "./bundle-motion.js";
 import { activateContributionControl, awaitingUser, canFold, choosePrimary, clearContributionControls, clusterProjection, contributionEntry, contributionEntryRecord, contributionEntrySource, contributionSource, entryEngaged, entryHasMarginHost, focusedOfferOf, markerFace, materializeContributionControls, optionsOffered, presentContributionEntry, presentContributionReceipts, primaryReading, readingBehavior, readingChoices, readingContext, readingFace, readingKey, readingLabel, readingState, spokenContext, spokenSubject, syncContributionSelection, syncContributionUnread, threadReading, unreadIn } from "./bundle-margin-model.js";
 import { ANNOTATIONS_KEY } from "./bundle-restore-state.js";
 import { THREAD_CARD, cardMeasure, cardMinimum, commentAttachment, commentBoundary, commentPlacement, commentReference, floatingPlacement, floatingSelections, floatingUi, heldEdges, layoutMarginRows, makeRoom, marginColumn, mountMarginLayer, paintedBox, registerMarginRow, scheduleMarginEntryLabels, scheduleMarginLayout, standsFolded, syncMarginContentLayout, unregisterMarginRow } from "./bundle-comment-placement.js";
@@ -554,6 +553,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 			keeps(preview, "data-lf-thread-placement", THREAD_SIDES[side]);
 			if (!session.followed) {
 				session.followed = true;
+				if (session.sent) following.drawnAt(session.sent.field);
 				followCard();
 			}
 			keepThreadLanding(previewList.querySelector(".lf-page-thread"));
@@ -591,7 +591,10 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 			preparing: false,
 			latest: null,
 			arriving: true,
-			sent: origin && { fromEnd: origin.fromEnd },
+			sent: origin && {
+				fromEnd: origin.fromEnd,
+				field: origin.field
+			},
 			away: false,
 			positionFrame: 0,
 			positionResult: null,
@@ -607,6 +610,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 			followed: false
 		};
 		if (origin) previewSession.side.adopt(origin);
+		keeps(preview, "data-lf-grows", origin ? "" : null);
 		return previewSession;
 	}
 	function buildThreadCard(entry, requestedItem = null) {
@@ -753,18 +757,8 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 		keepsHidden(preview, false);
 		keeps(preview, "inert", null);
 		buildThreadCard(entry, selected.id);
-		const positioned = placedThreadPreview();
-		return session.sent ? growOut(session, positioned) : positioned;
+		return placedThreadPreview();
 	}
-	function growOut(session, positioned) {
-		return positioned.then((placed) => {
-			if (placed && previewSession === session && !reducedMotion()) keeps(preview, "data-lf-grows", "");
-			return placed;
-		});
-	}
-	preview.addEventListener("animationend", (event) => {
-		if (event.target === preview) keeps(preview, "data-lf-grows", null);
-	});
 	function refresh(entry, control, carry = focused() === previewSession?.control) {
 		if (!previewSession || previewSession.preparing) return;
 		transferThreadCard(control, carry);
@@ -2536,6 +2530,7 @@ function createFloatingResponsePlacement({ bar: fabBar, input: fabInput, respons
 		return {
 			box: new DOMRect(field.left - left * scaleX, field.top - top * scaleY, width * scaleX, height * scaleY).toJSON(),
 			placement: fabPlacement.capture(),
+			field: field.toJSON(),
 			fromEnd: fabInput.scrollHeight - fabInput.clientHeight - fabInput.scrollTop
 		};
 	};

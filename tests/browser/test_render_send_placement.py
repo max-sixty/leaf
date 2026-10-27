@@ -540,7 +540,6 @@ def test_send_opens_the_card_a_reopen_shows(browser, serve):
     page.keyboard.press("Enter")
     card = page.locator(".lf-margin-preview")
     expect(card).to_have_css("opacity", "1")
-    expect(card).not_to_have_attribute("data-lf-grows", "")
     rendered(page)
     sent = page.evaluate(RECT, ".lf-margin-preview")
     page.keyboard.press("Escape")

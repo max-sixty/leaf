@@ -13,26 +13,6 @@
         color: var(--mark-ink);
       }
 
-      #bg-metrics > dl {
-        margin: 0;
-        padding: var(--sp-3);
-        border: 1px solid var(--rule);
-        border-radius: var(--r);
-        background: var(--card);
-      }
-      #bg-metrics dt {
-        color: var(--muted);
-        font: 600 var(--t-6)/1.3 var(--sans);
-      }
-      #bg-metrics dd {
-        margin: var(--sp-1) 0 0;
-        font: 600 var(--t-2)/1.2 var(--sans);
-        overflow-wrap: anywhere;
-      }
-      #bg-metrics dd small {
-        font: 500 var(--t-6)/1.3 var(--sans);
-      }
-
       #bg-outcome > lf-option {
         padding: 1rem;
         min-block-size: 5rem;
@@ -1183,7 +1163,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             <h2><strong>Threads in the panel</strong></h2>
             <p id="bg-panel-views-guide">
               Choose a view to open its thread in this practice page's Leaf panel. The
-              controls, messages, filters, and unread state are live. Reset restores the
+              controls, messages, search, and unread state are live. Reset restores the
               seeded discussion after trying a reply or changing a thread.
             </p>
             <div id="bg-panel-presets" role="group" aria-label="Threads in the panel">
@@ -1303,10 +1283,11 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 <kbd>T</kbd>: the same thread stays focused in the list.
               </li>
               <li>
-                Choose “Open”, “Unread”, “Drafts” or “Resolved” at the head of Threads
-                to narrow the list, each tab keeping its count, or search the threads'
-                words with the find button beside them. The panel’s main field changes
-                to “Search threads”; closing search brings back the unfinished comment.
+                Read Threads down: the open threads, an unread one marked with a dot and
+                a drafted one saying Draft, then the resolved ones under Resolved.
+                Search the threads' words with the find button beside the tabs. The
+                panel’s main field changes to “Search threads”; closing search brings
+                back the unfinished comment.
               </li>
               <li>
                 Look at a row: its title leads, and a thread waiting on you says so.
@@ -1318,8 +1299,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </li>
               <li>
                 Resolve an inline thread: its state changes immediately while its space
-                folds away into Resolved. Open Resolved during the fold to read it
-                immediately, or Undo to restore the open thread.
+                folds away into Resolved. Open Threads during the fold to read it under
+                Resolved immediately, or Undo to restore the open thread.
               </li>
               <li>
                 Send a reply: focus stays on the card or its title, in the floating card
@@ -1485,8 +1466,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </li>
               <li>
                 Reopen the thread, start a reply, and press Resolve yourself: the editor
-                closes and keeps its draft. Reload, choose Resolved under View, and open
-                that thread: the editor stays closed until Reopen recovers the words.
+                closes and keeps its draft. Reload, open Threads, and open that thread
+                under Resolved: the editor stays closed until Reopen recovers the words.
               </li>
             </ul>
             <section id="bg-message-obligations">
@@ -1527,7 +1508,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 the agent names it.
               </li>
               <li>
-                If the send takes a moment, the message's header reads “Sending” until
+                If the send takes a moment, the message's header reads “Saving…” until
                 the server records it.
               </li>
               <li>
@@ -1666,11 +1647,11 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                   <p id="bg-thread-text">
                     <strong>An existing thread.</strong> The sample agenda has room for
                     one more topic. Its speech-bubble control is green, and hovering it
-                    shows “My turn to answer” under the label. The image question still
-                    needs an answer even though the agent added a later progress
-                    message. In Threads, “My turn to answer” still says so. Open the
-                    control and reply: the control turns blue as the thread comes back
-                    to the agent. The same reading fills this target’s Page Map row.
+                    shows “Your turn” under the label. The image question still needs an
+                    answer even though the agent added a later progress message. In
+                    Threads, “Your turn” still says so. Open the control and reply: the
+                    control turns blue as the thread comes back to the agent. The same
+                    reading fills this target’s Page Map row.
                   </p>
                   <p id="bg-thread-media">
                     <strong>Pasted images.</strong> That thread includes an image
@@ -1701,9 +1682,9 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               <h3>Resolved</h3>
               <p id="bg-resolved-text">
                 <strong>A resolved thread.</strong> The room has a projector. Its
-                earlier question is resolved. Open Threads in Leaf's panel, choose
-                “Resolved”, open the thread, and press its underlined “Resolved” to
-                bring its Thread control back to the page.
+                earlier question is resolved. Open Threads in Leaf's panel, open the
+                thread under “Resolved”, and press its underlined “Resolved” to bring
+                its Thread control back to the page.
               </p>
             </section>
             <section id="bg-retained-quote">
@@ -1771,8 +1752,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 </li>
                 <li>
                   Look at a margin control whose thread holds unread replies: it carries
-                  the same dot as Threads. “My turn to answer” still identifies an
-                  outstanding question after you read it.
+                  the same dot as Threads. “Your turn” still identifies an outstanding
+                  question after you read it.
                 </li>
               </ul>
             </section>
@@ -2084,10 +2065,10 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             <ul id="bg-margin-controls-steps">
               <li>
                 Read the Turn and agent workflow samples, which follow one update:
-                “Sent” means the server recorded it, “Queued” that a later turn will
-                handle it, “Delivered” that a turn accepted it, and “Working” or
-                “Replying” that its answer is in progress. “Turn ended” and “Update
-                stale” show uncertainty without claiming an interruption.
+                “Saved” means the server recorded it, “Up next” that a later turn will
+                handle it, “Got it” that a turn accepted it, and “On it” or “Replying”
+                that its answer is in progress. “Stopped” and “Gone quiet” show
+                uncertainty without claiming an interruption.
               </li>
               <li>
                 Compare thread colors: green marks a thread that needs an answer from
@@ -2226,10 +2207,10 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             <p id="bg-margin-layer-status-guide">
               <strong>Quiet status pins without a rail.</strong> This sample starts with
               a recorded card move. The small upward arrow beside “Print the workshop
-              map” says “Sent” on hover: the move was recorded, with nothing for you to
-              answer. After two minutes undelivered, it becomes “Waiting for delivery”;
-              Reset starts a fresh example. Queued, Delivered, and Working follow the
-              same placement rule. When a target already has a control, that control can
+              map” says “Saved” on hover: the move was recorded, with nothing for you to
+              answer. After two minutes undelivered, it becomes “Haven't seen it yet”;
+              Reset starts a fresh example. Up next, Got it, and On it follow the same
+              placement rule. When a target already has a control, that control can
               carry the status instead of adding a separate pin.
             </p>
             <lf-sample
@@ -2315,7 +2296,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 ><span class="bg-feature-detail">: values and trends</span>
               </h3>
               <p id="bg-metrics-guide">
-                Metrics show individual values as tiles, in a
+                Metrics show individual values as <code>metric</code> tiles, in a
                 <code>layout-tiles</code> row, and a Chart compares the values across
                 runs. The metric tiles and the run under them keep to the column, and
                 the three charts take the wide width. Narrow the window: the metric
@@ -2325,15 +2306,15 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </p>
               <div id="bg-metrics-room">
                 <div id="bg-metrics" class="layout-tiles">
-                  <dl id="bg-metric-complete" class="panel">
+                  <dl id="bg-metric-complete" class="metric">
                     <dt>checks complete</dt>
                     <dd><strong>12</strong> <small>change: +3</small></dd>
                   </dl>
-                  <dl id="bg-metric-open" class="panel">
+                  <dl id="bg-metric-open" class="metric">
                     <dt>open failures</dt>
                     <dd><strong>2</strong> <small>change: -1</small></dd>
                   </dl>
-                  <dl id="bg-metric-neutral" class="panel">
+                  <dl id="bg-metric-neutral" class="metric">
                     <dt>sample duration</dt>
                     <dd><strong>4 min</strong></dd>
                   </dl>
@@ -3424,9 +3405,8 @@ switch --readers checkout-api,orders-api</code></pre>
             </h2>
             <p id="bg-delivery-guide">
               Drag the card to “Tried”, use its grip with <kbd>Enter</kbd> and the
-              arrows, or tap a destination on a phone. “Sent”, “Delivered”, and
-              “Working” report the agent workflow. A refused send offers “Retry” and
-              “Cancel”.
+              arrows, or tap a destination on a phone. “Saved”, “Got it”, and “On it”
+              report the agent workflow. A refused send offers “Retry” and “Cancel”.
             </p>
             <p id="bg-cut-guide">
               This board has more columns than the page has room for, so it scrolls

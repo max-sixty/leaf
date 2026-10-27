@@ -70,12 +70,7 @@
    primitive values share a revision, a digest of the value. A null value, or an input
    the markup leaves unbound, names words no bound value supplied, stamped without a
    source. Off a Leaf page no one listens, and the marks mean nothing. */
-import {
-  LitElement,
-  SignalWatcher,
-  render,
-  untracked,
-} from "/vendor/browser-runtime.js";
+import { LitElement, SignalWatcher, render, untracked } from "/runtime/framework.js";
 import {
   attachApplicationPresentation,
   attachWidgetPresentation,
@@ -383,8 +378,10 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
     }
     if (this.#held) return false;
     // The claim this update draws, from its gate on; one its own reads claim while it
-    // runs is the next's. An update that draws nothing settles it all the same.
-    this.#drawing = this.#ticket;
+    // runs is the next's. Before the first successful draw, Lit can retry a skipped
+    // update without requestUpdate claiming it. Every connected update owns a claim,
+    // including one that draws nothing and settles immediately.
+    this.#drawing = this.#ticket ?? this.#claim();
     this.#ticket = null;
     if (!this.#draws()) return false;
     this.#deliverInputs();

@@ -63,6 +63,7 @@ from render_harness import (
     REPLY_HOST_PAGE,
     TOKEN,
     consume_browser_errors,
+    expect_open_threads,
     held_frames,
     http_error_console,
     leaf_page,
@@ -82,6 +83,7 @@ from render_harness import (
     take_browser_errors,
     told,
     wait_for_revision,
+    wide_width,
     write,
 )
 
@@ -322,9 +324,7 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
     page = open_page(browser, url)
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     # Counted as open, like any other thread.
-    expect(page.locator(".lf-fp-threads")).to_have_attribute(
-        "title", re.compile("^Threads, 1 open")
-    )
+    expect_open_threads(page, 1)
     [root] = [e["id"] for e in events_model.read_events(d) if e["kind"] == "comment"]
     thread = open_panel_thread(page, root)
     expect(thread.locator(".lf-msg.agent")).to_have_count(1)
@@ -635,8 +635,8 @@ def test_a_widget_declaring_it_renders_a_picture_exposes_a_comment_target(
     overlay = page.locator(".lf-visual-mark-pending")
     expect(overlay).to_be_visible()
     look = overlay.evaluate(
-        """el => { const style = getComputedStyle(el); return {
-          background: style.backgroundImage,
+        """el => { const style = getComputedStyle(el, '::after'); return {
+          background: getComputedStyle(el).backgroundImage,
           outline: [style.outlineStyle, style.outlineWidth],
         }; }"""
     )
@@ -652,8 +652,8 @@ def test_a_widget_declaring_it_renders_a_picture_exposes_a_comment_target(
     ).not_to_be_visible()
 
 
-def _edge_ink_changes(quiet, painted, target, clip, ink):
-    """Count newly painted target ink on each edge of a clipped screenshot."""
+def _bracket_ink_changes(quiet, painted, target, clip, ink):
+    """Count new ink along both bracket sides and each of their four end caps."""
     difference = ImageChops.difference(quiet, painted)
     left = target["x"] - clip["x"]
     top = target["y"] - clip["y"]
@@ -672,19 +672,18 @@ def _edge_ink_changes(quiet, painted, target, clip, ink):
             math.ceil(right) + 1,
             math.ceil(bottom) - 4,
         ),
-        "top": (
-            math.floor(left) + 4,
-            math.floor(top) - 1,
-            math.ceil(right) - 4,
-            math.ceil(top) + 2,
-        ),
-        "bottom": (
-            math.floor(left) + 4,
-            math.floor(bottom) - 2,
-            math.ceil(right) - 4,
-            math.ceil(bottom) + 1,
-        ),
     }
+    for side, x1, x2 in [
+        ("left", left + 4, left + 10),
+        ("right", right - 10, right - 4),
+    ]:
+        for end, y in [("top", top), ("bottom", bottom)]:
+            boxes[f"{end}-{side}"] = (
+                math.floor(x1),
+                math.floor(y) - 1,
+                math.ceil(x2),
+                math.ceil(y) + 2,
+            )
     changed = {
         name: sum(
             delta != (0, 0, 0)
@@ -712,7 +711,8 @@ def test_a_screenshot_comment_contour_paints_above_its_edge_to_edge_frame(
 
     lf-shot is the causal case: its positioned frame reaches every side of a host with
     no border of its own. A source-element outline sits below that frame and disappears
-    down both sides. The projected contour remains visible above all four edges.
+    down both sides. Both projected brackets, including their end caps, remain above
+    the frame.
     """
     example = next(path for path in EXAMPLES if path.stem == "release-notes")
     page = open_page(browser, serve(example))
@@ -739,7 +739,7 @@ def test_a_screenshot_comment_contour_paints_above_its_edge_to_edge_frame(
     overlay = page.locator(".lf-visual-mark-pending")
     expect(overlay).to_be_visible()
     contour = overlay.evaluate(
-        """element => { const style = getComputedStyle(element);
+        """element => { const style = getComputedStyle(element, '::after');
           // A mixed ink computes as color(srgb …); a canvas reads any colour as bytes.
           const pen = document.createElement('canvas').getContext('2d');
           pen.fillStyle = style.outlineColor;
@@ -759,7 +759,7 @@ def test_a_screenshot_comment_contour_paints_above_its_edge_to_edge_frame(
         "width": box["width"] + 2 * outset,
         "height": box["height"] + 2 * outset,
     }
-    changed, _ = _edge_ink_changes(quiet, marked, outer, clip, contour["ink"])
+    changed, _ = _bracket_ink_changes(quiet, marked, outer, clip, contour["ink"])
     assert all(changed[side] > 0 for side in changed), (
         f"the screenshot frame covered part of its annotation contour: {changed}"
     )
@@ -793,6 +793,8 @@ def test_a_focused_card_comment_never_paints_over_the_cards_contents(browser, se
     mark = page.locator('.lf-visual-mark[data-for="lp-k-checks"].lf-visual-mark-here')
     expect(mark).to_be_visible()
     card.scroll_into_view_if_needed()
+    # Include the floating thread's final placement and shadow in both captures.
+    rendered(page)
     box = card.bounding_box()
 
     def screenshot():
@@ -810,7 +812,7 @@ def test_a_focused_card_comment_never_paints_over_the_cards_contents(browser, se
     mark.evaluate("element => { element.style.removeProperty('visibility'); }")
 
 
-def test_a_screenshot_margin_trace_paints_one_complete_quiet_contour(browser, serve):
+def test_a_screenshot_margin_trace_paints_both_quiet_brackets(browser, serve):
     """A margin control traces a visual target above its edge-to-edge children."""
     example = next(path for path in EXAMPLES if path.stem == "release-notes")
     page = open_page(browser, serve(example))
@@ -850,14 +852,24 @@ def test_a_screenshot_margin_trace_paints_one_complete_quiet_contour(browser, se
         """element => {
           const canvas = document.createElement('canvas');
           const context = canvas.getContext('2d');
-          context.fillStyle = getComputedStyle(element).borderLeftColor;
+          context.fillStyle = getComputedStyle(element, '::after').outlineColor;
           context.fillRect(0, 0, 1, 1);
           return [...context.getImageData(0, 0, 1, 1).data.slice(0, 3)];
         }"""
     )
     traced = screenshot()
 
-    changed, missing = _edge_ink_changes(quiet, traced, box, clip, ink)
+    outset = trace.evaluate(
+        "element => { const s = getComputedStyle(element, '::after');"
+        " return parseFloat(s.outlineOffset) + parseFloat(s.outlineWidth); }"
+    )
+    outer = {
+        "x": box["x"] - outset,
+        "y": box["y"] - outset,
+        "width": box["width"] + 2 * outset,
+        "height": box["height"] + 2 * outset,
+    }
+    changed, missing = _bracket_ink_changes(quiet, traced, outer, clip, ink)
     assert not missing, (
         f"the screenshot frame covered the trace's {missing} edge: {changed} ink pixels"
     )
@@ -1025,8 +1037,8 @@ def test_a_diagram_takes_the_room_and_scrolls_only_past_it(browser, serve):
 
 
 def test_a_marked_scrolling_visual_keeps_its_keyboard_focus_ring(browser, serve):
-    """A focused visual paints one ring: its own, since its thread draws nothing at
-    rest. Located in that thread moves the contour into the projected mark."""
+    """A focused visual paints one projected ring; entering its thread keeps the
+    reference on the same target without restoring a second source outline."""
     url = serve(WIDE_DIAGRAM_PAGE)
     append_carried_log_record(
         serve.page_dir,
@@ -1045,10 +1057,11 @@ def test_a_marked_scrolling_visual_keeps_its_keyboard_focus_ring(browser, serve)
     expect(diagram).to_have_attribute("tabindex", "0")
     diagram.focus()
     assert diagram.evaluate("element => element.matches(':focus-visible')")
-    expect(diagram).to_have_css("outline-style", "solid")
-    expect(diagram).to_have_css("outline-width", "2px")
+    rendered(page)
+    ring = current_location_ring(page)
+    assert ring and ring["cuts"] == ring["covers"] == [], ring
     mark = page.locator(".lf-visual-mark")
-    expect(mark).to_have_count(0)
+    expect(page.locator(".lf-visual-mark-focus")).to_have_attribute("data-for", "flow")
 
     resized(page, 1200, 900)
     stand_on_thread(page, "diagram-comment")
@@ -1111,7 +1124,7 @@ def test_a_tab_set_whose_runtime_could_not_start_shows_every_panel(browser, serv
     page.route("**/widgets/lf-tabs.js", lambda route: route.abort())
     page.goto(url, wait_until="load")
     expect(
-        page.get_by_text("Leaf couldn't start. Waiting for the server to update.")
+        page.get_by_text("Leaf couldn't start. Waiting for Leaf to update.")
     ).to_be_visible()
     expect(page.locator("#views")).not_to_have_class("lf-rendered")
     expect(page.locator("#first")).to_be_visible()
@@ -1137,7 +1150,7 @@ def test_a_drawing_that_will_never_draw_claims_no_room(browser, serve):
     page.route("**/widgets/lf-diagram.js", lambda route: route.abort())
     page.goto(url, wait_until="load")
     expect(
-        page.get_by_text("Leaf couldn't start. Waiting for the server to update.")
+        page.get_by_text("Leaf couldn't start. Waiting for Leaf to update.")
     ).to_be_visible()
     expect(page.locator("body")).not_to_have_attribute("data-lf-upgraded", "1")
     at = page.evaluate("""() => {
@@ -1461,7 +1474,7 @@ def test_a_boards_minimum_keeps_the_room_the_column_can_grant(browser, serve):
                 assert at["board-4"]["scrolls"] > 0, at
                 assert at["board-5"]["scrolls"] > 0, at
             elif width == 1440:
-                assert at["wide"]["width"] == pytest.approx(840, abs=1), at
+                assert at["wide"]["width"] == pytest.approx(wide_width(page), abs=1), at
                 assert at["room"]["width"] > at["wide"]["width"], at
 
 
@@ -1507,13 +1520,14 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
     resized(page, 1726, 900)
     at = page.evaluate(measure)
     edge = at["prose"]["left"]
+    wide = round(wide_width(page))
     # An option list keeps the measure whatever one option holds: only a box's own
     # blocks widen it.
     for boxed in ("ask", "callout", "list"):
         assert at[boxed] == {"width": 720, "left": edge}, (boxed, at)
     # A granted callout's padding and border fall inside the wide measure.
-    for wide in ("granted", "granted-c", "holds"):
-        assert at[wide] == {"width": 840, "left": edge}, (wide, at)
+    for granted in ("granted", "granted-c", "holds"):
+        assert at[granted] == {"width": wide, "left": edge}, (granted, at)
     # The widened obligation frames its table, which stands wider than the measure.
     assert at["holds-t"]["width"] > 720, at
 
@@ -1558,7 +1572,7 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
             " 'wrapped']",
         )
     )
-    assert at["holds-t"]["width"] == 840, at
+    assert at["holds-t"]["width"] == wide, at
     assert at["holds-t"]["left"] == at["prose"]["left"], at
     assert at["holds"] == at["holds-t"], at
     heading = column.locator("#holds h3").bounding_box()
@@ -1566,7 +1580,9 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
     assert at["ask"] == at["prose"], at
     assert at["listed"] == at["listed-t"], at
     assert at["listed"]["width"] < at["prose"]["width"], at
-    assert at["both"] == at["both-t"] == {"width": 840, "left": at["holds"]["left"]}, at
+    assert at["both"] == at["both-t"] == {"width": wide, "left": at["holds"]["left"]}, (
+        at
+    )
     assert at["tracked"]["width"] == 350, at
     # An obligation inside a breakout takes its holder's room, as any block
     # there does, however much room its own block asks for.
@@ -1733,8 +1749,9 @@ def test_a_table_granted_room_stands_on_the_prose_axis(
     # A `wide` table grows only from the prose's start edge, toward the end side.
     assert at["edge"][start] == pytest.approx(prose[start], abs=1), at
     free_end = free_right if direction == "ltr" else free_left
-    if width(prose) + free_end >= 840:
-        expected = min(840, width(at["wide"]))
+    wide = wide_width(page)
+    if width(prose) + free_end >= wide:
+        expected = min(wide, width(at["wide"]))
         assert width(at["edge"]) == pytest.approx(expected, abs=1), at
     for edge in ("left", "right"):
         assert at["turned"][edge] == pytest.approx(at["wide"][edge], abs=1), at
@@ -1932,6 +1949,46 @@ def test_a_tables_rows_span_the_prose_and_its_outer_words_stand_in_alike(
         start, end = row["inset"]
         assert start > 0.5, at
         assert start == pytest.approx(end, abs=0.5), at
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_row_of_metrics_sets_every_figure_on_one_line(request, serve, engine):
+    """A row of metric tiles reads as figures compared across it, so each figure stands
+    on one line whichever labels wrap and whichever figures carry a change beside them.
+    A label wrapping to a second line had set its own figure a line lower."""
+    tile = '<dl id="{}" class="metric"><dt>{}</dt><dd><strong>{}</strong>{}</dd></dl>'
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "metrics",
+                '<h1>This week</h1><div class="layout-tiles">'
+                + tile.format("short", "checks", "12", " <small>change: +3</small>")
+                + tile.format(
+                    "long",
+                    "open failures across every regional cluster since the last release",
+                    "2",
+                    "",
+                )
+                + tile.format("plain", "duration", "4 min", "")
+                + "</div>",
+            )
+        ),
+    )
+    resized(page, 1440, 900)
+    figures = page.evaluate(
+        """() => ['short', 'long', 'plain'].map((id) => {
+          const tile = document.getElementById(id);
+          const label = document.createRange();
+          label.selectNodeContents(tile.querySelector('dt'));
+          return {
+            lines: new Set([...label.getClientRects()].map((r) => Math.round(r.top))).size,
+            figure: Math.round(tile.querySelector('strong').getBoundingClientRect().top),
+          };
+        })"""
+    )
+    assert figures[1]["lines"] > figures[0]["lines"], f"no label wraps: {figures}"
+    assert len({f["figure"] for f in figures}) == 1, figures
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
@@ -4113,7 +4170,8 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
 
     The first read reaches panel and version rendering before malformed projection data
     rejects it. That candidate does not announce the reply or leave a version behind;
-    a complete retry announces the reply once with the agent recorded on the message.
+    a complete retry announces the reply once, to the live region, with the agent
+    recorded on the message.
     The rejected reply must also leave the visible thread until that retry.
     """
     url = serve(TWIN_V1)
@@ -4128,13 +4186,11 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
         },
     )
     page = open_page(browser, live_url(url))
-    expect(page.locator(".lf-fp-threads")).to_have_attribute(
-        "aria-label", "Threads, 1 open"
-    )
+    expect_open_threads(page, 1)
     field = page.locator(".lf-fp-field leaf-text")
     stamp_page(d, TWIN_V2, "a twin")
     wait_for_revision(page, 2)
-    expect(field).not_to_have_attribute("placeholder", re.compile("replied"))
+    expect(field).not_to_have_attribute("placeholder", re.compile("this one does"))
 
     open_panel_thread(page, root["id"])
     write(panel_field(page), "keep this unfinished reply")
@@ -4197,13 +4253,14 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
     expect(panel_menu(page, "versions")).not_to_contain_text("Rejected version")
     page.keyboard.press("Escape")
 
-    assert "replied" not in (field.get_attribute("placeholder") or "")
-    assert "Codex replied" not in page.locator(".lf-live").text_content()
+    assert "this one does" not in (field.get_attribute("placeholder") or "")
+    assert "this one does" not in page.locator(".lf-live").text_content()
 
     page.unroute("**/api/state*")
     nudge(d)
     told(page)
-    expect(field).to_have_attribute("placeholder", re.compile("Codex replied"))
+    expect(page.locator(".lf-live")).to_have_text("this one does")
+    expect(field).not_to_have_attribute("placeholder", re.compile("this one does"))
     view = open_panel_thread(page, root["id"])
     expect(view.locator(".lf-msg.agent .lf-msg-body")).to_have_text("this one does")
 

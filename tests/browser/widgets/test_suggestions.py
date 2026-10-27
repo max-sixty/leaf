@@ -608,7 +608,8 @@ def test_a_widget_naming_its_own_words_does_not_read_the_runtimes(browser, serve
             )
 
 
-def test_a_decided_change_folds_away_rather_than_vanishing(browser, serve):
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_decided_change_folds_away_rather_than_vanishing(engine, request, serve):
     """A decision may move the page; it may not teleport it.
 
     A block change is a struck old paragraph stacked over a tinted new one, and
@@ -625,8 +626,15 @@ def test_a_decided_change_folds_away_rather_than_vanishing(browser, serve):
     what the test proves is the shape of the motion and not how long the run took.
 
     An inline change is the test below: it has nothing to follow, and folding one would
-    be the harm rather than the fix."""
-    page = open_page(browser, serve(SHORT_SUGGESTION), init_script=HOLD_MOTION)
+    be the harm rather than the fix.
+
+    Firefox, which interpolates neither `calc-size()` nor `display`, folds from the
+    slot's measured height and keeps the retired slot drawn without the animation."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(SHORT_SUGGESTION),
+        init_script=HOLD_MOTION,
+    )
     old = page.locator("#sug lf-old")
     after = page.locator("#after")
     tall = old.evaluate("el => el.getBoundingClientRect().height")
@@ -832,7 +840,7 @@ def test_a_refused_decision_returns_to_pending_with_failure_controls(
     # And the page's own count is derived from that, so it comes back too.
     expect_accept_all(page, 3)
     expect(panel_field(page)).to_have_attribute(
-        "placeholder", re.compile("Couldn't send")
+        "placeholder", re.compile("Couldn't take this")
     )
     assert [
         e for e in events_model.read_events(serve.page_dir) if e["kind"] == "action"

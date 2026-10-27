@@ -65,6 +65,7 @@ from render_harness import (
     _traffic,
     compare_with,
     consume_browser_errors,
+    expect_open_threads,
     expect_panel_says,
     hold_selection,
     holding,
@@ -147,13 +148,6 @@ def stranded_quotes(page):
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
     return stranded
-
-
-def expect_open_threads(page, count):
-    """Wait until the panel's Threads mark counts `count` open threads."""
-    expect(page.locator(".lf-fp-threads")).to_have_attribute(
-        "title", re.compile(rf"^Threads, {count} open")
-    )
 
 
 def open_selected_comment(page):
@@ -2238,7 +2232,8 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     ), [(file["code"], file["numbers"][:1]) for file in files]
 
     reading = page.evaluate("""async () => {
-      const { says, textNodesUnder, wrote } = await window.__lfWidgetApi();
+      const { says, wrote } = await window.__lfWidgetApi();
+      const { textNodesUnder } = await window.__lfCheckApi();
       const diff = document.querySelector('#patch');
       const shadow = diff.shadowRoot;
       const segments = textNodesUnder(document)
@@ -2290,8 +2285,8 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
         f"Pierre separator chrome entered the page reading: {reading}"
     )
     assert reading["font"] == reading["leafFont"], reading
-    assert reading["fontSize"] == reading["leafFontSize"] == "12.5px", reading
-    assert reading["lineHeight"] == reading["leafLineHeight"] == "19px", reading
+    assert reading["fontSize"] == reading["leafFontSize"] == "13.5px", reading
+    assert reading["lineHeight"] == reading["leafLineHeight"] == "20px", reading
     assert reading["background"] == reading["leafBackground"], reading
     assert reading["backgroundIsWhite"], reading
     assert reading["backgroundIsSeparateFromPage"], reading
@@ -2860,15 +2855,15 @@ def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
     mark = page.locator('.lf-visual-mark[data-for="fig"]')
     expect(mark).to_be_visible()
     look = mark.evaluate(
-        """node => { const style = getComputedStyle(node); return {
-          background: style.backgroundImage,
+        """node => { const style = getComputedStyle(node, '::after'); return {
+          background: getComputedStyle(node).backgroundImage,
           outline: [style.outlineStyle, style.outlineWidth],
           offset: parseFloat(style.outlineOffset),
         }; }"""
     )
     assert look["background"] == "none", look
     assert look["outline"][0] == "solid" and look["outline"][1] != "0px", look
-    assert look["offset"] > 0, look
+    assert look["offset"] == 0, look
 
 
 FOCUSED_THREAD = "document.activeElement?.closest('.lf-page-thread')"
@@ -3123,7 +3118,7 @@ def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
     mark = page.locator('.lf-visual-mark[data-for="fig"]')
     expect(mark).to_have_count(0)
 
-    look = """node => { const style = getComputedStyle(node); return {
+    look = """node => { const style = getComputedStyle(node, '::after'); return {
       line: style.outlineStyle,
       drawn: parseFloat(style.outlineWidth) > 0,
     }; }"""
@@ -4913,7 +4908,7 @@ def test_a_deferred_load_keeps_the_manifest_source_revision(browser, serve):
     data_model.cmd_data_set(serve.page_dir, "review-patch", manifest)
     prior = source_revision(serve.page_dir, "review-patch")
     page = open_page(browser, url)
-    page.evaluate("window.priorManifest = document.querySelector('#patch').snapshot")
+    page.evaluate("window.priorManifest = document.querySelector('#patch').value")
     replacement = original.replace('return "first"', 'return "replacement"')
     manifest["files"][0]["patch"] = replacement
     data_model.cmd_data_set(serve.page_dir, "review-patch", manifest)
@@ -4928,7 +4923,7 @@ def test_a_deferred_load_keeps_the_manifest_source_revision(browser, serve):
             stale = error.message;
           }
           const current = await loadDeferred(
-            document.querySelector('#patch').snapshot, 'app.py'
+            document.querySelector('#patch').value, 'app.py'
           );
           return {stale, current};
         }"""

@@ -1,9 +1,8 @@
 """Widget quality: how a package's own widgets behave on a page, told to their author.
 
-A finding here is advice for whoever writes the widget. It refuses nothing: the widget
-still renders, a page using it still passes its checks, and `package check --render`
-exits as it would without it. It stays out of `page check --render` too, whose reader
-is a page's author and cannot change a widget's internals (`readings.py`, header).
+Presentation findings here are advice for whoever writes the widget. Output contract
+violations are errors, shared with `page check --render`: a page cannot rely on invalid
+data, and the finding names the producer whose author must fix it.
 
 The report renders the package's worked examples (`x-example`) under the layer the
 package appears in (`packages.package_layer_inputs`), and reads only the tags the
@@ -51,7 +50,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from leaf.data import write_data
-from leaf.data_contracts import declared_data_bindings, resource_urls
+from leaf.data_contracts import declared_data_bindings, output_findings, resource_urls
 from leaf.findings import Finding, element_at
 from leaf.layer import LayerComposition, checked_layer_inputs, compose_layer
 from leaf.packages import package_layer_inputs
@@ -61,6 +60,7 @@ from leaf.render_checks import (
     RENDER_VIEWPORT,
     evaluate_probe,
     install_driver,
+    output_values,
     wait_for_probe,
     wait_until_ready,
 )
@@ -179,10 +179,11 @@ def _blank_image(suffix: str) -> bytes:
 
 def _readings(
     browser, url: str, tags: list[str]
-) -> tuple[list[dict], list[dict], list[dict]]:
+) -> tuple[list[dict], list[dict], list[dict], list[dict]]:
     """Each widget on the served page whose box changed from first paint to presented,
     each command in `tags`' widgets whose context keys the page never shows, and each
-    box in `tags`' widgets that holds its own height and scrolls inside it."""
+    box in `tags`' widgets that holds its own height and scrolls inside it, plus
+    every output published while exercising the examples."""
     from playwright.sync_api import Error as PlaywrightError
 
     page = browser.new_page(viewport=RENDER_VIEWPORT)
@@ -201,7 +202,8 @@ def _readings(
             raise UnreadablePage("; ".join(map(str, errors)))
         changed = evaluate_probe(page, "changedBoxes")
         unshown = evaluate_probe(page, "unshownContextKeys", tags)
-        return changed, unshown, evaluate_probe(page, "heldScrollers", tags)
+        held = evaluate_probe(page, "heldScrollers", tags)
+        return changed, unshown, held, output_values(page)
     except (PlaywrightError, RuntimeError, TimeoutError) as error:
         raise UnreadablePage(str(error).strip()) from error
     finally:
@@ -271,7 +273,13 @@ def _page_findings(
             except ArtifactError as error:
                 raise UnreadablePage(str(error)) from error
             with preview_server(page_dir, document, 1, artifact=artifact) as url:
-                changed, unshown, held = _readings(browser, url, tags)
+                changed, unshown, held, outputs = _readings(browser, url, tags)
+            findings += output_findings(
+                outputs,
+                artifact.registry,
+                artifact.implementations,
+                artifact.declaration_sources,
+            )
             findings += [
                 _finding(
                     "keeps-first-box",

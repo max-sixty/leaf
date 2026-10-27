@@ -6550,7 +6550,9 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
         </button>` : nothing;
 		const show = arrivesAt(item) ? html`<button
           type="button"
-          class="lf-fp-face lf-fp-quiet lf-fp-show"
+          class="lf-fp-face lf-fp-icon-btn lf-fp-show"
+          aria-label="Show"
+          title="Show"
           @click=${() => {
 			const route = trail.value.at(-1);
 			queueActions.open(queueItemKey(item)).then((arrived) => {
@@ -6558,7 +6560,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			});
 		}}
         >
-          Show
+          ${iconTemplate("locate", "lf-action-icon")}
         </button>` : nothing;
 		let answers;
 		let discussHere = true;
@@ -6570,10 +6572,12 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			discussHere = false;
 			answers = html`<span class="lf-fp-said">${obligationEnding(record)}</span>${gesture ? html`<button
                 type="button"
-                class="lf-fp-face lf-fp-quiet"
+                class="lf-fp-face lf-fp-icon-btn"
+                aria-label="Undo"
+                title="Undo"
                 @click=${() => withdraw(gesture)}
               >
-                Undo
+                ${iconTemplate("undo", "lf-action-icon")}
               </button>` : nothing}${waiting ? html`<button
                 type="button"
                 class="lf-fp-face lf-fp-answer"
@@ -6977,7 +6981,9 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
               ${iconTemplate("down", "lf-action-icon")}Next unread
             </button>` : nothing}${onPageSeat ? html`<button
               type="button"
-              class="lf-fp-face lf-fp-quiet"
+              class="lf-fp-face lf-fp-icon-btn lf-fp-on-page"
+              aria-label=${inMessage ? "Show in message" : "Show on page"}
+              title=${inMessage ? "Show in message" : "Show on page"}
               ?disabled=${!thread.anchor}
               ?data-unoffered=${!thread.anchor}
               @click=${() => {
@@ -6995,7 +7001,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			}));
 		}}
             >
-              ${inMessage ? "Show in message" : "Show on page"}
+              ${iconTemplate("locate", "lf-action-icon")}
             </button>` : nothing}<button
         type="button"
         class="lf-fp-face lf-fp-icon-btn lf-fp-settle ${thread.resolved ? "lf-reopen" : "lf-resolve"}"

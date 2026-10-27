@@ -40,7 +40,7 @@
  * away, Discard and Escape, as a message rewrite's do; every other way out saves them
  * as Save does, which submits one absolute edit through the shared send generation. A
  * press away from the draft saves (focus.js, `onPressAway`), so a tap elsewhere on a
- * phone keeps what was typed without finding the check mark first, and Android's back
+ * phone keeps what was typed without finding Save first, and Android's back
  * gesture saves the same way (`keep`, close-requests.js). A stray edge swipe therefore
  * sends the agent a turn, as a stray tap does (the user's decision, 2026-10-27). Rejected: back closing the editor with its
  * words kept unsaved, a third way out whose state the closed box had to show beside
@@ -100,10 +100,11 @@ import {
   PRESSABLE,
 } from "/runtime/widget-api.js";
 
-// Each control's key, name and mark.
+// Each control's key, name and mark. Save and Discard wear a message rewrite's
+// symbols (thread/message-edit.js): the save mark, since a check is Resolve and Done.
 const ACTIONS = [
   ["edit", "Edit", "edit"],
-  ["save", "Save", "check"],
+  ["save", "Save", "save"],
   ["cancel", "Discard", "cross"],
 ];
 

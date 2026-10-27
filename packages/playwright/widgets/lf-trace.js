@@ -2087,16 +2087,16 @@ customElements.define(
                 ${ref(this.#imageTools)}
               >
                 ${[
-                  ["−", "Zoom image out", () => this.#picture?.zoom(-0.25)],
-                  ["+", "Zoom image in", () => this.#picture?.zoom(0.25)],
+                  ["subtract", "Zoom image out", () => this.#picture?.zoom(-0.25)],
+                  ["add", "Zoom image in", () => this.#picture?.zoom(0.25)],
                 ].map(
-                  ([text, label, run]) =>
+                  ([icon, label, run]) =>
                     html`<button
                       ${offeredAction("symbol", "", label)}
                       ?disabled=${!this.#picture?.viewed || q}
                       @click=${run}
                     >
-                      ${text}
+                      ${iconTemplate(icon, "lf-action-icon")}
                     </button>`,
                 )}
                 <button

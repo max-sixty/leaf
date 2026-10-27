@@ -545,19 +545,14 @@ export class ThreadView {
     const marginControls = model.surface === "margin" ? this.#marginControls : null;
     if (marginControls && prior)
       marginControls.anchor.presented(threadChange(prior, model)?.joined);
-    // Where the settlement stands, decided once: the container it renders in and the
-    // face it wears both follow from it.
-    // - "margin": a margin card's own controls row, which also stands the notice,
-    //   whole, before Previous and Next: its own place with the thread's facts, as the
+    // Where the settlement stands:
+    // - on a margin card, its own controls row, which also stands the notice, whole,
+    //   before Previous and Next: its own place with the thread's facts, as the
     //   floating panel's head holds it (the user's choice, 16 October), rather than
     //   over the end of the message head beside it.
-    // - "head": the head's controls row, which reserves the room of one icon control
+    // - elsewhere, the head's controls row, which reserves the room of one icon control
     //   (shadow.css, `--lf-thread-action-room`) beside the first message's own
-    //   controls, so whatever stands there is the check: Resolve, or Reopen in its place
-    //   on a resolved page or outlet thread, so the two states of one toggle share one
-    //   face and one corner. The word, wider, ran over the message's pencil, and a foot
-    //   row of its own drew resolved threads unlike open ones.
-    const settlementPlace = marginControls ? "margin" : "head";
+    //   controls. A foot row of its own drew resolved threads unlike open ones.
     const notice = this.#news;
     if (model.news) notice.set(model.news);
     const news = model.news ? notice.node : nothing;
@@ -569,9 +564,7 @@ export class ThreadView {
     // thread's name.
     keeps(this.node, "role", "group");
     keeps(this.node, "aria-label", `Thread, ${model.summary.topic}`);
-    const settlement = model.settlement
-      ? this.#settlement(model, settlementPlace)
-      : nothing;
+    const settlement = model.settlement ? this.#settlement(model) : nothing;
     const threadActions =
       marginControls || model.settlement || model.news
         ? html`<span class="lf-thread-meta-actions">
@@ -759,20 +752,20 @@ export class ThreadView {
     return this.#transcript.progressOpen;
   }
 
-  // A thread shows Reopen or the completed check in Resolve's place.
-  #settlement(model, place) {
+  // Resolve and Reopen are one toggle, so every surface draws it as one check, drawn
+  // done on a resolved thread (browser/AGENTS.md, "Visual grammar"), in one corner:
+  // settling moves nothing beside it. A margin card once said Reopen as a word.
+  #settlement(model) {
     const state = model.settlement;
     const reopen = state.kind === "unresolve";
-    // A margin card's controls row draws Resolve as the check and Reopen as the word.
-    const icon = place === "head" || (place === "margin" && !model.resolved);
     const word = reopen ? "Reopen" : "Resolve";
     const label =
       reopen && model.resolvedBy ? `${model.resolvedBy} · ${state.label}` : state.label;
     return html`<button
-      ${offeredAction(icon ? "symbol" : "word", reopen ? "lf-reopen" : "lf-resolve")}
+      ${offeredAction("symbol", reopen ? "lf-reopen" : "lf-resolve")}
       aria-busy=${state.pending ? "true" : nothing}
-      aria-label=${icon ? label : nothing}
-      title=${icon ? label : nothing}
+      aria-label=${label}
+      title=${label}
       ${commandsOn(`On a thread's ${word} button`, (button) => [
         {
           id: reopen ? "thread.reopen" : "thread.resolve",
@@ -784,7 +777,7 @@ export class ThreadView {
         },
       ])}
     >
-      ${icon ? iconTemplate("check", "lf-action-icon") : state.label}
+      ${iconTemplate("check", "lf-action-icon")}
     </button>`;
   }
 

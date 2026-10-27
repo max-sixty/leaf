@@ -6281,23 +6281,25 @@ function mountApplication(dependencies) {
 		return entries;
 	}
 	let annotationsDrawn = false;
-	const renderAnnotations = () => {
+	let annotationPresentation = null;
+	const paintAnnotations = () => {
 		annotationsDrawn = true;
 		if (!onPaper.matches) {
 			const entries = refreshAnnotationInventory();
 			overlay?.paint(entries);
 		}
 	};
+	const renderAnnotations = () => annotationPresentation ? annotationPresentation.present() : paintAnnotations();
 	renderAnnotations.refresh = () => {
 		if (annotationsDrawn) renderAnnotations();
 	};
 	const annotationInputs = readPart(annotationSelection);
 	const mountAnnotations = () => {
-		const presentation = applicationPresenter({
+		const presentation = annotationPresentation = applicationPresenter({
 			region: "annotations",
 			after: PRESENTATION_DOM.obligations,
 			reading: () => annotationInputs(),
-			paint: renderAnnotations
+			paint: paintAnnotations
 		});
 		presentation.present();
 		onPaper.addEventListener("change", () => {

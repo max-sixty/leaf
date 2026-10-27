@@ -1749,6 +1749,7 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 			}
 		});
 		previewChanged();
+		renderAnnotations.refresh();
 		return positioned;
 	}
 	function togglePinned(entry, button) {

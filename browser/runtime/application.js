@@ -266,16 +266,19 @@ export function mountApplication(dependencies) {
     dependencies.annotationCommands.renderPageMapDialog(entries);
     return entries;
   }
-  // The margin's annotations, which the margin's own geometry and contributions also
-  // redraw directly. `refresh()` redraws them once they have been drawn.
+  // Mechanical annotation changes use the same presenter as publications, so newly
+  // visible content contributes its dependencies. `refresh()` waits for first paint.
   let annotationsDrawn = false;
-  const renderAnnotations = () => {
+  let annotationPresentation = null;
+  const paintAnnotations = () => {
     annotationsDrawn = true;
     if (!onPaper.matches) {
       const entries = refreshAnnotationInventory();
       overlay?.paint(entries);
     }
   };
+  const renderAnnotations = () =>
+    annotationPresentation ? annotationPresentation.present() : paintAnnotations();
   renderAnnotations.refresh = () => {
     if (annotationsDrawn) renderAnnotations();
   };
@@ -287,12 +290,12 @@ export function mountApplication(dependencies) {
   // commit that moves one and the clock repaint them by the same proof.
   const annotationInputs = readPart(annotationSelection);
   const mountAnnotations = () => {
-    const presentation = applicationPresenter({
+    const presentation = (annotationPresentation = applicationPresenter({
       region: "annotations",
       after: PRESENTATION_DOM.obligations,
       reading: () => annotationInputs(),
-      paint: renderAnnotations,
-    });
+      paint: paintAnnotations,
+    }));
     void presentation.present();
     // A paint on paper read no ages, so the return to screen paints through the
     // presenter, which follows them again.

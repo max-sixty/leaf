@@ -685,19 +685,19 @@ export function boxMotion({
     }
 
     // Drawn where its layout puts it, cut to its outline growing from where it stood.
-    // A part a carried part holds starts drawn where that carry puts it, and its cut
-    // closes with the carry on the same clock.
+    // Cancel any carrying ancestor: native scroll and landing already put its content
+    // where it belongs, so inheriting that carry would move it away and back.
     function grow(part, from) {
       const to = part.box;
-      motions.set(part.element, { from, to });
-      const drawnTo = shifted(to, ...carriedBy(0)(part.element.parentElement));
+      motions.set(part.element, { from: to, to });
+      carry(part, to);
       cutFrom(
         part.element,
         [
-          from.top - drawnTo.top,
-          drawnTo.right - from.right,
-          drawnTo.bottom - from.bottom,
-          from.left - drawnTo.left,
+          from.top - to.top,
+          to.right - from.right,
+          to.bottom - from.bottom,
+          from.left - to.left,
         ].map((inset) => Math.max(0, inset)),
         radiusOf(part.style),
       );
@@ -873,7 +873,7 @@ export function boxMotion({
         else if (!sized && paints(style) && !part.holdsWindow)
           carries ? carryContent(part, from) : grow(part, from);
         if (!same(from, to))
-          motions.set(element, { ...motions.get(element), from, to, frames: true });
+          motions.set(element, { from, to, ...motions.get(element), frames: true });
       }
       // What carries is placed first, so what is new beside it is revealed from it.
       const placed = [...part.parts].sort(

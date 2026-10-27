@@ -35,7 +35,7 @@ import {
   tellDraft,
 } from "../drafts.js";
 import { sendLanding } from "./reply-landing.js";
-import { readCaret, focused, currentLocationIn, onPressAway } from "../focus.js";
+import { drawn, readCaret, focused, currentLocationIn, onPressAway } from "../focus.js";
 import { threadKey } from "./model.js";
 import { closestAcross } from "../passages.js";
 import { retainUserIntent, restrictUserIntent } from "../user-intent.js";
@@ -135,7 +135,7 @@ export function holdReplyCompositions(threads, realize) {
         const replacement =
           compositionOf(destination) ??
           compositionOf(destination?.querySelector(SAY_ROW));
-        if (replacement && replacement.controls.input.checkVisibility())
+        if (replacement && drawn(replacement.controls.input))
           adopt(context, carry(replacement, owner));
       }
     } finally {
@@ -210,7 +210,7 @@ function carry(target, owner) {
     target === owner ||
     owner.retired ||
     !target.binding ||
-    (owner.binding && owner.row.checkVisibility())
+    (owner.binding && drawn(owner.row))
   )
     return target;
   const session = compositions.get(owner.context);
@@ -239,7 +239,7 @@ export function releaseReplies(surface) {
   for (const { owner } of compositions.values()) {
     if (!owner?.binding || !surface.contains(owner.row)) continue;
     const shown = [...views.get(owner.context)].find(
-      (view) => view !== owner && view.controls.input.checkVisibility(),
+      (view) => view !== owner && drawn(view.controls.input),
     );
     if (shown) handOver(shown, owner);
     else {

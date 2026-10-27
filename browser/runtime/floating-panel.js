@@ -365,7 +365,7 @@ export function createFloatingPanel({
     const searchControls = search?.controls ?? [];
     const searchLabel = !initial && pageSearch?.open ? "Search page" : "Search threads";
     const thread = top ? (threadOf(top)?.id ?? null) : null;
-    const resting = Boolean(top?.thread) && !replyAvailable(threadOf(top));
+    const resting = Boolean(thread) && !replyAvailable(threadOf(top));
     const input = initial ? null : fieldInput();
     const reading = initial ? null : fieldReading(top?.thread ?? null, input);
     const selection =
@@ -1047,8 +1047,9 @@ export function createFloatingPanel({
   const fieldInput = () => {
     if (activeSearch()) return null;
     const top = trail.value.at(-1);
+    const thread = threadOf(top);
     return top?.thread
-      ? replyAvailable(threadOf(top))
+      ? thread && replyAvailable(thread)
         ? replyInput()
         : null
       : pageEditor().input;

@@ -2980,17 +2980,6 @@ lf-code :is(.lf-code-line, .lf-code-elided).hi {
 lf-code :is(.lf-code-line, .lf-code-elided).hi::before {
   border-right-color: var(--warn);
 }
-lf-code :is(.lf-code-line, .lf-code-elided)[data-lf-indicated] {
-  outline: none;
-}
-lf-code :is(.lf-code-line, .lf-code-elided)[data-lf-indicated]:not(.hi) {
-  background: var(--accent-tint);
-}
-lf-code :is(.lf-code-line, .lf-code-elided)[data-lf-indicated]::before {
-  box-shadow: inset 3px 0 0 var(--accent);
-  color: var(--accent);
-  font-weight: 600;
-}
 lf-code lf-note {
   display: block;
 }

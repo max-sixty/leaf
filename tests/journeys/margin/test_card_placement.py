@@ -84,7 +84,7 @@ def test_an_open_card_takes_news_without_moving_its_controls(browser, serve):
     )
     told(page)
     notice = preview.locator(".lf-thread-notice-news")
-    expect(notice).to_have_text("1 new message")
+    expect(notice).to_have_count(0)
     expect(words).to_contain_text("before and after the change")
     thread_model.post_reply(
         serve.page_dir,

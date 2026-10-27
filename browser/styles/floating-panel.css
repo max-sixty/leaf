@@ -162,11 +162,11 @@
      or wear the face, as it took the fill off a chosen reaction in a thread, drew the
      shelf's × as a panel press, stood the seated box's Send on a line under its field
      and washed a thread's held news on hover, a wash that notice declines. It is a
-     default, so it stands in the components' layer (`lf-base`), as the marks sheet's
-     indication default does (runtime/stylesheets.js), at a plain selector's weight: the
-     panel's own rules, unlayered, outrank it, while it still outranks the chrome's
-     control reset (chrome.css) and the layer's focus band at no weight (surfaces.css).
-     A press reaches the pointer's floor by the shared reach (surfaces.css). */
+     default, so it stands in the components' layer (`lf-base`), at a plain selector's
+     weight: the panel's own rules, unlayered, outrank it, while it still outranks the
+     chrome's control reset (chrome.css) and the layer's focus band at no weight
+     (surfaces.css). A press reaches the pointer's floor by the shared reach
+     (surfaces.css). */
   @layer lf-base {
     :is(button, input, textarea):where(.lf-fp-face) {
       font: inherit;

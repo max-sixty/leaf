@@ -33,9 +33,14 @@
  *   what the agent is doing or wants, in the status's words
  *   (`statusReading`), or what a passing notice says, where a placeholder would say
  *   "Comment"; in a stance, such as Draw mode, it names the stance, whose way out is
- *   the seat's ✕; in a thread it says Reply, then whose turn it is, with the key
- *   that enters the field, while a walk's position stands at the field's end
- *   (`passingAside`). While words stand selected
+ *   the seat's ✕; in a thread it says whose turn it is beside the leaf, in the
+ *   agent's voice and face, with a walk's position after it, and Reply with the key
+ *   that enters the field at the field's end, in ink as the press it offers
+ *   (`turnLead`). The user chose this on 27 October so the next action reads apart
+ *   from the agent's words, over three others: the key beside Reply with the turn at
+ *   the field's end in one face, Reply alone with the turn left to the thread's
+ *   messages, and the agent's words in a lane of their own before the seat, at rest
+ *   too. While words stand selected
  *   on the page, the page's field quotes them, inside a stance too, and a press there
  *   comments on them (`selectedWords`), the one route a finger has to them; the user
  *   chose that on 19 October over a worded step standing in the marks' place, which
@@ -181,6 +186,7 @@ import {
   todoLabel,
   workflowLabel,
   workflowStep,
+  workflowVoice,
 } from "./thread/workflow.js";
 import {
   messageReading,
@@ -853,10 +859,11 @@ export function createFloatingPanel({
   // as one with none.
   //
   // In an open thread the field is the reply box, so it says the reply, with the key
-  // that enters it, but for a notice or the Go-to word for their moment; a walk's
-  // position, which stands as long as the user does, stands at its end (`passingAside`).
-  // The user asked for this on 22 October, when a walk's "Thread 11 of 11" in the
-  // field's place left nothing saying how to reply to the thread they were reading.
+  // that enters it, but for a notice or the Go-to word for their moment; whose turn it
+  // is and a walk's position, which stand as long as the user does, stand before it
+  // (`turnLead`). The user asked for this on 22 October, when a walk's "Thread 11 of
+  // 11" in the field's place left nothing saying how to reply to the thread they were
+  // reading.
   const HIDDEN = "Annotations hidden";
   const hiddenLead = () => (annotationsHidden() ? `${HIDDEN} · ` : "");
   function fieldReading(key, input) {
@@ -871,7 +878,7 @@ export function createFloatingPanel({
       !noticeReading().visible &&
       !statusContextReading().goTo
     )
-      return { says: "turn", words: turnWords(thread) };
+      return { says: "turn", words: "Reply" };
     const stance = key ? null : statusContextReading().stance;
     // Keep the current navigation context alongside the selection's comment offer.
     // The field's own name says what a press does (`pageEditor`); on a narrow phone
@@ -903,23 +910,24 @@ export function createFloatingPanel({
       };
     return { says: "turn", words: "Reply" };
   }
-  // The reply the open thread's field takes, then whose turn it is, so a field too
-  // narrow for both, as on a phone, still says Reply. The agent's own line, a to-do's
-  // title or a start's, stays in the thread, where the working message says it.
-  function turnWords(thread) {
-    const attention = threadAttention(thread);
-    return attention ? `Reply · ${attention.label}` : "Reply";
-  }
-  // A walk's position while the field says an open thread's reply, at the field's end,
-  // after the reply and its key (composing/input.js, `hintAside`). The thread walk
-  // standing on this thread says only its place, "11 of 11", since the view names the
-  // thread. A notice or the Go-to word, which pass in a moment, take the reply's place.
-  function passingAside(key, input) {
+  // What stands before an open thread's reply while the field says it, beside the leaf
+  // (composing/input.js, `hintLead`): whose turn it is, in the agent's voice, then a
+  // walk's position. The thread walk standing on this thread says only its place,
+  // "11 of 11", since the view names the thread. The agent's own line, a to-do's title
+  // or a start's, stays in the thread, where the working message says it. A notice or
+  // the Go-to word, which pass in a moment, take the reply's place.
+  function turnLead(key, input) {
+    if (fieldReading(key, input).says !== "turn") return "";
+    const thread = threadByKey(key);
     const { walk } = statusContextReading();
-    if (!walk?.shown || fieldReading(key, input).says !== "turn") return "";
-    return walk.kind === "thread" && walk.target === threadByKey(key)?.id
-      ? `${walk.position} of ${walk.total}`
-      : walk.text;
+    const position = !walk?.shown
+      ? ""
+      : walk.kind === "thread" && walk.target === thread?.id
+        ? `${walk.position} of ${walk.total}`
+        : walk.text;
+    return [threadAttention(thread, agentName())?.label, position]
+      .filter(Boolean)
+      .join(" · ");
   }
   // Where the words go, as the focused field's placeholder says it; the thread's own
   // name already heads its view.
@@ -1024,7 +1032,7 @@ export function createFloatingPanel({
     if (!replyOptions.has(key))
       replyOptions.set(key, {
         hint: () => saying(key, replyInput()),
-        hintAside: () => passingAside(key, replyInput()),
+        hintLead: () => turnLead(key, replyInput()),
         accessibleName: () => `Reply to ${threadTitle(key)}`,
         sending: streamSend,
         // A turn the log refuses takes its room back from the view, and the words it
@@ -1145,13 +1153,12 @@ export function createFloatingPanel({
   // me mark's dot counts it: the user chose (2026-10-25) that a resolved thread's unread
   // reply says nothing new. Rows name attention and drafts, and resolution where no
   // Resolved heading over them says it already.
-  const threadStatus = (thread, { headed }) =>
-    [
-      thread.resolved ? !headed && "Resolved" : threadAttention(thread)?.label,
-      draftHasContent(replyContext(thread.key)) && "Draft",
-    ]
-      .filter(Boolean)
-      .join(" · ");
+  const threadStatus = (thread, { headed }) => {
+    const attention = thread.resolved ? null : threadAttention(thread, agentName());
+    const word = thread.resolved ? !headed && "Resolved" : attention?.label;
+    const draft = draftHasContent(replyContext(thread.key)) && "Draft";
+    return html`${word ? html`<span data-voice=${attention?.voice ?? "agent"}>${word}</span>` : nothing}${word && draft ? " · " : ""}${draft || nothing}`;
+  };
   const rows = () => pageControls();
 
   // ---------- the views ----------
@@ -2473,7 +2480,7 @@ export function createFloatingPanel({
         data-key=${thread.key}
         ?data-unread=${isNews(thread)}
         ?data-resolved=${thread.resolved}
-        ?data-yours=${threadAttention(thread)?.kind === "needs_user"}
+        ?data-yours=${threadAttention(thread, agentName())?.kind === "needs_user"}
         @click=${() => open({ view: "thread", thread: thread.key })}
       >
         <span class="lf-fp-news-mark"
@@ -3014,8 +3021,9 @@ export function createFloatingPanel({
           since: item.todo.running?.ts ?? item.todo.ts,
         }
       : {
-          word: workflowLabel(item.workflow),
-          line: workflowStep(item.workflow),
+          word: workflowLabel(item.workflow, agentName()),
+          voice: workflowVoice(item.workflow),
+          line: workflowStep(item.workflow, agentName()),
           since: item.workflow?.ts ?? null,
         };
   // A press on a line opens its card, or folds it; the view keeps its height where the
@@ -3316,7 +3324,7 @@ export function createFloatingPanel({
     if (list === "agent") {
       const work = workOn(item);
       end = html`<span class="lf-fp-value"
-        >${work.word}${
+        ><span data-voice=${work.voice ?? "agent"}>${work.word}</span>${
           work.since
             ? html` <span class="lf-fp-age">${shortAgo(work.since)}</span>`
             : nothing

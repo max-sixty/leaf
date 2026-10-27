@@ -236,9 +236,10 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       // A structured visual hint can mark the exact words its owner observes. It
       // shares the existing placeholder slot and send key; null keeps the plain hint.
       hintParts = null,
-      // Words that pass while the hint stands, said at the empty box's far end after
-      // the hint and its key, where they move none of the box's controls.
-      hintAside = () => "",
+      // Words that stand before the hint while it does, such as whose turn it is, which
+      // send the hint and its key to the empty box's far end and move none of its
+      // controls as they come and go.
+      hintLead = () => "",
       accessibleName = null,
       save,
       send,
@@ -429,13 +430,13 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       const ariaLabel = name();
       if (ariaLabel) keeps(ta, "aria-label", ariaLabel);
       const parts = status ? null : hintParts?.();
-      const aside = status ? "" : hintAside();
-      const richHint = (suffix && !status) || parts != null || aside;
+      const lead = status ? "" : hintLead();
+      const richHint = (suffix && !status) || parts != null || lead;
       render(
         richHint
           ? html` <span class="lf-compose-placeholder" slot="placeholder">
-              <span>${parts ?? word}</span><kbd class="lf-key-badge">${suffix}</kbd
-              ><span class="lf-compose-placeholder-aside">${aside}</span>
+              <span class="lf-compose-placeholder-lead">${lead}</span
+              ><span>${parts ?? word}</span><kbd class="lf-key-badge">${suffix}</kbd>
             </span>`
           : nothing,
         ta,

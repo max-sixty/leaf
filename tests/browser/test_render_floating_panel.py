@@ -85,9 +85,10 @@ def field(page):
     return page.locator(".lf-fp-field leaf-text")
 
 
-def aside(page):
-    """A walk's position at the end of the field while it says an open thread's reply."""
-    return page.locator(".lf-fp-field .lf-compose-placeholder-aside")
+def lead(page):
+    """What stands before an open thread's reply in the field: whose turn it is, then a
+    walk's position."""
+    return page.locator(".lf-fp-field .lf-compose-placeholder-lead")
 
 
 def test_one_field_starts_a_thread_takes_its_reply_and_settles_it(browser, serve):
@@ -2639,7 +2640,7 @@ def test_the_empty_field_says_the_agent_s_status_until_the_caret_is_in(browser, 
     # where no animation list reaches: a moving mask dims the words, and the field reads
     # differently from one moment to the next.
     words = page.locator(
-        ".lf-fp-field .lf-compose-placeholder > span:not(.lf-compose-placeholder-aside)"
+        ".lf-fp-field .lf-compose-placeholder > span:not(.lf-compose-placeholder-lead)"
     )
     ink = """node => getComputedStyle(node).color"""
 
@@ -2707,7 +2708,7 @@ def test_a_refused_key_is_an_error_the_field_says(browser, serve):
     working(serve.page_dir, "Drafting the rollout")
     page = floating(browser, url)
     words = page.locator(
-        ".lf-fp-field .lf-compose-placeholder > span:not(.lf-compose-placeholder-aside)"
+        ".lf-fp-field .lf-compose-placeholder > span:not(.lf-compose-placeholder-lead)"
     )
     peek = page.locator(".lf-fp-peek")
 
@@ -2960,8 +2961,9 @@ def test_a_walk_says_its_position_in_the_panel(browser, serve):
 
 def test_a_thread_s_field_says_its_reply_beside_the_walk_s_position(browser, serve):
     """A thread open in the panel keeps saying that its field takes the reply, with the
-    key that enters it, when the thread walk stands on it: the walk's place stands at
-    the field's end instead of in the reply's place, and `c` writes there."""
+    key that enters it, when the thread walk stands on it: the walk's place stands
+    before the reply, beside the leaf, and Reply and its key stand at the field's end,
+    where `c` writes."""
     page = floating(browser, serve(LONG_PAGE))
     write(field(page), "Could the rollback cover the weekend?")
     with sending(page, "the page comment"):
@@ -2970,15 +2972,19 @@ def test_a_thread_s_field_says_its_reply_beside_the_walk_s_position(browser, ser
     expect(view).to_be_visible()
     view.focus()
     page.keyboard.press("t")
-    expect(aside(page)).to_have_text("1 of 1")
+    expect(lead(page)).to_contain_text(re.compile(r"\b1 of 1$"))
     expect(field(page)).to_have_attribute("data-says", "turn")
     expect(field(page)).to_have_attribute("placeholder", re.compile(r"^Reply\b.* c$"))
     key = page.locator(".lf-fp-field .lf-compose-placeholder kbd")
     expect(key).to_have_text("c")
     expect(key).to_be_visible()
+    hint = page.locator(".lf-fp-field .lf-compose-placeholder").bounding_box()
+    assert key.bounding_box()["x"] > hint["x"] + hint["width"] / 2, (
+        "Reply ends the field"
+    )
     page.keyboard.press("c")
     expect(field(page)).to_be_focused()
-    expect(aside(page)).to_be_hidden()
+    expect(lead(page)).to_be_hidden()
 
 
 def test_the_leaf_s_menu_stays_in_the_window_over_a_tall_view(browser, serve):
@@ -3560,7 +3566,7 @@ def test_on_claude_lists_its_work_in_hand_queued_and_done_or_says_it(browser, se
     expect(lines.locator(".lf-fp-on-says > .lf-fp-value")).to_have_text(
         [
             re.compile(r"^On it \S+$"),
-            re.compile(r"^To-do open \S+$"),
+            re.compile(r"^Still to do \S+$"),
             re.compile(r"^Done \S+$"),
         ]
     )

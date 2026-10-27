@@ -45,6 +45,7 @@ import {
   strongestWorkflow,
   workflowLabel,
   workflowTitle,
+  workflowVoice,
 } from "./workflow.js";
 import { markDeclared, renderQuiet, renderSaid } from "../declared-words.js";
 import { highlightBlocks } from "../syntax.js";
@@ -59,7 +60,7 @@ import { iconTemplate } from "../icons.js";
 import { keeps } from "../keeps.js";
 import { showsContents } from "../geometry.js";
 import { flashDuration, motion } from "../motion.js";
-import { pageClaimed } from "../semantic-state.js";
+import { agentName, pageClaimed } from "../semantic-state.js";
 
 export const loadMessageMarkdown = () =>
   loadMarkdown((error) => reportPageError(error, `markdown renderer failed to load`));
@@ -276,7 +277,7 @@ export function messageReading(
     // thread shows as its run's face until an answer folds it (transcript.js).
     progress: Boolean(message.ephemeral),
     // What an answer leaves standing, while it stands: "Waiting on me" for the question the
-    // user owes words to, "To-do open" for work it promised and has not ended
+    // user owes words to, Still to do (`todoLabel`) for work it promised and has not ended
     // (thread-card.js).
     leaves,
     version: message.content_version,
@@ -299,8 +300,9 @@ export function messageReading(
     // content version.
     base: message.content_version,
     workflow,
-    workflowLabel: workflowLabel(workflow),
-    workflowTitle: workflowTitle(workflow),
+    workflowLabel: workflowLabel(workflow, agentName()),
+    workflowTitle: workflowTitle(workflow, agentName()),
+    workflowVoice: workflowVoice(workflow),
     body: Object.freeze({
       kind,
       text: message.text ?? "",
@@ -447,7 +449,10 @@ export class MessageView {
         )
       : nothing;
     const receipt = model.workflowLabel
-      ? html`<span class="lf-msg-sending" title=${model.workflowTitle}
+      ? html`<span
+          class="lf-msg-sending"
+          title=${model.workflowTitle}
+          data-voice=${model.workflowVoice}
           >${model.workflowLabel}</span
         >`
       : nothing;

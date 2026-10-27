@@ -1,6 +1,6 @@
 import { CARET_KEYS, J, PRESSES, TEXT_BOX, TEXT_FIELD, W, Z, afterScript, bindQueuedWork, cancelRender, caretAtKey, currentLocationIn, currentLocationNodes, currentLocationTouches, d, deepFocus, drawn as drawn$2, focusDestination, focused, holdCurrentLocation, holdFocus, inputCount, keeps, keepsHidden, layoutPx, move, nextAnimation, nextFrame, nextRender, onCurrentLocation, onLetGo, onPress, onPressAway, onUserInput, readCaret, recentPlaceInput, renderedOrder, renderedParent, renderedUnder, renderingState, selectsAll, sizeObserver, takesLetters, typesText, under, upFrom, watchCurrentLocationIn, x } from "./bundle-dom-move.js";
 import { LayerRefused, PAGE_PAINT_ATTRIBUTE, PRESS, PRESSABLE, admitReading, admitResponse, announce, ariaShortcuts, bindings, buttonCommand, checked, claimReleaseClick, clampedRow, commandAvailable, commandRoutes, commandScope, commandsOn, cycledRow, declareCommandReadiness, descriptionOf, el, generatedElement, holdStatus, holdingError, iconElement, iconTemplate, keys, labelOf, layoutChanged, live, measure, notice, offer, offered, offeredAction, pagePresented, paintKeys, paintKeysWithin, passErrorsAt, plainPress, pointerAt, projectCommandScope, pruneScopedElements, raiseError, randomId, repaint, reportPageError, requestJson, restorePointer, reveal, revealLayer, rowArrows, runtimeRootState, sameLayer, savedReadingSettled, setRuntimeRootAttribute, spell, titleOf, touchPresses as touchPresses$1, watchCommandScopes, word } from "./bundle-layer-client.js";
-import { COLLAPSE as COLLAPSE$1, LIVE_ROOT, PENDING, PRESENTATION_DOM, SHADOW_LEADING_CSS, TEXT_BLOCK, adoptRegistry, annotationMarkSheets, applicationPresenter, applicationState, attachApplicationPresentation, authoredRank, clippedContents, clippedPlace, decisionFor, declarationFor, editable, elementDeclarations, elementsDeclaring, exhibits, foldWidgetStates, frameFor, growthAfterIsSeen, growthIsSeen, headerInset, html, inUi, inWindowChrome, isElementName, isReaction, keyed, landingBand, lastMovedAt, layerRoot, live as live$1, loadShadowRules, marks, marksSheet, messageKey, moved, nothing, obligationValue, offlineData, offlineInteractive, pageClaimed, pageUrl, pendingForParent, placeBox, placeHolder, presented, projectView, projectionOrigins, projectionRegionsPresented, readApplication, readPart, recordedWidgetSelector, registry as registry$1, render as render$1, repeat, revisionLabel, runtime, runtimeModule, runtimeResource, sameAnchor, seatRoot, seenRect, shadowRules, share, shownBox, shownRect, shownWindow, showsContents, skipped, slotTop, stateSpecs, stuckBox, tagsDeclaring, threadKey, threadNames, tick, tokenEntry, turns, union, userScrollport, visibleBand, watchArrivals, watchArrivalsIn, watchLayers, watchOwner, watchPresentation, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenNone, whenWidgetsPresented } from "./bundle-geometry.js";
+import { COLLAPSE as COLLAPSE$1, LIVE_ROOT, PENDING, PRESENTATION_DOM, SHADOW_LEADING_CSS, TEXT_BLOCK, adoptRegistry, agentName, annotationMarkSheets, applicationPresenter, applicationState, attachApplicationPresentation, authoredRank, clippedContents, clippedPlace, decisionFor, declarationFor, editable, elementDeclarations, elementsDeclaring, exhibits, foldWidgetStates, frameFor, growthAfterIsSeen, growthIsSeen, headerInset, html, inUi, inWindowChrome, isElementName, isReaction, keyed, landingBand, lastMovedAt, layerRoot, live as live$1, loadShadowRules, marks, marksSheet, messageKey, moved, nothing, obligationValue, offlineData, offlineInteractive, pageClaimed, pageUrl, pendingForParent, placeBox, placeHolder, presented, projectView, projectionOrigins, projectionRegionsPresented, readApplication, readPart, recordedWidgetSelector, registry as registry$1, render as render$1, repeat, revisionLabel, runtime, runtimeModule, runtimeResource, sameAnchor, seatRoot, seenRect, shadowRules, share, shownBox, shownRect, shownWindow, showsContents, skipped, slotTop, stateSpecs, stuckBox, tagsDeclaring, threadKey, threadNames, tick, tokenEntry, turns, union, userScrollport, visibleBand, watchArrivals, watchArrivalsIn, watchLayers, watchOwner, watchPresentation, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenNone, whenWidgetsPresented } from "./bundle-geometry.js";
 import { ADDRESSABLE, PAGE_CONTROL_RANK, addressableWord, addressedElements, ago, aimTargetAt, aimedTop, anchorBox, anchorForPassage, anchorForRange, anchorReading, anchorView, anchoringIsReady, atScrollEnd, authoredBody, chosenSince, chromeForeground, chromeRoot, claimReachStop, containingReadingRegionFor, cutFrames, datumAimTarget, datumLabel, effectiveScroller, followingItsEnd, fragmentTarget, headerLevels, initialOrigin, initialParent, initialSource, isAddressable, leadingTitle, livePoint, moveScrollerBy, nameAnchor, nameable, onReadingInput, pageReadingRegion, pageScroller, placeKept, projectedDatum, reachScrollers, readingRegionFor, readingRegions, recentReadingRegion, refreshAnchorView, regionScrollBehavior, regionsSettled, registerPageControl, releaseReachStop, resolveAnchor, restoreInitialSource, revealAddressed, scrollChainOf, scrollChoices, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, sectionLabel, sectionOf, settleMarginContentLayout, shortAgo, shownRegionBounds, stopScroll, targetElement, targetPlace, targetSegments, unconcealedReadingRegions, unmarkedCopy, visualPartLabel, watchReadingRegionTransitions } from "./bundle-content-layout.js";
 import { alignInlineText, alignText, authored, authoredScope, blockAt, closestAcross, elementById, elementReading, fencePassageParts, inChrome, labelWords, pageBlocks, pageDocument, pageQueryAll, pageRange, pageText, pageWords, pointAt as pointAt$1, quoteFrom, rangeOf, readingFrom, renderRetired, segmentBlock, segmentsIn, selectEnds, selectionBackward, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity, watchPassageRoot } from "./bundle-passages.js";
 import { alreadyShown, copyControl, fitsWhole, passOn, restrictUserIntent, retainUserIntent, scrollIntoReadingBand, scrollIntoView } from "./bundle-copy-control.js";
@@ -2175,11 +2175,20 @@ function patchChildren(liveParent, beforeParent, afterParent, rules) {
 			evict(before, live, rules);
 			placed.push(rules.arrive(node, liveParent));
 			continue;
-		}
+		} else pairInterior(before, node, rules);
 		rules.pairs.set(node, live);
 		if (live.parentNode === liveParent) placed.push(live);
 	}
 	order(liveParent, placed, rules.generated);
+}
+function pairInterior(before, after, rules) {
+	const held = [...sourceNodes(before)];
+	const wanted = [...sourceNodes(after)];
+	if (held.length !== wanted.length) return;
+	wanted.forEach((node, at) => {
+		const live = rules.pairs.get(held[at]);
+		if (live) rules.pairs.set(node, live);
+	});
 }
 const atomic = (before, after, live, rules) => before.matches("style, link[rel~=\"stylesheet\" i]") || rules.declared(before) && !rules.reaches(before, after) || [...tree(before).childNodes].some((node) => rules.pairs.get(node)?.parentNode !== holder(live, rules));
 const kept = (before, after, rules) => rules.declared(before) ? rules.unchanged(before, after) : rules.same(before, after);
@@ -2518,10 +2527,6 @@ async function loadDeclaredMarkdown(scope) {
 	if (!declarationFor(scope, "x-text-format") && !elementsDeclaring(scope, "x-text-format").length) return;
 	let failure;
 	if (!await loadMarkdown((error) => failure = error)) throw new Error(`leaf: Markdown renderer failed to load: ${failure?.message ?? failure}`);
-}
-async function prepareDeclaredMarkdown(scope) {
-	await loadDeclaredMarkdown(scope);
-	formatDeclaredMarkdown(scope);
 }
 function formatDeclaredMarkdown(scope) {
 	const elements = elementsDeclaring(scope, "x-text-format");
@@ -4103,9 +4108,10 @@ var MessageEditor = class {
 
 //#endregion
 //#region runtime/thread/workflow.js
+const queuedFor = (agent) => `Queued for ${agent}`;
 const STAGE_LABELS = Object.freeze({
-	sending: "Saving…",
-	sent: "Saved",
+	sending: queuedFor,
+	sent: queuedFor,
 	queued: "Up next",
 	picked_up: "Got it",
 	working: "On it",
@@ -4118,21 +4124,23 @@ const CONDITION_LABELS = Object.freeze({
 	stale: "Gone quiet",
 	failed: "Failed"
 });
-const WAITING_FOR_DELIVERY = "Haven't seen it yet";
+const waitingForDelivery = (agent) => `Still queued for ${agent}`;
 const NOT_ANSWERED = "Couldn't answer";
-const workflowLabel = (workflow, { answered = false } = {}) => {
+const workflowLabel = (workflow, agent, { answered = false } = {}) => {
 	if (!workflow) return "";
-	if (workflow.condition) return workflow.condition.kind === "stale" && workflow.condition.operation === "delivery" ? WAITING_FOR_DELIVERY : workflow.condition.kind === "failed" && workflow.condition.operation === "response" ? NOT_ANSWERED : CONDITION_LABELS[workflow.condition.kind] ?? "Failed";
+	if (workflow.condition) return workflow.condition.kind === "stale" && workflow.condition.operation === "delivery" ? waitingForDelivery(agent) : workflow.condition.kind === "failed" && workflow.condition.operation === "response" ? NOT_ANSWERED : CONDITION_LABELS[workflow.condition.kind] ?? "Failed";
 	if (workflow.stage === "answered" && !answered) return "";
-	return STAGE_LABELS[workflow.stage] ?? "";
+	const label = STAGE_LABELS[workflow.stage] ?? "";
+	return typeof label === "function" ? label(agent) : label;
 };
-const workflowTitle = (workflow) => {
+const workflowVoice = (workflow) => workflow && ["sending", "sent"].includes(workflow.stage) ? "leaf" : "agent";
+const workflowTitle = (workflow, agent) => {
 	if (!workflow) return "";
-	return [workflowLabel(workflow, { answered: true }), workflow.detail].filter(Boolean).join(" · ");
+	return [workflowLabel(workflow, agent, { answered: true }), workflow.detail].filter(Boolean).join(" · ");
 };
 const progressFace = (workflow) => !workflow || workflow.condition ? null : workflow.stage === "picked_up" ? "picked_up" : ["working", "replying"].includes(workflow.stage) ? "working" : null;
 const isWorkflowProgress = (workflow) => progressFace(workflow) !== null;
-const workflowStep = (workflow) => progressFace(workflow) === "working" && workflow.detail || workflowLabel(workflow);
+const workflowStep = (workflow, agent) => progressFace(workflow) === "working" && workflow.detail || workflowLabel(workflow, agent);
 const isPageWidgetWorkflow = (workflow, revision) => workflow.subject.kind === "widget" && workflow.thread === null && workflow.revision <= revision;
 const handedBack = (workflow) => workflow.stage === "answered" || workflow.stage === "sending" && workflow.condition?.kind === "failed";
 const tier = (workflow) => (handedBack(workflow) ? 0 : 2) + Number(workflow.stage === "sending");
@@ -4141,8 +4149,8 @@ function strongestWorkflow(workflows) {
 	for (const candidate of workflows) if (strongest === null || tier(candidate) < tier(strongest)) strongest = candidate;
 	return strongest;
 }
-const todoLabel = (running) => running ? "On it" : "To-do open";
-function threadAttention(thread) {
+const todoLabel = (running) => running ? "On it" : "Still to do";
+function threadAttention(thread, agent) {
 	if (thread.resolved) return null;
 	const workflow = thread.attention?.workflow ? thread.workflows.find((candidate) => candidate.id === thread.attention.workflow) ?? null : null;
 	if (thread.attention?.kind === "needs_user") {
@@ -4153,8 +4161,9 @@ function threadAttention(thread) {
 		return Object.freeze({
 			kind: "needs_user",
 			label: nextMove,
+			voice: "agent",
 			workflow,
-			secondary: [answering ? "" : workflowLabel(workflow), workflowLabel(secondary)].filter(Boolean).join(" · ")
+			secondary: [answering ? "" : workflowLabel(workflow, agent), workflowLabel(secondary, agent)].filter(Boolean).join(" · ")
 		});
 	}
 	if (thread.attention?.kind === "waiting" && thread.attention.reason === "todo") {
@@ -4162,13 +4171,15 @@ function threadAttention(thread) {
 		return Object.freeze({
 			kind: "waiting",
 			label: todoLabel(running),
+			voice: "agent",
 			workflow: null,
 			secondary: running?.text ?? title
 		});
 	}
 	if (thread.attention?.kind === "waiting") return Object.freeze({
 		kind: "waiting",
-		label: workflowLabel(workflow) || (thread.attention.reason === "uncertain" ? "Uncertain" : "Waiting"),
+		label: workflowLabel(workflow, agent) || (thread.attention.reason === "uncertain" ? "Uncertain" : "Waiting"),
+		voice: workflowVoice(workflow),
 		workflow,
 		secondary: ""
 	});
@@ -4459,8 +4470,9 @@ function messageReading(message, { authoredRank = 0, reactions, workflows, leave
 		pending: workflow?.stage === "sending",
 		base: message.content_version,
 		workflow,
-		workflowLabel: workflowLabel(workflow),
-		workflowTitle: workflowTitle(workflow),
+		workflowLabel: workflowLabel(workflow, agentName()),
+		workflowTitle: workflowTitle(workflow, agentName()),
+		workflowVoice: workflowVoice(workflow),
 		body: Object.freeze({
 			kind,
 			text: message.text ?? "",
@@ -4559,7 +4571,10 @@ var MessageView = class {
 		if (holds && this.#authored.some((node) => !this.node.contains(node))) this.#authoredTake++;
 		if (!model.reactions) this.#reaction?.retire();
 		const strip = model.reactions ? (this.#reaction ??= new ReactionStripView(this.#commands.reaction)).present(model.reactions) : nothing;
-		const receipt = model.workflowLabel ? html`<span class="lf-msg-sending" title=${model.workflowTitle}
+		const receipt = model.workflowLabel ? html`<span
+          class="lf-msg-sending"
+          title=${model.workflowTitle}
+          data-voice=${model.workflowVoice}
           >${model.workflowLabel}</span
         >` : nothing;
 		const header = html`
@@ -5234,7 +5249,7 @@ function replyControlDestination(node) {
 function sendReply(draftCtx, key, text, owns, actions) {
 	return sendMessage(draftCtx, owns, (attempt) => actions.reply(key, text, { attempt }));
 }
-function wireReply(key, row, input, wireInput, { hint, hintAside, accessibleName, busy }) {
+function wireReply(key, row, input, wireInput, { hint, hintLead, accessibleName, busy }) {
 	row.classList.add("lf-comment-box");
 	const draftCtx = replyContext(key);
 	const composition = {
@@ -5252,7 +5267,7 @@ function wireReply(key, row, input, wireInput, { hint, hintAside, accessibleName
 	input.value = loadDraft(draftCtx) ?? "";
 	const sync = wireInput(input, {
 		hint,
-		hintAside,
+		hintLead,
 		accessibleName,
 		busy,
 		sends: "send",
@@ -5334,7 +5349,7 @@ async function restoreReplyEditing(editing, land) {
 		if (compositions.get(context) === session && !available(session.owner)) closeSession(context);
 	}
 }
-function createReplyView(key, commands, redraw, { onChange = () => {}, editLast = null, hint = "Reply", hintAside = () => "", accessibleName = "Reply", busy = () => false, sending = null, sent = null } = {}) {
+function createReplyView(key, commands, redraw, { onChange = () => {}, editLast = null, hint = "Reply", hintLead = () => "", accessibleName = "Reply", busy = () => false, sending = null, sent = null } = {}) {
 	const fresh = () => {
 		const row = offer("div", "lf-thread-reply");
 		const input = offer(TEXT_FIELD);
@@ -5342,7 +5357,7 @@ function createReplyView(key, commands, redraw, { onChange = () => {}, editLast 
 		row.append(input);
 		return wireReply(key, row, input, commands.wireInput, {
 			hint,
-			hintAside,
+			hintLead,
 			accessibleName,
 			busy
 		});
@@ -6633,7 +6648,7 @@ function workingMessage(thread, attention, messages) {
 		stopped.detail,
 		stopped.detail_seq,
 		false,
-		workflowLabel(stopped),
+		workflowLabel(stopped, agentName()),
 		stopped.agent
 	] : [
 		said,
@@ -6682,10 +6697,10 @@ function threadReading(thread, surface, commands) {
 	const kind = resolved ? "unresolve" : "resolve";
 	const word = resolved ? "Reopen" : "Resolve";
 	const label = resolved ? word : "Resolve thread";
-	const attention = threadAttention(thread);
+	const attention = threadAttention(thread, agentName());
 	const asking = new Set(thread.obligations.filter((item) => item.next_actor === "user" && answeredInWords(item)).map((item) => item.message));
 	const openTodos = new Set(thread.todos.map(({ id }) => id));
-	const leaves = (message) => asking.has(message.id) ? "Waiting on me" : message.todo && openTodos.has(message.id) ? "To-do open" : null;
+	const leaves = (message) => asking.has(message.id) ? "Waiting on me" : message.todo && openTodos.has(message.id) ? todoLabel(null) : null;
 	const presented = new Set(thread.msgs.map(({ id }) => id));
 	const messages = turns(thread).filter((message) => !presented.has(message.completed_by)).map((message) => messageReading(message, {
 		authoredRank: commands.authoredRank ?? (surface === "margin" ? 2 : 1),
@@ -8383,7 +8398,7 @@ const diffBlockSel = () => [
 	TEXT_BLOCK,
 	"aside",
 	...tagsDeclaring((e) => e["x-owners"] && (e["x-content"] ?? "markup") === "markup"),
-	...tagsDeclaring((e) => e["x-verbatim"])
+	...tagsDeclaring((e) => !e["x-inline"] && e["x-verbatim"])
 ].join(",");
 const diffOpaqueSel = () => [
 	...tagsDeclaring((e) => e["x-upgrade"] && !e["x-verbatim"] && e["x-content"] === "data"),
@@ -8396,12 +8411,13 @@ const diffBase = Z(null);
 const comparisonGeneration = Z(0);
 const diffPendingBase = Z(null);
 const diffMarked = /* @__PURE__ */ new Set();
-const diffBefore = /* @__PURE__ */ new Map();
+const diffWordsOf = /* @__PURE__ */ new Map();
 const inlineOpen = /* @__PURE__ */ new Map();
 let diffRequest = 0;
 const comparisonTextNodes = (root, opaque = diffOpaqueSel()) => textNodesUnder(root, "wrote", (child) => child.matches(opaque));
+const comparisonWords = (root, opaque) => quoteFrom(comparisonTextNodes(root, opaque));
 function diffWords(block, opaque) {
-	const words = (root) => quoteFrom(comparisonTextNodes(root, opaque));
+	const words = (root) => comparisonWords(root, opaque);
 	if (!block.querySelector("[data-lf-source-words]")) return words(block);
 	const source = block.cloneNode(true);
 	for (const island of source.querySelectorAll("[data-lf-source-words]")) island.replaceWith(document.createTextNode(island.dataset.lfSourceWords));
@@ -8410,14 +8426,13 @@ function diffWords(block, opaque) {
 function diffBlocks(root) {
 	const pairs = [];
 	const [blocks, opaque] = [diffBlockSel(), diffOpaqueSel()];
-	const authoredHere = authored(root);
 	for (const body of root.querySelectorAll(".lf-markdown-body")) {
 		const owner = body.parentElement;
-		if (inChrome(owner) || owner.closest(opaque)) continue;
+		if (owner.closest(opaque)) continue;
 		pairs.push([owner, `markdown:${body.dataset.lfSourceWords}`]);
 	}
 	for (const b of root.querySelectorAll(blocks)) {
-		if (inChrome(b) || b.closest(opaque) || b.closest(".lf-markdown-body")) continue;
+		if (b.closest(opaque) || b.closest(".lf-markdown-body")) continue;
 		if ([...b.querySelectorAll(blocks)].some((child) => !child.closest(opaque))) continue;
 		let key = diffWords(b, opaque);
 		for (const [attr, edge] of Object.entries(registry$1[b.localName]?.["x-says"] ?? {})) {
@@ -8427,7 +8442,7 @@ function diffBlocks(root) {
 		if (key) pairs.push([b, key]);
 	}
 	for (const w of root.querySelectorAll(opaque)) {
-		if (!authoredHere(w) || inChrome(w) || w.parentElement?.closest(opaque)) continue;
+		if (w.parentElement?.closest(opaque)) continue;
 		const entry = registry$1[w.localName] ?? {};
 		const bindingAttrs = /* @__PURE__ */ new Set();
 		for (const input of Object.values(entry["x-data"] ?? {})) {
@@ -8486,30 +8501,44 @@ function placeCreated(doc, widgets) {
 		}
 	}
 }
-function blocksWithoutTwin(doc, live = document.body) {
-	const base = /* @__PURE__ */ new Map();
-	for (const [, key] of diffBlocks(doc)) base.set(key, (base.get(key) ?? 0) + 1);
-	const without = [];
-	for (const [b, key] of diffBlocks(live)) {
-		const left = base.get(key) ?? 0;
-		if (left > 0) base.set(key, left - 1);
-		else without.push([b, key]);
-	}
-	return without;
-}
-let versionSource = () => null;
-function selfComparison() {
-	const source = versionSource()?.source;
-	return source ? blocksNewSince(source) : [];
-}
-function blocksNewSince(source) {
+function paintedSource(source, widgets) {
 	const doc = document.implementation.createHTMLDocument("");
-	doc.body.replaceChildren(doc.importNode(source, true));
+	const root = doc.importNode(source, true);
+	const sources = [source, ...source.querySelectorAll("*")];
+	const sourceOf = new Map([root, ...root.querySelectorAll("*")].map((copy, at) => [copy, sources[at]]));
+	doc.body.replaceChildren(root);
 	formatDeclaredMarkdown(doc);
-	const { widgets } = readApplication().effective;
 	paintBodies(doc, widgets);
 	placeCreated(doc, widgets);
-	return blocksWithoutTwin(doc, pageDocument());
+	return {
+		doc,
+		root,
+		sourceOf
+	};
+}
+let versionSource = () => null;
+const currentSource = () => paintedSource(versionSource().source, readApplication().effective.widgets);
+function standingFor(block, current) {
+	const { pairs } = versionSource();
+	for (let at = block; at && at !== current.root; at = at.parentElement) {
+		const paired = current.sourceOf.has(at) && pairs.get(current.sourceOf.get(at));
+		if (paired?.isConnected) return paired;
+		const named = at.id && elementById(at.id, pageDocument());
+		if (named?.isConnected) return named;
+	}
+	return null;
+}
+function changedSince(base, current = currentSource()) {
+	const held = /* @__PURE__ */ new Map();
+	for (const [, key] of diffBlocks(base.root)) held.set(key, (held.get(key) ?? 0) + 1);
+	const changed = /* @__PURE__ */ new Set();
+	for (const [block, key] of diffBlocks(current.root)) {
+		const left = held.get(key) ?? 0;
+		if (left > 0) held.set(key, left - 1);
+		else changed.add(standingFor(block, current));
+	}
+	changed.delete(null);
+	return changed;
 }
 function servedElements() {
 	const { source, pairs } = versionSource() ?? {
@@ -8535,17 +8564,14 @@ function applyDiff(doc, baseAuthored, baseVersion, baseReading) {
 		...baseProjection,
 		desired: new Map([...baseProjection.desired].filter(([, entry]) => declaredAlike(entry)))
 	});
-	paintBodies(doc, baseWidgets);
-	placeCreated(doc, baseWidgets);
-	for (const [b] of blocksWithoutTwin(doc)) {
-		b.classList.add("lf-ins-block");
-		diffMarked.add(b);
-	}
 	const mark = (target) => {
 		if (diffMarked.has(target)) return;
 		target.classList.add("lf-ins-block");
 		diffMarked.add(target);
 	};
+	const base = paintedSource(pageDocument(doc), baseWidgets);
+	const current = currentSource();
+	for (const block of changedSince(base, current)) mark(block);
 	for (const [id, now] of readApplication().effective.widgets) {
 		const before = baseWidgets.get(id);
 		const widget = elementById(id);
@@ -8575,8 +8601,11 @@ function applyDiff(doc, baseAuthored, baseVersion, baseReading) {
 	const opaque = diffOpaqueSel();
 	for (const block of diffMarked) {
 		if (!block.matches("[id]:not(.lf-ui):not([id^=\"lf-\"])") || block.closest(opaque)) continue;
-		const baseBlock = doc.getElementById(block.id);
-		diffBefore.set(block, baseBlock ? quoteFrom(comparisonTextNodes(baseBlock, opaque)) : null);
+		const [was, is] = [base, current].map(({ doc }) => doc.getElementById(block.id));
+		diffWordsOf.set(block, {
+			was: was ? comparisonWords(was, opaque) : null,
+			is: is ? comparisonWords(is, opaque) : null
+		});
 	}
 	return diffMarked.size;
 }
@@ -8622,7 +8651,7 @@ function paintInlineInsertions() {
 	else CSS.highlights.delete("lf-version-insert");
 }
 function openInlineComparison(target) {
-	const before = diffBefore.get(target);
+	const before = diffWordsOf.get(target).was;
 	const reading = authoredReading(target);
 	const current = currentVersionToken();
 	const label = el("span", "lf-ui lf-quiet lf-version-inline-label", before === null ? `New since v${diffBase.value}` : `v${diffBase.value} → ${current}`);
@@ -8674,11 +8703,14 @@ function closeInlineComparison(target) {
 	layoutChanged(target);
 	return `inline diff from v${diffBase.value} hidden`;
 }
-const inlineComparison = (target) => diffOn.value && diffBefore.has(target) && (diffBefore.get(target) === null || diffBefore.get(target) !== quoteFrom(comparisonTextNodes(target))) ? {
-	id: inlineId(target),
-	open: inlineOpen.has(target),
-	offer: `v${diffBase.value} → ${currentVersionToken()}`
-} : null;
+const inlineComparison = (target) => {
+	const words = diffOn.value ? diffWordsOf.get(target) : void 0;
+	return words && words.was !== words.is && words.is === comparisonWords(target) ? {
+		id: inlineId(target),
+		open: inlineOpen.has(target),
+		offer: `v${diffBase.value} → ${currentVersionToken()}`
+	} : null;
+};
 function toggleInlineComparison(target) {
 	if (!inlineComparison(target)) return null;
 	const said = inlineOpen.has(target) ? closeInlineComparison(target) : openInlineComparison(target);
@@ -8697,7 +8729,7 @@ function setDiff(on, base, pendingBase = null) {
 		if (!on) {
 			diffRequest++;
 			for (const target of [...inlineOpen.keys()]) closeInlineComparison(target);
-			diffBefore.clear();
+			diffWordsOf.clear();
 			for (const b of diffMarked) b.classList.remove("lf-ins-block");
 			diffMarked.clear();
 		}
@@ -8727,7 +8759,7 @@ async function showComparison(base) {
 		}
 		if (mine !== diffRequest) return;
 		baseAuthored = stageAuthoredStates(doc, /* @__PURE__ */ new Map());
-		await prepareDeclaredMarkdown(doc);
+		await loadDeclaredMarkdown(doc);
 	} catch {
 		if (mine === diffRequest) {
 			diffPendingBase.value = null;
@@ -9046,7 +9078,8 @@ function createVersionController({ compositionInput, openThread, refreshThread, 
 					await restoreEditingContinuity(editingContinuity, currentIntent);
 				}
 				if (comparedFrom !== null) showComparison(comparedFrom);
-				for (const [block] of blocksNewSince(outgoing)) backgroundFlash(block, flashDuration());
+				const outgoingSource = paintedSource(outgoing, readApplication().effective.widgets);
+				for (const block of changedSince(outgoingSource)) backgroundFlash(block, flashDuration());
 				notice(`Updated to ${target.label}`, { background: true });
 			})
 		};
@@ -9739,4 +9772,4 @@ async function loadDeferred(value, key) {
 }
 
 //#endregion
-export { DESIGN_MODE_KEY, DISCLOSE, DISCLOSURE_SELECTOR, ELEMENTS, HOLDS_WORD, HeldNews, HeldReading, MessageView, PAGE_DRAFT, PAGE_SCOPE, SAYS_IN, SAY_BOX, THREAD, ThreadView, Transcript, aborted, acceptData, allButCommandReference, allThreads, anchorLabel, answeredInWords, arrivalOf, authoredHolder, authoredStates, awaitsData, beginThreadSeats, beginWalk, bindsInput, blocksOnScreen, bodyText, bringBackSurfaceOf, captureDraftEditing, capturePlace, carryingThreadPlace, claimSeatReplies, claimTraversals, claimed, clearDraft, commandSteps, commitThreadSeats, commitWidgetDescriptors, comparisonBase, comparisonChanges, completeReadingReturn, copyBlock, createAnchorTravel, createPassageSelection, createProjectionPresentation, createReplyView, createRewriteRestore, createVersionController, createWritingResume, currentLocationOrigin, currentLocationThreadId, dataBody, dataReader, declareOffFlowSurface, declareSide, declareThreadParts, descriptorStillMatches, designName, disclosed, dismissReply, dismissReplyAt, domValue, draftContexts, draftHasContent, draftStore, drawnThreadId, ensureSyntaxLanguage, failSoft, failSoftUnreported, focusThread, focusedThreadTarget, followBoxGrowth, gesturedOn, heldGrowth, heldObligation, heldOut, heldPagePlace, heldThread, highlightBlocks, holdPagePlace, holdReplyCompositions, holdThreadPlace, holdToRead, importWidgets, initializeServedDocument, inlineComparison, inlineMarkdownFragment, isExternalPageLink, isPageWidgetWorkflow, isWorkflowProgress, joinDataDelivery, keepRefusedWords, keepThreadLanding, keepView, landingPlace, langForPath, leftThePage, listWalkPosition, loadDeferred, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, markdownSourceOffset, markdownWords, messageHolding, messageReading, messageText, mirrorDraft, mountFirstMessage, mountHistory, newsNotice, notifyDataSubscribers, obligationEntry, obligationHolding, obligationPlace, obligationsIn, observeOutputs, onReadingInterrupted, once, openMessageEditIn, openingView, orderChildren, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, paintCoreControls, paintMarkdown, placeKeeper, placeNode, placeOf, placePageThreads, placedMarkdownTokens, placesFailure, prepareAuthoredMessage, progressFace, publishOutput, pushEntry, quietWord, quoteReading, quoted, readBoxPlace, readObligations, readPlace, readThreads, readingBlock, readingIsContinuous, readingReturn, registerWritingDestination, releaseAuthoredUnder, releaseOutlets, releaseReplies, rememberWriting, renderMarginThread, renderMarkdown, renderSeats, renderSurfaces, replaceEntry, replyAvailable, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, replyIsEditing, replyThreadKey, reportFailure$1 as reportFailure, restorePlace, retainThreadSeats, returnPlace, revealHeld, rowWalk, saveDraft, scrollThreadIntoView, selectionAnchor, selfComparison, sendDraft, sendLanding, sendMessage, servedElements, setChildLists, setChildren, setRenderedChildren, settleAcceptedDrafts, settleThread, shadowStage, shallowSigs, showHeld, showHeldThread, showReturnTurn, snapSelection, stances, stepFrom, storedDraft, strongestWorkflow, subjectPlace, suppliedSnapshot, surfaceFocusTarget, synNodes, syntax, tabStore, tellDraft, textEntryScope, threadAttention, threadDraft, threadFocusDestination, threadHeading, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading, threadReplyInput, threadRewrites, threadState, threadSummary, threadSurface, threadTodos, titlePending, todoLabel, toggleInlineComparison, tokenLines, touchPresses, transferDraft, universalCommandReference, upgradeWidgets, userChoice, userStore, versionPicker, versionsReading, walkOrigin, walkPosition, walkPositionLabel, watchDisclosures, watchDraft, watchDrafts, watchThreadSurfaces, whereDraft, wholeThread, widgetDescriptor, workflowLabel, workflowStep };
+export { DESIGN_MODE_KEY, DISCLOSE, DISCLOSURE_SELECTOR, ELEMENTS, HOLDS_WORD, HeldNews, HeldReading, MessageView, PAGE_DRAFT, PAGE_SCOPE, SAYS_IN, SAY_BOX, THREAD, ThreadView, Transcript, aborted, acceptData, allButCommandReference, allThreads, anchorLabel, answeredInWords, arrivalOf, authoredHolder, authoredStates, awaitsData, beginThreadSeats, beginWalk, bindsInput, blocksOnScreen, bodyText, bringBackSurfaceOf, captureDraftEditing, capturePlace, carryingThreadPlace, claimSeatReplies, claimTraversals, claimed, clearDraft, commandSteps, commitThreadSeats, commitWidgetDescriptors, comparisonBase, comparisonChanges, completeReadingReturn, copyBlock, createAnchorTravel, createPassageSelection, createProjectionPresentation, createReplyView, createRewriteRestore, createVersionController, createWritingResume, currentLocationOrigin, currentLocationThreadId, dataBody, dataReader, declareOffFlowSurface, declareSide, declareThreadParts, descriptorStillMatches, designName, disclosed, dismissReply, dismissReplyAt, domValue, draftContexts, draftHasContent, draftStore, drawnThreadId, ensureSyntaxLanguage, failSoft, failSoftUnreported, focusThread, focusedThreadTarget, followBoxGrowth, gesturedOn, heldGrowth, heldObligation, heldOut, heldPagePlace, heldThread, highlightBlocks, holdPagePlace, holdReplyCompositions, holdThreadPlace, holdToRead, importWidgets, initializeServedDocument, inlineComparison, inlineMarkdownFragment, isExternalPageLink, isPageWidgetWorkflow, isWorkflowProgress, joinDataDelivery, keepRefusedWords, keepThreadLanding, keepView, landingPlace, langForPath, leftThePage, listWalkPosition, loadDeferred, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, markdownSourceOffset, markdownWords, messageHolding, messageReading, messageText, mirrorDraft, mountFirstMessage, mountHistory, newsNotice, notifyDataSubscribers, obligationEntry, obligationHolding, obligationPlace, obligationsIn, observeOutputs, onReadingInterrupted, once, openMessageEditIn, openingView, orderChildren, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, paintCoreControls, paintMarkdown, placeKeeper, placeNode, placeOf, placePageThreads, placedMarkdownTokens, placesFailure, prepareAuthoredMessage, progressFace, publishOutput, pushEntry, quietWord, quoteReading, quoted, readBoxPlace, readObligations, readPlace, readThreads, readingBlock, readingIsContinuous, readingReturn, registerWritingDestination, releaseAuthoredUnder, releaseOutlets, releaseReplies, rememberWriting, renderMarginThread, renderMarkdown, renderSeats, renderSurfaces, replaceEntry, replyAvailable, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, replyIsEditing, replyThreadKey, reportFailure$1 as reportFailure, restorePlace, retainThreadSeats, returnPlace, revealHeld, rowWalk, saveDraft, scrollThreadIntoView, selectionAnchor, sendDraft, sendLanding, sendMessage, servedElements, setChildLists, setChildren, setRenderedChildren, settleAcceptedDrafts, settleThread, shadowStage, shallowSigs, showHeld, showHeldThread, showReturnTurn, snapSelection, stances, stepFrom, storedDraft, strongestWorkflow, subjectPlace, suppliedSnapshot, surfaceFocusTarget, synNodes, syntax, tabStore, tellDraft, textEntryScope, threadAttention, threadDraft, threadFocusDestination, threadHeading, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading, threadReplyInput, threadRewrites, threadState, threadSummary, threadSurface, threadTodos, titlePending, todoLabel, toggleInlineComparison, tokenLines, touchPresses, transferDraft, universalCommandReference, upgradeWidgets, userChoice, userStore, versionPicker, versionsReading, walkOrigin, walkPosition, walkPositionLabel, watchDisclosures, watchDraft, watchDrafts, watchThreadSurfaces, whereDraft, wholeThread, widgetDescriptor, workflowLabel, workflowStep, workflowVoice };

@@ -736,6 +736,28 @@ const seats = new WeakMap();
 const folded = new WeakSet();
 export const standsFolded = (row) => folded.has(row);
 
+// Where `part` of `row`, or the row itself, is painted. A carried row's own box reads a
+// frame late after a scroll (`scheduleScrollReading`), so it is read where the row's
+// target now stands, by the offsets the last pass seated the row at (`standsBy`): the
+// place the browser moved it to in the frame that scrolled it. Any other row's box is
+// where it is painted.
+export function paintedBox(part, row) {
+  const box = part.getBoundingClientRect();
+  const by = standsBy.get(row);
+  const target = by && isCarrier(row.parentElement) ? rows.get(row)?.anchor() : null;
+  if (!target?.isConnected || skipped(target)) return box;
+  const whole = shownExtent(target);
+  if (!whole) return box;
+  const own = part === row ? box : row.getBoundingClientRect();
+  const across = row.dataset.lfPlace === "pin" ? whole.right + by.right - own.right : 0;
+  return new DOMRect(
+    box.x + across,
+    box.y + whole.top + by.top - own.top,
+    box.width,
+    box.height,
+  );
+}
+
 function standFolded(row, fold, on) {
   if (folded.has(row) === on) return;
   if (on) folded.add(row);

@@ -18,7 +18,7 @@
 
 import * as z from "zod/mini";
 import { createTarPacker } from "modern-tar";
-import type { ServedState } from "../../browser/framework/contract.js";
+import type { ServedState } from "../../browser/types/contract.js";
 
 export const CHUNK_BYTES = 1024 * 1024;
 const digest = z.string().check(z.regex(/^[0-9a-f]{64}$/));

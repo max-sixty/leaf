@@ -45,7 +45,7 @@ const time = (value) => (value === null || value === "" ? null : Number(value));
 export const clock = (ms) => `${Number((ms / 1000).toFixed(3))} s`;
 
 /** The authored lanes and events, and the steps they make. */
-export function readTimeline(host) {
+function readTimeline(host) {
   const problems = [];
   const lanes = [...host.querySelectorAll(":scope > lf-lane")].map((lane, index) => ({
     index,
@@ -63,6 +63,8 @@ export function readTimeline(host) {
         lane: index,
         at,
         end: end === at ? null : end,
+        // The index of the step it starts on, once the steps are known.
+        step: 0,
       };
     }),
   }));
@@ -91,7 +93,7 @@ function stateAt(event, now) {
 /** Lay out labels for a track `width` pixels wide, in the font `font`: each label's
  * row, and whether it reads on from its mark (`start`), back from it (`flip`), or,
  * fitting neither way, against the axis end (`end`). */
-export function layoutLabels(model, width, font) {
+function layoutLabels(model, width, font) {
   const span = Math.max(1, width - 2 * EDGE);
   const x = (ms) => EDGE + (ms / model.duration) * span;
   const placed = new Map();
@@ -145,10 +147,10 @@ export function drawTimeline(host, tools) {
   const controls = tools.offer("div", "lf-timeline-controls");
   controls.setAttribute("role", "group");
   controls.setAttribute("aria-label", host.getAttribute("aria-label") ?? "Timeline");
-  const previous = tools.offer("button", "lf-btn lf-timeline-previous", "Previous");
+  const previous = tools.offerAction("word", "lf-timeline-previous", "Previous");
   const position = tools.offer("span", "lf-timeline-position");
   tools.generatedElement(position, { says: false });
-  const next = tools.offer("button", "lf-btn lf-timeline-next", "Next");
+  const next = tools.offerAction("word", "lf-timeline-next", "Next");
   controls.append(previous, next, position);
 
   // The chart repeats the step list's words, which assistive technology reads there.
@@ -164,10 +166,13 @@ export function drawTimeline(host, tools) {
   tools.generatedElement(list, { says: true });
   const rows = model.steps.map((step, index) => {
     const item = document.createElement("li");
-    // A row is the step's press and also its words, so paper keeps it as text.
-    const button = tools.generatedElement(tools.offer("button", "lf-timeline-step"), {
-      says: true,
-    });
+    // The step is selectable page text as well as a press; paper keeps its words.
+    const button = tools.generatedElement(
+      tools.selectableOffer("button", "lf-timeline-step"),
+      {
+        says: true,
+      },
+    );
     button.dataset.step = String(index);
     const at = document.createElement("span");
     at.className = "lf-timeline-step-time";

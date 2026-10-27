@@ -1,0 +1,30 @@
+name: verify-website
+
+# Run the local deployment gate on a trusted Docker runner. Its verdict is
+# separate from ci, whose manual runs cover every product tier.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  website:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - name: Build website
+        run: uv run leaf-dev site
+      - name: Verify the bundled release locally
+        run: uv run leaf-dev verify-site website-worker
+      - name: Upload website verification evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: website-verification-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            .tmp/verify-site/run-*/wrangler-dev.log
+            .tmp/verify-site/run-*/startup.json
+          if-no-files-found: ignore
+          retention-days: 30

@@ -21,6 +21,7 @@ from render_harness import (
     PANEL_THREAD,
     leaf_page,
     open_page,
+    open_threads,
     panel_settled,
     resized,
     sending,
@@ -828,8 +829,7 @@ def test_draw_mode_leaves_chrome_controls_usable(browser, serve):
     expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
     exit_mode.click()
     expect(page.locator("html")).not_to_have_attribute("data-lf-draw-mode", "")
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    open_threads(page)
 
 
 def test_draw_mode_keeps_the_separate_design_mode_binding(browser, serve):
@@ -923,7 +923,7 @@ def test_pointer_modes_leave_document_editing_controls_usable(browser, serve):
         assert edit.evaluate("el => getComputedStyle(el).cursor") != "crosshair"
         edit.click()
         expect(page.locator(".lf-fab-input")).to_be_hidden()
-        editor = draft.get_by_role("textbox", name="Edit draft", exact=True)
+        editor = draft.locator("leaf-text")
         expect(editor).to_be_focused()
         assert editor.evaluate("el => getComputedStyle(el).cursor") != "crosshair"
         editor.click()

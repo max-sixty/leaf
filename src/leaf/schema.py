@@ -3,12 +3,12 @@
 Resources belong to the installed plugin; the skill directory holds instructions.
 """
 
-import json
 import re
 
-from .state import EVENTS_FILE, PLUGIN_ROOT
+from .state import EVENTS_FILE, PLUGIN_ROOT, kernel_registry
 
 ASSETS = PLUGIN_ROOT / "browser"
+SKILL_FILE = PLUGIN_ROOT / "skills" / "leaf" / "SKILL.md"
 
 # A session-managed server gives a replacement session one short poll window to
 # claim the page before it closes. The external claim record is the ownership
@@ -29,9 +29,9 @@ WAIT_BATCH_OUTPUT_INSTRUCTION = (
     "with new input instead, and end."
 )
 
-# The name grammars, declared in the kernel registry's `$names`, which the browser's
-# generated copy shares.
-_NAMES = json.loads((ASSETS / "registry.json").read_text())["$names"]
+# The name grammars, declared in the kernel registry's `$names`, which the browser
+# reads too.
+_NAMES = kernel_registry()["$names"]
 HTML_NAME = _NAMES["html"]
 WIDGET_NAME = _NAMES["widget"]
 # What a refused element name is told, so the author need not read WIDGET_NAME.
@@ -198,7 +198,18 @@ VERB_SCHEMA = {
             ]
         },
         "writer": {"const": "agent"},
+        "attention": {"const": True},
         "creates": ACTION_CREATES,
+        "decides": {"const": True},
+        "contract": {
+            "type": "object",
+            "properties": {
+                "field": {"type": "string", "minLength": 1},
+                "attribute": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+            },
+            "required": ["field", "attribute"],
+            "additionalProperties": False,
+        },
         # The effect owns the payload; `text` adds a required non-empty detail.text.
         "text": {"const": True},
     },
@@ -206,7 +217,14 @@ VERB_SCHEMA = {
     "allOf": [
         {
             "if": {"required": ["record"]},
-            "then": {"properties": {"detail": False, "creates": False}},
+            "then": {
+                "properties": {
+                    "detail": False,
+                    "creates": False,
+                    "contract": False,
+                    "decides": False,
+                }
+            },
             "else": {"required": ["detail"]},
         }
     ],
@@ -617,6 +635,16 @@ BUNDLED_PACKAGES = PLUGIN_ROOT / "packages"
 DEFAULT_PACKAGE = BUNDLED_PACKAGES / "default"
 # The files `page init` writes at the top of a page directory.
 VENDORED_FILES = ("theme.css", "shadow.css", "registry.json", "icon.svg")
+# A package's source contributions are composed into the page files above. Their
+# roles depend on their filenames, not on whether the package declares widgets.
+PACKAGE_STYLES = (
+    "widget-shadow.css",
+    "widgets.css",
+    "theme-shadow.css",
+    "theme.css",
+    "controls.css",
+)
+PACKAGE_FILES = (*PACKAGE_STYLES, "registry.json", "icon.svg")
 # The layer's browser directories, which packages add to.
 BROWSER_DIRS = ("runtime", "widgets", "vendor")
 # What the Leaf serving a page supplies rather than its vendored layer: the runtime's

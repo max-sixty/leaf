@@ -1,0 +1,63 @@
+# From Claude Code session d9c4e332-b148-460f-b88f-eb43bc09cb7d: an overnight
+# work page linked a pull request where it led a table row or was newly
+# introduced, and left it bare text in the decision sections and the prose that
+# came back to it, so the user could not open the PRs a decision named. Across
+# 138 recent pages on that machine, 1526 of 3642 `#N` mentions were bare.
+# At 41fc9bbcc this case passed 3/3 on the base and 3/3 with the rule moved into
+# page-authoring.md, as did a variant with no URLs and earlier bare-number chat
+# updates: in a fresh context agents link per section, so the case guards that
+# behavior rather than reproducing the late-session failure.
+description: named-work-is-linked-everywhere
+metadata:
+  purpose:
+    "Page authoring: each section and decision links every pull request and issue it
+    names, not only the first place the page names it."
+  tags:
+    - asks
+vars:
+  prompt: |
+    We're working in the max-sixty/leaf repository on GitHub. Overnight, agents worked
+    through the backlog, and you are writing the morning report as a Leaf page. The
+    "Landed" section is written already. Write the next two sections.
+
+    Pull requests these sections mention (from `gh pr list`):
+
+    | PR    | Title                                              | URL                                          |
+    | ----- | -------------------------------------------------- | -------------------------------------------- |
+    | #3931 | Lay out the contents map before the page's code loads | https://github.com/max-sixty/leaf/pull/3931 |
+    | #3962 | Hold back only controls before upgrade             | https://github.com/max-sixty/leaf/pull/3962 |
+    | #3876 | Run the synced venv's Python directly              | https://github.com/max-sixty/leaf/pull/3876 |
+    | #3857 | Follow printed context with the delivery receipt   | https://github.com/max-sixty/leaf/pull/3857 |
+    | #3854 | Keep a Codex page at Working while workers run     | https://github.com/max-sixty/leaf/pull/3854 |
+    | #4018 | Codex pages read as away while workers run (issue) | https://github.com/max-sixty/leaf/issues/4018 |
+
+    Notes for the "Your calls" section, one decision each:
+
+    - Contents map. #3931 landed about 300 lines so the map lays itself out before the
+      code loads, but main's startup rule still hides it until then, so today those
+      lines buy nothing a reader can see. #3962 narrows that rule to controls only (two
+      selectors, a 9-line focus rule, 133 lines of tests), and the map then appears
+      60–490 ms sooner. The simplest system reverts #3931 instead. You recommend
+      nothing; it's a taste call between the two.
+    - Launcher. #3876 lets `bin/leaf` run the venv's Python directly once synced, so the
+      hook at a tool boundary with nothing new drops from 310 ms to 51 ms. It changes
+      the launcher contract in AGENTS.md. It conflicts with #3857 in the hook path;
+      either order rebases cleanly. You recommend taking #3876.
+    - Codex workers. #3854 reads Codex's private `state_5.sqlite` to place 7 of 3,035
+      turn endings; without it those turns end where the public rollout says. It is
+      part of #4018. You recommend keeping to the public record and closing #3854.
+
+    Then a short "Still running" section: #3962's author is fixing a keyboard-focus
+    finding from review, and #3854 waits on the call above.
+
+    The page directory is not reachable here, so reply with the HTML of the two
+    sections rather than writing a file.
+assert:
+  - type: llm-rubric
+    metric: links
+    value: |
+      Treat each section and each lf-ask as a unit. Pass only if, inside every unit,
+      each pull request or issue number it names (#3931, #3962, #3876, #3857, #3854,
+      #4018) is an `<a href>` to its GitHub URL at least once, wherever
+      in the unit that link sits. A link elsewhere on the page doesn't count for the
+      unit. Fail if a unit names a number it never links, or a link points elsewhere.

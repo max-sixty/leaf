@@ -1805,10 +1805,10 @@ def _a_pin_on_a_wide_figure_hides_with_o_while_the_rail_stays(page):
 # document and its open shadow roots; live samples run their own runtime in an opaque
 # frame and take no part.
 _SWEPT = (
-    "button:visible, [role=button]:visible, [role=tab]:visible, [role=radio]:visible, "
-    "[role=checkbox]:visible, input[type=checkbox]:visible, input[type=radio]:visible, "
-    "summary:visible, :is(textarea, input[type=search], input[type=text], "
-    "input:not([type])):not(:disabled, [readonly]):visible"
+    "button, [role=button], [role=tab], [role=radio], "
+    "[role=checkbox], input[type=checkbox], input[type=radio], "
+    "summary, :is(textarea, input[type=search], input[type=text], "
+    "input:not([type])):not(:disabled, [readonly])"
 )
 _FILLS = ("review", "", "a b c", "zzzz")
 _SWEEP_STEPS = 40
@@ -1916,12 +1916,15 @@ def test_presses_and_fills_leave_no_element_naming_stale_keys(browser, serve, ex
     page = open_page(browser, serve(example), init_script=_FULLSCREEN_REQUESTS)
     stale = [{"step": "arrival", **finding} for finding in _stale_keys(page)]
     for step in range(_SWEEP_STEPS):
-        # Handles rather than a locator's nth, so a page that changes between the
-        # reading and the input still takes the input on the control it chose.
-        controls = page.locator(_SWEPT).element_handles()
-        if not controls:
-            break
-        control = rng.choice(controls)
+        # Resolve replacement nodes when acting. Visibility selects candidates,
+        # but must not change their indices when scrolling hides a control.
+        controls = page.locator(_SWEPT)
+        visible = controls.evaluate_all(
+            "elements => elements.flatMap((element, index) => "
+            "element.checkVisibility({visibilityProperty: true}) ? [index] : [])"
+        )
+        assert visible, f"step {step}: the sweep has no visible controls"
+        control = controls.nth(rng.choice(visible))
         did, fillable = control.evaluate(_CONTROL)
         if fillable:
             control.fill(rng.choice(_FILLS), force=True)

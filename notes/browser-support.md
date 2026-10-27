@@ -338,6 +338,16 @@ scroller when a horizontal strip's edge extended just beyond its band.
 Recheck a partly clipped strip's inner and outer scroll offsets before
 replacing Leaf's bounded walk with native reveal.
 
+### `calc()` in `overflow-clip-margin` in Chromium
+
+Playwright Chromium 153.0.8010.12 rejected `overflow-clip-margin: calc(2px + 5px)`
+on 2026-10-26, leaving the computed margin `0px`, while Playwright Firefox accepted
+it. A text field's clip margin (`composing/text-field.js`, `.lf-field`) therefore
+reads one custom property, `var(--lf-field-reach, 2px)`, rather than adding a
+motion's reach to the caret's 2px. Recheck by setting the calc value on an element
+and reading `getComputedStyle(element).overflowClipMargin`; once it reads `7px`, the
+reach can add to the caret's margin.
+
 ### Fixed layers missing from Firefox screencast frames
 
 Playwright Firefox 155 screencasts intermittently omitted fixed layers on

@@ -357,23 +357,35 @@
      draft has room to be read and written whatever its length. The user asked on 25
      October for much more than the 760px it widened to before; the window's whole
      width ran lines past 200 characters and left a long draft fewer, longer lines in a
-     shorter box. */
+     shorter box.
+     The mark stands in its corner whether or not it shows, and fades in and out on the
+     tween of the line that brings or takes it, as the fold's corner mark fades
+     (`.lf-fp-minimize`), so the box's motion carries it with the corner it rides
+     (box-motion.js). Drawn only once the draft ran long, it was new to the box, which
+     uncovered it where it stood as the top edge rose past it. */
   .lf-fp-expand {
     flex: none;
-    display: none;
+    display: grid;
     place-items: center;
     width: 24px;
     min-height: 0;
     height: 1lh;
     padding: 0;
     color: var(--lf-fp-muted);
+    opacity: 0;
+    visibility: hidden;
+    transition:
+      opacity var(--lf-motion-box-resize),
+      visibility 0s var(--lf-motion-box-resize);
   }
   .lf-fp-expand .lf-action-icon {
     width: 14px;
     height: 14px;
   }
   .lf-floating-panel[data-long] .lf-fp-expand {
-    display: grid;
+    opacity: 1;
+    visibility: visible;
+    transition: opacity var(--lf-motion-box-resize);
   }
   .lf-floating-panel[data-expanded] {
     --lf-fp-max: 1100px;
@@ -760,6 +772,7 @@
     right: calc(var(--lf-floating-gap) + var(--lf-safe-right));
     margin: 0;
     .lf-fp-field,
+    .lf-fp-expand,
     .lf-fp-row-notice,
     .lf-fp-quick,
     .lf-fp-opened {

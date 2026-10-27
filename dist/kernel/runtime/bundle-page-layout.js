@@ -2,7 +2,7 @@ import { Z, bindQueuedWork, d, q, x } from "./bundle-signals-core.js";
 import { TEXT_FIELD, afterScript, byRenderedOrder, canPlaceFocus, closeLayer, composedParentNode, deepFocus, drawn, focusDestination, focused, frameVisibility, handBack, holdFocus, holdRendering, inputCount, isNativeLayer, keeps, keepsHidden, move, nextRender, onCurrentLocation, onFrameVisibility, onUserInput, openLayer, openerOf, readSampleVisibility, renderedOrder, renderedParent, renderedUnder, shadowHost, sizeObserver, takesLetters, under, upFrom, whenLeft } from "./bundle-dom-move.js";
 import { admitResponse, completeData, countTraffic, dataHeaders, layerHeaders, postEvent, randomId, recordInteraction, removeRuntimeRootStyle, reportCarried, reportPageError, sameLayer, sessionIsActive, setRuntimeRootStyle, watchPendingTraffic } from "./bundle-layer-client.js";
 import { clamp, clippedContents, clipsPastSurfaces, closeNativeLayer, growthIsSeen, hasArea, intersect, layoutWindow, matchesWhen, placeBox, placeHolder, presented, registry, seenRect, shadowRootsIn, showNativeLayer, shownWindow, tagsDeclaring, union, watchOwner, watchRoom, whenNone, whileConnected } from "./bundle-geometry.js";
-import { DRAFT_FORMAT, LitElement, PENDING, PRESENTATION_DOM, actionForWidget, anchorKey, annotationMode, applicationPresenter, applicationState, attachApplicationPresentation, attachWidgetPresentation, discussed, documentChanged, drawingSchema, editable, isMessageEvent, isThreadEvent, moved, offlineInteractive, offlineState, pageUrl, presentDocument, projectionOrigins, queueWidgetUpdate, reactionsAt, readApplication, readPart, render, runtime, setPresentationFailureReporter, stateCoordinate, threadKey, tokenChoices, turns, watchPresentation, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented } from "./bundle-context.js";
+import { DRAFT_FORMAT, LitElement, PENDING, PRESENTATION_DOM, actionForWidget, anchorKey, annotationMode, applicationPresenter, applicationState, attachApplicationPresentation, attachWidgetPresentation, discussed, documentChanged, drawingSchema, editable, isMessageEvent, isThreadEvent, moved, offlineInteractive, offlineState, pageUrl, presentDocument, projectionOrigins, queueWidgetUpdate, reactionsAt, readApplication, readPart, regionCommitted, render, runtime, setPresentationFailureReporter, stateCoordinate, threadKey, tokenChoices, turns, watchPresentation, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented } from "./bundle-context.js";
 import { PRESS, TEXT_ENTRY, announce, claimsEsc, cycledRow, el, generatedElement, holdingError, keys, notice, offer, offerAction, paintKeys, paintKeysWithin, raiseError, repaint, responseAction, reveal as reveal$1, rowArrows, savedReadingSettled, saying } from "./bundle-errors.js";
 import { activityTransitionDue, ago, markStateApplied, moveScrollerBy, observeServerNow, observeWorkingGrace, reachScrollers, readingRegionFor, saidNow, settlePageInterface, syncLayoutRegion, tickClock } from "./bundle-reading-regions.js";
 import { awaitsData, bindsInput, comparisonBase, comparisonChanges, createProjectionPresentation, dataReader, inlineComparison, joinDataDelivery, suppliedSnapshot, toggleInlineComparison } from "./bundle-data.js";
@@ -2377,7 +2377,6 @@ function createReactionController({ marginEntryChoices, marginEntryContextContai
 	}
 	function closeSurface(surface) {
 		if (surface === marginSurface) return;
-		surface?.classList.remove("lf-react-open");
 		reactDeparture?.();
 		reactDeparture = null;
 		const picker = pickerFor(surface);
@@ -2438,7 +2437,6 @@ function createReactionController({ marginEntryChoices, marginEntryContextContai
 			}
 			reactArmed = true;
 			if (reactSurface !== marginSurface) {
-				reactSurface.classList.add("lf-react-open");
 				const picker = pickerFor(reactSurface);
 				scrollIntoReadingBand(picker.trigger, picker.trigger, "nearest", "instant");
 				showNativeLayer(picker.palette, { source: picker.trigger });
@@ -2972,7 +2970,7 @@ function renderHolds(threads) {
 	for (const node of document.querySelectorAll("[data-lf-held]")) if (!held.has(node)) node.removeAttribute("data-lf-held");
 	for (const [target, id] of held) keeps(target, "data-lf-held", id);
 }
-function createThreadPresentation({ available = true, inlineView, surfaceView, anchorPlacement, anchorPaint, anchorControls, drawingPaint, pageGeometry, readDraft, activeActionAnchor, renderAnnotations, renderSurfaces, openThread, continueThread, returnToPage, threadAt, read }) {
+function createThreadPresentation({ available = true, inlineView, surfaceView, anchorPlacement, anchorPaint, anchorControls, drawingPaint, pageGeometry, readDraft, activeActionAnchor, renderSurfaces, openThread, continueThread, returnToPage, threadAt, read }) {
 	let primary = null;
 	const presenter = applicationPresenter({
 		region: "thread",
@@ -3033,10 +3031,9 @@ function createThreadPresentation({ available = true, inlineView, surfaceView, a
 					surfaces.commit();
 					commitThreadSeats(batch);
 					surfaceView.composition.finishPlacement();
-					d(renderAnnotations);
 					pageGeometry.pageShifted();
 					read.present();
-					continueReplies(restorePlace).then(returnToPage).catch((error) => reportPageError(error, `Reply continuation failed`));
+					Promise.resolve().then(() => regionCommitted("annotations")).then(() => continueReplies(restorePlace)).then(returnToPage).catch((error) => reportPageError(error, `Reply continuation failed`));
 				}));
 			};
 			await (primaryPreparation?.then ? primaryPreparation.then(resume(paintPrepared)) : paintPrepared(primaryPreparation));
@@ -5095,7 +5092,6 @@ function mountApplication(dependencies) {
 		pageGeometry: dependencies.pageGeometry,
 		readDraft: dependencies.readThreadDraft,
 		activeActionAnchor: dependencies.activeActionAnchor,
-		renderAnnotations,
 		renderSurfaces,
 		openThread: (id, options) => threadDestinations.openPageThread(id, {
 			...options,

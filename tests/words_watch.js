@@ -17,8 +17,11 @@
 //
 // Words that are gone are the user's to have put away, so a key or a press must come
 // after the last edit, in the operation that puts the words away: Escape, Send, Cancel, a press
-// elsewhere, choosing another target, or an edit in another tab of the page that reaches
-// this one as storage news. What only moves the user around the words does
+// elsewhere, choosing another target, or an edit in another tab of the page that
+// reaches this one as storage news. A close watcher's close, such as Android's back
+// gesture makes, puts words away only where the page's storage still holds them: back
+// may close an editor but never throw its words away (keyboard/close-requests.js),
+// whether a gesture or a script asked for the close. What only moves the user around the words does
 // not count: a key whose typing applied or was cancelled,
 // a modifier, the caret keys, Tab, the page's scroll keys, and a press on the field itself. A wheel,
 // a scroll, a resize, a timer and the server's news are none of them either. Words gone
@@ -206,7 +209,21 @@
   // Retain that exact value operation until the same field proves its paint;
   // a select's typed filter is not its `input` and never borrows its selected value.
   const painting = new Map();
-  const putAway = (field, typedOrder, source) => {
+  // Whether the page's storage still holds these words, bare or as a JSON string, as
+  // Leaf's draft store keeps them.
+  const stored = (words) => {
+    const quoted = JSON.stringify(words);
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const value = localStorage.getItem(localStorage.key(i));
+        if (value === words || value?.includes(quoted)) return true;
+      }
+    } catch {
+      // An opaque origin, such as a data: URL, has no storage to keep words in.
+    }
+    return false;
+  };
+  const putAway = (field, typedOrder, source, words) => {
     if (!source || source.order <= typedOrder) return false;
     // Native disclosure activation puts away only the fields its close hides.
     // The same dispatch cannot redeem a passive loss elsewhere on the page.
@@ -220,6 +237,7 @@
     if (event.type === "keydown")
       return !MOVES.test(event.key) && !editingKeys.has(event);
     if (event.type === "storage") return true;
+    if (event.type === "close") return stored(words);
     return (
       [
         "pointerdown",
@@ -243,7 +261,7 @@
       editor.open !== false ||
       close.value !== held.words ||
       editor.value !== close.value ||
-      !putAway(field, held.typedOrder, close.source)
+      !putAway(field, held.typedOrder, close.source, held.words)
     )
       return;
     if (holding.get(field) === held) holding.delete(field);
@@ -259,7 +277,7 @@
       watching();
       return;
     }
-    if (putAway(field, typedOrder, source)) return;
+    if (putAway(field, typedOrder, source, words)) return;
     const place = window.lfPlace?.(field) ?? [field.localName];
     window.__leafWatchFinding({ code: "words-left-screen", words, place });
   };

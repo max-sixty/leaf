@@ -62,6 +62,12 @@ An example's markup is its current version. Beside it may sit:
 `prepare_page` in `dev/leaf_dev/page_fixtures.py` builds a page directory from an
 example.
 
+To run `leaf page check` on an example, check the page directory a plain preview
+builds, since the command takes a page directory and not the `.html` (a bare
+`page init` plus a copy misses the `.page/` companion and its packages). Start
+`uv run leaf-dev preview <example> --slot chk` as a long-running command, then run
+`bin/leaf page check .tmp/previews/chk` and stop the preview.
+
 Capture a seeded anchor with `leaf thread create --quote` against the file, since a
 hand-written `{section, quote, suffix}` detaches silently when its sentence changes.
 A widget that shows live time, such as an `lf-atlas-worker` row saying how long since

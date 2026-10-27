@@ -387,9 +387,9 @@ def test_a_thread_s_keys_answer_in_its_view(browser, serve):
     expect(message).to_be_focused()
     page.keyboard.press("e")
     strip = thread.locator(".lf-msg.agent > .lf-react-strip")
-    expect(strip).to_contain_class("lf-react-open")
+    expect(strip.locator(".lf-react-palette:popover-open")).to_have_count(1)
     page.keyboard.press("Escape")
-    expect(strip).not_to_contain_class("lf-react-open")
+    expect(strip.locator(".lf-react-palette:popover-open")).to_have_count(0)
     message.click()
     with sending(page, "the resolve from a message"):
         page.keyboard.press("r")

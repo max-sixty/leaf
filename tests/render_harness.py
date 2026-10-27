@@ -1311,7 +1311,8 @@ def _picture_pages(test, pages):
             continue
         try:
             page.screenshot(
-                path=ROOT / f".tmp/test-results/screens/{name}-{n}.png", timeout=5000
+                path=ROOT / f".tmp/test-results/screens/{name}-{n}.png",
+                timeout=render_checks_model.SERVED_TIMEOUT_MS,
             )
         except PlaywrightError:
             continue

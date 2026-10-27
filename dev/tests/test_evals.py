@@ -1,13 +1,110 @@
-"""Two model-free smoke checks for the developer-run Promptfoo integration.
+"""Model-free smoke checks for the developer-run Promptfoo integration.
 
 Detailed grading, browser interaction and provider behavior are checked by running
 an experiment while developing it, rather than maintaining regression matrices.
 """
 
 import json
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
 
+import pytest
 from click.testing import CliRunner
+from leaf_dev.arms import private_program
 from leaf_dev.commands import eval as module
+from leaf_dev.eval_codex import records_for
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="macOS sandbox profile")
+def test_authoring_sandbox_isolates_files_including_children(tmp_path, monkeypatch):
+    assert shutil.which("sandbox-exec"), "macOS evals require sandbox-exec"
+    host = tmp_path / "host-config"
+    plugins = host / "plugins"
+    plugins.mkdir(parents=True)
+    host_skill = plugins / "SKILL.md"
+    host_skill.write_text("other installed instructions")
+    login = host / "auth.json"
+    login.write_text("test login")
+    monkeypatch.setenv("CODEX_HOME", str(host))
+    with tempfile.TemporaryDirectory(prefix="leaf-isolation-", dir="/tmp") as directory:
+        root = Path(directory)
+        home, work = root / "home's files", root / "owned work"
+        home.mkdir()
+        work.mkdir()
+        stale = root / "other-sample.txt"
+        stale.write_text("unrelated sample")
+        probe = work / "probe.py"
+        probe.write_text("""\
+import subprocess
+import sys
+from pathlib import Path
+
+mode, work, stale, host_skill, login = sys.argv[1:]
+owned = Path(work) / mode
+owned.write_text("own output")
+assert owned.read_text() == "own output"
+assert Path(login).read_text() == "test login"
+for outside in (Path(stale), Path(host_skill)):
+    for operation in (outside.read_text, lambda: outside.write_text("overwrite")):
+        try:
+            operation()
+        except PermissionError:
+            pass
+        else:
+            raise AssertionError("another sample's content was accessible")
+if mode == "parent":
+    subprocess.run([sys.executable, __file__, "child", work, stale, host_skill, login], check=True)
+print("isolated")
+""")
+        launcher = private_program(Path(sys.executable), home, work)
+        result = subprocess.run(
+            [
+                str(launcher),
+                str(probe),
+                "parent",
+                str(work),
+                str(stale),
+                str(host_skill),
+                str(login),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert result.stdout.splitlines() == ["isolated", "isolated"]
+        assert stale.read_text() == "unrelated sample"
+        assert host_skill.read_text() == "other installed instructions"
+
+
+def test_codex_trace_keeps_subagent_activity_without_inventing_tool_calls():
+    # Codex 0.163 sends each activity as item/started and item/completed. Its
+    # activity identifies the child but does not expose the child's private brief.
+    activities = [
+        {
+            "type": "subAgentActivity",
+            "id": f"activity-{kind}",
+            "kind": kind,
+            "agentThreadId": "child-thread",
+            "agentPath": "/root/panel_schematic",
+            "model": "gpt-6.1-sol" if kind == "started" else None,
+            "reasoningEffort": "medium" if kind == "started" else None,
+        }
+        for kind in ("started", "interacted", "completed")
+    ]
+    trace = [
+        record
+        for item in activities
+        for method in ("item/started", "item/completed")
+        for record in records_for(
+            {"method": method, "params": {"item": item}}, "parent-thread", ""
+        )
+    ]
+    assert trace == activities
 
 
 def test_catalog_builds_native_and_workflow_promptfoo_tests(tmp_path, monkeypatch):

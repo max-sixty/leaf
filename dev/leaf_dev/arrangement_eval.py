@@ -474,7 +474,12 @@ def judge_pages(
                 json.dumps(
                     {
                         "browser": {
-                            "launchOptions": {"executablePath": shell_executable()}
+                            "launchOptions": {
+                                "executablePath": shell_executable(),
+                                # The judge's inherited sandbox already covers Chromium;
+                                # macOS refuses Chromium's nested sandbox initialization.
+                                "chromiumSandbox": False,
+                            }
                         }
                     }
                 )
@@ -549,6 +554,7 @@ Task and criterion:
                     out=evidence / "stream.jsonl",
                     err=evidence / "err.txt",
                     harness="codex",
+                    dirs=[Path(sockets)],
                     env=variables,
                     limit=JUDGING_LIMIT,
                 )

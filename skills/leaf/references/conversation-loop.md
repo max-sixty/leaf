@@ -96,9 +96,8 @@ When input arrives:
 
 ## Page availability and handoff
 
-Before handing over, reconcile both lists ("The On lists"). Put questions that need
-an answer in a thread message with `--obligation`, so the user can open the thread
-from On me and reply there. Page availability does not ask the user for anything.
+Before handing over, reconcile both lists ("The On lists"). Page availability does
+not ask the user for anything.
 
 Leave the page available for optional feedback, putting down your current starts:
 

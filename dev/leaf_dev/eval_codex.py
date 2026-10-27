@@ -4,9 +4,10 @@ The native CLI installs the payload before App Server starts; the task then trus
 its hooks. App Server persists its thread under the child's home so a later phase
 resumes that exact conversation.
 Its complete notifications are retained beside the normalized eval trace. The
-normalization exposes actual command execution, replies, hook output, and turn
-starts and completions; it neither invents hooks nor acknowledges a Leaf delivery
-itself.
+normalization exposes actual command execution, replies, hook output, subagent
+activity, and turn starts and completions; it neither invents hooks nor acknowledges
+a Leaf delivery itself. Subagent activity retains the native item, which describes
+activity and identity, not the private brief.
 """
 
 import json
@@ -45,6 +46,8 @@ def records_for(message: dict, session: str, final: str) -> list[dict]:
         ]
     if method in {"item/started", "item/completed"}:
         item = params["item"]
+        if item["type"] == "subAgentActivity":
+            return [item] if method == "item/completed" else []
         if item["type"] == "collabAgentToolCall":
             block = (
                 {
@@ -216,7 +219,7 @@ class CodexChild:
     transport = "app-server"
 
     def __init__(self, cwd, prompt, *args, stderr, limit, timed_out, dirs=(), env=None):
-        from leaf_dev.arms import MODELS, codex_home, environment, now
+        from leaf_dev.arms import MODELS, codex_home, environment, now, private_program
 
         self.cwd, self.prompt = cwd, prompt
         self.stderr, self.timed_out = stderr, timed_out
@@ -259,13 +262,24 @@ class CodexChild:
             HOME=str(home),
             CODEX_HOME=str(config_home),
             TMPDIR=str(temporary),
+            TMPPREFIX=str(temporary / "zsh"),
             **(env or {}),
         )
         executable = shutil.which("codex")
         if executable is None:
             raise RuntimeError("cannot find the `codex` executable on PATH")
         self.executable = Path(executable)
-        self.server = private_app_server(executable, env=self.env)
+        self.sandbox = (
+            "read-only"
+            if self.options.get("--tools") == "Read"
+            else "danger-full-access"
+        )
+        isolated = (
+            self.executable
+            if self.sandbox == "read-only"
+            else private_program(self.executable, home, cwd, *dirs)
+        )
+        self.server = private_app_server(str(isolated), env=self.env, cwd=str(cwd))
 
     def _hear(self, message):
         self.raw.write(json.dumps(message) + "\n")
@@ -333,9 +347,7 @@ class CodexChild:
             params = {
                 "cwd": str(self.cwd),
                 "approvalPolicy": "never",
-                "sandbox": "read-only"
-                if self.options.get("--tools") == "Read"
-                else "danger-full-access",
+                "sandbox": self.sandbox,
                 "model": self.model,
             }
             if session := self.options.get("--resume"):

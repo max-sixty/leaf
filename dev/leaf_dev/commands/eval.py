@@ -152,10 +152,14 @@ def native_provider(
     home.mkdir(mode=0o700)
     config_home = codex_home(home / ".codex")
     codex = codex_program()
+    temporary = work / "tmp"
+    temporary.mkdir()
     cli_env = {
         "HOME": str(home),
         "CODEX_HOME": str(config_home),
         "XDG_STATE_HOME": str(home / ".local/state"),
+        "TMPDIR": str(temporary),
+        "TMPPREFIX": str(temporary / "zsh"),
     }
     # The installer and provider use the same CLI. Installing the complete
     # plugin preserves discovery and skill references relative to the plugin root.
@@ -370,6 +374,10 @@ def prepare(
                 now = sample["vars"].pop("now", NOW)
                 if not authoring:
                     prompt = f"It is now {now}.\n\n{prompt}"
+                    sample["options"] = {
+                        "rubricPrompt": definition("eval")["source_grading_prompt"],
+                        **sample.get("options", {}),
+                    }
                 sample["vars"] = {
                     **sample["vars"],
                     "prompt": ("" if instructions else SKILL_PREFIX) + prompt,

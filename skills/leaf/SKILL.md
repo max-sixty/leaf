@@ -4,89 +4,121 @@ description: Builds an interface for the user to inspect, explore and act on the
 allowed-tools:
   - Bash(leaf:*)
   - Bash(jq:*)
+  - Bash(mktemp:*)
 ---
 
-Develop material the user can judge or use directly. The user can inspect and
-operate it, comment on exact passages and steer revisions.
-Keep the page current and give their questions and changes of direction priority.
+Develop the work with the user on a live page. They can inspect the result, try it,
+comment on exact passages and steer revisions. Keep the page current, and give their
+questions and changes of direction priority.
 
-The input is either work to develop on a page or a delivery from a page already
-handed over: a `leaf_delivery` tool output, a `leaf-delivery` element, or the
-envelope `leaf wait` printed. A delivery starts at step 7 below; continue that
-page rather than initializing or handing it over again. With no subject in
-`$ARGUMENTS`, develop the work already under discussion.
+With no subject in `$ARGUMENTS`, continue the work already under discussion. A
+`leaf_delivery` tool output, `leaf-delivery` element or envelope from `leaf wait`
+is input from an existing page: start at **Respond to input**, using that page.
 
 $ARGUMENTS
 
-## Must remember
-
-- **Everything waiting on the user is an obligation on their On me list**, including
-  each decision you leave to them that your next step doesn't depend on. Register
-  it before a page heading, a chat open item or a `needs input:` line mentions it.
-  `references/conversation-loop.md`, "The On lists", says how to register each
-  kind and when to reconcile the lists.
-
-## Purpose and principles
-
 Read [SOUL.md](SOUL.md) before authoring or responding on a Leaf page.
 
-## Operate
+## Must remember
+
+Everything waiting on the user is an obligation on their On me list, including
+each decision you leave to them that your next step doesn't depend on. Register
+it before a page heading, a chat open item or a `needs input:` line mentions it.
+`references/conversation-loop.md`, "The On lists", owns registration and
+reconciliation.
+
+## Author the page
+
+Record the work you take on as `references/conversation-loop.md`, "When to write",
+says. Initialize a new page with `leaf page init <page>`, adding the packages its
+content needs: `leaf page init --package diagram --package diff <page>`.
+`references/packages.md`, "Package reach", lists the packages. Use `playground`
+when the user explores candidates or tunes a configuration before sending it; its
+choices can contain the previews themselves. Simple choices use `lf-options`
+(`references/authoring-on-me.md`). Running `page init` again with `--package`
+replaces the page's packages, so name every package the page keeps. Personal themes
+and their author instructions are discoverable with `leaf theme list`;
+`references/package-themes.md`, "Personal themes", covers choosing one and how the
+page captures it.
+
+Read the applicable references under **Author a version** below. For substantial
+new material, including a new section on an existing page, start an author without
+inherited conversation (`fork_turns: "none"` where available). Give it the reader's
+question, task, relevant facts and constraints, initial content and state, the page
+registry, `references/page-authoring.md` and a fresh output directory (`mktemp -d`).
+Ask it to construct the subject the page discusses, following "Develop the work",
+and return finished files and captions. Keep the research history and existing page
+with you. Integrate the returned material following "Composing a page" and
+`references/authoring-on-me.md` for decisions left to the user. When subagents are
+unavailable, build the material directly.
+
+Follow `references/authoring-revisions.md` when changing an existing page, then
+write `<page>/index.html`. Each valid save becomes a live immutable revision. An invalid save leaves the last valid one live
+and reports the error in page state and the browser. You write `index.html` and
+`page/`; only Leaf writes revisions and version mappings.
+
+Choose controls whose benefit outweighs their attention and effort; remove
+redundant actions before making them visually quieter. Widget actions and
+resolutions can be undone; sent words stay in the log.
+
+## Publish and review
+
+Before the first handoff, run `leaf page check <page>` and fix every failure.
+A revision answering a user's message, even on a page you review, goes straight
+to the reply: the reply checks the saved edits and refuses errors. Fix any error and
+reply again. Each valid save is already live, so a separate check delays the answer
+the user is waiting for.
+
+Review an important page in the browser before its first handoff and at later
+checkpoints, such as an approved plan or a settled stage of work. At those later
+checkpoints, reply before reviewing. Use `leaf page check <page> --render` and
+`references/page-checkpoints.md`, "Pre-handover review". They find problems markup
+checks can't, such as unreadable tables and broken phone layouts, but take minutes.
+Give that time to pages the user relies on longer, pages with more content, and
+pages with more custom layout. Weigh that against how urgently the user is waiting.
+A quick page the user reacts to once and then revises or drops needs no browser
+review.
+
+A record is a page used beyond this conversation, so it is always important.
+After each review of a record, run
+`leaf page stamp <page> --text "<changelog>"`.
+`references/page-checkpoints.md`, "Stamp checkpoints", owns its checkpoints.
+
+Read the owning session's harness contract below and follow it with
+`references/conversation-loop.md`, "Page availability and handoff", to serve and
+hand over the page.
+
+## Respond to input
+
+Read `references/event-batches.md`, the owning session's harness contract and, for
+user messages, `references/threads.md`. Answer every event as they say. Say what
+you are doing before you do it (`references/conversation-loop.md`, "When to write").
+Continue the existing page; it needs no new initialization or handoff.
+
+Follow `references/authoring-revisions.md`, "Keep the current page current", when
+work lands, a decision is made or your understanding changes. Stamp checkpoints
+and end the page as `references/page-checkpoints.md` says.
+
+## Stay responsive
+
+The parent session owns the Leaf conversation: answer the user, keep the page
+current, and direct background subagents doing substantive research, editing and
+testing. Keep direct answers, small edits, and review and integration of worker
+results with you. Having more work to do is a reason to
+delegate it while you remain available for the user's next move.
+
+`references/conversation-loop.md`, "Long-running work", owns worker briefs,
+results and work continuing beyond your turn. If subagents are unavailable, run
+long operations in the background and follow the harness delivery loop between
+bounded steps.
+
+## Commands
 
 Run commands as `leaf` when the harness puts its launcher on `PATH`. Otherwise
-use `../../bin/leaf` from the directory holding this `SKILL.md`. If the
-file is missing, report that the plugin payload is incomplete.
-Pages usually live at `~/.local/state/leaf/pages/<slug>/`,
-but every command takes the directory explicitly; export or copy anything that
-must outlive the page directory.
-
-1. Read `references/conversation-loop.md`, "When to write", to record the work
-   you take on. Run `leaf page init <page>`, adding a package when the page needs
-   its vocabulary or instructions: `leaf page init --package diagram --package diff <page>`.
-   `references/packages.md`, "Package reach", lists the packages. Use
-   `playground` when the user explores candidates or tunes a configuration before
-   sending it; its choices can contain the previews themselves. Simple choices
-   use `lf-options` (`references/authoring-on-me.md`). Running `page init`
-   again with `--package` replaces the page's packages, so name every package the page keeps.
-   Personal themes and their author instructions are discoverable with
-   `leaf theme list`; `references/package-themes.md`, "Personal themes", covers
-   choosing one for the task and how the page captures it.
-2. Read `references/page-authoring.md` and choose the subject and concrete case
-   the user will examine. Construct that subject in the chosen situation, then
-   compose the explanation around the result. Follow
-   `references/authoring-revisions.md` when changing an existing page, then write
-   `<page>/index.html`. Each valid save becomes the live immutable revision. An
-   invalid save leaves the last valid one live and reports the error in page state
-   and the browser. You write `index.html` and `page/`; only Leaf writes revisions
-   and version mappings.
-3. **Check the page.** Before you first hand the page over, run
-   `leaf page check <page>` and fix every failure. A revision that answers a user's
-   message, even on a page you review, goes straight to the reply. The reply checks
-   your saved edits and is refused over an error; fix it and reply again. Each valid
-   save is already live on the user's page, so a separate check only delays the
-   answer they are waiting for.
-4. **Review an important page in the browser.** `leaf page check <page> --render`
-   and the reading in `references/page-checkpoints.md`, "Pre-handover review",
-   find what the markup check can't, such as a table squeezed to a word a line or a
-   layout that breaks at phone width. They take minutes, so give them to the pages
-   that matter. A page matters more the longer the user relies on it, whether past
-   this conversation or through a long one, the more it holds, and the more of its
-   layout you wrote yourself rather than took from the vocabulary. It matters less
-   the more urgently the user is waiting for it. A quick page, one the user reacts to
-   once and then revises or drops, needs no review. Review an important page before
-   its first handoff and again at each checkpoint, such as the user approving a plan
-   or settling a stage of the work, after the reply that answers it.
-5. **Stamp a record.** A record is a page used beyond this conversation, so it is
-   always important. Stamp it after each review, its first and each later one:
-   `leaf page stamp <page> --text "<changelog>"`. `references/page-checkpoints.md`,
-   "Stamp checkpoints", says which checkpoints a record has.
-6. Read the contract that "Harness selection" below picks. Follow
-   `references/conversation-loop.md`, "Page availability and handoff", and serve and hand
-   over the page the way that contract says.
-7. When a delivery arrives, read `references/event-batches.md`, the harness
-   contract and, for user messages, `references/threads.md`, and answer every
-   event as they say. Say what you are doing before you do it
-   (`references/conversation-loop.md`, "When to write").
-8. Stamp checkpoints and end the page as `references/page-checkpoints.md` says.
+use `../../bin/leaf` from the directory holding this `SKILL.md`. If the file is
+missing, report that the plugin payload is incomplete. Pages usually live at
+`~/.local/state/leaf/pages/<slug>/`, but every command takes the directory explicitly;
+export or copy anything that must outlive the page directory.
 
 ## Harness selection
 
@@ -98,42 +130,14 @@ Pick the contract for the session that owns the page:
 | Pi          | `references/harness-pi.md`          |
 | Codex       | `references/harness-codex.md`       |
 
-## Stay responsive
-
-The parent session owns the Leaf conversation:
-answer the user, keep the page current, and direct background subagents doing the
-substantive research, editing and testing. Keep direct answers, revisions of existing material,
-and the review and integration of worker results with you. Having more work to do
-is a reason to delegate it, while you remain available for the user's next move.
-
-`references/conversation-loop.md`, "Long-running work", owns worker briefs,
-results and work that continues beyond your turn. If subagents are unavailable,
-run long operations in the background and follow your harness's delivery loop
-between bounded steps.
-
-## Page contract
-
-`references/page-authoring.md` owns content, reading cost and composition. `references/page-layout.md` owns Layout geometry;
-`references/authoring-on-me.md` owns the questions and choices you put to the user.
-
-Choose controls, gestures and options whose benefit to the user's task outweighs
-the attention and effort they require. Remove redundant actions before making
-them visually quieter. Widget actions and resolutions can be undone;
-sent words stay in the log.
-
-## Keep the user current
-
-Follow `references/authoring-revisions.md`, "Keep the current page current", when
-work lands, a decision is made, or your understanding changes.
-
 ## Follow the user's preferences
 
-When the user states a preference meant for every page, save it in your
-harness's memory, where later sessions read it; Leaf keeps none.
+When the user states a preference meant for every page, save it in the harness's
+memory, where later sessions read it; Leaf keeps none.
 
 ## Improve Leaf through use
 
-When Leaf gets in your way through friction, ambiguity or a missing capability,
+When Leaf blocks the work through friction, ambiguity or a missing capability,
 tell the user what you wanted to do and how the interface blocked it. Explain the
 improvement and how it would help other pages, and offer to file an issue in the
 Leaf repository.

@@ -17,8 +17,9 @@ are retained too.
 A `LiveChild` keeps its session open across turns, so a driver can post
 user moves to a served page (`PageClient`) as a tab would; a `LiveSession` is how
 every live driver holds one: it records the stream, sends chat messages, and tells
-when the session has gone quiet. On macOS a Claude Code child runs under
-`private_tmp`, so concurrent children share no file in `/tmp`.
+when the session has gone quiet. On macOS, native authoring sessions use
+`authoring_sandbox` to isolate shared `/tmp` and host plugin payloads. Read-only probes use
+their provider's restrictions; Codex's sandbox cannot nest inside a macOS sandbox.
 """
 
 import base64
@@ -27,6 +28,7 @@ import json
 import os
 import queue
 import re
+import shlex
 import shutil
 import signal
 import subprocess
@@ -556,38 +558,68 @@ def scratch(payload: Path | None = None, *, state: Path | None = None):
                 retire_sessions(payload, state if state is not None else work / "state")
 
 
-def private_tmp(*owned: Path) -> str:
-    """The macOS sandbox profile a Claude Code child runs under, so that two
-    children never share a file under `/tmp`.
+def authoring_sandbox(*owned: Path) -> str:
+    """Isolate shared scratch files and installed instructions on macOS.
 
-    Its `TMPDIR` and zsh's `TMPPREFIX` are already its own (`claude_child`), but
+    The child's `TMPDIR` and zsh's `TMPPREFIX` are already private, but
     authoring agents also write fixed names such as `/tmp/chk.py`, which a
-    concurrent sample would overwrite. Writes to `/tmp` are refused except under
-    `owned`, the child's own directories, wherever they are, and the names
-    Claude Code and Leaf give their
-    own machine-local files there: Claude Code's per-user directory and each
+    concurrent sample would overwrite or read as its own. Content reads and writes
+    under `/tmp` are refused except under `owned`, the child's own directories,
+    and the harnesses' machine-local files: Claude Code's per-user directory and each
     shell's cwd file and socket, zsh's here-document files, whose names are
-    unique, and Leaf's per-user package locks and each App Server's socket
-    directory. The sandbox resolves `/tmp` to `/private/tmp`, so the rules name
-    that."""
+    unique, Leaf's per-user package locks and each App Server's socket directory,
+    and Codex's per-user daemon sockets and locks. Metadata remains readable for
+    runtime directory traversal. The sandbox resolves `/tmp` to `/private/tmp`,
+    so the rules name that. Host plugin payloads are inaccessible: a guessed global
+    cache path must not replace the sample's installed instructions. Credentials
+    outside those payloads remain available.
+    """
     uid = os.getuid()
     names = (
         rf"claude-{uid}(/|$)|claude-[0-9a-f]+-cwd$|cc-socks(/|$)|zsh[^/]+$"
         rf"|leaf-package-locks-{uid}(/|$)|leaf-codex-[^/]+(/|$)"
+        rf"|codex-daemon-{uid}(/|$)"
+    )
+    host_plugins = (
+        Path(os.environ.get("CODEX_HOME", Path.home() / ".codex")) / "plugins",
+        Path(os.environ.get("CLAUDE_CONFIG_DIR", Path.home() / ".claude")) / "plugins",
     )
     return "\n".join(
         [
             "(version 1)",
             "(allow default)",
-            '(deny file-write* (subpath "/private/tmp"))',
-            f'(allow file-write* (regex #"^/private/tmp/({names})"))',
+            '(deny file-read-data file-write* (subpath "/private/tmp"))',
+            f'(allow file-read-data file-write* (regex #"^/private/tmp/({names})"))',
             *(
-                f"(allow file-write* (subpath {json.dumps(str(path.resolve()))}))"
+                f"(deny file-read-data file-write* (subpath {json.dumps(str(path.resolve()))}))"
+                for path in host_plugins
+            ),
+            *(
+                f"(allow file-read-data file-write* (subpath {json.dumps(str(path.resolve()))}))"
                 for path in owned
             ),
             "",
         ]
     )
+
+
+def private_program(executable: Path, home: Path, *owned: Path) -> Path:
+    """Wrap an executable with inherited temporary-file isolation.
+
+    App Server accepts an executable, not an argv prefix. The private home's
+    launcher execs the native CLI under `authoring_sandbox`, which its subprocesses inherit.
+    Callers supply the child's workspace
+    and other owned directories, and set its private TMPDIR in their environment.
+    """
+    if (sandbox := shutil.which("sandbox-exec")) is None:
+        return executable
+    launcher = home / f"{executable.name}-private-tmp"
+    command = shlex.join(
+        [sandbox, "-p", authoring_sandbox(home, *owned), str(executable)]
+    )
+    launcher.write_text(f'#!/bin/sh\nexec {command} "$@"\n')
+    launcher.chmod(0o700)
+    return launcher
 
 
 def claude_child(
@@ -602,7 +634,7 @@ def claude_child(
 
     `args` follow `-p`, so a prompt goes first. `dirs` are what the child may read
     beyond `cwd`, and `env` adds to `environment()`. Output is verbose stream-json.
-    On macOS the child runs under `private_tmp`, owning `cwd`, its home and
+    On macOS the child runs under `authoring_sandbox`, owning `cwd`, its home and
     `dirs`, unless `sandbox` is False, as a child that drives the harness's own
     browser is. Its private-home CLAUDE.md names the sandbox's scratch directory
     and restriction; an unsandboxed launch retires that generated file."""
@@ -620,9 +652,9 @@ def claude_child(
         instructions.parent.mkdir(exist_ok=True)
         instructions.write_text(
             f"Writable scratch directory: `{cwd / 'tmp'}` (`$TMPDIR`).\n"
-            "The sandbox rejects arbitrary writes under shared `/tmp`.\n"
+            "The sandbox rejects arbitrary reads and writes under shared `/tmp`.\n"
         )
-        profile = private_tmp(cwd, home, *dirs)
+        profile = authoring_sandbox(cwd, home, *dirs)
         command = ["sandbox-exec", "-p", profile, *command]
     else:
         instructions.unlink(missing_ok=True)

@@ -926,13 +926,12 @@ def test_threads_is_as_tall_as_the_threads_it_shows(browser, serve):
 def test_the_leaf_version_is_one_press_in_the_leaf_s_menu(browser, serve):
     """The Leaf version is copied from a row of the leaf's menu itself, as the page's
     link is: one press puts the menu away, copies the version's diagnostics and says so
-    in the field, and the row's hover name says which Leaf it is. With a clipboard there
-    is no About view, which held only those rows."""
+    in the field, and the row's hover name says which Leaf it is. About also keeps the selectable details beside page diagnostics."""
     page = floating(browser, serve(LONG_PAGE))
     page.context.grant_permissions(["clipboard-read", "clipboard-write"])
     page.locator(".lf-fp-leaf").click()
     menu = page.locator(".lf-fp-menu")
-    expect(menu.locator(".lf-fp-item", has_text="About this page")).to_have_count(0)
+    expect(menu.locator(".lf-fp-item", has_text="About this page")).to_have_count(1)
     row = menu.get_by_role("menuitem", name="Copy Leaf version")
     expect(row).to_have_attribute("title", re.compile("^Leaf "))
     row.click()
@@ -962,8 +961,7 @@ def test_copy_link_is_one_press_in_the_leaf_s_menu(browser, serve):
 
 def test_a_refused_copy_leaves_the_link_to_select_in_about(browser, serve):
     """A clipboard that refuses the write leaves the user the link all the same: the
-    press turns the menu to About on the link, in a field they can select, and the field
-    says the link was not copied. The failure remains in Errors when the reader
+    press opens About on the link, as text they can select. The failure remains in Errors when the reader
     leaves About."""
     refuses = (
         "Clipboard.prototype.writeText = () => Promise.reject(new Error('refused'));"
@@ -971,12 +969,12 @@ def test_a_refused_copy_leaves_the_link_to_select_in_about(browser, serve):
     page = open_page(browser, serve(LONG_PAGE), init_script=refuses)
     page.locator(".lf-fp-leaf").click()
     page.locator(".lf-fp-menu").get_by_role("menuitem", name="Copy link").click()
-    about = page.locator(".lf-fp-menu[data-level=group]")
+    about = page.get_by_role("dialog", name="About this page", exact=True)
     link = about.get_by_label("Link", exact=True)
-    expect(link).to_have_value(re.compile(r"^http://.*[?&]t="))
-    expect(about.locator(".lf-fp-menu-name")).to_have_text("About this page")
-    expect(field(page)).to_have_attribute("placeholder", re.compile("^Link not copied"))
-    about.locator(".lf-fp-menu-back").click()
+    expect(link).to_contain_text(re.compile(r"^http://.*[?&]t="))
+    expect(about.get_by_role("button", name="Copy Link", exact=True)).to_be_visible()
+    page.keyboard.press("Escape")
+    page.locator(".lf-fp-leaf").click()
     page.locator('.lf-fp-menu [data-row="errors"]').click()
     expect(page.locator(".lf-fp-menu .lf-fp-error")).to_contain_text(
         "Link not copied · select it to copy"
@@ -3346,6 +3344,8 @@ def test_obligations_are_answered_where_they_are_read_on_me(browser, serve):
     expect(cards.first).to_contain_text("How should the schema migrate?")
     settled(page)
     first, second = cards.first.bounding_box(), cards.nth(1).bounding_box()
+    show = cards.first.locator(".lf-fp-show")
+    shown = show.bounding_box()
     with sending(page, "the answer"):
         cards.first.locator(".lf-fp-answer", has_text="Shim").click()
     answer = events_model.read_events(serve.page_dir)[-1]
@@ -3356,12 +3356,14 @@ def test_obligations_are_answered_where_they_are_read_on_me(browser, serve):
     expect(owed).to_have_text("1")
     assert cards.first.bounding_box() == first
     assert cards.nth(1).bounding_box() == second
+    assert show.bounding_box() == shown
 
     with sending(page, "the undo"):
         cards.first.get_by_role("button", name="Undo").click()
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "undo"
     expect(cards.first.locator(".lf-fp-answer", has_text="Shim")).to_be_visible()
     expect(owed).to_have_text("2")
+    assert show.bounding_box() == shown
     # The pressed Undo is gone, and Escape still puts the view away.
     page.keyboard.press("Escape")
     expect(view).to_have_count(0)
@@ -4291,7 +4293,7 @@ def test_a_press_arriving_in_a_line_of_answers_moves_nothing(browser, serve, tou
       const words = line.getBoundingClientRect().height;
       const press = document.createElement('button');
       press.type = 'button';
-      press.className = 'lf-fp-answer';
+      press.className = 'lf-fp-face lf-fp-quiet';
       press.textContent = 'Undo';
       line.append(press);
       return [words, line.getBoundingClientRect().height];
@@ -4348,26 +4350,19 @@ def test_a_finger_finds_the_keyboard_s_conveniences_under_navigate(browser, serv
 def test_the_share_link_shows_where_it_can_be_selected_without_a_clipboard(
     browser, serve
 ):
-    """A browser offers the clipboard only to a secure context, so a page read from
-    another machine over plain http cannot copy. The menu's Copy link gives way to the
-    link in About, in a field the user can select, with no copy control that could only
-    fail, saying what the link grants."""
+    """About keeps the link readable and a copy control even without a Clipboard API;
+    the shared control owns plain-HTTP copying and browser permission failures."""
     no_clipboard = "Object.defineProperty(Navigator.prototype, 'clipboard', {get: () => undefined});"
     page = open_page(browser, serve(LONG_PAGE), init_script=no_clipboard)
     page.locator(".lf-fp-leaf").click()
     expect(page.locator(".lf-fp-menu")).not_to_contain_text("Copy link")
     page.locator(".lf-fp-menu .lf-fp-item", has_text="About this page").click()
-    share = page.locator(".lf-fp-copy", has_text="Link")
-    link = share.locator(".lf-fp-copy-text")
-    expect(link).to_have_value(re.compile(r"^http://.*[?&]t="))
-    expect(link).to_have_accessible_name("Link")
-    expect(share.get_by_role("button", name=re.compile("Copy"))).to_have_count(0)
-    expect(share).to_contain_text("Grants access")
-    link.focus()
-    selected = (
-        "(e => e.value.slice(e.selectionStart, e.selectionEnd))(document.activeElement)"
-    )
-    assert page.evaluate(selected) == link.input_value()
+    about = page.get_by_role("dialog", name="About this page", exact=True)
+    link = about.get_by_label("Link", exact=True)
+    expect(link).to_contain_text(re.compile(r"^http://.*[?&]t="))
+    expect(about.get_by_role("button", name="Copy Link", exact=True)).to_be_visible()
+    expect(about).to_contain_text("Grants access")
+    page.keyboard.press("Escape")
 
 
 def test_a_page_thread_opens_in_the_panel_from_the_page_s_routes(browser, serve):

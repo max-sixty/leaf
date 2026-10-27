@@ -116,6 +116,7 @@ function paintStand(box = null) {
 	root.className = "lf-ui lf-target-paint lf-paint-stand";
 	root.setAttribute("aria-hidden", "true");
 	root.style.position = "fixed";
+	if (box) root.style.setProperty("--lf-paint-outset", "var(--focus-ring-w)");
 	const carrier = document.createElement("div");
 	carrier.className = "lf-paint-carrier";
 	if (box) carrier.append(box);

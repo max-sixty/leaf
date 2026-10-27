@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 import pytest
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
-from render_cases_interaction import PANEL_PAGE, panel_comment
+from render_cases_interaction import HOLD_MOTION, PANEL_PAGE, panel_comment
 from render_harness import (
     open_page,
     resized,
@@ -149,6 +149,27 @@ def test_a_press_in_the_card_keeps_the_pressed_spot_still(browser, serve, how):
     rendered(page)
     pressed = disclosure.bounding_box()
     compact = preview.bounding_box()
+    original_motion = page.evaluate_handle("() => Element.prototype.animate")
+    page.evaluate("() => {" + HOLD_MOTION + "}")
+
+    def expect_pressed_spot():
+        for progress in (0, 0.5, 1):
+            page.evaluate(
+                """progress => window.__lfHeld.forEach(m => {
+                  if (m.playState !== 'idle')
+                    m.currentTime = m.effect.getTiming().duration * progress;
+                })""",
+                progress,
+            )
+            box = disclosure.bounding_box()
+            assert (box["x"], box["y"]) == pytest.approx(
+                (pressed["x"], pressed["y"]), abs=0.5
+            ), progress
+        page.evaluate(
+            """() => window.__lfHeld.splice(0).forEach(m => {
+              if (m.playState !== 'idle') m.finish();
+            })"""
+        )
 
     if how == "key":
         disclosure.focus()
@@ -158,10 +179,7 @@ def test_a_press_in_the_card_keeps_the_pressed_spot_still(browser, serve, how):
     expect(disclosure).to_have_text("Hide 3 progress messages")
     expect(preview).to_contain_text("Checking both schemes")
     rendered(page)
-    after = disclosure.bounding_box()
-    assert (after["x"], after["y"]) == pytest.approx(
-        (pressed["x"], pressed["y"]), abs=0.5
-    )
+    expect_pressed_spot()
 
     expanded = preview.bounding_box()
     assert expanded["height"] > compact["height"]
@@ -173,10 +191,11 @@ def test_a_press_in_the_card_keeps_the_pressed_spot_still(browser, serve, how):
     rendered(page)
     assert preview.bounding_box()["height"] == pytest.approx(compact["height"], abs=0.5)
     expect(disclosure).to_be_focused()
-    collapsed = disclosure.bounding_box()
-    assert (collapsed["x"], collapsed["y"]) == pytest.approx(
-        (after["x"], after["y"]), abs=0.5
+    expect_pressed_spot()
+    page.evaluate(
+        "original => { Element.prototype.animate = original; }", original_motion
     )
+    original_motion.dispose()
 
     close = preview.get_by_role("button", name="Dismiss thread view", exact=True)
     head = close.bounding_box()

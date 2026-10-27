@@ -956,15 +956,15 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 		function grow(part, from) {
 			const to = part.box;
 			motions.set(part.element, {
-				from,
+				from: to,
 				to
 			});
-			const drawnTo = shifted(to, ...carriedBy(0)(part.element.parentElement));
+			carry(part, to);
 			cutFrom(part.element, [
-				from.top - drawnTo.top,
-				drawnTo.right - from.right,
-				drawnTo.bottom - from.bottom,
-				from.left - drawnTo.left
+				from.top - to.top,
+				to.right - from.right,
+				to.bottom - from.bottom,
+				from.left - to.left
 			].map((inset) => Math.max(0, inset)), radiusOf(part.style));
 		}
 		function reveal(part, frame, siblings) {
@@ -1126,9 +1126,9 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 				if (!sized && rings(style)) drawRing(element, style, from, to);
 				else if (!sized && paints(style) && !part.holdsWindow) carries ? carryContent(part, from) : grow(part, from);
 				if (!same(from, to)) motions.set(element, {
-					...motions.get(element),
 					from,
 					to,
+					...motions.get(element),
 					frames: true
 				});
 			}

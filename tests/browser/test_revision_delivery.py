@@ -1,9 +1,12 @@
 """Captured dependency addresses are independent of the document's public URL."""
 
+import json
 import struct
+import subprocess
 from urllib.parse import quote
 
 import pytest
+from conftest import LEAF_COMMAND
 from playwright.sync_api import expect
 from render_harness import leaf_page, open_page
 
@@ -86,3 +89,39 @@ def test_image_reference_capture_matches_browser_delivery(browser, serve, src):
     )
     page = open_page(browser, url)
     expect(page.locator("#image")).to_have_js_property("naturalWidth", 13)
+
+
+def test_page_code_fetches_a_page_file_nothing_names(browser, serve):
+    """A revision holds every file under page/, so a module fetching one by a URL it
+    computes draws it, in a served version and under `page check --render`."""
+    source = leaf_page(
+        "Page data", '<h1 id="title">Page data</h1><p id="message">Waiting</p>'
+    )
+    source = source.replace(
+        "</head>", '<script type="module" src="/page/app.js"></script></head>'
+    )
+    url = serve(
+        source,
+        packages=(),
+        page_files={
+            "app.js": """
+const url = new URL("./tables/data.json", import.meta.url);
+const response = await fetch(url);
+if (!response.ok) throw new Error(`${url}: ${response.status}`);
+document.getElementById("message").textContent = (await response.json()).message;
+""",
+            "tables/data.json": '{"message": "Drawn from page data"}',
+        },
+    )
+    page = open_page(browser, url)
+    expect(page.locator("#message")).to_have_text("Drawn from page data")
+
+    checked = subprocess.run(
+        [*LEAF_COMMAND, "page", "check", str(serve.page_dir), "--render"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    report = json.loads(checked.stdout)
+    assert report["browser"]["ran"] == ["page code", "render check"], report
+    assert [f for f in report["findings"] if f["severity"] == "error"] == []

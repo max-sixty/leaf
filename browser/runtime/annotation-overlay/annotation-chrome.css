@@ -137,8 +137,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   /* Floating, the box moves as the card it grows into does (floating-response.js,
      box-motion.js): the composer is a box of its own in the frame's field row, holding
      what moves, and the field's frame is the box its surface draws, its border the
-     surface's ring showing through it, in the field's own face. The editor paints
-     nothing of its own, so its words travel inside the frame while it moves. */
+     surface's ring showing through the pixel its own face leaves round it. The editor
+     paints nothing of its own, so its words travel inside the frame while it moves. */
   .lf-fab-bar:not([data-lf-presentation="inline"]) > .lf-composer[data-lf-open] {
     display: grid;
     grid-column: 1;
@@ -154,9 +154,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     grid-row: 1;
     align-self: stretch;
     grid-template-rows: minmax(0, 1fr);
-    border: 1px solid transparent;
+    padding: 1px;
     border-radius: var(--r);
-    background: var(--card) padding-box;
+    background: var(--card) content-box;
   }
   .lf-fab-bar:not([data-lf-presentation="inline"]) leaf-text.lf-fab-input {
     min-height: 0;
@@ -188,7 +188,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   }
   /* The focus ring stands outside the field in place of its border. */
   .lf-fab-bar:has(leaf-text.lf-fab-input[data-lf-focus-visible]) > .lf-fab-ground {
-    --lf-box-ring: transparent;
+    --lf-box-ring: var(--card);
   }
   /* Attached images hang off the box on the side away from its passage, outside its
      frame, so attaching neither grows the box nor moves a word and the passage stays in

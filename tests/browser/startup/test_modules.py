@@ -337,7 +337,8 @@ def test_words_typed_while_the_editor_loads_are_its_first_words(engine, request,
 
 def test_a_kept_draft_and_an_input_method_reach_the_editor_as_it_loads(browser, serve):
     """While CodeMirror loads, a field's kept draft stands in its place with the caret
-    where the draft left it, so words typed on arrival follow the draft. Words an input
+    where the draft left it, so words typed on arrival follow the draft, and a selection
+    the page sets is where typing lands. Words an input
     method is still composing as CodeMirror lands join the field once committed, once."""
     context = browser.new_context(viewport={"width": 1280, "height": 800})
     page = open_page(browser, serve(LONG_PAGE), context=context)
@@ -354,6 +355,10 @@ def test_a_kept_draft_and_an_input_method_reach_the_editor_as_it_loads(browser, 
         expect(field).to_be_focused()
         page.keyboard.type(" words")
         expect(field).to_have_js_property("value", "Kept words")
+        # A selection the page sets stands where the user types next.
+        field.evaluate("(field) => field.setSelectionRange(0, 4)")
+        page.keyboard.type("Held")
+        expect(field).to_have_js_property("value", "Held words")
         page.keyboard.press("ControlOrMeta+a")
         page.keyboard.press("Backspace")
         expect(field).to_have_js_property("value", "")

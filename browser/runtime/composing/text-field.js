@@ -945,9 +945,14 @@ class LeafText extends HTMLElement {
     const to = Math.min(Math.max(Number(end) || 0, 0), length);
     const from = Math.min(Math.max(Number(start) || 0, 0), to);
     const [anchor, head] = direction === "backward" ? [to, from] : [from, to];
+    // A draft's caret also stands in its place, where typing lands until the editor
+    // builds and which the editor builds from (`#readRest`).
     this.#change(
       () => ({ selection: { anchor, head } }),
-      (draft) => Object.assign(draft, { anchor, head }),
+      (draft) => {
+        Object.assign(draft, { anchor, head });
+        this.#paintRest();
+      },
     );
   }
   select() {

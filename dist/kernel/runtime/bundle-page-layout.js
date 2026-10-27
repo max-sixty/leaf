@@ -1434,10 +1434,13 @@ var LeafText = class extends HTMLElement {
 		this.#change(() => ({ selection: {
 			anchor,
 			head
-		} }), (draft) => Object.assign(draft, {
-			anchor,
-			head
-		}));
+		} }), (draft) => {
+			Object.assign(draft, {
+				anchor,
+				head
+			});
+			this.#paintRest();
+		});
 	}
 	select() {
 		this.setSelectionRange(0, this.#length);

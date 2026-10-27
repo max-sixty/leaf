@@ -689,10 +689,9 @@ def test_obligation_repaints_keep_the_on_me_view_s_reading(browser, serve):
         browser, serve(leaf_page("Reading the Question inventory", questions))
     )
     resized(page, 1200, 900)
-    # The walk starts from the Ask the reader stands at, the first, so it arrives at
-    # the second.
+    # With nothing focused, the walk enters the first Ask the reader sees.
     page.keyboard.press("m")
-    expect(page.locator("#ask-1")).to_be_focused()
+    expect(page.locator("#ask-0")).to_be_focused()
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     panel_settled(page, view="queue")

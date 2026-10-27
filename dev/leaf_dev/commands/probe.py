@@ -8,6 +8,11 @@ path, built fresh with the checkout's own launcher, so the working tree runs,
 uncommitted edits included. `--base` adds the same page on an arm at the merge base
 with `main`, or at the ref it names. An arm that fails prints the stage and error and
 the next arm still runs, since a probe is most often run where one version is broken.
+
+`--log` starts the page from a log that already holds given events: threads, replies,
+resolutions, a message still waiting for its delivery. Each arm admits them through its
+own `event_contracts.append_admitted` (`arms.admit_log`) after the source's companion
+history, which a receipt acknowledges, so they stay unacknowledged as a writer's would.
 """
 
 import json
@@ -24,7 +29,7 @@ from leaf.findings import Finding
 from leaf.render_checks import PageNotReady
 from leaf.render_gate.scheme import collect_page_exceptions, console_finding
 from leaf_dev import ROOT
-from leaf_dev.arms import base_ref, build_arm, serving_source
+from leaf_dev.arms import base_ref, extract_arm, serving_source
 from leaf_dev.browser import (
     DESKTOP,
     headless_engine,
@@ -100,6 +105,11 @@ def viewport(value: str) -> tuple[int, int]:
     help="A JavaScript expression or function to evaluate once settled; "
     "its JSON value is the result.",
 )
+@click.option(
+    "--log",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="A JSON-lines file of events to admit before the page loads.",
+)
 @click.option("--shot", is_flag=True, help="Screenshot the viewport.")
 @click.option(
     "--journey",
@@ -171,6 +181,7 @@ def probe(
     source,
     steps,
     expression,
+    log,
     shot,
     journey,
     record_dir,
@@ -189,7 +200,10 @@ def probe(
     and print what --js returns.
 
     SOURCE is an example or fixture name, an authored .html path built fresh
-    from this working tree, or any http(s) URL. Each --do step is one input:
+    from this working tree, or any http(s) URL. A path takes its companions from
+    beside it (examples/AGENTS.md, "Companions"), so a copy of an example that
+    imports /page/theme.css needs its STEM.page/ copied too. Each --do step is
+    one input:
 
     \b
       press:KEY     a key or chord, as Playwright names it (Tab, Shift+a)
@@ -201,6 +215,20 @@ def probe(
     input to inspect their rings. Text editors retain their entry cue.
     --base takes an optional ref, so put
     SOURCE before it or give it one (--base=REF).
+
+    --log FILE admits each line, one event as its writer would hand it to the
+    log, after the source's own history and before the page loads, so a user's
+    message in it is still waiting for its delivery. A line may name its id for a
+    later one to answer; give the revision a message was made on:
+
+    \b
+      {"kind":"comment","author":"user","revision":1,"id":"q","text":"Can the gutters wait?","anchor":{"section":"gutters"}}
+      {"kind":"reply","author":"agent","agent":"Codex","parent":"q","revision":1,"text":"Until spring, yes."}
+      {"kind":"resolve","author":"user","parent":"q"}
+
+    News that arrives while the user is in a thread is input after load, not
+    history: drive:card-held-news on review-a-plan, drive:seat-held-news on
+    command-hub, or a --journey that writes as stills.py's held_news does.
 
     Prints one JSON line per arm: startup phases and resources; native layout shifts
     through the journey, including recent input and affected node rectangles;
@@ -242,8 +270,8 @@ def probe(
         )
     if throttle and engine != "chromium":
         raise click.UsageError(f"--cpu-throttle needs Chromium's CDP, not {engine}")
-    if isinstance(source, str) and base is not None:
-        raise click.UsageError("--base requires a Leaf source, not a URL")
+    if isinstance(source, str) and (base is not None or log):
+        raise click.UsageError("--base and --log require a Leaf source, not a URL")
     run = None
     if journey:
         run = runpy.run_path(str(journey.resolve())).get("run")
@@ -260,7 +288,7 @@ def probe(
         scratch = Path(built)
         arms = {"worktree": ("worktree", ROOT)}
         if base is not None:
-            commit = build_arm(base_ref(base), scratch / "base-arm")
+            commit = extract_arm(base_ref(base), scratch / "base-arm")
             arms = {"base": (commit, scratch / "base-arm"), **arms}
         with (
             headless_shell() if engine == "chromium" else headless_engine(engine)
@@ -272,7 +300,7 @@ def probe(
                         (
                             nullcontext(source)
                             if isinstance(source, str)
-                            else serving_source(arm_dir, source, scratch / arm)
+                            else serving_source(arm_dir, source, scratch / arm, log)
                         ) as address,
                         tab(browser, size, scheme, touch, motion=motion) as page,
                         (

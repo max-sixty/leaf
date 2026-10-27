@@ -738,7 +738,12 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
     before = option.bounding_box()
     option.click()
     expect(mark).to_have_text("selected")
-    assert mark.evaluate("el => getComputedStyle(el).fontSize") != "0px"
+    expect(mark).to_have_css("font-size", "0px")
+    expect(mark).to_have_css("opacity", "1")
+    assert mark.evaluate("el => getComputedStyle(el, '::before').content") == '"✓"'
+    assert (
+        mark.evaluate("el => parseFloat(getComputedStyle(el, '::before').fontSize)") > 0
+    )
     assert option.bounding_box() == before, "the selected header state resized its card"
 
     state = mark.bounding_box()
@@ -1232,7 +1237,7 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     offer = """el => { const cs = getComputedStyle(el);
         const stateRoom = getComputedStyle(el, '::before');
         return { cursor: cs.cursor, box: cs.borderTopWidth,
-                 stateRoom: stateRoom.content === 'none' ? 0 : stateRoom.width }; }"""
+                 stateRoom: stateRoom.content === 'none' ? 0 : parseFloat(stateRoom.width) }; }"""
     quoted_card, live_card = (
         page.locator(sel).evaluate(offer) for sel in ("#q-shim", "#l-shim")
     )
@@ -1252,7 +1257,7 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     )
     # The live card reserves one header slot for either its chosen state or keyboard
     # binding badge. An exhibit can grow neither, so its title keeps that room.
-    assert quoted_card["stateRoom"] == 0 and live_card["stateRoom"] == "80px", (
+    assert quoted_card["stateRoom"] == 0 and live_card["stateRoom"] > 0, (
         "the exhibit reserves the live card's header state slot: "
         f"{quoted_card['stateRoom']} vs {live_card['stateRoom']}"
     )
@@ -1372,8 +1377,8 @@ def test_a_group_of_bare_labels_reads_as_a_question_about_the_page(browser, serv
     an offer states nothing a user could disagree with. The forms differ in how they
     make that offer visible: a compact row needs its leading mark to declare its target,
     while a titled single-choice card is already one framed, divided, hoverable target
-    and keeps the corner quiet until it has state to report. A picked row keeps the
-    compact check; a picked card turns the same generated control into a header status.
+    and reserves a corner for its mark. A picked row and a picked card both keep a
+    compact check without a visible status caption.
     (`multiple` keeps boxes in both forms, because that shape is what says several
     answers may stand.) A row's name is
     what the author wrote in it: the mark that lands inside the row once it is picked is
@@ -1426,9 +1431,8 @@ def test_a_group_of_bare_labels_reads_as_a_question_about_the_page(browser, serv
     assert page.locator("#job-camera .lf-ref").count() == 0
 
     # No open mark says its word in either form. The compact row draws its target; the
-    # titled single-choice card leaves its state slot quiet until picked. The controls
-    # still share one accessible contract, while their paint follows the amount of
-    # structure their form already supplies.
+    # titled single-choice card draws its target in the corner. Both forms keep the
+    # selected word for the accessible name and draw a compact check when picked.
     hidden = "el => getComputedStyle(el).fontSize"
     dot = "el => getComputedStyle(el, '::before').visibility"
     assert page.locator("#job-mounts .lf-pick").evaluate(hidden) == "0px"
@@ -1438,7 +1442,13 @@ def test_a_group_of_bare_labels_reads_as_a_question_about_the_page(browser, serv
 
     page.locator("#br-steel").click()
     expect(page.locator("#br-steel .lf-pick")).to_have_text("selected")
-    assert page.locator("#br-steel .lf-pick").evaluate(hidden) != "0px"
+    mark = page.locator("#br-steel .lf-pick")
+    expect(mark).to_have_css("font-size", "0px")
+    expect(mark).to_have_css("opacity", "1")
+    assert mark.evaluate("el => getComputedStyle(el, '::before').content") == '"✓"'
+    assert (
+        mark.evaluate("el => parseFloat(getComputedStyle(el, '::before').fontSize)") > 0
+    )
 
     page.locator("#job-heater").click()
     expect(page.locator("#job-heater[chosen]")).to_have_count(1)

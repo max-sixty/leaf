@@ -39,6 +39,7 @@ from interact_support import (
     wait_for,
 )
 from leaf_dev.commands import preview
+from leaf_dev.commands.distribution import cache_root
 from leaf_dev.page_fixtures import read_fixture, record_run_context
 
 from leaf import cli as cli_model
@@ -115,7 +116,7 @@ def test_desktop_user_preview_survives_instance_unload_with_live_feedback(
         acquired = service.page_claim(page)["acquisition"]
         before = state.session_record(sid)
         delivery_runtime = Path(before["launcher"]).parent.parent
-        assert delivery_runtime.is_relative_to(ROOT / ".tmp/compiled-runtime")
+        assert delivery_runtime.is_relative_to(cache_root())
         assert (delivery_runtime / "leaf-distribution.json").is_file()
         old = time.time() - timedelta(hours=12).total_seconds()
         claim_path = service.claim_path(page)
@@ -146,7 +147,7 @@ def test_desktop_user_preview_survives_instance_unload_with_live_feedback(
         )
         assert ended.returncode == 0, ended.stderr
         assert state.session_record(sid)["generation"] == before["generation"]
-        assert state.holds_claims(sid)
+        assert state.held_claims(sid)
         assert leases.lock_is_held(preview.preview_lease(page))
         assert server.running_server(page)["url"] == url
 

@@ -78,10 +78,9 @@
    * Layout arranges (above). Live, a column down the left holds what the page writes
    * before the parts, its title, and under it the parts' list (its `tablist`); the open
    * part takes the rest of the width from the top of the page. Title and list both stand
-   * fixed in the window, the list below the title by the title's height, which
-   * prepaint.js measures (`--lf-parts-title-h`), since no CSS can stack one such box
-   * under another of unknown height; the grid keeps their column's width. A title too
-   * tall to leave the list 8rem, a few names' room, scrolls on its own, so neither stands
+   * fixed in the window, the list anchored below the title; the grid keeps their
+   * column's width. A title too tall to leave the list 8rem, a few names' room,
+   * scrolls on its own, so neither stands
    * out of reach in a short window. So the column stands still whichever part is open
    * and wherever it is read, the rubber band at the page's end included: every engine
    * holds a fixed box still through overscroll, while Firefox and Chrome move a stuck
@@ -137,6 +136,7 @@
       ) {
       grid-column: 1;
       grid-row: 1;
+      anchor-name: --lf-parts-title;
       position: fixed;
       top: var(--lf-top);
       box-sizing: border-box;

@@ -1282,6 +1282,10 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     def sweep(where):
         violations, report = serious_axe_violations(page)
         assert violations == [], f"{where}: {report}"
+        unread = overlapped_words(page)
+        assert unread == [], (
+            f"{where}: no contrast read under a box that paints nothing: {unread}"
+        )
 
     sweep("the page as it arrives")
 

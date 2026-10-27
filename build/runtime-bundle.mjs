@@ -138,50 +138,10 @@ async function nativeRuntimeEntries(layerRoot, assetRoot) {
   return { entries: [...entries].sort(), imports };
 }
 
-/** Where a module awaits outside every function, or null.
- *
- * One such await anywhere in a build turns off rolldown's chunk optimization
- * (`mergeCommonChunks`, `avoidRedundantChunkLoads`) for every module in it, since
- * that is how rolldown keeps a waiting module's execution order, and it says
- * nothing. When leaf.js awaited at its top level, every page loaded eleven more
- * kernel chunks before it presented.
- */
-function topLevelAwait(program) {
-  const visit = (node) => {
-    if (/Function/.test(node.type)) return null;
-    if (
-      node.type === "AwaitExpression" ||
-      (node.type === "ForOfStatement" && node.await) ||
-      (node.type === "VariableDeclaration" && node.kind === "await using")
-    )
-      return node;
-    for (const value of Object.values(node))
-      for (const child of [value].flat())
-        if (typeof child?.type === "string") {
-          const found = visit(child);
-          if (found) return found;
-        }
-    return null;
-  };
-  return visit(program);
-}
-
-/** Keep native modules at their public URLs and compiled modules in one graph, and,
- * where `refuseAwaits`, refuse a compiled module that awaits at its top level
- * (`topLevelAwait`). */
-function moduleBoundaries(layerRoot, assetRoot, refuseAwaits) {
+/** Keep native modules at their public URLs and compiled modules in one graph. */
+function moduleBoundaries(layerRoot, assetRoot) {
   return {
     name: "leaf-module-boundaries",
-    transform(code, path) {
-      if (!refuseAwaits || !code.includes("await")) return null;
-      const found = topLevelAwait(this.parse(code, { sourceType: "module" }));
-      if (found)
-        this.error(
-          `${browserPath(relative(layerRoot, path))} awaits at its top level, which turns off the bundler's chunk merging for the whole build: await inside a function the module calls`,
-          found.start,
-        );
-      return null;
-    },
     resolveId(path, importer) {
       if (!importer || !/^[./]/.test(path)) return null;
       const rooted = path.startsWith("/");
@@ -279,7 +239,7 @@ function kernelFacts(layerRoot, read) {
 }
 
 /** Compile one graph in memory; an asset root names the website's resource scope. */
-async function compile(layerRoot, entries, assetRoot, minify, refuseAwaits = true) {
+async function compile(layerRoot, entries, assetRoot, minify) {
   const native = await nativeRuntimeEntries(layerRoot, assetRoot);
   entries = [...new Set([...entries, ...native.entries])];
   const inlined = new Set();
@@ -294,7 +254,7 @@ async function compile(layerRoot, entries, assetRoot, minify, refuseAwaits = tru
     preserveEntrySignatures: "strict",
     plugins: [
       kernelFacts(layerRoot, inlined),
-      moduleBoundaries(layerRoot, assetRoot, refuseAwaits),
+      moduleBoundaries(layerRoot, assetRoot),
     ],
     output: {
       format: "esm",
@@ -377,7 +337,7 @@ async function layerModules(layerRoot) {
  * which a runtime serving it no longer carries. The modules it leaves native, such as the classic scripts
  * nothing imports, are served from source beside it.
  */
-export async function kernelOutputs(layerRoot, { refuseAwaits = true } = {}) {
+export async function kernelOutputs(layerRoot) {
   layerRoot = await realpath(layerRoot);
   const entries = [...runtimeEntries];
   for (const entry of diagnosticEntries) {
@@ -387,7 +347,7 @@ export async function kernelOutputs(layerRoot, { refuseAwaits = true } = {}) {
       if (error.code !== "ENOENT") throw error;
     }
   }
-  const result = await compile(layerRoot, entries, null, false, refuseAwaits);
+  const result = await compile(layerRoot, entries, null, false);
   const files = new Map(
     result.output.map((file) => [file.fileName, Buffer.from(file.code)]),
   );
@@ -417,10 +377,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   if (process.argv.length !== 4)
     throw new Error("usage: node build/runtime-bundle.mjs LAYER KERNEL");
   const kernel = resolve(process.argv[3]);
-  // A comparison arm's kernel (dev/leaf_dev/commands/distribution.py), which may be
-  // an older tree's whose modules await at their top level: it still compiles, as
-  // that tree's own build compiled it. This tree's build refuses one.
-  const files = await kernelOutputs(resolve(process.argv[2]), { refuseAwaits: false });
+  const files = await kernelOutputs(resolve(process.argv[2]));
   await rm(kernel, { force: true, recursive: true });
   for (const [name, bytes] of files) {
     await mkdir(dirname(join(kernel, name)), { recursive: true });

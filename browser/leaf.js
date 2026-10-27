@@ -147,7 +147,7 @@ import { mediaViewer } from "./runtime/media.js";
 import { retainUserIntent, restrictUserIntent } from "./runtime/user-intent.js";
 
 // The boot runs in a function, since a compiled module awaits nothing at its top
-// level (`topLevelAwait` in build/runtime-bundle.mjs says why). A failure
+// level (`topLevelAwaitRule` in eslint.config.mjs says why). A failure
 // still reaches the window as the uncaught error a rejected module evaluation was,
 // which the prepaint reads as a startup fault.
 async function boot() {

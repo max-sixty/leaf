@@ -1175,9 +1175,19 @@ main {
   inherits: true;
   initial-value: 0px;
 }
-/* Lengths a script reads (box-motion.js reads --raise-2's and --raise-3's to cut the
- * panel's and the margin card's ground; margin-layout.js reads the rail's hang),
- * registered so it gets resolved pixels whatever units the theme writes them in. */
+/* Lengths a script reads (box-motion.js reads a floating box's lift to cut its
+ * surface; margin-layout.js reads the rail's hang), registered so it gets resolved
+ * pixels whatever units the theme writes them in. */
+@property --raise-1-drop {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
+@property --raise-1-blur {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
 @property --raise-2-drop {
   syntax: "<length>";
   inherits: true;

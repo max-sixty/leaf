@@ -114,14 +114,25 @@ export function createFloatingResponsePlacement({
   // that moves it whole moves nothing in it. A box no placement stands has nothing to
   // move from, and one seated in a widget's outlet stands in that widget's flow.
   let following = null;
-  const followFab = () => {
+  const readFab = () => {
     if (!following && !response.open) return;
     if (!response.floating || !fabBar.hasAttribute("data-lf-placement"))
       return following?.forget();
     following ??= fabMotion();
     following.follow();
   };
-  const followed = sizeObserver(followFab);
+  // A change of the open box's size can move its placement too, as a line taking it
+  // past the window's edge shifts it. That placement lands asynchronously, but before
+  // this frame paints, so the reading waits for it and the box travels once, from
+  // where it was drawn to where it then stands. Read first, the box set out for where
+  // its old placement stood it and turned back a frame later.
+  const followed = sizeObserver(() => {
+    if (following && response.open && fabBar.hasAttribute("data-lf-placement")) {
+      nativeAttachment = false;
+      if (placeFab()) return;
+    }
+    readFab();
+  });
   function fabMotion() {
     const box = fabField();
     const motion = boxMotion({
@@ -168,7 +179,7 @@ export function createFloatingResponsePlacement({
       ).toJSON(),
       placement: fabPlacement.capture(),
       // The field the card grows out of (thread-preview.js, `followCard`).
-      field: field.toJSON(),
+      field: following?.outline() ?? field.toJSON(),
       // How far the words stand above their end: where the user was reading them,
       // which the card Send opens keeps (thread-preview.js, `showArrival`).
       fromEnd: fabInput.scrollHeight - fabInput.clientHeight - fabInput.scrollTop,
@@ -508,7 +519,7 @@ export function createFloatingResponsePlacement({
         positioned(true);
         stoodAgain();
         // The box's spot is the first reading its motion follows from.
-        followFab();
+        readFab();
         return true;
       })
       .catch((error) => {

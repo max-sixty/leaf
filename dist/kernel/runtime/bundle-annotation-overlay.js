@@ -2493,13 +2493,19 @@ function createFloatingResponsePlacement({ bar: fabBar, input: fabInput, respons
 	fabBar.append(carry.grip);
 	const fabField = () => fabInput.parentElement;
 	let following = null;
-	const followFab = () => {
+	const readFab = () => {
 		if (!following && !response.open) return;
 		if (!response.floating || !fabBar.hasAttribute("data-lf-placement")) return following?.forget();
 		following ??= fabMotion();
 		following.follow();
 	};
-	const followed = sizeObserver(followFab);
+	const followed = sizeObserver(() => {
+		if (following && response.open && fabBar.hasAttribute("data-lf-placement")) {
+			nativeAttachment = false;
+			if (placeFab()) return;
+		}
+		readFab();
+	});
 	function fabMotion() {
 		const box = fabField();
 		const motion = boxMotion({
@@ -2530,7 +2536,7 @@ function createFloatingResponsePlacement({ bar: fabBar, input: fabInput, respons
 		return {
 			box: new DOMRect(field.left - left * scaleX, field.top - top * scaleY, width * scaleX, height * scaleY).toJSON(),
 			placement: fabPlacement.capture(),
-			field: field.toJSON(),
+			field: following?.outline() ?? field.toJSON(),
 			fromEnd: fabInput.scrollHeight - fabInput.clientHeight - fabInput.scrollTop
 		};
 	};
@@ -2745,7 +2751,7 @@ function createFloatingResponsePlacement({ bar: fabBar, input: fabInput, respons
 			nativeAttachment = response.open && fabPosition.follows();
 			positioned(true);
 			stoodAgain();
-			followFab();
+			readFab();
 			return true;
 		}).catch((error) => {
 			if (!stillCurrent()) return;

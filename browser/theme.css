@@ -1667,6 +1667,8 @@ main {
 }
 @property --lf-width { syntax: "<length>"; inherits: true; initial-value: 0px; }
 @property --lf-top { syntax: "<length>"; inherits: true; initial-value: 0px; }
+@property --raise-1-drop { syntax: "<length>"; inherits: true; initial-value: 0px; }
+@property --raise-1-blur { syntax: "<length>"; inherits: true; initial-value: 0px; }
 @property --raise-2-drop { syntax: "<length>"; inherits: true; initial-value: 0px; }
 @property --raise-2-blur { syntax: "<length>"; inherits: true; initial-value: 0px; }
 @property --raise-3-drop { syntax: "<length>"; inherits: true; initial-value: 0px; }

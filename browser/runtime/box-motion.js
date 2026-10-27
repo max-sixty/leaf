@@ -1,9 +1,12 @@
 /* How a floating box follows a change of its layout, whatever made the change, a line
  * the field gained, more room, a view opening, the box folding to its leaf: the one model
- * of motion for the floating panel (floating-panel.js, `followBox`) and the margin
- * thread card (thread-preview.js, `followCard`). The user asked on 25 October for one
- * canonical animation, after a card's send jumped to its new turn's head while a second
- * mechanism slid its words by scrolling.
+ * of motion for the floating panel (floating-panel.js, `followBox`), the margin thread
+ * card (thread-preview.js, `followCard`) and the comment box beside a passage
+ * (composing/floating-response.js, `followFab`), whose Send grows the card out of its
+ * field (`drawnAt`). The user asked on 25 October for one canonical animation, after a
+ * card's send jumped to its new turn's head while a second mechanism slid its words by
+ * scrolling, and on 26 October for the comment box to move the same way, which grew a
+ * line in one frame and grew its card by a clip of its own on another clock.
  *
  * The layout changes in one step, so nothing a press aims at waits on a tween, and what
  * the user sees then travels from where it was drawn to where it now stands, every part
@@ -133,13 +136,17 @@ function listen() {
   window.addEventListener("click", beginGesture, { capture: true, passive: true });
 }
 
-// How far a lift of the theme's (`--raise-N`, theme.css) paints past the box it raises:
-// its drop and its blur, read off `element`, where the theme registers them as lengths.
+// How far a lift of the theme's (`--raise-N`, theme.css) paints past the box it raises,
+// cast as a filter's drop shadow: its drop, and twice its blur, which a filter takes as
+// the deviation of its Gaussian, so the shadow has faded to nothing seen by then. Read
+// off `element`, where the theme registers them as lengths. Cut at the drop and one
+// blur, the shadow stopped in a step.
 export const liftReach = (element, level) => {
   const lift = getComputedStyle(element);
-  return ["drop", "blur"]
-    .map((part) => Number.parseFloat(lift.getPropertyValue(`--raise-${level}-${part}`)))
-    .reduce((reach, part) => reach + part);
+  const [drop, blur] = ["drop", "blur"].map((part) =>
+    Number.parseFloat(lift.getPropertyValue(`--raise-${level}-${part}`)),
+  );
+  return drop + 2 * blur;
 };
 
 const near = (a, b) => Math.abs(a - b) < 0.5;
@@ -875,7 +882,11 @@ export function boxMotion({
     motions.set(box, { from: boxFrom, to: boxAt });
     for (const [layer, reach] of surface())
       start(layer, contour(boxFrom, boxAt, reach, boxRadius, compact));
+    // A ring the box comes to wear while it moves, as focus reaching the card a
+    // comment's Send opened does, would stand at the box's rest size over an outline
+    // still travelling, so it waits for the tween's end.
     if (rings(boxStyle)) drawRing(box, boxStyle, boxFrom, boxAt, compact);
+    else hold(box, "outlineColor", "transparent");
     // The box stands transparent over the surface's own fill while everything moves,
     // and lets what it carries stand past its rest outline on the way.
     hold(box, "backgroundColor", "transparent");
@@ -943,6 +954,14 @@ export function boxMotion({
       rebase();
       place();
       frame = boxOf(root.getBoundingClientRect());
+    },
+    // The box's outline where it is drawn now, in the window: where its motion has
+    // carried it, or its rest.
+    outline() {
+      const moving = motions.get(box);
+      const progress = running[0]?.effect.getComputedTiming().progress ?? 1;
+      if (moving && progress < 1) return interpolate(moving.from, moving.to, progress);
+      return boxOf(box.getBoundingClientRect());
     },
     // The box was drawn a moment ago at `rect`, in the window, as the card a comment's
     // Send opens was the field it replaces: the next reading draws the box's outline

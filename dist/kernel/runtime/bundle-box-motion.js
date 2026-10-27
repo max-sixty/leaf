@@ -643,7 +643,8 @@ function listen() {
 }
 const liftReach = (element, level) => {
 	const lift = getComputedStyle(element);
-	return ["drop", "blur"].map((part) => Number.parseFloat(lift.getPropertyValue(`--raise-${level}-${part}`))).reduce((reach, part) => reach + part);
+	const [drop, blur] = ["drop", "blur"].map((part) => Number.parseFloat(lift.getPropertyValue(`--raise-${level}-${part}`)));
+	return drop + 2 * blur;
 };
 const near = (a, b) => Math.abs(a - b) < .5;
 const boxOf = (rect) => ({
@@ -1202,6 +1203,7 @@ function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer, h
 		});
 		for (const [layer, reach] of surface()) start(layer, contour(boxFrom, boxAt, reach, boxRadius, compact));
 		if (rings(boxStyle)) drawRing(box, boxStyle, boxFrom, boxAt, compact);
+		else hold(box, "outlineColor", "transparent");
 		hold(box, "backgroundColor", "transparent");
 		hold(box, "overflow", "visible");
 		const animations = running;
@@ -1249,6 +1251,12 @@ function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer, h
 			rebase();
 			place();
 			frame = boxOf(root.getBoundingClientRect());
+		},
+		outline() {
+			const moving = motions.get(box);
+			const progress = running[0]?.effect.getComputedTiming().progress ?? 1;
+			if (moving && progress < 1) return interpolate(moving.from, moving.to, progress);
+			return boxOf(box.getBoundingClientRect());
 		},
 		drawnAt(rect) {
 			frame = boxOf(root.getBoundingClientRect());

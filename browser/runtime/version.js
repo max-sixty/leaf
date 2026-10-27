@@ -178,7 +178,6 @@ import {
   rememberPassageParts,
 } from "./widget-loader.js";
 import { under } from "./shadow.js";
-import { keepPageRulesOffLayer } from "./page-sheets.js";
 import { replaceEntry } from "./history.js";
 import {
   blocksOnScreen,
@@ -1518,8 +1517,6 @@ export function createVersionController({
         generated,
         touched: (element) => touched.push(element),
       });
-      // The revision's sheets, in its head and in its body alike, keep off the layer.
-      keepPageRulesOffLayer();
       restoreCarryScroll = restoreCarry(
         carry.records,
         carry.held,

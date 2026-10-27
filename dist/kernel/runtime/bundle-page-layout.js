@@ -6239,8 +6239,7 @@ function mountApplication(dependencies) {
 		actions: threadActions,
 		wireInput: dependencies.wireInput,
 		landSent: dependencies.landSent,
-		landInThread: dependencies.landInThread,
-		changed: refreshThread
+		landInThread: dependencies.landInThread
 	};
 	const settlementView = {
 		pendingEntries: ledger.snapshot,

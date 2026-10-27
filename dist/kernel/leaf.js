@@ -1,13 +1,13 @@
 import { aimLayer, boxMotion, liftReach, mountTargetPaint, paintSet, targetTraceLayer, target_paint_exports } from "./runtime/bundle-box-motion.js";
 import { Z, bindQueuedWork, d, observeQueuedWork, x } from "./runtime/bundle-signals-core.js";
-import { CARET_KEYS, MODIFIER_KEYS, PRESSES, TEXT_BOX, TEXT_FIELD, WORKS, afterScript, byRenderedOrder, cancelRender, closeLayer, currentLocationIn, declareReading, deepFocus, drawn, focusDestination, focused, handBack, holdFocus, holdRendering, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, nextFrame, nextRender, observePreparations, onCurrentLocation, onPressAway, onUserInput, openLayer, openerOf, release, releaseFocus, renderedOrder, renderedUnder, renderingState, rove, selectsAll, shadowHost, sizeObserver, takesLetters, typesText, under, upFrom } from "./runtime/bundle-dom-move.js";
+import { CARET_KEYS, MODIFIER_KEYS, PRESSES, TEXT_BOX, TEXT_FIELD, WORKS, afterScript, byRenderedOrder, cancelRender, closeLayer, currentLocationIn, declareReading, deepFocus, drawn, focusDestination, focused, handBack, holdFocus, holdRendering, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, nextFrame, nextRender, observePreparations, onCurrentLocation, onPressAway, onUserInput, openLayer, openerOf, release, releaseFocus, renderedOrder, renderedUnder, renderingState, rove, selectsAll, shadowHost, sizeObserver, takesLetters, typesText, under as under$1, upFrom } from "./runtime/bundle-dom-move.js";
 import { PAGE_PAINT_ATTRIBUTE, pagePresented, pageUpgraded, reportPageError, setRuntimeRootStyle, uploadMedia } from "./runtime/bundle-layer-client.js";
-import { annotationSheets, chromeSheet, clamp, clippedContents, closeNativeLayer, decisionFor, declareOccluder, declareWindowChrome, dismissPopoversOutside, hostIn, inUi, intersect, landingBand, layoutWindow, marksSheet, nativeLayers, nativeModalAdmits, overlaps, overlapsAcross, presented, registry, scrollGlides, scrolling, seenRect, showNativeLayer, shownBox, shownParts, shownRect, skipped, stackLevel, startsAt, tagsDeclaring, underOccluder, union, watchScrollEnds, watchScrolls, whileConnected, windowChromeBoxes } from "./runtime/bundle-geometry.js";
+import { annotationSheets, chromeSheet, clamp, clippedContents, closeNativeLayer, decisionFor, declareOccluder, declareWindowChrome, dismissPopoversOutside, hostIn, inUi, intersect, landingBand, layoutWindow, marksSheet, nativeLayers, nativeModalAdmits, overlaps, overlapsAcross, presented, registry, scrollGlides, scrolling, seenRect, showNativeLayer, shownBox, shownParts, shownRect, skipped, stackLevel, startsAt, tagsDeclaring, underOccluder, union, watchLayerChanges, watchScrollEnds, watchScrolls, whileConnected, windowChromeBoxes } from "./runtime/bundle-geometry.js";
 import { COLLAPSE, LitElement, PRESENTATION_DOM, SHARE_ROOT, TEXT_BLOCK, WEBSITE_DELIVERY, agentName, annotationMode, applicationPresenter, applicationState, bareReaction, carriesObligation, documentChanged, html, isNews, itemNoun, itemOutcome, keyed, live, noChange, nothing, offlineInteractive, readPart, ref, render, repeat, runtime, runtimeResource, sameAnchor, shareUrl, threadCounts, threadKey, threadNames, whenApplicationPresented } from "./runtime/bundle-context.js";
 import { EVERYTHING, LAYOUT, LINK, PRESS, PRESSABLE, advertisesKeys, allBindings, announce, bindingEnabled, bindings, buttonCommand, claimReleaseClick, claimsEsc, clampedRow, closeControl, coarsePointer, commandDeclarationsWithin, commandPresentations, commandRoutes, commandScope, commandsWithin, contextBindings, contextScopes, cycledRow, decisionControls, declaredBindings, descriptionOf, dismissError, dismissErrors, dragHeld, el, errorsReading, holdingError, iconElement, iconTemplate, keys, labelOf, live as live$1, liveEl, merge, mountRepaint, notice, noticeReading, offer, offerAction, offered, offeredAction, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, pointerAt, pressIsKeyboardActivation, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, reflectFirstScopes, reflectKeys, repaint, repaintPage, reveal, routedCommand, rowArrows, savedReadingSettled, saying, scopeRefs, scopesAt, scopesFor, searchField, seeErrors, setNoticeContext, setQuickShortcuts, spell, spokenBinding, submitBindings, titleOf, watchCommandAvailability, word } from "./runtime/bundle-errors.js";
 import { JUST_NOW, PRESENTATION, UPGRADE, afterPresentation, ago, atScrollEnd, effectiveScroller, markPagePresented, markPageUpgraded, moveScrollerBy, pageReadiness, pageScroller, reachScrollers, readingRegionFor, registerReadingRegion, scrollChainOf, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, settlePageInterface, shortAgo, userReadingRegion, whenArrived } from "./runtime/bundle-reading-regions.js";
 import { onSampleNotice, registerSampleCommand, sampleNotice } from "./runtime/bundle-sample-child.js";
-import { acceptData, activeCommandLabel, availableCommandRoutes, claimTraversals, commandSteps, createAnchorTravel, createVersionController, dispatchKey, executeCommand, initializeServedDocument, innermostStance, invokePress, keepPageRulesOffLayer, keyReady, mountHistory, notifyDataSubscribers, paintCoreControls, readPlace, replaceEntry, returnPlace, userIn, versionPicker, versionsReading } from "./runtime/bundle-data.js";
+import { acceptData, activeCommandLabel, answerCloseRequest, availableCommandRoutes, claimTraversals, commandSteps, createAnchorTravel, createVersionController, dispatchKey, escapeTakesAStep, executeCommand, initializeServedDocument, innermostStance, invokePress, keepPageRulesOffLayer, keyReady, mountHistory, notifyDataSubscribers, paintCoreControls, readPlace, replaceEntry, returnPlace, userIn, versionPicker, versionsReading } from "./runtime/bundle-data.js";
 import { PAGE_CONTROL_RANK, chromeForeground, chromeRoot, elementFrame, pageControls, pageControlsChanged, registerPageControl } from "./runtime/bundle-page-controls.js";
 import { LEAF_SURFACE, authoredScope, blockAt, closestAcross, contextAround, elementById, elementFromPointAcross, elementOver, excerptWords, findText, inChrome, leafSurface, pageDocument, pageParts, pageQueryAll, pageRange, pageReadingVersion, pageText, pageWords, programmaticSelection, quoteFrom, rangeOf, says, segmentBlock, selectEnds, selectionBackward, showsWords } from "./runtime/bundle-passages.js";
 import { ADDRESSABLE, addressableLabel, addressableSays, addressableWord, aimTargetAt, aimTargets, anchorFor, anchoringIsReady, annotationAt, designPressAt, exactTarget, fragmentTarget, holdArrivingBounds, isAddressable, lightSeat, livePoint, openMarginContentLayout, placePoints, pointInto, railStands, resolveAnchor, resolvedInMessage, revealAddressed, sectionLabel, sectionOf, setAnchoringReady, targetElement, targetParts, targetPlace, targetRange, targetSegments, unclaimedVisualGesture, visualAt, visualParts, visualSelector } from "./runtime/bundle-content-layout.js";
@@ -31,7 +31,7 @@ const contentChildren = (root) => [...root.children].filter((child) => !leafSurf
 function captureDrawingFrame(target, hit) {
 	let source = hit;
 	while (source && !source.matches(INTRINSIC_VISUAL)) source = upFrom(source);
-	if (!source || !under(source, target)) return void 0;
+	if (!source || !under$1(source, target)) return void 0;
 	const path = [];
 	for (let node = source; node !== target;) {
 		const parent = node.parentNode;
@@ -1388,7 +1388,7 @@ function createResponseSurface({ rememberSelection, landIn, threadHere, threadAt
 			held: inline,
 			box: inlineBox
 		} : null);
-		const subject = threadId && (!here || target && under(target, heldObligation() ?? here.element));
+		const subject = threadId && (!here || target && under$1(target, heldObligation() ?? here.element));
 		const replySubject = subject && replyId;
 		if (anchor && (pageSelection() || fabHoldsCapturedPassage() || !said && !subject && (!here || here.element === fabTargetAt()))) return {
 			...commenting(anchor.quote ? "selection" : addressableWord(elementById(anchor.section)) || "element"),
@@ -1617,7 +1617,7 @@ function createDrawingController({ anchors: { aimTargetAt, resolveAnchor }, page
 		}));
 		const nearest = Math.min(...near.map(({ distance }) => distance));
 		const close = near.filter(({ distance }) => distance <= nearest + NEAR_ENOUGH);
-		return close.filter(({ target }) => !close.some((other) => other.target.element !== target.element && under(other.target.element, target.element))).sort((a, b) => a.distance - b.distance)[0]?.target ?? null;
+		return close.filter(({ target }) => !close.some((other) => other.target.element !== target.element && under$1(other.target.element, target.element))).sort((a, b) => a.distance - b.distance)[0]?.target ?? null;
 	}
 	function targetAtPointer() {
 		const atPointer = pointer();
@@ -3393,9 +3393,9 @@ const OBLIGATION_CONTROL = ":is(button[data-lf-offer], [data-lf-offer][tabindex]
 //#endregion
 //#region runtime/composing/current-target.js
 function frameHolding(node) {
-	const framed = readObligations().all.map((item) => obligationPlace(item)).filter(({ source, context }) => source && context && context !== source && under(node, context));
-	const frame = framed.reduce((inner, { context }) => inner && under(inner, context) ? inner : context, null);
-	return framed.some(({ source, context }) => context === frame && under(node, source)) ? null : frame;
+	const framed = readObligations().all.map((item) => obligationPlace(item)).filter(({ source, context }) => source && context && context !== source && under$1(node, context));
+	const frame = framed.reduce((inner, { context }) => inner && under$1(inner, context) ? inner : context, null);
+	return framed.some(({ source, context }) => context === frame && under$1(node, source)) ? null : frame;
 }
 function createCurrentTarget({ currentLocationIn }) {
 	return function currentTarget() {
@@ -4568,11 +4568,11 @@ function createQueueWalk({ arriveAtRecord, arriveAtThread, threadPlace, prepareN
 		return list.findLast((stop) => {
 			if (stop.kind !== "subject") return false;
 			const at = stopElement(stop);
-			return at && under(here, at);
+			return at && under$1(here, at);
 		}) ?? null;
 	}
 	function step(list, dir, region, origin) {
-		if (region && !under(origin.place, region)) return cycledRow(list, null, dir);
+		if (region && !under$1(origin.place, region)) return cycledRow(list, null, dir);
 		const currentLocation = currentLocationStop(list, origin);
 		if (currentLocation) return cycledRow(list, currentLocation, dir);
 		return stepFrom(list, origin, dir, (stop) => stop.place);
@@ -4706,7 +4706,7 @@ function createQueueWalk({ arriveAtRecord, arriveAtThread, threadPlace, prepareN
 		const items = obligationsIn(within);
 		const kept = items.find((item) => item.id === wentTo);
 		const toward = dir < 0 ? -1 : 1;
-		if (under(here.place, within)) return walk(toward, within, here);
+		if (under$1(here.place, within)) return walk(toward, within, here);
 		if (kept) return walk(toward, within, {
 			node: obligationPlace(kept).source,
 			place: obligationPlace(kept).source,
@@ -6555,10 +6555,10 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			openView(),
 			controls,
 			replyOutlet
-		].find((at) => at && under(node, at));
+		].find((at) => at && under$1(node, at));
 		const thread = part && openIn(part);
 		if (thread) return placedAt(thread.id)?.place ?? null;
-		const id = under(node, stage) ? closestAcross(node, ".lf-fp-on-item[data-obligation]")?.dataset.obligation : null;
+		const id = under$1(node, stage) ? closestAcross(node, ".lf-fp-on-item[data-obligation]")?.dataset.obligation : null;
 		const record = id && readObligations().all.find((item) => item.id === id);
 		return record ? obligationPlace(record).node : null;
 	}, { beside: true });
@@ -7896,7 +7896,7 @@ function createObligationView({ prepareNavigationStep, arrive, openPageThread, f
 		return held === item || inChrome(held) && placeOf(held) === item || hasReviewedFocus() ? answered : null;
 	}
 	const currentLocationIn = () => obligationNode(currentLocationObligation());
-	const actionsFor = (source, owner = source) => decisionControls(commandsWithin(owner), `Obligation ${owner.id}`).filter(({ source: commandSource, control }) => ownedObligationControl(owner, commandSource) && (source === owner || under(control, source)) && control.getAttribute("aria-busy") !== "true");
+	const actionsFor = (source, owner = source) => decisionControls(commandsWithin(owner), `Obligation ${owner.id}`).filter(({ source: commandSource, control }) => ownedObligationControl(owner, commandSource) && (source === owner || under$1(control, source)) && control.getAttribute("aria-busy") !== "true");
 	const actionsOf = (item) => {
 		const source = item && sourceNode(item);
 		return source ? actionsFor(source, sourceOwner(item)) : [];
@@ -7972,7 +7972,7 @@ function createObligationView({ prepareNavigationStep, arrive, openPageThread, f
 		const seenBy = (block) => hostIn(item, block.getRootNode());
 		const before = [...document.querySelectorAll(TEXT_BLOCK)].filter((block) => {
 			const from = seenBy(block);
-			return from && !inChrome(block) && showsWords(block) && !under(item, block) && block.parentElement && under(item, block.parentElement) && from.compareDocumentPosition(block) & Node.DOCUMENT_POSITION_PRECEDING;
+			return from && !inChrome(block) && showsWords(block) && !under$1(item, block) && block.parentElement && under$1(item, block.parentElement) && from.compareDocumentPosition(block) & Node.DOCUMENT_POSITION_PRECEDING;
 		});
 		return [
 			declared ? context : null,
@@ -9328,6 +9328,30 @@ function paintTouchControls() {
 }
 
 //#endregion
+//#region runtime/keyboard/close-requests.js
+let watcher = null;
+let under = [];
+watchLayerChanges(() => repaint());
+function paintCloseRequests() {
+	if (!("CloseWatcher" in window)) return;
+	const step = escapeTakesAStep();
+	const top = nativeLayers().at(-1);
+	const coveredOver = Boolean(watcher) && top !== void 0 && !under.includes(top);
+	if (step === Boolean(watcher) && !coveredOver) return;
+	watcher?.destroy();
+	watcher = null;
+	if (!step) return;
+	const held = new window.CloseWatcher();
+	held.addEventListener("close", () => {
+		if (watcher === held) watcher = null;
+		answerCloseRequest();
+		repaint();
+	});
+	watcher = held;
+	under = nativeLayers();
+}
+
+//#endregion
 //#region runtime/keyboard/command-reference.js
 const commandReferenceDialog = document.createElement("dialog");
 commandReferenceDialog.id = "lf-command-reference";
@@ -10080,9 +10104,9 @@ const readingStep = (box, clips) => {
 const stepStart = () => {
 	const region = userReadingRegion();
 	const at = focused();
-	if (region && under(at, region.host) && !under(at, region.body)) {
+	if (region && under$1(at, region.host) && !under$1(at, region.body)) {
 		const containing = scrollersOf(at).next().value;
-		if (containing && under(containing, region.host) && containing.scrollHeight > containing.clientHeight && readingStep(containing, /* @__PURE__ */ new Map())) return containing;
+		if (containing && under$1(containing, region.host) && containing.scrollHeight > containing.clientHeight && readingStep(containing, /* @__PURE__ */ new Map())) return containing;
 	}
 	return effectiveScroller(region);
 };
@@ -10155,11 +10179,11 @@ function createNavigation({ threadDestinations, placedAt }) {
 	const currentItem = () => {
 		const at = heldPagePlace() ?? focused();
 		const item = heldObligation(at);
-		if (item && under(at, item)) return item;
+		if (item && under$1(at, item)) return item;
 		const thread = closestAcross(at, THREAD);
 		if (thread) return thread;
 		const region = readingRegionFor(at) ?? userReadingRegion();
-		const inReading = (node) => !region || under(node, region.body);
+		const inReading = (node) => !region || under$1(node, region.body);
 		const place = placeOf(at);
 		const focusedItem = blockAt(place) ?? place;
 		if (focusedItem && inReading(focusedItem) && place !== region?.host && place !== region?.body) return focusedItem;
@@ -10684,6 +10708,7 @@ const currentLocationPainters = {
 		target: anchorPlacement.placedAt(currentLocationThreadId())?.place
 	}]),
 	paintTouchControls,
+	paintCloseRequests,
 	paintStatusContext: () => paintStatusContext(goToSequence.goToStatus),
 	paintGoToHints: goToSequence.paintGoToHints,
 	paintTargetPickerHints: targets.paintTargetPickerHints,
@@ -10742,6 +10767,7 @@ if (!offlineInteractive) {
 	document.body.append(chromeRoot);
 	mountRepaint({
 		paintInputs: inputs.paintInputs,
+		paintCloseRequests,
 		reflectFirstScopes,
 		reflectKeys
 	});

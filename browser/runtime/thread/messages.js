@@ -497,7 +497,7 @@ export class MessageView {
             this.#kept
               ? html`<span
                   class="lf-msg-kept"
-                  title="The rewrite is kept; open it to save or cancel"
+                  title="The edit is kept; open it to save or discard"
                   >unsaved edit</span
                 >`
               : nothing

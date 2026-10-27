@@ -3241,10 +3241,13 @@ html[data-lf-interactive] :scope:is(lf-text-document):not(:has(> *))::before {
     font: var(--t-5)/var(--lf-ui-lh) var(--sans);
     white-space: nowrap;
   }
+  .lf-draft-kept {
+    color: var(--muted-2);
+  }
   .lf-draft-status:empty {
     display: none;
   }
-  :scope:is(lf-draft):is(:hover, [data-lf-focus-within], [needed], :has(> .lf-draft-edit)) .lf-draft-tools {
+  :scope:is(lf-draft):is(:hover, [data-lf-focus-within], [needed], :has(> .lf-draft-edit), :has(.lf-draft-status:not(:empty))) .lf-draft-tools {
     opacity: 1;
   }
   @media (hover: none) {

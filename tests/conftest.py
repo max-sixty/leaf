@@ -61,6 +61,7 @@ signal.signal(signal.SIGINT, signal.default_int_handler)
 # (render_harness.wait_for_check_api).
 def _refusing_async_predicates(wait_for_function):
     def wait(self, expression, *args, **kwargs):
+        __tracebackhide__ = True  # also files the wait under its caller (suite_profile)
         if re.match(r"\s*async\b", expression):
             raise ValueError(
                 "wait_for_function returns at once on an async predicate; "

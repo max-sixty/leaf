@@ -13,7 +13,7 @@ import { LEAF_SURFACE, authoredScope, blockAt, closestAcross, contextAround, ele
 import { ADDRESSABLE, addressableLabel, addressableSays, addressableWord, aimTargetAt, aimTargets, anchorFor, anchoringIsReady, annotationAt, designPressAt, exactTarget, fragmentTarget, holdArrivingBounds, isAddressable, lightSeat, livePoint, openMarginContentLayout, placePoints, pointInto, railStands, resolveAnchor, resolvedInMessage, revealAddressed, sectionLabel, sectionOf, setAnchoringReady, targetElement, targetParts, targetPlace, targetRange, targetSegments, unclaimedVisualGesture, visualAt, visualParts, visualSelector } from "./runtime/bundle-content-layout.js";
 import { fragmentId } from "./runtime/bundle-initial-render.js";
 import { copyControl, landingRoom, restrictUserIntent, retainUserIntent, scrollIntoReadingBand, scrollIntoView } from "./runtime/bundle-copy-control.js";
-import { DESIGN_MODE_KEY, ELEMENTS, PAGE_DRAFT, THREAD, allButCommandReference, allThreads, anchorLabel, answeredInWords, beginWalk, bringBackSurfaceOf, createPassageSelection, createWritingResume, currentLocationOrigin, currentLocationThreadId, declareSide, declareThreadParts, designName, dismissReply, draftHasContent, drawnThreadId, focusedThreadTarget, followBoxGrowth, heldObligation, heldPagePlace, heldThread, holdPagePlace, holdToRead, isExternalPageLink, landingPlace, leftThePage, listWalkPosition, loadDraft, messageHolding, messageReading, messageText, mirrorDraft, obligationEntry, obligationHolding, obligationPlace, obligationsIn, onReadingInterrupted, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, placeKeeper, placeOf, quoteReading, readBoxPlace, readObligations, readThreads, readingBlock, readingIsContinuous, releaseReplies, rememberWriting, replyAvailable, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, rowWalk, saveDraft, scrollThreadIntoView, selectionAnchor, sendMessage, settleThread, showHeld, showReturnTurn, snapSelection, stepFrom, subjectPlace, tabStore, tellDraft, threadAttention, threadHeading, threadIn, threadList, threadName, threadNamed, threadTodos, todoLabel, touchPresses, upgradeWidgets, userChoice, walkOrigin, walkPosition, walkPositionLabel, workflowLabel, workflowStep } from "./runtime/bundle-surfaces.js";
+import { DESIGN_MODE_KEY, ELEMENTS, PAGE_DRAFT, THREAD, allButCommandReference, allThreads, anchorLabel, answeredInWords, beginWalk, bringBackSurfaceOf, createPassageSelection, createRewriteRestore, createWritingResume, currentLocationOrigin, currentLocationThreadId, declareSide, declareThreadParts, designName, dismissReply, draftHasContent, drawnThreadId, focusedThreadTarget, followBoxGrowth, heldObligation, heldPagePlace, heldThread, holdPagePlace, holdToRead, isExternalPageLink, landingPlace, leftThePage, listWalkPosition, loadDraft, messageHolding, messageReading, messageText, mirrorDraft, obligationEntry, obligationHolding, obligationPlace, obligationsIn, onReadingInterrupted, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, placeKeeper, placeOf, quoteReading, readBoxPlace, readObligations, readThreads, readingBlock, readingIsContinuous, releaseReplies, rememberWriting, replyAvailable, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, rowWalk, saveDraft, scrollThreadIntoView, selectionAnchor, sendMessage, settleThread, showHeld, showReturnTurn, snapSelection, stepFrom, subjectPlace, tabStore, tellDraft, threadAttention, threadHeading, threadIn, threadList, threadName, threadNamed, threadTodos, titlePending, todoLabel, touchPresses, upgradeWidgets, userChoice, walkOrigin, walkPosition, walkPositionLabel, workflowLabel, workflowStep } from "./runtime/bundle-surfaces.js";
 import { DISCLOSE, DISCLOSURE_SELECTOR, disclosed, setChildren, watchDisclosures } from "./runtime/bundle-abort.js";
 import { motionEasing, motionPlays, motionTime, playMotion, reducedMotion, scrollBehavior } from "./runtime/bundle-motion.js";
 import { mediaViewer, readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "./runtime/bundle-media.js";
@@ -5221,7 +5221,10 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 				const thread = threadOf(route);
 				return thread ? threadHeading(thread) : threadTitle(route.thread);
 			},
-			quiet: (route) => threadOf(route)?.title == null,
+			quiet: (route) => {
+				const thread = threadOf(route);
+				return thread?.title == null && !(thread && titlePending(thread));
+			},
 			draw: (route) => threadView(route.thread),
 			controls: (route) => threadControls(route),
 			nominate: (route, collection, parts) => nominateThread(route, collection, parts),
@@ -10645,12 +10648,17 @@ const writingResume = createWritingResume({
 	revealInThread: (context, intent) => app.threadDestinations.openThreadDraft(context, intent),
 	holdsThreadDraft: (context) => app.threadDestinations.holdsThreadDraft(context)
 });
+const rewriteRestore = createRewriteRestore({
+	revealInThread: (context, intent) => app.threadDestinations.openThreadDraft(context, intent),
+	holdsThreadDraft: (context) => app.threadDestinations.holdsThreadDraft(context)
+});
 goToSequence = createGoToSequence({
 	doors: floatingPanel.doors,
 	hintChrome,
 	openPageMap: (...args) => pageMapDialog.openPageMap(...args),
 	directDestinations: () => [
 		writingResume,
+		rewriteRestore,
 		passageSelection.command,
 		navigation.alignTop,
 		app.read.firstUnreadCommand,

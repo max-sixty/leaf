@@ -13,7 +13,7 @@ from interact_support import STATED_TIMEOUT, record_claim
 from leaf import cli as cli_model
 from leaf import service, state
 from leaf.service import claim_path, claim_records, page_claim
-from leaf.state import flocked, holds_claims
+from leaf.state import flocked, held_claims
 
 
 def test_session_discovery_reads_only_its_canonical_claim_partition(
@@ -154,14 +154,14 @@ def test_a_claim_on_a_page_that_is_gone_retires_whichever_leaf_wrote_it(tmp_path
     record_claim(page, id="owner")
     payload = claim_path(page)
     payload.write_text(json.dumps({**json.loads(payload.read_text()), "format": "x"}))
-    assert holds_claims("owner")
+    assert held_claims("owner")
     tmp_path.chmod(0)
     try:
-        assert holds_claims("owner")
+        assert held_claims("owner")
     finally:
         tmp_path.chmod(0o755)
     page.rmdir()
-    assert not holds_claims("owner")
+    assert not held_claims("owner")
     assert not payload.exists()
     assert not service.session_claims("owner").exists()
 
@@ -172,9 +172,9 @@ def test_initializing_a_recreated_page_releases_its_old_claimant(tmp_path):
     page = tmp_path / "recreated"
     record_claim(page, id="prior")
     page.mkdir()
-    assert holds_claims("prior")
+    assert held_claims("prior")
     result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page)])
     assert result.exit_code == 0, result.output
     assert page_claim(page) is None
-    assert not holds_claims("prior")
+    assert not held_claims("prior")
     assert not (service.session_claims("prior") / claim_path(page).name).is_symlink()

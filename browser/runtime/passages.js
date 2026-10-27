@@ -1466,7 +1466,8 @@ export function findText(text, query) {
     if (withinCell(text, from, to) && segments.every(searchable)) out.push(segments);
     // A rejected match must not consume the beginning of a reachable one.
     else
-      pattern.lastIndex = from + String.fromCodePoint(text.raw.codePointAt(from)).length;
+      pattern.lastIndex =
+        from + String.fromCodePoint(text.raw.codePointAt(from)).length;
   }
   return out;
 }

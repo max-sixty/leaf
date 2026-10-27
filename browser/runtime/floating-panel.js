@@ -190,7 +190,7 @@ import {
   titlePending,
 } from "./thread/messages.js";
 import { drawnThreadId, THREAD } from "./thread/selectors.js";
-import { declareThreadParts } from "./thread/focus.js";
+import { declareThreadParts } from "./thread/selectors.js";
 import { quoteReading, threadTodos } from "./thread/thread-card.js";
 import { inPageOrder } from "./thread/placement.js";
 import { dismissReply, releaseReplies, replyAvailable } from "./thread/replies.js";
@@ -2612,7 +2612,7 @@ export function createFloatingPanel({
   }
 
   // A thread's reply and Resolve stand outside its view, in the field and among the
-  // view's controls, so the view declares them as its thread's own (thread/focus.js,
+  // view's controls, so the view declares them as its thread's own (thread/selectors.js,
   // `threadPart`): while it is the thread open, the reply box in the field where the
   // thread takes a reply, and Resolve; and the view itself as the thread whole. The
   // controls are the thread's own, as a card's head is, and the field's outlet holds its

@@ -25,6 +25,7 @@ from render_cases_interaction import (
     CHANGE_SHAPES_PAGE,
     PANEL_PAGE,
     SHORT_SUGGESTION,
+    live_url,
     panel_comment,
 )
 from render_cases_layout import (
@@ -67,6 +68,8 @@ from render_harness import (
     _traffic,
     _until,
     at_rest,
+    compare_with,
+    confirming_resize_notices,
     consume_browser_errors,
     leaf_page,
     left_alone,
@@ -85,9 +88,11 @@ from render_harness import (
     scroll_followers,
     scroll_settled,
     scroll_writes,
+    stamp_page,
     state_changes,
     still_page,
     take_browser_errors,
+    wait_for_revision,
 )
 
 from browser.threads import open_panel_thread
@@ -1363,6 +1368,53 @@ def test_the_state_wait_follows_a_source_rewritten_under_it(browser, serve):
         "data-lf-reading", held["reading"]
     )
     wait_until_ready(page, held)
+
+
+def test_a_pane_compares_its_words_without_its_opaque_children_rendered_data(
+    browser, serve
+):
+    source = leaf_page(
+        "Patch reading",
+        '<lf-pane id="files" label="Files"><header>Changed files</header>'
+        '<lf-file-tree id="tree" for="patch"></lf-file-tree></lf-pane>'
+        '<lf-pane id="code" label="Code"><header>Patch</header>'
+        '<div><svg id="drawing" viewBox="0 0 240 40"><text x="0" y="24">'
+        "UNCHANGED DRAWING</text></svg>"
+        '<lf-diff id="patch" view="file"><pre>'
+        "diff --git a/config.txt b/config.txt\n"
+        "--- a/config.txt\n+++ b/config.txt\n@@ -1 +1 @@\n-old\n+new\n"
+        "</pre></lf-diff></div><footer>Tests not run</footer></lf-pane>",
+    )
+    page = open_page(browser, live_url(serve(source, packages=("diff", "file-tree"))))
+    assert render_checks_model.evaluate_probe(page, "wordsReadAsChanged") == []
+    page.locator("#code > header").evaluate("el => el.textContent = 'Approved patch'")
+    changed = render_checks_model.evaluate_probe(page, "wordsReadAsChanged")
+    assert [(row["at"], row["words"]) for row in changed] == [
+        ("<lf-pane id=code>", "Approved patch Tests not run")
+    ]
+
+    # The same prose boundary owns the inline explanation of a real revision.
+    stamp_page(
+        serve.page_dir,
+        source.replace(">Patch</header>", ">xxx  </header>").replace(
+            ">Tests not run</footer>", ">  yyy</footer>"
+        ),
+        "Approve patch",
+    )
+    wait_for_revision(page, 2)
+    compare_with(page, 1)
+    change = page.locator('[data-lf-margin-for="code"] [data-lf-kinds~="change"]')
+    change.click()
+    expect(page.locator("#code .lf-version-inline-deletion del")).to_have_text(
+        "Patch Tests not run"
+    )
+    assert page.evaluate(
+        "() => [...CSS.highlights.get('lf-version-insert') ?? []].map(range => range.toString())"
+    ) == ["xxx  ", "  yyy"]
+    expect(page.locator("#patch .lf-version-inline-deletion")).to_have_count(0)
+    change.click()
+    expect(page.locator("#code > header")).to_have_text("xxx")
+    assert render_checks_model.evaluate_probe(page, "wordsReadAsChanged") == []
 
 
 def test_the_state_wait_follows_a_source_back_to_the_version_the_page_shows(
@@ -3031,7 +3083,9 @@ def short_aim_findings_in_every_tab(page):
     A page's own CSS can shrink a control under a narrow window's rules, and a tab's
     content stands in the layout only while that tab is open, so a reading of the first
     tab at desktop width never met the three examples whose controls fell below the
-    floor at 390px. Each tab, and each tab inside it, is opened once and read."""
+    floor at 390px. Each tab, and each tab inside it, is opened once, and what that
+    shows, its panel and the chrome, is read; the rest of the page was read before the
+    first tab opened."""
     return _short_aims(page, every_tab=True)
 
 
@@ -3045,16 +3099,14 @@ NEXT_TAB = """(opened) => {
       tab.checkVisibility() &&
       !opened.includes(tab.getAttribute('aria-controls')),
   );
-  if (!tab) return null;
-  // Pressed by script: a strip that runs past a phone's width leaves tabs outside the
-  // window, and what is under test is the content the tab opens, not the strip's reach.
-  tab.click();
-  return tab.getAttribute('aria-controls');
+  return tab?.getAttribute('aria-controls') ?? null;
 }"""
 
 
-# Press a sibling of a tab in its strip (`away`), or the tab itself.
-REOPEN_TAB = """([id, away]) => {
+# Press the tab that opens a panel, or a sibling of it in its strip (`away`). Pressed by
+# script: a strip that runs past a phone's width leaves tabs outside the window, and
+# what is under test is the content the tab opens, not the strip's reach.
+OPEN_TAB = """([id, away]) => {
   const tab = [...document.querySelectorAll('[role="tab"]')].find(
     (tab) => tab.getAttribute('aria-controls') === id,
   );
@@ -3065,54 +3117,49 @@ REOPEN_TAB = """([id, away]) => {
 
 def _short_aims(page, *, every_tab):
     short, seen = {}, 0
-    # Opening a tab hands the browser a block of new layout, and under load it may say
-    # once that a ResizeObserver delivery was deferred. As `navigate` does, a first
-    # sighting is the platform's notice and is set aside; the tab is opened again, and a
-    # notice that recurs is a resize loop of the page's own and is reported.
-    outside = getattr(page, "lf_resize_notices", None)
-    page.lf_resize_notices = notices = []
-    recurred = []
+    selectors = aim_selectors()
+
+    def read(roots, where):
+        nonlocal seen
+        measured = roots.evaluate_all(AIM_BOXES, selectors)
+        assert measured["floor"] == 44, f"a finger asked for {measured['floor']}px"
+        seen += measured["seen"]
+        for found in measured["short"]:
+            short.setdefault(found, []).append(where)
+
     with under_a_finger(page):
+        read(page.locator(":root"), "first")
         opened = []
-        while True:
-            measured = page.evaluate(AIM_BOXES, aim_selectors())
-            assert measured["floor"] == 44, f"a finger asked for {measured['floor']}px"
-            seen = max(seen, measured["seen"])
-            for found in measured["short"]:
-                short.setdefault(found, []).append(opened[-1] if opened else "first")
-            tab = every_tab and page.evaluate(NEXT_TAB, opened)
-            if not tab:
-                break
+        while every_tab and (tab := page.evaluate(NEXT_TAB, opened)):
             opened.append(tab)
-            rendered(page)
-            if notices:
-                notices.clear()
-                # Away to a sibling and back, which opens the tab afresh.
-                page.evaluate(REOPEN_TAB, [tab, True])
+
+            def opening(tab=tab, away=False):
+                page.evaluate(OPEN_TAB, [tab, away])
                 rendered(page)
-                notices.clear()
-                page.evaluate(REOPEN_TAB, [tab, False])
-                rendered(page)
-                if notices:
-                    recurred.append(f"{tab}: {notices[0].code}")
-                    notices.clear()
-    page.lf_resize_notices = outside
+
+            def reopening(tab=tab):
+                # Away to a sibling and back, which opens the tab afresh; what the
+                # sibling's own opening raised is set aside with it.
+                opening(tab, away=True)
+                page.lf_resize_notices.clear()
+                opening(tab)
+
+            # Opening a tab hands the browser a block of new layout, and under load it
+            # may say once that a ResizeObserver delivery was deferred.
+            confirming_resize_notices(page, opening, reopening)
+            # What the opening shows: the panel, and the chrome the runtime draws for
+            # it, such as the margin's entries for what the panel holds.
+            read(page.locator(f'[id="{tab}"], body > .lf-chrome'), tab)
     assert seen > 30, f"only {seen} aims stood on the corpus"
-    findings = []
-    if short:
-        findings.append(
-            f"{len(short)} aims are smaller than 44px under a finger, of {seen} read:\n"
-            + "\n".join(
-                f"{found} (open on {', '.join(dict.fromkeys(tabs[:3]))})"
-                for found, tabs in sorted(short.items())
-            )
+    if not short:
+        return []
+    return [
+        f"{len(short)} aims are smaller than 44px under a finger, of {seen} read:\n"
+        + "\n".join(
+            f"{found} (open on {', '.join(dict.fromkeys(tabs[:3]))})"
+            for found, tabs in sorted(short.items())
         )
-    if recurred:
-        findings.append(
-            "opening these tabs raised a ResizeObserver loop notice again on a second "
-            "opening:\n" + "\n".join(recurred)
-        )
-    return findings
+    ]
 
 
 @contextmanager

@@ -108,9 +108,10 @@ import {
   elementById,
   inChrome,
   pageDocument,
+  quoteFrom,
+  rangeOf,
   readingFrom,
   textNodesUnder,
-  wrote,
 } from "./passages.js";
 import { TEXT_BLOCK } from "./kernel-facts.js";
 import { registry, tagsDeclaring } from "./registry.js";
@@ -525,15 +526,22 @@ const inlineOpen = new Map(); // marked element -> its generated nodes and highl
 // dropped rather than painted over the base they are on now. Reachable because the
 // walk asks per row: it is one fetch per press, and the presses come faster than the network.
 let diffRequest = 0;
+// A containing prose block owns its words, not an opaque child's rendered data.
+// Use the same boundary for comparison keys, stored before words and inline ranges.
+// The child has its own identity and binding key in diffBlocks below.
+const comparisonTextNodes = (root, opaque = diffOpaqueSel()) =>
+  textNodesUnder(root, "wrote", (child) => child.matches(opaque));
+
 // A renderer may format authored words while keeping their source on the formatted
 // island. Compare that source with the unupgraded base document, then use the live
 // DOM for what a user can quote and see in an inline comparison.
-function diffWords(block) {
-  if (!block.querySelector("[data-lf-source-words]")) return wrote(block);
+function diffWords(block, opaque) {
+  const words = (root) => quoteFrom(comparisonTextNodes(root, opaque));
+  if (!block.querySelector("[data-lf-source-words]")) return words(block);
   const source = block.cloneNode(true);
   for (const island of source.querySelectorAll("[data-lf-source-words]"))
     island.replaceWith(document.createTextNode(island.dataset.lfSourceWords));
-  return wrote(source);
+  return words(source);
 }
 // A block's key is its *authored* text (`wrote`), which is why that reading exists: it
 // drops even the labels anchoring reads as the page's own words, because the base
@@ -551,8 +559,9 @@ function diffBlocks(root) {
   }
   for (const b of root.querySelectorAll(blocks)) {
     if (inChrome(b) || b.closest(opaque) || b.closest(".lf-markdown-body")) continue;
-    if (b.querySelector(blocks)) continue; // leaf blocks only, or nesting double-marks
-    let key = diffWords(b);
+    if ([...b.querySelectorAll(blocks)].some((child) => !child.closest(opaque)))
+      continue; // leaf blocks only, excluding opaque children on both sides
+    let key = diffWords(b, opaque);
     // An x-says value is the page's words at the element's edge (renderSaid), so it
     // belongs to what this block says: folded into the key at its declared edge, a
     // version that moves a metric's number or an event's time marks though no prose
@@ -809,7 +818,10 @@ function applyDiff(doc, baseAuthored, baseVersion, baseReading) {
   for (const block of diffMarked) {
     if (!block.matches(ADDRESSABLE) || block.closest(opaque)) continue;
     const baseBlock = doc.getElementById(block.id);
-    diffBefore.set(block, baseBlock ? wrote(baseBlock) : null);
+    diffBefore.set(
+      block,
+      baseBlock ? quoteFrom(comparisonTextNodes(baseBlock, opaque)) : null,
+    );
   }
   return diffMarked.size;
 }
@@ -820,7 +832,10 @@ function applyDiff(doc, baseAuthored, baseVersion, baseReading) {
 // `.lf-ui`; comments, copies, and later comparisons therefore continue to read the exact
 // current document rather than the temporary historical words on screen.
 const inlineId = (target) => `lf-version-inline-${target.id}`;
-const authoredReading = (target) => readingFrom(textNodesUnder(target, "wrote"));
+const authoredReading = (target) => {
+  const segments = comparisonTextNodes(target);
+  return { ...readingFrom(segments), segments };
+};
 
 function pointAt(target, reading, offset) {
   if (!reading.units.length) return { node: target, offset: 0 };
@@ -842,14 +857,24 @@ function insertAt(target, reading, offset, node) {
   else move(text.parentNode, node, text.splitText(point.offset));
 }
 
-function rangeAt(reading, start, end) {
+function rangesAt(reading, start, end) {
   const first = reading.units[start];
   const last = reading.units[end - 1];
-  if (!first || !last) return null;
-  const range = document.createRange();
-  range.setStart(first.start.node, first.start.offset);
-  range.setEnd(last.end.node, last.end.offset);
-  return range;
+  if (!first || !last) return [];
+  // Normalized characters can span nodes, even a collapsed space on either side
+  // of an excluded widget. Paint only the retained segments, never the DOM gap.
+  return reading.segments
+    .slice(
+      reading.segments.findIndex(({ node }) => node === first.start.node),
+      reading.segments.findIndex(({ node }) => node === last.end.node) + 1,
+    )
+    .map((segment) => ({
+      ...segment,
+      start: segment.node === first.start.node ? first.start.offset : segment.start,
+      end: segment.node === last.end.node ? last.end.offset : segment.end,
+    }))
+    .filter(({ start, end }) => end > start)
+    .map((segment) => rangeOf([segment]));
 }
 
 function paintInlineInsertions() {
@@ -906,9 +931,9 @@ function openInlineComparison(target) {
     .forEach(({ offset, node }) => insertAt(target, reading, offset, node));
 
   const currentReading = authoredReading(target);
-  const ranges = additions
-    .map(([start, end]) => rangeAt(currentReading, start, end))
-    .filter(Boolean);
+  const ranges = additions.flatMap(([start, end]) =>
+    rangesAt(currentReading, start, end),
+  );
   target.classList.toggle("lf-version-inline", hasTextChange);
   inlineOpen.set(target, { nodes, ranges });
   paintInlineInsertions();
@@ -936,7 +961,8 @@ function closeInlineComparison(target) {
 export const inlineComparison = (target) =>
   diffOn.value &&
   diffBefore.has(target) &&
-  (diffBefore.get(target) === null || diffBefore.get(target) !== wrote(target))
+  (diffBefore.get(target) === null ||
+    diffBefore.get(target) !== quoteFrom(comparisonTextNodes(target)))
     ? {
         id: inlineId(target),
         open: inlineOpen.has(target),

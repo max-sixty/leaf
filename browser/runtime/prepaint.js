@@ -1433,10 +1433,10 @@
     const target = id && document.getElementById(id);
     return target && members.find((member) => member.contains(target));
   };
-  const choose = (holder, members) =>
+  const choose = (holder, members, fallback = members[0]) =>
     (reloaded
       ? kept(holder, members) || named(members)
-      : named(members) || kept(holder, members)) || members[0];
+      : named(members) || kept(holder, members)) || fallback;
 
   // Until its module upgrades it, the holder's opening member wears `data-lf-opening`,
   // so its theme can show that member alone at first paint. Marked as the parser
@@ -1514,14 +1514,15 @@
 
   // The holder's module asks once, as it upgrades, which member opens, and from then on
   // shows that member itself, so the mark comes off. It records each member it shows,
-  // which a reload reopens (storage.js).
+  // which a reload reopens (storage.js). A holder that chooses its own first member
+  // where neither the tab nor the address names one passes `fallback`, as null.
   root.lfViews = {
-    opening(holder, members) {
+    opening(holder, members, fallback) {
       for (const member of holder.querySelectorAll(`:scope > [${OPENING}]`))
         member.removeAttribute(OPENING);
       for (const member of members)
         soleContents.get(member)?.removeAttribute(SOLE_CONTENT);
-      return choose(holder, members);
+      return choose(holder, members, fallback);
     },
     keep(holder, member) {
       tabStore.set(OPEN_KEY + holder.id, member.id || member.querySelector("[id]")?.id);

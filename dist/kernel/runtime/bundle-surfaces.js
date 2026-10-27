@@ -1524,8 +1524,12 @@ function watchHeadingLinks() {
 			keys: ["Enter"],
 			title: "copy link to section",
 			touch: false,
-			run: () => {
-				stand(headingOn(focused()))?.control.shadowRoot.querySelector("button").click();
+			run: async () => {
+				const link = stand(headingOn(focused()));
+				if (!link) return;
+				await customElements.whenDefined(link.control.localName);
+				await link.control.updateComplete;
+				link.control.shadowRoot.querySelector("button").click();
 			}
 		}]
 	});
@@ -2344,7 +2348,7 @@ const PAGE_SCOPE = document.documentElement.dataset.lfPageScope;
 const { stored, tabStore: initialTabStore } = document.documentElement.lfStorage;
 const tabStore = initialTabStore;
 const views$1 = (holder) => holder.ownerDocument.documentElement.lfViews;
-const openingView = (holder, members) => views$1(holder).opening(holder, members);
+const openingView = (holder, members, fallback) => views$1(holder).opening(holder, members, fallback);
 const keepView = (holder, member) => views$1(holder).keep(holder, member);
 const draftStore = stored(() => localStorage, "local", PAGE_SCOPE);
 const userStore = document.documentElement.lfStorage.userStore;

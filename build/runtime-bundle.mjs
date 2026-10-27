@@ -252,10 +252,7 @@ async function compile(layerRoot, entries, assetRoot, minify) {
     makeAbsoluteExternalsRelative: false,
     tsconfig: false,
     preserveEntrySignatures: "strict",
-    plugins: [
-      kernelFacts(layerRoot, inlined),
-      moduleBoundaries(layerRoot, assetRoot),
-    ],
+    plugins: [kernelFacts(layerRoot, inlined), moduleBoundaries(layerRoot, assetRoot)],
     output: {
       format: "esm",
       entryFileNames: "[name].js",

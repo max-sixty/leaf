@@ -81,7 +81,8 @@ The other agents and Max's own sessions share this Mac (18 cores).
   `Closes #N` for the issue your item came from, or `Part of #N` if work on it
   remains. End it with the line
   `> _This was written by Claude Code on behalf of max-sixty_`.
-- Don't mark it ready, merge it, request reviewers, or wait for CI.
+- Don't mark it ready, merge it, request reviewers, or wait for CI: the session
+  that started you marks it ready once its review passes, and Tend lands it.
 - Never force-push or rewrite pushed history, even on your own branch: add commits.
 - If a Leaf restriction (a CSP, a validator, an allowlist) blocks the item, don't
   work around it: stop and report what it blocks.
@@ -101,6 +102,7 @@ End your final message with a fenced `json` block, then at most a short paragrap
   "tests_run": ["…"],
   "unverified": ["what you could not check"],
   "decisions_taken": ["calls Max may reverse"],
+  "adds": ["anything beyond the repair and its test that later changes must keep working with: a new mechanism, gate, public option, dependency or protocol bump"],
   "friction": ["what in the repo, its instructions or tooling slowed you, and where"],
   "follow_ups": ["durable work this uncovered"]
 }

@@ -164,16 +164,17 @@ moving anything. `leaf package check --render` reports a widget that moves as
 
 - Size the widget in the package theme under `html[data-lf-interactive]`, which Leaf
   sets before first paint wherever its runtime will run.
-- A structure whose shape the log never changes, such as a row of count tiles, goes in
-  `x-prepaint`. Delivery writes it into each occurrence, and the module removes it
-  (`:scope > [data-lf-prepaint]`) in the same step that draws its replacement.
-- A structure that depends on the instance's authored members or on its `tabStore`
-  values (`module-state.md`, "Tab-local working state") goes in `x-initial`: the path of
-  a committed classic script that calls
+- The widget's initial structure goes in `x-initial`: the path of a committed classic
+  script that calls
   `document.documentElement.lfInitial.register(tag, render)`. Delivery calls
-  `render(host, {tabStore, offer, offerElement, offerAction, generatedElement, keeps, authoredBody})`
-  as soon as each host's markup arrives, so the widget first appears whole. `render` is
-  synchronous, fetches nothing and reads nothing from the log; it may move authored
+  `render(host, tools)` as soon as each host's markup arrives, nested hosts first, so the widget first appears
+  whole. Delivery inlines each used bundle once in the head; for later revisions and
+  thread messages the loader imports the bundle before the behavior module.
+  `tools` provides `tabStore`, `offer`, `offerElement`, `offerAction`,
+  `offerActionElement`, `selectableOffer`, `selectableOfferElement`,
+  `generatedElement`, `keeps` (the attribute keeper) and `authoredBody`.
+  Leaf keeps the authored markup before drawing, so source readings and comparisons
+  ignore the drawing. `render` is synchronous, fetches nothing and reads nothing from the log; it may move authored
   nodes within the host. To put every authored child inside a box it builds, as
   `lf-worktree` puts its evidence under its disclosure's summary, pass that box to
   `authoredBody(box)`, which moves the children into it. Leaf treats the boxes around
@@ -186,8 +187,7 @@ moving anything. `leaf package check --render` reports a widget that moves as
   below it, finishes when the document has parsed (`readystatechange`), before any
   module runs; if that changes its
   height, mark the affected reading scope `data-lf-initial-pending` while parsing and
-  remove the mark after drawing. `x-initial` requires `x-upgrade: true` and excludes
-  `x-prepaint`.
+  remove the mark after drawing. `x-initial` requires `x-upgrade: true`.
 - Where the markup can't say how tall the drawing will be, declare `x-height` and add
   the class `lf-rendered` once drawn.
 - A widget that shows one member at a time, as `lf-tabs` does, declares `x-views`.

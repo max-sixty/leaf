@@ -751,10 +751,18 @@ def test_a_revision_replaces_the_widget_it_rewrote_and_keeps_the_one_it_did_not(
 </lf-options></lf-ask>
 """,
     )
-    second = first.replace("Widgets first", "Widgets second").replace(
-        '<lf-option id="wd-later">Start later</lf-option>',
-        '<lf-option id="wd-later">Start later</lf-option>\n'
-        '  <lf-option id="wd-never">Do not start at all</lf-option>',
+    second = (
+        first.replace("Widgets first", "Widgets second")
+        .replace(
+            '<lf-option id="wd-later">Start later</lf-option>',
+            '<lf-option id="wd-later">Start later</lf-option>\n'
+            '  <lf-option id="wd-never">Do not start at all</lf-option>',
+        )
+        .replace(
+            '<lf-ask id="wd-when-ask">',
+            '<p><lf-tally id="arriving-tally" for="wd-when-ask" next></lf-tally></p>'
+            '<lf-ask id="wd-when-ask">',
+        )
     )
     page = open_page(browser, live_url(serve(first)))
     mark = page.locator("#wd-keep .lf-pick")
@@ -770,6 +778,9 @@ def test_a_revision_replaces_the_widget_it_rewrote_and_keeps_the_one_it_did_not(
     expect(page).to_have_title("Widgets second")
     expect(page.locator("#wd-never")).to_contain_text("Do not start at all")
     expect(page.locator("#wd-never .lf-pick")).to_have_count(1)
+    expect(page.locator("#arriving-tally .lf-tally-words")).to_have_text(
+        "1 left to answer"
+    )
     assert page.evaluate("window.__wdWhen !== document.getElementById('wd-when')"), (
         "the rewritten question kept an element rendering the markup it replaced"
     )

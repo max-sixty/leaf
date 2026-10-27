@@ -1,6 +1,5 @@
 """Widget structure and interaction contract validation."""
 
-import turbohtml
 from jsonschema.exceptions import SchemaError
 
 from leaf.schema import (
@@ -97,20 +96,10 @@ def _validate_widget_structure(
                 "unknown-declarations", path, tag, key=key, names=unknown
             )
     properties = entry.get("properties", {})
-    if entry.get("x-initial"):
-        if not entry["x-upgrade"]:
-            raise registry_error(
-                "requires", path, tag, key="x-initial", needs="x-upgrade", value=True
-            )
-        if entry.get("x-prepaint") is not None:
-            raise registry_error("initial-and-prepaint", path, tag)
-    if (prepaint := entry.get("x-prepaint")) is not None:
-        if isinstance(prepaint, dict):
-            named = declarations.get(prepaint["as"], {}).get("x-prepaint")
-            if not isinstance(named, str):
-                raise registry_error("prepaint-as", path, tag, **{"as": prepaint["as"]})
-            prepaint = named
-        _validate_prepaint(tag, entry, prepaint, path)
+    if entry.get("x-initial") and not entry["x-upgrade"]:
+        raise registry_error(
+            "requires", path, tag, key="x-initial", needs="x-upgrade", value=True
+        )
     layout = entry.get("x-reading-role")
     if layout:
         if entry.get("x-content") != "markup":
@@ -253,31 +242,6 @@ def _validate_shown_answers(tag: str, entry: dict, declarations: dict, path) -> 
         ]
         if (spec.get("record") or {}).get("kind") != "attribute" or not keyed:
             raise registry_error("awaits-key", path, tag, key=key)
-
-
-def _validate_prepaint(tag: str, entry: dict, prepaint: str, path) -> None:
-    """Hold an x-prepaint to what delivery can write into every occurrence: one plain
-    element that only a module will take out again.
-
-    Delivery and the message path insert its bytes as written, so they must be the
-    element the parser reads back, byte for byte: markup the parser would close,
-    reorder or drop, such as a root left open, would take in the occurrence's own
-    children once inserted, and taking the prepaint out would take those with it. It
-    is copied into each occurrence, so an id would repeat; a custom element would
-    upgrade as a widget of its own, and a script would run. Delivery owns its
-    `data-lf-` marks (`revision_delivery.mark_declared`).
-    """
-    if entry.get("x-upgrade") is not True:
-        raise registry_error("prepaint-upgrade", path, tag)
-    nodes = list(turbohtml.parse(prepaint, scripting=True).find("body").children)
-    if len(nodes) != 1 or getattr(nodes[0], "html", None) != prepaint:
-        raise registry_error("prepaint-shape", path, tag)
-    for element in [nodes[0], *nodes[0].find_all(True)]:
-        attrs = element.attrs
-        if "-" in element.tag or element.tag in ("script", "style", "template", "slot"):
-            raise registry_error("prepaint-element", path, tag, element=element.tag)
-        if "id" in attrs or any(name.startswith("data-lf-") for name in attrs):
-            raise registry_error("prepaint-marks", path, tag, element=element.tag)
 
 
 def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -> dict:

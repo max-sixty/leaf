@@ -2979,7 +2979,9 @@ def test_a_thread_s_field_says_its_reply_beside_the_walk_s_position(browser, ser
     expect(key).to_have_text("c")
     expect(key).to_be_visible()
     hint = page.locator(".lf-fp-field .lf-compose-placeholder").bounding_box()
-    assert key.bounding_box()["x"] > hint["x"] + hint["width"] / 2, "Reply ends the field"
+    assert key.bounding_box()["x"] > hint["x"] + hint["width"] / 2, (
+        "Reply ends the field"
+    )
     page.keyboard.press("c")
     expect(field(page)).to_be_focused()
     expect(lead(page)).to_be_hidden()

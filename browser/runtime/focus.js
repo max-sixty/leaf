@@ -475,6 +475,13 @@ let paintedFocus = null;
 let paintedWithin = new Set();
 let paintedVisible = null;
 let paintedVisibleWithin = new Set();
+// Modality can change the cue without moving the destination. Paint readers need
+// that change too; navigation readers must not hear it as another focus move.
+const visibilityReaders = new Set();
+export const onFocusVisibility = (read) => {
+  visibilityReaders.add(read);
+  return () => visibilityReaders.delete(read);
+};
 function markFocus(node, name, present) {
   keeps(node, `data-lf-${name}`, present ? "" : null);
   // Removing an absent token still rewrites the attribute.
@@ -485,6 +492,24 @@ function markFocus(node, name, present) {
     node.hasAttribute("part")
   )
     node.part.add(`lf-${name}`);
+}
+// The keyboard cue's destination, read before or after its attributes are painted.
+// Current location and its visibility are separate: a click keeps a control as the
+// keyboard destination without advertising a keyboard cue. The browser owns
+// focus-visible (including text entry and modality changes on the same node).
+// Closed text-field roots expose their host, not the focused editor; text
+// entry always needs a cue, as it does for native editors. A frame never matches
+// :focus-visible on its host, so it takes the platform's rule from the inputs: visible
+// unless a press put the user there (`inputInFrame`).
+export function visibleFocus(node = focused()) {
+  return node &&
+    node !== document.body &&
+    node !== document.documentElement &&
+    (node.matches(":focus-visible") ||
+      node.matches(TEXT_BOX) ||
+      (node.localName === "iframe" && !pressLed()))
+    ? node
+    : null;
 }
 function paintFocus(node) {
   const next =
@@ -511,24 +536,12 @@ function paintFocus(node) {
     if (!paintedWithin.has(owner)) markFocus(owner, "focus-within", true);
   }
   paintedWithin = within;
-  // Current location and its visibility are separate: a click keeps a control as the
-  // keyboard destination without advertising a keyboard cue. The browser owns
-  // focus-visible (including text entry and modality changes on the same node).
-  // Closed text-field roots expose their host, not the focused editor; text
-  // entry always needs a cue, as it does for native editors. A frame never matches
-  // :focus-visible on its host, so it takes the platform's rule from the inputs: visible
-  // unless a press put the user there (`inputInFrame`).
-  const visible =
-    next &&
-    (next.matches(":focus-visible") ||
-      next.matches(TEXT_BOX) ||
-      (next.localName === "iframe" && !pressLed()))
-      ? next
-      : null;
+  const visible = visibleFocus(next);
   if (visible !== paintedVisible) {
     if (paintedVisible) markFocus(paintedVisible, "focus-visible", false);
     if (visible) markFocus(visible, "focus-visible", true);
     paintedVisible = visible;
+    for (const read of visibilityReaders) read();
   }
   const visibleWithin = visible ? within : new Set();
   for (const owner of paintedVisibleWithin) {

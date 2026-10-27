@@ -69,6 +69,7 @@ from render_harness import (
     _until,
     at_rest,
     compare_with,
+    confirming_resize_notices,
     consume_browser_errors,
     leaf_page,
     left_alone,
@@ -3051,7 +3052,9 @@ def short_aim_findings_in_every_tab(page):
     A page's own CSS can shrink a control under a narrow window's rules, and a tab's
     content stands in the layout only while that tab is open, so a reading of the first
     tab at desktop width never met the three examples whose controls fell below the
-    floor at 390px. Each tab, and each tab inside it, is opened once and read."""
+    floor at 390px. Each tab, and each tab inside it, is opened once, and what that
+    shows, its panel and the chrome, is read; the rest of the page was read before the
+    first tab opened."""
     return _short_aims(page, every_tab=True)
 
 
@@ -3065,16 +3068,14 @@ NEXT_TAB = """(opened) => {
       tab.checkVisibility() &&
       !opened.includes(tab.getAttribute('aria-controls')),
   );
-  if (!tab) return null;
-  // Pressed by script: a strip that runs past a phone's width leaves tabs outside the
-  // window, and what is under test is the content the tab opens, not the strip's reach.
-  tab.click();
-  return tab.getAttribute('aria-controls');
+  return tab?.getAttribute('aria-controls') ?? null;
 }"""
 
 
-# Press a sibling of a tab in its strip (`away`), or the tab itself.
-REOPEN_TAB = """([id, away]) => {
+# Press the tab that opens a panel, or a sibling of it in its strip (`away`). Pressed by
+# script: a strip that runs past a phone's width leaves tabs outside the window, and
+# what is under test is the content the tab opens, not the strip's reach.
+OPEN_TAB = """([id, away]) => {
   const tab = [...document.querySelectorAll('[role="tab"]')].find(
     (tab) => tab.getAttribute('aria-controls') === id,
   );
@@ -3085,54 +3086,49 @@ REOPEN_TAB = """([id, away]) => {
 
 def _short_aims(page, *, every_tab):
     short, seen = {}, 0
-    # Opening a tab hands the browser a block of new layout, and under load it may say
-    # once that a ResizeObserver delivery was deferred. As `navigate` does, a first
-    # sighting is the platform's notice and is set aside; the tab is opened again, and a
-    # notice that recurs is a resize loop of the page's own and is reported.
-    outside = getattr(page, "lf_resize_notices", None)
-    page.lf_resize_notices = notices = []
-    recurred = []
+    selectors = aim_selectors()
+
+    def read(roots, where):
+        nonlocal seen
+        measured = roots.evaluate_all(AIM_BOXES, selectors)
+        assert measured["floor"] == 44, f"a finger asked for {measured['floor']}px"
+        seen += measured["seen"]
+        for found in measured["short"]:
+            short.setdefault(found, []).append(where)
+
     with under_a_finger(page):
+        read(page.locator(":root"), "first")
         opened = []
-        while True:
-            measured = page.evaluate(AIM_BOXES, aim_selectors())
-            assert measured["floor"] == 44, f"a finger asked for {measured['floor']}px"
-            seen = max(seen, measured["seen"])
-            for found in measured["short"]:
-                short.setdefault(found, []).append(opened[-1] if opened else "first")
-            tab = every_tab and page.evaluate(NEXT_TAB, opened)
-            if not tab:
-                break
+        while every_tab and (tab := page.evaluate(NEXT_TAB, opened)):
             opened.append(tab)
-            rendered(page)
-            if notices:
-                notices.clear()
-                # Away to a sibling and back, which opens the tab afresh.
-                page.evaluate(REOPEN_TAB, [tab, True])
+
+            def opening(tab=tab, away=False):
+                page.evaluate(OPEN_TAB, [tab, away])
                 rendered(page)
-                notices.clear()
-                page.evaluate(REOPEN_TAB, [tab, False])
-                rendered(page)
-                if notices:
-                    recurred.append(f"{tab}: {notices[0].code}")
-                    notices.clear()
-    page.lf_resize_notices = outside
+
+            def reopening(tab=tab):
+                # Away to a sibling and back, which opens the tab afresh; what the
+                # sibling's own opening raised is set aside with it.
+                opening(tab, away=True)
+                page.lf_resize_notices.clear()
+                opening(tab)
+
+            # Opening a tab hands the browser a block of new layout, and under load it
+            # may say once that a ResizeObserver delivery was deferred.
+            confirming_resize_notices(page, opening, reopening)
+            # What the opening shows: the panel, and the chrome the runtime draws for
+            # it, such as the margin's entries for what the panel holds.
+            read(page.locator(f'[id="{tab}"], body > .lf-chrome'), tab)
     assert seen > 30, f"only {seen} aims stood on the corpus"
-    findings = []
-    if short:
-        findings.append(
-            f"{len(short)} aims are smaller than 44px under a finger, of {seen} read:\n"
-            + "\n".join(
-                f"{found} (open on {', '.join(dict.fromkeys(tabs[:3]))})"
-                for found, tabs in sorted(short.items())
-            )
+    if not short:
+        return []
+    return [
+        f"{len(short)} aims are smaller than 44px under a finger, of {seen} read:\n"
+        + "\n".join(
+            f"{found} (open on {', '.join(dict.fromkeys(tabs[:3]))})"
+            for found, tabs in sorted(short.items())
         )
-    if recurred:
-        findings.append(
-            "opening these tabs raised a ResizeObserver loop notice again on a second "
-            "opening:\n" + "\n".join(recurred)
-        )
-    return findings
+    ]
 
 
 @contextmanager

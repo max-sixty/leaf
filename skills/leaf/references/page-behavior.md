@@ -5,9 +5,12 @@ referenced as `/page/…`. Load a library that ships only as a classic script wi
 `<script defer src>`. Relative imports stay within `page/`. A module imports Leaf's helpers
 from `/runtime/widget-api.js`. For floating placement that native layout cannot
 express, import the bundled Floating UI library from `/vendor/floating-ui.esm.js`.
-Leaf saves the local files that scripts and stylesheets name
-by a literal path in the same revision as the markup, so import page files by literal
-URL.
+Each revision saves every file under `page/` with the markup, except hidden ones, so
+page code can fetch any of them, such as JSON, CSV, text, images, fonts or wasm. Name a
+file relative to the module that fetches it, `fetch(new URL("./data.json",
+import.meta.url))`: a URL relative to the document reaches no page file, so fetch from a
+module under `page/` rather than an inline script. An export doesn't serve page files
+to fetch, so a page that fetches them works only while served.
 
 When you change only content and style, the open page updates in place: unchanged
 widgets keep their elements and the user's state, and changed widgets are replaced.
@@ -65,8 +68,11 @@ explorer or playground keeps its code in `page/`.
 
 A script, stylesheet, font, image or frame can also come from another server by its
 absolute `http(s)://` URL, and page code can fetch from anywhere, but these load only
-while the user is online. Put data the page presents in a `data/` source instead
-(`package-data.md`, "External or derived data"), where the log and an export keep it.
+while the user is online. Save a file the page reads as it is under `page/`. Data you
+will replace while the page stays open, such as a current status or query result, goes
+in a `data/` source instead (`package-data.md`, "External or derived data"): it reaches
+the open page without a new revision, is checked against its contract, and an export
+keeps it.
 
 Read typed data and media through their Leaf or browser APIs. Never turn their contents
 into source code or markup.

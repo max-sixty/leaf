@@ -165,8 +165,8 @@ customElements.define(
         this.#depth = name;
         if (name === "skim") this.#fold(scope);
         if (name === "all") {
-          for (const details of scope.querySelectorAll("details:not([open])")) {
-            if (details.closest(STANDS)) continue;
+          for (const details of scope.querySelectorAll("details")) {
+            if (details.open || details.closest(STANDS)) continue;
             details.open = true;
             this.#opened.add(details);
           }

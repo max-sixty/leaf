@@ -4889,7 +4889,9 @@ def held_motion(page, part=".lf-fp-ground"):
 
 def hold_motion(page):
     """Hold each motion the page starts from now on at its first frame."""
-    page.evaluate("() => { window.__lfAnimate = Element.prototype.animate;" + HOLD_MOTION + "}")
+    page.evaluate(
+        "() => { window.__lfAnimate = Element.prototype.animate;" + HOLD_MOTION + "}"
+    )
 
 
 def finish_held(page):
@@ -4909,9 +4911,7 @@ def ink_rows(image):
     width, height = image.size
     pixels = image.load()
     return {
-        y
-        for y in range(height)
-        if sum(pixels[x, y] < 110 for x in range(width)) >= 3
+        y for y in range(height) if sum(pixels[x, y] < 110 for x in range(width)) >= 3
     }
 
 
@@ -5031,7 +5031,9 @@ def test_a_send_s_reply_field_takes_the_row_s_seat_where_it_stands(browser, serv
     # The box's tween as the thread's view opens over the row.
     held_motion(page, ".lf-fp-opened")
     reply = page.locator(".lf-fp-reply")
-    drawn = "reply => [reply.getBoundingClientRect().top, getComputedStyle(reply).clipPath]"
+    drawn = (
+        "reply => [reply.getBoundingClientRect().top, getComputedStyle(reply).clipPath]"
+    )
     first = reply.evaluate(drawn)
     finish_held(page)
     assert first == reply.evaluate(drawn), first

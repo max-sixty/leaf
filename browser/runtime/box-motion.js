@@ -707,8 +707,7 @@ export function boxMotion({
     function rise(part, frame, siblings) {
       const to = part.box;
       const dy = boxFrom.top - boxAt.top;
-      if (dy < 0.5 || to.top >= boxFrom.top - 0.5)
-        return reveal(part, frame, siblings);
+      if (dy < 0.5 || to.top >= boxFrom.top - 0.5) return reveal(part, frame, siblings);
       motions.set(part.element, {
         from: shifted(to, 0, dy),
         to,

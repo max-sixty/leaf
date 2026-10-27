@@ -858,7 +858,10 @@ export function createFloatingPanel({
   // that enters it, but for a notice or the Go-to word for their moment; a walk's
   // position, which stands as long as the user does, stands at its end (`passingAside`).
   // The user asked for this on 22 October, when a walk's "Thread 11 of 11" in the
-  // field's place left nothing saying how to reply to the thread they were reading.
+  // field's place left nothing saying how to reply to the thread they were reading. A
+  // walk that has gone on to the page, leaving the thread's view open above the stop
+  // it reached (`clearFor`), takes the field's words instead, since the stop is what
+  // the user is at now; the field says Reply again once the caret is in it (`whereTo`).
   const HIDDEN = "Annotations hidden";
   const hiddenLead = () => (annotationsHidden() ? `${HIDDEN} · ` : "");
   function fieldReading(key, input) {
@@ -872,8 +875,12 @@ export function createFloatingPanel({
       !thread.resolved &&
       !noticeReading().visible &&
       !statusContextReading().goTo
-    )
+    ) {
+      const { walk } = statusContextReading();
+      if (walk?.shown && !currentLocationIn(host))
+        return { says: "walk", words: walk.text };
       return { says: "turn", words: turnWords(thread) };
+    }
     const stance = key ? null : statusContextReading().stance;
     // Keep the current navigation context alongside the selection's comment offer.
     // The field's own name says what a press does (`pageEditor`); on a narrow phone

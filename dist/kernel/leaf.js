@@ -5123,10 +5123,17 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			says: "destination",
 			words: whereTo(key)
 		};
-		if (thread && !thread.resolved && !noticeReading().visible && !statusContextReading().goTo) return {
-			says: "turn",
-			words: turnWords(thread)
-		};
+		if (thread && !thread.resolved && !noticeReading().visible && !statusContextReading().goTo) {
+			const { walk } = statusContextReading();
+			if (walk?.shown && !currentLocationIn(host)) return {
+				says: "walk",
+				words: walk.text
+			};
+			return {
+				says: "turn",
+				words: turnWords(thread)
+			};
+		}
 		const stance = key ? null : statusContextReading().stance;
 		if (!key && selectedWords) return {
 			says: "selection",

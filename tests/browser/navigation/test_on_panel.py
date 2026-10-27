@@ -245,8 +245,8 @@ SEEN_SHARE = """async (selector) => {
 def test_travel_puts_away_a_panel_view_standing_over_where_it_lands(browser, serve):
     """Travel shows the place it takes the user to (floating-panel.js, `clearFor`). `m`
     from a thread the panel opened to a place the landing brings clear above the view
-    leaves the thread open; to one at the page's foot, which the view would stand over,
-    it puts the view away."""
+    leaves the thread open, and the field names the stop rather than the thread's turn;
+    to one at the page's foot, which the view would stand over, it puts the view away."""
     url = serve(UNDER_PANEL_PAGE)
     asked = append_carried_log_record(
         serve.page_dir,
@@ -284,6 +284,9 @@ def test_travel_puts_away_a_panel_view_standing_over_where_it_lands(browser, ser
     expect_walk_position(page, "1 of 3 waiting on me · Options")
     lands_whole("#mid-ask")
     expect(thread).to_have_count(1)
+    expect(page.locator(".lf-fp-field leaf-text")).to_have_attribute(
+        "placeholder", "1 of 3 waiting on me · Options"
+    )
 
     page.keyboard.press("m")
     expect_walk_position(page, "2 of 3 waiting on me · Options")

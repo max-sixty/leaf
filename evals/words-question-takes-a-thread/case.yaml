@@ -2,9 +2,9 @@
 # with no widget inside as a question the user answers in words. The user asked
 # that Leaf not encourage that form, and never require an lf-ask to put a
 # question on On me: a thread message with --obligation already asks for words.
-# At 57a2881db, base asked the paging question as a bare lf-ask in 0/3 Claude Code
-# and 0/3 Codex runs passing; the candidate sent it with --obligation in 3/3 each,
-# and both arms kept the cutover choice a widget (12/12).
+# At 57a2881db, base asked the paging question as a bare lf-ask in all 3 Claude Code
+# and 3 Codex runs; the candidate sent it with --obligation in all 6, and both arms
+# kept the cutover choice a widget (12/12).
 description: words-question-takes-a-thread
 metadata:
   purpose:

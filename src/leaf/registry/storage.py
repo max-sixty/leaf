@@ -65,10 +65,6 @@ class IncompatibleLayer(RegistryError):
     is the one that refusal names."""
 
 
-class _Layer(Slot):
-    """The page's composed layer vocabulary, by its record's stamp."""
-
-
 class _Candidate(Slot):
     """The page's candidate vocabulary, by its inputs' stamps and active revision."""
 
@@ -94,8 +90,14 @@ def selected(record: dict):
 
 def layer_vocabulary(record: dict) -> dict:
     """The vocabulary of the layer `record` selects, with the selection and the
-    generation the browser speaks under `$layer`."""
-    return {**selected(record).registry, "$layer": layer_metadata_of(record)}
+    generation the browser speaks under `$layer`, held with the composition, since
+    an action POST asks for the whole vocabulary before it can check a press."""
+    metadata = layer_metadata_of(record)
+    readings = selected(record).readings
+    key = ("layer", json.dumps(metadata, sort_keys=True))
+    if key not in readings:
+        readings[key] = {**selected(record).registry, "$layer": metadata}
+    return readings[key]
 
 
 def layer_widgets(record: dict) -> list[str]:
@@ -144,25 +146,15 @@ def _revision_vocabulary(
 def load_registry(page_dir: Path):
     """The vocabulary of the page's layer, or None before `page init`.
 
-    It refuses a page at another page protocol first (`IncompatibleLayer`). Kept
-    in the page's memory while the record's stamp holds, because an action POST
-    asks for the whole vocabulary before it can check a single press."""
+    It refuses a page at another page protocol first (`IncompatibleLayer`)."""
     from leaf.layer import incompatible_layer
 
-    path = page_dir / LAYER_FILE
-
-    def read():
-        record = layer_record(page_dir)
-        if record is None:
-            return None
-        if refusal := incompatible_layer(page_dir, record):
-            raise IncompatibleLayer(refusal)
-        return layer_vocabulary(record)
-
-    stamp = file_stamp(path)
-    if not stamp:
-        return read()
-    return memo(page_dir, _Layer).get(stamp, read)
+    record = layer_record(page_dir)
+    if record is None:
+        return None
+    if refusal := incompatible_layer(page_dir, record):
+        raise IncompatibleLayer(refusal)
+    return layer_vocabulary(record)
 
 
 def read_page_registry(page_dir: Path):
@@ -185,8 +177,12 @@ def read_page_registry(page_dir: Path):
         for path in widget_paths(page_dir, "page/widgets")
     )
     active = latest_revision(page_dir)
+    record = layer_record(page_dir)
     key = (
         file_stamp(page_dir / LAYER_FILE),
+        # The composition the record selects, which another working directory or
+        # package install resolves to other roots (`layer.selected_layer`).
+        selected(record) if record else None,
         file_stamp(page_dir / "page" / "registry.json"),
         widgets,
         active,

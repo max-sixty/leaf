@@ -430,7 +430,6 @@ class LayerComposition:
         }
 
 
-@cache
 def selected_layer(packages: tuple[str, ...], theme: str | None) -> LayerComposition:
     """The layer this Leaf composes for a page that selects `packages` and the
     personal `theme`, the package composed last: its core and bundled packages and
@@ -446,12 +445,12 @@ def selected_layer(packages: tuple[str, ...], theme: str | None) -> LayerComposi
     `package install`."""
     if theme is not None:
         packages = (*(name for name in packages if name != theme), theme)
-    return _composed(tuple(checked_layer_inputs(layer_inputs(packages))))
+    return _composed(tuple(layer_inputs(packages)))
 
 
 @cache
-def _composed(roots: tuple[Path, ...]) -> LayerComposition:
-    return compose_layer(list(roots))
+def _composed(inputs: tuple[Path, ...]) -> LayerComposition:
+    return compose_layer(checked_layer_inputs(list(inputs)))
 
 
 def files_identity(files: dict[str, bytes]) -> str:

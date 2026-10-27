@@ -28,6 +28,7 @@ from leaf import render_checks as render_checks_model
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
+@pytest.mark.watch_shifts
 def test_merge_film_inspection_has_touch_and_keyboard_routes(browser, serve):
     """Readable part details survive a tap, including a move across commit branches."""
     example = ROOT / "examples" / "wt-merge.html"
@@ -52,7 +53,10 @@ def test_merge_film_inspection_has_touch_and_keyboard_routes(browser, serve):
         title: inspector.querySelector('strong').textContent,
       };
     }, {once: true})""")
+    inspect_next.scroll_into_view_if_needed()
+    inspection_top = inspect_next.bounding_box()["y"]
     inspect_next.tap()
+    assert inspect_next.bounding_box()["y"] == pytest.approx(inspection_top, abs=1)
     assert page.evaluate("firstInspection") == {"hidden": False, "title": labels[0]}
     inspect_next.press("Escape")
     expect(inspector).to_be_hidden()
@@ -74,18 +78,23 @@ def test_merge_film_inspection_has_touch_and_keyboard_routes(browser, serve):
     expect(inspector.locator("strong")).to_have_text("worktree ~/repo.feature")
     details = inspector.bounding_box()
     assert details["y"] >= 0
-    assert details["y"] + details["height"] <= 844
+    reading_bottom = page.evaluate(
+        "async () => (await window.__lfWidgetApi()).shownWindow().bottom"
+    )
+    assert details["y"] + details["height"] <= reading_bottom
     assert inspect_next.bounding_box()["y"] >= 0
     inspect_next.focus()
     page.evaluate("window.scrollBy(0, 500)")
     inspect_next.press("i")
     details = inspector.bounding_box()
     assert details["y"] >= 0
-    assert details["y"] + details["height"] <= 844
+    assert details["y"] + details["height"] <= reading_bottom
     assert inspect_next.bounding_box()["y"] >= 0
     play = film.locator(".film-play")
     play.focus()
+    play_top = play.bounding_box()["y"]
     play.press("i")
+    assert play.bounding_box()["y"] == pytest.approx(play_top, abs=1)
     expect(inspector).to_be_visible()
     play.press("Escape")
     expect(inspector).to_be_hidden()

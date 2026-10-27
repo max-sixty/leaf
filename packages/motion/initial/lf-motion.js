@@ -1,16 +1,16 @@
-import { PLAY, PAUSE } from "../../../browser/runtime/motion-icon-paths.js";
+import { ICONS } from "../../../browser/runtime/icon-paths.js";
 
 /* Build the transport before first paint; upgrade adopts these exact controls. */
 document.documentElement.lfInitial.register(
   "lf-motion",
-  (host, { offer, tabStore }) => {
+  (host, { offer, offerAction, tabStore, authoredBody }) => {
     const saved = JSON.parse(
       tabStore.get(`motion:${host.id}`) || '{"time":0,"rate":1}',
     );
     const controls = offer("div", "lf-motion-controls");
     controls.setAttribute("role", "group");
     controls.setAttribute("aria-label", host.getAttribute("aria-label"));
-    const play = offer("button", "lf-btn lf-motion-play");
+    const play = offerAction("symbol", "lf-motion-play");
     const symbol = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     symbol.setAttribute("viewBox", "0 0 16 16");
     symbol.setAttribute("aria-hidden", "true");
@@ -25,7 +25,7 @@ document.documentElement.lfInitial.register(
         lastLabel = label;
       }
       if (playing !== lastPlaying) {
-        symbol.innerHTML = playing ? PAUSE : PLAY;
+        symbol.innerHTML = playing ? ICONS.pause : ICONS.play;
         lastPlaying = playing;
       }
     };
@@ -54,12 +54,11 @@ document.documentElement.lfInitial.register(
     speed.value = String(saved.rate);
     speedLabel.append(speed);
     controls.append(play, time, clock, speedLabel);
-    // This region holds authored content, not apparatus: marking it with offer()
+    // This body holds authored content, not apparatus: marking it with offer()
     // would exclude every descendant from the page's styles and annotation routes.
     const body = document.createElement("div");
     body.className = "lf-motion-body";
-    body.append(...host.childNodes);
-    host.append(controls, body);
+    host.append(controls, authoredBody(body));
     return { controls, play, paintPlay, time, clock, speed };
   },
 );

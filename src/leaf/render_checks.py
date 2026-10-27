@@ -2,6 +2,7 @@
 test suite."""
 
 from pathlib import Path
+from urllib.parse import urljoin
 
 from .schema import RENDER_CHECKS_DIR
 
@@ -62,6 +63,7 @@ _PRE_UPGRADE_FINDINGS = "() => globalThis.__leafRenderDriver.preUpgradeFindings(
 
 
 def _timeout(page, timeout_ms: int | None) -> int:
+    page = getattr(page, "page", page)
     return timeout_ms or getattr(page, "_leaf_probe_timeout_ms", SERVED_TIMEOUT_MS)
 
 
@@ -74,6 +76,78 @@ def install_driver(page) -> None:
         return
     page.add_init_script(path=DRIVER_SOURCE)
     page._leaf_render_driver_installed = True
+
+
+def is_runtime_entry(request) -> bool:
+    """Whether this request names its document's delivered runtime entry.
+
+    The delivery's bootstrap marker precedes loadable resources. Read it without
+    waiting for the parser: a classic authored script can also be named leaf.js.
+    """
+    entry = request.frame.evaluate("""() => {
+      const entry = document.querySelector('script[data-lf-entry]')?.dataset.lfEntry;
+      return entry ? new URL(entry, location.href).href : null;
+    }""")
+    return request.url == entry
+
+
+def observe_output_documents(page) -> None:
+    """Capture producer publications before the checked document or a sample upgrades.
+
+    The binding retains values outside their realm, including a disposed sample.
+    Only render tools install it; the ordinary runtime retains no publication history.
+    """
+    from playwright.sync_api import Error as PlaywrightError
+
+    if hasattr(page, "_leaf_output_values"):
+        return
+    install_driver(page)
+    page._leaf_output_values = []
+    page._leaf_output_documents = {}
+
+    def heard(source, value):
+        if source["frame"] != page.main_frame:
+            value["document"] = source["frame"].url
+        page._leaf_output_values.append(value)
+
+    page.expose_binding("__leafOutputValue", heard)
+
+    def before_entry(route):
+        frame = route.request.frame
+        if not is_runtime_entry(route.request):
+            route.fallback()
+            return
+        # Let the browser order the subscription before this entry's upgrade. A route
+        # callback must not wait for a document: sibling sample routes can nest while
+        # its parser is awaiting another response, stranding both. This imports the
+        # same check API graph as the runtime; no publication can precede the call.
+        try:
+            response = route.fetch(timeout=_timeout(page, None))
+        except PlaywrightError:
+            route.abort()
+            return
+        document = frame.url
+        probe = urljoin(route.request.url, f"{RENDER_CHECKS_DIR}/outputs.js")
+        route.fulfill(
+            response=response,
+            body=(
+                f'import {{ observeOutputValues }} from "{probe}";\n'
+                "observeOutputValues();\n" + response.text()
+            ),
+        )
+        page._leaf_output_documents[frame] = document
+
+    # The main document's pre-upgrade proof holds its own entry; subsequent child
+    # entries reach this route, including samples opened later by the check's sweep.
+    page.route("**/leaf.js", before_entry)
+
+
+def output_values(page) -> list[dict]:
+    """Wait for live realms' reports, then read all publications retained by the check."""
+    for frame, document in page._leaf_output_documents.items():
+        if not frame.is_detached() and frame.url == document:
+            wait_for_probe(frame, "outputsReported")
+    return page._leaf_output_values
 
 
 def _ensure_driver(page) -> None:

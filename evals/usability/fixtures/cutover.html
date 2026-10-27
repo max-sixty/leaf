@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Queue cutover status</title>
+    <style>
+      .lag-figure svg {
+        width: 100%;
+        height: auto;
+      }
+      .lag-figure text {
+        font-size: 11px;
+        fill: currentColor;
+      }
+      .lag-figure .line {
+        fill: none;
+        stroke: var(--series-1);
+        stroke-width: 2;
+      }
+      .lag-figure .limit {
+        stroke: var(--series-2);
+        stroke-dasharray: 4 3;
+      }
+      .consumer-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 220px);
+        gap: 12px;
+      }
+      .consumer-grid > div {
+        border: 1px solid var(--border);
+        padding: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1 id="title">Order-events queue cutover</h1>
+      <p id="lede">
+        We're moving order events from the old RabbitMQ cluster to the new Kafka topic
+        <code>orders.v2</code>. Dual-writing has run since Monday; consumers switch one
+        by one.
+      </p>
+
+      <h2 id="consumers-heading">Consumers</h2>
+      <div class="consumer-grid" id="consumers">
+        <div id="c-billing"><strong>billing</strong><br />on Kafka since Tue</div>
+        <div id="c-search"><strong>search-indexer</strong><br />on Kafka since Wed</div>
+        <div id="c-email"><strong>email-sender</strong><br />on RabbitMQ</div>
+        <div id="c-fraud"><strong>fraud-scorer</strong><br />on RabbitMQ</div>
+      </div>
+
+      <h2 id="lag-heading">Consumer lag on Kafka</h2>
+      <figure class="lag-figure" id="lag">
+        <svg
+          viewBox="0 0 1400 260"
+          role="img"
+          aria-label="Kafka consumer lag, Monday to Thursday, peaking at 41 seconds on Wednesday and back under 5 seconds"
+        >
+          <line x1="60" y1="20" x2="60" y2="220" stroke="currentColor" />
+          <line x1="60" y1="220" x2="1380" y2="220" stroke="currentColor" />
+          <line class="limit" x1="60" y1="130" x2="1380" y2="130" />
+          <text x="1290" y="122">limit 30 s</text>
+          <polyline
+            class="line"
+            points="60,214 280,211 500,190 720,160 940,97 1160,190 1380,208"
+          />
+          <text x="20" y="224">0 s</text>
+          <text x="14" y="134">30 s</text>
+          <text x="60" y="244">Mon</text>
+          <text x="500" y="244">Tue</text>
+          <text x="900" y="87">41 s</text>
+          <text x="940" y="244">Wed</text>
+          <text x="1340" y="244">Thu</text>
+        </svg>
+        <figcaption>
+          Lag peaked at 41 s on Wednesday when search-indexer reindexed; it's under 5 s
+          now.
+        </figcaption>
+      </figure>
+
+      <h2 id="next-heading">Next</h2>
+      <p id="next">
+        email-sender switches on Friday, fraud-scorer the Monday after. Then we stop
+        dual-writing and retire the RabbitMQ cluster.
+      </p>
+    </main>
+  </body>
+</html>

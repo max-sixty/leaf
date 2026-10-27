@@ -16,9 +16,10 @@ from render_harness import (
 
 from leaf.render_checks import rendered
 
-pytestmark = pytest.mark.shifts_unsurveyed
 
-
+# A live revision that puts a tab set above this one moves it 430px down the window
+# (issue #4036, "Keep what a live revision adds above the reader from moving it").
+@pytest.mark.shifts_unsurveyed
 @pytest.mark.parametrize(
     "placement",
     # Directly in main beside other blocks, and inside one; alone in main is the

@@ -462,7 +462,8 @@ is a lead for host testing, not proof of a working Leaf journey. Rendering,
 CSP, assets, tool calls, reopening and idle-session delivery need separate
 checks in the actual host. A tool exposed to this account or a panel entry does
 not establish general availability or complete delivery. Leaf's host experiment
-and acceptance criteria belong to [TODO.md](../TODO.md), not a second plan in
+and acceptance criteria belong to
+[issue #4086](https://github.com/max-sixty/leaf/issues/4086), not a second plan in
 this note; work in another checkout is not evidence of a landed integration.
 The page directory/event record and the host transport have separate lifetimes.
 
@@ -622,8 +623,9 @@ Patterns Leaf lacked on the read date:
 
 - **A plan drawn as a plan.** Agent Plan keeps a run's steps in order in one card,
   done ones ticked and the current one timed, under "Running · 1 of 5". Leaf has
-  since drawn the agent's plan (`leaf task plan`) in the floating panel's Plan tab,
-  each goal with its steps done and each step's state in place (#3195). Tool Call
+  since drawn the agent's plan (`leaf task plan`) in the floating panel, disclosed
+  from its progress at the foot of On <agent>, each goal with its steps done and each
+  step's state in place (#3195). Tool Call
   Card has no Leaf counterpart: tool calls belong to the harness's transcript.
 - **Answering in a list row.** Agent Inbox and Decision Inbox put Approve and Reject
   in each row, with status and a live clock on the agent's rows. Leaf's floating

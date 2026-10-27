@@ -27,7 +27,7 @@ from leaf_dev import ROOT
 from leaf_dev.arms import base_ref, extract_arm, serving_source
 from leaf_dev.browser import (
     DESKTOP,
-    headless_firefox,
+    headless_engine,
     headless_shell,
     load,
     settle,
@@ -148,9 +148,11 @@ def viewport(value: str) -> tuple[int, int]:
     help="Show the page under a finger: a coarse pointer and a mobile viewport.",
 )
 @click.option(
-    "--firefox",
-    is_flag=True,
-    help="Run in Playwright's Firefox rather than the Chromium shell.",
+    "--browser",
+    "engine",
+    type=click.Choice(["chromium", "firefox", "webkit"]),
+    default="chromium",
+    help="The engine to run in: Playwright's Chromium shell, Firefox or WebKit.",
 )
 @click.option(
     "--cpu-throttle",
@@ -179,12 +181,12 @@ def probe(
     size,
     scheme,
     touch,
-    firefox,
+    engine,
     throttle,
     base,
 ) -> None:
-    """Open SOURCE in Chrome, or Firefox with --firefox, run each --do step, and
-    print what --js returns.
+    """Open SOURCE in Chromium, Firefox or WebKit (--browser), run each --do step,
+    and print what --js returns.
 
     SOURCE is an example or fixture name, an authored .html path built fresh
     from this working tree, or any http(s) URL. Each --do step is one input:
@@ -238,8 +240,8 @@ def probe(
         raise click.UsageError(
             "--gif, --actions and --checkpoint-images require --record DIR"
         )
-    if throttle and firefox:
-        raise click.UsageError("--cpu-throttle needs Chromium's CDP, not --firefox")
+    if throttle and engine != "chromium":
+        raise click.UsageError(f"--cpu-throttle needs Chromium's CDP, not {engine}")
     if isinstance(source, str) and base is not None:
         raise click.UsageError("--base requires a Leaf source, not a URL")
     run = None
@@ -260,7 +262,9 @@ def probe(
         if base is not None:
             commit = extract_arm(base_ref(base), scratch / "base-arm")
             arms = {"base": (commit, scratch / "base-arm"), **arms}
-        with headless_firefox() if firefox else headless_shell() as browser:
+        with (
+            headless_shell() if engine == "chromium" else headless_engine(engine)
+        ) as browser:
             for arm, (ran, arm_dir) in arms.items():
                 reading, doing = {}, "build"
                 try:

@@ -78,11 +78,11 @@ def test_a_refused_page_comment_respects_newer_reading_input(browser, serve):
 
 
 @pytest.mark.parametrize("surface", ["margin", "page"])
-def test_a_refused_reply_folds_away_while_its_card_holds_still(browser, serve, surface):
+def test_a_refused_reply_folds_away_and_its_words_return_whole(browser, serve, surface):
     """A reply the log refuses leaves the thread at once and folds away where it
-    stood. The card around it holds still through the fold, its head and the reply box
-    the words come back to: the room the turn gives back stays the card's until the
-    user's next turn (reply-continuity.js)."""
+    stood, and the card gives its room back as it folds. The words come back to the
+    reply box whole, grown as typing grows it, rather than into the room held from
+    before Send (browser/AGENTS.md, "Stability is owed to the common path")."""
     if surface == "margin":
         url = serve(PANEL_PAGE)
         panel_comment(serve.page_dir, "Check the capacity.", {"section": "how-cap"})
@@ -128,14 +128,19 @@ def test_a_refused_reply_folds_away_while_its_card_holds_still(browser, serve, s
     sent = card.locator('.lf-msg[data-event^="pending:"]')
     expect(sent).to_be_visible()
     rendered(page)
+    space = card.locator(".lf-reply-space")
 
-    def stands():
-        return card.evaluate("""node => [
-          node.getBoundingClientRect().top,
-          node.querySelector('.lf-thread-reply').getBoundingClientRect().bottom,
-        ]""")
+    def whole():
+        return box.evaluate(
+            "node => node.getBoundingClientRect().height + 0.5 >= node.naturalBlockSize"
+        )
 
-    before = stands()
+    # A margin card follows the send with its own motion (box-motion.js), which ends
+    # before the card is read where it stands.
+    page.wait_for_function(
+        "() => !document.querySelector('.lf-margin-preview')?.getAnimations({subtree: true})"
+        ".some(a => Number.isFinite(a.effect?.getComputedTiming().endTime))"
+    )
     route = held.pop()
     route.fulfill(
         status=400,
@@ -159,11 +164,13 @@ def test_a_refused_reply_folds_away_while_its_card_holds_still(browser, serve, s
     )
     one_frame(page)
     assert 0 < folding.evaluate("node => node.getBoundingClientRect().height")
-    assert stands() == pytest.approx(before, abs=0.5)
+    assert space.evaluate("node => node.getBoundingClientRect().height") == 0
+    assert whole()
     page.evaluate("() => window.retirement.play()")
     expect(folding).to_have_count(0)
     rendered(page)
-    assert stands() == pytest.approx(before, abs=0.5)
+    assert space.evaluate("node => node.getBoundingClientRect().height") == 0
+    assert whole()
     page.unroute("**/api/event", hold)
     consume_browser_errors(page, http_error_console(400))
 
@@ -177,7 +184,7 @@ def test_a_new_sent_message_does_not_hide_work_on_an_earlier_message(browser, se
     )
     assert active.exit_code == 0, active.output
     page = open_page(browser, url)
-    expect(thread_row(page, root).locator(".lf-fp-value")).to_have_text("Working")
+    expect(thread_row(page, root).locator(".lf-fp-value")).to_have_text("On it")
     page.locator('[data-lf-margin-for="how-cap"] .lf-margin-marker').click()
     later = append_carried_log_record(
         serve.page_dir,
@@ -193,12 +200,12 @@ def test_a_new_sent_message_does_not_hide_work_on_an_earlier_message(browser, se
     workflow = page.locator(
         f'.lf-margin-preview .lf-msg[data-event="{later["id"]}"] .lf-msg-sending'
     )
-    expect(workflow).to_have_text("Sent")
+    expect(workflow).to_have_text("Saved")
     assert workflow.evaluate(
         "node => node.parentElement.matches('.lf-msg-meta') "
         "&& node.previousElementSibling.matches('time')"
     ), "the message status did not follow its relative timestamp"
-    expect(thread_row(page, root).locator(".lf-fp-value")).to_have_text("Working")
+    expect(thread_row(page, root).locator(".lf-fp-value")).to_have_text("On it")
 
 
 # Paragraphs that give a page length before the thread it is about.

@@ -1,0 +1,2227 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>Leaf UI</title>
+    <meta
+      name="description"
+      content="Compose and use a Leaf page: widgets, themes, responsive layouts, keyboard navigation and touch controls."
+    />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <style>
+      /* The Layout tab's drawings are the theme's svg.drawing idiom. A figure of several
+         panels sets them side by side and stacks them on a narrow window, so no panel's
+         words shrink past reading. */
+      .panels {
+        display: grid;
+        grid-template-columns: repeat(var(--panels, 3), minmax(0, 1fr));
+        gap: 24px;
+        margin-block: 8px 28px;
+      }
+      .panels.two {
+        --panels: 2;
+      }
+      .panels figure,
+      figure.fig {
+        margin: 0;
+      }
+      .panels figcaption,
+      figure.fig figcaption {
+        font: 14px/1.45 var(--sans);
+        color: var(--muted);
+        margin-top: 10px;
+      }
+      .panels figcaption strong,
+      figure.fig figcaption strong {
+        color: var(--ink);
+        display: block;
+        font-size: 15px;
+        margin-bottom: 2px;
+      }
+      figure.fig svg {
+        max-width: 480px;
+        margin-inline: auto;
+      }
+      figure.fig.small svg {
+        max-width: 360px;
+      }
+      /* A Layout's class name reads as one word, so it holds its line. */
+      #layouts-table td:first-child code {
+        white-space: nowrap;
+      }
+      /* Marks particular to these drawings, on the same tokens as the theme's
+         svg.drawing idiom: the rail, a surface drawn over the page, an
+         attribute's outline, a split that lands somewhere new, and a scroll thumb. */
+      svg.drawing .rail {
+        fill: var(--accent-tint);
+      }
+      svg.drawing .over {
+        fill: var(--paper);
+        fill-opacity: 0.92;
+        stroke: var(--accent);
+        stroke-width: 1.5;
+        stroke-dasharray: 5 4;
+      }
+      svg.drawing .attr {
+        fill: none;
+        stroke: var(--ok);
+        stroke-width: 1.5;
+        stroke-dasharray: 2 3;
+      }
+      svg.drawing .split {
+        stroke: var(--danger);
+        stroke-width: 1.2;
+        stroke-dasharray: 4 3;
+      }
+      svg.drawing .thumb {
+        fill: var(--muted);
+        opacity: 0.6;
+      }
+
+      @media (max-width: 760px) {
+        .panels {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .panels svg {
+          max-width: 360px;
+          margin-inline: auto;
+        }
+      }
+
+      .layout-scope {
+        display: block;
+        color: var(--muted);
+      }
+    </style>
+  </head>
+  <body class="site-page">
+    <main class="layout-column">
+      <header id="top">
+        <nav class="sitenav" aria-label="Site"></nav>
+        <p class="eyebrow">UI</p>
+        <h1>Pages and interface</h1>
+        <p class="lede" id="intro">
+          Build a page around the work, choose its presentation, and keep its controls
+          reachable by keyboard, pointer and touch.
+        </p>
+        <p id="ui-scope">
+          Start with the page's content and widgets, then choose a theme and Layout.
+          <a href="/extending/#responsibilities">Extending</a> explains the contracts
+          for reusable packages;
+          <a href="/how-it-works/#state">How it works</a> explains the record behind the
+          interface.
+        </p>
+      </header>
+      <lf-tabs id="ui"
+        ><lf-tab id="pages" label="Pages"
+          ><details class="topic-outline" id="pages-outline">
+            <summary>In this topic</summary>
+            <nav aria-label="Pages sections">
+              <ul>
+                <li><a href="#pages-parts">Parts of a page</a></li>
+
+                <li><a href="#widgets">Widgets</a></li>
+              </ul>
+            </nav>
+          </details>
+
+          <section id="pages-parts">
+            <h2>Parts of a page</h2>
+            <p id="scaffold">
+              The agent writes an HTML document containing the page's title,
+              description, content, and layout. When the server delivers it, Leaf adds
+              the page identity, visual theme, browser JavaScript, and canonical URL.
+              The browser runtime supplies the commenting and collaboration interface.
+              Authors build the content with these tools, starting with ordinary HTML:
+            </p>
+            <ol class="steps" id="sources">
+              <li id="src-html">
+                <strong>Ordinary HTML.</strong> Leaf styles headings, paragraphs,
+                tables, code, and <code>details</code> without requiring CSS classes.
+                These elements provide most of a page's content.
+              </li>
+              <li id="src-idioms">
+                <strong>Theme classes.</strong> Leaf supplies classes for common
+                presentation patterns, including <code>.eyebrow</code>,
+                <code>.lede</code>, <code>.callout</code>,
+                <code>aside.sidenote</code> for a margin note, and
+                <code>ol.steps</code> for a numbered sequence like this list.
+              </li>
+              <li id="src-widgets">
+                <strong>Widgets.</strong> A widget is a complete page feature, authored
+                as a custom HTML element, such as <code>&lt;lf-options&gt;</code> for
+                choices and <code>&lt;lf-board&gt;</code> for cards in columns. Other
+                <code>lf-*</code> elements provide structure, such as
+                <code>&lt;lf-pane&gt;</code> for a pane. The
+                <a href="/registry/">registry</a> declares each element’s attributes and
+                behavior using JSON Schema. The browser, validator, and agent
+                instructions read those same declarations.
+              </li>
+              <li id="src-bespoke">
+                <strong>Page-specific presentation.</strong> A local
+                <code>&lt;style&gt;</code> and inline SVG can define arrangements and
+                drawings specific to the page. They use the theme's shared color and
+                type tokens to stay consistent with the rest of Leaf. The Layout tab's
+                drawings use this approach.
+              </li>
+            </ol>
+            <p id="boundaries">
+              Leaf elements load their JavaScript modules when the page uses them.
+              Behavior specific to one page can use inline module scripts or local
+              modules under
+              <code>page/</code>. Reusable behavior belongs in a package, a directory
+              containing element declarations and their supporting files. The
+              <a
+                href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/page-behavior.md"
+                >page-behavior reference</a
+              >
+              defines module and dependency rules.
+            </p>
+          </section>
+
+          <section id="widgets">
+            <h2>Widgets</h2>
+            <p id="dogfood">
+              These examples are interactive parts of this page. Their choices, card
+              moves, and comments share its event log, Undo, and On me. Each activity
+              feed shows the same page history, including actions in other examples.
+            </p>
+            <figure id="options-demo">
+              <h3>Example page: a release review</h3>
+              <p id="options-practice">
+                Choose a rollout audience, then one follow-up job. Open
+                <strong>Show activity</strong> to inspect both selections. Choose
+                <strong>Undo</strong> in the page’s leaf menu to withdraw the job
+                choice, then press <strong>Activity changed</strong> in the feed. The
+                rollout audience remains selected.
+              </p>
+              <lf-sample
+                id="spec-options-frame"
+                label="Example: release review"
+                interactive
+              >
+                <p>Start with canary clients; expand after the error rate settles.</p>
+                <lf-options id="spec-options" choose>
+                  <lf-option id="so-rewrite"
+                    ><small class="tag ok">recommended</small
+                    ><strong>Canary clients</strong> Start with a small group and
+                    compare its error rate before expanding.</lf-option
+                  >
+                  <lf-option id="so-shim"
+                    ><strong>All clients</strong> Enable the release for everyone once
+                    the checks pass.</lf-option
+                  >
+                  <lf-option id="so-stage"
+                    ><strong>Hold the release</strong> Gather more evidence before
+                    enabling it for any clients.</lf-option
+                  >
+                </lf-options>
+                <h3>Which job should start first?</h3>
+                <lf-options id="spec-jobs" choose>
+                  <lf-option id="sj-backfill">Prepare the rollback flag</lf-option>
+                  <lf-option id="sj-contract">Add a concurrency test</lf-option>
+                  <lf-option id="sj-fallback"
+                    >Set up the error-rate comparison</lf-option
+                  >
+                </lf-options>
+                <h3>Recorded actions</h3>
+                <lf-activity id="options-activity"></lf-activity>
+              </lf-sample>
+              <figcaption>
+                Options with explanations render as cards; options containing only
+                labels render as rows. The content determines the presentation. A row
+                can link to a section that explains the choice. Clicking an option
+                immediately shows the selection and records it for the agent. A later
+                revision preserves that choice. The group also offers an empty option
+                for an answer the author did not list.
+              </figcaption>
+            </figure>
+
+            <figure id="board-demo">
+              <p id="board-practice">
+                Move “Flaky auth test” to “This week” by dragging its grip. With a
+                keyboard, focus the grip, press Enter to grab, Right to move, and Enter
+                to drop. On a narrow touch screen, use the card’s Move to buttons. Open
+                <strong>Show activity</strong> to inspect the recorded move. Choose
+                <strong>Undo</strong> in the page’s leaf menu to return the card to
+                Incoming; press <strong>Activity changed</strong> in the feed to see the
+                move marked undone.
+              </p>
+              <lf-sample id="spec-board-frame" label="Practice: board" interactive>
+                <lf-board id="spec-board">
+                  <lf-column id="sb-incoming" label="Incoming">
+                    <lf-card id="sc-flaky"
+                      ><strong>Flaky auth test</strong> Fails one run in twenty on CI
+                      only.</lf-card
+                    >
+                    <lf-card id="sc-contrast"
+                      ><strong>Dark-mode contrast pass</strong></lf-card
+                    >
+                  </lf-column>
+                  <lf-column id="sb-sprint" label="This week">
+                    <lf-card id="sc-ratelimit"
+                      ><strong>Rate-limit the export</strong></lf-card
+                    >
+                  </lf-column>
+                  <lf-column id="sb-done" label="Done">
+                    <lf-card id="sc-tokens"
+                      ><strong>Tokenize the palette</strong></lf-card
+                    >
+                  </lf-column>
+                </lf-board>
+                <h3>Recorded actions</h3>
+                <lf-activity id="board-activity"></lf-activity>
+              </lf-sample>
+              <figcaption>
+                In a live Leaf, cards drag between columns by a grip, and each drop
+                reaches the agent as a structured action.
+              </figcaption>
+            </figure>
+            <p id="catalog">
+              The widget catalog also includes diagrams, charts, diffs with collapsible
+              files, annotated code, editable drafts, playgrounds, and recorded browser
+              traces. The
+              <a href="/examples/">examples gallery</a> opens complete pages using them.
+            </p>
+          </section> </lf-tab
+        ><lf-tab id="styles" label="Themes"
+          ><section id="styles-overrides">
+            <h2>Styles and overrides</h2>
+            <p id="styles-lede">
+              The user chooses the visual direction. A theme supplies shared colors,
+              type and reusable styles; widget packages draw their own controls; the
+              author arranges the page and makes local adjustments.
+            </p>
+            <figure id="styles-capture" class="diagram-figure">
+              <lf-diagram id="styles-theme-capture" data-height="370" parts="all">
+                <pre>
+flowchart TD
+  accTitle: A page captures its selected theme
+  accDescr: The author selects Editorial from the user's themes. Leaf captures that theme in the release-review page, and the export carries the same theme. Changing the user's default later changes neither existing copy.
+  Themes["User's themes&lt;br/&gt;Editorial · Dense"] -->|select Editorial| Page["Release review&lt;br/&gt;Captured: Editorial"]
+  Page -->|export| Export["Exported review&lt;br/&gt;Same Editorial theme"]
+</pre>
+              </lf-diagram>
+              <figcaption>
+                <strong>A page keeps the theme it was made with.</strong>
+                <code>leaf theme list</code> shows the user’s named themes. Changing the
+                default later leaves this page and its export intact.
+              </figcaption>
+            </figure>
+            <details id="styles-theme-selection">
+              <summary>Choosing a theme and honoring browser preferences</summary>
+              <p id="styles-user-preference">
+                <code>leaf theme list</code> exposes the user's named themes and their
+                author instructions. <code>page init --theme NAME</code> selects one; a
+                new page otherwise uses the user's default. Re-initializing keeps the
+                captured choice unless explicitly changed. The author follows the user's
+                request first, then the task and the theme's instructions.
+              </p>
+              <p id="styles-platform-preferences">
+                The default theme supports light and dark schemes. Authors preserve
+                supported platform preferences when composing a page; an explicit visual
+                comparison may need a fixed appearance, declared with
+                <code>color-scheme</code>. CSS precedence determines which rule wins,
+                not who has authority over the work.
+              </p>
+            </details>
+            <details id="styles-adjustments">
+              <summary>Make a local adjustment: colors, width or controls</summary>
+              <table id="styles-recipes">
+                <thead>
+                  <tr>
+                    <th>To change</th>
+                    <th>Write</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr id="recipe-face">
+                    <td>Leaf's colors</td>
+                    <td><code>:root { --accent: teal; }</code></td>
+                  </tr>
+                  <tr id="recipe-layout">
+                    <td>A Layout's width</td>
+                    <td><code>:root { --col: 46rem; }</code></td>
+                  </tr>
+                  <tr id="recipe-widget">
+                    <td>A widget</td>
+                    <td><code>lf-card { padding: 8px; }</code></td>
+                  </tr>
+                  <tr id="recipe-controls">
+                    <td>Controls Leaf or a widget builds</td>
+                    <td>
+                      <code
+                        >&lt;style data-controls&gt;lf-board .lf-grip { color: teal;
+                        }&lt;/style&gt;</code
+                      >
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              <p id="styles-controls">
+                A Layout reads tokens such as <code>--col</code>,
+                <code>--sidebar</code> and <code>--page-pad-start</code>, and any other
+                rule changes it too, such as <code>main { padding-top: 28px; }</code>.
+              </p>
+              <p id="styles-controls-leaf">
+                A bare <code>button</code> or <code>input</code> rule styles the page’s
+                own controls. To reach controls Leaf or a widget builds, a page marks
+                its stylesheet <code>data-controls</code>; a package puts those rules in
+                <code>controls.css</code>. Widget packages already style their own
+                controls through <code>widgets.css</code>. Leaf’s panel and thread cards
+                also inherit theme inputs such as <code>--accent</code> and
+                <code>--sans</code> from <code>:root</code>.
+              </p>
+            </details>
+
+            <p id="styles-contract-link">
+              For stylesheet roles, cascade precedence and nested widget boundaries, see
+              <a href="/extending/#styles-contract">the CSS contract in Extending</a>.
+            </p>
+          </section></lf-tab
+        ><lf-tab id="layout" label="Layout"
+          ><details class="topic-outline" id="layout-outline">
+            <summary>In this topic</summary>
+            <nav aria-label="Layout sections">
+              <ul>
+                <li><a href="#layouts">Layouts</a></li>
+                <li><a href="#column">The reading column</a></li>
+                <li><a href="#sidebar-page">Sidebar pages</a></li>
+                <li><a href="#workspace">Workspace</a></li>
+                <li><a href="#tiles">Tiles</a></li>
+                <li><a href="#page-tabs">Tabs and parts</a></li>
+                <li><a href="#chrome">Panel, rail and thread cards</a></li>
+                <li><a href="#narrow">Narrow windows</a></li>
+              </ul>
+            </nav>
+          </details>
+          <section id="layouts">
+            <h2>Layouts</h2>
+            <p id="layouts-lede">
+              Leaf supplies page layouts and a layout for blocks within a page. A
+              column, sidebar, or workspace sets the page’s shape; tiles arrange a
+              block’s children and can be used within any of them. The table and
+              drawings below show the same classes in the same order.
+            </p>
+            <table id="layouts-table">
+              <thead>
+                <tr>
+                  <th>Class</th>
+                  <th>Arrangement</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr id="layouts-column">
+                  <td>
+                    <code>layout-column</code
+                    ><small class="layout-scope">Page layout</small>
+                  </td>
+                  <td>
+                    Text in a centred 720px column; figures, boards and tables may
+                    extend past it. Suits plans, reviews and explanations, including
+                    this page.
+                  </td>
+                </tr>
+                <tr id="layouts-sidebar">
+                  <td>
+                    <code>layout-sidebar</code
+                    ><small class="layout-scope">Page layout</small>
+                  </td>
+                  <td>
+                    A body beside a narrower side column, with the header across both,
+                    as wide as the window up to 1600px. A board and its status, a
+                    release dashboard, or a review with its verdict beside the diff.
+                  </td>
+                </tr>
+                <tr id="layouts-workspace">
+                  <td>
+                    <code>layout-workspace</code
+                    ><small class="layout-scope">Page layout</small>
+                  </td>
+                  <td>
+                    Task regions kept together: a queue beside its selected item, or
+                    controls beside a preview. In a large window, the workspace fills
+                    the height and its panes scroll separately.
+                  </td>
+                </tr>
+                <tr id="layouts-tiles">
+                  <td>
+                    <code>layout-tiles</code
+                    ><small class="layout-scope">Block layout</small>
+                  </td>
+                  <td>
+                    Equal cells, as many to a row as fit. A row of metrics or status
+                    tiles.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+
+            <div class="panels two" id="kind-figure">
+              <figure id="kind-column">
+                <svg class="drawing" viewBox="0 0 240 160" role="img">
+                  <title>
+                    Prose in the reading column, with a wide block growing past it
+                  </title>
+                  <rect class="frame" x="1" y="1" width="238" height="158" rx="6" />
+                  <rect class="frame-head" x="2" y="2" width="236" height="11" rx="5" />
+                  <g id="kind-prose">
+                    <rect class="line" x="72" y="22" width="60" height="6" rx="2" />
+                    <rect
+                      class="line soft"
+                      x="72"
+                      y="34"
+                      width="96"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="72"
+                      y="42"
+                      width="90"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="72"
+                      y="50"
+                      width="96"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="72"
+                      y="110"
+                      width="96"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="72"
+                      y="118"
+                      width="88"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="72"
+                      y="126"
+                      width="96"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="72"
+                      y="134"
+                      width="60"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="72"
+                      y="142"
+                      width="92"
+                      height="4"
+                      rx="2"
+                    />
+                  </g>
+                  <g id="kind-wide-block">
+                    <rect
+                      class="box hot"
+                      x="30"
+                      y="60"
+                      width="180"
+                      height="40"
+                      rx="3"
+                    />
+                    <text x="120" y="84" text-anchor="middle">wide block</text>
+                  </g>
+                </svg>
+                <figcaption id="cap-kind-column">
+                  <strong>A column page</strong><code>layout-column</code> on
+                  <code>main</code>. Text keeps the 720px column, and a block with a
+                  declared width, such as a diagram, extends past it.
+                </figcaption>
+              </figure>
+              <figure id="kind-sidebar">
+                <svg class="drawing" viewBox="0 0 240 160" role="img">
+                  <title>
+                    A sidebar page: a body beside its side column, each block starting
+                    at its region's left edge
+                  </title>
+                  <rect class="frame" x="1" y="1" width="238" height="158" rx="6" />
+                  <rect class="frame-head" x="2" y="2" width="236" height="11" rx="5" />
+                  <g id="kind-sidebar-main">
+                    <rect class="attr" x="8" y="18" width="224" height="136" rx="3" />
+                    <text class="mono" x="14" y="30">main.layout-sidebar</text>
+                  </g>
+                  <rect class="line" x="14" y="37" width="80" height="8" rx="2" />
+                  <g id="kind-sidebar-body">
+                    <rect
+                      class="line soft"
+                      x="14"
+                      y="53"
+                      width="120"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="14"
+                      y="61"
+                      width="110"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="box hot"
+                      x="14"
+                      y="72"
+                      width="140"
+                      height="54"
+                      rx="3"
+                    />
+                    <text x="84" y="103" text-anchor="middle">board</text>
+                    <rect
+                      class="line soft"
+                      x="14"
+                      y="134"
+                      width="120"
+                      height="4"
+                      rx="2"
+                    />
+                  </g>
+                  <g id="kind-sidebar-aside">
+                    <rect class="box" x="162" y="53" width="64" height="88" rx="3" />
+                    <text class="small" x="168" y="65">aside</text>
+                  </g>
+                </svg>
+                <figcaption id="cap-kind-sidebar">
+                  <strong>A sidebar page</strong><code>layout-sidebar</code> on
+                  <code>main</code> widens the page and sets a body beside its side
+                  column. Every block starts at its region's left edge, and text retains
+                  its reading width.
+                </figcaption>
+              </figure>
+              <figure id="kind-workspace">
+                <svg class="drawing" viewBox="0 0 240 160" role="img">
+                  <title>
+                    A workspace fills the window, and each pane scrolls separately
+                  </title>
+                  <rect class="frame" x="1" y="1" width="238" height="158" rx="6" />
+                  <rect class="frame-head" x="2" y="2" width="236" height="11" rx="5" />
+                  <rect class="line" x="12" y="20" width="70" height="7" rx="2" />
+                  <g id="kind-ws-queue">
+                    <rect
+                      class="box hot"
+                      x="12"
+                      y="34"
+                      width="72"
+                      height="118"
+                      rx="3"
+                    />
+                    <text class="small" x="18" y="46">queue</text>
+                    <rect
+                      class="line soft"
+                      x="18"
+                      y="56"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="18"
+                      y="66"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="18"
+                      y="76"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="18"
+                      y="86"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="18"
+                      y="96"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="18"
+                      y="106"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="18"
+                      y="116"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="18"
+                      y="126"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="18"
+                      y="136"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect class="thumb" x="77" y="54" width="3" height="26" rx="1.5" />
+                  </g>
+                  <g id="kind-ws-detail">
+                    <rect
+                      class="box hot"
+                      x="90"
+                      y="34"
+                      width="138"
+                      height="118"
+                      rx="3"
+                    />
+                    <text class="small" x="96" y="46">detail</text>
+                    <rect
+                      class="line soft"
+                      x="96"
+                      y="56"
+                      width="110"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="96"
+                      y="64"
+                      width="100"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect class="box" x="96" y="74" width="116" height="30" rx="2" />
+                    <rect
+                      class="line soft"
+                      x="96"
+                      y="112"
+                      width="110"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="96"
+                      y="120"
+                      width="96"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="96"
+                      y="128"
+                      width="110"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="96"
+                      y="136"
+                      width="70"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect class="thumb" x="221" y="70" width="3" height="34" rx="1.5" />
+                  </g>
+                </svg>
+                <figcaption id="cap-kind-workspace">
+                  <strong>A workspace</strong><code>layout-workspace</code> keeps task
+                  regions together. In a large window it fills the height, and its panes
+                  scroll separately.
+                </figcaption>
+              </figure>
+              <figure id="kind-tiles">
+                <svg class="drawing" viewBox="0 0 240 160" role="img">
+                  <title>A tile block within a page: equal cells wrap into rows</title>
+                  <rect class="frame" x="1" y="1" width="238" height="158" rx="6" />
+                  <rect class="frame-head" x="2" y="2" width="236" height="11" rx="5" />
+                  <rect class="line" x="30" y="23" width="90" height="7" rx="2" />
+                  <rect class="line soft" x="30" y="37" width="180" height="4" rx="2" />
+                  <g id="kind-tiles-block">
+                    <rect class="box hot" x="30" y="52" width="86" height="36" rx="3" />
+                    <text x="73" y="75" text-anchor="middle">Ready · 24</text>
+                    <rect
+                      class="box hot"
+                      x="124"
+                      y="52"
+                      width="86"
+                      height="36"
+                      rx="3"
+                    />
+                    <text x="167" y="75" text-anchor="middle">Review · 8</text>
+                    <rect class="box hot" x="30" y="96" width="86" height="36" rx="3" />
+                    <text x="73" y="119" text-anchor="middle">Blocked · 6</text>
+                    <rect
+                      class="box hot"
+                      x="124"
+                      y="96"
+                      width="86"
+                      height="36"
+                      rx="3"
+                    />
+                    <text x="167" y="119" text-anchor="middle">Done · 3</text>
+                  </g>
+                  <rect
+                    class="line soft"
+                    x="30"
+                    y="144"
+                    width="145"
+                    height="4"
+                    rx="2"
+                  />
+                </svg>
+                <figcaption id="cap-kind-tiles">
+                  <strong>A tile block</strong><code>layout-tiles</code> arranges
+                  children in equal cells, wrapping as the available width changes. The
+                  surrounding page keeps its own layout.
+                </figcaption>
+              </figure>
+            </div>
+
+            <p id="layouts-css">
+              Leaf's Layout classes are ordinary CSS, applied beneath the page's own
+              stylesheet in the cascade. A page can adjust them with CSS rules, for
+              example to change a column's share of the width or a gap. It can also use
+              its own grid when the supplied layouts do not fit.
+            </p>
+          </section>
+
+          <section id="column">
+            <h2>The reading column</h2>
+            <p id="column-measure">
+              On a <code>layout-column</code> page, headings, paragraphs, lists, and
+              code occupy a centred column up to 720px wide. On a sidebar page too, the
+              theme limits paragraphs, list items, and headings to that reading width. A
+              workspace applies neither the reading width nor the limits below: every
+              block fills its pane.
+            </p>
+            <p id="column-widths-lede">
+              A diagram, board, or wide table can extend into the margins beyond the
+              reading column. The text above and below it keeps its width and position.
+              These width settings control the block:
+            </p>
+            <ul id="column-widths">
+              <li id="width-column">
+                <code>column</code> is the text measure. In a wider region, such as a
+                sidebar page's body, a <code>column</code> block starts at the same left
+                edge as the text.
+              </li>
+              <li id="width-wide">
+                <code>wide</code> starts at the edge the text starts from (the left, in
+                a left-to-right page) and extends toward its end, up to about 910px,
+                enough for 100 columns of code. Wide blocks share this width so they
+                align with one another.
+              </li>
+              <li id="width-available">
+                <code>available</code> uses the window's width after subtracting the
+                outer page margins and space for margin notes and controls.
+              </li>
+            </ul>
+            <p id="column-widths-declared">
+              The <a href="/registry/">registry</a>, which declares each element's
+              behavior, also gives it a default width. For example,
+              <code>lf-options</code> uses <code>column</code>,
+              <code>lf-diff</code> uses <code>wide</code>, and
+              <code>lf-board</code> uses <code>available</code>. A
+              <code>data-width</code> attribute asks for <code>wide</code> or
+              <code>available</code> on any block, overriding the default. If the
+              margins have unequal space, an <code>available</code> block extends
+              farther into the wider margin. A table given one of these widths uses its
+              columns' natural width, up to that limit, rather than stretching across
+              the extra space.
+            </p>
+
+            <figure class="fig small" id="vocabulary-attribute">
+              <svg class="drawing" viewBox="0 0 240 160" role="img">
+                <title>data-width on a figure extends it past the reading column</title>
+                <rect class="frame" x="1" y="1" width="238" height="158" rx="6" />
+                <rect class="frame-head" x="2" y="2" width="236" height="11" rx="5" />
+                <g id="vocab-main-width">
+                  <rect class="ghost" x="8" y="18" width="224" height="136" rx="3" />
+                  <text class="mono" x="14" y="30">main</text>
+                </g>
+                <rect class="line" x="14" y="38" width="70" height="7" rx="2" />
+                <rect class="line soft" x="14" y="52" width="120" height="4" rx="2" />
+                <rect class="line soft" x="14" y="60" width="110" height="4" rx="2" />
+                <g id="vocab-block-width">
+                  <rect class="attr" x="14" y="72" width="212" height="44" rx="3" />
+                  <text class="mono" x="120" y="98" text-anchor="middle">
+                    figure data-width
+                  </text>
+                </g>
+                <rect class="line soft" x="14" y="126" width="120" height="4" rx="2" />
+                <rect class="line soft" x="14" y="134" width="104" height="4" rx="2" />
+                <rect class="line soft" x="14" y="142" width="116" height="4" rx="2" />
+              </svg>
+              <figcaption id="cap-vocabulary-attribute">
+                <strong><code>data-width</code> on a block</strong>The block extends
+                past the column, and the paragraphs around it keep their width.
+              </figcaption>
+            </figure>
+
+            <p id="column-bound">
+              A log, feed, or long listing with <code>data-bound</code> scrolls within a
+              limited height and opens at its newest entry. Its growing content
+              therefore does not make the whole page longer.
+            </p>
+
+            <h3 id="margins-heading">Margins</h3>
+            <p id="margins-lede">
+              A sufficiently wide window places these controls and notes beside the
+              reading column:
+            </p>
+            <ul id="margins">
+              <li id="margin-rail">
+                <strong>The rail</strong>, on the right, where Leaf places a marker
+                beside each commented or decided passage. It needs a window about 960px
+                wide, or about 1010px on a touch screen.
+              </li>
+              <li id="margin-sidebar">
+                <strong>A sidebar</strong>, the page's first <code>aside.sidebar</code>,
+                on the left. It holds a table of contents, a legend or reference facts,
+                and stays in view at the window's top as the page scrolls. It needs
+                about 1130px.
+              </li>
+              <li id="margin-sidenotes">
+                <strong>Sidenotes</strong>, each an <code>aside.sidenote</code>, on the
+                right, level with the block they annotate. They need about 1150px.
+              </li>
+            </ul>
+            <p id="margins-narrow">
+              The column shifts sideways to make room for a sidebar or sidenotes. In a
+              narrow window, those notes appear within the column at their original
+              positions in the HTML.
+            </p>
+          </section>
+
+          <section id="sidebar-page">
+            <h2>Sidebar pages</h2>
+            <p id="sidebar-page-what">
+              <code>layout-sidebar</code> on <code>main</code> places the header across
+              the top, with a body and a narrower side column below it. The page fills
+              the window up to 1600px, with an outer margin that grows from 24px to
+              64px, and uses a larger title than a column page. Its blocks and title
+              share a left edge, while paragraphs still wrap at 720px.
+            </p>
+            <p id="sidebar-page-tracks">
+              The side column is an <code>aside</code>; placing it before or after the
+              body in the HTML puts it on the left or right. The regions stack in HTML
+              order below about 870px, or when the body's content needs the full width,
+              such as a board with many columns.
+            </p>
+            <p id="sidebar-page-panels">
+              A side column made by <code>layout-sidebar</code> is part of that layout's
+              content area. An <code>aside.sidebar</code> instead places a note in the
+              margin of a column page. A <code>section.panel</code> groups a region by
+              its compact heading and spacing, without a surrounding card.
+            </p>
+            <pre id="sidebar-page-markup"><code>&lt;main class="layout-sidebar"&gt;
+  &lt;header&gt;&lt;h1&gt;Release 4.2 rollout&lt;/h1&gt;&lt;/header&gt;
+  &lt;div&gt;…&lt;/div&gt;      &lt;!-- body: the work in progress --&gt;
+  &lt;aside&gt;…&lt;/aside&gt;  &lt;!-- side column: status, counts, contents --&gt;
+&lt;/main&gt;</code></pre>
+            <p id="sidebar-page-examples">
+              Examples:
+              <a href="/examples/live-progress/">Live progress</a>,
+              <a href="/examples/triage-board/">Triage board</a>,
+              <a href="/examples/command-hub/">Command hub</a>.
+            </p>
+          </section>
+
+          <section id="workspace">
+            <h2>Workspace</h2>
+            <p id="workspace-what">
+              <code>layout-workspace</code> fits the page to the window above Leaf's
+              panel. A single-row <code>header</code> holds the title and status tags.
+              The body takes the remaining height and contains an <code>lf-pane</code>,
+              a widget that arranges its own panes, or a grid of panes defined by the
+              page's CSS. Each pane scrolls its content beneath its own
+              <code>header</code>. A pane's footer stays visible, keeping its actions
+              within reach.
+            </p>
+            <p id="workspace-queue">
+              An <code>lf-tabs list="side"</code> in the workspace body displays a list
+              of tabs as a queue, such as tickets or findings. The selected item's
+              content appears beside that list.
+            </p>
+            <p id="workspace-small">
+              The workspace fills the window's height when the window is at least 720px
+              wide and 480px tall. In a smaller window, panes expand to fit their
+              content and the whole page scrolls.
+            </p>
+
+            <div class="panels two" id="workspace-figure">
+              <figure id="workspace-full-height">
+                <svg class="drawing" viewBox="0 0 240 160" role="img">
+                  <title>A workspace fills the window and its panes scroll</title>
+                  <rect class="frame" x="1" y="1" width="238" height="158" rx="6" />
+                  <rect class="frame-head" x="2" y="2" width="236" height="11" rx="5" />
+                  <rect class="line" x="12" y="20" width="70" height="7" rx="2" />
+                  <g id="workspace-full-height-queue">
+                    <rect
+                      class="box hot"
+                      x="12"
+                      y="34"
+                      width="72"
+                      height="118"
+                      rx="3"
+                    />
+                    <text class="small" x="18" y="46">queue</text>
+                    <rect
+                      class="line soft"
+                      x="18"
+                      y="56"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="18"
+                      y="66"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="18"
+                      y="76"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="18"
+                      y="86"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="18"
+                      y="96"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="18"
+                      y="106"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="18"
+                      y="116"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="18"
+                      y="126"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="18"
+                      y="136"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect class="thumb" x="77" y="54" width="3" height="26" rx="1.5" />
+                  </g>
+                  <g id="workspace-full-height-detail">
+                    <rect
+                      class="box hot"
+                      x="90"
+                      y="34"
+                      width="138"
+                      height="118"
+                      rx="3"
+                    />
+                    <text class="small" x="96" y="46">detail</text>
+                    <rect
+                      class="line soft"
+                      x="96"
+                      y="56"
+                      width="110"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="96"
+                      y="64"
+                      width="100"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect class="box" x="96" y="74" width="116" height="30" rx="2" />
+                    <rect
+                      class="line soft"
+                      x="96"
+                      y="112"
+                      width="104"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect class="thumb" x="221" y="62" width="3" height="30" rx="1.5" />
+                  </g>
+                  <g id="workspace-full-height-footer">
+                    <rect class="frame-head" x="91" y="128" width="136" height="23" />
+                    <rect class="mark" x="186" y="133" width="36" height="13" rx="3" />
+                    <text class="small" x="96" y="143">footer</text>
+                  </g>
+                </svg>
+                <figcaption id="cap-workspace-full-height">
+                  <strong>A large window</strong>The workspace fills the window. Each
+                  pane scrolls under its header, and a footer's actions stay in view.
+                </figcaption>
+              </figure>
+              <figure id="workspace-flows">
+                <svg class="drawing" viewBox="0 0 240 160" role="img">
+                  <title>
+                    In a small window, a workspace's panes take their natural height and
+                    the page scrolls
+                  </title>
+                  <rect class="frame" x="1" y="1" width="238" height="158" rx="6" />
+                  <rect class="frame-head" x="2" y="2" width="236" height="11" rx="5" />
+                  <g id="workspace-flows-prose">
+                    <rect class="line" x="40" y="20" width="60" height="6" rx="2" />
+                    <rect
+                      class="line soft"
+                      x="40"
+                      y="32"
+                      width="150"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="40"
+                      y="40"
+                      width="140"
+                      height="4"
+                      rx="2"
+                    />
+                  </g>
+                  <g id="workspace-flows-panes">
+                    <rect
+                      class="box hot"
+                      x="20"
+                      y="52"
+                      width="72"
+                      height="104"
+                      rx="3"
+                    />
+                    <rect
+                      class="box hot"
+                      x="98"
+                      y="52"
+                      width="122"
+                      height="104"
+                      rx="3"
+                    />
+                    <text class="small" x="26" y="64">queue</text>
+                    <text class="small" x="104" y="64">detail</text>
+                    <rect
+                      class="line soft"
+                      x="26"
+                      y="74"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="26"
+                      y="84"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="26"
+                      y="94"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="26"
+                      y="104"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="104"
+                      y="74"
+                      width="100"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="104"
+                      y="82"
+                      width="92"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect class="box" x="104" y="92" width="104" height="30" rx="2" />
+                  </g>
+                  <g id="workspace-flows-scroll">
+                    <rect class="thumb" x="232" y="18" width="4" height="30" rx="2" />
+                  </g>
+                </svg>
+                <figcaption id="cap-workspace-flows">
+                  <strong>A small window</strong>Below 720px wide or 480px tall, the
+                  panes take their natural height and the page scrolls.
+                </figcaption>
+              </figure>
+            </div>
+
+            <pre
+              id="workspace-markup"
+            ><code>&lt;main class="layout-workspace density-working"&gt;
+  &lt;header&gt;&lt;h1&gt;Payments alerts&lt;/h1&gt;&lt;/header&gt;
+  &lt;div id="regions"&gt;
+    &lt;lf-pane label="Queue"&gt;…&lt;/lf-pane&gt;
+    &lt;lf-pane label="Alert"&gt;…&lt;/lf-pane&gt;
+  &lt;/div&gt;
+&lt;/main&gt;
+
+&lt;style&gt;
+  #regions { display: grid; grid-template-columns: 1fr 2fr; }
+  @media (width &lt; 720px) { #regions { grid-template-columns: 1fr; } }
+&lt;/style&gt;</code></pre>
+            <p id="workspace-density">
+              <code>density-working</code> reduces type size and spacing for a compact
+              working surface. It is independent of the Layout: a workspace can use
+              ordinary reading sizes, and a pane or table on another page can use
+              working density.
+            </p>
+            <p id="workspace-examples">
+              Examples:
+              <a href="/examples/notification-playground/">Notification playground</a>,
+              <a href="/examples/wt-merge/">Merge a worktree</a>,
+              <a href="/examples/alert-review/">Alert review</a>.
+            </p>
+          </section>
+
+          <section id="tiles">
+            <h2>Tiles</h2>
+            <p id="tiles-what">
+              <code>layout-tiles</code> arranges an element's children in equal cells at
+              least 9rem wide, placing as many cells in each row as fit. Cells in the
+              same row have equal heights. A page can set its own columns when it needs
+              a particular grouping, such as four tiles in two rows of two. A row of
+              headline numbers can use a <code>layout-tiles</code> block of native
+              <code>dl</code> elements with labels in <code>dt</code> and values in
+              <code>dd</code>.
+            </p>
+          </section>
+
+          <section id="page-tabs">
+            <h2>Tabs and parts</h2>
+            <p id="page-tabs-what">
+              An <code>lf-tabs</code> at the top of a page creates tabs like the ones on
+              this page. Their tab strip stays at the window's top while the page
+              scrolls, and one tab's content is visible at a time. All tabs share the
+              page's width, Layout, threads, and version history.
+            </p>
+            <p id="page-parts">
+              When different parts of the work need different layouts,
+              <code>lf-parts</code> holds an <code>lf-part</code> for each. Each part
+              contains its own layout container; <code>main</code> itself carries no
+              Layout. For example, one part can hold an interactive workspace and
+              another a proposal read in a column. Parts share the page’s history,
+              threads, and On me list. The
+              <a
+                href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/page-layout.md#a-page-of-parts"
+                >page-layout reference</a
+              >
+              gives the markup.
+            </p>
+          </section>
+
+          <section id="chrome">
+            <h2>Panel, rail and thread cards</h2>
+            <p id="chrome-what">
+              Leaf adds controls around the authored HTML. This interface is called
+              <em>chrome</em>: the Leaf panel floating at the window's foot, comment and
+              decision markers, and thread cards. At rest the panel is one row: the
+              leaf, coloured by the agent's state; the comment field, which shows the
+              agent's status while it is empty; and the On me mark, counting what waits
+              on the user, with a dot while a thread holds a reply they haven't read.
+              The leaf opens a small menu of the page's other controls. Pressing the On
+              me mark opens its view above the row. A ✕ replaces the mark while the view
+              is open and closes it when pressed. A folded panel shows only the leaf in
+              the window's corner.
+            </p>
+            <p id="chrome-lists">
+              The On view shows one list at a time, under a tab named for its actor,
+              with completed items under Done, and a Threads tab listing the open
+              threads, then the resolved ones under Resolved.
+              <a href="/how-it-works/#progress-on-lists">On me and the agent’s list</a>
+              defines their membership. Opening a view preserves the page’s text
+              wrapping and reading position.
+            </p>
+            <p id="chrome-bars">
+              The page reserves space at the bottom for the panel's row, so the last
+              lines can scroll above it. A view opens above the row and overlays the
+              page without moving its content. Escape or a press on the page closes the
+              view.
+              <a href="#phone">Phones and touch screens</a> describes the panel on a
+              touch screen.
+            </p>
+            <p id="chrome-markers">
+              The <em>rail</em> is the strip to the right of <code>main</code> where
+              Leaf places comment and decision markers. It appears when the window has
+              enough space: about 960px on a column page or about 1920px on a sidebar
+              page. <code>data-rail="right"</code> keeps it visible above 640px, except
+              on a workspace, whose panes scroll on their own. Where no rail fits, and
+              inside a scrolling pane, a small pin appears beside the target on the
+              page. Leaf places it clear of text and controls when space permits. The
+              <kbd>o</kbd> shortcut hides pins and passage highlights.
+            </p>
+            <p id="chrome-surfaces-what">
+              A thread card opens beside its marker in the margin. If the margin is
+              narrower than the card, it overlaps the text's edge. Threads, a thread
+              opened from it, the On view and All pages open as views above the panel's
+              row, one at a time.
+            </p>
+
+            <div class="panels" id="chrome-figure">
+              <figure id="chrome-reserved">
+                <svg class="drawing" viewBox="0 0 240 160" role="img">
+                  <title>
+                    Leaf's panel floats at the window's foot, and the rail sits in the
+                    margin beside the column
+                  </title>
+                  <rect class="frame" x="1" y="1" width="238" height="158" rx="6" />
+                  <g id="chrome-rail">
+                    <rect class="rail" x="194" y="2" width="44" height="156" />
+                    <text x="216" y="20" text-anchor="middle">Rail</text>
+                    <circle class="mark" cx="202" cy="60" r="4" />
+                    <circle class="mark" cx="202" cy="104" r="4" />
+                  </g>
+                  <g id="chrome-page">
+                    <rect class="line" x="60" y="20" width="60" height="6" rx="2" />
+                    <rect
+                      class="line soft"
+                      x="60"
+                      y="32"
+                      width="100"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="60"
+                      y="40"
+                      width="94"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="60"
+                      y="48"
+                      width="100"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect class="box" x="40" y="58" width="140" height="30" rx="3" />
+                    <rect
+                      class="line soft"
+                      x="60"
+                      y="96"
+                      width="100"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="60"
+                      y="104"
+                      width="92"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="60"
+                      y="112"
+                      width="100"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="60"
+                      y="120"
+                      width="70"
+                      height="4"
+                      rx="2"
+                    />
+                  </g>
+                  <g id="chrome-panel">
+                    <rect class="over" x="56" y="136" width="128" height="18" rx="6" />
+                    <circle class="mark" cx="66" cy="145" r="4" />
+                    <text x="76" y="149">Comment field</text>
+                  </g>
+                </svg>
+                <figcaption id="cap-chrome-reserved">
+                  <strong>Panel and rail</strong>The panel's row floats over the foot of
+                  the window, where the page leaves room for it. On a column page, the
+                  rail sits in the margin beside the column and takes no width from it.
+                </figcaption>
+              </figure>
+              <figure id="chrome-surfaces">
+                <svg class="drawing" viewBox="0 0 240 160" role="img">
+                  <title>
+                    Threads, the On view and All pages open as a view above the panel's
+                    row
+                  </title>
+                  <rect class="frame" x="1" y="1" width="238" height="158" rx="6" />
+                  <rect class="rail" x="194" y="2" width="44" height="156" />
+                  <rect class="line" x="60" y="20" width="60" height="6" rx="2" />
+                  <rect class="line soft" x="60" y="32" width="100" height="4" rx="2" />
+                  <rect class="line soft" x="60" y="40" width="94" height="4" rx="2" />
+                  <rect class="line soft" x="60" y="48" width="100" height="4" rx="2" />
+                  <rect class="box" x="40" y="58" width="140" height="30" rx="3" />
+                  <g id="chrome-view">
+                    <rect class="over" x="56" y="62" width="128" height="70" rx="6" />
+                    <text class="strong" x="120" y="90" text-anchor="middle">
+                      Threads, On
+                    </text>
+                    <text class="strong" x="120" y="104" text-anchor="middle">
+                      or All pages
+                    </text>
+                  </g>
+                  <g id="chrome-view-row">
+                    <rect class="over" x="56" y="136" width="128" height="18" rx="6" />
+                    <circle class="mark" cx="66" cy="145" r="4" />
+                    <text x="76" y="149">Comment field</text>
+                  </g>
+                </svg>
+                <figcaption id="cap-chrome-surfaces">
+                  <strong>A view above the row</strong>Threads, the On view and All
+                  pages open one at a time above the panel's row. The page keeps its
+                  width underneath.
+                </figcaption>
+              </figure>
+              <figure id="chrome-card">
+                <svg class="drawing" viewBox="0 0 240 160" role="img">
+                  <title>A thread card opens in the rail beside its marker</title>
+                  <rect class="frame" x="1" y="1" width="238" height="158" rx="6" />
+                  <rect class="rail" x="194" y="2" width="44" height="156" />
+                  <circle class="mark" cx="202" cy="104" r="4" />
+                  <rect class="line" x="60" y="30" width="60" height="6" rx="2" />
+                  <rect class="line soft" x="60" y="42" width="100" height="4" rx="2" />
+                  <rect class="line soft" x="60" y="50" width="94" height="4" rx="2" />
+                  <g id="chrome-passage">
+                    <rect class="box hot" x="58" y="56" width="104" height="8" rx="2" />
+                    <circle class="mark" cx="202" cy="60" r="4" />
+                  </g>
+                  <rect class="box" x="40" y="68" width="140" height="30" rx="3" />
+                  <rect
+                    class="line soft"
+                    x="60"
+                    y="106"
+                    width="100"
+                    height="4"
+                    rx="2"
+                  />
+                  <rect class="line soft" x="60" y="114" width="92" height="4" rx="2" />
+                  <rect
+                    class="line soft"
+                    x="60"
+                    y="122"
+                    width="100"
+                    height="4"
+                    rx="2"
+                  />
+                  <rect class="line soft" x="60" y="130" width="70" height="4" rx="2" />
+                  <g id="chrome-thread-card">
+                    <rect class="over" x="176" y="68" width="58" height="62" rx="5" />
+                    <text class="strong" x="205" y="94" text-anchor="middle">
+                      Thread
+                    </text>
+                    <text class="strong" x="205" y="108" text-anchor="middle">
+                      card
+                    </text>
+                  </g>
+                  <g id="chrome-card-row">
+                    <rect class="over" x="56" y="136" width="128" height="18" rx="6" />
+                    <circle class="mark" cx="66" cy="145" r="4" />
+                    <text x="76" y="149">Comment field</text>
+                  </g>
+                </svg>
+                <figcaption id="cap-chrome-card">
+                  <strong>A thread card</strong>It opens in the margin and overlaps the
+                  edge of the text only where the margin is too narrow. Nothing below it
+                  moves.
+                </figcaption>
+              </figure>
+            </div>
+          </section>
+
+          <section id="narrow">
+            <h2>Narrow windows</h2>
+            <p id="narrow-what">
+              In a narrow window, page regions stack vertically in HTML order. Margin
+              notes move into the reading column, a side column appears above or below
+              its body, and workspace panes expand to fit their content. Tiles can still
+              fit two per row on a 390px phone.
+            </p>
+
+            <figure class="fig" id="narrow-figure">
+              <svg class="drawing" viewBox="0 0 360 190" role="img">
+                <title>
+                  A sidebar page's regions, numbered in source order, stack into one
+                  column on a phone
+                </title>
+                <g id="narrow-desktop">
+                  <rect class="frame" x="1" y="20" width="220" height="150" rx="6" />
+                  <rect
+                    class="frame-head"
+                    x="2"
+                    y="21"
+                    width="218"
+                    height="11"
+                    rx="5"
+                  />
+                  <rect class="line" x="10" y="38" width="70" height="7" rx="2" />
+                  <rect class="box" x="10" y="52" width="128" height="52" rx="3" />
+                  <rect class="box" x="10" y="110" width="128" height="52" rx="3" />
+                  <rect class="box" x="144" y="52" width="68" height="36" rx="3" />
+                  <rect class="box" x="144" y="94" width="68" height="36" rx="3" />
+                  <circle class="mark" cx="22" cy="64" r="7" />
+                  <text class="glyph" x="22" y="64" text-anchor="middle">1</text>
+                  <circle class="mark" cx="22" cy="122" r="7" />
+                  <text class="glyph" x="22" y="122" text-anchor="middle">2</text>
+                  <circle class="mark" cx="156" cy="64" r="7" />
+                  <text class="glyph" x="156" y="64" text-anchor="middle">3</text>
+                  <circle class="mark" cx="156" cy="106" r="7" />
+                  <text class="glyph" x="156" y="106" text-anchor="middle">4</text>
+                </g>
+                <line class="arrow" x1="228" y1="95" x2="256" y2="95" />
+                <path class="tip" d="M256,90 L264,95 L256,100 z" />
+                <g id="narrow-phone">
+                  <rect class="frame" x="270" y="1" width="88" height="188" rx="10" />
+                  <rect class="line" x="278" y="12" width="50" height="6" rx="2" />
+                  <rect class="box" x="278" y="24" width="72" height="38" rx="3" />
+                  <rect class="box" x="278" y="68" width="72" height="38" rx="3" />
+                  <rect class="box" x="278" y="112" width="72" height="30" rx="3" />
+                  <rect class="box" x="278" y="148" width="72" height="30" rx="3" />
+                  <circle class="mark" cx="290" cy="36" r="7" />
+                  <text class="glyph" x="290" y="36" text-anchor="middle">1</text>
+                  <circle class="mark" cx="290" cy="80" r="7" />
+                  <text class="glyph" x="290" y="80" text-anchor="middle">2</text>
+                  <circle class="mark" cx="290" cy="124" r="7" />
+                  <text class="glyph" x="290" y="124" text-anchor="middle">3</text>
+                  <circle class="mark" cx="290" cy="160" r="7" />
+                  <text class="glyph" x="290" y="160" text-anchor="middle">4</text>
+                </g>
+              </svg>
+              <figcaption id="cap-narrow">
+                <strong>A side column on a phone</strong>The side column stacks under
+                the body, so region 3 follows region 2.
+              </figcaption>
+            </figure>
+          </section> </lf-tab
+        ><lf-tab id="navigation" label="Navigation"
+          ><details class="topic-outline" id="navigation-outline">
+            <summary>In this topic</summary>
+            <nav aria-label="Navigation sections">
+              <ul>
+                <li><a href="#navigation-basics">Navigation</a></li>
+                <li>
+                  <a href="#navigation-destinations"
+                    >Named destinations and visible hints</a
+                  >
+                </li>
+                <li><a href="#navigation-reading">Reading and text search</a></li>
+                <li>
+                  <a href="#navigation-thread-origin"
+                    >Threads and work waiting on the user</a
+                  >
+                </li>
+                <li><a href="#navigation-resolution">Resolving and replying</a></li>
+                <li><a href="#navigation-other-contexts">Panels and Escape</a></li>
+                <li><a href="#navigation-history">Back and Forward</a></li>
+                <li><a href="#phone-scope">Phones and touch screens</a></li>
+                <li><a href="#phone-panel">The panel and its menu</a></li>
+                <li><a href="#phone-comments">Comments, threads and widgets</a></li>
+                <li><a href="#phone-gaps">Touch coverage and testing</a></li>
+              </ul>
+            </nav>
+          </details>
+          <section id="navigation-basics">
+            <h2>Navigation</h2>
+            <p id="navigation-lede">
+              Leaf's shortcuts act where focus is. A thread, its passage and its margin
+              card count as one place. Text fields keep typing and caret movement;
+              native controls keep their activation keys. Escape leaves one interaction,
+              browser Back returns to a reading place, and Undo withdraws a recorded
+              action.
+            </p>
+            <table id="navigation-keys">
+              <thead>
+                <tr>
+                  <th>Intent</th>
+                  <th>Route</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Reach a control</td>
+                  <td>
+                    <kbd>Tab</kbd> / <kbd>Shift</kbd> + <kbd>Tab</kbd>;
+                    <kbd>Enter</kbd> activates it. A tab strip uses arrow keys.
+                  </td>
+                </tr>
+                <tr>
+                  <td>Move through threads</td>
+                  <td>
+                    <kbd>t</kbd> advances; <kbd>Shift</kbd> + <kbd>t</kbd> goes back.
+                    Past either end, the walk comes round to the other.
+                  </td>
+                </tr>
+                <tr>
+                  <td>Move through On me, the items waiting on the user</td>
+                  <td>
+                    <kbd>m</kbd> advances through them; <kbd>Shift</kbd> +
+                    <kbd>m</kbd> goes back.
+                  </td>
+                </tr>
+                <tr>
+                  <td>Choose a destination</td>
+                  <td>
+                    <kbd>g</kbd> opens hints and the
+                    <a href="#navigation-go-to">Go-to map</a>.
+                  </td>
+                </tr>
+                <tr>
+                  <td>Find page text</td>
+                  <td>
+                    <kbd>/</kbd> opens search. <kbd>Enter</kbd> chooses a match;
+                    <kbd>n</kbd> / <kbd>Shift</kbd> + <kbd>n</kbd> then walk matches.
+                  </td>
+                </tr>
+                <tr>
+                  <td>Link to a section</td>
+                  <td>
+                    The link mark beside a heading, shown under the pointer or by a tap,
+                    copies the page's address of that section. On the section,
+                    <kbd>Enter</kbd> copies it.
+                  </td>
+                </tr>
+                <tr>
+                  <td>Find a thread or message</td>
+                  <td>
+                    With focus in Threads, <kbd>/</kbd> opens search. Arrow keys move
+                    through result rows; <kbd>Enter</kbd> opens one.
+                  </td>
+                </tr>
+                <tr>
+                  <td>Read further</td>
+                  <td>
+                    <kbd>j</kbd> / <kbd>k</kbd> scroll a little; <kbd>d</kbd> /
+                    <kbd>u</kbd> move 60% of the focused reading area.
+                  </td>
+                </tr>
+                <tr>
+                  <td>Leave or return</td>
+                  <td>
+                    <kbd>Escape</kbd> leaves one interaction. Browser Back / Forward
+                    traverses reading history. <kbd>z</kbd>, or Undo in the leaf's menu,
+                    takes back a recorded action.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <p id="navigation-context">
+              <kbd>?</kbd> opens the command reference for the current context; menu
+              rows show their own shortcuts. On touch screens, use thread titles,
+              markers, Page Map and the <a href="#phone-panel">leaf’s menu</a>. The
+              <a href="#navigation-tab-rule">movement rules</a> distinguish walks that
+              wrap from lists that stop.
+            </p>
+          </section>
+
+          <section id="navigation-destinations">
+            <h2>Named destinations and visible hints</h2>
+            <details id="navigation-go-to">
+              <summary>The complete Go-to map</summary>
+              <p id="navigation-go-to-reading">
+                Press g, release it, then type the route; uppercase means Shift plus the
+                letter. Named routes are fixed. Lowercase hints are assigned to visible
+                controls for the current view. Only applicable routes appear.
+              </p>
+              <table id="navigation-go-to-routes">
+                <thead>
+                  <tr>
+                    <th>After g</th>
+                    <th>Destination or action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><kbd>T</kbd></td>
+                    <td>
+                      Open Threads and focus its selected thread; close Threads when it
+                      is already open.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><kbd>M</kbd></td>
+                    <td>Open or close On me.</td>
+                  </tr>
+                  <tr>
+                    <td><kbd>L</kbd></td>
+                    <td>
+                      Open or close All pages, when neighbouring pages are available.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><kbd>P</kbd></td>
+                    <td>Open the searchable Page Map.</td>
+                  </tr>
+                  <tr>
+                    <td><kbd>V</kbd></td>
+                    <td>Open Versions, when version history is available.</td>
+                  </tr>
+                  <tr>
+                    <td><kbd>p</kbd></td>
+                    <td>
+                      Return to the page, letting go of the current target or margin
+                      card. A panel covering the page must close first.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><kbd>g</kbd> / <kbd>G</kbd></td>
+                    <td>
+                      Go to the top / bottom of the page, or of the panel covering it.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><kbd>k</kbd> / <kbd>j</kbd></td>
+                    <td>
+                      With a thread card or title focused, place that thread at the top
+                      / bottom of its list.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><kbd>z</kbd></td>
+                    <td>
+                      Scroll the current item to the top, keeping focus and selection.
+                      Bare z is Undo.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><kbd>u</kbd></td>
+                    <td>
+                      Go to the first unread message, from the page or Threads. Bare u
+                      scrolls up.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><kbd>i</kbd></td>
+                    <td>Resume the last writing place, when one is remembered.</td>
+                  </tr>
+                  <tr>
+                    <td><kbd>v</kbd></td>
+                    <td>Restore the last selected passage, when one is remembered.</td>
+                  </tr>
+                  <tr>
+                    <td>Visible hint letters</td>
+                    <td>
+                      Activate the labelled margin entry, tab, control or link, or open
+                      a disclosure at its summary. A hint letter lasts only for the
+                      current view.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              <p id="navigation-go-to-filters">
+                Lowercase <kbd>m</kbd>, <kbd>t</kbd>, <kbd>h</kbd> and
+                <kbd>f</kbd> filter hints to margin targets, thread controls, hyperlinks
+                and folds (collapsible sections). Further letters choose a target: g
+                then t filters thread controls; g then T opens Threads.
+              </p>
+              <p id="navigation-go-to-exit">
+                Tab / Shift+Tab move through hints; Enter takes the announced hint.
+                Escape removes the last letter, then the filter, then cancels. There is
+                no timeout. Editors keep typed letters.
+              </p>
+            </details>
+          </section>
+          <section id="navigation-reading">
+            <h2>Reading and text search</h2>
+            <details id="navigation-reading-cases">
+              <summary>Scrolling keys follow the focused reading region</summary>
+              <p id="navigation-scroller-rule">
+                <kbd>j</kbd> / <kbd>k</kbd> and <kbd>d</kbd> / <kbd>u</kbd> scroll the
+                focused reading region: the page, a pane, or the panel’s view. The
+                <a href="#navigation-go-to">Go-to map</a> covers page edges, first
+                unread message and item alignment.
+              </p>
+            </details>
+            <details id="navigation-search-cases">
+              <summary>Searching text and returning to reading</summary>
+              <p id="navigation-search-rule">
+                <kbd>/</kbd> searches page text, or finds threads and messages when
+                focus is in Threads. Search uses the panel’s main field, labeled “Search
+                page” or “Search threads”, and keeps the unfinished comment and its
+                caret for when search closes. The match count and arrows share that
+                bottom row. In page search, Tab / Shift+Tab and the search arrows cycle
+                matches; Enter or a tap on the marked match selects it. <kbd>n</kbd> /
+                <kbd>Shift</kbd> + <kbd>n</kbd> repeat an accepted page search.
+                Thread-search results use the panel’s row navigation. Escape cancels
+                page search and restores the earlier focus; in Threads it clears the
+                query, then closes search. Editors keep letter shortcuts.
+              </p>
+            </details>
+          </section>
+          <section id="navigation-thread-origin">
+            <h2>Threads and work waiting on the user</h2>
+            <p id="navigation-thread-rule">
+              <kbd>t</kbd> / <kbd>Shift</kbd> + <kbd>t</kbd> walk open threads in page
+              order. Focus on a thread or its accompanied passage makes that thread the
+              origin. Moving elsewhere changes the origin; Leaf keeps no separate “last
+              thread” cursor.
+            </p>
+            <details id="navigation-thread-cases">
+              <summary>Focus, scrolling, order, and filters</summary>
+              <table id="navigation-thread-table">
+                <thead>
+                  <tr>
+                    <th>Sequence or state</th>
+                    <th>Current result</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>
+                      <kbd>t</kbd>, <kbd>Escape</kbd>, <kbd>t</kbd> in a margin card
+                    </td>
+                    <td>
+                      Escape returns to the passage. While its card accompanies it, t
+                      advances from that thread.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <kbd>t</kbd>, <kbd>Escape</kbd>, <kbd>Escape</kbd>, <kbd>t</kbd>
+                    </td>
+                    <td>
+                      The second Escape releases the passage and closes its card. The
+                      next t starts from the reading place and may reopen that thread.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Click a different passage, then <kbd>t</kbd></td>
+                    <td>
+                      The new passage supplies the origin. t enters its accompanying
+                      conversation or a thread at that target; otherwise it seeks the
+                      next thread. Shift+t seeks the previous one.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Scroll away while retaining focus</td>
+                    <td>
+                      Focus on a thread or target retains that origin. Otherwise the
+                      selection’s working end or visible reading block supplies it.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Threads closed</td>
+                    <td>
+                      The walk follows open threads in page order, revealing hidden tabs
+                      and disclosures as needed. A general or detached thread opens in
+                      Threads.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Threads open</td>
+                    <td>
+                      The page’s t walk still follows open threads in page order. To
+                      stay within the shown list and its filters, use the list’s arrow
+                      keys and Enter.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Threads has a text search</td>
+                    <td>
+                      The search matches thread names, quoted passages and messages,
+                      including resolved threads. Tab leaves the query box; arrow keys
+                      walk result rows and Enter opens one. The page’s t walk still
+                      visits open threads.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Threads shows Resolved</td>
+                    <td>
+                      The Resolved list lets the user open completed conversations. The
+                      t command remains “Next open thread”; it does not become a walk
+                      through resolved rows.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>At the first or last thread</td>
+                    <td>The next step comes round to the other end.</td>
+                  </tr>
+                  <tr>
+                    <td>Arrive at a long thread</td>
+                    <td>
+                      The latest message and reply area appear where they fit, from a
+                      content boundary. An oversized latest message starts at its head.
+                      Scroll back to read earlier messages.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </details>
+            <details id="navigation-queue-cases">
+              <summary>The On me walk can leave the panel's filtered list</summary>
+              <p id="navigation-queue-rule">
+                <kbd>m</kbd> / <kbd>Shift</kbd> + <kbd>m</kbd> walk work waiting on the
+                user: open obligations, to-dos and updates to send again. The walk
+                reveals closed tabs or disclosures and can leave a filtered panel list.
+                A single-choice obligation ends when answered; a multi-select choice
+                waits for Done. Later presses walk the remaining work.
+              </p>
+              <p id="navigation-tab-rule">
+                Page walks through open threads (<kbd>t</kbd>), On me (<kbd>m</kbd>) and
+                accepted page-text matches (<kbd>n</kbd>) wrap at either end; the count
+                flashes on wrapping. Tab-strip arrows also wrap, and Tab leaves the
+                strip. Arrow-key navigation through menu rows, panel lists and
+                thread-search results stops at the ends; Home / End reach the first /
+                last row.
+              </p>
+            </details>
+          </section>
+
+          <section id="navigation-resolution">
+            <h2>Resolving and replying</h2>
+            <p id="navigation-resolve-rule">
+              <kbd>r</kbd> resolves the focused open thread. A thread opened from
+              Threads advances to the next open thread in page order, or the previous at
+              the end; with none left, it returns to the list. A margin card returns to
+              its passage. An embedded thread folds in place.
+            </p>
+            <details id="navigation-resolution-cases">
+              <summary>Search, replies, and undo</summary>
+              <table id="navigation-resolution-table">
+                <thead>
+                  <tr>
+                    <th>Sequence or state</th>
+                    <th>Current result</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Resolve the only shown thread</td>
+                    <td>
+                      The next destination comes from all open threads, independently of
+                      a search. When no open threads remain, the panel returns to
+                      Threads.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Resolve a thread found by search</td>
+                    <td>
+                      The search can show both open and resolved threads. Resolving a
+                      thread opened from that list still advances through open threads
+                      in page order.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Type r in a reply box</td>
+                    <td>
+                      The box receives the letter. Escape returns to the thread before
+                      its resolve shortcut applies.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><kbd>c</kbd>, compose, send</td>
+                    <td>
+                      A reply leaves focus on its card or title; a page comment leaves
+                      it in the panel’s field. Escape keeps an unfinished draft.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Undo a resolution</td>
+                    <td>
+                      The thread reopens. If the panel has returned to Threads and the
+                      reopened row is shown, focus returns to it. If another thread is
+                      now open, that view stays put. An embedded thread retains its
+                      place.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </details>
+          </section>
+
+          <section id="navigation-other-contexts">
+            <h2>Panels and Escape</h2>
+            <details id="navigation-escape-cases">
+              <summary>Escape's next step depends on focus</summary>
+              <p id="navigation-escape-rule">
+                A comment composer returns to its element; a reply box returns to its
+                thread. In Threads, Escape clears a search before leaving it. Page-side
+                selections, targets and margin cards can unwind while a desktop panel
+                stays open. A covering panel must close before the page behind it is
+                accessible.
+              </p>
+              <p id="navigation-comment-return">
+                <kbd>m</kbd>, <kbd>c</kbd>, <kbd>Escape</kbd> returns to the obligation
+                and its option keys; another Escape lets it go. Commenting from an
+                option or aiming at that obligation has the same return. A visual
+                comment returns to its current response proxy. A whole-page comment
+                stays in the panel’s field; closing a comment on selected words clears
+                the selection.
+              </p>
+              <p id="navigation-panel-exchange">
+                Opening All pages or On me replaces the panel’s current view. Escape
+                closes the new view rather than restoring the old one. Pointer and
+                keyboard entry give the view the same Escape parent.
+              </p>
+            </details>
+          </section>
+          <section id="navigation-history">
+            <h2>Back and Forward</h2>
+            <p id="navigation-history-rule">
+              A successful navigation step to a destination that is not fully readable
+              adds a return stop. Consecutive navigation steps form a navigation group
+              and share that stop while part of the preceding landing remains visible
+              and the user has not clicked or Tabbed onto another passage. Back returns
+              to the navigation group’s start. A fully readable destination adds no
+              stop.
+            </p>
+            <details id="navigation-history-cases">
+              <summary>Which actions create a history entry?</summary>
+              <table id="navigation-history-table">
+                <thead>
+                  <tr>
+                    <th>Action</th>
+                    <th>History behavior</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>
+                      t, m, a marker, or Page Map reaches a hidden or clipped
+                      destination
+                    </td>
+                    <td>
+                      A successful navigation step pushes an entry, or replaces the
+                      current navigation group's entry. Changing focus alone adds none.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      Click or Tab onto a different passage, then take another
+                      navigation step
+                    </td>
+                    <td>
+                      The reading choice ends the navigation group; the next offscreen
+                      navigation step saves that passage. Controls and runtime focus
+                      handoffs do not end it.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      Scroll completely away from the last landing, then take another
+                      navigation step
+                    </td>
+                    <td>The new navigation step adds a separate return stop.</td>
+                  </tr>
+                  <tr>
+                    <td>Follow a #fragment link</td>
+                    <td>
+                      The browser supplies a history entry. Leaf reveals the
+                      destination's enclosing tab or disclosure and lands on the named
+                      element.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Select a root page tab</td>
+                    <td>
+                      The switch saves the outgoing reading position and adds an entry;
+                      Back / Forward returns between views. Embedded tabs add no entry.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      Scroll, search page text, align with g then z, open a panel,
+                      Escape, or resolve
+                    </td>
+                    <td>
+                      These actions add no reading-history entry themselves. Back
+                      neither undoes a resolution nor unwinds a panel.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Back / Forward returns</td>
+                    <td>
+                      Leaf restores the view and restores focus or selection where the
+                      saved nodes survive and remain visible. A newly hidden destination
+                      is revealed again. A newer gesture cancels a delayed return.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              <p id="navigation-browser-support">
+                Enhanced return handling uses the browser’s Navigation API. Other
+                browsers retain native traversal and fragment landing.
+              </p>
+            </details>
+          </section>
+          <section id="phone">
+            <section id="phone-scope">
+              <h2>Phones and touch screens</h2>
+              <p id="phone-scope-what">
+                Touch users can read, comment and operate widgets. Leaf’s page commands
+                have direct gestures or visible controls; authored widgets supply their
+                own routes.
+                <a href="#narrow">Narrow windows</a> describes how page regions stack.
+              </p>
+            </section>
+            <section id="phone-panel">
+              <h2>The panel and its menu</h2>
+              <p id="phone-panel-row">
+                The panel fits a narrow window with space at its edges. Its row holds
+                the leaf, a comment field showing agent status, and the On me count
+                beside its icon. A temporary notice replaces the status words.
+              </p>
+              <p id="phone-panel-menu">
+                The leaf’s menu includes Search page and Page Map under Navigate, Undo,
+                and Comment on an element, Draw mode, Design mode and Hide annotations
+                under Annotations. Decisions appear in On me and in their widgets. An
+                active mode or search names itself in the panel and provides a ✕ exit.
+                Search arrows appear beside the match count; tapping the marked match
+                selects it.
+              </p>
+            </section>
+            <section id="phone-comments">
+              <h2>Comments, threads and widgets</h2>
+              <p id="phone-comments-select">
+                Select words to quote them in the panel’s field; tap the field to open a
+                comment below the block. For a whole table, figure or other element, use
+                <a href="#phone-gap-element">Comment on an element</a>.
+              </p>
+              <p id="phone-comments-pins">
+                Where the margin cannot hold a rail, markers appear as pins on their
+                blocks. Tapping a pin highlights its passage and opens its thread card.
+                Threads opens above the panel’s row. Hide annotations hides the pins.
+              </p>
+              <p id="phone-widgets">
+                On a touch screen, a board at most 640px wide shows a
+                <em>Move to</em> row on each card, reaching offscreen columns without
+                dragging.
+              </p>
+            </section>
+            <section id="phone-gaps">
+              <h2>Touch coverage and testing</h2>
+              <ul id="phone-gaps-list">
+                <li id="phone-gap-element">
+                  <strong>Whole elements.</strong> Open the leaf’s menu → Annotations →
+                  Comment on an element, then tap the target. This opens its comment
+                  composer without activating the target’s controls.
+                </li>
+                <li id="phone-gap-keys">
+                  <strong>Commands.</strong> Menu commands and direct controls provide
+                  touch routes; the panel and reply fields suppress keyboard hints for a
+                  coarse pointer.
+                </li>
+                <li id="phone-gap-exits">
+                  <strong>Exits.</strong> The panel’s ✕ leaves an active mode, search or
+                  target picker. Within the picker it first removes a typed hint prefix.
+                </li>
+                <li id="phone-gap-hover">
+                  <strong>Hover detail.</strong> Authored hover explanations need a
+                  touch-accessible alternative; keyboard and hover behavior alone do not
+                  establish a touch route.
+                </li>
+                <li id="phone-gap-size">
+                  <strong>Layout.</strong> Page-authored controls and diagrams still
+                  need review at narrow widths for target size, legibility and reachable
+                  content.
+                </li>
+                <li id="phone-gap-device">
+                  <strong>Device coverage.</strong> Automated touch journeys use browser
+                  emulation; they do not establish real-device behavior.
+                </li>
+              </ul>
+            </section>
+          </section></lf-tab
+        ></lf-tabs
+      >
+      <footer class="site-footer">
+        <p>
+          <a href="/how-it-works/">How it works</a> ·
+          <a href="/extending/">Extending</a> · <a href="/examples/">Examples</a>
+        </p>
+      </footer>
+    </main>
+  </body>
+</html>

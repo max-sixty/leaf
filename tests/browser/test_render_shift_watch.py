@@ -18,6 +18,7 @@ from render_harness import (
     judge_watches,
     leaf_page,
     open_page,
+    place_step_matches,
     refuse,
     resized,
     take_browser_errors,
@@ -77,7 +78,7 @@ def within(node, place):
     """Whether a node the watch placed, by its steps innermost first, is the element
     `place` or inside it, as a text node in it (`["#text", "button#control"]`) or a
     node in its shadow tree (`["div.cm-line", "#shadow-root", "leaf-text#field.scroll"]`)."""
-    return place in node
+    return any(place_step_matches(step, place) for step in node)
 
 
 def moved_within(place, by=None):
@@ -814,6 +815,8 @@ def test_control_reflow_stays_inside_its_runtime_region(browser, fault, protecte
         ("region_growth", "button#reply"),
         ("tail_and_region_growth", "button#reply"),
         ("growing_port", None),
+        ("clipped_port", None),
+        ("clipped_extra", "button#later"),
         ("overgrown_port", "button#later"),
         ("sticky_extra", "button#reply"),
         ("prepend", "p#old"),
@@ -836,9 +839,11 @@ def test_append_reflow_credits_only_its_measured_suffix_growth(
     # A floating port: nothing follows it in flow, so its foot is free to grow.
     floating = (
         "position:fixed;top:0;left:0;"
-        if fault in {"growing_port", "overgrown_port"}
+        if fault in {"growing_port", "overgrown_port", "clipped_port", "clipped_extra"}
         else ""
     )
+    overflow = "clip" if fault.startswith("clipped_") else "auto"
+    reply_position = "static" if fault.startswith("clipped_") else "sticky"
     tail = (
         " data-lf-append-tail"
         if fault
@@ -856,11 +861,11 @@ def test_append_reflow_credits_only_its_measured_suffix_growth(
         + quote(
             '<!doctype html><body style="margin:0;font:16px monospace">'
             f'<div id="port" data-lf-runtime style="{floating}width:360px;height:300px;'
-            'padding:5px;box-sizing:border-box;overflow:auto;overflow-anchor:none">'
+            f'padding:5px;box-sizing:border-box;overflow:{overflow};overflow-anchor:none">'
             '<section style="overflow:clip">'
             '<div id="source" data-lf-reflow="append">'
             f'{hidden}<p id="old"{tail} style="margin:0;height:40px">Already reading.</p></div>'
-            '<button id="reply" style="display:block;position:sticky;bottom:0">Reply</button></section>'
+            f'<button id="reply" style="display:block;position:{reply_position};bottom:0">Reply</button></section>'
             '<article><p style="margin:0">Another conversation.</p>'
             '<button id="later">Later thread</button></article></div>'
             '<button id="outside">Outside the panel</button></body>'
@@ -906,7 +911,7 @@ def test_append_reflow_credits_only_its_measured_suffix_growth(
           if (fault === 'growing_port') document.getElementById('port').style.height = '340px';
           if (fault === 'overgrown_port') document.getElementById('port').style.height = '350px';
           if (fault === 'old_growth') document.getElementById('old').style.height = '60px';
-          if (fault === 'extra_carry') document.getElementById('later').style.marginTop = '7px';
+          if (fault === 'extra_carry' || fault === 'clipped_extra') document.getElementById('later').style.marginTop = '7px';
           if (fault === 'sticky_extra') document.getElementById('reply').style.bottom = '7px';
           if (fault === 'moving_port') document.getElementById('port').style.marginTop = '7px';
           if (fault === 'outside') document.getElementById('outside').style.marginTop = '7px';
@@ -3799,6 +3804,60 @@ motion.pause();motion.currentTime=150;
 
 
 @pytest.mark.parametrize("fault", [False, True])
+def test_a_sticky_inset_moves_its_box_only_within_its_block(browser, fault):
+    """A ride carries a scroller's messages while their sticky heads' insets travel
+    against the carry (box-motion.js), so a stuck head holds its line and one short of
+    it rides with its message. The inset is credited by the head's move within its
+    message, not read as an offset that cancels the carry; a head moving the other
+    way within its message still fails."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<!doctype html><style>
+@property --carry { syntax: '<length>+'; inherits: false; initial-value: 0px 0px; }
+.msg { height:150px }
+header { position:sticky; top:6px; height:28px; background:white }
+</style><body style="margin:0"><button id="start">Start</button>
+<div id="scroller" style="height:200px;overflow:auto;width:300px">
+<div class="msg" style="translate:var(--carry)"><header>First message</header></div>
+<div class="msg" style="translate:var(--carry)"><header id="second">
+<button id="control">Second message</button></header></div>
+<div style="height:600px"></div></div>
+<p id="trigger" style="position:absolute;left:10px;top:400px">Paint checkpoint</p>
+<script>
+scroller.scrollTop = 100;
+start.onclick = () => {
+  window.motions = [...document.querySelectorAll('.msg')].flatMap((msg) => [
+    msg.animate([{'--carry':'0px 80px'},{'--carry':'0px 0px'}], {duration:1000}),
+    msg.querySelector('header').animate([{top:'-74px'},{top:'6px'}], {duration:1000}),
+  ]);
+  for (const motion of motions) { motion.pause(); motion.currentTime = 150; }
+};
+</script></body>""")
+    )
+    paint(page)
+    page.locator("#start").click()
+    paint(page)
+    judge_watches()
+    assert not take_browser_errors(page)
+    first = page.locator("header").first.bounding_box()
+    page.evaluate(
+        """fault => {
+      for (const motion of motions) motion.currentTime = 400;
+      if (fault) second.style.marginTop = '-15px';
+      trigger.style.left = '40px';
+    }""",
+        fault,
+    )
+    paint(page)
+    assert page.locator("header").first.bounding_box() == first
+    judge_watches()
+    errors = take_browser_errors(page)
+    assert names_move(errors, "p#trigger"), errors
+    assert names_move(errors, "button#control") == fault, errors
+
+
+@pytest.mark.parametrize("fault", [False, True])
 def test_native_anchor_follows_owned_translation_but_not_an_independent_offset(
     browser, fault
 ):
@@ -4504,6 +4563,35 @@ def test_cancelled_native_translation_credits_its_return_to_layout(
         assert not errors, errors
 
 
+@pytest.mark.parametrize("ending", ["cancel", "finish"])
+def test_ending_an_animation_after_its_target_detaches(browser, ending):
+    """A removed surface has no presentation for the motion watch to sample."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><section id="surface"><div id="words">Words</div></section>'
+        )
+    )
+    paint(page)
+    page.evaluate("""() => {
+      window.motion = words.animate(
+        [{translate: '20px 0px'}, {translate: '0px 0px'}], {duration: 1000});
+      motion.pause();
+      motion.currentTime = 500;
+    }""")
+    paint(page)
+    page.evaluate(
+        """ending => {
+      surface.remove();
+      motion[ending]();
+    }""",
+        ending,
+    )
+    paint(page)
+    judge_watches()
+
+
 FRAMES = """count => new Promise((done) => {
   const next = () => (--count ? requestAnimationFrame(next) : done());
   requestAnimationFrame(next);
@@ -4725,7 +4813,7 @@ def test_message_age_may_shift_metadata_but_leaves_the_thread_in_place(
     header = surface_root.locator(".lf-msg-head").first
     receipt = header.locator(".lf-msg-sending")
     timestamp = header.locator("time")
-    expect(receipt).to_have_text("Sent")
+    expect(receipt).to_have_text("Saved")
     expect(timestamp).to_have_text("just now")
     # Age changes are news after Chrome's recent-input grace, even when opening the
     # surface and resizing it happened immediately before this clock transition.
@@ -4752,7 +4840,7 @@ def test_message_age_may_shift_metadata_but_leaves_the_thread_in_place(
         page.clock.set_fixed_time(now + delta)
         ticked(page)
         expect(timestamp).to_have_text(age)
-        expect(receipt).to_have_text("Sent")
+        expect(receipt).to_have_text("Saved")
         judge_watches()
         assert surface_root.bounding_box() == thread_before
         assert owner.bounding_box() == owner_before

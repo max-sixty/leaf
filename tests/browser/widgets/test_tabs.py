@@ -12,8 +12,8 @@ from render_harness import (
     holding,
     leaf_page,
     open_page,
+    open_threads,
     pane_scroll_behavior,
-    panel_settled,
     post_event,
     resized,
     root_overflow,
@@ -651,10 +651,9 @@ def test_page_tabs_take_the_page_width_and_its_one_left_edge(browser, serve):
 def test_a_workspace_page_tab_gives_its_only_block_its_box_before_upgrade(
     browser, serve
 ):
-    """A full-height page tab's only block takes the height the strip leaves from the
-    first paint, and the box it has then is the box the upgrade keeps. Before upgrade the
-    set lacked the ring's room the upgraded set keeps under the panel, so the block
-    stood 5px taller and shrank when the module drew."""
+    """A full-height page tab's only block fills its content box from first paint,
+    leaving the tab's panel clearance below it. Upgrade keeps that same box, including
+    the ring's room around the set and the clearance after the reading content."""
     source = leaf_page(
         "Workspace page tab",
         '<header><h1>Review</h1></header><lf-tabs id="views">'
@@ -675,9 +674,11 @@ def test_a_workspace_page_tab_gives_its_only_block_its_box_before_upgrade(
 
         def heights():
             return page.evaluate("""() => {
-              const tab = document.querySelector('#work').getBoundingClientRect();
+              const panel = document.querySelector('#work');
+              const tab = panel.getBoundingClientRect();
               const block = document.querySelector('#surface').getBoundingClientRect();
-              return {tab: tab.height, block: block.height, bottom: tab.bottom - block.bottom,
+              const end = parseFloat(getComputedStyle(panel).paddingBottom);
+              return {tab: tab.height, block: block.height, bottom: tab.bottom - end - block.bottom,
                       sides: [block.left, block.right]};
             }""")
 
@@ -782,11 +783,49 @@ def test_wide_evidence_in_a_page_tab_takes_the_room_it_would_outside_one(
     assert twins("desktop") == first
     # Wider than the reading column, which a workspace's prose does not keep.
     assert first["in-wide"]["width"] > 720, first
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    open_threads(page)
     twins("threads open")
     resized(page, 390, 800)
     twins("phone")
+
+
+@pytest.mark.parametrize(
+    "side", [True, False], ids=["workspace-side-list", "boxed-panel"]
+)
+def test_a_scrolling_tab_panel_keeps_nested_headers_on_its_edge(browser, serve, side):
+    """A padded panel's nested tab strip sticks on the scrollport's edge. Leaving
+    the padding above it lets fragments of the output show through that band."""
+    source = leaf_page(
+        "Inspect output",
+        "<header><h1>Inspect output</h1></header>"
+        + (
+            ""
+            if side
+            else "<style>#output { height: 360px; overflow: auto; }</style><section>"
+        )
+        + f'<lf-tabs id="outputs" {"list=side" if side else ""}>'
+        '<lf-tab id="output" label="Alert configuration">'
+        '<lf-tabs id="arms"><lf-tab id="baseline" label="Leaf baseline">'
+        "<h2>Saved configuration</h2><details><summary>Checks passed</summary>"
+        "<p>Both checks passed.</p></details>"
+        + "".join(f'<p id="row-{n}">Configuration row {n}.</p>' for n in range(40))
+        + '</lf-tab><lf-tab id="control" label="Plain HTML"><p>Control output.</p>'
+        "</lf-tab></lf-tabs></lf-tab></lf-tabs>" + ("" if side else "</section>"),
+        layout="workspace" if side else "column",
+    )
+    page = open_page(browser, serve(source))
+    panel = page.locator("#output")
+    panel.hover()
+    page.mouse.wheel(0, 120)
+    page.wait_for_function("document.querySelector('#output').scrollTop >= 100")
+    scroll_settled(page)
+    geometry = page.evaluate("""() => {
+      const panel = document.querySelector('#output');
+      const strip = document.querySelector('#arms > .lf-tabstrip');
+      return {edge: panel.getBoundingClientRect().top + panel.clientTop,
+              header: strip.getBoundingClientRect().top};
+    }""")
+    assert geometry["header"] == pytest.approx(geometry["edge"], abs=0.5), geometry
 
 
 def test_a_side_list_workspace_scrolls_its_list_and_its_item_apart(browser, serve):
@@ -902,8 +941,12 @@ def test_side_tabs_distinguish_withdrawn_obligations_from_answers(browser, serve
     marks = page.locator("#queue .lf-tab-answer")
     expect(marks.nth(0)).to_have_attribute("data-lf-obligations", "open")
     expect(marks.nth(1)).to_have_attribute("data-lf-obligations", "open")
-    # The open mark is said in words beside it, the words a tally counts by.
-    expect(marks.nth(0)).to_have_text("To answer")
+    # The open mark stands alone for the user's turn: the mark and the tally say it,
+    # and the tab's description says it in words.
+    expect(marks.nth(0)).to_have_text("")
+    expect(page.get_by_role("tab").nth(0)).to_have_accessible_description(
+        re.compile("To answer")
+    )
     stamp_page(
         serve.page_dir,
         source.replace('id="only-options" choose', 'id="only-options"').replace(
@@ -981,9 +1024,9 @@ def test_a_queue_row_names_an_answer_whose_widget_module_arrives_last(browser, s
 
     undo(page)
     expect(answer).to_have_text("Fix")
-    # The undo is announced by the name the gesture's own acknowledgement used.
+    # The undo is announced by the name the gesture's own announcement used.
     expect(page.locator(".lf-live")).to_have_text(
-        "Undid: Chose “Escalate to engineering” · just now — sent"
+        "Undid: Chose “Escalate to engineering” · just now"
     )
     assert row.bounding_box() == before
     page.locator("#o-a-long").get_by_role("checkbox").click()

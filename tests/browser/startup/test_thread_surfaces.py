@@ -1,8 +1,6 @@
 """Threads a page or package places itself: page annotation views, thread surfaces and
 their required readers, and the fallback when a surface fails."""
 
-import re
-
 import pytest
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
@@ -212,7 +210,7 @@ customElements.define('lf-test-surface', class extends LeafElement {
     else:
         trigger.focus()
         page.keyboard.press("Enter")
-    expect(strip).to_have_class(re.compile(r"\blf-react-open\b"))
+    expect(strip.locator(".lf-react-palette:popover-open")).to_have_count(1)
     assert page.evaluate(editing, roots[0]) == (activation == "keyboard")
     assert stored_draft_text(page, f"reply:{roots[0]}") == "Keep this unsent reply."
 

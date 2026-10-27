@@ -52,6 +52,10 @@
      at the user's current position.
    - `run` performs one result. A run-less row names a press it does not make: the
      platform's own on a link, or one another scope's row already runs.
+   - `keep` is the step a close request, such as Android's back gesture, takes in
+     place of `run`, on a row whose `run` throws away words the user wrote and hasn't
+     sent, such as an editor's Discard: it closes the same way, keeps the words where
+     reopening finds them, and says so (close-requests.js).
    - `touch` is the words of the menu row that stands in for a page command's press
      under a finger, or a function when state chooses them, and `false` where a finger
      reaches the result directly (keyboard/AGENTS.md, "Touch routes"). Every page

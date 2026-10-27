@@ -337,14 +337,14 @@ def test_a_reaction_list_closes_once_its_trigger_is_out_of_sight(browser, serve)
     trigger = message.locator(".lf-react-trigger")
     trigger.click()
     strip = message.locator(":scope > .lf-react-strip")
-    expect(strip).to_contain_class("lf-react-open")
+    expect(strip.locator(".lf-react-palette:popover-open")).to_have_count(1)
     trigger.evaluate(
         """trigger => scrollBy({top: trigger.getBoundingClientRect().bottom + 4,
           behavior: 'instant'})"""
     )
     box = trigger.bounding_box()
     assert box["y"] + box["height"] < 0, box
-    expect(strip).not_to_contain_class("lf-react-open")
+    expect(strip.locator(".lf-react-palette:popover-open")).to_have_count(0)
     expect(page.locator(".lf-react-palette:popover-open")).to_have_count(0)
 
 

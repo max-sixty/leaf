@@ -414,6 +414,7 @@ function requestFrame() {
 		p.paintCurrentLocation?.();
 		p.paintSelectedMarginEntries?.();
 		p.paintTouchControls?.();
+		p.paintCloseRequests?.();
 		p.paintStatusContext?.();
 		p.syncLayout?.();
 		if (shiftPage) p.pageShifted?.();

@@ -261,6 +261,28 @@ CASES = (
         ({"section": "tiles-1"}, {"section": "tiles-5"}),
     ),
     Case(
+        "board",
+        "A board's columns side by side, a narrow gap between them; the comment is on"
+        " the first column's first card, whose corner faces the next column's card.",
+        '<lf-board id="board-b">'
+        + "".join(
+            f'<lf-column id="board-{column}" label="{label}">'
+            + "".join(
+                f'<lf-card id="board-{column}-{i}"><strong>{title}</strong> Cosmetic'
+                " for most, wrong-day for UTC+13.</lf-card>"
+                for i, title in enumerate(titles)
+            )
+            + "</lf-column>"
+            for column, label, titles in (
+                ("now", "Blocking", ("Digest email uses server timezone",)),
+                ("next", "Next", ("CSV export quotes numerics", "Retries ignore")),
+                ("later", "Later", ("Avatar upload rejects HEIC",)),
+            )
+        )
+        + "</lf-board>",
+        ({"section": "board-now-0"},),
+    ),
+    Case(
         "form-field",
         "A full-width labelled input.",
         '<label id="form-field-l" style="display:block">Release name '
@@ -428,7 +450,15 @@ READING = """async (anchors) => {
     const el = document.getElementById(anchor.section);
     const rects = anchor.quote ? quoted(el, anchor.quote).getClientRects()
       : el.getClientRects();
-    return {for: anchor.section, parts: boxes(el, rects)};
+    // Every other block in the case, as far as it shows: not a run of words, since an
+    // inline box spans the empty ends of its lines, and neither the target's own nor
+    // holding it.
+    const blocks = [...box.querySelectorAll('*')]
+      .filter((other) => !(other instanceof SVGElement && other.ownerSVGElement) &&
+        !other.contains(el) && !el.contains(other) && other.checkVisibility() &&
+        getComputedStyle(other).display !== 'inline')
+      .flatMap((other) => boxes(other, [other.getBoundingClientRect()]));
+    return {for: anchor.section, parts: boxes(el, rects), blocks};
   });
   // Each comment's row: the one among its target's that holds the comment's words.
   const rows = [...document.querySelectorAll('[data-lf-margin-for]')];
@@ -486,9 +516,22 @@ def _distance(a: dict, b: dict) -> float:
     )
 
 
+def _beside(block: dict, parts: list[dict]) -> bool:
+    """Whether `block` stands level with the target drawn in `parts`, across from it
+    rather than above, below or over it."""
+    top = min(part["top"] for part in parts)
+    bottom = max(part["bottom"] for part in parts)
+    left = min(part["left"] for part in parts)
+    right = max(part["right"] for part in parts)
+    return min(block["bottom"], bottom) - max(block["top"], top) > SLIVER and (
+        block["left"] >= right - SLIVER or block["right"] <= left + SLIVER
+    )
+
+
 def faults(reading: dict) -> list[tuple[str, str]]:
     """Each fault in one case's reading, as its kind and the target it is about. A pin
-    is over `words`, `controls` or `media`; out of reach of its target (`far`), past
+    is over `words`, `controls` or `media`; over another block level with its target
+    (`beside`), where it reads as that block's; out of reach of its target (`far`), past
     the window's edge (`offscreen`), or over another pin (`overlap`); or a comment has
     no pin shown at all (`hidden`)."""
     found = []
@@ -511,6 +554,11 @@ def faults(reading: dict) -> list[tuple[str, str]]:
             for kind in ("words", "controls", "media"):
                 if any(_meets(entry, box) for box in reading[kind]):
                     found.append((kind, name))
+            if any(
+                parts and _meets(entry, block) and _beside(block, parts)
+                for block in target["blocks"]
+            ):
+                found.append(("beside", name))
             if any(other != pin["row"] and _meets(entry, box) for other, box in seated):
                 found.append(("overlap", name))
     return sorted(set(found))

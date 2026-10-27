@@ -424,6 +424,50 @@ def test_words_escape_puts_away_are_put_away(browser):
     judge_watches()
 
 
+# A box whose words the page stores as they are typed, and which a close request, such
+# as Android's back gesture, closes: keeping its stored words, or throwing them away.
+CLOSE_BOX = """<!doctype html><body>
+<div id="box"><textarea id="field"></textarea></div>
+<script>
+  const field = document.getElementById("field");
+  field.addEventListener("input", () =>
+    localStorage.setItem("draft", JSON.stringify({ text: field.value })));
+  new CloseWatcher().addEventListener("close", () => {
+    if (document.body.dataset.on === "close-discards") localStorage.removeItem("draft");
+    document.getElementById("box").remove();
+  });
+</script>"""
+
+
+@pytest.mark.parametrize("on", ["close-keeps", "close-discards"])
+def test_words_a_close_request_puts_away_only_words_it_keeps(browser, on):
+    """Escape may throw words away, but back may not (keyboard/close-requests.js), so a
+    close watcher's close puts words away only where the page still stores them. A
+    close that discards them fails, which makes every browser test check that back
+    never loses words; counting every close as the user's put-away hid exactly that."""
+    page = browser.new_page()
+    page.route(
+        "http://words.test/",
+        lambda route: route.fulfill(body=CLOSE_BOX, content_type="text/html"),
+    )
+    page.goto("http://words.test/")
+    page.evaluate("on => { document.body.dataset.on = on; }", on)
+    page.locator("#field").fill("Half a thought")
+    # Nothing cancels this Escape, so the browser makes it a close request.
+    page.keyboard.press("Escape")
+    expect(page.locator("#box")).to_have_count(0)
+    judge_watches()
+    if on == "close-discards":
+        consume_browser_errors(
+            page,
+            {
+                "code": "words-left-screen",
+                "words": "Half a thought",
+                "place": ["textarea#field"],
+            },
+        )
+
+
 @pytest.mark.parametrize(
     "exit_kind",
     [

@@ -245,3 +245,10 @@ interface HTMLElementEventMap {
     present(ready?: Promise<unknown>): void;
   }>;
 }
+
+// TypeScript's DOM library lacks the platform's close watcher (HTML, "Close requests
+// and close watchers"), which `keyboard/close-requests.js` holds; only what it uses.
+interface CloseWatcher extends EventTarget {
+  destroy(): void;
+}
+declare var CloseWatcher: { prototype: CloseWatcher; new (): CloseWatcher };

@@ -355,6 +355,15 @@
         return beginSource(event, node, true);
       }
     }
+    // A close request, such as Android's back gesture, reaches the page only as a
+    // close watcher's trusted `close`, which is the user's gesture itself.
+    if (
+      event.isTrusted &&
+      event.type === "close" &&
+      window.CloseWatcher &&
+      event.target instanceof window.CloseWatcher
+    )
+      return beginSource(event, null);
     // A press or key moves focus as its native default, after its own listeners
     // return and before its dispatch completes, so the blur and focus that move
     // dispatches are that gesture's work: a box that closes on blur, as a file tree's

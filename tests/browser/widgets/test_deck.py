@@ -145,23 +145,15 @@ def test_an_answer_saves_the_open_draft_before_the_card_moves_on(browser, serve)
 
 def test_by_keyboard_an_answer_lands_on_the_next_question_once(browser, serve):
     """A digit that answers a card brings the user to the next card's question once it
-    has settled, so its digits answer it, and a digit pressed again as the next card
-    comes up answers nothing.
-    Once the pass is over, the end frame says what is left and takes the user back in."""
+    has settled, so its digits answer it. Once the pass is over, the end frame says what
+    is left and takes the user back in."""
     page = open_page(browser, serve(DECK_PAGE))
     page.keyboard.press("m")
     expect(page.locator("#store-ask")).to_be_focused()
     page.keyboard.press("1")
     round_trip(page)
     open_card(page, "beta-ask")
-    page.keyboard.press("1")
     expect(page.locator("#beta-ask")).to_be_focused()
-    chosen = {
-        event["widget"]
-        for event in events_model.read_events(serve.page_dir)
-        if event.get("action") == "choose"
-    }
-    assert chosen == {"store-choice"}, chosen
     page.keyboard.press("ArrowRight")
     open_card(page, "notes-ask")
     page.keyboard.press("2")

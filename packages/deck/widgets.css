@@ -5,10 +5,12 @@
   position: relative;
   margin-block: var(--sp-3);
 }
-/* A leaving card flies out past the deck's sides; clip it there, not above or below,
-   and only while it flies, so the open card's focus ring stands whole. */
+/* A leaving card flies out past the deck's sides, and the deck's height follows the
+   card that comes up; clip both to the deck, with room for the stack's edges, and only
+   while they move, so the open card's focus ring stands whole. */
 :scope:is(lf-deck)[data-lf-deck-flying] {
-  overflow-x: clip;
+  overflow: clip;
+  overflow-clip-margin: var(--lf-deck-edge);
 }
 
 .lf-deck-bar {
@@ -145,8 +147,16 @@
       position: absolute;
       inset-inline: 0;
       inset-block-start: var(--lf-deck-leave-top);
-      z-index: 1;
+      z-index: 2;
       pointer-events: none;
+    }
+    /* Back brings the card in over the one it covers, which waits beneath. */
+    :scope:is(lf-deck)[data-lf-deck-flying] > [data-lf-deck-open] {
+      position: relative;
+      z-index: 1;
+    }
+    :scope:is(lf-deck).lf-rendered > [data-lf-deck-leaving="back"] {
+      z-index: 0;
     }
     /* until-found keeps a hidden card's own box in flow; zero it. */
     :scope:is(lf-deck).lf-rendered > [hidden="until-found"] {

@@ -41,12 +41,14 @@
  * (`executeCommand`): a question asked in words is answered by a comment, and nothing on
  * the card says so otherwise. The bar stands above the card, so cards of different
  * heights never move a control under the pointer; for the same reason a card that comes
- * up takes no press until it has settled. A touch
- * drag across the card sends it either way, flying on from where the finger let go:
- * left is Later, right is Next once the card no longer waits, and a short or early drag
- * settles back. A mouse or pen drag stays
- * text selection, which comments start from. Unupgraded, and on paper, the cards stand
- * one after another.
+ * up after an answer takes no press until it has settled. Cards move as a stack: the
+ * open one flies off the side it was sent, the one behind rises into place, Back brings
+ * a card in over the open one from the left, and the deck's height follows, so the page
+ * below slides (`#go`). A touch drag across the card sends it either way, flying on from
+ * where the finger let go: left is Later, right is Next once the card no longer waits,
+ * and a short or early drag settles back. A mouse or pen drag stays text selection,
+ * which comments start from. Unupgraded, and on paper, the cards stand one after
+ * another.
  *
  * Rejected: a Catch up button at the Leaf panel's foot opening a deck over the whole
  * window, built from the On me list. Catch up is a widget the agent puts on the page
@@ -90,10 +92,15 @@ import {
 
 // How far a touch drag travels before a release sends the card; how long a card takes
 // to leave, and the next to come up; and how long a card that came up takes no press.
+// A leaving card accelerates away and an arriving one decelerates into place, on
+// Material 3's emphasized curves, so the motion starts at once and lands softly.
 const SWIPE = 80;
 const LEAVE_MS = 200;
-const RISE_MS = 160;
+const ARRIVE_MS = 260;
+const FADE_MS = 140;
 const SETTLE_MS = 250;
+const LEAVE = "cubic-bezier(0.3, 0, 0.8, 0.15)";
+const ARRIVE = "cubic-bezier(0.05, 0.7, 0.1, 1)";
 
 // Whether a card's obligations, by the reading, wait on the user.
 const waitsOn = (held) =>
@@ -121,7 +128,8 @@ customElements.define(
     // The card the user last pressed in, which an answer by pointer leaves focus
     // outside of where the platform doesn't focus the control pressed.
     #pressed = null;
-    #leaving = null;
+    // Ends the motion in flight at once, landing every element where it belongs.
+    #landing = null;
     #drag = null;
     // Whether the deck opened on its first card only because this tab kept no card
     // and the address named none, so the first reading may open the first that waits.
@@ -223,12 +231,15 @@ customElements.define(
 
     // Show one card, or none once the pass is over, without motion.
     #show(card) {
-      this.#leaving?.finish();
+      // Arriving at the open card, as `m` does at the card a motion is bringing up,
+      // leaves that motion to finish.
+      if (card === this.#open.value) return Promise.resolve();
+      this.#landing?.();
       for (const each of this.#cards) {
         keeps(each, "data-lf-deck-open", each === card ? "" : null);
         keeps(each, "hidden", each === card ? null : "until-found");
       }
-      if (card === this.#open.value) return Promise.resolve();
+      keepsHidden(this.#end, Boolean(card));
       this.#open.value = card;
       this.#defaulted = false;
       this.#waited = null;
@@ -237,64 +248,133 @@ customElements.define(
       return layoutChanged(this);
     }
 
-    // Leave the open card toward `side` and bring up `next` (null ends the pass). The
-    // leaving card keeps its box over the deck while it flies, so the next card is
-    // already in place beneath it.
+    // Move from the open card to `next`, or to the end of the pass when it is null.
+    // Toward the left (Later) or right (Next, or an answer) the open card flies off that
+    // side, from where a drag left it, and `next` rises from the edge of the stack
+    // beneath, where it stood as the card behind. Back brings `next` in over the open
+    // card from the left, the side Later sent it to. The deck's height follows the
+    // change, so the page below slides rather than jumps. A card in flight keeps its box
+    // over the deck while the new one takes the flow.
     #go(next, side, { from = "none", answered = false } = {}) {
-      this.#leaving?.finish();
+      this.#landing?.(next);
       const card = this.#open.value;
-      if (!card || next === card) return this.#show(next);
-      // Whether the user is on the leaving card, and whether they came by keyboard,
-      // as the browser's focus-visible reading says.
+      if (next === card) return this.#show(next);
       const carry = this.#carry(card);
-      const top = card.offsetTop;
-      const flight = motion(
-        card,
+      const before = parseFloat(getComputedStyle(this).height);
+      const arriving = next ?? this.#end;
+      const back = side === "back";
+      const toward = side === "left" ? -1 : 1;
+      // The card behind stands a stack edge lower and that much narrower on each side.
+      const edge = 1 - 12 / Math.max(this.offsetWidth, 12);
+      // A card crossing the deck's side fades on a shorter clock than it travels, so
+      // it is faint by the time it meets the clip there.
+      const leaves = Boolean(card) && !back;
+      const leave =
+        leaves &&
+        motion(
+          card,
+          [
+            { transform: from, easing: LEAVE },
+            { transform: `translateX(${toward * 40}%) rotate(${toward * 3}deg)` },
+          ],
+          LEAVE_MS,
+        );
+      const enter = motion(
+        arriving,
         [
-          { transform: from, opacity: 1 },
           {
-            transform: `translateX(${side === "left" ? -110 : 110}%) rotate(${side === "left" ? -6 : 6}deg)`,
-            opacity: 0,
+            transform: back
+              ? "translateX(-40%) rotate(-3deg)"
+              : `translateY(12px) scale(${edge})`,
+            easing: ARRIVE,
           },
+          { transform: "none" },
         ],
-        LEAVE_MS,
+        ARRIVE_MS,
       );
-      if (flight) {
-        card.style.setProperty("--lf-deck-leave-top", `${top}px`);
+      const running = [
+        leave,
+        leaves &&
+          motion(
+            card,
+            [{ opacity: 1 }, { opacity: 0, offset: FADE_MS / LEAVE_MS }, { opacity: 0 }],
+            LEAVE_MS,
+          ),
+        enter,
+        back &&
+          motion(
+            arriving,
+            [{ opacity: 0 }, { opacity: 1, offset: FADE_MS / ARRIVE_MS }, { opacity: 1 }],
+            ARRIVE_MS,
+          ),
+        back &&
+          card &&
+          motion(
+            card,
+            [{ opacity: 1 }, { opacity: 0, offset: FADE_MS / ARRIVE_MS }, { opacity: 0 }],
+            ARRIVE_MS,
+          ),
+      ].filter(Boolean);
+      // Where motion plays, the card that goes keeps its box over the deck while it
+      // moves; where it doesn't, as under reduced motion, the cards change places at once.
+      const moving = Boolean(card) && running.length > 0;
+      if (moving) {
+        card.style.setProperty("--lf-deck-leave-top", `${card.offsetTop}px`);
         keeps(card, "data-lf-deck-leaving", side);
-        keeps(this, "data-lf-deck-flying", "");
-        this.#leaving = flight;
-        const land = () => {
-          if (this.#leaving === flight) {
-            this.#leaving = null;
-            keeps(this, "data-lf-deck-flying", null);
-          }
-          keeps(card, "data-lf-deck-leaving", null);
-          card.style.removeProperty("--lf-deck-leave-top");
-          if (this.#open.value !== card) keeps(card, "hidden", "until-found");
-        };
-        flight.finished.then(land, land);
       }
-      // Bring up the next card beneath the leaving one, which `#show` would land.
       for (const each of this.#cards) {
         keeps(each, "data-lf-deck-open", each === next ? "" : null);
-        if (each !== card || !flight)
+        if (each !== card || !moving)
           keeps(each, "hidden", each === next ? null : "until-found");
       }
+      keepsHidden(this.#end, Boolean(next));
       this.#open.value = next;
       this.#defaulted = false;
       this.#waited = null;
       this.#pressed = null;
-      if (next) {
-        keepView(this, next);
-        motion(
-          next,
-          [
-            { transform: "translateY(10px) scale(0.97)", opacity: 0.4 },
-            { transform: "none", opacity: 1 },
-          ],
-          RISE_MS,
-        );
+      if (next) keepView(this, next);
+      if (running.length) {
+        const after = parseFloat(getComputedStyle(this).height);
+        if (Math.abs(after - before) > 1)
+          running.push(
+            motion(
+              this,
+              [{ height: `${before}px`, easing: ARRIVE }, { height: `${after}px` }],
+              ARRIVE_MS,
+            ),
+          );
+      }
+      // The card that went is put away as its own motion ends, before the motion's last
+      // frame lets go of it: the card it flew from, or the one Back covered.
+      // A motion the next one cuts short (`upcoming` names the card that one opens) leaves
+      // that card shown and the deck in flight for it, rather than undo them only for the
+      // next motion to write them back.
+      let away = !moving;
+      const putAway = (upcoming = this.#open.value) => {
+        if (away) return;
+        away = true;
+        keeps(card, "data-lf-deck-leaving", null);
+        card.style.removeProperty("--lf-deck-leave-top");
+        if (card !== upcoming) keeps(card, "hidden", "until-found");
+      };
+      const land = (upcoming) => {
+        if (this.#landing !== land) return;
+        this.#landing = null;
+        // Only a motion still running is cut short: finishing one the runtime already let
+        // go of would play it again and hold its last frame.
+        for (const each of running) if (each.playState === "running") each.finish();
+        putAway(upcoming);
+        if (upcoming === undefined) keeps(this, "data-lf-deck-flying", null);
+      };
+      this.#landing = land;
+      keeps(this, "data-lf-deck-flying", running.length ? "" : null);
+      if (running.length) {
+        (leave || enter)?.finished.then(() => putAway(), () => putAway());
+        Promise.all(running.map((each) => each.finished.catch(() => {}))).then(() => land());
+      } else land();
+      // After an answer, a second press meant for the card that left lands on the one
+      // that came up, so it takes none until it settles.
+      if (next && answered) {
         keeps(next, "data-lf-deck-settling", "");
         setTimeout(() => keeps(next, "data-lf-deck-settling", null), SETTLE_MS);
       }
@@ -372,9 +452,7 @@ customElements.define(
     #stepBack() {
       const index = this.#index();
       if (index <= 0) return;
-      const carry = this.#carry(this.#open.value);
-      this.#show(this.#cards[index - 1]);
-      carry(this.#open.value);
+      this.#go(this.#cards[index - 1], "back");
     }
 
     // The open card's question asked in words that waits on the user, if it holds one.
@@ -418,7 +496,7 @@ customElements.define(
       const waiting =
         readings && this.#cards.find((each) => waitsOn(readings.get(each)));
       const keyed = this.#end.contains(focused()) && focused().matches(":focus-visible");
-      this.#show(waiting ?? this.#cards[0]);
+      this.#go(waiting ?? this.#cards[0], "rise");
       if (keyed) this.#arrive(this.#open.value);
     }
 

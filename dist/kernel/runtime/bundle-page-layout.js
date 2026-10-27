@@ -1075,7 +1075,7 @@ var LeafText = class extends HTMLElement {
 			for (const rect of words.getClientRects()) if (reaches(rect, Math.max(0, (height - rect.height) / 2) || 0)) return true;
 		}
 		if (!view.hasFocus) return false;
-		const { rectangle: caret } = caretAt(view, view.state.selection.main.head);
+		const { rectangle: caret } = view.caretAt(view.state.selection.main.head);
 		const { left: x, top: y, bottom: foot } = caret;
 		return reaches({
 			left: x,

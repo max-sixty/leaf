@@ -10,14 +10,14 @@ the wrapper or a later sheet inside this sheet's last block, string or comment.
 
 from functools import lru_cache
 
-import tinycss2
-
 from .findings import Finding
 
 
 def css_block(css):
     """What a block holds: the declarations it states, and the rules nested inside it. A
     style="" attribute is a block written without the braces around it."""
+    import tinycss2
+
     return tinycss2.parse_blocks_contents(css, skip_comments=True, skip_whitespace=True)
 
 
@@ -25,6 +25,8 @@ def css_block(css):
 def css_stylesheet(css: str):
     """One independent stylesheet's read-only syntax tree, including EOF recovery,
     without its comments, which no reading needs and no page receives."""
+    import tinycss2
+
     return tinycss2.parse_stylesheet(css, skip_comments=True)
 
 

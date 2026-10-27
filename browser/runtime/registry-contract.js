@@ -2,8 +2,7 @@
    verb's writer and admitted definition into `$states` (Python's
    `registry.contract.stamp_states`), so this module derives neither: it finds a verb's
    stamped state and compares a recorded definition with it. */
-import { VERB_WRITERS } from "./event-kinds.js";
-import { WIDGET_NAME } from "./names.js";
+import { VERB_WRITERS, WIDGET_NAME } from "./kernel-facts.js";
 
 // The stamped state of the verb an action or report names on `tag`, when the side that
 // sent it is the verb's writer.

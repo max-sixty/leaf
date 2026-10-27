@@ -1,7 +1,6 @@
-import { describeFailure } from "./bundle-browser-runtime.js";
 import { TEXT_BOX, focused, isNativeLayer } from "./bundle-dom-move.js";
+import { DELIVERY, PAGE_ROOT, describeFailure, offlineInteractive, pageUrl, runtime } from "./bundle-context.js";
 import { holdingError, notice } from "./bundle-errors.js";
-import { DELIVERY, PAGE_ROOT, offlineInteractive, pageUrl, runtime } from "./bundle-context.js";
 
 //#region runtime/page-paint.js
 const PAGE_PAINT_ATTRIBUTE = Object.freeze({
@@ -464,7 +463,7 @@ function reloadDelivery(message) {
 			const moved = await sourceMovedOn();
 			if (moved === void 0) return;
 			if (!moved) {
-				holdWaiting("Waiting for the server to finish updating.");
+				holdWaiting("Waiting for Leaf to finish updating.");
 				return;
 			}
 			reloadNow(message);

@@ -11,6 +11,7 @@ from render_harness import (
     LONG_PAGE,
     PANEL_THREAD,
     open_page,
+    open_threads,
     panel_control,
     panel_field,
     panel_view,
@@ -432,16 +433,16 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     expect(result).to_have_attribute("data-lf-selected", "true")
     page.keyboard.press("Enter")
     expect(help_el).to_be_hidden()
-    panel_control(page, "threads").click()
-    page.locator(".lf-fp-filters button").filter(has_text="Resolved").click()
-    expect(page.locator(".lf-fp-thread")).to_have_count(1)
+    open_threads(page)
+    expect(page.locator(".lf-fp-thread[data-resolved]")).to_have_count(1)
 
 
-# Threads stands for the panel's two marks, whose branch On me shares.
+# On me stands for the panel's views: its mark is the row's control, and Threads, a tab
+# of On, shares its branch.
 @pytest.mark.parametrize(
     ("command", "suffix", "surface"),
     [
-        ("navigation.panel.threads", "T", panel_view("threads")),
+        ("navigation.panel.queue", "M", panel_view("queue")),
         ("navigation.page-map", "P", ".lf-page-map-dialog"),
         ("version.open", "V", '.lf-fp-menu[data-level="versions"]'),
     ],

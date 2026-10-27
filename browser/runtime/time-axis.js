@@ -16,7 +16,7 @@ const TICK_SPACING = 84;
 const STEPS = [1, 2, 5];
 
 /** The major tick step, in milliseconds, for a scale of `pxPerMs`. */
-export function tickStep(pxPerMs) {
+function tickStep(pxPerMs) {
   for (let power = 1; power < 1e9; power *= 10)
     for (const step of STEPS)
       if (step * power * pxPerMs >= TICK_SPACING) return step * power;
@@ -24,7 +24,7 @@ export function tickStep(pxPerMs) {
 }
 
 /** A major tick's words: seconds, with as many decimals as the step needs. */
-export function tickLabel(time, step) {
+function tickLabel(time, step) {
   if (time === 0) return "0 s";
   const digits = step >= 1000 ? 0 : step >= 100 ? 1 : step >= 10 ? 2 : 3;
   return `${(time / 1000).toFixed(digits)} s`;

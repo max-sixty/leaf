@@ -14,7 +14,7 @@ import { holdingError, raiseError } from "./errors.js";
 const RETRY_MS = 2000;
 const retryPause = () => new Promise((resolve) => setTimeout(resolve, RETRY_MS));
 
-/** @typedef {import("../framework/contract.js").ServedEventAnswer} EventAnswer */
+/** @typedef {import("../types/contract.js").ServedEventAnswer} EventAnswer */
 // What an /api/event answer says, read the same way by both senders: accepted, with
 // the state that shows the event, or refused for good (`final`, event_endpoint.py).
 // An answer that is neither is incomplete.
@@ -70,8 +70,8 @@ export function createDelivery({
         // than promising a retry that cannot succeed on its own.
         await retry(
           runtime.keyRefused
-            ? "Key refused — open Leaf's link in a new tab and the change will send"
-            : "Connection lost — keep this page open while it retries",
+            ? "This tab lost access — open the link again in a new tab and this goes through"
+            : "Lost the connection — keep this page open and this goes through",
         );
         continue;
       }
@@ -81,7 +81,7 @@ export function createDelivery({
       // The loop already retries; what it reported without this was the failed decode
       // of a plain-text body rather than what the server said.
       if (sent.response.status === 503) {
-        await retry("The server isn't ready yet — retrying the change…");
+        await retry("Not through yet — trying again…");
         continue;
       }
       const decoded = await Promise.race([
@@ -93,7 +93,7 @@ export function createDelivery({
       ]);
       if (decoded.accepted) return { accepted: decoded.accepted };
       if (decoded.error) {
-        await retry("Couldn't read the answer — retrying the change…");
+        await retry("Not through yet — trying again…");
         continue;
       }
       /** @type {EventAnswer} */
@@ -119,10 +119,10 @@ export function createDelivery({
         return {
           accepted: null,
           state: completeData(answer.state, held),
-          refusal: `Couldn't send — ${answer.error || "the server refused it"}`,
+          refusal: `Couldn't ${event.kind === "edit" ? "save the edit" : "take this"} — ${answer.error || "it was refused"}`,
         };
       }
-      await retry("Server answer was incomplete — retrying the change…");
+      await retry("Not through yet — trying again…");
     }
   }
 

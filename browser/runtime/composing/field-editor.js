@@ -107,7 +107,7 @@ export function readFaces(field, display) {
 // Each outermost block's lines name its face, and the lines between two blocks the gap
 // the display leaves there: the blank lines that part them in the source, or the
 // second's first line where none do. A field that edits in place has rules for the
-// names (`readFaces`); elsewhere they draw nothing. A code fence's lines stand for its
+// names (`readFaces`); elsewhere only a fence's do. A code fence's lines stand for its
 // block's padding while the caret is away, and an item after the first in a list stands
 // its gap above it. The display trims the outer margins of its first and last blocks,
 // so the field leaves none there, but a list's first and last items keep theirs.
@@ -399,8 +399,8 @@ function fieldEditor(
           const lead = each.text.match(/^[ \t]*/)[0].length;
           add(each.from, each.from + lead - kept.match(/^[ \t]*/)[0].length, hide);
         });
-        // A fence's lines keep their room, as the message's code keeps its padding, and
-        // each shows its marks while the caret is on it.
+        // A fence's lines stand for the message's code padding (`standBlocks`), and each
+        // shows its marks, at a line's height, while the caret is on it.
         for (const [a, b] of markers ?? []) {
           const fence = state.doc.lineAt(a);
           add(a, b, touches(state, fence.from, fence.to) ? dim : unseen);
@@ -503,8 +503,9 @@ function fieldEditor(
    * undo takes it back, followed by the `steps` an owner recorded. `anchor` and
    * `head` are its selection. `field.typed(native, insert)` runs text input the editor
    * takes, saying whether the DOM has already changed, `field.returned()` says
-   * whether Return may insert a line, and `field.revealed(view, pos)` shows the row
-   * holding `pos` in the field's host. */
+   * whether Return may insert a line, `field.oneLine()` whether the field holds one
+   * line, and `field.revealed(view, pos)` shows the row holding `pos` in the field's
+   * host. */
   function fieldState(words, field) {
     // The run of words that differs between `base` and `text`: where the user typed.
     const { base, text } = words;
@@ -536,12 +537,30 @@ function fieldEditor(
           return false;
         }),
         histories.of(history()),
+        // A one-line field holds one line, so a line break pasted or inserted by the
+        // platform, as Android's editing does, becomes a space.
+        EditorState.transactionFilter.of((tr) => {
+          if (!tr.docChanged || !field.oneLine()) return tr;
+          const breaks = [];
+          tr.changes.iterChanges((_fromA, _toA, fromB, _toB, inserted) => {
+            const text = inserted.toString();
+            for (
+              let at = text.indexOf("\n");
+              at !== -1;
+              at = text.indexOf("\n", at + 1)
+            )
+              breaks.push({ from: fromB + at, to: fromB + at + 1, insert: " " });
+          });
+          return breaks.length ? [tr, { changes: breaks, sequential: true }] : tr;
+        }),
         invertedEffects.of((tr) =>
           tr.effects
             .filter((effect) => effect.is(ownerStep))
             .map(({ value }) => ownerStep.of({ run: value.back, back: value.run })),
         ),
         keymap.of([
+          // A one-line field takes no line break (`field.oneLine`).
+          { key: "Shift-Enter", run: () => field.oneLine() },
           { key: "Enter", run: (view) => field.returned() && insertNewline(view) },
           { key: "Shift-Enter", run: insertNewlineContinueMarkup },
           // Outside a list or quote, a plain new line, which asks to be seen as typing

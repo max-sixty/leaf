@@ -108,10 +108,13 @@
  * Leaf's key dispatcher owns submission and Escape. Return inserts a newline unless
  * its owner cancels `lf-edit-return` to reserve the press for submission. Android's
  * EditContext supplies no native insertion after CodeMirror handles the press, so this
- * editing route is explicit. Shift+Enter inserts a line and continues
- * a list or quote. Mod+Z and Mod+Shift+Z walk one history: the words' edits, and the
- * steps an owner records for what its draft holds beside them (`record`), such as a
- * composer's drawing, each taken back or redone in the order it was made.
+ * editing route is explicit. Shift+Enter inserts a line and continues a list or
+ * quote. A host the page marks `aria-multiline="false"`, such as an option's title,
+ * holds one line: Shift+Enter inserts nothing, a line break pasted or inserted any other
+ * way becomes a space, and its owner reserves Return. Mod+Z
+ * and Mod+Shift+Z walk one history: the words' edits, and the steps an owner records
+ * for what its draft holds beside them (`record`), such as a composer's drawing, each
+ * taken back or redone in the order it was made.
  *
  * The host is the textarea's scrollport. CodeMirror's content-sized inner scroller
  * never clips the words; the page sizes the host. The field reveals the caret's whole
@@ -173,8 +176,11 @@ sheet.replaceSync(`
      reaches 2px past that box, the caret's width at a line's end: Firefox paints the
      caret from its offset onward and pulls it inside only a scroll container, so a
      caret after a line that fills the box, as a trailing space can, was
-     cut away whole. */
-  .lf-field { overflow: clip; overflow-clip-margin: 2px; }
+     cut away whole. Words an owner carries down from above the box, as a line removed
+     carries them, need more: it sets --lf-field-reach as far as they travel, and
+     stops the host scrolling meanwhile. Chrome refuses calc() here, so the reach
+     replaces the caret's margin rather than adding to it. */
+  .lf-field { overflow: clip; overflow-clip-margin: var(--lf-field-reach, 2px); }
   .lf-field > * {
     translate: var(--lf-field-carry);
     clip-path: inset(var(--lf-field-cut));
@@ -244,7 +250,10 @@ sheet.replaceSync(`
     fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round;
     stroke-linejoin: round; overflow: visible; user-select: none;
     -webkit-user-select: none; }
-  /* Code with no fence lines takes the message's padding at its ends instead. */
+  /* A fence's line, while the caret is away from it, stands for the sent pre's padding,
+     and code with no fence lines takes that padding at its ends instead. A field that
+     edits in place reads its display's padding over this (\`readFaces\`). */
+  .lf-face-fence-open, .lf-face-fence-close { line-height: var(--pre-pad-block); }
   .lf-md-code-bare.lf-md-code-first { padding-block-start: var(--pre-pad-block); }
   .lf-md-code-bare.lf-md-code-last { padding-block-end: calc(var(--pre-pad-block) + 8px); }
 `);
@@ -459,7 +468,8 @@ class LeafText extends HTMLElement {
   // place, and the draft takes it from there, words and caret, so the editor builds
   // holding it: read again after each input, as the page's own `input`, and after an
   // input method finishes. Return asks its owner first, as in the editor, whether it
-  // may make a new line; Shift+Return, a line break, always does.
+  // may make a new line; Shift+Return, a line break, does unless the field holds one
+  // line (`#oneLine`).
   #typeAtRest(event) {
     if (this.#view || !(this.#model instanceof Draft)) return;
     if (event.type === "compositionstart") {
@@ -469,7 +479,8 @@ class LeafText extends HTMLElement {
     if (event.type === "beforeinput") {
       if (
         this.#readOnly ||
-        (event.inputType === "insertParagraph" && !this.#returned())
+        (event.inputType === "insertParagraph" && !this.#returned()) ||
+        (event.inputType === "insertLineBreak" && this.#oneLine)
       )
         event.preventDefault();
       return;
@@ -483,10 +494,12 @@ class LeafText extends HTMLElement {
   }
 
   // Takes the words and caret of the empty line's place into the draft. The last
-  // break only holds an empty last line open.
+  // break only holds an empty last line open, and a one-line field takes a pasted
+  // line break as a space, as its editor does.
   #readRest() {
     const words = placeWords(this.#rest);
-    const text = this.#rest.lastChild?.nodeName === "BR" ? words.slice(0, -1) : words;
+    const kept = this.#rest.lastChild?.nodeName === "BR" ? words.slice(0, -1) : words;
+    const text = this.#oneLine ? kept.replaceAll("\n", " ") : kept;
     const selection = this.#selection();
     const [range] = selection.getComposedRanges({ shadowRoots: [this.#root] });
     const at = (node, offset) => {
@@ -504,6 +517,7 @@ class LeafText extends HTMLElement {
       anchor: backward ? to : from,
       head: backward ? from : to,
     });
+    if (text !== kept) this.#paintRest();
   }
 
   // Firefox and WebKit lack ShadowRoot.getSelection; the document holds theirs.
@@ -552,6 +566,7 @@ class LeafText extends HTMLElement {
       readOnly: this.#readOnly,
       attributes: this.#contentAttributes(),
       returned: () => this.#returned(),
+      oneLine: () => this.#oneLine,
       revealed: (view, pos) => moveScrollerBy(this, this.#rowTravel(view, pos)),
       typed: (native, insert) => {
         this.#nativeInput = native;
@@ -636,7 +651,6 @@ class LeafText extends HTMLElement {
     const wanted = {
       ...this.#contentAttributes(),
       role: "textbox",
-      "aria-multiline": "true",
       contenteditable: "plaintext-only",
       ...(this.#readOnly && { "aria-readonly": "true" }),
     };
@@ -803,11 +817,16 @@ class LeafText extends HTMLElement {
     this.#view.dispatch({ selection: { anchor: at } });
   }
 
+  get #oneLine() {
+    return this.getAttribute("aria-multiline") === "false";
+  }
+
   #contentAttributes() {
     const attributes = {
       spellcheck: "true",
       autocorrect: "on",
       autocapitalize: "sentences",
+      "aria-multiline": String(!this.#oneLine),
     };
     if (this.placeholder) attributes["aria-placeholder"] = this.placeholder;
     const label = this.getAttribute("aria-label");

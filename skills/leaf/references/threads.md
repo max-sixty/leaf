@@ -24,6 +24,13 @@ the `id` of its opening comment, in the record the command prints.
 `leaf page state <page> <message>`, `leaf thread reply`, `edit` and `resolve` take
 the id of any message in the thread.
 
+Link directly to a thread by adding `thread=<message-id>` to the page URL's query
+parameters, preserving any existing access parameters: `?thread=<message-id>`, or
+`&thread=<message-id>` when a query is already present. Use a URL without a fragment
+to open the thread; an authored `#element-id` takes precedence and reaches that
+passage. The link opens the thread's usual card or reader, including a page-level
+thread with no anchor. Input during startup cancels the automatic opening.
+
 When the user comments on repeated words that the surrounding text cannot tell
 apart, Leaf keeps the quote but not which copy they meant. The comment has
 `anchor.detached: true`, and Threads keeps it with the quote it was about.
@@ -159,7 +166,7 @@ leaf thread reply <answer.ref> --ephemeral --text "Checking the keyboard route."
 
 It does not answer the update, so a turn whose final message is the answer still
 posts that message. On an update you owe it starts the update, and
-its text becomes the **Working** status in Leaf's panel, so keep it to one line
+its text becomes your line in Leaf's panel status, under your name, so keep it to one line
 ([conversation loop, "When to write"](conversation-loop.md#when-to-write)). In a
 thread that owes no reply, use `leaf thread reply <page> <message> --ephemeral`.
 
@@ -171,7 +178,7 @@ questions, to-dos, markup, anchor moves and failure receipts each need a reply o
 their own.
 
 Any widget in a reply's markup whose registry entry declares `x-awaits`, such as an
-`lf-options` or an `lf-ask`, waits on the user and keeps its thread at "My turn to answer"
+`lf-options` or an `lf-ask`, waits on the user and keeps its thread at "Your turn"
 until they answer it. A thread you open waits on nobody by itself: `--obligation` registers the
 message's request without markup. A user task attached to the thread instead waits
 for Done; discussing it does not complete it.

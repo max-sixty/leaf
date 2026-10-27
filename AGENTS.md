@@ -131,8 +131,8 @@ browser assets and the packages into a page's layer.
 
 - `bin/leaf`, `pyproject.toml`, `uv.lock`: the launcher and its uv project.
 - `src/leaf/`: the CLI, server and event model (`src/AGENTS.md`).
-- `browser/`: the browser runtime, registry and theme, with the framework's
-  TypeScript under `browser/framework/`
+- `browser/`: the browser runtime, registry and theme, with the type check's
+  configuration and declarations under `browser/types/`
   (`browser/AGENTS.md`; `browser/runtime/keyboard/AGENTS.md`
   for commands, bindings and scopes).
 - `packages/`: the bundled packages (`packages/AGENTS.md`).
@@ -148,7 +148,7 @@ browser assets and the packages into a page's layer.
   (`tests/AGENTS.md`).
 - `build/`: the build of every generated browser file (`build/AGENTS.md`). A
   `vendor/` directory, such as `browser/vendor/`, holds generated browser
-  modules, the framework's compiled ones included, not only third-party code.
+  modules, not only third-party code.
 - `dist/kernel/`: the compiled core runtime pages run, generated and
   committed; it is a delivery form of the runtime, not a skill or an
   installation root.
@@ -159,8 +159,11 @@ browser assets and the packages into a page's layer.
 - `docs/`: the site's own pages, each a Leaf source.
 - `TODO.md`: the biggest current challenges, and how to query the backlog, the
   GitHub issues labelled `backlog`.
-- `notes/`: research and plans for unresolved work. When a design lands, its
-  contract moves beside the code or into a reference and the note is deleted.
+- `notes/`: what the code doesn't hold yet: research, and plans for large work in
+  progress or a design not yet built. Work built on a branch keeps its contract in
+  its code, and a page that shows it to the user is a preview of a file in `.tmp/`.
+  When a design lands, its contract moves beside the code or into a reference and
+  the note is deleted.
 
 Load `/developing-leaf` for any work whose subject is Leaf itself, including
 research and prototypes that change no tracked code. The shipped `/leaf` skill is
@@ -342,8 +345,9 @@ through: each takes minutes to over an hour and slows every session on the host.
 Before widening your selection or its parallelism, check CPU, memory pressure and
 other running suites, and on a busy host keep to focused checks.
 
-The TypeScript in `worker/src/` and `browser/framework/`, and the lock every committed
-bundle is built from, have gates the suite and pre-commit don't reach.
+The TypeScript in `worker/src/`, the browser runtime's type check
+(`browser/types/`), and the lock every committed bundle is built from, have gates
+the suite and pre-commit don't reach.
 `pnpm run check` runs them, and both
 landing paths run them too. The website's delivery checks (the site build, the
 Worker's dry-run deploy, `leaf-dev verify-site website-worker`) run on a pull

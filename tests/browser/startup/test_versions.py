@@ -19,11 +19,11 @@ from render_cases_navigation import (
     actions,
 )
 from render_harness import (
-    PANEL,
     RELEASE_FOCUS,
     compare_with,
     draft_control,
     open_page,
+    open_threads,
     panel_menu,
     panel_settled,
     panel_view,
@@ -47,12 +47,11 @@ DRAG_HELD = "async () => (await window.__lfCheckApi()).dragHeld()"
 
 def expect_resolved(page, thread_id, resolved=True):
     """Read whether the panel's Threads lists the thread `thread_id` under Resolved."""
-    if page.locator(PANEL).get_attribute("data-open") != "threads":
-        page.locator(".lf-fp-threads").click()
-        panel_settled(page, view="threads")
-    page.locator(".lf-fp-filters button").filter(has_text="Resolved").click()
+    open_threads(page)
     expect(
-        page.locator(f"{panel_view('threads')} .lf-fp-thread[data-key='{thread_id}']")
+        page.locator(
+            f"{panel_view('threads')} .lf-fp-ended ~ .lf-fp-thread[data-key='{thread_id}']"
+        )
     ).to_have_count(1 if resolved else 0)
 
 

@@ -108,6 +108,7 @@
         keepsText,
         layoutChanged,
         offer,
+        offerAction,
         once,
         sizeObserver,
         whileConnected,
@@ -139,7 +140,7 @@
           }
 
           #button(label, run) {
-            const button = offer("button", "lf-btn small", label);
+            const button = offerAction("word", "small", label);
             button.addEventListener("click", run);
             return button;
           }
@@ -255,6 +256,7 @@
               <h2>Which code-reader treatment should the agent keep?</h2>
               <lf-playground
                 id="code-comparison-playground"
+                contract="code-comparison-values"
                 submit-label="Apply treatment"
                 data-width="available"
               >

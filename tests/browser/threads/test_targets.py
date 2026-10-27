@@ -14,6 +14,7 @@ from render_harness import (
     any_owner_entry,
     leaf_page,
     open_page,
+    open_threads,
     panel_settled,
     resized,
     select_words,
@@ -30,7 +31,6 @@ from browser.threads import (
     REPLY_CHANGE,
     append_agent_reply,
     open_panel_thread,
-    open_threads,
     seed_reply,
     thread_row,
 )
@@ -382,7 +382,7 @@ def test_a_boxless_widget_in_a_reply_still_shows_the_parts_it_paints(browser, se
     open_panel_thread(page, "tv-decisioned")
     parts = page.evaluate(
         """async () => {
-             const { shownParts } = await window.__lfWidgetApi();
+             const { shownParts } = await window.__lfCheckApi();
              const el = document.querySelector('.lf-fp-view #tv-decision');
              return { boxless: el.getBoundingClientRect().height === 0,
                       display: getComputedStyle(el).display,

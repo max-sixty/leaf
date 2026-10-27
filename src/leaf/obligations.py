@@ -18,8 +18,8 @@ answer, the user once a harness handed the update back, and nobody once a reply
 answered it; `response_address` derives the operation that answers it. A thread is
 never an obligation itself: its messages publish them.
 
-A widget whose `x-awaits` declares `reply`, such as `lf-ask` holding no widget of its
-own, is a question the user answers in words: their next message in the thread
+A widget whose `x-awaits` declares `reply`, such as `lf-ask` holding no other
+widget, is a question the user answers in words: their next message in the thread
 whose message holds it, a reaction there whose token settles it, or on the page a
 message in a thread anchored inside it. It has no x-state, so its answer is that
 message's text or token. An agent message carrying `obligation` creates the same
@@ -393,48 +393,93 @@ def anchors_with_agent(threads: dict, owed: list[dict]) -> list[dict]:
     ]
 
 
-def discussed(records: list[dict], anchors: list[dict], within: dict) -> None:
-    """Hand each open obligation discussed by `anchors` to the agent.
+def discussed_by(anchor: dict, records: list[dict], within: dict) -> list[dict]:
+    """The obligations among `records` a thread anchored at `anchor` is about.
 
     A section is about the innermost obligation whose widget encloses it, answered or not;
     failing one, about every obligation whose widget it encloses; failing those, about
     every obligation whose prompt target (its enclosing widget) is the innermost to
     enclose it. So a note on one obligation's option, or on a part of a frame holding
-    one obligation, leaves its framed sibling with the user, while one on the frame's
-    heading or on a section holding the frame is about them all. `within` is the
-    document's containment (`Passages.enclosing`). A datum identity narrows an
-    owning widget's record obligations to the exact case being discussed.
+    one obligation, leaves its framed sibling out, while one on the frame's heading or on
+    a section holding the frame is about them all. `within` is the document's
+    containment (`Passages.enclosing`). A datum identity narrows an owning widget's
+    record obligations to the exact case being discussed.
     """
+    section = anchor["section"]
+    chain = within.get(section, ())
     items: dict[str, list[dict]] = {}
-    for record in records:
-        items.setdefault(record["source"]["id"], []).append(record)
     framed: dict[str, list[dict]] = {}
     for record in records:
+        items.setdefault(record["source"]["id"], []).append(record)
         framed.setdefault(record["prompt"]["target"], []).append(record)
+    item = next((items[i] for i in reversed(chain) if i in items), None)
+    about = (
+        item
+        if item is not None
+        else [
+            record
+            for record in records
+            if section in within.get(record["source"]["id"], ())
+        ]
+        or next((framed[i] for i in reversed(chain) if i in framed), [])
+    )
+    datum = anchor.get("identity", anchor.get("datum"))
+    return [
+        record
+        for record in about
+        if datum is None
+        or record["source"]["id"] != section
+        or "unit" not in record["source"]
+        or record["source"]["unit"] == datum
+    ]
+
+
+def thread_topics(threads: dict, records: list[dict], within: dict) -> dict[str, list]:
+    """Each thread's id → the page obligations among `records` it is about
+    (`discussed_by`), by the section its anchor names now; a thread with no section
+    is about none."""
+    return {
+        identity: discussed_by(anchor, records, within)
+        if (anchor := thread["anchor"]) and "section" in anchor
+        else []
+        for identity, thread in threads.items()
+    }
+
+
+def waiting_about(
+    widget: str, records: list[dict], threads: dict, within: dict, registry: dict
+) -> list[dict]:
+    """The records among `records` that still wait on the user's words in a thread
+    about an obligation of `widget` (`thread_topics`): the questions the agent asked
+    there, which an answer to that obligation may or may not settle. Each is its `id`
+    and the words that asked it (`prompt.text`)."""
+    page = [
+        record
+        for record in records
+        if record["thread"] is None and record["source"]["kind"] == "widget"
+    ]
+    asked = [
+        record
+        for record in records
+        if record["thread"] is not None
+        and record["status"] == "open"
+        and record["next_actor"] == "user"
+        and answered_in_words(record, registry)
+    ]
+    topics = thread_topics(
+        {record["thread"]: threads[record["thread"]] for record in asked}, page, within
+    )
+    return [
+        {"id": record["id"], "text": record["prompt"]["text"]}
+        for record in asked
+        if any(about["source"]["id"] == widget for about in topics[record["thread"]])
+    ]
+
+
+def discussed(records: list[dict], anchors: list[dict], within: dict) -> None:
+    """Hand each open obligation discussed by `anchors` (`discussed_by`) to the agent."""
     for anchor in anchors:
-        section = anchor["section"]
-        chain = within.get(section, ())
-        item = next((items[i] for i in reversed(chain) if i in items), None)
-        about = (
-            item
-            if item is not None
-            else [
-                record
-                for record in records
-                if section in within.get(record["source"]["id"], ())
-            ]
-            or next((framed[i] for i in reversed(chain) if i in framed), [])
-        )
-        datum = anchor.get("identity", anchor.get("datum"))
-        for record in about:
-            source = record["source"]
-            if (
-                datum is not None
-                and source["id"] == section
-                and "unit" in source
-                and source["unit"] != datum
-            ):
-                continue
+        for record in discussed_by(anchor, records, within):
             if record["next_actor"] == "user":
                 record["next_actor"] = "agent"
 

@@ -14,7 +14,9 @@
  * ran over the first letter of every line the question holds. */
 :scope:is(lf-ask)[data-lf-obligation] {
   position: relative;
-  /* Runtime chrome is adopted after the package sheet. */
+  /* The ring moves to the overlay below. The chrome draws it on the decision from its
+     unlayered sheet, which outranks this layer, and `--lf-obligation-ring` can't stand
+     it down here without standing down the overlay, which inherits it. */
   outline: none !important;
 }
 :scope:is(lf-ask)[data-lf-obligation]::after {
@@ -100,7 +102,7 @@
  * under the heading. The context keeps its own height, and the answer keeps at least
  * its own: a list of options takes its content's height below a long premise, and the
  * body scrolls, where a playground, which fits its parts to any height it is given,
- * says it may shrink (playground/theme.css). Every child hears the height the lf-ask is
+ * says it may shrink (playground/widgets.css). Every child hears the height the lf-ask is
  * told, the context's included, so the context is held at its own height: a playground
  * followed by a note is context, and would otherwise shrink to make room for the note and
  * draw its instruction over it. */

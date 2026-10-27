@@ -270,6 +270,14 @@ process: an earlier batch at a load average near 27 read 1.0–3.7 s.
   workers still run. The
   [Thread plan](threads.md#independent-jobs-delegation-and-continuation) owns the
   broader model of delegated jobs.
+  Declined for Codex: reading Codex's state database (`$CODEX_HOME/state_5.sqlite`)
+  for the threads a task spawned, so the status read "in the background" until they
+  ended. [#3854](https://github.com/max-sixty/leaf/pull/3854), unmerged, holds the
+  code. The case was rare: 7 of 3,035 turn endings on one Mac had a spawned turn
+  still running a minute later. The database is not a published interface, and a
+  Codex migration (one looks under way) would switch the feature off silently while
+  its test, which builds the schema by hand, kept passing. Codex's public transcript
+  names spawned threads but missed 6 of 259.
 - **A shorter reply:** the parts of "A small page change's reply" Leaf decides are
   its hooks, about 0.2 s at each tool boundary on Claude Code and Codex; and the 8 s of
   `page check --render` where an agent runs it before replying. Measure each change

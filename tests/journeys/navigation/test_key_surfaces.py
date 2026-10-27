@@ -20,7 +20,7 @@ def test_user_news_interrupts_and_then_restores_background_news(browser, serve):
     comes back after it without being announced twice; the live region is retained
     through every change, and the user stays where they stood."""
     page = open_page(browser, serve(NOTED_PAGE))
-    page.locator(".lf-fp-threads").focus()
+    page.locator(".lf-fp-on-user").focus()
     page.evaluate(
         """async () => {
           window.__lfStatusNodes = {'.lf-live': document.querySelector('.lf-live')};
@@ -51,9 +51,9 @@ def test_user_news_interrupts_and_then_restores_background_news(browser, serve):
         )"""
     ), "a shared repaint replaced the retained live region"
 
-    page.evaluate("async () => (await window.__lfWidgetApi()).notice('Saved — sent')")
-    expect(live).to_have_text("Saved — sent")
-    expect(notice).to_have_attribute("placeholder", re.compile(r"^Saved — sent( c)?$"))
+    page.evaluate("async () => (await window.__lfWidgetApi()).notice('Saved')")
+    expect(live).to_have_text("Saved")
+    expect(notice).to_have_attribute("placeholder", re.compile(r"^Saved( c)?$"))
     expect(notice).to_have_attribute(
         "placeholder", re.compile(r"^Agent replied — open Threads( c)?$")
     )

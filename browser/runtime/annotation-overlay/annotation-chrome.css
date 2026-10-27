@@ -175,16 +175,16 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   }
   .lf-fab-ground {
     display: none;
+    position: absolute;
+    inset: -100vmax;
+    z-index: -1;
+    --lf-box-ring: var(--border-2);
+    --lf-box-fill: var(--card);
   }
   .lf-fab-bar:not([data-lf-presentation="inline"]):has(> .lf-composer[data-lf-open])
     > .lf-fab-ground {
     display: block;
-    position: absolute;
-    inset: -100vmax;
-    z-index: -1;
     pointer-events: none;
-    --lf-box-ring: var(--border-2);
-    --lf-box-fill: var(--card);
   }
   /* The focus ring stands outside the field in place of its border. */
   .lf-fab-bar:has(leaf-text.lf-fab-input[data-lf-focus-visible]) > .lf-fab-ground {

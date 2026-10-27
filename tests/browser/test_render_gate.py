@@ -2907,7 +2907,6 @@ RELOCATE_ADOPTED = """async () => {
     const order = [...document.styleSheets].map((sheet) => sheet.cssRules[0])
         .find((rule) => rule instanceof CSSLayerStatementRule);
     const style = document.createElement('style');
-    style.setAttribute('data-controls', '');
     style.textContent = [order, ...rules].map((rule) => rule.cssText).join('\\n');
     // A copy: adoptedStyleSheets is a live array, so the assignment below would empty
     // the saved reference along with it.
@@ -3012,7 +3011,9 @@ def adopted_sheet_findings(page):
     Specificity does not change, so every computed value that moves was decided by sheet
     order alone. Zero of them is the contract: what the runtime lays over the page has
     to beat page and widget alike, and it must do that on its selectors rather than on
-    where it is delivered.
+    where it is delivered. The chrome's guard (styles/chrome-guard.css) is the one rule
+    built to win by delivery: it weighs one class and rolls back a page rule of that
+    weight by standing after it.
 
     Layer order is the one other thing the move could reverse. A module sheet adopted
     first names `lf-base` before chrome.css names `lf-reset`, so the copy opens with the
@@ -4198,7 +4199,6 @@ def test_the_layer_traps_no_margin_in_the_panel_it_draws(browser, serve):
         """() => {
              const s = document.createElement('style');
              s.id = 'trap';
-             s.setAttribute('data-controls', '');
              s.textContent =
                '.lf-floating-panel .lf-msg-body { padding-top: 8px !important }'
                + '.lf-floating-panel .lf-msg-body > :first-child'

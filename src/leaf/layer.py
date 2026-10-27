@@ -188,9 +188,7 @@ def composed_dir_files(inputs: list[Path], sub: str) -> dict[str, Path]:
 # (runtime/stylesheets.js) share one layer, so specificity, then order, rank their
 # rules. The kernel's Layouts sit above it. Theme contributions
 # sit above those defaults and the Layouts (`lf-theme`), so a package
-# styles every page the way the page's own sheet styles one; its rules reach Leaf's
-# controls only through an explicit controls.css sheet, as a page's marked stylesheet
-# does (runtime/page-sheets.js).
+# styles every page the way the page's own sheet styles one.
 # Semantic state follows: retirement must outrank a theme's or package's default box
 # and a Layout's arrangement. The page's own sheet stays unlayered above these tiers,
 # and inline widget motion outranks them too. Chrome and apparatus marks stay
@@ -203,7 +201,6 @@ CASCADE_LAYERS = (
     "lf-layouts",
     "lf-shadow",
     "lf-theme",
-    "lf-controls",
     "lf-state",
 )
 
@@ -321,13 +318,11 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     either, so each names the widgets it styles: by tag in the document, and by
     `:host(tag)` in a shadow tree, where a rule reaches everything the tree holds,
     including core views placed there, such as a diff's threads. theme.css is
-    lf-theme, and controls.css opts into generated controls from lf-controls. A theme
-    reaches shadow trees through the custom properties they inherit. Each sheet is
+    lf-theme. A theme reaches shadow trees through the custom properties they inherit. Each sheet is
     read with its relative imports (`stylesheet`).
 
     The kernel supplies the base and shared shadow defaults. Its Layouts and semantic
-    state retain their own tiers. Page CSS remains unlayered. The browser filters
-    ordinary document lf-theme rules off Leaf controls (runtime/page-sheets.js).
+    state retain their own tiers. Page CSS remains unlayered.
     """
     if not any((root / "theme.css").is_file() for root in inputs):
         raise Refused("the incoming layer has no theme.css")
@@ -349,7 +344,6 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
         place(shadow, "lf-shadow", root, "widget-shadow.css")
         place(theme, "lf-base", root, "widgets.css")
         place(theme, "lf-theme", root, "theme.css")
-        place(theme, "lf-controls", root, "controls.css")
     for name in ("layouts.css", "state.css"):
         if (source := kernel / name).is_file():
             sheet = stylesheet(source, kernel)

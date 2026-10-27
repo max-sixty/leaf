@@ -245,7 +245,7 @@ def rebase_document(
                 and inline_stylesheet is not None
                 and (located := page_path(attrs.get("href", ""), "/index.html"))
             ):
-                # Preserve stylesheet declarations, including author access metadata;
+                # Preserve stylesheet declarations, such as its media and data attributes;
                 # only the linked resource's address and fetch mechanism disappear.
                 kept = _attributes(
                     {
@@ -260,7 +260,7 @@ def rebase_document(
                 continue
             # An opaque sample shares this native delivery. CORS keeps its local
             # sheets readable by the CSSOM owners; a no-CORS link would paint but
-            # deny Leaf's selector narrowing and layout readings. Same-origin pages
+            # deny Leaf's layout readings. Same-origin pages
             # retain their ordinary credentials, and external authored links stand.
             if (
                 stylesheet

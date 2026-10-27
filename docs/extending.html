@@ -833,7 +833,10 @@ flowchart TD
                   </tr>
                   <tr>
                     <td><code>widget-shadow.css</code></td>
-                    <td>The page document and its widgets' declared shadow trees.</td>
+                    <td>
+                      The page document and every declared shadow tree;
+                      <code>:host(lf-tag)</code> keeps a rule to its widget's own tree.
+                    </td>
                   </tr>
                   <tr>
                     <td><code>theme.css</code></td>

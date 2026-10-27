@@ -531,11 +531,10 @@ def test_a_theme_package_styles_every_page_as_the_pages_own_sheet_does_one(
 def test_a_packages_shadow_rules_reach_only_trees_its_widgets_host(
     request, serve, tmp_path, engine
 ):
-    """Every declared shadow tree receives the layer's shadow sheet, and Leaf adds no
-    scope to a package's `widget-shadow.css`: a rule naming its host, `:host(lf-own-tree)
-    span`, dresses the tree its own widget hosts and not the tree another package's
-    widget hosts. Each engine reads the sheet itself: Firefox applied none of a
-    generated `:host` scope that had a limit."""
+    """Every declared shadow tree receives the layer's composed shadow sheet in every
+    engine, so a package's `widget-shadow.css` rule naming its host, `:host(lf-own-tree)
+    span`, dresses that widget's tree and not another package's. Each engine reads the
+    composed sheet itself: Firefox once applied none of a generated `:host` scope."""
     own, own_module = _shadow_tree_widget("lf-own-tree")
     other, other_module = _shadow_tree_widget("lf-other-tree")
     project = tmp_path / ".leaf"

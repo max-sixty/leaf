@@ -738,10 +738,10 @@ def test_a_side_comment_at_the_window_s_foot_rises_only_as_far_as_it_must(
     assert page.evaluate(SIDE_COMMENT)["bottom"] <= foot + 0.5
 
 
-# How far the side comment's first line of words stands below its outline's top edge as
-# drawn, and its Send above the outline's foot: its surface draws the outline, a pixel
-# outside the cut of its fill (box-motion.js).
-FROM_THE_EDGES = r"""() => {
+# Where the side comment's outline is drawn, its top and its foot, and its first line
+# of words and its Send's foot: its surface draws the outline, a pixel outside the cut
+# of its fill (box-motion.js).
+SIDE_COMMENT_DRAWN = r"""() => {
   const ground = document.querySelector('.lf-fab-ground');
   const at = ground.getBoundingClientRect();
   const [top, right = top, bottom = top] = /inset\(([^r)]*)/
@@ -751,10 +751,17 @@ FROM_THE_EDGES = r"""() => {
   const words = window.editorRoots.get(host).querySelector('.cm-line');
   const send = document.querySelector('.lf-fab-bar .lf-compose-submit');
   return {
-    words: words.getBoundingClientRect().top - (at.top + top - 1),
-    send: at.bottom - bottom + 1 - send.getBoundingClientRect().bottom,
+    top: at.top + top - 1,
+    foot: at.bottom - bottom + 1,
+    words: words.getBoundingClientRect().top,
+    send: send.getBoundingClientRect().bottom,
   };
 }"""
+
+
+def from_the_edges(drawn):
+    """How far the words stand below the drawn top edge and Send above its foot."""
+    return [drawn["words"] - drawn["top"], drawn["foot"] - drawn["send"]]
 
 
 def test_a_side_comment_s_words_and_send_ride_its_edges_as_it_grows(browser, serve):
@@ -799,9 +806,13 @@ def test_a_side_comment_s_words_and_send_ride_its_edges_as_it_grows(browser, ser
         page.keyboard.type(f"Line {lines}")
         lines += 1
         rendered(page)
-    resting = page.evaluate(FROM_THE_EDGES)
     for key in ("Shift+Enter", "Backspace"):
-        stood = bar.bounding_box()
+        # The last line's motion ends where the box stands.
+        page.evaluate(
+            """() => Promise.all(document.querySelector('.lf-fab-ground')
+              .getAnimations().map(motion => motion.finished.catch(() => {})))"""
+        )
+        stood = page.evaluate(SIDE_COMMENT_DRAWN)
         page.evaluate(
             "() => { window.__lfAnimate = Element.prototype.animate;"
             + HOLD_MOTION
@@ -818,21 +829,30 @@ def test_a_side_comment_s_words_and_send_ride_its_edges_as_it_grows(browser, ser
             page.wait_for_function(
                 "top => document.querySelector('.lf-fab-bar')"
                 ".getBoundingClientRect().top < top - 0.5",
-                arg=stood["y"],
+                arg=stood["top"],
             )
         for at in (0, 60, 150):
+            # A motion a later reading cancelled stays cancelled.
             page.evaluate(
-                "at => __lfHeld.forEach(motion => { motion.currentTime = at; })", at
+                "at => __lfHeld.filter(motion => motion.playState !== 'idle')"
+                ".forEach(motion => { motion.currentTime = at; })",
+                at,
             )
-            drawn = page.evaluate(FROM_THE_EDGES)
-            assert drawn == pytest.approx(resting, abs=1), (key, at, drawn)
+            drawn = page.evaluate(SIDE_COMMENT_DRAWN)
+            if at == 0:
+                assert drawn == pytest.approx(stood, abs=1), (key, stood, drawn)
+            assert from_the_edges(drawn) == pytest.approx(
+                from_the_edges(stood), abs=1
+            ), (key, at, drawn)
         page.evaluate(
             "() => { Element.prototype.animate = window.__lfAnimate;"
             " __lfHeld.splice(0).filter(motion => motion.playState !== 'idle')"
             ".forEach(motion => motion.finish()); }"
         )
         rendered(page)
-        assert page.evaluate(FROM_THE_EDGES) == pytest.approx(resting, abs=1), key
+        rest = page.evaluate(SIDE_COMMENT_DRAWN)
+        assert from_the_edges(rest) == pytest.approx(from_the_edges(stood), abs=1), key
+        assert rest["top"] != pytest.approx(stood["top"], abs=1), (key, stood, rest)
 
 
 def test_a_comment_near_the_bottom_grows_up_before_it_scrolls(browser, serve):

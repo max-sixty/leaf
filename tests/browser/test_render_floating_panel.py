@@ -4870,7 +4870,11 @@ BELOW_THE_EDGE = r"""() => {
 # Held motion: each motion the panel starts is held at its first frame (`HOLD_MOTION`)
 # once the fixture is set up, so a reading of a frame doesn't depend on how fast the
 # page runs.
-SEEK_HELD = "at => __lfHeld.forEach(motion => { motion.currentTime = at; })"
+# A motion a later reading cancelled stays cancelled.
+SEEK_HELD = (
+    "at => __lfHeld.filter(motion => motion.playState !== 'idle')"
+    ".forEach(motion => { motion.currentTime = at; })"
+)
 
 
 def held_motion(page, part=".lf-fp-ground"):

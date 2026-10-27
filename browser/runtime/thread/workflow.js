@@ -13,11 +13,14 @@
    surface; a thread's word is `threadAttention`'s label, which Threads states as its
    status and the margin and Page Map as its line (`margin-model.js`, `threadMarks`). */
 
-// The user's side in plain words while their update is theirs (Saving…, Saved), then
-// the agent's, as it would say them (glossary.md, "Reader-facing words").
+// Each stage as the agent would say it (glossary.md, "Reader-facing words"). Until the
+// agent has the update in a turn or its harness's queue, all it can say is that it
+// hasn't seen it, whether or not the server has logged it yet: the message drawn in
+// the thread already shows the user's own gesture, and the page's status says when a
+// send isn't getting through.
 const STAGE_LABELS = Object.freeze({
-  sending: "Saving…",
-  sent: "Saved",
+  sending: "Not seen yet",
+  sent: "Not seen yet",
   queued: "Up next",
   picked_up: "Got it",
   working: "On it",
@@ -32,7 +35,8 @@ const CONDITION_LABELS = Object.freeze({
   failed: "Failed",
 });
 
-const WAITING_FOR_DELIVERY = "Haven't seen it yet";
+// An update still unseen past the pickup grace (`activity.PICKUP_GRACE`).
+const WAITING_FOR_DELIVERY = "Still not seen";
 // A failed response's word, on its workflow and on the failure reply that reports it.
 export const NOT_ANSWERED = "Couldn't answer";
 

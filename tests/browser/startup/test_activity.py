@@ -132,7 +132,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     view = open_panel_thread(page, held)
     held_workflow = workflow_of(view, held)
     expect(view.locator(".lf-msg-sending")).to_have_count(1)
-    expect(held_workflow).to_have_text("Saved")
+    expect(held_workflow).to_have_text("Not seen yet")
     held_workflow.evaluate("node => { node.dataset.identityProbe = 'kept' }")
 
     # The old page-wide start is deliberately stale: delivery into this exact turn,
@@ -189,7 +189,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     )
     # Threads names the stage on each row, the held thread's and not the other's.
     expect(thread_row_says(page, held)).to_contain_text("On it")
-    expect(thread_row_says(page, other)).to_contain_text("Saved")
+    expect(thread_row_says(page, other)).to_contain_text("Not seen yet")
 
     # New words do not detach the claim from the comment that started the work.
     followup = append_carried_log_record(
@@ -207,7 +207,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     held_workflow = workflow_of(view, held)
     followup_workflow = workflow_of(view, followup["id"])
     expect(held_workflow).to_have_text("On it")
-    expect(followup_workflow).to_have_text("Saved")
+    expect(followup_workflow).to_have_text("Not seen yet")
     expect(view.locator(":scope > .lf-msg-sending")).to_have_count(0)
 
     # A later start on the page's own task is not an answer to the thread, so the
@@ -323,8 +323,8 @@ def test_an_unpicked_move_says_it_is_waiting_after_the_short_grace(browser, serv
     )
     page = open_page(browser, url)
     workflow = workflow_of(open_panel_thread(page, comment["id"]), comment["id"])
-    expect(workflow).to_have_text("Haven't seen it yet")
-    expect(workflow).to_have_attribute("title", "Haven't seen it yet")
+    expect(workflow).to_have_text("Still not seen")
+    expect(workflow).to_have_attribute("title", "Still not seen")
 
 
 def test_a_message_workflow_changes_phase_in_place_and_then_stands_still(

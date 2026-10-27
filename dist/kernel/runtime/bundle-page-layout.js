@@ -348,7 +348,7 @@ const KINDS = Object.freeze(Object.fromEntries(Object.entries({
 		priority: 2
 	},
 	sent: {
-		label: "Saved",
+		label: "Not seen yet",
 		icon: "sent",
 		priority: 3,
 		indication: true

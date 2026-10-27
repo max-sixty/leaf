@@ -4104,8 +4104,8 @@ var MessageEditor = class {
 //#endregion
 //#region runtime/thread/workflow.js
 const STAGE_LABELS = Object.freeze({
-	sending: "Saving…",
-	sent: "Saved",
+	sending: "Not seen yet",
+	sent: "Not seen yet",
 	queued: "Up next",
 	picked_up: "Got it",
 	working: "On it",
@@ -4118,7 +4118,7 @@ const CONDITION_LABELS = Object.freeze({
 	stale: "Gone quiet",
 	failed: "Failed"
 });
-const WAITING_FOR_DELIVERY = "Haven't seen it yet";
+const WAITING_FOR_DELIVERY = "Still not seen";
 const NOT_ANSWERED = "Couldn't answer";
 const workflowLabel = (workflow, { answered = false } = {}) => {
 	if (!workflow) return "";

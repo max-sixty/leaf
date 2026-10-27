@@ -372,6 +372,11 @@ svg[data-lf-icon] {
   color: var(--muted);
   white-space: nowrap;
 }
+/* Leaf's word for an update the agent doesn't have yet stands apart from the agent's
+   own, as the panel's italic does (`workflowVoice`). */
+.lf-msg-sending[data-voice="leaf"] {
+  font-style: italic;
+}
 .lf-msg-sending::before {
   content: "\00b7";
   margin-inline-end: 6px;

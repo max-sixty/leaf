@@ -380,6 +380,7 @@ def _seed_log(fixture: PageFixture, page: Path, pending: list[dict], *, last: bo
         capture_output=True,
         text=True,
         env=fixture.env,
+        check=False,
     )
     if result.returncode:
         raise RuntimeError(f"seeding {fixture.seed}: {result.stderr.strip()}")

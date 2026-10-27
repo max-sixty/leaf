@@ -334,7 +334,8 @@ export function createUndo({
       const opened = await openThread(place.message, { part: "message", intent });
       return [opened, ...place.nodes].filter(Boolean);
     }
-    if (place.thread) return [await returnToThread(place.thread, intent)].filter(Boolean);
+    if (place.thread)
+      return [await returnToThread(place.thread, intent)].filter(Boolean);
     // A fragment link's own navigation step (anchor-travel.js, `followFragment`), so Back returns
     // to where the user was reading. The navigation step lands after this press returns, so the
     // show waits for it to finish where the Navigation API says when that is.

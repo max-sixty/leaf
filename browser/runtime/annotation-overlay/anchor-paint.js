@@ -6,6 +6,7 @@
  */
 
 import { ringBox, visibleFocus } from "../focus.js";
+import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
 import { cancelRender, nextRender } from "../rendering.js";
 import {
   targetElement,
@@ -78,8 +79,13 @@ export function createAnchorPaint({
     // to an element after its draft (and thus its last annotation) has disappeared.
     const active = visibleFocus();
     // Page controls need the same cue whether or not an author gave them an id.
-    // Private controls and a face wearing another control's ring keep that paint.
-    const ownsRing = active && ringBox(active) === active;
+    // Private controls and a face wearing another control's ring keep that paint, and
+    // so does an obligation the user arrived at: its location ring (chrome.css) is its
+    // focus cue, and a projected contour beside it drew a second line round it.
+    const ownsRing =
+      active &&
+      ringBox(active) === active &&
+      !active.hasAttribute(PAGE_PAINT_ATTRIBUTE.obligation);
     if (ownsRing && active.getRootNode() === document && pageWords(active))
       elements.add(active);
     const focus = new Set(ownsRing && elements.has(active) ? [active] : []);

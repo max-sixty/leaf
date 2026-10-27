@@ -6,8 +6,8 @@ its local contract, the contracts modules and packages build on are in
 `../skills/leaf/references/module-*.md` and `../skills/leaf/references/packages.md`, and the rules shared with
 Python are in root `AGENTS.md`, "Cross-runtime invariants".
 
-Edit stylesheet sources under `styles/`, never the generated sheets, and rebuild them
-(`build/AGENTS.md`).
+Stylesheets need no build: page composition and the serving runtime place each file a
+sheet `@import`s where the import stands (`stylesheet` in `src/leaf/layer.py`).
 
 ## Layout and motion
 
@@ -199,7 +199,7 @@ representative desktop viewport.
   roles). A new role needs a difference in the user's task, not only in a widget's
   taste. Check: `test_controls_are_built_by_role_and_never_by_face`.
 - **A face used twice is a token or a shared rule.** A lift names one of the theme's
-  heights, `--raise-1` to `--raise-3` (`styles/theme.css`). Check:
+  heights, `--raise-1` to `--raise-3` (`theme.css`). Check:
   `test_every_lift_names_one_of_the_theme_s_heights_cast_in_the_scheme_s_ink`.
 - **Every surface paints a thread's `unread` and `attention` from one value**, so the
   On me mark's dot, Threads, panel, margin entry and Page Map change together. Green marks

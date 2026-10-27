@@ -70,7 +70,7 @@ document.documentElement.lfInitial.register("lf-diff", (host) => {
     // The row's text column, from the drawing's geometry: the file frame's two 1px
     // borders, the gutter of `digits + 3` ch (`renderFile`, lf-diff.js), and the 2ch
     // before the text and 8px after it (`.lf-diff-line > [data-line]`,
-    // styles/widget-shadow.css). `test_an_inline_patch_first_paints_at_the_height_it_draws_at`
+    // widget-shadow.css). `test_an_inline_patch_first_paints_at_the_height_it_draws_at`
     // holds these numbers to the drawing.
     const digits = String(each.largest).length;
     const cols = Math.floor((width - 2 - 8 - (digits + 5) * ch) / ch);

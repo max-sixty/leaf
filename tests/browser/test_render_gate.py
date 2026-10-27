@@ -95,6 +95,7 @@ from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
+from leaf import layer as layer_model
 from leaf import leases as leases_model
 from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
@@ -2886,7 +2887,9 @@ AIM_FLOOR_RULE = (
 
 
 def aim_selectors():
-    sheet = (schema_model.ASSETS / "shadow.css").read_text()
+    sheet = layer_model.stylesheet(
+        schema_model.ASSETS / "shadow.css", schema_model.ASSETS
+    )
     rules = [
         rule
         for rule in tinycss2.parse_stylesheet(

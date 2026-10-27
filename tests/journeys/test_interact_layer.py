@@ -454,7 +454,7 @@ def test_page_packages_are_explicit_and_survive_reinitialization(tmp_path, monke
         (config / "leaf", "xdg"),
     ):
         (package / "widgets").mkdir(parents=True)
-        (package / "theme.css").write_text(f"/* {marker} package */\n")
+        (package / "theme.css").write_text(f":root {{ --{marker}-package: 1; }}\n")
         (package / "widgets" / f"{marker}.js").write_text(f"// {marker}\n")
     page = tmp_path / "page"
     initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
@@ -482,8 +482,8 @@ def test_page_packages_are_explicit_and_survive_reinitialization(tmp_path, monke
     theme = (page / "theme.css").read_text()
     # Selected packages follow the kernel in order, and the Layouts close the theme.
     assert (
-        theme.index("/* user package */")
-        < theme.index("/* project package */")
+        theme.index("--user-package")
+        < theme.index("--project-package")
         < theme.index("@layer lf-layouts")
     )
     assert (page / "widgets" / "user.js").is_file()

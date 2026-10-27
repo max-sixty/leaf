@@ -1870,8 +1870,8 @@ def test_keyed_shadow_row_restores_replaced_slotted_editor_and_caret(browser, se
                 this.editor = document.createElement('input');
                 this.editor.slot = 'editor';
                 this.editor.setAttribute('aria-label', 'Draft');
-                this.append(this.editor);
                 shadowStage(this, [this.scope]);
+                this.append(this.editor);
               }
               replaceEditor() {
                 const restore = holdFocus(this.scope, {key: 'data-row'});

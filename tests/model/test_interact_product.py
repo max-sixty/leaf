@@ -319,25 +319,29 @@ def test_an_enclosing_widget_titles_any_number_of_independent_sources(page_dir):
     ):
         assert fragment_errors(titled, registry) == []
 
+    # A frame around another frame holds what that one holds, so a question with
+    # parts asks through its inner frames.
+    nested = (
+        '<lf-ask id="outer"><h2>Choose</h2>'
+        f'<lf-ask id="inner"><h3>First part</h3>{first}</lf-ask></lf-ask>'
+    )
+    assert fragment_errors(nested, registry) == []
+
     for untitled in (
         f'<lf-ask id="d"><p>Context.</p>{first}</lf-ask>',
         f'<lf-ask id="d"><strong>Choose</strong>{first}</lf-ask>',
     ):
         assert found(fragment_errors(untitled, registry), "untitled-question")
 
-    # A context framing no widget is a question the user answers in words, and needs
-    # no heading. One framing only widgets that obligation nothing would show a question the
-    # On me list never counts. A retired source still counts: settling a decision
-    # keeps its context.
-    assert (
-        fragment_errors('<lf-ask id="question">Is this enough?</lf-ask>', registry)
-        == []
-    )
-    # A heading over no widget is a frame that lost its decision, not a question.
-    empty = fragment_errors(
-        '<lf-ask id="decision-empty"><h2>Nothing to answer</h2></lf-ask>', registry
-    )
-    assert found(empty, "empty-question", widgets=[])
+    # A context framing no widget, or only widgets that ask nothing, would show a
+    # question the On me list never counts; a question answered in words is a
+    # message's obligation instead. A retired source still counts: settling a
+    # decision keeps its context.
+    for empty in (
+        '<lf-ask id="question">Is this enough?</lf-ask>',
+        '<lf-ask id="decision-empty"><h2>Nothing to answer</h2></lf-ask>',
+    ):
+        assert found(fragment_errors(empty, registry), "empty-question", widgets=[])
 
     def lacking(lacks):
         return [{"at": "<lf-options id=g-one>", "line": 1, "lacks": lacks}]
@@ -1383,10 +1387,10 @@ def test_ephemeral_reply_takes_the_move_in_hand_and_leaves_it_owed(claimed):
     assert [json.loads(line)["kind"] for line in later.output.splitlines()] == ["reply"]
 
 
-def test_an_agent_reply_asks_the_user_only_through_a_widget_in_its_markup(page_dir):
-    """A reply leaves the user something to answer only by holding a widget that
-    asks, such as an lf-ask; its words alone ask nothing, and there is no flag that
-    makes them."""
+def test_an_agent_reply_asks_the_user_only_through_a_declared_obligation(page_dir):
+    """A reply leaves the user something to answer only by declaring an obligation,
+    such as `--obligation` on a question asked in words; its words alone ask
+    nothing."""
     published(page_dir)
     root = append_carried_log_record(
         page_dir,
@@ -1413,15 +1417,10 @@ def test_an_agent_reply_asks_the_user_only_through_a_widget_in_its_markup(page_d
     assert answered.exit_code == 0, answered.output
     worded = reply("--text", "Which store?")
     assert worded.exit_code == 0, worded.output
-    asking = reply(
-        "--text",
-        "One question:",
-        "--markup",
-        '<lf-ask id="store">Which store?</lf-ask>',
-    )
+    asking = reply("--text", "Which store?", "--obligation")
     assert asking.exit_code == 0, asking.output
     assert [item["id"] for item in state_json(page_dir)["queues"]["on_user"]] == [
-        "widget:store"
+        f"message:{json.loads(asking.output)['id']}"
     ]
 
 
@@ -1672,9 +1671,8 @@ def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
             "reply",
             response_reference(page_dir, again["id"]),
             "--text",
-            "One question:",
-            "--markup",
-            '<lf-ask id="first-year">Which year goes first?</lf-ask>',
+            "Which year goes first?",
+            "--obligation",
         ],
     )
     assert asking.exit_code == 0, asking.output

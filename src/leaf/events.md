@@ -270,9 +270,8 @@ to a page obligation, each carrying `failure`, a harness-owned code. Only the ha
 writes `failure`, and the panel draws such a reply as a receipt that answers nothing.
 
 A widget with a local `x-awaits` obligation in a reply's markup declares that obligation
-itself. Frozen in the reply, it stays open until `x-awaits.answered` holds, or for a
-question asked in words (`x-awaits.reply`) until the user's next message in the thread
-or a reaction there whose token settles it. Actions on it before then are not handed
+itself. Frozen in the reply, it stays open until `x-awaits.answered` holds. Actions on
+it before then are not handed
 over: they carry no receipt and need no reply. The action that answers carries the
 receipt and hands the turn to the agent, and undoing it returns the obligation to the
 user and removes the reply obligation. An action on a frozen widget that answers no
@@ -285,9 +284,8 @@ to-do a reply promised (`obligations.thread_obligation_readings`). A thread anch
 a page obligation does the same, so an obligation the user has commented on leaves their
 On me list while the reply owed to the comment stands on the agent's, and a promised
 to-do keeps that obligation the agent's even after the thread is resolved
-(`obligations.anchors_with_agent`). A question asked in words (`obligation: true` or
-`x-awaits.reply`) is answered by that
-message instead, along with every open question before it, or by a reaction whose token
+(`obligations.anchors_with_agent`). A question asked in words (`obligation: true`)
+is answered by that message instead, along with every open question before it, or by a reaction whose token
 declares `settles` on the message holding it. Neither answer resolves the thread, and
 the agent's `todo_end` can retire a question unanswered (`obligations.settle_by_words`).
 

@@ -138,6 +138,11 @@ def input_paths(inputs: list[Path]) -> list[Path]:
             for name in (VENDORED_FILES if root == ASSETS else PACKAGE_FILES)
             if ((path := root / name).exists() or path.is_symlink())
         )
+        paths.extend(
+            imported
+            for sheet in sorted(root.glob("*.css"))
+            for imported in imported_sheets(sheet, root)
+        )
         for sub in PACKAGE_DIRS:
             directory = root / sub
             if not (directory.exists() or directory.is_symlink()):
@@ -207,20 +212,103 @@ CASCADE_LAYERS = (
 _CSS_SURROGATES = dict.fromkeys(range(0xD800, 0xE000), 0xFFFD)
 
 
-def _sheet(source: Path) -> str:
-    """Validate one source and complete its EOF recovery before composition."""
+def stylesheet(source: Path, root: Path) -> str:
+    """One sheet as a page receives it: validated, its EOF recovery completed, its
+    comments dropped, and each `@import` replaced by the sheet it names.
+
+    A sheet's sources are what an author edits, so a sheet split into files needs no
+    build and can never be served older than its parts. An import names a file inside
+    `root`, relative to the importing sheet, optionally with `layer(name)`; its rules
+    stand where the import stood, so a relative `url()` in them resolves against the
+    page's copy of the importing sheet. The page then receives complete sheets and asks
+    for no import, which an adopted sheet couldn't make anyway. A dependency's sheet,
+    which an install has no `node_modules` to read, is bundled into a file beside its
+    importer (`build/styles.mjs`).
+    """
+    return _stylesheet(source, root, ())
+
+
+def _stylesheet(source: Path, root: Path, opened: tuple[Path, ...]) -> str:
+    """`stylesheet`, inside the imports of `opened`."""
     import tinycss2
 
     from .styles import css_stylesheet, css_syntax_errors
 
+    opened = (*opened, source.resolve())
     try:
         css = source.read_text(encoding="utf-8")
     except UnicodeDecodeError:
         raise Refused(f"{source} must be UTF-8")
     if errors := css_syntax_errors(css, str(source)):
         raise Refused(str(errors[0]))
-    serialized = tinycss2.serialize(css_stylesheet(css)).translate(_CSS_SURROGATES)
+    parts = []
+    for node in css_stylesheet(css):
+        if _is_import(node):
+            path, layer = _import(node, source, root, opened)
+            sheet = _stylesheet(path, root, opened)
+            parts.append(f"@layer {layer} {{\n{sheet}}}\n" if layer else sheet)
+        else:
+            parts.append(tinycss2.serialize([node]))
+    serialized = "".join(parts).translate(_CSS_SURROGATES)
     return serialized if serialized.endswith("\n") else serialized + "\n"
+
+
+def imported_sheets(source: Path, root: Path) -> list[Path]:
+    """Every file `stylesheet(source, root)` reads besides `source`, for a reader that
+    follows a sheet's inputs. An import composition would refuse is left out, since
+    composing reports it."""
+    return _imported_sheets(source, root, ())
+
+
+def _imported_sheets(source: Path, root: Path, opened: tuple[Path, ...]) -> list[Path]:
+    from .styles import css_stylesheet
+
+    opened = (*opened, source.resolve())
+    found = []
+    try:
+        rules = css_stylesheet(source.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError):
+        return found
+    for node in filter(_is_import, rules):
+        try:
+            path, _ = _import(node, source, root, opened)
+        except Refused:
+            continue
+        found += [path, *_imported_sheets(path, root, opened)]
+    return found
+
+
+def _is_import(node) -> bool:
+    return node.type == "at-rule" and node.lower_at_keyword == "import"
+
+
+def _import(
+    rule, source: Path, root: Path, opened: tuple[Path, ...]
+) -> tuple[Path, str | None]:
+    """The file one `@import` in `source` names, and the cascade layer it asks for.
+    `opened` is the chain of sheets importing it, `source` last."""
+    import tinycss2
+
+    target, *conditions = [t for t in rule.prelude if t.type != "whitespace"] or [None]
+    if target is not None and target.type == "function" and target.lower_name == "url":
+        target = next((t for t in target.arguments if t.type == "string"), None)
+    layer = None
+    if conditions and getattr(conditions[0], "lower_name", None) == "layer":
+        layer = tinycss2.serialize(conditions[0].arguments).strip() or None
+    unplaced = conditions[1:] if layer else conditions
+    if target is None or target.type not in ("string", "url") or unplaced:
+        raise Refused(
+            f"{source}: `@import {tinycss2.serialize(rule.prelude).strip()}` takes a "
+            "file's relative path and at most `layer(name)`; wrap the imported rules in "
+            "@media or @supports inside that file"
+        )
+    path = (source.parent / target.value).resolve()
+    if not path.is_relative_to(root.resolve()) or not path.is_file():
+        raise Refused(f"{source} imports {target.value!r}, which is no file in {root}")
+    if path in opened:
+        cycle = [*opened[opened.index(path) :], path]
+        raise Refused("stylesheets import each other: " + " -> ".join(map(str, cycle)))
+    return path, layer
 
 
 def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
@@ -232,9 +320,10 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     document and lf-shadow in every declared shadow tree. Leaf adds no scope around
     either, so each names the widgets it styles: by tag in the document, and by
     `:host(tag)` in a shadow tree, where a rule reaches everything the tree holds,
-    including core views placed there, such as a diff's threads. theme.css is lf-theme, and controls.css opts
-    into generated controls from lf-controls. A theme reaches shadow trees through
-    the custom properties they inherit.
+    including core views placed there, such as a diff's threads. theme.css is
+    lf-theme, and controls.css opts into generated controls from lf-controls. A theme
+    reaches shadow trees through the custom properties they inherit. Each sheet is
+    read with its relative imports (`stylesheet`).
 
     The kernel supplies the base and shared shadow defaults. Its Layouts and semantic
     state retain their own tiers. Page CSS remains unlayered. The browser filters
@@ -246,23 +335,24 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     theme = [order]
     shadow = [order]
 
-    def place(sheets, tier, source):
+    def place(sheets, tier, root, name):
+        source = root / name
         if source.is_file():
-            sheets.append(f"@layer {tier} {{\n{_sheet(source)}}}\n")
+            sheets.append(f"@layer {tier} {{\n{stylesheet(source, root)}}}\n")
 
     kernel, *packages = inputs
-    place(theme, "lf-base", kernel / "shadow.css")
-    place(shadow, "lf-shadow", kernel / "shadow.css")
-    place(theme, "lf-base", kernel / "theme.css")
+    place(theme, "lf-base", kernel, "shadow.css")
+    place(shadow, "lf-shadow", kernel, "shadow.css")
+    place(theme, "lf-base", kernel, "theme.css")
     for root in packages:
-        place(theme, "lf-base", root / "widget-shadow.css")
-        place(shadow, "lf-shadow", root / "widget-shadow.css")
-        place(theme, "lf-base", root / "widgets.css")
-        place(theme, "lf-theme", root / "theme.css")
-        place(theme, "lf-controls", root / "controls.css")
+        place(theme, "lf-base", root, "widget-shadow.css")
+        place(shadow, "lf-shadow", root, "widget-shadow.css")
+        place(theme, "lf-base", root, "widgets.css")
+        place(theme, "lf-theme", root, "theme.css")
+        place(theme, "lf-controls", root, "controls.css")
     for name in ("layouts.css", "state.css"):
         if (source := kernel / name).is_file():
-            sheet = _sheet(source)
+            sheet = stylesheet(source, kernel)
             theme.append(sheet)
             if name == "state.css":
                 shadow.append(sheet)
@@ -379,13 +469,20 @@ def payload_server_inputs(root: Path) -> list[Path]:
         root / "dist/kernel",
         root / "src/leaf/render-checks",
     ]
+    served = sorted(
+        path
+        for top in runtime
+        for path in ([top] if top.is_file() else top.rglob("*"))
+        if path.is_file()
+    )
     return [
         *payload_python_inputs(root),
-        *sorted(
-            path
-            for top in runtime
-            for path in ([top] if top.is_file() else top.rglob("*"))
-            if path.is_file()
+        *served,
+        *(
+            sheet
+            for path in served
+            if path.suffix == ".css"
+            for sheet in imported_sheets(path, root / "browser")
         ),
     ]
 

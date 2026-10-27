@@ -55,7 +55,6 @@ import {
   registerReadingRegion,
   reachedForWords,
   says,
-  showNativeLayer,
   sizeObserver,
   tabStore,
   wear,
@@ -303,21 +302,6 @@ customElements.define(
           { capture: true },
         );
         instruction.firstElementChild.append(copy);
-        // A press on the reveal while the instruction is open lands outside it, and
-        // the popover's light dismiss closes it before the click: the press closes it.
-        // A key's click (`detail` 0) reads only the popover, since a press dragged off
-        // the reveal leaves no click to clear what it saw.
-        let openAtPress = false;
-        reveal.addEventListener("pointerdown", () => {
-          openAtPress = isNativeLayer(instruction);
-        });
-        reveal.addEventListener("click", (event) => {
-          const open = (event.detail > 0 && openAtPress) || isNativeLayer(instruction);
-          openAtPress = false;
-          if (open) closeNativeLayer(instruction);
-          // Tab goes on from the reveal into the instruction it opened, to its copy.
-          else showNativeLayer(instruction, { source: reveal });
-        });
         instruction.addEventListener("toggle", (event) => {
           keeps(reveal, "aria-expanded", event.newState === "open");
           paintKeys();

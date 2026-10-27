@@ -1,4 +1,4 @@
-import { aimLayer, boxMotion, liftReach, mountTargetPaint, paintSet, targetTraceLayer, target_paint_exports } from "./runtime/bundle-box-motion.js";
+import { aimLayer, boxMotion, mountTargetPaint, paintSet, targetTraceLayer, target_paint_exports } from "./runtime/bundle-box-motion.js";
 import { Z, bindQueuedWork, d, observeQueuedWork, x } from "./runtime/bundle-signals-core.js";
 import { CARET_KEYS, MODIFIER_KEYS, PRESSES, TEXT_BOX, TEXT_FIELD, WORKS, afterScript, byRenderedOrder, cancelRender, closeLayer, currentLocationIn, declareReading, deepFocus, drawn, focusDestination, focused, handBack, holdFocus, holdRendering, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, nextFrame, nextRender, observePreparations, onCurrentLocation, onPressAway, onUserInput, openLayer, openerOf, release, releaseFocus, renderedOrder, renderedUnder, renderingState, rove, selectsAll, shadowHost, sizeObserver, takesLetters, typesText, under as under$1, upFrom } from "./runtime/bundle-dom-move.js";
 import { PAGE_PAINT_ATTRIBUTE, pagePresented, pageUpgraded, reportPageError, setRuntimeRootStyle, uploadMedia } from "./runtime/bundle-layer-client.js";
@@ -6,8 +6,8 @@ import { annotationSheets, chromeSheet, clamp, clippedContents, closeNativeLayer
 import { COLLAPSE, LitElement, PRESENTATION_DOM, SHARE_ROOT, TEXT_BLOCK, WEBSITE_DELIVERY, agentName, annotationMode, applicationPresenter, applicationState, bareReaction, carriesObligation, documentChanged, html, isNews, itemNoun, itemOutcome, keyed, live, noChange, nothing, offlineInteractive, readPart, ref, render, repeat, runtime, runtimeResource, sameAnchor, shareUrl, threadCounts, threadKey, threadNames, tick, whenApplicationPresented } from "./runtime/bundle-context.js";
 import { EVERYTHING, LAYOUT, LINK, PRESS, PRESSABLE, advertisesKeys, allBindings, announce, bindingEnabled, bindings, buttonCommand, claimReleaseClick, claimsEsc, clampedRow, closeControl, coarsePointer, commandDeclarationsWithin, commandPresentations, commandRoutes, commandScope, commandsWithin, contextBindings, contextScopes, cycledRow, decisionControls, declaredBindings, descriptionOf, dismissError, dismissErrors, dragHeld, el, errorsReading, holdingError, iconElement, iconTemplate, keys, labelOf, live as live$1, liveEl, merge, mountRepaint, notice, noticeReading, offer, offerAction, offered, offeredAction, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, pointerAt, pressIsKeyboardActivation, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, reflectFirstScopes, reflectKeys, repaint, repaintPage, reveal, routedCommand, rowArrows, savedReadingSettled, saying, scopeRefs, scopesAt, scopesFor, searchField, seeErrors, setNoticeContext, setQuickShortcuts, spell, spokenBinding, submitBindings, titleOf, watchCommandAvailability, word } from "./runtime/bundle-errors.js";
 import { JUST_NOW, PRESENTATION, UPGRADE, afterPresentation, ago, atScrollEnd, effectiveScroller, markPagePresented, markPageUpgraded, moveScrollerBy, pageReadiness, pageScroller, reachScrollers, readingRegionFor, registerReadingRegion, scrollChainOf, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, settlePageInterface, shortAgo, userReadingRegion, whenArrived } from "./runtime/bundle-reading-regions.js";
-import { onSampleNotice, registerSampleCommand, sampleNotice } from "./runtime/bundle-sample-child.js";
-import { acceptData, activeCommandLabel, answerCloseRequest, availableCommandRoutes, claimTraversals, commandSteps, createAnchorTravel, createVersionController, dispatchKey, escapeTakesAStep, executeCommand, initializeServedDocument, innermostStance, invokePress, keepPageRulesOffLayer, keyReady, mountHistory, notifyDataSubscribers, paintCoreControls, readPlace, replaceEntry, returnPlace, userIn, versionPicker, versionsReading } from "./runtime/bundle-data.js";
+import { activeCommandLabel, answerCloseRequest, availableCommandRoutes, dispatchKey, escapeTakesAStep, executeCommand, innermostStance, invokePress, keyReady, onSampleNotice, registerSampleCommand, sampleNotice, userIn } from "./runtime/bundle-dispatch.js";
+import { acceptData, claimTraversals, commandSteps, createAnchorTravel, createVersionController, initializeServedDocument, keepPageRulesOffLayer, mountHistory, notifyDataSubscribers, paintCoreControls, readPlace, replaceEntry, returnPlace, versionPicker, versionsReading } from "./runtime/bundle-data.js";
 import { PAGE_CONTROL_RANK, chromeForeground, chromeRoot, elementFrame, pageControls, pageControlsChanged, registerPageControl } from "./runtime/bundle-page-controls.js";
 import { LEAF_SURFACE, authoredScope, blockAt, closestAcross, contextAround, elementById, elementFromPointAcross, elementOver, excerptWords, findText, inChrome, leafSurface, pageDocument, pageParts, pageQueryAll, pageRange, pageReadingVersion, pageText, pageWords, programmaticSelection, quoteFrom, rangeOf, says, segmentBlock, selectEnds, selectionBackward, showsWords } from "./runtime/bundle-passages.js";
 import { ADDRESSABLE, addressableLabel, addressableSays, addressableWord, aimTargetAt, aimTargets, anchorFor, anchoringIsReady, annotationAt, designPressAt, exactTarget, fragmentTarget, holdArrivingBounds, isAddressable, lightSeat, livePoint, openMarginContentLayout, placePoints, pointInto, railStands, resolveAnchor, resolvedInMessage, revealAddressed, sectionLabel, sectionOf, setAnchoringReady, targetElement, targetParts, targetPlace, targetRange, targetSegments, unclaimedVisualGesture, visualAt, visualParts, visualSelector } from "./runtime/bundle-content-layout.js";
@@ -4211,20 +4211,25 @@ function pageStatus(state, { reach = "reached", fault = null } = {}) {
 		publication
 	};
 }
+const TO_ANSWER = Object.freeze(["to answer", "to answer"]);
+const TODO = Object.freeze(["to-do", "to-dos"]);
 const QUEUE_WORDS = Object.freeze({
-	widget: ["to answer", "to answer"],
-	message: ["to answer", "to answer"],
+	widget: TO_ANSWER,
+	message: TO_ANSWER,
 	resend: ["update to send again", "updates to send again"],
 	answer: ["answer", "answers"],
 	reply: ["reply", "replies"],
-	todo: ["to-do", "to-dos"]
+	todo: TODO
 });
 function queueKinds(items) {
-	const byKind = /* @__PURE__ */ new Map();
-	for (const item of items) byKind.set(itemNoun(item), [...byKind.get(itemNoun(item)) ?? [], item]);
-	return [...byKind].map(([kind, all]) => {
-		const words = `${all.length} ${QUEUE_WORDS[kind][all.length === 1 ? 0 : 1]}`;
-		return kind === "todo" ? `${words} (${all.map((row) => row.obligation?.prompt.text ?? row.todo.title).join(" · ")})` : words;
+	const byWords = /* @__PURE__ */ new Map();
+	for (const item of items) {
+		const nouns = QUEUE_WORDS[itemNoun(item)];
+		byWords.set(nouns, [...byWords.get(nouns) ?? [], item]);
+	}
+	return [...byWords].map(([nouns, all]) => {
+		const words = `${all.length} ${nouns[all.length === 1 ? 0 : 1]}`;
+		return nouns === TODO ? `${words} (${all.map((row) => row.obligation?.prompt.text ?? row.todo.title).join(" · ")})` : words;
 	});
 }
 function queueWords({ on_user: onUser, on_agent: onAgent }, agent) {
@@ -4433,7 +4438,7 @@ const NOUNS = Object.freeze({
 	subject: "Update"
 });
 const nounOf = (item, stop) => carriesObligation(item) ? obligationWord(item.obligation) : stop.kind === "subject" && itemNoun(item) === "todo" ? "To-do" : NOUNS[stop.kind];
-const stopOf = (item) => carriesObligation(item) && (item.thread === null || item.kind === "widget" && !answeredInWords(item.obligation)) ? {
+const stopOf = (item) => carriesObligation(item) && (item.thread === null || item.kind === "widget") ? {
 	kind: "obligation",
 	id: item.id,
 	thread: item.thread,
@@ -4827,13 +4832,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	const outMs = () => motionTime("--lf-motion-view-out", host);
 	host.setAttribute("role", "region");
 	host.setAttribute("aria-label", "Leaf");
-	const ground = el("div", "lf-ui lf-fp-ground");
-	ground.setAttribute("aria-hidden", "true");
-	const ring = el("div", "lf-fp-ring");
-	const fill = el("div", "lf-fp-fill");
-	const fieldRing = el("div", "lf-fp-field-ring");
-	const fieldFill = el("div", "lf-fp-fill");
-	ground.append(ring, fill, fieldRing, fieldFill);
 	const card = el("div", "lf-fp-card");
 	const inner = el("div", "lf-fp-inner");
 	const opened = el("div", "lf-fp-opened");
@@ -5424,15 +5422,12 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	const following = boxMotion({
 		root: host,
 		box: card,
-		room: ground,
-		surface: () => [
-			[ground, liftReach(ground, 2)],
-			[ring, 1],
-			[fill, 0]
-		],
-		ring: [fieldRing, fieldFill],
+		surface: "lf-ui lf-fp-ground",
+		lift: 2,
+		outset: 1,
 		observer: follow
 	});
+	const { ground } = following;
 	function streamSend() {
 		following.stream();
 	}
@@ -5446,10 +5441,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			easing: compact ? foldEase() : ease()
 		}, compact);
 	}
-	addEventListener("resize", () => {
-		following.forget();
-		followBox();
-	});
+	addEventListener("resize", followBox);
 	let onPageSeat = false;
 	let unreadSeat = null;
 	function decideUnreadSeat() {
@@ -7961,7 +7953,7 @@ function createObligationView({ prepareNavigationStep, arrive, openPageThread, f
 		if (target) focusForNavigation(target, "return");
 	}
 	function arrivalRegion(item, context, currentLocation) {
-		const declared = context && registry[context.localName]?.["x-awaits"]?.encloses;
+		const declared = context && registry[context.localName]?.["x-encloses"];
 		if (declared && context === currentLocation) return context;
 		const fits = (region) => {
 			if (!region) return false;

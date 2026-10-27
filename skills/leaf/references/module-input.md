@@ -31,10 +31,6 @@ const actions = commandScope("In a classifier", [
 commands(classifier, actions);
 ```
 
-`executeCommand(id)` runs a command by its id from the user's current location, as its
-key would there, and returns whether it ran; a control can use it to offer a command
-another owner declares, as `lf-deck`'s Reply runs `c`'s `comment.create`.
-
 In a template, `commandsOn(title, rows, options)` attaches a scope to the element it is
 bound on, takes the current rows on each render, and detaches when the element goes.
 Where the rows need the element, pass a function of it, such as

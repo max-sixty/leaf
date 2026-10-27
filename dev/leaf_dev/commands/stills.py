@@ -574,24 +574,23 @@ def on_agent(page: Page) -> None:
 
 
 def threads_returning(page: Page) -> None:
-    """Threads on Open as the agent's reply reopens the thread whose row leads the list,
-    above every row the user reads there."""
+    """Threads as the user reads it while the agent's reply reopens a resolved thread,
+    whose open row would lead the list, and the agent starts a thread on the page."""
     returning = "7b3e0a41"
     as_agent("thread", "resolve", returning)
-    open_threads(page)
-    row = page.locator(f'.lf-fp-thread[data-key="{returning}"]')
-    expect(row).to_have_count(0)
-    # Opened afresh, the list fits the rows the resolve left rather than holding the
-    # height it opened at, which the resolve arriving after it emptied.
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-fp-view")).to_have_count(0)
-    open_threads(page)
-    count = page.locator(".lf-fp-filters [aria-pressed=true] .lf-fp-count")
+    # Threads opens on the resolve, which the list would otherwise hold as news.
+    wait_until_ready(page, PageClient(served_page.get().address).state())
+    go_to_threads(page)
+    count = page.locator(".lf-fp-filters button", has_text="Threads").locator(
+        ".lf-fp-count"
+    )
     opened = int(count.inner_text())
     as_agent(
         "thread", "reply", returning, "--text", "The resend covers a cold start too."
     )
-    expect(count).to_have_text(str(opened + 1))
+    as_agent("thread", "create", "--text", "Should the beta notes mention the resend?")
+    expect(count).to_have_text(str(opened + 2))
+    settle(page)
 
 
 def call_tree(page: Page) -> None:

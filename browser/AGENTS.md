@@ -105,7 +105,7 @@ representative desktop viewport.
   the screen, where scroll anchoring absorbs it, or below it. Anywhere else it waits
   behind a fixed-size control until the reader goes to it, and an editor in use stays
   still. Check: `test_news_just_after_a_press_moves_nothing`. Owners:
-  `thread/held-news.js`, `newsMoves` in `thread/thread-card.js`, `heldRows` in
+  `thread/held-news.js`, `newsMoves` in `thread/thread-card.js`, `threadsListing` in
   `floating-panel.js` for the rows of Threads, and `reading-continuity.js` for a
   hidden tab. The user chose one exception: the answer
   they wait for in the floating panel's thread grows that view upward while its

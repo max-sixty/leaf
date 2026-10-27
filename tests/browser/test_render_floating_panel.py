@@ -1247,95 +1247,63 @@ def test_threads_grow_in_place_and_hold_news_until_asked(browser, serve):
     expect(reader.locator(".lf-msg")).to_have_count(3)
 
 
-def test_a_thread_returning_above_threads_rows_waits_behind_a_notice(browser, serve):
-    """A reply reopening a thread brings it back to Threads in the page's order, here
-    above every row the user reads there. It moves none of them: it waits behind a
-    notice among the controls saying what joined, and a press there shows it and lands
-    on it."""
+def test_threads_holds_a_row_that_joins_or_moves_behind_a_notice(browser, serve):
+    """A reply reopening a resolved thread would move its row from Resolved to the head
+    of the list, and a thread the agent starts would join among the open rows. Neither
+    moves a row the user reads: the reopened row keeps its place, the new one waits,
+    and a notice says what joined. Enter on it lets the list settle and lands on the
+    first row it named. A tab press draws the list whole, a row it held included."""
     url = serve(LONG_PAGE, comments=3)
     root = panel_comment(serve.page_dir, "Is the opening right?", {"section": "p0"})
     append_carried_log_record(
         serve.page_dir, {"kind": "resolve", "author": "user", "parent": root}
     )
     page = floating(browser, url)
-    page.locator(".lf-fp-threads").click()
-    open_filter = page.locator(".lf-fp-filters button", has_text="Open")
-    open_filter.click()
-    inventory = page.locator(panel_view("threads"))
-    rows = inventory.locator(".lf-fp-thread")
-    expect(rows).to_have_count(3)
+    open_threads(page)
+    rows = page.locator(panel_view("threads")).locator(".lf-fp-thread")
+    returned = rows.filter(has_text="Is the opening right?")
+    expect(rows).to_have_count(4)
+    expect(returned).to_have_attribute("data-resolved", "")
     settled(page)
     tops = "rows => rows.map(row => [row.dataset.key, row.getBoundingClientRect().top])"
     before = rows.evaluate_all(tops)
-    notice = page.locator(".lf-fp-controls .lf-thread-news")
-    returned = inventory.locator(".lf-fp-thread", has_text="Is the opening right?")
+    notice = page.locator(".lf-fp-joined .lf-thread-news")
 
-    def reopen(text):
-        append_carried_log_record(
-            serve.page_dir,
-            {
-                "kind": "reply",
-                "author": "agent",
-                "agent": "Claude",
-                "parent": root,
-                "revision": 1,
-                "text": text,
-            },
-        )
-        told(page)
-        expect(notice).to_have_text("1 thread reopened")
-        expect(returned).to_have_count(0)
-
-    reopen("The opening undersells the retry.")
-    expect(page.locator(".lf-fp-filters [aria-pressed=true]")).to_contain_text("4")
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "parent": root,
+            "revision": 1,
+            "text": "The opening undersells the retry.",
+        },
+    )
+    panel_comment(serve.page_dir, "Should the close name the rollout?", author="agent")
+    told(page)
+    expect(notice).to_have_attribute("title", "1 new thread · 1 thread reopened")
     settled(page)
     assert rows.evaluate_all(tops) == before
 
-    notice.click()
-    expect(returned).to_be_focused()
-    expect(rows.first).to_have_text(re.compile("Is the opening right?"))
+    notice.focus()
+    page.keyboard.press("Enter")
     expect(notice).to_have_count(0)
-    assert returned.evaluate(
-        """row => {
-          const box = row.getBoundingClientRect();
-          const view = row.closest('.lf-fp-view').getBoundingClientRect();
-          return box.top >= view.top && box.bottom <= view.bottom;
-        }"""
-    )
+    expect(rows).to_have_count(5)
+    expect(rows.first).to_have_text(re.compile("Is the opening right?"))
+    expect(returned).to_be_focused()
 
-    # A filter pressed while a row waits shows every row it lists, the waiting one
-    # included, and the notice goes with what it held.
-    page.keyboard.press("Escape")
-    expect(inventory).to_have_count(0)
     append_carried_log_record(
         serve.page_dir,
         {"kind": "resolve", "author": "agent", "agent": "Claude", "parent": root},
     )
     told(page)
-    page.locator(".lf-fp-threads").click()
-    open_filter.click()
-    expect(rows).to_have_count(3)
-    reopen("And the close undersells the rollout.")
-    # The press draws what it shows in its own task, so read the list there, as the
-    # click finishes, before any later paint could draw it instead.
-    page.evaluate(
-        """() => addEventListener('click', () => {
-          window.drawnByPress = {
-            rows: [...document.querySelectorAll(
-              '.lf-fp-view[data-view=threads] .lf-fp-thread')]
-              .map(row => row.textContent.includes('Is the opening right?')),
-            notices: document.querySelectorAll('.lf-fp-controls .lf-thread-news')
-              .length,
-          };
-        })"""
-    )
-    page.locator(".lf-fp-filters button", has_text="Unread").click()
-    assert page.evaluate("drawnByPress") == {"rows": [True], "notices": 0}
-    open_filter.click()
-    assert page.evaluate("drawnByPress") == {
-        "rows": [True, False, False, False],
-        "notices": 0,
-    }
+    expect(notice).to_have_attribute("title", "1 thread resolved")
+    expect(rows.first).to_have_text(re.compile("Is the opening right?"))
+    panel_tab(page, "Threads").click()
+    expect(notice).to_have_count(0)
+    expect(returned).to_have_attribute("data-resolved", "")
+    expect(rows.first).not_to_have_text(re.compile("Is the opening right?"))
 
 
 AGENDA_PAGE = titled_page(

@@ -33,7 +33,9 @@ Message delivery has one shared journey, `leaf_dev.thread_journey`.
 Before fixing a failing test, name the user-facing behavior its failure caught. If it
 caught none, because the test broke only on the shape it read, simplify it to the
 behavior it protects, move it to a lower boundary, or delete it. A test that unrelated
-changes keep breaking (`git log -L`) is the strongest candidate.
+changes keep breaking (`git log -L`) is the strongest candidate. A failing browser
+test leaves a picture of each page it held in `.tmp/test-results/screens/`, which CI
+uploads; look at it before reading the cause off the assertion alone.
 
 A failure that comes and goes on the same code is a defect. Find whether the product
 races, so a user could hit it, or the test's setup does ("Races"), and fix that cause.

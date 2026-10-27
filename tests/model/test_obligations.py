@@ -419,7 +419,7 @@ def answered_in_words(*later):
 
 
 def test_a_question_in_a_reply_waits_on_the_user_until_their_next_message():
-    """An lf-ask holding no widget obligations in words: it waits on the user, titled by its
+    """An lf-ask holding no other widget is answered in words: it waits on the user, titled by its
     words, until their next message in its thread, which is its answer."""
     [item] = served_obligations(model.reading(page(""), answered_in_words()))["all"]
     assert (item["id"], item["status"], item["next_actor"]) == (

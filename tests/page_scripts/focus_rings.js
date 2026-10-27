@@ -138,11 +138,9 @@
     // what the paint says, so this asks the paint; which rule drew it is the protocol's
     // answer, taken after (`ring_rules`).
     //
-    // Element feedback deliberately shares the ring's weight and accent while the pointer
-    // is over a marked element or its thread is current, and no paint reading separates
-    // the two. Each answer says whether its box is an element mark, so the reading of
-    // the rule can keep that one contour out: on a non-focused mark, only a rule drawing
-    // with the ring's token is a ring.
+    // An annotated source can also carry an authored contour in the same ink.
+    // The rule reading keeps that contour out unless a ring rule or actual focus
+    // claims it. Projected target feedback is excluded by its state below.
     //
     // The focused element joins them whatever paints its outline, since a visible ring
     // cut in half is a fault whoever drew it.
@@ -155,6 +153,14 @@
     for (const root of roots)
       for (const el of root.querySelectorAll("*")) {
         if (el.shadowRoot) roots.push(el.shadowRoot);
+        // Target feedback shares the ring's ink and token, but its clipped ends
+        // say which object is referenced, not where keyboard input goes.
+        if (
+          el.matches(
+            ".lf-aim, .lf-target-trace, .lf-visual-mark:not(.lf-visual-mark-focus)",
+          )
+        )
+          continue;
         const cs = getComputedStyle(el);
         if (isFocusRing(cs)) claimed.push({ el, cs });
         const after = getComputedStyle(el, "::after");
@@ -616,9 +622,10 @@
         mark: el.matches(".lf-mark-el"),
         pseudo: pseudo ? "after" : null,
         carrier: outlined ? "outline" : "box-shadow",
-        focused: el === focused,
+        focused: el === focused || el.matches(".lf-visual-mark-focus"),
         sample:
           el === focused ||
+          el.matches(".lf-visual-mark-focus") ||
           holds(el, focused) ||
           holds(focused, el) ||
           el.hasAttribute("data-lf-ring-sample"),
@@ -704,9 +711,8 @@
     // Off the stop itself, a ring answers only where the rule that drew it draws with
     // the ring's token. Every ancestor on this chain contains the focus by construction,
     // so containing it says nothing; what separates a ring drawn because the user is here
-    // from one drawn for another reason is that the layer's focus rules draw the token
-    // and the pointer's feedback does not. An element mark's contour is the case. Which
-    // rule drew a box's ring is the protocol's answer (`seen_stop`), so the boxes that
+    // from an authored contour is that the layer's focus rules draw the token.
+    // Which rule drew a box's ring is the protocol's answer (`seen_stop`), so the boxes that
     // need it are left for it and returned beside what to say if none of them does.
     const carriers = [];
     const overlaid = (el) => {
@@ -717,6 +723,10 @@
     if (cs.outlineStyle === "auto" || ringed(cs)) return null;
     if (shadowBand(cs, accent, mixed) > 0) return null;
     overlaid(e);
+    // The target painter's focus state names the current keyboard carrier even
+    // when its source has no id. Its other states are reference brackets.
+    const projected = e.ownerDocument.querySelector(".lf-visual-mark-focus");
+    if (projected?.checkVisibility({ visibilityProperty: true })) overlaid(projected);
     // Tabs draw focus on their label inside the larger hit target.
     for (const child of e.querySelectorAll("*"))
       if (child.checkVisibility({ visibilityProperty: true, opacityProperty: true })) {

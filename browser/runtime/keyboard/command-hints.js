@@ -245,8 +245,13 @@ export function createCommandHints({ presentedControl }) {
     // its route stands: one that is not exposed keeps the digit and its box but turns
     // transparent, rather than being put back after each measurement and lent again on
     // the next pass. The widget routes a press on its face to the labeled control.
+    // The core chip takes the face's own place, the widget owning where its digit goes:
+    // hung off the control's corner instead, a field's chip covered its first words.
+    // Where what hides the face covers that place too, as an open thread card does, the
+    // chip yields to it as the face did.
     const lent = new Set();
     const worn = new Set();
+    const faceBoxes = new Map();
     for (const { binding, control, bindingBadge } of visualRoutes) {
       // A control the window does not show cannot show its face either, and wearing
       // the face only to measure it away would write it twice on every scroll.
@@ -278,7 +283,10 @@ export function createCommandHints({ presentedControl }) {
       if (exposed) {
         restoreStyle(bindingBadge, "opacity");
         worn.add(bindingBadge);
-      } else bindingBadge.style.opacity = "0";
+      } else {
+        bindingBadge.style.opacity = "0";
+        if (box) faceBoxes.set(bindingBadge, bindingBadge.getBoundingClientRect());
+      }
     }
     restoreBindingBadges(lent);
 
@@ -287,7 +295,12 @@ export function createCommandHints({ presentedControl }) {
       if (bindingBadge && worn.has(bindingBadge)) continue;
       const presented = presentedControl(control) ?? control;
       if (!presented.checkVisibility()) continue;
-      const box = placement.badgeBox(presented);
+      const face = bindingBadge && faceBoxes.get(bindingBadge);
+      const x = face && (face.left + face.right) / 2;
+      const y = face && (face.top + face.bottom) / 2;
+      const box = face
+        ? { left: x, top: y, right: x, bottom: y }
+        : placement.badgeBox(presented);
       if (!box) continue;
       let chip = bindingChips.get(control);
       if (!chip) {

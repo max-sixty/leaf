@@ -29,6 +29,34 @@ const STATE_CLASSES = {
   focus: "lf-visual-mark-focus",
   here: "lf-visual-mark-here",
 };
+const INSET = "lf-visual-mark-inset";
+
+// What the contour takes outside its target: the focus ring's gap and its widest band.
+function ringRoom() {
+  const style = getComputedStyle(document.documentElement);
+  return (
+    parseFloat(style.getPropertyValue("--focus-ring-gap")) +
+    parseFloat(style.getPropertyValue("--focus-ring-w"))
+  );
+}
+
+// The contour stands outside its target at the focus ring's gap. Where a box that clips
+// the target, as a joined lf-options frame clips its cells, shows the target's edge but
+// not that room beyond it, the contour stands just inside the edge instead, as a control
+// packed into a list insets its own ring (theme.css). Outside, the clip cut it to stray
+// lines across the neighbours. An edge the clip already cuts, as on a target scrolled
+// partly out of its scroller, asks for no room.
+function cramped({ rect, levels }, room) {
+  const short = (band, low, high) =>
+    (rect[low] >= band[low] && rect[low] - room < band[low]) ||
+    (rect[high] <= band[high] && rect[high] + room > band[high]);
+  return levels.some(
+    ({ holder, band, axes }) =>
+      holder &&
+      ((axes.x && short(band, "left", "right")) ||
+        (axes.y && short(band, "top", "bottom"))),
+  );
+}
 
 export function createVisualMarkPaint() {
   const layer = el("div", "lf-ui lf-visual-marks");
@@ -48,6 +76,7 @@ export function createVisualMarkPaint() {
   }
 
   function paintTargets(rebuildGeometry = true) {
+    const room = ringRoom();
     for (const element of [...overlays.keys()])
       if (!targets.has(element)) {
         element.classList.remove(PROJECTED);
@@ -84,6 +113,7 @@ export function createVisualMarkPaint() {
       element.classList.toggle(PROJECTED, true);
       keeps(overlay, "data-for", element.id || null);
       overlay.classList.toggle("lf-shaped", Boolean(geometry));
+      overlay.classList.toggle(INSET, !geometry && cramped(placed, room));
       if (
         rebuildGeometry ||
         record.geometry !== geometry ||

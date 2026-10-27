@@ -1002,9 +1002,9 @@ def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(
         },
     )
     page = open_page(browser, url)
-    # The unread reply is news, with no turn owed by either participant.
+    # The unread reply is the row's mark, with no turn owed by either participant.
     status = thread_row(page, root).locator(".lf-fp-value")
-    expect(status).to_have_text("New")
+    expect(status).to_have_text("")
     card = open_panel_thread(page, root)
     receipt = page.locator(
         f'.lf-fp-view .lf-msg[data-event="{board["id"]}"] .lf-msg-sending'

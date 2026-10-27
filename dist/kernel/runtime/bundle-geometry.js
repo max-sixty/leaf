@@ -357,7 +357,6 @@ function constructSheet(text) {
 const chromeSheet = constructSheet(sheets.chrome);
 const chromeSharedClasses = Object.freeze([
 	"lf-aiming",
-	"lf-btn",
 	"lf-ins-block",
 	"lf-over-item",
 	"lf-react-mark",

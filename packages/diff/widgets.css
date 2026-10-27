@@ -288,7 +288,7 @@
 }
 html[data-lf-interactive] :scope:is(lf-diff):not(.lf-rendered, :has(> .lf-error)) {
   box-sizing: border-box;
-  block-size: calc(var(--lf-line) + var(--lf-diff-gap) + 1px + var(--lf-diff-files) * (var(--lf-diff-head-pressed) + 1px + var(--lf-diff-open) * (var(--lf-text-scroll-track) + 1px)) + var(--lf-diff-rows) * var(--code-line));
+  block-size: calc(min(1, var(--lf-diff-files) - 1) * (var(--lf-line) + var(--lf-diff-gap)) + 1px + var(--lf-diff-files) * (var(--lf-diff-head-pressed) + 1px + var(--lf-diff-open) * (var(--lf-text-scroll-track) + 1px)) + var(--lf-diff-rows) * var(--code-line));
   overflow: clip;
 }
 :scope:is(lf-call-diff) {

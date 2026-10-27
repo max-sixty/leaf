@@ -33,7 +33,7 @@ html[data-lf-draw-mode] main {
 /* A block's marks (Copy, a draft's editing controls) stand on one small toolbar whose
    middle lies on the block's border at its right, so it covers the border and padding
    rather than a word and takes no room: a patch of the card ground with a ring and a
-   lift, its marks (controls.css, `.lf-mark`) 1px inside it. Its marks stand a reach
+   lift, its marks (controls.css, `.lf-mark-action`) 1px inside it. Its marks stand a reach
    apart, so neighbouring reaches meet rather than overlap and the finger's wider
    reach widens only the toolbar. A code block's Copy is such a toolbar of one mark, on
    the block's top border; a draft's toolbar (draft.css) wears the same face in the

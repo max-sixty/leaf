@@ -72,7 +72,6 @@
 .lf-motion-play {
   inline-size: var(--lf-motion-control-height);
   block-size: var(--lf-motion-control-height);
-  padding: 0;
 }
 .lf-motion-play svg {
   inline-size: 16px;

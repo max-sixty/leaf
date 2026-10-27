@@ -75,6 +75,7 @@ import {
   obligationActions,
   obligationsIn,
   offer,
+  offerAction,
   placeOf,
   openingView,
   quoted,
@@ -145,26 +146,22 @@ customElements.define(
       this.#bar = offer("div", "lf-deck-bar");
       this.#status = document.createElement("span");
       this.#status.className = "lf-deck-status";
-      const control = (name, icon) => {
-        const button = offer(
-          "button",
-          `lf-btn lf-quiet-action lf-deck-action lf-deck-${name}`,
-        );
-        button.append(iconElement(icon, "lf-action-icon"));
+      const control = (name, icon, label) => {
+        const button = offerAction("symbol", `lf-deck-${name}`, label, { icon });
         button.dataset.icon = icon;
         // A press never takes focus, so no control keeps a frame the others lack.
         button.addEventListener("mousedown", (event) => event.preventDefault());
         return button;
       };
-      this.#back = control("back", "previous");
-      this.#reply = control("reply", "comment");
+      this.#back = control("back", "previous", "Back");
+      this.#reply = control("reply", "comment", "Reply");
       this.#forward = control("forward", "next");
       this.#bar.append(this.#back, this.#status, this.#reply, this.#forward);
       // Where the cards stood once the pass is over: what is left, and a way back in.
       this.#end = offer("div", "lf-deck-end");
       this.#end.hidden = true;
       this.#end.append(document.createElement("p"));
-      this.#again = offer("button", "lf-btn lf-deck-again");
+      this.#again = offerAction("word", "lf-deck-again");
       this.#again.addEventListener("click", () => this.#forwardPress(this.#readings()));
       this.#end.append(this.#again);
       const [back, ahead] = rowArrows(this);
@@ -599,13 +596,6 @@ customElements.define(
         this.#forward
           .querySelector("svg")
           ?.replaceWith(iconElement(icon, "lf-action-icon"));
-      }
-      for (const [button, word] of [
-        [this.#back, "Back"],
-        [this.#reply, "Reply"],
-      ]) {
-        keeps(button, "aria-label", word);
-        keeps(button, "title", word);
       }
       keeps(this.#reply, "hidden", this.#asking() ? null : "");
       // Once the pass is over the end frame's button is the step back in.

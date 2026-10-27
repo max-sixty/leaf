@@ -452,7 +452,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-thread-notice:is(button),
 .lf-react,
 .lf-margin-entry,
-.lf-thread-action,
 .lf-command-reference-command,
 .lf-quote {
   min-width: var(--aim-floor);
@@ -479,10 +478,11 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   .lf-btn,
   .button,
   .lf-icon-action,
+  .lf-compose-submit,
+  .lf-compose-dictate,
   .lf-msg-control,
-  .lf-thread-action,
   .lf-thread-notice:is(button),
-  button.lf-mark,
+  button.lf-mark-action,
   button.lf-fp-face
 ) {
   --lf-face-floor: auto;
@@ -497,7 +497,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
    is the part's: one on the host would take the press from the button and copy
    nothing. Its own rule, so an engine refusing a pseudo-element after a part keeps
    the rest. */
-.lf-mark.lf-ui::part(button)::after {
+.lf-mark-action.lf-ui::part(button)::after {
   content: "";
   position: absolute;
   inset: min(0px, (100% - var(--aim-floor)) / 2);
@@ -1166,7 +1166,7 @@ button.lf-primary-news {
   color: var(--ink-2);
   font-weight: 600;
 }
-.lf-thread-todo > .lf-thread-action {
+.lf-thread-todo > .lf-btn {
   flex: none;
   white-space: nowrap;
 }

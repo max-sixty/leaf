@@ -30,7 +30,7 @@ import {
   keeps,
   LeafElement,
   nothing,
-  offer,
+  offerAction,
   generatedElement,
   obligationActions,
   readObligations,
@@ -57,7 +57,7 @@ customElements.define(
       this.#words = face.querySelector(".lf-tally-words");
       const seat = face.querySelector(".lf-tally-next");
       if (this.hasAttribute("next")) {
-        this.#next = offer("button", "lf-btn lf-tally-next");
+        this.#next = offerAction("word", "lf-tally-next");
         seat.replaceWith(this.#next);
         relabel(this.#next, "Next on me", { says: false });
         this.#next.title = "Next on me here";

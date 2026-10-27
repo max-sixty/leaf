@@ -121,8 +121,8 @@ on a generated image or link, so it resolves on published pages too.
 ### Icons
 
 `iconElement(name, className)` and `iconTemplate(name, className)` draw Leaf's icons.
-For a thread control, put `iconElement("comment", "lf-action-icon")` in an
-`lf-icon-action` button, which gives the label.
+A press drawn as an icon is a symbol (`module-authoring.md`, "Generated controls"):
+`offerAction("symbol", className, label, {icon: "comment"})` draws it with its label.
 
 ## Page readings
 

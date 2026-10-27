@@ -279,6 +279,11 @@
 .lf-diff-run-end {
   --lf-diff-r-end: var(--r);
 }
+/* A diff of one file draws no filter (lf-diff.js), so its file opens the drawing, with
+   no gap or shared hairline above it to stand off from. */
+.lf-diff-file:first-child {
+  margin-top: 0;
+}
 .lf-diff-file:has(> .lf-diff-file-actions > *) {
   --lf-diff-head-h: var(--lf-diff-head-pressed);
 }
@@ -614,6 +619,37 @@ pre[data-overflow="wrap"] .lf-diff-rows {
 }
 .lf-diff-file-thread-outlet :is(.lf-resolved-summary, .lf-page-thread) {
   padding-inline: var(--lf-diff-head-inset);
+}
+/* A conversation's reply field rests as a Reply press: its hint alone, in the place of
+   the words, with no frame and no microphone, one control high. Going into it, by a
+   press, Tab or `c`, opens it as the field it is, and it rests again once the user
+   leaves it holding nothing: no words or picture, no dictation, no error. The field
+   stays the one control, so every route to the reply reaches it as before. The user
+   chose that on 26 October 2026 over a Reply field open under every conversation,
+   which took about a third of the height of two conversations under one file. */
+.lf-diff-thread-outlet
+  .lf-thread-reply:not(
+    :focus-within,
+    :has(
+      > .lf-composer-media:not([hidden]),
+      > .lf-compose-field[data-words],
+      .lf-compose-dictate[aria-pressed="true"],
+      .lf-compose-error:not([hidden])
+    )
+  ) {
+  margin-top: var(--sp-1);
+  > .lf-compose-field {
+    border-color: transparent;
+    background: transparent;
+  }
+  > .lf-compose-field > leaf-text {
+    min-height: var(--aim-floor);
+    padding-block: 0;
+    cursor: pointer;
+  }
+  > .lf-compose-field > .lf-compose-dictate {
+    display: none;
+  }
 }
 /* Paper has no sideways scroll; wrap evidence within the printed sheet. */
 @media print {

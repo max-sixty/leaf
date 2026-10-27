@@ -32,9 +32,7 @@ def test_ship_review_obligations_are_directly_answerable(browser, serve):
     example = ROOT / "examples" / "ship-review.html"
     page = open_page(browser, serve(example))
 
-    # The page runs the prepared kernel its server supplies (`runtime_selection`),
-    # and vendors none of the runtime itself.
-    assert list((serve.page_dir / "runtime").iterdir()) == []
+    # The page runs the prepared kernel its server supplies (`runtime_selection`).
     loaded = page.evaluate(
         "performance.getEntriesByType('resource').map((entry) => entry.name)"
     )

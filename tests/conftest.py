@@ -156,6 +156,9 @@ class PagePool:
                 kept[relative] = identity
             else:
                 path.unlink()
+        # A test may remove the page itself, and an initialized page may hold no
+        # directory that would make it again.
+        page.mkdir(exist_ok=True)
         for relative in shape.directories:
             (page / relative).mkdir(parents=True, exist_ok=True)
         for relative in stamp:

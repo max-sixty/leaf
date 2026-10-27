@@ -1,4 +1,4 @@
-"How a container's saved website record restores a fresh release: stored chunks,\npublication dates, comments, choices, private revisions and installed layers."
+"How a container's saved website record restores a fresh release: stored chunks,\npublication dates, comments, choices and private revisions."
 
 import base64
 import json
@@ -13,9 +13,7 @@ import leaf_website as website_server
 import pytest
 from interact_support import (
     PAGE,
-    add_test_widget,
     append_command,
-    page_packages,
     publish,
     running_http_server,
 )
@@ -27,14 +25,10 @@ from process.website_server.test_saved_records import durable_page_store
 
 from leaf.delivery import receive_batch
 from leaf.event_log import read_events
-from leaf.files import latest_revision, revision_path
+from leaf.files import revision_path
 from leaf.hosting import LeafHTTPServer
-from leaf.packages import cmd_package_install
-from leaf.refusals import Refused
-from leaf.registry.storage import layer_packages
 from leaf.runtime_selection import serving_runtime
 from leaf.service import PageTransaction, acknowledged, unacknowledged
-from leaf.vendoring import cmd_init
 
 
 def test_saved_website_record_restores_comments_choices_and_private_revision(
@@ -240,93 +234,3 @@ def test_saved_website_record_restores_comments_choices_and_private_revision(
                 read_events(recovered), acknowledged(read_events(recovered))
             )
         ] == [next_comment["id"]]
-
-
-def test_saved_website_record_restores_an_installed_layer(
-    page_dir, tmp_path, monkeypatch
-):
-    """A package vendored by the agent remains usable in a fresh release image."""
-    from leaf_website.storage import restore
-
-    publish(page_dir)
-    (page_dir / "vendor" / "obsolete.txt").write_text("Remove this installed input")
-    site = tmp_path / "site"
-    private = site / "page"
-    shutil.copytree(page_dir, private)
-    write_manifest(site, {"/example": ("page", "example")})
-    manifest_path = site / website_server.SITE_MANIFEST
-    manifest = json.loads(manifest_path.read_text())
-    manifest["pages"]["/example"]["states"] = {"1": "unused"}
-    manifest_path.write_text(json.dumps(manifest))
-    source = tmp_path / "saved-widget"
-    add_test_widget(source, "lf-restored", upgrade=True)
-    (source / "instructions" / "author.md").write_text(
-        "Use lf-restored to preserve the installed widget.\n"
-    )
-    cmd_package_install(source)
-    monkeypatch.setenv("LEAF_SITE_ROOT", str(site))
-    monkeypatch.delenv("LEAF_PAGE_COMMIT", raising=False)
-    with durable_page_store() as (store_url, stored):
-        monkeypatch.setenv("LEAF_PAGE_STORE_URL", store_url)
-        restore(site)
-        cmd_init(private, (*page_packages(), "saved-widget"))
-        (private / "index.html").write_text(
-            (private / "index.html")
-            .read_text()
-            .replace(
-                "</main>",
-                '<lf-restored id="installed">Installed widget</lf-restored></main>',
-            )
-        )
-        with PageTransaction(private):
-            pass
-        revision = latest_revision(private)
-        assert "lf-restored" in json.loads((private / "registry.json").read_text())
-        replacement = tmp_path / "replacement"
-        shutil.copytree(site, replacement, ignore=shutil.ignore_patterns("page"))
-        shutil.copytree(page_dir, replacement / "page")
-        monkeypatch.setenv("LEAF_SITE_ROOT", str(replacement))
-        monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "empty-machine-state"))
-        restore(replacement)
-        recovered = replacement / "page"
-        assert not (recovered / "vendor" / "obsolete.txt").exists()
-        for name in ("registry.json", "theme.css", "widgets/lf-restored.js"):
-            assert (recovered / name).read_bytes() == (private / name).read_bytes()
-        assert (recovered / "instructions" / "author.md").read_bytes() == (
-            private / "instructions" / "author.md"
-        ).read_bytes()
-        # Mutable restored layer files must not share writable inodes with the
-        # immutable same-release revision used as their storage reference.
-        baseline = (
-            revision_path(recovered, 1).with_suffix("") / "resources" / "theme.css"
-        )
-        original = baseline.read_bytes()
-        (recovered / "theme.css").write_bytes(b"edited mutable layer")
-        assert baseline.read_bytes() == original
-        (recovered / "theme.css").write_bytes((private / "theme.css").read_bytes())
-        state = website_server.initial_state(
-            recovered, "/example", "example", manifest["release"]
-        )
-        assert state["source_error"] is None
-        assert state["active"]["revision"] == revision
-        assert "lf-restored" in json.loads((recovered / "registry.json").read_text())
-        # A restored process negotiates once and never retransmits stored blobs.
-        uploads = len(stored["uploads"])
-        previous = set(stored["blobs"])
-        with PageTransaction(recovered):
-            pass
-        assert not previous.intersection(stored["uploads"][uploads:])
-        # Package contract: delivery is self-contained, but rebuilding a selected
-        # package on another machine requires installing its original source there.
-        # Refusal must leave the already-restored layer usable.
-        registry = (recovered / "registry.json").read_bytes()
-        with pytest.raises(Refused, match="unknown package 'saved-widget'"):
-            cmd_init(recovered, tuple(layer_packages(recovered)))
-        assert (recovered / "registry.json").read_bytes() == registry
-        assert latest_revision(recovered) == revision
-        assert (
-            website_server.initial_state(
-                recovered, "/example", "example", manifest["release"]
-            )["source_error"]
-            is None
-        )

@@ -42,6 +42,7 @@ from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as cleanup_model
 from leaf import thread as thread_model
+from leaf.registry import storage as registry_storage
 from leaf.served_state import browser as browser_served_model
 from leaf.served_state import work as work_served_model
 
@@ -451,7 +452,7 @@ def test_a_frozen_move_that_answers_no_obligation_keeps_a_receipt_and_owes_nothi
     thread the agent's, and the agent's next turn in the thread takes it in."""
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
-    registry = json.loads((page_dir / "registry.json").read_text())
+    registry = registry_storage.active_registry(page_dir)
     asked = append_carried_log_record(
         page_dir,
         {

@@ -56,6 +56,7 @@ from browser.threads import open_panel_thread
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import render_checks as render_checks_model
+from leaf.registry.storage import layer_record
 from leaf.render_checks import wait_until_ready
 from leaf.render_gate.readings import DevtoolsIssues
 
@@ -521,9 +522,7 @@ def test_an_old_document_state_request_cannot_update_the_new_revision(browser, s
         assert held[0].request.headers.get("leaf-view-revision") == "1", (
             "the held read was not the one taken on the first revision"
         )
-        generation = json.loads((serve.page_dir / "registry.json").read_text())[
-            "$layer"
-        ]["generation"]
+        generation = layer_record(serve.page_dir)["generation"]
         assert held[0].request.headers.get("leaf-layer") == generation
         release_the_held_read()
         told(page)

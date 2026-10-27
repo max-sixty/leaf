@@ -56,7 +56,7 @@ def test_a_visual_admits_the_parts_its_prefixes_begin(page_dir):
     refused = event_contracts_model.visual_anchor_error(
         {"anchor": {"section": "flow", "visual": "edge:B"}},
         {"flow": {"tag": "lf-diagram", "attrs": {"id": "flow"}}},
-        json.loads((page_dir / "registry.json").read_text()),
+        registry_storage.read_page_registry(page_dir).registry,
     )
     assert (refused.code, refused.values["declared"]["prefixes"]) == (
         "undeclared-visual",
@@ -66,7 +66,7 @@ def test_a_visual_admits_the_parts_its_prefixes_begin(page_dir):
         assert event_contracts_model.visual_anchor_error(
             {"anchor": {"section": "flow", "visual": unrenderable}},
             {"flow": {"tag": "lf-diagram", "attrs": {"id": "flow"}}},
-            json.loads((page_dir / "registry.json").read_text()),
+            registry_storage.read_page_registry(page_dir).registry,
         ), unrenderable
 
     # The file lists none of these parts, so markup cannot drop one; a declaration

@@ -266,6 +266,7 @@ import {
   declareOccluder,
   declareWindowChrome,
   placeHolder,
+  showsContents,
 } from "./geometry.js";
 import { registerReadingRegion } from "./reading-regions.js";
 import { agentName, documentChanged } from "./semantic-state.js";
@@ -1729,7 +1730,7 @@ export function createFloatingPanel({
         outlet.querySelectorAll(`.lf-msg[data-message], ${WORKING}`)
       ),
     ]
-      .filter((node) => node.checkVisibility())
+      .filter((node) => showsContents(node))
       .map((node) => node.dataset.message ?? FACE + node.dataset.face);
     const before = drawnThread?.key === top.thread ? drawnThread : null;
     const msgs = threadByKey(top.thread)?.msgs ?? [];

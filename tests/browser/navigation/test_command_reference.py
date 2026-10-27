@@ -90,7 +90,21 @@ def test_a_first_keyboard_opening_wires_the_references_close_control(browser, se
     page = open_page(browser, serve(CONTROL_LABEL_PAGE))
     page.keyboard.press("?")
     reference = page.locator(".lf-command-reference")
+    expect(reference).to_have_attribute("open", "")
     expect(reference).to_be_visible()
+    # The catalog is captured before the native dialog opens and takes focus. Its
+    # own instructions must still appear on that first opening.
+    for command in ["next", "previous", "activate"]:
+        expect(
+            reference.locator(
+                f'[data-lf-command="command.reference.command.{command}"].lf-command-reference-row'
+            )
+        ).to_have_count(1)
+    expect(
+        reference.locator(
+            '[data-lf-command="command.reference.close"].lf-command-reference-row'
+        )
+    ).to_have_count(1)
     page.get_by_role("combobox", name="Search commands").fill("comment")
     page.get_by_role("button", name="Close the command reference").click()
     expect(reference).to_be_hidden()

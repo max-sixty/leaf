@@ -242,7 +242,9 @@ def test_an_inline_tab_keeps_its_panel_inside_one_visible_boundary(browser, serv
             const label = tab.querySelector('[data-lf-said]');
             const labelStyle = style(label);
             const markStyle = style(label, '::before');
-            const underlineStyle = style(label.querySelector('.lf-tab-mark'));
+            const underline = tab.closest('.lf-tabstrip').querySelector('.lf-tab-selection');
+            const underlineStyle = style(underline);
+            const line = box(underline), name = box(label);
             return {
               ground: tabStyle.backgroundColor,
               border: ['Top', 'Right', 'Bottom', 'Left'].map(
@@ -258,7 +260,7 @@ def test_an_inline_tab_keeps_its_panel_inside_one_visible_boundary(browser, serv
               underline: {
                 height: parseFloat(underlineStyle.blockSize),
                 color: underlineStyle.backgroundColor,
-                visible: underlineStyle.visibility,
+                visible: line.left < name.right && name.left < line.right ? 'visible' : 'hidden',
               },
               labelInk: labelStyle.color,
               labelDecoration: labelStyle.textDecorationLine,

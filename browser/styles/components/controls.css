@@ -151,17 +151,13 @@
   white-space: nowrap;
   pointer-events: none;
 }
-/* A reaction surface offers one quiet trigger. It disappears when its list opens;
-   a token in force remains visible in a closed message strip as the user's receipt
-   and eraser. */
+/* A reaction surface offers one quiet trigger. A token in force remains visible
+   in a closed message strip as the user's receipt and eraser. */
 .lf-react-palette {
   display: inline-flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 4px;
-}
-.lf-react-open > .lf-react-trigger {
-  display: none;
 }
 .lf-react-surface
   .lf-react-palette:not(:popover-open)
@@ -255,9 +251,6 @@ svg[data-lf-icon] {
 }
 .lf-react-strip > .lf-react-trigger {
   anchor-name: --lf-react-trigger;
-}
-.lf-react-strip.lf-react-open > .lf-react-trigger {
-  display: inline-flex;
 }
 /* The list is an auto popover, in the top layer: open, it stands over everything in
    the thread, the sticky title and reply row included, so its message is never raised

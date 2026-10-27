@@ -1077,9 +1077,6 @@ leaf-text.lf-fab-input,
   flex-wrap: wrap;
   gap: 4px;
 }
-.lf-react-open > .lf-react-trigger {
-  display: none;
-}
 .lf-react-surface .lf-react-palette:not(:popover-open) > .lf-react:not([aria-pressed=true]) {
   display: none;
 }
@@ -1147,9 +1144,6 @@ svg[data-lf-icon] {
 }
 .lf-react-strip > .lf-react-trigger {
   anchor-name: --lf-react-trigger;
-}
-.lf-react-strip.lf-react-open > .lf-react-trigger {
-  display: inline-flex;
 }
 .lf-react-strip > .lf-react-palette[popover] {
   position: static;

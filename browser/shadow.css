@@ -938,6 +938,7 @@ leaf-text.lf-fab-input,
   margin: 0;
   font: inherit;
   overflow: visible;
+  display: flow-root;
 }
 
 /* browser/styles/components/controls.css */

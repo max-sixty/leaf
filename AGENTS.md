@@ -1,9 +1,5 @@
 # leaf
 
-[SOUL.md](SOUL.md) holds Leaf's purpose and product principles. It is
-human-curated; change it only at the user's direction. `README.md` describes the
-product and installation.
-
 @SOUL.md
 
 ## Leaf's role
@@ -131,6 +127,7 @@ Python's module location, `leaf.state` locates the plugin root, and
 `leaf.schema` derives the resource paths. Page initialization composes the core
 browser assets and the packages into a page's layer.
 
+- `README.md`: the product and its installation.
 - `bin/leaf`, `pyproject.toml`, `uv.lock`: the launcher and its uv project.
 - `src/leaf/`: the CLI, server and event model (`src/AGENTS.md`).
 - `browser/`: the browser runtime, registry and theme, with the type check's
@@ -173,8 +170,8 @@ for agents that use Leaf or extend its package interface.
 
 ### Where instructions live
 
-The sections above **Repository map** are the maintainer's direction; change them
-only when the user asks. An `AGENTS.md` holds what an agent needs before changing
+The sections above **Repository map**, and the `SOUL.md` they import, are the
+maintainer's direction; change them only when the user asks. An `AGENTS.md` holds what an agent needs before changing
 its area: goals, invariants that span modules, who owns what, and the gates to
 run. A contract one module owns goes in that module's header, a helper's in its
 docstring, and how a rule was found in the commit message. A contract several modules

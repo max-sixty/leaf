@@ -1545,6 +1545,7 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
   :scope:is(lf-tabs).lf-rendered > lf-tab:not([hidden]),
   html[data-lf-interactive] :scope:is(lf-tabs):not(.lf-rendered):has(> lf-tab) > lf-tab {
     padding: var(--sp-4) var(--sp-4) var(--lf-tab-end);
+    --lf-top-start: calc(-1 * var(--sp-4));
     --lf-end-room: inherit;
     --lf-block-frame: 1;
   }
@@ -1767,7 +1768,7 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
       align-self: stretch;
       min-block-size: 0;
       overflow: auto;
-      --lf-top: 0px;
+      --lf-top: var(--lf-top-start);
       overscroll-behavior: contain;
       scrollbar-gutter: stable;
       --lf-holds-height: 1;

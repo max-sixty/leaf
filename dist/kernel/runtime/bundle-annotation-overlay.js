@@ -1,5 +1,5 @@
 import { TEXT_FIELD, Z, afterScript, cancelAnimation, cancelRender, closeLayer, currentLocationIn, declareRelease, drawn, focusDestination, focused, handBack, holdFocus, inputCount, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, nativeLayerHolding, nextAnimation, nextRender, onCurrentLocation, onPressAway, onUserInput, pressLed, renderedOrder, renderedUnder, ringBox, roomPx, rove, sizeObserver, tabStops, under, visibleFocus } from "./bundle-dom-move.js";
-import { LAYOUT, PAGE_PAINT_ATTRIBUTE, PRESS, closeControl, coarsePointer, cycledRow, el, generatedElement, keys, notice, offer, offerAction, paintKeys, repaint, rowArrows, setRuntimeRootAttribute } from "./bundle-layer-client.js";
+import { LAYOUT, PAGE_PAINT_ATTRIBUTE, PRESS, closeControl, coarsePointer, cycledRow, el, generatedElement, keys, notice, offer, offerAction, paintKeys, paintKeysWithin, repaint, rowArrows, setRuntimeRootAttribute } from "./bundle-layer-client.js";
 import { bareReaction, clamp, hostIn, html, render, rightCover, sameAnchor, seenRect, shownBox, shownWindow, skipped, slotTop, turns, union, watchRoom } from "./bundle-geometry.js";
 import { atScrollEnd, chromeForeground, chromeRoot, effectiveScroller, exactTarget, moveScrollerBy, passageGeometry, pointBand, rangeGeometry, readingRegionFor, registerReadingRegion, scrollToEnd, targetElement, targetParts, targetRange, targetSegments, targetSurface, visualAt } from "./bundle-content-layout.js";
 import { ANNOTATIONS_KEY } from "./bundle-restore-state.js";
@@ -751,7 +751,9 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 		keepsHidden(preview, false);
 		keeps(preview, "inert", null);
 		buildThreadCard(entry, selected.id);
-		return placedThreadPreview();
+		const positioned = placedThreadPreview();
+		paintKeysWithin(preview);
+		return positioned;
 	}
 	function refresh(entry, control, carry = focused() === previewSession?.control) {
 		if (!previewSession || previewSession.preparing) return;
@@ -771,6 +773,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 			for (const edge of CUT_EDGES) preview.style.removeProperty(edge);
 			keepsHidden(preview, true);
 			keeps(preview, "inert", null);
+			paintKeysWithin(preview);
 		};
 		const fade = preview.hidden ? null : preview.getAnimations().find((played) => played.transitionProperty === "opacity");
 		if (fade) {

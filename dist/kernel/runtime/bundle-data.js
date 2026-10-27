@@ -1386,9 +1386,15 @@ function releaseControl(control) {
 //#region runtime/code-copy.js
 const controls = /* @__PURE__ */ new WeakMap();
 const wired = /* @__PURE__ */ new WeakMap();
+const deferred = /* @__PURE__ */ new WeakSet();
+let prepareDocumentBlocks;
+const revealed = sizeObserver((entries) => {
+	nextRender(() => prepareDocumentBlocks(entries.map(({ target }) => target).filter((target) => deferred.has(target))));
+});
 const COPY_SCOPE = Symbol("code copy");
 onCurrentLocation((node) => {
 	for (let at = node; at; at = upFrom(at)) {
+		if (deferred.has(at) && !skipped(at)) prepareDocumentBlocks([at]);
 		const copy = controls.get(at);
 		if (copy) return revealControl(copy, at);
 	}
@@ -1434,32 +1440,45 @@ function watchCodeBlocks() {
 		arrive: (block) => block.classList.toggle("scroll", true),
 		leave: () => {}
 	});
-	watchArrivals("pre:has(> code)", ["style"], {
-		arriveBatch(blocks) {
-			const prepared = blocks.filter((pre) => pre.getRootNode() === document).map((pre) => [
-				pre,
-				prepareCodeBlock(pre, () => pre.querySelector(":scope > code").textContent, "code"),
-				headerLevels(pre)
-			]);
-			for (const [pre, pending, levels] of prepared) {
-				const copy = aimControl(pending);
-				standInChrome(copy, pre, levels);
-				copy.tabIndex = -1;
-				claimReachStop(pre);
-				if (!wired.has(pre)) {
-					const events = new AbortController();
-					wired.set(pre, events);
-					declareCopy(pre, copy, "code");
-					const options = { signal: events.signal };
-					tabFromBlock(copy, pre, events.signal);
-					pre.addEventListener("pointerenter", () => copy.classList.add("lf-code-copy-hover"), options);
-					pre.addEventListener("pointerleave", () => copy.classList.remove("lf-code-copy-hover"), options);
-					pre.addEventListener("focus", () => copy.classList.add("lf-code-copy-focused"), options);
-					pre.addEventListener("blur", () => copy.classList.remove("lf-code-copy-focused"), options);
+	prepareDocumentBlocks = (blocks) => {
+		const prepared = blocks.filter((pre) => {
+			if (pre.getRootNode() !== document) return false;
+			if (skipped(pre)) {
+				if (!wired.has(pre) && !deferred.has(pre)) {
+					deferred.add(pre);
+					revealed.observe(pre);
 				}
+				return false;
 			}
-		},
+			if (deferred.delete(pre)) revealed.unobserve(pre);
+			return true;
+		}).map((pre) => [
+			pre,
+			prepareCodeBlock(pre, () => pre.querySelector(":scope > code").textContent, "code"),
+			headerLevels(pre)
+		]);
+		for (const [pre, pending, levels] of prepared) {
+			const copy = aimControl(pending);
+			standInChrome(copy, pre, levels);
+			copy.tabIndex = -1;
+			claimReachStop(pre);
+			if (!wired.has(pre)) {
+				const events = new AbortController();
+				wired.set(pre, events);
+				declareCopy(pre, copy, "code");
+				const options = { signal: events.signal };
+				tabFromBlock(copy, pre, events.signal);
+				pre.addEventListener("pointerenter", () => copy.classList.add("lf-code-copy-hover"), options);
+				pre.addEventListener("pointerleave", () => copy.classList.remove("lf-code-copy-hover"), options);
+				pre.addEventListener("focus", () => copy.classList.add("lf-code-copy-focused"), options);
+				pre.addEventListener("blur", () => copy.classList.remove("lf-code-copy-focused"), options);
+			}
+		}
+	};
+	watchArrivals("pre:has(> code)", ["style"], {
+		arriveBatch: prepareDocumentBlocks,
 		leave(pre) {
+			if (deferred.delete(pre)) revealed.unobserve(pre);
 			wired.get(pre)?.abort();
 			wired.delete(pre);
 			const copy = controls.get(pre);

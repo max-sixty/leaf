@@ -543,6 +543,7 @@ function coverIn(root, band, target, bands, stop) {
 				continue;
 			}
 			if (node.nodeType !== Node.ELEMENT_NODE || node.closest(".lf-chrome")) continue;
+			if (skipped(node)) continue;
 			const box = node.getBoundingClientRect();
 			const boxless = !box.width && !box.height;
 			if (!boxless && !meets(box)) continue;
@@ -564,6 +565,7 @@ function coverIn(root, band, target, bands, stop) {
 				continue;
 			}
 			if (node instanceof SVGElement) continue;
+			if (getComputedStyle(node).contentVisibility === "hidden") continue;
 			if (node.localName === "details" && !node.open) {
 				const summary = node.querySelector(":scope > summary");
 				if (summary) visit({ childNodes: [summary] });

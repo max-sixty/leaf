@@ -25,6 +25,15 @@
    the rewrite, as in Slack, Discord and Telegram (the user's decision, 2026-10-06).
    Rejected: Escape keeping them as an unsaved edit, as a reply box keeps its draft,
    which left the user a draft to find and drop that the message could barely show.
+   So an accidental Escape loses nothing for good: the last changed rewrite this
+   document discarded stays in its memory until another takes its place or the document
+   reloads, and Restore discarded edit (`g D`, a keyboard's convenience as Resume writing
+   is, with no row on every page's menu) puts it back in its draft and opens its message on it. Recovery has no
+   timer and never replaces words of the rewrite's own, open, sending or newer from
+   another tab. The notice that follows a discard names the key.
+   Rejected: a timed Undo chip after the discard, a target the user cannot learn
+   (notifications.js), and a row of every page's menu for a pointer or finger, which put
+   a command on each page for a mishap of one keyboard gesture (the user's decision).
 
    The editor stands where the message stood and as it read (browser/AGENTS.md,
    "Editing in place"): a comment box over the message's body, every line of its words
@@ -74,6 +83,7 @@ import {
   loadDraft,
   loadDraftPayload,
   mirrorDraft,
+  restoreDraft,
   saveDraft,
   sendDraft,
   tellDraft,
@@ -86,7 +96,7 @@ import { iconElement } from "../icons.js";
 import { revealEditor } from "./reply-landing.js";
 import { PENDING } from "./identity.js";
 import { keys } from "../keyboard/scopes.js";
-import { announce } from "../notifications.js";
+import { announce, notice } from "../notifications.js";
 import { afterScript, sizeObserver } from "../rendering.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 import { retainUserIntent } from "../user-intent.js";
@@ -101,6 +111,39 @@ export const OPEN_MESSAGE_EDIT = "lf-open-message-edit";
 const open = new Map();
 // Rewrites whose words are on their way to the log: neither open nor kept.
 const sending = new Set();
+// The changed words this document's latest discard threw away, with the revision they
+// were written over: values, never the closed editor. Not a draft, so the discard still
+// settles that draft in every tab and Resume writing goes back where it went before.
+let discarded = null;
+
+// Restore discarded edit: the words go back to the rewrite's draft, and its message
+// opens on them as it does on words a reload kept, the editor raising its warning where
+// the message changed since. Words of the rewrite's own, open, sending or in another
+// tab, are newer, so the command stands dead over them.
+export function createRewriteRestore({ revealInThread, holdsThreadDraft }) {
+  const restorable = () =>
+    discarded &&
+    !open.has(discarded.id) &&
+    !draftHasContent(rewriteContext(discarded.id)) &&
+    holdsThreadDraft(rewriteContext(discarded.id));
+  return {
+    id: "message.edit.restore",
+    keys: ["Shift+d"],
+    title: "Restore discarded edit",
+    touch: "Restore discarded edit",
+    menu: "keys",
+    when: () => Boolean(restorable()),
+    run: async () => {
+      if (!restorable()) return;
+      const { id, text, over } = discarded;
+      const ctx = rewriteContext(id);
+      if (!restoreDraft(ctx, text, { over })) return;
+      discarded = null;
+      await revealInThread(ctx, retainUserIntent());
+    },
+  };
+}
+
 // Moves each time any reader draws a message (`messageDrawn`, called by
 // MessageView.present). Which of the user's messages can be rewritten is read off the
 // views a reader drew, so the reply box's ↑ row reads this to be reflected again
@@ -354,12 +397,12 @@ export class MessageEditor {
       if (says) announce(says);
     };
     // Closing as Escape and Discard do, throwing away what changed.
-    const close = () =>
-      leave(true, {
-        says: unchanged()
-          ? "Stopped editing"
-          : "Edit discarded; the message is as it was",
-      });
+    const close = () => {
+      if (unchanged()) return leave(true, { says: "Stopped editing" });
+      discarded = { id, text: whole(), over: base };
+      leave(true);
+      notice("Edit discarded; g D restores it");
+    };
     // Making way for another rewrite, as ↑ to an earlier message or opening one
     // elsewhere in the thread does, closes one the user has not changed; changed words
     // stay in their box, which no key here meant to put away. The closed box is drawn

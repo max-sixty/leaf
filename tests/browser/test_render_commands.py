@@ -1348,7 +1348,7 @@ def test_the_gate_passes_words_set_close_or_declared_decorative(browser, serve):
             '1,204<span style="display:block">requests</span></p>'
             '<span aria-hidden="true" style="position:absolute;top:0;left:0;'
             'font-size:120px;opacity:.08">7</span>'
-            '<p id="stacked" style="font:700 80px/.8 Arial;margin:0">HIGH<br>TYPE</p>'
+            '<p id="stacked" style="font:700 80px/.8 Arial;margin:48px 0 0">HIGH<br>TYPE</p>'
             '<p id="warning" style="position:absolute;top:100px;left:400px;margin:0">'
             "Cannot proceed</p>"
             '<span aria-hidden="true" style="position:absolute;top:100px;left:400px;'

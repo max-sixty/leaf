@@ -9,11 +9,14 @@ Python are in root `AGENTS.md`, "Cross-runtime invariants".
 Stylesheets need no build: page composition and the serving runtime place each file a
 sheet `@import`s where the import stands (`stylesheet` in `src/leaf/layer.py`).
 
-## Layout and motion
+## Interface principles
 
-These rules hold on every page and for everything Leaf draws on one. Each names its
-check and owner where one exists. Leaf targets desktop first, so judge layout at a
-representative desktop viewport.
+These rules hold on every page and for everything Leaf draws on one. They apply
+`../SOUL.md`: "Preserve the user's attention and work" to space, stability, typed words,
+editing and motion, and "Make the work concrete and playable" to the visual grammar,
+so weigh a case none of them covers against those principles. Each names its check and
+owner where one exists. Leaf targets desktop first, so judge layout at a representative
+desktop viewport.
 
 ### Space and scrolling
 

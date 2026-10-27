@@ -59,6 +59,7 @@ import { iconTemplate } from "../icons.js";
 import { keeps } from "../keeps.js";
 import { flashDuration, motion } from "../motion.js";
 import { pageClaimed } from "../semantic-state.js";
+import { copyControl } from "../copy-control.js";
 
 export const loadMessageMarkdown = () =>
   loadMarkdown((error) => reportPageError(error, `markdown renderer failed to load`));
@@ -90,6 +91,8 @@ function proseReading(message) {
       markdown,
       html,
       mediaHtml,
+      // What the words render from, which a copy of part of them reads back.
+      source: pasted.text,
       plainText: renderedWords(html + mediaHtml),
     });
     renderedProse.set(key, reading);
@@ -305,12 +308,19 @@ export function messageReading(
       text: message.text ?? "",
       html: prose?.html ?? "",
       mediaHtml: prose?.mediaHtml ?? "",
+      source: prose?.source ?? "",
       plainText: prose?.plainText ?? message.text ?? "",
       drawing: Boolean(message.drawing),
       token: message.token ?? null,
       glyph: token?.glyph ?? "",
       authored: message.body.kind === "authored",
     }),
+    // The message as its Copy control copies it: its words as written, then any markup
+    // an agent sent after them, which Markdown carries as HTML. A reaction has none.
+    markdown:
+      kind === "reaction"
+        ? null
+        : [message.text, message.markup].filter(Boolean).join("\n\n"),
     // Where this drawing ranks among those that may hold the message's widgets
     // (`authoredHolders`); 0 for one that never does.
     authoredRank,
@@ -322,6 +332,7 @@ export class MessageView {
   #commands;
   #model = null;
   #reaction = null;
+  #copy = null;
   #authored = null;
   // Bumped each time this view takes the message's widgets back from another drawing.
   #authoredTake = 0;
@@ -525,6 +536,7 @@ export class MessageView {
           }
           ${holds ? keyed(this.#authoredTake, this.#authored) : nothing}
         </div>
+        ${model.markdown && !editing ? this.#copyControl(model.markdown) : nothing}
         ${strip} ${rewrite}
       `,
       this.node,
@@ -595,6 +607,23 @@ export class MessageView {
     return this.#editor !== null;
   }
 
+  // Copy stands at the head's end, after the message's own control (controls.css), and
+  // copies the message whole as Markdown. Like Edit it is no Tab stop, which would add one to every message
+  // between a thread's controls: the keyboard copies a message by selecting its words
+  // with the caret (F7), and that copy is Markdown too (markdown.js).
+  #copyControl(markdown) {
+    if (!this.#copy) {
+      this.#copy = copyControl("lf-msg-control lf-msg-copy", {
+        label: "Copy as Markdown",
+        success: "Message copied as Markdown",
+        error: "Message not copied · select its words to copy",
+      });
+      this.#copy.tabIndex = -1;
+    }
+    if (this.#copy.value !== markdown) this.#copy.value = markdown;
+    return this.#copy;
+  }
+
   #body(body) {
     if (body.kind === "reaction")
       return html`<div class="lf-msg-text">
@@ -602,7 +631,11 @@ export class MessageView {
       </div>`;
     if (body.kind === "suggestion")
       return html`<div class="lf-msg-text" .textContent=${body.text}></div>`;
-    return html`<div class="lf-msg-text" .innerHTML=${body.html}></div>
+    return html`<div
+        class="lf-msg-text"
+        data-lf-source-words=${body.source}
+        .innerHTML=${body.html}
+      ></div>
       ${
         body.mediaHtml
           ? html`<div class="lf-msg-media" .innerHTML=${body.mediaHtml}></div>`

@@ -2666,6 +2666,111 @@ function markdownSourceOffset(body, node, offset) {
 	}
 	return sourceEnd;
 }
+const EXCERPT_BLOCKS = /* @__PURE__ */ new Set([
+	"paragraph_open",
+	"heading_open",
+	"fence",
+	"code_block",
+	"table_open"
+]);
+const SOLID_BLOCKS = /* @__PURE__ */ new Set([
+	"fence",
+	"code_block",
+	"table_open"
+]);
+const WHOLE_INLINE = /* @__PURE__ */ new Set(["autolink", "linkify"]);
+function markdownSourceExcerpt(body, range) {
+	const source = body.dataset.lfSourceWords;
+	const placed = placedMarkdownTokens(source);
+	let start = markdownSourceOffset(body, range.startContainer, range.startOffset);
+	let end = markdownSourceOffset(body, range.endContainer, range.endOffset);
+	const inline = placed.filter(({ token }) => !token.block);
+	const marked = inline.flatMap((placed) => placed.contentFrom != null ? [placed] : placed.token.type === "code_inline" ? [{
+		...placed,
+		contentFrom: placed.from + placed.token.markup.length,
+		contentTo: placed.to - placed.token.markup.length
+	}] : placed.token.type === "link_open" ? [{
+		...placed,
+		contentFrom: placed.from + 1
+	}] : []);
+	for (const { token, from, contentFrom, contentTo, to } of marked.toReversed()) {
+		if (WHOLE_INLINE.has(token.markup)) {
+			if (from < start && start < to) start = from;
+			if (from < end && end < to) end = to;
+			continue;
+		}
+		if (from < start && start <= contentFrom) start = from;
+		else if (contentTo <= start && start < to) start = to;
+		if (contentTo <= end && end < to) end = to;
+		else if (from < end && end <= contentFrom) end = from;
+	}
+	const blocks = placed.filter(({ token }) => EXCERPT_BLOCKS.has(token.type));
+	const words = (block) => inline.filter(({ from, to }) => from >= block.from && to <= block.to);
+	const wordsFrom = (block) => words(block)[0]?.from ?? -Infinity;
+	const wordsTo = (block) => {
+		const held = words(block);
+		return held.length ? Math.max(...held.map(({ to }) => to)) : Infinity;
+	};
+	let first = blocks.findLast(({ from, to }) => from <= start && start < to);
+	let last = blocks.findLast(({ from, to }) => from < end && end <= to);
+	if (first && last && first !== last && end <= wordsFrom(last)) {
+		last = blocks.findLast(({ to }) => to <= last.from) ?? last;
+		end = Math.min(end, last.to);
+	}
+	if (first && last && first !== last && start >= wordsTo(first)) {
+		first = blocks.find(({ from }) => from >= first.to) ?? first;
+		start = Math.max(start, first.from);
+	}
+	const crosses = first !== last || first?.token.type === "table_open" && source.slice(start, end).includes("\n");
+	const fromStart = first && (crosses && SOLID_BLOCKS.has(first.token.type) || start <= wordsFrom(first));
+	const toEnd = last && (crosses && SOLID_BLOCKS.has(last.token.type) || end >= wordsTo(last));
+	if (crosses ? fromStart : fromStart && toEnd) start = first.from;
+	if (crosses ? toEnd : fromStart && toEnd) end = last.to;
+	const cut = marked.filter(({ token }) => !WHOLE_INLINE.has(token.markup));
+	const closing = ({ token, contentTo, to }) => token.type === "link_open" && !source.startsWith("](", contentTo) ? `](${token.attrGet("href")})` : source.slice(contentTo, to);
+	const rewrites = [...inline.filter(({ token }) => token.type === "softbreak" || token.type === "hardbreak").map(({ from, to }) => ({
+		from,
+		to,
+		text: source.slice(from, source.indexOf("\n", from) + 1)
+	})), ...cut.filter(({ token }) => token.type === "link_open").map((link) => ({
+		from: link.contentTo,
+		to: link.to,
+		text: closing(link)
+	}))].filter(({ from, to }) => start <= from && to <= end).sort((a, b) => a.from - b.from);
+	const between = (a, b) => {
+		let text = "";
+		let at = a;
+		for (const { from, to, text: rewritten } of rewrites) if (a <= from && to <= b) {
+			text += source.slice(at, from) + rewritten;
+			at = to;
+		}
+		return text + source.slice(at, b);
+	};
+	const indent = start === first?.from ? /^[ \t]*/.exec(source.slice(start))[0] : "";
+	const head = indent ? Math.min(end, first.to) : start;
+	return [
+		...cut.filter(({ contentFrom, contentTo }) => contentFrom < start && start < contentTo).map(({ from, contentFrom }) => source.slice(from, contentFrom)),
+		between(start, head).replace(new RegExp(`^[ \\t]{0,${indent.length}}`, "gm"), ""),
+		between(head, end),
+		...cut.filter(({ contentFrom, contentTo }) => contentFrom < end && end < contentTo).toReversed().map(closing)
+	].join("").replace(/^\n+/, "").trimEnd();
+}
+document.addEventListener("copy", (event) => {
+	const selection = document.getSelection();
+	if (!selection?.rangeCount || selection.isCollapsed || !markdownReady()) return;
+	const range = selection.getRangeAt(0);
+	const start = range.startContainer;
+	const body = (start instanceof Element ? start : start.parentElement)?.closest("[data-lf-source-words]:not([data-lf-markdown-words])");
+	if (!body) return;
+	const words = range.cloneRange();
+	if (!body.contains(range.endContainer)) words.setEnd(body, body.childNodes.length);
+	if (words.toString().trim() !== range.toString().trim()) return;
+	const rendered = document.createElement("div");
+	rendered.append(words.cloneContents());
+	event.clipboardData.setData("text/plain", markdownSourceExcerpt(body, words));
+	event.clipboardData.setData("text/html", rendered.innerHTML);
+	event.preventDefault();
+});
 const markdownReady = () => render !== escapedSource;
 const WEB_PROTOCOLS = /* @__PURE__ */ new Set([
 	"http:",
@@ -4333,6 +4438,7 @@ function proseReading(message) {
 			markdown,
 			html,
 			mediaHtml,
+			source: pasted.text,
 			plainText: renderedWords(html + mediaHtml)
 		});
 		renderedProse.set(key, reading);
@@ -4466,12 +4572,14 @@ function messageReading(message, { authoredRank = 0, reactions, workflows, leave
 			text: message.text ?? "",
 			html: prose?.html ?? "",
 			mediaHtml: prose?.mediaHtml ?? "",
+			source: prose?.source ?? "",
 			plainText: prose?.plainText ?? message.text ?? "",
 			drawing: Boolean(message.drawing),
 			token: message.token ?? null,
 			glyph: token?.glyph ?? "",
 			authored: message.body.kind === "authored"
 		}),
+		markdown: kind === "reaction" ? null : [message.text, message.markup].filter(Boolean).join("\n\n"),
 		authoredRank,
 		reactions
 	});
@@ -4480,6 +4588,7 @@ var MessageView = class {
 	#commands;
 	#model = null;
 	#reaction = null;
+	#copy = null;
 	#authored = null;
 	#authoredTake = 0;
 	#dressed = false;
@@ -4599,6 +4708,7 @@ var MessageView = class {
           ${model.body.drawing ? html`<span class="lf-drawing-reference">Drawing comment</span>` : nothing}
           ${holds ? keyed(this.#authoredTake, this.#authored) : nothing}
         </div>
+        ${model.markdown && !editing ? this.#copyControl(model.markdown) : nothing}
         ${strip} ${rewrite}
       `, this.node);
 		if (this.#authored && !this.#dressed) {
@@ -4639,12 +4749,28 @@ var MessageView = class {
 	get editing() {
 		return this.#editor !== null;
 	}
+	#copyControl(markdown) {
+		if (!this.#copy) {
+			this.#copy = copyControl("lf-msg-control lf-msg-copy", {
+				label: "Copy as Markdown",
+				success: "Message copied as Markdown",
+				error: "Message not copied · select its words to copy"
+			});
+			this.#copy.tabIndex = -1;
+		}
+		if (this.#copy.value !== markdown) this.#copy.value = markdown;
+		return this.#copy;
+	}
 	#body(body) {
 		if (body.kind === "reaction") return html`<div class="lf-msg-text">
         <span class="lf-react-said">${`${body.glyph} ${body.token}`.trim()}</span>
       </div>`;
 		if (body.kind === "suggestion") return html`<div class="lf-msg-text" .textContent=${body.text}></div>`;
-		return html`<div class="lf-msg-text" .innerHTML=${body.html}></div>
+		return html`<div
+        class="lf-msg-text"
+        data-lf-source-words=${body.source}
+        .innerHTML=${body.html}
+      ></div>
       ${body.mediaHtml ? html`<div class="lf-msg-media" .innerHTML=${body.mediaHtml}></div>` : nothing}`;
 	}
 	commit() {

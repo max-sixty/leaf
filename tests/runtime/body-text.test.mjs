@@ -75,6 +75,113 @@ test("a rendered Markdown caret keeps its exact source position in long and stru
   }
 });
 
+test("a copy of rendered Markdown reads back as Markdown that renders what was selected", async () => {
+  const { loadMarkdown, paintMarkdown, markdownSourceExcerpt } =
+    await import("/runtime/markdown.js");
+  await loadMarkdown();
+  // The range over rendered text from `words`' first character to its last.
+  const selecting = (body, words) => {
+    const from = body.textContent.indexOf(words);
+    assert.ok(from >= 0, words);
+    const range = document.createRange();
+    const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
+    let at = 0;
+    let started = false;
+    for (let node; (node = walker.nextNode()); at += node.data.length) {
+      if (!started && from <= at + node.data.length) {
+        range.setStart(node, from - at);
+        started = true;
+      }
+      if (started && from + words.length <= at + node.data.length) {
+        range.setEnd(node, from + words.length - at);
+        return range;
+      }
+    }
+    throw new Error(words);
+  };
+  for (const [source, cases] of [
+    [
+      "Say **bold *it*** and [a link](https://x.y) `code` <https://a.b> end",
+      [
+        ["it", "***it***"],
+        // Within a block, the markers of every construct an end falls inside.
+        ["ld i", "**ld *i***"],
+        ["it and a", "***it*** and [a](https://x.y)"],
+        ["od", "`od`"],
+        // An address copies whole.
+        ["a.b", "<https://a.b>"],
+      ],
+    ],
+    [
+      "# Title\n\n- one\n- two **three**\n\n> quoted\n\nlast",
+      [
+        ["itl", "itl"],
+        // A block covered whole takes its markers; a range across blocks takes them
+        // where it covers a block's first words.
+        ["Title", "# Title"],
+        ["two three", "- two **three**"],
+        ["ne\ntw", "ne\n- tw"],
+        ["one\ntwo th", "- one\n- two **th**"],
+        [
+          "Title\n\none\ntwo three\n\n\nquoted\n\nlast",
+          "# Title\n\n- one\n- two **three**\n\n> quoted\n\nlast",
+        ],
+      ],
+    ],
+    [
+      "```js\nlet x = 1;\n```\n\nafter",
+      [
+        ["x = 1", "x = 1"],
+        // A fence a range crosses goes whole.
+        ["1;\n\naft", "```js\nlet x = 1;\n```\n\naft"],
+      ],
+    ],
+    [
+      "| A | B |\n|---|---|\n| c | d |\n| e | f |",
+      [
+        ["c", "c"],
+        ["d\n\n\ne", "| A | B |\n|---|---|\n| c | d |\n| e | f |"],
+      ],
+    ],
+    [
+      "> first line\n> second\n\n- one\n    - inner item\n\nsee [the docs][d] now\n\n[d]: https://x.y/docs",
+      [
+        // A line break keeps no container prefix.
+        ["linesec", "line\nsec"],
+        // A block taken whole loses the indent that would read as code.
+        ["inner item", "- inner item"],
+        // A reference link takes its address inline.
+        ["the docs", "[the docs](https://x.y/docs)"],
+        ["docs now", "[docs](https://x.y/docs) now"],
+      ],
+    ],
+  ]) {
+    const body = document.createElement("div");
+    paintMarkdown(body, source);
+    for (const [words, markdown] of cases)
+      assert.equal(
+        markdownSourceExcerpt(body, selecting(body, words)),
+        markdown,
+        words,
+      );
+  }
+  // A triple click ends its range at the start of the next block, holding none of it.
+  const body = document.createElement("div");
+  paintMarkdown(body, "Lead:\n\n- one\n- two");
+  const range = document.createRange();
+  range.setStart(body.querySelector("p").firstChild, 0);
+  range.setEnd(body.querySelector("li").firstChild, 0);
+  assert.equal(markdownSourceExcerpt(body, range), "Lead:");
+  // The first block's indent goes, and a later fence's code keeps its own.
+  paintMarkdown(body, "- outer\n  - inner\n\n```\nif x:\n    y\n```");
+  const text = body.textContent;
+  const nested = text.slice(text.indexOf("inner"), text.lastIndexOf("y") + 1);
+  assert.equal(
+    markdownSourceExcerpt(body, selecting(body, nested)),
+    "- inner\n\n```\nif x:\n    y\n```",
+  );
+});
+
 test("Markdown body readings share file dialect, safe destinations and native structure", async () => {
   const { loadMarkdown, renderMarkdown, renderInlineMarkdown, renderedWords } =
     await import("/runtime/markdown.js");

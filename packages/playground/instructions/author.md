@@ -11,7 +11,7 @@ package (`references/packages.md`, "Package reach").
 
 Place each control next to the part of the preview it changes. A control that changes
 the whole preview, as most do, is a direct child of `lf-playground` and appears in the
-rail beside the preview, above the instruction. When the preview holds several items
+rail beside the preview, above the playground's actions. When the preview holds several items
 that each take their own settings, such as alerts that each need a threshold, write each
 item's controls inside `lf-playground-preview` beside that item, and leave only the
 settings every item shares in the rail. A control in the preview still belongs to the
@@ -21,7 +21,7 @@ Choose the playground's space by what the user needs to see and operate together
 (`references/page-authoring.md`, "Composing a page"). `data-width="available"` lets it
 break out of a reading column; a workspace gives it the window. Candidates the user
 compares fit the window together, each picture sized as
-`references/authoring-decisions.md` says. Shared controls stay in their rail on wide
+`references/authoring-on-me.md` says. Shared controls stay in their rail on wide
 layouts and above the preview on narrow layouts, where their own contents scroll if
 needed to leave room for the candidates. Controls authored beside an individual
 candidate stay beside it.
@@ -193,9 +193,11 @@ CSS in a `<style>` inside its template, keyed on the child's root, such as
 playground's properties and attributes from its first paint, including after Reset.
 
 The output is the instruction the agent receives. Write a complete task that names the
-object, where the change goes, and the evidence you want back. Use `lf-playground-value`
-only where a selected value makes the task more precise; the action sends every control
-in `detail.values` anyway. After submission, the button reads **Undo choice** while the
+object, where the change goes, and the evidence you want back. The user reads it only on
+request, from a button beside the playground's Reset and submit, so show in the preview
+or the controls whatever the user needs to see before submitting. Use
+`lf-playground-value` only where a selected value makes the task more precise; the
+action sends every control in `detail.values` anyway. After submission, the button reads **Undo choice** while the
 working values and instruction match the saved choice. Editing either restores the
 submit action; Undo withdraws the choice and keeps the working values.
 

@@ -14,7 +14,7 @@ import { raiseError } from "./errors.js";
 registerPageControl({
   key: "inspection",
   rank: PAGE_CONTROL_RANK.inspection,
-  label: "Page diagnostics",
+  label: "About this page",
   group: "page",
   press: () => {
     const intent = retainUserIntent();
@@ -22,7 +22,7 @@ registerPageControl({
       .then(({ openPageInspection }) => openPageInspection(intent))
       .catch((error) =>
         raiseError(
-          `Page diagnostics could not open: ${error.message}. Open the menu to retry.`,
+          `About this page could not open: ${error.message}. Open the menu to retry.`,
         ),
       );
   },

@@ -6,6 +6,11 @@
    - Each turn is one MessageView, which shows whether its version is unread and
      reports its exposure to read tracking (read.js), so a reply counts as read the same
      way in every reader.
+   - A message says its age only where that age, as displayed, changes from the
+     message shown just above it, and the first message always says it: a thread
+     written in one sitting reads one age, and one spanning days marks each change.
+     The user chose that on 26 October 2026 over an age after every author name,
+     which repeated one age down a thread written at once ("72d ago" four times).
    - A summary the agent wrote folds the turns it covers behind its checkpoint.
      Completed progress disappears when its answer shows, including a streaming answer.
      Each pending progress run stands behind a dim line showing its latest step
@@ -321,6 +326,31 @@ export class Transcript {
     const lead =
       rangeState.find((range) => range.kind === "message")?.message ??
       model.messages[0];
+    // The working message stands after the range holding the last message said before
+    // its words: as the face of that range where it is a progress run, else as a face
+    // of its own.
+    const workingAt = model.working
+      ? workingPlace(rangeState, model.working.after)
+      : -1;
+    // The messages that say their age: the first, and each whose age, as the reader
+    // reads it, differs from the message shown just above it. A checkpoint or a run's
+    // face between them parts them, so the message after one says its age too.
+    const dated = new Set();
+    let above = null;
+    for (const [at, range] of rangeState.entries()) {
+      const shown =
+        range.kind === "message"
+          ? [range.message]
+          : range.expanded
+            ? range.messages
+            : [];
+      if (range.kind !== "message") above = null;
+      for (const message of shown) {
+        if (message.age !== above) dated.add(message.key);
+        above = message.age;
+      }
+      if (range.summary?.pending || at === workingAt) above = null;
+    }
     for (const message of model.messages) {
       let view = this.#messages.get(message.key);
       if (!view)
@@ -330,6 +360,7 @@ export class Transcript {
         );
       view.present(message, {
         arrived,
+        dated: dated.has(message.key),
         headerControls: notice && message === lead ? notice : nothing,
       });
       // A reply still streaming at the thread's end grows at its foot as its words
@@ -352,12 +383,6 @@ export class Transcript {
     const checkpoints = new Map();
     const faces = new Map();
     const transcript = [];
-    // The working message stands after the range holding the last message said before
-    // its words: as the face of that range where it is a progress run, else as a face
-    // of its own.
-    const workingAt = model.working
-      ? workingPlace(rangeState, model.working.after)
-      : -1;
     let working = null;
     const facing = new Map();
     const face = (node, reading, controls) => {

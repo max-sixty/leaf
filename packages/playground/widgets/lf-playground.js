@@ -5,8 +5,12 @@
  * this module adopts that drawing and owns the live mechanics: working state,
  * tab-local persistence, CSS reflection, instruction copying, commands, and
  * the final recordless action. Intermediate changes never enter Leaf's event log.
- * The instruction's copy control is the one a code block floats at its corner
- * (`copyBlock`), standing at the instruction pane's.
+ * The instruction opens from its actions in a popover over the page, so reading it
+ * moves nothing the user set or pressed, in any Layout; the log never records it. The
+ * popover's head holds Leaf's copy control (`copyControl`). Rejected: unfolding
+ * the instruction in the pane, which had to grow below the bar in a flowing page and
+ * above it at the foot of a held workspace, and still moved the bar wherever a stage
+ * at its floor, a resize or a short window left it no room (2026-10-25).
  *
  * The playground owns the complete working configuration. Contributors declare a
  * named default and get an immutable slice handle; set replaces that slice. Required
@@ -37,10 +41,13 @@
 import {
   commands,
   compoundReadingRegionId,
-  copyBlock,
+  closeNativeLayer,
+  copyControl,
   focusDestination,
   layoutChanged,
   initialRender,
+  isNativeLayer,
+  keeps,
   keepsText,
   LeafElement,
   nothing,
@@ -48,6 +55,7 @@ import {
   registerReadingRegion,
   reachedForWords,
   says,
+  showNativeLayer,
   sizeObserver,
   tabStore,
   wear,
@@ -142,7 +150,7 @@ customElements.define(
     setup() {
       this.#build();
       this.#ready = true;
-      whileConnected(this, () => {
+      whileConnected(this, (signal) => {
         const stops = this.#regions.map((region) => registerReadingRegion(region));
         // The narrow layout places shared controls above the stage. Their actual
         // height is also the landing inset for its content and any sticky toolbar.
@@ -157,6 +165,18 @@ customElements.define(
           );
         });
         if (controls) observer.observe(controls.host);
+        // The instruction is a glance at the window's middle; a window changing width
+        // puts it away rather than reflowing it under the user, which also kept Web
+        // Awesome's copy icon re-measuring through the resize (a ResizeObserver loop).
+        // Height alone changes as a phone's toolbars come and go, which keeps it.
+        let width = innerWidth;
+        const putAway = () => {
+          const instruction = this.#initial.instruction;
+          if (innerWidth !== width && instruction && isNativeLayer(instruction))
+            closeNativeLayer(instruction);
+          width = innerWidth;
+        };
+        window.addEventListener("resize", putAway, { signal });
         this.#paintAvailability();
         return () => {
           observer.disconnect();
@@ -266,12 +286,42 @@ customElements.define(
             });
             this.#draw();
           });
-        // The pane's header holds the copy, since a pane holds one body between its
-        // header and footer; it floats at the pane's corner, beside the title.
-        const pane = this.#regions.find(({ name }) => name === "instruction").host;
-        pane
-          .querySelector(":scope > header")
-          .append(copyBlock(pane, () => this.#instruction(), "instruction"));
+        const { reveal, instruction } = initial;
+        // Leaf's copy control in the popover's head. A code block's (`copyBlock`) hides
+        // while its block is away and came back a frame or more after the popover
+        // opened, after a Tab had passed it by.
+        const copy = copyControl("lf-quiet-action lf-playground-copy", {
+          label: "Copy instruction",
+          success: "Instruction copied",
+          error: "Unable to copy instruction",
+        });
+        copy.addEventListener(
+          "click",
+          () => {
+            copy.value = this.#instruction();
+          },
+          { capture: true },
+        );
+        instruction.firstElementChild.append(copy);
+        // A press on the reveal while the instruction is open lands outside it, and
+        // the popover's light dismiss closes it before the click: the press closes it.
+        // A key's click (`detail` 0) reads only the popover, since a press dragged off
+        // the reveal leaves no click to clear what it saw.
+        let openAtPress = false;
+        reveal.addEventListener("pointerdown", () => {
+          openAtPress = isNativeLayer(instruction);
+        });
+        reveal.addEventListener("click", (event) => {
+          const open = (event.detail > 0 && openAtPress) || isNativeLayer(instruction);
+          openAtPress = false;
+          if (open) closeNativeLayer(instruction);
+          // Tab goes on from the reveal into the instruction it opened, to its copy.
+          else showNativeLayer(instruction, { source: reveal });
+        });
+        instruction.addEventListener("toggle", (event) => {
+          keeps(reveal, "aria-expanded", event.newState === "open");
+          paintKeys();
+        });
         this.addEventListener("mousedown", (event) => {
           const target = /** @type {Element} */ (event.target);
           if (target.closest(".lf-playground-control-label")) return;
@@ -452,7 +502,7 @@ customElements.define(
     #instruction() {
       return says(this.#output)
         .replace(/\s+/g, " ")
-        .replace(/\s+([,.;:!?])/g, "$1")
+        .replace(/\s+([,.;:!?])(?=\s|$)/g, "$1")
         .trim();
     }
 

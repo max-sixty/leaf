@@ -2,14 +2,14 @@ import { Z, bindQueuedWork, d, q, x } from "./bundle-signals-core.js";
 import { TEXT_FIELD, afterScript, byRenderedOrder, canPlaceFocus, closeLayer, composedParentNode, deepFocus, drawn, focusDestination, focused, frameVisibility, handBack, holdFocus, holdRendering, inputCount, isNativeLayer, keeps, keepsHidden, move, nextRender, onCurrentLocation, onFrameVisibility, onUserInput, openLayer, openerOf, readSampleVisibility, renderedOrder, renderedParent, renderedUnder, shadowHost, sizeObserver, takesLetters, under, upFrom, whenLeft } from "./bundle-dom-move.js";
 import { admitResponse, completeData, countTraffic, dataHeaders, layerHeaders, postEvent, randomId, recordInteraction, removeRuntimeRootStyle, reportCarried, reportPageError, sameLayer, sessionIsActive, setRuntimeRootStyle, watchPendingTraffic } from "./bundle-layer-client.js";
 import { clamp, clippedContents, clipsPastSurfaces, closeNativeLayer, growthIsSeen, hasArea, intersect, layoutWindow, matchesWhen, placeBox, placeHolder, presented, registry, seenRect, shadowRootsIn, showNativeLayer, shownWindow, tagsDeclaring, union, watchOwner, watchRoom, whenNone, whileConnected } from "./bundle-geometry.js";
-import { LitElement, PENDING, PRESENTATION_DOM, actionForWidget, agentLabel, anchorKey, annotationMode, applicationPresenter, applicationState, attachApplicationPresentation, attachWidgetPresentation, discussed, documentChanged, editable, isMessageEvent, isThreadEvent, moved, offlineInteractive, offlineState, pageUrl, presentDocument, projectionOrigins, queueWidgetUpdate, reactionsAt, readApplication, readPart, render, runtime, setPresentationFailureReporter, stateCoordinate, threadKey, tokenChoices, turns, watchPresentation, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented } from "./bundle-context.js";
-import { PRESS, TEXT_ENTRY, announce, claimsEsc, cycledRow, el, generatedElement, holdingError, iconElement, keys, notice, offer, paintKeys, paintKeysWithin, raiseError, repaint, responseAction, reveal as reveal$1, rowArrows, savedReadingSettled, saying } from "./bundle-errors.js";
+import { DRAFT_FORMAT, LitElement, PENDING, PRESENTATION_DOM, actionForWidget, anchorKey, annotationMode, applicationPresenter, applicationState, attachApplicationPresentation, attachWidgetPresentation, discussed, documentChanged, drawingSchema, editable, isMessageEvent, isThreadEvent, moved, offlineInteractive, offlineState, pageUrl, presentDocument, projectionOrigins, queueWidgetUpdate, reactionsAt, readApplication, readPart, render, runtime, setPresentationFailureReporter, stateCoordinate, threadKey, tokenChoices, turns, watchPresentation, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented } from "./bundle-context.js";
+import { PRESS, TEXT_ENTRY, announce, claimsEsc, cycledRow, el, generatedElement, holdingError, keys, notice, offer, offerAction, paintKeys, paintKeysWithin, raiseError, repaint, responseAction, reveal as reveal$1, rowArrows, savedReadingSettled, saying } from "./bundle-errors.js";
 import { activityTransitionDue, ago, markStateApplied, moveScrollerBy, observeServerNow, observeWorkingGrace, reachScrollers, readingRegionFor, saidNow, settlePageInterface, syncLayoutRegion, tickClock } from "./bundle-reading-regions.js";
 import { awaitsData, bindsInput, comparisonBase, comparisonChanges, createProjectionPresentation, dataReader, inlineComparison, joinDataDelivery, suppliedSnapshot, toggleInlineComparison } from "./bundle-data.js";
 import { closestAcross, elementById, excerptWords, inChrome, labelWords, leafSurface, pageParts, pageReadingVersion, quoteFrom, textNodesUnder } from "./bundle-passages.js";
 import { addressableLabel, addressableWord, anchorForRange, anchoringIsReady, commitPoint, declaredName, livePoint, scheduleMarginContentLayout, sectionOf, targetSegments, visualPartLabel, widgetWord } from "./bundle-content-layout.js";
 import { alreadyShown, fitsWhole, restrictUserIntent, retainUserIntent, scrollIntoReadingBand, scrollIntoView } from "./bundle-copy-control.js";
-import { HOLDS_WORD, HeldNews, MessageView, SAYS_IN, THREAD, ThreadView, Transcript, allButCommandReference, allThreads, anchorLabel, answeredInWords, authoredHolder, beginThreadSeats, beginWalk, bringBackSurfaceOf, claimed, clearDraft, commitThreadSeats, completeReadingReturn, createReplyView, declareSide, dismissReplyAt, draftContexts, drawnThreadId, focusThread, focusedThreadTarget, heldOut, heldThread, holdReplyCompositions, holdThreadPlace, importWidgets, isPageWidgetWorkflow, isWorkflowProgress, keepRefusedWords, listWalkPosition, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, messageHolding, messageReading, messageText, mountFirstMessage, newsNotice, obligationHolding, obligationPlace, openMessageEditIn, pageCommand, pageScope, pageSelection, placeOf as placeOf$1, placePageThreads as placePageThreads$1, placedMarkdownTokens, prepareAuthoredMessage, readObligations, readThreads, readingReturn, registerWritingDestination, rememberWriting, renderMarginThread, renderSeats, renderSurfaces, replyAvailable, replyDraftContext, replyThreadKey, retainThreadSeats, revealHeld, saveDraft, sendLanding, sendMessage, settleAcceptedDrafts, showHeld, showHeldThread, strongestWorkflow, surfaceFocusTarget, threadDraft, threadIdNamed, threadList, threadName, threadNamed, threadPart, threadReading, threadReplyInput, threadRewrites, threadState, todoLabel, transferDraft, watchDraft, watchDrafts, watchThreadSurfaces, wholeThread, workflowLabel } from "./bundle-surfaces.js";
+import { HOLDS_WORD, HeldNews, MessageView, SAYS_IN, THREAD, ThreadView, Transcript, allButCommandReference, allThreads, anchorLabel, answeredInWords, authoredHolder, beginThreadSeats, beginWalk, bringBackSurfaceOf, claimed, clearDraft, commitThreadSeats, completeReadingReturn, createReplyView, declareSide, dismissReplyAt, draftContexts, drawnThreadId, focusThread, focusedThreadTarget, heldOut, heldThread, holdReplyCompositions, holdThreadPlace, importWidgets, isPageWidgetWorkflow, isWorkflowProgress, keepRefusedWords, listWalkPosition, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, messageHolding, messageReading, messageText, mountFirstMessage, newsNotice, obligationHolding, obligationPlace, openMessageEditIn, pageCommand, pageScope, pageSelection, placeOf as placeOf$1, placePageThreads as placePageThreads$1, placedMarkdownTokens, prepareAuthoredMessage, readObligations, readThreads, readingReturn, registerWritingDestination, rememberWriting, renderMarginThread, renderSeats, renderSurfaces, replyAvailable, replyDraftContext, replyThreadKey, retainThreadSeats, revealHeld, saveDraft, sendLanding, sendMessage, settleAcceptedDrafts, showHeld, showHeldThread, strongestWorkflow, surfaceFocusTarget, threadDraft, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading, threadReplyInput, threadRewrites, threadState, todoLabel, transferDraft, watchDraft, watchDrafts, watchThreadSurfaces, wholeThread, workflowLabel } from "./bundle-surfaces.js";
 import { aborted, authoredStates, commitWidgetDescriptors, descriptorStillMatches, failSoft, failSoftUnreported, once, orderChildren, placesFailure, quoted as quoted$1, reportFailure, setChildren, widgetDescriptor } from "./bundle-abort.js";
 import { scrollBehavior } from "./bundle-motion.js";
 import { isCanonicalMediaUrl, scopedMediaUrl } from "./bundle-media.js";
@@ -171,18 +171,18 @@ function createDelivery({ ledger, applyAcceptedState, settleRejected, settlement
 			const sent = await Promise.race([postEvent(event, held).then((response) => ({ response }), (error) => ({ error })), entry.read.then((accepted) => ({ accepted }))]);
 			if (sent.accepted) return { accepted: sent.accepted };
 			if (sent.error) {
-				await retry(runtime.keyRefused ? "Key refused — open Leaf's link in a new tab and the change will send" : "Connection lost — keep this page open while it retries");
+				await retry(runtime.keyRefused ? "This tab lost access — open the link again in a new tab and this goes through" : "Lost the connection — keep this page open and this goes through");
 				continue;
 			}
 			if (!sent.response) return { accepted: null };
 			if (sent.response.status === 503) {
-				await retry("The server isn't ready yet — retrying the change…");
+				await retry("Not through yet — trying again…");
 				continue;
 			}
 			const decoded = await Promise.race([sent.response.json().then((answer) => ({ answer }), (error) => ({ error })), entry.read.then((accepted) => ({ accepted }))]);
 			if (decoded.accepted) return { accepted: decoded.accepted };
 			if (decoded.error) {
-				await retry("Couldn't read the answer — retrying the change…");
+				await retry("Not through yet — trying again…");
 				continue;
 			}
 			const answer = decoded.answer;
@@ -196,9 +196,9 @@ function createDelivery({ ledger, applyAcceptedState, settleRejected, settlement
 			if (refusedAnswer(answer) && (!("attempt" in answer) || answer.attempt === event.attempt)) return {
 				accepted: null,
 				state: completeData(answer.state, held),
-				refusal: `Couldn't ${event.kind === "edit" ? "save edit" : "send"} — ${answer.error || "the server refused it"}`
+				refusal: `Couldn't ${event.kind === "edit" ? "save the edit" : "take this"} — ${answer.error || "it was refused"}`
 			};
-			await retry("Server answer was incomplete — retrying the change…");
+			await retry("Not through yet — trying again…");
 		}
 	}
 	async function drain() {
@@ -259,125 +259,6 @@ async function deliverBookkeeping(event, applyState) {
 }
 
 //#endregion
-//#region runtime/composing/drawing-schema.js
-const drawingSchema = {
-	"type": "object",
-	"properties": {
-		"strokes": {
-			"type": "array",
-			"minItems": 1,
-			"maxItems": 32,
-			"items": {
-				"type": "array",
-				"minItems": 2,
-				"maxItems": 256,
-				"items": {
-					"type": "array",
-					"minItems": 2,
-					"maxItems": 2,
-					"prefixItems": [{
-						"type": "number",
-						"minimum": -33554432,
-						"maximum": 33554432
-					}, {
-						"type": "number",
-						"minimum": -33554432,
-						"maximum": 33554432
-					}],
-					"items": false
-				}
-			}
-		},
-		"box": {
-			"type": "array",
-			"minItems": 2,
-			"maxItems": 2,
-			"prefixItems": [{
-				"type": "number",
-				"exclusiveMinimum": 0,
-				"maximum": 33554432
-			}, {
-				"type": "number",
-				"exclusiveMinimum": 0,
-				"maximum": 33554432
-			}],
-			"items": false
-		},
-		"frame": {
-			"type": "object",
-			"properties": {
-				"root": {
-					"type": "string",
-					"maxLength": 128,
-					"pattern": "^[A-Za-z][A-Za-z0-9_.:-]*$"
-				},
-				"path": {
-					"type": "array",
-					"maxItems": 32,
-					"items": {
-						"type": "object",
-						"properties": {
-							"tag": {
-								"type": "string",
-								"maxLength": 128,
-								"pattern": "^[A-Za-z][A-Za-z0-9_.:-]*$"
-							},
-							"index": {
-								"type": "integer",
-								"minimum": 0,
-								"maximum": 65535
-							},
-							"siblings": {
-								"type": "integer",
-								"minimum": 1,
-								"maximum": 65536
-							},
-							"shadow": { "type": "boolean" }
-						},
-						"required": [
-							"tag",
-							"index",
-							"siblings"
-						],
-						"additionalProperties": false
-					}
-				}
-			},
-			"required": ["root", "path"],
-			"additionalProperties": false
-		},
-		"says": {
-			"type": "string",
-			"minLength": 1,
-			"maxLength": 500
-		},
-		"viewport": {
-			"type": "array",
-			"minItems": 2,
-			"maxItems": 2,
-			"prefixItems": [{
-				"type": "number",
-				"exclusiveMinimum": 0,
-				"maximum": 33554432
-			}, {
-				"type": "number",
-				"exclusiveMinimum": 0,
-				"maximum": 33554432
-			}],
-			"items": false
-		},
-		"scheme": { "enum": ["light", "dark"] }
-	},
-	"required": [
-		"strokes",
-		"box",
-		"viewport",
-		"scheme"
-	],
-	"additionalProperties": false
-};
-
-//#endregion
 //#region runtime/composing/drawing-record.js
 const FIELDS = drawingSchema.properties;
 const MAX_DRAWING_STROKES = FIELDS.strokes.maxItems;
@@ -389,10 +270,6 @@ function sentDrawing(drawing) {
 	const { at, ...sent } = drawing;
 	return sent;
 }
-
-//#endregion
-//#region runtime/protocol.js
-const DRAFT_FORMAT = "leaf-draft/17";
 
 //#endregion
 //#region runtime/editor-view.js
@@ -555,8 +432,11 @@ sheet.replaceSync(`
      reaches 2px past that box, the caret's width at a line's end: Firefox paints the
      caret from its offset onward and pulls it inside only a scroll container, so a
      caret after a line that fills the box, as a trailing space can, was
-     cut away whole. */
-  .lf-field { overflow: clip; overflow-clip-margin: 2px; }
+     cut away whole. Words an owner carries down from above the box, as a line removed
+     carries them, need more: it sets --lf-field-reach as far as they travel, and
+     stops the host scrolling meanwhile. Chrome refuses calc() here, so the reach
+     replaces the caret's margin rather than adding to it. */
+  .lf-field { overflow: clip; overflow-clip-margin: var(--lf-field-reach, 2px); }
   .lf-field > * {
     translate: var(--lf-field-carry);
     clip-path: inset(var(--lf-field-cut));
@@ -626,7 +506,10 @@ sheet.replaceSync(`
     fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round;
     stroke-linejoin: round; overflow: visible; user-select: none;
     -webkit-user-select: none; }
-  /* Code with no fence lines takes the message's padding at its ends instead. */
+  /* A fence's line, while the caret is away from it, stands for the sent pre's padding,
+     and code with no fence lines takes that padding at its ends instead. A field that
+     edits in place reads its display's padding over this (\`readFaces\`). */
+  .lf-face-fence-open, .lf-face-fence-close { line-height: var(--pre-pad-block); }
   .lf-md-code-bare.lf-md-code-first { padding-block-start: var(--pre-pad-block); }
   .lf-md-code-bare.lf-md-code-last { padding-block-end: calc(var(--pre-pad-block) + 8px); }
 `);
@@ -1076,11 +959,31 @@ var LeafText = class extends HTMLElement {
 					return false;
 				}),
 				this.#history.of(history()),
+				EditorState.transactionFilter.of((tr) => {
+					if (!tr.docChanged || !this.#oneLine) return tr;
+					const breaks = [];
+					tr.changes.iterChanges((_fromA, _toA, fromB, _toB, inserted) => {
+						const text = inserted.toString();
+						for (let at = text.indexOf("\n"); at !== -1; at = text.indexOf("\n", at + 1)) breaks.push({
+							from: fromB + at,
+							to: fromB + at + 1,
+							insert: " "
+						});
+					});
+					return breaks.length ? [tr, {
+						changes: breaks,
+						sequential: true
+					}] : tr;
+				}),
 				invertedEffects.of((tr) => tr.effects.filter((effect) => effect.is(ownerStep)).map(({ value }) => ownerStep.of({
 					run: value.back,
 					back: value.run
 				}))),
 				keymap.of([
+					{
+						key: "Shift-Enter",
+						run: () => this.#oneLine
+					},
 					{
 						key: "Enter",
 						run: (view) => this.dispatchEvent(new Event("lf-edit-return", { cancelable: true })) && insertNewline(view)
@@ -1133,7 +1036,6 @@ var LeafText = class extends HTMLElement {
 		const wanted = {
 			...this.#contentAttributes(),
 			role: "textbox",
-			"aria-multiline": "true",
 			contenteditable: "plaintext-only",
 			...this.#readOnly && { "aria-readonly": "true" }
 		};
@@ -1237,11 +1139,15 @@ var LeafText = class extends HTMLElement {
 		if (this.#view) this.#view.dispatch(spec);
 		else this.#model = this.#model.update(spec).state;
 	}
+	get #oneLine() {
+		return this.getAttribute("aria-multiline") === "false";
+	}
 	#contentAttributes() {
 		const attributes = {
 			spellcheck: "true",
 			autocorrect: "on",
-			autocapitalize: "sentences"
+			autocapitalize: "sentences",
+			"aria-multiline": String(!this.#oneLine)
 		};
 		if (this.placeholder) attributes["aria-placeholder"] = this.placeholder;
 		const label = this.getAttribute("aria-label");
@@ -1389,11 +1295,7 @@ const fabSuggest = responseAction(el("button", "lf-ui lf-fab-suggest"), {
 	collapse: true
 });
 fabOptions.append(fabSuggest);
-const fabOptionsTrigger = el("button", "lf-ui lf-icon-action lf-response-trigger");
-fabOptionsTrigger.type = "button";
-fabOptionsTrigger.title = "Other responses";
-fabOptionsTrigger.append(iconElement("more", "lf-action-icon"));
-fabOptionsTrigger.setAttribute("aria-label", "Other responses");
+const fabOptionsTrigger = offerAction("symbol", "lf-response-trigger", "Other responses", { icon: "more" });
 fabOptionsTrigger.setAttribute("aria-controls", fabOptions.id);
 fabOptionsTrigger.setAttribute("aria-expanded", "false");
 fabOptionsTrigger.popoverTargetElement = fabOptions;
@@ -1402,9 +1304,10 @@ const composer = el("div", "lf-ui lf-composer");
 composer.id = "lf-composer";
 const composerQuote = el("blockquote", "lf-ui lf-quote detached");
 composerQuote.id = "lf-composer-quote";
+composerQuote.hidden = true;
 const composerInput = fabInput;
 composerInput.setAttribute("aria-describedby", composerQuote.id);
-const composerSend = el("button", "lf-btn", "Comment");
+const composerSend = el("button", "", "Comment");
 const composerField = document.createDocumentFragment();
 composerField.append(composerInput);
 composer.append(composerQuote, composerSend);
@@ -2786,6 +2689,7 @@ const KEYS_HELD = /* @__PURE__ */ new Set([
 	"CapsLock",
 	"Fn"
 ]);
+const UNDO_KEYS = ["z"];
 function createUndo({ post, stateApplying, unaccountedGesture, openThread, threadPlace }) {
 	const gestures = /* @__PURE__ */ new Map();
 	function retainGesture(attempt, facts) {
@@ -2820,25 +2724,17 @@ function createUndo({ post, stateApplying, unaccountedGesture, openThread, threa
 			raiseError(WAIT);
 			return null;
 		}
-		const reverse = gestures.get(event.attempt)?.reverse;
 		const taken = takes(event);
-		const mayLand = retainUserIntent();
-		const answer = post({
+		return post({
 			kind: "undo",
 			undoes: event.id
 		}).then((accepted) => {
 			if (accepted) {
-				notice(`Undid: ${taken} — sent`);
+				notice(`Undid: ${taken}`);
 				gestures.delete(event.attempt);
 			}
 			return accepted;
 		});
-		if (reverse) answer.then(async (accepted) => {
-			if (!accepted) return;
-			await whenDocumentPresented();
-			await reverse(mayLand);
-		}).catch(() => {});
-		return answer;
 	}
 	let armed = null;
 	function disarm() {
@@ -2846,25 +2742,48 @@ function createUndo({ post, stateApplying, unaccountedGesture, openThread, threa
 		armed = null;
 	}
 	onUserInput((event) => {
-		if (!armed || event.type === "wheel" || event.type === "blur") return;
-		if (event.type === "keydown" && (event.repeat || KEYS_HELD.has(event.key))) return;
+		if (!armed || event.type === "blur") return;
+		if (event.type === "wheel" && !armed.returns) return;
+		if (event.type === "keydown" && (event.repeat || KEYS_HELD.has(event.key) || UNDO_KEYS.includes(event.key))) return;
 		if ((event.type === "pointerdown" || event.type === "touchstart") && inChrome(event.composedPath()[0])) return;
 		armed.inputs.push(inputCount());
 		if (armed.inputs.length > 1) disarm();
 	});
-	const armedFor = (event) => armed?.id === event.id && armed.shown && armed.inputs.every((input) => input === inputCount());
+	const armedFor = (event) => Boolean(armed?.is(event)) && armed.shown && armed.inputs.every((input) => input === inputCount());
+	function landedAway(attempt) {
+		disarm();
+		armed = {
+			is: (event) => event.attempt === attempt,
+			stop: () => {},
+			inputs: [],
+			shown: true,
+			returns: true
+		};
+	}
 	const drawingsOf = (id) => [...[...document.querySelectorAll(THREAD)].filter((node) => drawnThreadId(node) === id), surfaceFocusTarget(id, { part: "thread" })];
 	const inView = (place) => [...place.thread ? [threadPlace(place.thread), ...drawingsOf(place.thread)] : [], ...place.nodes].some(seen);
 	function needsShowing(entry) {
 		if (entry.picked_up) return true;
-		if (gestures.get(entry.event.attempt)?.reverse) return false;
 		const place = placeOf(entry.event);
 		return Boolean(place) && !inView(place);
 	}
-	async function show(event) {
+	async function returnToThread(id, intent) {
+		const seated = drawingsOf(id).find((node) => node && !inChrome(node) && seen(node));
+		if (!seated) return openThread(id, {
+			part: "thread",
+			intent
+		});
+		intent.handoff(() => focusDestination(seated, "move"));
+		return seated;
+	}
+	async function show(event, intent = retainUserIntent()) {
 		const place = placeOf(event);
 		if (!place) return [];
-		if (place.thread) return [await openThread(place.message ?? place.thread, { part: place.message ? "message" : "thread" }), ...place.nodes].filter(Boolean);
+		if (place.message) return [await openThread(place.message, {
+			part: "message",
+			intent
+		}), ...place.nodes].filter(Boolean);
+		if (place.thread) return [await returnToThread(place.thread, intent)].filter(Boolean);
 		const url = new URL(window.location.href);
 		url.hash = place.fragment;
 		if (window.navigation) await window.navigation.navigate(url.href).finished.catch(() => {});
@@ -2875,10 +2794,11 @@ function createUndo({ post, stateApplying, unaccountedGesture, openThread, threa
 		disarm();
 		let stop = () => {};
 		const current = {
-			id: event.id,
+			is: (other) => other.id === event.id,
 			stop: () => stop(),
 			inputs: [],
-			shown: false
+			shown: false,
+			returns: false
 		};
 		armed = current;
 		notice(`Press again to undo: ${takes(event)}`);
@@ -2903,17 +2823,23 @@ function createUndo({ post, stateApplying, unaccountedGesture, openThread, threa
 		}
 		const event = undoable();
 		if (!event) return null;
-		if (!armedFor(event) && needsShowing(runtime.undo[0])) {
+		const [entry] = runtime.undo;
+		const taking = armedFor(event) && !(armed.returns && entry.picked_up);
+		if (!taking && needsShowing(entry)) {
 			arm(event);
 			return null;
 		}
+		const returning = taking && armed.returns && retainUserIntent();
+		const answer = withdraw(event);
+		if (!answer) return null;
 		disarm();
-		return withdraw(event);
+		if (returning) whenDocumentPresented().then(() => show(event, returning)).catch(() => {});
+		return answer;
 	}
 	pageCommand({
 		id: "history.undo",
 		ready: savedReadingSettled,
-		keys: ["z"],
+		keys: UNDO_KEYS,
 		description: () => head() ? `Undo: ${takes(head())}` : "Undo the latest update",
 		title: "undo",
 		touch: () => head() ? `Undo: ${said(head())}` : "Undo",
@@ -2923,6 +2849,8 @@ function createUndo({ post, stateApplying, unaccountedGesture, openThread, threa
 		run: (...args) => undoLast(...args)
 	});
 	return {
+		landedAway,
+		returnToThread,
 		retainGesture,
 		undoable,
 		undoLast,
@@ -3310,21 +3238,24 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 		const thread = allThreads().find((candidate) => candidate.id === id);
 		return thread ? threadPlace(thread, placedAt) : null;
 	};
-	const threadHere = () => {
-		const held = heldThread();
+	const threadHere = (active = focused()) => {
+		const held = threadIn(active);
 		if (held) return held;
 		const shown = preview?.accompanied() ?? null;
-		const active = focused();
 		if (!active || active === document.body) return shown;
 		const ids = threadIdsAt(active);
 		const drawn = [shown, ...ids.map((id) => surfaceFocusTarget(id, { part: "thread" }))].filter((thread) => thread && ids.includes(drawnThreadId(thread)));
 		return drawn.length === 1 ? drawn[0] : null;
 	};
-	const threadAtCurrentLocation = () => {
-		const here = drawnThreadId(threadHere());
+	let lastIn = null;
+	onCurrentLocation((node) => {
+		lastIn = drawnThreadId(threadIn(node)) ?? lastIn;
+	});
+	const threadAtCurrentLocation = (active = focused()) => {
+		const here = drawnThreadId(threadHere(active));
 		if (here) return here;
-		const active = focused();
-		return (active && threadIdsAt(active)[0]) ?? null;
+		const ids = active ? threadIdsAt(active) : [];
+		return (ids.includes(lastIn) ? lastIn : ids[0]) ?? null;
 	};
 	const replyThreadAtCurrentLocation = () => {
 		const id = threadAtCurrentLocation();
@@ -4380,8 +4311,8 @@ const threadBox$1 = (el, hint, { createComment, onDraftChanged, wireInput }) => 
 	const row = offer("div", "lf-say lf-comment-box");
 	const ta = offer(TEXT_FIELD);
 	ta.name = "comment";
-	const send = offer("button", "lf-btn", "Send");
-	const hold = declaration.hold ? offer("button", "lf-btn", declaration.hold) : null;
+	const send = offer("button", "", "Send");
+	const hold = declaration.hold ? offerAction("word", "", declaration.hold) : null;
 	const ctx = "say:" + el.id;
 	ta.value = loadDraft(ctx) ?? "";
 	ta.setAttribute("aria-label", hint);
@@ -4407,7 +4338,7 @@ const threadBox$1 = (el, hint, { createComment, onDraftChanged, wireInput }) => 
 			sendComment(raw, owns);
 		},
 		altSend: hold ? (_text, raw, owns) => {
-			if (sendComment(raw, owns, true)) notice("Message sent — goal paused");
+			if (sendComment(raw, owns, true)) notice("Replied — goal paused");
 		} : null
 	});
 	sync();
@@ -4436,8 +4367,7 @@ function semanticNewsReading(root) {
 	return {
 		obligations: view.obligations,
 		thread: view.thread,
-		workflows: state.workflows,
-		activity: state.activity
+		workflows: state.workflows
 	};
 }
 function unreadContent(threadView) {
@@ -4458,7 +4388,8 @@ function userObligations(items) {
 		];
 		held.set(JSON.stringify(key), {
 			source: item.id,
-			thread: item.thread
+			thread: item.thread,
+			message: item.message
 		});
 	}
 	return held;
@@ -4481,20 +4412,16 @@ function responseFailures(workflows) {
 	}
 	return failures;
 }
-const agentAvailable = (activity) => activity.held && ["listening", "working"].includes(activity.kind);
 function observeSemanticNews(prior, reading) {
 	const content = unreadContent(reading.thread);
 	const obligations = userObligations(reading.obligations);
 	const failures = responseFailures(reading.workflows);
-	const available = agentAvailable(reading.activity);
 	const first = prior === null;
 	const observed = {
 		content: new Set(prior?.content),
 		failures: new Set(prior?.failures),
 		obligations: new Set(obligations.keys()),
-		obligationEpisodes: new Map(prior?.obligationEpisodes),
-		available,
-		availabilityEpisode: prior?.availabilityEpisode ?? 0
+		obligationEpisodes: new Map(prior?.obligationEpisodes)
 	};
 	const news = [];
 	for (const { thread, message, version } of content) {
@@ -4528,13 +4455,6 @@ function observeSemanticNews(prior, reading) {
 			...obligation
 		});
 	}
-	if (available && !prior?.available) {
-		observed.availabilityEpisode += 1;
-		if (!first) news.push({
-			kind: "agent_available",
-			key: `agent-available:${observed.availabilityEpisode}`
-		});
-	}
 	return {
 		observed,
 		news
@@ -4555,7 +4475,6 @@ function currentSemanticNews(news, reading, observed) {
 				}] : [];
 			}
 			case "user_obligation": return obligations.has(item.sourceKey) && item.episode === observed.obligationEpisodes.get(item.sourceKey) ? [item] : [];
-			case "agent_available": return agentAvailable(reading.activity) && item.key === `agent-available:${observed.availabilityEpisode}` ? [item] : [];
 			default: throw new Error(`Unknown semantic news kind ${item.kind}`);
 		}
 	});
@@ -4564,31 +4483,30 @@ function combineSemanticNews(older, newer) {
 	return [...new Map([...older, ...newer].map((item) => [item.key, item])).values()];
 }
 const plural = (count, singular, pluralForm = `${singular}s`) => `${count} ${count === 1 ? singular : pluralForm}`;
+const MESSAGE_WORDS = 60;
 function semanticNewsNotice(news) {
 	if (!news.length) return "";
 	const byKind = (kind) => news.filter((item) => item.kind === kind);
 	const content = byKind("agent_content");
 	const failures = byKind("response_failure");
-	const obligations = byKind("user_obligation");
-	const availability = byKind("agent_available");
+	let obligations = byKind("user_obligation");
 	const clauses = [];
 	if (content.length === 1) {
 		const { message } = content[0];
-		const { agent } = message;
-		const verb = message.kind === "reply" ? "reply" : "comment";
-		clauses.push(message.edited ? `${agent} edited a ${verb}` : `${agent} ${verb === "reply" ? "replied" : "commented"}`);
+		obligations = obligations.filter((item) => item.message !== message.id);
+		const words = excerptWords(message.text, MESSAGE_WORDS);
+		clauses.push(words ? message.edited ? `Edited: ${words}` : words : message.kind === "reply" ? "Replied" : "Commented");
 	} else if (content.length) {
 		const replies = content.filter(({ message }) => message.kind === "reply");
 		const threads = new Set(content.map((item) => item.thread)).size;
 		clauses.push(replies.length === content.length ? `${plural(content.length, "reply", "replies")} in ${plural(threads, "thread")}` : `${plural(content.length, "agent message")} in ${plural(threads, "thread")}`);
 	}
-	for (const condition of ["failed", "interrupted"]) {
-		const count = failures.filter((item) => item.condition === condition).length;
-		if (count) clauses.push(count === 1 ? `Response ${condition}` : `${plural(count, "response")} ${condition}`);
-	}
-	if (obligations.length) clauses.push(obligations.length === 1 ? "Input needed" : `${obligations.length} waiting on me`);
-	if (availability.length) clauses.push(`${agentLabel()} active on this page`);
-	return clauses.join("; ");
+	const failed = failures.filter((item) => item.condition === "failed").length;
+	const interrupted = failures.filter((item) => item.condition === "interrupted").length;
+	if (failed) clauses.push(failed === 1 ? "Couldn't answer" : `Couldn't answer ${failed}`);
+	if (interrupted) clauses.push(interrupted === 1 ? "Interrupted mid-answer" : `Interrupted on ${interrupted}`);
+	if (obligations.length) clauses.push(obligations.length === 1 ? "New on me" : `${obligations.length} new on me`);
+	return clauses.join(" · ");
 }
 
 //#endregion
@@ -4683,13 +4601,16 @@ function createStateApplication({ prepareActivation, acceptData, notifyDataSubsc
 				presentedNewsReading = semanticNewsReading(readApplication());
 				const reading = observeSemanticNews(observedSemanticNews, presentedNewsReading);
 				observedSemanticNews = reading.observed;
-				if (reading.news.length) {
+				if (reading.news.length) announce(semanticNewsNotice(reading.news));
+				const shown = reading.news.filter((item) => item.kind !== "agent_content");
+				if (shown.length) {
 					const format = (value) => semanticNewsNotice(currentSemanticNews(value, presentedNewsReading, observedSemanticNews));
-					notice(format(reading.news), {
+					notice(format(shown), {
 						background: true,
+						announce: false,
 						group: {
 							key: "semantic-news",
-							value: reading.news,
+							value: shown,
 							combine: combineSemanticNews,
 							format
 						}
@@ -5008,7 +4929,7 @@ function mountApplication(dependencies) {
 	const refreshThread = () => presentThread().catch(() => void 0);
 	function afterEnqueue(entry) {
 		try {
-			if (isMessageEvent(entry.event)) announce("Message sent");
+			if (isMessageEvent(entry.event)) announce("Message added");
 			if (entry.event.kind === "edit") announce("Message edited");
 		} catch (error) {
 			reportPageError(error, "optimistic presentation");
@@ -5021,7 +4942,7 @@ function mountApplication(dependencies) {
 		named: (entry, says) => {
 			undo.retainGesture(entry.event.attempt, { says });
 			entry.answer.then((admitted) => {
-				if (admitted) notice(`${says} — sent`);
+				if (admitted) announce(says);
 			});
 		},
 		withdraw: (candidate) => undo.withdraw(candidate),
@@ -5071,7 +4992,8 @@ function mountApplication(dependencies) {
 	const settlementView = {
 		pendingEntries: ledger.snapshot,
 		actions: threadActions,
-		retainGesture: undo.retainGesture
+		landedAway: undo.landedAway,
+		returnToThread: undo.returnToThread
 	};
 	const inlineView = {
 		reply: replyView,

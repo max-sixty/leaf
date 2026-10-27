@@ -351,30 +351,6 @@ def test_on_me_s_tabs_stand_where_a_view_names_itself(browser, serve):
     assert page.locator(".lf-fp-head").bounding_box()["height"] == 0
 
 
-def test_each_on_me_card_names_its_kind_as_the_walk_does(browser, serve):
-    """Each card in On me says what its item is, in the word the field says after `m`:
-    a suggestion is an Insertion, a Deletion or a Rewrite by its shape, and a widget's
-    question its widget's word. The word stays once the card is answered."""
-    page = open_page(browser, serve(CHANGE_SHAPES_PAGE))
-    resized(page, 1440, 900)
-    open_on_me(page)
-    kinds = {
-        "sug-rewrite": "Rewrite",
-        "sug-insert": "Insertion",
-        "sug-delete": "Deletion",
-        "shapes-q": "Options",
-    }
-    for at, word in kinds.items():
-        expect(on_card(page, f"widget:{at}").locator(".lf-fp-on-kind")).to_have_text(
-            word
-        )
-    card = on_card(page, "widget:sug-insert")
-    card.get_by_role("button", name="Accept").click()
-    round_trip(page)
-    expect(card.locator(".lf-fp-said")).to_contain_text("Answered: Accepted")
-    expect(card.locator(".lf-fp-on-kind")).to_have_text("Insertion")
-
-
 def test_show_on_a_card_goes_where_m_arrives_and_only_where_that_is_elsewhere(
     browser, serve
 ):
@@ -489,9 +465,9 @@ def test_on_me_lists_its_cards_in_the_order_m_walks_them(browser, serve):
     view = open_on_me(page)
     cards = view.locator(".lf-fp-on-item")
     expect(cards).to_have_count(3)
-    expect(cards.locator(".lf-fp-on-kind")).to_have_text(["To-do", "Options", "To-do"])
-    expect(cards.nth(0)).to_contain_text("Check the cadence")
-    expect(cards.nth(2)).to_contain_text("Check the notes")
+    expect(cards.locator(".lf-fp-prompt")).to_have_text(
+        ["Check the cadence", "Which channel first?", "Check the notes"]
+    )
 
     def walked():
         expect(view.locator(".lf-fp-on-item[data-walked]")).to_have_count(1)
@@ -561,9 +537,8 @@ def test_the_chosen_grouping_orders_on_me_and_the_m_walk_alike(browser, serve):
             "Include self-hosted runners?",
         ]
     )
-    expect(cards.locator(".lf-fp-on-kind")).to_have_text(
-        ["Options", "To-do", "Options · Rollout"]
-    )
+    # Under a heading a card says nothing over its question; alone, only its place.
+    expect(cards.locator(".lf-fp-on-place")).to_have_text(["Rollout"])
     # Its choices stand on the card, answered with one press.
     expect(
         on_card(page, "widget:exit").get_by_role("button", name="75")
@@ -583,7 +558,7 @@ def test_the_chosen_grouping_orders_on_me_and_the_m_walk_alike(browser, serve):
             "Try the sandboxed run on a fork",
         ]
     )
-    expect(cards.locator(".lf-fp-on-kind")).to_have_text(
+    expect(cards.locator(".lf-fp-on-place")).to_have_text(
         ["Implementation", "Rollout", "To-do · Implementation"]
     )
 
@@ -626,8 +601,8 @@ def test_on_me_places_an_item_by_its_tab_s_title_or_label(browser, serve):
     page = open_page(browser, serve(TABBED_PAGE))
     resized(page, 1440, 900)
     view = open_on_me(page)
-    expect(view.locator(".lf-fp-on-kind")).to_have_text(
-        ["Options · Move the runs into one sandbox", "Options · Second plan"]
+    expect(view.locator(".lf-fp-on-place")).to_have_text(
+        ["Move the runs into one sandbox", "Second plan"]
     )
 
 
@@ -699,6 +674,62 @@ def test_an_item_arriving_above_takes_its_walk_place_and_moves_no_card_read(
     # Scroll anchoring restores the offset to the scroller's subpixel precision.
     after = read.bounding_box()
     assert after["y"] == pytest.approx(before["y"], abs=1), (before, after)
+
+
+# Card-shaped options as the registry lays them out: tags, the recommended tag, a title,
+# the sentence saying what choosing it gives, inline or as a paragraph, then a picture;
+# and a label-only option.
+CARD_OPTIONS_PAGE = leaf_page(
+    "card options",
+    """<h1 id="title">Sidebar</h1>
+<lf-ask id="stick-ask"><h2>How should a long sidebar stick?</h2>
+<lf-options id="stick" choose>
+  <lf-option id="stick-box"><small class="tag">two days</small>
+    <small class="tag ok">recommended</small><strong>Wrap the blocks in one box</strong>
+    One mechanism for any number of <em>blocks</em>.
+    <svg class="drawing" viewBox="0 0 10 10"><text x="1" y="8">fig</text></svg></lf-option>
+  <lf-option id="stick-aside"><strong>Stick the aside itself</strong> It covers the
+    footer.</lf-option>
+  <lf-option id="stick-rule"><strong>Keep the one-block rule</strong>
+    <p>Authors keep writing one block.</p></lf-option>
+  <lf-option id="stick-none">Leave it</lf-option>
+</lf-options></lf-ask>""",
+)
+
+
+def test_an_option_s_choice_on_its_card_says_what_it_gives(browser, serve):
+    """An On me card's choice for a card-shaped option names it over the sentence saying
+    what choosing it gives, written inline or as a paragraph, and wears `recommended` where the page advises it, so the
+    user answers there without Show; the option's other tags and its picture stay on the
+    page. A label-only option's choice is its name alone. A press there picks the
+    option, and Undo puts the choices back."""
+    page = open_page(browser, serve(CARD_OPTIONS_PAGE))
+    resized(page, 390, 844)
+    open_on_me(page)
+    card = on_card(page, "widget:stick")
+    choices = card.locator(".lf-fp-answer[aria-pressed]")
+    expect(choices).to_have_count(5)  # and Another option
+    box, aside, rule, none = (choices.nth(i) for i in range(4))
+    expect(box.locator(".lf-fp-choice-name")).to_have_text("Wrap the blocks in one box")
+    expect(box.locator(".lf-fp-choice-tag")).to_have_text("recommended")
+    expect(box.locator(".lf-fp-choice-says")).to_have_text(
+        "One mechanism for any number of blocks."
+    )
+    expect(aside.locator(".lf-fp-choice-says")).to_have_text("It covers the footer.")
+    expect(aside.locator(".lf-fp-choice-tag")).to_have_count(0)
+    expect(rule.locator(".lf-fp-choice-says")).to_have_text(
+        "Authors keep writing one block."
+    )
+    expect(none).not_to_have_attribute("data-told", "")
+    expect(none).to_have_text("Leave it")
+
+    aside.click()
+    round_trip(page)
+    expect(page.locator("#stick-aside")).to_have_attribute("chosen", "")
+    card.get_by_role("button", name="Undo").click()
+    round_trip(page)
+    expect(page.locator("#stick-aside")).not_to_have_attribute("chosen", "")
+    expect(card.locator(".lf-fp-answer[data-told]")).to_have_count(3)
 
 
 # Two decisions, the first under a heading a thread can be anchored on.

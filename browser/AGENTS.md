@@ -135,8 +135,8 @@ representative desktop viewport.
   handles a send and the refusal that returns the words to their box. The new content
   and its Undo confirm success, so success needs no notice beyond the announcement
   for a listener. A gesture that moves the
-  user, such as resolving a thread, moves them back when it is refused or undone
-  (`thread/folding.js`). A result only the log can supply waits with `aria-busy`, shown
+  user, such as resolving a thread, leaves them at its place again when it is refused
+  or undone (`undo.js` owns where undo leaves the user). A result only the log can supply waits with `aria-busy`, shown
   after a delay so a fast answer shows nothing. Persistent status text is for a
   state the user must return to, such as a failure.
 
@@ -184,15 +184,20 @@ representative desktop viewport.
   done, ‹ and › for back and next, and the symbols for play, pause, copy and undo, so
   they can tell what the control does before hovering it. The words on Leaf's controls
   compete with the page's own words for the reader's attention, and a symbol is
-  smaller and quieter. Draw it from `runtime/icons.js` and give the control its name as
-  tooltip and accessible name, without the word beside the symbol. One control whose
-  symbol follows its state, such as play turning to pause, replaces a button for each
-  state. A symbol that is only related to the action, such as a speech bubble for
+  smaller and quieter. Draw it from `runtime/icon-paths.js` and give the control its
+  name as tooltip and accessible name, without the word beside the symbol. One control
+  whose symbol follows its state, such as play turning to pause, replaces a button for
+  each state. A symbol that is only related to the action, such as a speech bubble for
   answering a question, leaves the reader guessing, and a tooltip doesn't fix that:
   the reader must already suspect the control to hover it, and a touch screen has no
   hover. The rows of the leaf's menu keep their words too, since the user opened the
   menu to read them. Symbols don't license more controls: a surface at rest shows only
   what its task needs, and the leaf's menu holds the rest.
+- **A control wears its role's face.** Code builds a control by its role, with
+  `offerAction` or `offeredAction`, and never names a face's classes, so two controls
+  of one kind can't look different (`runtime/prepaint.js`, `ACTION_FACES`, lists the
+  roles). A new role needs a difference in the user's task, not only in a widget's
+  taste. Check: `test_controls_are_built_by_role_and_never_by_face`.
 - **A face used twice is a token or a shared rule.** A lift names one of the theme's
   heights, `--raise-1` to `--raise-3` (`styles/theme.css`). Check:
   `test_every_lift_names_one_of_the_theme_s_heights_cast_in_the_scheme_s_ink`.
@@ -253,7 +258,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Annotation inventory and controls                                                                           | `annotation-inventory.js`, `annotation-view.js`, `contributions.js`, `contribution-controls.js`, `inline-contributions.js`                                                |
 | Annotation records and Page Map                                                                             | `margin-model.js`, `margin-map-model.js`, `page-map-dialog.js`, `pointed-place.js`                                                                                        |
 | Pins, marks and floating placement (loaded only when `body` keeps the default `data-annotations="overlay"`) | `annotation-overlay/`                                                                                                                                                     |
-| Passages and target identity                                                                                | `passages.js`, `passage-facts.js`, `text-alignment.js`, `anchor-coordinate.js`, `resolved-target.js`, `anchor-resolution.js`, `addressable-names.js`                      |
+| Passages and target identity                                                                                | `passages.js`, `kernel-facts.js`, `text-alignment.js`, `anchor-coordinate.js`, `resolved-target.js`, `anchor-resolution.js`, `addressable-names.js`                       |
 | Anchor placement, decoration and travel                                                                     | `anchor-placement.js`, `anchor-note-view.js`, `anchor-controls.js`, `anchor-travel.js`, `target-paint.js`, `target-paint-geometry.js`, `visual-parts.js`, `indication.js` |
 | Page status and what a user copies about the page                                                           | `page-status.js`, `page-about.js`, `heading-links.js`                                                                                                                     |
 | Neighboring pages                                                                                           | `live-leaves.js`                                                                                                                                                          |
@@ -387,7 +392,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Whether the user is inside a scope, across shadow trees and slots                                     | `focus.js` `currentLocationIn` (_lint_)                                            |
 | The user's working place, read before something borrows it and handed back after                      | `history.js` `readPlace`, `returnPlace`                                            |
 | The page place focus or selection identifies, or none                                                 | `current-target.js` `currentLocationOrigin`                                        |
-| Where a page walk starts, falling back to visible reading, and which item it steps to                 | `current-target.js` `walkOrigin`, `stepFrom`                                       |
+| Where a page walk starts, whether the user is on a stop or at it, and which item it steps to          | `current-target.js` `walkOrigin`, `stepFrom`                                       |
 | Which of two nodes the reader reaches first, across shadow trees                                      | `shadow-tree.js` `renderedOrder`, `byRenderedOrder`                                |
 | Whether a node is inside another across shadow trees                                                  | `shadow-tree.js` `under`, `renderedUnder`, `composedParentNode`                    |
 | Put the user on an element, saying what moved them                                                    | `focus.js` `focusDestination(node, cause)` (_lint_)                                |
@@ -439,13 +444,16 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 
 ### Facts both runtimes know
 
-A fact Python and the browser both use, such as an event kind or the languages a page
-can highlight, has one home. Either one runtime owns it and sends it to the other as
-data, as the server sends its state in `/api/state`, whose type the build generates from
-`served_state/state.schema.json`, or the registry declares it and the build generates
-the browser's copy, as `build/registry.mjs` writes `runtime/syntax-languages.js` from
-`$languages`. Where runtime code must spell a value, a generated type such as
-`ServedWorkKind` makes a misspelling fail the type check. Where only a literal can carry
+A fact Python and the browser both use, such as an event kind or how a page reads as
+text, has one home. Either one runtime owns it and sends it to the other as data, as
+the server sends its state in `/api/state`, whose type the build generates from
+`served_state/state.schema.json`, or the kernel registry
+(`runtime/kernel-registry.json`) declares it and both read the serving Leaf's copy:
+the browser imports it as a JSON module through `runtime/kernel-facts.js`, so no build
+stands between an edit and either reader. Only a fact the registry can't settle alone
+is generated, as `build/vendor.mjs` writes `runtime/syntax-languages.js` from
+`$languages` and the grammars it bundles. Where runtime code must spell a value, a
+generated type such as `ServedWorkKind` makes a misspelling fail the type check. Where only a literal can carry
 the fact, as in a stylesheet's attribute selector, a check holds the spelling to the
 declaration (`build/registry.test.mjs`). An algorithm both runtimes run shares a case
 file that holds both to the same answers (`tests/*_cases.json`). A parity fixture, or a

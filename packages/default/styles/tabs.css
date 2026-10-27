@@ -238,6 +238,9 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list="side"]) {
     :scope:is(lf-tabs):not(.lf-rendered):has(> lf-tab)
     > lf-tab {
     padding: var(--sp-4) var(--sp-4) var(--lf-tab-end);
+    /* A panel made scrollable starts nested headers at the scrollport's edge,
+       not below its padding, where fragments of the scrolled output show through. */
+    --lf-top-start: calc(-1 * var(--sp-4));
     --lf-end-room: inherit;
     --lf-block-frame: 1;
   }
@@ -259,6 +262,11 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list="side"]) {
   :scope:is(lf-tabs, lf-parts).lf-rendered
     > :is(lf-tab, lf-part)[data-lf-focus-visible] {
     outline: none;
+  }
+  :scope:is(lf-tabs, lf-parts).lf-rendered:has(
+      > :is(lf-tab, lf-part)[data-lf-focus-visible]
+    ) {
+    --lf-wears-ring: 1;
   }
   :scope:is(lf-tabs, lf-parts).lf-rendered:has(
       > :is(lf-tab, lf-part)[data-lf-focus-visible]
@@ -539,7 +547,7 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list="side"]) {
       align-self: stretch;
       min-block-size: 0;
       overflow: auto;
-      --lf-top: 0px;
+      --lf-top: var(--lf-top-start);
       overscroll-behavior: contain;
       scrollbar-gutter: stable;
       --lf-holds-height: 1;

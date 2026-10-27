@@ -46,11 +46,16 @@ Record browser API and rendering support gaps in
 [`notes/browser-support.md`](../../../notes/browser-support.md), as its "Recording and
 assessing a gap" section says.
 
-Before handing over a change to browser controls, navigation, focus, motion, forms or
-layout, run `/ui-sweep` (`../ui-sweep/SKILL.md`) on the changed surface and the
-interactions that depend on it. Its "External review" section says when to use the
-skills below, and its "Review a design system" section covers theme and shared-control
-changes.
+The user judges a UI change by using it, so review it that way before handing it
+over. Whoever reviews it, you or an independent reviewer, first uses the live
+candidate cold for the user's task, before reading its code or the author's account:
+reach each result by every route Leaf gives to it, look at each state those routes
+leave, and judge each control against its neighbours and against Leaf's controls for
+the same role. A reviewer's brief gives the task and the candidate, asks for that pass
+before any code review, and keeps how the change looks in scope. For a theme or
+shared-control change, also run `/ui-sweep` (`../ui-sweep/SKILL.md`), whose "Review a
+design system" section covers it and whose "External review" section says when to use
+the skills below.
 
 ### External UI skills
 
@@ -135,7 +140,7 @@ To change an existing interface, take this checkout's rendered interface as the
 baseline, covering the controls and states the requested property affects. Build
 runtime candidates in the runtime and theme that own the surface. A separate sketch
 copies Leaf's mark from `browser/icon.svg` and each icon's path from
-`browser/runtime/icons.js`. Drive the baseline and every candidate through
+`browser/runtime/icon-paths.js`. Drive the baseline and every candidate through
 the same journey before handoff.
 
 ## Choose what the user reviews

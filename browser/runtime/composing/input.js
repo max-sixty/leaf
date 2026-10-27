@@ -9,7 +9,8 @@
 // empty-field status stays in the placeholder, words keep their place, and the mic's
 // face carries listening. Sending and explicit closing retire capture before the
 // draft can change; Escape keeps its existing close-and-keep-draft meaning.
-// Shift+Enter inserts a line, the field's own binding; on touch keyboards Enter does too.
+// Shift+Enter inserts a line, the field's own binding; on touch keyboards Enter does too,
+// except in a one-line field (`aria-multiline="false"`), where Return sends everywhere.
 // Mod+Enter remains another route to submit. The field grows with its words, within the
 // room supplied by floating placement; script does not derive its height from its text. When the surface
 // accepts images, a paste or capture uploads bytes to page media; one that does not says
@@ -50,16 +51,11 @@
 import { rememberWriting } from "../drafts.js";
 import { keys, paintKeysWithin } from "../keyboard/scopes.js";
 import { keeps, keepsHidden, keepsText } from "../keeps.js";
-import {
-  advertisesKeys,
-  submitBindings,
-  submitLabel,
-  spell,
-  PRESS,
-} from "../keyboard/bindings.js";
+import { advertisesKeys, submitBindings, spell, PRESS } from "../keyboard/bindings.js";
 import { readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "../media.js";
 import { announce } from "../notifications.js";
 import { iconElement, iconTemplate } from "../icons.js";
+import { offeredAction } from "../widget-elements.js";
 import { drawingThumbnail } from "./drawing-context.js";
 import {
   LitElement,
@@ -179,20 +175,18 @@ class AttachedMediaShelf extends LitElement {
                 ${this.picture(drawing)}
               </button>
               <button
-                type="button"
-                class="lf-mark lf-corner-mark lf-composer-drawing-undo"
-                aria-label="Undo last stroke"
-                title="Undo last stroke"
+                ${offeredAction(
+                  "mark",
+                  "lf-corner-mark lf-composer-drawing-undo",
+                  "Undo last stroke",
+                )}
                 @mousedown=${(event) => event.preventDefault()}
                 @click=${() => this.actions.undoStroke()}
               >
                 ${this.undoIcon}
               </button>
               <button
-                type="button"
-                class="lf-mark lf-corner-mark"
-                aria-label="Remove drawing"
-                title="Remove drawing"
+                ${offeredAction("mark", "lf-corner-mark", "Remove drawing")}
                 @mousedown=${(event) => event.preventDefault()}
                 @click=${() => this.actions.removeDrawing()}
               >
@@ -203,9 +197,11 @@ class AttachedMediaShelf extends LitElement {
         : null,
       media.map(({ index, url }) => {
         const remove = html`<button
-          type="button"
-          class="lf-mark lf-corner-mark lf-composer-media-remove"
-          aria-label=${`Remove attached image ${index + 1}`}
+          ${offeredAction(
+            "mark",
+            "lf-corner-mark lf-composer-media-remove",
+            `Remove attached image ${index + 1}`,
+          )}
           @click=${() => this.actions.removeMedia(index)}
         >
           ${iconTemplate("cross", "lf-mark-icon")}
@@ -350,6 +346,11 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     const field = document.createElement("div");
     field.className = "lf-compose-field";
     ta.before(field);
+    // A one-line field, such as an option's title, has no line for Return to break, so
+    // Return sends it from every keyboard, a phone's included.
+    const oneLine = ta.getAttribute("aria-multiline") === "false";
+    const sendBindings = () => (oneLine ? ["Enter", "Mod+Enter"] : submitBindings());
+    const sendKey = () => spell(sendBindings()[0]);
     // The placeholder with its send key drawn as a key: the field shows it in place of
     // the plain placeholder while it is in the field, which is while there is a key to
     // show.
@@ -369,7 +370,10 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       globalThis.SpeechRecognition ?? globalThis.webkitSpeechRecognition;
     const mic =
       Recognition && icon === "send" && !submitIn
-        ? document.createElement("button")
+        ? Object.assign(document.createElement("button"), {
+            type: "button",
+            className: "lf-compose-dictate",
+          })
         : null;
     let dictation = null;
     let loadingDictation = false;
@@ -383,8 +387,6 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         ? "Starting microphone…"
         : loadingFailure || dictation?.status || "";
     if (mic) {
-      mic.type = "button";
-      mic.className = "lf-btn lf-icon-action lf-compose-dictate";
       mic.append(iconElement("microphone", "lf-action-icon"));
       field.append(mic);
     }
@@ -411,12 +413,10 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       uncover();
     });
     const held = () => busy() || errorOver(ta) !== null;
-    // These two are the press's whole face, and the theme keys the glyph's colour on the
-    // pair, so a box cannot be handed a send button dressed as something else. `primary`
-    // is a different face: it dresses the press's own box, which is the hit target and
-    // stands larger than the disc wherever the pointer is coarse. A send press never
-    // wears it.
-    sendBtn.classList.add("lf-icon-action", "lf-compose-submit");
+    // The press's whole face, its box and its glyph's ink (response.css), whatever face
+    // its caller made it with, so a box cannot be handed a send button dressed as
+    // something else. The caller's own classes only place it.
+    sendBtn.classList.add("lf-compose-submit");
     sendBtn.replaceChildren(iconElement(icon, "lf-action-icon"));
     const mediaShelf = document.createElement(MEDIA_SHELF_TAG);
     mediaShelf.className = sentMedia ? "lf-msg-media" : "lf-composer-media scroll";
@@ -539,7 +539,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       // Read the shared logical focus so this hint agrees with the key chips and rings.
       const currentLocation = focused() === ta;
       const advertising = advertisesKeys();
-      const sendKeys = advertising ? submitLabel() : "";
+      const sendKeys = advertising ? sendKey() : "";
       const suffix = !advertising
         ? ""
         : currentLocation
@@ -584,7 +584,9 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       // Where Return sends, a line breaks with Shift+Return, which the hover name says
       // beside the send key, since nothing in the box does.
       const newline =
-        sendKeys === spell("Enter") ? ` · ${spell("Shift+Enter")} new line` : "";
+        sendKeys === spell("Enter") && !oneLine
+          ? ` · ${spell("Shift+Enter")} new line`
+          : "";
       keeps(sendBtn, "title", sendKeys ? `${action} (${sendKeys})${newline}` : action);
       // These native input actions keep their focus seat while refusing a send.
       keeps(sendBtn, "aria-disabled", !canSend());
@@ -893,8 +895,8 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     keys(ta, "In a text box", [
       {
         id: "text.send",
-        keys: submitBindings,
-        label: submitLabel,
+        keys: sendBindings,
+        label: sendKey,
         title: sends,
         run: () => pressed(send),
       },
@@ -903,7 +905,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     // The field owns text editing; this owner alone reserves Return for its declared
     // submit binding. An unwired source editor therefore keeps Return on every device.
     ta.addEventListener("lf-edit-return", (event) => {
-      if (submitBindings().includes("Enter")) event.preventDefault();
+      if (sendBindings().includes("Enter")) event.preventDefault();
     });
     // A press on a submit control is the send key pressed from the box, so it leaves the
     // user where Enter does: in the box, for a box that stays to take more, or wherever the

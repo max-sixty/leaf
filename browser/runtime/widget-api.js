@@ -58,7 +58,8 @@ export { under } from "./shadow.js";
 // caret included, across a move or re-render of the node they stand on, by key in a
 // list; their current location and whether it is in a scope; recording where a layer opened
 // from and handing them back as it closes; running something once they move off an
-// element; and a group's roving Tab stop. TEXT_FIELD is the tag of the box a widget offers for the user to write
+// element, or once a press lands away from it (`onPressAway`); and a group's roving Tab
+// stop. TEXT_FIELD is the tag of the box a widget offers for the user to write
 // Markdown in; TEXT_BOX matches it and any native textarea.
 export {
   closeLayer,
@@ -67,6 +68,7 @@ export {
   handBack,
   holdFocus,
   onCurrentLocation,
+  onPressAway,
   openLayer,
   openerOf,
   rove,
@@ -107,7 +109,7 @@ export { releaseOutlets, threadSurface } from "./thread/surfaces.js";
 export { turns as threadTurns } from "./thread/model.js";
 export { threadSummary } from "./thread/messages.js";
 // Holding a region's rows the log or the clock decides while their growth would be seen
-// (assets/AGENTS.md, "Stability").
+// (browser/AGENTS.md, "Stability").
 export { HeldReading, heldGrowth } from "./thread/held-news.js";
 export { wireInput } from "./application.js";
 export { DISCLOSE } from "./keyboard/disclosure.js";
@@ -212,6 +214,7 @@ export {
 } from "./presentation.js";
 export { quietWord } from "./declared-words.js";
 export { copyBlock } from "./code-copy.js";
+export { copyControl } from "./copy-control.js";
 export { retainUserIntent } from "./user-intent.js";
 // Whether a press is the plain one a control claims: the primary button, no modifier;
 // and whether a click came from the keyboard rather than a pointer.
@@ -253,7 +256,9 @@ export {
   measure,
   motionPreview,
   offer,
+  offerAction,
   offered,
+  offeredAction,
   reachedForWords,
   relabel,
   searchField,
@@ -275,5 +280,13 @@ export { landInThread } from "./application.js";
 export { threadInput } from "./thread/landing.js";
 // What the page calls its agent, as On <agent> names it, for `lf-tally`'s words.
 export { agentName } from "./semantic-state.js";
+// A region's open obligations by whose turn each is, in the words `lf-tally` and
+// `lf-deck` both show.
+export { tally, tallyWords } from "./obligations/tally.js";
+// The page node the user's current location stands for, through a margin entry or a
+// thread card, as `lf-deck` asks whether the user is on its open card.
+export { placeOf } from "./current-target.js";
+// Run a command by its id as its key would, as `lf-deck`'s Reply runs `c` on a question.
+export { executeCommand } from "./keyboard/dispatch.js";
 // The time axis the Playwright timeline and lf-timeline both draw on.
 export { assignRows, axisTicks, textWidth } from "./time-axis.js";

@@ -1,9 +1,9 @@
 /* A playground is an instrument laid out as a sidebar page's body beside its aside: the
  * real preview is the stage and owns the larger field, and the controls that change all
- * of it stand above the instruction they write, with its actions, in a rail beside it. A
- * control written inside the preview stands there, beside the item it changes, and the
- * rail then holds only what is left. With all controls inline, presets precede
- * the full-width preview and its instruction follows. Its regions are up to three generated panes
+ * of it stand above the bar of actions that sends the instruction they write, in a rail
+ * beside it. A control written inside the preview stands there, beside the item it
+ * changes, and the rail then holds only what is left. With all controls inline, presets
+ * precede the full-width preview and the bar follows. Its regions are up to three generated panes
  * (data-lf-reading-role="pane", the kernel's theme.css), whose bodies scroll where a
  * workspace Layout fills the window (layouts.css); here the playground only places the
  * panes and draws them.
@@ -106,11 +106,10 @@
 
 /* Full-height (a workspace Layout gives it a definite height to fill, `--lf-full-height`),
  * the playground, its split and its rail take that height. In the rail, the controls give
- * up height and scroll while the instruction and its actions stay whole under them. With
- * all controls inline, the stage is what the reader came to set, so it keeps at least
- * half the window and the instruction keeps its whole height below it: where both don't
- * fit, the workspace scrolls to the instruction and its actions rather than squeezing
- * the stage. That reverses an earlier 12rem stage floor, which kept the actions in view
+ * up height and scroll while the bar of actions stays whole under them. With all
+ * controls inline, the stage is what the reader came to set, so it keeps at least half
+ * the window and the bar keeps its whole height below it: where both don't fit, the
+ * workspace scrolls to the bar rather than squeezing the stage. That reverses an earlier 12rem stage floor, which kept the actions in view
  * down to a 500px window but left a 192px stage at 900x700 (the user's decision,
  * 2026-10-22). */
 @media screen {
@@ -128,8 +127,8 @@
       --lf-full-height: inherit;
     }
 
-    /* The instruction takes its content's height (`max-content`), since a box that
-     * scrolled inside the scrolling workspace would hide its end behind two scrolls. */
+    /* The bar takes its content's height (`max-content`), since a box that scrolled
+     * inside the scrolling workspace would hide its end behind two scrolls. */
     .lf-playground-split:not(
       :has(
         > .lf-playground-controls-region,
@@ -185,19 +184,14 @@
   background: var(--lf-ground);
 }
 
-:is(.lf-playground-controls-region, .lf-playground-instruction-region) > header {
+.lf-playground-controls-region > header {
   padding: 14px 18px 0;
   border: 0;
 }
 
-:is(.lf-playground-controls-region, .lf-playground-instruction-region)
-  > :not(header, footer) {
+.lf-playground-controls-region > :not(header, footer) {
   --lf-pane-top: 12px;
   padding: var(--lf-pane-top) 18px 16px;
-}
-
-:is(.lf-playground-controls-region, .lf-playground-instruction-region) > footer {
-  padding: 12px 18px;
 }
 
 .lf-playground-controls-region > header.lf-playground-presets {
@@ -210,10 +204,6 @@
   align-content: start;
   gap: var(--sp-3);
   min-width: 0;
-}
-
-.lf-playground-controls-title {
-  margin: 0;
 }
 
 :scope:is(lf-playground-control) {
@@ -342,12 +332,6 @@
   gap: var(--sp-2);
 }
 
-.lf-playground-presets-title {
-  margin-right: var(--sp-2);
-  color: var(--muted);
-  font: 600 var(--t-6)/1.3 var(--sans);
-}
-
 /* A preset is an addressable member; its generated button is chrome, so the
  * member itself supplies the box an element comment outlines. */
 :scope:is(lf-playground-preset) {
@@ -391,6 +375,7 @@
 }
 
 .lf-playground-actions {
+  padding: 12px 18px;
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
@@ -404,39 +389,61 @@
   text-align: end;
 }
 
-/* The instruction's copy is a code block's (lf-playground.js), a toolbar of one mark on
- * its pane's top border at the right, as a code block's stands on its block's
- * (integration.css, `.lf-mark-bar`), and shows as a code block's does, while the
- * pointer is over the pane or the user is in it. It stands inside the pane, so the pane
- * places it rather than the anchor `copyBlock` names: Playwright Firefox drew the
- * anchored copy 20 to 365 px above the pane in three of the four bundled playgrounds on
- * 2026-10-24, where Chromium placed it on the corner. The insets are the padding box's,
- * inside the pane's 1px border. */
-.lf-playground-instruction-region {
-  position: relative;
+/* The instruction opens from the bar as a popover (lf-playground.js), at the middle of
+ * the window as a popover stands by default, so no anchor ties it to a bar that may be
+ * stuck in a sticky rail, where Firefox draws an anchored box at the target's unstuck
+ * place (notes/browser-support.md). It is a card in the panel's voice: its title in
+ * small capitals over the instruction, which scrolls in the room the window leaves. The
+ * bar's child selector outweighs a framed box's trim of its last child's margin. */
+.lf-playground-actions > .lf-playground-instruction {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  box-sizing: border-box;
+  inline-size: min(36rem, calc(100vw - 32px));
+  max-block-size: min(32rem, calc(100dvh - 64px));
+  padding: 0;
+  border: 1px solid var(--border-2);
+  border-radius: var(--r);
+  background: var(--card);
+  color: var(--ink);
+  box-shadow: var(--raise-2);
 }
-.lf-playground-instruction-region .lf-code-copy {
-  top: 0;
-  right: calc(var(--lf-mark-bar-end) - 1px);
-  left: auto;
-  translate: 0 calc(-50% - 0.5px);
+.lf-playground-instruction:popover-open {
+  display: flex;
+  flex-direction: column;
 }
-.lf-playground-instruction-region:is(:hover, [data-lf-focus-within]) .lf-code-copy {
-  opacity: 1;
-  pointer-events: auto;
+.lf-playground-instruction::backdrop {
+  background: transparent;
+}
+.lf-playground-instruction-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  padding: 8px 10px 8px 18px;
+  border-bottom: 1px solid var(--rule);
+}
+.lf-playground-instruction-title {
+  margin: 0;
+}
+.lf-playground-instruction-body {
+  min-block-size: 0;
+  padding: 12px 18px 16px;
+  overflow-y: auto;
+}
+/* The copy is a quiet action with a finger's floor. */
+.lf-playground-copy::part(button) {
+  box-sizing: border-box;
+  min-inline-size: var(--aim-floor);
+  min-block-size: var(--aim-floor);
+  align-items: center;
+  justify-content: center;
 }
 
 /* A quoted playground is its preview and instruction as authored, without the controls
- * written in either place. A box in the preview that holds nothing but controls, such
- * as the settings box beside an item, is hidden with them, since it would otherwise
- * stand empty (initial/lf-playground.js marks it). The page's own stylesheet outranks
- * this layer and usually sets that box's display, so the rule is important, as a
- * settled option's collapse is (default/theme.css). */
-:scope:is(lf-playground).lf-playground-quoted
-  :is(lf-playground-control:not(.lf-playground-candidates), .lf-playground-control-box),
-:scope:is(lf-playground).lf-playground-quoted > lf-playground-preset {
-  display: none !important;
-}
+ * written in either place (initial/lf-playground.js hides them). Candidates that are
+ * previews stay, laid side by side. */
 :scope:is(lf-playground).lf-playground-quoted .lf-playground-candidates {
   grid-template-columns: var(
     --playground-choice-columns,

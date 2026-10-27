@@ -39,6 +39,31 @@ other tables keep the `inline-size` container from
 `test_a_table_of_prose_wraps_inside_its_box_in_every_engine` in
 `tests/browser/test_render_pages.py` before removing the fallback.
 
+### Baseline content-alignment
+
+Option cards laid across align their titles with `align-content: first baseline`
+(`packages/default/styles/options.css`). Playwright Chromium 153.0.8010.12 parsed
+the value but left grid items' contents at their start on 2026-10-25, while
+Playwright Firefox 155.0 shifted each item's contents onto the row's shared
+baseline. In Chromium a card whose chips wrap past the state seat's line, such as
+the canary card in `examples/alert-review.html`, still sets its title a chip line
+lower than its neighbours' (22px there); chips that fit beside the seat stay
+aligned in both engines. Table cells' `vertical-align: baseline` aligns them in
+Chromium, but Firefox 155.0 then leaves the row short of the shifted contents and
+clips them, so it can't stand in. Recheck with the `browser` case of
+`test_cards_laid_across_align_their_titles_whatever_chips_open_them` in
+`tests/browser/widgets/test_obligations.py`, extended to its `all` row.
+
+Firefox 155.0 holds that shift only through a layout of the whole row. After a
+later reflow dirties one card, such as an absolutely positioned child inserted or
+its padding changed, it lays the row out again and drops another card's shift,
+on 2026-10-26 in a plain grid with no Leaf code as well. A forced layout in the
+middle of the options render, between its insertions of key badges and marks,
+therefore left a card whose chips wrap a chip line or two below its neighbours on
+load, until a resize; `lf-options.js` reads computed style only when a surface
+shows an option's consequence for that reason. The test's `firefox_browser` case
+catches a render that splits the row's first layout again.
+
 ### A restyle skipped under a nested container in Chromium
 
 Playwright Chromium 153.0.8010.12 left the visual review's case buttons in the

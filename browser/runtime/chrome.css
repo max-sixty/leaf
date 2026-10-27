@@ -1136,7 +1136,7 @@
     font-weight: 600;
     color: var(--lf-fp-muted);
   }
-  .lf-fp-on-kind,
+  .lf-fp-on-place,
   .lf-fp-on-title {
     margin: 0 0 2px;
     font: inherit;
@@ -1535,7 +1535,6 @@
     color: inherit;
     font: inherit;
   }
-  .lf-btn,
   .lf-ui :is(textarea, leaf-text),
   :is(textarea, leaf-text).lf-ui {
     font: inherit;
@@ -1601,13 +1600,8 @@ html[data-lf-draw-mode] body {
   touch-action: none;
 }
 html[data-lf-region-capture] main,
-html[data-lf-region-capture] main *,
-html[data-lf-draw-mode] main,
-html[data-lf-draw-mode] main :not([data-lf-runtime], [data-lf-runtime] *) {
+html[data-lf-region-capture] main * {
   cursor: crosshair !important;
-}
-:where(html[data-lf-draw-mode] main [data-lf-runtime]) {
-  cursor: auto;
 }
 .lf-react-mark {
   text-align: center;
@@ -1775,22 +1769,17 @@ html[data-lf-draw-mode] main :not([data-lf-runtime], [data-lf-runtime] *) {
     -webkit-mask: url(/icon.svg) center / contain no-repeat;
     mask: url(/icon.svg) center / contain no-repeat;
   }
-  .lf-dot.working {
+  .lf-dot:where(.working) {
     background: var(--accent);
   }
-  .lf-dot.listening {
+  .lf-dot:where(.listening) {
     background: var(--ok);
   }
-  .lf-dot.away {
+  .lf-dot:where(.away) {
     background: var(--warn);
   }
-  .lf-dot.blocked {
+  .lf-dot:where(.blocked) {
     background: var(--danger);
-  }
-  @layer lf-reset {
-    .lf-thread-action {
-      font: inherit;
-    }
   }
   :is(.lf-quote, .lf-msg-body) {
     user-select: text;
@@ -1834,19 +1823,6 @@ html[data-lf-draw-mode] main :not([data-lf-runtime], [data-lf-runtime] *) {
   .lf-quote-expand::before {
     inline-size: 1em;
     text-align: center;
-  }
-  .lf-thread-action {
-    border: none;
-    background: none;
-    color: var(--muted);
-    cursor: pointer;
-  }
-  .lf-thread-action:hover {
-    color: var(--ok);
-  }
-  .lf-thread-action[data-lf-focus-visible] {
-    outline: var(--focus-ring);
-    outline-offset: 2px;
   }
   :is(.lf-fab-bar, .lf-margin-preview) {
     --lf-comment-inset: 12px;
@@ -2534,7 +2510,7 @@ html[data-lf-draw-mode] main :not([data-lf-runtime], [data-lf-runtime] *) {
   }
   @media (forced-colors: active) {
     .lf-dot {
-      background: CanvasText !important;
+      background: CanvasText;
     }
     .lf-binding-sequence > kbd[data-lf-sequence-step-state=pressed] {
       border-color: Highlight;

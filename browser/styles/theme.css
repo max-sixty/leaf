@@ -54,10 +54,10 @@
  * Live pages reserve thread room at the wide layout's existing floors, so the
  * first comment and the last resolution leave the document column in place. */
 
-/* Ordinary action controls use `.lf-btn`, whose face is in shadow.css so it also
-   reaches declared shadow trees. Packages may set placement and density, but keep its shape, border,
-   hover, and disabled treatment. Icon-only actions keep the same corner on a square
-   face. Margin entries, reaction chips, and status labels retain their own forms.
+/* Leaf's controls wear the faces of their roles (components/controls.css), in
+   shadow.css so they also reach declared shadow trees. Packages may set placement and
+   density, but keep each face's shape, border, hover, and disabled treatment. Margin
+   entries, reaction chips, and status labels retain their own forms.
 
    Typography is presentation, not passage permission. A chip or code annotation may look
    like apparatus and still be a page word the user can quote.
@@ -294,7 +294,7 @@
      rail below is sized from the same length, so it is named rather than written into
      each. */
   --margin-entry: max(32px, var(--aim-floor));
-  /* A mark's box (controls.css, `.lf-mark`), on a corner or in a toolbar. A seat that
+  /* A mark's box (controls.css, `.lf-mark-action`), on a corner or in a toolbar. A seat that
      keeps room around its marks reads it, so it is named rather than written there. */
   --mark-size: 20px;
   /* How far inside its block's right edge a pin stands. margin-layout.js reads it too,
@@ -906,9 +906,10 @@ html[data-lf-interactive] [data-lf-arriving] {
  * its settled upgrade geometry; durable controls still guard mutation until presentation.
  * Ordinary prose, links, scrolling, and layout remain available.
  *
- * The anonymous layer is first in the merged theme, so these important declarations
- * outrank every later layer and unlayered stylesheet declaration without reserving a
- * named layer custom CSS could append to. Inline importance ranks higher still, so the
+ * The anonymous layer leads lf-base, which only lf-reset precedes, and lf-reset states
+ * nothing important, so these important declarations outrank every other layer and
+ * unlayered stylesheet declaration without reserving a named layer custom CSS could
+ * append to. Inline importance ranks higher still, so the
  * version gate refuses it for the display and visibility properties this boundary owns.
  *
  * The same rank makes `hidden` hide whatever display another rule states for the
@@ -1738,11 +1739,19 @@ aside.sidenote {
    the figure, written as a one-term definition list. It is type and a hairline above,
    not a card, so a row of them reads as figures; a page restyles it through the
    tokens it reads. The figure and its change each go to a new line whole, and a figure
-   too long for the tile breaks anywhere rather than overflow it. */
+   too long for the tile breaks anywhere rather than overflow it.
+
+   In a grid, such as a row of tiles, the label and the figure take two of the row's
+   tracks (subgrid), so every figure in a row stands on one line however many lines a
+   neighbour's label wraps to. Elsewhere the tile is its own two-row grid. */
 .metric {
   margin: 0;
   padding-block-start: var(--sp-2);
   border-block-start: 1px solid var(--rule);
+  display: grid;
+  grid-row: span 2;
+  grid-template-rows: subgrid;
+  row-gap: 0;
 }
 .metric dt {
   color: var(--muted);

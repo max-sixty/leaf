@@ -136,10 +136,10 @@
     const controls = tools.offer("div", "lf-timeline-controls");
     controls.setAttribute("role", "group");
     controls.setAttribute("aria-label", host.getAttribute("aria-label") ?? "Timeline");
-    const previous = tools.offer("button", "lf-btn lf-timeline-previous", "Previous");
+    const previous = tools.offerAction("word", "lf-timeline-previous", "Previous");
     const position = tools.offer("span", "lf-timeline-position");
     tools.generatedElement(position, { says: false });
-    const next = tools.offer("button", "lf-btn lf-timeline-next", "Next");
+    const next = tools.offerAction("word", "lf-timeline-next", "Next");
     controls.append(previous, next, position);
     const chart = document.createElement("div");
     chart.className = "lf-timeline-chart";

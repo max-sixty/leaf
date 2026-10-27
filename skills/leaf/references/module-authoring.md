@@ -398,7 +398,8 @@ measure what they hold, which pass their asynchronous work to `detail.present(pr
 with Leaf's frame, label, editor and Clear button; the widget owns the query and
 results, and can put a match count in its `end` slot.
 
-To fold content it may show again, set its `hidden` to `"until-found"`. Find-in-page and
-fragment links still reach it and fire `beforematch` on it, where the widget opens it;
-print shows it open. Take a folded element that is itself a Tab stop out of the Tab
+To fold content it may show again, set its `hidden` to `"until-found"`. Find-in-page,
+fragment links and Leaf's travel still reach it and fire `beforematch` on it, where the
+widget opens it (`module-scroll-and-motion.md`, "Travel and history"); print shows it
+open. Take a folded element that is itself a Tab stop out of the Tab
 order, since the fold hides only what it holds.

@@ -664,8 +664,11 @@ def test_an_m_step_newer_focus_cancels_at_a_thread_claims_no_arrival(browser, se
         """() => {
           const held = new Promise(resolve => { window.releaseThreadReveal = resolve; });
           held.then(() => { window.threadRevealSettled = true; });
-          document.body.addEventListener('lf-reveal', event => {
-            event.detail.present(held);
+          // Revealing the thread's passage waits for its update, which the test holds.
+          const passage = document.querySelector('#cadence');
+          passage.hidden = 'until-found';
+          passage.addEventListener('beforematch', () => {
+            passage.updateComplete = held;
             window.threadRevealStarted = true;
           }, {once: true});
         }"""

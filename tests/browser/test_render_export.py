@@ -319,7 +319,7 @@ def test_an_export_keeps_visual_review_images_and_inspection_offline(
     page.goto(out.as_uri(), wait_until="load")
     wait_until_ready(page)
     widget = page.locator("#review")
-    selected = widget.locator('.lf-vr-case[aria-hidden="false"]')
+    selected = widget.locator('.lf-vr-case:not([hidden])')
     for index, case in enumerate(cases):
         if index:
             widget.locator('.lf-vr-case-button[aria-current="true"]').click()

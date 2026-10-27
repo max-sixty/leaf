@@ -956,33 +956,35 @@ const clipsPast = (surfaces) => new Map([[PAST, new Set(surfaces)]]);
 // A clip pass that reads past every occluder, for what stands above them all: a list in
 // the top layer still hangs from a trigger a panel view stands over.
 export const clipsPastSurfaces = () => clipsPast(occluders);
-// Whether an occluder hides a destination, an element or a Range, wherever travel lands
-// it: whether it stands over most of it, asked of what the page's clips leave of the
-// destination. Travel moves a destination along its scroller's block axis only, so a
-// surface standing the whole height of the room the page shows would cover every place
-// the landing can bring it to, and the question would be the inline one: more than half
-// its width. One
-// scrolled out of the window is asked it at its own box, which is where the landing will
-// bring it into view. A surface standing over part of that height, as a view open in the
-// floating panel stands over its foot, covers a destination only where it stands now,
-// so it is asked of both axes there: more than half the destination's area.
-function hides(surface, where) {
+// How much of a destination, an element or a Range, an occluder stands over, from 0 to
+// 1: of what the page's clips leave of it, or of the box travel will land it at
+// (`landed`, landing-scroll.js `landedBox`). Travel moves a destination along its
+// scroller's block axis only, so a surface standing the whole height of the room the
+// page shows would cover every place the landing can bring it to, and the share is the
+// inline one, of its width. One scrolled out of the window is asked it at its own box.
+// A surface standing over part of that height, as a view open in the floating panel
+// stands over its foot, covers a destination only where it stands, so the share is of
+// its area there. What holds the surface, as the chrome's dialog holds the panel, is
+// not covered by it. A destination is hidden where more than half of it is covered
+// (`hides`); travel, which promises the whole of it, asks of any part
+// (floating-panel.js, `clearFor`).
+export function coveredShare(surface, where, landed = null) {
   const holder = placeHolder(where);
-  if (!holder || !occluders.has(surface) || !standsNow(surface)) return false;
-  if (under(holder, surface) || stackLevel(holder) >= stackLevel(surface)) return false;
-  const box = placeBox(where);
+  if (!holder || !occluders.has(surface) || !standsNow(surface)) return 0;
+  if (under(holder, surface) || under(surface, holder)) return 0;
+  if (stackLevel(holder) >= stackLevel(surface)) return 0;
+  const box = landed ?? placeBox(where);
   const { left, top, right, bottom } =
-    clippedPlace(where, clipsPast([surface]), box) ?? box;
+    landed ?? clippedPlace(where, clipsPast([surface]), box) ?? box;
   const over = restingBox(surface);
-  const across = Math.min(right, over.right) - Math.max(left, over.left);
+  const across = Math.max(0, Math.min(right, over.right) - Math.max(left, over.left));
   const room = shownWindow({ viewport: "layout" });
   if (over.top <= room.top + 1 && over.bottom >= room.bottom - 1)
-    return across > (right - left) / 2;
-  const down = Math.min(bottom, over.bottom) - Math.max(top, over.top);
-  return (
-    across > 0 && down > 0 && across * down > ((right - left) * (bottom - top)) / 2
-  );
+    return across / (right - left || 1);
+  const down = Math.max(0, Math.min(bottom, over.bottom) - Math.max(top, over.top));
+  return (across * down) / ((right - left) * (bottom - top) || 1);
 }
+const hides = (surface, where) => coveredShare(surface, where) > 0.5;
 // Whether any open occluder hides `where`, by the same measure. A seat a panel stands
 // over is no place to put the user, since the panels dominate what focus reaches.
 export const underOccluder = (where) =>

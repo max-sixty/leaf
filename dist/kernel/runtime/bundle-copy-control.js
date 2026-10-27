@@ -134,6 +134,13 @@ function verticalTravel(box, movement) {
 		moved: local * scale
 	};
 }
+function landedBox(where) {
+	const rect = destinationBox(where);
+	const [box] = scrollersOf(holderOf(where));
+	if (!box) return rect;
+	const { moved } = verticalTravel(box, placementBy(where, "center", box, topMargin(where, box)));
+	return new DOMRect(rect.x, rect.y - moved, rect.width, rect.height);
+}
 function scrollIntoReadingBand(where, holder, block, behavior) {
 	const [box, ...around] = scrollersOf(holder);
 	if (!box) return;
@@ -256,4 +263,4 @@ function copyControl(className, { label = "", success, error, icon = "copy", rol
 }
 
 //#endregion
-export { alreadyShown, copyControl, fitsWhole, landingRoom, passOn, restrictUserIntent, retainUserIntent, scrollIntoReadingBand, scrollIntoView };
+export { alreadyShown, copyControl, fitsWhole, landedBox, landingRoom, passOn, restrictUserIntent, retainUserIntent, scrollIntoReadingBand, scrollIntoView };

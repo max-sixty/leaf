@@ -209,6 +209,88 @@ def test_m_walks_what_waits_on_you_and_on_me_counts_it(browser, serve):
     counts(1)
 
 
+FILLER = "".join(
+    f"<p>Step {i} of the release, written out long enough to wrap onto a second "
+    "line at a desktop width.</p>"
+    for i in range(14)
+)
+# Two choices waiting on the user: one the walk can land clear above an open view, and
+# one at the page's foot, which no scroll brings above it.
+UNDER_PANEL_PAGE = leaf_page(
+    "Stops under the panel",
+    '<h1 id="h">Release</h1>'
+    + FILLER
+    + '<lf-ask id="mid-ask"><h2>Which channel first?</h2>'
+    '<lf-options id="channel" choose><lf-option id="beta">Beta first</lf-option>'
+    '<lf-option id="both">Both at once</lf-option></lf-options></lf-ask>'
+    + FILLER
+    + '<lf-ask id="foot-ask"><h2>Ship notes with it?</h2>'
+    '<lf-options id="notes" choose><lf-option id="yes">Yes</lf-option>'
+    '<lf-option id="no">No</lf-option></lf-options></lf-ask>',
+)
+
+# How much of an element the user sees, as the runtime reads it (geometry.js,
+# `seenRect`), the open view taken away from what it stands over.
+SEEN_SHARE = """async (selector) => {
+  const {seenRect} = await window.__lfCheckApi();
+  const node = document.querySelector(selector);
+  const box = node.getBoundingClientRect();
+  const seen = seenRect(node, new Map());
+  return seen
+    ? ((seen.right - seen.left) * (seen.bottom - seen.top)) / (box.width * box.height)
+    : 0;
+}"""
+
+
+def test_travel_puts_away_a_panel_view_standing_over_where_it_lands(browser, serve):
+    """Travel shows the place it takes the user to (floating-panel.js, `clearFor`). `m`
+    from a thread the panel opened to a place the landing brings clear above the view
+    leaves the thread open; to one at the page's foot, which the view would stand over,
+    it puts the view away."""
+    url = serve(UNDER_PANEL_PAGE)
+    asked = append_carried_log_record(
+        serve.page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "Ready?"},
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Agent",
+            "parent": asked["id"],
+            "responds": asked["id"],
+            "revision": 1,
+            "text": "Which way should the rollout go first?",
+            "obligation": True,
+        },
+    )
+    page = open_page(browser, url)
+    resized(page, 1280, 900)
+    page.evaluate("getSelection().removeAllRanges()")
+    thread = page.locator(panel_view("thread"))
+
+    def lands_whole(selector):
+        expect(page.locator(selector)).to_be_focused()
+        scroll_settled(page)
+        assert page.evaluate(SEEN_SHARE, selector) > 0.99
+
+    for position in ("1 of 3 · Options", "2 of 3 · Options", "3 of 3 · Reply"):
+        page.keyboard.press("m")
+        expect_walk_position(page, position.replace(" ·", " waiting on me ·"))
+    panel_settled(page, view="thread")
+
+    page.keyboard.press("m")
+    expect_walk_position(page, "1 of 3 waiting on me · Options")
+    lands_whole("#mid-ask")
+    expect(thread).to_have_count(1)
+
+    page.keyboard.press("m")
+    expect_walk_position(page, "2 of 3 waiting on me · Options")
+    panel_settled(page, open=False)
+    lands_whole("#foot-ask")
+
+
 def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):
     """An `lf-tally` counts the obligations its region holds, by the rule a queue row's mark
     reads, and leaves out one outside it. Its Next on me is `m` within the region: a

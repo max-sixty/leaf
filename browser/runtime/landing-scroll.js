@@ -36,7 +36,9 @@
  * such as entering a reply or returning to a thread, asks it before moving anything.
  * Navigation does not: `nearest` stays the native alignment (rect.js,
  * `nearestScrollBy`), which fills the band with a tall destination partly in view, so a
- * fold the user goes to opens from its start.
+ * fold the user goes to opens from its start. Where a landing would leave a
+ * destination (`landedBox`) is read by the same arithmetic, so a surface that would
+ * stand over it there can give way first (floating-panel.js, `clearFor`).
  *
  * A landing is the reader's choice of where each box it moves stands (scrolling.js).
  * One in motion is counted as it starts, since the navigation that lands often changes
@@ -235,6 +237,20 @@ function verticalTravel(box, movement) {
   const scale = scrollAxes(box).y.y;
   const local = scale === 0 ? 0 : reachable(box, movement / scale);
   return { local, moved: local * scale };
+}
+
+// Where travel's landing (`scrollIntoReadingBand`, centred, as anchor travel lands)
+// would leave `where` in its reading region, by the arithmetic the move makes: in the
+// band where the region can scroll that far, and short of it at the region's end.
+export function landedBox(where) {
+  const rect = destinationBox(where);
+  const [box] = scrollersOf(holderOf(where));
+  if (!box) return rect;
+  const { moved } = verticalTravel(
+    box,
+    placementBy(where, "center", box, topMargin(where, box)),
+  );
+  return new DOMRect(rect.x, rect.y - moved, rect.width, rect.height);
 }
 
 export function scrollIntoReadingBand(where, holder, block, behavior) {

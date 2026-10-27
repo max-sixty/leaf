@@ -1055,7 +1055,9 @@ document.addEventListener("focusout", (event) => {
 	const left = event.composedPath()[0];
 	lastLocation = new WeakRef(left);
 	if (restoring) return;
-	queueMicrotask(() => {
+	const departure = readings;
+	setTimeout(() => {
+		if (readings !== departure) return;
 		const at = document.activeElement;
 		if (at !== null && at !== document.body) return;
 		if (heldByLabel()) return;

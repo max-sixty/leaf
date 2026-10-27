@@ -1213,8 +1213,7 @@
 @media screen {
   @container lf-board (width <= 640px) {
     :scope:is(lf-column) {
-      min-width: max(var(--lf-reading-column-floor), calc(100cqi - var(--sp-4)));
-      scroll-snap-align: start;
+      grid-column: 1;
     }
   }
 }

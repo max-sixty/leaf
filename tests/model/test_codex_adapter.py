@@ -1095,7 +1095,7 @@ def test_a_codex_adapter_retiring_with_no_page_leaves_only_records_a_page_needs(
     for the next holder."""
     # The suite's hook marks (`isolated_session`) are not records this test makes.
     for session in HOOKED_SESSIONS:
-        leases_model.hooks_path(session).unlink()
+        cleanup_model.session_file(session, cleanup_model.HOOKS_SUFFIX).unlink()
     for name in CLAUDE_IDENTITY:
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("CODEX_THREAD_ID", "codex-thread")
@@ -1151,7 +1151,7 @@ def test_a_codex_adapter_retiring_with_no_page_leaves_only_records_a_page_needs(
     assert not codex_state_model.delivery_dir("ended-task").exists()
     assert not codex_adapter_model.adapter_log_path("codex-thread").exists()
     coordination = [
-        path for path in leases_model.sessions_home().iterdir() if path != kept
+        path for path in cleanup_model.sessions_home().iterdir() if path != kept
     ]
     assert leases_model.adapter_lease_path("codex-thread") in coordination
     assert all(
@@ -1901,7 +1901,7 @@ def _comment_before_the_first_tool_step(
         prompt("earlier-turn")
         append("task_complete", "earlier-turn")
         codex_state_model.sync_transcript_turn("codex-thread")
-        leases_model.hooks_path("codex-thread").unlink()
+        cleanup_model.session_file("codex-thread", cleanup_model.HOOKS_SUFFIX).unlink()
         append("task_started", "user-turn")
     comment = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "Rename the column"}
@@ -2984,9 +2984,7 @@ raise SystemExit(adapter.run_adapter(os.environ["CODEX_PATH"]))
             ),
             failure="resumed feedback did not reach the existing adapter",
         )
-        hooks_model.cmd_hook(
-            "codex", {"hook_event_name": "SessionEnd", "session_id": "codex-thread"}
-        )
+        cleanup_model.end_harness_instance("codex-thread")
         wait_for(
             lambda: codex_adapter_model.adapter_is_live("codex-thread"),
             lambda live: not live,

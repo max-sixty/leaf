@@ -171,7 +171,7 @@ def read_fixture(
 
     Source and runtime are independent: a paired preview can share one authored input
     while each arm supplies its own package producer and matching data contract, and
-    acknowledges the seed with its own Leaf (`_acknowledge_seed`).
+    admits and acknowledges the seed with its own Leaf (`ADMIT_SEED`).
     """
     seed = seed_log(source)
     files = page_files(source)
@@ -315,39 +315,76 @@ def refresh_captures(fixture: PageFixture, page: Path, run_leaf: LeafRunner) -> 
             )
 
 
-def _seed_log(fixture: PageFixture, page: Path) -> None:
+def _seed_commands(fixture: PageFixture) -> list[dict]:
+    """The events an example's companion log seeds, in order, each as its writer
+    would send it. The log's grammar joins events with "\n", never `splitlines()`,
+    whose wider class breaks a U+2028 inside a message."""
     if fixture.seed is None:
-        return
-    with (page / "events.jsonl").open("a", encoding="utf-8") as log:
-        log.write(fixture.seed.read_text(encoding="utf-8"))
+        return []
+    return [
+        json.loads(line)
+        for line in fixture.seed.read_text(encoding="utf-8").split("\n")
+        if line.strip()
+    ]
 
 
-# Run by the fixture's runtime, so its own admission writes the receipt: another
-# Leaf refuses a page vendored at a different protocol, and would write the receipt
-# in its own shape rather than the page's.
-ACKNOWLEDGE_SEED = """
+# Run by the fixture's runtime, so its own admission admits each seed event and writes
+# the receipt: another Leaf refuses a page vendored at a different protocol, and would
+# write the events in its own shape rather than the page's. It admits the leading
+# events the page's revisions can hold, each through the door every writer uses, so
+# the log holds what a real page's would: admission refuses a seed no writer could
+# send and writes the fields it derives, such as an action's meaning. An event waits
+# for the stamp of the revision it names, as its writer did; after the last stamp,
+# the door refuses one naming a version the example doesn't ship, and the receipt
+# acknowledges the seed. It prints how many events it admitted.
+ADMIT_SEED = """
+import json
 import sys
 from pathlib import Path
 from leaf.delivery import record_receipt
+from leaf.event_contracts import append_admitted
+from leaf.event_log import EventRefused
+from leaf.files import list_revisions
 from leaf.service import PageTransaction
 
-with PageTransaction(Path(sys.argv[1])) as transaction:
-    if transaction.events:
+page, last = Path(sys.argv[1]), sys.argv[2] == "last"
+newest = list_revisions(page)[-1]
+admitted = 0
+with PageTransaction(page) as transaction:
+    for event in json.load(sys.stdin):
+        if not last and event.get("revision", newest) > newest:
+            break
+        try:
+            append_admitted(transaction, event)
+        except EventRefused as error:
+            sys.exit(f"seed event {event.get('id')!r} refused: {error}")
+        admitted += 1
+    if last and transaction.events:
         record_receipt(transaction, transaction.events[-1]["seq"])
+print(admitted)
 """
 
 
-def _acknowledge_seed(fixture: PageFixture, page: Path) -> None:
-    if fixture.seed is None:
+def _seed_log(fixture: PageFixture, page: Path, pending: list[dict], *, last: bool):
+    """Admit the leading `pending` seed events the page's revisions can hold, and
+    after the `last` stamp acknowledge the seed, with the fixture's own Leaf
+    (`ADMIT_SEED`)."""
+    if not pending and not last:
         return
-    subprocess.run(
+    result = subprocess.run(
         [
             *("uv", "run", "-q", "--no-dev", "--project", str(fixture.runtime)),
-            *("python", "-c", ACKNOWLEDGE_SEED, str(page)),
+            *("python", "-c", ADMIT_SEED, str(page), "last" if last else "next"),
         ],
+        input=json.dumps(pending),
+        capture_output=True,
+        text=True,
         env=fixture.env,
-        check=True,
+        check=False,
     )
+    if result.returncode:
+        raise RuntimeError(f"seeding {fixture.seed}: {result.stderr.strip()}")
+    del pending[: int(result.stdout)]
 
 
 def prepare_page(
@@ -369,15 +406,15 @@ def prepare_page(
     here. The current source is written before the data operations, because
     `leaf data set` validates a source against the page's markup and the current
     version is the one that has to bind it. Versions are then stamped oldest first,
-    and the seed log goes in after the first stamp and before any later one, so a
+    and each seed event is admitted once the revision it names is stamped, so a
     revised example reads in the order it happened: a version, what the user said
-    about it, then the version that answered. A receipt acknowledges the seed, since
-    a seed is history: an unacknowledged one would hand the next agent session
-    questions the log already answers.
+    about it, then the version that answered and the reply that says so. A receipt
+    acknowledges the seed, since a seed is history: an unacknowledged one would hand
+    the next agent session questions the log already answers.
 
-    `each_version` is called with each version's source once it is stamped, and once
-    the seed is in the log after the first, so it reads the page as a builder
-    leaves it at that version.
+    `each_version` is called with each version's source once it is stamped and the
+    seed events it holds are in the log, so it reads the page as a builder leaves it
+    at that version.
     """
     selection = package_selection_args(fixture.packages)
     if initialize:
@@ -396,21 +433,17 @@ def prepare_page(
         assets=assets,
     )
     _seed_data(fixture, page, run_leaf)
+    pending = _seed_commands(fixture) if seed_log else []
     for order, version in enumerate(fixture.versions):
+        last = order == len(fixture.versions) - 1
         (page / "index.html").write_text(markup[version], encoding="utf-8")
         run_leaf(
-            "page",
-            "stamp",
-            str(page),
-            "--text",
-            current_note if order == len(fixture.versions) - 1 else earlier_note,
+            "page", "stamp", str(page), "--text", current_note if last else earlier_note
         )
-        if order == 0 and seed_log:
-            _seed_log(fixture, page)
+        if seed_log and fixture.seed is not None:
+            _seed_log(fixture, page, pending, last=last)
         if each_version is not None:
             each_version(version)
-    if seed_log:
-        _acknowledge_seed(fixture, page)
     if final_status is not None:
         run_leaf("page", "close" if final_status == "idle" else "open", str(page))
     return PreparedPage(

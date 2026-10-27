@@ -877,6 +877,29 @@ def card_grabbed(page: Page) -> None:
     page.keyboard.press("ArrowLeft")
 
 
+def card_moved(page: Page) -> None:
+    """A board card carried one column left by keyboard and dropped, its receipt pinned
+    by it, where the next column's card stands across the gap."""
+    card_grabbed(page)
+    page.keyboard.press("Enter")
+    expect(page.locator("#col-blocking #card-tz")).to_be_visible()
+    expect(
+        page.locator('.lf-margin-cluster[data-lf-margin-for="card-tz"]')
+    ).to_be_visible()
+
+
+def card_moved_by_destination(page: Page) -> None:
+    """A board card moved by its Move to button, as a phone offers it, its receipt
+    pinned by it."""
+    page.locator(
+        '#card-tz .lf-board-destination[data-lf-board-target="col-blocking"]'
+    ).click()
+    expect(page.locator("#col-blocking #card-tz")).to_be_visible()
+    expect(
+        page.locator('.lf-margin-cluster[data-lf-margin-for="card-tz"]')
+    ).to_be_visible()
+
+
 def activity_feed(page: Page) -> None:
     """A committed board move beside the published revision in the opened feed."""
     card_grabbed(page)
@@ -1182,6 +1205,24 @@ def table_scrolled_sideways(page: Page) -> None:
 def element_thread(page: Page) -> None:
     """An element holding a thread, in view, with nothing indicating it."""
     page.locator("#off-t-vendor").evaluate("el => el.scrollIntoView({block: 'center'})")
+
+
+def ship_tasks(page: Page) -> None:
+    """The ship review's task list, each task's status beside its title."""
+    page.locator("#off-readiness").evaluate(
+        "el => el.scrollIntoView({block: 'center'})"
+    )
+
+
+def ship_answered(page: Page) -> None:
+    """On me once the user has pressed Done in the reconnect thread and picked the
+    release: what still waits on them."""
+    card_by_pointer(page)
+    page.locator(".lf-margin-preview:not([hidden]) .lf-done").click()
+    page.keyboard.press("Escape")
+    page.locator("#off-release-ship").click()
+    page.locator(".lf-fp-on-user").click()
+    expect(page.locator(".lf-fp-opened")).to_be_visible()
 
 
 def element_thread_open(page: Page) -> None:
@@ -2264,6 +2305,15 @@ STATES = (
     ),
     State("plan-card-reply-resolved", "review-a-plan", card_reply_resolved),
     State("triage", "triage-board", at_rest),
+    State("triage-phone", "triage-board", at_rest, viewport=(390, 844), touch=True),
+    State(
+        "triage-phone-dark",
+        "triage-board",
+        at_rest,
+        viewport=(390, 844),
+        scheme="dark",
+        touch=True,
+    ),
     State("triage-metrics", "triage-board", at_rest, region="#triage-counts"),
     State(
         "triage-metrics-dark",
@@ -2435,6 +2485,16 @@ STATES = (
         touch=True,
     ),
     State("triage-grabbed", "triage-board", card_grabbed),
+    State("triage-moved", "triage-board", card_moved, region="#release-board"),
+    State(
+        "triage-moved-touch",
+        "triage-board",
+        card_moved_by_destination,
+        viewport=(390, 844),
+        touch=True,
+        region="#col-blocking",
+    ),
+    State("walkthrough", "pr-walkthrough", at_rest),
     State("walkthrough-wide", "pr-walkthrough", into_the_body),
     State(
         "walkthrough-body-short",
@@ -2527,6 +2587,22 @@ STATES = (
         touch=True,
     ),
     State("ship-thread", "ship-review", element_thread),
+    State("ship-tasks", "ship-review", ship_tasks, region="#off-readiness"),
+    State(
+        "ship-tasks-dark",
+        "ship-review",
+        ship_tasks,
+        scheme="dark",
+        region="#off-readiness",
+    ),
+    State(
+        "ship-tasks-phone",
+        "ship-review",
+        ship_tasks,
+        viewport=(390, 844),
+        touch=True,
+    ),
+    State("ship-answered", "ship-review", ship_answered, region=".lf-fp-opened"),
     State(
         "ship-thread-open", "ship-review", element_thread_open, region="#off-t-vendor"
     ),

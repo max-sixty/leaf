@@ -1684,7 +1684,8 @@ sheet.replaceSync(`
      cut away whole. Words an owner carries down from above the box, as a line removed
      carries them, need more: it sets --lf-field-reach as far as they travel, and
      stops the host scrolling meanwhile. Chrome refuses calc() here, so the reach
-     replaces the caret's margin rather than adding to it. */
+     replaces the caret's margin rather than adding to it, so the owner keeps at
+     least 2px there and at the moving content's inline clip edges. */
   .lf-field { overflow: clip; overflow-clip-margin: var(--lf-field-reach, 2px); }
   .lf-field > * {
     translate: var(--lf-field-carry);

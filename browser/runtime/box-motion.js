@@ -666,18 +666,20 @@ export function boxMotion({
       motions.set(part.element, { from, to, gaveUp: gaveUp + left });
       const reach = Math.max(0, rtl ? dx : -dx, -dy);
       if (reach > 0) hold(part.element, "overflow", "visible");
+      // The field's line-end caret needs its 2px paint margin during motion too,
+      // both beyond its own overflow clip and beyond the moving content's cut.
+      const caretRoom = 2;
+      const fieldCut = cut().map((side, index) => side - (index % 2 ? caretRoom : 0));
       start(part.element, [
         {
           "--lf-field-carry": `${dx}px ${dy}px`,
-          "--lf-field-cut": cut()
-            .map((side) => `${side}px`)
-            .join(" "),
-          "--lf-field-reach": `${reach}px`,
+          "--lf-field-cut": fieldCut.map((side) => `${side}px`).join(" "),
+          "--lf-field-reach": `${Math.max(caretRoom, reach)}px`,
         },
         {
           "--lf-field-carry": "0px 0px",
-          "--lf-field-cut": "0px 0px 0px 0px",
-          "--lf-field-reach": `${reach}px`,
+          "--lf-field-cut": `0px -${caretRoom}px 0px -${caretRoom}px`,
+          "--lf-field-reach": `${Math.max(caretRoom, reach)}px`,
         },
       ]);
     }

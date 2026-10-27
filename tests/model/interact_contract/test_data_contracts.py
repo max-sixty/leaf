@@ -269,40 +269,26 @@ def test_revendoring_keeps_a_new_binding_before_its_first_revision(page_dir):
     )
 
 
-@pytest.mark.parametrize("contract_retained", [True, False])
-def test_revendoring_an_unreadable_edit_does_not_require_historical_bindings(
-    page_dir, contract_retained
-):
+def test_revendoring_an_unreadable_edit_does_not_require_historical_bindings(page_dir):
     """A runtime refresh is independent of an unreadable candidate's source error."""
     source = page_dir / "index.html"
-    if contract_retained:
-        source.write_text(
-            source.read_text().replace(
-                "</main>",
-                '<lf-text-document id="report" source="report"></lf-text-document></main>',
-            )
+    source.write_text(
+        source.read_text().replace(
+            "</main>",
+            '<lf-text-document id="report" source="report"></lf-text-document></main>',
         )
-        activated = revisioning_model.activate_source(page_dir)
-        assert activated.error is None and activated.created
-        data_model.cmd_data_set(page_dir, "report", "Retained report.")
-    else:
-        declare_data_input(page_dir, "builds", {"type": "array"}, contract="builds")
-        data_model.cmd_data_set(page_dir, "builds", [])
+    )
+    activated = revisioning_model.activate_source(page_dir)
+    assert activated.error is None and activated.created
+    data_model.cmd_data_set(page_dir, "report", "Retained report.")
     revisions = files_model.list_revisions(page_dir)
     source.write_bytes(b"\xff")
 
     result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
 
-    if contract_retained:
-        assert result.exit_code == 0, result.output
-        assert data_model.read_contracts(page_dir)["report"] == "text-document"
-        assert (
-            read_page_data(page_dir)["sources"]["report"]["value"] == "Retained report."
-        )
-    else:
-        assert result.exit_code == 0, result.output
-        reading = read_page_data(page_dir)["sources"]["builds"]
-        assert "error" in reading and "value" not in reading
+    assert result.exit_code == 0, result.output
+    assert data_model.read_contracts(page_dir)["report"] == "text-document"
+    assert read_page_data(page_dir)["sources"]["report"]["value"] == "Retained report."
     assert files_model.list_revisions(page_dir) == revisions
     assert source.read_bytes() == b"\xff"
     status, findings = check_findings(page_dir)

@@ -18,10 +18,10 @@
 import { sameAnchor } from "../anchor-coordinate.js";
 import { PENDING } from "./identity.js";
 
-/** @typedef {import("../../framework/domain.ts").Thread} Thread */
-/** @typedef {import("../../framework/domain.ts").Message} Message */
-/** @typedef {import("../../framework/domain.ts").Settlement} Settlement */
-/** @typedef {import("../../framework/domain.ts").Anchor} Anchor */
+/** @typedef {import("../../types/domain.js").Thread} Thread */
+/** @typedef {import("../../types/domain.js").Message} Message */
+/** @typedef {import("../../types/domain.js").Settlement} Settlement */
+/** @typedef {import("../../types/domain.js").Anchor} Anchor */
 
 /** @param {{token?: string}} message */
 export const isReaction = (message) => Boolean(message.token);
@@ -136,10 +136,18 @@ export const bareReaction = (thread) => thread.bare_reaction;
 export const discussed = (thread) => !bareReaction(thread);
 /** Whether a thread holds words the user hasn't read.
  * @param {Pick<Thread, "unread">} thread */
-export const hasUnread = (thread) => thread.unread.length > 0;
+const hasUnread = (thread) => thread.unread.length > 0;
 /**
- * What the panel's Threads mark counts of the threads it lists: those still open, and
- * those holding words the user hasn't read. A page's served row counts the same way
+ * Whether a thread is news: still open and holding words the user hasn't read. A
+ * resolved thread's unread words aren't, so the news the panel counts never outnumbers
+ * the open threads; a reply reopens its thread, and the user chose on 21 October to
+ * leave what reaches a closed one unannounced.
+ * @param {Pick<Thread, "resolved" | "unread">} thread */
+export const isNews = (thread) => !thread.resolved && hasUnread(thread);
+/**
+ * What the panel counts of the threads it lists: those still open, which Threads' tab
+ * says, and those that are news (`isNews`), which the On me mark's dot says. A page's
+ * served row counts the same way
  * (`served_state.thread.thread_counts`); tests/thread_count_cases.json holds both.
  * @param {readonly Pick<Thread, "bare_reaction" | "resolved" | "unread">[]} threads
  */
@@ -147,7 +155,7 @@ export function threadCounts(threads) {
   const listed = threads.filter(discussed);
   return {
     open: listed.filter((thread) => !thread.resolved).length,
-    unread: listed.filter(hasUnread).length,
+    unread: listed.filter(isNews).length,
   };
 }
 // Which widget's seat a pending thread stands in, by the rule `seat_root` reads the log
@@ -174,7 +182,7 @@ const pendingSeat = (message) =>
 // server read until the log answers the gesture. A thread the user opened with words has
 // no log beyond the gesture: it waits on the agent for its send, under the pending id its
 // local workflow shares, and asks nothing yet.
-/** @param {{id: string}} turn @returns {import("../../framework/domain.ts").Attention} */
+/** @param {{id: string}} turn @returns {import("../../types/domain.js").Attention} */
 const sending = (turn) => ({
   kind: "waiting",
   reason: "workflow",
@@ -185,7 +193,7 @@ const sending = (turn) => ({
 // rewrite as the thread draws it, each settlement with the `localParent` its pending
 // parent went by, and each undo.
 /** @param {readonly Thread[]} threads
- * @param {readonly import("../../framework/domain.ts").ThreadGesture[]} gestures
+ * @param {readonly import("../../types/domain.js").ThreadGesture[]} gestures
  * @returns {Thread[]}
  */
 export function foldThreads(threads, gestures) {
@@ -203,6 +211,13 @@ export function foldThreads(threads, gestures) {
     .map((thread) => ({
       ...thread,
       msgs: thread.msgs.filter((message) => !withdrawn.has(message.id)),
+      // A thread whose closing event the user is taking back stands open again, as a
+      // to-do whose Done they undo does; the log's answer restores any earlier closure.
+      ...(thread.resolved &&
+      "id" in thread.resolved &&
+      withdrawn.has(thread.resolved.id)
+        ? { resolved: null }
+        : {}),
     }));
   const byName = threadNames(copies);
   /** @type {Thread[]} */
@@ -318,7 +333,7 @@ export function lastMovedAt(thread) {
   return latest;
 }
 
-/** @param {import("../../framework/domain.ts").ContentVersion} item */
+/** @param {import("../../types/domain.js").ContentVersion} item */
 const versionKey = ({ message, version }) => `${message}\u0000${version}`;
 
 /* Public thread values. The publisher calls this after folding local gestures
@@ -329,14 +344,14 @@ const versionKey = ({ message, version }) => `${message}\u0000${version}`;
    has not taken in, less those this tab is marking read now: the page draws them read
    in the turn it sends that, and the answer confirms rather than decides it. */
 /** @param {readonly Thread[]} threads
- * @param {import("../../framework/application.ts").SemanticDocument} document
+ * @param {import("../framework/application.js").SemanticDocument} document
  * @param {ReturnType<typeof import("../projection/model.js").foldWidgetStates>} widgets
- * @param {import("../../framework/application.ts").Workflow[]} workflows
- * @param {readonly import("../../framework/application.ts").WireTodo[]} todos
+ * @param {import("../framework/application.js").Workflow[]} workflows
+ * @param {readonly import("../framework/application.js").WireTodo[]} todos
  *   the open to-dos, of which each thread holds the agent's and the user's on it apart
- * @param {readonly import("../../framework/application.ts").ObligationRecord[]} obligations
+ * @param {readonly import("../framework/application.js").ObligationRecord[]} obligations
  *   the view's obligations, of which each thread holds those its messages make
- * @param {import("../../framework/domain.ts").ContentVersion[]} markingRead
+ * @param {import("../../types/domain.js").ContentVersion[]} markingRead
  * @param {boolean} ready
  */
 export function readThreadRecords(
@@ -350,7 +365,7 @@ export function readThreadRecords(
   ready = true,
 ) {
   const locallyRead = new Set(markingRead.map(versionKey));
-  /** @type {Map<string | undefined, {id: string, tag: string, state: import("../../framework/domain.ts").AuthoredWidget["state"]}[]>} */
+  /** @type {Map<string | undefined, {id: string, tag: string, state: import("../../types/domain.js").AuthoredWidget["state"]}[]>} */
   const unitsByMessage = new Map();
   for (const descriptor of document.descriptors.values()) {
     if (descriptor.document.kind !== "thread") continue;

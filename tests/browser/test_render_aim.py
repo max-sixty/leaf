@@ -5,6 +5,7 @@ import json
 import math
 import re
 from datetime import datetime, timedelta
+from itertools import pairwise
 
 import pytest
 from interact_support import (
@@ -68,6 +69,7 @@ from render_harness import (
     judge_watches,
     leaf_page,
     open_page,
+    open_threads,
     pane_scroll_behavior,
     panel_settled,
     panel_view,
@@ -281,12 +283,16 @@ def test_an_aimed_comment_keeps_its_place_with_on_me_open(browser, serve, width)
     resized(page, width, 900)
 
     target = page.locator("#lq-keep")
-    target.hover()
+    # The expanded queue covers the center; keep the pointer on the exposed start,
+    # where the comment press below also lands.
+    target.hover(position={"x": 12, "y": 12})
     page.keyboard.down("Alt")
     expect(page.locator(".lf-aim")).to_have_attribute("data-for", "lq-keep")
     # Open by script so the pointer remains parked on the target while the view arrives.
     page.locator(".lf-fp-on-user").evaluate("node => node.click()")
     panel_settled(page, view="queue")
+    expect(page.locator(".lf-aim")).to_be_visible()
+    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "lq-keep")
     aligned = page.evaluate(
         """() => {
           const target = document.getElementById('lq-keep').getBoundingClientRect();
@@ -1609,9 +1615,7 @@ def test_a_margin_label_covers_the_target_trace(browser, serve, monkeypatch):
     told(page)
 
     marker = page.locator('[data-lf-margin-for="jobs"] > .lf-margin-marker')
-    expect(marker).to_have_attribute(
-        "aria-label", re.compile(r"^Waiting for delivery,")
-    )
+    expect(marker).to_have_attribute("aria-label", re.compile(r"^Haven't seen it yet,"))
     marker.hover()
     label = marker.locator(":scope > .lf-margin-entry-label")
     trace = page.locator('.lf-target-trace[data-for="jobs"]')
@@ -1872,7 +1876,9 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     page.keyboard.press("?")
     reference = page.locator(".lf-command-reference")
     expect(reference).to_be_visible()
-    expect(reference.locator('tr[data-lf-command="aim.comment"]')).to_have_count(0)
+    expect(
+        reference.locator('[role=row][data-lf-command="aim.comment"]')
+    ).to_have_count(0)
     page.keyboard.press("Escape")
     expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
 
@@ -2398,7 +2404,7 @@ def test_design_mode_leaves_the_chrome_working(browser, serve):
     assert comments() == seeded, "a press on the chrome posted a comment"
     exit_mode.click()
     expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode")
-    page.locator(".lf-fp-threads").click()
+    open_threads(page)
     expect(panel).to_be_visible()
 
 
@@ -3024,16 +3030,23 @@ def test_a_shadow_visual_surface_is_clipped_by_its_host(browser, serve):
     surface.click(position={"x": 20, "y": 20})
     expect(mark).to_be_visible()
     host_box = host.bounding_box()
+    # Contours retain one stroke beyond a clip; the wider shadow
+    # surface must still be cut at that boundary, for both references and aim.
+    stroke = mark.evaluate(
+        "node => parseFloat(getComputedStyle(node).getPropertyValue('--focus-ring-w'))"
+    )
+    right = host_box["x"] + host_box["width"] + stroke
+    assert surface.bounding_box()["width"] > host_box["width"] + stroke
     shown = page.evaluate(SHOWN_PAINT, ".lf-visual-mark")
     assert shown["left"] >= host_box["x"]
-    assert shown["right"] <= host_box["x"] + host_box["width"]
+    assert shown["right"] == pytest.approx(right)
 
     page.keyboard.down("Alt")
     aim = page.locator(".lf-aim")
     expect(aim).to_have_attribute("data-for", "wide-surface")
     shown = page.evaluate(SHOWN_PAINT, ".lf-aim")
     assert shown["left"] >= host_box["x"]
-    assert shown["right"] <= host_box["x"] + host_box["width"]
+    assert shown["right"] == pytest.approx(right)
     page.keyboard.up("Alt")
 
 
@@ -3385,6 +3398,230 @@ def test_a_held_aim_in_a_pane_paints_in_the_frame_its_target_scrolls(browser, se
     page.keyboard.up("Alt")
 
 
+def test_target_brackets_and_focus_share_the_visible_boundary(browser, serve, subtests):
+    """Leaving Comment changes the mark, not which rectangle it identifies.
+
+    A native table ends at its last row, a card follows its authored corners, and a
+    partly scrolled card keeps its shape behind the scrollport's cut. Compare to the content,
+    not only to the other overlay: both painters once agreed on the wrong box.
+    """
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Target boundaries",
+                """
+<h1>Target boundaries</h1>
+<table id="square"><tr><th>West</th><th>East</th></tr>
+  <tr><td>16 jobs</td><td>8 jobs</td></tr></table>
+<div id="port"><div style="height:20px"></div>
+  <div id="rounded" class="authored-contour">Fallback procedure<div style="height:240px"></div>Last step</div>
+  <div style="height:500px"></div></div>
+""",
+                head="""<style>
+  #square { display:table; border-collapse:collapse; width:400px; }
+  #square :is(th,td) { border:1px solid; }
+  #port { height:360px; width:440px; overflow:auto; border:1px solid; }
+  #rounded { border:1px solid; border-radius:12px; margin:12px; padding:12px; }
+  .authored-contour { outline:1px dashed var(--ink-2); }
+  </style>""",
+            )
+        ),
+    )
+    resized(page, 1100, 900)
+    read = r"""([id, selector]) => {
+      const target = document.getElementById(id), node = document.querySelector(selector);
+      const box = target.getBoundingClientRect(), shown = {...box.toJSON()};
+      if (id === 'rounded') {
+        const port = document.getElementById('port'), clip = port.getBoundingClientRect();
+        shown.left = Math.max(box.left, clip.left + port.clientLeft);
+        shown.top = Math.max(box.top, clip.top + port.clientTop);
+        shown.right = Math.min(box.right, clip.left + port.clientLeft + port.clientWidth);
+        shown.bottom = Math.min(box.bottom, clip.top + port.clientTop + port.clientHeight);
+      }
+      const style = getComputedStyle(node), end = getComputedStyle(node, '::after');
+      const ink = end.content !== 'none' ? end : style;
+      const rect = node.getBoundingClientRect();
+      const stroke = parseFloat(ink.outlineWidth), gap = parseFloat(ink.outlineOffset);
+      const painted = {left:rect.left - stroke, top:rect.top - stroke,
+        right:rect.right + stroke, bottom:rect.bottom + stroke};
+      for (let frame = node.parentElement; frame; frame = frame.parentElement) {
+        if (!frame.matches('.lf-paint-frame')) continue;
+        const values = getComputedStyle(frame).clipPath.match(/-?[\d.]+px/g)?.map(parseFloat);
+        if (values?.length !== 4) throw new Error('Expected a rectangular clip');
+        const box = frame.getBoundingClientRect();
+        painted.left = Math.max(painted.left, box.left + values[3]);
+        painted.top = Math.max(painted.top, box.top + values[0]);
+        painted.right = Math.min(painted.right, box.right - values[1]);
+        painted.bottom = Math.min(painted.bottom, box.bottom - values[2]);
+      }
+      return {source:box.toJSON(), shown, painted, rect:rect.toJSON(), stroke, gap, ink:ink.outlineStyle,
+        radius:style.borderRadius, clip:ink.clipPath,
+        nativeOutline:getComputedStyle(target).outlineStyle,
+        rowBottom:id === 'square' ? target.rows[target.rows.length - 1].getBoundingClientRect().bottom : null};
+    }"""
+
+    def boundary(target, selector):
+        reading = page.evaluate(read, [target, selector])
+        assert reading["ink"] == "solid", reading
+        assert (reading["stroke"], reading["gap"]) == (2, 0), reading
+        for edge in ("left", "top", "right", "bottom"):
+            assert reading["rect"][edge] == pytest.approx(
+                reading["source"][edge], abs=0.5
+            ), reading
+            outside = -2 if edge in ("left", "top") else 2
+            assert reading["painted"][edge] == pytest.approx(
+                reading["shown"][edge] + outside, abs=0.5
+            ), reading
+        if target == "square":
+            assert reading["shown"]["bottom"] - reading["rowBottom"] <= 1, reading
+            assert reading["radius"] == "0px", reading
+        return reading
+
+    for target in ("square", "rounded"):
+        with subtests.test(target=target):
+            node = page.locator(f"#{target}")
+            node.hover(position={"x": 10, "y": 10})
+            page.keyboard.down("Alt")
+            expect(page.locator(".lf-aim")).to_have_attribute("data-for", target)
+            aimed = boundary(target, ".lf-aim")
+            if target == "rounded":
+                assert aimed["radius"] == "12px", aimed
+            page.mouse.down()
+            page.mouse.up()
+            page.keyboard.up("Alt")
+            open_compact_comment(page)
+            expect(page.locator(".lf-visual-mark-pending")).to_be_visible()
+            pending = boundary(target, ".lf-visual-mark-pending")
+            if target == "rounded":
+                # A projected reference replaces Leaf's annotation paint, not an
+                # outline the page itself gave this target.
+                assert pending["nativeOutline"] == "dashed", pending
+            page.keyboard.press("Escape")
+            expect(node).to_be_focused()
+            focus = page.locator(f'.lf-visual-mark-focus[data-for="{target}"]')
+            expect(focus).to_be_visible()
+            focused = boundary(target, f'.lf-visual-mark-focus[data-for="{target}"]')
+            assert focused["radius"] == aimed["radius"], (aimed, focused)
+            assert focused["clip"] == "none", focused
+            assert focused["nativeOutline"] == "none", focused
+            if target == "rounded":
+                port = page.locator("#port")
+                port.hover(position={"x": 5, "y": 60})
+                page.mouse.wheel(0, 150)
+                page.wait_for_function("document.getElementById('port').scrollTop > 0")
+                scroll_settled(page, "#port")
+                rendered(page)
+                clipped = boundary(
+                    target, f'.lf-visual-mark-focus[data-for="{target}"]'
+                )
+                # The original top is outside the clip: neither focus nor brackets
+                # invent a horizontal edge across the surviving part of the card.
+                assert clipped["rect"]["top"] < clipped["painted"]["top"] - 10, clipped
+                assert clipped["radius"] == "12px", clipped
+                page.keyboard.down("Alt")
+                port.hover(position={"x": 25, "y": 60})
+                expect(page.locator(".lf-aim")).to_have_attribute("data-for", target)
+                aimed = boundary(target, ".lf-aim")
+                assert aimed["radius"] == clipped["radius"], (aimed, clipped)
+                page.keyboard.up("Alt")
+
+
+def test_focus_projection_follows_modality_and_leaves_private_controls_their_ring(
+    browser, serve, subtests
+):
+    """A keyboard cue can begin without focus moving, and needs no authored id.
+
+    Private shadow controls and controls whose surrounding face owns their ring
+    retain that component paint rather than acquiring a second projected ring.
+    """
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Focus paint ownership",
+                "<h1>Focus paint ownership</h1><button>Unnamed control</button>"
+                '<button id="named">Named control</button><span id="component"></span>'
+                '<label class="choice"><input id="pick" type="checkbox">Keep this choice</label>'
+                '<section><lf-tabs id="views">'
+                '<lf-tab id="view-a" label="First">First panel</lf-tab>'
+                '<lf-tab id="view-b" label="Second">Second panel</lf-tab>'
+                '</lf-tabs></section><lf-pane id="pane" label="Findings">'
+                '<div id="pane-body" style="height:160px;overflow:auto">'
+                '<p style="height:400px">The pane scrolls.</p></div></lf-pane>',
+            )
+        ),
+    )
+    page.locator("#component").evaluate(
+        """host => {
+          host.attachShadow({mode:'open'}).innerHTML = `<style>
+            button:focus-visible { outline:var(--focus-ring); outline-offset:3px; }
+          </style><button id="private">Private control</button>`;
+        }"""
+    )
+    for name in ("Unnamed control", "Named control"):
+        with subtests.test(control=name):
+            control = page.get_by_role("button", name=name, exact=True)
+            control.click()
+            expect(control).to_be_focused()
+            rendered(page)
+            assert not control.evaluate("node => node.matches(':focus-visible')")
+            expect(page.locator(".lf-visual-mark-focus")).to_have_count(0)
+            page.keyboard.press("ArrowRight")
+            expect(control).to_be_focused()
+            assert control.evaluate("node => node.matches(':focus-visible')")
+            mark = page.locator(".lf-visual-mark-focus")
+            expect(mark).to_have_count(1)
+            expect(mark).to_be_visible()
+            expect(control).to_have_css("outline-style", "none")
+            assert mark.bounding_box() == pytest.approx(control.bounding_box(), abs=0.5)
+
+    page.keyboard.press("Tab")
+    private = page.get_by_role("button", name="Private control", exact=True)
+    expect(private).to_be_focused()
+    expect(private).to_have_css("outline-style", "solid")
+    expect(private).to_have_css("outline-width", "2px")
+    rendered(page)
+    expect(page.locator(".lf-visual-mark-focus")).to_have_count(0)
+    expect(private).not_to_have_class(re.compile(r"\blf-projected-mark\b"))
+
+    page.keyboard.press("Tab")
+    choice = page.get_by_role("checkbox", name="Keep this choice", exact=True)
+    expect(choice).to_be_focused()
+    expect(choice).to_have_css("outline-style", "none")
+    expect(page.locator(".choice")).to_have_css("outline-width", "2px")
+    expect(page.locator(".choice")).to_have_css("outline-style", "solid")
+    rendered(page)
+    expect(page.locator(".lf-visual-mark-focus")).to_have_count(0)
+
+    page.keyboard.press("Tab")
+    expect(page.get_by_role("tab", name="First", exact=True)).to_be_focused()
+    page.keyboard.press("Tab")
+    panel = page.locator("#view-a")
+    expect(panel).to_be_focused()
+    expect(panel).to_have_css("outline-style", "none")
+    rendered(page)
+    assert page.locator("#views").evaluate(
+        """tabs => {
+          const ring = getComputedStyle(tabs, '::after');
+          return {content:ring.content, style:ring.outlineStyle, width:ring.outlineWidth};
+        }"""
+    ) == {"content": '""', "style": "solid", "width": "2px"}
+    expect(page.locator(".lf-visual-mark-focus")).to_have_count(0)
+
+    page.keyboard.press("Tab")
+    expect(page.locator("#pane-body")).to_be_focused()
+    expect(page.locator("#pane-body")).to_have_css("outline-style", "none")
+    rendered(page)
+    assert (
+        page.locator("#pane").evaluate(
+            "node => getComputedStyle(node, '::after').outlineStyle"
+        )
+        == "solid"
+    )
+    expect(page.locator(".lf-visual-mark-focus")).to_have_count(0)
+
+
 @pytest.mark.parametrize("subject", ["words", "diagram node"])
 def test_an_aim_in_a_pane_stands_anchored_to_what_it_outlines(browser, serve, subject):
     """The aim over a target in a pane stands fixed and anchored to that target, cut by
@@ -3563,12 +3800,12 @@ def test_the_chrome_keeps_its_presses_while_the_page_is_armed(browser, serve):
     from a user who happens to be holding the key — and there is nothing in the layer
     to aim at anyway, since an anchor names an element of the page."""
     page = open_page(browser, serve(LONG_PAGE))
-    comments = page.locator(".lf-fp-threads")
-    comments.hover()
+    on_me = page.locator(".lf-fp-on-user")
+    on_me.hover()
     page.keyboard.down("Alt")
-    comments.click()
+    on_me.click()
     page.keyboard.up("Alt")
-    panel_settled(page, view="threads")
+    panel_settled(page, view="queue")
     expect(page.locator(".lf-composer")).to_be_hidden()
 
 
@@ -5415,3 +5652,84 @@ def test_native_textarea_defaults_never_supply_design_passage_context(browser, s
     fields.nth(0).press("End")
     fields.nth(0).press_sequentially(" still editable")
     expect(fields.nth(0)).to_have_value("Changed live value. still editable")
+
+
+@pytest.mark.parametrize("shift, placement", [(0, "right-start"), (250, "left-start")])
+def test_a_side_comment_grows_down_from_the_line_it_was_opened_on(
+    browser, serve, shift, placement
+):
+    """Beside a passage, a draft that wraps keeps what the user has written where they
+    wrote it: the field's top holds and its foot, with Send, moves down a line per wrap,
+    as in an editor. Enter sends, so a hand on the keys never chases Send. (#1159 held
+    the foot and raised the words above it; the user chose this instead.)"""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Side comment growth",
+                '<div style="height: 240px"></div>'
+                f'<p id="passage" style="position:relative;left:{shift}px">'
+                "This passage has room beside it for a response.</p>"
+                '<div style="height: 700px"></div>',
+            )
+        ),
+    )
+    resized(page, 1440, 900)
+    page.locator("#passage").click(modifiers=["Alt"])
+    field = open_compact_comment(page)
+    bar = page.locator(".lf-fab-bar")
+    assert bar.get_attribute("data-lf-placement") == placement
+    resting = page.evaluate(SIDE_COMMENT)
+
+    # Word by word until the field has wrapped twice, reading every keystroke's result.
+    readings = [resting]
+    words = iter(("the words keep coming as the user writes " * 12).split())
+    while len({round(reading["height"]) for reading in readings}) < 3:
+        page.keyboard.type(next(words) + " ")
+        rendered(page)
+        readings.append(page.evaluate(SIDE_COMMENT))
+    for reading in readings:
+        assert reading["top"] == pytest.approx(resting["top"], abs=0.5), reading
+        assert reading["field"] == pytest.approx(resting["field"], abs=0.5), reading
+        assert reading["scrolled"] == 0, reading
+    for before, after in pairwise(readings):
+        assert after["bottom"] >= before["bottom"] - 0.5, (before, after)
+    grown = readings[-1]
+    assert grown["bottom"] > resting["bottom"] + 30, (resting, grown)
+    assert grown["send"] > resting["send"] + 30, (resting, grown)
+
+    write(field, "Short again")
+    rendered(page)
+    shortened = page.evaluate(SIDE_COMMENT)
+    assert shortened["top"] == pytest.approx(resting["top"], abs=0.5), shortened
+    assert shortened["bottom"] == pytest.approx(resting["bottom"], abs=0.5), shortened
+
+    # A restored draft opens from the same line, its lines under it.
+    write(field, "First line\nSecond line\nThird line")
+    page.reload()
+    rendered(page)
+    # Startup recovery has already reopened the editor at its saved passage.
+    field = open_compact_comment(page)
+    expect(field).to_have_js_property("value", "First line\nSecond line\nThird line")
+    rendered(page)
+    restored = page.evaluate(SIDE_COMMENT)
+    assert restored["top"] == pytest.approx(resting["top"], abs=1), restored
+    assert restored["bottom"] > resting["bottom"] + 30, restored
+
+
+def test_design_mode_survives_the_reload_a_new_version_brings(browser, serve):
+    """A version landing mid-batch reloads the document, and a user put out of the
+    mode by news they never asked for is a mode error the page made — so the mode is
+    this tab's working state, kept the way the panel's open state is."""
+    page = open_page(browser, serve(REPLAYED_PAGE))
+    page.keyboard.press("l")
+    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+    page.reload()
+    wait_until_ready(page)
+    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+    expect(page.locator('.lf-legend-box[data-for="approach"]')).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
+    page.reload()
+    wait_until_ready(page)
+    expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")

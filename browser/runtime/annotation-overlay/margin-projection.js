@@ -46,6 +46,7 @@ import {
   layoutMarginRows,
   marginColumn,
   mountMarginLayer,
+  paintedBox,
   registerMarginRow,
   scheduleMarginEntryLabels,
   scheduleMarginLayout,
@@ -151,6 +152,7 @@ export function createMarginProjection({
   placedAt,
   marksFor,
   scrollToElement,
+  openInPanel,
 }) {
   const {
     targetFor,
@@ -179,9 +181,9 @@ export function createMarginProjection({
     inventory,
     renderMarginThread,
     placedAt,
-    openPageThread,
     scrollThreadIntoView,
     scrollToElement,
+    openInPanel,
     onClose: closedPreview,
   });
   const preview = card.element;
@@ -421,11 +423,15 @@ export function createMarginProjection({
     );
   }
 
+  // Where a row's marker is painted (margin-layout.js, `paintedBox`).
+  const markerBox = (row) =>
+    paintedBox(row, closestAcross(row, "[data-lf-margin-for]"));
+
   // The rows in front of the user (`seenRect`): one under the floating panel,
   // or scrolled out of a pane, is no row the walk or the rail's way in may land on.
   function visibleRows() {
     const clips = new Map();
-    return availableRows().filter((row) => seenRect(row, clips));
+    return availableRows().filter((row) => seenRect(row, clips, markerBox(row)));
   }
 
   function clusterMarginEntries(host) {
@@ -631,21 +637,28 @@ export function createMarginProjection({
     }
     const currentLocation = available.find((row) => row === focused());
     const candidates = visible.length ? visible : available;
-    // A stop in view stays where it is. With none in view the stop is the row nearest
-    // the window, whatever held it before, so the way in follows from the page as it
-    // stands rather than from the widths and scrolls it passed through.
-    const held = visible.find((row) => row.tabIndex === 0);
+    // The stop is the highest row in view, or with none in view the row nearest the
+    // window, whatever held it before, so the way in follows from the page as it
+    // stands rather than from the widths and scrolls it passed through. A stop kept
+    // where it stood while in view moved for good once a narrower width had shown
+    // another row first.
     const room = shownWindow();
-    const distance = (row) => {
-      const box = row.getBoundingClientRect();
-      if (box.bottom < room.top) return room.top - box.bottom;
-      if (box.top > room.bottom) return box.top - room.bottom;
-      return 0;
+    const place = (row) => {
+      const box = markerBox(row);
+      const away =
+        box.bottom < room.top
+          ? room.top - box.bottom
+          : box.top > room.bottom
+            ? box.top - room.bottom
+            : 0;
+      return [away, box.top, box.left];
     };
-    const next =
-      currentLocation ??
-      held ??
-      candidates.reduce((best, row) => (distance(row) < distance(best) ? row : best));
+    const before = (a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
+    const nearest = () =>
+      candidates
+        .map((row) => ({ row, at: place(row) }))
+        .reduce((best, next) => (before(next.at, best.at) < 0 ? next : best)).row;
+    const next = currentLocation ?? nearest();
     holdTabStop(next);
   }
 

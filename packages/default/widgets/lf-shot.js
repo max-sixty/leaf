@@ -29,7 +29,8 @@
  * selection. The divider's exact position survives switching views. Replacing either
  * capture refreshes evidence inside the retained controls and viewports, preserving
  * the reader's inspection.
- * `difference` reads the requested pair; a superseded or refused load resolves null.
+ * `difference` reads the requested pair, with its `description` in words; a superseded
+ * or refused load resolves null.
  * Pair's images are original-image links using the shared viewer; dragging or
  * scrolling them never opens the viewer. Image options holds scale and the pixel key.
  * Print shows both complete original images. */
@@ -38,9 +39,6 @@ import "/vendor/lf-shot-initial.js";
 import {
   afterPresentation,
   announce,
-  compareImagePixels,
-  compareImages,
-  describeDifference,
   once,
   offer,
   failSoft,
@@ -85,6 +83,11 @@ import {
   shotAllocation,
   shotBox,
 } from "./shot-view.js";
+import {
+  compareImagePixels,
+  compareImages,
+  describeDifference,
+} from "./image-difference.js";
 
 customElements.define(
   "lf-shot",
@@ -584,7 +587,7 @@ customElements.define(
       const description = describeDifference(reading);
       keeps(this.#outlinesButton, "aria-description", description);
       this.#paint();
-      return reading;
+      return { ...reading, description };
     }
 
     #showPixels() {

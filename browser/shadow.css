@@ -9,6 +9,12 @@
     transition: none !important;
   }
 }
+:where(:root) .lf-ui,
+:where(:root) .lf-ui *,
+:where(:root) .lf-ui *::before,
+:where(:root) .lf-ui *::after {
+  box-sizing: border-box;
+}
 :where(:root) :is(.lf-ui-face, .button, .field) {
   font-family: var(--sans);
   font-size: var(--t-5);
@@ -27,6 +33,7 @@
   position: absolute;
   width: 1px;
   height: 1px;
+  padding: 0;
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
@@ -147,25 +154,25 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-thread-notice:is(button),
 .lf-react,
 .lf-margin-entry,
-.lf-thread-action,
 .lf-command-reference-command,
 .lf-quote {
   min-width: var(--aim-floor);
+  min-height: var(--lf-face-floor, var(--aim-floor));
 }
-[data-lf-offer]:where(:not([data-lf-offer=""], [data-lf-offer=checkbox], [data-lf-offer=radio], .lf-mark-note, .lf-btn, .lf-msg-control)),
-.lf-react,
-.lf-margin-entry,
-.lf-command-reference-command,
-.lf-quote {
-  min-height: var(--aim-floor);
-}
-:where(.lf-btn, .button, .lf-icon-action, .lf-msg-control, .lf-thread-action, .lf-thread-notice:is(button), .lf-draft-action, .lf-corner-mark, button.lf-fp-face) {
+@property --lf-face-floor { syntax: "*"; inherits: false; }
+:where(.lf-btn, .button, .lf-icon-action, .lf-compose-submit, .lf-compose-dictate, .lf-msg-control, .lf-thread-notice:is(button), button.lf-mark-action, button.lf-fp-face) {
+  --lf-face-floor: auto;
   position: relative;
   &::after {
     content: "";
     position: absolute;
     inset: min(0px, (100% - var(--aim-floor)) / 2);
   }
+}
+.lf-mark-action.lf-ui::part(button)::after {
+  content: "";
+  position: absolute;
+  inset: min(0px, (100% - var(--aim-floor)) / 2);
 }
 summary {
   align-content: center;
@@ -248,10 +255,8 @@ summary {
   --lf-msg-body-gap: 4px;
   --lf-msg-control-size: 26px;
   --lf-msg-control-width: max(var(--lf-msg-control-size), var(--aim-floor));
-  --lf-msg-edit-cancel: max(52px, var(--aim-floor));
-  --lf-msg-edit-save: max(40px, var(--aim-floor));
   --lf-msg-edit-gap: 4px;
-  --lf-msg-edit-room: calc( var(--lf-msg-edit-cancel) + var(--lf-msg-edit-gap) + var(--lf-msg-edit-save) );
+  --lf-msg-edit-width: calc( 2 * var(--lf-msg-control-width) + var(--lf-msg-edit-gap) + var(--sp-2) );
   --lf-news-count-room: 16px;
   --lf-primary-news-width: calc(5rem + var(--lf-news-count-room));
 }
@@ -300,6 +305,9 @@ summary {
   --lf-msg-head-room: var(--lf-primary-news-width);
   padding-inline-end: var(--lf-msg-head-room);
 }
+.lf-msg:has(> .lf-msg-body > .lf-msg-editor) > .lf-msg-head:has(> .lf-primary-news) {
+  --lf-msg-control: var(--lf-msg-edit-width);
+}
 .lf-primary-part {
   position: relative;
   border-radius: var(--r);
@@ -311,7 +319,7 @@ summary {
   position: absolute;
   box-sizing: border-box;
   inset-block-start: 0;
-  inset-inline-end: var(--lf-msg-control-room, var(--lf-msg-control, 0px));
+  inset-inline-end: var(--lf-msg-control, 0px);
   max-inline-size: var(--lf-primary-news-width);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -505,7 +513,7 @@ summary {
   --lf-thread-message-control-room: calc(var(--lf-msg-control-width) + var(--sp-2));
 }
 .lf-thread-content:has(> .lf-thread-controls):has(> .lf-thread-transcript > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint) > .lf-msg-body > .lf-msg-editor) {
-  --lf-thread-message-control-room: calc(var(--lf-msg-edit-room) + var(--sp-2));
+  --lf-thread-message-control-room: calc(var(--lf-msg-edit-width) + var(--sp-2));
 }
 .lf-thread-content:has(> .lf-thread-controls) > .lf-thread-transcript > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint) > .lf-msg-head {
   anchor-name: --lf-thread-headline, --lf-msg-head;
@@ -637,7 +645,7 @@ button.lf-primary-news {
   color: var(--ink-2);
   font-weight: 600;
 }
-.lf-thread-todo > .lf-thread-action {
+.lf-thread-todo > .lf-btn {
   flex: none;
   white-space: nowrap;
 }
@@ -645,6 +653,7 @@ button.lf-primary-news {
 /* browser/styles/components/reading.css */
 :root {
   --lf-text-scroll-clearance: 8px;
+  --lf-text-scroll-track: 15px;
 }
 :where(:root, .lf-thread-transcript) a {
   color: var(--accent);
@@ -654,7 +663,7 @@ button.lf-primary-news {
 :where(:root, .lf-thread-transcript) a:hover {
   text-decoration-color: currentColor;
 }
-:where(:root, .lf-thread-transcript) code {
+:where(:root, .lf-thread-transcript) :is(code, samp, kbd:where(:not(.lf-key-badge))) {
   background: var(--code-bg);
   border-radius: var(--code-inline-r);
   padding: var(--code-inline-pad);
@@ -665,6 +674,10 @@ button.lf-primary-news {
   display: inline;
   contain: none;
   isolation: auto;
+}
+:where(:root, .lf-thread-transcript) kbd:where(:not(.lf-key-badge)) {
+  border: 1px solid var(--border-2);
+  background: var(--chip);
 }
 :where(:root, .lf-thread-transcript) pre {
   background: var(--pre-bg);
@@ -679,22 +692,26 @@ button.lf-primary-news {
   font-variant-ligatures: none;
   contain: inline-size;
 }
-:where(:root, .lf-thread-transcript) pre > code {
+:where(:root, .lf-thread-transcript) pre > :is(code, samp, kbd) {
+  border: 0;
   background: none;
   padding: 0;
   font-size: 100%;
 }
 @media screen {
   .lf-text-scroller::after,
-  :where(:root, .lf-thread-transcript) :is(pre, table)::after {
+  :where(:root, .lf-thread-transcript) pre::after {
     content: "";
     float: inline-start;
     inline-size: 100%;
-    block-size: 15px;
+    block-size: var(--lf-text-scroll-track);
     grid-column: 1 / -1;
   }
-  :where(:root, .lf-thread-transcript) :is(pre, table)::after {
+  :where(:root, .lf-thread-transcript) pre::after {
     block-size: var(--lf-text-scroll-clearance);
+  }
+  :where(:root, .lf-thread-transcript) table {
+    padding-block-end: var(--lf-text-scroll-clearance);
   }
 }
 @media print {
@@ -724,7 +741,7 @@ button.lf-primary-news {
 :where(:root, .lf-thread-transcript) table > * {
   --lf-top: 0px;
 }
-:where(:root, .lf-thread-transcript) :is(th, td) code:not(pre code) {
+:where(:root, .lf-thread-transcript) :is(th, td) :is(code, samp):not(pre *) {
   padding: 0;
   background: none;
   font-size: 0.9em;
@@ -769,6 +786,47 @@ button.lf-primary-news {
 :where(:root, .lf-thread-transcript) th[scope=row] {
   font-weight: 600;
 }
+:where(:root, .lf-thread-transcript) table:has(> * > tr > th[scope=row]:first-child) {
+  --lf-more-fade-start: 0px;
+}
+:where(:root, .lf-thread-transcript) table:has(> * > tr > th[scope=row]:first-child) > * > tr > :first-child {
+  position: sticky;
+  inset-inline-start: 0;
+  background: var(--lf-ground);
+}
+@media screen {
+  :where(:root, .lf-thread-transcript) table:has(> * > tr > th[scope=row]:first-child)[data-lf-more-before]:not([data-lf-focus], :has([data-lf-focus])) > * > tr > :first-child::after {
+    content: "";
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: 100%;
+    inline-size: var(--lf-more-fade, 24px);
+    background:
+      linear-gradient(
+        to right,
+        var(--lf-ground),
+        transparent);
+    pointer-events: none;
+  }
+  :where(:root, .lf-thread-transcript) table:has(> * > tr > th[scope=row]:first-child)[data-lf-scroll-direction=rtl] > * > tr > :first-child::after {
+    background:
+      linear-gradient(
+        to left,
+        var(--lf-ground),
+        transparent);
+  }
+}
+.lf-media-frame,
+:where(:root, .lf-thread-transcript) img:where(:not(.lf-media-frame img)) {
+  border-radius: var(--r);
+  box-shadow: 0 0 0 1px var(--lf-ring, var(--border-2)), var(--raise-1);
+}
+@media (forced-colors: active) {
+  .lf-media-frame,
+  :where(:root, .lf-thread-transcript) img:where(:not(.lf-media-frame img)) {
+    outline: 1px solid CanvasText;
+  }
+}
 :where(:root, .lf-thread-transcript) table:has(> * > tr > td > img:only-child, > * > tr > td > a:only-child > img:only-child) > * > tr > :is(th, td) {
   vertical-align: middle;
 }
@@ -805,7 +863,7 @@ leaf-text.lf-fab-input,
   --lf-measure: var(--col);
 }
 .lf-msg:where(.user) {
-  --lf-msg-text-end: calc(var(--lf-compose-send-end) + 1px);
+  --lf-msg-text-end: var(--lf-thread-text-inset);
 }
 .lf-msg-text {
   display: block;
@@ -825,6 +883,9 @@ leaf-text.lf-fab-input,
 }
 .lf-msg-body :is(p, ul, ol, pre, blockquote, table, hr) {
   margin: 6px 0;
+}
+.lf-msg-body > :is(.lf-msg-text:not(:empty), .lf-msg-media):has(+ :not(.lf-msg-media, .lf-drawing-reference)) {
+  margin-block-end: 6px;
 }
 .lf-msg-text > p {
   font: inherit;
@@ -854,9 +915,6 @@ leaf-text.lf-fab-input,
 }
 .lf-msg-text blockquote[data-lf-gap] {
   padding-block: 0;
-}
-.lf-msg-text pre:has(> [data-lf-gap]) {
-  padding-block: var(--code-line);
 }
 .lf-msg-text :is([data-lf-gap="1"], pre:has(> [data-lf-gap="1"])) {
   margin-block-start: var(--lf-msg-line);
@@ -1035,13 +1093,10 @@ leaf-text.lf-fab-input,
 }
 .lf-msg:has(.lf-msg-control, > .lf-msg-head > .lf-progress-expand) > .lf-msg-head {
   --lf-msg-control: var(--lf-msg-control-width);
-  padding-inline-end: calc(var(--lf-msg-control-room, var(--lf-msg-control)) + var(--lf-msg-head-room, 0px));
+  padding-inline-end: calc(var(--lf-msg-control) + var(--lf-msg-head-room, 0px));
 }
 .lf-msg:has(> .lf-msg-body > .lf-msg-editor) {
   scroll-margin-block-end: var(--sp-2);
-}
-.lf-msg:has(> .lf-msg-body > .lf-msg-editor) > .lf-msg-head {
-  --lf-msg-control-room: var(--lf-msg-edit-room);
 }
 .lf-msg-control {
   appearance: none;
@@ -1138,7 +1193,7 @@ svg[data-lf-icon] {
 @media (pointer: coarse), (hover: none) {
   .lf-msg:is(.agent, .user) > .lf-msg-head {
     --lf-msg-control: var(--lf-msg-control-width);
-    padding-inline-end: calc(var(--lf-msg-control-room, var(--lf-msg-control)) + var(--lf-msg-head-room, 0px));
+    padding-inline-end: calc(var(--lf-msg-control) + var(--lf-msg-head-room, 0px));
   }
 }
 .lf-msg-meta {
@@ -1162,11 +1217,9 @@ svg[data-lf-icon] {
 .lf-msg-new {
   flex: none;
   align-self: center;
-  padding: 1px 5px;
-  border-radius: 3px;
-  font: 600 10.5px/1.3 var(--sans);
-  letter-spacing: 0.02em;
-  color: var(--paper);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
   background: var(--accent);
 }
 :where(.scroll) {
@@ -1175,19 +1228,30 @@ svg[data-lf-icon] {
 @property --lf-more-across { syntax: "*"; inherits: false; }
 @property --lf-more-down { syntax: "*"; inherits: false; }
 @media screen {
-  [data-lf-more-after]:where([data-lf-scroll-direction=ltr]:not([data-lf-more-before])),
-  [data-lf-more-before]:where([data-lf-scroll-direction=rtl]:not([data-lf-more-after])) {
+  [data-lf-more-after]:where([data-lf-scroll-direction=ltr]:not([data-lf-more-before])) {
     --lf-more-across: #000 calc(100% - var(--lf-more-fade, 24px)), var(--lf-more-fade-to, transparent);
   }
-  [data-lf-more-before]:where([data-lf-scroll-direction=ltr]:not([data-lf-more-after])),
+  [data-lf-more-before]:where([data-lf-scroll-direction=rtl]:not([data-lf-more-after])) {
+    --lf-more-across: #000 calc(100% - var(--lf-more-fade-start, var(--lf-more-fade, 24px))), var(--lf-more-fade-to, transparent);
+  }
+  [data-lf-more-before]:where([data-lf-scroll-direction=ltr]:not([data-lf-more-after])) {
+    --lf-more-across: var(--lf-more-fade-to, transparent), #000 var(--lf-more-fade-start, var(--lf-more-fade, 24px));
+  }
   [data-lf-more-after]:where([data-lf-scroll-direction=rtl]:not([data-lf-more-before])) {
     --lf-more-across: var(--lf-more-fade-to, transparent), #000 var(--lf-more-fade, 24px);
   }
-  [data-lf-more-before][data-lf-more-after] {
+  [data-lf-more-before][data-lf-more-after]:where([data-lf-scroll-direction=ltr]) {
+    --lf-more-across:
+      var(--lf-more-fade-to, transparent),
+      #000 var(--lf-more-fade-start, var(--lf-more-fade, 24px)),
+      #000 calc(100% - var(--lf-more-fade, 24px)),
+      var(--lf-more-fade-to, transparent);
+  }
+  [data-lf-more-before][data-lf-more-after]:where([data-lf-scroll-direction=rtl]) {
     --lf-more-across:
       var(--lf-more-fade-to, transparent),
       #000 var(--lf-more-fade, 24px),
-      #000 calc(100% - var(--lf-more-fade, 24px)),
+      #000 calc(100% - var(--lf-more-fade-start, var(--lf-more-fade, 24px))),
       var(--lf-more-fade-to, transparent);
   }
   [data-lf-more-below] {
@@ -1231,12 +1295,16 @@ svg[data-lf-icon] {
 }
 :is(.lf-btn, .button) {
   padding: max(4px, (var(--lf-line) - 1lh) / 2 - 1px) 10px;
-  border: 1px solid var(--border-2);
+  border: 1px solid transparent;
   border-radius: var(--r);
-  background: var(--card);
+  background: transparent;
   cursor: pointer;
-  color: var(--ink);
+  color: var(--muted);
   display: inline-block;
+}
+:is(.lf-btn, .button):where(:not(:disabled, [aria-disabled=true])[data-lf-focus-visible]) {
+  background: var(--chip);
+  color: var(--ink);
 }
 .choice {
   display: inline-flex;
@@ -1283,29 +1351,47 @@ svg[data-lf-icon] {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-:is(.lf-btn, .button):where(:not(:disabled, [aria-disabled=true]):hover) {
-  background: var(--chip);
+@media (hover: hover) {
+  :is(.lf-btn, .button):where(:not(:disabled, [aria-disabled=true])):hover {
+    background: var(--chip);
+    color: var(--ink);
+    box-shadow: none;
+  }
 }
-:is(button, .lf-btn, .button).lf-quiet-action,
-.lf-quiet-action.lf-ui::part(button) {
+.lf-icon-action {
+  box-sizing: border-box;
+  width: var(--lf-icon-action-hit);
+  height: var(--lf-icon-action-face);
+  min-width: var(--lf-icon-action-hit);
+  min-height: var(--lf-icon-action-face);
+  padding: 0;
+  display: grid;
+  place-items: center;
   border: 1px solid transparent;
   border-radius: var(--r);
   background: transparent;
   color: var(--muted);
-  box-shadow: none;
 }
-:is(button, .lf-btn, .button).lf-quiet-action:where(:not(:disabled, [aria-disabled=true]):is(:hover, [data-lf-focus])),
-.lf-quiet-action.lf-ui:not(:disabled, [aria-disabled=true])::part(button):hover,
-.lf-quiet-action.lf-ui::part(lf-focus) {
+.lf-icon-action:where(:not(:disabled, [aria-disabled=true])[data-lf-focus-visible]) {
   background: var(--chip);
   color: var(--ink);
+}
+@media (hover: hover) {
+  .lf-icon-action:where(:not(:disabled, [aria-disabled=true])):hover {
+    background: var(--chip);
+    color: var(--ink);
+    box-shadow: none;
+  }
 }
 :is(.lf-btn, .button).primary {
   color: var(--accent);
   border-color: color-mix(in srgb, var(--accent) 45%, var(--card));
+  background: var(--card);
 }
-:is(.lf-btn, .button).primary:not(:disabled, [aria-disabled=true]):hover {
-  background: var(--accent-tint);
+@media (hover: hover) {
+  :is(.lf-btn, .button).primary:not(:disabled, [aria-disabled=true]):hover {
+    background: var(--accent-tint);
+  }
 }
 :is(.lf-btn, .button):disabled,
 :is(.lf-btn, .button)[aria-disabled=true] {
@@ -1318,38 +1404,47 @@ svg[data-lf-icon] {
   background: var(--paper);
   border-color: var(--border-2);
 }
-:is(.lf-btn, .button)[data-lf-focus-visible] {
+:is(.lf-btn, .button, .lf-icon-action)[data-lf-focus-visible] {
   outline: var(--focus-ring);
   outline-offset: 2px;
 }
-.lf-corner-mark {
-  position: absolute;
-  z-index: 1;
+:where(button).lf-mark-action,
+.lf-mark-action.lf-ui::part(button) {
+  position: relative;
   display: grid;
   place-items: center;
-  inline-size: var(--corner-mark);
+  box-sizing: border-box;
+  inline-size: var(--mark-size);
   min-inline-size: 0;
-  block-size: var(--corner-mark);
+  block-size: var(--mark-size);
   min-block-size: 0;
   padding: 0;
   border: 0;
   border-radius: var(--r-s);
   font: inherit;
-  background: var(--lf-ground);
+  background: none;
   color: color-mix(in srgb, var(--ink) 72%, transparent);
-  box-shadow: 0 0 0 1px var(--lf-ring, var(--border-2)), var(--raise-1);
+  box-shadow: none;
   cursor: pointer;
 }
-.lf-corner-mark:hover {
+:where(button).lf-mark-action:hover,
+.lf-mark-action.lf-ui::part(button):hover {
   color: var(--ink);
 }
-.lf-corner-mark[data-lf-focus-visible] {
+:where(button).lf-mark-action[data-lf-focus-visible],
+.lf-mark-action.lf-ui::part(lf-focus-visible) {
   outline: var(--focus-ring);
-  outline-offset: 2px;
+  outline-offset: 0;
 }
-.lf-corner-mark > svg {
+.lf-mark-action > svg {
   inline-size: 12px;
   block-size: 12px;
+}
+.lf-corner-mark {
+  position: absolute;
+  z-index: 1;
+  background: var(--lf-ground);
+  box-shadow: 0 0 0 1px var(--lf-ring, var(--border-2)), var(--raise-1);
 }
 @media (forced-colors: active) {
   .lf-corner-mark {
@@ -1362,13 +1457,14 @@ svg[data-lf-icon] {
   --lf-icon-action-face: 28px;
   --lf-compose-action-inset: 6px;
 }
-:root,
 .lf-compose-field {
   --lf-compose-send-end: calc( var(--lf-icon-action-hit) + 2 * var(--lf-compose-action-inset) );
 }
 :root,
 .lf-compose-field,
-.lf-icon-action {
+.lf-icon-action,
+.lf-compose-submit,
+.lf-compose-dictate {
   --lf-icon-action-hit: max(var(--lf-icon-action-face), var(--aim-floor));
 }
 :root,
@@ -1447,7 +1543,12 @@ svg[data-lf-icon] {
 .lf-compose-field:where(:has(> .lf-compose-submit)) > leaf-text:not(.lf-fab-input) {
   --lf-field-end-room: calc( var(--lf-compose-send-end) - var(--lf-compose-pad-inline-start) );
 }
-.lf-icon-action {
+.lf-action-icon {
+  position: relative;
+  z-index: 1;
+  pointer-events: none;
+}
+:is(.lf-compose-submit, .lf-compose-dictate) {
   box-sizing: border-box;
   width: var(--lf-icon-action-hit);
   height: var(--lf-icon-action-face);
@@ -1457,19 +1558,19 @@ svg[data-lf-icon] {
   display: grid;
   place-items: center;
   border-radius: var(--r);
+  cursor: pointer;
 }
-.lf-action-icon {
-  position: relative;
-  z-index: 1;
-  pointer-events: none;
+:where(.lf-compose-submit, .lf-compose-dictate)[data-lf-focus-visible] {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
 }
-:is(.lf-compose-submit, .lf-compose-dictate),
+:is(.lf-compose-submit, .lf-compose-dictate, .lf-response-trigger),
 :is(.lf-resolve, .lf-reopen).lf-icon-action {
   border: 0;
   background: transparent;
   box-shadow: none;
 }
-:is(.lf-compose-submit, .lf-compose-dictate, .lf-resolve.lf-icon-action, .lf-reopen.lf-icon-action)::before {
+:is(.lf-compose-submit, .lf-compose-dictate, .lf-response-trigger, .lf-resolve.lf-icon-action, .lf-reopen.lf-icon-action)::before {
   content: "";
   position: absolute;
   box-sizing: border-box;
@@ -1478,7 +1579,7 @@ svg[data-lf-icon] {
   border-radius: var(--r);
   background: transparent;
 }
-:is(.lf-compose-submit, .lf-compose-dictate, .lf-resolve.lf-icon-action, .lf-reopen.lf-icon-action):hover {
+:is(.lf-compose-submit, .lf-compose-dictate, .lf-response-trigger, .lf-resolve.lf-icon-action, .lf-reopen.lf-icon-action):hover {
   background: transparent;
   box-shadow: none;
 }
@@ -1489,17 +1590,19 @@ svg[data-lf-icon] {
   inset-block-end: var(--lf-compose-action-inset);
   color: var(--accent);
 }
-:is(.lf-compose-submit, .lf-compose-dictate):not(:disabled, [aria-disabled=true]):hover::before {
+:is(.lf-compose-submit, .lf-compose-dictate, .lf-response-trigger):not(:disabled, [aria-disabled=true]):hover::before,
+.lf-response-trigger[aria-expanded=true]::before {
   background: var(--accent-tint);
 }
 :is(.lf-compose-submit, .lf-compose-dictate):is(:disabled, [aria-disabled=true]) {
   opacity: 1;
   color: var(--muted);
+  cursor: default;
 }
-.lf-compose-dictate {
+:is(.lf-compose-dictate, .lf-response-trigger) {
   color: var(--muted);
 }
-.lf-compose-dictate:hover {
+:is(.lf-compose-dictate, .lf-response-trigger):hover {
   color: var(--ink);
 }
 .lf-compose-dictate:is([data-dictation=starting], [data-dictation=listening]) {
@@ -1550,7 +1653,7 @@ svg[data-lf-icon] {
   --lf-media-mark-overhang: 6px;
 }
 .lf-composer-media {
-  --lf-media-room: max( calc(var(--raise-1-drop) + var(--raise-1-blur)), calc(var(--lf-media-mark-overhang) + (var(--aim-floor) - var(--corner-mark)) / 2) );
+  --lf-media-room: max( calc(var(--raise-1-drop) + var(--raise-1-blur)), calc(var(--lf-media-mark-overhang) + (var(--aim-floor) - var(--mark-size)) / 2) );
   --lf-media-h: 120px;
   display: flex;
   flex: 1 0 calc(100% + 2 * var(--lf-media-room));
@@ -1586,11 +1689,6 @@ button.lf-media-open {
   outline: var(--focus-ring);
   outline-offset: 2px;
 }
-.lf-media-frame,
-.lf-composer-media-item > .lf-composer-media-open {
-  border-radius: var(--r);
-  box-shadow: 0 0 0 1px var(--lf-ring, var(--border-2)), var(--raise-1);
-}
 .lf-composer-media-item:not(.lf-composer-drawing) > .lf-composer-media-open {
   height: var(--lf-media-h);
   min-height: 0;
@@ -1616,12 +1714,7 @@ button.lf-media-open {
     opacity: 0;
   }
   .lf-composer-media-item > .lf-corner-mark {
-    transition: opacity 120ms;
-  }
-}
-@media (forced-colors: active) {
-  .lf-composer-media-item > .lf-composer-media-open:not([data-lf-focus-visible]) {
-    outline: 1px solid CanvasText;
+    transition: opacity var(--lf-motion-disclosure);
   }
 }
 .lf-msg-media > .lf-composer-media-item {
@@ -1698,13 +1791,12 @@ button.lf-media-open {
 }
 .lf-msg-editor > .lf-compose-field {
   --lf-compose-pad-block: calc( (var(--lf-response-height, var(--lf-line)) - 2px - 1lh) / 2 );
-  --lf-msg-edit-past-end: max( var(--lf-thread-text-inset) - var(--lf-msg-text-end, 0px), 0px );
-  margin-inline: calc(-1 * var(--lf-thread-text-inset)) calc(-1 * var(--lf-msg-edit-past-end));
+  margin-inline-start: calc(-1 * var(--lf-thread-text-inset));
   margin-block: calc(var(--lf-thread-text-pad-block, 0px) - var(--lf-compose-pad-block) - 1px);
 }
 .lf-msg-editor > .lf-compose-field > leaf-text {
   min-height: 0;
-  padding-inline-end: calc(var(--lf-msg-text-end, 0px) + var(--lf-msg-edit-past-end) - 1px);
+  padding-inline-end: calc(var(--lf-msg-text-end) - 1px);
 }
 .lf-msg-editor > .lf-compose-field:has(> .lf-msg-media:not([hidden])) {
   margin-block-end: calc(-1 * var(--lf-compose-pad-block) - 1px);
@@ -1713,7 +1805,7 @@ button.lf-media-open {
   padding-block-end: var(--lf-thread-text-pad-block, 0px);
 }
 .lf-msg-editor > .lf-compose-field > .lf-msg-media {
-  margin-inline: calc(var(--lf-thread-text-inset) - 1px) calc(var(--lf-msg-edit-past-end) - 1px);
+  margin-inline: calc(var(--lf-thread-text-inset) - 1px) -1px;
   padding-block-end: var(--lf-compose-pad-block);
 }
 .lf-msg-edit-foot {
@@ -1730,31 +1822,50 @@ button.lf-media-open {
   translate: 0 -50%;
   display: inline-flex;
   gap: var(--lf-msg-edit-gap);
+  padding-inline-start: var(--sp-2);
+  font-size: var(--t-6);
+  background:
+    linear-gradient(
+      to right,
+      transparent,
+      var(--lf-msg-ground) var(--sp-2)),
+    linear-gradient(
+      to right,
+      transparent,
+      var(--lf-ground) var(--sp-2));
+  background-size: 100% 1lh;
+  background-position: center;
+  background-repeat: no-repeat;
 }
 .lf-msg-edit-actions > .lf-msg-control {
   position: relative;
   inset: auto;
   translate: none;
   opacity: 1;
-  block-size: 24px;
+  inline-size: var(--lf-msg-control-width);
+  block-size: var(--lf-msg-control-size);
   min-width: 0;
   min-height: 0;
-  font: 600 var(--t-6)/1 var(--sans);
+  border: 1px solid transparent;
+}
+.lf-msg-edit-actions > .lf-msg-control:is(:hover, [data-lf-focus]) {
+  border-color: var(--border-2);
+  background: var(--chip);
 }
 .lf-msg-edit-actions > .lf-msg-control::after {
   inset: min(0px, 100% - var(--aim-floor)) 0 0;
-}
-.lf-msg-edit-actions > .lf-msg-edit-cancel {
-  inline-size: var(--lf-msg-edit-cancel);
-}
-.lf-msg-edit-actions > .lf-msg-edit-save {
-  inline-size: var(--lf-msg-edit-save);
 }
 .lf-msg-edit-actions > .lf-msg-edit-save::before {
   display: none;
 }
 .lf-msg-edit-actions > .lf-msg-edit-save:not([aria-disabled=true]) {
   color: var(--accent);
+}
+:is(.lf-page-thread, .lf-fp-opened):has(.lf-msg-editor) :is(.lf-resolve, .lf-reopen) {
+  display: none;
+}
+.lf-thread-content:has(> .lf-thread-controls) > .lf-thread-transcript > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint) .lf-msg-edit-actions {
+  inset-inline-end: calc(anchor(right) - var(--lf-thread-action-room) - var(--sp-2));
 }
 :is(.lf-fab-bar, .lf-margin-preview) {
   --lf-response-height: var(--lf-line);
@@ -1779,9 +1890,6 @@ button.lf-media-open {
   line-height: inherit;
   padding-block: var(--lf-compose-pad-block);
 }
-leaf-text.lf-response-control {
-  scroll-padding-block: var(--lf-compose-pad-block);
-}
 leaf-text.lf-fab-input {
   display: none;
   width: 100%;
@@ -1792,6 +1900,18 @@ leaf-text.lf-fab-input {
 .lf-fab-bar :is(.lf-compose-submit, .lf-compose-dictate) {
   inset-inline-end: var(--lf-comment-send-inset);
   inset-block-end: var(--lf-comment-send-inset);
+}
+.lf-fab-bar .lf-compose-field > .lf-response-trigger {
+  position: absolute;
+  z-index: 1;
+  inset-inline-end: calc(var(--lf-comment-send-inset) + var(--lf-icon-action-hit));
+  inset-block-end: var(--lf-comment-send-inset);
+}
+.lf-fab-bar .lf-compose-field[data-words] > .lf-response-trigger {
+  display: none;
+}
+.lf-fab-bar .lf-compose-field:not([data-words]):has(> .lf-response-trigger:not([hidden])) > leaf-text.lf-fab-input {
+  padding-inline-end: calc(var(--lf-comment-text-end) + var(--lf-icon-action-hit) - 1px);
 }
 .lf-response-action {
   min-width: max(30px, var(--aim-floor));
@@ -1817,16 +1937,15 @@ leaf-text.lf-fab-input {
   display: none;
 }
 .lf-fab-bar:not([data-lf-target-only]) > .lf-fab {
-  display: none !important;
+  display: none;
 }
-.lf-response-trigger {
-  anchor-name: --lf-response-trigger;
-  flex: none;
-  min-height: var(--lf-response-height);
+.lf-response-trigger,
+.lf-fab-bar .lf-compose-field[data-words] {
+  anchor-name: --lf-response-options;
 }
 .lf-response-options {
   position: fixed;
-  position-anchor: --lf-response-trigger;
+  position-anchor: --lf-response-options;
   position-visibility: anchors-visible;
   position-area: block-start span-all;
   position-try-fallbacks: flip-block;
@@ -1871,8 +1990,10 @@ leaf-text.lf-fab-input {
   display: none;
   font: var(--t-5)/1.5 var(--sans);
 }
-.lf-fab-bar:is([data-lf-target-only], :has(> .lf-composer[data-lf-open])) {
-  display: var(--lf-response-display, inline-flex);
+@media screen {
+  .lf-fab-bar:is([data-lf-target-only], :has(> .lf-composer[data-lf-open])) {
+    display: var(--lf-response-display, inline-flex);
+  }
 }
 .lf-fab-bar[data-lf-presentation=inline] {
   position: static;
@@ -1889,9 +2010,6 @@ leaf-text.lf-fab-input {
 .lf-fab-bar[data-lf-presentation=inline] *::after {
   box-sizing: inherit;
 }
-.lf-fab-bar[data-lf-presentation=inline] .lf-composer > :not(.lf-compose-field, .lf-composer-media) {
-  display: none !important;
-}
 .lf-fab-bar[data-lf-presentation=inline] leaf-text.lf-fab-input {
   max-width: none;
   max-height: 50vh;
@@ -1900,18 +2018,12 @@ leaf-text.lf-fab-input {
 .lf-fab-bar[data-lf-presentation=inline] > .lf-surface-grip {
   display: none;
 }
-@media print {
-  .lf-fab-bar[data-lf-presentation=inline] {
-    display: none !important;
-  }
-}
 
 /* browser/styles/components/integration.css */
 .lf-message-media img {
   display: block;
   max-width: 100%;
   max-height: min(60vh, 480px);
-  border-radius: var(--r);
 }
 :is(.lf-btn, .button):is([aria-pressed=true], [aria-checked=true]) {
   border-color: var(--accent);
@@ -1922,33 +2034,40 @@ html[data-lf-draw-mode] main {
   --lf-draw-mode: on;
 }
 @container style(--lf-draw-mode: on) {
-  :host * {
+  :not([data-lf-runtime], [data-lf-runtime] *) {
     cursor: crosshair !important;
   }
-  :host [data-lf-runtime],
-  :host [data-lf-runtime] * {
-    cursor: auto !important;
+  :where([data-lf-runtime]) {
+    cursor: auto;
   }
 }
 :root {
-  --lf-code-copy-inset: 4px;
+  --lf-mark-bar-end: 8px;
+}
+.lf-mark-bar,
+.lf-code-copy {
+  box-sizing: border-box;
+  display: flex;
+  gap: max(2px, var(--aim-floor) - var(--mark-size));
+  padding: 1px;
+  border: 1px solid var(--border-2);
+  border-radius: var(--r);
+  background: var(--card);
+  box-shadow: var(--raise-1);
 }
 .lf-code-copy {
-  --lf-code-copy-size: var(--lf-line);
+  --lf-code-copy-box: calc(var(--mark-size) + 4px);
   position: absolute;
-  top: calc(anchor(top, -9999px) + var(--lf-code-copy-inset) + var(--lf-block-control-dy, 0px));
-  left: calc(anchor(right, -9999px) - var(--lf-code-copy-size) - var(--lf-code-copy-inset) + var(--lf-block-control-dx, 0px));
-  width: var(--lf-code-copy-size);
-  height: var(--lf-code-copy-size);
+  top: calc(anchor(top, -9999px) - var(--lf-code-copy-box) / 2 + var(--lf-block-control-dy, 0px));
+  left: calc(anchor(right, -9999px) - var(--lf-mark-bar-end) - var(--lf-code-copy-box) + var(--lf-block-control-dx, 0px));
+  width: var(--lf-code-copy-box);
+  height: var(--lf-code-copy-box);
   z-index: 1;
   white-space: normal;
   font-size: 0;
   line-height: 0;
   opacity: 0;
   pointer-events: none;
-}
-.lf-block-control-away {
-  display: none !important;
 }
 .lf-block-controls {
   display: contents;
@@ -1967,38 +2086,28 @@ html[data-lf-draw-mode] main {
   opacity: 1;
   pointer-events: auto;
 }
+.lf-mark-bar > .lf-code-copy {
+  position: static;
+  width: auto;
+  height: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  opacity: 1;
+  pointer-events: auto;
+}
 .lf-code-copy::part(button) {
-  position: relative;
-  width: var(--lf-code-copy-size);
-  height: var(--lf-code-copy-size);
-  padding: min(6px, max(1px, (var(--lf-code-copy-size) - var(--t-5) - 2px) / 2));
-  border: 1px solid var(--code-border);
-  border-radius: var(--r);
-  background: var(--pre-bg);
-  color: var(--muted);
-  display: flex;
-  font-size: min(var(--t-5), calc(var(--lf-code-copy-size) - 4px));
-}
-.lf-code-copy::part(button):hover {
-  color: var(--ink);
-}
-.lf-code-copy::part(button)::after {
-  content: "";
-  position: absolute;
-  inset: min(0px, (100% - var(--aim-floor)) / 2);
+  scroll-margin: var(--focus-ring-landing);
 }
 :root {
   --lf-heading-link-size: var(--lf-line);
 }
-@position-try --lf-heading-link-end {
-  right: auto;
-  left: calc(anchor(right, -9999px) - var(--lf-heading-link-size) + var(--lf-block-control-dx, 0px));
-}
 .lf-heading-link {
+  --lf-heading-link-room: calc( 100% - anchor(left, 9999px) + var(--lf-block-control-dx, 0px) - var(--lf-heading-link-size) );
   position: absolute;
   top: calc(anchor(top, -9999px) + var(--lf-heading-link-top, 0px) + (var(--lf-heading-link-line, var(--lf-heading-link-size)) - var(--lf-heading-link-size)) / 2 + var(--lf-block-control-dy, 0px));
-  right: calc(anchor(left, 9999px) - var(--lf-block-control-dx, 0px));
-  position-try-fallbacks: --lf-heading-link-end;
+  right: calc(anchor(left, 9999px) - var(--lf-block-control-dx, 0px) + (1 - clamp(0, sign(var(--lf-heading-link-room)) + 1, 1)) * (anchor(right, 9999px) - anchor(left, 9999px)));
   width: var(--lf-heading-link-size);
   height: var(--lf-heading-link-size);
   z-index: 1;
@@ -2121,9 +2230,6 @@ html[data-lf-draw-mode] main {
   block-size: var(--lf-reply-space, 0px);
   min-block-size: 0;
   max-block-size: 100%;
-}
-.lf-reply-continuity > .lf-thread-reply leaf-text:not(:state(placeholder-shown)) {
-  block-size: var(--lf-reply-writing-room, auto);
 }
 
 /* browser/styles/components/webawesome.css */

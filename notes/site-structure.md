@@ -2,7 +2,8 @@
 
 The site at leaf.page currently summarizes Leaf's design and interfaces. Two
 decisions about how its pages are organized wait until Leaf is closer to release
-(`TODO.md`, "Decide the site's structure before release"). Delete this note once
+([issue #4052](https://github.com/max-sixty/leaf/issues/4052), "Decide the
+site's structure before release"). Delete this note once
 both are decided and the result has landed.
 
 The front page stays as it is; the other pages may be reorganized. Rewrite with

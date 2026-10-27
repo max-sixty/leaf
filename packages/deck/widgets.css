@@ -1,0 +1,157 @@
+:scope:is(lf-deck) {
+  --lf-deck-bar-h: calc(var(--lf-line) + var(--sp-2));
+  --lf-deck-edge: 6px;
+  display: block;
+  position: relative;
+  margin-block: var(--sp-3);
+}
+/* A leaving card flies out past the deck's sides, and the deck's height follows the
+   card that comes up; clip both to the deck, with room for the stack's edges, and only
+   while they move, so the open card's focus ring stands whole. */
+:scope:is(lf-deck)[data-lf-deck-flying] {
+  overflow: clip;
+  overflow-clip-margin: var(--lf-deck-edge);
+}
+
+.lf-deck-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-block-size: var(--lf-deck-bar-h);
+  font: var(--t-6) / 1.4 var(--sans);
+  color: var(--muted);
+}
+/* The marks stand over the count, so a count that grows, as with "· 1 on Claude",
+   neither moves them nor squeezes them away on a phone. */
+.lf-deck-status {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  min-inline-size: 0;
+}
+.lf-deck-count {
+  overflow: hidden;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.lf-deck-pips {
+  display: flex;
+  gap: 3px;
+}
+.lf-deck-pip {
+  flex: 1;
+  max-inline-size: 28px;
+  block-size: 4px;
+  border-radius: 2px;
+  background: var(--rule);
+}
+.lf-deck-pip[data-state="done"] {
+  background: var(--ok);
+}
+.lf-deck-pip[data-state="agent"] {
+  background: var(--muted-2);
+}
+.lf-deck-pip[data-state="open"] {
+  background: var(--ink-2);
+}
+/* Where the cards stood once the pass is over: a quiet frame saying what is left, with
+   the way back in as words, since no symbol says "go through what's left". */
+.lf-deck-end:not([hidden]) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2) var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px dashed var(--rule);
+  border-radius: var(--r);
+  color: var(--muted);
+}
+.lf-deck-end > p {
+  margin: 0;
+}
+@media print {
+  .lf-deck-end {
+    display: none;
+  }
+}
+/* Where the runtime runs, the open card stands alone in its frame, with the edges of
+   the cards still waiting under it. Before upgrade the card the deck will open on
+   (`data-lf-opening`) stands so already, below the bar's room. Elsewhere, as after a
+   failed startup or on paper, the cards stand one after another. */
+@media screen {
+  @scope (html[data-lf-interactive] :scope) {
+    /* The room under the open card holds the edges of the cards waiting under it. */
+    :scope:is(lf-deck) {
+      padding-block-end: calc(2 * var(--lf-deck-edge));
+    }
+    :scope:is(lf-deck):not(.lf-rendered) {
+      padding-block-start: var(--lf-deck-bar-h);
+    }
+    :scope:is(lf-deck):not(.lf-rendered)[data-lf-views] > :not([data-lf-opening]) {
+      display: none;
+    }
+    :scope:is(lf-deck).lf-rendered > [data-lf-deck-open],
+    :scope:is(lf-deck).lf-rendered > [data-lf-deck-leaving],
+    :scope:is(lf-deck):not(.lf-rendered) > [data-lf-opening] {
+      display: block;
+      box-sizing: border-box;
+      margin: 0;
+      padding: var(--sp-3) var(--sp-4);
+      border: 1px solid var(--rule);
+      border-radius: var(--r);
+      background: var(--card);
+      --lf-deck-first-edge:
+        0 var(--lf-deck-edge) 0 calc(-1 * var(--lf-deck-edge) / 2) var(--card),
+        0 var(--lf-deck-edge) 0 calc(-1 * var(--lf-deck-edge) / 2 + 1px) var(--rule);
+      --lf-deck-second-edge:
+        0 calc(2 * var(--lf-deck-edge)) 0 calc(-1 * var(--lf-deck-edge)) var(--card),
+        0 calc(2 * var(--lf-deck-edge)) 0 calc(-1 * var(--lf-deck-edge) + 1px)
+          var(--rule);
+      /* A sideways touch drag is the card's; a vertical one still scrolls the page. */
+      touch-action: pan-y;
+    }
+    :scope:is(lf-deck) > :is([data-lf-deck-open], [data-lf-opening]) > :first-child {
+      margin-block-start: 0;
+    }
+    :scope:is(lf-deck) > :is([data-lf-deck-open], [data-lf-opening]) > :last-child {
+      margin-block-end: 0;
+    }
+    :scope:is(lf-deck)[data-lf-deck-behind="1"] > [data-lf-deck-open] {
+      box-shadow: var(--lf-deck-first-edge);
+    }
+    :scope:is(lf-deck)[data-lf-deck-behind="2"] > [data-lf-deck-open] {
+      box-shadow: var(--lf-deck-first-edge), var(--lf-deck-second-edge);
+    }
+    /* A card that just came up takes no press until it settles, so a quick second
+       click meant for the card that left doesn't answer it. */
+    :scope:is(lf-deck) > [data-lf-deck-settling] {
+      pointer-events: none;
+    }
+    /* A leaving card keeps its box over the deck while the next comes up beneath it. */
+    :scope:is(lf-deck).lf-rendered > [data-lf-deck-leaving] {
+      position: absolute;
+      inset-inline: 0;
+      inset-block-start: var(--lf-deck-leave-top);
+      z-index: 2;
+      pointer-events: none;
+    }
+    /* Back brings the card in over the one it covers, which waits beneath. */
+    :scope:is(lf-deck)[data-lf-deck-flying] > [data-lf-deck-open] {
+      position: relative;
+      z-index: 1;
+    }
+    :scope:is(lf-deck).lf-rendered > [data-lf-deck-leaving="back"] {
+      z-index: 0;
+    }
+    /* until-found keeps a hidden card's own box in flow; zero it. */
+    :scope:is(lf-deck).lf-rendered > [hidden="until-found"] {
+      margin: 0;
+      padding: 0;
+      border: 0;
+    }
+  }
+}

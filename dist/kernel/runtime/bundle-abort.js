@@ -1,7 +1,8 @@
-import { authoredRank, isElementName, render } from "./bundle-browser-runtime.js";
 import { move, watchCurrentLocationIn } from "./bundle-dom-move.js";
-import { PAGE_PAINT_ATTRIBUTE, PRESS, SHADOW_LEADING_CSS, annotationMarkSheets, elementDeclarations, exhibits, marksSheet, paintKeysWithin, recordedWidgetSelector, reportPageError, rowArrows, shadowRules, stateSpecs, watchArrivalsIn, watchLayers } from "./bundle-layer-client.js";
-import { readPart, runtime } from "./bundle-context.js";
+import { PAGE_PAINT_ATTRIBUTE, reportPageError } from "./bundle-layer-client.js";
+import { SHADOW_LEADING_CSS, annotationMarkSheets, elementDeclarations, exhibits, marksSheet, recordedWidgetSelector, shadowRules, stateSpecs, watchArrivalsIn, watchLayers } from "./bundle-geometry.js";
+import { authoredRank, isElementName, readPart, render, runtime } from "./bundle-context.js";
+import { PRESS, paintKeysWithin, rowArrows } from "./bundle-errors.js";
 import { elementById, elementReading, inChrome, watchPassageRoot } from "./bundle-passages.js";
 import { initialOrigin, initialParent, initialSource } from "./bundle-initial-render.js";
 import { diffArrays } from "/vendor/jsdiff.esm.js";
@@ -55,6 +56,7 @@ function setRenderedChildren(parent, nodes) {
 		sameValue: (name, held, wanted) => held === wanted,
 		touched: () => {},
 		declared: () => false,
+		body: () => null,
 		same: (held, wanted) => held.isEqualNode(wanted),
 		generated: () => false
 	});
@@ -99,7 +101,7 @@ function staying(parent, nodes) {
 function patchTree(before, after, rules) {
 	const live = rules.pairs.get(before);
 	patchAttributes(live, before, after, rules);
-	patchChildren(tree(live), tree(before), tree(after), rules);
+	patchChildren(holder(live, rules), tree(before), tree(after), rules);
 }
 function patchRetains(before, after, target, rules) {
 	if (!target?.isConnected) return false;
@@ -130,6 +132,7 @@ function retainedWithin(before, after, target, rules) {
 	return true;
 }
 const tree = (node) => node.localName === "template" ? node.content : node;
+const holder = (live, rules) => rules.body(live) ?? tree(live);
 function patchAttributes(live, before, after, rules) {
 	let changed = false;
 	for (const { name, value } of [...before.attributes]) {
@@ -203,7 +206,7 @@ function patchChildren(liveParent, beforeParent, afterParent, rules) {
 	}
 	order(liveParent, placed, rules.generated);
 }
-const atomic = (before, after, live, rules) => before.matches("style, link[rel~=\"stylesheet\" i]") || rules.declared(before) && !rules.reaches(before, after) || [...tree(before).childNodes].some((node) => rules.pairs.get(node)?.parentNode !== tree(live));
+const atomic = (before, after, live, rules) => before.matches("style, link[rel~=\"stylesheet\" i]") || rules.declared(before) && !rules.reaches(before, after) || [...tree(before).childNodes].some((node) => rules.pairs.get(node)?.parentNode !== holder(live, rules));
 const kept = (before, after, rules) => rules.declared(before) ? rules.unchanged(before, after) : rules.same(before, after);
 function matchNodes(held, wanted) {
 	const matches = /* @__PURE__ */ new Map();

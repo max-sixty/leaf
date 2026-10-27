@@ -204,7 +204,11 @@ def test_activity_prints_complete_history_even_when_closed_or_held(browser, serv
         browser,
         serve(
             leaf_page(
-                "History", '<h1>History</h1><lf-activity id="feed"></lf-activity>'
+                "History",
+                '<h1>History</h1><lf-activity id="feed"></lf-activity>',
+                # Keep the outer boxes fixed so only the feed changes size at each
+                # media transition; a shallower resize masks observer re-registration.
+                head="<style>body { block-size: 900px !important; padding: 0 !important; }</style>",
             )
         ),
     )

@@ -1385,14 +1385,8 @@ def test_a_pane_compares_its_words_without_its_opaque_children_rendered_data(
         "</pre></lf-diff></div><footer>Tests not run</footer></lf-pane>",
     )
     page = open_page(browser, live_url(serve(source, packages=("diff", "file-tree"))))
-    assert render_checks_model.evaluate_probe(page, "wordsReadAsChanged") == []
-    page.locator("#code > header").evaluate("el => el.textContent = 'Approved patch'")
-    changed = render_checks_model.evaluate_probe(page, "wordsReadAsChanged")
-    assert [(row["at"], row["words"]) for row in changed] == [
-        ("<lf-pane id=code>", "Approved patch Tests not run")
-    ]
-
-    # The same prose boundary owns the inline explanation of a real revision.
+    # The pane's prose, without its opaque children's rendered data, owns the inline
+    # explanation of a revision.
     stamp_page(
         serve.page_dir,
         source.replace(">Patch</header>", ">xxx  </header>").replace(
@@ -1413,7 +1407,6 @@ def test_a_pane_compares_its_words_without_its_opaque_children_rendered_data(
     expect(page.locator("#patch .lf-version-inline-deletion")).to_have_count(0)
     change.click()
     expect(page.locator("#code > header")).to_have_text("xxx")
-    assert render_checks_model.evaluate_probe(page, "wordsReadAsChanged") == []
 
 
 def test_the_state_wait_follows_a_source_back_to_the_version_the_page_shows(

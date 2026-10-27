@@ -930,15 +930,20 @@ def test_obligation_action_binding_badges_use_the_available_card_action_seats(
         assert obligation_point["x"] == pytest.approx(focused_point["x"], abs=0.5)
         assert obligation_point["y"] == pytest.approx(focused_point["y"], abs=0.5)
 
-    # The Add press must enter the tab order in the input event itself. A paint on
-    # the next frame can come after the next Tab and send focus to the next obligation.
-    page.evaluate("""() => document.addEventListener('input', () => {
-      window.__addEmptyAtInput = document.querySelector(
-        '#live-question .lf-compose-submit').hasAttribute('data-lf-empty');
-    }, {once: true})""")
+    # Add must be ready before the next frame and the next keyboard gesture.
+    # Lit may commit in a microtask after the input event has finished bubbling.
+    page.evaluate("""() => {
+      window.__addEmptyBeforeFrame = new Promise(resolve => {
+        document.addEventListener('input', () => requestAnimationFrame(() => {
+          resolve(document.querySelector(
+            '#live-question .lf-compose-submit').hasAttribute('data-lf-empty'));
+        }), {once: true});
+      });
+    }""")
     write(addition.get_by_role("textbox", name="Another option"), "A fourth option")
-    assert page.evaluate("window.__addEmptyAtInput") is False
     page.keyboard.press("Tab")
+    expect(submit).to_be_focused()
+    assert page.evaluate("window.__addEmptyBeforeFrame") is False
     binding_badge = addition.locator("> .lf-key-badge[data-lf-binding-badge]")
     expect(binding_badge).to_be_visible()
     expect(submit).to_be_visible()

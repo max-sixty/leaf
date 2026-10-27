@@ -215,7 +215,7 @@
     "runtime/thread/landing.js": "6fe39854081ce85baaec161086c3d98da2f95fae94ad18789e024b6385ee602a",
     "runtime/thread/message-edit.js": "7fe5825751d2699de22a085ff63e275bd74ab5e9caf6fb5bd87e93065e063c6c",
     "runtime/thread/messages.js": "ec82d4f0fe02166de9310aeb92b02deb5fcb15e6cac66c099468bb1954b4e4c2",
-    "runtime/thread/model.js": "5931de231ff2407cf94fd7aae7b83dff82acb727c95dfae6e462bb3f787725f2",
+    "runtime/thread/model.js": "5d16eb4700c221c50d1fb901b77f96dea0cbc0035407e016cf72fe00baeb7d8b",
     "runtime/thread/placement.js": "bbe15932962ef88d36ff142b8f812f086faecd5d974ca20692ebdb21a2133257",
     "runtime/thread/presentation.js": "4bad6c4a7d51c60e13fdbaaa480209fbf158638ca56e9ca38e4699d78319cffd",
     "runtime/thread/primary-reader.js": "08fe5150c23c36b8c2cb6c7f2b423175cf16d581034cf6cb5973fbc3ff8f616e",

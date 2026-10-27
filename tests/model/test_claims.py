@@ -380,16 +380,14 @@ def test_a_sandbox_refusal_says_to_run_outside_it(
 
 
 def test_a_sandbox_that_hides_the_session_says_to_claim_outside_it(
-    page_dir, monkeypatch
+    page_dir, monkeypatch, dead_pid
 ):
     """Claude Code's Linux sandbox runs each command in a process namespace of its
     own, so CLAUDE_PID names no process the command can see, and the claim cannot
     take there at all. The refusal says so where the harness declares its sandbox,
     since the agent's fix is to rerun the command outside it."""
-    gone = subprocess.Popen(["true"])
-    gone.wait()
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "namespaced")
-    monkeypatch.setenv("CLAUDE_PID", str(gone.pid))
+    monkeypatch.setenv("CLAUDE_PID", str(dead_pid))
     monkeypatch.setenv("SANDBOX_RUNTIME", "1")
     refused = CliRunner().invoke(cli_model.cli, ["page", "claim", str(page_dir)])
     assert refused.exit_code == 1, refused.output
@@ -547,7 +545,7 @@ def test_hook_remedies_follow_the_harness_not_the_display_name(
     waited = under_codex(claim_and_wait_command(page), env, finished=finished)
     release_codex_command(page, waited, finished)
     assert waited.wait(timeout=STATED_TIMEOUT) == 0
-    session_model.cmd_waiting(page, "")
+    session_model.cmd_waiting(page)
 
     hooks_model.cmd_hook("codex", {"hook_event_name": "Stop", "session_id": "w1"})
     reason = json.loads(capsys.readouterr().out)["reason"]
@@ -572,7 +570,7 @@ def test_wait_lease_is_exact_and_excludes_another_wait(
     for name in identity_names:
         monkeypatch.delenv(name, raising=False)
     serving(page_dir, 1)
-    session_model.cmd_waiting(page_dir, "comment on the prototype")
+    session_model.cmd_waiting(page_dir)
     # Ownership is acquired explicitly before taking the session wait lease.
     if not identity_names:
         record_claim(page_dir, id="past-session")
@@ -626,7 +624,7 @@ def test_a_sigterm_its_handler_takes_inside_a_finalizer_still_ends_the_wait(
     for name in harness_model.IDENTITY_VARIABLES:
         monkeypatch.delenv(name, raising=False)
     serving(page_dir, 1)
-    session_model.cmd_waiting(page_dir, "comment on the prototype")
+    session_model.cmd_waiting(page_dir)
     waiter = spawn_probe(
         spawn,
         page_dir,

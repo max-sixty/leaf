@@ -43,7 +43,9 @@ function travel(start, end, low, high, alignment, margin, side) {
     : end - high + margin;
 }
 
-function caretAt(view, at) {
+// The caret at `at`, as a node a reveal can land and its rectangle, read from the DOM
+// so a scroll handler may call it while the view updates.
+export function caretAt(view, at) {
   const position = view.domAtPos(at);
   const caret = document.createRange();
   caret.setStart(position.node, position.offset);
@@ -139,6 +141,10 @@ const withNavigation = (state) =>
     : state;
 
 export class LeafEditorView extends EditorView {
+  // Set while `focus()` moves native focus, which places the caret itself once
+  // focus has landed.
+  #focusing = false;
+
   constructor(config = {}) {
     super({
       ...config,
@@ -149,8 +155,13 @@ export class LeafEditorView extends EditorView {
     // editor may have lost its DOM selection while its state kept the caret.
     // Restore that caret in the arrival task, before the next key can edit at the
     // browser's collapsed position. Pointer selection follows focus and still places
-    // the caret at the words the user pressed.
-    this.contentDOM.addEventListener("focus", () => this.placeSelection());
+    // the caret at the words the user pressed. A selection written inside the
+    // focus event, before the platform finishes its focus steps, is one WebKit
+    // reveals across frames as it would a retained one, so `focus()` places its
+    // caret after native focus returns instead.
+    this.contentDOM.addEventListener("focus", () => {
+      if (!this.#focusing) this.placeSelection();
+    });
   }
 
   setState(state) {
@@ -176,7 +187,12 @@ export class LeafEditorView extends EditorView {
         )
     )
       selection.removeAllRanges();
-    this.contentDOM.focus({ preventScroll: true });
+    this.#focusing = true;
+    try {
+      this.contentDOM.focus({ preventScroll: true });
+    } finally {
+      this.#focusing = false;
+    }
     this.placeSelection();
   }
 

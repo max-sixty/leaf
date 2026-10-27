@@ -6,6 +6,7 @@ and the adapter process's lifetime."""
 import json
 import os
 import shlex
+import shutil
 import subprocess
 import sys
 from xml.etree import ElementTree
@@ -14,6 +15,7 @@ import pytest
 from conftest import LEAF_COMMAND
 from interact_support import (
     PAGE,
+    PLUGIN_ROOT,
     STATED_TIMEOUT,
     _delivery_item,
     acknowledged_through,
@@ -24,6 +26,7 @@ from interact_support import (
     page_state,
     publish,
     release_codex_command,
+    release_held,
     spawn_probe,
     wait_for,
 )
@@ -75,7 +78,7 @@ def test_codex_app_server_restart_finishes_an_accepted_batch_without_starting_it
         {"kind": "comment", "id": "accepted", "author": "user", "text": "hi"},
     )
     delivered = events_model.read_events(page)[-1]
-    session_model.cmd_waiting(page, "comment on the prototype")
+    session_model.cmd_waiting(page)
     with service_model.PageTransaction(page) as transaction:
         reading = session_model.PageTick(
             page,
@@ -203,7 +206,7 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
 ):
     page = codex_claimed_page
     program, log = fake_codex_cli(tmp_path)
-    session_model.cmd_waiting(page, "comment on the prototype")
+    session_model.cmd_waiting(page)
     environment = codex_env | {
         "CODEX_THREAD_ID": "codex-thread",
         "FAKE_CODEX_LOG": str(log),
@@ -388,7 +391,7 @@ def test_adding_a_page_cannot_race_the_codex_adapter_exit(
         "CODEX_THREAD_ID": "codex-thread",
         "FAKE_CODEX_LOG": str(log),
     }
-    session_model.cmd_waiting(first, "first page")
+    session_model.cmd_waiting(first)
     start_lock = codex_adapter_model.adapter_start_lock_path("codex-thread")
     read_gate = tmp_path / "adapter-read-gate"
     os.mkfifo(read_gate)
@@ -451,13 +454,13 @@ raise SystemExit(codex_adapter_model.run_adapter(os.environ["CODEX_PATH"]))
 
     subprocess.run([*LEAF_COMMAND, "page", "init", second], check=True)
     persistent = subprocess.run(
-        [*LEAF_COMMAND, "server", "start", second, "--persistent"],
+        [*LEAF_COMMAND, "server", "start", second, "--lifetime", "persistent"],
         capture_output=True,
         text=True,
         check=True,
     )
     assert json.loads(persistent.stdout)["url"].startswith("http://127.0.0.1:")
-    session_model.cmd_waiting(second, "second page")
+    session_model.cmd_waiting(second)
     starter = None
     finished = tmp_path / "second-start-finished"
     starter_ready = tmp_path / "second-start-lock"
@@ -535,3 +538,78 @@ print(json.dumps(cmd_claim(Path(sys.argv[1]))), flush=True)
 
     out, err = adapter.communicate(timeout=STATED_TIMEOUT)
     assert adapter.returncode == 0, f"{out}{err}"
+
+
+def test_selecting_a_checkout_replaces_the_sessions_delivery_runtime(
+    codex_claimed_page, under_codex, codex_env, tmp_path
+):
+    """The previous adapter retires, and its successor queues the page's input.
+
+    Two real Python package locations model installed Leaf and a selected checkout;
+    the fake external Codex endpoint records the delivery instead of opening a turn.
+    """
+    foreign = tmp_path / "installed"
+    for name in ("src", "browser", "packages", "dist", "skills"):
+        shutil.copytree(PLUGIN_ROOT / name, foreign / name)
+    launcher = foreign / "bin/leaf"
+    launcher.parent.mkdir()
+    launcher.write_text(
+        "#!/bin/sh\n"
+        f"export PYTHONPATH={shlex.quote(str(foreign / 'src'))}\n"
+        f'exec {shlex.quote(sys.executable)} -m leaf "$@"\n'
+    )
+    launcher.chmod(0o755)
+    program, log = fake_codex_cli(tmp_path)
+    results = tmp_path / "starts.json"
+    first = claim_command(codex_claimed_page, program, launcher=[str(launcher)])
+    select_runtime = (
+        "from pathlib import Path; from leaf.session_runtime import select_launcher; "
+        f"select_launcher('codex-thread', Path({str(PLUGIN_ROOT / 'bin/leaf')!r}))"
+    )
+    calls = [
+        first,
+        [sys.executable, "-c", select_runtime],
+        claim_command(codex_claimed_page, program),
+    ]
+    runner = PLUGIN_ROOT / "tests/fixtures/programs/codex_starts.py"
+    task = under_codex(
+        shlex.join([sys.executable, str(runner), json.dumps(calls), str(results)]),
+        codex_env | {"CODEX_THREAD_ID": "codex-thread", "FAKE_CODEX_LOG": str(log)},
+        app_server=False,
+        finished=tmp_path / "finished",
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        outcomes = wait_for(
+            lambda: files_model.read_json(results),
+            lambda value: value is not None,
+            failure="delivery runtime replacement did not finish",
+        )
+        assert all(status == 0 for status, _out, _err in outcomes), outcomes
+        assert codex_adapter_model.running_adapter("codex-thread")["launcher"] == str(
+            PLUGIN_ROOT / "bin/leaf"
+        )
+        append_carried_log_record(
+            codex_claimed_page,
+            {
+                "kind": "comment",
+                "author": "user",
+                "text": "Review with the selected checkout",
+            },
+        )
+        wait_for(
+            lambda: log.read_text(),
+            lambda text: '"--message"' in text,
+            failure="the replacement adapter did not queue the pending input",
+        )
+    finally:
+        release_held(task)
+        task.communicate(timeout=STATED_TIMEOUT)
+        cleanup_model.end_session("codex-thread")
+        wait_for(
+            lambda: codex_adapter_model.adapter_is_live("codex-thread"),
+            lambda live: not live,
+            failure="the replaced delivery runtime did not end",
+        )

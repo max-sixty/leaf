@@ -74,6 +74,7 @@ import { createPageGeometry } from "./runtime/page-geometry.js";
 import * as targetPaint from "./runtime/target-paint.js";
 import { pointerAt } from "./runtime/pointer.js";
 import { createWritingResume } from "./runtime/drafts.js";
+import { createRewriteRestore } from "./runtime/thread/message-edit.js";
 import { allThreads, threadNamed } from "./runtime/thread/state.js";
 import { anchorLabel } from "./runtime/thread/messages.js";
 import {
@@ -114,6 +115,7 @@ import { declareCurrentLocation } from "./runtime/keyboard/page.js";
 import { mountKeyboard } from "./runtime/keyboard/controller.js";
 import { paintCoreControls } from "./runtime/keyboard/control-keys.js";
 import { paintTouchControls } from "./runtime/keyboard/touch-controls.js";
+import { paintCloseRequests } from "./runtime/keyboard/close-requests.js";
 import {
   commandReferenceDialog,
   mountCommandReference,
@@ -613,12 +615,18 @@ const writingResume = createWritingResume({
     app.threadDestinations.openThreadDraft(context, intent),
   holdsThreadDraft: (context) => app.threadDestinations.holdsThreadDraft(context),
 });
+const rewriteRestore = createRewriteRestore({
+  revealInThread: (context, intent) =>
+    app.threadDestinations.openThreadDraft(context, intent),
+  holdsThreadDraft: (context) => app.threadDestinations.holdsThreadDraft(context),
+});
 goToSequence = createGoToSequence({
   doors: floatingPanel.doors,
   hintChrome,
   openPageMap: (...args) => pageMapDialog.openPageMap(...args),
   directDestinations: () => [
     writingResume,
+    rewriteRestore,
     passageSelection.command,
     navigation.alignTop,
     app.read.firstUnreadCommand,
@@ -645,6 +653,7 @@ const currentLocationPainters = {
       },
     ]),
   paintTouchControls,
+  paintCloseRequests,
   paintStatusContext: () => paintStatusContext(goToSequence.goToStatus),
   paintGoToHints: goToSequence.paintGoToHints,
   paintTargetPickerHints: targets.paintTargetPickerHints,
@@ -723,7 +732,12 @@ if (!offlineInteractive) {
   document.body.append(chromeRoot);
   // Exports retain image inspection, but no page controls. Their other current location is
   // what a widget's own box shows, such as an options group's addition field.
-  mountRepaint({ paintInputs: inputs.paintInputs, reflectFirstScopes, reflectKeys });
+  mountRepaint({
+    paintInputs: inputs.paintInputs,
+    paintCloseRequests,
+    reflectFirstScopes,
+    reflectKeys,
+  });
 }
 
 // Widget commands belong to interactive documents, including offline exports.

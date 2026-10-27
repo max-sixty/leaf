@@ -85,6 +85,7 @@ from browser.test_render_gate import (
     rest_findings,
     scroll_findings,
     short_aim_findings,
+    short_aim_findings_in_every_tab,
     surface_findings,
     typed_box_findings,
     unread_syntax,
@@ -109,7 +110,9 @@ def test_the_layer_holds_its_whole_page_rules_on_the_corpus(browser, serve, subt
     the adopted sheet decides nothing by standing last (`adopted_sheet_findings`),
     every aim takes a finger (`short_aim_findings`), and paper takes the press off
     everything it cannot press (`pressable_paper_findings`). The touch emulation and
-    print media are each put back before the next reading."""
+    print media are each put back before the next reading. Last, at 390px, every
+    tab's aims are read under a finger again, since a page's own CSS can shrink a
+    control only in a narrow window or only in a tab the first view never opens."""
     # The corpus's sort film otherwise repaints SVG values while the sheets move.
     page = open_page(
         browser,
@@ -144,6 +147,9 @@ def test_the_layer_holds_its_whole_page_rules_on_the_corpus(browser, serve, subt
         "aims": short_aim_findings(page),
         "paper": pressable_paper_findings(page),
     }
+    # Last, because it opens every tab and leaves the corpus on the last of them.
+    resized(page, 390, 844)
+    findings["phone aims"] = short_aim_findings_in_every_tab(page)
     failed = {reading: found for reading, found in findings.items() if found}
     assert failed == {}, "\n\n".join(
         f"{reading}:\n" + "\n".join(found) for reading, found in failed.items()

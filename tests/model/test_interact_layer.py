@@ -598,41 +598,32 @@ def test_workflow_shell_continuations_use_literal_blocks():
 
 
 @pytest.mark.parametrize(
-    ("argv", "usage"),
+    "argv",
     [
-        (["hook"], "leaf hook --harness NAME [--if-claimed] [--watch | --pages]"),
-        (
-            ["hook", "--harness"],
-            "leaf hook --harness NAME [--if-claimed] [--watch | --pages]",
-        ),
-        (
-            ["hook", "--watch", "--harness", "codex"],
-            "leaf hook --harness NAME [--if-claimed] [--watch | --pages]",
-        ),
-        (
-            ["hook", "--harness", "codex", "--bogus"],
-            "leaf hook --harness NAME [--if-claimed] [--watch | --pages]",
-        ),
-        (["session-end", "now"], "leaf session-end"),
+        ["hook"],
+        ["hook", "--harness"],
+        ["hook", "--harness", "codex", "--bogus"],
+        ["hook", "--harness", "codex", "--watch", "--pages"],
+        ["session-end", "now"],
     ],
 )
-def test_a_harness_entry_argv_no_registration_sends_is_refused_with_its_usage(
-    argv, usage
-):
-    """`hook` and `session-end` are routed before the CLI loads, and only in the
-    shapes harness registrations send; any other shape names the one it takes, rather
-    than reading a payload it was never meant to have."""
-    result = subprocess.run(
-        [sys.executable, "-m", "leaf", *argv],
-        input="{}",
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-
-    assert result.returncode == 1
+def test_harness_commands_report_click_usage_errors(argv):
+    result = CliRunner().invoke(cli_model.cli, argv, input="{}")
+    assert result.exit_code == 2
     assert result.stdout == ""
-    assert result.stderr == f"usage: {usage}\n"
+    assert json.loads(result.stderr)["error"]
+
+
+def test_hook_options_use_click_order_and_help():
+    runner = CliRunner()
+    result = runner.invoke(
+        cli_model.cli, ["hook", "--watch", "--harness=codex"], input="{}"
+    )
+    assert result.exit_code == 0, result.output
+    assert result.output == ""
+    help_result = runner.invoke(cli_model.cli, ["hook", "--help"])
+    assert help_result.exit_code == 0
+    assert "--harness" in help_result.output
 
 
 def test_a_page_command_names_what_its_path_holds_instead(tmp_path, regtest):

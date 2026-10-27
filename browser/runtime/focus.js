@@ -725,7 +725,12 @@ document.addEventListener(
     const left = event.composedPath()[0];
     lastLocation = new WeakRef(left);
     if (restoring) return;
-    queueMicrotask(() => {
+    // Native focus transfers checkpoint microtasks between focusout and focusin.
+    // A named arrival is still in flight there; read its outcome before the next paint.
+    const afterDeparture = event.relatedTarget ? nextRender : queueMicrotask;
+    const departure = readings;
+    afterDeparture(() => {
+      if (readings !== departure) return;
       const at = document.activeElement;
       if (at !== null && at !== document.body) return;
       if (heldByLabel()) return;

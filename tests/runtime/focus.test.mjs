@@ -29,6 +29,7 @@ const {
   typesText,
 } = await import("/runtime/focus.js");
 const { retainUserIntent } = await import("/runtime/user-intent.js");
+const { nextRender } = await import("/runtime/rendering.js");
 
 const heard = [];
 onCurrentLocation((node, cause) => heard.push([node, cause]));
@@ -493,7 +494,20 @@ test("a failed focus arrival publishes the departure to the document", async () 
   heard.length = 0;
   other.addEventListener("focus", () => other.remove(), { once: true });
   other.focus();
-  await settled();
+  await new Promise((resolve) => nextRender(resolve));
   assert.equal(focused(), document.body);
   assert.deepEqual(heard, [[null, "move"]]);
+});
+
+test("a completed arrival supersedes its deferred departure reading", async () => {
+  const { first, other } = scene();
+  focusDestination(first, "move");
+  heard.length = 0;
+  other.focus();
+  other.blur();
+  await new Promise((resolve) => nextRender(resolve));
+  assert.deepEqual(heard, [
+    [other, "move"],
+    [null, "move"],
+  ]);
 });

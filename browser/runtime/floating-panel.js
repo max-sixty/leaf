@@ -220,7 +220,7 @@ import { userChoice } from "./storage.js";
 import { obligationEnding } from "./obligations/answer.js";
 import { answeredInWords, readObligations } from "./obligations/model.js";
 import { obligationPlace } from "./obligations/place.js";
-import { declareSide } from "./current-target.js";
+import { declareSide, holdPagePlace } from "./current-target.js";
 import { versionPicker } from "./version-picker.js";
 import { versionsReading } from "./version.js";
 import { UPGRADE } from "./presentation.js";
@@ -463,7 +463,7 @@ export function createFloatingPanel({
   // A long draft offers more room, by the user's press rather than on its own: past
   // three lines a quiet mark stands over the leaf, in the corner the draft leaves free
   // beside its first line, or among an open view's controls, so it takes no room of its own
-  // (assets/AGENTS.md, "A control takes only its own room"). It stood at the end of the
+  // (browser/AGENTS.md, "A control takes only its own room"). It stood at the end of the
   // line over the field until, on 17 October, that line stopped saying where the words
   // go and so stopped standing over them. Pressing it widens the
   // panel and stands the field half the window tall (floating-panel.css), so the words
@@ -491,8 +491,8 @@ export function createFloatingPanel({
       : 0;
     if (lines > 3.5 === long) return;
     long = lines > 3.5;
-    // In the frame the field grows, ahead of the box's reading (`followBox`), so the
-    // box's motion reveals the mark with the line that brought it.
+    // In the frame the field grows, so the mark fades in as the line that brought it
+    // arrives, carried with the corner it rides (floating-panel.css, `.lf-fp-expand`).
     markRoom();
   });
   // The mark stands while the draft runs long, and while the field is wide, where the
@@ -4246,10 +4246,17 @@ export function createFloatingPanel({
   // Where the reader stood before stepping into the panel, which a row's command that
   // acts on that place gets back (history.js, `readPlace`).
   let heldCurrentLocation = null;
+  // It is still where they are on the page while they stand in the panel.
+  holdPagePlace(() => (currentLocationIn(host) ? heldCurrentLocation : null));
+  // A press reads it before the press moves focus, which may put away what held it.
+  let pressedIn = false;
   host.addEventListener(
     "pointerdown",
     () => {
-      if (!currentLocationIn(host)) heldCurrentLocation = readPlace();
+      if (currentLocationIn(host)) return;
+      heldCurrentLocation = readPlace();
+      pressedIn = true;
+      setTimeout(() => (pressedIn = false));
     },
     true,
   );
@@ -4261,10 +4268,11 @@ export function createFloatingPanel({
     if (menuOpen.value && node && node !== leaf && !renderedUnder(node, menu))
       setMenu(false);
     const inside = Boolean(node) && renderedUnder(node, host);
-    // Stepping in from the page holds where the user was. A row the panel just took
-    // away, as a pressed menu row hands the user to the leaf, is no longer under the
-    // panel but came from it, and holds nothing.
-    if (inside && left?.isConnected && !renderedUnder(left, host))
+    // Stepping in from the page holds where the user was, and from nowhere holds no
+    // place. A row the panel just took away, as a pressed menu row hands the user to the
+    // leaf, is no longer under the panel but came from it, and holds nothing.
+    if (inside && !left && !pressedIn) heldCurrentLocation = null;
+    else if (inside && left?.isConnected && !renderedUnder(left, host))
       heldCurrentLocation = readPlace(left);
     const next = inside ? writing || node.localName === "leaf-text" : false;
     if (next === writing && !inside) return;
@@ -4496,9 +4504,6 @@ export function createFloatingPanel({
     // `finishPlacement`).
     responseHome: responseSeat,
     revealResponse: clearRow,
-    // Where the reader stood before stepping into the panel, while they are in it
-    // (navigation.js, `currentItem`).
-    heldPlace: () => (currentLocationIn(host) ? heldCurrentLocation : null),
     // The thread whose row in Threads the pointer is on, and the row Threads draws for
     // a thread, through which hover links a row and its passage both ways
     // (anchor-paint.js, `markRow`).

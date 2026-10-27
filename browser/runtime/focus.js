@@ -1330,6 +1330,7 @@ export function controlNavigationKeys(node) {
 // such as a run of figures, where the honest answer is that the user has no reading
 // position for the browser to continue from. A region in that state still has one: the
 // declared reading lands on its body (reading-place.js, `landingPlace`).
+/** @type {(from?: Element | null) => HTMLElement | null} */
 let readingBlock = () => null;
 export function declareReading(read) {
   readingBlock = read;

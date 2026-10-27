@@ -1134,7 +1134,7 @@ const onLetGo = (read) => {
 function letGo() {
 	letGoes++;
 	const from = focused();
-	const block = readingBlock();
+	const block = readingBlock(from);
 	if (!block?.isConnected) releaseFocus();
 	else {
 		focusDestination(block, "move");

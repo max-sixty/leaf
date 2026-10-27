@@ -15,14 +15,14 @@
  * 2026-10-25), though Escape may: on a phone back comes before any key, and an edge
  * swipe made by accident after the keyboard hides would otherwise lose an edit nothing
  * undoes. A row whose `run` discards such words declares `keep` (bindings.js), which
- * back takes instead: it closes the editor as Escape would, keeps the words where
- * reopening finds them, and says so, as a composer closed over its words does. Each
- * owner shows the kept words where they stand, beside the control that reopens them,
- * and Resume writing reaches them from the panel's menu. Rejected: back taking no step
- * in a changed editor, which held the user on the page, since Chrome and Firefox let a
- * watcher rebuilt after each close catch every back, leaving only Save, Discard or a
- * tap elsewhere; and back saving the words, which sends a turn the user didn't ask
- * for.
+ * back takes instead: it closes the editor without losing the words. An `lf-draft`,
+ * which a press away saves, saves them too, so a stray swipe sends a turn as a stray
+ * tap does (Max's decision, 2026-10-27). A message rewrite saves only on Enter or
+ * Save, so back keeps its words where reopening finds them and says so, as a composer
+ * closed over its words does, showing them beside the control that reopens them.
+ * Rejected: back taking no step in a changed editor, which held the user on the page,
+ * since Chrome and Firefox let a watcher rebuilt after each close catch every back,
+ * leaving only Save, Discard or a tap elsewhere.
  *
  * Escape's keydown stays the dispatcher's. A press it answers is canceled, which ends
  * the close request before any watcher hears it, so one key never takes two steps.

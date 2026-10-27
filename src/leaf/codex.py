@@ -129,7 +129,6 @@ from .delivery import (
     validate_delivery_id,
 )
 from .harness import CodexHarness, Harness
-from .leases import sessions_home
 from .refusals import Refused
 from .service import (
     PageTransaction,
@@ -145,6 +144,7 @@ from .state import (
     retire_if_gone,
     session_lock_path,
     session_record,
+    sessions_home,
     start_session_turn,
 )
 

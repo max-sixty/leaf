@@ -29,6 +29,20 @@ what fails and what still works.
 
 ## Known gaps
 
+### Tab underline travel between anchors
+
+The selected-tab underline in `packages/default/styles/tabs.css` follows its
+label with CSS anchors. Playwright Firefox 155.0, build 1543, moved directly to
+the new anchor on 2026-10-26, without a transition or `transitionrun` event;
+Chromium 153.0.8010.12 interpolated its position and width. Instant selection
+is an accepted visual difference: the selected label, panel, keyboard routes
+and nested strips remain usable. Recheck by opening `lost-update` with
+`leaf-dev probe --firefox --motion no-preference`, selecting the adjacent tab
+with the pointer and inspecting `.lf-tab-selection` across animation frames.
+The Chromium behavior and interruption contract are covered by
+`test_pointer_tab_underline_moves_without_delaying_the_view` in
+`tests/browser/widgets/test_tabs.py`.
+
 ### Scroll-state containers
 
 Firefox 157 and Playwright Firefox and WebKit 26.6 lacked CSS scroll-state
@@ -259,10 +273,9 @@ with a shadow root unloaded every iframe in that shadow tree, leaving it
 connected with a null `contentWindow`, even when the host had no children to
 remove; `textContent = ""` did the same when it had some. Removing each child
 with `remove()` kept the frames, as Chromium 153.0.8010.12 and Firefox 155.0
-did for all three. `lf-diff` removes its authored placeholder child by child on
-each rendering, since a thread outlet in its stage can hold a frame. Leaf's
-other calls clear a host without a shadow root, or a stage's host once at
-setup, before anything stands in the stage. Recheck with `test_a_diff_revision_leaves_a_line_thread_where_it_stands`
+did for all three. `shadowStage` (`browser/runtime/shadow-stage.js`) removes a host's
+light children child by child, the one place a widget clears its host, since a thread
+outlet in a stage can hold a frame. Recheck with `test_a_diff_revision_leaves_a_line_thread_where_it_stands`
 in `tests/browser/widgets/test_diffs.py`.
 
 ### Area capture rendering

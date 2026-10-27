@@ -98,7 +98,6 @@ from .leases import (
     adapter_lease_path,
     hooks_ran,
     release_lease,
-    session_state_path,
     take_lease,
 )
 from .refusals import Refused
@@ -110,6 +109,7 @@ from .state import (
     ensure_session,
     flocked,
     object_schema,
+    session_file,
     session_record,
     start_session_turn,
     state_home,
@@ -775,11 +775,11 @@ def _turn_delivery_id(turn: dict) -> str | None:
 
 
 def adapter_log_path(session_id: str) -> Path:
-    return session_state_path(session_id, "codex.log")
+    return session_file(session_id, "codex.log")
 
 
 def adapter_start_lock_path(session_id: str) -> Path:
-    return session_state_path(session_id, "start")
+    return session_file(session_id, "start")
 
 
 def capture_batch(session_id: str, reading) -> bool:

@@ -56,6 +56,8 @@ function requestFrame() {
     p.paintSelectedMarginEntries?.();
     // A finger's stand-ins for the keys, read where the register is read.
     p.paintTouchControls?.();
+    // A close request takes the step Escape would (close-requests.js).
+    p.paintCloseRequests?.();
     // What the panel says between notices about where the keyboard has the user.
     p.paintStatusContext?.();
     p.syncLayout?.();

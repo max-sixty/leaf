@@ -91,7 +91,7 @@ names each command as it runs.
 
 Two paint readings miss: the corpus's comment paints in a median 105 ms, and a
 revision of the corpus, a page far larger than a user's, paints within 1 s only
-when the tab finds the save before a stamp locks the page (below).
+on the save route (below).
 
 The hosted agent shows two kinds of status. The panel's line read Working 0.3 s
 after the website adapter's journey sent its release ask, in a run in Chrome that
@@ -114,12 +114,14 @@ reaches the tab by one of two routes, depending on which comes first:
   checks it and writes the revision. The tab then fetches the revision's document
   and patches it in. An agent's ordinary save takes this route, since `SKILL.md`
   tells it each valid save is live.
-- **The stamp route.** The stamp takes the page lock first, about 150 ms after
-  the save, once its process has started. The tab's read waits for the stamp's
-  whole check under the lock. The state read that follows checks the same source
-  again, since the server's record that a source passed its check lives in that
-  process only. A stamp right after a save, or one with `--replace`, can take
-  this route.
+- **The stamp route.** The stamp publishes the revision first. The state read
+  that follows checks the same source again, since the server's record that a
+  source passed its check lives in that process only. A stamp in place checks
+  before taking the page lock and holds it only to confirm and publish
+  (`publishing.py`, its header), so a tab read during that check takes the save
+  route instead; the stamp then checks again outside the lock and names the
+  revision the read activated. A stamp with `--replace` writes and checks the
+  source under the lock, so the tab's read waits for its whole check.
 
 `uv run leaf-dev bench-latency --page corpus --transition revision` reads both;
 `results.json` gives each request's start and end beside the transition's, which
@@ -144,17 +146,32 @@ layout of every hidden tab, about 280 ms 300 ms after each presentation, which
 delayed the tab's next read and sent more runs down the stamp route
 (`render-checks/layout.js`, `render-checks/words.js`).
 
-The stamp route stays over 1 s. Two changes would bring it under:
+The table's stamp route is a stamp that checked under the lock, which a stamp in
+place no longer does. A script standing in for the tab measured it on each
+arm's served corpus: save, start `leaf page stamp`, poll `/api/state` every
+250 ms until it names the new revision, then fetch that revision's document.
+With the first poll fixed 500 ms after the save, when the merge base's stamp
+held the lock, the state answer came a median 2.25 s after the save and the
+document's last byte 2.98 s on the merge base `f00911ed1`, and 1.19 s and 1.93 s
+once the stamp checked outside the lock: eight alternating runs at load 17–33.
+With the first poll at a random phase both arms took the save route, at a median
+0.75 s and 0.77 s to the state answer. At load 20–46 the browser benchmark could
+not tell the arms apart (2.7–3.1 s medians, spreads over 2 s), and neither route
+has been read again at load 4–7.
+
+One change would bring the rest of the stamp route under 1 s and drop the work a
+stamp repeats after the page's own activation:
 
 - **Record that a source passed its check.** A revision could carry the identity
   of the Leaf that checked it, so any process can treat an unchanged source as
   checked, as the server's own memory does (`revisioning.py`, its header). The
   digest of the revision's inputs alone isn't enough: it covers neither the Leaf
   that checked it nor the data contracts its samples read, so it would pass a
-  source a newer Leaf refuses. The same record would let a stamp that follows the
-  server's activation skip its own check, about 450 ms under the lock.
-- **Check outside the lock.** A stamp could check before taking the lock and hold
-  it only to confirm nothing moved and to publish.
+  source a newer Leaf refuses. Leaf has no identity for its Python checker yet;
+  `runtime_selection.ServingRuntime.identity` covers the browser runtime alone.
+  The same record would let a stamp with `--replace` spare the state read after
+  it a second check, and a stamp that follows the server's activation skip its
+  second check, about 450 ms of work beside the tab's document fetch and patch.
 
 ### A small page change's reply
 

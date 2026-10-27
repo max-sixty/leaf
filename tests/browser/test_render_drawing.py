@@ -793,7 +793,6 @@ def test_a_click_draws_nothing_and_escape_leaves_the_mode(browser, serve):
     page.mouse.move(*point)
     page.keyboard.press("w")
 
-    assert page.evaluate("getComputedStyle(document.body).touchAction") == "none"
     page.mouse.click(*point)
 
     expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
@@ -808,6 +807,126 @@ def test_a_click_draws_nothing_and_escape_leaves_the_mode(browser, serve):
     expect(page.locator("html")).not_to_have_attribute("data-lf-draw-mode", "")
     expect(page.locator(".lf-live")).to_contain_text("Draw mode off")
     assert target.get_attribute("data-activated") is None
+
+
+def test_two_fingers_pan_and_zoom_in_draw_mode_while_one_draws(browser, serve):
+    """Draw mode lasts while the user moves about the page, so on a phone two fingers
+    still scroll and zoom it, and one finger draws. The mode once set `touch-action:
+    none` on the whole document, so neither scrolling nor zoom worked until the user
+    left it."""
+    filler = "".join(f"<p>Paragraph {n}. " + "Filler. " * 30 + "</p>" for n in range(8))
+    html = TARGETS_PAGE.replace("</main>", filler + "</main>")
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, serve(html), context=context)
+    page.keyboard.press("w")
+    expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
+    cdp = context.new_cdp_session(page)
+
+    def fingers(*paths):
+        """Touch down at each path's first point, move along them together, lift."""
+
+        def points(step):
+            return [
+                {"x": path[step][0], "y": path[step][1], "id": n}
+                for n, path in enumerate(paths, 1)
+            ]
+
+        cdp.send(
+            "Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": points(0)}
+        )
+        for step in range(1, len(paths[0])):
+            cdp.send(
+                "Input.dispatchTouchEvent",
+                {"type": "touchMove", "touchPoints": points(step)},
+            )
+        cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
+
+    view = "() => ({scale: visualViewport.scale, top: visualViewport.pageTop})"
+    still = page.evaluate(view)
+    # One finger draws, and moves nothing.
+    box = page.locator("#prose").bounding_box()
+    x, y = box["x"] + 20, box["y"] + box["height"] / 2
+    fingers([(x + 10 * n, y + 2 * n) for n in range(12)])
+    expect(page.locator(".lf-live")).to_contain_text("Drawing captured")
+    expect(page.locator(".lf-drawing-mark")).to_have_count(1)
+    assert page.evaluate(view) == still
+
+    # Each two-finger gesture lands on the page's text, where its first finger begins a
+    # stroke for the second to take back. The drag goes before the zoom: on a zoomed
+    # page, where a dispatched touch lands depends on where the zoom left the visual
+    # viewport, which differs between Chromium builds, and on macOS it landed on the
+    # floating panel, which begins no stroke.
+    # Two fingers drag up together: the page scrolls.
+    fingers(
+        [(150, 700 - 30 * n) for n in range(12)],
+        [(240, 700 - 30 * n) for n in range(12)],
+    )
+    page.wait_for_function(f"visualViewport.pageTop > {still['top'] + 100}")
+    # A pan the browser takes at once begins no stroke, so it may say nothing; what it
+    # leaves is no stroke under way and the drawing as it was.
+    expect(page.locator(".lf-drawing-active")).to_have_count(0)
+    expect(page.locator(".lf-drawing-mark")).to_have_count(1)
+    # Two fingers spread apart: the page zooms.
+    page.locator(".lf-live").evaluate("live => live.replaceChildren()")
+    fingers(
+        [(180 - 12 * n, 500) for n in range(12)],
+        [(210 + 12 * n, 500) for n in range(12)],
+    )
+    page.wait_for_function("visualViewport.scale > 1.5")
+    expect(page.locator(".lf-live")).to_contain_text("Stroke canceled")
+    expect(page.locator(".lf-drawing-mark")).to_have_count(1)
+    expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
+
+
+@pytest.mark.parametrize("spread", [True, False])
+def test_a_second_finger_takes_back_the_stroke_the_first_began(browser, serve, spread):
+    """A finger already drawing when a second lands is the start of a pan or a zoom,
+    not a stroke. The browser takes the gesture without always cancelling the first
+    finger's pointer, which then lifts as an ordinary release, and the stroke it drew,
+    the zoom's own moves included, became a drawing. Whether the fingers spread or
+    stay still, the second one takes the stroke back."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, serve(TARGETS_PAGE), context=context)
+    page.keyboard.press("w")
+    expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
+    cdp = context.new_cdp_session(page)
+
+    def touch(kind, *points):
+        cdp.send(
+            "Input.dispatchTouchEvent",
+            {
+                "type": kind,
+                "touchPoints": [{"x": x, "y": y, "id": n} for n, (x, y) in points],
+            },
+        )
+
+    box = page.locator("#prose").bounding_box()
+    x, y = box["x"] + 20, box["y"] + box["height"] / 2
+    touch("touchStart", (1, (x, y)))
+    for n in range(1, 8):
+        touch("touchMove", (1, (x + 10 * n, y + 2 * n)))
+    first = (x + 70, y + 14)
+    second = (first[0] + 40, first[1] + 60)
+    touch("touchStart", (1, first), (2, second))
+    for n in range(1, 10 if spread else 1):
+        touch(
+            "touchMove",
+            (1, (first[0] - 8 * n, first[1] - 8 * n)),
+            (2, (second[0] + 8 * n, second[1] + 8 * n)),
+        )
+    touch("touchEnd")
+
+    expect(page.locator(".lf-live")).to_contain_text("Stroke canceled")
+    if spread:
+        page.wait_for_function("visualViewport.scale > 1.2")
+    page.wait_for_timeout(100)
+    expect(page.locator(".lf-drawing-mark")).to_have_count(0)
+    expect(page.locator(".lf-live")).not_to_contain_text("Drawing captured")
+    expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
 
 
 def test_draw_mode_leaves_chrome_controls_usable(browser, serve):

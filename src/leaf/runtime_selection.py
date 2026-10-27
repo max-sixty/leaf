@@ -33,8 +33,9 @@ tree holds and no captured file replaces one it compiled in.
 
 import hashlib
 import json
+import weakref
 from collections.abc import Mapping
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from functools import cache, cached_property
 from pathlib import PurePosixPath
 from types import MappingProxyType
@@ -65,6 +66,10 @@ class ServingRuntime:
     kernel: Mapping[str, bytes] | None
     replaces: frozenset[str]
     probes: Mapping[str, bytes]
+    # What `executing` made of each artifact something still holds.
+    _executed: weakref.WeakKeyDictionary[RevisionArtifact, RevisionArtifact] = field(
+        default_factory=weakref.WeakKeyDictionary, init=False, repr=False, compare=False
+    )
 
     @cached_property
     def identity(self) -> str:
@@ -165,8 +170,17 @@ def executing(artifact: RevisionArtifact) -> RevisionArtifact:
     """`artifact` with the resources its documents run with under this process's
     runtime (`ServingRuntime.resources`). Its captured identity is unchanged: the
     manifest, and with it the digest and executable, describe what the revision
-    captured, and the runtime is named beside it by `serving_runtime().identity`."""
-    return replace(
-        artifact,
-        resources=MappingProxyType(serving_runtime().resources(artifact.resources)),
-    )
+    captured, and the runtime is named beside it by `serving_runtime().identity`.
+
+    The runtime keeps one per artifact for as long as the artifact is kept
+    (`revision_artifact.read_artifact`), so what a reader derives from it, such as
+    its registry and widget aliases, is read once rather than on each of the few
+    dozen resource requests a document makes."""
+    runtime = serving_runtime()
+    executed = runtime._executed.get(artifact)
+    if executed is None:
+        executed = runtime._executed[artifact] = replace(
+            artifact,
+            resources=MappingProxyType(runtime.resources(artifact.resources)),
+        )
+    return executed

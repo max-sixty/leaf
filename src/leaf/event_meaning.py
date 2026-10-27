@@ -164,7 +164,7 @@ def answer_meaning(
                     "unit" not in item["source"]
                     or item["source"]["unit"] == event["meaning"]["unit"]
                 )
-                for item in readings.work.all_obligations["all"]
+                for item in readings.work.inventory["all"]
             ),
         ),
         record["attrs"].get("resolves")

@@ -58,7 +58,7 @@ const reading = (onUser) => ({
         coverage: [],
         undo: [],
         reports: [],
-        queues: { on_user: onUser, on_agent: [], done: [] },
+        queues: { on_user: onUser, on_agent: [], later: [], done: [] },
         document: {
           obligations: noObligations(),
           projection: { entries: [], actions: [], reports: [], desired: [] },

@@ -249,3 +249,40 @@ test("only a to-do on the user offers Done", () => {
     [["todo", "user"]],
   );
 });
+
+test("Later takes a row off On me in the task it is chosen, and its undo brings it back", () => {
+  const { app } = adopted("queues on both sides");
+  const record = (id) =>
+    app.read().effective.obligations.all.find((item) => item.id === id);
+  const ids = (list) => published(app)[list].map(({ id }) => id);
+  assert.ok(ids("on_user").includes("widget:pick"));
+  app.enqueue(
+    {
+      kind: "later",
+      obligations: ["widget:pick"],
+      until: "2026-09-20T09:00:00+00:00",
+      attempt: "l",
+    },
+    "now",
+  );
+  assert.ok(!ids("on_user").includes("widget:pick"));
+  assert.deepEqual(ids("later"), ["widget:pick"]);
+  assert.equal(record("widget:pick").next_actor, null);
+  assert.equal(record("widget:pick").later.until, "2026-09-20T09:00:00+00:00");
+  // A refused Later puts the row back as the log has it.
+  app.refuse("l");
+  assert.ok(ids("on_user").includes("widget:pick"));
+  assert.deepEqual(ids("later"), []);
+
+  // The log's Later, read by the server, stands on Later until an undo brings it back.
+  const aside = adopted("set aside").app;
+  const listed = (list) => published(aside)[list].map(({ id }) => id);
+  assert.deepEqual(listed("later"), ["widget:pick"]);
+  assert.ok(!listed("on_user").includes("widget:pick"));
+  const { event } = aside
+    .read()
+    .effective.obligations.all.find((item) => item.id === "widget:pick").later;
+  aside.enqueue({ kind: "undo", undoes: event.id, attempt: "u" }, "now");
+  assert.ok(listed("on_user").includes("widget:pick"));
+  assert.deepEqual(listed("later"), []);
+});

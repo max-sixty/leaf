@@ -253,7 +253,11 @@ def test_an_answer_says_what_it_leaves_the_thread_with(page_dir):
     ]
     reply = written(leaf("thread", "reply", reference, "--text", "Done.", "--done"))
     assert "todo" not in reply
-    assert state_json(page_dir)["queues"] == {"on_user": [], "on_agent": []}
+    assert state_json(page_dir)["queues"] == {
+        "on_user": [],
+        "on_agent": [],
+        "later": [],
+    }
 
 
 def test_a_plan_arranges_todos_obligations_and_plain_steps_without_owning_them(

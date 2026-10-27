@@ -45,7 +45,7 @@ const reading = (events) => ({
         },
         coverage: [],
         undo: events.map((event) => ({ event })).reverse(),
-        queues: { on_user: [], on_agent: [], done: [] },
+        queues: { on_user: [], on_agent: [], later: [], done: [] },
         document: {
           obligations: noObligations(),
           projection: {

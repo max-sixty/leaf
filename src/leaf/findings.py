@@ -1825,6 +1825,17 @@ _TEXT = {
         f"{v['widget']} has no work seat; its widget declares no x-work and it holds"
         " no unsettled action"
     ),
+    "later-obligation": lambda at, v: (
+        f"obligation {v['obligation']!r} is not open and waiting on the user, so Later"
+        " has nothing to set aside"
+    ),
+    "later-past": lambda at, v: (
+        f"Later until {v['until']} has already passed; choose a time still to come"
+    ),
+    "later-after": lambda at, v: (
+        f"{v['after']!r} is not open on the agent's list, so Later after it would"
+        " bring the item straight back"
+    ),
     "duplicate-obligation": lambda at, v: (
         f"{v['widget']!r} already has obligation {v['obligation']!r}; use that obligation instead of"
         " opening duplicate work"

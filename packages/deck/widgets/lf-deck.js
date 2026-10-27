@@ -12,7 +12,12 @@
  * Next, since news never moves what the user is reading. Later sends a card left and
  * leaves its obligation open, which is Leaf's keep unread: nothing is recorded, the
  * pass ends with the cards kept for later still waiting, and Go through starts again
- * from the first of them. Back returns to the card before, where the widget's own
+ * from the first of them. Beside it, Later until… (`laterControl`) sets the card's
+ * waiting obligations aside until a time or until an item on the agent's list
+ * finishes, and sends the card left the same way. That one is recorded: the server's
+ * reading takes the card out of every pass, marks its pip, counts it as later, and
+ * brings it back to the pass once its condition holds, in this tab or any other
+ * (`src/leaf/later.py`). Back returns to the card before, where the widget's own
  * controls change an answer. Where nothing waits, as in Review, and until the page's
  * first reading is in, as offline, Later and Next step to the next card in order.
  *
@@ -28,7 +33,7 @@
  * has no Undo of its own.
  *
  * The bar above the cards holds Back, the tally's count of the deck's obligations
- * (`tallyWords`) with a mark per card, and one forward control: Later on a waiting card, Next on any other, then Go through the cards left,
+ * (`tallyWords`) with a mark per card, Later until… on a waiting card, and one forward control: Later on a waiting card, Next on any other, then Go through the cards left,
  * or Review, once the pass is over. Then a quiet frame stands where the cards stood,
  * saying how many still wait, with the same step back in as words, since a symbol
  * alone at the end of the pass went unnoticed. They are symbols of one size and one style, named by
@@ -62,6 +67,7 @@ import {
   keeps,
   keepsHidden,
   keepsText,
+  laterControl,
   layoutChanged,
   LeafElement,
   motion,
@@ -73,6 +79,7 @@ import {
   openingView,
   quoted,
   readObligations,
+  render as renderInto,
   scrollBehavior,
   scrollIntoView,
   signal,
@@ -110,6 +117,10 @@ customElements.define(
     #status = null;
     #back = null;
     #forward = null;
+    // Later until…, drawn on a waiting card from the template `render` builds.
+    #later = null;
+    /** @type {unknown} */
+    #laterTemplate = nothing;
     #end = null;
     #again = null;
     #cards = [];
@@ -145,7 +156,8 @@ customElements.define(
       };
       this.#back = control("back", "previous", "Back");
       this.#forward = control("forward", "next");
-      this.#bar.append(this.#back, this.#status, this.#forward);
+      this.#later = offer("span", "lf-deck-later");
+      this.#bar.append(this.#back, this.#status, this.#later, this.#forward);
       // Where the cards stood once the pass is over: what is left, and a way back in.
       this.#end = offer("div", "lf-deck-end");
       this.#end.hidden = true;
@@ -534,14 +546,38 @@ customElements.define(
       const count = readings
         ? tallyWords(tally(obligationsIn(this, items.all)), agentName())
         : "";
-      // A card's mark: open, waiting on the user, open with the agent, or answered.
+      // A card's mark: open, waiting on the user, set aside for later, open with the
+      // agent, or answered.
       const mark = (each) => {
         if (each === card) return "open";
         const held = readings?.get(each);
         if (!held?.length) return "";
         if (waits(each)) return "waiting";
+        if (
+          held.some(
+            (item) => item.next_actor === null && item.later?.returned === false,
+          )
+        )
+          return "later";
         return held.some((item) => item.status === "open") ? "agent" : "done";
       };
+      // Later until… sets aside what the open card waits on the user for, and sends it
+      // on as Later does. Built here, where its reading of the agent's list is
+      // followed, and drawn beside the forward control (`updated`).
+      const waiting =
+        card &&
+        readings
+          ?.get(card)
+          .filter((item) => item.status === "open" && item.next_actor === "user");
+      this.#laterTemplate =
+        waiting?.length && !quoted(this)
+          ? laterControl(
+              waiting.map((item) => item.id),
+              obligationActions.later,
+              // Not as stepping: a pass whose last waiting card was set aside ends.
+              () => this.#go(this.#after(card, this.#readings()), "left"),
+            )
+          : nothing;
       return html`
         <span class="lf-deck-pips" aria-hidden="true"
           >${this.#cards.map(
@@ -554,6 +590,8 @@ customElements.define(
 
     updated() {
       if (!this.#cards.length) return;
+      renderInto(this.#laterTemplate, this.#later);
+      keepsHidden(this.#later, this.#laterTemplate === nothing);
       const word = this.#forwardWord();
       keeps(this.#forward, "aria-label", word);
       keeps(this.#forward, "title", word);

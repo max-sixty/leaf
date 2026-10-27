@@ -7,7 +7,7 @@ import { DESIGN_MODE_KEY, DISCLOSE, DISCLOSURE_SELECTOR, ELEMENTS, PAGE_DRAFT, T
 import { LEAF_SURFACE, authoredScope, blockAt, closestAcross, contextAround, elementById, elementFromPointAcross, elementOver, excerptWords, findText, inChrome, leafSurface, pageDocument, pageParts, pageQueryAll, pageRange, pageReadingVersion, pageText, pageWords, programmaticSelection, quoteFrom, rangeOf, says, segmentBlock, selectEnds, selectionBackward, showsWords } from "./runtime/bundle-passages.js";
 import { copyControl, landingRoom, restrictUserIntent, retainUserIntent, scrollIntoReadingBand, scrollIntoView } from "./runtime/bundle-copy-control.js";
 import { mediaViewer, motionEasing, motionPlays, motionTime, playMotion, readAttachedMedia, reducedMotion, scopedMediaUrl, scrollBehavior, writeAttachedMedia } from "./runtime/bundle-media.js";
-import { DRAWING_COORDINATE_LIMIT, KINDS, LeafElement, MAX_DRAWING_FRAME_DEPTH, MAX_DRAWING_POINTS, MAX_DRAWING_SAYS_LENGTH, MAX_DRAWING_STROKES, annotationItems, beginRead, clearContributionControls, composerOpen, composerQuote, contributionHost, contributionItemKey, contributionReceipts, contributionSource, createPageLayout, createReactionController, createSelectionComposer, createThreadLanding, currentLocationThread, declareThreadKeys, entryControls, fabBar, fabInput, fabOptionsTrigger, inPageOrder, leavesBox, mountApplication, obligationEnding, obligationWord, ownedObligationControl, paintBarReactions, partOver, pendingAbout, pendingAnchor, pendingDrawing, queueItemKey, queueTitle, reactionAvailable, reactionTokens, readPlan, readQueues, registerContribution, sendReaction, spokenSubject, textField, threadInput, visibleContributionEntryLabel } from "./runtime/bundle-page-layout.js";
+import { DRAWING_COORDINATE_LIMIT, KINDS, LeafElement, MAX_DRAWING_FRAME_DEPTH, MAX_DRAWING_POINTS, MAX_DRAWING_SAYS_LENGTH, MAX_DRAWING_STROKES, annotationItems, beginRead, clearContributionControls, composerOpen, composerQuote, contributionHost, contributionItemKey, contributionReceipts, contributionSource, createPageLayout, createReactionController, createSelectionComposer, createThreadLanding, currentLocationThread, declareThreadKeys, entryControls, fabBar, fabInput, fabOptionsTrigger, inPageOrder, laterControl, laterWords, leavesBox, mountApplication, obligationEnding, obligationWord, ownedObligationControl, paintBarReactions, partOver, pendingAbout, pendingAnchor, pendingDrawing, queueItemKey, queueTitle, reactionAvailable, reactionTokens, readPlan, readQueues, registerContribution, sendReaction, spokenSubject, textField, threadInput, visibleContributionEntryLabel } from "./runtime/bundle-page-layout.js";
 import { visibleTargetParts } from "./runtime/bundle-visible-target-parts.js";
 import { pageImage, pageRenderer } from "./runtime/bundle-page-image.js";
 import { pageIdentity, shownScheme } from "./runtime/bundle-page-identity.js";
@@ -6348,11 +6348,13 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		if (reading.phase !== "ready") return {
 			you: [],
 			agent: [],
+			later: [],
 			done: []
 		};
 		return {
 			you: reading.on_user,
 			agent: reading.on_agent,
+			later: reading.later,
 			done: reading.done.filter((item) => item.owner === QUEUE_TABS[queueTab])
 		};
 	};
@@ -6360,6 +6362,10 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const id = item?.answer?.event?.id ?? item?.answer?.event;
 		if (!id) return null;
 		return runtime.undo.find(({ event }) => event.id === id || event.attempt === id)?.event ?? null;
+	};
+	const laterGesture = (record) => {
+		const id = record?.later?.event?.id;
+		return id ? runtime.undo.find(({ event }) => event.id === id)?.event ?? null : null;
 	};
 	const tabLabel = (tab) => tab === "agent" ? `On ${agentName()}` : "On me";
 	const walkedStop = () => {
@@ -6530,6 +6536,8 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const waiting = carried.find(({ record: other }) => other.status === "open" && other.next_actor === "user");
 		const heading = thread && title === threadName(thread) ? threadHeading(thread) : title;
 		const answered = record && record.status !== "open";
+		const setAside = Boolean(record && !answered && record.next_actor === null && record.later && !record.later.returned);
+		const laterHere = card && list === "you" && record && !answered && record.next_actor === "user" ? laterControl([record, ...carried.map(({ record: other }) => other)].filter((other) => other.status === "open" && other.next_actor === "user").map((other) => other.id), queueActions.later) : nothing;
 		const choices = record && !answered && record.source.kind === "widget" && !inWords ? obligationView.choicesOf(record) : null;
 		const gesture = answered ? answerGesture(record) : null;
 		const discuss = conversation ? html`<button
@@ -6559,7 +6567,16 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		if (list === "done" && !record) answers = card ? html`<span class="lf-fp-said"
             >${[itemOutcome(item), shortAgo(item.ended)].filter(Boolean).join(" ")}</span
           >` : nothing;
-		else if (list !== "you" && !answered) answers = html`<span class="lf-fp-said">${workOn(item).line}</span>`;
+		else if (setAside) {
+			const gesture = laterGesture(record);
+			answers = html`<span class="lf-fp-said">${laterWords(record.later)}</span>${gesture ? html`<button
+                type="button"
+                class="lf-fp-face lf-fp-quiet"
+                @click=${() => withdraw(gesture)}
+              >
+                Undo
+              </button>` : nothing}`;
+		} else if (list !== "you" && !answered) answers = html`<span class="lf-fp-said">${workOn(item).line}</span>`;
 		else if (answered) {
 			discussHere = false;
 			answers = html`<span class="lf-fp-said">${obligationEnding(record)}</span>${gesture ? html`<button
@@ -6622,7 +6639,11 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const where = says === "place" ? "" : onMe.place(item);
 		const walked = leads && queueTab === "you" && walkedStop() === stop.key;
 		if (card) {
-			const about = [.../* @__PURE__ */ new Set([group, where])].filter(Boolean);
+			const about = [.../* @__PURE__ */ new Set([
+				group,
+				where,
+				record?.later?.returned ? "Back from Later" : ""
+			])].filter(Boolean);
 			return html`<section
         class="lf-fp-on-item"
         data-card
@@ -6649,7 +6670,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			}).body.plainText}
               </p>`)}
         <div class="lf-fp-answers">
-          ${answers}${discussHere ? discuss : nothing}${show}
+          ${answers}${discussHere ? discuss : nothing}${show}${laterHere}
         </div>
       </section>`;
 		}
@@ -6747,6 +6768,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const all = [
 			...lists.you,
 			...lists.agent,
+			...lists.later,
 			...lists.done
 		];
 		const byKey = new Map(all.map((item) => [queueItemKey(item), item]));
@@ -6759,23 +6781,32 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		}
 		const carried = new Set((seated ?? []).flatMap((key) => carrying.get(key) ?? []));
 		seated = [...(seated ?? []).filter((key) => byKey.has(key)), ...current.filter((key) => !(seated ?? []).includes(key) && !carried.has(byKey.get(key).id))];
-		const listOf = (item) => lists.you.includes(item) ? "you" : lists.agent.includes(item) ? "agent" : "done";
+		const listOf = (item) => lists.you.includes(item) ? "you" : lists.agent.includes(item) ? "agent" : lists.later.includes(item) ? "later" : "done";
 		const items = seated.map((key) => byKey.get(key));
 		const grouping = onMe.grouping();
 		const says = grouping === "plan" ? null : grouping;
 		const held = new Set(seated.flatMap((key) => carrying.get(key) ?? []));
 		const finished = lists.done.filter((item) => !seated.includes(queueItemKey(item)) && !held.has(item.id));
+		const later = lists.later.filter((item) => !seated.includes(queueItemKey(item)) && !held.has(item.id));
 		const waits = (item) => lists.you.includes(item);
 		const groups = onMe.groups(items, grouping, held).map((group) => ({
 			...group,
 			headed: group.items.length > 1,
 			count: group.items.filter(waits).length
 		}));
-		return html`${items.length ? nothing : html`<p class="lf-fp-empty">Nothing waiting on me.</p>`}${keyed(grouping, groupedItems([...groups, ...finished.length ? [{
-			key: "done",
-			title: "Done",
-			items: finished
-		}] : []], (item, group) => group.key === "done" ? onItemCard(item, "done", { card: true }) : onItemCard(item, listOf(item), {
+		return html`${items.length ? nothing : html`<p class="lf-fp-empty">Nothing waiting on me.</p>`}${keyed(grouping, groupedItems([
+			...groups,
+			...later.length ? [{
+				key: "later",
+				title: "Later",
+				items: later
+			}] : [],
+			...finished.length ? [{
+				key: "done",
+				title: "Done",
+				items: finished
+			}] : []
+		], (item, group) => group.key === "done" || group.key === "later" ? onItemCard(item, group.key, { card: true }) : onItemCard(item, listOf(item), {
 			card: true,
 			says: group.headed ? says : null,
 			group: group.headed ? null : group.title,

@@ -21,6 +21,7 @@ from leaf.events import (
 )
 from leaf.findings import Finding
 from leaf.harness import message_identity
+from leaf.later import later_error
 from leaf.layer import incompatible_layer, incompatible_revision
 from leaf.obligations import (
     quoted_in,
@@ -53,9 +54,10 @@ from leaf.registry.kernel import (
     verb_writers,
 )
 from leaf.registry.reactions import reaction_tokens
-from leaf.registry.schema import schema_complaint
+from leaf.registry.schema import aware_instant, schema_complaint
 from leaf.registry.storage import IncompatibleLayer, load_registry
 from leaf.shown_answers import shown_widget
+from leaf.state import now_iso
 from leaf.todos import todo_error
 from leaf.validation.instances import attribute_slot_errors
 from leaf.work import widget_seat_error
@@ -720,6 +722,22 @@ def admission_error(
         or _withdrawal_error(view, event, events, readings)
         or _todo_error(view, event, readings)
         or _plan_error(event, readings)
+        or _later_error(event, readings)
+    )
+
+
+def _later_error(event: dict, readings) -> Finding | None:
+    """A Later sets aside records the user owes now, until a condition that doesn't
+    already hold (`later.later_error`), judged at the moment it is made: the time the
+    event names, where its writer stamped one, else now."""
+    if event["kind"] != "later":
+        return None
+    work = readings.work
+    return later_error(
+        event,
+        work.inventory["all"],
+        work.agent_item_finished,
+        aware_instant(event.get("ts") or "") or aware_instant(now_iso()),
     )
 
 
@@ -777,7 +795,7 @@ def _todo_error(view, event: dict, readings) -> Finding | None:
         item = next(
             (
                 item
-                for item in readings.work.all_obligations["all"]
+                for item in readings.work.inventory["all"]
                 if item["source"]["kind"] == "widget"
                 and item["source"]["id"] == widget
                 and item["status"] == "open"

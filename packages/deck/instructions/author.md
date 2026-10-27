@@ -7,4 +7,6 @@ over, reached only by Back.
 
 The deck moves on by itself once the user answers a card, and offers Back and Later, so
 don't add navigation of your own. Later leaves a card waiting and records nothing; the
-deck comes back to it at the end of the pass.
+deck comes back to it at the end of the pass. Later until… sets a card aside until a
+time or until an item on your list finishes, such as a to-do you opened with
+`leaf task create`, so give work a card depends on a to-do the user can wait for.

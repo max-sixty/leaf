@@ -2,7 +2,8 @@
 
    The application publisher alone derives membership. This boundary selects its
    immutable lists and correlates workflow context, without folding events or
-   keeping another state. Activation resolves a stable kind/id key against the
+   keeping another state. Later sets the records a row or card carries aside until a
+   condition (obligations/later.js). Activation resolves a stable kind/id key against the
    current reading; a stale row cannot end a different to-do or revive an old route.
    An obligation is answered through its source; only a to-do on the user offers
    Done. Navigation is supplied once by the existing queue walk. */
@@ -18,9 +19,12 @@ export function createQueueActions({ post, arrive }) {
   return Object.freeze({
     open(key) {
       const reading = readQueues();
-      const item = [...reading.on_user, ...reading.on_agent, ...reading.done].find(
-        (candidate) => queueItemKey(candidate) === key,
-      );
+      const item = [
+        ...reading.on_user,
+        ...reading.on_agent,
+        ...reading.later,
+        ...reading.done,
+      ].find((candidate) => queueItemKey(candidate) === key);
       return item?.offers.open ? arrive(item) : Promise.resolve(false);
     },
     done(key) {
@@ -29,6 +33,13 @@ export function createQueueActions({ post, arrive }) {
       if (!item?.offers.done) return null;
       const delivery = post({ kind: "todo_end", todo: item.id, outcome: "done" });
       announce("Done");
+      return delivery;
+    },
+    // Set the obligation records `ids` aside until `condition`, `{until}` an instant
+    // or `{after}` an item on the agent's list (`src/leaf/later.py`).
+    later(ids, condition) {
+      const delivery = post({ kind: "later", obligations: [...ids], ...condition });
+      announce("Later");
       return delivery;
     },
   });

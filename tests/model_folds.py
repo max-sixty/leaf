@@ -99,6 +99,7 @@ def served_reading(
     view_revision: int | None = None,
     presence: dict | None = None,
     data: dict | None = None,
+    now: str = NOW,
 ) -> dict:
     """The `/api/state` reading of one page, folded in this process.
 
@@ -113,6 +114,9 @@ def served_reading(
 
     `presence` is the claim and watcher reading the fold sees, `UNCLAIMED` unless
     the case needs a page someone holds.
+
+    `now` is the instant the page is read at, `NOW` unless the case lets time pass
+    after its events, as a Later on a clock needs.
 
     Every reading is held to the served state's schema (`served_state_error`), so a
     field the fold serves and the schema doesn't declare fails the test that folds it.
@@ -176,7 +180,7 @@ def served_reading(
             versions=tuple(version_descriptors(log, parsed)),
             presence=presence or UNCLAIMED,
             live_stream=None,
-            now=NOW,
+            now=now,
             taken=float(len(log) + 1),
         ),
         view_revision=view_revision,

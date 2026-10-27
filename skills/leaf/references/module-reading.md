@@ -168,9 +168,10 @@ arrives. Each `source.kind` adds its own facts:
 returns the widgets' obligations, not withdrawn, inside `region`; `lf-tabs` and
 `lf-tally` count with it, so a module marking obligations per card or section should
 too, passing `readObligations().user` for those waiting on the user.
-`tally(obligations)` counts such a set as `{onUser, onAgent, open, total}`, splitting the
-open ones by next actor, and `tallyWords(count, agentName())` words it as `lf-tally`
-does, such as "2 left to answer · 1 on Claude", so every count of a queue reads alike.
+`tally(obligations)` counts such a set as `{onUser, onAgent, later, open, total}`,
+splitting the open ones by next actor, with those the user set aside as `later`, and
+`tallyWords(count, agentName())` words it as `lf-tally` does, such as "2 left to answer ·
+1 on Claude", so every count of a queue reads alike.
 
 `obligationActions.open(id)` takes the user to an obligation, resolving to `false` if
 it is gone. `obligationActions.next({within, dir})` steps to the next obligation
@@ -178,6 +179,15 @@ waiting on the user inside `within`, or the previous with `dir: -1`, as `m` does
 me, and resolves to whether it arrived. A control that calls it prevents `mousedown`'s
 default, so focus stays put and a second press steps on. The user answers an obligation
 through the widget's own command.
+
+The user can set obligations waiting on them aside until a time, or until an item on
+the agent's list finishes. While one is set aside its `next_actor` is `null` and its
+`later` says until when (`{until, after, returned}`); once that holds it waits on the
+user again, with `later.returned` true. `laterControl(ids, obligationActions.later,
+chosen)` is a Lit template of the one control that offers it, to draw where a module
+offers the user a way past an obligation, as `lf-deck` does beside its Later: choosing
+sets the obligations `ids` aside and then calls `chosen`. `laterWords(obligation.later)`
+says when it comes back, as On me says it.
 
 An element declaring `x-shows`, such as a board card, is a view of another widget's
 answer ([package-data.md, "Views of an answer"](package-data.md#views-of-an-answer)).
@@ -190,8 +200,8 @@ which sends the widget's own command and returns what `dispatch` returns, or `nu
 where the widget can't take `value`. Place the view by `value`, and change it only
 through `answer`, so the view records nothing of its own.
 
-`readQueues()` returns the `{phase, on_user, on_agent, done}` lists Leaf's panel shows
-under On me and On <agent>. Each row has a `kind`, which is its obligation's
+`readQueues()` returns the `{phase, on_user, on_agent, later, done}` lists Leaf's panel
+shows under On me and On <agent>, `later` holding what the user set aside. Each row has a `kind`, which is its obligation's
 `source.kind` (with the obligation as `obligation`) or `todo` (with the to-do as
 `todo`), and an `owner`, `user` or `agent`. An obligation's row lists in `also` the ids
 of the other obligations the user answers at the same place, such as the agent's answer

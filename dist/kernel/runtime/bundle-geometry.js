@@ -1219,8 +1219,45 @@ function localTodos(state, local) {
 const NO_QUEUES = {
 	on_user: [],
 	on_agent: [],
+	later: [],
 	done: []
 };
+function localLaters(items, local) {
+	const setting = /* @__PURE__ */ new Map();
+	const undoing = /* @__PURE__ */ new Set();
+	for (const { event } of local) if (event.kind === "later") for (const id of event.obligations) setting.set(id, {
+		until: event.until ?? null,
+		after: event.after ?? null
+	});
+	else if (event.kind === "undo") undoing.add(event.undoes);
+	if (!setting.size && !undoing.size) return items;
+	const all = items.all.map((item) => {
+		const later = setting.get(item.id);
+		if (later && item.status === "open" && item.next_actor === "user") return {
+			...item,
+			next_actor: null,
+			later: {
+				event: null,
+				...later,
+				returned: false
+			}
+		};
+		const served = item.later;
+		if (served?.event && undoing.has(served.event.id) && !served.returned && item.status === "open" && item.next_actor === null) {
+			const { later: _withdrawn, ...rest } = item;
+			return {
+				...rest,
+				next_actor: "user"
+			};
+		}
+		return item;
+	});
+	return {
+		all,
+		user: all.filter((item) => item.next_actor === "user"),
+		unanswered: all.filter((item) => item.status === "open")
+	};
+}
 function currentWidgetRelations(document, widgets, projection) {
 	const parents = new Map([...document.descriptors].map(([id, descriptor]) => [id, descriptor.parent?.id]));
 	const owners = /* @__PURE__ */ new Map();
@@ -1311,9 +1348,15 @@ function localQueues(served, workflows, todos, items, local) {
 			live: false
 		});
 	};
+	const setAside = (item) => {
+		if (!namesRecord(item)) return false;
+		const record = obligationOf(item);
+		return record.status === "open" && record.next_actor === null && Boolean(record.later && !record.later.returned);
+	};
 	return {
 		on_user: [
 			...served.on_user.filter(standsOpen).map(current),
+			...served.later.filter(standsOpen).map(current),
 			...reopenedFor("user").map(asOpen),
 			...local.filter((item) => item.next_actor === "user").map(localRow)
 		].toSorted((a, b) => onUserRank(a) - onUserRank(b) || (namesRecord(a) && namesRecord(b) ? inventoryAt.get(a.id) - inventoryAt.get(b.id) : 0)),
@@ -1323,6 +1366,7 @@ function localQueues(served, workflows, todos, items, local) {
 			...served.on_agent.filter((item) => item.kind === "todo" && standsOpen(item)).map(current),
 			...reopenedFor("agent").map(asOpen)
 		],
+		later: [...served.on_user.filter(setAside).map(current), ...served.later.filter(setAside).map(current)],
 		done: [...[...served.on_user, ...served.on_agent].filter(endedHere).map(asDone), ...served.done.filter((item) => !reopened(item)).map(current)]
 	};
 }
@@ -1518,7 +1562,7 @@ function createSemanticApplication({ presentation } = {}) {
 			open: [],
 			ended: []
 		};
-		const servedItems = ready ? normalizedObligations(view, widgets, document, projection, todos) : NO_OBLIGATIONS;
+		const servedItems = ready ? localLaters(normalizedObligations(view, widgets, document, projection, todos), local) : NO_OBLIGATIONS;
 		const named = threadNames(folded);
 		const threadOfEntry = ({ event, thread: drawn, namedParent }) => {
 			const drawnIn = drawn && named.get(drawn.id)?.id;
@@ -1647,6 +1691,7 @@ function createSemanticApplication({ presentation } = {}) {
 				phase,
 				on_user: contextual(selectedQueues.on_user, true),
 				on_agent: contextual(selectedQueues.on_agent),
+				later: contextual(selectedQueues.later),
 				done: contextual(selectedQueues.done)
 			},
 			view,

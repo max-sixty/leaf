@@ -19,7 +19,7 @@ import { servedActivity, servedReading } from "../served.mjs";
 
 const NOW = Date.parse(servedActivity().ts);
 const minutesAgo = (minutes) => new Date(NOW - minutes * 60_000).toISOString();
-const NO_QUEUES = { on_user: [], on_agent: [], done: [] };
+const NO_QUEUES = { on_user: [], on_agent: [], later: [], done: [] };
 
 // The page's served state with `activity`, as the status reads it.
 const state = (activity) => ({

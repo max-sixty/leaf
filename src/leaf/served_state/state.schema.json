@@ -992,9 +992,14 @@
           "properties": {
             "on_user": { "type": "array", "items": { "$ref": "#/$defs/QueueRow" } },
             "on_agent": { "type": "array", "items": { "$ref": "#/$defs/QueueRow" } },
+            "later": {
+              "description": "What the user set aside with Later and hasn't come back yet, a row per Later, its other records in `also` (`later.py`).",
+              "type": "array",
+              "items": { "$ref": "#/$defs/QueueRow" }
+            },
             "done": { "type": "array", "items": { "$ref": "#/$defs/DoneRow" } }
           },
-          "required": ["on_user", "on_agent", "done"],
+          "required": ["on_user", "on_agent", "later", "done"],
           "additionalProperties": false
         }
       },
@@ -1182,7 +1187,22 @@
             { "type": "null" }
           ]
         },
-        "next_actor": { "enum": ["user", "agent", null] }
+        "next_actor": { "enum": ["user", "agent", null] },
+        "later": {
+          "description": "The user's Later in force on this record (`later.py`): set aside until `until`, an instant, or `after`, an item on the agent's list, finishes. While it hasn't `returned`, an open record the user owed has no next actor.",
+          "type": "object",
+          "properties": {
+            "event": {
+              "description": "The `later` event; null only in the browser, for a Later it is still sending.",
+              "anyOf": [{ "$ref": "#/$defs/EventReference" }, { "type": "null" }]
+            },
+            "until": { "type": ["string", "null"] },
+            "after": { "type": ["string", "null"] },
+            "returned": { "type": "boolean" }
+          },
+          "required": ["event", "until", "after", "returned"],
+          "additionalProperties": false
+        }
       },
       "required": [
         "id",

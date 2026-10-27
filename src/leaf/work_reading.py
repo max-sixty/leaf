@@ -9,15 +9,21 @@ calls `viewing` to read the same log under that revision's registry. It knows
 nothing about whether a session is live: `activity` adds that once, in
 `served_state.work`, and transports read the result without building the browser's
 state. A `WorkReading` lasts for one transaction and is never written to disk.
+
+`now` is the instant it is read at, which only a Later on a clock reads
+(`later.py`); it defaults to the moment the reading is built.
 """
 
 from functools import cached_property
 
 from .document_reading import read_document
 from .events import build_threads
+from .later import agent_item_finished, later_reading, laters_in_force
 from .obligations import collection, thread_obligation_readings, user_task_obligations
 from .plans import plan_reading
 from .projection import frozen_thread_reading
+from .registry.schema import aware_instant
+from .state import now_iso
 from .todos import TodoReading
 
 
@@ -32,8 +38,10 @@ class WorkReading:
         thread=None,
         log=None,
         data=None,
+        now=None,
     ):
         self.events = events
+        self.now = now or now_iso()
         self.registry = registry
         self.page = page
         self.data = data or {"sources": {}}
@@ -61,6 +69,7 @@ class WorkReading:
             within=self.within,
             log=self.log,
             data=self.data,
+            now=self.now,
         )
 
     @cached_property
@@ -89,7 +98,10 @@ class WorkReading:
         )
 
     @cached_property
-    def all_obligations(self) -> dict:
+    def inventory(self) -> dict:
+        """Every obligation as its source decides it, before the user's Laters: what
+        admission compares for attention (`workflows.attention_reading`), since setting
+        a question aside asks the agent for nothing, and what the update fold reads."""
         return collection(
             [
                 *(self.document.items["all"] if self.document is not None else []),
@@ -97,6 +109,30 @@ class WorkReading:
                 *user_task_obligations(self.log, self.thread),
             ]
         )
+
+    @cached_property
+    def _later(self):
+        return later_reading(
+            self.inventory["all"],
+            laters_in_force(self.events, self.log.withdrawn),
+            finished=self.agent_item_finished,
+            now=aware_instant(self.now),
+        )
+
+    @cached_property
+    def agent_item_finished(self):
+        """Whether an item on the agent's list is no longer the agent's (`later.py`)."""
+        return agent_item_finished(self.log.todos, self.updates["all"])
+
+    @property
+    def all_obligations(self) -> dict:
+        """Every obligation with the user's Laters applied (`later.py`)."""
+        return collection(self._later[0])
+
+    @property
+    def later_wakes(self) -> list:
+        """The instants at which a Later on a clock brings a record back."""
+        return self._later[1]
 
     @cached_property
     def document(self):
@@ -116,7 +152,7 @@ class WorkReading:
             page=self.page,
             events=self.events,
             todo_reading=self.log,
-            items=self.all_obligations,
+            items=self.inventory,
         )
 
     @property

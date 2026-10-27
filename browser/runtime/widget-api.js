@@ -91,6 +91,8 @@ export {
   workAncestor,
 } from "./work.js";
 export { obligationActions } from "./application.js";
+// Later's one control and its words, wherever a package offers it (obligations/later.js).
+export { laterControl, laterWords } from "./obligations/later.js";
 export { readQueues, queueItemKey } from "./queue-api.js";
 export { queueTitle } from "./queue-title.js";
 export { queueActions } from "./application.js";

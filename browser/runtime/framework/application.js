@@ -254,6 +254,7 @@ function advance(entry, signal, admitted = null) {
  * @typedef {{
  *   on_user: readonly QueueItem[];
  *   on_agent: readonly QueueItem[];
+ *   later: readonly QueueItem[];
  *   done: readonly DoneItem[];
  * }} WireQueues
  */
@@ -468,7 +469,56 @@ function localTodos(state, local) {
 }
 
 /** @type {WireQueues} */
-const NO_QUEUES = { on_user: [], on_agent: [], done: [] };
+const NO_QUEUES = { on_user: [], on_agent: [], later: [], done: [] };
+
+/* The records with this tab's Laters drawn: a Later it is sending sets its records
+ * aside in the task the user chose it, and an undo of one brings them back, since
+ * each decides that by itself. When they come back is the server's reading, as is
+ * every Later the log already holds; a refused one leaves the ledger and so puts its
+ * records back as the log has them. */
+/**
+ * @param {ObligationLists} items
+ * @param {readonly LedgerEntry[]} local
+ * @returns {ObligationLists}
+ */
+function localLaters(items, local) {
+  /** @type {Map<string, {until: string | null, after: string | null}>} */
+  const setting = new Map();
+  const undoing = new Set();
+  for (const { event } of local) {
+    if (event.kind === "later")
+      for (const id of event.obligations)
+        setting.set(id, { until: event.until ?? null, after: event.after ?? null });
+    else if (event.kind === "undo") undoing.add(event.undoes);
+  }
+  if (!setting.size && !undoing.size) return items;
+  const all = items.all.map((item) => {
+    const later = setting.get(item.id);
+    if (later && item.status === "open" && item.next_actor === "user")
+      return {
+        ...item,
+        next_actor: null,
+        later: { event: null, ...later, returned: false },
+      };
+    const served = item.later;
+    if (
+      served?.event &&
+      undoing.has(served.event.id) &&
+      !served.returned &&
+      item.status === "open" &&
+      item.next_actor === null
+    ) {
+      const { later: _withdrawn, ...rest } = item;
+      return { ...rest, next_actor: /** @type {const} */ ("user") };
+    }
+    return item;
+  });
+  return {
+    all,
+    user: all.filter((item) => item.next_actor === "user"),
+    unanswered: all.filter((item) => item.status === "open"),
+  };
+}
 
 /** Attribute-set owners depend on the members their total render paints, as well
  * as on the selected ids. Capture supplies authored parentage; the complete
@@ -643,9 +693,21 @@ function localQueues(served, workflows, todos, items, local) {
       live: false,
     });
   };
+  // Whether a record is set aside by a Later that hasn't brought it back.
+  /** @param {QueueItem} item */
+  const setAside = (item) => {
+    if (!namesRecord(item)) return false;
+    const record = obligationOf(item);
+    return (
+      record.status === "open" &&
+      record.next_actor === null &&
+      Boolean(record.later && !record.later.returned)
+    );
+  };
   return {
     on_user: [
       ...served.on_user.filter(standsOpen).map(current),
+      ...served.later.filter(standsOpen).map(current),
       ...reopenedFor("user").map(asOpen),
       ...local.filter((item) => item.next_actor === "user").map(localRow),
     ].toSorted(
@@ -665,6 +727,10 @@ function localQueues(served, workflows, todos, items, local) {
         .filter((item) => item.kind === "todo" && standsOpen(item))
         .map(current),
       ...reopenedFor("agent").map(asOpen),
+    ],
+    later: [
+      ...served.on_user.filter(setAside).map(current),
+      ...served.later.filter(setAside).map(current),
     ],
     // Newest first, as the server serves it: what ended in this tab has just ended.
     done: [
@@ -1041,7 +1107,10 @@ export function createSemanticApplication({ presentation } = {}) {
     );
     const todos = ready ? localTodos(state, local) : { open: [], ended: [] };
     const servedItems = ready
-      ? normalizedObligations(view, widgets, document, projection, todos)
+      ? localLaters(
+          normalizedObligations(view, widgets, document, projection, todos),
+          local,
+        )
       : NO_OBLIGATIONS;
     // Thread attention is the server's reading, and one local fact adjusts it: a
     // refused send hands a thread the server left with the agent back to the user,
@@ -1248,6 +1317,7 @@ export function createSemanticApplication({ presentation } = {}) {
         phase,
         on_user: contextual(selectedQueues.on_user, true),
         on_agent: contextual(selectedQueues.on_agent),
+        later: contextual(selectedQueues.later),
         done: contextual(selectedQueues.done),
       },
       // Part of the effective reading, so a read that changes only the view's

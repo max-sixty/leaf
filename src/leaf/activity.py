@@ -568,6 +568,7 @@ def canonical_activity(
     *,
     todo_reading=None,
     updates: dict,
+    wakes=(),
 ) -> dict:
     """Return the one current reading of agent activity for a page snapshot.
 
@@ -576,6 +577,11 @@ def canonical_activity(
     read from, which holds the agent's open to-dos and the starts running on them
     (`todos.TodoReading`). Workflows and to-dos come back aged, as `workflows` and
     `todos`.
+
+    `wakes` are the instants at which the durable reading itself changes on the clock,
+    a Later coming due (`later.py`). They count among the lapses below, so
+    `next_transition_at` names the earliest moment the page's whole reading can
+    change with no file moving, which is what every reader that asks again needs.
 
     `obligations` are the answers the agent owes: for each update record whose next
     actor is the agent, the workflow of the input it names, carrying the record's id as
@@ -672,6 +678,7 @@ def canonical_activity(
             if item["stage"] == "sent"
         ),
         *((_moment(start["ts"]), WORKING_GRACE) for start, _age in in_hand),
+        *((wake, timedelta()) for wake in wakes),
     ]
     if stream and stream.get("kind") not in AWAITING_KINDS:
         lapses.append((_moment(stream.get("ts")), WORKING_GRACE))

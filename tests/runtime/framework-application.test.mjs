@@ -83,6 +83,7 @@ const obligationQueues = (records) => {
   return {
     on_user: records.filter((record) => record.next_actor === "user").map(item),
     on_agent: [],
+    later: [],
     done: records
       .filter((record) => record.status !== "open")
       .map((record) => ({ ...item(record), state: "done", ended: null, detail: null })),
@@ -120,7 +121,7 @@ const state = (taken, events = []) => ({
         undo: [],
         reports: [],
         published_at: null,
-        queues: { on_user: [], on_agent: [], done: [] },
+        queues: { on_user: [], on_agent: [], later: [], done: [] },
         document: {
           projection: {
             entries: events.map((event) => ({

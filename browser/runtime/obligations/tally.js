@@ -11,7 +11,9 @@
    enabled. A frozen obligation in a resolved thread is open with no next actor, so it
    counts on neither side, and a set of only such ones reads "1 open". An earlier tally
    counted every open obligation as to answer and read "1 of 8 to answer" beside a
-   disabled Next on me once the last one went to the agent. The words name no total:
+   disabled Next on me once the last one went to the agent. One the user set aside
+   (later.js) has no next actor until its Later brings it back, and counts as later:
+   "2 left to answer · 1 later". The words name no total:
    "4 of 5 to answer" beside the deck's cards read as the fifth card's position. */
 
 export function tally(held) {
@@ -19,17 +21,23 @@ export function tally(held) {
   return {
     onUser: open.filter((item) => item.next_actor === "user").length,
     onAgent: open.filter((item) => item.next_actor === "agent").length,
+    later: open.filter(
+      (item) => item.next_actor === null && item.later?.returned === false,
+    ).length,
     open: open.length,
     total: held.length,
   };
 }
 
 // The count's words, or that none is open.
-export function tallyWords({ onUser, onAgent, open, total }, agent) {
+export function tallyWords({ onUser, onAgent, later = 0, open, total }, agent) {
   if (!total) return "Nothing to answer";
-  if (onUser && onAgent) return `${onUser} left to answer · ${onAgent} on ${agent}`;
-  if (onUser) return `${onUser} left to answer`;
-  if (onAgent) return `${onAgent} on ${agent}`;
+  const parts = [
+    onUser ? `${onUser} left to answer` : "",
+    onAgent ? `${onAgent} on ${agent}` : "",
+    later ? `${later} later` : "",
+  ].filter(Boolean);
+  if (parts.length) return parts.join(" · ");
   if (open) return `${open} open`;
   return total === 1 ? "Answered" : `All ${total} answered`;
 }

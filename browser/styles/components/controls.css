@@ -637,6 +637,44 @@ svg[data-lf-icon] {
     box-shadow: none;
   }
 }
+/* Later until… (`runtime/obligations/later.js`): the clock, Later's symbol, on a
+ * symbol's square and quiet face, with the platform's select laid over it unseen, so a
+ * key, a pointer and a finger each open the list of words that brings an obligation
+ * back. Its face follows the symbol's above, which a span with a select inside can't
+ * take by role. */
+.lf-later {
+  position: relative;
+  box-sizing: border-box;
+  display: inline-grid;
+  place-items: center;
+  inline-size: var(--lf-icon-action-hit);
+  block-size: var(--lf-icon-action-face);
+  flex: none;
+  border-radius: var(--r);
+  color: var(--muted);
+}
+.lf-later > select {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+  font: inherit;
+}
+.lf-later:has(> select:focus-visible) {
+  background: var(--chip);
+  color: var(--ink);
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+@media (hover: hover) {
+  .lf-later:hover {
+    background: var(--chip);
+    color: var(--ink);
+  }
+}
 /* The committing action carries the accent as ink on the card ground, under a
    softened accent hairline, with the tint rising on hover: the one framed word on a
    surface. The selected face (integration.css) is its neighbour — a full accent border

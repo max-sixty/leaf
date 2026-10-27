@@ -117,7 +117,7 @@ def work_state(
         else None
     )
     durable = WorkReading(
-        events, source.registry if source else {}, page, log=log, data=data
+        events, source.registry if source else {}, page, log=log, data=data, now=now
     )
     stream = live_stream or no_stream()
     reply = canonical_stream_reply(present, now, stream["reply"])
@@ -131,6 +131,7 @@ def work_state(
         stream["reply_reservations"],
         todo_reading=log,
         updates=durable.updates,
+        wakes=durable.later_wakes,
     )
     workflows = (
         served_workflows(activity["workflows"], durable.thread, durable.updates)

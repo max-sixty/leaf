@@ -118,7 +118,7 @@ def attention_reading(readings) -> dict:
         "requests": [source["id"] for source, spec in inputs if spec.get("attention")],
         "on_user": [
             item["id"]
-            for item in work.all_obligations["unanswered"]
+            for item in work.inventory["unanswered"]
             if item["next_actor"] is not None
         ],
         # The updates the agent owes an answer, by their records.

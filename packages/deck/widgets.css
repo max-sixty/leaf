@@ -54,6 +54,11 @@ lf-deck[data-lf-deck-flying] {
 .lf-deck-pip[data-state="agent"] {
   background: var(--muted-2);
 }
+/* Set aside with Later until…: hollow, since it waits on nobody until it comes back. */
+.lf-deck-pip[data-state="later"] {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--muted-2);
+}
 .lf-deck-pip[data-state="open"] {
   background: var(--ink-2);
 }

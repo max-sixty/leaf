@@ -4,7 +4,9 @@ they select from.
 The reading uses one transaction and holds the two lists the active view serves
 (`served_state.queues`): On me (`on_user`) holds the open obligations on the user, the
 updates handed back to them among them, then the to-dos on the user; On <agent>
-(`on_agent`) holds the updates the agent owes an answer and its to-dos. The obligation
+(`on_agent`) holds the updates the agent owes an answer and its to-dos; Later (`later`)
+holds what the user set aside until a time or until an item of yours finishes, which
+asks nothing of you meanwhile (`later.py`). The obligation
 inventory (`obligations`) also retains finished records, whatever their `status`.
 `activity.obligations` names each answer the agent owes: its update's record `id` and,
 as `answer`, the operation that answers it with the reference its delivery gave, so an
@@ -143,7 +145,7 @@ def _base_state(
         # side; the agent's plan, which arranges them (`plans`); and the complete
         # canonical obligation inventory those lists select from, whose records an obligation's
         # row names by `id`.
-        "queues": {"on_user": [], "on_agent": []},
+        "queues": {"on_user": [], "on_agent": [], "later": []},
         "todos": [],
         "plan": None,
         "obligations": [],
@@ -419,7 +421,7 @@ def _page_state(
         state["plan"] = browser["plan"]
         served_queues = view["queues"]
         state["queues"] = {
-            side: served_queues[side] for side in ("on_user", "on_agent")
+            side: served_queues[side] for side in ("on_user", "on_agent", "later")
         }
     subject = None
     if target is not None:

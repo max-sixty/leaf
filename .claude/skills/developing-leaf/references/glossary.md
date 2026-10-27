@@ -195,7 +195,8 @@ the headings over the document's height.
 | **To-do** | Explicit work owed until it ends (`todo` in the protocol), by the agent or by the user |
 | **Plan** | The agent's outline of the page's work (`plan` in the protocol): goals and steps by depth, each step plain or naming a to-do or obligation, which it arranges without owning |
 | **Tally** | `lf-tally`: how many of a region's obligations are still open and whose turn each is, “2 of 8 to answer · 1 on Claude”, with an optional Next on me that walks the region's obligations waiting on the user |
-| **Deck** | `lf-deck`: cards worked through one at a time, each holding its own obligations. An answered card moves on by itself; **Later** leaves one waiting for the end of the pass and records nothing |
+| **Deck** | `lf-deck`: cards worked through one at a time, each holding its own obligations. An answered card moves on by itself; **Later** leaves one waiting for the end of the pass and records nothing, and **Later until…** sets one aside |
+| **Later until…** | Setting obligations on the user aside until a time, or until an item on the agent's list finishes (`later` event, `later.py`). They leave On me and stand under **Later**, saying **Back tomorrow at 9:00** or **Back when Claude finishes “…”**, then return; Undo withdraws it. Its symbol is the clock |
 | **Resend** | An update a harness handed back to the user to send again: its obligation stays in On me, next actor the user, until they do |
 | **Done** | The control with which the user ends a to-do the agent gave them (`todo_end`). A widget may also call its own submit control Done |
 | **Done items** | The items that left either list, under a Done heading at the foot of the On view; resolved threads stand likewise under Resolved at the foot of Threads |

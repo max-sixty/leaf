@@ -27,6 +27,7 @@ so an id is not a global identifier. Each kind's record schema is `$events.kinds
 | <a id="kind-error"></a>`error`               | page            | the runtime                                                                     | `text`                                                                                                                                                                 | a failure the page reported in front of the user; the agent hears it as a report                                                                                                              |
 | <a id="kind-todo"></a>`todo`                 | agent           | `leaf task create`, or a reply's `todo` (`leaf thread reply --todo`)            | `owner` (`agent`, or `user` with `--on user`); `subject` (a widget, another element, or the page); `title`; server-stamped `revision` on a widget to-do                | opens work the agent owes, or a to-do on the user (`todos.py`)                                                                                                                                |
 | <a id="kind-todo_end"></a>`todo_end`         | agent or user   | `leaf task end`, or a to-do's Done (`POST /api/event`)                          | `todo`, an open to-do's id or a question's obligation id; `outcome` (`done`, `failed` or `dropped`); optional `detail`                                                 | ends a to-do, or retires a question asked in words without answering it (`todos.py`)                                                                                                          |
+| <a id="kind-later"></a>`later`               | user            | `POST /api/event`                                                               | `obligations`, the records one On me row or deck card carries; `until`, an instant, or `after`, an item on the agent's list                                            | sets those obligations aside until the condition holds, with nothing asked of the agent ("Later")                                                                                             |
 | <a id="kind-start"></a>`start`               | agent           | `leaf task start`, or progress posted to an owed update                         | `item`, an owed update's event id or an open to-do's; `text`, the status line; `turn`                                                                                  | takes the item in hand until it ends or a `status` follows; the newest start on an item replaces the one before (`todos.py`)                                                                  |
 | <a id="kind-status"></a>`status`             | agent           | `leaf page open` and `leaf page close`, or the website harness at a turn's edge | `state` (`waiting` or `idle`)                                                                                                                                          | declares the page open for feedback or closed, and puts down every earlier start (`activity.declaration`, `todos.item_starts`)                                                                |
 | <a id="kind-plan"></a>`plan`                 | agent           | `leaf task plan`                                                                | `steps`, an outline of `{depth, title, state}` or `{depth, item}`                                                                                                      | replaces the agent's plan, which arranges to-dos and obligations without owning them (`plans.py`)                                                                                             |
@@ -80,7 +81,7 @@ and the anchor moves that depend on it land together.
 
 ## Undo
 
-The user may withdraw a resolve, unresolve, action, or Done on a to-do (the
+The user may withdraw a resolve, unresolve, action, Later, or Done on a to-do (the
 kinds `$events.kinds` marks `undoable`), and a reaction while nothing has answered it
 and its thread is unresolved. Spoken messages cannot be withdrawn. An undo cannot
 itself be undone. The door refuses an `undoes` naming anything but an unwithdrawn
@@ -109,6 +110,21 @@ older gesture it names, and may withdraw an action whose POST has not returned: 
 browser keeps both gestures in its ordered ledger and sends the undo once the action's
 id is accepted. Refusing the action drops its undo, and refusing the undo restores the
 action.
+
+## Later
+
+The user may set obligations on them aside with `later`: until an instant (`until`),
+or until an item on the agent's list is no longer the agent's (`after`, an open agent
+to-do's id or the id of an update record the agent owes). The newest `later` in force
+on a record decides it, and an `undo` withdraws it like any gesture. While its
+condition doesn't hold, an open record whose next move was the user's has no next
+actor, so it leaves On me, the tallies and the threads' attention, and stands on Later
+(`queues.later`); once the condition holds it comes back unchanged, its `later`
+saying `returned`. The door refuses a Later naming a record that isn't open on the
+user, or whose condition already holds. Admission compares readings without Later,
+so neither a Later nor its undo carries attention, and a time coming due changes the
+reading with no event, so the served activity names the earliest due time as
+`next_transition_at`. `later.py` owns the reading.
 
 ## Authorship and voice
 

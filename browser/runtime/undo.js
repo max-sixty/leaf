@@ -74,6 +74,8 @@ import { ago } from "./presence.js";
 import { excerptWords } from "./words.js";
 import { retainUserIntent } from "./user-intent.js";
 import { raiseError } from "./errors.js";
+import { readObligations } from "./obligations/model.js";
+import { obligationPlace } from "./obligations/place.js";
 
 const WAIT = "Wait for the current change to finish before undoing";
 
@@ -128,6 +130,12 @@ function gestureWords(event, gesture) {
       const todo = runtime.todos.find(({ id }) => id === event.todo);
       return TODO_ENDINGS[event.outcome](todo ? quoted(todo.title) : "a to-do");
     }
+    case "later": {
+      const record = laterRecord(event);
+      const node = record && obligationPlace(record).node;
+      const label = node && addressableLabel(node);
+      return `set ${label ? quoted(label) : "a question"} aside for later`;
+    }
     default:
       return actionWords(event, gesture);
   }
@@ -141,6 +149,16 @@ function placeOf(event) {
   // A reaction in a thread is a reply naming the message it reacts to.
   if (["resolve", "unresolve", "reply"].includes(event.kind))
     return { thread: threadIdNamed(event.parent), nodes: [] };
+  // A Later's place is where its first record is answered: a widget on the page, or
+  // the thread a question in words stands in. A deck's card it set aside opens as
+  // the travel reaches the widget (`beforematch`).
+  if (event.kind === "later") {
+    const record = laterRecord(event);
+    if (!record) return null;
+    const node = obligationPlace(record).node;
+    if (node) return { fragment: node.id, nodes: [node] };
+    return record.thread ? { thread: record.thread, nodes: [] } : null;
+  }
   const id = event.kind === "action" ? event.widget : event.anchor?.section;
   if (!id) return null;
   const held = messageHolding(id);
@@ -153,6 +171,10 @@ function placeOf(event) {
 // covers it.
 const seen = (where) =>
   Boolean(where && seenRect(placeHolder(where), new Map(), placeBox(where)));
+
+// The first record a Later set aside, as the page holds it now.
+const laterRecord = (event) =>
+  readObligations().all.find((record) => record.id === event.obligations[0]) ?? null;
 
 const KEYS_HELD = new Set(["Shift", "Control", "Alt", "Meta", "CapsLock", "Fn"]);
 const UNDO_KEYS = ["z"];

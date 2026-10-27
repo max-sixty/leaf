@@ -218,6 +218,7 @@ import { userChoice } from "./storage.js";
 import { obligationEnding } from "./obligations/answer.js";
 import { answeredInWords, readObligations } from "./obligations/model.js";
 import { obligationPlace } from "./obligations/place.js";
+import { laterControl, laterWords } from "./obligations/later.js";
 import { declareSide, holdPagePlace } from "./current-target.js";
 import { versionPicker } from "./version-picker.js";
 import { versionsReading } from "./version.js";
@@ -2767,6 +2768,8 @@ export function createFloatingPanel({
   // closes. The user chose open cards (2026-10-25), so answering what they already
   // know about takes one press each, over one line per item that a press opened, which
   // fitted more items and hid every answer behind a press.
+  // A waiting card also offers Later until… (obligations/later.js); what the user set
+  // aside stands under Later, before Done, saying when it comes back, with its Undo.
   //
   // On <agent> is the agent's work list: in hand, queued and done, a line each with its
   // stage and age, the plan's progress at the view's foot disclosing its steps. The
@@ -2835,10 +2838,11 @@ export function createFloatingPanel({
     // removes the element where an obligation stood.
     documentChanged();
     const reading = readQueues();
-    if (reading.phase !== "ready") return { you: [], agent: [], done: [] };
+    if (reading.phase !== "ready") return { you: [], agent: [], later: [], done: [] };
     return {
       you: reading.on_user,
       agent: reading.on_agent,
+      later: reading.later,
       done: reading.done.filter((item) => item.owner === QUEUE_TABS[queueTab]),
     };
   };
@@ -2852,6 +2856,13 @@ export function createFloatingPanel({
       ({ event }) => event.id === id || event.attempt === id,
     );
     return entry?.event ?? null;
+  };
+  // ...and for the Later that set a record aside.
+  const laterGesture = (record) => {
+    const id = record?.later?.event?.id;
+    return id
+      ? (runtime.undo.find(({ event }) => event.id === id)?.event ?? null)
+      : null;
   };
   const tabLabel = (tab) => (tab === "agent" ? `On ${agentName()}` : "On me");
   // The stop the `m` walk stands on while the field says its position
@@ -3122,6 +3133,26 @@ export function createFloatingPanel({
     const heading =
       thread && title === threadName(thread) ? threadHeading(thread) : title;
     const answered = record && record.status !== "open";
+    // Set aside by a Later that hasn't brought it back (obligations/later.js).
+    const setAside = Boolean(
+      record &&
+      !answered &&
+      record.next_actor === null &&
+      record.later &&
+      !record.later.returned,
+    );
+    // Later, on a card still waiting on the user: it sets aside the records the card
+    // carries that wait on the user, and the card keeps its seat, saying when they come
+    // back, as an answered card says its answer.
+    const laterHere =
+      card && list === "you" && record && !answered && record.next_actor === "user"
+        ? laterControl(
+            [record, ...carried.map(({ record: other }) => other)]
+              .filter((other) => other.status === "open" && other.next_actor === "user")
+              .map((other) => other.id),
+            queueActions.later,
+          )
+        : nothing;
     const choices =
       record && !answered && record.source.kind === "widget" && !inWords
         ? obligationView.choicesOf(record)
@@ -3169,7 +3200,20 @@ export function createFloatingPanel({
         : nothing;
     // What the agent is doing about it: the line its last step wrote, as the status
     // says it of the whole page, else the stage it stands at.
-    else if (list !== "you" && !answered)
+    else if (setAside) {
+      const gesture = laterGesture(record);
+      answers = html`<span class="lf-fp-said">${laterWords(record.later)}</span>${
+          gesture
+            ? html`<button
+                type="button"
+                class="lf-fp-face lf-fp-quiet"
+                @click=${() => withdraw(gesture)}
+              >
+                Undo
+              </button>`
+            : nothing
+        }`;
+    } else if (list !== "you" && !answered)
       answers = html`<span class="lf-fp-said">${workOn(item).line}</span>`;
     else if (answered) {
       discussHere = false;
@@ -3264,7 +3308,9 @@ export function createFloatingPanel({
     // October 2026 over a kind word before every card's place, which repeated what the
     // card's answers already say.
     if (card) {
-      const about = [...new Set([group, where])].filter(Boolean);
+      const about = [
+        ...new Set([group, where, record?.later?.returned ? "Back from Later" : ""]),
+      ].filter(Boolean);
       return html`<section
         class="lf-fp-on-item"
         data-card
@@ -3304,7 +3350,7 @@ export function createFloatingPanel({
               </p>`,
         )}
         <div class="lf-fp-answers">
-          ${answers}${discussHere ? discuss : nothing}${show}
+          ${answers}${discussHere ? discuss : nothing}${show}${laterHere}
         </div>
       </section>`;
     }
@@ -3447,7 +3493,7 @@ export function createFloatingPanel({
     return queueTab === "agent" ? workView(lists) : onMeView(lists);
   }
   function onMeView(lists) {
-    const all = [...lists.you, ...lists.agent, ...lists.done];
+    const all = [...lists.you, ...lists.agent, ...lists.later, ...lists.done];
     const byKey = new Map(all.map((item) => [queueItemKey(item), item]));
     const current = lists.you.map(queueItemKey);
     // The items this opening of the view holds: those it showed, still in the reading
@@ -3483,13 +3529,23 @@ export function createFloatingPanel({
       ),
     ];
     const listOf = (item) =>
-      lists.you.includes(item) ? "you" : lists.agent.includes(item) ? "agent" : "done";
+      lists.you.includes(item)
+        ? "you"
+        : lists.agent.includes(item)
+          ? "agent"
+          : lists.later.includes(item)
+            ? "later"
+            : "done";
     const items = seated.map((key) => byKey.get(key));
     const grouping = onMe.grouping();
     const says = grouping === "plan" ? null : grouping;
     // A record a card carries is drawn on that card, ended or not, and not in Done too.
     const held = new Set(seated.flatMap((key) => carrying.get(key) ?? []));
     const finished = lists.done.filter(
+      (item) => !seated.includes(queueItemKey(item)) && !held.has(item.id),
+    );
+    // What the user set aside, until its Later brings it back (obligations/later.js).
+    const later = lists.later.filter(
       (item) => !seated.includes(queueItemKey(item)) && !held.has(item.id),
     );
     // A group counts what still waits in it; the cards answered here keep their seats,
@@ -3514,11 +3570,12 @@ export function createFloatingPanel({
       groupedItems(
         [
           ...groups,
+          ...(later.length ? [{ key: "later", title: "Later", items: later }] : []),
           ...(finished.length ? [{ key: "done", title: "Done", items: finished }] : []),
         ],
         (item, group) =>
-          group.key === "done"
-            ? onItemCard(item, "done", { card: true })
+          group.key === "done" || group.key === "later"
+            ? onItemCard(item, group.key, { card: true })
             : onItemCard(item, listOf(item), {
                 card: true,
                 says: group.headed ? says : null,

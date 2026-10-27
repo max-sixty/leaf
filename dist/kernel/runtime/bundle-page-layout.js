@@ -1,7 +1,7 @@
 import { TEXT_FIELD, Z, afterScript, bindQueuedWork, byRenderedOrder, canPlaceFocus, closeLayer, composedParentNode, d, deepFocus, drawn, focusDestination, focused, frameVisibility, handBack, holdFocus, holdRendering, inputCount, isNativeLayer, keeps, keepsHidden, keepsText, move, nextRender, onCurrentLocation, onFrameVisibility, onUserInput, openLayer, openerOf, q, readSampleVisibility, renderedOrder, renderedParent, renderedUnder, shadowHost, sizeObserver, takesLetters, under, upFrom, whenLeft, x } from "./bundle-dom-move.js";
 import { PRESS, TEXT_ENTRY, admitResponse, announce, claimsEsc, commandAvailable, commandBinding, commandRoutes, completeData, controlAvailabilityOutput, countTraffic, cycledRow, dataHeaders, el, elementDirective, generatedElement, holdingError, iconTemplate, isCommandScope, keys, layerHeaders, notice, offer, offerAction, paintKeys, paintKeysWithin, postEvent, pressIsKeyboardActivation, projectCommandScope, raiseError, randomId, recordInteraction, removeRuntimeRootStyle, repaint, reportCarried, reportPageError, responseAction, reveal, rowArrows, sameLayer, savedReadingSettled, saying, sessionIsActive, setRuntimeRootStyle, watchCommandAvailability, watchPendingTraffic } from "./bundle-layer-client.js";
-import { DRAFT_FORMAT, LitElement, PENDING, PRESENTATION_DOM, actionForWidget, anchorKey, annotationMode, applicationPresenter, applicationState, attachApplicationPresentation, attachWidgetPresentation, clamp, clippedContents, clipsPastSurfaces, closeNativeLayer, discussed, documentChanged, drawingSchema, editable, growthIsSeen, hasArea, html, intersect, isMessageEvent, isThreadEvent, layoutWindow, matchesWhen, moved, offlineInteractive, offlineState, pageUrl, placeBox, placeHolder, presentDocument, presented as presented$1, projectionOrigins, queueWidgetUpdate, reactionsAt, readApplication, readPart, registry, render, runtime, seenRect, setPresentationFailureReporter, shadowRootsIn, showNativeLayer, shownWindow, stateCoordinate, tagsDeclaring, threadKey, tokenChoices, turns, union, watchOwner, watchPresentation, watchRoom, whenApplicationRegionsPresented, whenDocumentPresented, whenNone, whenWidgetsPresented, whileConnected } from "./bundle-geometry.js";
-import { activityTransitionDue, addressableLabel, addressableWord, afterPresentation, ago, anchorForRange, anchoringIsReady, commitPoint, declaredName, livePoint, markStateApplied, moveScrollerBy, observeServerNow, observeWorkingGrace, reachScrollers, readingRegionFor, saidNow, scheduleMarginContentLayout, sectionOf, settlePageInterface, syncLayoutRegion, targetSegments, tickClock, visualPartLabel, widgetWord } from "./bundle-content-layout.js";
+import { DRAFT_FORMAT, LitElement, PENDING, PRESENTATION_DOM, actionForWidget, agentName, anchorKey, annotationMode, applicationPresenter, applicationState, attachApplicationPresentation, attachWidgetPresentation, clamp, clippedContents, clipsPastSurfaces, closeNativeLayer, discussed, documentChanged, drawingSchema, editable, growthIsSeen, hasArea, html, intersect, isMessageEvent, isThreadEvent, layoutWindow, live, matchesWhen, moved, nothing, offlineInteractive, offlineState, pageUrl, placeBox, placeHolder, presentDocument, presented as presented$1, projectionOrigins, queueWidgetUpdate, reactionsAt, readApplication, readPart, registry, render, runtime, seenRect, setPresentationFailureReporter, shadowRootsIn, showNativeLayer, shownWindow, stateCoordinate, tagsDeclaring, threadKey, tokenChoices, turns, union, watchOwner, watchPresentation, watchRoom, whenApplicationRegionsPresented, whenDocumentPresented, whenNone, whenWidgetsPresented, whileConnected } from "./bundle-geometry.js";
+import { activityTransitionDue, addressableLabel, addressableWord, afterPresentation, ago, anchorForRange, anchoringIsReady, clockValue, commitPoint, declaredName, livePoint, markStateApplied, moveScrollerBy, observeServerNow, observeWorkingGrace, reachScrollers, readingRegionFor, saidNow, scheduleMarginContentLayout, sectionOf, settlePageInterface, syncLayoutRegion, targetSegments, tickClock, visualPartLabel, widgetWord } from "./bundle-content-layout.js";
 import { HOLDS_WORD, HeldNews, MessageView, SAYS_IN, THREAD, ThreadView, Transcript, aborted, allButCommandReference, allThreads, anchorLabel, answeredInWords, authoredHolder, authoredStates, awaitsData, beginThreadSeats, beginWalk, bindsInput, bringBackSurfaceOf, claimed, clearDraft, commitThreadSeats, commitWidgetDescriptors, comparisonBase, comparisonChanges, completeReadingReturn, createProjectionPresentation, createReplyView, dataReader, declareSide, descriptorStillMatches, dismissReplyAt, draftContexts, drawnThreadId, failSoft, failSoftUnreported, focusThread, focusedThreadTarget, heldOut, heldThread, holdReplyCompositions, holdThreadPlace, importWidgets, inlineComparison, isPageWidgetWorkflow, isWorkflowProgress, joinDataDelivery, keepRefusedWords, listWalkPosition, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, messageHolding, messageReading, messageText, mountFirstMessage, newsNotice, obligationHolding, obligationPlace, once, openMessageEditIn, orderChildren, pageCommand, pageScope, pageSelection, placeOf as placeOf$1, placePageThreads as placePageThreads$1, placedMarkdownTokens, placesFailure, prepareAuthoredMessage, progressFace, quoted as quoted$1, readObligations, readThreads, readingReturn, registerWritingDestination, rememberWriting, renderMarginThread, renderSeats, renderSurfaces, replyAvailable, replyDraftContext, replyThreadKey, reportFailure, retainThreadSeats, revealHeld, saveDraft, sendLanding, sendMessage, setChildren, settleAcceptedDrafts, showHeld, showHeldThread, strongestWorkflow, suppliedSnapshot, surfaceFocusTarget, threadAttention, threadDraft, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading as threadReading$1, threadReplyInput, threadRewrites, threadState, todoLabel, toggleInlineComparison, transferDraft, watchDraft, watchDrafts, watchThreadSurfaces, wholeThread, widgetDescriptor, workflowLabel } from "./bundle-data.js";
 import { closestAcross, elementById, excerptWords, inChrome, labelWords, leafSurface, pageParts, pageReadingVersion, quoteFrom, textNodesUnder } from "./bundle-passages.js";
 import { alreadyShown, fitsWhole, restrictUserIntent, retainUserIntent, scrollIntoReadingBand, scrollIntoView } from "./bundle-copy-control.js";
@@ -3908,6 +3908,12 @@ function gestureWords(event, gesture) {
 			const todo = runtime.todos.find(({ id }) => id === event.todo);
 			return TODO_ENDINGS[event.outcome](todo ? quoted(todo.title) : "a to-do");
 		}
+		case "later": {
+			const record = laterRecord(event);
+			const node = record && obligationPlace(record).node;
+			const label = node && addressableLabel(node);
+			return `set ${label ? quoted(label) : "a question"} aside for later`;
+		}
 		default: return actionWords(event, gesture);
 	}
 }
@@ -3920,6 +3926,19 @@ function placeOf(event) {
 		thread: threadIdNamed(event.parent),
 		nodes: []
 	};
+	if (event.kind === "later") {
+		const record = laterRecord(event);
+		if (!record) return null;
+		const node = obligationPlace(record).node;
+		if (node) return {
+			fragment: node.id,
+			nodes: [node]
+		};
+		return record.thread ? {
+			thread: record.thread,
+			nodes: []
+		} : null;
+	}
 	const id = event.kind === "action" ? event.widget : event.anchor?.section;
 	if (!id) return null;
 	const held = messageHolding(id);
@@ -3934,6 +3953,7 @@ function placeOf(event) {
 	};
 }
 const seen = (where) => Boolean(where && seenRect(placeHolder(where), /* @__PURE__ */ new Map(), placeBox(where)));
+const laterRecord = (event) => readObligations().all.find((record) => record.id === event.obligations[0]) ?? null;
 const KEYS_HELD = /* @__PURE__ */ new Set([
 	"Shift",
 	"Control",
@@ -4858,6 +4878,7 @@ function createQueueActions({ post, arrive }) {
 			const item = [
 				...reading.on_user,
 				...reading.on_agent,
+				...reading.later,
 				...reading.done
 			].find((candidate) => queueItemKey(candidate) === key);
 			return item?.offers.open ? arrive(item) : Promise.resolve(false);
@@ -4871,6 +4892,15 @@ function createQueueActions({ post, arrive }) {
 				outcome: "done"
 			});
 			announce("Done");
+			return delivery;
+		},
+		later(ids, condition) {
+			const delivery = post({
+				kind: "later",
+				obligations: [...ids],
+				...condition
+			});
+			announce("Later");
 			return delivery;
 		}
 	});
@@ -6587,7 +6617,8 @@ const threadActions = Object.freeze({
 });
 const obligationActions = Object.freeze({
 	open: (...args) => app().openObligation(...args),
-	next: (...args) => app().nextObligation(...args)
+	next: (...args) => app().nextObligation(...args),
+	later: (...args) => app().queueActions.later(...args)
 });
 const queueActions = Object.freeze({
 	open: (...args) => app().queueActions.open(...args),
@@ -7205,6 +7236,91 @@ function obligationEnding(item) {
 }
 
 //#endregion
+//#region runtime/obligations/later.js
+const LATER = "Later until…";
+const dayAt = (now, days, hour) => {
+	const at = new Date(now);
+	at.setDate(at.getDate() + days);
+	at.setHours(hour, 0, 0, 0);
+	return at;
+};
+const clock = (at) => at.toLocaleTimeString([], {
+	hour: "numeric",
+	minute: "2-digit"
+});
+const weekday = (at) => at.toLocaleDateString([], { weekday: "long" });
+function times(now) {
+	const choices = [{
+		label: "In an hour",
+		until: (at) => /* @__PURE__ */ new Date(+at + 36e5)
+	}];
+	if (now.getHours() < 17) choices.push({
+		label: `This evening, ${clock(dayAt(now, 0, 18))}`,
+		until: (at) => dayAt(at, 0, 18)
+	});
+	choices.push({
+		label: `Tomorrow, ${clock(dayAt(now, 1, 9))}`,
+		until: (at) => dayAt(at, 1, 9)
+	});
+	const monday = (8 - now.getDay()) % 7 || 7;
+	if (monday > 1) choices.push({
+		label: `${weekday(dayAt(now, monday, 9))}, ${clock(dayAt(now, monday, 9))}`,
+		until: (at) => dayAt(at, (8 - at.getDay()) % 7 || 7, 9)
+	});
+	return choices;
+}
+function agentItems() {
+	const queues = readQueues();
+	if (queues.phase !== "ready") return [];
+	return queues.on_agent.map((row) => ({
+		label: excerptWords(queueTitle(row), 60),
+		after: row.id
+	}));
+}
+const condition = (choice, at) => "after" in choice ? { after: choice.after } : { until: choice.until(at).toISOString() };
+function laterControl(ids, later, chosen = () => {}) {
+	if (!ids.length) return nothing;
+	const offered = [...times(/* @__PURE__ */ new Date()), ...agentItems()];
+	const work = offered.filter((choice) => "after" in choice);
+	const option = (choice) => html`<option value=${offered.indexOf(choice)}>${choice.label}</option>`;
+	return html`<span class="lf-later" title=${LATER}
+    >${iconTemplate("waiting", "lf-action-icon")}<select
+      aria-label=${LATER}
+      .value=${live("")}
+      @change=${(event) => {
+		const choice = offered[Number(event.target.value)];
+		event.target.value = "";
+		if (!choice) return;
+		later(ids, condition(choice, /* @__PURE__ */ new Date()));
+		chosen();
+	}}
+    >
+      <option value="" disabled hidden>${LATER}</option>
+      ${offered.filter((choice) => !("after" in choice)).map(option)}
+      ${work.length ? html`<optgroup label=${`When ${agentName()} finishes`}>
+              ${work.map(option)}
+            </optgroup>` : nothing}
+    </select></span
+  >`;
+}
+function laterWords(later) {
+	if (!later) return "";
+	if (later.returned) return "Back from Later";
+	if (later.until) return clockValue((now) => {
+		const at = new Date(later.until);
+		const today = new Date(now);
+		const days = Math.round((dayAt(at, 0, 0).getTime() - dayAt(today, 0, 0).getTime()) / 864e5);
+		return `Back ${days === 0 ? "" : days === 1 ? "tomorrow " : days < 7 ? `${weekday(at)} ` : `${at.toLocaleDateString([], {
+			month: "short",
+			day: "numeric"
+		})} `}at ${clock(at)}`;
+	});
+	const queues = readQueues();
+	const row = queues.phase === "ready" ? queues.on_agent.find((item) => item.id === later.after) : null;
+	return row ? `Back when ${agentName()} finishes “${excerptWords(queueTitle(row), 48)}”` : `Back when ${agentName()} finishes`;
+}
+
+//#endregion
 //#region runtime/page-layout.js
 const rootHeaders = /* @__PURE__ */ new Set();
 const paintRootHeaders = () => {
@@ -7256,4 +7372,4 @@ function createPageLayout({ scheduleThreadPreviewPosition, syncReactLayout, refr
 }
 
 //#endregion
-export { CONTRIBUTION_ENTRY_SCHEMA, DRAWING_COORDINATE_LIMIT, KINDS, LeafElement, MAX_DRAWING_FRAME_DEPTH, MAX_DRAWING_POINTS, MAX_DRAWING_SAYS_LENGTH, MAX_DRAWING_STROKES, activateContributionControl, annotationItems, answerWords, awaitingUser, beginRead, canFold, choosePrimary, clearContributionControls, clusterProjection, composerOpen, composerQuote, consumeAnnotations, contributionEntry, contributionEntryRecord, contributionEntrySource, contributionHost, contributionItemKey, contributionReceipts, contributionSource, createPageLayout, createReactionController, createSelectionComposer, createThreadLanding, currentLocationThread, currentProjection, declareThreadKeys, entryControls, entryEngaged, entryHasMarginHost, fabBar, fabInput, fabOptionsTrigger, focusedOfferOf, inPageOrder, landInThread, leafEditorView, leavesBox, markerFace, materializeContributionControls, mountApplication, navigateToDatum, obligationActions, obligationEnding, obligationWord, optionsOffered, ownedObligationControl, paintBarReactions, partOver, pendingAbout, pendingAnchor, pendingDrawing, placePageThreads, presentContributionEntry, presentContributionReceipts, primaryReading, queueActions, queueItemKey, queueTitle, reactionAvailable, reactionTokens, readPlan, readQueues, readingBehavior, readingChoices, readingContext, readingFace, readingKey, readingLabel, readingState, registerContribution, registerRootHeader, registerThreadPresentation, sendReaction, spokenContext, spokenSubject, syncContributionSelection, syncContributionUnread, textField, threadActions, threadBox, threadInput, threadReading, unreadIn, visibleContributionEntryLabel, widgetController, wireInput };
+export { CONTRIBUTION_ENTRY_SCHEMA, DRAWING_COORDINATE_LIMIT, KINDS, LeafElement, MAX_DRAWING_FRAME_DEPTH, MAX_DRAWING_POINTS, MAX_DRAWING_SAYS_LENGTH, MAX_DRAWING_STROKES, activateContributionControl, annotationItems, answerWords, awaitingUser, beginRead, canFold, choosePrimary, clearContributionControls, clusterProjection, composerOpen, composerQuote, consumeAnnotations, contributionEntry, contributionEntryRecord, contributionEntrySource, contributionHost, contributionItemKey, contributionReceipts, contributionSource, createPageLayout, createReactionController, createSelectionComposer, createThreadLanding, currentLocationThread, currentProjection, declareThreadKeys, entryControls, entryEngaged, entryHasMarginHost, fabBar, fabInput, fabOptionsTrigger, focusedOfferOf, inPageOrder, landInThread, laterControl, laterWords, leafEditorView, leavesBox, markerFace, materializeContributionControls, mountApplication, navigateToDatum, obligationActions, obligationEnding, obligationWord, optionsOffered, ownedObligationControl, paintBarReactions, partOver, pendingAbout, pendingAnchor, pendingDrawing, placePageThreads, presentContributionEntry, presentContributionReceipts, primaryReading, queueActions, queueItemKey, queueTitle, reactionAvailable, reactionTokens, readPlan, readQueues, readingBehavior, readingChoices, readingContext, readingFace, readingKey, readingLabel, readingState, registerContribution, registerRootHeader, registerThreadPresentation, sendReaction, spokenContext, spokenSubject, syncContributionSelection, syncContributionUnread, textField, threadActions, threadBox, threadInput, threadReading, unreadIn, visibleContributionEntryLabel, widgetController, wireInput };

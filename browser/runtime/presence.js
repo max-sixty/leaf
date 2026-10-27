@@ -75,7 +75,8 @@ export const quietSince = (ts) =>
 // its calibrated copy of server time only to ask for the next projection when that
 // fold says an answer can change; it never decides what the new answer is.
 // `activityTransitionAt` is when, on the server's clock, the earliest activity in an
-// answer can next change without any file moving, or Infinity when none is timed.
+// answer can next change without any file moving, a Later coming due among them
+// (`later.py`), or Infinity when none is timed.
 export const activityTransitionAt = (state) =>
   Math.min(
     ...[state?.activity, ...(state?.others ?? []).map((entry) => entry?.activity)]

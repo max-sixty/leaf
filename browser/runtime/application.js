@@ -657,6 +657,7 @@ export const threadActions = Object.freeze({
 export const obligationActions = Object.freeze({
   open: (...args) => app().openObligation(...args),
   next: (...args) => app().nextObligation(...args),
+  later: (...args) => app().queueActions.later(...args),
 });
 export const queueActions = Object.freeze({
   open: (...args) => app().queueActions.open(...args),

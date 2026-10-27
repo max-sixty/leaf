@@ -10,6 +10,9 @@ membership agree. The browser places its own unresolved sends against the served
 lists (`browser/runtime/framework/application.js`, `localQueues`); it never selects
 them again.
 
+Later holds what the user set aside (`later.py`), a row per Later, until its
+condition brings the records back to On me.
+
 On me holds records whose next actor is the user. On <agent> holds the open update
 records the agent owes, then the agent's to-dos. A widget's obligation becomes the
 agent's while a thread about it awaits the agent's word, and that thread's newest
@@ -200,4 +203,28 @@ def queues(
         ),
         reverse=True,
     )
-    return {"on_user": on_user, "on_agent": on_agent, "done": done}
+    return {
+        "on_user": on_user,
+        "on_agent": on_agent,
+        "later": _later(records),
+        "done": done,
+    }
+
+
+def _later(records: list[dict]) -> list[dict]:
+    """What the user set aside and hasn't come back: a row per Later, led by the first
+    record it set aside, the rest of them in `also`, as the row the user set aside
+    carried them."""
+    rows: dict[str, dict] = {}
+    for record in records:
+        later = record.get("later")
+        if later is None or later["returned"] or record["next_actor"] is not None:
+            continue
+        if record["status"] != "open":
+            continue
+        event = later["event"]["id"]
+        if event in rows:
+            rows[event]["also"].append(record["id"])
+        else:
+            rows[event] = _record_row(record, "user")
+    return list(rows.values())

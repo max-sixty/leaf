@@ -18,6 +18,7 @@ from render_harness import (
     judge_watches,
     leaf_page,
     open_page,
+    place_step_matches,
     refuse,
     resized,
     take_browser_errors,
@@ -77,7 +78,7 @@ def within(node, place):
     """Whether a node the watch placed, by its steps innermost first, is the element
     `place` or inside it, as a text node in it (`["#text", "button#control"]`) or a
     node in its shadow tree (`["div.cm-line", "#shadow-root", "leaf-text#field.scroll"]`)."""
-    return place in node
+    return any(place_step_matches(step, place) for step in node)
 
 
 def moved_within(place, by=None):

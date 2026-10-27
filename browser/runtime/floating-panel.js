@@ -2374,8 +2374,11 @@ export function createFloatingPanel({
   // thread's held news uses (thread/held-news.js, `newsNotice`) until the user
   // presses it, which lets the list settle and lands on the first row it names. The
   // notice stands over the list, in the view's head, which grows the panel upward by
-  // its line so no row moves, as a feed says "2 new posts" over its top; the tabs fill
-  // the controls' start, where a thread's held news stands. The browser reads
+  // its line so no row moves, as a feed says "2 new posts" over its top. The user chose
+  // that on 27 October over the notice in the controls after the tabs, which fill the
+  // start where a thread's held news stands and left it "1 …+1" at a phone's width,
+  // and over the notice in the held row's own place, which a long list scrolls out of
+  // sight. The browser reads
   // nothing ahead of the server: a held row draws the thread as the server now reads
   // it, in its old place. A row the user's own gesture moves, as their resolve or its
   // Undo, moves at once (`gesturedOn`), and a press that changes what the list shows,

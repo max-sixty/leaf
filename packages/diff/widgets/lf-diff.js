@@ -827,7 +827,8 @@ function deferredError(details, error, retry) {
     : `That file's diff cannot be shown: ${message}`;
   let standIn = header;
   if (retry) {
-    standIn = offerAction("word", "", "Retry");
+    standIn = offerAction("symbol", "", "Retry");
+    render(iconTemplate("retry", "lf-action-icon"), standIn);
     standIn.addEventListener("click", () => {
       if (standIn.getAttribute("aria-disabled") === "true") return;
       standIn.setAttribute("aria-disabled", "true");

@@ -3965,7 +3965,7 @@ var MessageEditor = class {
 		cancel.type = "button";
 		cancel.setAttribute("aria-label", "Discard");
 		cancel.title = "Discard";
-		cancel.append(iconElement("undo", "lf-msg-control-icon"));
+		cancel.append(iconElement("cross", "lf-msg-control-icon"));
 		actions.append(cancel);
 		this.foot = document.createElement("span");
 		this.foot.className = "lf-msg-edit-foot";

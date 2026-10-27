@@ -60,7 +60,6 @@ from render_harness import (
     PANEL_THREAD,
     RELEASE_FOCUS,
     REPLAYED_PAGE,
-    SAMPLE_PAGE,
     SUBJECT_MARK,
     assert_follows_in_every_frame,
     draft_key,
@@ -1726,7 +1725,7 @@ def test_an_aimed_first_press_records_its_pointer_before_claiming_it(browser, se
 def test_an_aim_on_a_seam_promises_and_takes_the_same_element(browser, serve):
     """One reading, at the one place the pointer is.
 
-    The cells of a joined group butt, so two of them share an edge with no gap between,
+    The fixture paragraphs butt, so they share an edge with no gap between,
     and a pointer resting on it is inside both by the width of a rounding. The outline
     and the press each used to hit-test that point for themselves — elementFromPoint
     against the browser's own dispatch — and nothing makes two hit tests tie-break a
@@ -1739,11 +1738,11 @@ def test_an_aim_on_a_seam_promises_and_takes_the_same_element(browser, serve):
     promise was kept for a year on the machine where it was. So the seam is aimed at
     here rather than waited for, and the assertion is the platform-independent half —
     whichever way each reading rounds, both answer the same item."""
-    page = open_page(browser, serve(SAMPLE_PAGE))
+    page = open_page(browser, serve(AIM_SEAM_PAGE))
     edge = page.evaluate(
         """() => {
-            const above = document.querySelector('#l-shim').getBoundingClientRect();
-            const below = document.querySelector('#l-stage').getBoundingClientRect();
+            const above = document.querySelector('#seam-upper').getBoundingClientRect();
+            const below = document.querySelector('#seam-lower').getBoundingClientRect();
             return {y: above.bottom, apart: Math.abs(below.top - above.bottom),
                     x: above.left + above.width / 2};
         }"""
@@ -1755,7 +1754,7 @@ def test_an_aim_on_a_seam_promises_and_takes_the_same_element(browser, serve):
     page.mouse.move(edge["x"], edge["y"])
     page.keyboard.down("Alt")
     promised = page.evaluate(AIMED)
-    assert promised in ("l-shim", "l-stage"), (
+    assert promised in ("seam-upper", "seam-lower"), (
         f"the aim promised {promised} on the seam between the two cells, so the reading "
         "under test never happened"
     )

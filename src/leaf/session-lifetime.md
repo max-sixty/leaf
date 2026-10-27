@@ -54,7 +54,10 @@ nudges only after an ending something saw, since a turn Leaf merely stopped beli
 in may still be running a long step.
 
 The claimant takes input while its wait lease is held or, where its harness's hooks
-carry input, while its turn runs (`activity.takes_input`). Fresh declared or observed
+carry input, while its turn runs (`activity.takes_input`). Admission nudges a
+claimant that takes none once its turn was seen to end (`activity.nudge_due`), and
+where its harness says that nudge starts a turn (`Harness.input_wakes`), the page
+reads it as taking input too. Fresh declared or observed
 work makes the page `working`, however far newer input has progressed, and so does a
 delivery opened into the running turn before its first start. The status line is the
 newest start's among the items still in hand. `counts.overdue` counts the owed updates

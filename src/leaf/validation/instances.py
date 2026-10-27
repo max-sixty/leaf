@@ -84,6 +84,16 @@ def widget_errors(lf_elements: list, registry: dict) -> list[Finding]:
             instance[name] = True if value in (None, "") and is_flag else (value or "")
         for err in sorted(json_validator(entry).iter_errors(instance), key=str):
             errors.append(found_at("attribute-schema", rec, **schema_reading(err)))
+        for verb, spec in state_specs(entry):
+            binding = spec.get("contract")
+            if not binding or not (name := rec["attrs"].get(binding["attribute"])):
+                continue
+            if name not in registry["$data"]["contracts"]:
+                errors.append(
+                    found_at(
+                        "instance-contract", rec, verb=verb, contract=name, **binding
+                    )
+                )
         for input_name, spec in entry.get("x-data", {}).items():
             if rec["attrs"].get(spec.get("source")) and rec["attrs"].get(
                 spec.get("reference")
@@ -251,7 +261,7 @@ def enclosing_errors(document: SourceDocument, registry: dict) -> list[Finding]:
     it, and each source retains its independent answer and lifecycle. An enclosing
     widget whose widgets none ask shows a question the On me list never counts and
     the user can't answer, so the error names what each enclosed widget lacks to
-    ask (`unasked`). One holding no widget asks only if it declares its own
+    ask (`unasked`). One holding no other widget asks only if it declares its own
     reply-answered obligation (`x-awaits.reply`), and then needs no heading: its words
     are the question.
     """

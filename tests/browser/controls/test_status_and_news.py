@@ -27,6 +27,7 @@ from render_cases_layout import (
 from render_harness import (
     LONG_PAGE,
     consume_browser_errors,
+    expect_open_threads,
     http_error_console,
     nudge,
     open_page,
@@ -78,7 +79,7 @@ def test_a_status_kind_change_is_announced_in_the_status_s_own_words(browser, se
             claim["id"], "provider-turn", {"kind": "awaiting_input"}
         )
     told(page)
-    expect(live).to_contain_text("Claude is waiting for input")
+    expect(live).to_contain_text("Need your input in the terminal")
     announced_wait = live.text_content()
 
     with service_model.PageTransaction(serve.page_dir) as transaction:
@@ -93,7 +94,7 @@ def test_a_status_kind_change_is_announced_in_the_status_s_own_words(browser, se
             claim["id"], "provider-turn", {"kind": "awaiting_approval"}
         )
     told(page)
-    expect(live).to_contain_text("Claude is waiting for approval")
+    expect(live).to_contain_text("Need your approval in the terminal")
     leases_model.release_lease(lease)
 
     page.route("**/api/**", refuse)
@@ -103,14 +104,14 @@ def test_a_status_kind_change_is_announced_in_the_status_s_own_words(browser, se
         nudge(serve.page_dir)
         # An unreachable server turns the leaf red, and the field says it as a status
         # rather than an error.
-        expect(live).to_contain_text("Server offline")
+        expect(live).to_contain_text("Lost the connection")
         expect(page.locator(".lf-fp-leaf .lf-dot.blocked")).to_be_visible()
         expect(panel_field(page)).to_have_attribute("data-says", "status")
         # The server coming back to refuse this tab's key asks something new of the
         # user, which only they can end, so it is heard and the field says it as an
         # error.
         page.route("**/api/state*", lambda route: route.fulfill(status=401, body="{}"))
-        expect(live).to_contain_text("no longer accepts this tab's key")
+        expect(live).to_contain_text("This tab lost access")
         expect(panel_field(page)).to_have_attribute("data-says", "error")
         # A server that answers with an error of its own is up and failing, which is
         # neither offline nor a key to replace: the status says its words.
@@ -120,9 +121,7 @@ def test_a_status_kind_change_is_announced_in_the_status_s_own_words(browser, se
                 status=500, json={"error": "projection failed"}
             ),
         )
-        expect(live).to_contain_text(
-            "The server answered with an error: projection failed"
-        )
+        expect(live).to_contain_text("Hit a problem: projection failed")
         # The refused and failed reads recur on the page's clock until it closes.
         page.close()
         consume_browser_errors(page, http_error_console(401), http_error_console(500))
@@ -189,9 +188,10 @@ def test_the_poll_leaves_the_panel_where_it_was(browser, serve):
     url = serve(html, comments=9)
     d = serve.page_dir
     page = open_page(browser, url, pin=True)
-    threads = "document.querySelector('.lf-fp-threads').getAttribute('aria-label')"
     on_me = "document.querySelector('.lf-fp-on-user').getAttribute('aria-label')"
-    page.wait_for_function(f"() => {threads}.startsWith('Threads, 9 open')")
+    # What the mark counts, less the news its name goes on to say.
+    owing = f"{on_me}.split(', ')[0]"
+    expect_open_threads(page, 9)
     page_at_rest(page)
     owed = int(page.evaluate(f"() => {on_me}").removeprefix("On me: "))
 
@@ -216,17 +216,18 @@ def test_the_poll_leaves_the_panel_where_it_was(browser, serve):
 
     for what, drive, arrived in [
         (
-            "a tenth comment arrives",
+            "an agent's comment arrives, dotting the mark with news",
             lambda: append_carried_log_record(
                 d,
                 {
                     "kind": "comment",
-                    "author": "user",
+                    "author": "agent",
+                    "agent": "Claude",
                     "revision": 1,
                     "text": "A tenth.",
                 },
             ),
-            f"() => {threads}.startsWith('Threads, 10 open')",
+            f"() => {on_me}.endsWith('1 thread with news')",
         ),
         (
             "a new version is published",
@@ -236,12 +237,12 @@ def test_the_poll_leaves_the_panel_where_it_was(browser, serve):
         (
             "another tab decides two of the three pending suggestions",
             lambda: decide("sug-refill", "sug-thistle"),
-            f"() => {on_me} === 'On me: {owed - 2}'",
+            f"() => {owing} === 'On me: {owed - 2}'",
         ),
         (
             "another tab decides the last one",
             lambda: decide("sug-in-card"),
-            f"() => {on_me} === '{'On me: ' + str(owed - 3) if owed > 3 else 'On me'}'",
+            f"() => {owing} === '{'On me: ' + str(owed - 3) if owed > 3 else 'On me'}'",
         ),
     ]:
         page.evaluate(DEFINE_BOXES)
@@ -271,10 +272,10 @@ def test_a_panel_row_follows_its_pages_status_live(
     page.keyboard.press("Shift+l")
     panel_settled(page, view="leaves")
     row = page.locator(f"{LEAVES} a.lf-fp-page")
-    expect(row).to_contain_text("Working — running the suite")
+    expect(row).to_contain_text("running the suite")
     declare_work(other_dir, "recording the demo")
     told(page)
-    expect(row).to_contain_text("Working — recording the demo")
+    expect(row).to_contain_text("recording the demo")
     # A neighbour waiting on its own user says so in this seat's shorter words, and
     # in the same term its own status uses: All pages is where a user picks which
     # page to go to. The hover holds it whole, since the line ellipsizes at the
@@ -283,9 +284,9 @@ def test_a_panel_row_follows_its_pages_status_live(
     end_work(other_dir)
     declare(other_dir, "waiting")
     told(page)
-    expect(row).to_contain_text("Awaits")
+    expect(row).to_contain_text("Ready")
     expect(row).to_have_attribute(
-        "title", f"The other leaf\n{tmp_path / 'other-work'}\nAwaits"
+        "title", f"The other leaf\n{tmp_path / 'other-work'}\nReady"
     )
     assert row.locator("[title]").count() == 0, (
         "a part of the row carries a tooltip of its own, which wins under the pointer "

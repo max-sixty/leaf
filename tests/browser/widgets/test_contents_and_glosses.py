@@ -13,6 +13,7 @@ from render_harness import (
     displayed,
     leaf_page,
     open_page,
+    open_threads,
     resized,
     scroll_settled,
     told,
@@ -1435,7 +1436,7 @@ def test_a_comment_on_a_gloss_reopens_its_explanation(browser, serve):
     bubble = page.locator("#lf-gloss-tip-1")
 
     expect(bubble).to_be_hidden()
-    page.locator(".lf-fp-threads").click()
+    open_threads(page)
     page.locator(".lf-fp-thread").click()
     page.locator(".lf-fp-controls").get_by_role("button", name="Show on page").click()
     expect(bubble).to_be_visible()

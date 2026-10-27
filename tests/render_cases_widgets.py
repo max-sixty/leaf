@@ -536,6 +536,9 @@ BAD_CHARTS = {
     "bad-mark": '{ariaLabel: "merged", marks: [Plot.barz([{n: 1}], {y: "n"})]}',
     "bad-drawn": 'Plot.plot({ariaLabel: "merged", marks: [Plot.ruleY([0])]})',
     "bad-height": '{ariaLabel: "merged", height: 200, marks: [Plot.ruleY([0])]}',
+    "bad-offset": (
+        '{ariaLabel: "merged", marks: [Plot.text([{n: 1}], {y: "n", text: "n", dy: (d) => d.n})]}'
+    ),
 }
 # A chart an agent sent in a reply, which upgrades inside a panel nobody has opened yet.
 MESSAGE_CHART = """{
@@ -691,7 +694,7 @@ def _filler(name, count):
 
 
 # Bound to a feed rather than written inline, because that is the form a review arrives in
-# and the only one whose lines are commentable data: `projectData` labels each retained row by file,
+# and the only one whose lines are commentable data: its marks label each retained row by file,
 # side and source line, which is the coordinate a remark on a line is recorded at.
 # Prose either side of it so the patch has somewhere to be scrolled from and somewhere to
 # be scrolled to — a page whose whole diff fits on screen proves nothing about a header

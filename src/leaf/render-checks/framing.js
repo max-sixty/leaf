@@ -1,5 +1,5 @@
 import { declarationFor, inChrome } from "/runtime/widget-api.js";
-import { authoredBody, upFrom } from "/runtime/check-api.js";
+import { authoredBody, servedElements, upFrom } from "/runtime/check-api.js";
 import { at, unique } from "./locate.js";
 import { openRoots } from "./open-roots.js";
 
@@ -261,7 +261,7 @@ export function splitEdges() {
 // read its structure: which child is first, last, or only, and what an `h2 + p` rule
 // finds next. An element the runtime adds beside the page's own changes those answers for
 // as long as it stands, so the page's own rules restyle and move its content, which
-// nothing Leaf draws may do (assets/AGENTS.md, "Space and scrolling"). What the runtime
+// nothing Leaf draws may do (browser/AGENTS.md, "Space and scrolling"). What the runtime
 // says about an element stands in the chrome instead (details-shelf.js).
 //
 // The page's own elements are the document tree under `main`, the authored content root.
@@ -274,9 +274,12 @@ export function splitEdges() {
 // is not this.
 export function apparatusAmongAuthored() {
   const found = [];
+  // An element the page wrote stays the page's, whatever words a module fills it with.
+  const served = servedElements();
   for (const el of document.querySelectorAll(`main :is(${generated})`)) {
     const parent = el.parentElement;
     if (
+      served.has(el) ||
       parent.closest(generated) ||
       inChrome(parent) ||
       declared(parent) ||

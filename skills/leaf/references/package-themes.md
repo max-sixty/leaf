@@ -1,21 +1,56 @@
 # Theme packages
 
 Read with [packages.md](packages.md), which holds the package contract and how styles
-compose. Page-wide rules and idioms belong in a theme package, one that declares no
-widgets; its rules outrank the Layouts and every widget package's defaults.
+compose. Page-wide rules and idioms belong in `theme.css`, whether or not the package
+also declares widgets; widget defaults belong in `widgets.css`. Each stylesheet's
+role determines its scope and cascade priority.
+
+## Personal themes
+
+A user can keep several named themes and choose one default. Each is an ordinary
+installed package; its `instructions/author.md` describes the tasks it suits. Install
+the package with `leaf package install <directory>`, then list its name in
+`~/.config/leaf/themes.toml` (`$XDG_CONFIG_HOME/leaf/themes.toml` when set):
+
+```toml
+themes = ["editorial", "dense"]
+default = "editorial"
+```
+
+`leaf theme list` returns the available choices, default and author instructions.
+The author's selection follows the user's request first, then the task and those
+instructions; leaving it unspecified uses the default on a new page. Select one with
+`leaf page init <page> --theme dense`. Content packages remain independent; the
+selected theme composes last.
+
+A page captures its selected theme when initialized. Re-initializing preserves that
+choice, even if the user's default changes; an explicit `--theme` replaces it.
+`--no-packages` clears both explicit packages and the theme, and a later plain init
+keeps them cleared. `--no-theme` clears only the theme, keeping content packages.
+Developer fixture builders use an empty configuration home, so examples, the website
+and demo recordings do not inherit the developer's personal default.
+`leaf page state <page>` exposes the effective name and whether it was explicit or
+default under `layer.theme`.
+
+Captured pages and exports carry their theme bytes. Creating or re-vendoring needs
+the selected package installed; viewing or exporting the captured revision does not.
+Live samples inherit their parent's captured layer; a sample may deliberately show
+different theme inputs as a style reference (`live-samples.md`). The current capture
+model keeps live and exported appearance together. Applying current preferences to
+already-authored live pages remains a possible later change.
 
 ## A theme change
 
-To change every surface at once, set a token: `--accent`, `--r`, or one of the three
-faces, `--serif` for prose, `--sans` for Leaf's chrome, injected controls and notes on
-evidence, and `--mono` for literal evidence. An ordinary selector tunes one element. A
+Shared inputs coordinate the page and its widgets: color palettes, radius `--r`, and
+the three faces, `--serif` for prose, `--sans` for Leaf's chrome, injected controls and
+notes on evidence, and `--mono` for literal evidence. The color pairs are described
+under "Theme colors" below. An ordinary selector tunes one element. A
 pattern the project reuses across pages, such as a callout, is an idiom: declare it
 under its CSS selector in the package's `registry.json`, with a `description`, an
 `x-example` and optional `x-instructions`, and style it in the package's `theme.css`.
 
-Where a Layout reads a geometry
-input (the override table's "Theme inputs"), set that input rather than overriding the
-Layout.
+Where a Layout reads a geometry input (the "Theme inputs" table in `packages.md`,
+"Styles and composition"), set that input rather than overriding the Layout.
 
 A widget's rules depend only on the box it is given and the theme's tokens, never on
 the Layout around it. A
@@ -81,3 +116,24 @@ the user's machine, not remote ones.
 
 Startup behavior and transition protection follow
 [module-authoring.md, "Startup and presentation"](module-authoring.md#startup-and-presentation).
+
+## Theme colors
+
+Use independent inputs where the foreground and background need a deliberate contrast
+choice. The default palette is declared in `browser/theme.css`:
+
+| Surface                  | Inputs                                                                                                                                                                                |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Page and raised surfaces | `--paper`, `--card`, `--field`; `--ink`, `--ink-2`, `--muted`, `--muted-2`; `--rule`, `--border-2`                                                                                    |
+| Interactive emphasis     | `--accent`; focus ring and shadow derive from it at their declaration scope                                                                                                           |
+| Status                   | `--ok`, `--warn`, `--danger` for markers; each has independent `-ink` and `-tint` inputs for text and ground                                                                          |
+| Pins                     | `--pin-fill` with `--pin-ink`; the user's turn uses `--pin-on-user` with `--pin-on-user-ink`                                                                                          |
+| Code                     | `--code-bg`, `--pre-bg`, `--code-chrome`, `--code-ink`, `--code-muted`, `--code-border`; `--syn-comment`, `--syn-keyword`, `--syn-string`, `--syn-number`, `--syn-name`, `--syn-type` |
+
+Changing `--accent` does not choose the pin pair or the status palette. Check the
+foreground against each ground where it is used, in both color schemes. A theme may
+set `light-dark()` values so the browser's scheme preference selects the palette.
+Subtree overrides follow normal CSS inheritance: when changing an input locally,
+redeclare any derived value needed there, such as `--focus-ring` and `--focus-shadow`.
+Keep the inherited `--lf-ground` surface contract described above so opaque nested
+controls match their containing surface.

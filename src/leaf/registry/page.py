@@ -42,8 +42,9 @@ def compose_page_registry(
     ``widget_paths`` contains available page-root-relative file names, including
     ``widgets/<tag>.js`` from the layer and ``page/widgets/<tag>.js`` from the
     authored page. ``declaration_sources`` records ``layer`` or ``page`` for each
-    element; ``widget_sources`` records the winning relative path for each
-    upgraded element. Inputs and their nested declarations remain untouched.
+    element and each ``$data.contracts.<name>`` declaration; ``widget_sources``
+    records the winning relative path for each upgraded element. Inputs and their
+    nested declarations remain untouched.
     """
     if "$layer" in page_declarations:
         raise registry_error("page-layer", source)
@@ -60,7 +61,14 @@ def compose_page_registry(
 
         if page_declarations:
             validate_registry_examples(registry, source)
-    declaration_sources = {}
+    declaration_sources = {
+        f"$data.contracts.{name}": (
+            "page"
+            if name in page_declarations.get("$data", {}).get("contracts", {})
+            else "layer"
+        )
+        for name in registry.get("$data", {}).get("contracts", {})
+    }
     widget_sources = {}
     available = set(widget_paths)
     for tag, entry in registry.items():

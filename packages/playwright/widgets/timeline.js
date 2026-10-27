@@ -30,52 +30,21 @@ import {
   keepsHidden,
   keepsText,
   pressIsKeyboardActivation,
+  assignRows,
+  axisTicks,
+  textWidth as measure,
 } from "/runtime/widget-api.js";
 
 const LABEL_GAP = 6;
 const LABEL_CHROME = 12;
 const TICK_SPACING = 84;
-const STEPS = [1, 2, 5];
 const EDGE = 12;
 const CLUSTER_WIDTH = 168;
-
-// Ruler steps: 1, 2, 5 × 10^k milliseconds, the smallest at least TICK_SPACING apart.
-function tickStep(pxPerMs) {
-  for (let power = 1; power < 1e9; power *= 10)
-    for (const step of STEPS)
-      if (step * power * pxPerMs >= TICK_SPACING) return step * power;
-  return 1e9;
-}
-const tickLabel = (time, step) => {
-  if (time === 0) return "0 s";
-  const digits = step >= 1000 ? 0 : step >= 100 ? 1 : step >= 10 ? 2 : 3;
-  return `${(time / 1000).toFixed(digits)} s`;
-};
-
-// Greedy rows: an interval takes the first row whose last interval ends before it.
-function assignRows(items, start, end) {
-  const rows = [];
-  const rowOf = new Map();
-  for (const item of items.toSorted((a, b) => start(a) - start(b))) {
-    let row = rows.findIndex((last) => last <= start(item));
-    if (row < 0) row = rows.push(-Infinity) - 1;
-    rows[row] = end(item);
-    rowOf.set(item.id, row);
-  }
-  return rowOf;
-}
 
 // Style writes the page did not change are still mutations; skip them.
 function keepVar(node, name, value) {
   if (node && node.style.getPropertyValue(name) !== value)
     node.style.setProperty(name, value);
-}
-
-let measuring = null;
-function measure(text, font) {
-  measuring ??= document.createElement("canvas").getContext("2d");
-  measuring.font = font;
-  return measuring.measureText(text).width;
 }
 
 export class RecordingTimeline {
@@ -612,14 +581,6 @@ export class RecordingTimeline {
           <span class="lf-trace-overview-window"></span>
           <span class="lf-trace-overview-time"></span>
         </div>
-        ${
-          model.inputs.length
-            ? html`<p class="lf-trace-legend">
-                Input bars span each recorded call; the notch is its Action checkpoint,
-                just before the input is sent. Key-down and hold times are not recorded.
-              </p>`
-            : nothing
-        }
         <div class="lf-trace-tip" role="tooltip" hidden></div>`,
       this.#host,
     );
@@ -630,21 +591,17 @@ export class RecordingTimeline {
     this.#drawRuler();
   }
 
-  // The overview shows the visible window within the whole recording.
+  // The overview shows the visible window within the whole recording. Its geometry is
+  // read whole before either edge is written: reading the scroller between the two
+  // writes laid out a window with the new start and the old size, which ran past the
+  // overview's end and scrolled the page under the user's press.
   #drawOverview() {
     const scroller = this.scroller;
     const overview = this.#host.querySelector(".lf-trace-overview");
     if (!scroller?.scrollWidth || !overview) return;
-    keepVar(
-      overview,
-      "--lf-trace-window-start",
-      String(scroller.scrollLeft / scroller.scrollWidth),
-    );
-    keepVar(
-      overview,
-      "--lf-trace-window-size",
-      String(scroller.clientWidth / scroller.scrollWidth),
-    );
+    const { scrollLeft, scrollWidth, clientWidth } = scroller;
+    keepVar(overview, "--lf-trace-window-start", String(scrollLeft / scrollWidth));
+    keepVar(overview, "--lf-trace-window-size", String(clientWidth / scrollWidth));
     keeps(overview, "data-zoomed", this.#zoom > 1 ? "" : null);
   }
 
@@ -679,29 +636,22 @@ export class RecordingTimeline {
     const scroller = this.scroller;
     if (!ruler || !scroller?.clientWidth || !this.#model) return;
     const pxPerMs = this.#pxPerMs();
-    const step = tickStep(pxPerMs);
-    const minor = step / (String(step)[0] === "2" ? 4 : 5);
-    const from = this.#pxToTime(scroller.scrollLeft - TICK_SPACING);
-    const to = this.#pxToTime(
-      scroller.scrollLeft + scroller.clientWidth + TICK_SPACING,
+    const ticks = axisTicks(
+      this.#pxToTime(scroller.scrollLeft - TICK_SPACING),
+      this.#pxToTime(scroller.scrollLeft + scroller.clientWidth + TICK_SPACING),
+      this.#model.duration,
+      pxPerMs,
     );
-    const ticks = [];
-    for (let time = Math.floor(from / minor) * minor; time <= to; time += minor) {
-      const rounded = Math.round(time * 1000) / 1000;
-      if (rounded < 0 || rounded > this.#model.duration) continue;
-      const major = Math.abs(rounded / step - Math.round(rounded / step)) < 1e-6;
-      ticks.push({ time: rounded, major });
-    }
     render(
       repeat(
         ticks,
-        (tick) => `${step}:${tick.time}`,
+        (tick) => `${tick.step}:${tick.time}`,
         (tick) =>
           html`<span
             class="lf-trace-tick ${tick.major ? "lf-trace-tick-major" : ""}"
             ?data-flip=${tick.major && (this.#model.duration - tick.time) * pxPerMs < 44}
             style="--t: ${this.#fraction(tick.time)}"
-            >${tick.major ? tickLabel(tick.time, step) : nothing}</span
+            >${tick.label ?? nothing}</span
           >`,
       ),
       ruler,

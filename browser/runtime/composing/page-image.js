@@ -35,14 +35,21 @@
  * a shadow host and never descends into SVG or an element with no content of its own,
  * such as an image or a frame.
  */
-import { isSampleFrame, sampleFrameImage } from "../sample.js";
-
 const asDataUrl = async (blob) =>
   `data:${blob.type};base64,${(await blob.bytes()).toBase64()}`;
 
-// A caller that reads the crop's geometry at the moment of capture awaits the renderer
-// first, so no download separates that reading from the reconstruction.
-export const pageRenderer = () => import("../../vendor/snapdom.esm.js");
+// SnapDOM and the sample host, which draws a mounted sample's frame. A caller that reads
+// the crop's geometry at the moment of capture awaits the renderer first, so no download
+// separates that reading from the reconstruction. The sample host loads here and with
+// the first sample a widget mounts, so a page that shows none never loads it on the way
+// to its first paint.
+export const pageRenderer = async () => {
+  const [{ snapdom }, { isSampleFrame, sampleFrameImage }] = await Promise.all([
+    import("../../vendor/snapdom.esm.js"),
+    import("../sample.js"),
+  ]);
+  return { snapdom, isSampleFrame, sampleFrameImage };
+};
 
 const meets = (a, b) =>
   a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
@@ -121,7 +128,7 @@ function captureRoot(region, skip) {
 }
 
 export async function pageImage(clip, { exclude = [] } = {}) {
-  const { snapdom } = await pageRenderer();
+  const { snapdom, isSampleFrame, sampleFrameImage } = await pageRenderer();
   const warnings = new Set();
   // The crop meets the frame's content box in this viewport's coordinates; the
   // child and the substitute's own box read it in the frame's, unscaled.

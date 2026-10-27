@@ -312,7 +312,11 @@ export function scrollIntoView(
       const byY = inside
         ? placementBy(where, "nearest", box, topMargin(where, box, start))
         : 0;
-      if (byX || byY) land(box, localScrollBy(box, { x: byX, y: byY }), "instant");
+      // Only a box that will move is asked to, as a first tab's ring room at its
+      // strip's start moves nothing: a call that moves nothing still reads as a
+      // scroll the gesture made (tests/shift_watch.js, "Scrolls a gesture makes").
+      const by = localScrollBy(box, { x: byX, y: byY });
+      if (by.left || by.top) land(box, by, "instant");
     }
     if (
       box === within ||

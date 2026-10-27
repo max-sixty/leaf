@@ -372,7 +372,7 @@ def test_tabs_validate_and_compose(page_dir):
     tabs = """<lf-tabs id="ws">
   <lf-tab id="ws-ingest" label="Ingest"><p>Pipeline notes.</p></lf-tab>
   <lf-tab id="ws-search" label="Search">
-    <dl id="k-lat" class="panel"><dt></dt><dd><strong>118 ms</strong></dd></dl>
+    <dl id="k-lat" class="metric"><dt></dt><dd><strong>118 ms</strong></dd></dl>
   </lf-tab>
 </lf-tabs>
 <lf-options>"""

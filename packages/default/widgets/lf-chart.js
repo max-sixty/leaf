@@ -62,7 +62,27 @@ function drawOptions(body, Plot, width, height) {
     throw new Error(
       "state the chart's height as data-height on the element rather than in the options: the page holds that box before the chart draws",
     );
+  offsetsAreNumbers(spec.marks);
   return { ...spec, width, height };
+}
+
+/* Plot reads a mark's offsets and margins as one number for the whole mark (`+dy`), so a
+ * function there, such as a dy chosen per datum to keep end labels apart, becomes NaN,
+ * and all the page hears is the browser's "Trailing garbage" about a transform, logged
+ * from Plot's bundle. The chart names the mark and the option instead. */
+const OFFSETS = ["dx", "dy", "marginTop", "marginRight", "marginBottom", "marginLeft"];
+function offsetsAreNumbers(marks, place = "marks") {
+  if (!Array.isArray(marks)) return;
+  marks.forEach((mark, index) => {
+    const at = `${place}[${index}]`;
+    if (Array.isArray(mark)) return offsetsAreNumbers(mark, at);
+    if (!mark || typeof mark !== "object") return;
+    const name = OFFSETS.find((option) => Number.isNaN(mark[option]));
+    if (name)
+      throw new Error(
+        `${at} (${mark.ariaLabel ?? "a mark"}) has a ${name} that is not a number: Plot takes one ${name} for the whole mark, so draw each group that needs its own ${name} as a mark of its own`,
+      );
+  });
 }
 
 customElements.define(

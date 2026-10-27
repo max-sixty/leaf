@@ -75,7 +75,7 @@ import { beginWalk, listWalkPosition } from "./walk-position.js";
 import { anchorLabel } from "./thread/messages.js";
 import { reactionsAt, tokenChoices } from "./thread/model.js";
 import { allThreads, readThreads } from "./thread/state.js";
-import { effect, untracked } from "/vendor/browser-runtime.js";
+import { effect, untracked } from "/runtime/framework.js";
 import { annotationSelection } from "./annotation-inventory.js";
 import { readPart } from "./semantic-state.js";
 import { raiseError } from "./errors.js";

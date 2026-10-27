@@ -47,8 +47,8 @@ none.
 
 Whether an update needs delivering is decided apart from its workflow. Admission
 records whether the update changes the user's outstanding obligations, owed answers, work
-in hand (`obligation_reading`), and delivery keeps that decision after
-the workflow settles.
+in hand and explicitly requested widget input (`attention_reading`). Delivery keeps
+that decision after the workflow settles.
 
 An action on a widget whose obligation the user is still answering, such as a pick before
 its group's Done or an action before a queue is empty, has no workflow yet; the
@@ -82,15 +82,17 @@ from .thread_context import widget_messages
 from .todos import TodoReading
 
 
-def obligation_reading(readings) -> dict:
-    """The outstanding obligations and to-dos on the user, answers and work in hand a gesture
-    can change.
+def attention_reading(readings) -> dict:
+    """The obligations, requests and work in hand a gesture can change.
 
     Delivery progress, receipt-only updates and presentation are absent. Work in hand,
     an update the agent started or a to-do it opened on a thread or widget, also holds the
     widget inputs in force on its subject, even while an obligation is being composed:
     changing a pick under ongoing work changes that work before Done. Admission
     compares this reading on either side of the append and stores the result.
+    A verb's explicit attention declaration includes its current input without
+    inventing an obligation. Replacing or undoing that input changes this reading
+    even when a version's note has settled its delivery workflow.
     """
     work = readings.work
     page = work.page
@@ -106,13 +108,14 @@ def obligation_reading(readings) -> dict:
         if todo["subject"]["kind"] != "page"
     ]
     inputs = [
-        source
+        (source, spec)
         for projection in ([page.projection] if page is not None else [])
         + [thread.projection]
-        for source, _spec in projection.actions.values()
+        for source, spec in projection.actions.values()
         if source["author"] == "user"
     ]
     return {
+        "requests": [source["id"] for source, spec in inputs if spec.get("attention")],
         "on_user": [
             item["id"]
             for item in work.all_obligations["unanswered"]
@@ -129,7 +132,7 @@ def obligation_reading(readings) -> dict:
                 "id": identity,
                 "inputs": [
                     source["id"]
-                    for source in inputs
+                    for source, _spec in inputs
                     if subject == {"kind": "widget", "id": source["widget"]}
                     or subject
                     == {

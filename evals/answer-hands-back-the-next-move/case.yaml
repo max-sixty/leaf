@@ -1,0 +1,305 @@
+# Added when an agent answered "these gotta have previews!" on an open prototype
+# decision with `--done`: the previews were for the user to try before deciding,
+# but nothing put the answer on On me, so the user could close the thread and lose
+# it. The delivery's handling then showed `--done` as the answer's command and
+# offered `--obligation` as an addition for replies that "need" a response; agents
+# reasoned that the decision itself was already on On me. The handling now says the
+# declaration names whose move the answer leaves. The envelopes are the real
+# delivery's shape with the handling at the commit that adds this case; a handling
+# change is scored by regenerating them with each wording.
+# Old handling, Claude Code: previews 0/3, finished fix 3/3; Codex: previews 0/3 on
+# both arms, turn writer 0/3 on both arms. New handling: previews 3/3 on each
+# harness, turn writer 3/3 (Codex), finished fix 3/3 on each harness and 3/3 as a
+# turn writer, question 3/3 on each harness.
+description: answer-hands-back-the-next-move
+metadata:
+  purpose:
+    An answer that leaves the user a decision, or something to try before making it, stays on their
+    On me list; one that leaves them nothing does not.
+  tags:
+    - threads
+    - asks
+    - wait-loop
+vars:
+  prompt:
+    'You are a Claude Code session using Leaf, five hours into an issue-triage page with the user
+    at /Users/max/.local/state/leaf/pages/issue-triage. You loaded the Leaf skill and the references it
+    routes to at the start of the session and have answered a dozen of their comments since, so act on
+    this without reloading them. The page puts four prototype decisions to the user, each an `lf-options`
+    choice between landing the prototype and keeping it on its branch, inside a section such as `#proto-timeline-ask`.
+    All four are still unanswered on the user''s On me list.
+
+
+    Leaf''s prompt hook handed you this complete inline delivery:
+
+    {"format": "leaf-delivery/15", "id": "62dd1d37", "created_at": 1792941346.000992, "acknowledge": null,
+    "batches": [{"page": "/Users/max/.local/state/leaf/pages/issue-triage", "claim": "d5d241d2-f142-4de9-94b8-f2c442e0796c",
+    "through_seq": 15, "threads": [{"id": "e6bd279e", "title": "Request for link previews", "anchor":
+    {"section": "proto-timeline-ask"}, "detached_from": null, "resolved": null, "elided": {"messages":
+    0, "actions": 0}, "messages": [], "summaries": [], "actions": []}], "handling": {"h1": "If the event
+    asks for work, first post one line in its thread saying what you will do, before any other command,
+    even a read: `leaf thread reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`.
+    Then do the work, put the result on the page with what shows it (captures, a figure, the numbers),
+    and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`: what changed, in a
+    sentence or two, linking the section that shows it. If the event asks for no work, answer it with
+    that reply at once. The reply checks your saved page edit and makes it live before posting. The declaration
+    says whose move your answer leaves, which delivering what was asked doesn''t settle. `--obligation`
+    when it is the user''s: it leaves them a decision, or something to try or review before making one,
+    or asks them for an answer or permission. That puts your answer on their On me list until they reply
+    or resolve the thread, even where the decision itself is already there. `--todo \"<what you owe>\"`
+    when it is yours, promising work beyond this turn. `--done` when it leaves nobody a move. A widget
+    in `--markup` can register the answer it captures instead of `--obligation` (`references/threads.md`).",
+    "h2": "Your reply renders as Markdown in a narrow column: give each point its own short paragraph
+    or list item, link a page section as `[its name](#section-id)`, and fence code or markup."}, "events":
+    [{"kind": "comment", "revision": 12, "text": "these gotta have previews!", "anchor": {"section": "proto-timeline-ask"},
+    "author": "user", "id": "e6bd279e", "attention": true, "ts": "2026-10-25T08:15:38.381-07:00", "seq":
+    15, "subject": {"kind": "thread", "id": "e6bd279e"}, "threads": ["e6bd279e"], "handling": ["h1", "h2"],
+    "answer": {"kind": "reply", "parent": "e6bd279e", "responds": "e6bd279e", "ref": "62dd1d37:0:e6bd279e",
+    "writer": "agent"}}]}]}
+
+
+    You posted your progress line, then did the work: each of the four prototype decisions now carries
+    its demo live in a frame the user can operate in place or open in its own tab (`#proto-diff-preview`,
+    `#proto-timeline-preview`, `#proto-value-preview`, `#proto-overseer-preview`). You checked all four
+    load and render in Chromium and Firefox. The page edit is saved.
+
+
+    The page and services are unreachable in this exercise. Write out the command you would run to answer
+    the user''s message, with the full text of the reply, then end your answer.'
+assert:
+  - type: llm-rubric
+    metric: hands-back
+    value:
+      "Pass only if the reply that answers the user's comment puts the thread on the user's On me
+      list: `leaf thread reply` with `--obligation`, or with `--markup` holding a widget that asks. The
+      previews exist so the user can try each prototype before deciding whether to land it, a decision still
+      open, so the next move is the user's. Fail if the answer is declared `--done` or `--todo`, or if
+      it only says in prose that the user should look. The reply's wording and any other commands don't
+      matter."
+variants:
+  finished-fix:
+    metadata:
+      purpose: A fix the user asked for, finished, leaves them nothing to do.
+    vars:
+      prompt:
+        'You are a Claude Code session using Leaf, five hours into an issue-triage page with the
+        user at /Users/max/.local/state/leaf/pages/issue-triage. You loaded the Leaf skill and the references
+        it routes to at the start of the session and have answered a dozen of their comments since, so
+        act on this without reloading them. The page puts four prototype decisions to the user, each an
+        `lf-options` choice between landing the prototype and keeping it on its branch, inside a section
+        such as `#proto-timeline-ask`. All four are still unanswered on the user''s On me list.
+
+
+        Leaf''s prompt hook handed you this complete inline delivery:
+
+        {"format": "leaf-delivery/15", "id": "62dd1d37", "created_at": 1792941346.000992, "acknowledge":
+        null, "batches": [{"page": "/Users/max/.local/state/leaf/pages/issue-triage", "claim": "d5d241d2-f142-4de9-94b8-f2c442e0796c",
+        "through_seq": 30, "threads": [{"id": "47c79859", "title": "Progress table layout", "anchor":
+        {"section": "progress-table"}, "detached_from": null, "resolved": null, "elided": {"messages":
+        0, "actions": 0}, "messages": [], "summaries": [], "actions": []}], "handling": {"h1": "If the
+        event asks for work, first post one line in its thread saying what you will do, before any other
+        command, even a read: `leaf thread reply <answer.ref> --ephemeral --text \"<what you will do,
+        in a line>\"`. Then do the work, put the result on the page with what shows it (captures, a figure,
+        the numbers), and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`:
+        what changed, in a sentence or two, linking the section that shows it. If the event asks for no
+        work, answer it with that reply at once. The reply checks your saved page edit and makes it live
+        before posting. The declaration says whose move your answer leaves, which delivering what was
+        asked doesn''t settle. `--obligation` when it is the user''s: it leaves them a decision, or something
+        to try or review before making one, or asks them for an answer or permission. That puts your answer
+        on their On me list until they reply or resolve the thread, even where the decision itself is
+        already there. `--todo \"<what you owe>\"` when it is yours, promising work beyond this turn.
+        `--done` when it leaves nobody a move. A widget in `--markup` can register the answer it captures
+        instead of `--obligation` (`references/threads.md`).", "h2": "Your reply renders as Markdown in
+        a narrow column: give each point its own short paragraph or list item, link a page section as
+        `[its name](#section-id)`, and fence code or markup."}, "events": [{"kind": "comment", "revision":
+        12, "text": "what is going on with this table! the left edge is cut off", "anchor": {"section":
+        "progress-table"}, "author": "user", "id": "47c79859", "attention": true, "ts": "2026-10-25T08:15:38.381-07:00",
+        "seq": 30, "subject": {"kind": "thread", "id": "47c79859"}, "threads": ["47c79859"], "handling":
+        ["h1", "h2"], "answer": {"kind": "reply", "parent": "47c79859", "responds": "47c79859", "ref":
+        "62dd1d37:0:47c79859", "writer": "agent"}}]}]}
+
+
+        You posted your progress line, then did the work: the page''s own style rule kept the first column
+        of every `.issue-list` table on one line, so the progress table''s prose column held 559px and
+        the table scrolled sideways at every width. You removed the rule; the table now fits at 360–1920px.
+        The page edit is saved.
+
+
+        The page and services are unreachable in this exercise. Write out the command you would run to
+        answer the user''s message, with the full text of the reply, then end your answer.'
+    assert:
+      - type: llm-rubric
+        metric: nothing-left
+        value:
+          Pass only if the reply that answers the user's comment is declared `--done` and does not
+          carry `--obligation` or a widget that asks. The user asked for a fix to how the page shows a table,
+          the fix is made, and nothing about it waits on the user, so the answer leaves them nothing to
+          do. The reply's wording and any other commands don't matter.
+  turn-writer:
+    metadata:
+      purpose: The same answer where Leaf posts the turn's final message unless the agent replies explicitly.
+    vars:
+      prompt:
+        'You are a Codex session using Leaf, five hours into an issue-triage page with the user
+        at /Users/max/.local/state/leaf/pages/issue-triage. You loaded the Leaf skill and the references
+        it routes to at the start of the session and have answered a dozen of their comments since, so
+        act on this without reloading them. The page puts four prototype decisions to the user, each an
+        `lf-options` choice between landing the prototype and keeping it on its branch, inside a section
+        such as `#proto-timeline-ask`. All four are still unanswered on the user''s On me list.
+
+
+        Leaf''s app-server transport handed you this complete inline delivery:
+
+        {"format": "leaf-delivery/15", "id": "62dd1d37", "created_at": 1792941346.000992, "acknowledge":
+        null, "batches": [{"page": "/Users/max/.local/state/leaf/pages/issue-triage", "claim": "d5d241d2-f142-4de9-94b8-f2c442e0796c",
+        "through_seq": 15, "threads": [{"id": "e6bd279e", "title": "Request for link previews", "anchor":
+        {"section": "proto-timeline-ask"}, "detached_from": null, "resolved": null, "elided": {"messages":
+        0, "actions": 0}, "messages": [], "summaries": [], "actions": []}], "handling": {"h1": "Leaf posts
+        your opening message in the thread as your progress line and your final message as the reply,
+        unless an explicit reply already answered this input. Before your first tool call, tell the user
+        briefly the answer or what you are about to do; later working messages stay in Codex. End with
+        the answer, or what changed and where it shows. A final message leaves the user no move, so where
+        your answer leaves them one, such as a decision or something to try or review before making one,
+        answer with `leaf thread reply <answer.ref> --obligation` instead: it puts the answer on their
+        On me list even where the decision itself is already there. Reply explicitly too for widgets,
+        work promised beyond this turn (`--todo`), a title or moving the thread (`references/threads.md`);
+        an explicit reply posts at once, and your final message is then not posted.", "h2": "Your reply
+        renders as Markdown in a narrow column: give each point its own short paragraph or list item,
+        link a page section as `[its name](#section-id)`, and fence code or markup."}, "events": [{"kind":
+        "comment", "revision": 12, "text": "these gotta have previews!", "anchor": {"section": "proto-timeline-ask"},
+        "author": "user", "id": "e6bd279e", "attention": true, "ts": "2026-10-25T08:15:38.381-07:00",
+        "seq": 15, "subject": {"kind": "thread", "id": "e6bd279e"}, "threads": ["e6bd279e"], "handling":
+        ["h1", "h2"], "answer": {"kind": "reply", "parent": "e6bd279e", "responds": "e6bd279e", "ref":
+        "62dd1d37:0:e6bd279e", "writer": "turn"}}]}]}
+
+
+        You told the user what you were about to do, then did the work: each of the four prototype decisions
+        now carries its demo live in a frame the user can operate in place or open in its own tab (`#proto-diff-preview`,
+        `#proto-timeline-preview`, `#proto-value-preview`, `#proto-overseer-preview`). You checked all
+        four load and render in Chromium and Firefox. The page edit is saved.
+
+
+        The page and services are unreachable in this exercise. Write out any command you would run to
+        answer the user''s message, with the full text of the reply, or the final message you would end
+        your turn with, then end your answer.'
+    assert:
+      - type: llm-rubric
+        metric: hands-back
+        value:
+          Pass only if the agent answers the user's comment with an explicit `leaf thread reply` carrying
+          `--obligation`, or `--markup` holding a widget that asks, so the answer goes on the user's On
+          me list. The previews exist so the user can try each prototype before deciding whether to land
+          it, a decision still open, so the next move is the user's. Fail if the agent leaves the answer
+          to its final message, which Leaf posts without an obligation, or replies with `--done` or `--todo`.
+          The reply's wording and any other commands don't matter.
+  turn-writer-fix:
+    metadata:
+      purpose: Where Leaf posts the turn's final message, a finished fix needs no obligation.
+    vars:
+      prompt:
+        'You are a Codex session using Leaf, five hours into an issue-triage page with the user
+        at /Users/max/.local/state/leaf/pages/issue-triage. You loaded the Leaf skill and the references
+        it routes to at the start of the session and have answered a dozen of their comments since, so
+        act on this without reloading them. The page puts four prototype decisions to the user, each an
+        `lf-options` choice between landing the prototype and keeping it on its branch, inside a section
+        such as `#proto-timeline-ask`. All four are still unanswered on the user''s On me list.
+
+
+        Leaf''s app-server transport handed you this complete inline delivery:
+
+        {"format": "leaf-delivery/15", "id": "62dd1d37", "created_at": 1792941346.000992, "acknowledge":
+        null, "batches": [{"page": "/Users/max/.local/state/leaf/pages/issue-triage", "claim": "d5d241d2-f142-4de9-94b8-f2c442e0796c",
+        "through_seq": 30, "threads": [{"id": "47c79859", "title": "Progress table layout", "anchor":
+        {"section": "progress-table"}, "detached_from": null, "resolved": null, "elided": {"messages":
+        0, "actions": 0}, "messages": [], "summaries": [], "actions": []}], "handling": {"h1": "Leaf posts
+        your opening message in the thread as your progress line and your final message as the reply,
+        unless an explicit reply already answered this input. Before your first tool call, tell the user
+        briefly the answer or what you are about to do; later working messages stay in Codex. End with
+        the answer, or what changed and where it shows. A final message leaves the user no move, so where
+        your answer leaves them one, such as a decision or something to try or review before making one,
+        answer with `leaf thread reply <answer.ref> --obligation` instead: it puts the answer on their
+        On me list even where the decision itself is already there. Reply explicitly too for widgets,
+        work promised beyond this turn (`--todo`), a title or moving the thread (`references/threads.md`);
+        an explicit reply posts at once, and your final message is then not posted.", "h2": "Your reply
+        renders as Markdown in a narrow column: give each point its own short paragraph or list item,
+        link a page section as `[its name](#section-id)`, and fence code or markup."}, "events": [{"kind":
+        "comment", "revision": 12, "text": "what is going on with this table! the left edge is cut off",
+        "anchor": {"section": "progress-table"}, "author": "user", "id": "47c79859", "attention": true,
+        "ts": "2026-10-25T08:15:38.381-07:00", "seq": 30, "subject": {"kind": "thread", "id": "47c79859"},
+        "threads": ["47c79859"], "handling": ["h1", "h2"], "answer": {"kind": "reply", "parent": "47c79859",
+        "responds": "47c79859", "ref": "62dd1d37:0:47c79859", "writer": "turn"}}]}]}
+
+
+        You told the user what you were about to do, then did the work: the page''s own style rule kept
+        the first column of every `.issue-list` table on one line, so the progress table''s prose column
+        held 559px and the table scrolled sideways at every width. You removed the rule; the table now
+        fits at 360–1920px. The page edit is saved.
+
+
+        The page and services are unreachable in this exercise. Write out any command you would run to
+        answer the user''s message, with the full text of the reply, or the final message you would end
+        your turn with, then end your answer.'
+    assert:
+      - type: llm-rubric
+        metric: nothing-left
+        value:
+          "Pass only if the answer to the user's comment carries no `--obligation` and no widget that
+          asks: either the turn's final message answers it, or an explicit `leaf thread reply` declared
+          `--done`. The user asked for a fix to how the page shows a table, the fix is made, and nothing
+          about it waits on the user. The reply's wording and any other commands don't matter."
+  question:
+    metadata:
+      purpose: An answer to a question that informs no open decision leaves the user nothing to do.
+    vars:
+      prompt:
+        'You are a Claude Code session using Leaf, five hours into an issue-triage page with the
+        user at /Users/max/.local/state/leaf/pages/issue-triage. You loaded the Leaf skill and the references
+        it routes to at the start of the session and have answered a dozen of their comments since, so
+        act on this without reloading them. The page puts four prototype decisions to the user, each an
+        `lf-options` choice between landing the prototype and keeping it on its branch, inside a section
+        such as `#proto-timeline-ask`. All four are still unanswered on the user''s On me list.
+
+
+        Leaf''s prompt hook handed you this complete inline delivery:
+
+        {"format": "leaf-delivery/15", "id": "62dd1d37", "created_at": 1792941346.000992, "acknowledge":
+        null, "batches": [{"page": "/Users/max/.local/state/leaf/pages/issue-triage", "claim": "d5d241d2-f142-4de9-94b8-f2c442e0796c",
+        "through_seq": 21, "threads": [{"id": "47baa2f8", "title": "Core logic for lf-text-document",
+        "anchor": null, "detached_from": null, "resolved": null, "elided": {"messages": 0, "actions":
+        0}, "messages": [], "summaries": [], "actions": []}], "handling": {"h1": "If the event asks for
+        work, first post one line in its thread saying what you will do, before any other command, even
+        a read: `leaf thread reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`.
+        Then do the work, put the result on the page with what shows it (captures, a figure, the numbers),
+        and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`: what changed,
+        in a sentence or two, linking the section that shows it. If the event asks for no work, answer
+        it with that reply at once. The reply checks your saved page edit and makes it live before posting.
+        The declaration says whose move your answer leaves, which delivering what was asked doesn''t settle.
+        `--obligation` when it is the user''s: it leaves them a decision, or something to try or review
+        before making one, or asks them for an answer or permission. That puts your answer on their On
+        me list until they reply or resolve the thread, even where the decision itself is already there.
+        `--todo \"<what you owe>\"` when it is yours, promising work beyond this turn. `--done` when it
+        leaves nobody a move. A widget in `--markup` can register the answer it captures instead of `--obligation`
+        (`references/threads.md`).", "h2": "Your reply renders as Markdown in a narrow column: give each
+        point its own short paragraph or list item, link a page section as `[its name](#section-id)`,
+        and fence code or markup."}, "events": [{"kind": "comment", "revision": 12, "text": "currently,
+        does leaf core have logic specific to lf-text-document? it shouldn''t do", "author": "user", "id":
+        "47baa2f8", "attention": true, "ts": "2026-10-25T08:15:38.381-07:00", "seq": 21, "subject": {"kind":
+        "thread", "id": "47baa2f8"}, "threads": ["47baa2f8"], "handling": ["h1", "h2"], "answer": {"kind":
+        "reply", "parent": "47baa2f8", "responds": "47baa2f8", "ref": "62dd1d37:0:47baa2f8", "writer":
+        "agent"}}]}]}
+
+
+        You searched: core has no logic specific to `lf-text-document`, on main or on any prototype branch.
+        `git grep` finds the name in neither `browser/` nor `src/`. Nothing on the page needs to change.
+
+
+        The page and services are unreachable in this exercise. Write out the command you would run to
+        answer the user''s message, with the full text of the reply, then end your answer.'
+    assert:
+      - type: llm-rubric
+        metric: nothing-left
+        value:
+          Pass only if the reply that answers the user's comment is declared `--done` and does not
+          carry `--obligation` or a widget that asks. The user asked a factual question about the code,
+          the answer settles it, and it bears on none of the open decisions, so it leaves them nothing to
+          do. The reply's wording and any other commands don't matter.

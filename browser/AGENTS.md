@@ -62,27 +62,40 @@ representative desktop viewport.
 ### Stability
 
 - **The page holds still under the user's aim.** A state change may repaint any box,
-  but must not move the controls next to the gesture that caused it. Without a gesture,
+  but must not move the controls next to the gesture that caused it. A scroll the
+  gesture makes may not carry the control it was made on either, except to bring it
+  whole into a scroller that showed only part of it, or where the gesture takes the
+  user somewhere and says so: a command as a walk or Go-to does (`travels`,
+  `runtime/keyboard/bindings.js`), or a press by the history entry it adds, as a link
+  or a root tab set's switch does. Without a gesture,
   a box may grow or shrink into free room, but reading content and controls stay put. A
   change the user asked for may reflow the content it replaces, with motion the eye can
   follow. A reveal on hover, focus or a key never changes the size or position of its
   ancestors or siblings, and typing may grow a field but never moves it. Check:
   `tests/shift_watch.js`, run on every browser test outside a module marked
   `shifts_unsurveyed` (`tests/AGENTS.md`, "Browser errors").
-- **What takes turns in a place doesn't size it.** Where several modes share one seat,
-  as the comment field, page search, Threads' search, a thread's reply and the seated
-  comment box share the floating panel's field, the place sets the box from a theme
-  token and each occupant fills it. Only content grows it, such as typed words, or a
-  gesture that asks for room, such as More room. A label's words (`data-room`, below)
-  and a widget's first paint (`keeps-first-box`) are cases of the same rule. A
-  one-line control's face is the line (`--lf-line`, theme.css) and a finger's floor its
-  reach (surfaces.css); a control that brings its own height instead, from its type or
-  the floor, sizes every place it is seated in. Check:
+- **Stability is owed to the common path.** Every hold costs code on each later
+  change, so a rare path the user reads at a glance moves what is on screen rather
+  than carry a mechanism of its own. Words a refused send hands back, and a draft typed
+  in another tab, grow the reply field as typing does, in a card as in the floating
+  panel, and a refused turn gives its room back as it folds: what the user is about to
+  send shows whole before the layout holds (the user's choice, 25 October 2026).
+- **Shared containers determine control dimensions.** When several modes share a
+  container, that container sets its dimensions from a theme token and each mode's
+  controls fill it. For example, the comment field, page search, Threads' search,
+  a thread's reply and the seated comment box share the floating panel's field.
+  The container grows only for content, such as typed words, or an explicit action,
+  such as More room. Changing labels (`data-room`, below) and rendering a widget
+  after its first paint (`keeps-first-box`) follow the same sizing rule. A
+  one-line control's visible height is `--lf-line` (theme.css); its touch target meets
+  the minimum size set by surfaces.css. A control that instead derives its visible
+  height from its font or the touch-target minimum changes the height of every
+  container that holds it. Check:
   `test_whatever_the_field_holds_the_row_keeps_its_line`
-  compares the row with its token in each mode; that a place still contains its
-  occupant proves nothing, since a grown place always does. `tests/swap_watch.js`,
-  which the browser fixture runs on every test, fails a flex row whose height follows
-  an occupant that took another's seat in it.
+  compares the row's height with its token in each mode. Checking only that controls
+  fit inside the row would miss a row that grew to fit them. `tests/swap_watch.js`,
+  which the browser fixture runs on every test, fails the test if a flex row's height
+  changes to match a replacement child control.
 - **A runtime region whose contents rearrange inside it declares `data-lf-reflow`**
   on the box that owns the space: `text` where its labels may rewrap while its controls
   stay put, as in a message header, and `append` where it grows only at its end, as a
@@ -122,8 +135,8 @@ representative desktop viewport.
   handles a send and the refusal that returns the words to their box. The new content
   and its Undo confirm success, so success needs no notice beyond the announcement
   for a listener. A gesture that moves the
-  user, such as resolving a thread, moves them back when it is refused or undone
-  (`thread/folding.js`). A result only the log can supply waits with `aria-busy`, shown
+  user, such as resolving a thread, leaves them at its place again when it is refused
+  or undone (`undo.js` owns where undo leaves the user). A result only the log can supply waits with `aria-busy`, shown
   after a delay so a fast answer shows nothing. Persistent status text is for a
   state the user must return to, such as a failure.
 
@@ -165,11 +178,31 @@ representative desktop viewport.
   edged on one side is never rounded: mark a state with a whole contour, or a stripe on
   a square box. Avoid reflexive cards, tints, gradients and soft shadows. Check:
   `test_no_rule_rounds_a_box_edged_on_one_side`.
+- **Leaf's controls are few, and each shows a symbol where a standard symbol for its
+  action exists, and its word where none does.** A standard symbol is one readers
+  already know for that action from the software they use, such as ✕ for close, ✓ for
+  done, ‹ and › for back and next, and the symbols for play, pause, copy and undo, so
+  they can tell what the control does before hovering it. The words on Leaf's controls
+  compete with the page's own words for the reader's attention, and a symbol is
+  smaller and quieter. Draw it from `runtime/icon-paths.js` and give the control its
+  name as tooltip and accessible name, without the word beside the symbol. One control
+  whose symbol follows its state, such as play turning to pause, replaces a button for
+  each state. A symbol that is only related to the action, such as a speech bubble for
+  answering a question, leaves the reader guessing, and a tooltip doesn't fix that:
+  the reader must already suspect the control to hover it, and a touch screen has no
+  hover. The rows of the leaf's menu keep their words too, since the user opened the
+  menu to read them. Symbols don't license more controls: a surface at rest shows only
+  what its task needs, and the leaf's menu holds the rest.
+- **A control wears its role's face.** Code builds a control by its role, with
+  `offerAction` or `offeredAction`, and never names a face's classes, so two controls
+  of one kind can't look different (`runtime/prepaint.js`, `ACTION_FACES`, lists the
+  roles). A new role needs a difference in the user's task, not only in a widget's
+  taste. Check: `test_controls_are_built_by_role_and_never_by_face`.
 - **A face used twice is a token or a shared rule.** A lift names one of the theme's
   heights, `--raise-1` to `--raise-3` (`theme.css`). Check:
   `test_every_lift_names_one_of_the_theme_s_heights_cast_in_the_scheme_s_ink`.
 - **Every surface paints a thread's `unread` and `attention` from one value**, so the
-  Threads toggle, filters, panel, margin entry and Page Map change together. Green marks
+  On me mark's dot, Threads, panel, margin entry and Page Map change together. Green marks
   the user's turn; other thread controls stay blue. Marking read never moves the user.
 
 ### Motion
@@ -225,7 +258,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Annotation inventory and controls                                                                           | `annotation-inventory.js`, `annotation-view.js`, `contributions.js`, `contribution-controls.js`, `inline-contributions.js`                                                |
 | Annotation records and Page Map                                                                             | `margin-model.js`, `margin-map-model.js`, `page-map-dialog.js`, `pointed-place.js`                                                                                        |
 | Pins, marks and floating placement (loaded only when `body` keeps the default `data-annotations="overlay"`) | `annotation-overlay/`                                                                                                                                                     |
-| Passages and target identity                                                                                | `passages.js`, `passage-facts.js`, `text-alignment.js`, `anchor-coordinate.js`, `resolved-target.js`, `anchor-resolution.js`, `addressable-names.js`                      |
+| Passages and target identity                                                                                | `passages.js`, `kernel-facts.js`, `text-alignment.js`, `anchor-coordinate.js`, `resolved-target.js`, `anchor-resolution.js`, `addressable-names.js`                       |
 | Anchor placement, decoration and travel                                                                     | `anchor-placement.js`, `anchor-note-view.js`, `anchor-controls.js`, `anchor-travel.js`, `target-paint.js`, `target-paint-geometry.js`, `visual-parts.js`, `indication.js` |
 | Page status and what a user copies about the page                                                           | `page-status.js`, `page-about.js`, `heading-links.js`                                                                                                                     |
 | Neighboring pages                                                                                           | `live-leaves.js`                                                                                                                                                          |
@@ -321,7 +354,7 @@ reads (root `AGENTS.md`, "The document starts state; the log changes it"):
 | Fact                                                                                                          | Authority                                                                                                                                                                                          |
 | ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | authored widget state                                                                                         | the validated source markup, captured before upgrade                                                                                                                                               |
-| external data                                                                                                 | the latest page data; a widget reads each bound source through `this.data` (data.js)                                                                                                               |
+| external data                                                                                                 | the latest page data; Leaf sets each bound source on the widget property x-data names (data.js)                                                                                                    |
 | version shown                                                                                                 | the revision the delivery prelude names; a newer revision with the same executable identity patches in place, and a different one loads a fresh document                                           |
 | accepted history                                                                                              | the server's event log and its `/api/state` answer, which the publisher adopts whole; each answer has one `through_seq`, and a version comparison asks `/api/view` at the sequence already applied |
 | unresolved browser work, refusals included                                                                    | the publisher's one ordered list; the server records no refusal, since the condition behind one can change while the user's words stay the same                                                    |
@@ -359,7 +392,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Whether the user is inside a scope, across shadow trees and slots                                     | `focus.js` `currentLocationIn` (_lint_)                                            |
 | The user's working place, read before something borrows it and handed back after                      | `history.js` `readPlace`, `returnPlace`                                            |
 | The page place focus or selection identifies, or none                                                 | `current-target.js` `currentLocationOrigin`                                        |
-| Where a page walk starts, falling back to visible reading, and which item it steps to                 | `current-target.js` `walkOrigin`, `stepFrom`                                       |
+| Where a page walk starts, whether the user is on a stop or at it, and which item it steps to          | `current-target.js` `walkOrigin`, `stepFrom`                                       |
 | Which of two nodes the reader reaches first, across shadow trees                                      | `shadow-tree.js` `renderedOrder`, `byRenderedOrder`                                |
 | Whether a node is inside another across shadow trees                                                  | `shadow-tree.js` `under`, `renderedUnder`, `composedParentNode`                    |
 | Put the user on an element, saying what moved them                                                    | `focus.js` `focusDestination(node, cause)` (_lint_)                                |
@@ -407,16 +440,20 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | The thread id a drawn thread carries                                                                  | `thread/selectors.js` `drawnThreadId`                                              |
 | The draft a thread holds: its reply box or a rewrite                                                  | `drafts.js` `replyContext`, `rewriteContext`, `threadDraft`                        |
 | Which obligations a region of the page holds                                                          | `obligations/place.js` `obligationsIn`                                             |
+| What names the part of the page a node stands in: its heading, or a named region                      | `thread/placement.js` `partOver`                                                   |
 
 ### Facts both runtimes know
 
-A fact Python and the browser both use, such as an event kind or the languages a page
-can highlight, has one home. Either one runtime owns it and sends it to the other as
-data, as the server sends its state in `/api/state`, whose type the build generates from
-`served_state/state.schema.json`, or the registry declares it and the build generates
-the browser's copy, as `build/registry.mjs` writes `runtime/syntax-languages.js` from
-`$languages`. Where runtime code must spell a value, a generated type such as
-`ServedWorkKind` makes a misspelling fail the type check. Where only a literal can carry
+A fact Python and the browser both use, such as an event kind or how a page reads as
+text, has one home. Either one runtime owns it and sends it to the other as data, as
+the server sends its state in `/api/state`, whose type the build generates from
+`served_state/state.schema.json`, or the kernel registry
+(`runtime/kernel-registry.json`) declares it and both read the serving Leaf's copy:
+the browser imports it as a JSON module through `runtime/kernel-facts.js`, so no build
+stands between an edit and either reader. Only a fact the registry can't settle alone
+is generated, as `build/vendor.mjs` writes `runtime/syntax-languages.js` from
+`$languages` and the grammars it bundles. Where runtime code must spell a value, a
+generated type such as `ServedWorkKind` makes a misspelling fail the type check. Where only a literal can carry
 the fact, as in a stylesheet's attribute selector, a check holds the spelling to the
 declaration (`build/registry.test.mjs`). An algorithm both runtimes run shares a case
 file that holds both to the same answers (`tests/*_cases.json`). A parity fixture, or a
@@ -489,8 +526,9 @@ through `readPart` selectors that return exactly what it draws, so it reruns onl
 that answer changes (`semantic-state.js`).
 
 Test what one module decides on its own under `tests/runtime/`
-(`pnpm run test:runtime`). The browser framework's TypeScript and its module tests live
-in `framework/`, which `build/browser/` compiles into `vendor/`. `pnpm run
-check:browser` type-checks the runtime and widget modules, strictly where a module is
-marked `// @ts-check`. Declare a new global, event detail or runtime element tag in
-`framework/runtime-globals.d.ts`.
+(`pnpm run test:runtime`). The browser framework, `runtime/framework.js` and the
+modules behind it, is JavaScript a page runs as written. `pnpm run check:browser`
+type-checks the runtime and widget modules, strictly where a module is marked
+`// @ts-check`, which the build requires of every framework module; `types/` holds the
+check's configuration and the declarations it reads. Declare a new global, event detail or runtime element tag in
+`types/runtime-globals.d.ts`.

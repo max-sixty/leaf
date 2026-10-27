@@ -16,18 +16,18 @@ export function registerSampleDress(frame, send) {
   return () => children.delete(frame);
 }
 
-/** @type {LeafInitial["wear"]} */
-export const wear = (...args) => document.documentElement.lfInitial.wear(...args);
+/** Apply one appearance to an element and its sample descendants. Replacing it
+ * removes earlier attributes and properties absent from the new appearance. */
+export function wear(owner, dress) {
+  document.documentElement.lfInitial.wear(owner, dress);
+  dresses.set(owner, dress);
+  for (const frame of owner.querySelectorAll("iframe[data-lf-contained]")) {
+    if (dressFor(frame) === dress) children.get(frame)?.(dress);
+  }
+}
 
 export function dressFor(frame) {
   for (let node = frame.parentElement; node; node = node.parentElement)
     if (dresses.has(node)) return dresses.get(node);
   return null;
-}
-
-export function dressSamples(owner, dress) {
-  dresses.set(owner, dress);
-  for (const frame of owner.querySelectorAll("iframe[data-lf-contained]")) {
-    if (dressFor(frame) === dress) children.get(frame)?.(dress);
-  }
 }

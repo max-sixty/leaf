@@ -38,13 +38,12 @@ import weakref
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from functools import cache, cached_property
-from pathlib import PurePosixPath
 from types import MappingProxyType
 
 from .layer import files_identity, stylesheet
 from .registry.storage import selected
 from .render_checks import PROBE_SOURCES
-from .revision_artifact import RESOURCE_TYPES, Resource, RevisionArtifact
+from .revision_artifact import Resource, RevisionArtifact, resource_type
 from .schema import ASSETS, KERNEL, RUNTIME_DIRS, RUNTIME_ENTRY, VENDORED_FILES
 from .state import PLUGIN_ROOT, json_bytes
 
@@ -112,7 +111,7 @@ class ServingRuntime:
         def resources(files: Mapping[str, bytes]) -> Mapping[str, Resource]:
             return MappingProxyType(
                 {
-                    path: Resource(data, _resource_type(path))
+                    path: Resource(data, resource_type(path))
                     for path, data in {**files, **self.probes}.items()
                 }
             )
@@ -208,7 +207,7 @@ def executing(artifact: RevisionArtifact) -> RevisionArtifact:
     executed = runtime._executed.get(artifact)
     if executed is None:
         layer = {
-            path: Resource(data, _resource_type(path))
+            path: Resource(data, resource_type(path))
             for path, data in selected(json.loads(artifact.manifest)["layer"])
             .files.items()
         }
@@ -221,6 +220,3 @@ def executing(artifact: RevisionArtifact) -> RevisionArtifact:
         )
     return executed
 
-
-def _resource_type(path: str) -> str:
-    return RESOURCE_TYPES.get(PurePosixPath(path).suffix, "application/octet-stream")

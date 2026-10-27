@@ -6,7 +6,8 @@ Tree-sitter reads JavaScript and tinycss2 reads CSS. Only the declared public
 layer entry points may cross from authored code into the layer. Neither the layer
 nor the runtime is captured: the Leaf delivering a revision supplies both
 (`runtime_selection`), the layer composed from the selection the manifest names, so
-the public entry points are addresses a capture names but never holds.
+the public entry points are addresses a capture names but never holds. Capturing
+`page/` whole lets page code fetch any of its files (`page_files`).
 
 A bundle contains exact source bytes, resources, MIME
 types, the effective registry, and implementation provenance. Its canonical
@@ -34,6 +35,7 @@ keeps that page (`page_memory`).
 
 import hashlib
 import json
+import mimetypes
 import os
 import re
 import sys
@@ -43,7 +45,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from functools import cache, cached_property, lru_cache, partial
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from types import MappingProxyType
 
 import turbohtml
@@ -71,13 +73,31 @@ PUBLIC_MODULES = ("/runtime/widget-api.js", "/vendor/floating-ui.esm.js")
 PAGE_DECLARATIONS = "/page/registry.json"
 
 
-RESOURCE_TYPES = {
+_RESOURCE_TYPES = {
     **CONTENT_TYPES,
     ".woff": "font/woff",
     ".woff2": "font/woff2",
     ".ttf": "font/ttf",
     ".otf": "font/otf",
 }
+# The standard library's own table, without the host's mime.types files, so a capture's
+# manifest names the same types on every machine.
+_STANDARD_TYPES = mimetypes.MimeTypes(filenames=())
+
+
+def resource_type(path: str) -> str:
+    """The MIME type a captured file is served with, by its suffix.
+
+    Leaf's own table decides what the runtime and capture read as a module, stylesheet
+    or media, and the standard library's names the rest, such as CSV, text and wasm,
+    so page code fetches any page file with its usual type. A suffix neither knows
+    is served as bytes."""
+    suffix = PurePosixPath(path).suffix.lower()
+    return (
+        _RESOURCE_TYPES.get(suffix)
+        or _STANDARD_TYPES.types_map[True].get(suffix)
+        or "application/octet-stream"
+    )
 
 
 @cache
@@ -243,7 +263,7 @@ def javascript_imports(data: bytes, path: str) -> tuple[tuple[int, int, str], ..
 
     A computed import() binds when it runs, so capture neither follows nor refuses it:
     a CDN module named that way loads, and a page file it names is in the revision
-    only if something imports it literally.
+    as every file under `page/` is (`page_files`).
 
     This reads imports, not syntax: the browser judges the module, and its error
     reaches the agent through `page check` or the watcher.
@@ -571,10 +591,13 @@ class _Capture(Slot):
 
 
 def capture_local_resource(page_dir: Path, path: str) -> Resource:
-    """Freeze one resolved page-local resource with the shared containment/MIME gate.
+    """Freeze one resolved page-local resource with the shared containment gate.
 
     Authored dependency capture and declared external-data media capture both
-    read exact bytes here. Callers own URL admission before supplying a path.
+    read exact bytes here. Callers own URL admission before supplying a path. A file
+    under `page/` or `media/` whose real path leaves its directory is refused, so a
+    symlink never puts a file from elsewhere on the machine into a revision, and from
+    there into a published site or an export.
     """
     source = page_dir / path.removeprefix("/")
     root = page_dir / ("page" if path.startswith("/page/") else "media")
@@ -589,15 +612,32 @@ def capture_local_resource(page_dir: Path, path: str) -> Resource:
         raise artifact_error(
             "dependency-unreadable", path, error=error.strerror
         ) from error
-    mime = RESOURCE_TYPES.get(
-        source.suffix,
-        "application/octet-stream"
-        if not path.startswith(("/page/", "/media/"))
-        else None,
-    )
-    if mime is None or mime == "text/html":
-        raise artifact_error("dependency-type", path)
-    return Resource(data, mime)
+    return Resource(data, resource_type(path))
+
+
+def page_files(page_dir: Path) -> list[str]:
+    """Every file under the page's `page/`, by its logical path, as a revision holds it.
+
+    A revision holds the whole directory, as an ordinary site serves its files, so page
+    code can fetch any of them by a URL it computes at run time; content addressing
+    lets an unchanged file cost a revision nothing. Hidden entries, such as an
+    editor's swap file or Finder's `.DS_Store`, are left out, as static hosts leave
+    them, so they never make a revision; a literal reference still captures one. A
+    symlinked directory is not descended: a file reached through it is captured by
+    its own path, or refused by `capture_local_resource` if it lies outside."""
+    root = page_dir / "page"
+    files = []
+    for directory, subdirectories, names in os.walk(root):
+        subdirectories[:] = [
+            name for name in subdirectories if not name.startswith(".")
+        ]
+        relative = Path(directory).relative_to(root)
+        files.extend(
+            "/" + (Path("page") / relative / name).as_posix()
+            for name in names
+            if not name.startswith(".")
+        )
+    return sorted(files)
 
 
 def resource_dependencies(path: str, data: bytes, mime: str) -> tuple[str, ...]:
@@ -664,10 +704,8 @@ def _capture_artifact(
     resources = capture.resources
 
     # The layer is the reading Leaf's (`registry.storage.revision_vocabulary`), so a
-    # revision captures only what its page owns: its declarations, its widgets, and
-    # what its document names. Its manifest names the layer's selection.
-    if (page_dir / PAGE_DECLARATIONS.lstrip("/")).is_file():
-        capture.add(PAGE_DECLARATIONS)
+    # revision captures only what its page owns: `page/`, its declarations among it,
+    # and what its document names. Its manifest names the layer's selection.
     for tag, entry in registry.items():
         if (
             is_element_name(tag)
@@ -737,6 +775,10 @@ def _capture_artifact(
     entries = [entry for entry in entries if entry is not None]
     for entry in entries:
         capture.add(entry)
+    # The rest of `page/` after what the document names, so a refusal names a file the
+    # author wrote a reference to before one nothing names.
+    for path in page_files(page_dir):
+        capture.add(path)
 
     implementations = {
         tag: {

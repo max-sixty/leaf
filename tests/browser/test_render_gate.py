@@ -1377,10 +1377,12 @@ def test_a_pane_compares_its_words_without_its_opaque_children_rendered_data(
         '<lf-pane id="files" label="Files"><header>Changed files</header>'
         '<lf-file-tree id="tree" for="patch"></lf-file-tree></lf-pane>'
         '<lf-pane id="code" label="Code"><header>Patch</header>'
+        '<div><svg id="drawing" viewBox="0 0 240 40"><text x="0" y="24">'
+        "UNCHANGED DRAWING</text></svg>"
         '<lf-diff id="patch" view="file"><pre>'
         "diff --git a/config.txt b/config.txt\n"
         "--- a/config.txt\n+++ b/config.txt\n@@ -1 +1 @@\n-old\n+new\n"
-        "</pre></lf-diff><footer>Tests not run</footer></lf-pane>",
+        "</pre></lf-diff></div><footer>Tests not run</footer></lf-pane>",
     )
     page = open_page(browser, live_url(serve(source, packages=("diff", "file-tree"))))
     assert render_checks_model.evaluate_probe(page, "wordsReadAsChanged") == []
@@ -1393,23 +1395,24 @@ def test_a_pane_compares_its_words_without_its_opaque_children_rendered_data(
     # The same prose boundary owns the inline explanation of a real revision.
     stamp_page(
         serve.page_dir,
-        source.replace(">Patch</header>", ">Approved patch</header>"),
+        source.replace(">Patch</header>", ">xxx  </header>").replace(
+            ">Tests not run</footer>", ">  yyy</footer>"
+        ),
         "Approve patch",
     )
     wait_for_revision(page, 2)
     compare_with(page, 1)
     change = page.locator('[data-lf-margin-for="code"] [data-lf-kinds~="change"]')
     change.click()
-    expect(page.locator("#code .lf-version-inline-deletion del")).to_have_text("Patch")
-    assert (
-        page.evaluate(
-            "() => [...CSS.highlights.get('lf-version-insert') ?? []].map(range => range.toString()).join(' ')"
-        )
-        == "Approved patch"
+    expect(page.locator("#code .lf-version-inline-deletion del")).to_have_text(
+        "Patch Tests not run"
     )
+    assert page.evaluate(
+        "() => [...CSS.highlights.get('lf-version-insert') ?? []].map(range => range.toString())"
+    ) == ["xxx  ", "  yyy"]
     expect(page.locator("#patch .lf-version-inline-deletion")).to_have_count(0)
     change.click()
-    expect(page.locator("#code > header")).to_have_text("Approved patch")
+    expect(page.locator("#code > header")).to_have_text("xxx")
     assert render_checks_model.evaluate_probe(page, "wordsReadAsChanged") == []
 
 

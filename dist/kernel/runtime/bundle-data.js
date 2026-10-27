@@ -8669,7 +8669,13 @@ function applyDiff(doc, baseAuthored, baseVersion, baseReading) {
 	return diffMarked.size;
 }
 const inlineId = (target) => `lf-version-inline-${target.id}`;
-const authoredReading = (target) => readingFrom(comparisonTextNodes(target));
+const authoredReading = (target) => {
+	const segments = comparisonTextNodes(target);
+	return {
+		...readingFrom(segments),
+		segments
+	};
+};
 function pointAt(target, reading, offset) {
 	if (!reading.units.length) return {
 		node: target,
@@ -8688,14 +8694,15 @@ function insertAt(target, reading, offset, node) {
 	else if (point.offset === text.data.length) move(text.parentNode, node, text.nextSibling);
 	else move(text.parentNode, node, text.splitText(point.offset));
 }
-function rangeAt(reading, start, end) {
+function rangesAt(reading, start, end) {
 	const first = reading.units[start];
 	const last = reading.units[end - 1];
-	if (!first || !last) return null;
-	const range = document.createRange();
-	range.setStart(first.start.node, first.start.offset);
-	range.setEnd(last.end.node, last.end.offset);
-	return range;
+	if (!first || !last) return [];
+	return reading.segments.slice(reading.segments.findIndex(({ node }) => node === first.start.node), reading.segments.findIndex(({ node }) => node === last.end.node) + 1).map((segment) => ({
+		...segment,
+		start: segment.node === first.start.node ? first.start.offset : segment.start,
+		end: segment.node === last.end.node ? last.end.offset : segment.end
+	})).filter(({ start, end }) => end > start).map((segment) => rangeOf([segment]));
 }
 function paintInlineInsertions() {
 	const ranges = [...inlineOpen.values()].flatMap((entry) => entry.ranges);
@@ -8736,7 +8743,7 @@ function openInlineComparison(target) {
 	}
 	insertions.sort((left, right) => right.offset - left.offset).forEach(({ offset, node }) => insertAt(target, reading, offset, node));
 	const currentReading = authoredReading(target);
-	const ranges = additions.map(([start, end]) => rangeAt(currentReading, start, end)).filter(Boolean);
+	const ranges = additions.flatMap(([start, end]) => rangesAt(currentReading, start, end));
 	target.classList.toggle("lf-version-inline", hasTextChange);
 	inlineOpen.set(target, {
 		nodes,

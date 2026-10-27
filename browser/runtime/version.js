@@ -109,6 +109,7 @@ import {
   inChrome,
   pageDocument,
   quoteFrom,
+  rangeOf,
   readingFrom,
   textNodesUnder,
 } from "./passages.js";
@@ -832,7 +833,10 @@ function applyDiff(doc, baseAuthored, baseVersion, baseReading) {
 // `.lf-ui`; comments, copies, and later comparisons therefore continue to read the exact
 // current document rather than the temporary historical words on screen.
 const inlineId = (target) => `lf-version-inline-${target.id}`;
-const authoredReading = (target) => readingFrom(comparisonTextNodes(target));
+const authoredReading = (target) => {
+  const segments = comparisonTextNodes(target);
+  return { ...readingFrom(segments), segments };
+};
 
 function pointAt(target, reading, offset) {
   if (!reading.units.length) return { node: target, offset: 0 };
@@ -854,14 +858,24 @@ function insertAt(target, reading, offset, node) {
   else move(text.parentNode, node, text.splitText(point.offset));
 }
 
-function rangeAt(reading, start, end) {
+function rangesAt(reading, start, end) {
   const first = reading.units[start];
   const last = reading.units[end - 1];
-  if (!first || !last) return null;
-  const range = document.createRange();
-  range.setStart(first.start.node, first.start.offset);
-  range.setEnd(last.end.node, last.end.offset);
-  return range;
+  if (!first || !last) return [];
+  // Normalized characters can span nodes, even a collapsed space on either side
+  // of an excluded widget. Paint only the retained segments, never the DOM gap.
+  return reading.segments
+    .slice(
+      reading.segments.findIndex(({ node }) => node === first.start.node),
+      reading.segments.findIndex(({ node }) => node === last.end.node) + 1,
+    )
+    .map((segment) => ({
+      ...segment,
+      start: segment.node === first.start.node ? first.start.offset : segment.start,
+      end: segment.node === last.end.node ? last.end.offset : segment.end,
+    }))
+    .filter(({ start, end }) => end > start)
+    .map((segment) => rangeOf([segment]));
 }
 
 function paintInlineInsertions() {
@@ -918,9 +932,9 @@ function openInlineComparison(target) {
     .forEach(({ offset, node }) => insertAt(target, reading, offset, node));
 
   const currentReading = authoredReading(target);
-  const ranges = additions
-    .map(([start, end]) => rangeAt(currentReading, start, end))
-    .filter(Boolean);
+  const ranges = additions.flatMap(([start, end]) =>
+    rangesAt(currentReading, start, end),
+  );
   target.classList.toggle("lf-version-inline", hasTextChange);
   inlineOpen.set(target, { nodes, ranges });
   paintInlineInsertions();

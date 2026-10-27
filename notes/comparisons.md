@@ -554,6 +554,41 @@ mockups, variants and design decisions. The inspected manifest was 2.4.1 with
 no GitHub releases returned. This is a workflow companion, not a new renderer
 standard or a newly launched competitor.
 
+## Chopin and Planning with Agents
+
+Read on 2026-10-27 from Maggie Appleton's talk
+[Planning with Agents](https://maggieappleton.com/planning-agents), its demo videos,
+and GitHub Next's [Chopin write-up](https://githubnext.com/projects/chopin)
+(research prototype, published September 2026, by Krzysztof Cieślak and Maggie
+Appleton). Chopin itself was not used.
+
+The talk argues that planning as multiple-choice questions in a CLI, ending in a wall
+of Markdown to approve, leaves the human unable to judge what they decide. Plans
+should be boundary objects built for human understanding: visual, interactive,
+social, and grounded in the real codebase. Chopin is a multiplayer planning document
+in an MDX editor, with a planner agent in a side chat, embedded diagrams, and
+decisions that record who answered and when. That is the closest product framing to
+Leaf's we have found: a shared document the agent writes, with decisions recorded in
+place. Leaf differs in its append-only log and revisions, and in running beside the
+user's own harness rather than hosting the agent. Chopin's write-up reports
+multiplayer planning, which Leaf doesn't do (see "When Leaf is the wrong choice").
+
+The talk's four demos each give one decision its own instrument: a shadow scale tuned
+on the app's real cards, with each shadow layer drawn as a tile; a card-motion easing
+curve to drag; a video player driving its own state diagram; and three retry-logic
+branches built and compared by every call site's outcome. Appleton says they were
+made "essentially designing all of these examples myself", since agents aren't yet
+good at visual explanation.
+
+On the same shadow-scale task, a fresh agent following Leaf's instructions built a
+settings form of percentage sliders, while an agent copying her design got the
+instrument close in about half an hour. What still pulled that copy down was Leaf's
+frame: a required generic control, page CSS skipping controls built with `offer()`,
+and the playground's own rail and actions bar. #4478 removes those three obstacles,
+and #4479 rewrites the playground author guide around the decision's goals. The
+lesson is that Leaf's value is the instrument shaped for the decision with Leaf's
+record behind it, and Leaf should stay out of that instrument's way.
+
 ## Further comparisons
 
 The following September leads were not deeply refreshed in the October survey;

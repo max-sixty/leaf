@@ -26,6 +26,7 @@
 
 import { html, render } from "/runtime/framework.js";
 import { offlineInteractive, pageUrl, runtimeResource } from "./context.js";
+import { inBaseLayer } from "./stylesheets.js";
 import {
   handBack,
   focusDestination,
@@ -99,10 +100,9 @@ function imageTools() {
     loading = import("../vendor/photoswipe.esm.js").then(
       ({ default: PhotoSwipe, styles }) => {
         const style = document.createElement("style");
-        // PhotoSwipe paints inside Leaf's dialog; page-sheet filtering must leave its
-        // positioning rules intact.
-        style.setAttribute("data-controls", "");
-        style.textContent = styles;
+        // Layered, as a dependency's defaults are, so the chrome's guard rolls back to
+        // them rather than past them (styles/chrome-guard.css).
+        style.textContent = inBaseLayer(styles);
         // The authored head is replaced on revision; the viewer owns these styles.
         mediaViewer.append(style);
         return PhotoSwipe;

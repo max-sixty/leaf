@@ -234,12 +234,13 @@ rather than rebuilding the event log in page code.
 
 ## Page CSS and Leaf's controls
 
-The page's CSS styles the page's content, not Leaf's panel, thread cards or the controls
-widgets build: a rule for `button` styles only the page's own buttons. To style Leaf's
-controls on purpose, put their rules in a separate `<style data-controls>` or
-`<link rel="stylesheet" data-controls>` element. Leaf leaves its rules and imports unchanged; use selectors that match only
-the controls you intend to change. Set the marker
-before attaching a dynamic sheet. A token such as `--accent` on `:root` changes every surface that reads it. For
+The page's CSS is ordinary CSS over the whole document: a rule for `button` styles the
+buttons widgets build as well as the page's own. Give each rule a selector that names
+what it means to style, such as a class on your own controls or a widget's id before
+its controls (`#triage button`). Leaf's panel and thread cards keep their own look
+against a page rule as light as one class (`button`, `.card`); a heavier selector such
+as `button:hover`, an `!important` declaration or a rule in the page's own `@layer`
+reaches them too, so name your own content in it. A token such as `--accent` on `:root` changes every surface that reads it. For
 a page-specific inset, use the frame declaration in `package-themes.md`, "A theme
 change".
 

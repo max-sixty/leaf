@@ -1947,7 +1947,8 @@ def test_a_seed_no_writer_could_send_stops_the_page_it_seeds(tmp_path, monkeypat
     """An example's companion log enters through the append door, so a seed in a
     shape no real page holds fails the build that lays it in, rather than reaching
     the site and every sweep. A line copied from a stored log is that shape: it
-    carries what admission derives, which goes stale as the contract moves."""
+    carries what admission derives, which goes stale as the contract moves. A
+    line separator inside a message stays inside it."""
     monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
     source = tmp_path / "seeded.html"
     source.write_text(PAGE)
@@ -1955,21 +1956,26 @@ def test_a_seed_no_writer_could_send_stops_the_page_it_seeds(tmp_path, monkeypat
         "kind": "comment",
         "author": "user",
         "revision": 1,
-        "text": "Why this plan?",
+        "text": "Why this plan?\u2028Spring is soon.",
         "anchor": {"section": "plan"},
         "attention": True,
     }
-    source.with_suffix(".jsonl").write_text(json.dumps(stored) + "\n")
-    with pytest.raises(RuntimeError, match="attention"):
+    source.with_suffix(".jsonl").write_text(
+        json.dumps(stored, ensure_ascii=False) + "\n"
+    )
+    with pytest.raises(click.ClickException, match="attention"):
         prepare_page(
             tmp_path / "page", read_fixture(source), run_leaf, final_status=None
         )
     del stored["attention"]
-    source.with_suffix(".jsonl").write_text(json.dumps(stored) + "\n")
+    source.with_suffix(".jsonl").write_text(
+        json.dumps(stored, ensure_ascii=False) + "\n"
+    )
     page = tmp_path / "admitted"
     prepare_page(page, read_fixture(source), run_leaf, final_status=None)
     [seeded] = [e for e in events_model.read_events(page) if e["kind"] == "comment"]
     assert seeded["attention"] is True
+    assert seeded["text"] == stored["text"]
 
 
 def test_page_state_reads_reactions_as_marks(page_dir):

@@ -1904,7 +1904,7 @@ def test_side_list_history_restores_the_reading_offset_of_each_entry(
         for name in ("A", "B")
     )
     body += "</lf-tabs>"
-    head = """<style data-controls>
+    head = """<style>
     @container (width >= 36rem) {
       #views > .lf-tabstrip {position: sticky; top: var(--lf-top, 0px);
         align-self: start; max-block-size: 100dvh; overflow-y: auto;}

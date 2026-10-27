@@ -285,8 +285,8 @@ def test_travel_puts_away_a_panel_view_standing_over_where_it_lands(browser, ser
     expect_walk_position(page, "1 of 3 waiting on me · Options")
     lands_whole("#mid-ask")
     expect(thread).to_have_count(1)
-    expect(page.locator(".lf-fp-field leaf-text")).to_have_attribute(
-        "placeholder", "1 of 3 waiting on me · Options"
+    expect(page.locator(".lf-fp-field .lf-compose-placeholder-lead")).to_have_text(
+        "1 of 3 waiting on me · Options"
     )
 
     page.keyboard.press("m")

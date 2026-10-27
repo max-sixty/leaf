@@ -105,7 +105,7 @@
     "runtime/kernel-registry.json": "6620b36a63a1a9eccf7239797fa01d1a4d557373a44ec9425e9a84c023a2fb87",
     "runtime/keyboard/bindings.js": "50bf8ef73e53ea2174ce7fcd996d004122e9040814359f8263d1aaabc279a260",
     "runtime/keyboard/chip-seats.js": "96b59edd240941e50aa06dcbfc9d4117fe47a8b2ea713d56ebd60bc9fb0285ee",
-    "runtime/keyboard/close-requests.js": "c88e3c90b5f00cd72f4f71da59e9e03732bf3c732f5ba63d0e94c09638458c94",
+    "runtime/keyboard/close-requests.js": "aebf0cbb6bc31551e378399f97ade6447b30db5be065dfc12be887babfbbe1b4",
     "runtime/keyboard/command-hints.js": "d5077da54e5d361ab151557996a8029fef5c5bd0ee34f930a8cf81c8a1446ab8",
     "runtime/keyboard/command-reference.js": "58634bd36c315b4712c7a839c1da110b33176ce7f858e1d91e6c606b7dff801d",
     "runtime/keyboard/control-keys.js": "cc48f03f521d36a36feae8f5cadd61f69794ccc9574c4b138d1b18e1447d24cf",

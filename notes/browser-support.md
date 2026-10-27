@@ -29,6 +29,20 @@ what fails and what still works.
 
 ## Known gaps
 
+### Tab underline travel between anchors
+
+The selected-tab underline in `packages/default/styles/tabs.css` follows its
+label with CSS anchors. Playwright Firefox 155.0, build 1543, moved directly to
+the new anchor on 2026-10-26, without a transition or `transitionrun` event;
+Chromium 153.0.8010.12 interpolated its position and width. Instant selection
+is an accepted visual difference: the selected label, panel, keyboard routes
+and nested strips remain usable. Recheck by opening `lost-update` with
+`leaf-dev probe --firefox --motion no-preference`, selecting the adjacent tab
+with the pointer and inspecting `.lf-tab-selection` across animation frames.
+The Chromium behavior and interruption contract are covered by
+`test_pointer_tab_underline_moves_without_delaying_the_view` in
+`tests/browser/widgets/test_tabs.py`.
+
 ### Scroll-state containers
 
 Firefox 157 and Playwright Firefox and WebKit 26.6 lacked CSS scroll-state

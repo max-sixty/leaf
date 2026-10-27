@@ -15,6 +15,7 @@ from .layer import (
     checked_inputs,
     checked_layer_inputs,
     compose_layer,
+    imported_sheets,
     input_paths,
     layer_inputs,
     named_package,
@@ -308,6 +309,13 @@ def copy_package_contract(package: Path, staged: Path) -> None:
         source = package / name
         if source.is_file():
             shutil.copy2(source, staged / name)
+            # A sheet's imports are part of it (`layer.stylesheet`).
+            for imported in (
+                imported_sheets(source, package) if name.endswith(".css") else ()
+            ):
+                target = staged / imported.relative_to(package.resolve())
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(imported, target)
     for name in PACKAGE_DIRS:
         source = package / name
         target = staged / name

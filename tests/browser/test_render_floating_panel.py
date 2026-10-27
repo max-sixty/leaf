@@ -74,7 +74,6 @@ OBLIGATION_PAGE = leaf_page(
 )
 
 
-
 def floating(browser, url):
     page = open_page(browser, url)
     expect(page.locator(".lf-floating-panel")).to_be_visible()

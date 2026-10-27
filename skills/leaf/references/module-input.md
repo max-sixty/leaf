@@ -292,5 +292,6 @@ its id:
 
 `lf-options`' box for adding an option (`lf-options-addition.js`) is the worked example.
 
-For a CodeMirror editor, construct `LeafEditorView` in place of `EditorView`, so focus
-and reveals go through Leaf.
+For a CodeMirror editor, construct the class `leafEditorView(codemirror)` returns in
+place of `EditorView`, so focus and reveals go through Leaf. Pass the module your widget
+imports (`import * as codemirror from "/vendor/codemirror.esm.js"`).

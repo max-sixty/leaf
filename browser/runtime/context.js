@@ -183,7 +183,7 @@ export const runtime = {
   get versions() {
     return part.versions();
   },
-  // The newest revision a tab showed the user before they left it, or null
+  // The newest revision a tab showed the user while they were there, or null
   // (`read_state.seen_revision`).
   get seen() {
     return part.seen();

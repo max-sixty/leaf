@@ -31,6 +31,7 @@ import { outlineSubjectFor, pageOutline } from "./thread/placement.js";
 import {
   isPageWidgetWorkflow,
   isWorkflowProgress,
+  progressFace,
   strongestWorkflow,
   todoLabel,
   workflowLabel,
@@ -481,6 +482,8 @@ export function createAnnotationInventory({
       add(groups, target, {
         kind: "activity",
         id: `todo:${todo.id}`,
+        // A start running on it is the agent at work there (at-work.js).
+        atWork: Boolean(running),
         text: labelWords(account),
         workflowFace: Object.freeze({ ...KINDS.activity, label }),
         context: [age && `Checked in ${age}`, running && todo.title]
@@ -558,6 +561,11 @@ export function createAnnotationInventory({
             offers: Object.freeze(group.offers.map((offered) => offered.model)),
             items: Object.freeze(group.items.map(captureItem)),
             workflowReceipt: workflowReceipt(group.items),
+            // Whether the agent is at work on this target, and not stalled: an update
+            // here it is working on or replying to, or a to-do with a start running.
+            atWork:
+              progressFace(workflowReceipt(group.items)) === "working" ||
+              group.items.some((item) => item.atWork),
           });
         }),
     );

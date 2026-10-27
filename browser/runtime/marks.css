@@ -23,13 +23,3 @@
   outline-offset: -1px;
   cursor: pointer;
 }
-/* Where the agent is at work (at-work.js): a bar in the margin beside the block, in the
-   accent its margin entry wears while it works. A border image takes no room and needs
-   no positioned box, so the page's layout and its own boxes stay as authored; the
-   outset stands the bar clear of the words. It replaces the block's own border paint
-   while it stands, and comes and goes with the work, whose start the margin entry's
-   pulse acknowledges. */
-[data-lf-at-work] {
-  border-image: linear-gradient(var(--accent), var(--accent)) 0 0 0 1 / 0 0 0 3px / 0 0
-    0 calc(var(--lf-at-work-gap, 10px) + 3px);
-}

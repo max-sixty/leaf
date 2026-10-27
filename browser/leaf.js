@@ -93,6 +93,7 @@ import {
   createCommandHints,
 } from "./runtime/keyboard/command-hints.js";
 import { createDesignMode, inspectEl, legendRoot } from "./runtime/design.js";
+import { atWorkLayer } from "./runtime/at-work.js";
 import { createPageLayout } from "./runtime/page-layout.js";
 import { restoreUserView } from "./runtime/restore-state.js";
 import { createVersionController } from "./runtime/version.js";
@@ -686,6 +687,7 @@ async function boot() {
     );
     chromeRoot.append(
       legendRoot,
+      atWorkLayer,
       ...(visualMarkPaint ? [visualMarkPaint.layer] : []),
       drawingPaint.layer,
       fabBar,

@@ -10,7 +10,8 @@ from interact_support import append_command, served_state_error
 from leaf import event_log as events_model
 from leaf import revisioning as revisioning_model
 from leaf.event_log import EventRefused
-from leaf.served_state.page import full_state
+from leaf.served_state.context import read_page
+from leaf.served_state.page import full_state, read_served_page
 
 
 def served(page_dir):
@@ -54,3 +55,15 @@ def test_a_tab_can_say_it_showed_only_a_revision_the_page_holds(page_dir):
     revisioning_model.activate_source(page_dir)
     with pytest.raises(EventRefused, match="unknown-revision|revision"):
         append_command(page_dir, {"kind": "seen", "author": "user", "revision": 9})
+
+
+def test_a_hosted_copy_marks_nothing_for_its_reader(page_dir):
+    """A publication freezes the whole log, the author's `seen` included, but its
+    reader is not the page's user, so the copy serves no revision to mark since."""
+    first = revisioning_model.activate_source(page_dir).revision
+    append_command(page_dir, {"kind": "seen", "author": "user", "revision": first})
+    revise(page_dir, "A revision the author has not been shown.")
+    context = read_page(page_dir, events_model.read_events(page_dir))
+    assert read_served_page(context).state["seen"]["revision"] == first
+    hosted = read_served_page(context, publication={"agent": "Claude"}).state
+    assert hosted["seen"] is None

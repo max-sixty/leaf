@@ -103,7 +103,7 @@
           "additionalProperties": { "type": "string" }
         },
         "seen": {
-          "description": "The newest revision a tab showed the user before they left it (`read_state.seen_revision`), which the browser marks the page's changes since, or null before any.",
+          "description": "The newest revision a tab showed the user while they were there, posted as they left (`read_state.seen_revision`), which the browser marks the page's changes since; null before any, and on a hosted copy, whose reader is not the page's user.",
           "anyOf": [{ "$ref": "#/$defs/Revision" }, { "type": "null" }]
         },
         "source_error": {

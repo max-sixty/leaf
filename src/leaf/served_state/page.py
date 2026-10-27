@@ -75,9 +75,10 @@ def read_served_page(
                 | {event["revision"] for event in context.events if "revision" in event}
             )
         },
+        # What the page's own user last saw; a hosted copy's reader is someone else.
         "seen": (
             context.descriptor(seen)
-            if (seen := seen_revision(context.events)) is not None
+            if not publication and (seen := seen_revision(context.events)) is not None
             else None
         ),
         "source_error": source_error,

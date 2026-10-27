@@ -1212,6 +1212,22 @@ def diff_file_reply(page: Page) -> None:
     )
 
 
+def diff_moved_reply(page: Page) -> None:
+    """The active reply after a widget moves its thread outlets outside its owner."""
+    diff_file_reply(page)
+    sample = page.frame_locator("#dfg-sample iframe")
+    diff = sample.locator("#dfg-patch")
+    diff.evaluate("""async widget => {
+      const boot = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
+      const {threadSurface} = await import(new URL('runtime/widget-api.js', new URL(boot, location.href)));
+      for (const outlet of widget.shadowRoot.querySelectorAll('.lf-diff-thread-outlet'))
+        document.querySelector('main').append(outlet);
+      threadSurface(widget).update();
+    }""")
+    expect(diff.locator(".lf-page-thread")).to_have_count(0)
+    settle(page)
+
+
 def diff_file_resolved_closed(page: Page) -> None:
     """Both conversations under a diff file resolved, their outlet as it folds them."""
     diff = page.frame_locator("#dfg-sample iframe").locator("#dfg-patch")
@@ -2027,6 +2043,7 @@ STATES = (
         region="#worktree-example-workbench",
     ),
     State("diff-file-reply", "developer/diff-thread-gallery", diff_file_reply),
+    State("diff-moved-reply", "developer/diff-thread-gallery", diff_moved_reply),
     State(
         "diff-file-resolved-closed",
         "developer/diff-thread-gallery",

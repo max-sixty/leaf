@@ -17,7 +17,7 @@ from render_cases_interaction import (
     live_url,
     panel_comment,
 )
-from render_cases_layout import token_colour
+from render_cases_layout import page_at_rest, token_colour
 from render_cases_navigation import (
     ADDRESSED_PAGE,
     CHIPS,
@@ -1884,11 +1884,12 @@ def _stale_keys(page):
     finishes, so the reading waits for both: for the page's readiness, which includes
     every live sample's arrival, and for every send to come back. It waits too for
     every fullscreen request the input made, which moves focus when the browser
-    answers it."""
+    answers it, and for finite motion: a closing card hides its reply box at the
+    fade's end, changing which keys apply."""
     wait_until_ready(page)
     round_trip(page)
     page.wait_for_function("() => window.__lfFullscreenRequests === 0")
-    rendered(page)
+    page_at_rest(page)
     painted = page.evaluate_handle(_PAINTED_KEYS)
     page.evaluate("async () => (await window.__lfWidgetApi()).paintKeys()")
     rendered(page)

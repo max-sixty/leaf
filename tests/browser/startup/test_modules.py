@@ -106,7 +106,7 @@ Two classic models.</pre></lf-code>
     expect(rows).to_have_count(0)
     write(page_comment(page), "General comment during startup")
     page.keyboard.press("ControlOrMeta+Enter")
-    expect(page.locator(".lf-live")).to_have_text("Message sent")
+    expect(page.locator(".lf-live")).to_have_text("Message added")
     assert page.evaluate("() => CSS.highlights.get('lf-mark')?.size ?? 0") == 0
 
     # The visible document has not upgraded yet, so anchored capture is not ready.
@@ -275,6 +275,140 @@ def test_comment_focus_waits_for_the_lazy_placement_module(browser, serve):
         for route in held:
             route.continue_()
         context.unroute_all(behavior="wait")
+
+
+def _hold_the_editor(context):
+    """Hold CodeMirror's module; the returned list collects each held request."""
+    held = []
+    context.route("**/vendor/codemirror.esm.js", lambda route: held.append(route))
+    return held
+
+
+def _release(page, held, context):
+    while held:
+        held.pop(0).continue_()
+    wait_until_ready(page)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_words_typed_while_the_editor_loads_are_its_first_words(engine, request, serve):
+    """CodeMirror stays off the presentation path: held, it keeps the page from reading
+    as arrived but not from presenting. `c` still puts the user in the page comment's
+    field in the same turn, and what they type before CodeMirror arrives, where they
+    moved the caret to and the line Shift+Return broke included, is what the editor
+    holds once it does, as one step undo takes back."""
+    browser = request.getfixturevalue(engine)
+    context = browser.new_context(viewport={"width": 1280, "height": 800})
+    held = _hold_the_editor(context)
+    page = open_page(browser, serve(LONG_PAGE), context=context, upgraded=False)
+    field = page.locator('.lf-fp-field leaf-text[name="comment"]')
+    try:
+        wait_until_ready(page, through="presented")
+        holding(page, held, 1, "CodeMirror")
+        assert (
+            page.evaluate(
+                "() => document.querySelector('script[data-lf-entry]').lfReadiness(null)"
+            )
+            == "arrived"
+        )
+        page.keyboard.press("c")
+        expect(field).to_be_focused()
+        page.keyboard.type("Typed early")
+        page.keyboard.press("ArrowLeft")
+        page.keyboard.press("ArrowLeft")
+        page.keyboard.type(" and")
+        page.keyboard.press("Shift+Enter")
+        expect(field).to_have_js_property("value", "Typed ear and\nly")
+        expect(field).to_have_js_property("selectionStart", len("Typed ear and\n"))
+
+        _release(page, held, context)
+        expect(field).to_be_focused()
+        page.keyboard.type("kept ")
+        expect(field).to_have_js_property("value", "Typed ear and\nkept ly")
+        page.keyboard.press("ControlOrMeta+z")
+        expect(field).to_have_js_property("value", "Typed ear and\nly")
+        page.keyboard.press("ControlOrMeta+z")
+        expect(field).to_have_js_property("value", "")
+    finally:
+        for route in held:
+            route.continue_()
+        context.unroute_all(behavior="wait")
+
+
+def test_a_kept_draft_and_an_input_method_reach_the_editor_as_it_loads(browser, serve):
+    """While CodeMirror loads, a field's kept draft stands in its place with the caret
+    where the draft left it, so words typed on arrival follow the draft, and a selection
+    the page sets is where typing lands. Words an input
+    method is still composing as CodeMirror lands join the field once committed, once."""
+    context = browser.new_context(viewport={"width": 1280, "height": 800})
+    page = open_page(browser, serve(LONG_PAGE), context=context)
+    field = page.locator('.lf-fp-field leaf-text[name="comment"]')
+    page.keyboard.press("c")
+    page.keyboard.type("Kept")
+    expect(field).to_have_js_property("value", "Kept")
+    held = _hold_the_editor(context)
+    try:
+        page.reload()
+        wait_until_ready(page, through="presented")
+        holding(page, held, 1, "CodeMirror")
+        page.keyboard.press("c")
+        expect(field).to_be_focused()
+        page.keyboard.type(" words")
+        expect(field).to_have_js_property("value", "Kept words")
+        # A selection the page sets stands where the user types next.
+        field.evaluate("(field) => field.setSelectionRange(0, 4)")
+        page.keyboard.type("Held")
+        expect(field).to_have_js_property("value", "Held words")
+        page.keyboard.press("ControlOrMeta+a")
+        page.keyboard.press("Backspace")
+        expect(field).to_have_js_property("value", "")
+
+        ime = context.new_cdp_session(page)
+        ime.send(
+            "Input.imeSetComposition",
+            {"text": "にほ", "selectionStart": 2, "selectionEnd": 2},
+        )
+        _release(page, held, context)
+        ime.send("Input.insertText", {"text": "日本"})
+        expect(field).to_have_js_property("value", "日本")
+        expect(field).to_be_focused()
+    finally:
+        for route in held:
+            route.continue_()
+        context.unroute_all(behavior="wait")
+
+
+def test_an_unavailable_editor_module_leaves_fields_writing_plain_words(browser, serve):
+    """When CodeMirror's module fails to load, Leaf reports it each time a field asks
+    for its editor, and the field keeps the plain words it holds while waiting for one:
+    the user types, Shift+Return breaks the line, and Return sends."""
+    url = serve(LONG_PAGE)
+    page = browser.new_page(viewport={"width": 1280, "height": 800})
+    watched(page)
+    page.route("**/vendor/codemirror.esm.js", lambda route: route.abort())
+    page.goto(url, wait_until="load")
+    wait_until_ready(page)
+    failed = ("Failed to fetch dynamically imported module", "net::ERR_FAILED")
+    consume_browser_errors(page, *failed)
+
+    page.evaluate(RELEASE_FOCUS)
+    field = page.locator('.lf-fp-field leaf-text[name="comment"]')
+    with page.expect_event("pageerror") as raised:
+        page.keyboard.press("c")
+    assert failed[0] in str(raised.value)
+    consume_browser_errors(page, *failed)
+    expect(field).to_be_focused()
+    page.keyboard.type("Written")
+    page.keyboard.press("Shift+Enter")
+    page.keyboard.type("plain")
+    expect(field).to_have_js_property("value", "Written\nplain")
+    # The thread's reply field, opening in the sent comment's place, asks for the
+    # editor again.
+    with page.expect_event("pageerror") as raised:
+        page.keyboard.press("Enter")
+    assert failed[0] in str(raised.value)
+    expect(page.locator(".lf-live")).to_have_text("Message added")
+    consume_browser_errors(page, *failed)
 
 
 def test_an_unavailable_floating_ui_module_leaves_no_surface_open_and_unseen(

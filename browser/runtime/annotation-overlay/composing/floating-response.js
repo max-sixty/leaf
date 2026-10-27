@@ -23,7 +23,8 @@
    presenter writes those attributes and never the bar's visibility, and composition
    writes only whether the bar stands inline (`data-lf-presentation`), so neither leaves
    a visibility behind for the other to undo. */
-import { cancelRender, nextRender } from "../../rendering.js";
+import { cancelRender, nextRender, sizeObserver } from "../../rendering.js";
+import { boxMotion } from "../../box-motion.js";
 import { sameAnchor } from "../../anchor-coordinate.js";
 import { declareOffFlowSurface } from "../../off-flow.js";
 import { rightCover, shownBox } from "../../geometry.js";
@@ -41,7 +42,7 @@ import { coarsePointer } from "../../pointer.js";
 import { LAYOUT } from "../../widget-elements.js";
 import { under } from "../../shadow.js";
 import { union } from "../../rect.js";
-import { floatingPlacement, floatingUi } from "../floating.js";
+import { floatingPlacement, floatingUi, heldEdges } from "../floating.js";
 import { surfaceGrip } from "../surface-grip.js";
 import {
   commentAttachment,
@@ -101,6 +102,52 @@ export function createFloatingResponsePlacement({
     },
   });
   fabBar.append(carry.grip);
+  // The field's frame, which `wireInput` builds around the editor as the composer
+  // mounts: the box the user sees.
+  const fabField = () => fabInput.parentElement;
+  // The box follows every change of its layout as the panel and the card do
+  // (box-motion.js): a line the field gains or loses, the measure it widens into. The
+  // field's frame is the box, drawn by a surface behind it, and the composer holding
+  // the field and the pictures hanging off it is what moves, so the grip beside it,
+  // whose clip opens its middle to the field's presses, is never cut. It reads in the
+  // plane its placement stands it in (floating.js, `heldEdges`), so a scroll or a carry
+  // that moves it whole moves nothing in it. A box no placement stands has nothing to
+  // move from, and one seated in a widget's outlet stands in that widget's flow.
+  let following = null;
+  const readFab = () => {
+    if (!following && !response.open) return;
+    if (!response.floating || !fabBar.hasAttribute("data-lf-placement"))
+      return following?.forget();
+    following ??= fabMotion();
+    following.follow();
+  };
+  // A change of the open box's size can move its placement too, as a line taking it
+  // past the window's edge shifts it. That placement lands asynchronously, but before
+  // this frame paints, so the reading waits for it and the box travels once, from
+  // where it was drawn to where it then stands. Read first, the box set out for where
+  // its old placement stood it and turned back a frame later.
+  const followed = sizeObserver(() => {
+    if (following && response.open && fabBar.hasAttribute("data-lf-placement")) {
+      nativeAttachment = false;
+      if (placeFab()) return;
+    }
+    readFab();
+  });
+  function fabMotion() {
+    const box = fabField();
+    const motion = boxMotion({
+      root: box.parentElement,
+      box,
+      surface: "lf-fab-ground",
+      lift: 1,
+      outset: 0,
+      observer: followed,
+      held: () => heldEdges(fabBar),
+    });
+    fabBar.prepend(motion.ground);
+    followed.observe(box.parentElement);
+    return motion;
+  }
   // The browser's selected Range is a mechanical place even when its durable quote
   // is ambiguous. Keep it for its anchor, only while its original endpoints survive,
   // across the box's tenures: the box coming back to that draft, as a refused send's
@@ -113,7 +160,7 @@ export function createFloatingResponsePlacement({
   const fabFrameAt = () => {
     if (!response.open || !response.floating) return null;
     const bar = fabBar.getBoundingClientRect();
-    const field = fabInput.getBoundingClientRect();
+    const field = fabField().getBoundingClientRect();
     const style = getComputedStyle(fabBar);
     const scaleX = bar.width / parseFloat(style.width);
     const scaleY = bar.height / parseFloat(style.height);
@@ -131,6 +178,8 @@ export function createFloatingResponsePlacement({
         height * scaleY,
       ).toJSON(),
       placement: fabPlacement.capture(),
+      // The field the card grows out of (thread-preview.js, `followCard`).
+      field: following?.outline() ?? field.toJSON(),
       // How far the words stand above their end: where the user was reading them,
       // which the card Send opens keeps (thread-preview.js, `showArrival`).
       fromEnd: fabInput.scrollHeight - fabInput.clientHeight - fabInput.scrollTop,
@@ -170,6 +219,7 @@ export function createFloatingResponsePlacement({
     cancelRender(fabPositionFrame);
     fabPositionFrame = 0;
     if (!reset) return;
+    following?.forget();
     editingAttachment = null;
     windowPosture = false;
     fabPlacement.forget();
@@ -455,12 +505,21 @@ export function createFloatingResponsePlacement({
         if (!position || !stillCurrent()) return;
         fabPlacement.landed(position);
         editingAttachment = response.open ? attachment : null;
-        keeps(fabBar, "data-lf-placement", position.placement);
-        fabPosition.stand(position);
+        // An open box's placement moves it only for a change of layout, as a line
+        // taking it past the window's edge shifts it, and never for a scroll, which
+        // carries it by CSS anchors (`watchFabPosition`), so what it moves travels.
+        const stand = () => {
+          keeps(fabBar, "data-lf-placement", position.placement);
+          fabPosition.stand(position);
+        };
+        if (following) following.placed(stand);
+        else stand();
         carry.placed();
         nativeAttachment = response.open && fabPosition.follows();
         positioned(true);
         stoodAgain();
+        // The box's spot is the first reading its motion follows from.
+        readFab();
         return true;
       })
       .catch((error) => {

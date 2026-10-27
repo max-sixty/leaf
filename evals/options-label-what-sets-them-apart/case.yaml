@@ -117,3 +117,12 @@ assert:
       outside every option's title and body, and only that option is marked
       recommended. Fail if any option's title or body holds the author's argument
       for picking it, or if the reason is missing.
+  - type: llm-rubric
+    metric: labels-fit-one-line
+    value: |
+      Find every option's labels: its `tags` values or literal `<small class="tag">`
+      text, plus "recommended" on the advised option. Pass only if each label is a
+      word or two of at most about 16 characters, such as "effort: small" or
+      "1 day", so a card's labels could share one line. Fail if any label is a
+      phrase or clause, such as "about two days of work" or "reaches every gesture
+      ever made".

@@ -19,6 +19,12 @@
    adds Leaf's sheets without discarding them. A renderer that replaces the adopted
    list stages again before yielding, restoring the shared annotation sheets too.
 
+   The host's light children go too: an x-shadow widget shows only its stage and slots
+   none of its authored children, so what the page authored inside it (a placeholder, the
+   source a widget read) is cleared here, child by child. Read it before staging. WebKit's `replaceChildren()` and `textContent = ""` on a shadow host
+   unload every iframe in its shadow tree, even with no child to remove, so a widget
+   that cleared its own host reloaded each frame in a diff thread or an editor.
+
    The root is infrastructure owned here, not a template render container. Stage a
    concrete container and render templates inside it; retaining that container across
    stage updates keeps Lit's markers, native editors, and directive lifetimes intact. */
@@ -61,6 +67,7 @@ export function shadowStage(host, nodes) {
   // Fragment hydration can add a sheet while the user uses an existing control.
   // Keep retained nodes connected, preserving their focus and widget lifecycle.
   setChildren(root, [style, ...nodes]);
+  for (const child of [...host.childNodes]) child.remove();
   // The page reading walks in here at the host's place in the string, and its observer
   // does not cross the boundary on its own.
   watchPassageRoot(root);

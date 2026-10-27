@@ -97,42 +97,6 @@ from leaf.render_gate.scheme import console_finding
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
-def test_sort_source_follows_the_initial_step_when_code_arrives_later(browser, serve):
-    """The film may paint its first step before the code's tokenizer returns."""
-    example = next(path for path in EXAMPLES if path.stem == "rust-sort")
-    context = browser.new_context(
-        reduced_motion="reduce", viewport={"width": 1440, "height": 900}
-    )
-    held = []
-    context.route("**/vendor/syntax.esm.js", lambda route: held.append(route))
-    page = open_page(
-        browser,
-        serve(example),
-        context=context,
-        upgraded=False,
-        wait_until="domcontentloaded",
-    )
-    expect(page.locator("#sort-film .sort-moment")).to_have_attribute(
-        "data-part", "moment:random:7:0"
-    )
-    expect(page.locator("#sort-source [data-lf-indicated]")).to_have_count(0)
-    assert held
-    for route in held:
-        route.continue_()
-    context.unroute_all(behavior="wait")
-    wait_until_ready(page)
-    source = page.locator("#sort-source")
-    indicated = source.locator("[data-lf-indicated]")
-    expect(indicated).to_have_count(1)
-    body = source.bounding_box()
-    line = indicated.bounding_box()
-    assert body["y"] + 40 <= line["y"]
-    assert line["y"] + line["height"] <= body["y"] + body["height"] - 40
-    expect(page.locator("#sort-film .sort-moment")).to_have_attribute(
-        "data-part", "moment:random:7:0"
-    )
-
-
 def test_sort_film_readout_and_narration(browser, serve):
     """Changing step numbers hold their space, and narration renders inline Markdown."""
     example = next(path for path in EXAMPLES if path.stem == "rust-sort")
@@ -1124,7 +1088,7 @@ def test_a_tab_set_whose_runtime_could_not_start_shows_every_panel(browser, serv
     page.route("**/widgets/lf-tabs.js", lambda route: route.abort())
     page.goto(url, wait_until="load")
     expect(
-        page.get_by_text("Leaf couldn't start. Waiting for the server to update.")
+        page.get_by_text("Leaf couldn't start. Waiting for Leaf to update.")
     ).to_be_visible()
     expect(page.locator("#views")).not_to_have_class("lf-rendered")
     expect(page.locator("#first")).to_be_visible()
@@ -1150,7 +1114,7 @@ def test_a_drawing_that_will_never_draw_claims_no_room(browser, serve):
     page.route("**/widgets/lf-diagram.js", lambda route: route.abort())
     page.goto(url, wait_until="load")
     expect(
-        page.get_by_text("Leaf couldn't start. Waiting for the server to update.")
+        page.get_by_text("Leaf couldn't start. Waiting for Leaf to update.")
     ).to_be_visible()
     expect(page.locator("body")).not_to_have_attribute("data-lf-upgraded", "1")
     at = page.evaluate("""() => {
@@ -1431,7 +1395,8 @@ def test_a_boards_minimum_keeps_the_room_the_column_can_grant(browser, serve):
     """A widget's preferred minimum never claims the sidebar's margin. Native wide and
     available blocks read the same capacity; four and five board columns previously
     overrode it at mid widths, while the control without a sidebar fitted there.
-    Narrow boards scroll their columns inside that allocation rather than the page.
+    A board too narrow to share between columns stacks them inside that allocation,
+    so neither it nor the page scrolls sideways.
     """
     sidebar = '<aside class="sidebar"><lf-toc id="contents"></lf-toc></aside>'
     boards = "".join(
@@ -1471,8 +1436,8 @@ def test_a_boards_minimum_keeps_the_room_the_column_can_grant(browser, serve):
                 assert at[name]["right"] <= at["room"]["right"] + 1, (width, at)
             assert root_overflow(page) == 0, (width, at)
             if width == 540:
-                assert at["board-4"]["scrolls"] > 0, at
-                assert at["board-5"]["scrolls"] > 0, at
+                assert at["board-4"]["scrolls"] == 0, at
+                assert at["board-5"]["scrolls"] == 0, at
             elif width == 1440:
                 assert at["wide"]["width"] == pytest.approx(wide_width(page), abs=1), at
                 assert at["room"]["width"] > at["wide"]["width"], at
@@ -1949,6 +1914,46 @@ def test_a_tables_rows_span_the_prose_and_its_outer_words_stand_in_alike(
         start, end = row["inset"]
         assert start > 0.5, at
         assert start == pytest.approx(end, abs=0.5), at
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_row_of_metrics_sets_every_figure_on_one_line(request, serve, engine):
+    """A row of metric tiles reads as figures compared across it, so each figure stands
+    on one line whichever labels wrap and whichever figures carry a change beside them.
+    A label wrapping to a second line had set its own figure a line lower."""
+    tile = '<dl id="{}" class="metric"><dt>{}</dt><dd><strong>{}</strong>{}</dd></dl>'
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "metrics",
+                '<h1>This week</h1><div class="layout-tiles">'
+                + tile.format("short", "checks", "12", " <small>change: +3</small>")
+                + tile.format(
+                    "long",
+                    "open failures across every regional cluster since the last release",
+                    "2",
+                    "",
+                )
+                + tile.format("plain", "duration", "4 min", "")
+                + "</div>",
+            )
+        ),
+    )
+    resized(page, 1440, 900)
+    figures = page.evaluate(
+        """() => ['short', 'long', 'plain'].map((id) => {
+          const tile = document.getElementById(id);
+          const label = document.createRange();
+          label.selectNodeContents(tile.querySelector('dt'));
+          return {
+            lines: new Set([...label.getClientRects()].map((r) => Math.round(r.top))).size,
+            figure: Math.round(tile.querySelector('strong').getBoundingClientRect().top),
+          };
+        })"""
+    )
+    assert figures[1]["lines"] > figures[0]["lines"], f"no label wraps: {figures}"
+    assert len({f["figure"] for f in figures}) == 1, figures
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
@@ -4130,7 +4135,8 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
 
     The first read reaches panel and version rendering before malformed projection data
     rejects it. That candidate does not announce the reply or leave a version behind;
-    a complete retry announces the reply once with the agent recorded on the message.
+    a complete retry announces the reply once, to the live region, with the agent
+    recorded on the message.
     The rejected reply must also leave the visible thread until that retry.
     """
     url = serve(TWIN_V1)
@@ -4149,7 +4155,7 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
     field = page.locator(".lf-fp-field leaf-text")
     stamp_page(d, TWIN_V2, "a twin")
     wait_for_revision(page, 2)
-    expect(field).not_to_have_attribute("placeholder", re.compile("replied"))
+    expect(field).not_to_have_attribute("placeholder", re.compile("this one does"))
 
     open_panel_thread(page, root["id"])
     write(panel_field(page), "keep this unfinished reply")
@@ -4212,13 +4218,14 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
     expect(panel_menu(page, "versions")).not_to_contain_text("Rejected version")
     page.keyboard.press("Escape")
 
-    assert "replied" not in (field.get_attribute("placeholder") or "")
-    assert "Codex replied" not in page.locator(".lf-live").text_content()
+    assert "this one does" not in (field.get_attribute("placeholder") or "")
+    assert "this one does" not in page.locator(".lf-live").text_content()
 
     page.unroute("**/api/state*")
     nudge(d)
     told(page)
-    expect(field).to_have_attribute("placeholder", re.compile("Codex replied"))
+    expect(page.locator(".lf-live")).to_have_text("this one does")
+    expect(field).not_to_have_attribute("placeholder", re.compile("this one does"))
     view = open_panel_thread(page, root["id"])
     expect(view.locator(".lf-msg.agent .lf-msg-body")).to_have_text("this one does")
 

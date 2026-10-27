@@ -31,22 +31,8 @@
     position: fixed;
     inset: 0;
     z-index: calc(var(--lf-z-panel) - 1);
-    pointer-events: none;
-    filter: drop-shadow(var(--raise-2));
-  }
-  .lf-fp-ground,
-  .lf-fp-ground > * {
-    clip-path: inset(50%);
-  }
-  .lf-fp-ground > * {
-    position: absolute;
-    inset: 0;
-  }
-  .lf-fp-ring {
-    background: var(--lf-fp-ring);
-  }
-  .lf-fp-fill {
-    background: var(--lf-fp-surface);
+    --lf-box-ring: var(--lf-fp-ring);
+    --lf-box-fill: var(--lf-fp-surface);
   }
   .lf-floating-panel {
     position: fixed;
@@ -240,20 +226,25 @@
   }
   .lf-fp-expand {
     flex: none;
-    display: none;
+    display: grid;
     place-items: center;
     width: 24px;
     min-height: 0;
     height: 1lh;
     padding: 0;
     color: var(--lf-fp-muted);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity var(--lf-motion-box-resize), visibility 0s var(--lf-motion-box-resize);
   }
   .lf-fp-expand .lf-action-icon {
     width: 14px;
     height: 14px;
   }
   .lf-floating-panel[data-long] .lf-fp-expand {
-    display: grid;
+    opacity: 1;
+    visibility: visible;
+    transition: opacity var(--lf-motion-box-resize);
   }
   .lf-floating-panel[data-expanded] {
     --lf-fp-max: 1100px;
@@ -403,6 +394,9 @@
   .lf-floating-panel[data-tone=blocked]:not([data-asks]) .lf-fp-field leaf-text[data-says=status]::part(placeholder) {
     color: color-mix(in srgb, var(--danger-ink) 62%, transparent);
   }
+  .lf-fp-field leaf-text[data-voice=leaf]::part(placeholder) {
+    font-style: italic;
+  }
   .lf-fp-field leaf-text:not([data-says=turn]) .lf-compose-placeholder kbd {
     display: none;
   }
@@ -524,6 +518,7 @@
     right: calc(var(--lf-floating-gap) + var(--lf-safe-right));
     margin: 0;
     .lf-fp-field,
+    .lf-fp-expand,
     .lf-fp-row-notice,
     .lf-fp-quick,
     .lf-fp-opened {
@@ -1127,7 +1122,7 @@
     font-weight: 600;
     color: var(--lf-fp-muted);
   }
-  .lf-fp-on-kind,
+  .lf-fp-on-place,
   .lf-fp-on-title {
     margin: 0 0 2px;
     font: inherit;
@@ -1502,12 +1497,6 @@
     }
   }
   @media (forced-colors: active) {
-    .lf-fp-fill {
-      background: Canvas;
-    }
-    .lf-fp-ring {
-      background: CanvasText;
-    }
     .lf-fp-menu,
     .lf-fp-peek {
       border: 1px solid CanvasText;
@@ -1516,6 +1505,14 @@
 }
 
 /* browser/styles/chrome.css */
+.lf-ui {
+  box-sizing: border-box;
+}
+.lf-ui *,
+.lf-ui *::before,
+.lf-ui *::after {
+  box-sizing: border-box;
+}
 @layer lf-reset {
   button.lf-ui {
     appearance: none;
@@ -1526,7 +1523,6 @@
     color: inherit;
     font: inherit;
   }
-  .lf-btn,
   .lf-ui :is(textarea, leaf-text),
   :is(textarea, leaf-text).lf-ui {
     font: inherit;
@@ -1589,7 +1585,14 @@ html[data-lf-region-capture] body,
 html[data-lf-draw-mode],
 html[data-lf-draw-mode] body {
   cursor: crosshair;
+}
+html[data-lf-region-capture],
+html[data-lf-region-capture] body {
   touch-action: none;
+}
+html[data-lf-draw-mode],
+html[data-lf-draw-mode] body {
+  touch-action: pinch-zoom;
 }
 html[data-lf-region-capture] main,
 html[data-lf-region-capture] main * {
@@ -1627,9 +1630,34 @@ html[data-lf-region-capture] main * {
   }
 }
 @scope (.lf-chrome) {
-  :is(.lf-floating-panel, .lf-margin-preview) {
+  :scope {
     --lf-motion-box-ease: cubic-bezier(0.23, 1, 0.32, 1);
     --lf-motion-box-resize: 300ms;
+  }
+  .lf-box-ground {
+    pointer-events: none;
+  }
+  .lf-box-ground,
+  .lf-box-ground > * {
+    clip-path: inset(50%);
+  }
+  .lf-box-ground > * {
+    position: absolute;
+    inset: 0;
+  }
+  .lf-box-ring {
+    background: var(--lf-box-ring);
+  }
+  .lf-box-fill {
+    background: var(--lf-box-fill);
+  }
+  @media (forced-colors: active) {
+    .lf-box-fill {
+      background: Canvas;
+    }
+    .lf-box-ring {
+      background: CanvasText;
+    }
   }
   .lf-foreground {
     position: absolute;
@@ -1773,11 +1801,6 @@ html[data-lf-region-capture] main * {
   .lf-dot:where(.blocked) {
     background: var(--danger);
   }
-  @layer lf-reset {
-    .lf-thread-action {
-      font: inherit;
-    }
-  }
   :is(.lf-quote, .lf-msg-body) {
     user-select: text;
     -webkit-user-select: text;
@@ -1820,19 +1843,6 @@ html[data-lf-region-capture] main * {
   .lf-quote-expand::before {
     inline-size: 1em;
     text-align: center;
-  }
-  .lf-thread-action {
-    border: none;
-    background: none;
-    color: var(--muted);
-    cursor: pointer;
-  }
-  .lf-thread-action:hover {
-    color: var(--ok);
-  }
-  .lf-thread-action[data-lf-focus-visible] {
-    outline: var(--focus-ring);
-    outline-offset: 2px;
   }
   :is(.lf-fab-bar, .lf-margin-preview) {
     --lf-comment-inset: 12px;
@@ -1908,7 +1918,7 @@ html[data-lf-region-capture] main * {
     padding: 14px 18px;
     flex-direction: column;
   }
-  .lf-command-reference.open {
+  .lf-command-reference[open] {
     display: flex;
   }
   .lf-command-reference::backdrop {
@@ -1922,11 +1932,11 @@ html[data-lf-region-capture] main * {
       display var(--lf-motion-disclosure) allow-discrete,
       overlay var(--lf-motion-disclosure) allow-discrete;
   }
-  :is(.lf-command-reference:not(.open), .lf-page-map-dialog:not([open])) {
+  :is(.lf-command-reference:not([open]), .lf-page-map-dialog:not([open])) {
     pointer-events: none;
   }
-  :is(.lf-command-reference.open, .lf-page-map-dialog[open]),
-  :is(.lf-command-reference.open, .lf-page-map-dialog[open])::backdrop {
+  :is(.lf-command-reference[open], .lf-page-map-dialog[open]),
+  :is(.lf-command-reference[open], .lf-page-map-dialog[open])::backdrop {
     opacity: 1;
     @starting-style {
       opacity: 0;

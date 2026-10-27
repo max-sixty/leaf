@@ -726,6 +726,43 @@ def test_an_emptied_rewrite_keeps_nothing(browser, serve):
     expect(editor).to_have_js_property("value", "Fit the north bracket.")
 
 
+def test_a_discarded_rewrite_comes_back(browser, serve):
+    """Escape throws a rewrite's changed words away, so an accidental press lost a long
+    rewrite for good. Restore discarded edit opens the message on those exact words
+    again, without sending them, by `g D`; Save then sends them as any rewrite, and nothing is left to restore."""
+    page, _, message = _rewrite_surface(browser, serve, "panel")
+    editor = message.locator(".lf-msg-editor leaf-text")
+    rewritten = "  Fit both brackets and keep the longer explanation.  "
+
+    def edits():
+        return [
+            e["text"]
+            for e in events_model.read_events(serve.page_dir)
+            if e["kind"] == "edit"
+        ]
+
+    message.locator(".lf-msg-text").dblclick()
+    write(editor, rewritten)
+    page.keyboard.press("Escape")
+    expect(editor).to_have_count(0)
+    expect(message.locator(".lf-msg-text")).to_have_text("Fit the north bracket.")
+    page.keyboard.press("Escape")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+d")
+    expect(editor).to_be_focused()
+    expect(editor).to_have_js_property("value", rewritten)
+    expect(editor).to_have_js_property("selectionStart", len(rewritten))
+    assert edits() == []
+    message.get_by_role("button", name="Save", exact=True).click()
+    round_trip(page)
+    expect(editor).to_have_count(0)
+    assert edits() == [rewritten]
+    page.keyboard.press("Escape")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+d")
+    expect(editor).to_have_count(0)
+
+
 def test_a_rewrite_saves_its_exact_words(browser, serve):
     """Saving the message's own words changes nothing, but a rewrite that changes only
     their leading or trailing space saves it: that space is part of what a rewrite
@@ -1603,5 +1640,5 @@ def test_a_refused_rewrite_puts_the_resolved_thread_back(browser, serve):
     expect(settle).to_have_accessible_name("Reopen")
     expect(thread).to_be_visible()
     expect(message.locator(".lf-msg-kept")).to_have_text("unsaved edit")
-    expect_panel_says(page, "Couldn't save edit — Please retry.")
+    expect_panel_says(page, "Couldn't save the edit — Please retry.")
     page.unroute_all(behavior="wait")

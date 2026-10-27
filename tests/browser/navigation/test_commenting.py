@@ -935,7 +935,7 @@ def test_the_panels_own_c_answers_a_page_whose_log_has_not_arrived(browser, serv
     page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
     comment = page.locator('.lf-fp-field leaf-text[name="comment"]')
     expect(page.locator(".lf-fp-leaf")).to_have_attribute(
-        "aria-label", re.compile("offline", re.IGNORECASE)
+        "aria-label", re.compile("Lost the connection")
     )
 
     page.keyboard.press("c")

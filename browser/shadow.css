@@ -9,12 +9,6 @@
     transition: none !important;
   }
 }
-:where(:root) .lf-ui,
-:where(:root) .lf-ui *,
-:where(:root) .lf-ui *::before,
-:where(:root) .lf-ui *::after {
-  box-sizing: border-box;
-}
 :where(:root) :is(.lf-ui-face, .button, .field) {
   font-family: var(--sans);
   font-size: var(--t-5);
@@ -154,14 +148,13 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-thread-notice:is(button),
 .lf-react,
 .lf-margin-entry,
-.lf-thread-action,
 .lf-command-reference-command,
 .lf-quote {
   min-width: var(--aim-floor);
   min-height: var(--lf-face-floor, var(--aim-floor));
 }
 @property --lf-face-floor { syntax: "*"; inherits: false; }
-:where(.lf-btn, .button, .lf-icon-action, .lf-msg-control, .lf-thread-action, .lf-thread-notice:is(button), button.lf-mark, button.lf-fp-face) {
+:where(.lf-btn, .button, .lf-icon-action, .lf-compose-submit, .lf-compose-dictate, .lf-msg-control, .lf-thread-notice:is(button), button.lf-mark-action, button.lf-fp-face) {
   --lf-face-floor: auto;
   position: relative;
   &::after {
@@ -170,7 +163,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     inset: min(0px, (100% - var(--aim-floor)) / 2);
   }
 }
-.lf-mark.lf-ui::part(button)::after {
+.lf-mark-action.lf-ui::part(button)::after {
   content: "";
   position: absolute;
   inset: min(0px, (100% - var(--aim-floor)) / 2);
@@ -485,18 +478,14 @@ summary {
 .lf-thread-controls {
   position: absolute;
   position-anchor: --lf-thread-headline;
-  inset-inline-start: anchor(left);
+  inset-inline-start: calc(anchor(right) + var(--sp-2));
   inset-block-start: anchor(center);
   translate: 0 -50%;
-  inline-size: calc(anchor-size(width) + var(--lf-thread-action-room) + var(--sp-2));
+  inline-size: var(--lf-thread-action-room);
   block-size: var(--lf-thread-action-room);
   display: flex;
   align-items: center;
-  pointer-events: none;
   font-size: var(--t-6);
-}
-.lf-thread-controls > * {
-  pointer-events: auto;
 }
 .lf-thread-content:has(> .lf-thread-controls) > .lf-thread-transcript > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint) > .lf-msg-head {
   anchor-name: --lf-thread-headline;
@@ -529,11 +518,14 @@ summary {
 .lf-thread-controls > .lf-thread-meta-actions {
   min-height: var(--lf-thread-action-room);
 }
-.lf-thread-controls > .lf-thread-news {
+.lf-thread-content > .lf-thread-news {
   position: absolute;
-  inset-inline-start: calc(var(--lf-thread-news-start, 0px) + var(--sp-2));
+  position-anchor: --lf-thread-headline;
+  inset-inline-start: calc(anchor(left) + var(--lf-thread-news-start, 0px) + var(--sp-2));
+  inset-block-start: anchor(center);
+  translate: 0 -50%;
   inline-size: max-content;
-  max-inline-size: max(0px, min(calc(100% - var(--lf-thread-news-start, 0px) - 2 * var(--sp-2) - var(--lf-thread-action-room) - var(--lf-thread-message-control-room)), calc(var(--lf-thread-news-visible-end, 100%) - var(--lf-thread-news-start, 0px) - var(--sp-2))));
+  max-inline-size: max(0px, min(calc(anchor-size(width) - var(--lf-thread-news-start, 0px) - var(--sp-2) - var(--lf-thread-message-control-room)), calc(var(--lf-thread-news-visible-end, anchor-size(width)) - var(--lf-thread-news-start, 0px) - var(--sp-2))));
   box-sizing: border-box;
   min-width: 0;
   min-height: var(--lf-thread-action-room);
@@ -576,7 +568,7 @@ button.lf-thread-notice[data-lf-focus-visible] {
   display: flex;
   flex-wrap: wrap;
   row-gap: 1lh;
-  block-size: 1lh;
+  block-size: 1.5lh;
   padding-block-end: 0.5lh;
   margin-block-end: -0.5lh;
   overflow: visible clip;
@@ -596,7 +588,7 @@ button.lf-thread-notice[data-lf-focus-visible] {
 .lf-thread-news[data-room] > span > :first-child {
   margin-inline-end: -1px;
 }
-.lf-thread-controls > .lf-thread-news,
+.lf-thread-content > .lf-thread-news,
 button.lf-primary-news {
   padding-inline-end: var(--lf-news-count-room);
 }
@@ -646,7 +638,7 @@ button.lf-primary-news {
   color: var(--ink-2);
   font-weight: 600;
 }
-.lf-thread-todo > .lf-thread-action {
+.lf-thread-todo > .lf-btn {
   flex: none;
   white-space: nowrap;
 }
@@ -1077,9 +1069,6 @@ leaf-text.lf-fab-input,
   flex-wrap: wrap;
   gap: 4px;
 }
-.lf-react-open > .lf-react-trigger {
-  display: none;
-}
 .lf-react-surface .lf-react-palette:not(:popover-open) > .lf-react:not([aria-pressed=true]) {
   display: none;
 }
@@ -1147,9 +1136,6 @@ svg[data-lf-icon] {
 }
 .lf-react-strip > .lf-react-trigger {
   anchor-name: --lf-react-trigger;
-}
-.lf-react-strip.lf-react-open > .lf-react-trigger {
-  display: inline-flex;
 }
 .lf-react-strip > .lf-react-palette[popover] {
   position: static;
@@ -1296,12 +1282,16 @@ svg[data-lf-icon] {
 }
 :is(.lf-btn, .button) {
   padding: max(4px, (var(--lf-line) - 1lh) / 2 - 1px) 10px;
-  border: 1px solid var(--border-2);
+  border: 1px solid transparent;
   border-radius: var(--r);
-  background: var(--card);
+  background: transparent;
   cursor: pointer;
-  color: var(--ink);
+  color: var(--muted);
   display: inline-block;
+}
+:is(.lf-btn, .button):where(:not(:disabled, [aria-disabled=true])[data-lf-focus-visible]) {
+  background: var(--chip);
+  color: var(--ink);
 }
 .choice {
   display: inline-flex;
@@ -1348,29 +1338,47 @@ svg[data-lf-icon] {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-:is(.lf-btn, .button):where(:not(:disabled, [aria-disabled=true]):hover) {
-  background: var(--chip);
+@media (hover: hover) {
+  :is(.lf-btn, .button):where(:not(:disabled, [aria-disabled=true])):hover {
+    background: var(--chip);
+    color: var(--ink);
+    box-shadow: none;
+  }
 }
-:is(button, .lf-btn, .button).lf-quiet-action,
-.lf-quiet-action.lf-ui::part(button) {
+.lf-icon-action {
+  box-sizing: border-box;
+  width: var(--lf-icon-action-hit);
+  height: var(--lf-icon-action-face);
+  min-width: var(--lf-icon-action-hit);
+  min-height: var(--lf-icon-action-face);
+  padding: 0;
+  display: grid;
+  place-items: center;
   border: 1px solid transparent;
   border-radius: var(--r);
   background: transparent;
   color: var(--muted);
-  box-shadow: none;
 }
-:is(button, .lf-btn, .button).lf-quiet-action:where(:not(:disabled, [aria-disabled=true]):is(:hover, [data-lf-focus])),
-.lf-quiet-action.lf-ui:not(:disabled, [aria-disabled=true])::part(button):hover,
-.lf-quiet-action.lf-ui::part(lf-focus) {
+.lf-icon-action:where(:not(:disabled, [aria-disabled=true])[data-lf-focus-visible]) {
   background: var(--chip);
   color: var(--ink);
+}
+@media (hover: hover) {
+  .lf-icon-action:where(:not(:disabled, [aria-disabled=true])):hover {
+    background: var(--chip);
+    color: var(--ink);
+    box-shadow: none;
+  }
 }
 :is(.lf-btn, .button).primary {
   color: var(--accent);
   border-color: color-mix(in srgb, var(--accent) 45%, var(--card));
+  background: var(--card);
 }
-:is(.lf-btn, .button).primary:not(:disabled, [aria-disabled=true]):hover {
-  background: var(--accent-tint);
+@media (hover: hover) {
+  :is(.lf-btn, .button).primary:not(:disabled, [aria-disabled=true]):hover {
+    background: var(--accent-tint);
+  }
 }
 :is(.lf-btn, .button):disabled,
 :is(.lf-btn, .button)[aria-disabled=true] {
@@ -1383,12 +1391,12 @@ svg[data-lf-icon] {
   background: var(--paper);
   border-color: var(--border-2);
 }
-:is(.lf-btn, .button)[data-lf-focus-visible] {
+:is(.lf-btn, .button, .lf-icon-action)[data-lf-focus-visible] {
   outline: var(--focus-ring);
   outline-offset: 2px;
 }
-:where(button).lf-mark,
-.lf-mark.lf-ui::part(button) {
+:where(button).lf-mark-action,
+.lf-mark-action.lf-ui::part(button) {
   position: relative;
   display: grid;
   place-items: center;
@@ -1406,16 +1414,16 @@ svg[data-lf-icon] {
   box-shadow: none;
   cursor: pointer;
 }
-:where(button).lf-mark:hover,
-.lf-mark.lf-ui::part(button):hover {
+:where(button).lf-mark-action:hover,
+.lf-mark-action.lf-ui::part(button):hover {
   color: var(--ink);
 }
-:where(button).lf-mark[data-lf-focus-visible],
-.lf-mark.lf-ui::part(lf-focus-visible) {
+:where(button).lf-mark-action[data-lf-focus-visible],
+.lf-mark-action.lf-ui::part(lf-focus-visible) {
   outline: var(--focus-ring);
   outline-offset: 0;
 }
-.lf-mark > svg {
+.lf-mark-action > svg {
   inline-size: 12px;
   block-size: 12px;
 }
@@ -1444,7 +1452,9 @@ leaf-composition-field {
 }
 :root,
 .lf-compose-field,
-.lf-icon-action {
+.lf-icon-action,
+.lf-compose-submit,
+.lf-compose-dictate {
   --lf-icon-action-hit: max(var(--lf-icon-action-face), var(--aim-floor));
 }
 :root,
@@ -1523,7 +1533,12 @@ leaf-composition-field {
 .lf-compose-field:where(:has(> .lf-compose-submit)) > leaf-text:not(.lf-fab-input) {
   --lf-field-end-room: calc( var(--lf-compose-send-end) - var(--lf-compose-pad-inline-start) );
 }
-.lf-icon-action {
+.lf-action-icon {
+  position: relative;
+  z-index: 1;
+  pointer-events: none;
+}
+:is(.lf-compose-submit, .lf-compose-dictate) {
   box-sizing: border-box;
   width: var(--lf-icon-action-hit);
   height: var(--lf-icon-action-face);
@@ -1533,11 +1548,11 @@ leaf-composition-field {
   display: grid;
   place-items: center;
   border-radius: var(--r);
+  cursor: pointer;
 }
-.lf-action-icon {
-  position: relative;
-  z-index: 1;
-  pointer-events: none;
+:where(.lf-compose-submit, .lf-compose-dictate)[data-lf-focus-visible] {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
 }
 :is(.lf-compose-submit, .lf-compose-dictate, .lf-response-trigger),
 :is(.lf-resolve, .lf-reopen).lf-icon-action {
@@ -1572,6 +1587,7 @@ leaf-composition-field {
 :is(.lf-compose-submit, .lf-compose-dictate):is(:disabled, [aria-disabled=true]) {
   opacity: 1;
   color: var(--muted);
+  cursor: default;
 }
 :is(.lf-compose-dictate, .lf-response-trigger) {
   color: var(--muted);
@@ -1964,8 +1980,10 @@ leaf-text.lf-fab-input {
   display: none;
   font: var(--t-5)/1.5 var(--sans);
 }
-.lf-fab-bar:is([data-lf-target-only], :has(> .lf-composer[data-lf-open])) {
-  display: var(--lf-response-display, inline-flex);
+@media screen {
+  .lf-fab-bar:is([data-lf-target-only], :has(> .lf-composer[data-lf-open])) {
+    display: var(--lf-response-display, inline-flex);
+  }
 }
 .lf-fab-bar[data-lf-presentation=inline] {
   position: static;
@@ -1989,11 +2007,6 @@ leaf-text.lf-fab-input {
 }
 .lf-fab-bar[data-lf-presentation=inline] > .lf-surface-grip {
   display: none;
-}
-@media print {
-  .lf-fab-bar[data-lf-presentation=inline] {
-    display: none;
-  }
 }
 
 /* browser/styles/components/integration.css */

@@ -159,8 +159,11 @@ browser assets and the packages into a page's layer.
 - `docs/`: the site's own pages, each a Leaf source.
 - `TODO.md`: the biggest current challenges, and how to query the backlog, the
   GitHub issues labelled `backlog`.
-- `notes/`: research and plans for unresolved work. When a design lands, its
-  contract moves beside the code or into a reference and the note is deleted.
+- `notes/`: what the code doesn't hold yet: research, and plans for large work in
+  progress or a design not yet built. Work built on a branch keeps its contract in
+  its code, and a page that shows it to the user is a preview of a file in `.tmp/`.
+  When a design lands, its contract moves beside the code or into a reference and
+  the note is deleted.
 
 Load `/developing-leaf` for any work whose subject is Leaf itself, including
 research and prototypes that change no tracked code. The shipped `/leaf` skill is

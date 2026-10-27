@@ -18,7 +18,7 @@
  * Ordinary writes have no status transition. A write pending for one second earns a
  * quiet word in the header's fixed status slot until the newest buffer is
  * acknowledged. A failure and a conflict stand in that same slot, so the editor's top
- * and height measure the same in every state (`assets/AGENTS.md`, "Stability"). A
+ * and height measure the same in every state (`browser/AGENTS.md`, "Stability"). A
  * failure reads "Not saved · Retry", with the error as the status's tooltip and
  * Retry's description. A conflict reads "Changed on disk" in the warning tone, one
  * control opening a small menu of its choices: Compare, Save draft, Use file version.
@@ -54,6 +54,7 @@ import {
   LeafElement,
   nothing,
   offered,
+  offeredAction,
   rove,
   rowWalk,
   shadowStage,
@@ -112,7 +113,6 @@ customElements.define(
       const comparisonMount = el("div", "lf-file-editor-comparison");
       view.append(mount);
       shadowStage(this, [view]);
-      this.replaceChildren();
       const useFile = () => {
         if (busy || !latest) return;
         base = latest;
@@ -340,7 +340,7 @@ customElements.define(
             })}
           >
             <button
-              ${offered("lf-btn")}
+              ${offeredAction("word")}
               role="menuitemcheckbox"
               aria-checked=${String(comparing)}
               aria-controls="lf-file-editor-compared"
@@ -354,7 +354,7 @@ customElements.define(
             ].map(
               ([label, run]) => html`
                 <button
-                  ${offered("lf-btn")}
+                  ${offeredAction("word")}
                   role="menuitem"
                   aria-disabled=${busy ? "true" : nothing}
                   @click=${run}

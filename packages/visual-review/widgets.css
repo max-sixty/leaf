@@ -112,6 +112,9 @@
 .lf-vr-case-status[data-approved=true] {
   color: var(--ok-ink);
 }
+.lf-vr-case-status[data-approved=false] {
+  visibility: hidden;
+}
 .lf-vr-detail {
   display: grid;
   grid-template-rows: auto auto minmax(min-content, 1fr) auto;

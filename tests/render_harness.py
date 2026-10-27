@@ -1311,7 +1311,8 @@ def _picture_pages(test, pages):
             continue
         try:
             page.screenshot(
-                path=ROOT / f".tmp/test-results/screens/{name}-{n}.png", timeout=5000
+                path=ROOT / f".tmp/test-results/screens/{name}-{n}.png",
+                timeout=render_checks_model.SERVED_TIMEOUT_MS,
             )
         except PlaywrightError:
             continue
@@ -1499,11 +1500,14 @@ def watch_sources(shifts: bool) -> str:
 
 @contextmanager
 def restarting(page):
-    """Enclose a span in which the test stops and replaces the page's own server.
+    """Enclose a span in which the test replaces the page's server or executable layer.
 
-    A stopped server answers no fetch, and the words the failure arrives in depend on
-    which fetch was in flight when it stopped: a bare `Failed to fetch`, a named module,
-    a stack through the icon load, one of several `net::` codes. A reading written over
+    A layer replacement reloads the document. WebKit reports even a caught fetch
+    rejection from the departing document as a native page exception while its
+    replacement is loading. A stopped server answers no fetch, and the words the
+    failure arrives in depend on which fetch was in flight when it stopped: a bare
+    `Failed to fetch`, a named module, a stack through the icon load, one of several
+    `net::` codes. A reading written over
     those words needs a new member every time a fetch moves, and it ends up describing
     the noise this test makes.
 
@@ -2564,6 +2568,18 @@ SHELL_BOX = """(() => {
 # Put the user nowhere, with the next Tab starting at the top of the document: the
 # runtime's own let-go (focus.js, `releaseFocus`). Body holds no stop of its own, so
 # `document.body.focus()` moves nothing on a page whose root does not scroll.
+# Each field's closed shadow root, so a test can read inside it.
+EDITOR_ROOTS = """
+  window.editorRoots = new Map();
+  const attach = Element.prototype.attachShadow;
+  Element.prototype.attachShadow = function(options) {
+    const root = attach.call(this, options);
+    if (this.localName === 'leaf-text') window.editorRoots.set(this, root);
+    return root;
+  };
+"""
+
+
 RELEASE_FOCUS = """async () =>
   (await window.__lfCheckApi()).releaseFocus()"""
 

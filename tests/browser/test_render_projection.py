@@ -110,7 +110,14 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
                 {
                     "path": "gateway/limits.py",
                     "patch": patch,
-                }
+                },
+                # A second file, so the diff draws the filter a reveal clears.
+                {
+                    "path": "gateway/README.md",
+                    "patch": "diff --git a/gateway/README.md b/gateway/README.md\n"
+                    "--- a/gateway/README.md\n+++ b/gateway/README.md\n"
+                    "@@ -1 +1 @@\n-Limits by address.\n+Limits by token.\n",
+                },
             ]
         },
     )

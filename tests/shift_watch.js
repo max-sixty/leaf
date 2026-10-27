@@ -110,7 +110,9 @@
 // `translate` in pixels or percentages of the border box (including a directly bound
 // inline custom property), a pixel-only stylesheet consumer of an inherited custom
 // property, or pixel
-// left/top/marginLeft/marginTop. Scale, rotation and
+// left/top/marginLeft/marginTop. A sticky box's animated inset is the line it sticks
+// at, not an offset, so it credits only the box's move within its containing block
+// (`stickyInsetMotion`). Scale, rotation and
 // composed effects receive no inferred translation credit.
 //
 // Chrome's paint signal and landmark poses answer distinct questions. The ledger
@@ -2883,6 +2885,61 @@
       !!(branch.compareDocumentPosition(follower) & Node.DOCUMENT_POSITION_FOLLOWING)
     );
   };
+  // A sticky box's inset is the line it sticks at, not an offset. While the box stands
+  // at that line, a change of the inset moves it by that change within its containing
+  // block; while it stands short of the line, not at all. So an animated inset credits
+  // the box's move within that block where the move lies between none and the inset's
+  // change. box-motion.js's ride relies on this: it carries a scroller's children and
+  // moves their sticky heads' insets against the carry, so a stuck head holds its line
+  // and one short of it rides with its message. The box's static place, which would
+  // say which of the two it is, is not readable, so another move within that span is
+  // credited too, as `sticky_scroll` credits one within a scroll's.
+  const STICKY_INSETS = {
+    top: { axis: "top", sign: 1 },
+    bottom: { axis: "top", sign: -1 },
+    left: { axis: "left", sign: 1 },
+    right: { axis: "left", sign: -1 },
+  };
+  const stickyInsetMotion = (motion, target, property, before, after, from, to) => {
+    const { axis, sign } = STICKY_INSETS[property];
+    const prior = pixels(before.values[property]),
+      next = pixels(after.values[property]);
+    const block = paintAt(target, to).parent;
+    if (prior === null || next === null || paintAt(target, from)?.parent !== block)
+      return;
+    const change = sign * (next - prior);
+    const reach = viewportTranslation(property, before, after, {
+      left: axis === "left" ? change : 0,
+      top: axis === "top" ? change : 0,
+    });
+    const was = boxAt(target, from),
+      now = boxAt(target, to),
+      blockWas = boxAt(block, from),
+      blockNow = boxAt(block, to);
+    if (!reach || !was || !now || !blockWas || !blockNow) return;
+    const within = Object.fromEntries(
+      ["left", "top"].map((side) => [
+        side,
+        now[side] - blockNow[side] - (was[side] - blockWas[side]),
+      ]),
+    );
+    if (
+      !["left", "top"].every(
+        (side) =>
+          within[side] >= Math.min(0, reach[side]) - 1 &&
+          within[side] <= Math.max(0, reach[side]) + 1,
+      )
+    )
+      return;
+    for (const side of ["left", "top"])
+      credit(motion, "sticky_inset", target, side, within[side], {
+        property,
+        before: before.values[property],
+        after: after.values[property],
+        reach,
+        block,
+      });
+  };
   const animationMotion = (node, from, to, animations) => {
     const element = node.nodeType === Node.TEXT_NODE ? up(node) : node;
     const motion = { left: 0, top: 0, terms: [] };
@@ -2991,6 +3048,10 @@
         if (properties.has(property)) continue;
         properties.add(property);
         if (!(property in before.values) || !(property in after.values)) continue;
+        if (property in STICKY_INSETS && paintAt(target, to)?.position === "sticky") {
+          stickyInsetMotion(motion, target, property, before, after, from, to);
+          continue;
+        }
         const prior = animationTranslation(property, before.values[property]);
         const next = animationTranslation(property, after.values[property]);
         if (!prior || !next) continue;

@@ -35,7 +35,9 @@ parent. Both depend only on what is open now, so a surface opened by pointer or 
 closes the same way as one opened by its key. The focused control's own step comes
 first, then steps inside the focused surface, then the surface itself, then steps
 outside it; `STACK` and `RUNG_LADDER` order siblings, and native modals and popovers
-keep the browser's order.
+keep the browser's order. A close request, such as Android's back gesture, takes the
+same step, through its row's `keep` where `run` would throw away unsent words
+(`close-requests.js`).
 
 - The document is the base. In a live sample, one more Escape returns focus to the
   containing page.
@@ -50,8 +52,11 @@ keep the browser's order.
   title, never on the page. The panel's field, and a box that stays open for more
   messages such as a widget's thread box (`x-thread-seat`), keep focus.
 - A selected destination (a thread, an obligation, a heading) steps back to the document
-  through `letGo` (`focus.js`), landing on the visible block rather than on the control
-  that opened it. Page Map returns focus to whatever opened it.
+  through `letGo` (`focus.js`), landing beside it while it is in view, else on the
+  visible block, rather than on the control that opened it, so Tab carries on from it.
+  Page Map returns focus to whatever opened it. Leaving a walk's stop leaves the user
+  at it rather than on it, so the walk's next press returns there
+  (`current-target.js`).
 
 Go-to, target hints, page search, reactions and the command reference own the keyboard
 while active and handle their own exit. Escape closes a surface even if it was open

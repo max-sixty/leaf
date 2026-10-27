@@ -454,6 +454,61 @@
     if (label !== undefined) node.textContent = label;
     return node;
   };
+  // Leaf's controls come from a closed set of roles, and each role wears one face
+  // (components/controls.css). A widget names the role and never the face's classes,
+  // so two controls of one kind cannot be drawn two ways; this table is the only place
+  // the classes are spelled (`test_controls_are_built_by_role_and_never_by_face` in
+  // `tests/model/test_interact_layer.py` holds that).
+  //
+  // - `symbol`: a press drawn as one of Leaf's icons, named by its tooltip and
+  //   accessible name (browser/AGENTS.md, "Visual grammar"): quiet at rest, the chip
+  //   under a hovering pointer or visible focus.
+  // - `word`: a press that says what it does in words, quiet as a symbol is, a row of
+  //   a list or menu included. A toggle is a word whose `aria-pressed` the theme draws
+  //   as selected.
+  // - `commit`: the one press on a surface that commits the user's work, framed in the
+  //   accent.
+  // - `mark`: a small symbol seated on the thing it acts on, at a corner or on a
+  //   block's border toolbar, where a larger face would cover the thing.
+  //
+  // A difference that was only a past choice is not a role: a symbol once came bordered
+  // in some widgets and quiet in others, and a word framed in some, quiet in others and
+  // a list's row in a third, before each merged.
+  const ACTION_FACES = {
+    symbol: "lf-icon-action",
+    word: "lf-btn",
+    commit: "lf-btn primary",
+    mark: "lf-mark-action",
+  };
+  // `label` names the press. A worded role shows it, and `offerAction` writes it as the
+  // words; the element writer leaves the words to whoever owns the element's content,
+  // such as a template. A symbol or mark says it as the accessible name and the
+  // tooltip, `title` where the tooltip says more, such as the key that does the same.
+  const offerActionElement = (node, role, cls, label, { title = label } = {}) => {
+    const face = ACTION_FACES[role];
+    if (!face)
+      throw new TypeError(
+        `A control's role is one of ${Object.keys(ACTION_FACES).join(", ")}, not ${role}`,
+      );
+    offerElement(node, cls ? `${face} ${cls}` : face);
+    if (label !== undefined && (role === "symbol" || role === "mark")) {
+      keepsAttribute(node, "aria-label", label);
+      keepsAttribute(node, "title", title);
+    }
+    return node;
+  };
+  const offerAction = (role, cls, label, options) => {
+    const node = offerActionElement(
+      document.createElement("button"),
+      role,
+      cls,
+      label,
+      options,
+    );
+    if (label !== undefined && role !== "symbol" && role !== "mark")
+      node.textContent = label;
+    return node;
+  };
   const selectableOfferElement = (node, role, cls) => {
     keepsAttribute(node, "role", role);
     keepsAttribute(node, "class", cls ? `${cls} lf-ui lf-ui-face` : "lf-ui lf-ui-face");
@@ -1175,38 +1230,27 @@
     }
     return changed;
   };
-  // A page of parts' title, which its list stands fixed under (layouts.css, "A page of
-  // parts"): no CSS stacks one fixed box under another of unknown height. The title
-  // is what stands before the parts, in the one row above the list.
-  const TITLE = "--lf-parts-title-h";
+  // A page of parts' title scrolls within its fixed column. Declare that
+  // surface alongside the layout, so reach need not discover it by scanning content.
+  // CSS anchors its list below the title (layouts.css, "A page of parts").
   const title = () => {
-    const body = document.body;
     const main = document.querySelector("body > main");
-    if (!body) return false;
     const parts =
       main && !isLayoutBox(main)
         ? main.querySelector(':scope > [data-lf-views="parts"]')
         : null;
-    let height = 0;
     let marked = false;
     for (
       let node = parts?.previousElementSibling;
       node;
       node = node.previousElementSibling
     ) {
-      // The parts layout owns this scrolling title surface. Declare it here,
-      // alongside its layout, so reach need not discover it by scanning content.
       if (!node.classList.contains("scroll")) {
         node.classList.add("scroll");
         marked = true;
       }
-      height = Math.max(height, node.getBoundingClientRect().height);
     }
-    const value = height ? `${Math.round(height)}px` : "";
-    if (body.style.getPropertyValue(TITLE) === value) return marked;
-    if (value) setRuntimeRootStyle(body, TITLE, value);
-    else removeRuntimeRootStyle(body, TITLE);
-    return true;
+    return marked;
   };
   // The header a Layout sticks over its body, as a workspace does where the window is
   // too small to be its screen (layouts.css, "Workspace"): what the body stands under is
@@ -1298,6 +1342,8 @@
         tabStore,
         offer,
         offerElement,
+        offerAction,
+        offerActionElement,
         selectableOffer,
         selectableOfferElement,
         generatedElement,
@@ -1340,6 +1386,8 @@
     },
     offer,
     offerElement,
+    offerAction,
+    offerActionElement,
     selectableOffer,
     selectableOfferElement,
     generatedElement,
@@ -1376,10 +1424,10 @@
     const target = id && document.getElementById(id);
     return target && members.find((member) => member.contains(target));
   };
-  const choose = (holder, members) =>
+  const choose = (holder, members, fallback = members[0]) =>
     (reloaded
       ? kept(holder, members) || named(members)
-      : named(members) || kept(holder, members)) || members[0];
+      : named(members) || kept(holder, members)) || fallback;
 
   // Until its module upgrades it, the holder's opening member wears `data-lf-opening`,
   // so its theme can show that member alone at first paint. Marked as the parser
@@ -1457,14 +1505,15 @@
 
   // The holder's module asks once, as it upgrades, which member opens, and from then on
   // shows that member itself, so the mark comes off. It records each member it shows,
-  // which a reload reopens (storage.js).
+  // which a reload reopens (storage.js). A holder that chooses its own first member
+  // where neither the tab nor the address names one passes `fallback`, as null.
   root.lfViews = {
-    opening(holder, members) {
+    opening(holder, members, fallback) {
       for (const member of holder.querySelectorAll(`:scope > [${OPENING}]`))
         member.removeAttribute(OPENING);
       for (const member of members)
         soleContents.get(member)?.removeAttribute(SOLE_CONTENT);
-      return choose(holder, members);
+      return choose(holder, members, fallback);
     },
     keep(holder, member) {
       tabStore.set(OPEN_KEY + holder.id, member.id || member.querySelector("[id]")?.id);

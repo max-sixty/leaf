@@ -220,6 +220,9 @@
 .lf-diff-run-end {
   --lf-diff-r-end: var(--r);
 }
+.lf-diff-file:first-child {
+  margin-top: 0;
+}
 .lf-diff-file:has(> .lf-diff-file-actions > *) {
   --lf-diff-head-h: var(--lf-diff-head-pressed);
 }
@@ -490,6 +493,21 @@ pre[data-overflow=wrap] .lf-diff-rows {
 }
 .lf-diff-file-thread-outlet :is(.lf-resolved-summary, .lf-page-thread) {
   padding-inline: var(--lf-diff-head-inset);
+}
+.lf-diff-thread-outlet .lf-thread-reply:not(:focus-within, :has(> .lf-composer-media:not([hidden]), > .lf-compose-field[data-words], .lf-compose-dictate[aria-pressed=true], .lf-compose-error:not([hidden]))) {
+  margin-top: var(--sp-1);
+  > .lf-compose-field {
+    border-color: transparent;
+    background: transparent;
+  }
+  > .lf-compose-field > leaf-text {
+    min-height: var(--aim-floor);
+    padding-block: 0;
+    cursor: pointer;
+  }
+  > .lf-compose-field > .lf-compose-dictate {
+    display: none;
+  }
 }
 @media print {
   .lf-diff-line-comment::before {

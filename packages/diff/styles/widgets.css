@@ -20,8 +20,8 @@
 }
 
 /* First paint. An inline patch first paints as its source, while the drawing stands
- * on other parts: a filter row, a framed name row per file, and a row per source line
- * and hunk separator, where its header lines take none. The initial renderer
+ * on other parts: a filter row where it has two files or more, a framed name row per
+ * file, and a row per source line and hunk separator, where its header lines take none. The initial renderer
  * (initial/lf-diff.js) counts the files, whether they open, and the rows, with the
  * prose rows its width wraps, and the box takes the drawn height from those counts
  * and the anatomy here and in geometry.css, so the drawing lands without moving what
@@ -32,7 +32,8 @@
 html[data-lf-interactive] :scope:is(lf-diff):not(.lf-rendered, :has(> .lf-error)) {
   box-sizing: border-box;
   block-size: calc(
-    var(--lf-line) + var(--lf-diff-gap) + 1px + var(--lf-diff-files) *
+    min(1, var(--lf-diff-files) - 1) * (var(--lf-line) + var(--lf-diff-gap)) + 1px +
+      var(--lf-diff-files) *
       (
         var(--lf-diff-head-pressed) + 1px + var(--lf-diff-open) *
           (var(--lf-text-scroll-track) + 1px)

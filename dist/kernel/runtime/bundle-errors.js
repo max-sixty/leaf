@@ -414,6 +414,7 @@ function requestFrame() {
 		p.paintCurrentLocation?.();
 		p.paintSelectedMarginEntries?.();
 		p.paintTouchControls?.();
+		p.paintCloseRequests?.();
 		p.paintStatusContext?.();
 		p.syncLayout?.();
 		if (shiftPage) p.pageShifted?.();
@@ -1223,6 +1224,13 @@ function elementDirective(name, write) {
 	});
 }
 const offered = elementDirective("offered", offerElement);
+const offerActionElement = (...args) => document.documentElement.lfInitial.offerActionElement(...args);
+function offerAction(role, className, label, { title, icon } = {}) {
+	const control = document.documentElement.lfInitial.offerAction(role, className, label, title === void 0 ? void 0 : { title });
+	if (icon) control.append(iconElement(icon, role === "mark" ? "lf-mark-icon" : "lf-action-icon"));
+	return control;
+}
+const offeredAction = elementDirective("offeredAction", offerActionElement);
 const selectableOfferElement = (node, role, cls) => document.documentElement.lfInitial.selectableOfferElement(node, role, cls);
 const selectableOffer = (role, cls, label) => document.documentElement.lfInitial.selectableOffer(role, cls, label);
 const selectableOffered = elementDirective("selectableOffered", selectableOfferElement);
@@ -1245,14 +1253,10 @@ function relabel(node, label, { says } = {}) {
 	generatedElement(node, { says });
 	keepsText(node, label);
 }
-function closeControl({ name, title = name, className = "" }) {
-	const control = el("button", `lf-btn lf-icon-action lf-quiet-action ${className}`.trim());
-	control.type = "button";
-	control.append(iconElement("cross", "lf-action-icon"));
-	control.setAttribute("aria-label", name);
-	control.title = title;
-	return control;
-}
+const closeControl = ({ name, title = name, className = "" }) => offerAction("symbol", className, name, {
+	title,
+	icon: "cross"
+});
 function responseAction(control, { glyph = null, icon = null, label, behavior = "action", collapse = false }) {
 	if (Boolean(String(glyph ?? "").trim()) === Boolean(icon)) throw new TypeError("A response action needs exactly one glyph or icon");
 	control.classList.toggle("lf-response-control", true);
@@ -1443,4 +1447,4 @@ function dismissErrors() {
 }
 
 //#endregion
-export { EVERYTHING, LAYOUT, LINK, PRESS, PRESSABLE, TEXT_ENTRY, advertisesKeys, allBindings, announce, answers, ariaShortcuts, bindingEnabled, bindingEnabledFor, bindings, buttonCommand, checked, claimReleaseClick, claimsEsc, clampedRow, closeControl, coarsePointer, commandAvailable, commandBinding, commandDeclarationsWithin, commandEntries, commandPresentations, commandReady, commandRoutes, commandScope, commandsOn, commandsWithin, contextBindings, contextScopes, controlAvailabilityOutput, cycledRow, decisionControls, declareCommandReadiness, declaredBindings, descriptionOf, dismissError, dismissErrors, dragHeld, dragging, el, elementDirective, errorsReading, generated, generatedElement, holdStatus, holdingError, hoveringPointer, iconElement, iconTemplate, isCommandScope, keys, labelOf, layoutChanged, live, liveEl, measure, merge, motionPreview, mountRepaint, nativeActivationAt, nativeClaimAt, notice, noticeReading, offer, offered, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, plainPress, pointerAt, pressIsKeyboardActivation, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, reachedForWords, referencedCommandEntry, reflectFirstScopes, reflectKeys, relabel, repaint, repaintPage, responseAction, restorePointer, reveal, routedCommand, rowArrows, savedReadingSettled, saying, scopeAvailable, scopeIdentity, scopeRefs, scopesAt, scopesFor, searchField, seeErrors, selectableOffer, selectableOffered, setNoticeContext, setQuickShortcuts, spell, spokenBinding, submitBindings, titleOf, touchPresses, watchCommandAvailability, watchCommandScopes, word, worksInside };
+export { EVERYTHING, LAYOUT, LINK, PRESS, PRESSABLE, TEXT_ENTRY, advertisesKeys, allBindings, announce, answers, ariaShortcuts, bindingEnabled, bindingEnabledFor, bindings, buttonCommand, checked, claimReleaseClick, claimsEsc, clampedRow, closeControl, coarsePointer, commandAvailable, commandBinding, commandDeclarationsWithin, commandEntries, commandPresentations, commandReady, commandRoutes, commandScope, commandsOn, commandsWithin, contextBindings, contextScopes, controlAvailabilityOutput, cycledRow, decisionControls, declareCommandReadiness, declaredBindings, descriptionOf, dismissError, dismissErrors, dragHeld, dragging, el, elementDirective, errorsReading, generated, generatedElement, holdStatus, holdingError, hoveringPointer, iconElement, iconTemplate, isCommandScope, keys, labelOf, layoutChanged, live, liveEl, measure, merge, motionPreview, mountRepaint, nativeActivationAt, nativeClaimAt, notice, noticeReading, offer, offerAction, offerActionElement, offered, offeredAction, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, plainPress, pointerAt, pressIsKeyboardActivation, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, reachedForWords, referencedCommandEntry, reflectFirstScopes, reflectKeys, relabel, repaint, repaintPage, responseAction, restorePointer, reveal, routedCommand, rowArrows, savedReadingSettled, saying, scopeAvailable, scopeIdentity, scopeRefs, scopesAt, scopesFor, searchField, seeErrors, selectableOffer, selectableOffered, setNoticeContext, setQuickShortcuts, spell, spokenBinding, submitBindings, titleOf, touchPresses, watchCommandAvailability, watchCommandScopes, word, worksInside };

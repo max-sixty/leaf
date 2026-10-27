@@ -3,7 +3,9 @@
    The selection composer keeps its passage painted after an explicit Comment gesture
    moves focus into the field. Automatic passage selection leaves the native
    selection in place. Its `.lf-composer` wrapper contributes state and draft machinery
-   through `display: contents`; only `.lf-fab-input` draws. `showComposer` states
+   and draws nothing: seated in a widget it is `display: contents`, and floating it is
+   the box holding what moves as the field changes size (annotation-chrome.css), and
+   only the field's frame draws. `showComposer` states
    whether it is open through `data-lf-open`; the shared response stylesheet derives
    its field and bar's visible shape from that and the surface's target-only state.
    Reopening the same passage resumes its words, seed, and modes; omitted modes
@@ -20,7 +22,7 @@
    The response surface (composing/surface.js) constructs the command owner with its bar's
    commands and boot's travel, delivery, and repaint capabilities. Importing this module exposes only passive nodes and live draft
    readings. mount binds the field and its controls after those owners exist. */
-import { el, responseAction } from "../widget-elements.js";
+import { el, offerAction, responseAction } from "../widget-elements.js";
 import { anchorKey } from "../anchor-coordinate.js";
 import { keeps, keepsHidden } from "../keeps.js";
 
@@ -72,7 +74,6 @@ import { beginWalk, listWalkPosition } from "../walk-position.js";
 import { textField } from "./text-field.js";
 import { raiseError } from "../errors.js";
 import { isNativeLayer } from "../shadow-tree.js";
-import { iconElement } from "../icons.js";
 
 // The comment field keeps Send or Dictate as its primary action. Other responses
 // open in one anchored picker from a ⋯ in the field's corner, Tab, or e. The same
@@ -116,14 +117,12 @@ const fabSuggest = responseAction(el("button", "lf-ui lf-fab-suggest"), {
 });
 fabOptions.append(fabSuggest);
 // It joins the field `wireInput` builds around the editor when the composer mounts.
-export const fabOptionsTrigger = el(
-  "button",
-  "lf-ui lf-icon-action lf-response-trigger",
+export const fabOptionsTrigger = offerAction(
+  "symbol",
+  "lf-response-trigger",
+  "Other responses",
+  { icon: "more" },
 );
-fabOptionsTrigger.type = "button";
-fabOptionsTrigger.title = "Other responses";
-fabOptionsTrigger.append(iconElement("more", "lf-action-icon"));
-fabOptionsTrigger.setAttribute("aria-label", "Other responses");
 fabOptionsTrigger.setAttribute("aria-controls", fabOptions.id);
 fabOptionsTrigger.setAttribute("aria-expanded", "false");
 fabOptionsTrigger.popoverTargetElement = fabOptions;

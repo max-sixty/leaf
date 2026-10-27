@@ -26,7 +26,6 @@ const PAGE_PAINT_ATTRIBUTE = Object.freeze({
 	moreBelow: "data-lf-more-below",
 	goto: "data-lf-go-to-active",
 	traffic: "data-lf-traffic",
-	indicated: "data-lf-indicated",
 	player: "data-lf-player",
 	kept: "data-lf-kept",
 	mediaWidth: "data-lf-media-width",
@@ -463,7 +462,7 @@ function reloadDelivery(message) {
 			const moved = await sourceMovedOn();
 			if (moved === void 0) return;
 			if (!moved) {
-				holdWaiting("Waiting for the server to finish updating.");
+				holdWaiting("Waiting for Leaf to finish updating.");
 				return;
 			}
 			reloadNow(message);

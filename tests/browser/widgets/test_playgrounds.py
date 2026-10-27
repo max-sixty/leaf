@@ -608,13 +608,16 @@ def test_a_short_workspace_shows_more_below_its_playground_regions(browser, serv
     a one-row bar of actions, so the notification playground's longer list scrolls."""
 
     def cue(page, body):
-        """How many pixels of the box's bottom band the mark changes."""
+        """How many pixels of the box's bottom band the mark changes. It puts the mark
+        back only where it found one, since a box the runtime already marked as at its
+        end is not marked again until it scrolls."""
         box = body.bounding_box()
         clip = {**box, "y": box["y"] + box["height"] - 12, "height": 12}
         marked = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
+        had = body.evaluate("el => el.hasAttribute('data-lf-more-below')")
         body.evaluate("el => el.removeAttribute('data-lf-more-below')")
         bare = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
-        body.evaluate("el => el.toggleAttribute('data-lf-more-below', true)")
+        body.evaluate("(el, had) => el.toggleAttribute('data-lf-more-below', had)", had)
         delta = ImageChops.difference(marked, bare).get_flattened_data()
         return sum(1 for pixel in delta if max(pixel) > 24)
 
@@ -626,7 +629,9 @@ def test_a_short_workspace_shows_more_below_its_playground_regions(browser, serv
     assert cue(page, preview) > 100
 
     page = open_page(browser, serve(ROOT / "examples" / "notification-playground.html"))
-    resized(page, 1100, 700)
+    # Without a Controls label or a Starting points label over them, the list fits
+    # at 700px tall; 600 still runs it past the rail's foot.
+    resized(page, 1100, 600)
     playground = page.locator("#notification-playground")
     controls = playground.locator(".lf-playground-controls")
     assert controls.evaluate("el => el.scrollHeight > el.clientHeight + 1")
@@ -788,7 +793,9 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
       };
     }"""
 
-    resized(page, 1100, 700)
+    # Without a Controls label or a Starting points label over them, the list fits
+    # at 700px tall; 600 still runs it past the rail's foot, so it scrolls.
+    resized(page, 1100, 600)
     expect(actions).to_be_visible()
     bounded = page.evaluate(reading)
     assert bounded == {
@@ -806,6 +813,10 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
         "spokenWords": True,
     }
     assert bounded["controlsSize"][1] > bounded["controlsSize"][0], bounded
+    # The band is its buttons alone; "Starting points" only names the group.
+    expect(presets).to_have_text(
+        re.compile(r"^\s*Routine release\s*Needs attention\s*$")
+    )
     # The presets band heading the controls is ruled off from them, over the generic
     # region header's unruled box.
     assert playground.locator(".lf-playground-presets").evaluate(

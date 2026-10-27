@@ -211,6 +211,13 @@ export function foldThreads(threads, gestures) {
     .map((thread) => ({
       ...thread,
       msgs: thread.msgs.filter((message) => !withdrawn.has(message.id)),
+      // A thread whose closing event the user is taking back stands open again, as a
+      // to-do whose Done they undo does; the log's answer restores any earlier closure.
+      ...(thread.resolved &&
+      "id" in thread.resolved &&
+      withdrawn.has(thread.resolved.id)
+        ? { resolved: null }
+        : {}),
     }));
   const byName = threadNames(copies);
   /** @type {Thread[]} */

@@ -2,7 +2,11 @@
  * The source owns cases and captures; Leaf owns approvals and discussion. The
  * dashboard derives its queue and counts from that state. Selection
  * is transient. lf-shot owns comparison controls, layout and capture scrolling;
- * the dashboard supplies capture metadata and retains case articles and threads. */
+ * the dashboard supplies capture metadata and retains case articles and threads.
+ * A case's header names only the capture size and browser, with Capture details
+ * holding the rest: on 2026-10-26 the user chose this over a line that also said the
+ * images were captured screenshots whose links don't work, which they show
+ * themselves. */
 import "/widgets/lf-shot.js";
 import {
   LeafElement,
@@ -14,6 +18,7 @@ import {
   live,
   generated,
   offered,
+  offeredAction,
   commands,
   cycledRow,
   beginWalk,
@@ -43,12 +48,9 @@ import {
 // cross, named for what it closes (runtime/widget-elements.js, `closeControl`).
 const closeButton = (popover, name) =>
   html`<button
-    type="button"
-    ${offered("lf-btn lf-icon-action lf-quiet-action")}
+    ${offeredAction("symbol", "", name, { title: `${name} (Esc)` })}
     popovertarget=${popover}
     popovertargetaction="hide"
-    aria-label=${name}
-    title=${`${name} (Esc)`}
   >
     ${iconTemplate("cross", "lf-action-icon")}
   </button>`;
@@ -318,7 +320,7 @@ customElements.define(
                     <span class="lf-vr-case-label"
                       ><span class="lf-vr-case-name">${record.title}</span>
                       <span class="lf-vr-case-status" data-approved=${String(approved)}
-                        >${approved ? "Looks right" : "Unchecked"}</span
+                        >Looks right</span
                       ></span
                     >
                   </button>`;
@@ -442,14 +444,11 @@ customElements.define(
                 @change=${(event) => this.#review(record, event.currentTarget.checked)}
               />Looks right</label
             >
-            <button type="button" ${offered("lf-btn lf-quiet-action lf-vr-feedback")}>
-              Add feedback
-            </button>
+            <button ${offeredAction("word", "lf-vr-feedback")}>Add feedback</button>
             ${
               threads.length
                 ? html`<button
-                      type="button"
-                      ${offered("lf-btn lf-quiet-action lf-vr-open-threads")}
+                      ${offeredAction("word", "lf-vr-open-threads")}
                       popovertarget=${`${this.id}-${record.id}-threads`}
                     >
                       ${threads.length} ${threads.length === 1 ? "thread" : "threads"}
@@ -471,8 +470,7 @@ customElements.define(
                         (thread) => thread.key,
                         (thread) =>
                           html`<button
-                            type="button"
-                            ${offered("lf-btn lf-quiet-action lf-vr-thread-link")}
+                            ${offeredAction("word", "lf-vr-thread-link")}
                             @click=${(event) => {
                               closeNativeLayer(
                                 event.currentTarget.closest("[popover]"),
@@ -492,20 +490,18 @@ customElements.define(
                 : nothing
             }
           </div>
-          <button type="button" ${offered("lf-btn lf-quiet-action lf-vr-next")}>
+          <button ${offeredAction("word", "lf-vr-next")}>
             Next unchecked <span aria-hidden="true">→</span>
           </button>
         </div>
         <div class="lf-vr-evidence" data-lf-reading-role="pane" data-lf-generated>
           <header>
             <p class="lf-vr-evidence-note" ${generated({ says: true })}>
-              Captured screenshots · ${record.capture.viewport.width} ×
-              ${record.capture.viewport.height} · ${record.capture.browser}. Links
-              inside these images are not interactive.
+              ${record.capture.viewport.width} × ${record.capture.viewport.height} ·
+              ${record.capture.browser}
             </p>
             <button
-              type="button"
-              ${offered("lf-btn lf-quiet-action lf-vr-inspect")}
+              ${offeredAction("word", "lf-vr-inspect")}
               aria-controls=${`${this.id}-${record.id}-inspection`}
             >
               Capture details

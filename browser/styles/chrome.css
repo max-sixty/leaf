@@ -33,10 +33,17 @@
    shared face stated here would outrank each component's own rule. The vocabulary's
    faces are therefore stated page-side (the margin entries in theme.css; .lf-key-badge,
    .lf-ui, .lf-btn and the aim floor in shadow.css, which also reaches
-   widget trees, and `.lf-ui`'s `box-sizing` reset in components/surfaces.css). What
-   stays here is paint the runtime lays over the page, which has to beat page and
-   widget alike. test_interact_layer.py holds that no selector is dressed for one
-   property both here and page-side. */
+   widget trees). What stays here is paint the runtime lays over the page, which has to
+   beat page and widget alike, and the `box-sizing` reset. test_interact_layer.py holds
+   that no selector is dressed for one property both here and page-side. */
+.lf-ui {
+  box-sizing: border-box;
+}
+.lf-ui *,
+.lf-ui *::before,
+.lf-ui *::after {
+  box-sizing: border-box;
+}
 /* Clearing the UA's form-control face lives in a layer, so any unlayered choice of
    face outranks it whatever its specificity: a control wearing .lf-ui takes the chrome
    face from its own class, and lf-draft's editor states the document's face unlayered
@@ -51,7 +58,6 @@
     color: inherit;
     font: inherit;
   }
-  .lf-btn,
   .lf-ui :is(textarea, leaf-text),
   :is(textarea, leaf-text).lf-ui {
     font: inherit;
@@ -136,7 +142,17 @@ html[data-lf-region-capture] body,
 html[data-lf-draw-mode],
 html[data-lf-draw-mode] body {
   cursor: crosshair;
+}
+/* One finger's drag is the capture's, or the stroke's. Draw mode lasts while the user
+   moves about the page, so two fingers still pan and zoom it there; a second finger
+   landing takes back the stroke the first began (drawing.js, `begin`). */
+html[data-lf-region-capture],
+html[data-lf-region-capture] body {
   touch-action: none;
+}
+html[data-lf-draw-mode],
+html[data-lf-draw-mode] body {
+  touch-action: pinch-zoom;
 }
 html[data-lf-region-capture] main,
 html[data-lf-region-capture] main * {
@@ -194,12 +210,41 @@ html[data-lf-region-capture] main * {
 /* Everything below is private to the chrome: no widget or page class can match it. */
 @scope (.lf-chrome) {
   /* The tween a floating box's change of layout travels on (runtime/box-motion.js),
-     the floating panel's and the margin card's alike, which their scripts read off the
-     box: the Codex panel's one strong ease-out, at a length the user singled out as the
-     panel's best motion for a box growing as the words do (15 October). */
-  :is(.lf-floating-panel, .lf-margin-preview) {
+     every box's alike, which its motion reads off the box: the Codex panel's one
+     strong ease-out, at a length the user singled out as the panel's best motion for a
+     box growing as the words do (15 October). */
+  :scope {
     --lf-motion-box-ease: cubic-bezier(0.23, 1, 0.32, 1);
     --lf-motion-box-resize: 300ms;
+  }
+  /* A floating box's surface (runtime/box-motion.js): a layer behind the box, cut to
+     its outline grown by its shadow's reach, holding a ring and a fill inside it cut to
+     the outline, and while the box moves a ring a part of it wears. Each box's own rule
+     places the layer and colours the ring and fill. */
+  .lf-box-ground {
+    pointer-events: none;
+  }
+  .lf-box-ground,
+  .lf-box-ground > * {
+    clip-path: inset(50%);
+  }
+  .lf-box-ground > * {
+    position: absolute;
+    inset: 0;
+  }
+  .lf-box-ring {
+    background: var(--lf-box-ring);
+  }
+  .lf-box-fill {
+    background: var(--lf-box-fill);
+  }
+  @media (forced-colors: active) {
+    .lf-box-fill {
+      background: Canvas;
+    }
+    .lf-box-ring {
+      background: CanvasText;
+    }
   }
   /* The foreground dialog (chrome.js) is an empty box at the document's origin, so what
      it holds positions against the window or that origin and never reads its size. Left
@@ -395,11 +440,6 @@ html[data-lf-region-capture] main * {
   .lf-dot:where(.blocked) {
     background: var(--danger);
   }
-  @layer lf-reset {
-    .lf-thread-action {
-      font: inherit;
-    }
-  }
 
   /* The words in here the root leaves selectable: a quote is the page's words and a
      message somebody's, while heads, counts and labels are the layer talking. Fields
@@ -459,24 +499,6 @@ html[data-lf-region-capture] main * {
     text-align: center;
   }
 
-  .lf-thread-action {
-    border: none;
-    background: none;
-    color: var(--muted);
-    cursor: pointer;
-  }
-  .lf-thread-action:hover {
-    color: var(--ok);
-  }
-  /* Reopen stands in the same row as Resolve and answers the same question from the
-     other side, so it wears the same band while focused. It was left on
-     the platform's own ring, which is a real mark and the wrong one here: the pair
-     looked like two kinds of control, and a walk into resolved threads changed shape
-     halfway. */
-  .lf-thread-action[data-lf-focus-visible] {
-    outline: var(--focus-ring);
-    outline-offset: 2px;
-  }
   /* The response bar and thread card are fixed and anchored to what they point at, and
      placed only while the visible boundary holds them (floating.js), so they never sit
      pinned over content that is not theirs. */
@@ -588,10 +610,10 @@ html[data-lf-region-capture] main * {
     border-radius: var(--r-l);
     box-shadow: var(--raise-3);
     padding: 14px 18px;
-    /* Its column stands while a closing reference fades out, after `.open` has gone. */
+    /* Its column stands while a closing reference fades out, after `[open]` has gone. */
     flex-direction: column;
   }
-  .lf-command-reference.open {
+  .lf-command-reference[open] {
     display: flex;
   }
   .lf-command-reference::backdrop {
@@ -609,11 +631,11 @@ html[data-lf-region-capture] main * {
       display var(--lf-motion-disclosure) allow-discrete,
       overlay var(--lf-motion-disclosure) allow-discrete;
   }
-  :is(.lf-command-reference:not(.open), .lf-page-map-dialog:not([open])) {
+  :is(.lf-command-reference:not([open]), .lf-page-map-dialog:not([open])) {
     pointer-events: none;
   }
-  :is(.lf-command-reference.open, .lf-page-map-dialog[open]),
-  :is(.lf-command-reference.open, .lf-page-map-dialog[open])::backdrop {
+  :is(.lf-command-reference[open], .lf-page-map-dialog[open]),
+  :is(.lf-command-reference[open], .lf-page-map-dialog[open])::backdrop {
     opacity: 1;
     @starting-style {
       opacity: 0;

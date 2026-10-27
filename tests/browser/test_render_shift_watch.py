@@ -3804,6 +3804,60 @@ motion.pause();motion.currentTime=150;
 
 
 @pytest.mark.parametrize("fault", [False, True])
+def test_a_sticky_inset_moves_its_box_only_within_its_block(browser, fault):
+    """A ride carries a scroller's messages while their sticky heads' insets travel
+    against the carry (box-motion.js), so a stuck head holds its line and one short of
+    it rides with its message. The inset is credited by the head's move within its
+    message, not read as an offset that cancels the carry; a head moving the other
+    way within its message still fails."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<!doctype html><style>
+@property --carry { syntax: '<length>+'; inherits: false; initial-value: 0px 0px; }
+.msg { height:150px }
+header { position:sticky; top:6px; height:28px; background:white }
+</style><body style="margin:0"><button id="start">Start</button>
+<div id="scroller" style="height:200px;overflow:auto;width:300px">
+<div class="msg" style="translate:var(--carry)"><header>First message</header></div>
+<div class="msg" style="translate:var(--carry)"><header id="second">
+<button id="control">Second message</button></header></div>
+<div style="height:600px"></div></div>
+<p id="trigger" style="position:absolute;left:10px;top:400px">Paint checkpoint</p>
+<script>
+scroller.scrollTop = 100;
+start.onclick = () => {
+  window.motions = [...document.querySelectorAll('.msg')].flatMap((msg) => [
+    msg.animate([{'--carry':'0px 80px'},{'--carry':'0px 0px'}], {duration:1000}),
+    msg.querySelector('header').animate([{top:'-74px'},{top:'6px'}], {duration:1000}),
+  ]);
+  for (const motion of motions) { motion.pause(); motion.currentTime = 150; }
+};
+</script></body>""")
+    )
+    paint(page)
+    page.locator("#start").click()
+    paint(page)
+    judge_watches()
+    assert not take_browser_errors(page)
+    first = page.locator("header").first.bounding_box()
+    page.evaluate(
+        """fault => {
+      for (const motion of motions) motion.currentTime = 400;
+      if (fault) second.style.marginTop = '-15px';
+      trigger.style.left = '40px';
+    }""",
+        fault,
+    )
+    paint(page)
+    assert page.locator("header").first.bounding_box() == first
+    judge_watches()
+    errors = take_browser_errors(page)
+    assert names_move(errors, "p#trigger"), errors
+    assert names_move(errors, "button#control") == fault, errors
+
+
+@pytest.mark.parametrize("fault", [False, True])
 def test_native_anchor_follows_owned_translation_but_not_an_independent_offset(
     browser, fault
 ):
@@ -4759,7 +4813,7 @@ def test_message_age_may_shift_metadata_but_leaves_the_thread_in_place(
     header = surface_root.locator(".lf-msg-head").first
     receipt = header.locator(".lf-msg-sending")
     timestamp = header.locator("time")
-    expect(receipt).to_have_text("Sent")
+    expect(receipt).to_have_text("Saved")
     expect(timestamp).to_have_text("just now")
     # Age changes are news after Chrome's recent-input grace, even when opening the
     # surface and resizing it happened immediately before this clock transition.
@@ -4786,7 +4840,7 @@ def test_message_age_may_shift_metadata_but_leaves_the_thread_in_place(
         page.clock.set_fixed_time(now + delta)
         ticked(page)
         expect(timestamp).to_have_text(age)
-        expect(receipt).to_have_text("Sent")
+        expect(receipt).to_have_text("Saved")
         judge_watches()
         assert surface_root.bounding_box() == thread_before
         assert owner.bounding_box() == owner_before

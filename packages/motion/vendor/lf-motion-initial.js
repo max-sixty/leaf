@@ -53,7 +53,7 @@
   // packages/motion/initial/lf-motion.js
   document.documentElement.lfInitial.register(
     "lf-motion",
-    (host, { offerElement, tabStore, authoredBody }) => {
+    (host, { offerElement, offerActionElement, tabStore, authoredBody }) => {
       const saved = JSON.parse(
         tabStore.get(`motion:${host.id}`) || '{"time":0,"rate":1}'
       );
@@ -65,7 +65,9 @@
         if (node) drawing[key] = offerElement(node, cls);
       };
       const controlsRef = offered("controls", "lf-motion-controls");
-      const playRef = offered("play", "lf-btn lf-motion-play");
+      const playRef = (node) => {
+        if (node) drawing.play = offerActionElement(node, "symbol", "lf-motion-play");
+      };
       const timeRef = offered("time", "lf-motion-time");
       const clockRef = offered("clock", "lf-motion-clock");
       const speedLabelRef = offered("speedLabel", "lf-motion-speed");

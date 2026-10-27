@@ -9,7 +9,7 @@
 
    `z` says what it takes and how long ago that was made, in the command reference, the
    floating panel's menu row and the notice its undo leaves ("Undo: resolved “Rollout
-   safety” · 3d ago", then "Undid: resolved “Rollout safety” · 3d ago — sent"), in
+   safety” · 3d ago", then "Undid: resolved “Rollout safety” · 3d ago"), in
    every tab and after a reload. A thread goes by its name as it stands now, a to-do by
    its title and a reaction by where it stands, all of
    which the page already holds. An action's ids are words only in the document it was
@@ -36,10 +36,9 @@
    - Where the gesture's own landing has just carried the user from its place, as a
      thread settlement's does (thread/folding.js, `landedAway`), the user's last look
      at it was the gesture itself, so the press takes it at once and then, once the
-     log admits the withdrawal and the page presents it, shows the place under the
-     press's intent. It waits for the log because a margin draws a reopened thread
-     only from the server's reading. The gesture arms the press as a showing press
-     does, and the same inputs clear it; after one, the rules above apply.
+     page presents the withdrawal, shows the place under the press's intent. The
+     gesture arms the press as a showing press does, and the same inputs clear it;
+     after one, the rules above apply.
 
    Showing is a navigation step, so Back returns to where the user pressed. The rule is
    the same for every gesture; only a place's kind decides how it is shown. An exact
@@ -48,8 +47,8 @@
 
    A widget's gesture leaves, by its attempt, the words the widget named it by
    (`retainGesture`, `says`, pending/dispatch.js), and while this page holds them its
-   undo is said in them, the name its own acknowledgement used: "Chose “Fast” — sent",
-   then "Undid: Chose “Fast” · just now — sent". Those words and a landing's arm live
+   undo is said in them, the name its own announcement used: "Chose “Fast”",
+   then "Undid: Chose “Fast” · just now". Those words and a landing's arm live
    with the page that made the gesture, so after a reload or from another tab a
    gesture out of view is shown before it is taken. */
 import { notice } from "./notifications.js";
@@ -226,7 +225,7 @@ export function createUndo({
     const taken = takes(event);
     return post({ kind: "undo", undoes: event.id }).then((accepted) => {
       if (accepted) {
-        notice(`Undid: ${taken} — sent`);
+        notice(`Undid: ${taken}`);
         gestures.delete(event.attempt);
       }
       return accepted;
@@ -403,12 +402,8 @@ export function createUndo({
     if (!answer) return null;
     disarm();
     if (returning)
-      void answer
-        .then(async (accepted) => {
-          if (!accepted) return;
-          await whenDocumentPresented();
-          await show(event, returning);
-        })
+      void whenDocumentPresented()
+        .then(() => show(event, returning))
         .catch(() => {});
     return answer;
   }

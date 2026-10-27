@@ -72,7 +72,7 @@ import { sizeObserver } from "../rendering.js";
 import { scrollIntoView } from "../landing-scroll.js";
 import { retainUserIntent } from "../user-intent.js";
 import { coarsePointer } from "../pointer.js";
-import { offered } from "../widget-elements.js";
+import { offered, offeredAction } from "../widget-elements.js";
 
 const INPUT_DRAFT = Symbol("composition draft");
 
@@ -148,20 +148,14 @@ function mediaTemplate({ drawing, target, media, sent, actions }) {
               })}
             </button>
             <button
-              type="button"
-              class="lf-mark lf-corner-mark lf-composer-drawing-undo"
-              aria-label="Undo last stroke"
-              title="Undo last stroke"
+              ${offeredAction("mark", "lf-corner-mark lf-composer-drawing-undo", "Undo last stroke")}
               @mousedown=${(event) => event.preventDefault()}
               @click=${actions.undoStroke}
             >
               ${iconTemplate("undo", "lf-mark-icon")}
             </button>
             <button
-              type="button"
-              class="lf-mark lf-corner-mark"
-              aria-label="Remove drawing"
-              title="Remove drawing"
+              ${offeredAction("mark", "lf-corner-mark", "Remove drawing")}
               @mousedown=${(event) => event.preventDefault()}
               @click=${actions.removeDrawing}
             >
@@ -172,9 +166,7 @@ function mediaTemplate({ drawing, target, media, sent, actions }) {
       : null,
     media.map(({ index, url }) => {
       const remove = html`<button
-        type="button"
-        class="lf-mark lf-corner-mark lf-composer-media-remove"
-        aria-label=${`Remove attached image ${index + 1}`}
+        ${offeredAction("mark", "lf-corner-mark lf-composer-media-remove", `Remove attached image ${index + 1}`)}
         @click=${() => actions.removeMedia(index)}
       >
         ${iconTemplate("cross", "lf-mark-icon")}
@@ -250,7 +242,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       accessibleName = null,
       save,
       send,
-      sendClass = "lf-btn",
+      sendClass = "",
       sends,
       icon = "send",
       altLabel = null,
@@ -476,7 +468,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
             : "Dictate";
       const submitControl = html`<button
         type="button"
-        ${offered(`${sendClass} lf-icon-action lf-compose-submit`)}
+        ${offered(`${sendClass} lf-compose-submit`)}
         aria-label=${action}
         title=${sendKeys ? `${action} (${sendKeys})${newline}` : action}
         aria-disabled=${String(!canSend())}
@@ -519,7 +511,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       const dictationControl = offersDictation
         ? html`<button
             type="button"
-            ${offered("lf-btn lf-icon-action lf-compose-dictate")}
+            ${offered("lf-compose-dictate")}
             ?hidden=${!micShown}
             data-dictation=${dictationState}
             aria-label=${micAction}
@@ -550,7 +542,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       const alternate = altLabel
         ? html`<button
             type="button"
-            ${offered("lf-btn lf-compose-alt")}
+            ${offeredAction("word", "lf-compose-alt")}
             aria-disabled=${String(!canSend())}
             title=${altLabel}
             @mousedown=${keepEditing}

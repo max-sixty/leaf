@@ -540,7 +540,6 @@ def test_send_opens_the_card_a_reopen_shows(browser, serve):
     page.keyboard.press("Enter")
     card = page.locator(".lf-margin-preview")
     expect(card).to_have_css("opacity", "1")
-    expect(card).not_to_have_attribute("data-lf-grows", "")
     rendered(page)
     sent = page.evaluate(RECT, ".lf-margin-preview")
     page.keyboard.press("Escape")
@@ -1109,8 +1108,8 @@ def test_a_quote_surface_follows_scaled_inner_scroll_and_retains_native_editing(
 
 def test_a_sent_card_grows_inside_its_reading_region(browser, serve):
     """A card sent in a pane grows out of its box no further than the pane's edge
-    cuts it at rest: the growth's clip and the region's are one clip, so the card and
-    its shadow never paint past the pane, even for the growth's 240ms."""
+    cuts it at rest: the growth moves the card's surface inside the region's cut, so the
+    card and its shadow never paint past the pane, even while it grows."""
     page = open_page(
         browser,
         serve(
@@ -1138,7 +1137,8 @@ def test_a_sent_card_grows_inside_its_reading_region(browser, serve):
       window.clips = [];
       const sample = () => {
         const card = document.querySelector('.lf-margin-preview');
-        if (card?.getAnimations().length) window.clips.push(getComputedStyle(card).clipPath);
+        if (card?.querySelector('.lf-margin-preview-ground').getAnimations().length)
+          window.clips.push(getComputedStyle(card).clipPath);
         window.sampling = requestAnimationFrame(sample);
       };
       window.sampling = requestAnimationFrame(sample);
@@ -1149,7 +1149,7 @@ def test_a_sent_card_grows_inside_its_reading_region(browser, serve):
     expect(card).to_be_visible()
     wait_for(
         lambda: page.evaluate(
-            "document.querySelector('.lf-margin-preview').getAnimations().length"
+            "document.querySelector('.lf-margin-preview-ground').getAnimations().length"
         ),
         lambda n: n == 0,
         failure="Thread growth never finished",
@@ -1217,7 +1217,8 @@ def test_send_grows_thread_around_the_words(
     the rectangle the box's frame reserved, so the draft's words stand where they were
     typed through Send and its acknowledgement: the box and the card share one text
     column and foot, and the card stands its words as far above its end as the box did.
-    The growth only clips the card, so the words its layout places are the ones painted.
+    The growth only cuts the card's surface and parts, so the words its layout places
+    are the ones painted.
     Read inside the editor solely to measure its actual glyphs, without changing its
     closed-root behavior."""
     browser = request.getfixturevalue(engine)
@@ -1267,6 +1268,11 @@ def test_send_grows_thread_around_the_words(
         rendered(page)
     if long == "passage":
         assert FIRST_LINE.line(page)["bottom"] > 0
+    # The words stand where the box's growth with them ends (box-motion.js).
+    page.evaluate(
+        """() => Promise.all(document.querySelector('.lf-fab-ground')
+          .getAnimations().map(motion => motion.finished.catch(() => {})))"""
+    )
     page.evaluate("""() => {
       const input = document.querySelector('.lf-fab-input');
       const blockRects = node => {
@@ -1312,8 +1318,8 @@ def test_send_grows_thread_around_the_words(
       window.grew = false;
       const sample = () => {
         const card = document.querySelector('.lf-margin-preview');
-        window.grew ||= Boolean(card?.getAnimations().some(animation =>
-          animation.effect.getKeyframes().some(frame => 'clipPath' in frame)));
+        window.grew ||= Boolean(
+          card?.querySelector('.lf-margin-preview-ground').getAnimations().length);
         const body = card?.querySelector('.lf-msg-body');
         if (body && card.checkVisibility()) {
           window.sendFrames.push({rects:rects(body), pageScroll:scrollY,
@@ -1335,7 +1341,7 @@ def test_send_grows_thread_around_the_words(
     rendered(page)
     wait_for(
         lambda: page.evaluate(
-            "document.querySelector('.lf-margin-preview').getAnimations().length"
+            "document.querySelector('.lf-margin-preview-ground').getAnimations().length"
         ),
         lambda n: n == 0,
         failure="Thread growth never finished",

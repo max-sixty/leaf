@@ -54,10 +54,10 @@
  * Live pages reserve thread room at the wide layout's existing floors, so the
  * first comment and the last resolution leave the document column in place. */
 
-/* Ordinary action controls use `.lf-btn`, whose face is in shadow.css so it also
-   reaches declared shadow trees. Packages may set placement and density, but keep its shape, border,
-   hover, and disabled treatment. Icon-only actions keep the same corner on a square
-   face. Margin entries, reaction chips, and status labels retain their own forms.
+/* Leaf's controls wear the faces of their roles (components/controls.css), in
+   shadow.css so they also reach declared shadow trees. Packages may set placement and
+   density, but keep each face's shape, border, hover, and disabled treatment. Margin
+   entries, reaction chips, and status labels retain their own forms.
 
    Typography is presentation, not passage permission. A chip or code annotation may look
    like apparatus and still be a page word the user can quote.
@@ -294,7 +294,7 @@
      rail below is sized from the same length, so it is named rather than written into
      each. */
   --margin-entry: max(32px, var(--aim-floor));
-  /* A mark's box (controls.css, `.lf-mark`), on a corner or in a toolbar. A seat that
+  /* A mark's box (controls.css, `.lf-mark-action`), on a corner or in a toolbar. A seat that
      keeps room around its marks reads it, so it is named rather than written there. */
   --mark-size: 20px;
   /* How far inside its block's right edge a pin stands. margin-layout.js reads it too,
@@ -745,7 +745,7 @@ html:not([data-lf-live]) {
 /* A box that holds its own height and scrolls inside it says so, as a bounded block
  * below does: a widget in ordinary flow grows with its content, so a scroller nobody
  * declared is the defect the widget quality check `grows-with-content` names
- * (assets/AGENTS.md, "Space and scrolling"). It does not inherit, so a box inside a
+ * (browser/AGENTS.md, "Space and scrolling"). It does not inherit, so a box inside a
  * declared one answers for its own scroll. */
 @property --lf-holds-height {
   syntax: "<integer>";
@@ -1175,9 +1175,19 @@ main {
   inherits: true;
   initial-value: 0px;
 }
-/* Lengths a script reads (box-motion.js reads --raise-2's and --raise-3's to cut the
- * panel's and the margin card's ground; margin-layout.js reads the rail's hang),
- * registered so it gets resolved pixels whatever units the theme writes them in. */
+/* Lengths a script reads (box-motion.js reads a floating box's lift to cut its
+ * surface; margin-layout.js reads the rail's hang), registered so it gets resolved
+ * pixels whatever units the theme writes them in. */
+@property --raise-1-drop {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
+@property --raise-1-blur {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
 @property --raise-2-drop {
   syntax: "<length>";
   inherits: true;
@@ -1488,6 +1498,15 @@ details {
   margin: var(--details-margin-block) 0;
   --lf-block-frame: trim;
 }
+/* Disclosures written one after another read as one list of them, at the distance
+   their insets alone leave: with the margin between them too they stood further apart
+   than a heading from its prose, and a run of them read as separate sections. */
+details:has(+ details) {
+  margin-block-end: 0;
+}
+details + details {
+  margin-block-start: 0;
+}
 /* A disclosure arranged in columns gives its evidence the whole row. Keep this
    native pseudo-element rule outside package scopes: Firefox computes scoped
    ::details-content declarations but does not use them for grid placement. */
@@ -1739,11 +1758,19 @@ aside.sidenote {
    the figure, written as a one-term definition list. It is type and a hairline above,
    not a card, so a row of them reads as figures; a page restyles it through the
    tokens it reads. The figure and its change each go to a new line whole, and a figure
-   too long for the tile breaks anywhere rather than overflow it. */
+   too long for the tile breaks anywhere rather than overflow it.
+
+   In a grid, such as a row of tiles, the label and the figure take two of the row's
+   tracks (subgrid), so every figure in a row stands on one line however many lines a
+   neighbour's label wraps to. Elsewhere the tile is its own two-row grid. */
 .metric {
   margin: 0;
   padding-block-start: var(--sp-2);
   border-block-start: 1px solid var(--rule);
+  display: grid;
+  grid-row: span 2;
+  grid-template-rows: subgrid;
+  row-gap: 0;
 }
 .metric dt {
   color: var(--muted);

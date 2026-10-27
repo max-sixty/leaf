@@ -72,7 +72,7 @@
       (control) => belongsTo(host, control)
     )
   ];
-  function render(host, { tabStore, offer, generatedElement, keeps }) {
+  function render(host, { tabStore, offer, offerAction, generatedElement, keeps }) {
     const presets = own(host, "lf-playground-preset");
     const outputs = own(host, "lf-playground-output");
     const previews = own(host, "lf-playground-preview");
@@ -222,11 +222,9 @@
     if (interactive) {
       const railed = controls.filter((control) => control.parentElement === host);
       const panel = node("div", "lf-playground-controls");
-      const panelTitle = node("p", "lf-playground-controls-title lf-label", "Controls");
-      panelTitle.id = `${host.id}-controls-title`;
       panel.setAttribute("role", "group");
-      panel.setAttribute("aria-labelledby", panelTitle.id);
-      panel.append(panelTitle, ...railed);
+      panel.setAttribute("aria-label", "Controls");
+      panel.append(...railed);
       for (const control of controls) {
         const name = control.getAttribute("name"), kind = control.getAttribute("kind"), label = control.getAttribute("label");
         control.classList.add(`lf-playground-${kind}`);
@@ -290,16 +288,14 @@
       let presetBar = null;
       if (presets.length) {
         presetBar = node(railed.length ? "header" : "div", "lf-playground-presets");
-        const title = node("span", "lf-playground-presets-title", "Starting points");
-        title.id = `${host.id}-presets-title`;
         presetBar.setAttribute("role", "group");
-        presetBar.setAttribute("aria-labelledby", title.id);
-        presetBar.append(title, ...presets);
+        presetBar.setAttribute("aria-label", "Starting points");
+        presetBar.append(...presets);
       }
       for (const preset of presets) {
-        const button = offer(
-          "button",
-          "lf-btn lf-playground-preset",
+        const button = offerAction(
+          "word",
+          "lf-playground-preset",
           preset.getAttribute("label")
         );
         button.setAttribute("aria-pressed", "false");
@@ -307,8 +303,7 @@
         presetButtons.set(preset, button);
       }
       const actions = node("div", "lf-playground-actions");
-      reset = offer("button", "lf-btn lf-playground-reset");
-      reset.ariaLabel = reset.title = "Reset";
+      reset = offerAction("symbol", "lf-playground-reset", "Reset");
       reset.append(iconElement("retry", "lf-action-icon"));
       instruction = node("div", "lf-playground-instruction");
       instruction.id = `${host.id}-instruction`;
@@ -326,12 +321,11 @@
       const instructionBody = node("div", "lf-playground-instruction-body");
       instructionBody.append(output);
       instruction.append(instructionHead, instructionBody);
-      reveal = offer("button", "lf-btn lf-playground-reveal");
-      reveal.ariaLabel = reveal.title = "Show instruction";
+      reveal = offerAction("symbol", "lf-playground-reveal", "Show instruction");
       reveal.setAttribute("aria-controls", instruction.id);
       reveal.setAttribute("aria-expanded", "false");
       reveal.append(iconElement("more", "lf-action-icon"));
-      submit = offer("button", "lf-btn primary lf-playground-submit");
+      submit = offerAction("commit", "lf-playground-submit");
       const submitLabel = host.getAttribute("submit-label") ?? "Use these settings";
       submit.dataset.room = `${submitLabel}
 Undo choice`;

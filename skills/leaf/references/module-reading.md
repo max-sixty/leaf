@@ -61,17 +61,6 @@ name a datum not yet drawn. Where your key is a source location rather than the 
 lasting identity, translate it and read `projectedDatum(widget, key)`, the one matching
 element or `null`.
 
-#### Indicating (experimental)
-
-`indicate(this, attribute, key)` marks the elements `key` names in the referenced
-widget with `data-lf-indicated`, replacing this widget's previous mark through that
-attribute, and returns
-whether it marked anything; pass `null` to clear it, including in your cleanup. It
-doesn't scroll, focus, load, announce or record anything, so a widget may move the mark
-every frame and says in its own words what the mark means. A target whose parts have
-their own look styles `[data-lf-indicated]` in place of the default outline, and calls
-`layoutChanged(this)` after redrawing what a key names.
-
 ## Content helpers
 
 ### Markdown
@@ -121,8 +110,8 @@ on a generated image or link, so it resolves on published pages too.
 ### Icons
 
 `iconElement(name, className)` and `iconTemplate(name, className)` draw Leaf's icons.
-For a thread control, put `iconElement("comment", "lf-action-icon")` in an
-`lf-icon-action` button, which gives the label.
+A press drawn as an icon is a symbol (`module-authoring.md`, "Generated controls"):
+`offerAction("symbol", className, label, {icon: "comment"})` draws it with its label.
 
 ## Page readings
 
@@ -180,6 +169,9 @@ arrives. Each `source.kind` adds its own facts:
 returns the widgets' obligations, not withdrawn, inside `region`; `lf-tabs` and
 `lf-tally` count with it, so a module marking obligations per card or section should
 too, passing `readObligations().user` for those waiting on the user.
+`tally(obligations)` counts such a set as `{onUser, onAgent, open, total}`, splitting the
+open ones by next actor, and `tallyWords(count, agentName())` words it as `lf-tally`
+does, such as "2 of 8 to answer · 1 on Claude", so every count of a queue reads alike.
 
 `obligationActions.open(id)` takes the user to an obligation, resolving to `false` if
 it is gone. `obligationActions.next({within, dir})` steps to the next obligation

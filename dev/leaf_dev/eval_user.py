@@ -48,20 +48,19 @@ OPENERS = (
     "[role=link], [role=row], [role=treeitem], [tabindex]"
 )
 
-# The words the browser draws, each mapped back to its text node, with runs of
-# space collapsed as rendering collapses them; hidden and script text is skipped.
-DRAWN = """() => {
+# The words a reader can comment on that the browser draws, each mapped back to its
+# text node, with runs of space collapsed as rendering collapses them. `quotable` is
+# the set of text nodes in the page's own reading (`pageText`, passages.js), which
+# keeps a tab label or a board's column heading and leaves out Leaf's chrome and the
+# copies its routes echo, such as a contents outline's copy of a heading; hidden text
+# is skipped too.
+DRAWN = """(quotable) => {
   const chars = [], map = [];
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
   let space = true;
   for (let node; (node = walker.nextNode()); ) {
     const parent = node.parentElement;
-    if (!parent || parent.closest("script, style, template, noscript")) continue;
-    // Leaf's pageWords boundary: a declared label can speak through widget UI,
-    // while generated navigation and the panel remain apparatus, not passages.
-    const near = parent.closest(".lf-ui, [data-lf-said]");
-    if (parent.closest(".lf-chrome") ||
-        (near && !near.matches("[data-lf-said]"))) continue;
+    if (!parent || !quotable.has(node)) continue;
     if (!parent.checkVisibility({ visibilityProperty: true, opacityProperty: true }))
       continue;
     for (let i = 0; i < node.data.length; i++) {
@@ -76,10 +75,12 @@ DRAWN = """() => {
 }"""
 
 SELECT = (
-    """(quotes) => {
+    """async (quotes) => {
+  const { pageText } = await import("/runtime/check-api.js");
+  const quotable = new Set(pageText().segments.map((segment) => segment.node));
   const { text, map } = ("""
     + DRAWN
-    + """)();
+    + """)(quotable);
   for (const quote of quotes) {
     const at = text.indexOf(quote);
     if (at < 0) continue;

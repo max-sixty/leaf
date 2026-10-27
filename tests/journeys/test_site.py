@@ -797,7 +797,7 @@ def test_a_document_on_a_dead_release_asks_for_one_replacement(served_example, b
     page.route(url, answer)
     page.route(url + "?*", answer)
     page.goto(url, wait_until="load")
-    banner = page.get_by_text("Leaf couldn't start. Waiting for the server to update.")
+    banner = page.get_by_text("Leaf couldn't start. Waiting for Leaf to update.")
     expect(banner).to_be_visible()
     holding(page, rounds, 3, "three probe rounds from the replacement document")
     assert len(documents) == 2, documents
@@ -838,7 +838,7 @@ def test_a_page_that_starts_after_a_fault_takes_its_notice_back(
     page.on("request", lambda request: probes.append(request.url))
 
     page.goto(url, wait_until="load")
-    notice = page.get_by_text("Leaf couldn't start. Waiting for the server to update.")
+    notice = page.get_by_text("Leaf couldn't start. Waiting for Leaf to update.")
     expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
     expect(notice).to_have_count(0)
     expect(page.locator(".lf-fp-on-user")).to_be_visible()
@@ -904,7 +904,7 @@ def test_a_probe_in_flight_leaves_a_page_that_started_alone(served_example, brow
 
     assert len(documents) == 1, documents
     expect(
-        page.get_by_text("Leaf couldn't start. Waiting for the server to update.")
+        page.get_by_text("Leaf couldn't start. Waiting for Leaf to update.")
     ).to_have_count(0)
     take_browser_errors(page)
 
@@ -1338,7 +1338,7 @@ def test_every_published_page_stands_as_a_live_page(served_example, browser):
         newest = len(example_versions(source))
         expect_showing(page, newest)
         expect(page.locator(".lf-fp-leaf")).to_have_attribute(
-            "aria-label", "Page menu · Agent awaits — comment to revise this copy"
+            "aria-label", "Page menu · Ready — comment to revise this copy"
         )
         if source == FEATURE_GALLERY:
             samples = page.locator("#bg-interactions lf-sample")

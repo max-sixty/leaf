@@ -59,7 +59,7 @@ export const threadBox = (el, hint, { createComment, onDraftChanged, wireInput }
     },
     altSend: declaration.hold
       ? (_text, raw, owns) => {
-          if (sendComment(raw, owns, true)) notice("Message sent — goal paused");
+          if (sendComment(raw, owns, true)) notice("Replied — goal paused");
         }
       : null,
   });

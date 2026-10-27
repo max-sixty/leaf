@@ -24,13 +24,10 @@ import {
   focusDestination,
   focused,
   announce,
-  motion,
   tabStore,
   quoted,
   paintKeys,
 } from "/runtime/widget-api.js";
-
-const GLIDE = 160;
 
 customElements.define(
   "lf-timeline",
@@ -145,18 +142,11 @@ customElements.define(
 
     #go(index, keyed) {
       const drawing = this.#drawing;
-      const line = drawing.chart.querySelector(".lf-timeline-playhead-line");
-      const from = line?.getBoundingClientRect().left;
       const before = drawing.current;
       const step = drawing.show(index);
       if (step === before) return;
       if (!quoted(this))
         tabStore.set(`timeline:${this.id}`, String(drawing.model.steps[step].time));
-      if (line && from !== undefined) {
-        const shift = from - line.getBoundingClientRect().left;
-        if (shift)
-          motion(line, [{ translate: `${shift}px 0` }, { translate: "0 0" }], GLIDE);
-      }
       this.#parts.update();
       paintKeys();
       const row = drawing.rows[step];

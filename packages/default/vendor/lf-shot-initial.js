@@ -8,7 +8,6 @@
     compare: "Pair",
     pixels: "Pixels"
   };
-  var CONTROL = "lf-btn lf-quiet-action";
   var nextOptionsId = 0;
   var differenceMark = (region, reading) => html`<span
     data-lf-shot-mark=${region.kind}
@@ -130,6 +129,12 @@
     constructor(host, tools) {
       this.host = host;
       this.tools = tools;
+      this.choiceRef = (node) => node && tools.offerActionElement(node, "word");
+      this.outlineRef = (node) => node && tools.offerActionElement(node, "word", "lf-shot-outline");
+      this.scaleRef = (node) => {
+        if (node)
+          this.scaleTrigger = tools.offerActionElement(node, "symbol", "lf-shot-scale");
+      };
       let optionsId;
       do
         optionsId = `lf-shot-options-${++nextOptionsId}`;
@@ -171,7 +176,7 @@
       const choices = (label, values, selected, choose2, cls = "lf-shot-views") => html`<div ${offered(cls)} role="group" aria-label=${label}>
         ${Object.entries(values).map(
         ([value, text]) => html`<button
-              ${offered(CONTROL)}
+              ${ref(this.choiceRef)}
               type="button"
               aria-pressed=${String(value === selected)}
               ?disabled=${value === "pixels" && !this.reading}
@@ -187,6 +192,7 @@
         const label = (this.metadata.labels ?? { before: "Before", after: "After" })[state2];
         const pair = this.view === "compare";
         const reading = this.reading;
+        const regions = reading?.regions.filter((region) => region.side === state2).map((region) => differenceMark(region, reading));
         return html`<div
         class="lf-shotframe lf-media-frame"
         data-lf-state=${state2}
@@ -217,13 +223,16 @@
                 src=${this.images[index]?.getAttribute("src") || nothing}
               />
               ${reading ? html`<div ${offered("lf-shotdiff")} aria-hidden="true">
-                      ${reading.regions.filter((region) => region.side === state2).map((region) => differenceMark(region, reading))}
+                      ${regions}
                     </div>` : nothing}
             </div></a
           >
         </div>
       </div>`;
       };
+      const pixelStyle = styleMap({
+        "--lf-shot-pixels": this.pixelUrl ? `url("${this.pixelUrl}")` : void 0
+      });
       keeps(host, "data-lf-shot-mode", this.view);
       keeps(host, "data-lf-shot-outlines", this.outlines);
       render(
@@ -234,10 +243,7 @@
             ${choices("Comparison view", SHOT_VIEWS, this.view, this.chooseView)}
             <div ${offered("lf-shot-tools")}>
               <button
-                ${offered(
-          `${CONTROL} lf-shot-scale`,
-          (node) => this.scaleTrigger = node
-        )}
+                ${ref(this.scaleRef)}
                 type="button"
                 aria-label="Image options"
                 popovertarget=${optionsId}
@@ -246,7 +252,7 @@
                 …
               </button>
               <button
-                ${offered(`${CONTROL} lf-shot-outline`)}
+                ${ref(this.outlineRef)}
                 type="button"
                 aria-label="Outline changes"
                 title="Outline changes"
@@ -309,12 +315,7 @@
                   >
                     <div class="lf-shotplane" ${box()}>
                       <img alt="" src=${this.images[1]?.src || nothing} />
-                      <span
-                        class="lf-shot-pixel-mask"
-                        style=${styleMap({
-          "--lf-shot-pixels": this.pixelUrl ? `url("${this.pixelUrl}")` : void 0
-        })}
-                      ></span>
+                      <span class="lf-shot-pixel-mask" style=${pixelStyle}></span>
                     </div>
                   </div>` : nothing}
           </div>

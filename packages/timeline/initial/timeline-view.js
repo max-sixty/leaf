@@ -181,8 +181,13 @@ export function drawTimeline(host, tools) {
       });
   };
   const controlsRef = offered("controls", "lf-timeline-controls");
-  const previousRef = offered("previous", "lf-btn lf-timeline-previous");
-  const nextRef = offered("next", "lf-btn lf-timeline-next");
+  const previousRef = (node) => {
+    if (node)
+      drawing.previous = tools.offerActionElement(node, "word", "lf-timeline-previous");
+  };
+  const nextRef = (node) => {
+    if (node) drawing.next = tools.offerActionElement(node, "word", "lf-timeline-next");
+  };
   const chartRef = (node) => {
     if (node) drawing.chart = tools.generatedElement(node, { says: "echo" });
   };

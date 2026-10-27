@@ -1126,15 +1126,21 @@ function release() {
 	released();
 	if (letGoes === before) letGo();
 }
+const letGoReaders = /* @__PURE__ */ new Set();
+const onLetGo = (read) => {
+	letGoReaders.add(read);
+	return () => letGoReaders.delete(read);
+};
 function letGo() {
 	letGoes++;
-	const block = readingBlock();
-	if (!block?.isConnected) {
-		releaseFocus();
-		return;
+	const from = focused();
+	const block = readingBlock(from);
+	if (!block?.isConnected) releaseFocus();
+	else {
+		focusDestination(block, "move");
+		block.blur();
 	}
-	focusDestination(block, "move");
-	block.blur();
+	if (from && from !== document.body) for (const read of letGoReaders) read(from);
 }
 function handBack(...destinations) {
 	const places = destinations.filter((node) => node && node !== document.body);
@@ -1178,4 +1184,4 @@ function move(parent, node, before) {
 document.documentElement.lfInitial.move = move;
 
 //#endregion
-export { CARET_KEYS, LENT_REACH_STOP, MODIFIER_KEYS, PRESSES, TAB_STOP, TEXT_BOX, TEXT_FIELD, WORKS, afterScript, afterSettling, atLayoutPrecision, byRenderedOrder, canPlaceFocus, cancelAnimation, cancelRender, caretAtKey, carriedFrom, closeLayer, composedParentNode, controlNavigationKeys, currentLocationIn, currentLocationNodes, currentLocationTouches, declareReading, declareRelease, deepFocus, drawn, excludedByInert, focusDestination, focusRevision, focused, frameVisibility, handBack, holdCurrentLocation, holdFocus, holdRendering, inputCount, inputInFrame, isNativeLayer, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, nativeLayerHolding, nativeLayerKind, nextAnimation, nextFrame, nextRender, observePreparations, onCurrentLocation, onFocusVisibility, onFrameVisibility, onPress, onPressAway, onUserInput, openLayer, openerOf, pressLed, pressing, readCaret, readSampleVisibility, recentPlaceInput, recoveredLabelFocus, release, releaseFocus, renderedOrder, renderedParent, renderedUnder, renderingState, ringBox, roomPx, rove, selectsAll, shadowHost, sizeObserver, tabStops, takesLetters, typesText, under, upFrom, visibleFocus, watchCurrentLocationIn, watchFrame, wearsLentStop, whenLeft };
+export { CARET_KEYS, LENT_REACH_STOP, MODIFIER_KEYS, PRESSES, TAB_STOP, TEXT_BOX, TEXT_FIELD, WORKS, afterScript, afterSettling, atLayoutPrecision, byRenderedOrder, canPlaceFocus, cancelAnimation, cancelRender, caretAtKey, carriedFrom, closeLayer, composedParentNode, controlNavigationKeys, currentLocationIn, currentLocationNodes, currentLocationTouches, declareReading, declareRelease, deepFocus, drawn, excludedByInert, focusDestination, focusRevision, focused, frameVisibility, handBack, holdCurrentLocation, holdFocus, holdRendering, inputCount, inputInFrame, isNativeLayer, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, nativeLayerHolding, nativeLayerKind, nextAnimation, nextFrame, nextRender, observePreparations, onCurrentLocation, onFocusVisibility, onFrameVisibility, onLetGo, onPress, onPressAway, onUserInput, openLayer, openerOf, pressLed, pressing, readCaret, readSampleVisibility, recentPlaceInput, recoveredLabelFocus, release, releaseFocus, renderedOrder, renderedParent, renderedUnder, renderingState, ringBox, roomPx, rove, selectsAll, shadowHost, sizeObserver, tabStops, takesLetters, typesText, under, upFrom, visibleFocus, watchCurrentLocationIn, watchFrame, wearsLentStop, whenLeft };

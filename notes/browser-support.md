@@ -18,8 +18,10 @@ and observed behavior from published compatibility data. A successful API
 adoption needs no entry. Resolved failures leave this list; reasons the current
 implementation still needs belong beside its code. Rewrite an entry when its
 status changes rather than appending the investigation's chronology.
-`uv run leaf-dev probe SOURCE --firefox` runs a probe or journey in Playwright's
-Firefox.
+`uv run leaf-dev probe SOURCE --browser firefox` (or `webkit`) runs a probe or
+journey in Playwright's Firefox or WebKit, and `--browser ios` runs a probe in
+Safari on an iPhone simulator, whose WebKit can differ from Playwright's desktop
+build.
 
 Minor visual differences are acceptable when content remains readable and
 controls remain usable. Lost drafts, broken actions, inaccessible controls, and
@@ -28,6 +30,20 @@ An unsupported API alone does not justify blocking the whole browser: record
 what fails and what still works.
 
 ## Known gaps
+
+### Tab underline travel between anchors
+
+The selected-tab underline in `packages/default/styles/tabs.css` follows its
+label with CSS anchors. Playwright Firefox 155.0, build 1543, moved directly to
+the new anchor on 2026-10-26, without a transition or `transitionrun` event;
+Chromium 153.0.8010.12 interpolated its position and width. Instant selection
+is an accepted visual difference: the selected label, panel, keyboard routes
+and nested strips remain usable. Recheck by opening `lost-update` with
+`leaf-dev probe --firefox --motion no-preference`, selecting the adjacent tab
+with the pointer and inspecting `.lf-tab-selection` across animation frames.
+The Chromium behavior and interruption contract are covered by
+`test_pointer_tab_underline_moves_without_delaying_the_view` in
+`tests/browser/widgets/test_tabs.py`.
 
 ### Scroll-state containers
 
@@ -38,6 +54,31 @@ other tables keep the `inline-size` container from
 `browser/styles/components/reading.css`. Recheck table width with
 `test_a_table_of_prose_wraps_inside_its_box_in_every_engine` in
 `tests/browser/test_render_pages.py` before removing the fallback.
+
+### Baseline content-alignment
+
+Option cards laid across align their titles with `align-content: first baseline`
+(`packages/default/styles/options.css`). Playwright Chromium 153.0.8010.12 parsed
+the value but left grid items' contents at their start on 2026-10-25, while
+Playwright Firefox 155.0 shifted each item's contents onto the row's shared
+baseline. In Chromium a card whose chips wrap past the state seat's line, such as
+the canary card in `examples/alert-review.html`, still sets its title a chip line
+lower than its neighbours' (22px there); chips that fit beside the seat stay
+aligned in both engines. Table cells' `vertical-align: baseline` aligns them in
+Chromium, but Firefox 155.0 then leaves the row short of the shifted contents and
+clips them, so it can't stand in. Recheck with the `browser` case of
+`test_cards_laid_across_align_their_titles_whatever_chips_open_them` in
+`tests/browser/widgets/test_obligations.py`, extended to its `all` row.
+
+Firefox 155.0 holds that shift only through a layout of the whole row. After a
+later reflow dirties one card, such as an absolutely positioned child inserted or
+its padding changed, it lays the row out again and drops another card's shift,
+on 2026-10-26 in a plain grid with no Leaf code as well. A forced layout in the
+middle of the options render, between its insertions of key badges and marks,
+therefore left a card whose chips wrap a chip line or two below its neighbours on
+load, until a resize; `lf-options.js` reads computed style only when a surface
+shows an option's consequence for that reason. The test's `firefox_browser` case
+catches a render that splits the row's first layout again.
 
 ### A restyle skipped under a nested container in Chromium
 
@@ -227,6 +268,18 @@ Chromium 153.0.8010.12 also left a focused node unmatched by its own
 marks follow rendered ancestry; selectors for the focused editor use `:focus`.
 Recheck with a focused input moved into a hidden parent and back out.
 
+### Clearing a shadow host unloads its frames in WebKit
+
+In Playwright WebKit 26.6 on 2026-10-24, `replaceChildren()` on an element
+with a shadow root unloaded every iframe in that shadow tree, leaving it
+connected with a null `contentWindow`, even when the host had no children to
+remove; `textContent = ""` did the same when it had some. Removing each child
+with `remove()` kept the frames, as Chromium 153.0.8010.12 and Firefox 155.0
+did for all three. `shadowStage` (`browser/runtime/shadow-stage.js`) removes a host's
+light children child by child, the one place a widget clears its host, since a thread
+outlet in a stage can hold a frame. Recheck with `test_a_diff_revision_leaves_a_line_thread_where_it_stands`
+in `tests/browser/widgets/test_diffs.py`.
+
 ### Area capture rendering
 
 `browser/runtime/composing/page-image.js` reconstructs the DOM with SnapDOM.
@@ -297,7 +350,7 @@ place in its `right` inset because Playwright Firefox 155, on 2026-10-25, left
 a `left`-inset link where its heading had stood before the window widened, as
 commit 00e03385c records without a reproduction. The same day, a `left` form of
 the current arithmetic followed its heading in Firefox 155 when
-`leaf-dev probe --firefox` narrowed `release-notes`, `review-a-plan`,
+`leaf-dev probe --browser firefox` narrowed `release-notes`, `review-a-plan`,
 `live-progress` and a one-heading page to 440px and widened them to 1200px, so
 the gap is unconfirmed. The `right` form costs nothing else. Recheck by
 swapping in the `left` form and comparing the link's box after that resize with
@@ -312,6 +365,16 @@ an item without moving the containing page. On 2026-10-14, Playwright Firefox
 scroller when a horizontal strip's edge extended just beyond its band.
 Recheck a partly clipped strip's inner and outer scroll offsets before
 replacing Leaf's bounded walk with native reveal.
+
+### `calc()` in `overflow-clip-margin` in Chromium
+
+Playwright Chromium 153.0.8010.12 rejected `overflow-clip-margin: calc(2px + 5px)`
+on 2026-10-26, leaving the computed margin `0px`, while Playwright Firefox accepted
+it. A text field's clip margin (`composing/text-field.js`, `.lf-field`) therefore
+reads one custom property, `var(--lf-field-reach, 2px)`, rather than adding a
+motion's reach to the caret's 2px. Recheck by setting the calc value on an element
+and reading `getComputedStyle(element).overflowClipMargin`; once it reads `7px`, the
+reach can add to the caret's margin.
 
 ### Fixed layers missing from Firefox screencast frames
 

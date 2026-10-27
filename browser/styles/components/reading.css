@@ -110,15 +110,20 @@
  * float, it takes a row of its own across every track. */
 @media screen {
   .lf-text-scroller::after,
-  :where(:root, .lf-thread-transcript) :is(pre, table)::after {
+  :where(:root, .lf-thread-transcript) pre::after {
     content: "";
     float: inline-start;
     inline-size: 100%;
     block-size: var(--lf-text-scroll-track);
     grid-column: 1 / -1;
   }
-  :where(:root, .lf-thread-transcript) :is(pre, table)::after {
+  :where(:root, .lf-thread-transcript) pre::after {
     block-size: var(--lf-text-scroll-clearance);
+  }
+  /* A pseudo-element in an authored native table becomes an anonymous extra row.
+     Block tables need clearance; collapsed native tables ignore this padding. */
+  :where(:root, .lf-thread-transcript) table {
+    padding-block-end: var(--lf-text-scroll-clearance);
   }
 }
 /* Paper has no scrollbar, so a line past the column is not a scroll away but gone. Code

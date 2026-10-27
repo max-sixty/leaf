@@ -109,8 +109,8 @@ Keep each capture in its own image file; never join captures into one. Where cap
 vary along named axes, such as the moment in an interaction, the case, the window width
 or the colour scheme, put them in a `<table>` with one linked capture per cell, a
 `<th scope="col">` naming each column's value and a `<th scope="row">` naming each
-row's, so each axis is labelled once. Put captures of decision outcomes inside their corresponding options instead
-(`authoring-decisions.md`). Place captures the
+row's, so each axis is labelled once. Put captures of each option's outcome inside that
+option instead (`authoring-on-me.md`). Place captures the
 reader compares side by side or one above the other, so whatever moved shows as a
 misalignment.
 

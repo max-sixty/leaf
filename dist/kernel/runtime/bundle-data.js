@@ -5221,12 +5221,9 @@ function releaseReplies(surface) {
 	for (const { owner } of compositions.values()) {
 		if (!owner?.binding || !surface.contains(owner.row)) continue;
 		const shown = [...views.get(owner.context)].find((view) => view !== owner && drawn$2(view.controls.input));
-		if (shown) handOver(shown, owner);
-		else {
-			const redrawGiver = owner.binding.give();
-			parkRow(owner.row);
-			redrawGiver();
-		}
+		owner.binding.give();
+		if (shown) shown.binding.take(owner);
+		else parkRow(owner.row);
 	}
 }
 function replyControlDestination(node) {

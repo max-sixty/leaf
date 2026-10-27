@@ -392,9 +392,9 @@ the same `data-room` layout applies to authored and generated controls.
 
 A widget can upgrade inside a shut panel where every box measures zero, so take
 measurements inside `measure(element, take)`, which runs `take` once the element has a
-box. After a view swap that rearranges a widget's contents without resizing it, await
-`layoutChanged(element)` before restoring scroll. It dispatches `LAYOUT` to widgets that
-measure what they hold, which pass their asynchronous work to `detail.present(promise)`.
+box. After a view swap that rearranges a widget's contents without resizing it, call
+`layoutChanged(element)`, which dispatches `LAYOUT` to the widgets and runtime readers
+that measure what they hold, so they read again.
 
 `searchField(className, {name, label, placeholder})` builds a search or filter field
 with Leaf's frame, label, editor and Clear button; the widget owns the query and

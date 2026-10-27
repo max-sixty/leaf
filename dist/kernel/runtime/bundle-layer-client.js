@@ -1567,15 +1567,10 @@ const dragging = (el, on) => {
 };
 const LAYOUT = "lf-layout";
 const layoutChanged = (el) => {
-	const pending = [];
 	el.dispatchEvent(new CustomEvent(LAYOUT, {
 		bubbles: true,
-		composed: true,
-		detail: { present: (ready) => ready?.then && pending.push(ready) }
+		composed: true
 	}));
-	const ready = Promise.all(pending);
-	ready.catch(() => {});
-	return ready;
 };
 const measurements = /* @__PURE__ */ new WeakMap();
 const drawn = (el) => {

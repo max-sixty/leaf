@@ -142,48 +142,6 @@ def test_overflowing_section_tabs_reveal_and_open_their_sections(browser, serve)
     expect(page.locator("#bg-rollout-scope-text")).to_be_visible()
 
 
-@pytest.mark.parametrize("intervene", [False, True])
-def test_a_tab_layout_completion_preserves_native_navigation(browser, serve, intervene):
-    source = leaf_page(
-        "Tab readings",
-        '<lf-tabs id="views">'
-        + "".join(
-            f'<lf-tab id="view-{name.lower()}" label="{name}"><h1>{name}</h1>'
-            '<div style="height: 1800px"></div></lf-tab>'
-            for name in ("First", "Second")
-        )
-        + "</lf-tabs>",
-    )
-    page = open_page(browser, serve(source))
-    page.get_by_role("tab", name="Second", exact=True).focus()
-    page.evaluate("scrollTo(0, 400)")
-    page.keyboard.press("Enter")
-    rendered(page)
-    page.evaluate("""() => {
-      const held = new Promise(resolve => { window.releaseTabLayout = resolve; });
-      document.querySelector('#views').addEventListener('lf-layout', event => {
-        event.detail.present(held);
-        window.tabLayoutStarted = true;
-      }, {once: true});
-    }""")
-    try:
-        page.get_by_role("tab", name="First", exact=True).click()
-        page.wait_for_function("window.tabLayoutStarted === true")
-        assert page.evaluate("location.hash") == "#view-first"
-        native_arrival = page.evaluate("scrollY")
-        expected = native_arrival + (200 if intervene else 0)
-        if intervene:
-            page.mouse.move(500, 450)
-            page.mouse.wheel(0, 200)
-            page.wait_for_function(
-                "expected => Math.abs(scrollY - expected) < 1", arg=expected
-            )
-    finally:
-        page.evaluate("releaseTabLayout()")
-    rendered(page)
-    assert page.evaluate("scrollY") == pytest.approx(expected, abs=1)
-
-
 def test_an_inline_tab_keeps_its_panel_inside_one_visible_boundary(browser, serve):
     """The strip reads as an index inside the one frame that bounds its views.
 

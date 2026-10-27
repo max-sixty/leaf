@@ -108,9 +108,9 @@
  * A box may instead give the words the whole line and set `--lf-field-corner` to the
  * square at the field's trailing foot its action stands in. The field then says
  * whether words in view, or its caret, reach that square (`:state(corner-taken)`), and
- * the box shows its action only while the corner is free. Wrapping still turns on
- * nothing but the words; only the action comes and goes. Under a mouse, Return sends
- * when the action is hidden.
+ * the box shows its action while the corner is free, and over the words only when the
+ * pointer or focus comes to it. Wrapping still turns on nothing but the words; only the
+ * action comes and goes. Under a mouse, Return sends when the action is hidden.
  *
  * Leaf's key dispatcher owns submission and Escape. Return inserts a newline unless
  * its owner cancels `lf-edit-return` to reserve the press for submission. Android's
@@ -497,9 +497,6 @@ class LeafText extends HTMLElement {
       if (!this.#view) this.#build();
     });
     this.addEventListener("scroll", () => this.#measureOverflow(), { passive: true });
-    // The caret counts toward the corner only while it shows.
-    for (const type of ["focusin", "focusout"])
-      this.addEventListener(type, () => this.#measureOverflow());
     this.#root.addEventListener("beforeinput", () => this.#beforeEdit(), {
       capture: true,
     });
@@ -612,6 +609,8 @@ class LeafText extends HTMLElement {
       attributes: this.#contentAttributes(),
       returned: () => this.#returned(),
       oneLine: () => this.#oneLine,
+      // The caret counts toward the corner only while it shows.
+      focused: () => this.#measureOverflow(),
       revealed: (view, pos) => moveScrollerBy(this, this.#rowTravel(view, pos)),
       typed: (native, insert) => {
         this.#nativeInput = native;

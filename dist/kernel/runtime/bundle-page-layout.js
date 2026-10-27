@@ -1542,6 +1542,9 @@ function fieldEditor({ EditorView, EditorState, StateEffect, Compartment, Widget
 					field.revealed(view, range.head);
 					return false;
 				}),
+				EditorView.updateListener.of((update) => {
+					if (update.focusChanged) field.focused();
+				}),
 				histories.of(history()),
 				EditorState.transactionFilter.of((tr) => {
 					if (!tr.docChanged || !field.oneLine()) return tr;
@@ -1910,7 +1913,6 @@ var LeafText = class extends HTMLElement {
 			if (!this.#view) this.#build();
 		});
 		this.addEventListener("scroll", () => this.#measureOverflow(), { passive: true });
-		for (const type of ["focusin", "focusout"]) this.addEventListener(type, () => this.#measureOverflow());
 		this.#root.addEventListener("beforeinput", () => this.#beforeEdit(), { capture: true });
 		for (const type of ["input", "beforeinput"]) this.#root.addEventListener(type, (event) => event.stopPropagation());
 	}
@@ -1985,6 +1987,7 @@ var LeafText = class extends HTMLElement {
 			attributes: this.#contentAttributes(),
 			returned: () => this.#returned(),
 			oneLine: () => this.#oneLine,
+			focused: () => this.#measureOverflow(),
 			revealed: (view, pos) => moveScrollerBy(this, this.#rowTravel(view, pos)),
 			typed: (native, insert) => {
 				this.#nativeInput = native;

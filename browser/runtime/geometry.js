@@ -444,7 +444,10 @@ export function shownBox(el) {
     return new DOMRect(left, top, right - left, bottom - top);
   }
   const r = el.getBoundingClientRect();
-  if (r.width || r.height) return r;
+  // A zero-sized box still belongs to its element. Only a boxless wrapper takes
+  // its bounds from contents, which a hidden-until-found panel deliberately skips.
+  if (r.width || r.height || skipped(el) || getComputedStyle(el).display !== "contents")
+    return r;
   const contents = document.createRange();
   contents.selectNodeContents(el);
   return contents.getBoundingClientRect();

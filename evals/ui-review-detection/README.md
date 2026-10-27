@@ -52,7 +52,8 @@ uv run leaf-dev eval-ui-review \
 `--repeat 2` runs independent conversations. Every run needs a fresh `--output`
 directory; the default is under `.tmp/eval-ui-review/`. Models use the host's
 signed-in subscriptions. No dollar-cost estimate is reported.
-Grading also uses the host's Codex login, with the standard Sol judge.
+Grading also uses the host's Codex login, with the Codex judge pinned in
+`JUDGE_MODELS` (`dev/leaf_dev/arms.py`).
 
 Recognition supplies the same labelled screenshot sequence to both arms. The
 browser arm additionally has one host-owned operation for snapshots, clicks,

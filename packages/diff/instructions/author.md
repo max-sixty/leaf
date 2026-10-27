@@ -1,3 +1,12 @@
+## A patch review
+
+`lf-diff` has its own file listing. When directory hierarchy helps the reader navigate
+the patch, select the `file-tree` package too; its author instructions describe the
+navigator and selected-file composition. A small flat patch can use the diff's listing
+alone.
+
+## Worktree snapshots
+
 Use `lf-worktree-diffs` when the reader needs to inspect a supplied set of worktrees.
 Give it one `lf-worktree` per snapshot, in review order. There is no limit on how many.
 Write each member’s evidence directly inside it. Leaf makes each member an expandable

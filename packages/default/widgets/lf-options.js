@@ -257,7 +257,8 @@ customElements.define(
         if (this.#choosable || option.hasAttribute("chosen"))
           this.#control(option, this.#choosable);
       this.#addition = new OptionAddition(this, {
-        offered: this.#choosable && !inChrome(this),
+        // `closed` answers only from the listed options.
+        offered: this.#choosable && !inChrome(this) && !this.hasAttribute("closed"),
         available: () => this.#available("choose"),
         commit: (added, choice, attempt) => {
           if (!this.#available("add") || !this.#available("choose")) return null;

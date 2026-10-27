@@ -37,12 +37,11 @@ import weakref
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from functools import cache, cached_property
-from pathlib import PurePosixPath
 from types import MappingProxyType
 
 from .layer import files_identity, stylesheet
 from .render_checks import PROBE_SOURCES
-from .revision_artifact import RESOURCE_TYPES, Resource, RevisionArtifact
+from .revision_artifact import Resource, RevisionArtifact, resource_type
 from .schema import ASSETS, KERNEL, RUNTIME_DIRS, RUNTIME_ENTRY
 
 
@@ -93,12 +92,7 @@ class ServingRuntime:
         def resources(files: Mapping[str, bytes]) -> Mapping[str, Resource]:
             return MappingProxyType(
                 {
-                    path: Resource(
-                        data,
-                        RESOURCE_TYPES.get(
-                            PurePosixPath(path).suffix, "application/octet-stream"
-                        ),
-                    )
+                    path: Resource(data, resource_type(path))
                     for path, data in {**files, **self.probes}.items()
                 }
             )

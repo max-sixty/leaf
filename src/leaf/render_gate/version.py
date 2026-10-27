@@ -77,8 +77,8 @@ def _render_version_attempt(
     declaration_sources=None,
 ) -> tuple[RenderReading, list, bool]:
     """Everything wrong with a served version that only a browser can see: a
-    console warning or error (a widget failing soft is one, since the page reports it),
-    a page error, an issue Chrome's DevTools raises, a request that 404s,
+    console error (a widget failing soft is one, since the page reports it),
+    a page error, a request that 404s,
     an upgrade module that never defines its declared element, an x-thread-seat whose module
     placed no matching page host, a widget upgraded into a box of no usable size,
     an element showing words with no box for a mark to hang on, so a comment anchored
@@ -91,10 +91,8 @@ def _render_version_attempt(
     widget that its entry never declared (a file's reading sees one writer, and this is
     the other), a version that authors widget state the log replays over, a widget whose
     render() is relative, so a read's replay of the sender's own gesture moves the
-    page again (none of the three is CSS), a block a comparison of the version with
-    itself marks, because a module wrote words there without marking them, a settled
-    holder whose mark or still-showing
-    slot words disagree with the log's decision (read once: the palettes carry no
+    page again (none of the three is CSS), a settled holder whose mark or
+    still-showing slot words disagree with the log's decision (read once: the palettes carry no
     geometry between them), and an SVG paint token that does not resolve to valid paint
     in that scheme. Once per version, on the settled desktop page in the light scheme,
     it reads, as advice, whether a widget declaring x-height drew at a height its first
@@ -109,7 +107,8 @@ def _render_version_attempt(
     also finds each width where the page's margin content changes (a sidebar,
     contents map or note first standing in the margin), and the gate renders the page
     there too, in the light scheme: what stands in the margin is layout, which the
-    scheme does not change. No failures is a pass.
+    scheme does not change. Console warnings and the issues Chrome's DevTools raises
+    are advice wherever they are read. No failures is a pass.
 
     The geometry has one reading (`readings.swept_faults`), reported by the runs of
     widths each fault stands across, and every render adds its samples to it. Each

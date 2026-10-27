@@ -6,7 +6,8 @@ module owes.
 ## Reading the page
 
 Read an element's words with `says(element)`, which returns them as passages and
-comments read them; `textContent` also returns lines Leaf writes into the page. To name
+comments read them; `textContent` also returns words a widget generated that passages
+leave out. To name
 one of the widget's own parts, use `wrote(element)`, which returns only the words the
 author wrote. Read a widget's `<pre>` body with `bodyText(this)`, which trims leading
 blank lines and trailing whitespace, or with `dataBody(this)` where whitespace matters,

@@ -410,8 +410,8 @@ function render(host, { tabStore, offer, offerAction, generatedElement, keeps })
     }
     return { attributes, properties };
   };
-  // A slot's value is the configuration's, not the author's, so a version comparison
-  // reads the instruction around it; the user can still quote the value.
+  // A slot's value is the configuration's, not the author's, so it is generated, apart
+  // from the instruction around it; the user can still quote the value.
   const renderValues = (next) => {
     for (const slot of output.querySelectorAll("lf-playground-value")) {
       if (!belongsTo(host, slot)) continue;

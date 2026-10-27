@@ -620,6 +620,18 @@ def test_a_playground_control_value_fits_its_kind_at_the_markup_boundary():
     # `class` and `style` are the page's styling hooks on a widget as on any element.
     assert not errors('kind="toggle" value="false" class="route"')
     assert not errors('kind="toggle" value="false" style="grid-column: 2"')
+    # So are the attributes that describe any element and record nothing.
+    assert not errors(
+        'kind="toggle" value="false" title="Route" lang="en" dir="ltr"'
+        ' aria-describedby="route-note" data-group="routing" data-test_id="r.1"'
+    )
+    # Leaf's own data-lf- namespace and `hidden` still validate.
+    assert refused('kind="toggle" value="false" data-lf-said="x"') == [
+        ("attribute-schema", "additionalProperties", [])
+    ]
+    assert refused('kind="toggle" value="false" hidden') == [
+        ("attribute-schema", "additionalProperties", [])
+    ]
     assert refused('kind="range" value="12"') == [("attribute-schema", "required", [])]
     assert refused('kind="range" value="twelve" max="24"') == [
         ("attribute-schema", "pattern", ["value"])

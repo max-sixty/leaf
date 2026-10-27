@@ -49,8 +49,9 @@ record whose pages are gone is removed whichever Leaf wrote it (`state.retire_if
 - `vendor/` — the third-party assets packages bring, beside the runtime's own.
 
 - `page/` — the page's own browser-ready modules, styles, assets, `page/registry.json`
-  and `page/widgets/`. These are candidate inputs only: delivery reads the revision's
-  captured copies.
+  and `page/widgets/`. These are candidate inputs only: each revision captures every
+  file here but hidden ones (`revision_artifact.page_files`), and delivery reads the
+  revision's captured copies.
 
 - `media/` — content-addressed media shared across revisions (`media.py`). A name is
   always the one `media.media_name` mints for its bytes, and `page check` and the

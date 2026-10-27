@@ -124,12 +124,10 @@ fills the window from the title's left edge; a dashboard whose detail the reader
 read on down uses `layout-sidebar` with its regions side by side. Let the working
 surface lead, with supporting reading below it or in later parts.
 
-Leaf reserves space for its panel at the bottom of the window. Comment markers appear
-in the margin or over their targets. Page CSS needs no extra spacing for either. The reader hides markers with
+Comment markers appear in the margin or over their targets; the reader hides them with
 `o`, or the leaf's menu → Annotations → Hide annotations, to read what's under one.
-Use page CSS for the task's arrangement or visualization, or a design the user
-requests. Let the content supply the hierarchy; give a card surface a grouping or
-interaction to express.
+Let the content supply the hierarchy; give a card surface a grouping or interaction to
+express.
 
 ## Contents navigation
 
@@ -152,18 +150,37 @@ to fit the window, and put detailed evidence and history in the body or behind a
 disclosure. Workspaces and root page tabs have their own navigation, and so does a
 page of parts, whose column parts each take their own outline.
 
-## Read the registry
+## Style the page
 
-Use Leaf's default styling for ordinary content, with semantic HTML from the registry's
-elements and class idioms. The vendored theme supplies colours, type, spacing,
-headings, tables, code and widgets. Page CSS spaces with its steps, `--sp-1` to
-`--sp-5`, which `density-working` tightens. Polish a page through clearer content and hierarchy
-within that treatment. Reserve page CSS for task-specific arrangement, visualization
-or a particular design the user requests. An added card surface should express a
-grouping or interaction the task needs; wrapping already styled elements just for
-polish adds visual weight without meaning. A box page CSS makes opaque, such as a
-sticky bar, uses `background: var(--lf-ground)` to match its containing surface.
-Cards and playground previews set this property for their contents.
+The vendored theme styles semantic HTML (headings, prose, tables, code) and Leaf's
+widgets in both colour schemes, so a page of ordinary content needs no CSS of its own:
+polish it through clearer content and hierarchy within that treatment. Where the task
+calls for a design of its own, such as an instrument, an arrangement, or a look the
+user asks for, write it in ordinary CSS. Page CSS stands above every theme rule
+without `!important` or extra specificity, and an element rule of its own, such as
+`table`, `code` or `blockquote`, replaces only the properties it names, so set the rest
+too wherever the theme's would show through. Wrapping elements the theme already
+styles in a card adds visual weight without meaning; give a card a grouping or
+interaction to express.
+
+Restyle the whole page through the theme's tokens on `:root` rather than rules on
+`body`, so Leaf's widgets, threads and panel follow the page: `--paper` and `--ink` for
+ground and text, `--card`, `--muted`, `--rule` and `--accent`, and the type voices
+`--serif` for prose, `--sans` for labels and controls and `--mono` for code
+(`package-themes.md`, "Theme colors", lists every input). A palette made for one scheme
+also sets `color-scheme: light` or `dark`, so the tokens it leaves alone take that
+scheme's values. `--col` sets the reading column's width, and the spacing steps
+`--sp-1` to `--sp-5` tighten under `density-working`.
+
+`body` is Leaf's: it holds the one `main`, which is the page, and Leaf's own interface,
+and pads its foot by `--lf-foot-room` so the page's end scrolls clear of the panel. Put
+the page's grid and header on or inside `main`, and its ground in `--paper`. A reset that zeroes
+`body`'s padding, or an app shell whose own box scrolls, puts
+`padding-bottom: var(--lf-foot-room)` on whatever scrolls. A box page CSS makes opaque,
+such as a sticky bar, uses `background: var(--lf-ground)` to match its containing
+surface; cards and playground previews set this property for their contents.
+`page-layout.md`, "Page CSS and Leaf's controls", says how page CSS meets Leaf's own
+controls.
 
 When page CSS reveals controls while a container is hovered or focused, include
 `:has([data-lf-control-active])` in the condition if it contains a code block.
@@ -175,7 +192,10 @@ keeps a card's actions visible when the pointer or focus moves onto Copy.
 `page-checkpoints.md`, "Page diagnostics", describes the optional source inventory
 for inspecting how much CSS a page adds and where it comes from.
 
-First read the shared author instructions of the page's packages, which can steer
+## Read the registry
+
+Use the registry's elements and class idioms for what they record or do. First read
+the shared author instructions of the page's packages, which can steer
 which entries you pick:
 
 ```bash
@@ -249,7 +269,7 @@ For a custom horizontal scroll area, set `overflow-x: auto` and add
 `class="scroll"` to that same box. Leaf contains its positioned descendants and
 adds keyboard access and continuation cues when content exceeds the box. Its CSS may
 change overflow at a breakpoint; Leaf measures the declared surface, never all of its
-descendants. Use a bounded reading region for independently scrolling vertical content.
+descendants. For a box that scrolls vertically, see `page-layout.md`, "Bounds and widths".
 
 The theme scrolls a `<pre>` or table wider than its container and fits an image or SVG
 to it, so none needs a width. A table's columns size to their content, so leave its

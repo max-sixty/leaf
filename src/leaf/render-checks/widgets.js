@@ -173,9 +173,19 @@ export function undeclaredAttrs(declarations) {
   // What a module may write without declaring: the platform's own vocabulary for
   // what a control is and how it behaves, and the data-* namespace the runtime and
   // the widgets both paint in. `class` and `style` are the same kind of fact — a
-  // look, not a state a version could carry.
+  // look, not a state a version could carry — and `title`, `lang` and `dir`, which
+  // the page may write on any element (`validation/instances.py`), describe one.
   const painted = /^(?:data-|aria-)/;
-  const platform = new Set(["role", "class", "style", "hidden", "tabindex"]);
+  const platform = new Set([
+    "role",
+    "class",
+    "style",
+    "title",
+    "lang",
+    "dir",
+    "hidden",
+    "tabindex",
+  ]);
   const all = openRoots(document);
   const found = [];
   for (const [tag, entry] of Object.entries(declarations)) {

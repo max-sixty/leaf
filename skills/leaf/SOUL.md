@@ -20,6 +20,13 @@ apparent. An action whose result the page can draw shows that result at once.
 Aim for a minimal, elegant interface with a clear visual hierarchy. Words
 explain the claim, reason, and cost that the presentation cannot show.
 
+**Primitives, not a template.** An author who writes good HTML and CSS gets the
+page they wrote. Leaf adds what a page can't do alone: comments on exact
+passages, recorded choices, live revisions, and the panel and threads that carry
+them. Its look and its widgets are defaults a page may take, not a frame every
+page must wear. Leaf reaches into the author's markup, styles and scripts only to
+keep a guarantee the user relies on, and says so where the author will see it.
+
 **Keep the page current and the record trustworthy.** A returning user can see
 where the work stands and what needs their attention. Finished work reduces to
 its outcome. Controls mean what they say, and the record preserves what the user

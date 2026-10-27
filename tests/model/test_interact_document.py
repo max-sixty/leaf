@@ -418,6 +418,47 @@ def test_the_captured_widget_digests_say_which_widgets_a_user_may_keep(page_dir)
     assert rewritten.widgets["flow"] == base.widgets["flow"]
 
 
+def test_a_revision_holds_every_page_file_with_its_served_type(page_dir):
+    """Page code fetches files by URLs it computes, which no capture can read, so a
+    revision holds all of `page/`, each typed as an ordinary site would serve it.
+    Hidden files, such as Finder's, stay out, so they never make a revision."""
+    authored = page_dir / "page"
+    files = {
+        "data.json": "application/json",
+        "tables/rows.csv": "text/csv",
+        "notes.txt": "text/plain",
+        "engine.wasm": "application/wasm",
+        "face.woff2": "font/woff2",
+        "photo.PNG": "image/png",
+        "fragment.html": "text/html",
+        "blob.unknown-suffix": "application/octet-stream",
+    }
+    for name in files:
+        (authored / name).parent.mkdir(parents=True, exist_ok=True)
+        (authored / name).write_text(name)
+    (authored / ".DS_Store").write_text("finder")
+    (authored / ".cache").mkdir()
+    (authored / ".cache" / "state.json").write_text("{}")
+
+    first = revisioning_model.activate_source(page_dir)
+    assert first.error is None, first.error
+    artifact = artifact_model.read_artifact(page_dir, first.revision)
+    page = {
+        path: resource.mime
+        for path, resource in artifact.resources.items()
+        if path.startswith("/page/")
+    }
+    assert page == {f"/page/{name}": mime for name, mime in files.items()}
+
+    (authored / ".DS_Store").write_text("finder moved an icon")
+    assert not revisioning_model.activate_source(page_dir).created
+    (authored / "data.json").write_text('{"value": 2}')
+    second = revisioning_model.activate_source(page_dir)
+    assert second.created
+    changed = artifact_model.read_artifact(page_dir, second.revision)
+    assert changed.resources["/page/data.json"].data == b'{"value": 2}'
+
+
 def test_module_capture_reads_javascript_syntax_and_rewrites_only_imports(page_dir):
     authored = page_dir / "page"
     (authored / "value.js").write_text("export const value = 1;")
@@ -460,7 +501,6 @@ def test_invalid_dependencies_leave_the_previous_revision_active(page_dir, tmp_p
     (authored / "notes.txt").write_text("notes")
     outside = tmp_path / "outside.js"
     outside.write_text("export const value = 1;")
-    (authored / "escape.js").symlink_to(outside)
     initial = revisioning_model.activate_source(page_dir)
     assert initial.error is None and initial.revision == 1
     previous = files_model.latest_revision(page_dir)
@@ -483,9 +523,14 @@ def test_invalid_dependencies_leave_the_previous_revision_active(page_dir, tmp_p
         ('import "/runtime/events.js";', "module-outside-page"),
         ('import "/vendor/lit.js";', "module-outside-page"),
         ('import "./notes.txt";', "module-type"),
-        ('import "./escape.js";', "dependency-symlink"),
         ('import "./data\\u002ejson";', "dependency-not-local"),
+        # A symlink out of page/ is refused whether or not anything names it, since
+        # the revision would hold the outside file either way.
+        ('import "./escape.js";', "dependency-symlink"),
+        ("export {};", "dependency-symlink"),
     ]:
+        if code == "dependency-symlink" and not (authored / "escape.js").is_symlink():
+            (authored / "escape.js").symlink_to(outside)
         (authored / "app.js").write_text(source)
         refused = revisioning_model.activate_source(page_dir)
         assert refused.error, source

@@ -2,8 +2,7 @@
  * Its upgrade boundary keeps file captures from joining words across those slots;
  * the parent applies each validated value snapshot synchronously before copying or
  * submitting the resulting instruction. An instruction provider's words replace the
- * authored prose, so they are generated, and a version comparison doesn't read them
- * as the author's. */
+ * authored prose, so they are generated, and not read as the author's. */
 import { generatedElement, keepsText, once } from "/runtime/widget-api.js";
 
 customElements.define(

@@ -108,6 +108,9 @@ def _in_frame(location: str) -> bool:
 
 def console_finding(message, *, warnings: bool = True) -> Finding | None:
     """Preserve console errors and optional warnings with their browser locations.
+    An error refuses the page; a warning is advice, since a library's own notice (a
+    development build, a deprecation) breaks nothing a user relies on, and a widget
+    failing soft reports an error.
 
     Console wording is diagnostic text, even when it resembles the browser's own
     failed-resource report. It cannot establish an HTTP response or its status.
@@ -131,7 +134,7 @@ def console_finding(message, *, warnings: bool = True) -> Finding | None:
     ):
         return None
     if message.type == "warning" and warnings:
-        return Finding("console-warning", values=said)
+        return Finding("console-warning", values=said, severity="advice")
     if message.type != "error":
         return None
     return Finding("console-error", values=said)

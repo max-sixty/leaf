@@ -6,6 +6,7 @@
  * kernel rather than constructing another runtime. */
 export * from "./framing.js";
 export * from "./layout.js";
+export * from "./motion.js";
 export * from "./reachability.js";
 export * from "./replay.js";
 export * from "./runtime.js";

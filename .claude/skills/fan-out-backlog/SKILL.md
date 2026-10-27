@@ -1,14 +1,20 @@
 ---
-name: grinding-backlog
-description: Runs a campaign of parallel agents on Leaf's backlog issues while the user is away, each item reviewed and ready as a draft PR. Use for "grind the backlog", "run grinds overnight", or a batch of agent-ready items.
+name: fan-out-backlog
+description: Runs a campaign of parallel agents on Leaf's backlog issues while the user is away, each item reviewed and landed, or left as a decision for the user. Use for "fan out the backlog", "grind the backlog", or a batch of agent-ready items when spare tokens are plentiful.
 ---
 
-# Grinding the backlog
+# Fanning out the backlog
 
-Turn the backlog items that need no judgment from the user into draft pull
-requests they can review on return, each one already reviewed and fixed. The user's
+Turn the backlog items that need no judgment from the user into reviewed,
+landed changes, and leave the user only the decisions the work raised. The user's
 attention is the scarce resource: they read the results, not the work, so every
 PR has to be right without them. Load `/developing-leaf` for repository work.
+
+## When to run one
+
+The maintainer isn't sure a backlog campaign beats doing work as it comes up,
+and prefers the latter by default. So run one only when there are many spare
+tokens to spend, and not on a schedule or from Tend.
 
 ## Choose the items
 
@@ -46,23 +52,52 @@ Keep a ledger in `.tmp/` with each agent's item, outcome, PR, cost and the
 it in the repository or tooling when it's yours, add it to the brief when it is
 how the run works, and report the rest.
 
+Take the counts you report from GitHub
+(`gh pr list --state all --limit 300 --search "head:grind/"`), not from the
+ledger or your memory of the run: a run this long compacts several times, and
+counts carried across a compaction drift.
+
 ## Review every PR
 
 Give each PR an independent reviewer in its own worktree, briefed with the PR
 and what to check, not with the author's conclusions, and told to verify by
-running. In one run 22 of 55 PRs had a substantive defect: a regression, a false
-central claim, a red test, or lost input. Send the findings back to the author
-with `SendMessage`, since it holds the context to fix them in minutes, and
-review the fix again when it changed behavior.
+running and to weigh what the change adds (`/developing-leaf`, "Weigh what a
+change adds"). In one run 22 of 55 PRs had a substantive defect: a regression, a
+false central claim, a red test, or lost input, and reviewers who checked
+correctness alone passed every addition the user later cut.
+
+Send the findings back to the author with `SendMessage`, since it holds the
+context to fix them in minutes, and review every fix again: an unreviewed fix in
+that run broke the eval comparison arms.
 
 When main moves under a PR, have its author merge main in, take what main
 landed, and re-measure what the PR still changes.
 
+## Land as you go
+
+Once a PR's review and the reviews of its fixes pass, mark it ready
+(`gh pr ready`). Tend then reviews and lands it under `running-tend`'s
+**Landing**, which reserves some changes, such as agent instructions, for the
+maintainer; send Tend's findings to the author as above. Drafts held for the
+user in one run waited 50 hours at the median while main took 297 commits;
+other sessions fixed 6 of 47 first, and the user then landed the rest with one
+choice.
+
+A PR stays a draft, with its decision on the user's page, when it leaves a call
+for the user, or when it adds something beyond the repair and the test that
+protects it that later changes must keep working with: a new mechanism, gate,
+public option, dependency or protocol bump. The author lists these under `adds`
+in its report, and the reviewer checks the list.
+
+Mark PRs ready as their reviews finish rather than all at once: each ready PR
+starts Tend runs, which share one GitHub API quota that six agents landing in
+parallel once used up.
+
 ## Hand over
 
-Put the results on a Leaf page: what changed, grouped so the user can read by
-theme, the measurements that show it, the order in which to land the PRs, and
-what you learned about running the campaign. Register each decision a PR leaves
+Put the results on a Leaf page: what landed, grouped so the user can read by
+theme, the measurements that show it, the PRs still open and why, and what you
+learned about running the campaign. Register each decision a PR leaves
 to the user on their On me list, including calls an agent made that they may
 reverse. An agent's report names its calls for a reader who knows the PR, and the
 user hasn't opened it, so each decision says what the user sees today, what the PR

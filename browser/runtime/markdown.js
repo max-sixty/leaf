@@ -59,11 +59,6 @@ export async function loadDeclaredMarkdown(scope) {
     );
 }
 
-export async function prepareDeclaredMarkdown(scope) {
-  await loadDeclaredMarkdown(scope);
-  formatDeclaredMarkdown(scope);
-}
-
 // Only presentation nodes are formatted. Source documents stay intact for typed state,
 // revision patching and provenance; arrivals call this after capture, before connection.
 // Their import preparation has already made the parser ready, so this step is synchronous.

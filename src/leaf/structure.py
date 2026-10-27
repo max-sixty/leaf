@@ -728,11 +728,13 @@ class Authoring:
 
         if tag == "noscript":
             self.errors.append(Finding("noscript", "<noscript>", {"line": line}))
+        # Only the outermost: an element inside one already named moves with it.
         if (
             not in_main
             and tag not in DOCUMENT_WRAPPERS
             and tag != "script"
             and not (in_head and tag in HEAD_METADATA_TAGS)
+            and (parent_tag is None or parent_tag in DOCUMENT_WRAPPERS)
         ):
             self.outside_main.append({"tag": tag, "line": line, "text": False})
 
@@ -838,7 +840,7 @@ class Authoring:
                 if (
                     child.data.strip()
                     and "main" not in next_ancestors
-                    and element.tag not in {"script", "style", "title"}
+                    and element.tag in DOCUMENT_WRAPPERS
                 ):
                     self.outside_main.append(
                         {"tag": element.tag, "line": line, "text": True}

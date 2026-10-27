@@ -138,7 +138,6 @@ customElements.define(
     #preview = null;
     #submit = null;
     #reset = null;
-    #choosing = false;
     #projected = undefined;
     #drawnThrough = -Infinity;
     #ready = false;
@@ -401,9 +400,7 @@ customElements.define(
           control: this.#submit,
           decision: true,
           title: () => this.#submit.textContent,
-          when: () =>
-            !this.#choosing &&
-            (this.#chosen() ? Boolean(this.#undo()) : this.#available()),
+          when: () => (this.#chosen() ? Boolean(this.#undo()) : this.#available()),
           run: () => this.#choose(),
         },
         {
@@ -490,30 +487,20 @@ customElements.define(
         .trim();
     }
 
-    async #choose() {
-      if (this.#choosing) return;
+    #choose() {
       const chosen = this.#chosen();
       const undo = chosen ? this.#undo() : null;
       if (chosen ? !undo : !this.#available()) return;
-      this.#choosing = true;
-      this.#paintAvailability();
-      this.#submit.setAttribute("aria-busy", "true");
-      try {
-        await this.controller.dispatch(
-          chosen
-            ? { kind: "undo", target: undo.attempt ?? undo.id }
-            : {
-                kind: "action",
-                verb: "choose",
-                detail: { values: this.values, instruction: this.#instruction() },
-                says: "Playground settings",
-              },
-        )?.delivery;
-      } finally {
-        this.#choosing = false;
-        this.#submit.removeAttribute("aria-busy");
-        this.#paintAvailability();
-      }
+      this.controller.dispatch(
+        chosen
+          ? { kind: "undo", target: undo.attempt ?? undo.id }
+          : {
+              kind: "action",
+              verb: "choose",
+              detail: { values: this.values, instruction: this.#instruction() },
+              says: "Playground settings",
+            },
+      );
     }
 
     #paintAvailability() {

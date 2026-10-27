@@ -1508,7 +1508,10 @@ def test_the_ring_is_one_box_around_the_whole_change(browser, serve):
     # promise.
     marks = page.evaluate("""() => [...document.querySelectorAll('main [data-lf-obligation]')].map(e => {
       return { what: e.id || e.tagName, fragments: e.getClientRects().length,
-               ring: getComputedStyle(e).outlineStyle !== 'none' };
+               ring: (() => {
+                 const mark = document.querySelector(`.lf-visual-mark[data-for="${e.id}"]`);
+                 return mark && getComputedStyle(mark, '::after').outlineStyle === 'solid';
+               })() };
     })""")
     assert [m["what"] for m in marks] == ["sug-refill"]
     assert marks[0]["ring"]

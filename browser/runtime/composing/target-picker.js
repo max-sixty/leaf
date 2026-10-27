@@ -16,7 +16,7 @@ import {
   selectEnds,
   segmentBlock,
 } from "../passages.js";
-import { shownBox } from "../geometry.js";
+import { shownBox, skipped } from "../geometry.js";
 import { visibleTargetParts } from "../visible-target-parts.js";
 import { repaint } from "../repaint.js";
 import { intersect, union } from "../rect.js";
@@ -177,6 +177,7 @@ export function createTargetPicker({
   };
 
   function firstShown(range, owner, reading) {
+    if (skipped(range.startContainer.parentElement)) return null;
     const clip = reading.clipOver(owner);
     if (!clip) return null;
     return (

@@ -166,13 +166,14 @@ function topLevelAwait(program) {
   return visit(program);
 }
 
-/** Keep native modules at their public URLs and compiled modules in one graph, and
- * refuse a compiled module that awaits at its top level (`topLevelAwait`). */
-function moduleBoundaries(layerRoot, assetRoot) {
+/** Keep native modules at their public URLs and compiled modules in one graph, and,
+ * where `refuseAwaits`, refuse a compiled module that awaits at its top level
+ * (`topLevelAwait`). */
+function moduleBoundaries(layerRoot, assetRoot, refuseAwaits) {
   return {
     name: "leaf-module-boundaries",
     transform(code, path) {
-      if (!code.includes("await")) return null;
+      if (!refuseAwaits || !code.includes("await")) return null;
       const found = topLevelAwait(this.parse(code, { sourceType: "module" }));
       if (found)
         this.error(
@@ -278,7 +279,7 @@ function kernelFacts(layerRoot, read) {
 }
 
 /** Compile one graph in memory; an asset root names the website's resource scope. */
-async function compile(layerRoot, entries, assetRoot, minify) {
+async function compile(layerRoot, entries, assetRoot, minify, refuseAwaits = true) {
   const native = await nativeRuntimeEntries(layerRoot, assetRoot);
   entries = [...new Set([...entries, ...native.entries])];
   const inlined = new Set();
@@ -291,7 +292,10 @@ async function compile(layerRoot, entries, assetRoot, minify) {
     makeAbsoluteExternalsRelative: false,
     tsconfig: false,
     preserveEntrySignatures: "strict",
-    plugins: [kernelFacts(layerRoot, inlined), moduleBoundaries(layerRoot, assetRoot)],
+    plugins: [
+      kernelFacts(layerRoot, inlined),
+      moduleBoundaries(layerRoot, assetRoot, refuseAwaits),
+    ],
     output: {
       format: "esm",
       entryFileNames: "[name].js",
@@ -373,7 +377,7 @@ async function layerModules(layerRoot) {
  * which a runtime serving it no longer carries. The modules it leaves native, such as the classic scripts
  * nothing imports, are served from source beside it.
  */
-export async function kernelOutputs(layerRoot) {
+export async function kernelOutputs(layerRoot, { refuseAwaits = true } = {}) {
   layerRoot = await realpath(layerRoot);
   const entries = [...runtimeEntries];
   for (const entry of diagnosticEntries) {
@@ -383,7 +387,7 @@ export async function kernelOutputs(layerRoot) {
       if (error.code !== "ENOENT") throw error;
     }
   }
-  const result = await compile(layerRoot, entries, null, false);
+  const result = await compile(layerRoot, entries, null, false, refuseAwaits);
   const files = new Map(
     result.output.map((file) => [file.fileName, Buffer.from(file.code)]),
   );
@@ -413,7 +417,10 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   if (process.argv.length !== 4)
     throw new Error("usage: node build/runtime-bundle.mjs LAYER KERNEL");
   const kernel = resolve(process.argv[3]);
-  const files = await kernelOutputs(resolve(process.argv[2]));
+  // A comparison arm's kernel (dev/leaf_dev/commands/distribution.py), which may be
+  // an older tree's whose modules await at their top level: it still compiles, as
+  // that tree's own build compiled it. This tree's build refuses one.
+  const files = await kernelOutputs(resolve(process.argv[2]), { refuseAwaits: false });
   await rm(kernel, { force: true, recursive: true });
   for (const [name, bytes] of files) {
     await mkdir(dirname(join(kernel, name)), { recursive: true });

@@ -153,6 +153,9 @@ test("a compiled module that awaits at its top level fails the build", async () 
       kernelOutputs(layer),
       /runtime\/media\.js awaits at its top level/,
     );
+    // An older comparison arm's modules may await at their top level, and its kernel
+    // still builds (dev/leaf_dev/commands/distribution.py).
+    await kernelOutputs(layer, { refuseAwaits: false });
     await write("runtime/media.js", "export const ready = true;");
 
     // The website's rebundle compiles widgets too.

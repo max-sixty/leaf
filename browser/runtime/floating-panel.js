@@ -463,7 +463,7 @@ export function createFloatingPanel({
   // A long draft offers more room, by the user's press rather than on its own: past
   // three lines a quiet mark stands over the leaf, in the corner the draft leaves free
   // beside its first line, or among an open view's controls, so it takes no room of its own
-  // (assets/AGENTS.md, "A control takes only its own room"). It stood at the end of the
+  // (browser/AGENTS.md, "A control takes only its own room"). It stood at the end of the
   // line over the field until, on 17 October, that line stopped saying where the words
   // go and so stopped standing over them. Pressing it widens the
   // panel and stands the field half the window tall (floating-panel.css), so the words
@@ -491,8 +491,8 @@ export function createFloatingPanel({
       : 0;
     if (lines > 3.5 === long) return;
     long = lines > 3.5;
-    // In the frame the field grows, ahead of the box's reading (`followBox`), so the
-    // box's motion reveals the mark with the line that brought it.
+    // In the frame the field grows, so the mark fades in as the line that brought it
+    // arrives, carried with the corner it rides (floating-panel.css, `.lf-fp-expand`).
     markRoom();
   });
   // The mark stands while the draft runs long, and while the field is wide, where the

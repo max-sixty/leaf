@@ -240,20 +240,25 @@
   }
   .lf-fp-expand {
     flex: none;
-    display: none;
+    display: grid;
     place-items: center;
     width: 24px;
     min-height: 0;
     height: 1lh;
     padding: 0;
     color: var(--lf-fp-muted);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity var(--lf-motion-box-resize), visibility 0s var(--lf-motion-box-resize);
   }
   .lf-fp-expand .lf-action-icon {
     width: 14px;
     height: 14px;
   }
   .lf-floating-panel[data-long] .lf-fp-expand {
-    display: grid;
+    opacity: 1;
+    visibility: visible;
+    transition: opacity var(--lf-motion-box-resize);
   }
   .lf-floating-panel[data-expanded] {
     --lf-fp-max: 1100px;
@@ -527,6 +532,7 @@
     right: calc(var(--lf-floating-gap) + var(--lf-safe-right));
     margin: 0;
     .lf-fp-field,
+    .lf-fp-expand,
     .lf-fp-row-notice,
     .lf-fp-quick,
     .lf-fp-opened {

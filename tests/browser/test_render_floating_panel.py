@@ -4860,6 +4860,189 @@ def test_a_line_the_field_grows_rides_the_box_s_top_edge(browser, serve):
     assert page.evaluate(gaps) == resting
 
 
+# How far the field's first line of words and the more-room mark stand below the box's
+# top edge as drawn, and how opaque the mark is.
+BELOW_THE_EDGE = r"""() => {
+  const ground = document.querySelector('.lf-fp-ground');
+  const cut = /inset\(([-\d.]+)px/.exec(
+    getComputedStyle(ground.querySelector('.lf-fp-fill')).clipPath,
+  )[1];
+  const edge = ground.getBoundingClientRect().top + Number.parseFloat(cut);
+  const host = document.querySelector('.lf-fp-field leaf-text');
+  const words = window.editorRoots.get(host).querySelector('.cm-line');
+  const mark = document.querySelector('.lf-fp-expand');
+  return {
+    words: words.getBoundingClientRect().top - edge,
+    mark: mark.getBoundingClientRect().top - edge,
+    opacity: Number(getComputedStyle(mark).opacity),
+  };
+}"""
+# Held motion: each motion the panel starts is held at its first frame (`HOLD_MOTION`)
+# once the fixture is set up, so a reading of a frame doesn't depend on how fast the
+# page runs.
+SEEK_HELD = "at => __lfHeld.forEach(motion => { motion.currentTime = at; })"
+
+
+def held_motion(page, part=".lf-fp-ground"):
+    """Wait until a held motion moves `part`, as the box's own tween does."""
+    page.wait_for_function(
+        "part => __lfHeld.some(motion => motion.effect?.target?.matches?.(part))",
+        arg=part,
+    )
+
+
+def hold_motion(page):
+    """Hold each motion the page starts from now on at its first frame."""
+    page.evaluate(
+        "() => { window.__lfAnimate = Element.prototype.animate;" + HOLD_MOTION + "}"
+    )
+
+
+def finish_held(page):
+    """Stop holding, finish what is held and wait for the panel to settle."""
+    page.evaluate(
+        "() => { Element.prototype.animate = window.__lfAnimate;"
+        " __lfHeld.splice(0).filter(motion => motion.playState !== 'idle')"
+        ".forEach(motion => motion.finish()); }"
+    )
+    settled(page)
+
+
+def ink_rows(image):
+    """The rows of `image` holding words, which a line cut off or jumping changes,
+    while antialiasing, which differs between engines, and the caret's thin stroke
+    do not."""
+    width, height = image.size
+    pixels = image.load()
+    return {
+        y for y in range(height) if sum(pixels[x, y] < 110 for x in range(width)) >= 3
+    }
+
+
+def test_the_field_s_words_and_mark_ride_its_top_edge_both_ways(browser, serve):
+    """A line removed carries the field's words down with the box's top edge, as a
+    line added carries them up, and the more-room mark rides that edge's corner, fading
+    in with the fourth line and out with it. The words used to jump to their place on
+    removal while the edge travelled, and the mark stood still while the rising edge
+    uncovered it. The tween's first frame shows the field's words where they stood, so
+    no line is cut off where the field's box no longer reaches."""
+    from io import BytesIO
+
+    from PIL import Image
+
+    def picture(region):
+        return Image.open(BytesIO(page.screenshot(clip=region))).convert("L")
+
+    page = open_page(browser, serve(LONG_PAGE), init_script=EDITOR_ROOTS)
+    page.emulate_media(reduced_motion="no-preference")
+    field(page).click()
+    page.keyboard.type("The first line of a draft")
+    for line in ("and its second line", "and its third"):
+        page.keyboard.press("Shift+Enter")
+        page.keyboard.type(line)
+    settled(page)
+    three = page.evaluate(BELOW_THE_EDGE)
+    assert three["opacity"] == 0, three
+    for key, opacity in (("Shift+Enter", 1), ("Backspace", 0)):
+        hold_motion(page)
+        # The words inside the field's ring as it stood, short of Send.
+        box = page.locator(".lf-fp-field").bounding_box()
+        region = {
+            "x": box["x"] + 3,
+            "y": box["y"] + 3,
+            "width": box["width"] - 40,
+            "height": box["height"] - 6,
+        }
+        stood = picture(region)
+        page.keyboard.press(key)
+        held_motion(page)
+        page.evaluate(SEEK_HELD, 0)
+        assert ink_rows(picture(region)) == ink_rows(stood), key
+        for at in (0, 60, 150):
+            page.evaluate(SEEK_HELD, at)
+            drawn = page.evaluate(BELOW_THE_EDGE)
+            assert [drawn["words"], drawn["mark"]] == pytest.approx(
+                [three["words"], three["mark"]], abs=1
+            ), (key, at, drawn)
+        finish_held(page)
+        rest = page.evaluate(BELOW_THE_EDGE)
+        assert [rest["words"], rest["mark"]] == pytest.approx(
+            [three["words"], three["mark"]], abs=1
+        ), rest
+        assert rest["opacity"] == opacity, (key, rest)
+
+
+def test_lines_removed_below_the_field_s_cap_leave_the_rest_in_place(browser, serve):
+    """A draft past the field's cap scrolls inside it; deleting its last lines until
+    the rest fits stops that scroll, and the lines still shown stay where they stood
+    on the tween's first frame, then travel down as the lines scrolled away come into
+    view, carrying on from where they are drawn when another line goes midway. They
+    used to jump down by the scroll the field gave up."""
+    page = open_page(browser, serve(LONG_PAGE), init_script=EDITOR_ROOTS)
+    page.emulate_media(reduced_motion="no-preference")
+    field(page).click()
+    page.keyboard.type("Line 1")
+    lines = 1
+    while not field(page).evaluate("box => box.scrollTop > 40"):
+        lines += 1
+        page.keyboard.press("Shift+Enter")
+        page.keyboard.type(f"Line {lines}")
+    for extra in range(lines + 1, lines + 5):
+        page.keyboard.press("Shift+Enter")
+        page.keyboard.type(f"Line {extra}")
+    settled(page)
+    shown = f"Line {lines - 4}"
+    where = """(host, words) => [...window.editorRoots.get(host).querySelectorAll('.cm-line')]
+      .find((line) => line.textContent === words).getBoundingClientRect().top"""
+    stood = field(page).evaluate(where, shown)
+    hold_motion(page)
+    # Back past the line that first made the field scroll, so the rest fits.
+    for _ in range(7):
+        page.keyboard.press("Shift+ArrowUp")
+    page.keyboard.press("Backspace")
+    held_motion(page)
+    assert field(page).evaluate("box => box.scrollHeight <= box.clientHeight")
+    assert field(page).evaluate(where, shown) == pytest.approx(stood, abs=1)
+    page.evaluate(SEEK_HELD, 60)
+    midway = field(page).evaluate(where, shown)
+    page.keyboard.press("Shift+ArrowUp")
+    page.keyboard.press("Backspace")
+    # The second deletion's tween, held at its start beside the first's, cancelled.
+    page.wait_for_function(
+        "() => __lfHeld.some(motion => motion.playState !== 'idle'"
+        " && motion.currentTime === 0 && motion.effect?.target?.matches?.('.lf-fp-ground'))"
+    )
+    assert field(page).evaluate(where, shown) == pytest.approx(midway, abs=1)
+    finish_held(page)
+    assert field(page).evaluate(where, shown) > stood + 20
+
+
+def test_a_send_s_reply_field_takes_the_row_s_seat_where_it_stands(browser, serve):
+    """Sending a page comment of several lines opens its thread above the row, and the
+    thread's reply field takes the page field's seat in the row from the tween's first
+    frame. It used to rise from below the window with the box's top edge, so the row
+    showed no field until the tween's last frames."""
+    page = floating(browser, serve(LONG_PAGE))
+    page.emulate_media(reduced_motion="no-preference")
+    field(page).click()
+    page.keyboard.type("A comment")
+    for line in ("that opens", "its thread"):
+        page.keyboard.press("Shift+Enter")
+        page.keyboard.type(line)
+    settled(page)
+    hold_motion(page)
+    page.keyboard.press("Enter")
+    # The box's tween as the thread's view opens over the row.
+    held_motion(page, ".lf-fp-opened")
+    reply = page.locator(".lf-fp-reply")
+    drawn = (
+        "reply => [reply.getBoundingClientRect().top, getComputedStyle(reply).clipPath]"
+    )
+    first = reply.evaluate(drawn)
+    finish_held(page)
+    assert first == reply.evaluate(drawn), first
+
+
 def test_looking_at_an_attached_image_keeps_the_draft_where_it_stands(browser, serve):
     """The image viewer opened from a draft's attachment stands over the panel, and
     Escape hands the user back to the attachment: they never left what they were

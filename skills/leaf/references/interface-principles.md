@@ -10,7 +10,8 @@ any page's author, and the others are Leaf's own tests. Leaf targets desktop fir
 judge layout at a representative desktop viewport.
 
 Leaf's maintainers find the runtime module that owns each rule in
-`../../../browser/AGENTS.md`, "Interface owners".
+`../../../browser/AGENTS.md`, "Interface owners", and the rules that bind only Leaf's own
+chrome in its "Leaf's chrome".
 
 ## Space and scrolling
 
@@ -28,18 +29,10 @@ Leaf's maintainers find the runtime module that owns each rule in
   ask whether a hand-written page with the same box would want the same answer. If not,
   the token describes a Layout rather than a box. Check:
   `test_layout_style_and_widgets_never_read_each_other`.
-- **Nothing Leaf draws moves the page's content.** Pins, passage marks and runtime
-  controls sit over the page and take no space, and no rule pads or widens a block to
-  make room for them. The rail sits right of `main` when the window is wide enough and
-  never moves or narrows the column ([page-layout.md](page-layout.md), "The rail and the
-  margin"). Only the left margin content and sidenotes move the column. Checks:
-  `test_a_comment_leaves_its_block_as_the_page_wrote_it` and the shift watch.
 - **A control takes only its own room.** Leaf never reserves a strip, a row or
   full-width padding to seat one small control. The control joins a line that is
   already there, such as a head, the line over a field or a row's end, or a corner its
   content leaves free.
-- **The chrome opens over the page and never changes its geometry.** The theme keeps
-  the room the floating panel's row rests in at the page's foot (`--lf-foot-room`).
 - **A widget in ordinary flow grows with its content.** It scrolls inside itself only
   when its task needs a region kept in view while its contents move, or for a live
   stream whose newest entry the reader follows, and then declares
@@ -92,23 +85,12 @@ Leaf's maintainers find the runtime module that owns each rule in
   fit inside the row would miss a row that grew to fit them. `tests/swap_watch.js`,
   which the browser fixture runs on every test, fails the test if a flex row's height
   changes to match a replacement child control.
-- **A runtime region whose contents rearrange inside it declares `data-lf-reflow`**
-  on the box that owns the space: `text` where its labels may rewrap while its controls
-  stay put, as in a message header, and `append` where it grows only at its end, as a
-  thread card's transcript does. A nested region keeps every guarantee of the regions
-  around it. The `tests/shift_watch.js` header says how the watch credits an `append`
-  region.
 - **News never moves what the reader is reading.** News from the server grows above
   the screen, where scroll anchoring absorbs it, or below it. Anywhere else it waits
   behind a fixed-size control until the reader goes to it, and an editor in use stays
   still. Check: `test_news_just_after_a_press_moves_nothing`. The user chose one
   exception: the answer they wait for in the floating panel's thread grows that view
   upward while its controls stay put.
-- **A box floating over the page grows inside the window**, toward the edge that has
-  room. Sending and later growth never scroll the page to make room. A freshly opened
-  card above or below its target may scroll to open clear of it. A box a scroll carried
-  away comes back when the user types into it. Only a field in flow scrolls to keep its
-  controls in view.
 - **A widget paints its final box before it upgrades.** The theme sizes each widget
   under `html[data-lf-interactive]` as its module will draw it
   ([module-authoring.md](module-authoring.md), "First paint"). Check: the widget quality
@@ -188,9 +170,6 @@ Leaf's maintainers find the runtime module that owns each rule in
 - **A face used twice is a token or a shared rule.** A lift names one of the theme's
   heights, `--raise-1` to `--raise-3` (`theme.css`). Check:
   `test_every_lift_names_one_of_the_theme_s_heights_cast_in_the_scheme_s_ink`.
-- **Every surface paints a thread's `unread` and `attention` from one value**, so the
-  On me mark's dot, Threads, panel, margin entry and Page Map change together. Green marks
-  the user's turn; other thread controls stay blue. Marking read never moves the user.
 
 ## Motion
 

@@ -188,7 +188,7 @@ export function scrollThreadIntoView(
 // (`landSent`), or on the seat holding a persistent box. The box the user sent from is
 // under their aim, and Send and the caret stand at its foot. In flow, its new turn
 // grows the thread just above it, so the box goes down by what the turn adds, less what
-// the emptied box gives back, as an append region lets it (`skills/leaf/references/interface-principles.md`, "Stability"), until its foot meets the band's foot, the line typing keeps
+// the emptied box gives back, as an append region lets it (`browser/AGENTS.md`, "Leaf's chrome"), until its foot meets the band's foot, the line typing keeps
 // it within (`revealWritingArea`); a foot already past that line stays where it stood.
 // Rejected: landing the thread around the box, which aimed at the thread's foot and its
 // focus ring's room while the thread fitted and at the row's foot once it did not, so

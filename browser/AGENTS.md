@@ -9,6 +9,40 @@ Python are in root `AGENTS.md`, "Cross-runtime invariants".
 Stylesheets need no build: page composition and the serving runtime place each file a
 sheet `@import`s where the import stands (`stylesheet` in `src/leaf/layer.py`).
 
+## Leaf's chrome
+
+The shipped interface principles hold for Leaf's chrome as for any widget. These rules
+hold only for what the runtime draws over and beside a page, its panel, overlays, cards
+and margin, which no package or page can break, so they stay out of the shipped
+reference. Paths are under `runtime/` unless named otherwise.
+
+- **Nothing Leaf draws moves the page's content.** Pins, passage marks and runtime
+  controls sit over the page and take no space, and no rule pads or widens a block to
+  make room for them. The rail sits right of `main` when the window is wide enough and
+  never moves or narrows the column (`../skills/leaf/references/page-layout.md`, "The rail and the
+  margin"). Only the left margin content and sidenotes move the column, through
+  `marginContentLayout` in `prepaint.js`. Checks:
+  `test_a_comment_leaves_its_block_as_the_page_wrote_it` and the shift watch. Owner:
+  `annotation-overlay/margin-placement.js`.
+- **The chrome opens over the page and never changes its geometry.** The theme keeps
+  the room the floating panel's row rests in at the page's foot (`--lf-foot-room`).
+- **A runtime region whose contents rearrange inside it declares `data-lf-reflow`**
+  on the box that owns the space: `text` where its labels may rewrap while its controls
+  stay put, as in a message header, and `append` where it grows only at its end, as a
+  thread card's transcript does. A nested region keeps every guarantee of the regions
+  around it. The `../tests/shift_watch.js` header says how the watch credits an `append`
+  region.
+- **A box floating over the page grows inside the window**, toward the edge that has
+  room. Sending and later growth never scroll the page to make room. A freshly opened
+  card above or below its target may scroll to open clear of it.
+  `annotation-overlay/comment-placement.js` owns attachment and bounds;
+  `thread/card-anchor.js` owns what each interaction preserves. A box a scroll carried
+  away comes back when the user types into it (`off-flow.js`). Only a field in flow
+  scrolls to keep its controls in view (`thread/reply-landing.js`).
+- **Every surface paints a thread's `unread` and `attention` from one value**, so the
+  On me mark's dot, Threads, panel, margin entry and Page Map change together. Green marks
+  the user's turn; other thread controls stay blue. Marking read never moves the user.
+
 ## Interface owners
 
 `../skills/leaf/references/interface-principles.md` holds the rules for everything drawn
@@ -18,11 +52,9 @@ carries out, by the rule's bold lead (paths under `runtime/` unless named otherw
 
 | Rule                                                          | Owners                                                                                                                                                                                                                                                                              |
 | ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Nothing Leaf draws moves the page's content                   | `annotation-overlay/margin-placement.js`; `marginContentLayout` in `prepaint.js` moves the column for the left margin content and sidenotes                                                                                                                                         |
 | A necessary scroller works like part of the document          | `reachScrollers` in `reach.js`                                                                                                                                                                                                                                                      |
 | The page holds still under the user's aim                     | `travels` on a command's row in `keyboard/bindings.js`                                                                                                                                                                                                                              |
 | News never moves what the reader is reading                   | `thread/held-news.js`, `newsMoves` in `thread/thread-card.js`, `threadsListing` in `floating-panel.js` for the rows of Threads, `reading-continuity.js` for a hidden tab; the exception is `fitAnswer` in `floating-panel.js`, credited by `appendGrowth` in `tests/shift_watch.js` |
-| A box floating over the page grows inside the window          | `annotation-overlay/comment-placement.js` (attachment and bounds), `thread/card-anchor.js` (what each interaction preserves), `off-flow.js` (a carried box's return), `thread/reply-landing.js` (a field in flow)                                                                   |
 | A gesture shows the result the page can draw as it is made    | `standGesture` in `drafts.js` (a send and the refusal that returns its words), `undo.js` (where undo leaves the user)                                                                                                                                                               |
 | Typed words stay in their native editor                       | `annotation-overlay/composing/floating-response.js`                                                                                                                                                                                                                                 |
 | Editing something keeps it where it stood and as it read      | `thread/message-edit.js`, `.lf-msg-editor` in `styles/components/response.css`, `facesOf` in `composing/text-field.js`, and the insets and `data-lf-gap` in `styles/components/reading.css`                                                                                         |

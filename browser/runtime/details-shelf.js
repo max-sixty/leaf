@@ -5,7 +5,7 @@
  * proxies. None of it may stand inside or beside the element. An element added among the
  * page's own changes which child is first, last, and only, and what an `h2 + p` rule
  * finds next, so the page's own rules would restyle and move its content for as long as
- * the apparatus stood (skills/leaf/references/interface-principles.md, "Space and scrolling").
+ * the apparatus stood (browser/AGENTS.md, "Leaf's chrome").
  *
  * So each such note stands on one shelf in the chrome, and its element names it as its
  * details, ARIA's relation for an annotation, which the browser exposes on the element's

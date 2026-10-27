@@ -51,10 +51,10 @@ function backgroundFlash(el, ms) {
 const foldDuration = () => motionTime("--lf-motion-fold");
 const returnDuration = () => motionTime("--lf-motion-return");
 function foldBlock(el, allocation = null) {
-	if (!CSS.supports("block-size", "calc-size(auto, size)")) return null;
 	const adjustment = allocation ? allocation.priorSize - allocation.container.getBoundingClientRect().height : 0;
-	return motion(el, [{
-		blockSize: `calc-size(auto, size + ${adjustment}px)`,
+	const native = CSS.supports("block-size", "calc-size(auto, size)");
+	const frames = (blockSize) => [{
+		blockSize,
 		display: "block",
 		overflow: "clip",
 		opacity: 1
@@ -70,7 +70,17 @@ function foldBlock(el, allocation = null) {
 		display: "block",
 		overflow: "clip",
 		opacity: 0
-	}], foldDuration());
+	}];
+	const played = motion(el, frames(native ? `calc-size(auto, size + ${adjustment}px)` : "auto"), foldDuration());
+	if (!played || native) return played;
+	if (getComputedStyle(el).display === "none") {
+		el.style.display = "block";
+		const release = () => el.style.removeProperty("display");
+		played.finished.then(release, release);
+	}
+	const size = parseFloat(getComputedStyle(el).blockSize) + adjustment;
+	played.effect.setKeyframes(frames(`${size}px`));
+	return played;
 }
 
 //#endregion

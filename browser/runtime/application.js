@@ -14,7 +14,7 @@ import {
   PRESENTATION_DOM,
   readPart,
 } from "./semantic-state.js";
-import { announce, notice } from "./notifications.js";
+import { announce } from "./notifications.js";
 import { answeredInWords, readObligations } from "./obligations/model.js";
 import { watchPendingTraffic } from "./traffic.js";
 import { createCommandDispatch } from "./pending/dispatch.js";
@@ -33,7 +33,7 @@ import { createInlineContributions } from "./inline-contributions.js";
 import { presentingContributions, watchContributions } from "./contributions.js";
 import { createThreadDestinations } from "./thread/destination.js";
 import { createThreadActions } from "./thread/actions.js";
-import { createQueueActions } from "./queue-api.js";
+import { createQueueActions, queueItemKey } from "./queue-api.js";
 import { createPrimaryReader } from "./thread/primary-reader.js";
 import { nextRender } from "./rendering.js";
 import { createReadTracking } from "./thread/read.js";
@@ -136,7 +136,8 @@ export function mountApplication(dependencies) {
   };
 
   createProjectionPresentation();
-  const dataProjection = createDataProjection({ invalidateDom });
+  // A widget's drawn marks reach it through `projectMarked` (leaf-element.js).
+  createDataProjection({ invalidateDom });
 
   let delivery;
   const presentThread = () => threadPresenter.present();
@@ -154,7 +155,7 @@ export function mountApplication(dependencies) {
     // than turning an accepted gesture into an apparent refusal, and it cannot strand
     // the gesture before transport or leave later sends behind an unanswered entry.
     try {
-      if (isMessageEvent(entry.event)) announce("Message sent");
+      if (isMessageEvent(entry.event)) announce("Message added");
       if (entry.event.kind === "edit") announce("Message edited");
     } catch (error) {
       reportPageError(error, "optimistic presentation");
@@ -165,12 +166,13 @@ export function mountApplication(dependencies) {
 
   commandDispatch.mount({
     afterEnqueue,
-    // A widget's gesture is acknowledged by the name the widget gave it, the name its
-    // undo is announced by too.
+    // A widget's gesture is announced by the name the widget gave it, the name its undo
+    // is announced by too. The live region alone says it: the pick is drawn where the
+    // user made it, and the margin's receipt says it was saved.
     named: (entry, says) => {
       undo.retainGesture(entry.event.attempt, { says });
       void entry.answer.then((admitted) => {
-        if (admitted) notice(`${says} — sent`);
+        if (admitted) announce(says);
       });
     },
     withdraw: (candidate) => undo.withdraw(candidate),
@@ -224,7 +226,8 @@ export function mountApplication(dependencies) {
   const settlementView = {
     pendingEntries: ledger.snapshot,
     actions: threadActions,
-    retainGesture: undo.retainGesture,
+    landedAway: undo.landedAway,
+    returnToThread: undo.returnToThread,
   };
   const reactionView = {
     registerSurface: dependencies.registerReactSurface,
@@ -234,6 +237,8 @@ export function mountApplication(dependencies) {
     reply: replyView,
     settlement: settlementView,
     reaction: reactionView,
+    // A thread's head ends the user's to-do on it with its own Done.
+    todos: { done: (id) => queueActions.done(queueItemKey({ kind: "todo", id })) },
     read,
     openThread: openPageThread,
     landInThread: dependencies.landInThread,
@@ -316,6 +321,7 @@ export function mountApplication(dependencies) {
     placedAt: dependencies.anchorPlacement.placedAt,
     marksFor: (id) => dependencies.anchorPaint?.marksFor(id) ?? [],
     scrollToElement: dependencies.anchorTravel.scrollToElement,
+    openInPanel: dependencies.annotationCommands.openInPanel,
   });
   const threadDestinations = createThreadDestinations({
     threadIdsAt: annotations.threadIdsAt,
@@ -349,7 +355,6 @@ export function mountApplication(dependencies) {
         part: "reply",
         focus: false,
         travel: false,
-        flash: false,
         intent,
       }),
     returnToPage: threadDestinations.returnToPage,
@@ -595,7 +600,6 @@ export function mountApplication(dependencies) {
       presentThreads(owner, spec, true),
     navigateToDatum: dependencies.anchorTravel.navigateToDatum,
     post,
-    projectData: dataProjection.projectData,
     readAndApply: feed.readAndApply,
     refreshThread,
     presentThread,
@@ -635,7 +639,6 @@ export const invalidateDom = (...args) => app().invalidateDom(...args);
 export const landInThread = (...args) => app().landInThread(...args);
 export const navigateToDatum = (...args) => app().navigateToDatum(...args);
 export const post = commandDispatch.post;
-export const projectData = (...args) => app().projectData(...args);
 export const placePageThreads = (...args) => app().placePageThreads(...args);
 export const consumeAnnotations = (...args) => app().consumeAnnotations(...args);
 export const registerThreadPresentation = (...args) =>

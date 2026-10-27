@@ -2,6 +2,7 @@
 Send press, where a sent message lands, and its delivery receipt."""
 
 import io
+import re
 
 import pytest
 from click.testing import CliRunner
@@ -200,7 +201,7 @@ def test_a_new_sent_message_does_not_hide_work_on_an_earlier_message(browser, se
     workflow = page.locator(
         f'.lf-margin-preview .lf-msg[data-event="{later["id"]}"] .lf-msg-sending'
     )
-    expect(workflow).to_have_text("Saved")
+    expect(workflow).to_have_text(re.compile(r"^Queued for "))
     assert workflow.evaluate(
         "node => node.parentElement.matches('.lf-msg-meta') "
         "&& node.previousElementSibling.matches('time')"

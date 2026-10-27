@@ -5124,6 +5124,10 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			voice: "leaf"
 		};
 		const thread = key ? threadByKey(key) : null;
+		if (key && !thread) return {
+			says: "absent",
+			words: ""
+		};
 		if (input === focused() && !thread?.resolved) return {
 			says: "destination",
 			words: whereTo(key)

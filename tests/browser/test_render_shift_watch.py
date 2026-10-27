@@ -2495,6 +2495,50 @@ def test_press_owned_size_flow_crosses_a_shadow_boundary(browser, seated):
         consume_browser_errors(page, moved_within("button#seated"))
 
 
+@pytest.mark.parametrize("follows", [True, False], ids=["carried", "independent"])
+def test_fold_reparenting_keeps_only_its_original_flow_credit(browser, follows):
+    """A fold can reach its endpoint and join closed history in one task. Its old
+    following control is carried; moving a preceding control as far is independent."""
+    control = (
+        '<button id="control" style="position:relative;display:block">Control</button>'
+    )
+    fold = '<div id="fold" style="height:100px"></div>'
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body style="margin:0;padding-top:200px"><button id="start">Start</button>'
+            + (fold + control if follows else control + fold)
+            + '<details id="stash"><summary>History</summary></details>'
+            + """<script>
+            start.addEventListener('pointerdown', () => {
+              window.effect = fold.animate([{height:'100px'}, {height:'0px'}],
+                {duration:400, fill:'forwards'});
+              effect.playbackRate = 0;
+              effect.currentTime = 0;
+            });
+            </script>"""
+        )
+    )
+    page.evaluate("document.body.setAttribute('data-lf-presented', '')")
+    page.locator("#start").click()
+    assert page.evaluate("effect.playState") == "running"
+    paint(page)
+    page.evaluate(
+        """follows => {
+          if (!follows) control.style.top = '-100px';
+          effect.currentTime = 400;
+          stash.append(fold);
+        }""",
+        follows,
+    )
+    judge_watches()
+    if follows:
+        assert take_browser_errors(page) == []
+    else:
+        consume_browser_errors(page, moved_within("button#control"))
+
+
 def test_absolute_size_animation_cannot_credit_an_independent_control_move(browser):
     """Matching travel does not join an out-of-flow effect to a later control."""
     page = browser.new_page()

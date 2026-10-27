@@ -1650,8 +1650,9 @@ flowchart TD
               <kbd>z</kbd> withdraws the user's latest action, naming that action and
               how long ago it was made. Where that action is out of view, or the agent
               has already picked it up, the first press shows it and the second takes it
-              back. Each undo appends an event naming its target, so the recomputed
-              result survives reloads.
+              back. Either way it leaves the user at what it took back, so undoing a
+              resolve opens the thread again. Each undo appends an event naming its
+              target, so the recomputed result survives reloads.
             </p>
           </section>
         </lf-tab>

@@ -269,30 +269,23 @@ const prefs = () => document.documentElement.lfChrome;
 const GROUPS = Object.freeze({
   navigate: "Navigate",
   annotate: "Annotations",
-  about: "About this page",
 });
 // Rows held elsewhere, so the menu and its groups leave them out: by the menu's foot.
 const FOLD = "panel.floating.fold";
 const HELD_ELSEWHERE = Object.freeze(["keyboard", `command:${FOLD}`]);
 // A row the menu or a group lists: neither held elsewhere nor a stance's way out, at the
 // row's end.
-const listed = (entry) => !entry.exit && !HELD_ELSEWHERE.includes(entry.key);
+const listed = (entry) =>
+  !entry.exit && !HELD_ELSEWHERE.includes(entry.key) && (!entry.copies || canCopy());
 // A browser offers the clipboard only to a secure context (https or localhost), so a
 // page read over plain http from another machine has none to copy with; and one that
-// offers it may still refuse a write, after which the page copies nothing more by a
-// press (`copyItem`).
+// offers it may still refuse a write, after which the menu drops its copy shortcuts
+// (`copyItem`).
 let copyRefused = false;
 const canCopy = () => !copyRefused && Boolean(navigator.clipboard?.writeText);
-// Where a row stands in the menu: in its group; a keyboard's convenience (`keys`) under
-// Navigate only where no keyboard is there to reach it, so a finger still can; and a row
-// that copies a text, such as the page's link, under About where no clipboard is there to
-// copy it with, since About shows its text to select.
+// Keyboard conveniences also stand under Navigate where a finger needs them.
 const groupOf = (entry) =>
-  entry.group === "keys" && !advertisesKeys()
-    ? "navigate"
-    : entry.copies && !canCopy()
-      ? "about"
-      : entry.group;
+  entry.group === "keys" && !advertisesKeys() ? "navigate" : entry.group;
 const capital = (word) => word[0].toUpperCase() + word.slice(1);
 const coarse = () => matchMedia("(pointer: coarse)").matches;
 // What passes in the panel's one seat for words that pass: a notice while one shows,
@@ -1105,8 +1098,7 @@ export function createFloatingPanel({
   // in the page's order, or before it at the end, standing on its view so `r`, `t` and
   // Escape go on from there; or, with none left, back to the list. A thread opened from
   // elsewhere goes back to where it came from. Taking the resolve back, or the log
-  // refusing it, stands the user on its row in Threads, while they have not acted since
-  // (folding.js, `settleThread`).
+  // refusing it, opens the thread again (folding.js, `settleThread`).
   const openThreads = () =>
     inPageOrder(
       threads().filter((candidate) => !candidate.resolved),
@@ -1117,56 +1109,28 @@ export function createFloatingPanel({
     const fromThreads = trail.value.at(-2)?.view === "threads";
     const at = openThreads().indexOf(thread);
     const mayLand = retainUserIntent();
-    let mayRestore = () => false;
-    return {
-      optimistic: () => {
-        if (!mayLand() || trail.value.at(-1) !== route) return false;
-        const kept = openThreads();
-        const next = fromThreads ? (kept[at] ?? kept[at - 1]) : null;
-        if (next) {
-          open({ view: "thread", thread: next.key }, { replace: true, focus: false });
-          const view = shownView();
-          if (view) focusDestination(view, "move");
-        } else back();
-        mayRestore = retainUserIntent();
-        return true;
-      },
-      // Taking the resolve back stands the user on the thread's row, where they are
-      // back at Threads. Where they moved on to the next thread, they stay on it, and
-      // the reopened thread waits in Threads: the reopening arrives with the server's
-      // reading, and a view opening or closing then would move the panel under no
-      // press. The undo door passes the intent of the press that asked for it.
-      reverse: (may = mayRestore) => {
-        if (!may() || !showing({ view: "threads" })) return;
-        const row = shownView()?.querySelector(
-          `.lf-fp-thread[data-key="${CSS.escape(thread.key)}"]`,
-        );
-        if (row) focusDestination(row, "move");
-      },
+    return () => {
+      if (!mayLand() || trail.value.at(-1) !== route) return false;
+      const kept = openThreads();
+      const next = fromThreads ? (kept[at] ?? kept[at - 1]) : null;
+      if (next) {
+        open({ view: "thread", thread: next.key }, { replace: true, focus: false });
+        const view = shownView();
+        if (view) focusDestination(view, "move");
+      } else back();
+      return true;
     };
   }
   // Reopening a thread puts the caret in its reply, which the reopening draws in the
-  // field, so what the user types next is their reply. Taking the reopen back, or the
-  // log refusing it, stands the user on the thread's view again, while they have not
-  // acted since, so the reply they did not write in goes with the reopening
-  // (folding.js, `settleThread`).
+  // field, so what the user types next is their reply.
   function reopenLanding() {
     const route = trail.value.at(-1);
     const mayLand = retainUserIntent();
-    let mayRestore = () => false;
-    return {
-      optimistic: () => {
-        const input = fieldInput();
-        if (!mayLand() || trail.value.at(-1) !== route || !input) return false;
-        focusDestination(input, "move");
-        mayRestore = retainUserIntent();
-        return true;
-      },
-      reverse: (may = mayRestore) => {
-        const view = shownView();
-        if (!may() || trail.value.at(-1) !== route || !view) return;
-        focusDestination(view, "return");
-      },
+    return () => {
+      const input = fieldInput();
+      if (!mayLand() || trail.value.at(-1) !== route || !input) return false;
+      focusDestination(input, "move");
+      return true;
     };
   }
   function back() {
@@ -1831,13 +1795,7 @@ export function createFloatingPanel({
         ? keySequenceTemplate(keySequenceModel(entry.shortcut))
         : nothing
     }`;
-  // A row of the menu whose press copies a text, such as the page's link, is Leaf's copy
-  // control worn by the row (copy-control.js): one press copies, the menu goes, and the
-  // field says whether the copy took, as it says any passing notice. What the text is,
-  // which a field to select it would say beneath it, is the row's hover name. Where no
-  // clipboard is offered, the row stands in About instead, its text there to select
-  // (`groupOf`); where the clipboard refuses the copy, the row moves there for good and
-  // About opens on the text, so the user can still take it.
+  // Copy shortcuts close on success; a refusal opens About's selectable text.
   const copyItems = new Map();
   function copyItem(entry) {
     let copy = copyItems.get(entry.key);
@@ -1849,7 +1807,11 @@ export function createFloatingPanel({
       copy.addEventListener("wa-copy", () => putAwayThen(() => {}));
       copy.addEventListener("wa-error", () => {
         copyRefused = true;
-        showMenuAt({ view: "group", group: "about" });
+        putAwayThen(() =>
+          rows()
+            .find((row) => row.key === "inspection")
+            .press(),
+        );
       });
       copyItems.set(entry.key, copy);
     }
@@ -2029,52 +1991,8 @@ export function createFloatingPanel({
   function groupList(group) {
     return rows()
       .filter((entry) => groupOf(entry) === group && listed(entry))
-      .map((entry) => (entry.copies ? copyRow(entry) : rowFor(entry)));
+      .map(rowFor);
   }
-  // A row of a group whose press copies a text, which stands in About only where the
-  // clipboard is missing or refused (`groupOf`), shows that text for the user to select
-  // as well, with Leaf's copy control beside it (copy-control.js), which shows on its own
-  // face whether the copy took. Where no clipboard is offered (`canCopy`) the control
-  // stands down and the text is there to select; the view stays open across a press, so the
-  // text is still there if the copy failed. Its value, which a one-line row would end
-  // with, says beneath it what the text is. A text of several lines, such as a preview's
-  // diagnostics, shows its first few, and selecting it takes the whole.
-  const copies = new Map();
-  function copyFor(entry) {
-    if (!copies.has(entry.key))
-      copies.set(
-        entry.key,
-        copyControl("lf-fp-copy-press", {
-          label: `Copy ${entry.label}`,
-          success: `${capital(entry.label)} copied`,
-          error: `${capital(entry.label)} not copied · select it to copy`,
-        }),
-      );
-    const copy = copies.get(entry.key);
-    copy.value = entry.copies;
-    copy.disabled = entry.disabled;
-    keepsHidden(copy, !canCopy());
-    return copy;
-  }
-  function copyRow(entry) {
-    const field = `lf-fp-copy-${entry.key}`;
-    return html`<div class="lf-fp-copy" role="none">
-      <label class="lf-fp-copy-label" for=${field}>${capital(entry.label)}</label>
-      <textarea
-        id=${field}
-        class="lf-fp-face lf-fp-copy-text"
-        readonly
-        wrap="off"
-        spellcheck="false"
-        rows=${Math.min(entry.copies.split("\n").length, 3)}
-        .value=${entry.copies}
-        @focus=${(event) => event.target.select()}
-      ></textarea
-      >${copyFor(entry)}
-      ${entry.value ? html`<p class="lf-fp-copy-note">${entry.value}</p>` : nothing}
-    </div>`;
-  }
-
   // Where the agent's latest save failed its check, first what the check found, which
   // its error points here to read (version.js, `holdFailedSave`); then the versions
   // the picker lists, the one shown marked, each a press that travels there and says
@@ -3780,8 +3698,7 @@ export function createFloatingPanel({
     if (!menuFade) render(menuOpen.value ? menuTemplate() : nothing, menu);
     // A copy control the menu keeps for its next showing leaves the list the render just
     // took down, which it would otherwise hold whole, rows and all, as its parent.
-    for (const copy of [...copyItems.values(), ...copies.values()])
-      if (!copy.isConnected) copy.remove();
+    for (const copy of copyItems.values()) if (!copy.isConnected) copy.remove();
     if (!menuFade) {
       keeps(
         menu,

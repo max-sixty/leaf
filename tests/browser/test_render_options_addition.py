@@ -68,7 +68,7 @@ def test_the_add_field_previews_the_option_it_will_make(browser, serve):
 
     The trailing action stays out of an empty row, then submits on the shared margin entry
     corner rather than borrowing the selection mark's circle. It remains a full-sized
-    pointer target aligned with the last line as the textarea grows.
+    pointer target aligned with the field, which keeps pasted line breaks on one line.
     """
     page = open_page(browser, serve(OBLIGATION_PAGE))
     option = page.locator("#job-camera")
@@ -132,16 +132,17 @@ def test_the_add_field_previews_the_option_it_will_make(browser, serve):
     )
     assert 0 < form_box["y"] + form_box["height"] - add_box["y"] - add_box["height"] < 8
     write(field, "First line\nSecond line\nThird line")
-    grown_form_box = form.bounding_box()
-    grown_field_box = field.bounding_box()
-    grown_add_box = add.bounding_box()
-    assert grown_field_box["height"] > field_box["height"]
+    expect(field).to_have_js_property("value", "First line Second line Third line")
+    pasted_form_box = form.bounding_box()
+    pasted_field_box = field.bounding_box()
+    pasted_add_box = add.bounding_box()
+    assert pasted_field_box["height"] == field_box["height"]
     assert (
         0
-        < grown_form_box["y"]
-        + grown_form_box["height"]
-        - grown_add_box["y"]
-        - grown_add_box["height"]
+        < pasted_form_box["y"]
+        + pasted_form_box["height"]
+        - pasted_add_box["y"]
+        - pasted_add_box["height"]
         < 8
     )
     face = glyph_action_face(add)

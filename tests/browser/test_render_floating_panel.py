@@ -104,8 +104,8 @@ def aside(page):
 def test_one_field_starts_a_thread_takes_its_reply_and_settles_it(browser, serve):
     """The field clicked at rest is the field written in. Sending a page comment opens
     its new thread above the row, the same field now replying there, and resolving the
-    thread from its controls moves the user on to Threads, where `z` stands them on its
-    row. The focused field names where the words go, and once they hide that, nothing
+    thread from its controls moves the user on to Threads, and `z` takes them back to
+    the thread, open again. The focused field names where the words go, and once they hide that, nothing
     does: with no view open they go to the page, and over the thread its name says
     which. Escape, once the caret has left the field, puts the thread away."""
     page = floating(browser, serve(LONG_PAGE))
@@ -154,9 +154,10 @@ def test_one_field_starts_a_thread_takes_its_reply_and_settles_it(browser, serve
     with sending(page, "the undo"):
         page.keyboard.press("z")
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "undo"
-    row = page.locator(f"{panel_view('threads')} .lf-fp-thread")
-    expect(row).to_be_focused()
-    page.keyboard.press("Enter")
+    expect(page.locator(panel_view("thread"))).to_be_focused()
+    expect(page.locator(panel_view("thread"))).to_have_attribute(
+        "data-thread", comment["id"]
+    )
     expect(settle).to_have_accessible_name("Resolve thread")
 
     field(page).focus()
@@ -346,9 +347,9 @@ def test_a_thread_s_keys_answer_in_its_view(browser, serve):
     reply is the field and its Resolve stands among the view's controls: Enter on the
     view puts the caret back in the reply with its words, `r` resolves the thread from
     the view, a message in it or its Resolve and moves the user on, here back to
-    Threads with no other thread open, `z` takes the resolve back and stands on its
-    row, Enter on a resolved thread reopens it, and `e` on a message opens the agent's
-    reactions."""
+    Threads with no other thread open, `z` takes the resolve back and opens the
+    thread again, Enter on a resolved thread reopens it, and `e` on a message opens the
+    agent's reactions."""
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, "Is the window long enough?")
     append_carried_log_record(
@@ -388,10 +389,7 @@ def test_a_thread_s_keys_answer_in_its_view(browser, serve):
     expect(threads).to_be_visible()
     with sending(page, "the undo"):
         page.keyboard.press("z")
-    row = threads.locator(".lf-fp-thread")
-    expect(row).to_be_focused()
-    page.keyboard.press("Enter")
-    expect(thread).to_be_visible()
+    expect(thread).to_be_focused()
     expect(settle).to_have_accessible_name("Resolve thread")
 
     # A click on a message's words stands on the part of the thread drawing it.
@@ -461,8 +459,8 @@ def test_a_reaction_in_the_view_stands_as_its_chip_alone(browser, serve):
 def test_resolving_a_thread_from_threads_moves_on_to_the_next(browser, serve):
     """Resolving the thread open from Threads moves the user on to the next open
     thread, focused on its view, while the field says the thread was resolved, so a
-    second `r` resolves that one; taking a resolve back leaves the user where they moved on to;
-    with none left, the user is back at Threads. Escape there puts
+    second `r` resolves that one; taking a resolve back returns the user to the thread
+    they resolved; with none left, the user is back at Threads. Escape there puts
     the view away and returns the user to the page."""
     url = serve(LONG_PAGE)
     panel_comment(serve.page_dir, "Is the window long enough?")
@@ -485,11 +483,11 @@ def test_resolving_a_thread_from_threads_moves_on_to_the_next(browser, serve):
     )
     expect(page.locator(".lf-fp-row")).to_contain_text("Resolved the thread")
     second = page.locator(".lf-fp-head .lf-fp-title").inner_text()
-    # Taking the first resolve back leaves the user on the thread they moved on to.
+    # Taking the first resolve back returns the user to the thread they resolved.
     with sending(page, "the undo"):
         page.keyboard.press("z")
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "undo"
-    expect(page.locator(".lf-fp-head .lf-fp-title")).to_have_text(second)
+    expect(page.locator(".lf-fp-head .lf-fp-title")).to_have_text(first)
     expect(thread).to_be_focused()
     with sending(page, "the second resolve"):
         page.keyboard.press("r")
@@ -497,8 +495,8 @@ def test_resolving_a_thread_from_threads_moves_on_to_the_next(browser, serve):
         e for e in events_model.read_events(serve.page_dir) if e["kind"] == "resolve"
     ]
     assert len(resolved) == 2
-    # The first thread, reopened, is the one open thread left, so the user moves to it.
-    expect(page.locator(".lf-fp-head .lf-fp-title")).to_have_text(first)
+    # The second thread is the one open thread left, so the user moves to it.
+    expect(page.locator(".lf-fp-head .lf-fp-title")).to_have_text(second)
     with sending(page, "the last resolve"):
         page.keyboard.press("r")
     expect(page.locator(panel_view("threads"))).to_be_visible()
@@ -926,13 +924,12 @@ def test_threads_is_as_tall_as_the_threads_it_shows(browser, serve):
 def test_the_leaf_version_is_one_press_in_the_leaf_s_menu(browser, serve):
     """The Leaf version is copied from a row of the leaf's menu itself, as the page's
     link is: one press puts the menu away, copies the version's diagnostics and says so
-    in the field, and the row's hover name says which Leaf it is. With a clipboard there
-    is no About view, which held only those rows."""
+    in the field, and the row's hover name says which Leaf it is. About also keeps the selectable details beside page diagnostics."""
     page = floating(browser, serve(LONG_PAGE))
     page.context.grant_permissions(["clipboard-read", "clipboard-write"])
     page.locator(".lf-fp-leaf").click()
     menu = page.locator(".lf-fp-menu")
-    expect(menu.locator(".lf-fp-item", has_text="About this page")).to_have_count(0)
+    expect(menu.locator(".lf-fp-item", has_text="About this page")).to_have_count(1)
     row = menu.get_by_role("menuitem", name="Copy Leaf version")
     expect(row).to_have_attribute("title", re.compile("^Leaf "))
     row.click()
@@ -962,8 +959,7 @@ def test_copy_link_is_one_press_in_the_leaf_s_menu(browser, serve):
 
 def test_a_refused_copy_leaves_the_link_to_select_in_about(browser, serve):
     """A clipboard that refuses the write leaves the user the link all the same: the
-    press turns the menu to About on the link, in a field they can select, and the field
-    says the link was not copied. The failure remains in Errors when the reader
+    press opens About on the link, as text they can select. The failure remains in Errors when the reader
     leaves About."""
     refuses = (
         "Clipboard.prototype.writeText = () => Promise.reject(new Error('refused'));"
@@ -971,12 +967,12 @@ def test_a_refused_copy_leaves_the_link_to_select_in_about(browser, serve):
     page = open_page(browser, serve(LONG_PAGE), init_script=refuses)
     page.locator(".lf-fp-leaf").click()
     page.locator(".lf-fp-menu").get_by_role("menuitem", name="Copy link").click()
-    about = page.locator(".lf-fp-menu[data-level=group]")
+    about = page.get_by_role("dialog", name="About this page", exact=True)
     link = about.get_by_label("Link", exact=True)
-    expect(link).to_have_value(re.compile(r"^http://.*[?&]t="))
-    expect(about.locator(".lf-fp-menu-name")).to_have_text("About this page")
-    expect(field(page)).to_have_attribute("placeholder", re.compile("^Link not copied"))
-    about.locator(".lf-fp-menu-back").click()
+    expect(link).to_contain_text(re.compile(r"^http://.*[?&]t="))
+    expect(about.get_by_role("button", name="Copy Link", exact=True)).to_be_visible()
+    page.keyboard.press("Escape")
+    page.locator(".lf-fp-leaf").click()
     page.locator('.lf-fp-menu [data-row="errors"]').click()
     expect(page.locator(".lf-fp-menu .lf-fp-error")).to_contain_text(
         "Link not copied · select it to copy"
@@ -3346,6 +3342,8 @@ def test_obligations_are_answered_where_they_are_read_on_me(browser, serve):
     expect(cards.first).to_contain_text("How should the schema migrate?")
     settled(page)
     first, second = cards.first.bounding_box(), cards.nth(1).bounding_box()
+    show = cards.first.locator(".lf-fp-show")
+    shown = show.bounding_box()
     with sending(page, "the answer"):
         cards.first.locator(".lf-fp-answer", has_text="Shim").click()
     answer = events_model.read_events(serve.page_dir)[-1]
@@ -3356,12 +3354,14 @@ def test_obligations_are_answered_where_they_are_read_on_me(browser, serve):
     expect(owed).to_have_text("1")
     assert cards.first.bounding_box() == first
     assert cards.nth(1).bounding_box() == second
+    assert show.bounding_box() == shown
 
     with sending(page, "the undo"):
         cards.first.get_by_role("button", name="Undo").click()
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "undo"
     expect(cards.first.locator(".lf-fp-answer", has_text="Shim")).to_be_visible()
     expect(owed).to_have_text("2")
+    assert show.bounding_box() == shown
     # The pressed Undo is gone, and Escape still puts the view away.
     page.keyboard.press("Escape")
     expect(view).to_have_count(0)
@@ -4291,7 +4291,7 @@ def test_a_press_arriving_in_a_line_of_answers_moves_nothing(browser, serve, tou
       const words = line.getBoundingClientRect().height;
       const press = document.createElement('button');
       press.type = 'button';
-      press.className = 'lf-fp-answer';
+      press.className = 'lf-fp-face lf-fp-quiet';
       press.textContent = 'Undo';
       line.append(press);
       return [words, line.getBoundingClientRect().height];
@@ -4348,26 +4348,19 @@ def test_a_finger_finds_the_keyboard_s_conveniences_under_navigate(browser, serv
 def test_the_share_link_shows_where_it_can_be_selected_without_a_clipboard(
     browser, serve
 ):
-    """A browser offers the clipboard only to a secure context, so a page read from
-    another machine over plain http cannot copy. The menu's Copy link gives way to the
-    link in About, in a field the user can select, with no copy control that could only
-    fail, saying what the link grants."""
+    """About keeps the link readable and a copy control even without a Clipboard API;
+    the shared control owns plain-HTTP copying and browser permission failures."""
     no_clipboard = "Object.defineProperty(Navigator.prototype, 'clipboard', {get: () => undefined});"
     page = open_page(browser, serve(LONG_PAGE), init_script=no_clipboard)
     page.locator(".lf-fp-leaf").click()
     expect(page.locator(".lf-fp-menu")).not_to_contain_text("Copy link")
     page.locator(".lf-fp-menu .lf-fp-item", has_text="About this page").click()
-    share = page.locator(".lf-fp-copy", has_text="Link")
-    link = share.locator(".lf-fp-copy-text")
-    expect(link).to_have_value(re.compile(r"^http://.*[?&]t="))
-    expect(link).to_have_accessible_name("Link")
-    expect(share.get_by_role("button", name=re.compile("Copy"))).to_have_count(0)
-    expect(share).to_contain_text("Grants access")
-    link.focus()
-    selected = (
-        "(e => e.value.slice(e.selectionStart, e.selectionEnd))(document.activeElement)"
-    )
-    assert page.evaluate(selected) == link.input_value()
+    about = page.get_by_role("dialog", name="About this page", exact=True)
+    link = about.get_by_label("Link", exact=True)
+    expect(link).to_contain_text(re.compile(r"^http://.*[?&]t="))
+    expect(about.get_by_role("button", name="Copy Link", exact=True)).to_be_visible()
+    expect(about).to_contain_text("Grants access")
+    page.keyboard.press("Escape")
 
 
 def test_a_page_thread_opens_in_the_panel_from_the_page_s_routes(browser, serve):

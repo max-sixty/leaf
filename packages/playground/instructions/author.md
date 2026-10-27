@@ -21,7 +21,7 @@ Choose the playground's space by what the user needs to see and operate together
 (`references/page-authoring.md`, "Composing a page"). `data-width="available"` lets it
 break out of a reading column; a workspace gives it the window. Candidates the user
 compares fit the window together, each picture sized as
-`references/authoring-decisions.md` says. Shared controls stay in their rail on wide
+`references/authoring-on-me.md` says. Shared controls stay in their rail on wide
 layouts and above the preview on narrow layouts, where their own contents scroll if
 needed to leave room for the candidates. Controls authored beside an individual
 candidate stay beside it.

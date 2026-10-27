@@ -664,7 +664,7 @@ button.lf-primary-news {
 :where(:root, .lf-thread-transcript) a:hover {
   text-decoration-color: currentColor;
 }
-:where(:root, .lf-thread-transcript) code {
+:where(:root, .lf-thread-transcript) :is(code, samp, kbd:where(:not(.lf-key-badge))) {
   background: var(--code-bg);
   border-radius: var(--code-inline-r);
   padding: var(--code-inline-pad);
@@ -675,6 +675,10 @@ button.lf-primary-news {
   display: inline;
   contain: none;
   isolation: auto;
+}
+:where(:root, .lf-thread-transcript) kbd:where(:not(.lf-key-badge)) {
+  border: 1px solid var(--border-2);
+  background: var(--chip);
 }
 :where(:root, .lf-thread-transcript) pre {
   background: var(--pre-bg);
@@ -689,22 +693,26 @@ button.lf-primary-news {
   font-variant-ligatures: none;
   contain: inline-size;
 }
-:where(:root, .lf-thread-transcript) pre > code {
+:where(:root, .lf-thread-transcript) pre > :is(code, samp, kbd) {
+  border: 0;
   background: none;
   padding: 0;
   font-size: 100%;
 }
 @media screen {
   .lf-text-scroller::after,
-  :where(:root, .lf-thread-transcript) :is(pre, table)::after {
+  :where(:root, .lf-thread-transcript) pre::after {
     content: "";
     float: inline-start;
     inline-size: 100%;
     block-size: var(--lf-text-scroll-track);
     grid-column: 1 / -1;
   }
-  :where(:root, .lf-thread-transcript) :is(pre, table)::after {
+  :where(:root, .lf-thread-transcript) pre::after {
     block-size: var(--lf-text-scroll-clearance);
+  }
+  :where(:root, .lf-thread-transcript) table {
+    padding-block-end: var(--lf-text-scroll-clearance);
   }
 }
 @media print {
@@ -734,7 +742,7 @@ button.lf-primary-news {
 :where(:root, .lf-thread-transcript) table > * {
   --lf-top: 0px;
 }
-:where(:root, .lf-thread-transcript) :is(th, td) code:not(pre code) {
+:where(:root, .lf-thread-transcript) :is(th, td) :is(code, samp):not(pre *) {
   padding: 0;
   background: none;
   font-size: 0.9em;
@@ -1900,7 +1908,7 @@ leaf-text.lf-fab-input {
   display: none;
 }
 .lf-fab-bar:not([data-lf-target-only]) > .lf-fab {
-  display: none !important;
+  display: none;
 }
 .lf-response-trigger,
 .lf-fab-bar .lf-compose-field[data-words] {
@@ -1971,9 +1979,6 @@ leaf-text.lf-fab-input {
 .lf-fab-bar[data-lf-presentation=inline] *::after {
   box-sizing: inherit;
 }
-.lf-fab-bar[data-lf-presentation=inline] .lf-composer > :not(.lf-compose-field, .lf-composer-media) {
-  display: none !important;
-}
 .lf-fab-bar[data-lf-presentation=inline] leaf-text.lf-fab-input {
   max-width: none;
   max-height: 50vh;
@@ -1984,7 +1989,7 @@ leaf-text.lf-fab-input {
 }
 @media print {
   .lf-fab-bar[data-lf-presentation=inline] {
-    display: none !important;
+    display: none;
   }
 }
 
@@ -2003,12 +2008,11 @@ html[data-lf-draw-mode] main {
   --lf-draw-mode: on;
 }
 @container style(--lf-draw-mode: on) {
-  :host * {
+  :host *:not([data-lf-runtime], [data-lf-runtime] *) {
     cursor: crosshair !important;
   }
-  :host [data-lf-runtime],
-  :host [data-lf-runtime] * {
-    cursor: auto !important;
+  :where(:host [data-lf-runtime]) {
+    cursor: auto;
   }
 }
 :root {
@@ -2038,9 +2042,6 @@ html[data-lf-draw-mode] main {
   line-height: 0;
   opacity: 0;
   pointer-events: none;
-}
-.lf-block-control-away {
-  display: none !important;
 }
 .lf-block-controls {
   display: contents;

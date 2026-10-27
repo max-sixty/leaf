@@ -2855,15 +2855,15 @@ def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
     mark = page.locator('.lf-visual-mark[data-for="fig"]')
     expect(mark).to_be_visible()
     look = mark.evaluate(
-        """node => { const style = getComputedStyle(node); return {
-          background: style.backgroundImage,
+        """node => { const style = getComputedStyle(node, '::after'); return {
+          background: getComputedStyle(node).backgroundImage,
           outline: [style.outlineStyle, style.outlineWidth],
           offset: parseFloat(style.outlineOffset),
         }; }"""
     )
     assert look["background"] == "none", look
     assert look["outline"][0] == "solid" and look["outline"][1] != "0px", look
-    assert look["offset"] > 0, look
+    assert look["offset"] == 0, look
 
 
 FOCUSED_THREAD = "document.activeElement?.closest('.lf-page-thread')"
@@ -3118,7 +3118,7 @@ def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
     mark = page.locator('.lf-visual-mark[data-for="fig"]')
     expect(mark).to_have_count(0)
 
-    look = """node => { const style = getComputedStyle(node); return {
+    look = """node => { const style = getComputedStyle(node, '::after'); return {
       line: style.outlineStyle,
       drawn: parseFloat(style.outlineWidth) > 0,
     }; }"""

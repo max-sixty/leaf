@@ -290,12 +290,8 @@
   min-block-size: 0;
   --lf-full-height: inherit;
 }
-/* A case with no threads draws no discussion. The discussion is a pane, and the pane
-   grammar's `display: grid` stands in the Layouts tier above every package
-   (layouts.css), where it wins over any ordinary rule here; an important declaration
-   in this lower tier is the one the cascade ranks above it. */
 .lf-vr-discussion:has(> .lf-vr-threads:empty) {
-  display: none !important;
+  display: none;
 }
 .lf-vr-threads {
   min-block-size: 0;
@@ -383,8 +379,8 @@
   .lf-vr-queue,
   .lf-vr-inspect,
   .lf-vr-decision {
-    /* The Layout layer gives every pane display:grid; paper omits this navigation. */
-    display: none !important;
+    /* Paper omits this navigation. */
+    display: none;
   }
   .lf-vr-dashboard,
   .lf-vr-workspace,

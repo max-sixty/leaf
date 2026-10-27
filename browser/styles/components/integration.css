@@ -14,17 +14,16 @@
 /* Draw mode takes document presses while Leaf surfaces keep their gestures.
    Document selectors do not cross a declared shadow root, so the document's draw-mode
    rules (chrome.css) reach a tree hosted in main as an inherited property its own
-   rules query. */
+   rules query, with the same important crosshair and the same exception. */
 html[data-lf-draw-mode] main {
   --lf-draw-mode: on;
 }
 @container style(--lf-draw-mode: on) {
-  :host * {
+  :host *:not([data-lf-runtime], [data-lf-runtime] *) {
     cursor: crosshair !important;
   }
-  :host [data-lf-runtime],
-  :host [data-lf-runtime] * {
-    cursor: auto !important;
+  :where(:host [data-lf-runtime]) {
+    cursor: auto;
   }
 }
 /* A block's marks (Copy, a draft's editing controls) stand on one small toolbar whose
@@ -73,12 +72,6 @@ html[data-lf-draw-mode] main {
   line-height: 0;
   opacity: 0;
   pointer-events: none;
-}
-/* A control the runtime stands over a page block (block-controls.js) draws only while
-   its block renders near the window, whatever display the control's own rules give
-   it. */
-.lf-block-control-away {
-  display: none !important;
 }
 /* Keep the document controls together without introducing a containing block for
    their CSS anchors or their fixed header-clipping frames. */

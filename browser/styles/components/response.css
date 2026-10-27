@@ -656,7 +656,7 @@ leaf-text.lf-fab-input {
   display: none;
 }
 .lf-fab-bar:not([data-lf-target-only]) > .lf-fab {
-  display: none !important;
+  display: none;
 }
 /* The picker stands over the ⋯ that opened it, or over the field once words have taken
    the ⋯ away and Tab or `e` opens it. */
@@ -743,11 +743,6 @@ leaf-text.lf-fab-input {
 .lf-fab-bar[data-lf-presentation="inline"] *::after {
   box-sizing: inherit;
 }
-.lf-fab-bar[data-lf-presentation="inline"]
-  .lf-composer
-  > :not(.lf-compose-field, .lf-composer-media) {
-  display: none !important;
-}
 .lf-fab-bar[data-lf-presentation="inline"] leaf-text.lf-fab-input {
   max-width: none;
   max-height: 50vh;
@@ -759,6 +754,6 @@ leaf-text.lf-fab-input {
 }
 @media print {
   .lf-fab-bar[data-lf-presentation="inline"] {
-    display: none !important;
+    display: none;
   }
 }

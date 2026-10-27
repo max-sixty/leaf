@@ -42,9 +42,10 @@ def test_a_target_hint_opens_comment_and_a_token_seats_only_its_glyph(browser, s
     expect(page.locator("#prose")).to_be_focused()
     focus = page.locator('.lf-visual-mark-focus[data-for="prose"]')
     expect(focus).to_be_visible()
-    assert focus.evaluate(
-        "node => getComputedStyle(node, '::after').outlineStyle"
-    ) == "solid"
+    assert (
+        focus.evaluate("node => getComputedStyle(node, '::after').outlineStyle")
+        == "solid"
+    )
     assert shown["projected"] == 1, shown
     page.evaluate(RELEASE_FOCUS)
     expect(page.locator(".lf-visual-mark")).to_have_count(0)

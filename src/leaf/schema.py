@@ -655,7 +655,6 @@ PACKAGE_STYLES = (
     "widget-shadow.css",
     "widgets.css",
     "theme.css",
-    "controls.css",
 )
 PACKAGE_FILES = (*PACKAGE_STYLES, "registry.json", "icon.svg")
 # The layer's browser directories, which packages add to.

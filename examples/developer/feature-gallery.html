@@ -9,10 +9,6 @@
     <style>
       @import url("/page/theme.css");
 
-      #bg-style-access :is([role="checkbox"], a) {
-        color: var(--mark-ink);
-      }
-
       #bg-outcome > lf-option {
         padding: 1rem;
         min-block-size: 5rem;
@@ -175,11 +171,6 @@
 
       main:not([data-lf-margin~="map"], [data-lf-margin~="sidebar"]) #bg-sidebar {
         display: none;
-      }
-    </style>
-    <style data-controls>
-      #bg-style-allowed .lf-pick {
-        color: var(--accent);
       }
     </style>
     <script id="bg-margin-layer-status-history" type="application/json">
@@ -1783,28 +1774,6 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             <div class="callout" id="bg-theme-conclusion">
               <p id="bg-theme-conclusion-copy">The comparison is ready for review.</p>
             </div>
-          </section>
-
-          <section id="bg-style-access">
-            <h2><strong>A stylesheet explicitly chooses control access</strong></h2>
-            <p id="bg-style-access-guide">
-              The ordinary page rule colors this
-              <a href="#bg-style-allowed">page link</a>, while the first pair keeps
-              Leaf's ink. A separate stylesheet marked <code>data-controls</code>
-              colors the second pair's selection marks with the accent. Pick by click,
-              tap, or Tab and Space; Undo restores the earlier choice without changing
-              either face.
-            </p>
-            <h3>Ordinary page stylesheet</h3>
-            <lf-options id="bg-style-protected" choose>
-              <lf-option id="bg-style-protected-one"><strong>First</strong></lf-option>
-              <lf-option id="bg-style-protected-two"><strong>Second</strong></lf-option>
-            </lf-options>
-            <h3>Stylesheet with control access</h3>
-            <lf-options id="bg-style-allowed" choose>
-              <lf-option id="bg-style-allowed-one"><strong>First</strong></lf-option>
-              <lf-option id="bg-style-allowed-two"><strong>Second</strong></lf-option>
-            </lf-options>
           </section>
 
           <section id="bg-user-view">

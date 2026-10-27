@@ -361,11 +361,12 @@ def test_a_boxless_widget_in_a_reply_still_shows_the_parts_it_paints(browser, se
     longer its own apparatus and the parts come back.
 
     `display: contents` on a widget is a page's line to write — the shipped vocabulary
-    has none today, and `shownParts` exists because any layer can. Page CSS is the
-    unlayered author stylesheet, above the package-scoped widget rules."""
+    has none today, and `shownParts` exists because any layer can. A widget in a reply
+    stands in the chrome, so the page's rule names it there, which outweighs the chrome's
+    guard against light page rules (styles/chrome-guard.css)."""
     page_source = REPLY_TRAVEL_PAGE.replace(
         "</head>",
-        "<style data-controls>lf-options { display: contents }</style>\n</head>",
+        "<style>.lf-chrome lf-options { display: contents }</style>\n</head>",
     )
     url = serve(page_source, packages=EXAMPLE_PACKAGES)
     # The page's unlayered style puts a reporting group's wrapper in `contents`; the

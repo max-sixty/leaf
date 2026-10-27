@@ -1213,7 +1213,6 @@ def test_the_ring_reading_measures_a_displaced_pseudo_element(browser, serve):
     page = open_page(browser, serve(RING_PROBE_PAGE))
     page.evaluate("""() => {
       const sheet = document.createElement('style');
-      sheet.setAttribute('data-controls', '');
       document.head.append(sheet);
       sheet.textContent = `
         #ring-holder { position: relative; height: 200px; }

@@ -224,9 +224,7 @@ def _stamp_in_place(page_dir: Path, body: str, completes: tuple[str, ...]) -> di
         readings, checked = _checked(page_dir, read_events(page_dir))
         with PageTransaction(page_dir) as page:
             if source_readings(page_dir) == readings:
-                return _stamp_locked(
-                    page_dir, page, readings, checked, body, completes
-                )
+                return _stamp_locked(page_dir, page, readings, checked, body, completes)
     with PageTransaction(page_dir) as page:
         readings, checked = _checked(page_dir, page.events)
         return _stamp_locked(page_dir, page, readings, checked, body, completes)

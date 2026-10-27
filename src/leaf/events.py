@@ -485,7 +485,7 @@ def awaits_agent(thread: dict) -> bool:
 
     This reading says nothing about whether the user owes a word: an ordinary agent
     message may leave the open thread awaiting nobody, while one holding a widget
-    that asks, such as an `lf-ask`, awaits the user. The browser
+    that asks, such as an `lf-options`, awaits the user. The browser
     does not receive it: each browser Thread's `attention` aggregates this turn with
     the workflows and obligations open on the thread, so the panel, its filters and the
     margin read one answer to whose turn it is."""

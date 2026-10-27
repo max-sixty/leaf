@@ -4203,20 +4203,25 @@ function pageStatus(state, { reach = "reached", fault = null } = {}) {
 		publication
 	};
 }
+const TO_ANSWER = Object.freeze(["to answer", "to answer"]);
+const TODO = Object.freeze(["to-do", "to-dos"]);
 const QUEUE_WORDS = Object.freeze({
-	widget: ["to answer", "to answer"],
-	message: ["to answer", "to answer"],
+	widget: TO_ANSWER,
+	message: TO_ANSWER,
 	resend: ["update to send again", "updates to send again"],
 	answer: ["answer", "answers"],
 	reply: ["reply", "replies"],
-	todo: ["to-do", "to-dos"]
+	todo: TODO
 });
 function queueKinds(items) {
-	const byKind = /* @__PURE__ */ new Map();
-	for (const item of items) byKind.set(itemNoun(item), [...byKind.get(itemNoun(item)) ?? [], item]);
-	return [...byKind].map(([kind, all]) => {
-		const words = `${all.length} ${QUEUE_WORDS[kind][all.length === 1 ? 0 : 1]}`;
-		return kind === "todo" ? `${words} (${all.map((row) => row.obligation?.prompt.text ?? row.todo.title).join(" · ")})` : words;
+	const byWords = /* @__PURE__ */ new Map();
+	for (const item of items) {
+		const nouns = QUEUE_WORDS[itemNoun(item)];
+		byWords.set(nouns, [...byWords.get(nouns) ?? [], item]);
+	}
+	return [...byWords].map(([nouns, all]) => {
+		const words = `${all.length} ${nouns[all.length === 1 ? 0 : 1]}`;
+		return nouns === TODO ? `${words} (${all.map((row) => row.obligation?.prompt.text ?? row.todo.title).join(" · ")})` : words;
 	});
 }
 function queueWords({ on_user: onUser, on_agent: onAgent }, agent) {

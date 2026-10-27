@@ -609,8 +609,8 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
             "author": "agent",
             "agent": "Claude",
             "revision": 1,
-            "text": "Two of them can share a visit; the third cannot.",
-            "markup": '<lf-ask id="shared-visit">Which two share it?</lf-ask>',
+            "text": "Two of them can share a visit; the third cannot. Which two share it?",
+            "obligation": True,
             "anchor": {"section": target},
         },
     )
@@ -653,8 +653,8 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
             "agent": "Claude",
             "parent": agent_comment["id"],
             "revision": 1,
-            "text": "One question:",
-            "markup": '<lf-ask id="which-visit">Which visit should we choose?</lf-ask>',
+            "text": "Which visit should we choose?",
+            "obligation": True,
         },
     )
     told(page)

@@ -294,8 +294,8 @@ def test_unrelated_agent_update_does_not_clear_an_open_user_obligation(page_dir)
             "author": "agent",
             "parent": root["id"],
             "responds": root["id"],
-            "text": "One question:",
-            "markup": '<lf-ask id="option">Which option?</lf-ask>',
+            "text": "Which option?",
+            "obligation": True,
             "revision": 1,
         },
     )
@@ -324,7 +324,7 @@ def test_unrelated_agent_update_does_not_clear_an_open_user_obligation(page_dir)
 def test_settling_reaction_closes_an_agent_root_obligation(page_dir):
     publish(page_dir)
     question = thread_model.cmd_comment(
-        page_dir, "", "", "", "One question:", '<lf-ask id="forty">Forty?</lf-ask>'
+        page_dir, "", "", "", "Forty?", "", obligation=True
     )
     browser = page_state(page_dir)["browser"]
     [before] = served_thread(browser)["threads"]

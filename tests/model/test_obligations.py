@@ -144,8 +144,8 @@ def test_obligations_name_their_exact_owning_message_without_conflating_thread_i
             "kind": "comment",
             "id": "prompt",
             "author": "agent",
-            "text": "One question:",
-            "markup": '<lf-ask id="useful">Is this useful?</lf-ask>',
+            "text": "Is this useful?",
+            "obligation": True,
         },
     ]
     state = model.reading(document, events)
@@ -157,7 +157,7 @@ def test_obligations_name_their_exact_owning_message_without_conflating_thread_i
         "widget:choice": (None, None),
         "widget:root-choice": ("thread", "thread"),
         "widget:later-choice": ("thread", "later"),
-        "widget:useful": ("prompt", "prompt"),
+        "message:prompt": ("prompt", "prompt"),
     }
 
 
@@ -379,30 +379,8 @@ def test_changed_partial_value_does_not_reuse_an_earlier_completion_event():
     assert item["answer"] == {"value": ["b"], "event": None}
 
 
-def test_display_only_widget_does_not_suppress_a_question_beside_it():
-    state = model.reading(
-        page(),
-        [
-            {
-                "kind": "comment",
-                "author": "agent",
-                "text": "One question:",
-                "markup": OPTIONS.format(attrs="")
-                + '<lf-ask id="useful">Is this useful?</lf-ask>',
-                "anchor": {"section": "choice"},
-            },
-        ],
-    )
-    assert [item["id"] for item in served_obligations(state)["all"]] == [
-        "widget:useful"
-    ]
-
-
-QUESTION = '<lf-ask id="q">Weekly or daily?</lf-ask>'
-
-
 def answered_in_words(*later):
-    """A user's comment, the agent's reply asking back with an lf-ask, then `later`."""
+    """A user's comment, the agent's reply asking back in words, then `later`."""
     return [
         {"kind": "comment", "id": "t", "author": "user", "text": "Schedule it."},
         {
@@ -411,19 +389,19 @@ def answered_in_words(*later):
             "author": "agent",
             "parent": "t",
             "responds": "t",
-            "text": "Which cadence?",
-            "markup": QUESTION,
+            "text": "Weekly or daily?",
+            "obligation": True,
         },
         *later,
     ]
 
 
 def test_a_question_in_a_reply_waits_on_the_user_until_their_next_message():
-    """An lf-ask holding no other widget is answered in words: it waits on the user, titled by its
+    """A message's obligation is answered in words: it waits on the user, titled by its
     words, until their next message in its thread, which is its answer."""
     [item] = served_obligations(model.reading(page(""), answered_in_words()))["all"]
     assert (item["id"], item["status"], item["next_actor"]) == (
-        "widget:q",
+        "message:asking",
         "open",
         "user",
     )
@@ -454,7 +432,7 @@ def test_the_agent_ends_a_question_the_user_answered_elsewhere():
             {
                 "kind": "todo_end",
                 "author": "agent",
-                "todo": "widget:q",
+                "todo": "message:asking",
                 "outcome": "done",
                 "detail": "answered in chat",
             }
@@ -467,76 +445,6 @@ def test_the_agent_ends_a_question_the_user_answered_elsewhere():
         None,
     )
     assert item["end"]["detail"] == "answered in chat"
-
-
-def test_a_question_on_the_page_is_answered_by_a_comment_on_it():
-    document = model.leaf_page(
-        "Questions",
-        '<p id="intro">Context.</p><lf-ask id="q">Weekly or daily?</lf-ask>',
-    )
-    assert lists(model.reading(document, [])) == (["widget:q"], [], [])
-    comment = {
-        "kind": "comment",
-        "id": "c",
-        "author": "user",
-        "text": "Daily",
-        "anchor": {"section": "q"},
-    }
-    state = model.reading(document, [comment])
-    [item] = page_obligations(state)["all"]
-    assert (item["status"], item["answer"]["value"]) == ("answered", {"text": "Daily"})
-    assert lists(state) == ([], ["update:c"], [])
-    # Moving the thread elsewhere doesn't unsay the answer it holds.
-    moved = {
-        "kind": "reply",
-        "author": "agent",
-        "parent": "c",
-        "responds": "c",
-        "text": "Daily it is.",
-        "anchor": {"section": "intro"},
-    }
-    [item] = page_obligations(model.reading(document, [comment, moved]))["all"]
-    assert item["status"] == "answered"
-
-
-def test_a_restated_question_waits_on_an_answer_given_after_it():
-    """A comment answers the question it was about. A version that rewrites the
-    question and marks it `restated` asks again: only a message after that stamp
-    answers it."""
-
-    def question(attrs=""):
-        return model.leaf_page(
-            "Questions", f'<lf-ask id="q"{attrs}>Weekly or daily?</lf-ask>'
-        )
-
-    answer = {
-        "kind": "comment",
-        "id": "c",
-        "author": "user",
-        "revision": 1,
-        "text": "Daily",
-        "anchor": {"section": "q"},
-    }
-    stamp = {
-        "kind": "note",
-        "id": "n",
-        "author": "agent",
-        "revision": 2,
-        "version": 1,
-        "text": "Asked about weekends too",
-        "restated": ["q"],
-    }
-    documents = {1: question(), 2: question(" restated")}
-    [item] = page_obligations(model.reading(documents, [answer, stamp]), 2)["all"]
-    assert item["status"] == "open"
-    again = {**answer, "id": "c2", "revision": 2, "text": "Daily, weekends too"}
-    [item] = page_obligations(model.reading(documents, [answer, stamp, again]), 2)[
-        "all"
-    ]
-    assert (item["status"], item["answer"]["value"]) == (
-        "answered",
-        {"text": "Daily, weekends too"},
-    )
 
 
 def test_a_frame_around_a_decision_widget_stays_one_obligation():
@@ -1010,8 +918,8 @@ def test_todo_validation_does_not_rewrite_obligation_identity_and_refuses_bare_s
                 "ts": model.NOW,
                 "author": "agent",
                 "revision": 1,
-                "text": "One question:",
-                "markup": '<lf-ask id="path">Which path?</lf-ask>',
+                "text": "Which path?",
+                "obligation": True,
             },
         )
     ]
@@ -1019,13 +927,13 @@ def test_todo_validation_does_not_rewrite_obligation_identity_and_refuses_bare_s
         "kind": "todo_end",
         "id": "end",
         "author": "agent",
-        "todo": "widget:path",
+        "todo": "message:prompt",
         "outcome": "dropped",
     }
     admitted = admitted_event(door, events, command)
-    assert command["todo"] == admitted["todo"] == "widget:path"
+    assert command["todo"] == admitted["todo"] == "message:prompt"
     with pytest.raises(EventRefused) as refused:
-        admitted_event(door, events, {**command, "todo": "path"})
+        admitted_event(door, events, {**command, "todo": "prompt"})
     assert refused_on(refused.value).code == "unknown-todo"
 
 

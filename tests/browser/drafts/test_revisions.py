@@ -51,7 +51,7 @@ def test_an_automatic_revision_keeps_the_empty_panel_reply_focused(
     reply box, an open thread's, focused and empty."""
     url = live_url(serve(REPLY_HOST_PAGE))
     root = panel_comment(
-        serve.page_dir, "Should reads fall back?", author="agent", question="Fall back?"
+        serve.page_dir, "Should reads fall back?", author="agent", obligation=True
     )
     page = open_page(browser, url)
     open_panel_thread(page, root)

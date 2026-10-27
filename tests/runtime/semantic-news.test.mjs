@@ -42,12 +42,12 @@ const item = (id, thread = null) => ({
   source: { kind: "widget", id },
   next_actor: "user",
 });
-// A question asked in words, an lf-ask in the agent's message `id`.
+// A question asked in words: the agent's message `id` carrying `obligation`.
 const replyObligation = (id) => ({
   id,
   thread: "t",
   message: id,
-  source: { kind: "widget", id, tag: "lf-ask" },
+  source: { kind: "message", id },
   next_actor: "user",
 });
 const reading = ({

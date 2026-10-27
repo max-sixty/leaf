@@ -18,8 +18,7 @@ update alone (`obligations.anchors_with_agent`, `thread_obligation_readings`).
 
 On me has one row per place the user has a move at, since the walk over it (`m`)
 stops once at each place and the panel draws a card per row. The records the user
-answers in words in one thread, its asking messages and its questions asked in words,
-are answered by one reply, so they share the thread's row, the first of them leading.
+answers in words in one thread, its asking messages, are answered by one reply, so they share the thread's row, the first of them leading.
 That row joins the row of an open obligation on the page the thread is about
 (`obligations.thread_topics`, the relation that hands such an obligation to the agent
 while the thread awaits its word), since an obligation and the thread about it are one

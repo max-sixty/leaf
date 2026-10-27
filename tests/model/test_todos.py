@@ -66,11 +66,6 @@ def kinds(items) -> list:
     return [(item["kind"], item["id"]) for item in items]
 
 
-def question_options(id: str, words: str = "Warm or cool?") -> list[str]:
-    """Reply options asking the user `words` in an lf-ask with `id`."""
-    return ["--markup", f'<lf-ask id="{id}">{words}</lf-ask>']
-
-
 def test_page_state_tracks_both_lists_until_they_are_settled(page_dir):
     """Discovery reads the user's actual queue, including all three obligation
     sources, and keeps agent work after On me reaches zero."""
@@ -97,14 +92,14 @@ def test_page_state_tracks_both_lists_until_they_are_settled(page_dir):
             "create",
             page_dir,
             "--text",
-            "One decision:",
-            *question_options("merge", "Merge or abandon?"),
+            "Merge or abandon?",
+            "--obligation",
         )
     )
     queue = state_json(page_dir)
     assert kinds(queue["queues"]["on_user"]) == [
         ("widget", item["id"]),
-        ("widget", "widget:merge"),
+        ("message", f"message:{question['id']}"),
         ("todo", theirs["id"]),
     ]
     assert kinds(queue["queues"]["on_agent"]) == [("todo", mine["id"])]
@@ -330,17 +325,10 @@ def test_a_plan_arranges_todos_obligations_and_plain_steps_without_owning_them(
 
     # A question answered elsewhere reads done, and a rewrite that leaves the to-do
     # out leaves it owed.
-    written(
-        leaf(
-            "thread",
-            "create",
-            page_dir,
-            "--text",
-            "One:",
-            *question_options("merge", "Merge?"),
-        )
+    question = written(
+        leaf("thread", "create", page_dir, "--text", "Merge?", "--obligation")
     )
-    asked = "widget:merge"
+    asked = f"message:{question['id']}"
     written(leaf("task", "end", page_dir, asked, "done", "--text", "In chat"))
     written(
         plan(
@@ -443,22 +431,17 @@ def test_user_queue_selects_decisions_and_questions(page_dir, sessionless):
             "reply",
             response_reference(page_dir, comment["id"]),
             "--text",
-            "One question:",
-            *question_options("colour"),
+            "Warm or cool?",
+            "--obligation",
         )
     )
     state = state_json(page_dir)
-    items = [
-        ("widget", item["id"])
-        for item in obligations_on_user(state)
-        if item["tag"] != "lf-ask"
-    ]
-    assert kinds(state["queues"]["on_user"]) == items + [("widget", "widget:colour")]
+    items = [("widget", item["id"]) for item in obligations_on_user(state)]
+    colour = f"message:{reply['id']}"
+    assert kinds(state["queues"]["on_user"]) == items + [("message", colour)]
     assert state["queues"]["on_agent"] == []
     assert state["todos"] == []
-    [asked] = [
-        entry for entry in state["obligations"] if entry["source"]["id"] == "colour"
-    ]
+    [asked] = [entry for entry in state["obligations"] if entry["id"] == colour]
     assert (asked["thread"], asked["message"], asked["status"]) == (
         comment["id"],
         reply["id"],
@@ -487,7 +470,7 @@ def test_user_queue_selects_decisions_and_questions(page_dir, sessionless):
     [answered] = [
         entry
         for entry in served_obligations(served["browser"])["all"]
-        if entry["source"]["id"] == "colour"
+        if entry["id"] == colour
     ]
     assert (answered["status"], answered["answer"]["event"]["id"]) == (
         "answered",
@@ -508,7 +491,7 @@ def test_an_opening_obligation_retains_its_answer_in_the_obligation_inventory(
             "author": "agent",
             "revision": 1,
             "text": "Which colour?",
-            "markup": '<lf-ask id="colour">Warm or cool?</lf-ask>',
+            "obligation": True,
         },
     )
     append_carried_log_record(
@@ -533,7 +516,7 @@ def test_an_opening_obligation_retains_its_answer_in_the_obligation_inventory(
     served = full_state(page_dir, events_model.read_events(page_dir))
     assert [
         entry["source"]["id"] for entry in served_obligations(served["browser"])["user"]
-    ] == ["colour"]
+    ] == [question["id"]]
     answer = append_carried_log_record(
         page_dir,
         {
@@ -548,7 +531,7 @@ def test_an_opening_obligation_retains_its_answer_in_the_obligation_inventory(
     assert served["browser"]["todos"] == []
     [ended] = served_obligations(served["browser"])["all"]
     assert (ended["source"]["id"], ended["status"], ended["answer"]["event"]["id"]) == (
-        "colour",
+        question["id"],
         "answered",
         answer["id"],
     )
@@ -560,7 +543,7 @@ def test_an_opening_obligation_retains_its_answer_in_the_obligation_inventory(
         assert [
             entry["source"]["id"]
             for entry in served_obligations(served["browser"])["user"]
-        ] == ["colour"]
+        ] == [question["id"]]
         assert served["browser"]["todos"] == []
 
 
@@ -579,8 +562,8 @@ def test_an_obligation_ends_at_the_reaction_that_settles_it(page_dir):
             "reply",
             response_reference(page_dir, comment["id"]),
             "--text",
-            "One question:",
-            *question_options("colour"),
+            "Warm or cool?",
+            "--obligation",
         )
     )
 
@@ -601,7 +584,7 @@ def test_an_obligation_ends_at_the_reaction_that_settles_it(page_dir):
         next(
             item
             for item in state_json(page_dir)["obligations"]
-            if item["source"]["id"] == "colour"
+            if item["source"]["id"] == question["id"]
         )["status"]
         == "open"
     )
@@ -610,7 +593,7 @@ def test_an_obligation_ends_at_the_reaction_that_settles_it(page_dir):
         next(
             item
             for item in state_json(page_dir)["obligations"]
-            if item["source"]["id"] == "colour"
+            if item["source"]["id"] == question["id"]
         )["status"]
         == "answered"
     )
@@ -649,21 +632,21 @@ def test_a_thread_is_on_you_once_however_many_moves_it_holds_for_you(page_dir):
     assert [item["obligation"] for item in state["workflows"]] == [resend[1]]
     assert kinds(state["queues"]["on_user"]) == items + [resend]
 
-    written(
+    question = written(
         leaf(
             "thread",
             "reply",
             page_dir,
             comment["id"],
             "--text",
-            "One question:",
-            *question_options("title", "Short or long title?"),
+            "Short or long title?",
+            "--obligation",
         )
     )
     state = state_json(page_dir)
     assert [item["obligation"] for item in state["workflows"]] == [resend[1]]
     assert kinds(state["queues"]["on_user"]) == items + [
-        ("widget", "widget:title"),
+        ("message", f"message:{question['id']}"),
         resend,
     ]
     assert state["queues"]["on_agent"] == []
@@ -1385,10 +1368,11 @@ def test_a_thread_obligation_remains_distinct_from_explicit_user_work(page_dir):
             "reply",
             response_reference(page_dir, comment["id"]),
             "--text",
-            "One question:",
-            *question_options("rollback", "Is the rollback plan enough?"),
+            "Is the rollback plan enough?",
+            "--obligation",
         )
     )
+    rollback = f"message:{question['id']}"
     task = written(
         leaf(
             "task",
@@ -1411,12 +1395,10 @@ def test_a_thread_obligation_remains_distinct_from_explicit_user_work(page_dir):
     }
     assert task_obligation["thread"] == comment["id"]
 
-    status, answer = done(page_dir, "widget:rollback")
+    status, answer = done(page_dir, rollback)
     assert status == 400, answer
     assert refused_on(answer).code == "users-question"
-    assert ("widget", "widget:rollback") in kinds(
-        state_json(page_dir)["queues"]["on_user"]
-    )
+    assert ("message", rollback) in kinds(state_json(page_dir)["queues"]["on_user"])
 
     append_carried_log_record(
         page_dir,
@@ -1429,9 +1411,7 @@ def test_a_thread_obligation_remains_distinct_from_explicit_user_work(page_dir):
         },
     )
     assert question["id"] not in [item["id"] for item in state_json(page_dir)["todos"]]
-    assert ("widget", "widget:rollback") not in kinds(
-        state_json(page_dir)["queues"]["on_user"]
-    )
+    assert ("message", rollback) not in kinds(state_json(page_dir)["queues"]["on_user"])
     assert ("todo", task["id"]) in kinds(state_json(page_dir)["queues"]["on_user"])
     assert done(page_dir, task["id"])[0] == 200
     [ended] = [
@@ -1465,22 +1445,22 @@ def test_a_decision_ends_through_its_state_and_the_agent_ends_a_question(page_di
     asking(page_dir)
     [item] = obligations_on_user(state_json(page_dir))
     asked = []
-    for name, text in (("colour", "Which colour?"), ("font", "Which font?")):
+    for text, words in (("Which colour?", "Warm or cool?"), ("Which font?", "Serif?")):
         comment = append_carried_log_record(
             page_dir,
             {"kind": "comment", "author": "user", "revision": 1, "text": text},
         )
-        written(
+        question = written(
             leaf(
                 "thread",
                 "reply",
                 response_reference(page_dir, comment["id"]),
                 "--text",
-                "One question:",
-                *question_options(name),
+                words,
+                "--obligation",
             )
         )
-        asked.append(f"widget:{name}")
+        asked.append(f"message:{question['id']}")
     answered_elsewhere, dropped = asked
     [refused] = command_findings(
         "task", "end", page_dir, item["id"], "dropped", "--text", "Decided in chat"
@@ -1535,7 +1515,7 @@ def test_a_decision_ends_through_its_state_and_the_agent_ends_a_question(page_di
     done = {
         item["id"]: (item["state"], item["detail"], item["ended"] is not None)
         for item in view["queues"]["done"]
-        if item["kind"] == "widget"
+        if item["kind"] == "message"
     }
     assert done == {
         answered_elsewhere: ("done", "Warm, in chat", True),

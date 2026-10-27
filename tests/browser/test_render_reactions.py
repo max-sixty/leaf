@@ -2333,8 +2333,8 @@ def _thread(page_dir):
             "agent": "Claude",
             "parent": root,
             "revision": 1,
-            "text": "Forty is what the slowest device we ship on can hold.",
-            "markup": f'<lf-ask id="forty-enough-{root}">Is forty enough?</lf-ask>',
+            "text": "Forty is what the slowest device we ship on can hold. Is forty enough?",
+            "obligation": True,
         },
     )
     return root, reply["id"]

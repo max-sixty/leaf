@@ -84,7 +84,7 @@ def test_m_keeps_its_position_at_a_chrome_stop_without_a_page_target(browser, se
             "responds": comment["id"],
             "revision": 1,
             "text": "Which channel?",
-            "markup": '<lf-ask id="page-question">Which channel?</lf-ask>',
+            "obligation": True,
         },
     )
     page = open_page(browser, url)
@@ -97,7 +97,7 @@ def test_m_keeps_its_position_at_a_chrome_stop_without_a_page_target(browser, se
     )
     position = walk_position(page)
     assert position is not None
-    assert position["text"] == "1 of 1 waiting on me · Question"
+    assert position["text"] == "1 of 1 waiting on me · Reply"
 
 
 def test_m_walks_what_waits_on_you_and_on_me_counts_it(browser, serve):
@@ -127,8 +127,8 @@ def test_m_walks_what_waits_on_you_and_on_me_counts_it(browser, serve):
             "parent": asked["id"],
             "responds": asked["id"],
             "revision": 1,
-            "text": "One question:",
-            "markup": '<lf-ask id="cadence-question">Weekly or daily?</lf-ask>',
+            "text": "Weekly or daily?",
+            "obligation": True,
         },
     )
     owed = append_carried_log_record(
@@ -151,19 +151,19 @@ def test_m_walks_what_waits_on_you_and_on_me_counts_it(browser, serve):
     thread = page.locator(f'.lf-page-thread[data-thread="{asked["id"]}"]')
     message = thread.locator(f'.lf-msg[data-event="{question["id"]}"]')
     page.keyboard.press("m")
-    expect_walk_position(page, "1 of 2 waiting on me · Question")
+    expect_walk_position(page, "1 of 2 waiting on me · Reply")
     expect(message).to_be_focused()
     page.keyboard.press("m")
     expect_walk_position(page, "2 of 2 waiting on me · Options")
     expect(page.locator("#channel-ask")).to_be_focused()
     page.keyboard.press("m")
-    expect_walk_position(page, "1 of 2 waiting on me · Question")
+    expect_walk_position(page, "1 of 2 waiting on me · Reply")
     expect(message).to_be_focused()
     page.keyboard.press("Shift+m")
     expect_walk_position(page, "2 of 2 waiting on me · Options")
     expect(page.locator("#channel-ask")).to_be_focused()
     page.keyboard.press("Shift+m")
-    expect_walk_position(page, "1 of 2 waiting on me · Question")
+    expect_walk_position(page, "1 of 2 waiting on me · Reply")
     expect(message).to_be_focused()
 
     page.keyboard.press("Enter")
@@ -655,8 +655,8 @@ def test_an_m_step_newer_focus_cancels_at_a_thread_claims_no_arrival(browser, se
             "parent": asked["id"],
             "responds": asked["id"],
             "revision": 1,
-            "text": "One question:",
-            "markup": '<lf-ask id="cadence-question">Weekly or daily?</lf-ask>',
+            "text": "Weekly or daily?",
+            "obligation": True,
         },
     )
     page = open_page(browser, url)
@@ -684,7 +684,7 @@ def test_an_m_step_newer_focus_cancels_at_a_thread_claims_no_arrival(browser, se
     # The control: the same press left alone arrives and says where.
     page.locator("#h").click()
     page.keyboard.press("m")
-    expect_walk_position(page, "1 of 2 waiting on me · Question")
+    expect_walk_position(page, "1 of 2 waiting on me · Reply")
     expect(page.locator(f'.lf-msg[data-event="{question["id"]}"]')).to_be_focused()
 
 

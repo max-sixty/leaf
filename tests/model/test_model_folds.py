@@ -398,9 +398,9 @@ def test_a_frozen_move_that_owes_nothing_stands_in_its_thread_without_holding_it
                 "author": "agent",
                 "parent": "e1",
                 "responds": "e1",
-                "text": "Here is the board.",
-                "markup": board
-                + '<lf-ask id="first-card">Which card goes first?</lf-ask>',
+                "text": "Here is the board. Which card goes first?",
+                "markup": board,
+                "obligation": True,
             },
             {
                 "kind": "action",
@@ -481,29 +481,24 @@ def test_questions_settle_one_by_one_and_an_end_outlasts_a_later_reply():
         events.append({"kind": kind, "id": identity, "author": author, **fields})
         return model.reading(HUB, events)
 
-    def question(name, words):
-        return f'<lf-ask id="{name}">{words}</lf-ask>'
-
-    add("comment", "first", text="One question:", markup=question("route", "Route?"))
+    add("comment", "first", text="Route?", obligation=True)
     add("reply", "checking", parent="first", text="Checking.")
     add("reply", "progress", parent="first", text="Still checking.", ephemeral=True)
-    state = add(
-        "reply", "second", parent="first", text="And:", markup=question("hue", "Hue?")
-    )
+    state = add("reply", "second", parent="first", text="Hue?", obligation=True)
     assert state["todos"] == []
     assert [item["id"] for item in served_obligations(state)["user"]] == [
-        "widget:route",
-        "widget:hue",
+        "message:first",
+        "message:second",
     ]
     state = add("reply", "reaction", "user", parent="second", token="keep")
     assert [item["id"] for item in served_obligations(state)["user"]] == [
-        "widget:route"
+        "message:first"
     ]
     assert served_obligations(state)["all"][1]["answer"]["event"]["id"] == "reaction"
     state = add(
         "todo_end",
         "end",
-        todo="widget:route",
+        todo="message:first",
         outcome="dropped",
         detail="Asked elsewhere",
     )
@@ -515,14 +510,14 @@ def test_questions_settle_one_by_one_and_an_end_outlasts_a_later_reply():
         "answered",
         "reaction",
     )
-    state = add(
-        "reply", "third", parent="first", text="Last:", markup=question("size", "Size?")
-    )
+    state = add("reply", "third", parent="first", text="Size?", obligation=True)
     state = add("resolve", "close", "user", parent="first")
     assert state["todos"] == []
     assert served_obligations(state)["user"] == []
     state = add("unresolve", "reopen", "user", parent="first")
-    assert [item["id"] for item in served_obligations(state)["user"]] == ["widget:size"]
+    assert [item["id"] for item in served_obligations(state)["user"]] == [
+        "message:third"
+    ]
 
 
 def test_frozen_obligation_attention_comes_from_its_widget_without_a_prose_task():
@@ -575,8 +570,8 @@ def test_summary_protects_the_unanswered_obligation_after_later_agent_messages()
             {
                 "kind": "comment",
                 "author": "agent",
-                "text": "One question:",
-                "markup": '<lf-ask id="route">Which route?</lf-ask>',
+                "text": "Which route?",
+                "obligation": True,
             },
             {"kind": "reply", "author": "agent", "parent": "e1", "text": "Checking."},
             {

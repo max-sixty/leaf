@@ -1,8 +1,7 @@
 import { frameVisibility, inputInFrame, keeps, move, nextRender, onFrameVisibility, readSampleVisibility, sizeObserver, watchFrame } from "./bundle-dom-move.js";
 import { recordInteraction, requestJson } from "./bundle-layer-client.js";
-import { frameView, layoutWindow, presented, watchRoom } from "./bundle-geometry.js";
-import { pageUrl, runtime } from "./bundle-context.js";
-import { aborted, widgetDescriptor } from "./bundle-abort.js";
+import { frameView, layoutWindow, pageUrl, presented, runtime, watchRoom } from "./bundle-geometry.js";
+import { aborted, widgetDescriptor } from "./bundle-data.js";
 import { dressFor, registerSampleDress } from "./bundle-dress.js";
 
 //#region runtime/sample.js

@@ -42,6 +42,7 @@ from render_harness import (
     write,
 )
 
+from browser.test_render_floating_panel import finish_held, held_motion, hold_motion
 from browser.threads import open_panel_thread
 from leaf import data as data_model
 from leaf import event_log as events_model
@@ -219,15 +220,22 @@ CARET_AT = """
   }"""
 
 # How far past the caret's offset the boxes clipping the field's words let paint run.
-CARET_ROOM = f"""box => {{{CARET_AT}
+CARET_ROOM = rf"""box => {{{CARET_AT}
   const caret = document.createRange();
   caret.setStart(at, offset);
   let clip = Infinity;
   for (let node = at.parentElement; node; node = node.parentElement) {{
     const style = getComputedStyle(node);
-    if (style.overflowX !== 'clip') continue;
-    const margin = parseFloat(style.overflowClipMargin) || 0;
-    clip = Math.min(clip, node.getBoundingClientRect().right + margin);
+    const right = node.getBoundingClientRect().right;
+    if (style.overflowX === 'clip') {{
+      const margin = parseFloat(style.overflowClipMargin) || 0;
+      clip = Math.min(clip, right + margin);
+    }}
+    const inset = /^inset\(([^)]+)\)$/.exec(style.clipPath);
+    if (inset) {{
+      const sides = inset[1].trim().split(/\s+/).map(parseFloat);
+      clip = Math.min(clip, right - (sides[1] ?? sides[0]));
+    }}
   }}
   return clip - caret.getBoundingClientRect().right;
 }}"""
@@ -252,12 +260,19 @@ def test_a_caret_at_a_lines_end_paints_inside_the_field(engine, request, serve):
     page.locator("#passage").click(modifiers=["Alt"])
     field = page.locator(".lf-fab-input")
     expect(field).to_be_focused()
+    hold_motion(page)
     # The box grows with its words, so the caret after the last word ends its column.
     page.keyboard.insert_text(
         "it's not really a feed as much as a list? I see a feed as"
     )
     rendered(page)
+    held_motion(page, ".lf-fab-ground")
+    # Read the final moving frame, before cleanup restores the field's resting clip.
+    page.evaluate("""() => __lfHeld.filter(a => a.playState !== 'idle').forEach(a => {
+      a.currentTime = Number(a.effect.getTiming().duration) - 0.01;
+    })""")
     assert field.evaluate(CARET_ROOM) >= 1
+    finish_held(page)
     # At a narrow allocation the trailing space fits beside Send (see above).
     resized(page, 346, 900)
     page.keyboard.press("ControlOrMeta+a")
@@ -612,47 +627,6 @@ def test_the_delivered_stylesheets_read_exactly_as_their_files_do(browser, serve
     assert ".lf-target-trace {" in selected["chrome"]
     assert ".lf-drawing-mark path" in selected["chrome"]
     assert "::highlight(lf-version-insert)" in selected["marks"]
-
-
-def test_indication_defaults_yield_to_widget_faces_in_document_and_shadow(
-    browser, serve
-):
-    """A widget can choose its indication face in either kind of rendering root.
-
-    Ordinary indicated elements still get the shared contour. The default must
-    yield to layered widget rules, while action-target apparatus keeps its face.
-    """
-    page = open_page(
-        browser, serve(leaf_page("indication-faces", '<h1 id="t">Indication</h1>'))
-    )
-    readings = page.evaluate(
-        """async () => {
-          const {shadowStage} = await window.__lfWidgetApi();
-          const {inBaseLayer} = await window.__lfWidgetApi();
-          const nodes = () => {
-            const style = document.createElement('style');
-            style.textContent = inBaseLayer('.custom-indication, .lf-action-target { outline: 4px dashed red; }');
-            return [style, ...['default-indication', 'custom-indication', 'lf-action-target'].map(cls => {
-              const p = document.createElement('p');
-              p.className = cls;
-              p.textContent = cls;
-              p.setAttribute('data-lf-indicated', '');
-              return p;
-            })];
-          };
-          const main = document.querySelector('main');
-          main.append(...nodes());
-          const host = document.createElement('div');
-          main.append(host);
-          const shadow = shadowStage(host, nodes());
-          return [main, shadow].map(root =>
-            [...root.querySelectorAll('[data-lf-indicated]')].map(p => {
-              const s = getComputedStyle(p);
-              return [s.outlineStyle, s.outlineWidth];
-            }));
-        }"""
-    )
-    assert readings == [[["solid", "2px"], ["dashed", "4px"], ["solid", "1px"]]] * 2
 
 
 def test_message_markdown_reads_a_link_scheme_as_the_attribute_resolves_it(

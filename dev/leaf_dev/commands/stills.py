@@ -44,6 +44,7 @@ import traceback
 from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import click
@@ -424,6 +425,31 @@ def card_reply(page: Page) -> None:
     page.keyboard.insert_text("A reply being drafted, long enough to wrap onto a line")
 
 
+def card_aging(page: Page) -> None:
+    """An open card follows the clock while its reply is being drafted."""
+    card_reply(page)
+    timestamp = page.locator(".lf-margin-preview time").first.get_attribute("datetime")
+    now = datetime.fromisoformat(timestamp) + timedelta(seconds=30)
+
+    def aged_state(route):
+        response = route.fetch()
+        state = response.json()
+        state["now"] = now.isoformat()
+        route.fulfill(response=response, json=state)
+
+    page.route("**/api/state*", aged_state)
+    for seconds in (30, 60):
+        now = datetime.fromisoformat(timestamp) + timedelta(seconds=seconds)
+        page.clock.set_fixed_time(now)
+        page.evaluate("""() => {
+          window.__lfStillTicked = false;
+          document.addEventListener('lf-tick', () => { window.__lfStillTicked = true; },
+                                    {once: true});
+        }""")
+        page.wait_for_function("() => window.__lfStillTicked")
+        settle(page)
+
+
 def card_reply_large(page: Page) -> None:
     """A pasted reply exhausting the room below the thread, with its caret at the end."""
     card_reply(page)
@@ -762,6 +788,26 @@ def page_comment_resting(page: Page) -> None:
     )
 
 
+def composer_caret_motion(page: Page) -> None:
+    """A line-end caret in the last frame of the comment box's growth."""
+    composer_empty(page)
+    settle(page)
+    page.evaluate("""() => {
+      const animate = Element.prototype.animate;
+      Element.prototype.animate = function (...args) {
+        const motion = animate.apply(this, args);
+        if (motion.timeline === document.timeline) {
+          motion.pause();
+          motion.currentTime = Number(motion.effect.getTiming().duration) - 0.01;
+        }
+        return motion;
+      };
+    }""")
+    page.keyboard.insert_text(
+        "it's not really a feed as much as a list? I see a feed as"
+    )
+
+
 def composer_space(page: Page) -> None:
     """A narrow comment ending in a space, beside Send."""
     composer(page)
@@ -878,7 +924,7 @@ def tally_after_an_answer(page: Page) -> None:
     next_on_me = page.locator("#ar-left .lf-tally-next")
     next_on_me.click()
     page.locator("#ar-canary-consecutive").click()
-    expect(page.locator("#ar-left .lf-tally-words")).to_have_text("8 of 9 to answer")
+    expect(page.locator("#ar-left .lf-tally-words")).to_have_text("8 left to answer")
     next_on_me.click()
     expect(page.locator("#ar-latency-decision")).to_be_focused()
     settle(page)
@@ -2208,6 +2254,7 @@ STATES = (
         region=".lf-margin-preview",
     ),
     State("plan-card-reply", "review-a-plan", card_reply),
+    State("plan-card-aging", "review-a-plan", card_aging, region=".lf-margin-preview"),
     State(
         "plan-card-held-news",
         "review-a-plan",
@@ -2368,6 +2415,12 @@ STATES = (
         "triage-board",
         composer_resting,
         scheme="dark",
+        region=".lf-fab-bar",
+    ),
+    State(
+        "triage-composer-caret-motion",
+        "triage-board",
+        composer_caret_motion,
         region=".lf-fab-bar",
     ),
     State("triage-composer-space", "triage-board", composer_space, viewport=(362, 900)),

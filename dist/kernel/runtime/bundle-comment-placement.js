@@ -1,10 +1,8 @@
 import { TAB_STOP, afterScript, atLayoutPrecision, cancelRender, keeps, layoutPx, move, nextRender, renderedParent, renderedUnder, shadowHost, sizeObserver, under, upFrom } from "./bundle-dom-move.js";
+import { LAYOUT, coarsePointer, hoveringPointer } from "./bundle-layer-client.js";
 import { clamp, clippingAxes, overlaps, overlapsAcross, renderedChildren, scrollsContent, shellRight, shownBand, shownExtent, shownParts, shownRect, shownWindow, skipped, union } from "./bundle-geometry.js";
-import { LAYOUT, coarsePointer, hoveringPointer } from "./bundle-errors.js";
-import { afterPresentation, containingReadingRegionFor, effectiveScroller, moveScrollerBy, pageScroller, scrollLimit, scrollerFor, shownRegionBounds } from "./bundle-reading-regions.js";
-import { scrollAxes } from "./bundle-page-controls.js";
+import { afterPresentation, anchorBox, anchorElement, anchorFor, anchorName, anchorReading, boundedBlockOf, carriedAnchor, containingReadingRegionFor, cutFrames, effectiveScroller, headerLevels, moveScrollerBy, nameAnchor, pageScroller, passageBoxes, pointBand, railStands, scrollAxes, scrollLimit, scrollerFor, scrollsWith, shownRegionBounds, targetRange, targetSegments } from "./bundle-content-layout.js";
 import { inChrome, layoutBox } from "./bundle-passages.js";
-import { anchorBox, anchorElement, anchorFor, anchorName, anchorReading, boundedBlockOf, carriedAnchor, cutFrames, headerLevels, nameAnchor, passageBoxes, pointBand, railStands, scrollsWith, targetRange, targetSegments } from "./bundle-content-layout.js";
 import { visibleTargetParts } from "./bundle-visible-target-parts.js";
 
 //#region runtime/annotation-overlay/margin-placement.js
@@ -545,6 +543,7 @@ function coverIn(root, band, target, bands, stop) {
 				continue;
 			}
 			if (node.nodeType !== Node.ELEMENT_NODE || node.closest(".lf-chrome")) continue;
+			if (skipped(node)) continue;
 			const box = node.getBoundingClientRect();
 			const boxless = !box.width && !box.height;
 			if (!boxless && !meets(box)) continue;
@@ -566,6 +565,7 @@ function coverIn(root, band, target, bands, stop) {
 				continue;
 			}
 			if (node instanceof SVGElement) continue;
+			if (getComputedStyle(node).contentVisibility === "hidden") continue;
 			if (node.localName === "details" && !node.open) {
 				const summary = node.querySelector(":scope > summary");
 				if (summary) visit({ childNodes: [summary] });

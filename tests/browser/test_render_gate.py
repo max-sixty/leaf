@@ -95,6 +95,7 @@ from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
+from leaf import layer as layer_model
 from leaf import leases as leases_model
 from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
@@ -638,6 +639,8 @@ def test_the_pre_upgrade_proof_holds_its_entry_route_past_the_load_event(
     flight at all — so nothing downstream can tell it from a page that is merely slow,
     and the ordering is the only place it can be stated."""
     page = browser.new_page()
+    # Observe only the temporary hold; the output observer owns a persistent route.
+    render_gate_scheme.observe_output_documents(page)
     registrations = []
     order = []
     route, unroute = page.route, page.unroute
@@ -977,8 +980,8 @@ def test_shadow_stage_withholds_package_transitions_until_presentation(
     """The shared shadow stage suppresses a package transition during arrival."""
     theme = tmp_path / "transition-theme"
     theme.mkdir()
-    (theme / "theme-shadow.css").write_text(
-        "details { transition: color 60s linear; }\n"
+    (theme / "widget-shadow.css").write_text(
+        ":host(lf-diff) details { transition: color 60s linear; }\n"
     )
     page = browser.new_page()
     held = []
@@ -2886,7 +2889,9 @@ AIM_FLOOR_RULE = (
 
 
 def aim_selectors():
-    sheet = (schema_model.ASSETS / "shadow.css").read_text()
+    sheet = layer_model.stylesheet(
+        schema_model.ASSETS / "shadow.css", schema_model.ASSETS
+    )
     rules = [
         rule
         for rule in tinycss2.parse_stylesheet(

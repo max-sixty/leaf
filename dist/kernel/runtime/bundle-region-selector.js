@@ -1,8 +1,7 @@
 import { closeLayer, focusDestination, focused, handBack, keeps, keepsHidden, keepsText, nextRender } from "./bundle-dom-move.js";
-import { clamp, layoutWindow } from "./bundle-geometry.js";
-import { runtime } from "./bundle-context.js";
-import { el, notice, paintKeys, raiseError } from "./bundle-errors.js";
-import { pageImage } from "./bundle-page-image2.js";
+import { el, notice, paintKeys, raiseError } from "./bundle-layer-client.js";
+import { clamp, layoutWindow, runtime } from "./bundle-geometry.js";
+import { pageImage } from "./bundle-page-image.js";
 
 //#region runtime/composing/region-selector.js
 const MIN_SIZE = 8;

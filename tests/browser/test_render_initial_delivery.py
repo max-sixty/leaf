@@ -9,6 +9,7 @@ from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import displayed, leaf_page, open_page
 
+from leaf.layer import stylesheet
 from leaf.render_checks import wait_until_ready
 from leaf.render_gate.scheme import collect_page_exceptions
 from leaf.revision_artifact import Resource
@@ -169,7 +170,7 @@ def test_a_streamed_initial_host_first_shows_its_complete_drawing(
             runtime="",
             # The theme holds the arriving host out of the page.
             inline_stylesheet=lambda _: (
-                (assets / "theme.css").read_text()
+                stylesheet(assets / "theme.css", assets)
                 + "lf-initial-outer{display:block;margin-block:16px}"
                 ".initial-frame{padding:24px;border:1px solid black}"
             ),

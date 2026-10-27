@@ -588,7 +588,6 @@ def batch_data(
                     durable.all_obligations["all"],
                     durable.threads,
                     durable.within,
-                    durable.registry,
                 )
             )
         ):

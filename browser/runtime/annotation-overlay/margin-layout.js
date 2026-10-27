@@ -682,6 +682,7 @@ function coverIn(root, band, target, bands, stop) {
         continue;
       }
       if (node.nodeType !== Node.ELEMENT_NODE || node.closest(".lf-chrome")) continue;
+      if (skipped(node)) continue;
       const box = node.getBoundingClientRect();
       const boxless = !box.width && !box.height;
       if (!boxless && !meets(box)) continue;
@@ -707,6 +708,9 @@ function coverIn(root, band, target, bands, stop) {
         continue;
       }
       if (node instanceof SVGElement) continue;
+      // The container can draw its own box while skipping its children, including
+      // bare text which has no element to ask `skipped` of on the next step.
+      if (getComputedStyle(node).contentVisibility === "hidden") continue;
       // A closed disclosure draws only its summary; reading the rest would force its
       // skipped content's layout (`skipped`).
       if (node.localName === "details" && !node.open) {

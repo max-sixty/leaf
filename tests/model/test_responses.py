@@ -46,7 +46,10 @@ from leaf import thread as thread_model
 from leaf import todos as todos_model
 from leaf.refusals import Refused
 
-QUESTION = '<lf-ask id="question">Which one?</lf-ask>'
+QUESTION = (
+    '<lf-options id="question" choose><lf-option id="question-a"><strong>A</strong>'
+    "</lf-option></lf-options>"
+)
 
 
 def test_reply_is_fenced_to_the_exact_current_obligation(page_dir):

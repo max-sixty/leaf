@@ -944,7 +944,10 @@ export function createMarginProjection({
     // none does (focus.js, `onCurrentLocation`).
     const primary = host.present(projection);
     const options = host.options;
-    const lostOptionFocus = focus.focusedOption && !currentLocationIn(options);
+    // Hiding options can leave native focus inside until the browser next updates
+    // rendering. Hand it on now, while this projection still owns the change.
+    const lostOptionFocus =
+      focus.focusedOption && (!currentLocationIn(options) || options.hidden);
     const lostPrimaryFocus = focus.focusedPrimary && !currentLocationIn(host);
     if (!projection.hasOptions && (focused() === more || lostOptionFocus)) {
       const destination = primary ?? (primaryReading(entry) ? marker : null);

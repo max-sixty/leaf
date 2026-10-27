@@ -898,7 +898,8 @@ def test_escape_lets_go_of_the_obligation_the_users_current_location_names(
     expect(page.locator("#sug-refill lf-new")).to_be_visible()
     expect(page.locator("#sug-refill lf-old")).to_be_hidden()
     assert page.evaluate(
-        """() => Boolean(document.activeElement.closest(
+        """() => document.activeElement.checkVisibility() &&
+          Boolean(document.activeElement.closest(
              '[data-lf-margin-for="sug-refill"]'))"""
     ), "the address left the user outside the cluster it pressed"
     page.keyboard.press("Escape")

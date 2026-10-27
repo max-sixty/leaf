@@ -1567,7 +1567,7 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 	function presentCluster(host, marker, more, entry, projection, focus) {
 		const primary = host.present(projection);
 		const options = host.options;
-		const lostOptionFocus = focus.focusedOption && !currentLocationIn(options);
+		const lostOptionFocus = focus.focusedOption && (!currentLocationIn(options) || options.hidden);
 		const lostPrimaryFocus = focus.focusedPrimary && !currentLocationIn(host);
 		if (!projection.hasOptions && (focused() === more || lostOptionFocus)) {
 			const destination = primary ?? (primaryReading(entry) ? marker : null);

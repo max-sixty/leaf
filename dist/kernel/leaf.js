@@ -5079,6 +5079,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	let menuDrawn = false;
 	let query = "";
 	let searching = false;
+	const unfolded = /* @__PURE__ */ new Set();
 	let pageSearch = null;
 	const threadSearchInput = shell("search");
 	const threadSearch = {
@@ -5314,7 +5315,12 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const queues = readQueues();
 		return queues.phase === "ready" ? queues.on_user.length : 0;
 	};
-	const threadStatus = (thread, { headed }) => [thread.resolved ? !headed && "Resolved" : threadAttention(thread)?.label, draftHasContent(replyContext(thread.key)) && "Draft"].filter(Boolean).join(" · ");
+	const threadStatus = (thread) => {
+		const draft = draftHasContent(replyContext(thread.key)) ? "Draft" : "";
+		if (!thread.resolved) return [threadAttention(thread)?.label, draft].filter(Boolean).join(" · ");
+		const since = shortAgo(thread.resolved.ts);
+		return html`Resolved${since ? html` <span class="lf-fp-age">${since}</span>` : nothing}${draft ? ` · ${draft}` : nothing}`;
+	};
 	const rows = () => pageControls();
 	const VIEWS = Object.freeze({
 		threads: {
@@ -5322,7 +5328,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			quiet: () => true,
 			draw: () => threadsView(),
 			controls: () => threadsControls(),
-			rows: ".lf-fp-thread, .lf-fp-fold"
+			rows: ".lf-fp-thread, .lf-fp-settled"
 		},
 		thread: {
 			key: (route) => `thread:${route.thread}`,
@@ -5472,6 +5478,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const before = trail.value.at(-1);
 		trail.value = [];
 		searching = false;
+		unfolded.clear();
 		transition(before, { handedOn });
 	}
 	function putAwayThen(run) {
@@ -5635,12 +5642,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	}
 	let refitting = false;
 	let drawnSections = null;
-	let resolvedShown = false;
-	new MutationObserver(() => {
-		resolvedShown = false;
-		refit();
-		paint();
-	}).observe(document.documentElement, { attributeFilter: ["data-playground-format"] });
 	function refit() {
 		room = null;
 		drawnSections = null;
@@ -6107,7 +6108,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		};
 	}
 	function noteDrawnSections() {
-		if (!showing({ view: "threads" })) resolvedShown = false;
 		drawnSections = showing({ view: "threads" }) && inventoried() ? new Map(threadsListing().rows.map(({ thread, section }) => [thread.key, section])) : null;
 	}
 	function joinedFacts(joined) {
@@ -6149,11 +6149,30 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
       ><span class="lf-fp-news-outlet">${joinedNotice.node}</span></span
     >`;
 	}
+	function settledHeading(key, title, count) {
+		const open = unfolded.has(key);
+		return html`<h3 class="lf-label lf-fp-on-group lf-fp-settled-group">
+      <button
+        type="button"
+        class="lf-fp-face lf-fp-settled"
+        aria-expanded=${open ? "true" : "false"}
+        @click=${() => {
+			if (open) unfolded.delete(key);
+			else unfolded.add(key);
+			refit();
+			paint();
+		}}
+      >
+        ${iconTemplate("next", "lf-fp-chevron")}<span class="lf-fp-label">${title}</span
+        ><span class="lf-fp-count">${count}</span>
+      </button>
+    </h3>`;
+	}
 	function threadsView() {
 		const { rows, searched } = threadsListing();
 		const listed = rows.filter(({ section }) => section !== "resolved").map(({ thread }) => thread);
 		const resolved = rows.filter(({ section }) => section === "resolved").map(({ thread }) => thread);
-		const row = (thread, headed) => html`<button
+		const row = (thread) => html`<button
         type="button"
         class="lf-fp-face lf-fp-thread"
         data-key=${thread.key}
@@ -6169,67 +6188,16 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
           >${isNews(thread) ? html`<span class="lf-quiet">New</span>` : nothing}</span
         >
         <span class="lf-fp-label">${threadHeading(thread)}</span>
-        <span class="lf-fp-value">${threadStatus(thread, { headed })}</span>
+        <span class="lf-fp-value">${threadStatus(thread)}</span>
       </button>`;
-		const variant = document.documentElement.dataset.playgroundFormat ?? document.querySelector("[data-explore-resolved]")?.dataset.exploreResolved ?? "list";
-		const rowsOf = (threads) => repeat(threads, (thread) => thread.key, (thread) => row(thread, true));
-		const fold = (words) => html`<button
-          type="button"
-          class="lf-fp-face lf-fp-fold lf-disclosure-marker"
-          aria-expanded=${resolvedShown ? "true" : "false"}
-          @click=${() => {
-			resolvedShown = !resolvedShown;
-			refit();
-			paint();
-		}}
-        >
-          <span class="lf-fp-label">${words}</span>
-        </button>
-        ${resolvedShown ? rowsOf(resolved) : nothing}`;
-		const allSettled = !listed.length && !searched && inventoried();
-		let resolvedPart = nothing;
-		if (resolved.length) {
-			if (variant === "fold") resolvedPart = html`<div class="lf-fp-ended-rule"></div>
-          ${fold(html`Resolved <span class="lf-fp-count">${resolved.length}</span>`)}`;
-			else if (variant === "summary") resolvedPart = allSettled ? fold(`All ${resolved.length} ${resolved.length === 1 ? "thread" : "threads"} resolved`) : html`<div class="lf-fp-ended-rule"></div>
-              ${fold(html`Resolved <span class="lf-fp-count">${resolved.length}</span>`)}`;
-			else if (variant === "recent") {
-				const newest = resolved.toSorted((a, b) => String(b.resolved?.ts ?? "").localeCompare(String(a.resolved?.ts ?? "")));
-				const shown = resolvedShown || searched ? newest : newest.slice(0, 3);
-				const more = newest.length - shown.length;
-				resolvedPart = html`<h3 class="lf-fp-ended">
-            ${searched ? "Resolved" : "Recently resolved"}
-          </h3>
-          ${rowsOf(shown)}
-          ${more > 0 ? html`<button
-                  type="button"
-                  class="lf-fp-face lf-fp-fold lf-fp-more"
-                  @click=${() => {
-					resolvedShown = true;
-					refit();
-					paint();
-				}}
-                >
-                  <span class="lf-fp-label">${more} more resolved</span>
-                </button>` : nothing}`;
-			} else if (variant === "search") resolvedPart = searched ? html`<h3 class="lf-fp-ended">Resolved</h3>
-              ${rowsOf(resolved)}` : html`<button
-              type="button"
-              class="lf-fp-face lf-fp-fold lf-fp-more"
-              @click=${() => findThreads()}
-            >
-              <span class="lf-fp-label"
-                >${resolved.length} resolved ·
-                <span class="lf-fp-search-hint">Search them</span></span
-              >
-            </button>`;
-			else resolvedPart = html`<h3 class="lf-fp-ended">Resolved</h3>
-          ${rowsOf(resolved)}`;
-		}
-		const emptyWords = searched ? "Nothing matches." : variant === "summary" && resolved.length ? null : variant === "list" ? "No open threads. Comment below to start one." : "No open threads.";
+		const rowsOf = (threads) => repeat(threads, (thread) => thread.key, row);
 		return html`<div class="lf-fp-list">
-      ${listed.length ? repeat(listed, (thread) => thread.key, (thread) => row(thread, false)) : inventoried() && emptyWords ? html`<p class="lf-fp-empty">${emptyWords}</p>` : nothing}
-      ${resolvedPart}
+      ${listed.length ? rowsOf(listed) : inventoried() ? html`<p class="lf-fp-empty">
+                ${searched ? "Nothing matches." : "No open threads. Comment below to start one."}
+              </p>` : nothing}
+      ${resolved.length ? html`<hr class="lf-fp-on-rule" />
+              ${settledHeading("resolved", "Resolved", resolved.length)}
+              ${unfolded.has("resolved") ? rowsOf(resolved) : nothing}` : nothing}
       ${inventoried() ? nothing : html`<p class="lf-fp-empty">
               ${readThreads().phase === "offline" ? "Current threads are unavailable while the server is offline." : "Loading current threads…"}
             </p>`}

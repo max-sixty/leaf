@@ -785,6 +785,9 @@ export function createFloatingPanel({
   let menuDrawn = false;
   let query = "";
   let searching = false;
+  // The settled sections the user unfolded while the panel stands open
+  // (`settledHeading`).
+  const unfolded = new Set();
   let pageSearch = null;
   const threadSearchInput = /** @type {HTMLInputElement} */ (shell("search"));
   const threadSearch = { input: threadSearchInput, controls: [] };
@@ -1143,15 +1146,17 @@ export function createFloatingPanel({
   // Ordinary open state is implicit, and news is the row's mark (`data-unread`), which
   // says New to assistive tech alone. Only an open thread is news (`isNews`), as the On
   // me mark's dot counts it: the user chose (2026-10-25) that a resolved thread's unread
-  // reply says nothing new. Rows name attention and drafts, and resolution where no
-  // Resolved heading over them says it already.
-  const threadStatus = (thread, { headed }) =>
-    [
-      thread.resolved ? !headed && "Resolved" : threadAttention(thread)?.label,
-      draftHasContent(replyContext(thread.key)) && "Draft",
-    ]
-      .filter(Boolean)
-      .join(" · ");
+  // reply says nothing new. Rows name attention and drafts, and a resolved thread says
+  // so with how long ago, as a Done line says its outcome and age.
+  const threadStatus = (thread) => {
+    const draft = draftHasContent(replyContext(thread.key)) ? "Draft" : "";
+    if (!thread.resolved)
+      return [threadAttention(thread)?.label, draft].filter(Boolean).join(" · ");
+    const since = shortAgo(thread.resolved.ts);
+    return html`Resolved${
+      since ? html` <span class="lf-fp-age">${since}</span>` : nothing
+    }${draft ? ` · ${draft}` : nothing}`;
+  };
   const rows = () => pageControls();
 
   // ---------- the views ----------
@@ -1184,7 +1189,7 @@ export function createFloatingPanel({
       quiet: () => true,
       draw: () => threadsView(),
       controls: () => threadsControls(),
-      rows: ".lf-fp-thread, .lf-fp-fold",
+      rows: ".lf-fp-thread, .lf-fp-settled",
     },
     thread: {
       key: (route) => `thread:${route.thread}`,
@@ -1359,6 +1364,7 @@ export function createFloatingPanel({
     const before = trail.value.at(-1);
     trail.value = [];
     searching = false;
+    unfolded.clear();
     transition(before, { handedOn });
   }
   // A press puts away only the menu or view it stands in. The menu borrows the open
@@ -1671,14 +1677,6 @@ export function createFloatingPanel({
   // no list stands, so the next paint draws every row where it now belongs
   // (`threadsListing`).
   let drawnSections = null;
-  // EXPLORATION ONLY: whether Threads shows the resolved rows it folds, and a
-  // playground's choice of treatment redrawing it.
-  let resolvedShown = false;
-  new MutationObserver(() => {
-    resolvedShown = false;
-    refit();
-    paint();
-  }).observe(document.documentElement, { attributeFilter: ["data-playground-format"] });
   function refit() {
     room = null;
     drawnSections = null;
@@ -2351,8 +2349,9 @@ export function createFloatingPanel({
 
   // The rows read in the page's order, the one the `t` walk steps through
   // (thread/placement.js), so each thread stands among its passage's neighbours: the
-  // open threads, then the resolved ones under Resolved, as what left On me stands under
-  // Done, each unread row marked and a drafted one saying Draft. The user chose this on 25
+  // open threads, then the resolved ones folded under Resolved (`settledHeading`), as
+  // what left On me stands under Done, each unread row marked and a drafted one saying
+  // Draft. The user chose this on 25
   // October, with Threads becoming the On view's tab, over Open, Unread, Drafts and
   // Resolved filters, which a second row of tabs would have had to hold. A search reads
   // every thread's name, its messages and summaries as they read, and the words it is
@@ -2413,7 +2412,6 @@ export function createFloatingPanel({
   }
   // After a paint: what the standing list drew, which the next paint holds to.
   function noteDrawnSections() {
-    if (!showing({ view: "threads" })) resolvedShown = false;
     drawnSections =
       showing({ view: "threads" }) && inventoried()
         ? new Map(
@@ -2467,6 +2465,36 @@ export function createFloatingPanel({
       ><span class="lf-fp-news-outlet">${joinedNotice.node}</span></span
     >`;
   }
+  // What left a list stands folded under one heading, its name and count, which the
+  // user unfolds, so a page whose conversations have all settled takes one row rather
+  // than a row for each. The heading is a row of the list, which the arrows walk to and
+  // Enter opens, and a section stays unfolded while the panel stays open (`unfolded`).
+  // It takes the list's group heading (`.lf-fp-on-group`), and its chevron, the panel's
+  // symbol for a press that opens more, stands in the rows' first column, so its name
+  // starts where theirs do. The platform's disclosure marker, which Firefox draws a
+  // few pixels wide, read as a dot there (the user, 27 October). The user chose the fold on
+  // 27 October over the newest three resolved with the rest behind a row, which put a
+  // second order in a list read in the page's, and over resolved threads only searched
+  // for, which left them nothing to browse.
+  function settledHeading(key, title, count) {
+    const open = unfolded.has(key);
+    return html`<h3 class="lf-label lf-fp-on-group lf-fp-settled-group">
+      <button
+        type="button"
+        class="lf-fp-face lf-fp-settled"
+        aria-expanded=${open ? "true" : "false"}
+        @click=${() => {
+          if (open) unfolded.delete(key);
+          else unfolded.add(key);
+          refit();
+          paint();
+        }}
+      >
+        ${iconTemplate("next", "lf-fp-chevron")}<span class="lf-fp-label">${title}</span
+        ><span class="lf-fp-count">${count}</span>
+      </button>
+    </h3>`;
+  }
   function threadsView() {
     const { rows, searched } = threadsListing();
     const listed = rows
@@ -2475,7 +2503,7 @@ export function createFloatingPanel({
     const resolved = rows
       .filter(({ section }) => section === "resolved")
       .map(({ thread }) => thread);
-    const row = (thread, headed) =>
+    const row = (thread) =>
       html`<button
         type="button"
         class="lf-fp-face lf-fp-thread"
@@ -2489,114 +2517,30 @@ export function createFloatingPanel({
           >${isNews(thread) ? html`<span class="lf-quiet">New</span>` : nothing}</span
         >
         <span class="lf-fp-label">${threadHeading(thread)}</span>
-        <span class="lf-fp-value">${threadStatus(thread, { headed })}</span>
+        <span class="lf-fp-value">${threadStatus(thread)}</span>
       </button>`;
-    // EXPLORATION ONLY: which treatment of the resolved rows to draw, from the page's
-    // `data-explore-resolved`, so a playground can show each beside the others.
-    const variant =
-      document.documentElement.dataset.playgroundFormat ??
-      /** @type {HTMLElement | null} */ (
-        document.querySelector("[data-explore-resolved]")
-      )?.dataset.exploreResolved ??
-      "list";
-    const rowsOf = (threads) =>
-      repeat(
-        threads,
-        (thread) => thread.key,
-        (thread) => row(thread, true),
-      );
-    const fold = (words) =>
-      html`<button
-          type="button"
-          class="lf-fp-face lf-fp-fold lf-disclosure-marker"
-          aria-expanded=${resolvedShown ? "true" : "false"}
-          @click=${() => {
-            resolvedShown = !resolvedShown;
-            refit();
-            paint();
-          }}
-        >
-          <span class="lf-fp-label">${words}</span>
-        </button>
-        ${resolvedShown ? rowsOf(resolved) : nothing}`;
-    const allSettled = !listed.length && !searched && inventoried();
-    /** @type {unknown} */
-    let resolvedPart = nothing;
-    if (resolved.length) {
-      if (variant === "fold") {
-        resolvedPart = html`<div class="lf-fp-ended-rule"></div>
-          ${fold(html`Resolved <span class="lf-fp-count">${resolved.length}</span>`)}`;
-      } else if (variant === "summary") {
-        resolvedPart = allSettled
-          ? fold(
-              `All ${resolved.length} ${resolved.length === 1 ? "thread" : "threads"} resolved`,
-            )
-          : html`<div class="lf-fp-ended-rule"></div>
-              ${fold(html`Resolved <span class="lf-fp-count">${resolved.length}</span>`)}`;
-      } else if (variant === "recent") {
-        const newest = resolved.toSorted((a, b) =>
-          String(b.resolved?.ts ?? "").localeCompare(String(a.resolved?.ts ?? "")),
-        );
-        const shown = resolvedShown || searched ? newest : newest.slice(0, 3);
-        const more = newest.length - shown.length;
-        resolvedPart = html`<h3 class="lf-fp-ended">
-            ${searched ? "Resolved" : "Recently resolved"}
-          </h3>
-          ${rowsOf(shown)}
-          ${
-            more > 0
-              ? html`<button
-                  type="button"
-                  class="lf-fp-face lf-fp-fold lf-fp-more"
-                  @click=${() => {
-                    resolvedShown = true;
-                    refit();
-                    paint();
-                  }}
-                >
-                  <span class="lf-fp-label">${more} more resolved</span>
-                </button>`
-              : nothing
-          }`;
-      } else if (variant === "search") {
-        resolvedPart = searched
-          ? html`<h3 class="lf-fp-ended">Resolved</h3>
-              ${rowsOf(resolved)}`
-          : html`<button
-              type="button"
-              class="lf-fp-face lf-fp-fold lf-fp-more"
-              @click=${() => findThreads()}
-            >
-              <span class="lf-fp-label"
-                >${resolved.length} resolved ·
-                <span class="lf-fp-search-hint">Search them</span></span
-              >
-            </button>`;
-      } else {
-        resolvedPart = html`<h3 class="lf-fp-ended">Resolved</h3>
-          ${rowsOf(resolved)}`;
-      }
-    }
-    const emptyWords = searched
-      ? "Nothing matches."
-      : variant === "summary" && resolved.length
-        ? null
-        : variant === "list"
-          ? "No open threads. Comment below to start one."
-          : "No open threads.";
+    const rowsOf = (threads) => repeat(threads, (thread) => thread.key, row);
     return html`<div class="lf-fp-list">
       ${
         listed.length
-          ? repeat(
-              listed,
-              (thread) => thread.key,
-              (thread) => row(thread, false),
-            )
-          : inventoried() && emptyWords
-            ? html`<p class="lf-fp-empty">${emptyWords}</p>`
+          ? rowsOf(listed)
+          : inventoried()
+            ? html`<p class="lf-fp-empty">
+                ${
+                  searched
+                    ? "Nothing matches."
+                    : "No open threads. Comment below to start one."
+                }
+              </p>`
             : nothing
       }
-      ${resolvedPart}
+      ${
+        resolved.length
+          ? html`<hr class="lf-fp-on-rule" />
+              ${settledHeading("resolved", "Resolved", resolved.length)}
+              ${unfolded.has("resolved") ? rowsOf(resolved) : nothing}`
+          : nothing
+      }
       ${
         // This tab's sends are listed, but the saved threads are still to come, which
         // the list says after the rows it has, so their arrival moves none of them.

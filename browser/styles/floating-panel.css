@@ -1474,45 +1474,39 @@
     flex-direction: column;
     padding: 10px 8px 12px;
   }
-  /* What left the list in view, under it: a section of its own, so a rule opens it. */
-  .lf-fp-ended {
-    margin: 0 8px;
-    padding-top: 10px;
-    border-top: 1px solid var(--lf-fp-faint);
-    font: inherit;
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--lf-fp-muted);
+  /* What left a list, folded under its group heading (floating-panel.js,
+     `settledHeading`): the heading is the press, a row the height of the list's rows
+     whose columns are a thread row's, so its chevron stands in the column the rows'
+     news mark takes, its name starts where their names do, and its count ends where
+     their status does. The chevron turns down while the section is open. */
+  .lf-fp-settled-group {
+    padding: 0;
   }
-  /* EXPLORATION ONLY: the resolved rows' fold and its rule. */
-  .lf-fp-ended-rule {
-    margin: 4px 8px;
-    border-top: 1px solid var(--lf-fp-faint);
-  }
-  .lf-fp-fold {
-    display: flex;
-    align-items: baseline;
-    gap: 2px;
+  .lf-fp-settled {
+    display: grid;
+    grid-template-columns: 6px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
     width: 100%;
-    min-height: 30px;
+    min-height: 34px;
     padding: 5px 8px;
     border-radius: var(--r);
+    font: inherit;
+    letter-spacing: inherit;
+    text-transform: inherit;
+    color: inherit;
     text-align: start;
-    color: var(--lf-fp-muted);
   }
-  .lf-fp-fold::before {
-    width: 14px;
-    flex: none;
-    font-size: 10px;
+  .lf-fp-settled > .lf-fp-count {
+    text-align: end;
   }
-  .lf-fp-more {
-    padding-inline-start: 22px;
+  .lf-fp-settled > .lf-fp-chevron {
+    justify-self: center;
+    margin: 0;
+    transition: rotate var(--lf-motion-disclosure);
   }
-  .lf-fp-fold .lf-fp-count {
-    margin-inline-start: 4px;
-  }
-  .lf-fp-search-hint {
-    color: var(--accent);
+  .lf-fp-settled[aria-expanded="true"] > .lf-fp-chevron {
+    rotate: 90deg;
   }
   .lf-fp-on-place,
   .lf-fp-on-title {
@@ -1933,13 +1927,15 @@
     }
     .lf-fp-item,
     .lf-fp-thread,
+    .lf-fp-settled,
     .lf-fp-page {
       min-height: 44px;
     }
   }
   @media (prefers-reduced-motion: reduce) {
     .lf-fp-peek,
-    .lf-floating-panel[data-menu] .lf-fp-menu {
+    .lf-floating-panel[data-menu] .lf-fp-menu,
+    .lf-fp-settled > .lf-fp-chevron {
       transition: none;
     }
   }

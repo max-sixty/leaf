@@ -31,11 +31,10 @@ holds previous runs and findings.
   which pair judges reading later phases miss. Validate a retained repair on the full
   workflow.
 - **Decide.** Keep, revise or undo the candidate by its rendered result, working
-  interactions and authoring effort, with a judge's score as one input. A repair that
-  stops a refusal or a wrong reading from occurring is proved by a test that fails on
-  the old code, and by counting occurrences of the failure in each sample. Three
-  authors per arm can usually show whether the failure recurs, but cannot reliably
-  establish a difference in elapsed time.
+  interactions and authoring effort, with a judge's score as one input. For a recurring
+  failure, compare its occurrences in author traces and use a regression test where
+  code decides the outcome. Small author samples can expose recurring failures but
+  rarely establish a timing difference.
 - **Continue** from the result: a rejected candidate can suggest another repair, and a
   successful one can expose the next weakness.
 
@@ -63,9 +62,11 @@ tasks, inputs, interaction sequences, models and viewports to find weaknesses it
 misses, and test each repair on a dissimilar case. Adaptive search finds failures, not
 a defect rate, so report it apart from the fixed comparisons.
 
-`MODELS` in `dev/leaf_dev/arms.py` owns the default models; occasional authors or
-judges on another model test whether guidance and assessments transfer, and a failure
-specific to one harness makes that harness the focus. Validate a repair on both
+`MODELS` and `JUDGE_MODELS` in `dev/leaf_dev/arms.py` own the author and judge
+model pins. Use only Astra or Opus for judging, including independent visual review;
+Sol can author pages. Vary author models to test guidance transfer, and cross-check
+judgments with the other allowed judge. A failure specific to one harness makes
+that harness the focus. Validate a repair on both
 harnesses, since their authors hit different refusals and read different references. `evals/workflows/eval.yaml` owns
 the viewports: `desktop` is the routine anchor, `short` constrained desktop, and an
 occasional `phone` run checks functional access.

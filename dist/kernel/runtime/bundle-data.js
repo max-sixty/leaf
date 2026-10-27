@@ -2,7 +2,7 @@ import { CARET_KEYS, J, PRESSES, TEXT_BOX, TEXT_FIELD, W, Z, afterScript, bindQu
 import { LayerRefused, PAGE_PAINT_ATTRIBUTE, PRESS, PRESSABLE, admitReading, admitResponse, announce, ariaShortcuts, bindings, buttonCommand, checked, claimReleaseClick, clampedRow, commandAvailable, commandRoutes, commandScope, cycledRow, declareCommandReadiness, descriptionOf, el, generatedElement, holdStatus, holdingError, iconElement, iconTemplate, keys, labelOf, layoutChanged, live, measure, notice, offer, offerAction, offered, offeredAction, pagePresented, paintKeys, paintKeysWithin, passErrorsAt, plainPress, pointerAt, projectCommandScope, pruneScopedElements, raiseError, randomId, repaint, reportPageError, requestJson, restorePointer, reveal, revealLayer, rowArrows, runtimeRootState, sameLayer, savedReadingSettled, setRuntimeRootAttribute, spell, titleOf, touchPresses as touchPresses$1, watchCommandScopes, word } from "./bundle-layer-client.js";
 import { COLLAPSE as COLLAPSE$1, LIVE_ROOT, PENDING, PRESENTATION_DOM, SHADOW_LEADING_CSS, TEXT_BLOCK, adoptRegistry, annotationMarkSheets, applicationPresenter, applicationState, attachApplicationPresentation, authoredRank, clippedContents, clippedPlace, decisionFor, declarationFor, editable, elementDeclarations, elementsDeclaring, exhibits, foldWidgetStates, frameFor, growthAfterIsSeen, growthIsSeen, headerInset, html, inUi, inWindowChrome, isElementName, isReaction, keyed, landingBand, lastMovedAt, layerRoot, live as live$1, loadShadowRules, marks, marksSheet, messageKey, moved, nothing, obligationValue, offlineData, offlineInteractive, pageClaimed, pageUrl, pendingForParent, placeBox, placeHolder, presented, projectView, projectionOrigins, projectionRegionsPresented, readApplication, readPart, recordedWidgetSelector, registry as registry$1, render as render$1, repeat, revisionLabel, runtime, runtimeModule, runtimeResource, sameAnchor, seatRoot, seenRect, shadowRules, share, shownBox, shownRect, shownWindow, skipped, slotTop, stateSpecs, stuckBox, tagsDeclaring, threadKey, threadNames, tick, tokenEntry, turns, union, userScrollport, visibleBand, watchArrivals, watchArrivalsIn, watchLayers, watchOwner, watchPresentation, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenNone, whenWidgetsPresented } from "./bundle-geometry.js";
 import { ADDRESSABLE, PAGE_CONTROL_RANK, addressableWord, addressedElements, ago, aimTargetAt, aimedTop, anchorBox, anchorForPassage, anchorForRange, anchorReading, anchorView, anchoringIsReady, atScrollEnd, authoredBody, chosenSince, chromeForeground, chromeRoot, claimReachStop, containingReadingRegionFor, cutFrames, datumAimTarget, datumLabel, effectiveScroller, followingItsEnd, fragmentTarget, headerLevels, initialOrigin, initialParent, initialSource, isAddressable, leadingTitle, livePoint, moveScrollerBy, nameAnchor, nameable, onReadingInput, pageReadingRegion, pageScroller, placeKept, projectedDatum, reachScrollers, readingRegionFor, readingRegions, recentReadingRegion, refreshAnchorView, regionScrollBehavior, regionsSettled, registerPageControl, releaseReachStop, resolveAnchor, restoreInitialSource, revealAddressed, scrollChainOf, scrollChoices, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, sectionLabel, sectionOf, settleMarginContentLayout, shortAgo, shownRegionBounds, stopScroll, targetElement, targetPlace, targetSegments, unconcealedReadingRegions, unmarkedCopy, visualPartLabel, watchReadingRegionTransitions } from "./bundle-content-layout.js";
-import { alignInlineText, alignText, authored, authoredScope, blockAt, closestAcross, elementById, elementReading, fencePassageParts, inChrome, labelWords, pageBlocks, pageDocument, pageQueryAll, pageRange, pageText, pageWords, pointAt as pointAt$1, quoteFrom, rangeOf, readingFrom, renderRetired, segmentBlock, segmentsIn, selectEnds, selectionBackward, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity, watchPassageRoot, wrote } from "./bundle-passages.js";
+import { alignInlineText, alignText, authored, authoredScope, blockAt, closestAcross, elementById, elementReading, fencePassageParts, inChrome, labelWords, pageBlocks, pageDocument, pageQueryAll, pageRange, pageText, pageWords, pointAt as pointAt$1, quoteFrom, rangeOf, readingFrom, renderRetired, segmentBlock, segmentsIn, selectEnds, selectionBackward, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity, watchPassageRoot } from "./bundle-passages.js";
 import { alreadyShown, copyControl, fitsWhole, passOn, restrictUserIntent, retainUserIntent, scrollIntoReadingBand, scrollIntoView } from "./bundle-copy-control.js";
 import { backgroundFlash, flashDuration, foldBlock, isCanonicalMediaUrl, motion, motionPlays, readAttachedMedia, scopedMediaUrl, scrollBehavior, writeAttachedMedia } from "./bundle-media.js";
 import { diffArrays } from "/vendor/jsdiff.esm.js";
@@ -8039,7 +8039,7 @@ function createAnchorTravel({ anchors, refreshThread, focusForNavigation, thread
 	}
 	function returnToFragment(url) {
 		const where = fragmentTarget(url.hash);
-		return where && !where.checkVisibility() ? fragmentNavigationStep(url, false) : null;
+		return where && (where.hasAttribute("hidden") || !where.checkVisibility()) ? fragmentNavigationStep(url, false) : null;
 	}
 	function fragmentNavigationStep(url, focus) {
 		const mayArrive = retainTravel();
@@ -8415,11 +8415,13 @@ const diffMarked = /* @__PURE__ */ new Set();
 const diffBefore = /* @__PURE__ */ new Map();
 const inlineOpen = /* @__PURE__ */ new Map();
 let diffRequest = 0;
-function diffWords(block) {
-	if (!block.querySelector("[data-lf-source-words]")) return wrote(block);
+const comparisonTextNodes = (root, opaque = diffOpaqueSel()) => textNodesUnder(root, "wrote", (child) => child.matches(opaque));
+function diffWords(block, opaque) {
+	const words = (root) => quoteFrom(comparisonTextNodes(root, opaque));
+	if (!block.querySelector("[data-lf-source-words]")) return words(block);
 	const source = block.cloneNode(true);
 	for (const island of source.querySelectorAll("[data-lf-source-words]")) island.replaceWith(document.createTextNode(island.dataset.lfSourceWords));
-	return wrote(source);
+	return words(source);
 }
 function diffBlocks(root) {
 	const pairs = [];
@@ -8432,8 +8434,8 @@ function diffBlocks(root) {
 	}
 	for (const b of root.querySelectorAll(blocks)) {
 		if (inChrome(b) || b.closest(opaque) || b.closest(".lf-markdown-body")) continue;
-		if (b.querySelector(blocks)) continue;
-		let key = diffWords(b);
+		if ([...b.querySelectorAll(blocks)].some((child) => !child.closest(opaque))) continue;
+		let key = diffWords(b, opaque);
 		for (const [attr, edge] of Object.entries(registry$1[b.localName]?.["x-says"] ?? {})) {
 			const said = b.getAttribute(attr);
 			if (said) key = edge === "before" ? `${said} ${key}` : `${key} ${said}`;
@@ -8590,12 +8592,18 @@ function applyDiff(doc, baseAuthored, baseVersion, baseReading) {
 	for (const block of diffMarked) {
 		if (!block.matches("[id]:not(.lf-ui):not([id^=\"lf-\"])") || block.closest(opaque)) continue;
 		const baseBlock = doc.getElementById(block.id);
-		diffBefore.set(block, baseBlock ? wrote(baseBlock) : null);
+		diffBefore.set(block, baseBlock ? quoteFrom(comparisonTextNodes(baseBlock, opaque)) : null);
 	}
 	return diffMarked.size;
 }
 const inlineId = (target) => `lf-version-inline-${target.id}`;
-const authoredReading = (target) => readingFrom(textNodesUnder(target, "wrote"));
+const authoredReading = (target) => {
+	const segments = comparisonTextNodes(target);
+	return {
+		...readingFrom(segments),
+		segments
+	};
+};
 function pointAt(target, reading, offset) {
 	if (!reading.units.length) return {
 		node: target,
@@ -8614,14 +8622,15 @@ function insertAt(target, reading, offset, node) {
 	else if (point.offset === text.data.length) move(text.parentNode, node, text.nextSibling);
 	else move(text.parentNode, node, text.splitText(point.offset));
 }
-function rangeAt(reading, start, end) {
+function rangesAt(reading, start, end) {
 	const first = reading.units[start];
 	const last = reading.units[end - 1];
-	if (!first || !last) return null;
-	const range = document.createRange();
-	range.setStart(first.start.node, first.start.offset);
-	range.setEnd(last.end.node, last.end.offset);
-	return range;
+	if (!first || !last) return [];
+	return reading.segments.slice(reading.segments.findIndex(({ node }) => node === first.start.node), reading.segments.findIndex(({ node }) => node === last.end.node) + 1).map((segment) => ({
+		...segment,
+		start: segment.node === first.start.node ? first.start.offset : segment.start,
+		end: segment.node === last.end.node ? last.end.offset : segment.end
+	})).filter(({ start, end }) => end > start).map((segment) => rangeOf([segment]));
 }
 function paintInlineInsertions() {
 	const ranges = [...inlineOpen.values()].flatMap((entry) => entry.ranges);
@@ -8662,7 +8671,7 @@ function openInlineComparison(target) {
 	}
 	insertions.sort((left, right) => right.offset - left.offset).forEach(({ offset, node }) => insertAt(target, reading, offset, node));
 	const currentReading = authoredReading(target);
-	const ranges = additions.map(([start, end]) => rangeAt(currentReading, start, end)).filter(Boolean);
+	const ranges = additions.flatMap(([start, end]) => rangesAt(currentReading, start, end));
 	target.classList.toggle("lf-version-inline", hasTextChange);
 	inlineOpen.set(target, {
 		nodes,
@@ -8681,7 +8690,7 @@ function closeInlineComparison(target) {
 	layoutChanged(target);
 	return `inline diff from v${diffBase.value} hidden`;
 }
-const inlineComparison = (target) => diffOn.value && diffBefore.has(target) && (diffBefore.get(target) === null || diffBefore.get(target) !== wrote(target)) ? {
+const inlineComparison = (target) => diffOn.value && diffBefore.has(target) && (diffBefore.get(target) === null || diffBefore.get(target) !== quoteFrom(comparisonTextNodes(target))) ? {
 	id: inlineId(target),
 	open: inlineOpen.has(target),
 	offer: `v${diffBase.value} → ${currentVersionToken()}`

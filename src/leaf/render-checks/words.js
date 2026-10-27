@@ -246,32 +246,30 @@ function paintedRuns(root, { holdFloating = true, holdHidden = true } = {}) {
   };
   // The part of a run's rect its letters can reach. A text range's rect spans its font's
   // ascent to descent, taller than any letter, so display type set solid overlaps the
-  // next line's rect with no letter near another. The font's own metrics, scaled to the
-  // rect as drawn (an SVG label's viewBox scales both), place the baseline and the
-  // tallest ascender and deepest descender among the node's letters, measured in both
-  // cases since text-transform may draw either. Only a horizontal run whose rect has
-  // the font's proportions is trimmed: a rotated label or vertical writing lays its
-  // length along the rect's height, and an untrimmed rect over-reports, the safe side.
+  // next line's rect with no letter near another. The font's own metrics place the
+  // baseline and the tallest ascender and deepest descender among the node's letters,
+  // measured in every case text-transform may draw. Only untransformed horizontal HTML
+  // text, whose rect is the font's own span, is trimmed; SVG, a transform or vertical
+  // writing can lay the text's length along the rect's height, and an untrimmed rect
+  // over-reports, the safe side.
   const metrics = document.createElement("canvas").getContext("2d");
-  const ink = (el, data, drawn, lines) => {
+  const ink = (el, data, drawn) => {
+    if (el.closest("svg")) return drawn;
     const style = getComputedStyle(el);
-    const text = data.replace(/\s+/g, " ").trim();
     if (!style.writingMode.startsWith("horizontal")) return drawn;
+    for (let at = el; at; at = at.parentElement) {
+      const { transform, rotate, scale } = getComputedStyle(at);
+      if (transform !== "none" || rotate !== "none" || scale !== "none") return drawn;
+    }
+    const text = data.replace(/\s+/g, " ").trim();
     metrics.font = `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
-    const m = metrics.measureText(`${text}${text.toUpperCase()}`);
+    const m = metrics.measureText(`${text}${text.toUpperCase()}${text.toLowerCase()}`);
     const span = m.fontBoundingBoxAscent + m.fontBoundingBoxDescent;
-    if (!(span > 0)) return drawn;
-    const scale = drawn.height / span;
-    // A run drawn on one line spans the node's whole advance, so its width checks the
-    // scale; a wrapped node's lines are each a part of it, so they take the page's own.
-    const across = lines === 1 ? drawn.width / metrics.measureText(text).width : 1;
-    if (Math.abs(scale / across - 1) > 0.2) return drawn;
-    const baseline = drawn.top + m.fontBoundingBoxAscent * scale;
-    const top = Math.max(drawn.top, baseline - m.actualBoundingBoxAscent * scale);
-    const bottom = Math.min(
-      drawn.bottom,
-      baseline + m.actualBoundingBoxDescent * scale,
-    );
+    // A fallback font's span differs from the first family's; keep that rect whole.
+    if (!(span > 0) || Math.abs(drawn.height / span - 1) > 0.2) return drawn;
+    const baseline = drawn.top + m.fontBoundingBoxAscent;
+    const top = Math.max(drawn.top, baseline - m.actualBoundingBoxAscent);
+    const bottom = Math.min(drawn.bottom, baseline + m.actualBoundingBoxDescent);
     return bottom > top
       ? new DOMRect(drawn.left, top, drawn.width, bottom - top)
       : drawn;
@@ -296,9 +294,8 @@ function paintedRuns(root, { holdFloating = true, holdHidden = true } = {}) {
     const range = document.createRange();
     range.selectNodeContents(node);
     const label = el.closest("text");
-    const lines = range.getClientRects();
-    for (const drawn of lines) {
-      const box = painted(el, ink(el, node.data, drawn, lines.length));
+    for (const drawn of range.getClientRects()) {
+      const box = painted(el, ink(el, node.data, drawn));
       if (box && box.width > 1 && box.height > 1)
         runs.push({ el, label, box, text: node.data.trim().slice(0, 40) });
     }

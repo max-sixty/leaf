@@ -1364,17 +1364,27 @@ def test_the_gate_passes_words_set_close_or_declared_decorative(browser, serve):
             '<p style="position:absolute;top:0;left:700px;margin:0;'
             'font:40px Arial;writing-mode:vertical-rl">MMMMMM</p>'
             '<p style="position:absolute;top:140px;left:700px;margin:0;'
-            'font:40px Arial;writing-mode:vertical-rl">WWWWWW</p></div>',
+            'font:40px Arial;writing-mode:vertical-rl">WWWWWW</p>'
+            '<p style="position:absolute;top:20px;left:900px;margin:0;'
+            'font:80px/1 Arial;text-transform:lowercase">11111P</p>'
+            '<p style="position:absolute;top:91px;left:1104px;margin:0;'
+            'font:20px/1 Arial">Under the descender</p>'
+            '<svg width="120" height="200" style="position:absolute;top:220px;left:900px">'
+            '<text transform="translate(60 30) rotate(90)" font-size="40">lllll</text>'
+            '<text transform="translate(60 65) rotate(90)" font-size="40">iiiii</text>'
+            "</svg></div>",
         )
     )
     page = open_page(browser, url)
     found = render_checks_model.evaluate_probe(page, "coveredWords")
 
     assert sorted(sorted([f["words"], f["covered"]]) for f in found) == [
+        ["11111P", "Under the descender"],
         ["Another label", "One label"],
         ["Cannot proceed", "Decoration"],
         ["MMMMMM", "WWWWWW"],
         ["Over the caps", "xxxxxx"],
+        ["iiiii", "lllll"],
     ], found
 
 

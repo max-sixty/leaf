@@ -18,8 +18,7 @@ const sheets = JSON.parse(
 // packages, semantic state and the page's own stylesheet. Shared shadow rules use
 // `lf-shadow` above these adopted defaults and below theme packages and semantic state.
 // Chrome and apparatus marks stay unlayered so their paint beats page and widget
-// alike. The marks sheet's indication default uses lf-base so widgets can choose
-// their own indication face (marks.css).
+// alike.
 export const inBaseLayer = (text) => `@layer lf-base {\n${text}\n}`;
 
 function constructSheet(text) {

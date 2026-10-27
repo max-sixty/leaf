@@ -598,41 +598,32 @@ def test_workflow_shell_continuations_use_literal_blocks():
 
 
 @pytest.mark.parametrize(
-    ("argv", "usage"),
+    "argv",
     [
-        (["hook"], "leaf hook --harness NAME [--if-claimed] [--watch | --pages]"),
-        (
-            ["hook", "--harness"],
-            "leaf hook --harness NAME [--if-claimed] [--watch | --pages]",
-        ),
-        (
-            ["hook", "--watch", "--harness", "codex"],
-            "leaf hook --harness NAME [--if-claimed] [--watch | --pages]",
-        ),
-        (
-            ["hook", "--harness", "codex", "--bogus"],
-            "leaf hook --harness NAME [--if-claimed] [--watch | --pages]",
-        ),
-        (["session-end", "now"], "leaf session-end"),
+        ["hook"],
+        ["hook", "--harness"],
+        ["hook", "--harness", "codex", "--bogus"],
+        ["hook", "--harness", "codex", "--watch", "--pages"],
+        ["session-end", "now"],
     ],
 )
-def test_a_harness_entry_argv_no_registration_sends_is_refused_with_its_usage(
-    argv, usage
-):
-    """`hook` and `session-end` are routed before the CLI loads, and only in the
-    shapes harness registrations send; any other shape names the one it takes, rather
-    than reading a payload it was never meant to have."""
-    result = subprocess.run(
-        [sys.executable, "-m", "leaf", *argv],
-        input="{}",
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-
-    assert result.returncode == 1
+def test_harness_commands_report_click_usage_errors(argv):
+    result = CliRunner().invoke(cli_model.cli, argv, input="{}")
+    assert result.exit_code == 2
     assert result.stdout == ""
-    assert result.stderr == f"usage: {usage}\n"
+    assert json.loads(result.stderr)["error"]
+
+
+def test_hook_options_use_click_order_and_help():
+    runner = CliRunner()
+    result = runner.invoke(
+        cli_model.cli, ["hook", "--watch", "--harness=codex"], input="{}"
+    )
+    assert result.exit_code == 0, result.output
+    assert result.output == ""
+    help_result = runner.invoke(cli_model.cli, ["hook", "--help"])
+    assert help_result.exit_code == 0
+    assert "--harness" in help_result.output
 
 
 def test_a_page_command_names_what_its_path_holds_instead(tmp_path, regtest):
@@ -837,13 +828,10 @@ def test_shim_dispatches_every_command_through_one_uv_run(tmp_path, monkeypatch,
     # than whatever project the caller's directory sits in. `--no-dev` because
     # the dev group is the suite and the repo's own scripts, neither a harness's to
     # install. The module rather than the `leaf` console script because a long
-    # payload path turns the console script into a `/bin/sh` trampoline. The
-    # checkout's environment exists, so uv skips its cache, which an agent's
-    # sandbox refuses; the hook registration tests run a payload with none.
+    # payload path turns the console script into a `/bin/sh` trampoline.
     assert dispatched == [
         "run",
         "-q",
-        "--no-cache",
         "--no-dev",
         "--project",
         str(PLUGIN_ROOT),
@@ -907,19 +895,6 @@ def test_the_launcher_uses_the_hosts_selected_leaf_for_commands_and_hooks(
         0,
         f"{PLUGIN_ROOT}\n",
         "",
-    )
-    monkeypatch.setenv("LEAF_HOST_LAUNCHER", "leaf")
-    refused = subprocess.run(
-        [launcher, "--version"],
-        capture_output=True,
-        text=True,
-        timeout=STATED_TIMEOUT,
-        check=False,
-    )
-    assert (refused.returncode, refused.stdout, refused.stderr) == (
-        2,
-        "",
-        "LEAF_HOST_LAUNCHER must name an absolute launcher path\n",
     )
 
 
@@ -1092,7 +1067,7 @@ def test_claude_and_codex_load_the_same_plugin_payload():
 def test_page_authoring_names_the_theme_s_largest_spacing_step():
     """Authors read the spacing scale's ends in page-authoring.md rather than the
     theme, so a step the theme adds is one they can find."""
-    theme = (PLUGIN_ROOT / "browser/styles/theme.css").read_text()
+    theme = (PLUGIN_ROOT / "browser/theme.css").read_text()
     largest = max(int(step) for step in re.findall(r"--sp-(\d+):", theme))
     prose = (PLUGIN_ROOT / "skills/leaf/references/page-authoring.md").read_text()
     assert f"`--sp-1` to `--sp-{largest}`" in " ".join(prose.split())
@@ -1422,8 +1397,9 @@ def _selector_list(prelude, parent=()):
 _HOLDS_RULES = {"media", "supports", "container", "scope", "layer"}
 
 
-def _style_rules(sheet):
-    """(conditions, enclosing, complex selector, declarations) for each style rule.
+def _style_rules(sheet, *, whole=False):
+    """(conditions, enclosing, complex selector, declarations) for each style rule, of
+    the file alone or, `whole`, of the sheet a page receives with its imports in place.
 
     `conditions` are the preludes of the @media, @supports, @container and @layer a rule
     stands under; `enclosing` is every at-rule keyword around it, @scope included, so a
@@ -1475,7 +1451,11 @@ def _style_rules(sheet):
 
     yield from visit(
         tinycss2.parse_stylesheet(
-            sheet.read_text(), skip_comments=True, skip_whitespace=True
+            layer_model.stylesheet(sheet, schema_model.PLUGIN_ROOT)
+            if whole
+            else sheet.read_text(),
+            skip_comments=True,
+            skip_whitespace=True,
         ),
         (),
         frozenset(),
@@ -1485,7 +1465,9 @@ def _style_rules(sheet):
 def _stated_faces(sheet, *, only_top_level):
     """{complex selector: {property}} for every rule stating a shared visual property."""
     stated = {}
-    for _conditions, enclosing, selector, declarations in _style_rules(sheet):
+    for _conditions, enclosing, selector, declarations in _style_rules(
+        sheet, whole=True
+    ):
         if only_top_level and enclosing & {"scope", "layer"}:
             continue
         properties = {name for name, _value in declarations if name in _FACE}
@@ -1509,7 +1491,9 @@ def _declared_rules(sheet, *, scoped):
     """{(conditions, complex selector): [declarations]}; `scoped` keeps only what stands
     inside chrome.css's `@scope`."""
     found = {}
-    for conditions, enclosing, selector, declarations in _style_rules(sheet):
+    for conditions, enclosing, selector, declarations in _style_rules(
+        sheet, whole=True
+    ):
         if scoped and "scope" not in enclosing:
             continue
         found.setdefault((conditions, selector), []).append(declarations)
@@ -1591,9 +1575,7 @@ def test_kernel_selectors_name_no_package_tag():
 
     leaks = []
     for sheet in sorted(schema_model.ASSETS.rglob("*.css")):
-        if "vendor" in sheet.parts or sheet.read_text().startswith(
-            "/* @noformat Generated from "
-        ):
+        if "vendor" in sheet.parts:
             continue
         where = sheet.relative_to(schema_model.ASSETS)
         rules = tinycss2.parse_stylesheet(sheet.read_text(), skip_comments=True)
@@ -1625,7 +1607,7 @@ def test_layout_style_and_widgets_never_read_each_other():
     A Layout class is one layouts.css styles; a style class is one the kernel theme
     gives its own type or spacing tokens (`--t-*`, `--sp-*`)."""
     layouts = schema_model.ASSETS / "layouts.css"
-    theme = schema_model.ASSETS / "styles" / "theme.css"
+    theme = schema_model.ASSETS / "theme.css"
     owned = {
         layouts: {
             name
@@ -1647,13 +1629,6 @@ def test_layout_style_and_widgets_never_read_each_other():
     readers = []
     for source in sorted(path for root in roots for path in root.rglob("*.[cj]s*")):
         if "vendor" in source.parts:
-            continue
-        # The style build proves ready sheets derive from their authored owners.
-        # Read the owners here rather than treating each compiled delivery as a
-        # second authority for selectors.
-        if source.suffix == ".css" and source.read_text().startswith(
-            "/* @noformat Generated from "
-        ):
             continue
         foreign = [names for home, names in owned.items() if home != source]
         named = re.compile(r"\b(" + "|".join(sorted(set().union(*foreign))) + r")\b")
@@ -1780,7 +1755,6 @@ def test_no_rule_rounds_a_box_edged_on_one_side(tmp_path):
         for root in (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES)
         for sheet in sorted(root.rglob("*.css"))
         if "vendor" not in sheet.parts
-        and not sheet.read_text().startswith("/* @noformat Generated from ")
     ]
     for root in (ROOT / "examples", ROOT / "docs"):
         sheets += [
@@ -1831,11 +1805,7 @@ def test_every_token_a_sheet_reads_is_set_somewhere():
         written |= set(re.findall(r"@property\s+(--[\w-]+)", text))
         written |= set(re.findall(r"[\"'`](--[\w-]+)[\"'`]", text))
         prefixes |= set(re.findall(r"`(--[\w-]+)\$\{", text))
-        if (
-            source.suffix != ".css"
-            or "vendor" in source.parts
-            or text.startswith("/* @noformat Generated from ")
-        ):
+        if source.suffix != ".css" or "vendor" in source.parts:
             continue
         for _conditions, _enclosing, selector, declarations in _style_rules(source):
             reads += [
@@ -1927,7 +1897,9 @@ def test_the_injected_control_face_is_a_default_only_the_document_reads():
     faces = [
         (sheet, selector)
         for sheet in _LAYER_SHEET_ORDER
-        for _conditions, _enclosing, selector, declarations in _style_rules(sheet)
+        for _conditions, _enclosing, selector, declarations in _style_rules(
+            sheet, whole=True
+        )
         if any(name in _FACE for name, _value in declarations)
     ]
     assert faces, "no face was read from the layer's sheets — the reading is broken"
@@ -1950,12 +1922,13 @@ def test_the_injected_control_face_is_a_default_only_the_document_reads():
 
 
 def test_layer_style_sources_consume_the_runtime_layout_names():
-    """CSS and runtime agree on shared property and attribute names. Read editable
-    sources; the stylesheet freshness gate holds their generated delivery copies."""
+    """CSS and runtime agree on shared property and attribute names."""
     page_paint = schema_model.ASSETS / "runtime" / "page-paint.js"
     read = json.loads(js_facts("literals", [page_paint]))
-    styles = schema_model.ASSETS / "styles"
-    sheet = (styles / "theme.css").read_text() + (styles / "chrome.css").read_text()
+    assets = schema_model.ASSETS
+    sheet = (assets / "theme.css").read_text() + (
+        assets / "runtime/chrome.css"
+    ).read_text()
 
     spelling = (
         "["
@@ -2542,6 +2515,74 @@ def test_composed_sheets_preserve_each_sources_eof_boundary(tmp_path, first):
     )
     assert len(later) == 1
     assert tinycss2.serialize(later[0].prelude).strip() == ".y"
+
+
+def test_a_sheet_composes_the_files_it_imports_in_place(tmp_path):
+    """A package splits its sheet into files with `@import` and needs no build: each
+    file's rules stand where its import stood, in the layer it asks for, and each file
+    keeps its own EOF recovery. So an edit to any of them reaches the next composition,
+    and the page asks for no import."""
+    (tmp_path / "parts").mkdir()
+    (tmp_path / "theme.css").write_text(
+        '@import "./parts/open.css";\n'
+        "@import url(parts/layered.css) layer(extra);\n"
+        ".after { color: blue; }\n"
+    )
+    (tmp_path / "parts/open.css").write_text(".open { color: red;")
+    (tmp_path / "parts/layered.css").write_text(".layered { color: green; }")
+
+    composed = layer_model.composed_sheets([tmp_path])["theme.css"].decode()
+    assert "@import" not in composed
+    # A reader that follows the layer's inputs, such as a live preview, follows them.
+    assert {
+        (tmp_path / "parts" / name).resolve() for name in ("open.css", "layered.css")
+    } <= set(layer_model.input_paths([tmp_path]))
+
+    def shape(rule):
+        """A style rule's selector, or an at-rule's prelude and the rules it holds."""
+        prelude = tinycss2.serialize(rule.prelude).strip()
+        if rule.type == "qualified-rule":
+            return prelude
+        held = tinycss2.parse_blocks_contents(rule.content, skip_whitespace=True)
+        return [prelude, [shape(item) for item in held]]
+
+    *_, layer = tinycss2.parse_stylesheet(composed, skip_whitespace=True)
+    assert shape(layer) == ["lf-base", [".open", ["extra", [".layered"]], ".after"]]
+
+
+@pytest.mark.parametrize(
+    "imported",
+    [
+        '"../outside.css"',
+        '"/theme.css"',
+        '"https://example.com/a.css"',
+        '"a.css" print',
+    ],
+)
+def test_a_sheet_imports_only_its_own_files_whole(tmp_path, imported):
+    """An import names a file inside its package, so the package composes the same
+    wherever it is installed, and comes whole or in a layer; a condition belongs
+    inside the imported file."""
+    package = tmp_path / "package"
+    package.mkdir()
+    (tmp_path / "outside.css").write_text(".outside {}")
+    (package / "a.css").write_text(".a {}")
+    (package / "theme.css").write_text(f"@import {imported};\n")
+    with pytest.raises(Refused, match="import"):
+        layer_model.composed_sheets([package])
+
+
+def test_sheets_that_import_each_other_are_refused_by_name(tmp_path):
+    """A cycle of imports is refused naming its files, and a reader that follows the
+    layer's inputs, as vendoring and a live preview do, still finishes and lists them."""
+    (tmp_path / "theme.css").write_text('@import "a.css";\n')
+    (tmp_path / "a.css").write_text('@import "b.css";\n.a {}\n')
+    (tmp_path / "b.css").write_text('@import "a.css";\n.b {}\n')
+    with pytest.raises(Refused, match=r"a\.css -> .*b\.css -> .*a\.css"):
+        layer_model.composed_sheets([tmp_path])
+    assert {(tmp_path / name).resolve() for name in ("a.css", "b.css")} <= set(
+        layer_model.input_paths([tmp_path])
+    )
 
 
 @pytest.mark.parametrize(
@@ -3262,7 +3303,7 @@ def test_explicit_package_order_is_registry_file_and_theme_precedence(
         declaration = element_declaration("lf-shared")
         declaration["description"] = name
         (package / "registry.json").write_text(json.dumps({"lf-shared": declaration}))
-        (package / "theme.css").write_text(f"/* package {name} */\n")
+        (package / "theme.css").write_text(f":root {{ --package-{name}: 1; }}\n")
         (package / "widgets" / "shared.js").write_text(f"// {name}\n")
 
     page = tmp_path / "page"
@@ -3285,7 +3326,7 @@ def test_explicit_package_order_is_registry_file_and_theme_precedence(
     assert registry["lf-shared"]["description"] == "second"
     assert (page / "widgets" / "shared.js").read_text() == "// second\n"
     theme = (page / "theme.css").read_text()
-    assert theme.index("package first") < theme.index("package second")
+    assert theme.index("--package-first") < theme.index("--package-second")
 
 
 def test_init_refuses_a_case_aliased_page_inside_a_package(tmp_path, monkeypatch):

@@ -52,7 +52,7 @@ def test_thread_rows_name_action_in_existing_status(browser, serve):
 def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
     """An open thread and a request to its user are different facts. A complete
     answer stays available for follow-up without the row saying the user owes one; a
-    reply holding a question (`lf-ask`) says so until the user answers. A decision
+    reply asking a question (`obligation`) says so until the user answers. A decision
     widget says so the same way: its own current projection puts the thread on the
     user."""
     url = serve(PANEL_PAGE)
@@ -66,8 +66,8 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
     thread_model.post_reply(
         serve.page_dir,
         {"responds": asked},
-        "One choice remains.",
-        markup='<lf-ask id="store-owner">Which store should own the result?</lf-ask>',
+        "One choice remains: which store should own the result?",
+        obligation=True,
     )
     page = open_page(browser, url)
     expect(thread_row(page, asked).locator(".lf-fp-value")).to_have_text("Your turn")
@@ -125,9 +125,10 @@ def test_a_title_on_its_way_reads_as_one(browser, serve, request):
     """While an agent holds the page and owes an untitled thread its work, a title is
     on its way (thread_titles.py), so every surface drawing the thread's name says so
     rather than naming the thread with its opening words, until the title lands:
-    Threads' row, Page Map's row, the agent's card in On and the name the thread's view
-    gives assistive tech, which draws no heading over an untitled thread. A page nobody
-    holds is sent no title, so there the thread reads its opening words."""
+    Threads' row, Page Map's row, the agent's card in On and the heading over the
+    thread's view, which shows only while the title is on its way, since otherwise it
+    would repeat the opening message under it. A page nobody holds is sent no title, so
+    there the thread reads its opening words."""
     url = serve(PANEL_PAGE)
     opening = "Is the workshop room accessible?"
     pending = "Generating thread name…"
@@ -159,6 +160,8 @@ def test_a_title_on_its_way_reads_as_one(browser, serve, request):
     open_panel_thread(page, root)
     title = page.locator(".lf-fp-head .lf-fp-title")
     expect(title.locator(".lf-thread-name-pending")).to_have_text(pending)
+    expect(title.locator(".lf-thread-name-pending")).to_be_visible()
+    expect(title).not_to_have_class(re.compile(r"\blf-quiet\b"))
     expect(title).to_have_text(spoken)
 
     append_carried_log_record(

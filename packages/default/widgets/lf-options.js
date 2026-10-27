@@ -348,12 +348,14 @@ customElements.define(
     }
 
     // The one statement a live channel can't derive: the set is whole. Done is a
-    // reversible gesture; its pressed state is the answer action in force. Its digit
+    // reversible gesture; its pressed state is the answer action in force. It records
+    // the user's answer, so it wears the commit face, which the user chose on 26
+    // October over the quiet word face every other worded press wears. Its digit
     // is inside the button, as an option's is inside the option, so a press on it is a
     // press on Done; the seat is out of flow, so it moves neither label nor edges.
     #doneRow() {
       this.#done = offer(DONE_TAG, "lf-options-done");
-      const button = offerAction("word", "lf-done", "Done");
+      const button = offerAction("commit", "lf-done", "Done");
       const bindingBadge = offer("span", "lf-key-badge");
       bindingBadge.setAttribute("aria-hidden", "true");
       button.append(bindingBadge);

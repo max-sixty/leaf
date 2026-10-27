@@ -53,6 +53,7 @@ from render_cases_widgets import (
     prefixed_visual_layer,
 )
 from render_harness import (
+    EDITOR_ROOTS,
     EXAMPLES,
     FOLLOWER_MARK,
     LONG_PAGE,
@@ -60,7 +61,6 @@ from render_harness import (
     PANEL_THREAD,
     RELEASE_FOCUS,
     REPLAYED_PAGE,
-    SAMPLE_PAGE,
     SUBJECT_MARK,
     assert_follows_in_every_frame,
     draft_key,
@@ -148,7 +148,7 @@ def open_compact_comment(page, text=None):
     expect(bar).to_be_visible()
     expect(field).to_be_visible()
     expect(field).to_be_focused()
-    expect(composer).to_have_css("display", "contents")
+    expect(composer).to_have_attribute("data-lf-open", "")
     if text is None:
         return field
     else:
@@ -156,7 +156,7 @@ def open_compact_comment(page, text=None):
         expect(field).to_have_js_property("value", text)
         expect(field).to_be_focused()
         expect(bar).to_be_visible()
-        expect(composer).to_have_css("display", "contents")
+        expect(composer).to_have_attribute("data-lf-open", "")
     return field
 
 
@@ -194,7 +194,7 @@ def test_the_catalog_sidenote_can_be_aimed_whole(browser, serve):
     page.keyboard.press("Shift+Enter")
     page.keyboard.type("because every active session must end before support continues")
     assert field.bounding_box()["height"] > one_line
-    expect(page.locator(".lf-composer")).to_have_css("display", "contents")
+    expect(page.locator(".lf-composer")).to_have_attribute("data-lf-open", "")
     with sending(page, "the compact comment"):
         page.keyboard.press("Enter")
     sent = events_model.read_events(serve.page_dir)[-1]
@@ -735,6 +735,123 @@ def test_a_side_comment_at_the_window_s_foot_rises_only_as_far_as_it_must(
     rendered(page)
     assert field.evaluate("node => node.scrollHeight > node.clientHeight")
     assert page.evaluate(SIDE_COMMENT)["bottom"] <= foot + 0.5
+
+
+# Where the side comment's outline is drawn, its top and its foot, and its first line
+# of words and its Send's foot: its surface draws the outline, a pixel outside the cut
+# of its fill (box-motion.js).
+SIDE_COMMENT_DRAWN = r"""() => {
+  const ground = document.querySelector('.lf-fab-ground');
+  const at = ground.getBoundingClientRect();
+  const [top, right = top, bottom = top] = /inset\(([^r)]*)/
+    .exec(getComputedStyle(ground.querySelector('.lf-box-fill')).clipPath)[1]
+    .trim().split(/\s+/).map(Number.parseFloat);
+  const host = document.querySelector('.lf-fab-input');
+  const words = window.editorRoots.get(host).querySelector('.cm-line');
+  const send = document.querySelector('.lf-fab-bar .lf-compose-submit');
+  return {
+    top: at.top + top - 1,
+    foot: at.bottom - bottom + 1,
+    words: words.getBoundingClientRect().top,
+    send: send.getBoundingClientRect().bottom,
+  };
+}"""
+
+
+def from_the_edges(drawn):
+    """How far the words stand below the drawn top edge and Send above its foot."""
+    return [drawn["words"] - drawn["top"], drawn["foot"] - drawn["send"]]
+
+
+def test_a_side_comment_s_words_and_send_ride_its_edges_as_it_grows(browser, serve):
+    """The comment box moves as the floating panel's field does (box-motion.js): a
+    line it gains at the window's foot shifts it up, and its words ride its top edge
+    up while Send rides its foot, as a line removed carries the words back down with
+    that edge. It used to change size in one frame, and a line taking it past the
+    window's foot jumped it up whole, its words with it."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "A low passage",
+                '<div style="height: 1200px"></div>'
+                '<p id="passage">This passage has room beside it for a response.</p>'
+                '<div style="height: 700px"></div>',
+            )
+        ),
+        init_script=EDITOR_ROOTS,
+    )
+    page.emulate_media(reduced_motion="no-preference")
+    resized(page, 1440, 900)
+    passage = page.locator("#passage")
+    passage.evaluate(
+        """node => scrollBy({
+          top: node.getBoundingClientRect().top - (innerHeight - 260),
+          behavior: 'instant'
+        })"""
+    )
+    rendered(page)
+    passage.click(modifiers=["Alt"])
+    open_compact_comment(page, "Line 0")
+    bar = page.locator(".lf-fab-bar")
+    foot = page.evaluate(
+        """async () => (await window.__lfWidgetApi())
+          .shownWindow({gap: 8}).bottom"""
+    )
+    # Lines until one more takes the box past the window's foot.
+    lines = 1
+    while (box := bar.bounding_box())["y"] + box["height"] + 21 < foot:
+        page.keyboard.press("Shift+Enter")
+        page.keyboard.type(f"Line {lines}")
+        lines += 1
+        rendered(page)
+    for key in ("Shift+Enter", "Backspace"):
+        # The last line's motion ends where the box stands.
+        page.evaluate(
+            """() => Promise.all(document.querySelector('.lf-fab-ground')
+              .getAnimations().map(motion => motion.finished.catch(() => {})))"""
+        )
+        stood = page.evaluate(SIDE_COMMENT_DRAWN)
+        page.evaluate(
+            "() => { window.__lfAnimate = Element.prototype.animate;"
+            + HOLD_MOTION
+            + "}"
+        )
+        page.keyboard.press(key)
+        page.wait_for_function(
+            """() => __lfHeld.some(motion =>
+              motion.effect?.target?.matches?.('.lf-fab-ground'))"""
+        )
+        # The line shifts the box up inside the window, which its placement does a
+        # moment after the box grew.
+        if key == "Shift+Enter":
+            page.wait_for_function(
+                "top => document.querySelector('.lf-fab-bar')"
+                ".getBoundingClientRect().top < top - 0.5",
+                arg=stood["top"],
+            )
+        for at in (0, 60, 150):
+            # A motion a later reading cancelled stays cancelled.
+            page.evaluate(
+                "at => __lfHeld.filter(motion => motion.playState !== 'idle')"
+                ".forEach(motion => { motion.currentTime = at; })",
+                at,
+            )
+            drawn = page.evaluate(SIDE_COMMENT_DRAWN)
+            if at == 0:
+                assert drawn == pytest.approx(stood, abs=1), (key, stood, drawn)
+            assert from_the_edges(drawn) == pytest.approx(
+                from_the_edges(stood), abs=1
+            ), (key, at, drawn)
+        page.evaluate(
+            "() => { Element.prototype.animate = window.__lfAnimate;"
+            " __lfHeld.splice(0).filter(motion => motion.playState !== 'idle')"
+            ".forEach(motion => motion.finish()); }"
+        )
+        rendered(page)
+        rest = page.evaluate(SIDE_COMMENT_DRAWN)
+        assert from_the_edges(rest) == pytest.approx(from_the_edges(stood), abs=1), key
+        assert rest["top"] != pytest.approx(stood["top"], abs=1), (key, stood, rest)
 
 
 def test_a_comment_near_the_bottom_grows_up_before_it_scrolls(browser, serve):
@@ -1726,7 +1843,7 @@ def test_an_aimed_first_press_records_its_pointer_before_claiming_it(browser, se
 def test_an_aim_on_a_seam_promises_and_takes_the_same_element(browser, serve):
     """One reading, at the one place the pointer is.
 
-    The cells of a joined group butt, so two of them share an edge with no gap between,
+    The fixture paragraphs butt, so they share an edge with no gap between,
     and a pointer resting on it is inside both by the width of a rounding. The outline
     and the press each used to hit-test that point for themselves — elementFromPoint
     against the browser's own dispatch — and nothing makes two hit tests tie-break a
@@ -1739,11 +1856,11 @@ def test_an_aim_on_a_seam_promises_and_takes_the_same_element(browser, serve):
     promise was kept for a year on the machine where it was. So the seam is aimed at
     here rather than waited for, and the assertion is the platform-independent half —
     whichever way each reading rounds, both answer the same item."""
-    page = open_page(browser, serve(SAMPLE_PAGE))
+    page = open_page(browser, serve(AIM_SEAM_PAGE))
     edge = page.evaluate(
         """() => {
-            const above = document.querySelector('#l-shim').getBoundingClientRect();
-            const below = document.querySelector('#l-stage').getBoundingClientRect();
+            const above = document.querySelector('#seam-upper').getBoundingClientRect();
+            const below = document.querySelector('#seam-lower').getBoundingClientRect();
             return {y: above.bottom, apart: Math.abs(below.top - above.bottom),
                     x: above.left + above.width / 2};
         }"""
@@ -1755,7 +1872,7 @@ def test_an_aim_on_a_seam_promises_and_takes_the_same_element(browser, serve):
     page.mouse.move(edge["x"], edge["y"])
     page.keyboard.down("Alt")
     promised = page.evaluate(AIMED)
-    assert promised in ("l-shim", "l-stage"), (
+    assert promised in ("seam-upper", "seam-lower"), (
         f"the aim promised {promised} on the seam between the two cells, so the reading "
         "under test never happened"
     )

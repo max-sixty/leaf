@@ -25,6 +25,8 @@ recor = "recor"
 backfil = "backfil"
 # The media element's `seeked` event, named by the platform.
 seeked = "seeked"
+# A simulator's device id, as `simctl` and safaridriver name it (leaf_dev/ios_safari.py).
+udid = "udid"
 
 [default.extend-identifiers]
 # typos splits the plural of PNG into `PN` + `Gs` and "corrects" it to ONGs.

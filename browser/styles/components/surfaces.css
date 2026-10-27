@@ -36,20 +36,6 @@
   }
 }
 
-/* Leaf's apparatus lays its boxes out border-box from first paint. A widget's initial
- * drawing wears `.lf-ui` before any module runs, so this reset stands in the
- * render-blocking theme rather than in runtime/chrome.css, which the document adopts
- * only at boot: from there, lf-toc's map measured its title's label content-box at first
- * paint, one line, and border-box after upgrade, two lines, and the fitted marker under
- * it moved 14px. Under the document's root only, as the face below, so a declared tree
- * keeps the box model its widget states. */
-:where(:root) .lf-ui,
-:where(:root) .lf-ui *,
-:where(:root) .lf-ui *::before,
-:where(:root) .lf-ui *::after {
-  box-sizing: border-box;
-}
-
 /* The default face of native widget-injected controls. `offer()` writes `lf-ui-face` on each one it
  * builds, so this is the layer's answer for a control standing in the page's own prose:
  * the chrome's family, size and ink rather than the document's serif. The separate
@@ -1086,13 +1072,15 @@ button.lf-thread-notice[data-lf-focus-visible] {
    rather than cutting the one before it mid-word. Only a first fact too wide alone is
    cut. The clip reaches half a line below the words, outside their box, so the hover
    underline shows, and the gap between lines keeps a wrapped fact past it. It clips
-   only below, so the count of dropped facts (below) can stand past the words' end. */
+   only below, so the count of dropped facts (below) can stand past the words' end.
+   The chrome's `border-box` reset (chrome.css) counts that padding in the block size,
+   so the line's 1lh takes 1.5lh. */
 .lf-thread-news > span {
   position: relative;
   display: flex;
   flex-wrap: wrap;
   row-gap: 1lh;
-  block-size: 1lh;
+  block-size: 1.5lh;
   padding-block-end: 0.5lh;
   margin-block-end: -0.5lh;
   overflow: visible clip;

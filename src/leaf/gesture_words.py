@@ -44,11 +44,6 @@ def _text(node) -> str:
     return "".join(_text(child) for child in node["content"])
 
 
-def element_text(node: dict) -> str:
-    """Every word an element's authored content holds, collapsed."""
-    return collapse(_text(node))
-
-
 def leading_title_node(node: dict) -> dict | None:
     """The element that titles `node`: its first title element, looking inside a
     leading <header> or <hgroup> and past other elements, until text intervenes."""

@@ -55,13 +55,13 @@
    stands, so only the newest run's face changes. The
    working message's arrival, its departure, and a new step whose words wrap to
    another height change the thread's height, so a seat holds any change of its words
-   behind its control-row notice when that growth would move the reader. The notice
-   counts each held progress message as it counts a held reply (the user's choice,
-   2026-10-14), as "1 new message", unless a held reply folds it, and says "Work in
-   progress" or "Work changed" only where the working message changed with none.
-   Rejected: "1 new update", since "update" names only the user's input (glossary);
-   and "1 new progress message", which at about 126px cut in a phone seat's head row
-   and a primary reader's 5rem notice, and squeezed a margin card's heads.
+   when that growth would move the reader. Its notice doesn't say that change (the
+   user's choice, 2026-10-26): progress never counts as unread, and the receipt on the
+   user's message, such as "On it", already says the agent is working, so a red
+   "1 new message" over a draft announced news the user owes nothing. Held alone, it
+   shows by any route below but the notice. Rejected: counting each held step as
+   "1 new message" (2026-10-14 to 2026-10-26), and "Work in progress" or "Work
+   changed" where the working message changed alone, which repeated that receipt.
    Completed progress disappears when the answer shows. Changes to other existing
    messages, reactions, folds and settlement use the same hold as a seat in page flow,
    and a notice calls a changed message an edit.
@@ -121,8 +121,7 @@
    Resolve, Close and Send sideways, and rising under a draft. Rejected: keeping only
    its width, which doubled the rise; keeping its box and scrolling the transcript,
    which scrolls Resolve away; and holding all news while it is open, which stops
-   progress showing live where the user watches it. A held step's notice reads like a
-   held reply's (the user's decision, 2026-10-13). A presentation that makes room for
+   progress showing live where the user watches it. A presentation that makes room for
    the agent's answer to the user's last turn itself shows that answer at once, as the
    floating panel's thread view does (the user's decision, 2026-10-14, floating-panel.js):
    held, the reply the user waited for stood unseen behind a small notice in their own
@@ -236,13 +235,7 @@ export function threadChange(was, now, { progressOpen = false } = {}) {
         : "Reopened";
   const news = {
     settled,
-    working:
-      was.working?.words === now.working?.words
-        ? null
-        : now.working?.live
-          ? "Work in progress"
-          : "Work changed",
-    progress: 0,
+    working: was.working?.words !== now.working?.words,
     replies: 0,
     messages: 0,
     edits: 0,
@@ -257,15 +250,13 @@ export function threadChange(was, now, { progressOpen = false } = {}) {
     const change = messageChange(prior, message);
     if (change === "joined") joined.add(message.key);
     if (!prior || prior.provisional) arrived.add(message.id);
-    // A progress message joins the thread's working message, not its replies, so its
-    // notice counts it, as it counts a reply; the answer that later folds it
-    // is a reply. Where the step shows, because the reader opened the progress
-    // (`progressOpen`, thread-card.js) or the thread is resolved and keeps its progress
-    // as messages, it is a reply's news.
-    if (change === "joined" && message.progress && !progressOpen && !now.resolved) {
-      news.progress += 1;
+    // A progress message joins the thread's working message, not its replies, so it is
+    // the working message's news (`news.working`), which the notice doesn't say. Where
+    // the step shows, because the reader opened the progress (`progressOpen`,
+    // thread-card.js) or the thread is resolved and keeps its progress as messages, it
+    // is a reply's news.
+    if (change === "joined" && message.progress && !progressOpen && !now.resolved)
       continue;
-    }
     if (change === "joined") {
       if (message.author === "agent") news.replies += 1;
       else news.messages += 1;
@@ -322,15 +313,7 @@ export function threadChange(was, now, { progressOpen = false } = {}) {
     ],
     summaries: gone.map(({ id }) => id),
   };
-  const counts = [
-    "working",
-    "progress",
-    "replies",
-    "messages",
-    "edits",
-    "reactions",
-    "summaries",
-  ];
+  const counts = ["working", "replies", "messages", "edits", "reactions", "summaries"];
   if (!settled && counts.every((count) => !news[count])) return null;
   const appendedAtEnd =
     news.appended &&
@@ -405,8 +388,6 @@ function withheld(was, now) {
 const counted = (count, one, many) => count && `${count} ${count === 1 ? one : many}`;
 /** @param {{
  *   settled?: string,
- *   working?: string,
- *   progress?: number,
  *   replies?: number,
  *   messages?: number,
  *   edits?: number,
@@ -416,10 +397,8 @@ const counted = (count, one, many) => count && `${count} ${count === 1 ? one : m
  * }} news */
 const newsParts = ({
   settled,
-  working,
-  progress = 0,
-  replies = 0,
-  messages = 0,
+  replies,
+  messages,
   edits,
   reactions,
   summaries,
@@ -427,13 +406,8 @@ const newsParts = ({
 }) =>
   [
     settled,
-    ![settled, progress, replies, messages, edits, reactions, summaries, threads].some(
-      Boolean,
-    ) && working,
     counted(replies, "new reply", "new replies"),
-    // A progress message is no reply, so it counts with the user's messages from
-    // elsewhere; a reply arriving after it folds it, and says it.
-    counted(messages + (replies ? 0 : progress), "new message", "new messages"),
+    counted(messages, "new message", "new messages"),
     counted(edits, "message edited", "messages edited"),
     counted(reactions, "reaction changed", "reactions changed"),
     counted(summaries, "summary changed", "summaries changed"),
@@ -647,7 +621,8 @@ export class HeldNews {
   }
 
   // Each thread as it stands, except one whose news would move what the reader reads,
-  // which stands as it was drawn, its notice saying what waits.
+  // which stands as it was drawn, its notice saying what waits, if anything but the
+  // working message does.
   #draw(prior, reading) {
     this.#holds.clear();
     const drawn = new Map(prior?.threads.map((thread) => [thread.key, thread]));
@@ -683,9 +658,12 @@ export class HeldNews {
     const host = threads.at(-1);
     if (waiting && host) host.news = { ...host.news, threads: waiting };
     for (const thread of threads) {
-      if (thread.news)
+      const notice = thread.news && said(thread.news);
+      // News of the working message alone waits with no notice (the header).
+      if (!notice?.parts.length) thread.news = null;
+      else
         thread.news = {
-          ...said(thread.news),
+          ...notice,
           reopened: thread.news.settled === "Reopened",
           open: () => {
             const node = this.#view(thread.key)?.node ?? null;

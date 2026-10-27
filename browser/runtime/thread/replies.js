@@ -39,7 +39,7 @@ import { drawn, readCaret, focused, currentLocationIn, onPressAway } from "../fo
 import { threadKey } from "./model.js";
 import { closestAcross } from "../passages.js";
 import { retainUserIntent, restrictUserIntent } from "../user-intent.js";
-import { THREAD, SAY_ROW } from "./selectors.js";
+import { THREAD, SAY_ROW, threadPart } from "./selectors.js";
 import { el, offer } from "../widget-elements.js";
 import { signal } from "/runtime/framework.js";
 import { move } from "../dom-move.js";
@@ -174,13 +174,22 @@ function dismissContext(context) {
   session.owner?.changed();
 }
 export const dismissReply = (key) => dismissContext(replyContext(key));
-// A press away from a composition's row puts the composition away (focus.js,
-// `onPressAway`): a drag into the row or out of it leaves it standing.
+// A press within the owning thread keeps its composition, including its controls
+// and messages outside the reply row. Read the row first so a parked editor still
+// owns its press. The declared reply part gives a split drawing the same scope.
+const pressContext = (node) => {
+  const row = replyDraftContext(node);
+  if (row !== null) return row;
+  const thread = closestAcross(node, THREAD);
+  return thread ? replyDraftContext(threadPart(thread, "reply")) : null;
+};
+// A press away puts the composition away (focus.js, `onPressAway`); a drag into
+// or out of its thread leaves it standing.
 onPressAway(
   ([node]) =>
-    [...compositions.keys()].some((context) => context !== replyDraftContext(node)),
+    [...compositions.keys()].some((context) => context !== pressContext(node)),
   ([node], [from]) => {
-    const kept = [replyDraftContext(node), replyDraftContext(from)];
+    const kept = [pressContext(node), pressContext(from)];
     for (const context of [...compositions.keys()])
       if (!kept.includes(context)) dismissContext(context);
   },

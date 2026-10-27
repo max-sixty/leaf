@@ -14,6 +14,6 @@
     "x-shadow": true,
     "x-height": true,
     "x-example": "<lf-file-editor id=\"notes-file\" binding=\"notes\"></lf-file-editor>",
-    "x-prepaint": "<p class=\"lf-file-editor-opening\">Opening file…</p>"
+    "x-initial": "/vendor/lf-file-editor-initial.js"
   }
 }

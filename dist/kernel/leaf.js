@@ -5322,7 +5322,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			quiet: () => true,
 			draw: () => threadsView(),
 			controls: () => threadsControls(),
-			rows: ".lf-fp-thread"
+			rows: ".lf-fp-thread, .lf-fp-fold"
 		},
 		thread: {
 			key: (route) => `thread:${route.thread}`,
@@ -5635,6 +5635,12 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	}
 	let refitting = false;
 	let drawnSections = null;
+	let resolvedShown = false;
+	new MutationObserver(() => {
+		resolvedShown = false;
+		refit();
+		paint();
+	}).observe(document.documentElement, { attributeFilter: ["data-playground-format"] });
 	function refit() {
 		room = null;
 		drawnSections = null;
@@ -6101,6 +6107,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		};
 	}
 	function noteDrawnSections() {
+		if (!showing({ view: "threads" })) resolvedShown = false;
 		drawnSections = showing({ view: "threads" }) && inventoried() ? new Map(threadsListing().rows.map(({ thread, section }) => [thread.key, section])) : null;
 	}
 	function joinedFacts(joined) {
@@ -6164,12 +6171,65 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
         <span class="lf-fp-label">${threadHeading(thread)}</span>
         <span class="lf-fp-value">${threadStatus(thread, { headed })}</span>
       </button>`;
+		const variant = document.documentElement.dataset.playgroundFormat ?? document.querySelector("[data-explore-resolved]")?.dataset.exploreResolved ?? "list";
+		const rowsOf = (threads) => repeat(threads, (thread) => thread.key, (thread) => row(thread, true));
+		const fold = (words) => html`<button
+          type="button"
+          class="lf-fp-face lf-fp-fold lf-disclosure-marker"
+          aria-expanded=${resolvedShown ? "true" : "false"}
+          @click=${() => {
+			resolvedShown = !resolvedShown;
+			refit();
+			paint();
+		}}
+        >
+          <span class="lf-fp-label">${words}</span>
+        </button>
+        ${resolvedShown ? rowsOf(resolved) : nothing}`;
+		const allSettled = !listed.length && !searched && inventoried();
+		let resolvedPart = nothing;
+		if (resolved.length) {
+			if (variant === "fold") resolvedPart = html`<div class="lf-fp-ended-rule"></div>
+          ${fold(html`Resolved <span class="lf-fp-count">${resolved.length}</span>`)}`;
+			else if (variant === "summary") resolvedPart = allSettled ? fold(`All ${resolved.length} ${resolved.length === 1 ? "thread" : "threads"} resolved`) : html`<div class="lf-fp-ended-rule"></div>
+              ${fold(html`Resolved <span class="lf-fp-count">${resolved.length}</span>`)}`;
+			else if (variant === "recent") {
+				const newest = resolved.toSorted((a, b) => String(b.resolved?.ts ?? "").localeCompare(String(a.resolved?.ts ?? "")));
+				const shown = resolvedShown || searched ? newest : newest.slice(0, 3);
+				const more = newest.length - shown.length;
+				resolvedPart = html`<h3 class="lf-fp-ended">
+            ${searched ? "Resolved" : "Recently resolved"}
+          </h3>
+          ${rowsOf(shown)}
+          ${more > 0 ? html`<button
+                  type="button"
+                  class="lf-fp-face lf-fp-fold lf-fp-more"
+                  @click=${() => {
+					resolvedShown = true;
+					refit();
+					paint();
+				}}
+                >
+                  <span class="lf-fp-label">${more} more resolved</span>
+                </button>` : nothing}`;
+			} else if (variant === "search") resolvedPart = searched ? html`<h3 class="lf-fp-ended">Resolved</h3>
+              ${rowsOf(resolved)}` : html`<button
+              type="button"
+              class="lf-fp-face lf-fp-fold lf-fp-more"
+              @click=${() => findThreads()}
+            >
+              <span class="lf-fp-label"
+                >${resolved.length} resolved ·
+                <span class="lf-fp-search-hint">Search them</span></span
+              >
+            </button>`;
+			else resolvedPart = html`<h3 class="lf-fp-ended">Resolved</h3>
+          ${rowsOf(resolved)}`;
+		}
+		const emptyWords = searched ? "Nothing matches." : variant === "summary" && resolved.length ? null : variant === "list" ? "No open threads. Comment below to start one." : "No open threads.";
 		return html`<div class="lf-fp-list">
-      ${listed.length ? repeat(listed, (thread) => thread.key, (thread) => row(thread, false)) : inventoried() ? html`<p class="lf-fp-empty">
-                ${searched ? "Nothing matches." : "No open threads. Comment below to start one."}
-              </p>` : nothing}
-      ${resolved.length ? html`<h3 class="lf-fp-ended">Resolved</h3>
-              ${repeat(resolved, (thread) => thread.key, (thread) => row(thread, true))}` : nothing}
+      ${listed.length ? repeat(listed, (thread) => thread.key, (thread) => row(thread, false)) : inventoried() && emptyWords ? html`<p class="lf-fp-empty">${emptyWords}</p>` : nothing}
+      ${resolvedPart}
       ${inventoried() ? nothing : html`<p class="lf-fp-empty">
               ${readThreads().phase === "offline" ? "Current threads are unavailable while the server is offline." : "Loading current threads…"}
             </p>`}

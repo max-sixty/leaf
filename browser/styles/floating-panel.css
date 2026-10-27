@@ -1484,6 +1484,36 @@
     font-weight: 600;
     color: var(--lf-fp-muted);
   }
+  /* EXPLORATION ONLY: the resolved rows' fold and its rule. */
+  .lf-fp-ended-rule {
+    margin: 4px 8px;
+    border-top: 1px solid var(--lf-fp-faint);
+  }
+  .lf-fp-fold {
+    display: flex;
+    align-items: baseline;
+    gap: 2px;
+    width: 100%;
+    min-height: 30px;
+    padding: 5px 8px;
+    border-radius: var(--r);
+    text-align: start;
+    color: var(--lf-fp-muted);
+  }
+  .lf-fp-fold::before {
+    width: 14px;
+    flex: none;
+    font-size: 10px;
+  }
+  .lf-fp-more {
+    padding-inline-start: 22px;
+  }
+  .lf-fp-fold .lf-fp-count {
+    margin-inline-start: 4px;
+  }
+  .lf-fp-search-hint {
+    color: var(--accent);
+  }
   .lf-fp-on-place,
   .lf-fp-on-title {
     margin: 0 0 2px;

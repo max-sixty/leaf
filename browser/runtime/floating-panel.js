@@ -1184,7 +1184,7 @@ export function createFloatingPanel({
       quiet: () => true,
       draw: () => threadsView(),
       controls: () => threadsControls(),
-      rows: ".lf-fp-thread",
+      rows: ".lf-fp-thread, .lf-fp-fold",
     },
     thread: {
       key: (route) => `thread:${route.thread}`,
@@ -1671,6 +1671,14 @@ export function createFloatingPanel({
   // no list stands, so the next paint draws every row where it now belongs
   // (`threadsListing`).
   let drawnSections = null;
+  // EXPLORATION ONLY: whether Threads shows the resolved rows it folds, and a
+  // playground's choice of treatment redrawing it.
+  let resolvedShown = false;
+  new MutationObserver(() => {
+    resolvedShown = false;
+    refit();
+    paint();
+  }).observe(document.documentElement, { attributeFilter: ["data-playground-format"] });
   function refit() {
     room = null;
     drawnSections = null;
@@ -2405,6 +2413,7 @@ export function createFloatingPanel({
   }
   // After a paint: what the standing list drew, which the next paint holds to.
   function noteDrawnSections() {
+    if (!showing({ view: "threads" })) resolvedShown = false;
     drawnSections =
       showing({ view: "threads" }) && inventoried()
         ? new Map(
@@ -2482,6 +2491,98 @@ export function createFloatingPanel({
         <span class="lf-fp-label">${threadHeading(thread)}</span>
         <span class="lf-fp-value">${threadStatus(thread, { headed })}</span>
       </button>`;
+    // EXPLORATION ONLY: which treatment of the resolved rows to draw, from the page's
+    // `data-explore-resolved`, so a playground can show each beside the others.
+    const variant =
+      document.documentElement.dataset.playgroundFormat ??
+      /** @type {HTMLElement | null} */ (
+        document.querySelector("[data-explore-resolved]")
+      )?.dataset.exploreResolved ??
+      "list";
+    const rowsOf = (threads) =>
+      repeat(
+        threads,
+        (thread) => thread.key,
+        (thread) => row(thread, true),
+      );
+    const fold = (words) =>
+      html`<button
+          type="button"
+          class="lf-fp-face lf-fp-fold lf-disclosure-marker"
+          aria-expanded=${resolvedShown ? "true" : "false"}
+          @click=${() => {
+            resolvedShown = !resolvedShown;
+            refit();
+            paint();
+          }}
+        >
+          <span class="lf-fp-label">${words}</span>
+        </button>
+        ${resolvedShown ? rowsOf(resolved) : nothing}`;
+    const allSettled = !listed.length && !searched && inventoried();
+    let resolvedPart = nothing;
+    if (resolved.length) {
+      if (variant === "fold") {
+        resolvedPart = html`<div class="lf-fp-ended-rule"></div>
+          ${fold(html`Resolved <span class="lf-fp-count">${resolved.length}</span>`)}`;
+      } else if (variant === "summary") {
+        resolvedPart = allSettled
+          ? fold(
+              `All ${resolved.length} ${resolved.length === 1 ? "thread" : "threads"} resolved`,
+            )
+          : html`<div class="lf-fp-ended-rule"></div>
+              ${fold(html`Resolved <span class="lf-fp-count">${resolved.length}</span>`)}`;
+      } else if (variant === "recent") {
+        const newest = resolved.toSorted((a, b) =>
+          String(b.resolved?.ts ?? "").localeCompare(String(a.resolved?.ts ?? "")),
+        );
+        const shown = resolvedShown || searched ? newest : newest.slice(0, 3);
+        const more = newest.length - shown.length;
+        resolvedPart = html`<h3 class="lf-fp-ended">
+            ${searched ? "Resolved" : "Recently resolved"}
+          </h3>
+          ${rowsOf(shown)}
+          ${
+            more > 0
+              ? html`<button
+                  type="button"
+                  class="lf-fp-face lf-fp-fold lf-fp-more"
+                  @click=${() => {
+                    resolvedShown = true;
+                    refit();
+                    paint();
+                  }}
+                >
+                  <span class="lf-fp-label">${more} more resolved</span>
+                </button>`
+              : nothing
+          }`;
+      } else if (variant === "search") {
+        resolvedPart = searched
+          ? html`<h3 class="lf-fp-ended">Resolved</h3>
+              ${rowsOf(resolved)}`
+          : html`<button
+              type="button"
+              class="lf-fp-face lf-fp-fold lf-fp-more"
+              @click=${() => findThreads()}
+            >
+              <span class="lf-fp-label"
+                >${resolved.length} resolved ·
+                <span class="lf-fp-search-hint">Search them</span></span
+              >
+            </button>`;
+      } else {
+        resolvedPart = html`<h3 class="lf-fp-ended">Resolved</h3>
+          ${rowsOf(resolved)}`;
+      }
+    }
+    const emptyWords = searched
+      ? "Nothing matches."
+      : variant === "summary" && resolved.length
+        ? null
+        : variant === "list"
+          ? "No open threads. Comment below to start one."
+          : "No open threads.";
     return html`<div class="lf-fp-list">
       ${
         listed.length
@@ -2490,26 +2591,11 @@ export function createFloatingPanel({
               (thread) => thread.key,
               (thread) => row(thread, false),
             )
-          : inventoried()
-            ? html`<p class="lf-fp-empty">
-                ${
-                  searched
-                    ? "Nothing matches."
-                    : "No open threads. Comment below to start one."
-                }
-              </p>`
+          : inventoried() && emptyWords
+            ? html`<p class="lf-fp-empty">${emptyWords}</p>`
             : nothing
       }
-      ${
-        resolved.length
-          ? html`<h3 class="lf-fp-ended">Resolved</h3>
-              ${repeat(
-                resolved,
-                (thread) => thread.key,
-                (thread) => row(thread, true),
-              )}`
-          : nothing
-      }
+      ${resolvedPart}
       ${
         // This tab's sends are listed, but the saved threads are still to come, which
         // the list says after the rows it has, so their arrival moves none of them.

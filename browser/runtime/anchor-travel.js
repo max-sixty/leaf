@@ -40,6 +40,7 @@ import {
   landingBand,
   placeBox,
   placeHolder,
+  showsContents,
   shownBox,
 } from "./geometry.js";
 import { scrollBehavior } from "./motion.js";
@@ -350,10 +351,7 @@ export function createAnchorTravel({
   // the fragment rule itself (`scrollToFragment`).
   function returnToFragment(url) {
     const where = fragmentTarget(url.hash);
-    // A hidden="until-found" container keeps its own box while concealing its contents.
-    return where && (where.hasAttribute("hidden") || !where.checkVisibility())
-      ? fragmentNavigationStep(url, false)
-      : null;
+    return where && !showsContents(where) ? fragmentNavigationStep(url, false) : null;
   }
 
   function fragmentNavigationStep(url, focus) {

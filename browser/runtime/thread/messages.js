@@ -57,6 +57,7 @@ import { rememberPassageParts } from "../widget-loader.js";
 import { ReactionStripView } from "./reaction-strips.js";
 import { iconTemplate } from "../icons.js";
 import { keeps } from "../keeps.js";
+import { showsContents } from "../geometry.js";
 import { flashDuration, motion } from "../motion.js";
 import { pageClaimed } from "../semantic-state.js";
 
@@ -214,8 +215,8 @@ const authoredMessage = (message) => {
 // would not.
 const authoredDrawings = new Map();
 const authoredHolders = new Map();
-const shown = (view) => view.node.isConnected && view.node.checkVisibility();
-const hidden = (view) => view.node.isConnected && !view.node.checkVisibility();
+const shown = (view) => view.node.isConnected && showsContents(view.node);
+const hidden = (view) => view.node.isConnected && !showsContents(view.node);
 const outranks = (a, b) => a.model.authoredRank > b.model.authoredRank;
 function settleAuthored(key) {
   const drawings = authoredDrawings.get(key) ?? new Set();

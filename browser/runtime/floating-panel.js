@@ -253,7 +253,7 @@ import { scrollIntoView } from "./landing-scroll.js";
 import { gesturedOn, newsNotice } from "./thread/held-news.js";
 import { moveScrollerBy, SCROLL_SLACK, scrollLimit, scrollToEnd } from "./scrolling.js";
 import { showReturnTurn } from "./thread/reply-landing.js";
-import { declareOccluder, declareWindowChrome } from "./geometry.js";
+import { declareOccluder, declareWindowChrome, showsContents } from "./geometry.js";
 import { registerReadingRegion } from "./reading-regions.js";
 import { agentName, documentChanged } from "./semantic-state.js";
 import { runtime } from "./context.js";
@@ -1711,7 +1711,7 @@ export function createFloatingPanel({
         outlet.querySelectorAll(`.lf-msg[data-message], ${WORKING}`)
       ),
     ]
-      .filter((node) => node.checkVisibility())
+      .filter((node) => showsContents(node))
       .map((node) => node.dataset.message ?? FACE + node.dataset.face);
     const before = drawnThread?.key === top.thread ? drawnThread : null;
     const msgs = threadByKey(top.thread)?.msgs ?? [];

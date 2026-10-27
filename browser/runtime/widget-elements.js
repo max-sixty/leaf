@@ -61,21 +61,14 @@ import {
   signal,
 } from "/runtime/framework.js";
 
-// What the runtime hides where the platform can't reveal it, and how each opens. A closed
-// fold in a thread's transcript hides its messages with `hidden`, since thread reading
-// takes a message `hidden="until-found"` leaves a box for as shown, and would land on it
-// rather than on its fold (thread/transcript.js).
-const openers = new WeakMap();
-export const revealedBy = (node, open) => openers.set(node, open);
-
 // A scroll target can sit inside a collapsed container: a closed <details> or popover,
 // an inactive tab. Leaf reveals it as the browser's find-in-page and fragment
 // navigation do (the HTML standard's ancestor revealing algorithm): it opens a closed
 // <details>, and at an element `hidden="until-found"` it fires `beforematch` and
 // removes the attribute, so a widget that folds content that way opens for Leaf's travel
-// and the browser's find alike, and imports nothing from Leaf to do it. Leaf also opens
-// a closed popover, which the browser's find leaves shut, and whatever the runtime
-// registered with `revealedBy`. It walks outside-in, unlike the standard, so an inner
+// and the browser's find alike, and imports nothing from Leaf to do it, as the runtime's
+// own folds do too (thread/transcript.js). Leaf also opens a closed popover, which the
+// browser's find leaves shut. It walks outside-in, unlike the standard, so an inner
 // widget has geometry when its own content is revealed.
 // The caller passes the intent its gesture retained (user-intent.js). There is no
 // default: one taken here would be taken after whatever the caller awaited, which is
@@ -97,7 +90,6 @@ export function reveal(el, mayReveal) {
     if (a.tagName === "DETAILS" && !a.open) a.open = true;
     if (a.hasAttribute?.("popover") && !isNativeLayer(a))
       showNativeLayer(a, { modal: false });
-    openers.get(a)?.();
     if (a.getAttribute?.("hidden") !== "until-found") continue;
     const shown = [...(a.parentNode?.children ?? [])].filter((s) => !s.hidden);
     a.dispatchEvent(new Event("beforematch", { bubbles: true }));

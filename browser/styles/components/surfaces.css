@@ -751,6 +751,11 @@ summary {
   margin-block: 8px;
   anchor-name: var(--lf-fold-foot);
 }
+/* A closed fold hides its messages until found, which keeps each one's box, empty and
+   so without the gap between messages. */
+.lf-thread-transcript > .lf-msg[hidden="until-found"] {
+  margin-block: 0;
+}
 /* A border groups an open fold's messages without changing their headers or giving
    progress a separate background. It is drawn around them rather than taking room,
    so opening a group moves none of their words: an answer folding the progress a

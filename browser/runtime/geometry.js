@@ -525,12 +525,19 @@ export function seenRect(item, clips, box = shownBox(item)) {
     ? { left: shown.left, top: room.top, right: shown.right, bottom: room.bottom }
     : null;
 }
+// Whether the page draws `node` with what it holds: rendered (`checkVisibility`, with its
+// `options`) and not hidden until found. An element `hidden="until-found"` keeps a box
+// of its own while the browser skips its contents, until find-in-page or `reveal`
+// (widget-elements.js) opens it, and `checkVisibility` answers only for that box, so
+// it alone would count a folded thread message or an unchosen tab's panel as shown.
+export const showsContents = (node, options) =>
+  node.getAttribute("hidden") !== "until-found" && node.checkVisibility(options);
 // Whether the page puts `node` before the user at all, before any question of where:
-// drawn and visible, not inert, inside the topmost modal, and not hidden with
-// `aria-hidden`. Exposure asks it of a message body and of a sample's frame.
+// drawn with its contents and visible, not inert, inside the topmost modal, and not
+// hidden with `aria-hidden`. Exposure asks it of a message body and of a sample's frame.
 export function presented(node) {
   if (
-    !node.checkVisibility({ visibilityProperty: true }) ||
+    !showsContents(node, { visibilityProperty: true }) ||
     excludedByInert(node) ||
     !nativeModalAdmits(node)
   )

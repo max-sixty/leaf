@@ -1,12 +1,7 @@
-import {
-  inChrome,
-  matchesWhen,
-  quoted,
-  TEXT_BOX,
-  textNodesUnder,
-} from "/runtime/widget-api.js";
+import { inChrome, matchesWhen, quoted, TEXT_BOX } from "/runtime/widget-api.js";
 import {
   ADDRESSABLE,
+  textNodesUnder,
   commandDeclarationsWithin,
   commandRoutes,
   pageDocument,
@@ -338,6 +333,7 @@ export function unreservedHeights(declarations) {
             {
               code: "unreserved-height",
               at: locate(element),
+              first: Math.round(height),
               drawn: Math.round(now),
               reserved: element.getAttribute("data-lf-height") || null,
             },
@@ -411,7 +407,7 @@ const overflowsVertically = (box) => box.scrollHeight > box.clientHeight + ROUND
 // Each box in one of `tags`' widgets that holds its own height and scrolls inside it
 // without saying so. A widget in ordinary flow grows with its content, and a box that
 // needs a scroll of its own declares `--lf-holds-height: 1`, as a bounded block does
-// (assets/AGENTS.md, "Space and scrolling").
+// (browser/AGENTS.md, "Space and scrolling").
 //
 // A box that scrolls vertically now holds its height, whatever it asked for. A box
 // whose CSS asks for vertical scrolling but whose content fits is asked again with more

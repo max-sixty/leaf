@@ -278,7 +278,7 @@ def test_a_failed_first_read_stays_unpresented_across_the_retry_clock(browser, s
     rendered(page)
     expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
     expect(panel_field(page)).to_have_attribute(
-        "placeholder", re.compile("^Page couldn't apply current state — reload")
+        "placeholder", re.compile("^Couldn't show the latest — reload")
     )
     assert (
         page.evaluate(

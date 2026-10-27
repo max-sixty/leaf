@@ -10,6 +10,7 @@
       "/vendor/*": [
         "../vendor/*",
         "../../packages/code-review/vendor/*",
+        "../../packages/deck/vendor/*",
         "../../packages/default/vendor/*",
         "../../packages/diagram/vendor/*",
         "../../packages/diff/vendor/*",
@@ -25,6 +26,7 @@
       "/widgets/*": [
         "../widgets/*",
         "../../packages/code-review/widgets/*",
+        "../../packages/deck/widgets/*",
         "../../packages/default/widgets/*",
         "../../packages/diagram/widgets/*",
         "../../packages/diff/widgets/*",

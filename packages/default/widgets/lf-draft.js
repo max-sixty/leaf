@@ -13,8 +13,9 @@
  * editor adds no row of buttons under it; a refused save's status joins the toolbar.
  * Copy keeps the last seat, and Discard opens where Edit stood, so a second press on
  * the pencil gives the box back unchanged. A pointer sees the toolbar while over the
- * box or a key stands in it, and the open editor and a finger always; clicking the
- * prose still opens the editor at that spot. Rejected: a resting row under the prose
+ * box or a key stands in it, and the open editor, a draft that asks for an edit and a
+ * finger always, since a pencil that shows only under the pointer left a needed draft
+ * with no sign of how to answer it; clicking the prose still opens the editor at that spot. Rejected: a resting row under the prose
  * holding only Edit, which doubled a one-line box, and marks set into the box's
  * corner, which either covered the first line's last words or took room from them
  * and changed the box's size as the editor opened. The same
@@ -375,7 +376,7 @@ customElements.define(
       this.#returnMotion = null;
       if (this.#editor) return;
       if (this.#sending) {
-        raiseError("Wait for the current edit to finish sending");
+        raiseError("Wait for the current edit to finish saving");
         return;
       }
       if (this.#available()) this.#resumeProjection ??= this.controller.defer();

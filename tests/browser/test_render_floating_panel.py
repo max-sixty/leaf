@@ -758,7 +758,7 @@ SEATS = """() => {
   return {
     name: [title[0], title[1]],
     back: seat('.lf-fp-controls .lf-fp-back'),
-    on: seat('.lf-fp-controls .lf-fp-quiet'),
+    on: seat('.lf-fp-controls .lf-fp-on-page'),
     settle: seat('.lf-fp-controls .lf-fp-settle'),
     close: seat('.lf-fp-row .lf-fp-close'),
   };
@@ -818,7 +818,7 @@ def test_news_in_an_open_thread_moves_none_of_its_controls(browser, serve):
         },
     )
     told(page)
-    expect(page.locator(".lf-fp-controls .lf-fp-quiet")).to_be_hidden()
+    expect(page.locator(".lf-fp-controls .lf-fp-on-page")).to_be_hidden()
     settled(page)
     assert page.evaluate(SEATS) == seats
 

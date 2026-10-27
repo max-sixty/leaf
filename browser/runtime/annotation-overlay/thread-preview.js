@@ -40,7 +40,7 @@ import { cancelRender, nextRender, sizeObserver } from "../rendering.js";
 import { spokenSubject } from "../contribution-model.js";
 import { labelWords } from "../words.js";
 import { THREAD_CARD } from "./margin-layout.js";
-import { slotTop } from "../geometry.js";
+import { showsContents, slotTop } from "../geometry.js";
 import {
   focusDestination,
   holdFocus,
@@ -722,7 +722,7 @@ export function createThreadPreview({
       ":scope > .lf-margin-thread > .lf-margin-thread-body > " +
       ".lf-page-thread > .lf-thread-reply";
     const lastShown = [...previewList.querySelectorAll(messageSelector)].findLast(
-      (node) => node.checkVisibility(),
+      (node) => showsContents(node),
     );
     const lastBox = lastShown?.getBoundingClientRect();
     const listBox = session.transcript?.getBoundingClientRect();

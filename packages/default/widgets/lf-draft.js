@@ -66,6 +66,7 @@ import {
   html,
   render,
   offered,
+  offeredAction,
   nothing,
   LeafElement,
   offer,
@@ -335,12 +336,10 @@ customElements.define(
             const retry = key === "save" && this.#failed;
             const name = retry ? "Retry" : title;
             return html`<button
-              ${offered("lf-mark")}
+              ${offeredAction("mark", "", name)}
               data-lf-draft-action=${key}
               ?hidden=${key === "edit" ? editing : !editing}
               aria-expanded=${key === "edit" ? String(editing) : nothing}
-              aria-label=${name}
-              title=${name}
             >
               ${iconTemplate(retry ? "retry" : icon, "lf-mark-icon")}
             </button>`;

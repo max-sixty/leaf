@@ -154,19 +154,7 @@ export const dragging = (el, on) => {
 // rearranging descendants, so the widget states that geometry change explicitly.
 export const LAYOUT = "lf-layout";
 export const layoutChanged = (el) => {
-  const pending = [];
-  el.dispatchEvent(
-    new CustomEvent(LAYOUT, {
-      bubbles: true,
-      composed: true,
-      detail: {
-        present: (ready) => ready?.then && pending.push(ready),
-      },
-    }),
-  );
-  const ready = Promise.all(pending);
-  void ready.catch(() => {});
-  return ready;
+  el.dispatchEvent(new CustomEvent(LAYOUT, { bubbles: true, composed: true }));
 };
 
 // A number a widget can only read off a box the browser has laid out. Three ship: the

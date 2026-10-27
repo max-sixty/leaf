@@ -2823,11 +2823,10 @@
   };
   const sizeReaches = (target, element, from, to, axis, change) => {
     const size = axis === "top" ? "height" : "width";
-    // The moved box's own path, read once: the branch climb asks at each step whether
-    // it has reached a box holding it, and the follower is the box on that path just
-    // under the flow they share.
+    // The source keeps its old layout path; the receiving box must still belong to
+    // that flow in the new reading. Leaving flow cannot borrow the old fold's credit.
     const path = [];
-    for (let at = element; at; at = boxParent(at, from)) path.push(at);
+    for (let at = element; at; at = boxParent(at, to)) path.push(at);
     const holding = new Set(path);
     let branch = target;
     while (boxParent(branch, from) && !holding.has(boxParent(branch, from))) {
@@ -2849,24 +2848,24 @@
     const follower = path[reach - 1];
     let placed = true;
     for (const box of path.slice(0, reach - 1)) {
-      const style = paintAt(box, from);
+      const style = paintAt(box, to);
       if (style.position === "fixed" || style.float !== "none") return false;
       if (style.position === "absolute") placed = false;
       else if (!placed && style.position !== "static") placed = true;
     }
-    if (!placed && paintAt(follower, from).position === "static") return false;
+    if (!placed && paintAt(follower, to).position === "static") return false;
     // Block-level children stack vertically in a horizontal-writing block flow.
     // A block container can also hold inline siblings, whose height does not carry
     // the next sibling down; flex, grid, and vertical writing have other axes.
     if (
       axis !== "top" ||
-      !["block", "flow-root"].includes(paintAt(flow, from).display) ||
-      paintAt(flow, from).writingMode !== "horizontal-tb" ||
+      !["block", "flow-root"].includes(paintAt(flow, to).display) ||
+      paintAt(flow, to).writingMode !== "horizontal-tb" ||
       !["block", "flow-root"].includes(paintAt(branch, from).display) ||
-      !["block", "flow-root"].includes(paintAt(follower, from).display)
+      !["block", "flow-root"].includes(paintAt(follower, to).display)
     )
       return false;
-    return inFlow(follower, from) && followsAt(branch, follower, from);
+    return inFlow(follower, to) && followsAt(branch, follower, from);
   };
   // A sticky box's inset is the line it sticks at, not an offset. While the box stands
   // at that line, a change of the inset moves it by that change within its containing

@@ -2495,13 +2495,15 @@ def test_press_owned_size_flow_crosses_a_shadow_boundary(browser, seated):
         consume_browser_errors(page, moved_within("button#seated"))
 
 
-@pytest.mark.parametrize("follows", [True, False], ids=["carried", "independent"])
+@pytest.mark.parametrize("placement", ["carried", "preceding", "absolute"])
 @pytest.mark.parametrize("boxless", [False, True], ids=["direct", "boxless-parent"])
 def test_fold_reparenting_keeps_only_its_original_flow_credit(
-    browser, follows, boxless
+    browser, placement, boxless
 ):
     """A fold can reach its endpoint and join closed history in one task. Its old
-    following control is carried; moving a preceding control as far is independent."""
+    following control is carried; a preceding or newly out-of-flow control's move
+    is independent even when it matches the fold's travel."""
+    follows = placement != "preceding"
     control = (
         '<button id="control" style="position:relative;display:block">Control</button>'
     )
@@ -2530,15 +2532,23 @@ def test_fold_reparenting_keeps_only_its_original_flow_credit(
     assert page.evaluate("effect.playState") == "running"
     paint(page)
     page.evaluate(
-        """follows => {
-          if (!follows) control.style.top = '-100px';
+        """placement => {
+          if (placement === 'preceding') control.style.top = '-100px';
+          if (placement === 'absolute') {
+            const {top, height} = control.getBoundingClientRect();
+            const room = document.createElement('div');
+            room.style.height = `${height}px`;
+            control.before(room);
+            control.style.position = 'absolute';
+            control.style.top = `${top - 100}px`;
+          }
           effect.currentTime = 400;
           stash.append(fold);
         }""",
-        follows,
+        placement,
     )
     judge_watches()
-    if follows:
+    if placement == "carried":
         assert take_browser_errors(page) == []
     else:
         consume_browser_errors(page, moved_within("button#control"))

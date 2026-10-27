@@ -23,7 +23,7 @@ work".
 ## Every verb on a card already exists
 
 A card is one decision with its evidence beside it, which is what an item framed
-by an `lf-ask` already is (`references/authoring-decisions.md`).
+by an `lf-ask` already is (`references/authoring-on-me.md`).
 
 | Feed card      | Leaf today                                                             |
 | -------------- | ---------------------------------------------------------------------- |
@@ -104,5 +104,7 @@ nothing binds the two today. An `lf-draft` records each `edit` of its body and
 after Send but before the agent acts leaves the approved wording unnamed. A feed
 needs its approval to name the text it approves.
 
-Related open work: `TODO.md`, "Explore independent jobs", asks who owns and
+Related open work:
+[issue #4058](https://github.com/max-sixty/leaf/issues/4058),
+"Explore independent jobs", asks who owns and
 continues a job's result; a feed's background pass is one such job.

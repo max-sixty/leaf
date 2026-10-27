@@ -219,13 +219,13 @@ test("an open thread stays reachable while Page Map retains every action in orde
 
 test("thread aggregation preserves canonical user attention and obligation precedence", () => {
   const recovery = marker("recovery", "comment", {
-    userAttention: { label: "Not answered", reason: "workflow" },
+    userAttention: { label: "Couldn't answer", reason: "workflow" },
   });
   const item = marker("question", "comment", {
     userAttention: { label: "On you", reason: "obligation" },
   });
   assert.equal(awaitingUser([recovery]), true);
-  assert.equal(readingContext({ items: [recovery] }), "Not answered");
+  assert.equal(readingContext({ items: [recovery] }), "Couldn't answer");
   assert.equal(readingContext({ items: [recovery, item] }), "On you");
 });
 
@@ -260,7 +260,7 @@ test("a thread's margin entry and Page Map row say the word Threads gives it", (
   ]);
   assert.deepEqual(
     said(thread(waitingOnTodo, { todos: todo("Rebuilding it"), unread: 1 })),
-    ["Working", "Working"],
+    ["On it", "On it"],
   );
   // A thread whose workflow is under way carries it as its receipt, which says it in
   // the workflow's own words; its line is what else it holds.
@@ -283,17 +283,17 @@ test("a thread's margin entry and Page Map row say the word Threads gives it", (
         { workflows: [failed] },
       ),
     ),
-    ["Not answered", "Not answered"],
+    ["Couldn't answer", "Couldn't answer"],
   );
   const onUser = thread(
     { kind: "needs_user", reason: "obligation", workflow: null },
     { unread: 1 },
   );
   assert.deepEqual(threadMarks(onUser).userAttention, {
-    label: "My turn to answer",
+    label: "Your turn",
     reason: "obligation",
   });
-  assert.deepEqual(said(onUser), ["My turn to answer", "My turn to answer"]);
+  assert.deepEqual(said(onUser), ["Your turn", "Your turn"]);
 });
 
 test("declared representation and a workflow carrier suppress only duplicate readings", () => {

@@ -9,25 +9,6 @@
     <!-- Maintainer provenance: based on max-sixty/tend#1173, merged as
          5bafcda71967d8bad4a3819f1dcf5be625ab2c7b. The planning versions and
          thread are authored fixtures, not quotations from the PR. -->
-    <style>
-      .plan-outline > li {
-        margin-block: 26px;
-      }
-      .plan-outline h3 {
-        margin-block: 0 10px;
-      }
-      .plan-outline ul {
-        border-left: 1px solid var(--border-2);
-        padding-left: 24px;
-      }
-      .plan-outline li li {
-        margin-block: 7px;
-      }
-      .plan-status {
-        color: var(--ink-2);
-        font: 500 var(--t-5) / 1.5 var(--sans);
-      }
-    </style>
   </head>
   <body>
     <main class="layout-column">
@@ -39,7 +20,7 @@
           a disposable working copy and one sandboxed execution path for Claude and
           Codex.
         </p>
-        <p class="plan-status" id="plan-status">
+        <p id="plan-status">
           The setup and shutdown changes below incorporate our last two discussions. The
           self-hosted rollout is the remaining decision.
         </p>
@@ -62,7 +43,7 @@
 
       <section id="plan-implementation">
         <h2>Implementation order</h2>
-        <ol class="steps plan-outline" id="plan-steps">
+        <ol class="steps" id="plan-steps">
           <li id="plan-prepare">
             <h3>Replace the in-place checkout</h3>
             <ul>
@@ -112,15 +93,12 @@
                 while denying direct host loopback.
               </li>
             </ul>
-            <details id="plan-network">
-              <summary>Scope of the network change</summary>
-              <p>
-                The credential broker still accepts arbitrary destinations. This work
-                isolates runner files and processes; it does not prevent exfiltration of
-                files the agent can read. Destination restrictions require a separate
-                design.
-              </p>
-            </details>
+            <p id="plan-network">
+              The credential broker still accepts arbitrary destinations. This work
+              isolates runner files and processes; it does not prevent exfiltration of
+              files the agent can read. Destination restrictions require a separate
+              design.
+            </p>
           </li>
           <li id="plan-finish">
             <h3>Move final shutdown and export into the supervisor</h3>
@@ -146,14 +124,11 @@
                 processes remain; restore temporary host policy afterward.
               </li>
             </ul>
-            <details id="plan-export-detail">
-              <summary>Why shutdown has to move outside the harness</summary>
-              <p>
-                Claude already cleans up child processes, but the export guarantee must
-                hold for both harnesses even when a CLI exits or is cancelled. A
-                surviving child could replace an output while the runner reads it.
-              </p>
-            </details>
+            <p id="plan-export-detail">
+              Claude already cleans up child processes, but the export guarantee must
+              hold for both harnesses even when a CLI exits or is cancelled. A surviving
+              child could replace an output while the runner reads it.
+            </p>
           </li>
         </ol>
       </section>

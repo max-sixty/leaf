@@ -2,6 +2,7 @@
  * user asks for the latest, while identity and state come from the public projection. */
 import {
   ago,
+  generatedElement,
   HeldReading,
   html,
   keeps,
@@ -39,6 +40,9 @@ customElements.define(
         details.append(summary, body);
         this.append(details);
       }
+      // The worker's state word and its latest report are this widget's words.
+      generatedElement(this.querySelector(".atlas-worker-state"), { says: true });
+      generatedElement(this.querySelector(".atlas-worker-report"), { says: true });
       this.held = new HeldReading(
         this,
         () => [this.querySelector(".atlas-worker-body")],

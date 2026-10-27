@@ -588,11 +588,11 @@ def test_shipped_widget_purposes_live_in_their_descriptions():
 def test_a_playground_control_value_fits_its_kind_at_the_markup_boundary():
     registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
 
-    def errors(attributes):
+    def errors(attributes, name="setting"):
         return fragment_errors(
             '<lf-ask id="kind-ask"><h2>Choose a setting</h2>'
             '<lf-playground id="kind-playground">'
-            f'<lf-playground-control name="setting" label="Setting" {attributes}>'
+            f'<lf-playground-control name="{name}" label="Setting" {attributes}>'
             "</lf-playground-control>"
             "<lf-playground-preview><p>Preview</p></lf-playground-preview>"
             "<lf-playground-output>Use this setting.</lf-playground-output>"
@@ -609,6 +609,13 @@ def test_a_playground_control_value_fits_its_kind_at_the_markup_boundary():
     assert not errors('kind="toggle" value="false"')
     assert not errors('kind="color" value="#A0b1c2"')
     assert not errors('kind="text" value="yes"')
+    # A name, like an id, may start with a digit: an alert called 5xx keeps its name.
+    assert not errors('kind="toggle" value="false"', name="5xx-pages")
+    # A control is a Leaf element a user points at, so it takes a stable id.
+    assert not errors('kind="toggle" value="false" id="setting-control"')
+    # `class` and `style` are the page's styling hooks on a widget as on any element.
+    assert not errors('kind="toggle" value="false" class="route"')
+    assert not errors('kind="toggle" value="false" style="grid-column: 2"')
     assert refused('kind="range" value="12"') == [("attribute-schema", "required", [])]
     assert refused('kind="range" value="twelve" max="24"') == [
         ("attribute-schema", "pattern", ["value"])
@@ -879,6 +886,34 @@ def test_reply_validates_widget_markup(page_dir):
     assert event["markup"].startswith("<lf-diagram")
 
 
+def test_a_reply_drawn_before_posting_runs_no_script_its_thread_would_not(page_dir):
+    """A thread inserts a message's markup through `template.innerHTML`, which runs no
+    script in it, so the browser run that draws the message's widgets before it posts
+    leaves its scripts unrun too, rather than refusing it for code the user never runs."""
+    publish(page_dir)
+    append_carried_log_record(
+        page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
+    )
+    posted = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "thread",
+            "reply",
+            "--done",
+            response_reference(page_dir, "c1"),
+            "--text",
+            "See:",
+            "--markup",
+            (
+                '<lf-diagram id="f"><pre>\ngraph LR\n  A --> B\n</pre></lf-diagram>'
+                '<script type="module">throw new Error("inert-message-script")</script>'
+            ),
+        ],
+    )
+    assert posted.exit_code == 0, posted.output
+    assert "inert-message-script" in events_model.read_events(page_dir)[-1]["markup"]
+
+
 def test_reply_validates_typed_references_against_the_page(page_dir):
     """Reply markup naming a page element of the wrong role never freezes, nor does
     a command naming the page's seat, which it would fill from another document."""
@@ -1060,7 +1095,7 @@ def test_the_runtimes_lf_id_namespace_is_off_limits(page_dir):
 def test_agent_messages_preserve_a_single_space(page_dir):
     """Only the zero-length string is empty; every typed character reaches the log."""
     empty = CliRunner().invoke(
-        cli_model.cli, ["thread", "open", str(page_dir), "--text", ""]
+        cli_model.cli, ["thread", "create", str(page_dir), "--text", ""]
     )
     assert empty.exit_code != 0
     assert json.loads(empty.stderr)["error"] == (
@@ -1272,12 +1307,6 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
     session = service_model.page_claim(page_dir)
     assert session["id"] == "hub" and session["agent"] == "Hub"
     assert page_state(page_dir)["agent"] == "Hub"
-    # The user meets each message under the name it carried.
-    transcript = CliRunner().invoke(
-        cli_model.cli, ["page", "transcript", str(page_dir)]
-    )
-    assert "- **Indexer**: indexing done" in transcript.output
-    assert "- **Crawler**: crawl running" in transcript.output
 
 
 def test_ephemeral_reply_takes_the_move_in_hand_and_leaves_it_owed(claimed):
@@ -1484,6 +1513,7 @@ def test_an_agent_edits_predecessor_messages_without_rewriting_history(
         for thread in state["threads"]
     )
     expected = {root["id"]: [root["id"]], user["id"]: [user["id"], reply["id"]]}
+    shown = {}
     for thread, ids in expected.items():
         selected = CliRunner().invoke(
             cli_model.cli, ["page", "state", str(page_dir), thread]
@@ -1491,18 +1521,11 @@ def test_an_agent_edits_predecessor_messages_without_rewriting_history(
         assert selected.exit_code == 0, selected.output
         content = json.loads(selected.output)["content"]
         assert [message["message"] for message in content] == ids
-
-    transcript = CliRunner().invoke(
-        cli_model.cli, ["page", "transcript", str(page_dir)]
-    )
-    assert transcript.exit_code == 0, transcript.output
-    assert (
-        "- **Indexer** *(edited)*: The index is complete and verified."
-        in transcript.output
-    )
-    assert "- **Indexer** *(edited)*: The crawl is running." in transcript.output
-    assert "still pending" not in transcript.output
-    assert "crawl is paused" not in transcript.output
+        shown |= {message["message"]: message for message in content}
+    # A reading shows each edited message in its latest words, marked edited.
+    assert shown[root["id"]]["text"] == "The index is complete and verified."
+    assert shown[reply["id"]]["text"] == "The crawl is running."
+    assert shown[root["id"]].get("edited") and shown[reply["id"]].get("edited")
 
     before = events_model.read_events(page_dir)
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-2")
@@ -1835,159 +1858,6 @@ def test_markup_enters_only_through_the_cli_gate(server, page_dir):
     assert events_model.read_events(page_dir) == before
 
 
-def test_export_prints_threads_and_versions(page_dir):
-    # The heading is the page's title as a user sees it, entities and all.
-    titled = (
-        FLOW_PAGE.replace("<title>t</title>", "<title>Cutoff &amp; backfill</title>")
-        .replace(
-            '<lf-diagram id="flow">',
-            '<lf-diagram id="flow" parts="all">',
-        )
-        .replace("<lf-options>", '<lf-options id="plan-options">')
-    )
-    (page_dir / "index.html").write_text(titled)
-    CliRunner().invoke(
-        cli_model.cli,
-        ["page", "stamp", str(page_dir), "--text", "first cut"],
-    )
-    append_carried_log_record(
-        page_dir,
-        {
-            "kind": "comment",
-            "id": "c1",
-            "author": "user",
-            "anchor": {"quote": "flip reads"},
-            "text": "why?",
-        },
-    )
-    append_carried_log_record(
-        page_dir,
-        {
-            "kind": "reply",
-            "id": "r1",
-            "author": "agent",
-            "agent": "Claude",
-            "parent": "c1",
-            "text": "reversibility",
-            "markup": '<lf-diagram id="why"><pre>graph LR\n  A --> B</pre></lf-diagram>',
-        },
-    )
-    append_carried_log_record(
-        page_dir, {"kind": "resolve", "id": "x1", "author": "user", "parent": "r1"}
-    )
-    append_carried_log_record(
-        page_dir,
-        {
-            "kind": "comment",
-            "id": "c2",
-            "author": "user",
-            "anchor": {"section": "flow"},
-            "text": "arrow?",
-        },
-    )
-    append_carried_log_record(
-        page_dir,
-        {
-            "kind": "comment",
-            "id": "c-visual",
-            "author": "user",
-            "revision": 1,
-            "anchor": {"section": "flow", "visual": "node:A"},
-            "text": "start here?",
-        },
-    )
-    append_carried_log_record(
-        page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "b",
-            "action": "move",
-            "detail": {"unit": "card-x", "value": "col-done", "rank": "0i"},
-            "meaning": {
-                "scope": "page",
-                "unit": "card-x",
-                "depends": ["b", "card-x", "col-done"],
-            },
-        },
-    )
-    append_carried_log_record(
-        page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "plan-options",
-            "action": "choose",
-            "detail": {"value": ["backfill-first"]},
-            "meaning": {
-                "scope": "page",
-                "unit": "plan-options",
-                "depends": ["backfill-first", "plan-options"],
-            },
-        },
-    )
-    # An anchor holds the whole passage, because that is the extent the page marks; a
-    # transcript is prose someone pastes into an MR, so a passage of any length is
-    # named by its ends and the exchange stays readable under it.
-    said = "The batch replays from the top."
-    long_quote = " ".join([said] * 20)
-    append_carried_log_record(
-        page_dir,
-        {
-            "kind": "comment",
-            "id": "c3",
-            "author": "user",
-            "anchor": {"quote": long_quote},
-            "text": "all of it",
-        },
-    )
-    # An abandoned newer draft is not the live page whose exchange is exported.
-    (page_dir / "index.html").write_text(
-        PAGE.replace("<title>t</title>", "<title>Abandoned draft</title>")
-    )
-    result = CliRunner().invoke(cli_model.cli, ["page", "transcript", str(page_dir)])
-    assert result.exit_code == 0, result.output
-    assert result.output.startswith("## Leaf: Cutoff & backfill\n")
-    assert "- v1: first cut" in result.output
-    # The user's direct edits are outcomes of the exchange, not just events.
-    assert "### Edits" in result.output
-    assert (
-        '- `b`: move unit="card-x" value="col-done" rank="0i" (on v1)' in result.output
-    )
-    # A choice says what was chosen in the words of the version it was made on.
-    assert (
-        '- `plan-options`: choose value=["backfill-first"] — “effort: med risk: low '
-        "Backfill first Verify, then flip. My take: do this first.” (on v1)"
-    ) in result.output
-
-    # And one they took back is an outcome under its own name: left out it would
-    # read as never made, and shown plainly it would read as final.
-    moved = next(e for e in events_model.read_events(page_dir) if e["kind"] == "action")
-    append_carried_log_record(
-        page_dir, {"kind": "undo", "author": "user", "undoes": moved["id"]}
-    )
-    result = CliRunner().invoke(cli_model.cli, ["page", "transcript", str(page_dir)])
-    assert result.exit_code == 0, result.output
-    assert (
-        '- `b`: move unit="card-x" value="col-done" rank="0i" (on v1) — taken back'
-        in result.output
-    )
-    assert "> “flip reads”  — resolved" in result.output
-    assert "- **User**: why?" in result.output
-    # The widget rides its message into the transcript, indented under the words.
-    assert "- **Claude**: reversibility\n  <lf-diagram" in result.output
-    assert "> § flow" in result.output  # element-anchored comments keep their target
-    assert "> § flow · node:A" in result.output
-    assert long_quote not in result.output, "the whole passage went into the transcript"
-    head = next(
-        ln for ln in result.output.splitlines() if ln.startswith("> “The batch")
-    )
-    assert head.startswith(f"> “{said}") and head.endswith(f"{said}”"), head
-    assert "…" in head and len(head) < len(long_quote) / 2, head
-
-
 @pytest.mark.parametrize(
     "markup", ["", '<lf-diagram id="f"><pre>graph LR\n  A --> B</pre></lf-diagram>']
 )
@@ -2063,77 +1933,6 @@ def test_example_layer_selects_existing_packages(tmp_path, monkeypatch):
     assert layer_model.checked_inputs(resolved) == resolved
 
 
-def test_every_seeded_fragment_passes_the_door_it_never_came_through(
-    tmp_path, monkeypatch
-):
-    """A hand-written seed is the one markup in the product no gate has read.
-
-    Markup reaches a page two ways. A version goes through `page check`. An
-    event's `markup` goes through `leaf thread reply`, which validates it and then freezes
-    it in an append-only log, so that door is the last moment anything about it can
-    be fixed. An example's companion log is neither: it is written into the
-    repository by hand, and the append door it goes through reads the event, not
-    its markup. From there `leaf-dev site` publishes it to
-    leaf.page, `serve` lays it into every browser sweep, and `leaf-dev preview`
-    serves it live. `page check` reads such a log only for ids colliding
-    with the version's.
-
-    So the seed is put through the real door rather than through a list of checks
-    copied out of it — that door is where a check lands, and a second gate spelling
-    out today's list is the one that goes on not asking whatever the first learns
-    to. `/media/nope.png` in a seeded `lf-shot` is the shape of what it would catch:
-    refused in a version, and until recently accepted in a reply. No seed carries one
-    today, which is what a floor is for."""
-    monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
-    seeded = [p for p in CORPUS_SOURCES if p.with_suffix(".jsonl").exists()]
-    assert seeded, "no example ships a log; this gate is reading nothing"
-    read = 0
-    for example in seeded:
-        # Only pages carrying message markup exercise this door. A page whose
-        # log holds plain threads is covered by the complete fixture check.
-        # Use the log writer's separator: splitlines() also splits message U+2028.
-        fragments = [
-            event["markup"]
-            for line in example.with_suffix(".jsonl").read_text().split("\n")
-            if line.strip() and (event := json.loads(line)).get("markup")
-        ]
-        if not fragments:
-            continue
-        d = tmp_path / f"door-{example.stem}"
-        # Published, because the door is only open on a page a user could be
-        # holding — which is the state every one of these seeds is written for.
-        # The seed itself stays out: its fragments go through the door below.
-        prepare_page(
-            d, read_fixture(example), run_leaf, seed_log=False, final_status=None
-        )
-        opened = comment(d, "--text", "what a user would ask")
-        assert opened.exit_code == 0, opened.output
-        root = json.loads(opened.output)["id"]
-        for markup in fragments:
-            read += 1
-            posted = CliRunner().invoke(
-                cli_model.cli,
-                [
-                    "thread",
-                    "reply",
-                    str(d),
-                    root,
-                    "--text",
-                    "carrying it",
-                    "--markup",
-                    markup,
-                ],
-            )
-            assert posted.exit_code == 0, (
-                f"{example.name} seeds markup the reply door would refuse:\n"
-                f"{posted.output}"
-            )
-    assert read, (
-        "no seeded event carries markup, so this read nothing — see "
-        "examples/AGENTS.md on what a log is for"
-    )
-
-
 def test_a_seed_no_writer_could_send_stops_the_page_it_seeds(tmp_path, monkeypatch):
     """An example's companion log enters through the append door, so a seed in a
     shape no real page holds fails the build that lays it in, rather than reaching
@@ -2151,7 +1950,7 @@ def test_a_seed_no_writer_could_send_stops_the_page_it_seeds(tmp_path, monkeypat
         "attention": True,
     }
     source.with_suffix(".jsonl").write_text(json.dumps(stored) + "\n")
-    with pytest.raises(events_model.EventRefused, match="attention"):
+    with pytest.raises(RuntimeError, match="attention"):
         prepare_page(
             tmp_path / "page", read_fixture(source), run_leaf, final_status=None
         )
@@ -2163,12 +1962,12 @@ def test_a_seed_no_writer_could_send_stops_the_page_it_seeds(tmp_path, monkeypat
     assert seeded["attention"] is True
 
 
-def test_page_state_and_the_transcript_read_reactions_as_marks(page_dir):
+def test_page_state_reads_reactions_as_marks(page_dir):
     """`page state` lists every reaction in force, beside threads that
     leave a bare one out — paint on the page is not a thread — and takes a
-    reaction back in once someone answers it, as the panel does. The transcript
-    prints one as the user's mark rather than a turn. Its durable token is enough;
-    packages may add an explanation, but the default layer does not prescribe one."""
+    reaction back in once someone answers it, as the panel does. Its durable token
+    is enough; packages may add an explanation, but the default layer does not
+    prescribe one."""
     published(page_dir)
     bare = append_carried_log_record(
         page_dir,
@@ -2213,11 +2012,6 @@ def test_page_state_and_the_transcript_read_reactions_as_marks(page_dir):
         ("change", answered["id"]),
     ]
     assert state["reactions"][0]["anchor"]["quote"] == "Ship dark"
-
-    result = CliRunner().invoke(cli_model.cli, ["page", "transcript", str(page_dir)])
-    assert result.exit_code == 0, result.output
-    assert "- **User** reacted: ✂️ shorten\n" in result.output
-    assert "- **User** reacted: ❌ change\n" in result.output
 
 
 def test_an_agent_names_and_renames_a_thread_without_changing_its_speech(

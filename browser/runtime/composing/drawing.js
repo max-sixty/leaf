@@ -41,7 +41,7 @@ import { captureDrawingFrame, resolveDrawingFrame } from "./drawing-geometry.js"
 import { elementFrame } from "../element-frame.js";
 import { clippedContents } from "../geometry.js";
 import { clamp, overlaps } from "../rect.js";
-import { COLLAPSE } from "../passage-facts.js";
+import { COLLAPSE } from "../kernel-facts.js";
 import { excerptWords } from "../words.js";
 import {
   elementFromPointAcross,
@@ -167,6 +167,14 @@ export function createDrawingController({
   let mounted = false;
 
   const drawModeActive = () => drawModeOn;
+
+  // A release still waiting from the last press is that press's: a new press claims its
+  // own compatibility events, which the browser may deliver before the timer runs.
+  function holdCompatibilityClick() {
+    if (releaseTimer !== null) globalThis.clearTimeout(releaseTimer);
+    releaseTimer = null;
+    claimThroughClick = true;
+  }
 
   function releaseCompatibilityClickSoon() {
     if (releaseTimer !== null) globalThis.clearTimeout(releaseTimer);
@@ -367,7 +375,7 @@ export function createDrawingController({
     if (!drawModeOn || !event.isPrimary || event.button !== 0) return;
     const origin = event.composedPath()[0];
     if (leafSurface(origin)) return;
-    claimThroughClick = true;
+    holdCompatibilityClick();
     claimedPointer = event.pointerId;
     claim(event);
     const target = sessionTarget() ?? targetAtPointer();

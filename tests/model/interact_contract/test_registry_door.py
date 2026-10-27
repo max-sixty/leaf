@@ -476,6 +476,8 @@ def test_runtime_features_require_an_upgraded_widget(page_dir, tag, key, fallbac
     registry = json.loads((page_dir / "registry.json").read_text())
     registry[tag][key] = registry[tag].get(key, fallback)
     registry[tag]["x-upgrade"] = False
+    # An initial renderer needs an upgrade too, but answers through its own finding.
+    registry[tag].pop("x-initial", None)
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
     status, findings = check_findings(page_dir)
@@ -542,7 +544,7 @@ def test_retirement_verbs_fold_by_the_parent_widget(page_dir, fault):
     if fault == "per-part":
         assert found(findings, "deciding-verb", "<lf-suggestion>", verb="decide")
     else:
-        assert found(findings, "retired-when", owner="lf-suggestion")
+        assert found(findings, "invalid-extensions", "<lf-suggestion>")
 
 
 @pytest.mark.parametrize(
@@ -827,3 +829,35 @@ def test_x_awaits_names_the_verbs_that_answer_it(page_dir):
 
     assert status == 1
     assert found(findings, "awaits-verbs", "<lf-suggestion>", verbs=["missing"])
+
+
+@pytest.mark.parametrize(
+    ("tag", "mutate", "code"),
+    [
+        # The view names its widget by id, the one relation it resolves.
+        (
+            "lf-card",
+            lambda r: r["lf-card"]["x-refers"].update(
+                shows={"tag": "lf-option", "key": "value"}
+            ),
+            "shows-reference",
+        ),
+        # Its owners name the answer they hold, or no view stands anywhere.
+        (
+            "lf-card",
+            lambda r: r["lf-column"]["properties"].pop("value"),
+            "shows-value",
+        ),
+        # Members unique by the key, or a value names no one member.
+        ("lf-options", lambda r: r["lf-option"].pop("x-unique"), "awaits-key"),
+    ],
+)
+def test_a_view_relation_names_attributes_both_sides_have(page_dir, tag, mutate, code):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    mutate(registry)
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    status, findings = check_findings(page_dir)
+
+    assert status == 1
+    assert found(findings, code, f"<{tag}>"), findings

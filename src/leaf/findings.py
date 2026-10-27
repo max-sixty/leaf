@@ -1089,17 +1089,9 @@ _TEXT = {
     "idiom-selector": _declared(
         lambda v: f"idiom {v['selector']!r} selector cannot be matched: {v['error']}"
     ),
-    "idiom-fields": _declared(
+    "idiom-schema": _declared(
         lambda v: (
-            f"idiom {v['selector']!r} must carry a non-empty description and"
-            " x-example, with optional x-instructions"
-        )
-    ),
-    "idiom-value": _declared(
-        lambda v: (
-            f"idiom {v['selector']!r} declares"
-            f" {v['key']}={_json(v['value'])}; the value must satisfy its $keys"
-            " declaration"
+            f"idiom {v['selector']!r} {_json_path(v['path'])}: {v['reason']}"
         )
     ),
     "undeclared-language": _declared(
@@ -1394,24 +1386,6 @@ _TEXT = {
     "verb-detail-schema": _declared(
         lambda v: (
             f"x-state verb `{v['verb']}` has an invalid detail schema: {v['reason']}"
-        )
-    ),
-    "verb-detail-type": _declared(
-        lambda v: f"x-state verb `{v['verb']}` detail schema must declare an object"
-    ),
-    "verb-detail-open": _declared(
-        lambda v: (
-            f"x-state verb `{v['verb']}` detail schema must state"
-            " additionalProperties: false — a verb carries only the detail keys it"
-            " declares"
-        )
-    ),
-    "verb-detail-keys": _declared(
-        lambda v: (
-            f"x-state verb `{v['verb']}` detail schema declares"
-            f" {_json(v['keys'])}; a detail states its type, properties, required"
-            " and additionalProperties and nothing else, so the keys a verb can carry"
-            " are the ones it names"
         )
     ),
     "creates-unit": _declared(

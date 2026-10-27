@@ -62,28 +62,6 @@ def validate_widget_schemas(declarations: dict, data: dict, path) -> None:
                 raise registry_error(
                     "verb-detail-schema", path, tag, verb=verb, **schema_reading(error)
                 ) from error
-            if spec["detail"].get("type") != "object":
-                raise registry_error("verb-detail-type", path, tag, verb=verb)
-            # A verb carries only the detail keys its declaration names — the
-            # premise the layer's own field meanings rest on: both runtimes
-            # dispatch thread settlement on `resolves` being present, which
-            # is safe exactly because a closed schema makes carrying it a
-            # declaration.
-            if spec["detail"].get("additionalProperties") is not False:
-                raise registry_error("verb-detail-open", path, tag, verb=verb)
-            # And nothing beside those four keys, because that clause closes an
-            # object only against names `properties` does not match: a
-            # `patternProperties` beside it admits a field no declaration
-            # spells, and `resolves` is a field — so a per-part verb could come
-            # to settle a comment thread with every door that reads the name
-            # seeing nothing to read. Each of those doors reads the declaration
-            # rather than the event, so one unnamed key makes all of them
-            # approximate at once.
-            spelled = {"type", "properties", "required", "additionalProperties"}
-            if beyond := sorted(set(spec["detail"]) - spelled):
-                raise registry_error(
-                    "verb-detail-keys", path, tag, verb=verb, keys=beyond
-                )
 
 
 def validate_widget_relations(

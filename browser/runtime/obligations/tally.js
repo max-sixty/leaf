@@ -27,8 +27,7 @@ export function tally(held) {
 // The count's words, or that none is open.
 export function tallyWords({ onUser, onAgent, open, total }, agent) {
   if (!total) return "Nothing to answer";
-  if (onUser && onAgent)
-    return `${onUser} left to answer · ${onAgent} on ${agent}`;
+  if (onUser && onAgent) return `${onUser} left to answer · ${onAgent} on ${agent}`;
   if (onUser) return `${onUser} left to answer`;
   if (onAgent) return `${onAgent} on ${agent}`;
   if (open) return `${open} open`;

@@ -137,7 +137,7 @@
     "runtime/obligations/answer.js": "737f2724e37324a2e8db0ac4374872f8069b2b9a076998aa954b76170f4b4582",
     "runtime/obligations/model.js": "41e4d2ea87e5ddffab37865c1cd2ff54effcac15d9348d5690de429db1a6d881",
     "runtime/obligations/place.js": "e2b375fb855222c82b6b3eada0c4c639a9831f847361d6acb0eeb74044fcff5c",
-    "runtime/obligations/tally.js": "7ee8d39c36a8cb36ae032cb42c062616fd11b283105b433b8c241a13bc03f774",
+    "runtime/obligations/tally.js": "d48622a15d714af9d621ee5d6701ebd4dc85d21c6516a39dcb7e123940443779",
     "runtime/obligations/view-elements.js": "8dcb50af3cd2a4e2d57dfd37e134ceddc7688acd53bc62c3fece85e225927123",
     "runtime/obligations/view.js": "216e881f740ca54989bb3fa20628c74ad2d5f0c70e433a9af7795c94a3f18d3e",
     "runtime/off-flow.js": "752767afa7f5ec87db6555bb686114d11d377d965f1098e001f3662bc31bb1e3",

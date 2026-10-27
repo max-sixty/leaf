@@ -252,10 +252,7 @@ STATE_SCHEMA = {
     "propertyNames": {"pattern": f"^{HTML_NAME}$"},
     "additionalProperties": VERB_SCHEMA,
 }
-# A widget's obligation is answered either by its own state (`value` and `answered`) or, with
-# `reply`, by the user's words about it, which it has no state to hold. `encloses`
-# makes a widget the frame of the obligations inside it, asking nothing itself while it holds
-# another that can ask.
+# A widget's obligation is answered by its own state (`value` and `answered`).
 AWAITS_SCHEMA = {
     "type": "object",
     "properties": {
@@ -274,20 +271,8 @@ AWAITS_SCHEMA = {
         "all": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "retired": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "key": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-        "reply": {"const": True},
-        "encloses": {"const": True},
     },
-    "if": {"required": ["reply"]},
-    "then": {
-        "properties": {
-            "value": False,
-            "answered": False,
-            "all": False,
-            "records": False,
-            "key": False,
-        },
-    },
-    "else": {"required": ["value", "answered"]},
+    "required": ["value", "answered"],
     "additionalProperties": False,
 }
 # Package and data-contract instructions address their declared audiences. Widget
@@ -381,6 +366,7 @@ EXTENSION_SCHEMA = {
         },
         "x-instructions": {"type": "string", "pattern": r"\S"},
         "x-inline": {"type": "boolean"},
+        "x-encloses": {"const": True},
         "x-language": _ATTRIBUTE_NAME,
         "x-reading-role": {"enum": ["pane"]},
         "x-margin-content": {"enum": ["map"]},

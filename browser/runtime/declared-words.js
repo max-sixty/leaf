@@ -14,7 +14,7 @@
      authoritative settlement, whether or not its module renders anything.
    - `renderRetired` marks slots retired by the declared holder relation.
    - The obligation model (obligations/model.js) reads `x-awaits`, while the obligation view (obligations/view.js)
-     projects the enclosing widget (`x-awaits.encloses`) around that source where one exists;
+     projects the enclosing widget (`x-encloses`) around that source where one exists;
      neither names a tag.
    - the internal validation adapter exposes replay winners to the render gate,
      the panel's own folds included: a widget an agent sent folds the way a page widget

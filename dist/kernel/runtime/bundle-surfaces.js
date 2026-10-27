@@ -625,7 +625,7 @@ function restorePlace(view, region = null, currentIntent = retainUserIntent()) {
 //#region runtime/obligations/model.js
 const readObligations = readPart((root) => root.effective.obligations);
 const obligationEntry = (obligation) => registry$1[obligation?.source.tag]?.["x-awaits"];
-const answeredInWords = (obligation) => obligation?.source.kind === "message" || Boolean(obligationEntry(obligation)?.reply);
+const answeredInWords = (obligation) => obligation?.source.kind === "message";
 
 //#endregion
 //#region runtime/obligations/place.js

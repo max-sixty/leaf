@@ -91,9 +91,7 @@ def _record_row(record: dict, owner: str, live: bool = False) -> dict:
     }
 
 
-def _on_user(
-    records: list[dict], threads: dict, within: dict, registry: dict
-) -> list[dict]:
+def _on_user(records: list[dict], threads: dict, within: dict) -> list[dict]:
     """On me's rows, one per place the user has a move at: requests and explicit tasks,
     then the updates to send again."""
     users = [record for record in records if record["next_actor"] == "user"]
@@ -103,7 +101,7 @@ def _on_user(
         users, key=lambda record: record["source"]["kind"] == "update"
     ):
         thread = record["thread"]
-        if thread is not None and answered_in_words(record, registry):
+        if thread is not None and answered_in_words(record):
             if thread in in_thread:
                 in_thread[thread]["also"].append(record["id"])
                 continue
@@ -139,17 +137,15 @@ def queues(
     records: list[dict],
     threads: dict,
     within: dict,
-    registry: dict,
 ) -> dict:
     """Select records and to-dos once, by next actor.
 
     `workflows` are served strongest first, `todos` are every to-do on either side,
     open and ended, and `records` are the view's obligation records, the user's updates'
-    included, in inventory order. `threads` are the page's threads by id, `within` the
-    document's containment and `registry` the view's, which say what a thread is about
-    and which records its reply answers."""
+    included, in inventory order. `threads` are the page's threads by id and `within`
+    the document's containment, which say what a thread is about."""
     open_todos = [todo for todo in todos if todo["state"] == "open"]
-    on_user = _on_user(records, threads, within, registry)
+    on_user = _on_user(records, threads, within)
     owing = {
         record["id"]: record
         for record in records

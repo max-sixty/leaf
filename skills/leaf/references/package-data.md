@@ -120,12 +120,8 @@ On me navigation can reveal each record.
 
 `x-awaits.retired` names the attribute an author sets to close an obligation but keep its
 widget on the page, such as a decided question collapsed with its options; `when` must
-require it to be absent. `x-awaits.encloses`, which `lf-ask` declares, makes a wrapper
-give the obligations inside it its heading and where the user lands; it asks nothing itself
-while it holds another widget declaring `x-awaits`. With `reply: true` instead of
-`value` and `answered`, a widget asks for the user's words; `lf-ask` uses this when it
-holds no answering widget. [module-reading.md, "Reading obligations and the On
-lists"](module-reading.md#reading-obligations-and-the-on-lists) describes which messages answer it.
+require it to be absent. `x-encloses`, which `lf-ask` declares, makes a wrapper give
+the obligations inside it its heading and where the user lands; it asks nothing itself.
 
 The module reads and records this state through `widgetController(owner)`
 ([module-state.md, "The widget controller"](module-state.md#the-widget-controller)),

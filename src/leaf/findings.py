@@ -289,7 +289,7 @@ def _empty_question(at: str, v: dict) -> str:
         f"since {widgets}"
         if widgets
         else "since it holds no widget that asks (one declaring x-awaits); add one,"
-        " or drop the heading to ask in words alone"
+        " or ask a question answered in words in a thread message with --obligation"
     )
 
 
@@ -1204,9 +1204,9 @@ _TEXT = {
             " must declare a string `id` attribute"
         )
     ),
-    "enclosing-id": _declared(lambda v: "x-awaits.encloses must require an id"),
+    "enclosing-id": _declared(lambda v: "x-encloses must require an id"),
     "enclosing-prose": _declared(
-        lambda v: "x-awaits.encloses must admit prose around the obligations it frames"
+        lambda v: "x-encloses must admit prose around the obligations it frames"
     ),
     "data-contract": _declared(
         lambda v: (

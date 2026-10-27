@@ -6,7 +6,6 @@ from leaf.obligations import (
     encloses,
     local_obligation_entry,
     quoted_in,
-    replied,
 )
 from leaf.projection import enclosing_widgets, recorded_owner
 from leaf.registry.contract import (
@@ -254,16 +253,14 @@ def unasked(rec: dict, entry: dict) -> dict:
 
 
 def enclosing_errors(document: SourceDocument, registry: dict) -> list[Finding]:
-    """An enclosing widget (`x-awaits.encloses`) supplies a leading title and
+    """An enclosing widget (`x-encloses`) supplies a leading title and
     arrival region for the obligations inside it.
 
     It never owns obligation identity or registration. Any number of sources can select
     it, and each source retains its independent answer and lifecycle. An enclosing
     widget whose widgets none ask shows a question the On me list never counts and
     the user can't answer, so the error names what each enclosed widget lacks to
-    ask (`unasked`). One holding no other widget asks only if it declares its own
-    reply-answered obligation (`x-awaits.reply`), and then needs no heading: its words
-    are the question.
+    ask (`unasked`), or that it holds none.
     """
 
     def encloser_of(rec):
@@ -292,10 +289,6 @@ def enclosing_errors(document: SourceDocument, registry: dict) -> list[Finding]:
         # question's place in the outline and in heading navigation.
         title = leading_title_node(document.authoring.node_of(region))
         titled = bool(title) and title["tag"] in {f"h{n}" for n in range(1, 7)}
-        # A question is its words alone. A heading over no widget is a frame whose
-        # widget is missing, as when a revision drops the decision it framed.
-        if not held and replied(registry[region["tag"]]) and not titled:
-            continue
         # A quoted enclosing widget is a mention whose widgets ask nothing by design.
         if not quoted_in(region, registry) and all(lacks for _, lacks in held):
             widgets = [

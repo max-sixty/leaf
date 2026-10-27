@@ -4002,13 +4002,13 @@ const TONE = {
 	closed: ""
 };
 const WORK_WORDS = {
-	working: "working",
-	thinking: "thinking",
-	tool: "using a tool",
-	awaiting_approval: "waiting for approval",
-	awaiting_input: "waiting for input",
-	awaiting_user: "waiting for me",
-	replying: "replying"
+	working: "Working on it",
+	thinking: "Thinking",
+	tool: "Using a tool",
+	awaiting_approval: "Need your approval",
+	awaiting_input: "Need your input",
+	awaiting_user: "Have a question for you",
+	replying: "Writing a reply"
 };
 const countResponses = (count) => `${count} response${count === 1 ? "" : "s"}`;
 const COUNT_PHRASES = {
@@ -4023,10 +4023,9 @@ function activityFacts({ activity }) {
 	const { counts } = activity;
 	return Object.freeze({
 		tone: TONE[activity.kind],
-		work: activity.observed_kind ? WORK_WORDS[activity.observed_kind] : "working",
+		work: WORK_WORDS[activity.observed_kind ?? "working"] + (activity.awaiting ? " in the terminal" : ""),
 		left: Boolean(activity.dropped),
 		silentSince: ago(activity.ts),
-		listening: Boolean(counts.pending || counts.queued),
 		waiting: Object.freeze(phrased(counts, ["queued", "pending"])),
 		owed: Object.freeze(phrased(counts, [
 			"active",
@@ -4036,12 +4035,12 @@ function activityFacts({ activity }) {
 	});
 }
 const after = (head, words, step = false) => !head ? words : step ? `${head} · ${words}` : `${head}${head.endsWith(".") ? "" : "."} ${words}`;
-const OFFLINE_LINE = "Server offline — reconnecting. Keep this page open so pending changes can send.";
-const KEY_REFUSED_LINE = "The server no longer accepts this tab's key. Open the link Leaf printed in a new tab, and keep this one open so pending changes can send.";
-const BROKEN_LINE = "Page couldn't apply current state — reload";
+const OFFLINE_LINE = "Lost the connection — reconnecting. Keep this page open so changes made here go through.";
+const KEY_REFUSED_LINE = "This tab lost access. Open the page's link again in a new tab, and keep this one open so changes made here go through.";
+const BROKEN_LINE = "Couldn't show the latest — reload";
 const publicationWords = (published) => [`${published.kind === "example" ? "This is an example on the Leaf website" : "This website is a Leaf page"}, and this copy is private to this browser. `, "Install Leaf"];
 function deliveredWords({ comments, answers }) {
-	if (comments + answers === 1) return comments ? "the comment" : "the answer";
+	if (comments + answers === 1) return comments ? "your comment" : "your answer";
 	const counted = (count, noun) => `${count} ${noun}${count === 1 ? "" : "s"}`;
 	return [comments && counted(comments, "comment"), answers && counted(answers, "answer")].filter(Boolean).join(" and ");
 }
@@ -4051,43 +4050,40 @@ const appendWords = (parts, words, step = false) => {
 	const head = textOf(parts);
 	parts.push({ text: after(head, words, step).slice(head.length) });
 };
-function statusWords({ age, agent, dated, shortDate, detail, detailSource, handling, invite, kind, listening, overdue, saved, work }) {
+function statusWords({ age, dated, detail, detailSource, handling, invite, kind, overdue, saved, waits, work }) {
 	if (kind === "closed") return [
-		"Page closed",
-		"Page closed",
+		"Done with this page",
+		"Done with this page.",
 		""
 	];
 	if (kind === "unheld") {
-		const meanwhile = `${saved} It picks up again when a session does.`;
+		const meanwhile = `${saved} They're picked up next time.`;
 		return [
-			"No session",
-			`No session holds this page. ${meanwhile}`,
+			"Not on this page right now",
+			`Not on this page right now. ${meanwhile}`,
 			meanwhile
 		];
 	}
 	if (kind === "working") {
 		const delivered = deliveredWords(handling);
-		const said = detail ? [" — ", {
+		const sentence = detail ? [{
 			text: detail,
 			source: detailSource
-		}] : delivered ? [" — has " + delivered] : [];
+		}] : [];
+		const said = waits ? [work, ...detail ? [" — ", ...sentence] : []] : detail ? sentence : [delivered ? `Got ${delivered}` : work];
 		return [
-			[`${agent} ${work}${age && age !== "just now" ? " · " + age : ""}`, ...said],
-			detail || !delivered ? [`${agent} is ${work}`, ...said] : `${agent} has ${delivered} and hasn't said what it's doing yet`,
-			detail || !delivered ? "" : "It hasn't said what it's doing yet."
+			[...age && age !== "just now" ? [`${age} · `] : [], ...said],
+			said,
+			""
 		];
 	}
-	if (kind === "listening") return listening ? [
-		`${agent} listening`,
-		`${agent} is listening.`,
-		""
-	] : [
+	if (kind === "listening") return [
 		invite,
 		invite,
 		""
 	];
 	if (kind === "stalled") return [
-		shortDate,
+		dated,
 		[
 			dated,
 			...detail ? [": ", {
@@ -4106,14 +4102,15 @@ function statusWords({ age, agent, dated, shortDate, detail, detailSource, handl
 		] : [], saved]
 	];
 	return overdue ? [
-		`Nudge ${agent} in terminal`,
-		`${dated}. ${saved} Nothing is answering them, so nudge it in the terminal.`,
+		"Not answering — nudge the terminal",
+		`${dated}. ${saved} Nothing is answering them, so nudge the terminal.`,
 		`${dated}. ${saved} Nothing is answering them.`,
-		true
+		true,
+		"leaf"
 	] : [
-		`${agent} away`,
-		`${agent} isn't watching right now. ${saved} It picks them up next turn.`,
-		`${saved} It picks them up next turn.`
+		"Away",
+		`Away right now. ${saved} They're picked up next turn.`,
+		`${saved} They're picked up next turn.`
 	];
 }
 function pageStatus(state, { reach = "reached", fault = null } = {}) {
@@ -4121,6 +4118,7 @@ function pageStatus(state, { reach = "reached", fault = null } = {}) {
 		kind: "broken",
 		tone: "blocked",
 		summary: BROKEN_LINE,
+		voice: "leaf",
 		explanation: BROKEN_LINE,
 		adds: "",
 		asks: true
@@ -4128,9 +4126,10 @@ function pageStatus(state, { reach = "reached", fault = null } = {}) {
 	if (reach === "refused") return {
 		kind: "refused",
 		tone: "blocked",
-		summary: "Key refused — open Leaf's link in a new tab",
+		summary: "This tab lost access — open the link again",
+		voice: "leaf",
 		explanation: KEY_REFUSED_LINE,
-		adds: "Keep this tab open so pending changes can send.",
+		adds: "Keep this tab open so changes made here go through.",
 		asks: true
 	};
 	if (reach === "faulted") {
@@ -4138,43 +4137,43 @@ function pageStatus(state, { reach = "reached", fault = null } = {}) {
 		return {
 			kind: "faulted",
 			tone: "blocked",
-			summary: "Server error — retrying",
-			explanation: `The server answered with an error: ${said}. Retrying.`,
-			adds: `It answered: ${said}. Retrying.`
+			summary: "Hit a problem — trying again",
+			voice: "leaf",
+			explanation: `Hit a problem: ${said}. Trying again.`,
+			adds: `${said}. Trying again.`
 		};
 	}
 	if (reach !== "reached") return {
 		kind: "unreachable",
 		tone: "blocked",
-		summary: "Server offline — reconnecting",
+		summary: "Lost the connection — reconnecting",
+		voice: "leaf",
 		explanation: OFFLINE_LINE,
 		adds: ""
 	};
-	const { activity, agent, publication = null } = state;
+	const { activity, publication = null } = state;
 	const onCall = Boolean(publication) && activity.kind !== "working";
 	const kind = onCall ? "listening" : activity.kind;
 	const detail = onCall ? "" : activity.detail;
 	const facts = activityFacts(state);
 	const saved = "Updates are saved.";
-	const checkedIn = facts.silentSince ? `${agent} last checked in ${facts.silentSince}` : `No check-in from ${agent} is recorded`;
-	const ended = `${agent}’s turn ended${facts.silentSince ? " " + facts.silentSince : ""}`;
+	const checkedIn = facts.silentSince ? `Last checked in ${facts.silentSince}` : "Haven't checked in yet";
+	const ended = `Stopped${facts.silentSince ? " " + facts.silentSince : ""}`;
 	const age = kind === "working" && activity.ts ? ago(activity.ts) : "";
-	const [summaryWords, explanationWords, beyond, asked = false] = statusWords({
+	const [summaryWords, explanationWords, beyond, asked = false, voice = "agent"] = statusWords({
 		age,
-		agent,
 		dated: facts.left ? ended : checkedIn,
-		shortDate: facts.left ? ended : checkedIn,
 		detail,
 		detailSource: activity.detail_source,
 		handling: {
 			comments: activity.counts.handling_comments,
 			answers: activity.counts.handling - activity.counts.handling_comments
 		},
-		invite: publication ? `${agent} awaits — comment to revise this copy` : `${agent} awaits — select text to comment`,
+		invite: publication ? "Ready — comment to revise this copy" : "Ready — select text to comment",
 		kind,
-		listening: facts.listening,
 		overdue: activity.counts.overdue,
 		saved,
+		waits: Boolean(activity.awaiting),
 		work: facts.work
 	});
 	const summaryParts = textParts(summaryWords);
@@ -4189,7 +4188,6 @@ function pageStatus(state, { reach = "reached", fault = null } = {}) {
 	if (facts.waiting.length && ["working", "listening"].includes(kind)) append(`${facts.waiting.join(" · ")}.`);
 	const actionableWork = activity.awaiting ? activity.observed_kind : null;
 	const waitsThere = Boolean(actionableWork) && kind === "working";
-	if (waitsThere) append("It waits in its own session, not on this page.");
 	return {
 		kind,
 		tone: TONE[kind],
@@ -4200,6 +4198,7 @@ function pageStatus(state, { reach = "reached", fault = null } = {}) {
 		adds: textOf(addsParts),
 		addsParts,
 		asks: asked || waitsThere,
+		voice,
 		actionableWork,
 		publication
 	};
@@ -4231,7 +4230,7 @@ const WITHOUT_QUEUES = /* @__PURE__ */ new Set([
 	"unreachable"
 ]);
 function statusModel(status, queues, agent) {
-	const { kind, tone, summary, asks = false, publication = null } = status;
+	const { kind, tone, summary, asks = false, voice = "agent", publication = null } = status;
 	let { explanation, adds } = status;
 	const explanationParts = [...status.explanationParts ?? textParts(explanation)];
 	const addsParts = [...status.addsParts ?? textParts(adds)];
@@ -4263,6 +4262,7 @@ function statusModel(status, queues, agent) {
 		explanationParts,
 		addsParts,
 		asks,
+		voice,
 		explanation,
 		adds,
 		publication: publicationModel
@@ -4272,9 +4272,9 @@ function leafRow(entry) {
 	const { kind, counts, detail } = entry.activity;
 	const facts = activityFacts(entry);
 	const stated = (word) => word + (detail ? " — " + detail : "");
-	const silence = `${facts.left ? "Left" : "Quiet"}${facts.silentSince ? ` (${facts.silentSince})` : ""}`;
-	const work = facts.work.replace(/^./, (letter) => letter.toUpperCase());
-	const primary = kind === "working" ? stated(work) : kind === "listening" ? facts.listening ? "Listening" : "Awaits" : kind === "stalled" ? stated(silence) : kind === "away" ? counts.overdue ? silence : "Away" : kind === "unheld" ? "No session" : "Closed";
+	const since = facts.silentSince ? ` ${facts.silentSince}` : "";
+	const silence = facts.left ? `Stopped${since}` : since ? `Last checked in${since}` : "Haven't checked in yet";
+	const primary = kind === "working" ? entry.activity.awaiting ? stated(facts.work) : detail || facts.work : kind === "listening" ? "Ready" : kind === "stalled" ? stated(silence) : kind === "away" ? counts.overdue ? silence : "Away" : kind === "unheld" ? "Not on this page right now" : "Done with this page";
 	const line = facts.waiting.length ? `${primary} · ${facts.waiting.join(" · ")}` : primary;
 	return {
 		tone: facts.tone,
@@ -4284,11 +4284,12 @@ function leafRow(entry) {
 
 //#endregion
 //#region runtime/page-status.js
-const LOADING_LINE = "The page is ready for reading and new comments. Saved comments and choices are still loading; new comments will be sent when the server responds." + (WEBSITE_DELIVERY ? " Website examples can take longer to load their saved state than a usual Leaf page." : "");
+const LOADING_LINE = "The page is ready for reading and new comments. Saved comments and choices are still loading; new comments go through once they have." + (WEBSITE_DELIVERY ? " Website examples can take longer to load their comments and choices than a usual Leaf page." : "");
 const LOADING = Object.freeze({
 	kind: "loading",
 	tone: "",
-	summary: "Loading saved state…",
+	summary: "Loading comments and choices…",
+	voice: "leaf",
 	explanation: LOADING_LINE,
 	adds: LOADING_LINE
 });
@@ -4932,6 +4933,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		adds: "",
 		addsParts: [],
 		asks: false,
+		voice: "leaf",
 		publication: null
 	};
 	const status = () => statusReading() ?? CONNECTING;
@@ -5009,7 +5011,8 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const [error] = sayable();
 		if (error) return {
 			says: "error",
-			words: error.message
+			words: error.message,
+			voice: "leaf"
 		};
 		const thread = key ? threadByKey(key) : null;
 		if (input === focused() && !thread?.resolved) return {
@@ -5044,11 +5047,12 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		};
 		if (!key) return {
 			says: "status",
-			words: hiddenLead() + status().summary
+			words: hiddenLead() + status().summary,
+			voice: status().voice
 		};
 		return {
 			says: "turn",
-			words: "Reply…"
+			words: "Reply"
 		};
 	}
 	function turnWords(thread) {
@@ -5063,7 +5067,10 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	const whereTo = (key) => key ? "Reply in this thread" : "Comment on the page";
 	function saying(key, input) {
 		const reading = fieldReading(key, input);
-		if (input) keeps(input, "data-says", reading.says);
+		if (input) {
+			keeps(input, "data-says", reading.says);
+			keeps(input, "data-voice", reading.voice === "leaf" ? "leaf" : null);
+		}
 		return reading.words;
 	}
 	let general = null;
@@ -6599,7 +6606,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			},
 			{
 				key: "queued",
-				title: "Queued",
+				title: "Up next",
 				items: queued
 			},
 			{
@@ -6612,13 +6619,12 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		return html`${planShown ? planCards() : nothing}${layoutOf() === "summary" ? workSummary(inHand, queued, lists.done) : html`${inHand.length || queued.length ? nothing : html`<p class="lf-fp-empty">Nothing waiting on ${agentName()}.</p>`}${groupedItems(groups, (item, group) => onItemCard(item, group.key === "done" ? "done" : "agent"))}`}`;
 	}
 	function workSummary(inHand, queued, done) {
-		const agent = agentName();
 		const work = inHand.map(workOn);
 		const since = work.map((each) => each.since).filter(Boolean).toSorted()[0];
 		const longest = since ? shortAgo(since) : "";
-		const held = inHand.length ? `${agent} has ${inHand.length} in hand${longest && longest !== "now" ? `, the longest for ${longest}` : ""}` : "";
-		const waiting = queued.length ? `${queued.length} queued` : "";
-		const first = held && waiting ? `${held}, and ${waiting}.` : held ? `${held}.` : waiting ? `${agent} has ${waiting}.` : `Nothing is on ${agent}.`;
+		const held = inHand.length ? `Working on ${inHand.length}${longest && longest !== "now" ? `, the longest for ${longest}` : ""}` : "";
+		const waiting = queued.length ? `${queued.length} up next` : "";
+		const first = held && waiting ? `${held}; ${waiting}.` : held ? `${held}.` : waiting ? `${waiting[0].toUpperCase()}${waiting.slice(1)}.` : "Nothing to do right now.";
 		const now = work.find((each) => each.line && each.line !== each.word)?.line;
 		const progress = planProgress();
 		const [last] = done;

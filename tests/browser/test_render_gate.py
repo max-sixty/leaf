@@ -1405,7 +1405,7 @@ def test_the_state_wait_covers_a_status_that_moves_neither_log_nor_data(browser,
         held = render_gate_scheme.served(page, url, "/api/state").json()
         wait_until_ready(page, held, through="state")
         # The leaf names the agent's status.
-        assert "awaits" in page.locator(".lf-fp-leaf").get_attribute("aria-label")
+        assert "Ready" in page.locator(".lf-fp-leaf").get_attribute("aria-label")
     finally:
         leases_model.release_lease(lease)
 

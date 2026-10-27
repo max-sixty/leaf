@@ -250,12 +250,11 @@ export function releaseReplies(surface) {
     const shown = [...views.get(owner.context)].find(
       (view) => view !== owner && drawn(view.controls.input),
     );
-    if (shown) handOver(shown, owner);
-    else {
-      const redrawGiver = owner.binding.give();
-      parkRow(owner.row);
-      redrawGiver();
-    }
+    // This view is leaving. Redrawing its replacement row could restore focus into
+    // that retiring view and adopt a new session owner just before it disappears.
+    owner.binding.give();
+    if (shown) shown.binding.take(owner);
+    else parkRow(owner.row);
   }
 }
 

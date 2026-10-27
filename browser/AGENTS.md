@@ -186,7 +186,9 @@ representative desktop viewport.
   they can tell what the control does before hovering it. The words on Leaf's controls
   compete with the page's own words for the reader's attention, and a symbol is
   smaller and quieter. Draw it from `runtime/icon-paths.js` and give the control its
-  name as tooltip and accessible name, without the word beside the symbol. One control
+  name as tooltip and accessible name, without the word beside the symbol. An action
+  shows one symbol, or one word, wherever Leaf offers it, so a reader who learns it in
+  one place knows it in every other. One control
   whose symbol follows its state, such as play turning to pause, replaces a button for
   each state. A symbol that is only related to the action, such as a speech bubble for
   answering a question, leaves the reader guessing, and a tooltip doesn't fix that:

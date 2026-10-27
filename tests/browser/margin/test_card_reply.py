@@ -243,14 +243,14 @@ def test_a_margin_card_is_one_frame_that_rings_for_its_thread(browser, serve):
         };
         return {card: Math.round(card.getBoundingClientRect().left),
                 ground: getComputedStyle(thread).backgroundColor,
-                paper: getComputedStyle(card.querySelector('.lf-margin-preview-card')).backgroundColor,
                 words: x(words), field: x(field),
                 fieldBorder: getComputedStyle(field).borderTopStyle,
                 inset: Math.round(words.getBoundingClientRect().left
                                   - card.getBoundingClientRect().left)};
     }"""
     )
-    assert frame["ground"] == frame["paper"], frame
+    # The thread paints no ground, so the card's paper shows through it.
+    assert frame["ground"] == "rgba(0, 0, 0, 0)", frame
     assert frame["fieldBorder"] == "solid", frame
     # The field's box stands at the card's padding; words share the conversation's
     # reading inset, rather than gaining a second frame.

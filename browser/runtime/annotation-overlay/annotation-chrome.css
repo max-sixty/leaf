@@ -555,11 +555,13 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
      so the words keep their width and place and nothing scrolls sideways. Once
      anything is scrolled away, what stands on the heads' line covers the room above
      it, the stuck head and the actions each over its own track
-     (`--lf-thread-room-cover`, thread-preview.js); at the top a ring still has it. */
+     (`--lf-thread-room-cover`, thread-preview.js); at the top a ring still has it.
+     The card's face is the thread's ground (above), so the thread paints none, not
+     even the quiet one a thread holding focus wears (surfaces.css). */
   .lf-margin-thread .lf-page-thread {
     --lf-transcript-room: max(var(--focus-ring-room), var(--lf-group-ring-end));
     padding: 0;
-    background: var(--paper);
+    background: none;
   }
   .lf-margin-thread .lf-page-thread::after {
     /* Share the transcript's grid track without reserving reading space. The
@@ -604,7 +606,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     align-items: stretch;
     margin: 0;
     padding-block: var(--lf-comment-foot-gap) 0;
-    background: inherit;
   }
   .lf-margin-thread .lf-thread-reply .lf-composer-media {
     grid-row: 1;

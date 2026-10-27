@@ -126,11 +126,11 @@ def test_live_revision_retains_the_runtime_favicon(browser, serve):
 
 
 @pytest.mark.parametrize("scheme", ["light", "dark"])
-def test_a_margin_reply_shares_its_threads_opaque_surface(browser, serve, scheme):
-    """The reply surround stays continuous as focus enters and leaves the thread.
-
-    An opaque shared surface also lets a pinned reply cover scrolled messages without
-    introducing a differently colored band above its input.
+def test_a_margin_reply_stands_on_its_cards_face(browser, serve, scheme):
+    """The thread and its reply row paint no ground of their own as focus enters and
+    leaves the thread, so the card's opaque face shows behind them: no band above the
+    field, no focus tint, and nothing over the field's ring while the card's surface
+    draws it (box-motion.js).
     """
     url = serve(LONG_PAGE)
     panel_comment(serve.page_dir, "Keep the first paragraph.", {"section": "p0"})
@@ -138,6 +138,7 @@ def test_a_margin_reply_shares_its_threads_opaque_surface(browser, serve, scheme
     resized(page, 1440, 900)
     page.locator('.lf-margin-marker[data-lf-kinds~="comment"]').click()
     preview = page.locator(".lf-margin-preview")
+    face = preview.locator(".lf-margin-preview-card")
     thread = preview.locator(".lf-page-thread")
     surround = thread.locator(".lf-thread-reply")
     reply = preview.get_by_role("textbox", name="Reply", exact=True)
@@ -149,17 +150,17 @@ def test_a_margin_reply_shares_its_threads_opaque_surface(browser, serve, scheme
             expect(reply).to_be_focused()
         elif state == "outside":
             preview.get_by_role("button", name="Dismiss thread").focus()
-        surface = thread.evaluate("""node => {
-          const color = getComputedStyle(node).backgroundColor;
+        alpha = face.evaluate("""node => {
           const canvas = document.createElement('canvas');
           canvas.width = canvas.height = 1;
           const paint = canvas.getContext('2d');
-          paint.fillStyle = color;
+          paint.fillStyle = getComputedStyle(node).backgroundColor;
           paint.fillRect(0, 0, 1, 1);
-          return {color, alpha: paint.getImageData(0, 0, 1, 1).data[3]};
+          return paint.getImageData(0, 0, 1, 1).data[3];
         }""")
-        assert surface["alpha"] == 255, (scheme, state, surface)
-        expect(surround).to_have_css("background-color", surface["color"])
+        assert alpha == 255, (scheme, state)
+        for part in (thread, surround):
+            expect(part).to_have_css("background-color", "rgba(0, 0, 0, 0)")
 
 
 def test_a_compact_comment_reserves_only_the_room_send_occupies(browser, serve):

@@ -298,9 +298,10 @@ customElements.define(
       for (const run of this.#runsIn(scope))
         for (const block of run.blocks) owner.set(block, run.after ?? run.container);
       // The dial itself, stuck over the page and under the pointer that turned it,
-      // names no place in what scrolls beneath it.
+      // names no place in what scrolls beneath it. The mark stays, so a later turn
+      // writes it only on blocks a revision added.
       const blocks = [...this.#blocks(scope)].filter((block) => block !== this);
-      for (const block of blocks) block.setAttribute(BLOCK, "");
+      for (const block of blocks) keeps(block, BLOCK, "");
       const window = shownWindow();
       const line = window.top + (window.bottom - window.top) * READING_LINE;
       const reading = blocks.find(
@@ -311,11 +312,7 @@ customElements.define(
         identity: (node) => keyOf(owner.get(node) ?? node),
         preferred: () => reading ?? null,
       });
-      try {
-        keeper.around(change);
-      } finally {
-        for (const block of blocks) block.removeAttribute(BLOCK);
-      }
+      keeper.around(change);
     }
 
     // Where each block shown near the window stands in it now.

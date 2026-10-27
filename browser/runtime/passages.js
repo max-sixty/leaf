@@ -134,7 +134,7 @@ export const verbatimBoundaryIdentity = new WeakMap();
 // ---------- passages ----------
 // A passage is a list of {node, start, end} segments, and everything that reads the page's
 // text speaks in them: the search for a quote, the capture of one, the landmark a version
-// change rides on, the version diff's block keys. One shape means one answer to what the
+// change rides on, the version comparison's block keys. One shape means one answer to what the
 // page says. The bugs this layer kept having were all a second answer disagreeing with the
 // first — what a selection rendered as versus what the document holds — and a second
 // answer is what there is now no room for.
@@ -143,11 +143,11 @@ export const verbatimBoundaryIdentity = new WeakMap();
 // reason .lf-ui and data-lf-gen are two markers rather than one. Anchoring skips the
 // runtime's own words, inline scripts, and the stylesheet a rendered diagram carries
 // inside its <svg>: a quote holding text the search skips is a quote nothing can find
-// again. The version diff additionally skips content an upgrade generated, because the
-// base document parses unupgraded and would never match it. So generated text the page
-// authored — a widget's label, an attribute renderSaid rendered — is diff-invisible and
-// quotable, which is the pair a user expects: they can point at it, and it doesn't
-// read as a change nobody wrote.
+// again. The authored reading additionally skips content an upgrade generated, so it
+// reads a live block as the block's source does: a version comparison paints a source's
+// words onto the live block standing for it (version.js), and a module reads its own
+// authored words. So generated text the page authored — a widget's label, an attribute
+// renderSaid rendered — is quotable and outside the authored reading.
 //
 // A decided suggestion's retired slot goes with them. Its markup is still in the
 // document — the honoring version is what finally drops it — but the user has
@@ -296,9 +296,8 @@ export const pageWords = (node) => Boolean(node) && !inChrome(node) && !inUi(nod
 // answers. Anchoring reads what the user can point at: not the runtime's own words —
 // `inUi`, which a declared label answers for itself — and nothing behind a wall no label
 // speaks through, so a pick mark inside a slot the user accepted away is gone with
-// the slot, its marker notwithstanding. The diff reads what the base version holds, and
-// the base parses unupgraded, so everything an upgrade generated goes, a declared label
-// included: the version being compared against has none.
+// the slot, its marker notwithstanding. The authored reading keeps what a source holds,
+// so everything an upgrade generated goes, a declared label included: no source has one.
 //
 // A text node's parent is an element, and every reading of these nodes says so: the
 // walk asks it of a shadow root's own text and of a slotted node's place, and
@@ -362,8 +361,8 @@ function refusesBareText(root) {
 }
 // The widget a reading belongs to. `.lf-ui` says the runtime built this rather than the
 // author, and a reading rooted at the document takes that straight: everything the layer
-// holds is the layer's, which is the whole of what the anchor pass and the version diff
-// need. Inside a widget it is a different sentence, and the widget is where it changes.
+// holds is the layer's, which is the whole of what the anchor pass and the authored
+// reading need. Inside a widget it is a different sentence, and the widget is where it changes.
 //
 // A widget riding a message stands inside the floating panel, so the panel is `.lf-ui`
 // over every word it says — and read straight, a question an agent asked in a reply says
@@ -376,9 +375,9 @@ function refusesBareText(root) {
 // above the widget is somebody else's. Rooting the search at the element handed in says
 // almost the same thing and is wrong in one case that matters: a reading can start
 // *inside* generated chrome. A thread box's messages are `<p>`s the runtime built,
-// on the page, inside the group they belong to — and `diffBlocks` reads every block on the
-// page, so bounded at the block each of them stopped being generated and the version diff
-// painted the user's own comments as changes to the document.
+// on the page, inside the group they belong to — so bounded at the block, each of them
+// stopped being generated, and the authored reading took the user's own comments for
+// words the author wrote.
 const frameOf = (node) => {
   for (let a = node?.nodeType === 1 ? node : upFrom(node); a; a = upFrom(a))
     if (a.localName?.startsWith("lf-")) return a;
@@ -917,8 +916,8 @@ export const cut = (text, from, to) => [...text].slice(from, to).join("");
 // it. A suggestion labelled that way offered to accept “Retry three times. 1 comment”.
 export const says = (el) => quoteFrom(textNodesUnder(el));
 // The other question, and a different answer: what the *author* wrote here, with
-// everything an upgrade generated left out. The version diff asks it because the base
-// version it compares against has no generated nodes at all; a widget asks it to name
+// everything an upgrade generated left out. A version comparison keys sources by it and
+// paints a source's words onto the live block that reads the same; a widget asks it to name
 // one of its own parts, where `says` would hand back the widget's own declared labels
 // along with the words — a picked row's mark is the page speaking, so it is in the
 // reading a user points at and out of the row's name.

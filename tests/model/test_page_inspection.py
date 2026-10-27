@@ -23,7 +23,8 @@ def test_inspection_attributes_nested_css_imports_widgets_and_sample_documents(
     sheet = '@import "./shared.css"; @media (width > 20em) { p { margin: 0; } }'
     (authored / "style.css").write_text(sheet)
     (authored / "shared.css").write_text(shared)
-    (authored / "unused.css").write_text("p { padding: 999px; }")
+    unused = "p { padding: 999px; }"
+    (authored / "unused.css").write_text(unused)
     media = page_dir / "media"
     media.mkdir(exist_ok=True)
     media_css = '@import "./shared.css"; p { border: 0; }'
@@ -62,7 +63,13 @@ def test_inspection_attributes_nested_css_imports_widgets_and_sample_documents(
     reading = json.loads(result.output)
     assert list_revisions(page_dir) == before
     page = [item for item in reading["css"]["sources"] if item["owner"] == "page"]
-    assert len(page) == 7
+    assert len(page) == 8
+    # A revision holds every page file, so a sheet nothing links is listed, loaded by
+    # no document.
+    assert (
+        next(item for item in page if item["path"] == "page/unused.css")["documents"]
+        == []
+    )
     assert next(item for item in page if item["path"] == "media/page.css")[
         "documents"
     ] == ["index.html"]
@@ -80,6 +87,7 @@ def test_inspection_attributes_nested_css_imports_widgets_and_sample_documents(
             for css in (
                 shared,
                 sheet,
+                unused,
                 media_css,
                 media_shared,
                 "p { display: block; }",
@@ -87,8 +95,8 @@ def test_inspection_attributes_nested_css_imports_widgets_and_sample_documents(
                 '--label: "é"; color: green',
             )
         ),
-        "rules": 10,
-        "declarations": 9,
+        "rules": 11,
+        "declarations": 10,
         "inline_styles": 1,
         "important": 1,
     }

@@ -115,7 +115,7 @@ def test_the_pr_walkthrough_exercises_an_inline_diff_thread(browser, serve):
     )
     send = thread.locator(".lf-compose-submit")
     expect(send).to_be_disabled()
-    expect(thread.locator(".lf-compose-field > button:visible")).to_have_count(1)
+    expect(thread.get_by_role("textbox", name="Reply", exact=True)).to_be_visible()
     markers = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     baseline = markers.count()
 

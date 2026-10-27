@@ -908,7 +908,7 @@ export function createFloatingPanel({
   // narrow for both, as on a phone, still says Reply. The agent's own line, a to-do's
   // title or a start's, stays in the thread, where the working message says it.
   function turnWords(thread) {
-    const attention = threadAttention(thread);
+    const attention = threadAttention(thread, agentName());
     return attention ? `Reply · ${attention.label}` : "Reply";
   }
   // A walk's position while the field says an open thread's reply, at the field's end,
@@ -1147,7 +1147,7 @@ export function createFloatingPanel({
   // reply says nothing new. Rows name attention and drafts, and resolution where no
   // Resolved heading over them says it already.
   const threadStatus = (thread, { headed }) => {
-    const attention = thread.resolved ? null : threadAttention(thread);
+    const attention = thread.resolved ? null : threadAttention(thread, agentName());
     const word = thread.resolved ? !headed && "Resolved" : attention?.label;
     const draft = draftHasContent(replyContext(thread.key)) && "Draft";
     return html`${word ? html`<span data-voice=${attention?.voice ?? "agent"}>${word}</span>` : nothing}${word && draft ? " · " : ""}${draft || nothing}`;
@@ -2473,7 +2473,7 @@ export function createFloatingPanel({
         data-key=${thread.key}
         ?data-unread=${isNews(thread)}
         ?data-resolved=${thread.resolved}
-        ?data-yours=${threadAttention(thread)?.kind === "needs_user"}
+        ?data-yours=${threadAttention(thread, agentName())?.kind === "needs_user"}
         @click=${() => open({ view: "thread", thread: thread.key })}
       >
         <span class="lf-fp-news-mark"
@@ -3014,9 +3014,9 @@ export function createFloatingPanel({
           since: item.todo.running?.ts ?? item.todo.ts,
         }
       : {
-          word: workflowLabel(item.workflow),
+          word: workflowLabel(item.workflow, agentName()),
           voice: workflowVoice(item.workflow),
-          line: workflowStep(item.workflow),
+          line: workflowStep(item.workflow, agentName()),
           since: item.workflow?.ts ?? null,
         };
   // A press on a line opens its card, or folds it; the view keeps its height where the

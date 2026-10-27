@@ -11,9 +11,10 @@
    own sends against the served order. A workflow's word is `workflowLabel`, its last
    step's line `workflowStep`, and its face on a control `progressFace`, on every
    surface; a thread's word is `threadAttention`'s label, which Threads states as its
-   status and the margin and Page Map as its line (`margin-model.js`, `threadMarks`). */
-
-import { agentName } from "../semantic-state.js";
+   status and the margin and Page Map as its line (`margin-model.js`, `threadMarks`).
+   Each word function takes `agent`, what the page calls its agent
+   (`semantic-state.agentName`), from its application-facing caller, so this model
+   stays free of application state. */
 
 // Each stage the agent has the update at, as it would say it (glossary.md,
 // "Reader-facing words"). Before then the agent can say nothing about it, so Leaf
@@ -21,7 +22,7 @@ import { agentName } from "../semantic-state.js";
 // or not the server has logged it yet, since the message drawn in the thread already
 // shows the user's gesture and the page's status says when a send isn't getting
 // through. The user chose this over the agent's "Not seen yet" (2026-10-27).
-const queuedFor = () => `Queued for ${agentName()}`;
+const queuedFor = (agent) => `Queued for ${agent}`;
 const STAGE_LABELS = Object.freeze({
   sending: queuedFor,
   sent: queuedFor,
@@ -40,23 +41,23 @@ const CONDITION_LABELS = Object.freeze({
 });
 
 // An update still waiting past the pickup grace (`activity.PICKUP_GRACE`).
-const waitingForDelivery = () => `Still queued for ${agentName()}`;
+const waitingForDelivery = (agent) => `Still queued for ${agent}`;
 // A failed response's word, on its workflow and on the failure reply that reports it.
 export const NOT_ANSWERED = "Couldn't answer";
 
-export const workflowLabel = (workflow, { answered = false } = {}) => {
+export const workflowLabel = (workflow, agent, { answered = false } = {}) => {
   if (!workflow) return "";
   if (workflow.condition)
     return workflow.condition.kind === "stale" &&
       workflow.condition.operation === "delivery"
-      ? waitingForDelivery()
+      ? waitingForDelivery(agent)
       : workflow.condition.kind === "failed" &&
           workflow.condition.operation === "response"
         ? NOT_ANSWERED
         : (CONDITION_LABELS[workflow.condition.kind] ?? "Failed");
   if (workflow.stage === "answered" && !answered) return "";
   const label = STAGE_LABELS[workflow.stage] ?? "";
-  return typeof label === "function" ? label() : label;
+  return typeof label === "function" ? label(agent) : label;
 };
 
 // Who says a workflow's word: Leaf while the agent doesn't have the update, which a
@@ -64,9 +65,9 @@ export const workflowLabel = (workflow, { answered = false } = {}) => {
 export const workflowVoice = (workflow) =>
   workflow && ["sending", "sent"].includes(workflow.stage) ? "leaf" : "agent";
 
-export const workflowTitle = (workflow) => {
+export const workflowTitle = (workflow, agent) => {
   if (!workflow) return "";
-  const label = workflowLabel(workflow, { answered: true });
+  const label = workflowLabel(workflow, agent, { answered: true });
   return [label, workflow.detail].filter(Boolean).join(" · ");
 };
 
@@ -87,8 +88,9 @@ export const isWorkflowProgress = (workflow) => progressFace(workflow) !== null;
 // What the agent's last step on a workflow says while it is at work on it: the line of
 // the start or progress reply that holds it (`detail`), which the page's status says of
 // the newest it holds. Before it says one, and once the work stalls, the workflow's word.
-export const workflowStep = (workflow) =>
-  (progressFace(workflow) === "working" && workflow.detail) || workflowLabel(workflow);
+export const workflowStep = (workflow, agent) =>
+  (progressFace(workflow) === "working" && workflow.detail) ||
+  workflowLabel(workflow, agent);
 
 export const isPageWidgetWorkflow = (workflow, revision) =>
   workflow.subject.kind === "widget" &&
@@ -121,7 +123,7 @@ export function strongestWorkflow(workflows) {
 // it means for the user's request, which the user chose over "To-do open" (2026-10-27).
 export const todoLabel = (running) => (running ? "On it" : "Still to do");
 
-export function threadAttention(thread) {
+export function threadAttention(thread, agent) {
   if (thread.resolved) return null;
   const workflow = thread.attention?.workflow
     ? (thread.workflows.find(
@@ -153,7 +155,10 @@ export function threadAttention(thread) {
       label: nextMove,
       voice: "agent",
       workflow,
-      secondary: [answering ? "" : workflowLabel(workflow), workflowLabel(secondary)]
+      secondary: [
+        answering ? "" : workflowLabel(workflow, agent),
+        workflowLabel(secondary, agent),
+      ]
         .filter(Boolean)
         .join(" · "),
     });
@@ -175,7 +180,7 @@ export function threadAttention(thread) {
     return Object.freeze({
       kind: "waiting",
       label:
-        workflowLabel(workflow) ||
+        workflowLabel(workflow, agent) ||
         (thread.attention.reason === "uncertain" ? "Uncertain" : "Waiting"),
       voice: workflowVoice(workflow),
       workflow,

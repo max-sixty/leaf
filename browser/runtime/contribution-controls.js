@@ -6,6 +6,7 @@ import { html, render } from "/runtime/framework.js";
 import { iconTemplate } from "./icons.js";
 import { HOLDS_WORD } from "./held-word.js";
 import { progressFace, workflowLabel } from "./thread/workflow.js";
+import { agentName } from "./semantic-state.js";
 import { elementDirective, offer } from "./widget-elements.js";
 import { keeps, keepsText } from "./keeps.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
@@ -258,7 +259,11 @@ function syncContributionAgentWorkflow(control, receipt) {
   Object.assign(
     reading,
     paintedStage
-      ? { stage: paintedStage, word: workflowLabel(receipt), detail: receipt.detail }
+      ? {
+          stage: paintedStage,
+          word: workflowLabel(receipt, agentName()),
+          detail: receipt.detail,
+        }
       : { stage: null, word: null, detail: null },
   );
   paintAgentDescription(control);

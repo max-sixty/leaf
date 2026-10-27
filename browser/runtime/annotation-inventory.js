@@ -12,6 +12,7 @@ import { KINDS } from "./contribution-model.js";
 import { excerptWords, labelWords } from "./words.js";
 import { contributionEntries } from "./contributions.js";
 import { marginInventory, threadMarks } from "./margin-model.js";
+import { agentName } from "./semantic-state.js";
 import { livePoint } from "./pointed-place.js";
 import { ago } from "./presence.js";
 import { runtime } from "./context.js";
@@ -227,7 +228,7 @@ export function createAnnotationInventory({
   // so one reading of a receipt never names a different stage than its text does.
   function agentWorkflowFace(receipt) {
     if (!receipt) return null;
-    const label = workflowLabel(receipt);
+    const label = workflowLabel(receipt, agentName());
     if (!label) return null;
     return {
       kind:
@@ -323,7 +324,7 @@ export function createAnnotationInventory({
           // overlay. Margin and Page Map carry that reading rather than deriving another
           // answer from raw turn or workflow fields. Work decorates the thread control;
           // it never replaces the control's comment face or its disclosure action.
-          ...threadMarks(thread),
+          ...threadMarks(thread, agentName()),
           activate: () => openThread(id),
         },
         pointed,

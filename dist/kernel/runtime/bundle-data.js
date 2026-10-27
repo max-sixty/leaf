@@ -4103,7 +4103,7 @@ var MessageEditor = class {
 
 //#endregion
 //#region runtime/thread/workflow.js
-const queuedFor = () => `Queued for ${agentName()}`;
+const queuedFor = (agent) => `Queued for ${agent}`;
 const STAGE_LABELS = Object.freeze({
 	sending: queuedFor,
 	sent: queuedFor,
@@ -4119,23 +4119,23 @@ const CONDITION_LABELS = Object.freeze({
 	stale: "Gone quiet",
 	failed: "Failed"
 });
-const waitingForDelivery = () => `Still queued for ${agentName()}`;
+const waitingForDelivery = (agent) => `Still queued for ${agent}`;
 const NOT_ANSWERED = "Couldn't answer";
-const workflowLabel = (workflow, { answered = false } = {}) => {
+const workflowLabel = (workflow, agent, { answered = false } = {}) => {
 	if (!workflow) return "";
-	if (workflow.condition) return workflow.condition.kind === "stale" && workflow.condition.operation === "delivery" ? waitingForDelivery() : workflow.condition.kind === "failed" && workflow.condition.operation === "response" ? NOT_ANSWERED : CONDITION_LABELS[workflow.condition.kind] ?? "Failed";
+	if (workflow.condition) return workflow.condition.kind === "stale" && workflow.condition.operation === "delivery" ? waitingForDelivery(agent) : workflow.condition.kind === "failed" && workflow.condition.operation === "response" ? NOT_ANSWERED : CONDITION_LABELS[workflow.condition.kind] ?? "Failed";
 	if (workflow.stage === "answered" && !answered) return "";
 	const label = STAGE_LABELS[workflow.stage] ?? "";
-	return typeof label === "function" ? label() : label;
+	return typeof label === "function" ? label(agent) : label;
 };
 const workflowVoice = (workflow) => workflow && ["sending", "sent"].includes(workflow.stage) ? "leaf" : "agent";
-const workflowTitle = (workflow) => {
+const workflowTitle = (workflow, agent) => {
 	if (!workflow) return "";
-	return [workflowLabel(workflow, { answered: true }), workflow.detail].filter(Boolean).join(" · ");
+	return [workflowLabel(workflow, agent, { answered: true }), workflow.detail].filter(Boolean).join(" · ");
 };
 const progressFace = (workflow) => !workflow || workflow.condition ? null : workflow.stage === "picked_up" ? "picked_up" : ["working", "replying"].includes(workflow.stage) ? "working" : null;
 const isWorkflowProgress = (workflow) => progressFace(workflow) !== null;
-const workflowStep = (workflow) => progressFace(workflow) === "working" && workflow.detail || workflowLabel(workflow);
+const workflowStep = (workflow, agent) => progressFace(workflow) === "working" && workflow.detail || workflowLabel(workflow, agent);
 const isPageWidgetWorkflow = (workflow, revision) => workflow.subject.kind === "widget" && workflow.thread === null && workflow.revision <= revision;
 const handedBack = (workflow) => workflow.stage === "answered" || workflow.stage === "sending" && workflow.condition?.kind === "failed";
 const tier = (workflow) => (handedBack(workflow) ? 0 : 2) + Number(workflow.stage === "sending");
@@ -4145,7 +4145,7 @@ function strongestWorkflow(workflows) {
 	return strongest;
 }
 const todoLabel = (running) => running ? "On it" : "Still to do";
-function threadAttention(thread) {
+function threadAttention(thread, agent) {
 	if (thread.resolved) return null;
 	const workflow = thread.attention?.workflow ? thread.workflows.find((candidate) => candidate.id === thread.attention.workflow) ?? null : null;
 	if (thread.attention?.kind === "needs_user") {
@@ -4158,7 +4158,7 @@ function threadAttention(thread) {
 			label: nextMove,
 			voice: "agent",
 			workflow,
-			secondary: [answering ? "" : workflowLabel(workflow), workflowLabel(secondary)].filter(Boolean).join(" · ")
+			secondary: [answering ? "" : workflowLabel(workflow, agent), workflowLabel(secondary, agent)].filter(Boolean).join(" · ")
 		});
 	}
 	if (thread.attention?.kind === "waiting" && thread.attention.reason === "todo") {
@@ -4173,7 +4173,7 @@ function threadAttention(thread) {
 	}
 	if (thread.attention?.kind === "waiting") return Object.freeze({
 		kind: "waiting",
-		label: workflowLabel(workflow) || (thread.attention.reason === "uncertain" ? "Uncertain" : "Waiting"),
+		label: workflowLabel(workflow, agent) || (thread.attention.reason === "uncertain" ? "Uncertain" : "Waiting"),
 		voice: workflowVoice(workflow),
 		workflow,
 		secondary: ""
@@ -4465,8 +4465,8 @@ function messageReading(message, { authoredRank = 0, reactions, workflows, leave
 		pending: workflow?.stage === "sending",
 		base: message.content_version,
 		workflow,
-		workflowLabel: workflowLabel(workflow),
-		workflowTitle: workflowTitle(workflow),
+		workflowLabel: workflowLabel(workflow, agentName()),
+		workflowTitle: workflowTitle(workflow, agentName()),
 		workflowVoice: workflowVoice(workflow),
 		body: Object.freeze({
 			kind,
@@ -6643,7 +6643,7 @@ function workingMessage(thread, attention, messages) {
 		stopped.detail,
 		stopped.detail_seq,
 		false,
-		workflowLabel(stopped),
+		workflowLabel(stopped, agentName()),
 		stopped.agent
 	] : [
 		said,
@@ -6692,7 +6692,7 @@ function threadReading(thread, surface, commands) {
 	const kind = resolved ? "unresolve" : "resolve";
 	const word = resolved ? "Reopen" : "Resolve";
 	const label = resolved ? word : "Resolve thread";
-	const attention = threadAttention(thread);
+	const attention = threadAttention(thread, agentName());
 	const asking = new Set(thread.obligations.filter((item) => item.next_actor === "user" && answeredInWords(item)).map((item) => item.message));
 	const openTodos = new Set(thread.todos.map(({ id }) => id));
 	const leaves = (message) => asking.has(message.id) ? "Waiting on me" : message.todo && openTodos.has(message.id) ? todoLabel(null) : null;

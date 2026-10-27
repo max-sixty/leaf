@@ -5160,7 +5160,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		};
 	}
 	function turnWords(thread) {
-		const attention = threadAttention(thread);
+		const attention = threadAttention(thread, agentName());
 		return attention ? `Reply · ${attention.label}` : "Reply";
 	}
 	function passingAside(key, input) {
@@ -5315,7 +5315,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		return queues.phase === "ready" ? queues.on_user.length : 0;
 	};
 	const threadStatus = (thread, { headed }) => {
-		const attention = thread.resolved ? null : threadAttention(thread);
+		const attention = thread.resolved ? null : threadAttention(thread, agentName());
 		const word = thread.resolved ? !headed && "Resolved" : attention?.label;
 		const draft = draftHasContent(replyContext(thread.key)) && "Draft";
 		return html`${word ? html`<span data-voice=${attention?.voice ?? "agent"}>${word}</span>` : nothing}${word && draft ? " · " : ""}${draft || nothing}`;
@@ -6157,7 +6157,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
         data-key=${thread.key}
         ?data-unread=${isNews(thread)}
         ?data-resolved=${thread.resolved}
-        ?data-yours=${threadAttention(thread)?.kind === "needs_user"}
+        ?data-yours=${threadAttention(thread, agentName())?.kind === "needs_user"}
         @click=${() => open({
 			view: "thread",
 			thread: thread.key
@@ -6470,9 +6470,9 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		line: item.todo.running?.text ?? "",
 		since: item.todo.running?.ts ?? item.todo.ts
 	} : {
-		word: workflowLabel(item.workflow),
+		word: workflowLabel(item.workflow, agentName()),
 		voice: workflowVoice(item.workflow),
-		line: workflowStep(item.workflow),
+		line: workflowStep(item.workflow, agentName()),
 		since: item.workflow?.ts ?? null
 	};
 	let fitting = false;

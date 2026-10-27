@@ -250,7 +250,7 @@ test("a thread's margin entry and Page Map row say the word Threads gives it", (
     },
   ];
   const said = (held) => {
-    const item = marker("thread", "comment", threadMarks(held));
+    const item = marker("thread", "comment", threadMarks(held, "Claude"));
     const [row] = map([inventory({ items: [item] })])[0].actions;
     return [readingContext({ items: [item] }), row.context];
   };
@@ -268,7 +268,7 @@ test("a thread's margin entry and Page Map row say the word Threads gives it", (
     { kind: "waiting", reason: "workflow", workflow: "w" },
     { workflows: [working], unread: 2 },
   );
-  assert.equal(threadMarks(busy).workflowReceipt, working);
+  assert.equal(threadMarks(busy, "Claude").workflowReceipt, working);
   assert.deepEqual(said(busy), ["2 unread", "2 unread"]);
   // A failed response paints no progress, so the line says Threads' word for it.
   const failed = Object.freeze({
@@ -289,7 +289,7 @@ test("a thread's margin entry and Page Map row say the word Threads gives it", (
     { kind: "needs_user", reason: "obligation", workflow: null },
     { unread: 1 },
   );
-  assert.deepEqual(threadMarks(onUser).userAttention, {
+  assert.deepEqual(threadMarks(onUser, "Claude").userAttention, {
     label: "Your turn",
     reason: "obligation",
   });

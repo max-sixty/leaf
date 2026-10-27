@@ -59,7 +59,7 @@ import { ReactionStripView } from "./reaction-strips.js";
 import { iconTemplate } from "../icons.js";
 import { keeps } from "../keeps.js";
 import { flashDuration, motion } from "../motion.js";
-import { pageClaimed } from "../semantic-state.js";
+import { agentName, pageClaimed } from "../semantic-state.js";
 
 export const loadMessageMarkdown = () =>
   loadMarkdown((error) => reportPageError(error, `markdown renderer failed to load`));
@@ -299,8 +299,8 @@ export function messageReading(
     // content version.
     base: message.content_version,
     workflow,
-    workflowLabel: workflowLabel(workflow),
-    workflowTitle: workflowTitle(workflow),
+    workflowLabel: workflowLabel(workflow, agentName()),
+    workflowTitle: workflowTitle(workflow, agentName()),
     workflowVoice: workflowVoice(workflow),
     body: Object.freeze({
       kind,

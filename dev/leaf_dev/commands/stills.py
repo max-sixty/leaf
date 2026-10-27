@@ -1266,6 +1266,11 @@ def steps_in_view(page: Page) -> None:
     page.locator("#security-contract-list").scroll_into_view_if_needed()
 
 
+def disclosures_in_view(page: Page) -> None:
+    """Two closed disclosures written one after the other at the page's end."""
+    page.locator("#security-source-disclosure").scroll_into_view_if_needed()
+
+
 def security_flow(page: Page) -> None:
     """The case study's five-step flow diagram, every step in view."""
     page.locator("#security-before-flow").scroll_into_view_if_needed()
@@ -2370,6 +2375,7 @@ STATES = (
         steps_in_view,
         region="#security-contract-list",
     ),
+    State("stacked-disclosures", "security-boundary", disclosures_in_view),
     # The case study's five-step flow, drawn top-down so a phone shows every step.
     State(
         "security-flow",

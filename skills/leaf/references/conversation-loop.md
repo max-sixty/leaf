@@ -262,7 +262,6 @@ leaf task end <page> message:<message> done --text "<where the answer is>"
 leaf task end <page> message:<message> dropped --text "<why>"
 ```
 
-For a reply-answered widget, use its `widget:<widget-id>` obligation id instead.
 An obligation answered through a widget's controls ends through its state or an
 authored withdrawal (`authoring-revisions.md`). Explicit user to-dos also end with
 `leaf task end` when the work is complete, failed or dropped.

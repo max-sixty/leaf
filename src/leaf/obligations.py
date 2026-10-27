@@ -77,7 +77,7 @@ def encloses(entry: dict) -> bool:
 
 
 def settle_by_words(record: dict, answer: dict | None, ending: dict | None) -> None:
-    """Settle a reply-answered obligation from the user's message that answers it and the
+    """Settle a message obligation from the user's message that answers it and the
     agent's `todo_end` on its id, whichever came first. An end records no answer,
     since the user's words are not in the log; a message after an end reopens
     nothing, as the end already retired it."""
@@ -898,22 +898,16 @@ class _ObligationReducer:
                 if self.local[id(record)]
                 else "withdrawn"
             )
-            # A reply-answered obligation has no state; its reading settles it from the
-            # conversation (`settle_by_words`).
-            value_verb = entry["x-awaits"].get("value")
-            value, has_content = (
-                obligation_value(
-                    unit,
-                    value_verb,
-                    entry["x-state"][value_verb],
-                    self.byid,
-                    self.spk,
-                    self.registry,
-                    self.projection,
-                    answered=answered,
-                )
-                if value_verb
-                else (None, False)
+            value_verb = entry["x-awaits"]["value"]
+            value, has_content = obligation_value(
+                unit,
+                value_verb,
+                entry["x-state"][value_verb],
+                self.byid,
+                self.spk,
+                self.registry,
+                self.projection,
+                answered=answered,
             )
             latest_value_seq = max(
                 (

@@ -15,8 +15,8 @@
 # every draft asked questions with context, named options by result and held a
 # capture of each result: 3/3 at 3b9cdcaf3 (the guidance the source had read) and
 # 9/9 at f9b8a7158 and with the brief paragraph (one picture per option in every
-# decision; a sample of the changed captures checked by eye, since
-# the picture judge failed on a Codex CLI newer than the pinned SDK). The source
+# decision), and 2/2 on every metric at ae78efbc1, the first commit whose picture
+# judge ran on this host's Codex CLI. The source
 # failed hours into its session, assembling records by script; the cause this
 # case's variants reproduce is upstream, in the brief.
 description: audit-calls-are-proposals

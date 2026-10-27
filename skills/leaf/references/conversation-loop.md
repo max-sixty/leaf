@@ -148,7 +148,7 @@ finding: the question the finding raises, each option titled by the result the u
 would get for that finding (not a kind of change shared by every finding, such as
 Remove), and each result shown as the user would meet it, such as a capture of the
 interface with the change applied beside today's, or a request the service would
-then refuse (`authoring-decisions.md`).
+then refuse (`authoring-on-me.md`, "What a question holds").
 
 A start lasts only for the turn that wrote it.
 Within a long turn a start goes stale after about 15 minutes. The status shows the item you started last, so

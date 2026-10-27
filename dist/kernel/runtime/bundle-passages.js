@@ -1,7 +1,6 @@
 import { renderedParent, shadowHost, under, upFrom } from "./bundle-dom-move.js";
 import { PAGE_PAINT_ATTRIBUTE, pageUpgraded, reportPageError } from "./bundle-layer-client.js";
-import { SAID, UI_MARKS, decisionFor, declaredRoot, hostIn, inUi, overIn, pageShadowRoots, refuseShadowRoot, registry, shadowRootsIn, uiInside } from "./bundle-geometry.js";
-import { COLLAPSE, TEXT_BLOCK, readPart } from "./bundle-context.js";
+import { COLLAPSE, SAID, TEXT_BLOCK, UI_MARKS, decisionFor, declaredRoot, hostIn, inUi, overIn, pageShadowRoots, readPart, refuseShadowRoot, registry, shadowRootsIn, uiInside } from "./bundle-geometry.js";
 import { diffArrays } from "/vendor/jsdiff.esm.js";
 
 //#region runtime/text-alignment.js

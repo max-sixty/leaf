@@ -2391,16 +2391,19 @@ def test_the_sample_gutter_is_painted_in_both_schemes(browser, serve):
 
 
 def test_a_sample_holds_a_wide_exhibit_inside_the_column(browser, serve):
-    """An exhibit wider than the column scrolls inside its own box, as it does
-    anywhere else on the page. What makes that true here is one declaration —
-    a table sizes to its content, so without `table-layout: fixed` the sample
-    grows to the board's width and hands the document a sideways scrollbar, taking
-    the comment layer's anchoring off screen with it.
+    """A wide exhibit scrolls inside the sample rather than widening the page.
 
-    Read at a viewport narrow enough for the board to want more room than the
-    column has; at the render gate's 1280px desktop the board fits and nothing here
-    can fail."""
-    page = open_page(browser, serve(SAMPLE_PAGE))
+    Give the exhibit an explicit intrinsic width: a responsive widget may stack
+    its contents on a phone and no longer exercise the sample's containment.
+    """
+    source = leaf_page(
+        "wide sample",
+        '<h1>A wide exhibit</h1><lf-sample id="spec" label="wide content">'
+        '<div id="wide-exhibit" style="overflow-x: auto">'
+        '<div style="width: 600px">An exhibit wider than the page column.</div>'
+        "</div></lf-sample>",
+    )
+    page = open_page(browser, serve(source))
     page.evaluate(
         """() => document.addEventListener('lf-margin-layout', () => {
           window.lfMarginLayoutWidth = innerWidth;
@@ -2411,11 +2414,11 @@ def test_a_sample_holds_a_wide_exhibit_inside_the_column(browser, serve):
     wide = page.evaluate(
         "() => [document.documentElement.clientWidth,"
         " Math.round(document.getElementById('spec').getBoundingClientRect().width),"
-        " document.getElementById('quoted-board').scrollWidth]"
+        " document.getElementById('wide-exhibit').scrollWidth]"
     )
-    column, sample, board = wide
-    assert board > column, (
-        f"the board is {board}px in a {column}px column: it has to want more room "
+    column, sample, exhibit = wide
+    assert exhibit > column, (
+        f"the exhibit is {exhibit}px in a {column}px column: it has to want more room "
         f"than the column has, or nothing below is being tested"
     )
     assert sample <= column, f"the sample is {sample}px in a {column}px column"

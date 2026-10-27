@@ -2980,17 +2980,6 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
 :scope:is(lf-code) :is(.lf-code-line, .lf-code-elided).hi::before {
   border-right-color: var(--warn);
 }
-:scope:is(lf-code) :is(.lf-code-line, .lf-code-elided)[data-lf-indicated] {
-  outline: none;
-}
-:scope:is(lf-code) :is(.lf-code-line, .lf-code-elided)[data-lf-indicated]:not(.hi) {
-  background: var(--accent-tint);
-}
-:scope:is(lf-code) :is(.lf-code-line, .lf-code-elided)[data-lf-indicated]::before {
-  box-shadow: inset 3px 0 0 var(--accent);
-  color: var(--accent);
-  font-weight: 600;
-}
 :scope:is(lf-code) lf-note {
   display: block;
 }

@@ -29,6 +29,7 @@ from render_cases_interaction import (
 )
 from render_cases_layout import solid_png
 from render_harness import (
+    EDITOR_ROOTS,
     LONG_PAGE,
     consume_browser_errors,
     holding,
@@ -71,18 +72,6 @@ OBLIGATION_PAGE = leaf_page(
   <lf-option id="slow"><strong>The slow queue</strong> Its own.</lf-option>
 </lf-options></lf-ask>""",
 )
-
-
-# Each field's closed shadow root, so a test can read inside it.
-EDITOR_ROOTS = """
-  window.editorRoots = new Map();
-  const attach = Element.prototype.attachShadow;
-  Element.prototype.attachShadow = function(options) {
-    const root = attach.call(this, options);
-    if (this.localName === 'leaf-text') window.editorRoots.set(this, root);
-    return root;
-  };
-"""
 
 
 def floating(browser, url):
@@ -398,9 +387,9 @@ def test_a_thread_s_keys_answer_in_its_view(browser, serve):
     expect(message).to_be_focused()
     page.keyboard.press("e")
     strip = thread.locator(".lf-msg.agent > .lf-react-strip")
-    expect(strip).to_contain_class("lf-react-open")
+    expect(strip.locator(".lf-react-palette:popover-open")).to_have_count(1)
     page.keyboard.press("Escape")
-    expect(strip).not_to_contain_class("lf-react-open")
+    expect(strip.locator(".lf-react-palette:popover-open")).to_have_count(0)
     message.click()
     with sending(page, "the resolve from a message"):
         page.keyboard.press("r")
@@ -703,7 +692,7 @@ def test_on_shows_an_obligation_as_its_message_and_reply_comes_back(browser, ser
         "Which build should ship? These are the candidates:\n\n- #4813 schedule\n"
         "- #4812 manual",
         author="agent",
-        question="Which build should ship?",
+        obligation=True,
     )
     page = floating(browser, url)
     page.locator(".lf-fp-on-user").click()
@@ -1384,7 +1373,9 @@ def test_threads_search_reads_rendered_messages_and_summaries(browser, serve):
         serve.page_dir,
         {"responds": root},
         "The **room** photo.",
-        '<lf-ask id="crop">Should I reshoot it wider?</lf-ask>',
+        '<lf-ask id="crop"><h3>Should I reshoot it wider?</h3>'
+        '<lf-options id="crop-pick" choose><lf-option id="crop-wider">Wider</lf-option>'
+        '<lf-option id="crop-same">As it is</lf-option></lf-options></lf-ask>',
     )
     summarize_thread(serve.page_dir, root, reply["id"], "A **wider** view would help.")
     page = floating(browser, url)
@@ -1397,7 +1388,7 @@ def test_threads_search_reads_rendered_messages_and_summaries(browser, serve):
     rows.click()
     view = page.locator(panel_view("thread"))
     expect(view.locator(".lf-summary-text")).to_have_text("A wider view would help.")
-    expect(view.locator("#crop")).to_have_text("Should I reshoot it wider?")
+    expect(view.locator("#crop h3")).to_have_text("Should I reshoot it wider?")
 
 
 def test_keys_in_threads_act_on_threads(browser, serve):
@@ -2573,12 +2564,9 @@ def test_the_empty_field_says_the_agent_s_status_until_the_caret_is_in(browser, 
     placeholder to where the words go; words in the field need no additional line. It never names who reads them, since every word here goes
     to the one agent."""
     url = serve(LONG_PAGE)
-    # No session holds the page, so it names its agent by the voice that started the
-    # work, the suite's Claude Code session (`presence.page_agent`).
     working(serve.page_dir, "Drafting the rollout")
-    agent = "Claude"
     page = open_page(browser, url, init_script=EDITOR_ROOTS)
-    status = re.compile(rf"^{agent} working\b.* — Drafting the rollout")
+    status = re.compile(r"Drafting the rollout")
     expect(field(page)).to_have_attribute("placeholder", status)
     # The sheen runs on the field's placeholder part, inside the field's closed tree,
     # where no animation list reaches: a moving mask dims the words, and the field reads
@@ -2601,9 +2589,18 @@ def test_the_empty_field_says_the_agent_s_status_until_the_caret_is_in(browser, 
 
     sheen(True)
     box = page.locator(".lf-fp-field").bounding_box()
+    animation = field(page).evaluate_handle("""node => window.editorRoots.get(node)
+      .querySelector('[part~="placeholder"]').getAnimations()
+      .find(animation => animation.animationName === 'lf-sheen')""")
+    assert animation.evaluate("animation => animation?.playState") == "running"
+    # The highlight spends part of each sweep beyond this short line. Compare known
+    # phases so two captures cannot both land on that unchanged part of the sweep.
+    animation.evaluate("animation => { animation.pause(); animation.currentTime = 0; }")
     first = page.screenshot(clip=box)
-    page.wait_for_timeout(400)
+    animation.evaluate("animation => animation.currentTime = 1000")
     assert page.screenshot(clip=box) != first, "the working status stands still"
+    animation.evaluate("animation => animation.play()")
+    animation.dispose()
     # Still under reduced motion, in a face well short of the ink words are written in.
     page.emulate_media(reduced_motion="reduce")
     sheen(False)
@@ -2998,7 +2995,7 @@ def test_the_leaf_travels_with_its_fold_and_reverses_from_where_it_stands(
     settled(page)
     # The panel's surface must expose its measured box before the first motion;
     # an opaque motion root leaves the ground clipped away behind the controls.
-    expect(page.locator(".lf-fp-ground > .lf-fp-fill").first).not_to_have_css(
+    expect(page.locator(".lf-fp-ground > .lf-box-fill").first).not_to_have_css(
         "clip-path", "inset(50%)"
     )
     page.evaluate("() => {" + HOLD_MOTION + "}")
@@ -3139,7 +3136,7 @@ def test_the_folded_leaf_keeps_its_badge_and_face_through_motion(browser, serve)
 
     def shape():
         return page.evaluate("""() => {
-          const fill = document.querySelector('.lf-fp-ground > .lf-fp-fill');
+          const fill = document.querySelector('.lf-fp-ground > .lf-box-fill');
           const room = fill.getBoundingClientRect();
           const sides = getComputedStyle(fill).clipPath.match(/[-\\d.]+px/g).map(parseFloat);
           const surface = {left: room.left + sides[3], top: room.top + sides[0],
@@ -4403,7 +4400,7 @@ def test_a_thread_the_page_draws_nowhere_opens_in_the_panel(browser, serve):
         "Should the rollout pause on Fridays?",
         anchor={"section": "p3", "quote": "Paragraph 3."},
         author="agent",
-        question="Pause on Fridays?",
+        obligation=True,
     )
     page = floating(browser, url)
     reader = page.locator(panel_view("thread"))
@@ -4562,16 +4559,28 @@ def test_a_thread_s_words_start_on_its_head_s_edge(browser, serve):
     far as that rule, so its words keep the message's and its frame stays clear of the
     panel's edge."""
     url = serve(PAGE_ANNOTATED)
-    panel_comment(
+    root = panel_comment(
         serve.page_dir,
         "Is the window long enough?",
         anchor={"section": "p3", "quote": "Paragraph 3."},
+    )
+    # Untitled threads hide the repeated heading; measure an actual thread title.
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "thread_title",
+            "author": "agent",
+            "agent": "Claude",
+            "thread": root,
+            "title": "Window length",
+        },
     )
     page = floating(browser, url)
     page.locator("body").focus()
     page.keyboard.press("t")
     view = page.locator(panel_view("thread"))
     expect(view.locator(".lf-msg")).to_contain_text("Is the window long enough?")
+    expect(page.locator(".lf-fp-head .lf-fp-title")).to_be_visible()
     settled(page)
     starts = """() => {
       const edge = document.querySelector('.lf-fp-card').getBoundingClientRect().left;
@@ -4831,7 +4840,7 @@ def test_a_line_the_field_grows_rides_the_box_s_top_edge(browser, serve):
     gaps = r"""() => {
       const top = Number.parseFloat(
         /inset\(([-\d.]+)px/.exec(
-          getComputedStyle(document.querySelector('.lf-fp-ground > .lf-fp-fill')).clipPath,
+          getComputedStyle(document.querySelector('.lf-fp-ground > .lf-box-fill')).clipPath,
         )[1],
       );
       return Math.round(document.querySelector('.lf-fp-box .lf-composer-media-item')
@@ -4865,7 +4874,7 @@ def test_a_line_the_field_grows_rides_the_box_s_top_edge(browser, serve):
 BELOW_THE_EDGE = r"""() => {
   const ground = document.querySelector('.lf-fp-ground');
   const cut = /inset\(([-\d.]+)px/.exec(
-    getComputedStyle(ground.querySelector('.lf-fp-fill')).clipPath,
+    getComputedStyle(ground.querySelector('.lf-box-fill')).clipPath,
   )[1];
   const edge = ground.getBoundingClientRect().top + Number.parseFloat(cut);
   const host = document.querySelector('.lf-fp-field leaf-text');
@@ -4880,7 +4889,11 @@ BELOW_THE_EDGE = r"""() => {
 # Held motion: each motion the panel starts is held at its first frame (`HOLD_MOTION`)
 # once the fixture is set up, so a reading of a frame doesn't depend on how fast the
 # page runs.
-SEEK_HELD = "at => __lfHeld.forEach(motion => { motion.currentTime = at; })"
+# A motion a later reading cancelled stays cancelled.
+SEEK_HELD = (
+    "at => __lfHeld.filter(motion => motion.playState !== 'idle')"
+    ".forEach(motion => { motion.currentTime = at; })"
+)
 
 
 def held_motion(page, part=".lf-fp-ground"):

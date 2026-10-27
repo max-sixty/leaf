@@ -930,15 +930,20 @@ def test_obligation_action_binding_badges_use_the_available_card_action_seats(
         assert obligation_point["x"] == pytest.approx(focused_point["x"], abs=0.5)
         assert obligation_point["y"] == pytest.approx(focused_point["y"], abs=0.5)
 
-    # The Add press must enter the tab order in the input event itself. A paint on
-    # the next frame can come after the next Tab and send focus to the next obligation.
-    page.evaluate("""() => document.addEventListener('input', () => {
-      window.__addEmptyAtInput = document.querySelector(
-        '#live-question .lf-compose-submit').hasAttribute('data-lf-empty');
-    }, {once: true})""")
+    # Add must be ready before the next frame and the next keyboard gesture.
+    # Lit may commit in a microtask after the input event has finished bubbling.
+    page.evaluate("""() => {
+      window.__addEmptyBeforeFrame = new Promise(resolve => {
+        document.addEventListener('input', () => requestAnimationFrame(() => {
+          resolve(document.querySelector(
+            '#live-question .lf-compose-submit').hasAttribute('data-lf-empty'));
+        }), {once: true});
+      });
+    }""")
     write(addition.get_by_role("textbox", name="Another option"), "A fourth option")
-    assert page.evaluate("window.__addEmptyAtInput") is False
     page.keyboard.press("Tab")
+    expect(submit).to_be_focused()
+    assert page.evaluate("window.__addEmptyBeforeFrame") is False
     binding_badge = addition.locator("> .lf-key-badge[data-lf-binding-badge]")
     expect(binding_badge).to_be_visible()
     expect(submit).to_be_visible()
@@ -1137,7 +1142,7 @@ def test_an_obligation_that_cannot_name_itself_arrives_on_the_words_that_explain
 ):
     """A change to a phrase has no region to declare, so the document supplies one.
 
-    An enclosing widget (`x-awaits.encloses`) states its own arrival region: a heading, the
+    An enclosing widget (`x-encloses`) states its own arrival region: a heading, the
     context, then the control. A suggestion can stand mid-sentence, so it can never satisfy "an obligation must
     name itself without context outside the obligation" and no region can be written round it.
     Arriving on the change alone put its own top edge at the window's head and took the

@@ -174,9 +174,12 @@ describe("published runtime bundle", () => {
       expect(kernel).toContain('from"/vendor/lit.js"');
       expect(kernel).not.toContain("litHtmlVersions");
       expect(kernel).not.toContain("/vendor/signals-core.js");
+      // A widget's runtime imports are compiled chunks, never the public module URL.
+      // The compiled widget-api.js entry can be one of them, holding modules the
+      // compiler merged into it.
       expect(
         await readFile(join(output, "widgets", "lf-suggestion.js"), "utf8"),
-      ).not.toContain("/runtime/widget-api.js");
+      ).not.toMatch(/"(?:\/published\/layer)?\/runtime\//);
     } finally {
       // Keep the build inputs until the operation finishes, even if the test times out.
       await rm(directory, { recursive: true });

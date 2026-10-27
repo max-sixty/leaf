@@ -179,6 +179,22 @@ REFERENCE_SCHEMA = {
 }
 
 
+# A custom detail carries exactly the keys its declaration spells. Field meanings
+# such as `resolves` read those declarations, so patternProperties and combinators
+# cannot admit unnamed keys. `registry.schema.check_schema` validates the nested
+# schemas and the standard keywords left unrestricted here.
+_VERB_DETAIL_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "type": {"const": "object"},
+        "properties": {},
+        "required": {},
+        "additionalProperties": {"const": False},
+    },
+    "required": ["type", "additionalProperties"],
+    "additionalProperties": False,
+}
+
 # Each verb declares its coordinate and a recorded effect or custom detail schema.
 # `writer: "agent"` makes it a report through `leaf page report`; otherwise the
 # user writes it. The writers differ in what their state may be, not its shape. The
@@ -187,7 +203,7 @@ REFERENCE_SCHEMA = {
 VERB_SCHEMA = {
     "type": "object",
     "properties": {
-        "detail": {"type": "object"},
+        "detail": _VERB_DETAIL_SCHEMA,
         "unit": {"type": "string", "minLength": 1},
         "record": {
             "oneOf": [
@@ -252,10 +268,7 @@ STATE_SCHEMA = {
     "propertyNames": {"pattern": f"^{HTML_NAME}$"},
     "additionalProperties": VERB_SCHEMA,
 }
-# A widget's obligation is answered either by its own state (`value` and `answered`) or, with
-# `reply`, by the user's words about it, which it has no state to hold. `encloses`
-# makes a widget the frame of the obligations inside it, asking nothing itself while it holds
-# another that can ask.
+# A widget's obligation is answered by its own state (`value` and `answered`).
 AWAITS_SCHEMA = {
     "type": "object",
     "properties": {
@@ -274,20 +287,8 @@ AWAITS_SCHEMA = {
         "all": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "retired": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "key": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-        "reply": {"const": True},
-        "encloses": {"const": True},
     },
-    "if": {"required": ["reply"]},
-    "then": {
-        "properties": {
-            "value": False,
-            "answered": False,
-            "all": False,
-            "records": False,
-            "key": False,
-        },
-    },
-    "else": {"required": ["value", "answered"]},
+    "required": ["value", "answered"],
     "additionalProperties": False,
 }
 # Package and data-contract instructions address their declared audiences. Widget
@@ -381,6 +382,7 @@ EXTENSION_SCHEMA = {
         },
         "x-instructions": {"type": "string", "pattern": r"\S"},
         "x-inline": {"type": "boolean"},
+        "x-encloses": {"const": True},
         "x-language": _ATTRIBUTE_NAME,
         "x-reading-role": {"enum": ["pane"]},
         "x-margin-content": {"enum": ["map"]},
@@ -505,6 +507,18 @@ EXTENSION_SCHEMA = {
             "x-upgrade": {"const": True},
         }
     },
+    "additionalProperties": False,
+}
+# Selector idioms share author-facing extension fields with widgets, but cannot
+# declare widget behavior or marks (`revision_delivery.mark_declared`).
+IDIOM_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "description": {"type": "string", "pattern": r"\S"},
+        "x-example": {**EXTENSION_SCHEMA["properties"]["x-example"], "pattern": r"\S"},
+        "x-instructions": EXTENSION_SCHEMA["properties"]["x-instructions"],
+    },
+    "required": ["description", "x-example"],
     "additionalProperties": False,
 }
 _NONEMPTY = {"type": "string", "minLength": 1}
@@ -640,7 +654,6 @@ VENDORED_FILES = ("theme.css", "shadow.css", "registry.json", "icon.svg")
 PACKAGE_STYLES = (
     "widget-shadow.css",
     "widgets.css",
-    "theme-shadow.css",
     "theme.css",
     "controls.css",
 )

@@ -1,7 +1,7 @@
 # Committed bundles
 
 This directory builds every browser file Leaf commits but doesn't write by hand: the
-third-party bundles and the runtime's table of their grammars, the stylesheets and
+third-party bundles and stylesheets, the runtime's table of the bundles' grammars and
 the kernel in `dist/kernel/`. Installation, page init
 and export use the committed files and never run a compiler, and package authors write
 native JavaScript with no build.

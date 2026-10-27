@@ -1,4 +1,4 @@
-import { DELIVERY, runtime } from "./bundle-context.js";
+import { DELIVERY, runtime } from "./bundle-geometry.js";
 
 //#region runtime/color-scheme.js
 const darkPreference = matchMedia("(prefers-color-scheme: dark)");

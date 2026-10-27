@@ -123,9 +123,7 @@ const nounOf = (item, stop) =>
 // handed back is arrived at on the widget it was made on and the agent's to-do at its
 // element or the page's head.
 const stopOf = (item) =>
-  carriesObligation(item) &&
-  (item.thread === null ||
-    (item.kind === "widget" && !answeredInWords(item.obligation)))
+  carriesObligation(item) && (item.thread === null || item.kind === "widget")
     ? {
         kind: "obligation",
         id: item.id,

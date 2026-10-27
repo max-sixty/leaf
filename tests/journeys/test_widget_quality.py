@@ -104,15 +104,15 @@ def test_package_check_render_reports_findings_as_advice(tmp_path, headless_shel
     # An element the theme does not style is inline, whose box a padding would not
     # grow the way a block's grows.
     (package / "widgets.css").write_text(
-        ":scope:is(lf-grow, lf-holder, lf-fixed) { display: block; }\n"
-        ":scope:is(lf-fixed) { height: 100px; }\n"
-        ":scope:is(lf-pinned, lf-declared, lf-sideways) { display: block; "
+        ":is(lf-grow, lf-holder, lf-fixed) { display: block; }\n"
+        "lf-fixed { height: 100px; }\n"
+        ":is(lf-pinned, lf-declared, lf-sideways) { display: block; "
         "block-size: 100px; }\n"
-        ":scope:is(lf-pinned) { overflow: auto; }\n"
-        ":scope:is(lf-declared) { overflow: auto; --lf-holds-height: 1; }\n"
-        ":scope:is(lf-sideways) { overflow-x: auto; }\n"
-        ":scope:is(lf-roomy) { display: flex; min-block-size: 100px; overflow: auto; }\n"
-        ":scope:is(lf-shallow) { display: block; block-size: 10px; overflow-x: auto; }\n"
+        "lf-pinned { overflow: auto; }\n"
+        "lf-declared { overflow: auto; --lf-holds-height: 1; }\n"
+        "lf-sideways { overflow-x: auto; }\n"
+        "lf-roomy { display: flex; min-block-size: 100px; overflow: auto; }\n"
+        "lf-shallow { display: block; block-size: 10px; overflow-x: auto; }\n"
     )
     registry_path = package / "registry.json"
     registry = json.loads(registry_path.read_text())

@@ -1,21 +1,12 @@
-import { bindQueuedWork, observeQueuedWork } from "./bundle-signals-core.js";
-import { WORKS, frameVisibility, onCurrentLocation, onFrameVisibility, readSampleVisibility, releaseFocus, renderedParent, renderingState, tabStops, takesLetters, upFrom } from "./bundle-dom-move.js";
-import { exceptionText, recordInteraction, runtimeRootState } from "./bundle-layer-client.js";
-import { annotationMarkSheets, annotationSheets, chromeSharedClasses, chromeSheet, growthAfterIsSeen, landingBand, marksSheet, nativeLayers, scrollGlides, seenRect, shownBand, shownBox, shownParts, shownRect, skipped, stackLevel, stuckBox, uiInside, userScrollport, visibleBand, watchScrollEnds } from "./bundle-geometry.js";
-import { TEXT_BLOCK, applicationPresented, createPresentationSchedule, presentDocument, readApplication, readApplicationPresentation, selectWidgets, threadCounts, watchSemantic, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented } from "./bundle-context.js";
-import { allBindings, commandDeclarationsWithin, commandEntries, commandPresentations, commandRoutes, dragHeld, live, reveal } from "./bundle-errors.js";
-import { effectiveScroller, reachScrollers, readingRegion, readingRegionFor, readingRegions, releaseReachStop, scrollersOf, shownRegionBounds, unconcealedReadingRegions, userReadingRegion } from "./bundle-reading-regions.js";
-import { registerSampleCommand } from "./bundle-sample-child.js";
-import { availableCommandRoutes, executeCommand, observeOutputs, selfComparison, servedElements, shallowSigs, stack } from "./bundle-data.js";
-import { elementFrame, scrollAxes } from "./bundle-page-controls.js";
+import { WORKS, bindQueuedWork, frameVisibility, observeQueuedWork, onCurrentLocation, onFrameVisibility, readSampleVisibility, releaseFocus, renderedParent, renderingState, tabStops, takesLetters, upFrom } from "./bundle-dom-move.js";
+import { allBindings, commandDeclarationsWithin, commandEntries, commandPresentations, commandRoutes, dragHeld, exceptionText, live, recordInteraction, reveal, runtimeRootState } from "./bundle-layer-client.js";
+import { TEXT_BLOCK, annotationMarkSheets, annotationSheets, applicationPresented, chromeSharedClasses, chromeSheet, createPresentationSchedule, growthAfterIsSeen, landingBand, marksSheet, nativeLayers, presentDocument, readApplication, readApplicationPresentation, scrollGlides, seenRect, selectWidgets, shownBand, shownBox, shownParts, shownRect, skipped, stackLevel, stuckBox, threadCounts, uiInside, userScrollport, visibleBand, watchScrollEnds, watchSemantic, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented } from "./bundle-geometry.js";
+import { ADDRESSABLE, aimTargetAt, aimTargets, anchorForRange, authoredBody, effectiveScroller, elementFrame, reachScrollers, readingRegion, readingRegionFor, readingRegions, releaseReachStop, resolveAnchor, scrollAxes, scrollersOf, shownRegionBounds, unconcealedReadingRegions, userReadingRegion, visualPartProblems } from "./bundle-content-layout.js";
+import { USER_VIEW_RESTORE_CASES, availableCommandRoutes, executeCommand, registerSampleCommand, stack } from "./bundle-restore-state.js";
+import { PAGE_SCOPE, SAY_BOX, THREAD, blocksOnScreen, bringBackSurfaceOf, captureDraftEditing, capturePlace, claimed, completeReadingReturn, domValue, draftStore, heldObligation, observeOutputs, pageScopes, placeNode, placeOf, readingBlock, readingReturn, replyIsEditing, selectionAnchor, selfComparison, servedElements, shallowSigs, storedDraft, tabStore, userStore, walkOrigin, walkPosition, whereDraft } from "./bundle-data.js";
 import { alignInlineText, closestAcross, elementById, fencePassageParts, findQuote, layoutBox, pageDocument, pageRange, pageText, quoteFrom, segmentsIn, sentenceUnits, settledAway, spanIn, textNodesUnder, verbatimBoundaryIdentity, verbatimOwnerIdentity } from "./bundle-passages.js";
-import { ADDRESSABLE, aimTargetAt, aimTargets, anchorForRange, resolveAnchor, visualPartProblems } from "./bundle-content-layout.js";
-import { authoredBody } from "./bundle-initial-render.js";
 import { alreadyShown, fitsWhole } from "./bundle-copy-control.js";
-import { PAGE_SCOPE, SAY_BOX, THREAD, blocksOnScreen, bringBackSurfaceOf, captureDraftEditing, capturePlace, claimed, completeReadingReturn, draftStore, heldObligation, pageScopes, placeNode, placeOf, readingBlock, readingReturn, replyIsEditing, selectionAnchor, storedDraft, tabStore, userStore, walkOrigin, walkPosition, whereDraft } from "./bundle-surfaces.js";
-import { domValue } from "./bundle-abort.js";
-import { agentArrivalDuration, flashDuration } from "./bundle-motion.js";
-import { USER_VIEW_RESTORE_CASES } from "./bundle-restore-state.js";
+import { agentArrivalDuration, flashDuration } from "./bundle-media.js";
 
 //#region runtime/validation.js
 function validationWidgetStates(eventIds = null) {

@@ -1,10 +1,9 @@
-# The native package compositor changes root authoring while keeping automatic
-# isolation. This case checks whether the routed package reference teaches the
-# new root, outside-condition, and shadow-host surfaces together.
-# Three-trial comparison: base 0/3, candidate 3/3, with no execution errors.
+# Leaf places package sheets without adding a scope, so package CSS names the widgets
+# it styles. This case checks whether the package reference teaches root, descendant,
+# outside-condition and shadow-host selectors that name the package's widgets.
 description: native-package-scopes
 metadata:
-  purpose: Package CSS names its roots and conditions under native confinement.
+  purpose: Package CSS names its widgets, conditions and shadow hosts.
   tags:
     - packages
     - styles
@@ -23,19 +22,16 @@ assert:
   - type: llm-rubric
     metric: root-and-descendants
     value: |
-      Pass only if the package CSS styles the lf-notice root through :scope with an
-      lf-notice type condition, styles descendant paragraphs with p in theme.css or
-      the shared shadow.css (which also reaches the document), and relies
-      on composition's native package boundary rather than a global page selector
-      or a hand-written subject filter. The interactive condition must select a
-      native root through an outside-aware nested scope or equivalent native scope
-      syntax; ordinary html[data-lf-interactive] lf-notice descendant syntax under
-      the implicit widget scope does not match its root.
+      Pass only if the package CSS styles the notice root with an lf-notice selector,
+      styles paragraphs inside either widget with selectors that name the widgets
+      (such as `:is(lf-notice, lf-meter) p`) rather than a bare `p`, which would reach
+      the page's own paragraphs, and selects the interactive notice with a condition
+      on the root element, such as `html[data-lf-interactive] lf-notice`.
   - type: llm-rubric
     metric: shadow-host-state
     value: |
-      Pass only if shadow CSS combines :scope and a :host(...) predicate that
-      matches class ready, directly or in a nested scope whose body styles :scope.
-      Accept a type condition inside :host, such as :scope:host(lf-notice.ready). Ordinary
-      :scope.ready cannot read a featureless shadow host's class. Explain that the
-      composed shadow scope restricts these rules to this package's host types.
+      Pass only if the shadow-tree CSS styles the host's ready state with a `:host(...)`
+      selector that names the notice and class ready, such as `:host(lf-notice.ready)`,
+      and explains that Leaf adds no scope around the sheet, so the rule names its host.
+      Ordinary `.ready` or `lf-notice.ready` cannot match a shadow host from inside its
+      tree.

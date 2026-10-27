@@ -175,11 +175,20 @@ def test_motion_recordings_share_native_playback_and_a_sticky_transport(browser,
     assert page.evaluate("window.videoSeeks") == 0
     play.tap()
     assert videos.evaluate_all("vs => vs.every(v => v.paused)")
-    moments = videos.evaluate_all("vs => vs.map(v => v.currentTime)")
-    assert moments[0] == moments[1]
-    assert moments[0] * 1000 == pytest.approx(
-        page.locator("#study").evaluate("study => study.currentTime")
-    )
+    # A fractional seek exercises native media precision without timing playback.
+    for requested_time in (None, 252.00699999999998):
+        if requested_time is not None:
+            page.locator("#study").evaluate(
+                "(study, time) => study.currentTime = time", requested_time
+            )
+        moments = videos.evaluate_all("vs => vs.map(v => v.currentTime)")
+        assert moments[0] == moments[1]
+        # Native seeking can truncate a microsecond; allow that plus float rounding.
+        assert moments[0] * 1000 == pytest.approx(
+            page.locator("#study").evaluate("study => study.currentTime"),
+            rel=0,
+            abs=0.002,
+        )
 
     page.get_by_role("combobox", name="Speed").select_option("0.25")
     assert videos.evaluate_all("vs => vs.every(v => v.playbackRate === 0.25)")

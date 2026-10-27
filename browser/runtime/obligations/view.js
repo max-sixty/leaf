@@ -9,7 +9,7 @@
    its Done is the queue walk's (queue-walk.js).
 
    An obligation keeps its source identity. Its prompt.target names where the user arrives:
-   the enclosing widget (an lf-ask or another declaring `x-awaits.encloses`), otherwise
+   the enclosing widget (an lf-ask or another declaring `x-encloses`), otherwise
    the widget itself. The source owns the answer and the explicit context bindings.
    Adding an enclosing widget changes neither the obligation nor its answer.
 
@@ -409,7 +409,7 @@ export function createObligationView({
   }
 
   // Where the user arrives at a page obligation: the region whose start has to be in front
-  // of them for the obligation to make sense. A widget declaring `x-awaits.encloses` is its own frame —
+  // of them for the obligation to make sense. A widget declaring `x-encloses` is its own frame —
   // one heading, then the context and evidence, then the control — and this walk is handed
   // that region rather than the widget inside it, so its arrival is simply its start.
   //
@@ -434,7 +434,7 @@ export function createObligationView({
     // the reader arrives at its opening and reads down to the answering controls.
     // Shared context must fit above this source; otherwise use its nearby words.
     // With only the default source target, infer the words preceding it instead.
-    const declared = context && registry[context.localName]?.["x-awaits"]?.encloses;
+    const declared = context && registry[context.localName]?.["x-encloses"];
     if (declared && context === currentLocation) return context;
     // A region has to be somewhere the user can be taken. An element generating no box
     // measures (0,0) at the document's origin, which is not a degenerate answer but a

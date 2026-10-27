@@ -5,7 +5,7 @@
 
 /* Inherited palette aliases keep the generated SVG responsive to the live page's
  * scheme without redrawing its nodes or replacing Comment coordinates. */
-:scope:is(lf-diagram) {
+lf-diagram {
   box-sizing: border-box;
   --pele-bg: var(--paper);
   --pele-fg: var(--ink);
@@ -25,7 +25,7 @@
  * occurrence reserves (x-height), so the drawing lands in the box it already has. A
  * failed render becomes `.lf-error`; core's fail-soft room rule then gives the message
  * the column. */
-@scope (html:not([data-lf-interactive]) :scope) {
+@scope (html:not([data-lf-interactive]) lf-diagram) {
   :scope:is(lf-diagram)[data-lf-space="available"] {
     --lf-room: 0px;
   }
@@ -36,25 +36,25 @@
  * Where nothing allocated room — a thread's message — they are empty and the drawing
  * centres. This arrangement belongs to the diagram, independently of the `available`
  * capacity it requests from core. */
-:scope:is(lf-diagram).lf-rendered {
+lf-diagram.lf-rendered {
   display: flex;
   justify-content: safe center;
   align-items: flex-start;
   overflow: auto hidden;
 }
-:scope:is(lf-diagram).lf-rendered::before,
-:scope:is(lf-diagram).lf-rendered::after {
+lf-diagram.lf-rendered::before,
+lf-diagram.lf-rendered::after {
   content: "";
   flex: 0 1 auto;
   width: 0;
 }
-:scope:is(lf-diagram).lf-rendered[data-lf-space="available"]::before {
+lf-diagram.lf-rendered[data-lf-space="available"]::before {
   width: calc(2 * var(--lf-grow-l));
 }
-:scope:is(lf-diagram).lf-rendered[data-lf-space="available"]::after {
+lf-diagram.lf-rendered[data-lf-space="available"]::after {
   width: calc(2 * var(--lf-grow-r));
 }
-:scope:is(lf-diagram).lf-rendered > * {
+lf-diagram.lf-rendered > * {
   flex: none;
 }
 /* Pele's viewport includes the scrollbar's clearance. Its natural height is the
@@ -64,10 +64,12 @@
  * A declared reservation may hold more room without stretching the SVG. The renderer
  * supplies its dimensions; no measurement or later scroll-state query sizes the box. */
 @media screen {
-  :scope:is(lf-diagram).lf-rendered {
+  lf-diagram.lf-rendered {
     min-block-size: max(var(--lf-diagram-height), attr(data-lf-height px, 0px));
   }
-  :scope:is(lf-diagram).lf-rendered > svg {
+  /* `:last-child` outranks the layer's trim of a frame's last margin, which the
+   * drawing is. */
+  lf-diagram.lf-rendered > svg:last-child {
     margin-block-end: calc(1px - var(--lf-diagram-padding));
   }
 }
@@ -82,7 +84,7 @@
  * a few letters of a label, so the cut node's words stay readable up to where they are
  * cut. A grey shadow over the edge said the same and read as a stray shadow instead.
  * The drawing itself is never scaled or re-laid out. */
-:scope:is(lf-diagram).lf-rendered {
+lf-diagram.lf-rendered {
   --lf-more-fade: 32px;
   --lf-more-fade-to: rgb(0 0 0 / 0.3);
 }
@@ -93,13 +95,13 @@
  * the margin. max-width: none escapes the page-wide svg rule in the kernel theme, which
  * would scale it right back down. Paper cannot scroll, so print restores the fit: width
  * and viewBox stay in the markup, and max-width alone scales the drawing whole. */
-:scope:is(lf-diagram) svg {
+lf-diagram svg {
   display: block;
   margin: 0 auto;
   max-width: none;
 }
 @media print {
-  :scope:is(lf-diagram) svg {
+  lf-diagram svg {
     max-width: 100%;
   }
 }

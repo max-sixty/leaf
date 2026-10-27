@@ -1,25 +1,25 @@
-:scope {
+:is(lf-event, lf-lane, lf-timeline) {
   display: block;
   min-width: 0;
 }
 /* The authored lanes and events are the drawing's data; once Leaf draws, the drawing
    shows them. Without the runtime they read as a plain list. */
-:scope:is(lf-lane) {
+lf-lane {
   display: block;
   margin-block: var(--sp-2);
 }
-:scope:is(lf-lane)::before {
+lf-lane::before {
   content: attr(label);
   font-weight: 600;
 }
-:scope:is(lf-event) {
+lf-event {
   display: list-item;
   margin-inline-start: var(--list-inset);
 }
-:scope:is(lf-event)::before {
+lf-event::before {
   content: attr(at) " ms: " attr(label);
 }
-@scope (html[data-lf-interactive] :scope) {
+@scope (html[data-lf-interactive] :is(lf-event, lf-lane)) {
   :scope:is(lf-lane, lf-event) {
     display: none;
   }
@@ -222,6 +222,13 @@
   inline-size: 2px;
   margin-inline-start: -1px;
   background: var(--accent);
+}
+/* Step changes move the retained line to its new time. The shared presentation and
+ * reduced-motion guards suppress this transition when the page must appear at rest. */
+@media screen {
+  .lf-timeline-playhead-line {
+    transition: left 160ms ease;
+  }
 }
 
 .lf-timeline-steps {

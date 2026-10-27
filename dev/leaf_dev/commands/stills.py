@@ -366,6 +366,11 @@ def motion_controls(page: Page) -> None:
     select.focus()
 
 
+def timeline_steps(page: Page) -> None:
+    """A timeline's Previous and Next beside its position, above its lanes."""
+    page.locator("#race-before .lf-timeline-controls").scroll_into_view_if_needed()
+
+
 def card_by_pointer(page: Page) -> None:
     """The first margin card, opened by a click on its marker."""
     open_card(page, page.locator(".lf-margin-marker").first)
@@ -483,6 +488,20 @@ def seat_held_news(page: Page) -> None:
     thread = page.locator("#goal-parser .lf-page-thread")
     thread.scroll_into_view_if_needed()
     held_news(page, thread)
+
+
+def option_picked(page: Page) -> None:
+    """The panel's row just after the plan's rollout option is picked and admitted,
+    while a passing notice would still stand in its status seat."""
+    option = page.locator("#plan-admin")
+    option.scroll_into_view_if_needed()
+    option.click()
+    expect(page.locator(".lf-live")).to_contain_text("— sent")
+
+
+def option_references(page: Page) -> None:
+    """The patch decision, whose two options both name the stall block above them."""
+    page.locator("#off-workaround-review").scroll_into_view_if_needed()
 
 
 def on_me(page: Page) -> None:
@@ -872,6 +891,11 @@ def activity_feed(page: Page) -> None:
     page.locator("#triage-moves").scroll_into_view_if_needed()
 
 
+def settled_option(page: Page) -> None:
+    """A settled decision collapsed to its one line."""
+    page.locator("#bg-outcome").scroll_into_view_if_needed()
+
+
 def settled_option_hover(page: Page) -> None:
     """An expanded decision answers hover without lifting the card."""
     page.locator("#bg-outcome .lf-settled").click()
@@ -1167,6 +1191,24 @@ def element_thread_open(page: Page) -> None:
     )
 
 
+def option_thread_open(page: Page) -> None:
+    """A thread on the chosen card of a joined option group, opened from its margin
+    card: the contour standing on a cell its group's frame clips."""
+    as_agent(
+        "thread",
+        "create",
+        "--section",
+        "off-workaround-approve",
+        "--text",
+        "Ship it with the workaround?",
+    )
+    load(page, served_page.get().address)
+    open_card(
+        page,
+        page.locator('[data-lf-margin-for="off-workaround-approve"] .lf-margin-marker'),
+    )
+
+
 def more_menu(page: Page) -> None:
     """The leaf's menu, opened: the agent's state at its head over the page's
     controls."""
@@ -1378,6 +1420,11 @@ def live_sample_embedded(page: Page) -> None:
     sample.scroll_into_view_if_needed()
 
 
+def interactive_sample(page: Page) -> None:
+    """An interactive sample, whose widgets use this page's state, under its note."""
+    page.locator("#bg-inline-sample").scroll_into_view_if_needed()
+
+
 def live_sample_full_view(page: Page) -> None:
     """The same practice frame promoted into its native full-view dialog."""
     live_sample_embedded(page)
@@ -1530,6 +1577,27 @@ STATES = (
     ),
     State("panel-status-hover", "review-a-plan", panel_status_hover),
     State("floating-thread", "ship-review", floating_thread, region=".lf-fp-opened"),
+    State("ship-threads", "ship-review", go_to_threads, region=".lf-fp-opened"),
+    State("plan-option-picked", "review-a-plan", option_picked, region=".lf-fp-row"),
+    State(
+        "plan-option-card-picked",
+        "review-a-plan",
+        option_picked,
+        region="lf-options:has(> #plan-admin)",
+    ),
+    State(
+        "ship-option-references",
+        "ship-review",
+        option_references,
+        region="#off-workaround-decision",
+    ),
+    State(
+        "ship-option-references-phone",
+        "ship-review",
+        option_references,
+        viewport=(390, 844),
+        region="#off-workaround-decision",
+    ),
     State(
         "floating-thread-retitled",
         "ship-review",
@@ -1592,6 +1660,12 @@ STATES = (
         "developer/feature-gallery",
         live_sample_full_view,
         region="#bg-live-sample .lf-sample-view",
+    ),
+    State(
+        "interactive-sample",
+        "developer/feature-gallery",
+        interactive_sample,
+        region="#bg-inline-sample",
     ),
     State(
         "trace-comparison-header",
@@ -1763,6 +1837,7 @@ STATES = (
         "developer/visual-review-gallery",
         visual_review_inspection,
     ),
+    State("visual-review", "developer/visual-review-gallery", at_rest),
     State("diff-file-threads", "developer/diff-thread-gallery", at_rest),
     State("diff-long-lines", "developer/diff-thread-gallery", diff_long_lines),
     State("worktree-diffs", "developer/worktree-diffs", at_rest),
@@ -1811,6 +1886,12 @@ STATES = (
     ),
     State("activity-feed", "triage-board", activity_feed, region="#triage-moves"),
     State(
+        "settled-option",
+        "developer/feature-gallery",
+        settled_option,
+        region="#bg-outcome",
+    ),
+    State(
         "settled-option-hover",
         "developer/feature-gallery",
         settled_option_hover,
@@ -1835,6 +1916,12 @@ STATES = (
         "developer/motion",
         motion_controls,
         region="#fold-motion .lf-motion-controls",
+    ),
+    State(
+        "timeline-steps",
+        "lost-update",
+        timeline_steps,
+        region="#race-before .lf-timeline-controls",
     ),
     State(
         "trace-timeline-keyboard",
@@ -2411,6 +2498,19 @@ STATES = (
         element_thread_open,
         scheme="dark",
         region="#off-t-vendor",
+    ),
+    State(
+        "ship-option-thread-open",
+        "ship-review",
+        option_thread_open,
+        region="#off-workaround-review",
+    ),
+    State(
+        "ship-option-thread-open-dark",
+        "ship-review",
+        option_thread_open,
+        scheme="dark",
+        region="#off-workaround-review",
     ),
     State("ship-card-more-room", "ship-review", card_more_room, viewport=(1440, 600)),
     State(

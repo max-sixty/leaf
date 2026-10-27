@@ -475,6 +475,13 @@ let paintedFocus = null;
 let paintedWithin = new Set();
 let paintedVisible = null;
 let paintedVisibleWithin = new Set();
+// Modality can change the cue without moving the destination. Paint readers need
+// that change too; navigation readers must not hear it as another focus move.
+const visibilityReaders = new Set();
+export const onFocusVisibility = (read) => {
+  visibilityReaders.add(read);
+  return () => visibilityReaders.delete(read);
+};
 function markFocus(node, name, present) {
   keeps(node, `data-lf-${name}`, present ? "" : null);
   // Removing an absent token still rewrites the attribute.
@@ -485,6 +492,24 @@ function markFocus(node, name, present) {
     node.hasAttribute("part")
   )
     node.part.add(`lf-${name}`);
+}
+// The keyboard cue's destination, read before or after its attributes are painted.
+// Current location and its visibility are separate: a click keeps a control as the
+// keyboard destination without advertising a keyboard cue. The browser owns
+// focus-visible (including text entry and modality changes on the same node).
+// Closed text-field roots expose their host, not the focused editor; text
+// entry always needs a cue, as it does for native editors. A frame never matches
+// :focus-visible on its host, so it takes the platform's rule from the inputs: visible
+// unless a press put the user there (`inputInFrame`).
+export function visibleFocus(node = focused()) {
+  return node &&
+    node !== document.body &&
+    node !== document.documentElement &&
+    (node.matches(":focus-visible") ||
+      node.matches(TEXT_BOX) ||
+      (node.localName === "iframe" && !pressLed()))
+    ? node
+    : null;
 }
 function paintFocus(node) {
   const next =
@@ -511,24 +536,12 @@ function paintFocus(node) {
     if (!paintedWithin.has(owner)) markFocus(owner, "focus-within", true);
   }
   paintedWithin = within;
-  // Current location and its visibility are separate: a click keeps a control as the
-  // keyboard destination without advertising a keyboard cue. The browser owns
-  // focus-visible (including text entry and modality changes on the same node).
-  // Closed text-field roots expose their host, not the focused editor; text
-  // entry always needs a cue, as it does for native editors. A frame never matches
-  // :focus-visible on its host, so it takes the platform's rule from the inputs: visible
-  // unless a press put the user there (`inputInFrame`).
-  const visible =
-    next &&
-    (next.matches(":focus-visible") ||
-      next.matches(TEXT_BOX) ||
-      (next.localName === "iframe" && !pressLed()))
-      ? next
-      : null;
+  const visible = visibleFocus(next);
   if (visible !== paintedVisible) {
     if (paintedVisible) markFocus(paintedVisible, "focus-visible", false);
     if (visible) markFocus(visible, "focus-visible", true);
     paintedVisible = visible;
+    for (const read of visibilityReaders) read();
   }
   const visibleWithin = visible ? within : new Set();
   for (const owner of paintedVisibleWithin) {
@@ -1297,11 +1310,12 @@ export function controlNavigationKeys(node) {
 // user lands, since that is the whole of what the rung is for, and letting go of an obligation
 // names the act, since they were on the page all along.
 //
-// Where they land is the block they are reading in the page region they last acted in
-// (reading-regions.js, `pageReadingRegion`), which is a reading of that region's current
-// scroll rather than a place remembered from before the press: a surface closing moves
-// the page under them, and what they can see when it has gone is the answer. Only the
-// region is remembered, so no revision, repaint or reflow can strand the block.
+// Where they land is beside what they let go of, while they see it, since that is what
+// they were reading; otherwise the block they are reading in the page region they last
+// acted in (reading-regions.js, `pageReadingRegion`), which is a reading of that region's
+// current scroll rather than a place remembered from before the press: a surface closing
+// moves the page under them, and what they can see when it has gone is the answer. Only
+// the region is remembered, so no revision, repaint or reflow can strand the block.
 //
 // Focus and then blur, which is the pair and not either half. The focus moves the
 // browser's sequential focus navigation starting point to the block, so the user's next
@@ -1316,6 +1330,7 @@ export function controlNavigationKeys(node) {
 // such as a run of figures, where the honest answer is that the user has no reading
 // position for the browser to continue from. A region in that state still has one: the
 // declared reading lands on its body (reading-place.js, `landingPlace`).
+/** @type {(from?: Element | null) => HTMLElement | null} */
 let readingBlock = () => null;
 export function declareReading(read) {
   readingBlock = read;
@@ -1349,16 +1364,24 @@ export function release() {
   released();
   if (letGoes === before) letGo();
 }
-// A landing on the page is the user going on to it, a `move`.
+// A landing on the page is the user going on to it, a `move`. It leaves them at nothing,
+// beside what they let go of rather than anywhere else, and each reader `onLetGo` names
+// hears that node once the landing is done (current-target.js, `walkOrigin`).
+const letGoReaders = new Set();
+export const onLetGo = (read) => {
+  letGoReaders.add(read);
+  return () => letGoReaders.delete(read);
+};
 export function letGo() {
   letGoes++;
-  const block = readingBlock();
-  if (!block?.isConnected) {
-    releaseFocus();
-    return;
+  const from = focused();
+  const block = readingBlock(from);
+  if (!block?.isConnected) releaseFocus();
+  else {
+    focusDestination(block, "move");
+    block.blur();
   }
-  focusDestination(block, "move");
-  block.blur();
+  if (from && from !== document.body) for (const read of letGoReaders) read(from);
 }
 
 // Handing the user back when a layer closes with them inside it. The closer names where,

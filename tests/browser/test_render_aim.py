@@ -1615,9 +1615,7 @@ def test_a_margin_label_covers_the_target_trace(browser, serve, monkeypatch):
     told(page)
 
     marker = page.locator('[data-lf-margin-for="jobs"] > .lf-margin-marker')
-    expect(marker).to_have_attribute(
-        "aria-label", re.compile(r"^Waiting for delivery,")
-    )
+    expect(marker).to_have_attribute("aria-label", re.compile(r"^Haven't seen it yet,"))
     marker.hover()
     label = marker.locator(":scope > .lf-margin-entry-label")
     trace = page.locator('.lf-target-trace[data-for="jobs"]')
@@ -3032,16 +3030,23 @@ def test_a_shadow_visual_surface_is_clipped_by_its_host(browser, serve):
     surface.click(position={"x": 20, "y": 20})
     expect(mark).to_be_visible()
     host_box = host.bounding_box()
+    # Contours retain one stroke beyond a clip; the wider shadow
+    # surface must still be cut at that boundary, for both references and aim.
+    stroke = mark.evaluate(
+        "node => parseFloat(getComputedStyle(node).getPropertyValue('--focus-ring-w'))"
+    )
+    right = host_box["x"] + host_box["width"] + stroke
+    assert surface.bounding_box()["width"] > host_box["width"] + stroke
     shown = page.evaluate(SHOWN_PAINT, ".lf-visual-mark")
     assert shown["left"] >= host_box["x"]
-    assert shown["right"] <= host_box["x"] + host_box["width"]
+    assert shown["right"] == pytest.approx(right)
 
     page.keyboard.down("Alt")
     aim = page.locator(".lf-aim")
     expect(aim).to_have_attribute("data-for", "wide-surface")
     shown = page.evaluate(SHOWN_PAINT, ".lf-aim")
     assert shown["left"] >= host_box["x"]
-    assert shown["right"] <= host_box["x"] + host_box["width"]
+    assert shown["right"] == pytest.approx(right)
     page.keyboard.up("Alt")
 
 
@@ -3391,6 +3396,230 @@ def test_a_held_aim_in_a_pane_paints_in_the_frame_its_target_scrolls(browser, se
     rendered(page)
     assert_follows_in_every_frame(page, "#aim-pane > div")
     page.keyboard.up("Alt")
+
+
+def test_target_brackets_and_focus_share_the_visible_boundary(browser, serve, subtests):
+    """Leaving Comment changes the mark, not which rectangle it identifies.
+
+    A native table ends at its last row, a card follows its authored corners, and a
+    partly scrolled card keeps its shape behind the scrollport's cut. Compare to the content,
+    not only to the other overlay: both painters once agreed on the wrong box.
+    """
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Target boundaries",
+                """
+<h1>Target boundaries</h1>
+<table id="square"><tr><th>West</th><th>East</th></tr>
+  <tr><td>16 jobs</td><td>8 jobs</td></tr></table>
+<div id="port"><div style="height:20px"></div>
+  <div id="rounded" class="authored-contour">Fallback procedure<div style="height:240px"></div>Last step</div>
+  <div style="height:500px"></div></div>
+""",
+                head="""<style>
+  #square { display:table; border-collapse:collapse; width:400px; }
+  #square :is(th,td) { border:1px solid; }
+  #port { height:360px; width:440px; overflow:auto; border:1px solid; }
+  #rounded { border:1px solid; border-radius:12px; margin:12px; padding:12px; }
+  .authored-contour { outline:1px dashed var(--ink-2); }
+  </style>""",
+            )
+        ),
+    )
+    resized(page, 1100, 900)
+    read = r"""([id, selector]) => {
+      const target = document.getElementById(id), node = document.querySelector(selector);
+      const box = target.getBoundingClientRect(), shown = {...box.toJSON()};
+      if (id === 'rounded') {
+        const port = document.getElementById('port'), clip = port.getBoundingClientRect();
+        shown.left = Math.max(box.left, clip.left + port.clientLeft);
+        shown.top = Math.max(box.top, clip.top + port.clientTop);
+        shown.right = Math.min(box.right, clip.left + port.clientLeft + port.clientWidth);
+        shown.bottom = Math.min(box.bottom, clip.top + port.clientTop + port.clientHeight);
+      }
+      const style = getComputedStyle(node), end = getComputedStyle(node, '::after');
+      const ink = end.content !== 'none' ? end : style;
+      const rect = node.getBoundingClientRect();
+      const stroke = parseFloat(ink.outlineWidth), gap = parseFloat(ink.outlineOffset);
+      const painted = {left:rect.left - stroke, top:rect.top - stroke,
+        right:rect.right + stroke, bottom:rect.bottom + stroke};
+      for (let frame = node.parentElement; frame; frame = frame.parentElement) {
+        if (!frame.matches('.lf-paint-frame')) continue;
+        const values = getComputedStyle(frame).clipPath.match(/-?[\d.]+px/g)?.map(parseFloat);
+        if (values?.length !== 4) throw new Error('Expected a rectangular clip');
+        const box = frame.getBoundingClientRect();
+        painted.left = Math.max(painted.left, box.left + values[3]);
+        painted.top = Math.max(painted.top, box.top + values[0]);
+        painted.right = Math.min(painted.right, box.right - values[1]);
+        painted.bottom = Math.min(painted.bottom, box.bottom - values[2]);
+      }
+      return {source:box.toJSON(), shown, painted, rect:rect.toJSON(), stroke, gap, ink:ink.outlineStyle,
+        radius:style.borderRadius, clip:ink.clipPath,
+        nativeOutline:getComputedStyle(target).outlineStyle,
+        rowBottom:id === 'square' ? target.rows[target.rows.length - 1].getBoundingClientRect().bottom : null};
+    }"""
+
+    def boundary(target, selector):
+        reading = page.evaluate(read, [target, selector])
+        assert reading["ink"] == "solid", reading
+        assert (reading["stroke"], reading["gap"]) == (2, 0), reading
+        for edge in ("left", "top", "right", "bottom"):
+            assert reading["rect"][edge] == pytest.approx(
+                reading["source"][edge], abs=0.5
+            ), reading
+            outside = -2 if edge in ("left", "top") else 2
+            assert reading["painted"][edge] == pytest.approx(
+                reading["shown"][edge] + outside, abs=0.5
+            ), reading
+        if target == "square":
+            assert reading["shown"]["bottom"] - reading["rowBottom"] <= 1, reading
+            assert reading["radius"] == "0px", reading
+        return reading
+
+    for target in ("square", "rounded"):
+        with subtests.test(target=target):
+            node = page.locator(f"#{target}")
+            node.hover(position={"x": 10, "y": 10})
+            page.keyboard.down("Alt")
+            expect(page.locator(".lf-aim")).to_have_attribute("data-for", target)
+            aimed = boundary(target, ".lf-aim")
+            if target == "rounded":
+                assert aimed["radius"] == "12px", aimed
+            page.mouse.down()
+            page.mouse.up()
+            page.keyboard.up("Alt")
+            open_compact_comment(page)
+            expect(page.locator(".lf-visual-mark-pending")).to_be_visible()
+            pending = boundary(target, ".lf-visual-mark-pending")
+            if target == "rounded":
+                # A projected reference replaces Leaf's annotation paint, not an
+                # outline the page itself gave this target.
+                assert pending["nativeOutline"] == "dashed", pending
+            page.keyboard.press("Escape")
+            expect(node).to_be_focused()
+            focus = page.locator(f'.lf-visual-mark-focus[data-for="{target}"]')
+            expect(focus).to_be_visible()
+            focused = boundary(target, f'.lf-visual-mark-focus[data-for="{target}"]')
+            assert focused["radius"] == aimed["radius"], (aimed, focused)
+            assert focused["clip"] == "none", focused
+            assert focused["nativeOutline"] == "none", focused
+            if target == "rounded":
+                port = page.locator("#port")
+                port.hover(position={"x": 5, "y": 60})
+                page.mouse.wheel(0, 150)
+                page.wait_for_function("document.getElementById('port').scrollTop > 0")
+                scroll_settled(page, "#port")
+                rendered(page)
+                clipped = boundary(
+                    target, f'.lf-visual-mark-focus[data-for="{target}"]'
+                )
+                # The original top is outside the clip: neither focus nor brackets
+                # invent a horizontal edge across the surviving part of the card.
+                assert clipped["rect"]["top"] < clipped["painted"]["top"] - 10, clipped
+                assert clipped["radius"] == "12px", clipped
+                page.keyboard.down("Alt")
+                port.hover(position={"x": 25, "y": 60})
+                expect(page.locator(".lf-aim")).to_have_attribute("data-for", target)
+                aimed = boundary(target, ".lf-aim")
+                assert aimed["radius"] == clipped["radius"], (aimed, clipped)
+                page.keyboard.up("Alt")
+
+
+def test_focus_projection_follows_modality_and_leaves_private_controls_their_ring(
+    browser, serve, subtests
+):
+    """A keyboard cue can begin without focus moving, and needs no authored id.
+
+    Private shadow controls and controls whose surrounding face owns their ring
+    retain that component paint rather than acquiring a second projected ring.
+    """
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Focus paint ownership",
+                "<h1>Focus paint ownership</h1><button>Unnamed control</button>"
+                '<button id="named">Named control</button><span id="component"></span>'
+                '<label class="choice"><input id="pick" type="checkbox">Keep this choice</label>'
+                '<section><lf-tabs id="views">'
+                '<lf-tab id="view-a" label="First">First panel</lf-tab>'
+                '<lf-tab id="view-b" label="Second">Second panel</lf-tab>'
+                '</lf-tabs></section><lf-pane id="pane" label="Findings">'
+                '<div id="pane-body" style="height:160px;overflow:auto">'
+                '<p style="height:400px">The pane scrolls.</p></div></lf-pane>',
+            )
+        ),
+    )
+    page.locator("#component").evaluate(
+        """host => {
+          host.attachShadow({mode:'open'}).innerHTML = `<style>
+            button:focus-visible { outline:var(--focus-ring); outline-offset:3px; }
+          </style><button id="private">Private control</button>`;
+        }"""
+    )
+    for name in ("Unnamed control", "Named control"):
+        with subtests.test(control=name):
+            control = page.get_by_role("button", name=name, exact=True)
+            control.click()
+            expect(control).to_be_focused()
+            rendered(page)
+            assert not control.evaluate("node => node.matches(':focus-visible')")
+            expect(page.locator(".lf-visual-mark-focus")).to_have_count(0)
+            page.keyboard.press("ArrowRight")
+            expect(control).to_be_focused()
+            assert control.evaluate("node => node.matches(':focus-visible')")
+            mark = page.locator(".lf-visual-mark-focus")
+            expect(mark).to_have_count(1)
+            expect(mark).to_be_visible()
+            expect(control).to_have_css("outline-style", "none")
+            assert mark.bounding_box() == pytest.approx(control.bounding_box(), abs=0.5)
+
+    page.keyboard.press("Tab")
+    private = page.get_by_role("button", name="Private control", exact=True)
+    expect(private).to_be_focused()
+    expect(private).to_have_css("outline-style", "solid")
+    expect(private).to_have_css("outline-width", "2px")
+    rendered(page)
+    expect(page.locator(".lf-visual-mark-focus")).to_have_count(0)
+    expect(private).not_to_have_class(re.compile(r"\blf-projected-mark\b"))
+
+    page.keyboard.press("Tab")
+    choice = page.get_by_role("checkbox", name="Keep this choice", exact=True)
+    expect(choice).to_be_focused()
+    expect(choice).to_have_css("outline-style", "none")
+    expect(page.locator(".choice")).to_have_css("outline-width", "2px")
+    expect(page.locator(".choice")).to_have_css("outline-style", "solid")
+    rendered(page)
+    expect(page.locator(".lf-visual-mark-focus")).to_have_count(0)
+
+    page.keyboard.press("Tab")
+    expect(page.get_by_role("tab", name="First", exact=True)).to_be_focused()
+    page.keyboard.press("Tab")
+    panel = page.locator("#view-a")
+    expect(panel).to_be_focused()
+    expect(panel).to_have_css("outline-style", "none")
+    rendered(page)
+    assert page.locator("#views").evaluate(
+        """tabs => {
+          const ring = getComputedStyle(tabs, '::after');
+          return {content:ring.content, style:ring.outlineStyle, width:ring.outlineWidth};
+        }"""
+    ) == {"content": '""', "style": "solid", "width": "2px"}
+    expect(page.locator(".lf-visual-mark-focus")).to_have_count(0)
+
+    page.keyboard.press("Tab")
+    expect(page.locator("#pane-body")).to_be_focused()
+    expect(page.locator("#pane-body")).to_have_css("outline-style", "none")
+    rendered(page)
+    assert (
+        page.locator("#pane").evaluate(
+            "node => getComputedStyle(node, '::after').outlineStyle"
+        )
+        == "solid"
+    )
+    expect(page.locator(".lf-visual-mark-focus")).to_have_count(0)
 
 
 @pytest.mark.parametrize("subject", ["words", "diagram node"])

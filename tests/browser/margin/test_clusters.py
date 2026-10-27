@@ -333,7 +333,7 @@ def test_a_margin_entry_carries_a_suggestion_through_its_whole_lifecycle(
     expect(page.locator("#s-replace")).to_have_attribute("data-lf-state", "accept")
     # No passing notice repeats the receipt the margin shows.
     expect(panel_field(page)).not_to_have_attribute(
-        "placeholder", re.compile(r"^(Accepted|Rejected) .+ — sent")
+        "placeholder", re.compile(r"^(Accepted|Rejected) .+")
     )
     expect(workflow.locator(".lf-margin-receipt")).to_have_count(0)
     undo_button = workflow.get_by_role("button", name=re.compile(r"^Undo accepting"))
@@ -341,7 +341,7 @@ def test_a_margin_entry_carries_a_suggestion_through_its_whole_lifecycle(
     expect(undo_button).to_have_css("opacity", "1")
     action_shadow = undo_button.evaluate("node => getComputedStyle(node).boxShadow")
     assert action_shadow != "none"
-    sent = workflow.get_by_role("status", name=re.compile(r"^Sent for "))
+    sent = workflow.get_by_role("status", name=re.compile(r"^Saved for "))
     expect(sent).to_be_visible()
     expect(sent).to_have_attribute("data-lf-state", "idle")
     expect(sent).to_have_css("opacity", "1")
@@ -482,7 +482,7 @@ def test_settling_a_secondary_action_keeps_its_undo_in_the_cluster(browser, serv
     expect(item.locator(":scope > .lf-margin-more")).to_be_hidden()
     expect(options).to_be_visible()
     expect(
-        options.get_by_role("status", name=re.compile(r"^Sent for "))
+        options.get_by_role("status", name=re.compile(r"^Saved for "))
     ).to_be_visible()
     expect(item.locator(".lf-margin-entry:visible")).to_have_count(2)
     expect(

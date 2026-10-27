@@ -537,7 +537,8 @@ def test_a_draft_in_an_obligation_takes_no_digits_and_answers_from_its_controls(
 ):
     """A draft lends its obligation no digits, so a digit typed while focused on the obligation
     or in the editor is not a command; the user Tabs to Edit and saves with
-    Mod+Enter."""
+    Mod+Enter. Edit shows before the pointer or a key reaches the box, since it is the
+    way to answer."""
     original = "Keep **this** source editable."
     page = open_page(
         browser,
@@ -553,6 +554,7 @@ def test_a_draft_in_an_obligation_takes_no_digits_and_answers_from_its_controls(
     question = page.locator("#note-decision")
     editor = page.locator("#note leaf-text")
     edit = draft_control(page, "edit", "note")
+    expect(page.locator("#note .lf-draft-tools")).to_have_css("opacity", "1")
 
     page.keyboard.press("m")
     expect(question).to_be_focused()

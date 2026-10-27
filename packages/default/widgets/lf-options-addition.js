@@ -73,7 +73,7 @@ export class OptionAddition {
     this.#input.setAttribute("aria-label", ANOTHER);
     // An option's title is one line, so Return adds it from a phone's keyboard too.
     this.#input.setAttribute("aria-multiline", "false");
-    this.#add = offer("button", "lf-btn", "Add");
+    this.#add = offer("button", "", "Add");
     this.#add.setAttribute("aria-label", "Add and select option");
     this.#bindingBadge = offer("span", "lf-key-badge");
     this.#bindingBadge.setAttribute("aria-hidden", "true");

@@ -121,8 +121,8 @@ on a generated image or link, so it resolves on published pages too.
 ### Icons
 
 `iconElement(name, className)` and `iconTemplate(name, className)` draw Leaf's icons.
-For a thread control, put `iconElement("comment", "lf-action-icon")` in an
-`lf-icon-action` button, which gives the label.
+A press drawn as an icon is a symbol (`module-authoring.md`, "Generated controls"):
+`offerAction("symbol", className, label, {icon: "comment"})` draws it with its label.
 
 ## Page readings
 
@@ -163,7 +163,7 @@ arrives. Each `source.kind` adds its own facts:
 
 - A bound-data record's obligation names the owning widget in `source.id` and the
   record key in `source.unit`.
-- For a widget declaring `x-awaits.reply`, such as an `lf-ask` holding no widget, the
+- For a widget declaring `x-awaits.reply`, such as an `lf-ask` holding no other widget, the
   user's next message in its thread or comment on it is its `answer.value` (`{text}`,
   or `{token}` for a settling reaction); `answeredInWords(obligation)` says whether an
   obligation is one. When the agent ends it with `leaf task end`, `status` is
@@ -180,6 +180,9 @@ arrives. Each `source.kind` adds its own facts:
 returns the widgets' obligations, not withdrawn, inside `region`; `lf-tabs` and
 `lf-tally` count with it, so a module marking obligations per card or section should
 too, passing `readObligations().user` for those waiting on the user.
+`tally(obligations)` counts such a set as `{onUser, onAgent, open, total}`, splitting the
+open ones by next actor, and `tallyWords(count, agentName())` words it as `lf-tally`
+does, such as "2 of 8 to answer · 1 on Claude", so every count of a queue reads alike.
 
 `obligationActions.open(id)` takes the user to an obligation, resolving to `false` if
 it is gone. `obligationActions.next({within, dir})` steps to the next obligation

@@ -135,8 +135,8 @@ representative desktop viewport.
   handles a send and the refusal that returns the words to their box. The new content
   and its Undo confirm success, so success needs no notice beyond the announcement
   for a listener. A gesture that moves the
-  user, such as resolving a thread, moves them back when it is refused or undone
-  (`thread/folding.js`). A result only the log can supply waits with `aria-busy`, shown
+  user, such as resolving a thread, leaves them at its place again when it is refused
+  or undone (`undo.js` owns where undo leaves the user). A result only the log can supply waits with `aria-busy`, shown
   after a delay so a fast answer shows nothing. Persistent status text is for a
   state the user must return to, such as a failure.
 
@@ -187,6 +187,11 @@ representative desktop viewport.
   stays where a symbol would leave the reader guessing, as in the rows of the leaf's
   menu, which the user opened to read. Symbols don't license more controls: a surface
   at rest shows only what its task needs, and the leaf's menu holds the rest.
+- **A control wears its role's face.** Code builds a control by its role, with
+  `offerAction` or `offeredAction`, and never names a face's classes, so two controls
+  of one kind can't look different (`runtime/prepaint.js`, `ACTION_FACES`, lists the
+  roles). A new role needs a difference in the user's task, not only in a widget's
+  taste. Check: `test_controls_are_built_by_role_and_never_by_face`.
 - **A face used twice is a token or a shared rule.** A lift names one of the theme's
   heights, `--raise-1` to `--raise-3` (`styles/theme.css`). Check:
   `test_every_lift_names_one_of_the_theme_s_heights_cast_in_the_scheme_s_ink`.
@@ -381,7 +386,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Whether the user is inside a scope, across shadow trees and slots                                     | `focus.js` `currentLocationIn` (_lint_)                                            |
 | The user's working place, read before something borrows it and handed back after                      | `history.js` `readPlace`, `returnPlace`                                            |
 | The page place focus or selection identifies, or none                                                 | `current-target.js` `currentLocationOrigin`                                        |
-| Where a page walk starts, falling back to visible reading, and which item it steps to                 | `current-target.js` `walkOrigin`, `stepFrom`                                       |
+| Where a page walk starts, whether the user is on a stop or at it, and which item it steps to          | `current-target.js` `walkOrigin`, `stepFrom`                                       |
 | Which of two nodes the reader reaches first, across shadow trees                                      | `shadow-tree.js` `renderedOrder`, `byRenderedOrder`                                |
 | Whether a node is inside another across shadow trees                                                  | `shadow-tree.js` `under`, `renderedUnder`, `composedParentNode`                    |
 | Put the user on an element, saying what moved them                                                    | `focus.js` `focusDestination(node, cause)` (_lint_)                                |

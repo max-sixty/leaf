@@ -720,13 +720,17 @@ leaf-text.lf-fab-input {
   display: block;
 }
 /* The target-only control and its open composer are the bar's two presentations.
-   Both are local mechanical state; the stylesheet also reads them in widget seats. */
+   Both are local mechanical state; the stylesheet also reads them in widget seats.
+   Either shows only on screen: paper has no press to answer with, so a bar open in a
+   widget's seat prints as nothing, as the chrome holding a floating one does. */
 .lf-fab-bar {
   display: none;
   font: var(--t-5)/1.5 var(--sans);
 }
-.lf-fab-bar:is([data-lf-target-only], :has(> .lf-composer[data-lf-open])) {
-  display: var(--lf-response-display, inline-flex);
+@media screen {
+  .lf-fab-bar:is([data-lf-target-only], :has(> .lf-composer[data-lf-open])) {
+    display: var(--lf-response-display, inline-flex);
+  }
 }
 .lf-fab-bar[data-lf-presentation="inline"] {
   position: static;
@@ -751,9 +755,4 @@ leaf-text.lf-fab-input {
 /* Only a floating box is carried (surface-grip.js), so a seated one shows no grip. */
 .lf-fab-bar[data-lf-presentation="inline"] > .lf-surface-grip {
   display: none;
-}
-@media print {
-  .lf-fab-bar[data-lf-presentation="inline"] {
-    display: none;
-  }
 }

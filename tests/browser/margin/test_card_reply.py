@@ -328,7 +328,7 @@ CARD_AT_REST = (
 # Where the card's outline, its head row and each turn are drawn now: the outline as its
 # surface's ring is cut (box-motion.js), the rest by their boxes.
 CARD_DRAWN = """card => {
-  const ring = card.querySelector('.lf-margin-preview-ring');
+  const ring = card.querySelector('.lf-margin-preview-ground > .lf-box-ring');
   const ground = card.querySelector('.lf-margin-preview-ground');
   const cut = getComputedStyle(ring).clipPath.match(/inset\\(([-\\d.]+)px/);
   return [cut ? ground.getBoundingClientRect().top + Number(cut[1])
@@ -374,7 +374,7 @@ def test_a_card_send_moves_the_card_as_one_stream(browser, serve):
 
 # Where a card's outline, its head row, each turn and each turn's name are drawn now.
 FULL_CARD_DRAWN = """card => {
-  const ring = card.querySelector('.lf-margin-preview-ring');
+  const ring = card.querySelector('.lf-margin-preview-ground > .lf-box-ring');
   const ground = card.querySelector('.lf-margin-preview-ground');
   const cut = getComputedStyle(ring).clipPath.match(/inset\\(([-\\d.]+)px/);
   const tops = (selector) => [...card.querySelectorAll(selector)]

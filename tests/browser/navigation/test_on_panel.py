@@ -226,7 +226,8 @@ UNDER_PANEL_PAGE = leaf_page(
     + FILLER
     + '<lf-ask id="foot-ask"><h2>Ship notes with it?</h2>'
     '<lf-options id="notes" choose><lf-option id="yes">Yes</lf-option>'
-    '<lf-option id="no">No</lf-option></lf-options></lf-ask>',
+    '<lf-option id="no">No</lf-option></lf-options></lf-ask>'
+    '<p id="tail">The notes go out with the build.</p>',
 )
 
 # How much of an element the user sees, as the runtime reads it (geometry.js,
@@ -292,6 +293,29 @@ def test_travel_puts_away_a_panel_view_standing_over_where_it_lands(browser, ser
     expect_walk_position(page, "2 of 3 waiting on me · Options")
     panel_settled(page, open=False)
     lands_whole("#foot-ask")
+
+
+def test_on_me_stays_over_only_the_items_it_lists(browser, serve):
+    """On me stays open over a place `m` reaches, whose card it rings, and gives way to
+    one it doesn't list: `t` to a thread at the page's foot, which On me would stand
+    over, puts it away (floating-panel.js, `clearFor`)."""
+    url = serve(UNDER_PANEL_PAGE, anchored=[("tail", "The notes go out")])
+    page = open_page(browser, url)
+    resized(page, 1280, 900)
+    on_me = page.locator(panel_view("queue"))
+    page.locator("#h").click()
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    panel_settled(page, view="queue")
+    page.keyboard.press("m")
+    expect_walk_position(page, "1 of 2 waiting on me · Options")
+    expect(page.locator("#mid-ask")).to_be_focused()
+    expect(on_me).to_have_count(1)
+    page.keyboard.press("t")
+    expect(page.locator(".lf-margin-preview .lf-page-thread")).to_be_focused()
+    panel_settled(page, open=False)
+    scroll_settled(page)
+    assert page.evaluate(SEEN_SHARE, "#tail") > 0.99
 
 
 def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):

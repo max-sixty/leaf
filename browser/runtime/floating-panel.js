@@ -255,7 +255,12 @@ import { landedBox, scrollIntoView } from "./landing-scroll.js";
 import { gesturedOn, newsNotice } from "./thread/held-news.js";
 import { moveScrollerBy, SCROLL_SLACK, scrollLimit, scrollToEnd } from "./scrolling.js";
 import { showReturnTurn } from "./thread/reply-landing.js";
-import { coveredShare, declareOccluder, declareWindowChrome } from "./geometry.js";
+import {
+  coveredShare,
+  declareOccluder,
+  declareWindowChrome,
+  placeHolder,
+} from "./geometry.js";
 import { registerReadingRegion } from "./reading-regions.js";
 import { agentName, documentChanged } from "./semantic-state.js";
 import { runtime } from "./context.js";
@@ -4424,14 +4429,17 @@ export function createFloatingPanel({
   // it gives way to a press on the page: a long thread's view covers most of the
   // window, and a place at the page's foot can't be scrolled above even a short one. A
   // view the landing clears stays, so a link followed from a thread's view leaves the
-  // thread open for Back to return to. On me stays too, since it shows the item the
-  // walk reaches as its ringed card (`walkedStop`). A Tab onto a page stop the view
-  // would stand over clears it the same way, since the ring the user follows would
-  // stand under it. What the panel holds is its own to show.
+  // thread open for Back to return to. On me stays too where it lists the item travel
+  // lands on (`onMe.lists`), since its card shows that item, ringed where the `m` walk
+  // reached it (`walkedStop`); a thread On me doesn't list, as `t` reaches, has no card
+  // there. A Tab onto a page stop the view would stand over clears it the same way,
+  // since the ring the user follows would stand under it. What the panel holds is its
+  // own to show.
   const standsOver = (where, landed) =>
     trail.value.length > 0 && coveredShare(opened, where, landed) > 0;
-  function clearFor(where, landed) {
-    if (!doors.queue.shows() && standsOver(where, landed)) close();
+  function clearFor({ where, focus }, landed) {
+    if (doors.queue.shows() && onMe.lists(focus ?? placeHolder(where))) return;
+    if (standsOver(where, landed)) close();
   }
   onCurrentLocation((node, cause) => {
     if (cause === "step" && node && standsOver(node, landedBox(node))) close();

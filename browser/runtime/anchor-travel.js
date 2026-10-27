@@ -78,7 +78,7 @@ export function scrollToFragment(element) {
  *   refreshThread: () => unknown,
  *   focusForNavigation: any,
  *   threadFocusTarget: any,
- *   clearFor: (where: any, landed: DOMRect | null) => void,
+ *   clearFor: (destination: {where: any, focus?: any}, landed: DOMRect | null) => void,
  *   announce: any,
  * }} travel */
 export function createAnchorTravel({
@@ -167,7 +167,7 @@ export function createAnchorTravel({
         const destination = resolve();
         if (!destination?.where) return;
         clearFor(
-          destination.where,
+          destination,
           destination.scroll.length ? landedBox(destination.where) : null,
         );
         if (destination.focus)

@@ -7888,7 +7888,7 @@ function createAnchorTravel({ anchors, refreshThread, focusForNavigation, thread
 			intent.handoff(() => {
 				const destination = resolve();
 				if (!destination?.where) return;
-				clearFor(destination.where, destination.scroll.length ? landedBox(destination.where) : null);
+				clearFor(destination, destination.scroll.length ? landedBox(destination.where) : null);
 				if (destination.focus) focusForNavigation(destination.focus, "move", { caret: destination.caret });
 				const current = resolve();
 				if (!current?.where) return;

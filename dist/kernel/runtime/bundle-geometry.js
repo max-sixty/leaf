@@ -2387,6 +2387,12 @@ function createPresentationSchedule(bindJob) {
 }
 
 //#endregion
+//#region runtime/version-signal.js
+const tick = (version) => {
+	version.value = version.peek() + 1;
+};
+
+//#endregion
 //#region runtime/semantic-state.js
 const documentToken = Object.freeze({});
 let reportPresentationFailure = (reason) => console.error("leaf: presentation failed", reason);
@@ -2409,6 +2415,7 @@ const widgetRegions = (widget) => ["render", "preparation"].map((kind) => widget
 const attachWidgetPresentation = (widget, kind, renderer) => presentation.attach(widgetRegion(widget, kind), renderer);
 const widgetCommits = /* @__PURE__ */ new Map();
 const documentCommits = /* @__PURE__ */ new Map();
+const ownCommits = /* @__PURE__ */ new Map();
 const currentWidgetParents = readPart((root) => root.effective.widgetParents);
 const queueWidgetUpdate = (widget, update, committed) => {
 	const { ready, committed: dom } = schedule.enqueue(() => {
@@ -2434,8 +2441,10 @@ const PRESENTATION_DOM = Object.freeze({
 	widgets: () => [...widgetCommits.values()],
 	projection: () => documentCommits.get("projection:chrome")?.() ?? [],
 	thread: () => documentCommits.get("thread")?.() ?? [],
-	obligations: () => documentCommits.get("obligations")?.() ?? []
+	obligations: () => documentCommits.get("obligations")?.() ?? [],
+	annotations: () => documentCommits.get("annotations")?.() ?? []
 });
+const regionCommitted = (region) => ownCommits.get(region)?.() ?? Promise.resolve();
 const documentPresenters = [];
 const applicationPresenter = ({ region, renderer = document, after, reading, paint, failSoft }) => {
 	const revision = Z(0);
@@ -2489,6 +2498,7 @@ const applicationPresenter = ({ region, renderer = document, after, reading, pai
 		failSoft
 	});
 	documentCommits.set(region, () => [...after?.() ?? [], presenter.committed()]);
+	ownCommits.set(region, presenter.committed);
 	const claim = (value) => {
 		claimed = value;
 		if (value === null) return schedule.passed();
@@ -2496,7 +2506,7 @@ const applicationPresenter = ({ region, renderer = document, after, reading, pai
 		return presenter.sync(value);
 	};
 	const present = () => d(() => W(() => {
-		revision.value += 1;
+		tick(revision);
 		return claim(selected.value);
 	}));
 	documentPresenters.push(present);
@@ -2520,7 +2530,7 @@ const applicationPresenter = ({ region, renderer = document, after, reading, pai
 const documentChanges = Z(0);
 const documentChanged = () => documentChanges.value;
 const presentDocument = () => W(() => {
-	documentChanges.value += 1;
+	tick(documentChanges);
 	for (const present of documentPresenters) present();
 	return schedule.passed();
 });
@@ -3607,4 +3617,4 @@ function uncovered(rect, box) {
 }
 
 //#endregion
-export { AsyncDirective, COLLAPSE, DELIVERY, DRAFT_FORMAT, Directive, LIVE_ROOT, LitElement, PAGE_ROOT, PENDING, PRESENTATION_DOM, PartType, SAID, SHADOW_LEADING_CSS, SHARE_ROOT, TEXT_BLOCK, UI_MARKS, WEBSITE_DELIVERY, actionForWidget, adoptRegistry, agentName, anchorKey, annotationMarkSheets, annotationMode, annotationSheets, applicationPresented, applicationPresenter, applicationRegionsPresented, applicationState, attachApplicationPresentation, attachWidgetPresentation, authoredRank, bareReaction, carriesObligation, chromeSharedClasses, chromeSheet, clamp, classMap, clippedContents, clippedPlace, clippingAxes, clipsPastSurfaces, closeNativeLayer, createPresentationSchedule, createRef, decisionFor, declarationFor, declareOccluder, declareWindowChrome, declaredRoot, describeFailure, directive, discussed, dismissPopoversOutside, documentChanged, drawingSchema, editable, elementDeclarations, elementsDeclaring, exhibits, foldWidgetStates, frameFor, frameView, growthAfterIsSeen, growthIsSeen, guard, hasArea, headerCuts, headerInset, hostIn, html, inBaseLayer, inUi, inWindowChrome, intersect, isElementName, isMessageEvent, isNews, isReaction, isThreadEvent, itemNoun, itemOutcome, keyed, landingBand, landingInsets, lastMovedAt, layerFact, layerRoot, layoutWindow, live, loadShadowRules, marks, marksSheet, matchesWhen, messageKey, moved, nativeLayers, nativeModalAdmits, nearObserver, nearWindow, nearestScrollBy, noChange, nothing, obligationValue, offlineData, offlineInteractive, offlineState, overIn, overlaps, overlapsAcross, pageClaimed, pageShadowRoots, pageUrl, paintClips, pendingForParent, placeBox, placeHolder, presentDocument, presented, projectView, projectionOrigins, projectionRegionsPresented, queueWidgetUpdate, rankAt, reactionsAt, readApplication, readApplicationPresentation, readPart, recordedWidgetSelector, ref, refuseShadowRoot, registry, render, renderedChildren, repeat, revisionLabel, rightCover, runtime, runtimeModule, runtimeResource, sameAnchor, scrollContainer, scrollGlides, scrolling, scrollsBy, scrollsContent, seatRoot, seenRect, selectWidgets, setPresentationFailureReporter, shadowRootsIn, shadowRules, share, shareUrl, shellRight, showNativeLayer, shownBand, shownBox, shownExtent, shownParts, shownRect, shownWindow, skipped, slotTop, stackLevel, startsAt, stateCoordinate, stateSpecs, stuckBox, styleMap, tagsDeclaring, threadCounts, threadKey, threadNames, tokenChoices, tokenEntry, turns, uiInside, underOccluder, union, unsafeHTML, userScrollport, visibleBand, watchArrivals, watchArrivalsIn, watchLayerChanges, watchLayers, watchOwner, watchPresentation, watchRoom, watchScrollEnds, watchScrolls, watchSemantic, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenNone, whenWidgetsPresented, whileConnected, windowChromeBoxes };
+export { AsyncDirective, COLLAPSE, DELIVERY, DRAFT_FORMAT, Directive, LIVE_ROOT, LitElement, PAGE_ROOT, PENDING, PRESENTATION_DOM, PartType, SAID, SHADOW_LEADING_CSS, SHARE_ROOT, TEXT_BLOCK, UI_MARKS, WEBSITE_DELIVERY, actionForWidget, adoptRegistry, agentName, anchorKey, annotationMarkSheets, annotationMode, annotationSheets, applicationPresented, applicationPresenter, applicationRegionsPresented, applicationState, attachApplicationPresentation, attachWidgetPresentation, authoredRank, bareReaction, carriesObligation, chromeSharedClasses, chromeSheet, clamp, classMap, clippedContents, clippedPlace, clippingAxes, clipsPastSurfaces, closeNativeLayer, createPresentationSchedule, createRef, decisionFor, declarationFor, declareOccluder, declareWindowChrome, declaredRoot, describeFailure, directive, discussed, dismissPopoversOutside, documentChanged, drawingSchema, editable, elementDeclarations, elementsDeclaring, exhibits, foldWidgetStates, frameFor, frameView, growthAfterIsSeen, growthIsSeen, guard, hasArea, headerCuts, headerInset, hostIn, html, inBaseLayer, inUi, inWindowChrome, intersect, isElementName, isMessageEvent, isNews, isReaction, isThreadEvent, itemNoun, itemOutcome, keyed, landingBand, landingInsets, lastMovedAt, layerFact, layerRoot, layoutWindow, live, loadShadowRules, marks, marksSheet, matchesWhen, messageKey, moved, nativeLayers, nativeModalAdmits, nearObserver, nearWindow, nearestScrollBy, noChange, nothing, obligationValue, offlineData, offlineInteractive, offlineState, overIn, overlaps, overlapsAcross, pageClaimed, pageShadowRoots, pageUrl, paintClips, pendingForParent, placeBox, placeHolder, presentDocument, presented, projectView, projectionOrigins, projectionRegionsPresented, queueWidgetUpdate, rankAt, reactionsAt, readApplication, readApplicationPresentation, readPart, recordedWidgetSelector, ref, refuseShadowRoot, regionCommitted, registry, render, renderedChildren, repeat, revisionLabel, rightCover, runtime, runtimeModule, runtimeResource, sameAnchor, scrollContainer, scrollGlides, scrolling, scrollsBy, scrollsContent, seatRoot, seenRect, selectWidgets, setPresentationFailureReporter, shadowRootsIn, shadowRules, share, shareUrl, shellRight, showNativeLayer, shownBand, shownBox, shownExtent, shownParts, shownRect, shownWindow, skipped, slotTop, stackLevel, startsAt, stateCoordinate, stateSpecs, stuckBox, styleMap, tagsDeclaring, threadCounts, threadKey, threadNames, tick, tokenChoices, tokenEntry, turns, uiInside, underOccluder, union, unsafeHTML, userScrollport, visibleBand, watchArrivals, watchArrivalsIn, watchLayerChanges, watchLayers, watchOwner, watchPresentation, watchRoom, watchScrollEnds, watchScrolls, watchSemantic, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenNone, whenWidgetsPresented, whileConnected, windowChromeBoxes };

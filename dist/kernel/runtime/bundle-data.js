@@ -1,6 +1,6 @@
 import { CARET_KEYS, J, PRESSES, TEXT_BOX, TEXT_FIELD, W, Z, afterScript, bindQueuedWork, cancelRender, caretAtKey, composedParentNode, currentLocationIn, currentLocationNodes, currentLocationTouches, d, deepFocus, drawn as drawn$2, excludedByInert, focusDestination, focused, holdCurrentLocation, holdFocus, inputCount, keeps, keepsHidden, layoutPx, move, nextAnimation, nextFrame, nextRender, onCurrentLocation, onLetGo, onPress, onPressAway, onUserInput, readCaret, recentPlaceInput, recoveredLabelFocus, renderedOrder, renderedParent, renderedUnder, renderingState, selectsAll, sizeObserver, takesLetters, typesText, under, upFrom, watchCurrentLocationIn, x } from "./bundle-dom-move.js";
 import { EVERYTHING, LayerRefused, PAGE_PAINT_ATTRIBUTE, PRESS, PRESSABLE, admitReading, admitResponse, allBindings, announce, answers, ariaShortcuts, bindingEnabledFor, bindings, buttonCommand, checked, claimReleaseClick, clampedRow, commandAvailable, commandEntries, commandReady, commandRoutes, commandScope, cycledRow, declareCommandReadiness, declaredBindings, descriptionOf, el, generatedElement, holdStatus, holdingError, iconElement, iconTemplate, keys, labelOf, layoutChanged, live, measure, nativeActivationAt, nativeClaimAt, notice, offer, offerAction, offered, offeredAction, pagePresented, paintKeys, paintKeysWithin, passErrorsAt, plainPress, pointerAt, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, randomId, referencedCommandEntry, repaint, reportPageError, requestJson, restorePointer, reveal, revealLayer, routedCommand, rowArrows, runtimeRootState, sameLayer, savedReadingSettled, scopeAvailable, scopeIdentity, scopesAt, scopesFor, setRuntimeRootAttribute, spell, titleOf, touchPresses as touchPresses$1, watchCommandScopes, word } from "./bundle-layer-client.js";
-import { COLLAPSE as COLLAPSE$1, LIVE_ROOT, PENDING, PRESENTATION_DOM, SHADOW_LEADING_CSS, TEXT_BLOCK, adoptRegistry, annotationMarkSheets, applicationPresenter, applicationState, attachApplicationPresentation, authoredRank, clippedContents, clippedPlace, decisionFor, declarationFor, editable, elementDeclarations, elementsDeclaring, exhibits, foldWidgetStates, frameFor, growthAfterIsSeen, growthIsSeen, headerInset, html, inUi, inWindowChrome, isElementName, isReaction, keyed, landingBand, lastMovedAt, layerRoot, loadShadowRules, marks, marksSheet, messageKey, moved, nativeLayers, nothing, obligationValue, offlineData, offlineInteractive, pageClaimed, pageUrl, pendingForParent, placeBox, placeHolder, presented, projectView, projectionOrigins, projectionRegionsPresented, readApplication, readPart, recordedWidgetSelector, registry as registry$1, render as render$1, repeat, revisionLabel, runtime, runtimeModule, runtimeResource, sameAnchor, seatRoot, seenRect, shadowRules, share, shownBox, shownRect, shownWindow, skipped, slotTop, stateSpecs, stuckBox, tagsDeclaring, threadKey, threadNames, tokenEntry, turns, union, userScrollport, visibleBand, watchArrivals, watchArrivalsIn, watchLayers, watchOwner, watchPresentation, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenNone, whenWidgetsPresented } from "./bundle-geometry.js";
+import { COLLAPSE as COLLAPSE$1, LIVE_ROOT, PENDING, PRESENTATION_DOM, SHADOW_LEADING_CSS, TEXT_BLOCK, adoptRegistry, annotationMarkSheets, applicationPresenter, applicationState, attachApplicationPresentation, authoredRank, clippedContents, clippedPlace, decisionFor, declarationFor, editable, elementDeclarations, elementsDeclaring, exhibits, foldWidgetStates, frameFor, growthAfterIsSeen, growthIsSeen, headerInset, html, inUi, inWindowChrome, isElementName, isReaction, keyed, landingBand, lastMovedAt, layerRoot, loadShadowRules, marks, marksSheet, messageKey, moved, nativeLayers, nothing, obligationValue, offlineData, offlineInteractive, pageClaimed, pageUrl, pendingForParent, placeBox, placeHolder, presented, projectView, projectionOrigins, projectionRegionsPresented, readApplication, readPart, recordedWidgetSelector, registry as registry$1, render as render$1, repeat, revisionLabel, runtime, runtimeModule, runtimeResource, sameAnchor, seatRoot, seenRect, shadowRules, share, shownBox, shownRect, shownWindow, skipped, slotTop, stateSpecs, stuckBox, tagsDeclaring, threadKey, threadNames, tick, tokenEntry, turns, union, userScrollport, visibleBand, watchArrivals, watchArrivalsIn, watchLayers, watchOwner, watchPresentation, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenNone, whenWidgetsPresented } from "./bundle-geometry.js";
 import { ADDRESSABLE, PAGE_CONTROL_RANK, addressableWord, addressedElements, ago, aimTargetAt, aimedTop, anchorBox, anchorForPassage, anchorForRange, anchorReading, anchorView, anchoringIsReady, atScrollEnd, authoredBody, chosenSince, chromeForeground, chromeRoot, claimReachStop, containingReadingRegionFor, cutFrames, datumAimTarget, datumLabel, effectiveScroller, followingItsEnd, fragmentTarget, headerLevels, initialOrigin, initialParent, initialSource, isAddressable, leadingTitle, livePoint, moveScrollerBy, nameAnchor, nameable, onReadingInput, pageReadingRegion, pageScroller, placeKept, projectedDatum, reachScrollers, readingRegionFor, readingRegions, recentReadingRegion, refreshAnchorView, regionScrollBehavior, regionsSettled, registerPageControl, releaseReachStop, resolveAnchor, restoreInitialSource, revealAddressed, scrollChainOf, scrollChoices, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, sectionLabel, sectionOf, settleMarginContentLayout, shortAgo, shownRegionBounds, stopScroll, targetElement, targetPlace, targetSegments, unconcealedReadingRegions, unmarkedCopy, visualPartLabel, watchReadingRegionTransitions } from "./bundle-content-layout.js";
 import { alignInlineText, alignText, authored, authoredScope, blockAt, closestAcross, elementById, elementReading, fencePassageParts, inChrome, labelWords, pageBlocks, pageDocument, pageQueryAll, pageRange, pageText, pageWords, pointAt as pointAt$1, quoteFrom, rangeOf, readingFrom, renderRetired, segmentBlock, segmentsIn, selectEnds, selectionBackward, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity, watchPassageRoot, wrote } from "./bundle-passages.js";
 import { alreadyShown, copyControl, fitsWhole, passOn, restrictUserIntent, retainUserIntent, scrollIntoReadingBand, scrollIntoView } from "./bundle-copy-control.js";
@@ -1011,7 +1011,10 @@ function narrowSheet(sheet, runtime) {
 }
 let watching = false;
 function keepPageRulesOffLayer() {
-	for (const sheet of document.styleSheets) narrowSheet(sheet, sheet.ownerNode?.hasAttribute("data-lf-runtime"));
+	for (const sheet of document.styleSheets) {
+		const owner = sheet.ownerNode;
+		if (owner) narrowSheet(sheet, owner.hasAttribute("data-lf-runtime"));
+	}
 	if (watching) return;
 	watching = true;
 	document.addEventListener("load", (event) => {
@@ -5129,6 +5132,15 @@ const threadIdNamed = (name) => threadNamed(name)?.id ?? name;
 //#region runtime/thread/replies.js
 const REPLY_COMPOSITION = Symbol("reply composition");
 const compositions = /* @__PURE__ */ new Map();
+const sessions = Z(0);
+function openSession(context, session) {
+	compositions.set(context, session);
+	tick(sessions);
+	return session;
+}
+function closeSession(context) {
+	if (compositions.delete(context)) tick(sessions);
+}
 const views = /* @__PURE__ */ new Map();
 const available = (composition) => Boolean(composition) && views.get(composition.context)?.has(composition) && composition.controls.input.isConnected;
 function adopt(context, composition) {
@@ -5136,7 +5148,7 @@ function adopt(context, composition) {
 	if (session?.owner !== composition) session?.owner?.sync.cancelDictation();
 	const caret = readCaret(session?.owner?.controls.input);
 	if (session) session.owner = composition;
-	else compositions.set(context, { owner: composition });
+	else openSession(context, { owner: composition });
 	if (caret) composition.controls.input.setSelectionRange(...caret);
 	remember(composition);
 }
@@ -5193,7 +5205,7 @@ const threadHoldsDraft = (key, ids) => draftHasContent(replyContext(key)) || ids
 const replyDraftsHold = (retains) => [...compositions].some(([context, session]) => loadDraft(context) !== null && !retains(session.owner?.controls.input));
 function endSession(context) {
 	const session = compositions.get(context);
-	compositions.delete(context);
+	closeSession(context);
 	if (session?.owner && !session.owner.binding) session.owner.row.remove();
 	return session;
 }
@@ -5343,17 +5355,20 @@ const replyCompositionHasDraft = (node) => {
 	const ctx = replyDraftContext(node);
 	return ctx ? loadDraft(ctx) !== null : null;
 };
-const replyIsEditing = (key) => compositions.has(replyContext(key));
+const replyIsEditing = (key) => {
+	sessions.value;
+	return compositions.has(replyContext(key));
+};
 const replyAvailable = (thread) => !thread.resolved || replyIsEditing(threadKey(thread));
 async function restoreReplyEditing(editing, land) {
 	if (!editing?.mirrored || !draftEditingStands(editing)) return null;
 	const context = editing.context;
 	let session = compositions.get(context);
-	if (!session) compositions.set(context, session = { owner: null });
+	if (!session) session = openSession(context, { owner: null });
 	try {
 		return await land();
 	} finally {
-		if (compositions.get(context) === session && !available(session.owner)) compositions.delete(context);
+		if (compositions.get(context) === session && !available(session.owner)) closeSession(context);
 	}
 }
 function createReplyView(key, commands, redraw, { onChange = () => {}, editLast = null, hint = "Reply", hintAside = () => "", accessibleName = "Reply", busy = () => false, sending = null, sent = null } = {}) {
@@ -7444,6 +7459,9 @@ function retainThreadSeats(batch) {
 const registrations = /* @__PURE__ */ new Map();
 let claimedIds = /* @__PURE__ */ new Set();
 let renderGeneration = 0;
+const ownership = Z(0);
+const sameSet = (a, b) => a.size === b.size && [...a].every((item) => b.has(item));
+const holdsOut = (id) => [...registrations.values()].some(({ held }) => held?.holds(id));
 function update(registration) {
 	if (registration.reconcileQueued) return;
 	registration.reconcileQueued = true;
@@ -7490,6 +7508,7 @@ function register(owner, render, { invalidate, composition, reveal }, kind) {
 		placements: null,
 		drawn: /* @__PURE__ */ new Set(),
 		held: kind === "widget" ? new HeldArrivals(() => update(registration)) : null,
+		heldKeys: /* @__PURE__ */ new Set(),
 		reconcileQueued: false,
 		cancelRender: () => {}
 	};
@@ -7599,7 +7618,7 @@ function renderSurfaces(collection, placements, commands) {
 				const byKey = new Map(collection.threads.map((thread) => [thread.key, thread]));
 				const targets = /* @__PURE__ */ new Map();
 				for (const thread of collection.threads) {
-					if (registration.kind === "page" ? heldOut(thread.id) : thread.anchor?.section !== owner.id) continue;
+					if (registration.kind === "page" ? holdsOut(thread.id) : thread.anchor?.section !== owner.id) continue;
 					const placement = placements.placedAt(thread.id);
 					if (exactTarget(registration, thread.anchor, placement)) targets.set(thread.key, {
 						anchor: thread.anchor,
@@ -7614,6 +7633,10 @@ function renderSurfaces(collection, placements, commands) {
 					drawn: registration.drawn,
 					all: collection.threads
 				});
+				if (held && !sameSet(held, registration.heldKeys)) {
+					registration.heldKeys = held;
+					tick(ownership);
+				}
 				const anchor = activeComposition?.anchor;
 				const placement = anchor && (registration.kind === "page" || anchor.datum && anchor.section === owner.id) ? placements.pendingAt() : null;
 				const batch = [...targets].filter(([key]) => !held?.has(key)).map(([key, target]) => Object.freeze({
@@ -7679,7 +7702,7 @@ function renderSurfaces(collection, placements, commands) {
 		for (const plan of plans) {
 			try {
 				validateOutlets(plan.registration, plan.byOutlet);
-				for (const [outlet, threads] of plan.byOutlet) plan.byOutlet.set(outlet, threads.filter((thread) => exactTarget(plan.registration, thread.anchor, placements.placedAt(thread.id)) && (plan.registration.kind === "widget" || !widgetClaims.has(thread.id) && !heldOut(thread.id))));
+				for (const [outlet, threads] of plan.byOutlet) plan.byOutlet.set(outlet, threads.filter((thread) => exactTarget(plan.registration, thread.anchor, placements.placedAt(thread.id)) && (plan.registration.kind === "widget" || !widgetClaims.has(thread.id) && !holdsOut(thread.id))));
 				if (!plan.byOutlet.has(plan.compositionOutlet) || !exactTarget(plan.registration, activeComposition?.anchor, placements.pendingAt())) plan.compositionOutlet = null;
 			} catch (error) {
 				if (plan.registration.kind === "page") throw error;
@@ -7711,7 +7734,10 @@ function renderSurfaces(collection, placements, commands) {
 				registration.outlets = new Set(byOutlet.keys());
 				registration.drawn = new Set([...byOutlet.values()].flat().map((thread) => thread.anchor.datum));
 			}
-			claimedIds = nextClaimed;
+			if (!sameSet(claimedIds, nextClaimed)) {
+				claimedIds = nextClaimed;
+				tick(ownership);
+			}
 			prepared = null;
 		} catch (error) {
 			if (movedComposition) {
@@ -7726,8 +7752,14 @@ function renderSurfaces(collection, placements, commands) {
 		}
 	}
 }
-const claimed = (id) => claimedIds.has(id);
-const heldOut = (id) => [...registrations.values()].some(({ held }) => held?.holds(id));
+const claimed = (id) => {
+	ownership.value;
+	return claimedIds.has(id);
+};
+const heldOut = (id) => {
+	ownership.value;
+	return holdsOut(id);
+};
 function revealHeld(ids) {
 	for (const registration of registrations.values()) {
 		const [id] = registration.held?.show(ids) ?? [];
@@ -8719,7 +8751,7 @@ const inlineComparison = (target) => diffOn.value && diffBefore.has(target) && (
 function toggleInlineComparison(target) {
 	if (!inlineComparison(target)) return null;
 	const said = inlineOpen.has(target) ? closeInlineComparison(target) : openInlineComparison(target);
-	comparisonGeneration.value += 1;
+	tick(comparisonGeneration);
 	return said;
 }
 const comparable = (version) => {
@@ -8738,7 +8770,7 @@ function setDiff(on, base, pendingBase = null) {
 			for (const b of diffMarked) b.classList.remove("lf-ins-block");
 			diffMarked.clear();
 		}
-		comparisonGeneration.value += 1;
+		tick(comparisonGeneration);
 	});
 }
 async function showComparison(base) {
@@ -9896,7 +9928,7 @@ function acceptData(candidate, taken) {
 const joined = /* @__PURE__ */ new Set();
 async function notifyDataSubscribers() {
 	const version = runtime.data.version;
-	deliveries.value += 1;
+	tick(deliveries);
 	await whenApplicationRegionsPresented([...joined], () => runtime.data.version === version);
 	if (version !== null && runtime.data.version === version) setRuntimeRootAttribute(document.body, PAGE_PAINT_ATTRIBUTE.dataVersion, version);
 }

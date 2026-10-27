@@ -1,6 +1,6 @@
 import { TEXT_FIELD, Z, afterScript, bindQueuedWork, byRenderedOrder, canPlaceFocus, closeLayer, composedParentNode, d, deepFocus, drawn, focusDestination, focused, frameVisibility, handBack, holdFocus, holdRendering, inputCount, isNativeLayer, keeps, keepsHidden, keepsText, move, nextRender, onCurrentLocation, onFrameVisibility, onUserInput, openLayer, openerOf, q, readSampleVisibility, renderedOrder, renderedParent, renderedUnder, shadowHost, sizeObserver, takesLetters, under, upFrom, whenLeft, x } from "./bundle-dom-move.js";
 import { PRESS, TEXT_ENTRY, admitResponse, announce, claimsEsc, commandAvailable, commandBinding, commandRoutes, completeData, controlAvailabilityOutput, countTraffic, cycledRow, dataHeaders, el, elementDirective, generatedElement, holdingError, iconTemplate, isCommandScope, keys, layerHeaders, notice, offer, offerAction, paintKeys, paintKeysWithin, postEvent, pressIsKeyboardActivation, projectCommandScope, raiseError, randomId, recordInteraction, removeRuntimeRootStyle, repaint, reportCarried, reportPageError, responseAction, reveal as reveal$1, rowArrows, sameLayer, savedReadingSettled, saying, sessionIsActive, setRuntimeRootStyle, watchCommandAvailability, watchPendingTraffic } from "./bundle-layer-client.js";
-import { DRAFT_FORMAT, LitElement, PENDING, PRESENTATION_DOM, actionForWidget, anchorKey, annotationMode, applicationPresenter, applicationState, attachApplicationPresentation, attachWidgetPresentation, clamp, clippedContents, clipsPastSurfaces, closeNativeLayer, discussed, documentChanged, drawingSchema, editable, growthIsSeen, hasArea, html, intersect, isMessageEvent, isThreadEvent, layoutWindow, matchesWhen, moved, offlineInteractive, offlineState, pageUrl, placeBox, placeHolder, presentDocument, presented as presented$1, projectionOrigins, queueWidgetUpdate, reactionsAt, readApplication, readPart, registry, render, runtime, seenRect, setPresentationFailureReporter, shadowRootsIn, showNativeLayer, shownWindow, stateCoordinate, tagsDeclaring, threadKey, tokenChoices, turns, union, watchOwner, watchPresentation, watchRoom, whenApplicationRegionsPresented, whenDocumentPresented, whenNone, whenWidgetsPresented, whileConnected } from "./bundle-geometry.js";
+import { DRAFT_FORMAT, LitElement, PENDING, PRESENTATION_DOM, actionForWidget, anchorKey, annotationMode, applicationPresenter, applicationState, attachApplicationPresentation, attachWidgetPresentation, clamp, clippedContents, clipsPastSurfaces, closeNativeLayer, discussed, documentChanged, drawingSchema, editable, growthIsSeen, hasArea, html, intersect, isMessageEvent, isThreadEvent, layoutWindow, matchesWhen, moved, offlineInteractive, offlineState, pageUrl, placeBox, placeHolder, presentDocument, presented as presented$1, projectionOrigins, queueWidgetUpdate, reactionsAt, readApplication, readPart, regionCommitted, registry, render, runtime, seenRect, setPresentationFailureReporter, shadowRootsIn, showNativeLayer, shownWindow, stateCoordinate, tagsDeclaring, threadKey, tokenChoices, turns, union, watchOwner, watchPresentation, watchRoom, whenApplicationRegionsPresented, whenDocumentPresented, whenNone, whenWidgetsPresented, whileConnected } from "./bundle-geometry.js";
 import { activityTransitionDue, addressableLabel, addressableWord, ago, anchorForRange, anchoringIsReady, commitPoint, declaredName, livePoint, markStateApplied, moveScrollerBy, observeServerNow, observeWorkingGrace, reachScrollers, readingRegionFor, saidNow, scheduleMarginContentLayout, sectionOf, settlePageInterface, syncLayoutRegion, targetSegments, tickClock, visualPartLabel, widgetWord } from "./bundle-content-layout.js";
 import { HOLDS_WORD, HeldNews, MessageView, SAYS_IN, THREAD, ThreadView, Transcript, aborted, allButCommandReference, allThreads, anchorLabel, answeredInWords, authoredHolder, authoredStates, awaitsData, beginThreadSeats, beginWalk, bindsInput, bringBackSurfaceOf, claimed, clearDraft, commitThreadSeats, commitWidgetDescriptors, comparisonBase, comparisonChanges, completeReadingReturn, createProjectionPresentation, createReplyView, dataReader, declareSide, descriptorStillMatches, dismissReplyAt, draftContexts, drawnThreadId, failSoft, failSoftUnreported, focusThread, focusedThreadTarget, heldOut, heldThread, holdReplyCompositions, holdThreadPlace, importWidgets, inlineComparison, isPageWidgetWorkflow, isWorkflowProgress, joinDataDelivery, keepRefusedWords, listWalkPosition, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, messageHolding, messageReading, messageText, mountFirstMessage, newsNotice, obligationHolding, obligationPlace, once, openMessageEditIn, orderChildren, pageCommand, pageScope, pageSelection, placeOf as placeOf$1, placePageThreads as placePageThreads$1, placedMarkdownTokens, placesFailure, prepareAuthoredMessage, progressFace, quoted as quoted$1, readObligations, readThreads, readingReturn, registerWritingDestination, rememberWriting, renderMarginThread, renderSeats, renderSurfaces, replyAvailable, replyDraftContext, replyThreadKey, reportFailure, retainThreadSeats, revealHeld, saveDraft, sendLanding, sendMessage, setChildren, settleAcceptedDrafts, showHeld, showHeldThread, strongestWorkflow, suppliedSnapshot, surfaceFocusTarget, threadAttention, threadDraft, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading as threadReading$1, threadReplyInput, threadRewrites, threadState, todoLabel, toggleInlineComparison, transferDraft, watchDraft, watchDrafts, watchThreadSurfaces, wholeThread, widgetDescriptor, workflowLabel } from "./bundle-data.js";
 import { closestAcross, elementById, excerptWords, inChrome, labelWords, leafSurface, pageParts, pageReadingVersion, quoteFrom, textNodesUnder } from "./bundle-passages.js";
@@ -3430,7 +3430,6 @@ function createReactionController({ marginEntryChoices, marginEntryContextContai
 	}
 	function closeSurface(surface) {
 		if (surface === marginSurface) return;
-		surface?.classList.remove("lf-react-open");
 		reactDeparture?.();
 		reactDeparture = null;
 		const picker = pickerFor(surface);
@@ -3491,7 +3490,6 @@ function createReactionController({ marginEntryChoices, marginEntryContextContai
 			}
 			reactArmed = true;
 			if (reactSurface !== marginSurface) {
-				reactSurface.classList.add("lf-react-open");
 				const picker = pickerFor(reactSurface);
 				scrollIntoReadingBand(picker.trigger, picker.trigger, "nearest", "instant");
 				showNativeLayer(picker.palette, { source: picker.trigger });
@@ -4025,7 +4023,7 @@ function renderHolds(threads) {
 	for (const node of document.querySelectorAll("[data-lf-held]")) if (!held.has(node)) node.removeAttribute("data-lf-held");
 	for (const [target, id] of held) keeps(target, "data-lf-held", id);
 }
-function createThreadPresentation({ available = true, inlineView, surfaceView, anchorPlacement, anchorPaint, anchorControls, drawingPaint, pageGeometry, readDraft, activeActionAnchor, renderAnnotations, renderSurfaces, openThread, continueThread, returnToPage, threadAt, read }) {
+function createThreadPresentation({ available = true, inlineView, surfaceView, anchorPlacement, anchorPaint, anchorControls, drawingPaint, pageGeometry, readDraft, activeActionAnchor, renderSurfaces, openThread, continueThread, returnToPage, threadAt, read }) {
 	let primary = null;
 	const presenter = applicationPresenter({
 		region: "thread",
@@ -4086,10 +4084,9 @@ function createThreadPresentation({ available = true, inlineView, surfaceView, a
 					surfaces.commit();
 					commitThreadSeats(batch);
 					surfaceView.composition.finishPlacement();
-					d(renderAnnotations);
 					pageGeometry.pageShifted();
 					read.present();
-					continueReplies(restorePlace).then(returnToPage).catch((error) => reportPageError(error, `Reply continuation failed`));
+					Promise.resolve().then(() => regionCommitted("annotations")).then(() => continueReplies(restorePlace)).then(returnToPage).catch((error) => reportPageError(error, `Reply continuation failed`));
 				}));
 			};
 			await (primaryPreparation?.then ? primaryPreparation.then(resume(paintPrepared)) : paintPrepared(primaryPreparation));
@@ -6148,7 +6145,6 @@ function mountApplication(dependencies) {
 		pageGeometry: dependencies.pageGeometry,
 		readDraft: dependencies.readThreadDraft,
 		activeActionAnchor: dependencies.activeActionAnchor,
-		renderAnnotations,
 		renderSurfaces,
 		openThread: (id, options) => threadDestinations.openPageThread(id, {
 			...options,

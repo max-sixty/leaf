@@ -1,6 +1,6 @@
 import { J, LENT_REACH_STOP, PRESSES, TEXT_BOX, WORKS, Z, afterScript, deepFocus, keeps, layoutPx, move, nativeLayerHolding, nextFrame, nextRender, onCurrentLocation, pressing, renderedParent, renderedUnder, renderingState, shadowHost, sizeObserver, tabStops, under, upFrom, wearsLentStop } from "./bundle-dom-move.js";
 import { LAYOUT, PAGE_PAINT_ATTRIBUTE, PRESSABLE, layoutChanged, pagePresented, repaintPage, reportPageError, setRuntimeRootAttribute } from "./bundle-layer-client.js";
-import { TEXT_BLOCK, anchorKey, applicationPresented, clamp, clippedContents, documentChanged, headerCuts, hostIn, inUi, isElementName, landingBand, marks, nearObserver, nearWindow, overlaps, registry, scrollContainer, scrollsBy, scrollsContent, shadowRootsIn, shownBox, shownParts, shownRect, skipped, tagsDeclaring, uiInside, userScrollport, watchArrivals, whileConnected } from "./bundle-geometry.js";
+import { TEXT_BLOCK, anchorKey, applicationPresented, clamp, clippedContents, documentChanged, headerCuts, hostIn, inUi, isElementName, landingBand, marks, nearObserver, nearWindow, overlaps, registry, scrollContainer, scrollsBy, scrollsContent, shadowRootsIn, shownBox, shownParts, shownRect, skipped, tagsDeclaring, tick, uiInside, userScrollport, watchArrivals, whileConnected } from "./bundle-geometry.js";
 import { DATUM, authoredScope, blockAt, closestAcross, contextAround, cut, elementById, elementReading, excerptWords, fileModelsPassage, findQuote, inChrome, layoutBox, leafSurface, neighbourhood, pageDocument, pageQueryAll, pageText, quoteFrom, rangeOf, readingFrom, segmentsIn, settledAway, spanIn, textNodesUnder } from "./bundle-passages.js";
 
 //#region runtime/presence.js
@@ -14,7 +14,7 @@ const clockValue = (read) => J(() => {
 }).value;
 async function tickClock(reportError) {
 	try {
-		pulse.value += 1;
+		tick(pulse);
 	} catch (error) {
 		reportError(error, "clock paint failed");
 	}

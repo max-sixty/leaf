@@ -1,6 +1,6 @@
 import { CARET_KEYS, MODIFIER_KEYS, PRESSES, TEXT_BOX, TEXT_FIELD, WORKS, Z, afterScript, bindQueuedWork, byRenderedOrder, cancelRender, closeLayer, currentLocationIn, d, declareReading, deepFocus, drawn, focusDestination, focused, handBack, holdFocus, holdRendering, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, nextFrame, nextRender, observePreparations, observeQueuedWork, onCurrentLocation, onPressAway, onUserInput, openLayer, openerOf, release, releaseFocus, renderedOrder, renderedUnder, renderingState, rove, selectsAll, shadowHost, sizeObserver, takesLetters, typesText, under as under$1, upFrom, x } from "./runtime/bundle-dom-move.js";
 import { EVERYTHING, LAYOUT, LINK, PAGE_PAINT_ATTRIBUTE, PRESS, PRESSABLE, advertisesKeys, allBindings, announce, bindingEnabled, bindings, buttonCommand, claimReleaseClick, claimsEsc, clampedRow, closeControl, coarsePointer, commandDeclarationsWithin, commandPresentations, commandRoutes, commandScope, commandsWithin, contextBindings, contextScopes, cycledRow, decisionControls, declaredBindings, descriptionOf, dismissError, dismissErrors, dragHeld, el, errorsReading, holdingError, iconElement, iconTemplate, keys, labelOf, live, liveEl, merge, mountRepaint, notice, noticeReading, offer, offerAction, offered, offeredAction, pagePresented, pageUpgraded, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, pointerAt, pressIsKeyboardActivation, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, reflectFirstScopes, reflectKeys, repaint, repaintPage, reportPageError, reveal, routedCommand, rowArrows, savedReadingSettled, saying, scopeRefs, scopesAt, scopesFor, searchField, seeErrors, setNoticeContext, setQuickShortcuts, setRuntimeRootStyle, spell, spokenBinding, submitBindings, titleOf, uploadMedia, watchCommandAvailability, word } from "./runtime/bundle-layer-client.js";
-import { COLLAPSE, LitElement, PRESENTATION_DOM, SHARE_ROOT, TEXT_BLOCK, WEBSITE_DELIVERY, agentName, annotationMode, annotationSheets, applicationPresenter, applicationState, bareReaction, carriesObligation, chromeSheet, clamp, clippedContents, closeNativeLayer, decisionFor, declareOccluder, declareWindowChrome, dismissPopoversOutside, documentChanged, hostIn, html, inUi, intersect, isNews, itemNoun, itemOutcome, keyed, landingBand, layoutWindow, live as live$1, marksSheet, nativeLayers, nativeModalAdmits, noChange, nothing, offlineInteractive, overlaps, overlapsAcross, presented, readPart, ref, registry, render, repeat, runtime, runtimeResource, sameAnchor, scrollGlides, scrolling, seenRect, shareUrl, showNativeLayer, shownBox, shownParts, shownRect, skipped, stackLevel, startsAt, tagsDeclaring, threadCounts, threadKey, threadNames, underOccluder, union, watchLayerChanges, watchScrollEnds, watchScrolls, whenApplicationPresented, whileConnected, windowChromeBoxes } from "./runtime/bundle-geometry.js";
+import { COLLAPSE, LitElement, PRESENTATION_DOM, SHARE_ROOT, TEXT_BLOCK, WEBSITE_DELIVERY, agentName, annotationMode, annotationSheets, applicationPresenter, applicationState, bareReaction, carriesObligation, chromeSheet, clamp, clippedContents, closeNativeLayer, decisionFor, declareOccluder, declareWindowChrome, dismissPopoversOutside, documentChanged, hostIn, html, inUi, intersect, isNews, itemNoun, itemOutcome, keyed, landingBand, layoutWindow, live as live$1, marksSheet, nativeLayers, nativeModalAdmits, noChange, nothing, offlineInteractive, overlaps, overlapsAcross, presented, readPart, ref, registry, render, repeat, runtime, runtimeResource, sameAnchor, scrollGlides, scrolling, seenRect, shareUrl, showNativeLayer, shownBox, shownParts, shownRect, skipped, stackLevel, startsAt, tagsDeclaring, threadCounts, threadKey, threadNames, tick, underOccluder, union, watchLayerChanges, watchScrollEnds, watchScrolls, whenApplicationPresented, whileConnected, windowChromeBoxes } from "./runtime/bundle-geometry.js";
 import { ADDRESSABLE, JUST_NOW, PAGE_CONTROL_RANK, PRESENTATION, UPGRADE, addressableLabel, addressableSays, addressableWord, afterPresentation, ago, aimTargetAt, aimTargets, anchorFor, anchoringIsReady, annotationAt, atScrollEnd, chromeForeground, chromeRoot, designPressAt, effectiveScroller, elementFrame, exactTarget, fragmentId, fragmentTarget, holdArrivingBounds, isAddressable, lightSeat, livePoint, markPagePresented, markPageUpgraded, moveScrollerBy, openMarginContentLayout, pageControls, pageControlsChanged, pageReadiness, pageScroller, placePoints, pointInto, railStands, reachScrollers, readingRegionFor, registerPageControl, registerReadingRegion, resolveAnchor, resolvedInMessage, revealAddressed, scrollChainOf, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, sectionLabel, sectionOf, setAnchoringReady, settlePageInterface, shortAgo, targetElement, targetParts, targetPlace, targetRange, targetSegments, unclaimedVisualGesture, userReadingRegion, visualAt, visualParts, visualSelector, whenArrived } from "./runtime/bundle-content-layout.js";
 import { onSampleNotice, registerSampleCommand, restoreUserView, sampleNotice } from "./runtime/bundle-restore-state.js";
 import { DESIGN_MODE_KEY, DISCLOSE, DISCLOSURE_SELECTOR, ELEMENTS, PAGE_DRAFT, THREAD, acceptData, activeCommandLabel, allButCommandReference, allThreads, anchorLabel, answerCloseRequest, answeredInWords, availableCommandRoutes, beginWalk, bringBackSurfaceOf, claimTraversals, commandSteps, createAnchorTravel, createPassageSelection, createRewriteRestore, createVersionController, createWritingResume, currentLocationOrigin, currentLocationThreadId, declareSide, declareThreadParts, designName, disclosed, dismissReply, dispatchKey, draftHasContent, drawnThreadId, escapeTakesAStep, executeCommand, focusedThreadTarget, followBoxGrowth, heldObligation, heldPagePlace, heldThread, holdPagePlace, holdToRead, initializeServedDocument, innermostStance, invokePress, isExternalPageLink, keepPageRulesOffLayer, keyReady, landingPlace, leftThePage, listWalkPosition, loadDraft, messageHolding, messageReading, messageText, mirrorDraft, mountHistory, notifyDataSubscribers, obligationEntry, obligationHolding, obligationPlace, obligationsIn, onReadingInterrupted, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, paintCoreControls, placeKeeper, placeOf, quoteReading, readBoxPlace, readObligations, readPlace, readThreads, readingBlock, readingIsContinuous, releaseReplies, rememberWriting, replaceEntry, replyAvailable, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, returnPlace, rowWalk, saveDraft, scrollThreadIntoView, selectionAnchor, sendMessage, setChildren, settleThread, showHeld, showReturnTurn, snapSelection, stepFrom, subjectPlace, tabStore, tellDraft, threadAttention, threadHeading, threadIn, threadList, threadName, threadNamed, threadTodos, titlePending, todoLabel, touchPresses, upgradeWidgets, userChoice, userIn, versionPicker, versionsReading, walkOrigin, walkPosition, walkPositionLabel, watchDisclosures, workflowLabel, workflowStep } from "./runtime/bundle-data.js";
@@ -3458,7 +3458,7 @@ function createAnchorPlacement() {
 		pendingPlaced = resolvedDraft;
 		const active = draft.open ? null : actionAnchor;
 		const action = active && !active.quote ? resolveAnchor(active) : null;
-		if (before.size !== placed.size || [...placed].some(([id, placement]) => !samePlacement(before.get(id), placement))) version.value += 1;
+		if (before.size !== placed.size || [...placed].some(([id, placement]) => !samePlacement(before.get(id), placement))) tick(version);
 		return {
 			readings,
 			draft: {
@@ -9419,7 +9419,6 @@ let commandRoutesAtOpen = {
 	on: /* @__PURE__ */ new Map(),
 	off: /* @__PURE__ */ new Map()
 };
-let commandReferenceIsOpen = false;
 let commandReferenceInvoke = null;
 let commandReferenceCatalog = Object.freeze({
 	total: 0,
@@ -9861,7 +9860,7 @@ commandReferenceDialog.addEventListener("cancel", (event) => {
 });
 let commandReferenceReturn = null;
 function showCommandReference(open, restoreFocus, invokeCommand, returnTo) {
-	const fresh = open && !commandReferenceIsOpen;
+	const fresh = open && !commandReferenceDialog.open;
 	const preserveSelection = fresh && Boolean(pageSelection());
 	const handingBack = !open && restoreFocus && currentLocationIn(commandReferenceDialog);
 	const restore = handingBack ? commandReferenceReturn : null;
@@ -9881,7 +9880,6 @@ function showCommandReference(open, restoreFocus, invokeCommand, returnTo) {
 			})
 		};
 	}
-	commandReferenceIsOpen = open;
 	if (fresh) {
 		commandReferenceCatalog = captureCommandReferenceCatalog();
 		commandReferenceState = {
@@ -9903,7 +9901,6 @@ function showCommandReference(open, restoreFocus, invokeCommand, returnTo) {
 			body: results
 		});
 	}
-	commandReferenceDialog.classList.toggle("open", open);
 	if (open && !commandReferenceDialog.open) showNativeLayer(commandReferenceDialog);
 	if (!open) {
 		stopReferenceReading?.();
@@ -9950,14 +9947,13 @@ function activateSelectedCommand() {
 	activateCommandEntry(record.entry);
 	return true;
 }
-const commandReferenceOpen = () => commandReferenceIsOpen;
 const openCommandReference = (invokeCommand, returnTo = null) => showCommandReference(true, true, invokeCommand, returnTo);
 const closeCommandReference = (restoreFocus = true) => showCommandReference(false, restoreFocus, null, null);
 pageScope("command reference", {
 	title: "In the command reference",
 	escape: "inner",
 	root: () => commandReferenceDialog,
-	at: () => commandReferenceOpen(),
+	at: () => commandReferenceDialog.open,
 	claims: EVERYTHING,
 	rows: [
 		{

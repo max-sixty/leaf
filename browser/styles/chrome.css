@@ -581,10 +581,10 @@ html[data-lf-region-capture] main * {
     border-radius: var(--r-l);
     box-shadow: var(--raise-3);
     padding: 14px 18px;
-    /* Its column stands while a closing reference fades out, after `.open` has gone. */
+    /* Its column stands while a closing reference fades out, after `[open]` has gone. */
     flex-direction: column;
   }
-  .lf-command-reference.open {
+  .lf-command-reference[open] {
     display: flex;
   }
   .lf-command-reference::backdrop {
@@ -602,11 +602,11 @@ html[data-lf-region-capture] main * {
       display var(--lf-motion-disclosure) allow-discrete,
       overlay var(--lf-motion-disclosure) allow-discrete;
   }
-  :is(.lf-command-reference:not(.open), .lf-page-map-dialog:not([open])) {
+  :is(.lf-command-reference:not([open]), .lf-page-map-dialog:not([open])) {
     pointer-events: none;
   }
-  :is(.lf-command-reference.open, .lf-page-map-dialog[open]),
-  :is(.lf-command-reference.open, .lf-page-map-dialog[open])::backdrop {
+  :is(.lf-command-reference[open], .lf-page-map-dialog[open]),
+  :is(.lf-command-reference[open], .lf-page-map-dialog[open])::backdrop {
     opacity: 1;
     @starting-style {
       opacity: 0;

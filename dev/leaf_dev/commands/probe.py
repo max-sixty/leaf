@@ -29,7 +29,7 @@ from leaf.findings import Finding
 from leaf.render_checks import PageNotReady
 from leaf.render_gate.scheme import collect_page_exceptions, console_finding
 from leaf_dev import ROOT
-from leaf_dev.arms import base_ref, build_arm, serving_source
+from leaf_dev.arms import base_ref, extract_arm, serving_source
 from leaf_dev.browser import (
     DESKTOP,
     headless_engine,
@@ -114,7 +114,8 @@ def viewport(value: str) -> tuple[int, int]:
 @click.option(
     "--journey",
     type=click.Path(exists=True, dir_okay=False, path_type=Path),
-    help="Python file defining run(page); run after --do steps. Its return is JSON.",
+    help="Python file defining run(page); run after --do steps. Its return is JSON "
+    "and is the arm's `result`, as --js's value is; the two are exclusive.",
 )
 @click.option(
     "--record",
@@ -144,7 +145,7 @@ def viewport(value: str) -> tuple[int, int]:
     "size",
     default=f"{DESKTOP[0]}x{DESKTOP[1]}",
     callback=lambda c, p, v: viewport(v),
-    help="WIDTHxHEIGHT.",
+    help="WIDTHxHEIGHT; independent of --touch, so a phone needs both.",
 )
 @click.option(
     "--scheme",
@@ -155,7 +156,8 @@ def viewport(value: str) -> tuple[int, int]:
 @click.option(
     "--touch",
     is_flag=True,
-    help="Show the page under a finger: a coarse pointer and a mobile viewport.",
+    help="Show the page under a finger: a coarse pointer and mobile emulation. "
+    "The size stays at --viewport (default desktop); pass --viewport 390x844 for a phone.",
 )
 @click.option(
     "--browser",
@@ -197,7 +199,7 @@ def probe(
     base,
 ) -> None:
     """Open SOURCE in Chromium, Firefox or WebKit (--browser), run each --do step,
-    and print what --js returns.
+    and print what --js or --journey returns.
 
     SOURCE is an example or fixture name, an authored .html path built fresh
     from this working tree, or any http(s) URL. A path takes its companions from
@@ -233,7 +235,9 @@ def probe(
     Prints one JSON line per arm: startup phases and resources; native layout shifts
     through the journey, including recent input and affected node rectangles;
     long animation frames during startup and input steps, with script
-    entry points and forced layout; what --js returned, or the error that stopped the arm;
+    entry points and forced layout; `result`, what --js or --journey returned when
+    evaluation completed; `failed`, the stage and error that stopped the arm, which a
+    later stage such as --shot can add beside a `result`, so read `failed` first;
     the page's console errors and warnings and its uncaught exceptions; and with
     --shot the screenshot's path under .tmp/probe/.
 
@@ -268,6 +272,10 @@ def probe(
         raise click.UsageError(
             "--gif, --actions and --checkpoint-images require --record DIR"
         )
+    if expression and journey:
+        raise click.UsageError(
+            "--js and --journey both set `result`; have the journey return the value"
+        )
     if throttle and engine != "chromium":
         raise click.UsageError(f"--cpu-throttle needs Chromium's CDP, not {engine}")
     if isinstance(source, str) and (base is not None or log):
@@ -288,7 +296,7 @@ def probe(
         scratch = Path(built)
         arms = {"worktree": ("worktree", ROOT)}
         if base is not None:
-            commit = build_arm(base_ref(base), scratch / "base-arm")
+            commit = extract_arm(base_ref(base), scratch / "base-arm")
             arms = {"base": (commit, scratch / "base-arm"), **arms}
         with (
             headless_shell() if engine == "chromium" else headless_engine(engine)
@@ -335,10 +343,12 @@ def probe(
                                 STEPS[verb](page, arg)
                             if run:
                                 doing = "journey"
-                                reading["journey"] = run(page)
+                                returned = run(page)
                             doing = "settle"
                             if not isinstance(source, str):
                                 settle(page)
+                            if run:
+                                reading["result"] = returned
                         finally:
                             if not page.is_closed():
                                 if steps or run:

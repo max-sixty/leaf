@@ -527,8 +527,8 @@ RING_SCOPE_SURFACE = {
     "All pages": '.lf-floating-panel[data-open="leaves"]',
     "the leaf's menu": ".lf-floating-panel[data-menu]",
     "the versions menu": ".lf-floating-panel[data-menu]",
-    "the command reference": ".lf-command-reference.open",
-    "a reaction palette": ".lf-react-strip.lf-react-open",
+    "the command reference": ".lf-command-reference[open]",
+    "a reaction palette": ".lf-react-strip:has(> .lf-react-palette:popover-open)",
 }
 
 

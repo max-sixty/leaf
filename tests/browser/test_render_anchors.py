@@ -1608,6 +1608,44 @@ def test_code_copy_reads_sources_before_positioning_many_controls(browser, serve
     assert many <= one, {"60 controls": many, "1 control": one}
 
 
+def test_hidden_code_arrivals_do_not_read_skipped_blocks(browser, serve):
+    """Arriving code must leave the browser's skipped subtrees unmeasured."""
+    page = open_page(
+        browser,
+        serve(leaf_page("Hidden arrivals", '<h1>Arrivals</h1><div id="slots"></div>')),
+    )
+    page.evaluate("""() => {
+      window.hiddenCodeReads = [];
+      const rect = Element.prototype.getBoundingClientRect;
+      Element.prototype.getBoundingClientRect = function (...args) {
+        if (this.matches('pre[data-hidden-probe]')) hiddenCodeReads.push('rect');
+        return rect.apply(this, args);
+      };
+      const computed = window.getComputedStyle;
+      window.getComputedStyle = function (node, ...args) {
+        if (node.matches('pre[data-hidden-probe]')) hiddenCodeReads.push('style');
+        return computed.call(this, node, ...args);
+      };
+      document.querySelector('#slots').innerHTML =
+        '<section hidden="until-found"><pre data-hidden-probe><code>tab</code></pre></section>' +
+        '<details><summary>Code</summary><pre data-hidden-probe><code>details</code></pre></details>';
+    }""")
+    rendered(page)
+    assert page.evaluate("hiddenCodeReads") == []
+    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
+    page.locator("#slots section").evaluate("node => node.removeAttribute('hidden')")
+    expect(page.locator(".lf-code-copy")).to_have_count(1)
+    page.locator("#slots summary").click()
+    expect(page.locator(".lf-code-copy")).to_have_count(2)
+    page.keyboard.press("Tab")
+    expect(page.locator("#slots details pre")).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(
+        page.locator(".lf-code-copy").nth(1).get_by_role("button")
+    ).to_have_accessible_name("Code copied")
+    assert page.evaluate("navigator.clipboard.readText()") == "details"
+
+
 @pytest.mark.parametrize("holder", ["disclosure", "tab"])
 def test_code_copy_leaves_the_window_with_its_hidden_source(browser, serve, holder):
     """Hidden and distant sources take no anchored control layout; Copy still works."""
@@ -1628,10 +1666,8 @@ def test_code_copy_leaves_the_window_with_its_hidden_source(browser, serve, hold
     page = open_page(browser, url)
     page.context.grant_permissions(["clipboard-read", "clipboard-write"])
     controls = page.locator(".lf-chrome .lf-code-copy")
-    expect(controls).to_have_count(100)
     control = controls.first
     expect(page.locator("#source")).to_be_hidden()
-    expect(control).not_to_be_in_viewport()
     assert (
         controls.evaluate_all(
             "nodes => nodes.filter(node => node.getClientRects().length).length"
@@ -1652,6 +1688,7 @@ def test_code_copy_leaves_the_window_with_its_hidden_source(browser, serve, hold
     opener.click()
     rendered(page)
     expect(page.locator("#source")).to_be_visible()
+    expect(controls).to_have_count(100)
     expect(control).to_be_in_viewport()
     assert (
         0

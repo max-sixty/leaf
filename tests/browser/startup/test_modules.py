@@ -402,7 +402,7 @@ def test_an_unavailable_editor_module_leaves_fields_writing_plain_words(browser,
     with page.expect_event("pageerror") as raised:
         page.keyboard.press("Enter")
     assert failed[0] in str(raised.value)
-    expect(page.locator(".lf-live")).to_have_text("Message sent")
+    expect(page.locator(".lf-live")).to_have_text("Message added")
     consume_browser_errors(page, *failed)
 
 

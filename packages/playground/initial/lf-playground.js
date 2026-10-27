@@ -8,7 +8,15 @@
  * kinds, unique control names, choice values and preset settings (x-unique), and each
  * setting's and value slot's `for` naming a control of this playground (a keyed
  * x-refers). This producer checks only what needs the values themselves, such as a
- * range value against its bounds or a choice control's value among its choices. */
+ * range value against its bounds or a choice control's value among its choices.
+ *
+ * A playground needs no control: a preview whose script declares contributor slices
+ * is a whole configuration (lf-playground.js). With `actions="page"` the page draws
+ * the submission and Reset and hands them to the playground, so this producer draws
+ * no bar of actions, and the instruction stays where it was written, as a quoted
+ * playground's does, for the page to show or place. The markup says so because this
+ * drawing is the first paint: a bar drawn here and withdrawn once the page's script
+ * registered its own would move the page as it loads. */
 import { iconElement } from "../../../browser/runtime/icon-paths.js";
 
 const own = (root, tag) => [...root.querySelectorAll(`:scope > ${tag}`)];
@@ -29,8 +37,8 @@ function render(host, { tabStore, offer, offerAction, generatedElement, keeps })
   const outputs = own(host, "lf-playground-output");
   const previews = own(host, "lf-playground-preview");
   const controls = ownControls(host, previews[0]);
-  if (!controls.length || outputs.length !== 1 || previews.length !== 1)
-    throw new Error("playground needs controls, one preview and one output");
+  if (outputs.length !== 1 || previews.length !== 1)
+    throw new Error("playground needs one preview and one output");
   const output = outputs[0],
     preview = previews[0];
   const controlByName = new Map();
@@ -137,6 +145,14 @@ function render(host, { tabStore, offer, offerAction, generatedElement, keeps })
   };
   const interactive = !host.closest("[data-lf-exhibit]");
   host.classList.toggle("lf-playground-quoted", !interactive);
+  const pageActions = host.getAttribute("actions") === "page";
+  // The submission says what pressing it does: send the working values, or withdraw
+  // the choice they match (lf-playground.js). One room holds both words.
+  const submitLabel = host.getAttribute("submit-label") ?? "Use these settings";
+  const labelSubmit = (button) => {
+    button.dataset.room = `${submitLabel}\nUndo choice`;
+    button.replaceChildren(node("span", "", submitLabel));
+  };
   // A choice can be the candidate itself. Its content stays outside the native
   // radio's label so operating a preview never also chooses that candidate.
   for (const control of controls) {
@@ -304,42 +320,43 @@ function render(host, { tabStore, offer, offerAction, generatedElement, keeps })
     // opens over the page in a popover (lf-playground.js); its words also reach the
     // agent's thread once sent. Shown at rest, a long instruction took more of the
     // playground's room than the controls that wrote it (2026-10-25).
-    const actions = node("div", "lf-playground-actions");
-    reset = offerAction("symbol", "lf-playground-reset", "Reset");
-    reset.append(iconElement("retry", "lf-action-icon"));
-    instruction = node("div", "lf-playground-instruction");
-    instruction.id = `${host.id}-instruction`;
-    instruction.popover = "auto";
-    instruction.setAttribute("role", "dialog");
-    const instructionTitle = node(
-      "p",
-      "lf-playground-instruction-title lf-label",
-      "Instruction to agent",
-    );
-    instructionTitle.id = `${host.id}-instruction-title`;
-    instruction.setAttribute("aria-labelledby", instructionTitle.id);
-    const instructionHead = node("div", "lf-playground-instruction-head");
-    instructionHead.append(instructionTitle);
-    const instructionBody = node("div", "lf-playground-instruction-body");
-    instructionBody.append(output);
-    instruction.append(instructionHead, instructionBody);
-    reveal = offerAction("symbol", "lf-playground-reveal", "Show instruction");
-    reveal.setAttribute("aria-controls", instruction.id);
-    reveal.setAttribute("aria-expanded", "false");
-    reveal.append(iconElement("more", "lf-action-icon"));
-    submit = offerAction("commit", "lf-playground-submit");
-    const submitLabel = host.getAttribute("submit-label") ?? "Use these settings";
-    submit.dataset.room = `${submitLabel}\nUndo choice`;
-    submit.append(node("span", "", submitLabel));
-    actions.append(reset, reveal, submit, instruction);
-    if (document.querySelector("script[data-lf-offline]"))
-      actions.append(
-        node(
-          "span",
-          "lf-playground-unavailable",
-          "Submission unavailable: no agent or server is available.",
-        ),
+    let actions = null;
+    if (!pageActions) {
+      actions = node("div", "lf-playground-actions");
+      reset = offerAction("symbol", "lf-playground-reset", "Reset");
+      reset.append(iconElement("retry", "lf-action-icon"));
+      instruction = node("div", "lf-playground-instruction");
+      instruction.id = `${host.id}-instruction`;
+      instruction.popover = "auto";
+      instruction.setAttribute("role", "dialog");
+      const instructionTitle = node(
+        "p",
+        "lf-playground-instruction-title lf-label",
+        "Instruction to agent",
       );
+      instructionTitle.id = `${host.id}-instruction-title`;
+      instruction.setAttribute("aria-labelledby", instructionTitle.id);
+      const instructionHead = node("div", "lf-playground-instruction-head");
+      instructionHead.append(instructionTitle);
+      const instructionBody = node("div", "lf-playground-instruction-body");
+      instructionBody.append(output);
+      instruction.append(instructionHead, instructionBody);
+      reveal = offerAction("symbol", "lf-playground-reveal", "Show instruction");
+      reveal.setAttribute("aria-controls", instruction.id);
+      reveal.setAttribute("aria-expanded", "false");
+      reveal.append(iconElement("more", "lf-action-icon"));
+      submit = offerAction("commit", "lf-playground-submit");
+      labelSubmit(submit);
+      actions.append(reset, reveal, submit, instruction);
+      if (document.querySelector("script[data-lf-offline]"))
+        actions.append(
+          node(
+            "span",
+            "lf-playground-unavailable",
+            "Submission unavailable: no agent or server is available.",
+          ),
+        );
+    }
     const pane = (name, label, header, body) => {
       const element = node("div", `lf-playground-${name}-region`);
       element.dataset.lfReadingRole = "pane";
@@ -360,15 +377,20 @@ function render(host, { tabStore, offer, offerAction, generatedElement, keeps })
     // the theme stands it beside the stage, so it scrolls as a region of its own.
     if (!railed.length && presetBar)
       split.append(pane("controls", "Controls", null, presetBar));
-    const rail = node("div", "lf-playground-rail");
-    rail.dataset.lfTrack = "";
-    rail.append(
+    split.append(pane("preview", "Preview", null, previewBody));
+    const panes = [
       ...(railed.length ? [pane("controls", "Controls", presetBar, panel)] : []),
-      pane("instruction", "Instruction to agent", null, actions),
-    );
-    regions.push({ name: "rail", host: rail, body: rail });
-    split.append(pane("preview", "Preview", null, previewBody), rail);
-    host.append(split);
+      ...(actions ? [pane("instruction", "Instruction to agent", null, actions)] : []),
+    ];
+    if (panes.length) {
+      const rail = node("div", "lf-playground-rail");
+      rail.dataset.lfTrack = "";
+      rail.append(...panes);
+      regions.push({ name: "rail", host: rail, body: rail });
+      split.append(rail);
+    }
+    // First, so an instruction the page shows itself reads after the stage.
+    host.prepend(split);
   }
   const setInput = (control, value) => {
     const name = control.getAttribute("name"),
@@ -446,6 +468,10 @@ function render(host, { tabStore, offer, offerAction, generatedElement, keeps })
     storedCandidate,
     output,
     preview,
+    interactive,
+    pageActions,
+    submitLabel,
+    labelSubmit,
     submit,
     reset,
     reveal,

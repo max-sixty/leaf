@@ -37,7 +37,16 @@
  * durable one compares by its seq. The submit control withdraws the current choice
  * while its values and instruction match the working configuration; editing either
  * makes it submit a replacement. Its face derives from that comparison, never from
- * delivery timing or a separate saved flag. */
+ * delivery timing or a separate saved flag.
+ *
+ * Under `actions="page"` the page draws the submission and Reset, and
+ * `registerActions` hands this playground the two buttons. They become the controls of
+ * its commands, which wire their presses and keep the digit, On me's arrival and
+ * availability, and this module writes the submission's words, as it does for its own,
+ * since the words must say what the press will do. The page's CSS draws them: they are
+ * the page's elements, not Leaf's controls. Rejected: methods the page calls from its
+ * own handlers with a decision state to label from, which would leave every page to
+ * restate when the press withdraws the choice. */
 import {
   commands,
   compoundReadingRegionId,
@@ -226,6 +235,30 @@ customElements.define(
       this.#draw();
     }
 
+    // The page's own submission and Reset, under `actions="page"` (the header says why
+    // this module labels the submission).
+    registerActions({ submit, reset }) {
+      if (!this.#ready) throw new Error("playground is not ready");
+      if (!this.#initial.pageActions)
+        throw new Error('playground draws its own actions; set actions="page"');
+      if (this.#submit) throw new Error("playground already has its actions");
+      for (const [name, button] of [
+        ["submit", submit],
+        ["reset", reset],
+      ])
+        if (!(button instanceof HTMLButtonElement))
+          throw new Error(`registerActions needs a ${name} button`);
+      // A quotation sends nothing, so it shows neither.
+      if (!this.#interactive) {
+        submit.hidden = reset.hidden = true;
+        return;
+      }
+      this.#initial.labelSubmit(submit);
+      this.#submit = submit;
+      this.#reset = reset;
+      this.#paintAvailability();
+    }
+
     #build() {
       this.#initial = initialRender(this);
       const initial = this.#initial;
@@ -240,7 +273,7 @@ customElements.define(
       );
       this.#output = initial.output;
       this.#preview = initial.preview;
-      this.#interactive = Boolean(initial.submit);
+      this.#interactive = initial.interactive;
       this.#submit = initial.submit;
       this.#reset = initial.reset;
       this.#presetButtons = initial.presetButtons;
@@ -286,42 +319,7 @@ customElements.define(
             });
             this.#draw();
           });
-        const { reveal, instruction } = initial;
-        // Leaf's copy control in the popover's head. A code block's (`copyBlock`) hides
-        // while its block is away and came back a frame or more after the popover
-        // opened, after a Tab had passed it by.
-        const copy = copyControl("lf-quiet-action lf-playground-copy", {
-          label: "Copy instruction",
-          success: "Instruction copied",
-          error: "Unable to copy instruction",
-        });
-        copy.addEventListener(
-          "click",
-          () => {
-            copy.value = this.#instruction();
-          },
-          { capture: true },
-        );
-        instruction.firstElementChild.append(copy);
-        // A press on the reveal while the instruction is open lands outside it, and
-        // the popover's light dismiss closes it before the click: the press closes it.
-        // A key's click (`detail` 0) reads only the popover, since a press dragged off
-        // the reveal leaves no click to clear what it saw.
-        let openAtPress = false;
-        reveal.addEventListener("pointerdown", () => {
-          openAtPress = isNativeLayer(instruction);
-        });
-        reveal.addEventListener("click", (event) => {
-          const open = (event.detail > 0 && openAtPress) || isNativeLayer(instruction);
-          openAtPress = false;
-          if (open) closeNativeLayer(instruction);
-          // Tab goes on from the reveal into the instruction it opened, to its copy.
-          else showNativeLayer(instruction, { source: reveal });
-        });
-        instruction.addEventListener("toggle", (event) => {
-          keeps(reveal, "aria-expanded", event.newState === "open");
-          paintKeys();
-        });
+        if (initial.reveal) this.#wireInstruction(initial);
         this.addEventListener("mousedown", (event) => {
           const target = /** @type {Element} */ (event.target);
           if (target.closest(".lf-playground-control-label")) return;
@@ -359,6 +357,45 @@ customElements.define(
         this.#commands();
       }
       this.#paintPresets();
+    }
+
+    // The instruction the playground's own bar reveals in a popover.
+    #wireInstruction({ reveal, instruction }) {
+      // Leaf's copy control in the popover's head. A code block's (`copyBlock`) hides
+      // while its block is away and came back a frame or more after the popover
+      // opened, after a Tab had passed it by.
+      const copy = copyControl("lf-quiet-action lf-playground-copy", {
+        label: "Copy instruction",
+        success: "Instruction copied",
+        error: "Unable to copy instruction",
+      });
+      copy.addEventListener(
+        "click",
+        () => {
+          copy.value = this.#instruction();
+        },
+        { capture: true },
+      );
+      instruction.firstElementChild.append(copy);
+      // A press on the reveal while the instruction is open lands outside it, and
+      // the popover's light dismiss closes it before the click: the press closes it.
+      // A key's click (`detail` 0) reads only the popover, since a press dragged off
+      // the reveal leaves no click to clear what it saw.
+      let openAtPress = false;
+      reveal.addEventListener("pointerdown", () => {
+        openAtPress = isNativeLayer(instruction);
+      });
+      reveal.addEventListener("click", (event) => {
+        const open = (event.detail > 0 && openAtPress) || isNativeLayer(instruction);
+        openAtPress = false;
+        if (open) closeNativeLayer(instruction);
+        // Tab goes on from the reveal into the instruction it opened, to its copy.
+        else showNativeLayer(instruction, { source: reveal });
+      });
+      instruction.addEventListener("toggle", (event) => {
+        keeps(reveal, "aria-expanded", event.newState === "open");
+        paintKeys();
+      });
     }
 
     #parse(control, raw) {
@@ -414,9 +451,10 @@ customElements.define(
           id: "playground.choose",
           contextKeys: ["1"],
           bindingBadge: null,
-          control: this.#submit,
+          // A getter, since a page's own submission arrives after upgrade.
+          control: () => this.#submit,
           decision: true,
-          title: () => this.#submit.textContent,
+          title: () => this.#submitWords(),
           when: () =>
             !this.#choosing &&
             (this.#chosen() ? Boolean(this.#undo()) : this.#available()),
@@ -425,7 +463,7 @@ customElements.define(
         {
           id: "playground.reset",
           keys: ["Alt+0"],
-          control: this.#reset,
+          control: () => this.#reset,
           title: "reset controls",
           run: () => {
             this.#restore(this.#defaults);
@@ -534,13 +572,12 @@ customElements.define(
 
     #paintAvailability() {
       if (!this.#submit) return;
-      keepsText(
-        this.#submit.firstElementChild,
-        this.#chosen()
-          ? "Undo choice"
-          : (this.getAttribute("submit-label") ?? "Use these settings"),
-      );
+      keepsText(this.#submit.firstElementChild, this.#submitWords());
       paintKeys();
+    }
+
+    #submitWords() {
+      return this.#chosen() ? "Undo choice" : this.#initial.submitLabel;
     }
 
     #chosen() {

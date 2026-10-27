@@ -46,10 +46,12 @@ Preact Signals it exports `signal`, for private state a command's `when` reads
 - Check `quoted()` before wiring anything that sends input back ("Upgrade").
 - Read the page's words with `says()` or `wrote()`, never `textContent`
   (`module-reading.md`, "Reading the page").
-- Build injected controls with `offer()`, `offered` or `selectableOffer()`, a press
-  that looks like Leaf's controls with `offerAction()` or `offeredAction` by its role, label
-  them with `relabel()`, and mark other words the widget writes with
-  `generatedElement()` or `generated` ("Generated controls").
+- Build the controls a widget injects as Leaf's with `offer()`, `offered` or
+  `selectableOffer()`, a press that looks like Leaf's controls with `offerAction()` or
+  `offeredAction` by its role, label them with `relabel()`, and mark other words the
+  widget writes with `generatedElement()` or `generated` ("Generated controls"). A
+  page script drawing the page's own interface builds ordinary elements, which the
+  page's CSS styles, and marks the words it writes the same way.
 - Keep the box the widget has at first paint ("First paint").
 - Schedule paints with `frameFor`, observe size with `sizeObserver`, and write repeated
   values through `keeps` ("Scheduling paints", "Writes that change nothing").

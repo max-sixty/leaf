@@ -52,7 +52,8 @@
 
 @container (width < 43.5rem) {
   .lf-playground-split:has(> .lf-playground-rail > .lf-playground-controls-region) {
-    grid-template-rows: auto minmax(0, 1fr) auto;
+    /* The bar's row is implicit, so a page that draws its own actions leaves none. */
+    grid-template-rows: auto minmax(0, 1fr);
   }
   .lf-playground-controls-region {
     grid-row: 1;
@@ -128,27 +129,28 @@
     }
 
     /* The bar takes its content's height (`max-content`), since a box that scrolled
-     * inside the scrolling workspace would hide its end behind two scrolls. */
+     * inside the scrolling workspace would hide its end behind two scrolls. Its row
+     * is implicit, so a page that draws its own actions leaves no empty row. */
     .lf-playground-split:not(
       :has(
         > .lf-playground-controls-region,
         > .lf-playground-rail > .lf-playground-controls-region
       )
     ) {
-      grid-template-rows: minmax(max(12rem, 50dvh), 1fr) max-content;
+      grid-template-rows: minmax(max(12rem, 50dvh), 1fr);
+      grid-auto-rows: max-content;
     }
 
     /* A presets pane with no controls beside it heads the stage. */
     .lf-playground-split:has(> .lf-playground-controls-region) {
-      grid-template-rows:
-        minmax(min-content, auto) minmax(max(12rem, 50dvh), 1fr)
-        max-content;
+      grid-template-rows: minmax(min-content, auto) minmax(max(12rem, 50dvh), 1fr);
+      grid-auto-rows: max-content;
     }
 
     @container (min-width: 43.5rem) {
       .lf-playground-rail:has(> .lf-playground-controls-region) {
         align-self: stretch;
-        grid-template-rows: minmax(12rem, 1fr) auto;
+        grid-template-rows: minmax(12rem, 1fr);
       }
     }
   }

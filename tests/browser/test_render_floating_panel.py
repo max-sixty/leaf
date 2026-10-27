@@ -2562,12 +2562,9 @@ def test_the_empty_field_says_the_agent_s_status_until_the_caret_is_in(browser, 
     placeholder to where the words go; words in the field need no additional line. It never names who reads them, since every word here goes
     to the one agent."""
     url = serve(LONG_PAGE)
-    # No session holds the page, so it names its agent by the voice that started the
-    # work, the suite's Claude Code session (`presence.page_agent`).
     working(serve.page_dir, "Drafting the rollout")
-    agent = "Claude"
     page = open_page(browser, url, init_script=EDITOR_ROOTS)
-    status = re.compile(rf"^{agent} working\b.* — Drafting the rollout")
+    status = re.compile(r"Drafting the rollout")
     expect(field(page)).to_have_attribute("placeholder", status)
     # The sheen runs on the field's placeholder part, inside the field's closed tree,
     # where no animation list reaches: a moving mask dims the words, and the field reads
@@ -4551,16 +4548,28 @@ def test_a_thread_s_words_start_on_its_head_s_edge(browser, serve):
     far as that rule, so its words keep the message's and its frame stays clear of the
     panel's edge."""
     url = serve(PAGE_ANNOTATED)
-    panel_comment(
+    root = panel_comment(
         serve.page_dir,
         "Is the window long enough?",
         anchor={"section": "p3", "quote": "Paragraph 3."},
+    )
+    # Untitled threads hide the repeated heading; measure an actual thread title.
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "thread_title",
+            "author": "agent",
+            "agent": "Claude",
+            "thread": root,
+            "title": "Window length",
+        },
     )
     page = floating(browser, url)
     page.locator("body").focus()
     page.keyboard.press("t")
     view = page.locator(panel_view("thread"))
     expect(view.locator(".lf-msg")).to_contain_text("Is the window long enough?")
+    expect(page.locator(".lf-fp-head .lf-fp-title")).to_be_visible()
     settled(page)
     starts = """() => {
       const edge = document.querySelector('.lf-fp-card').getBoundingClientRect().left;

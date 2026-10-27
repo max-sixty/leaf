@@ -125,9 +125,10 @@ def test_a_title_on_its_way_reads_as_one(browser, serve, request):
     """While an agent holds the page and owes an untitled thread its work, a title is
     on its way (thread_titles.py), so every surface drawing the thread's name says so
     rather than naming the thread with its opening words, until the title lands:
-    Threads' row, Page Map's row, the agent's card in On and the name the thread's view
-    gives assistive tech, which draws no heading over an untitled thread. A page nobody
-    holds is sent no title, so there the thread reads its opening words."""
+    Threads' row, Page Map's row, the agent's card in On and the heading over the
+    thread's view, which shows only while the title is on its way, since otherwise it
+    would repeat the opening message under it. A page nobody holds is sent no title, so
+    there the thread reads its opening words."""
     url = serve(PANEL_PAGE)
     opening = "Is the workshop room accessible?"
     pending = "Generating thread name…"
@@ -159,6 +160,8 @@ def test_a_title_on_its_way_reads_as_one(browser, serve, request):
     open_panel_thread(page, root)
     title = page.locator(".lf-fp-head .lf-fp-title")
     expect(title.locator(".lf-thread-name-pending")).to_have_text(pending)
+    expect(title.locator(".lf-thread-name-pending")).to_be_visible()
+    expect(title).not_to_have_class(re.compile(r"\blf-quiet\b"))
     expect(title).to_have_text(spoken)
 
     append_carried_log_record(

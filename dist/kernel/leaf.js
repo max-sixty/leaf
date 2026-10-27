@@ -8245,6 +8245,7 @@ function createCommandHints({ presentedControl }) {
 		for (const { bindingBadge } of visualRoutes) if (bindingBadge) bindingBadgeClaims.set(bindingBadge, (bindingBadgeClaims.get(bindingBadge) ?? 0) + 1);
 		const lent = /* @__PURE__ */ new Set();
 		const worn = /* @__PURE__ */ new Set();
+		const faceBoxes = /* @__PURE__ */ new Map();
 		for (const { binding, control, bindingBadge } of visualRoutes) {
 			if (!bindingBadge?.isConnected || bindingBadgeClaims.get(bindingBadge) !== 1 || !placement.visibleBounds(control)) continue;
 			if (!wornBindingBadges.has(bindingBadge)) {
@@ -8261,7 +8262,10 @@ function createCommandHints({ presentedControl }) {
 			if (exposed) {
 				restoreStyle(bindingBadge, "opacity");
 				worn.add(bindingBadge);
-			} else bindingBadge.style.opacity = "0";
+			} else {
+				bindingBadge.style.opacity = "0";
+				if (box) faceBoxes.set(bindingBadge, bindingBadge.getBoundingClientRect());
+			}
 		}
 		restoreBindingBadges(lent);
 		const chips = [];
@@ -8269,7 +8273,15 @@ function createCommandHints({ presentedControl }) {
 			if (bindingBadge && worn.has(bindingBadge)) continue;
 			const presented = presentedControl(control) ?? control;
 			if (!presented.checkVisibility()) continue;
-			const box = placement.badgeBox(presented);
+			const face = bindingBadge && faceBoxes.get(bindingBadge);
+			const x = face && (face.left + face.right) / 2;
+			const y = face && (face.top + face.bottom) / 2;
+			const box = face ? {
+				left: x,
+				top: y,
+				right: x,
+				bottom: y
+			} : placement.badgeBox(presented);
 			if (!box) continue;
 			let chip = bindingChips.get(control);
 			if (!chip) {

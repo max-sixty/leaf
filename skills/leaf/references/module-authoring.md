@@ -164,19 +164,20 @@ moving anything. `leaf package check --render` reports a widget that moves as
 
 - Size the widget in the package theme under `html[data-lf-interactive]`, which Leaf
   sets before first paint wherever its runtime will run.
-- A structure whose shape the log never changes, such as a row of count tiles, goes in
-  `x-prepaint`. Delivery writes it into each occurrence, and the module removes it
-  (`:scope > [data-lf-prepaint]`) in the same step that draws its replacement.
-- A structure that depends on the instance's authored members or on its `tabStore`
-  values (`module-state.md`, "Tab-local working state") goes in `x-initial`: the path of
-  a committed classic script that calls
+- The widget's initial structure goes in `x-initial`: the path of a committed classic
+  script that calls
   `document.documentElement.lfInitial.register(tag, render)`. Delivery calls
-  `render(host, {tabStore, offer, offerElement, offerAction, generatedElement, keeps, authoredBody})`
-  as soon as each host's markup arrives, so the widget first appears whole. `render` is
-  synchronous, fetches nothing and reads nothing from the log; it may move authored
+  `render(host, tools)` as soon as each host's markup arrives, nested hosts first, so the widget first appears
+  whole. Delivery inlines each used bundle once in the head; for later revisions and
+  thread messages the loader imports the bundle before the behavior module.
+  `tools` provides `tabStore`, `offer`, `offerElement`, `offerAction`,
+  `offerActionElement`, `selectableOffer`, `selectableOfferElement`,
+  `generatedElement`, `keeps` (the attribute keeper) and `authoredBody`.
+  Leaf keeps the authored markup before drawing, so source readings and comparisons
+  ignore the drawing. `render` is synchronous, fetches nothing and reads nothing from the log; it may move authored
   nodes within the host. To put every authored child inside a box it builds, as
   `lf-worktree` puts its evidence under its disclosure's summary, pass that box to
-  `authoredBody(box)`, which moves the children into it. Leaf treats the boxes around
+  `tools.authoredBody(box)`, which moves the children into it. Leaf treats the boxes around
   it as the widget's own and its contents as the page's, and an `x-patch: members`
   revision edits inside it. It returns the node references the module needs, with an
   update function where the drawing changes later. The module gets that result with
@@ -186,8 +187,7 @@ moving anything. `leaf package check --render` reports a widget that moves as
   below it, finishes when the document has parsed (`readystatechange`), before any
   module runs; if that changes its
   height, mark the affected reading scope `data-lf-initial-pending` while parsing and
-  remove the mark after drawing. `x-initial` requires `x-upgrade: true` and excludes
-  `x-prepaint`.
+  remove the mark after drawing. `x-initial` requires `x-upgrade: true`.
 - Where the markup can't say how tall the drawing will be, declare `x-height` and add
   the class `lf-rendered` once drawn.
 - A widget that shows one member at a time, as `lf-tabs` does, declares `x-views`.
@@ -390,15 +390,16 @@ the same `data-room` layout applies to authored and generated controls.
 
 A widget can upgrade inside a shut panel where every box measures zero, so take
 measurements inside `measure(element, take)`, which runs `take` once the element has a
-box. After a view swap that rearranges a widget's contents without resizing it, await
-`layoutChanged(element)` before restoring scroll. It dispatches `LAYOUT` to widgets that
-measure what they hold, which pass their asynchronous work to `detail.present(promise)`.
+box. After a view swap that rearranges a widget's contents without resizing it, call
+`layoutChanged(element)`, which dispatches `LAYOUT` to the widgets and runtime readers
+that measure what they hold, so they read again.
 
 `searchField(className, {name, label, placeholder})` builds a search or filter field
 with Leaf's frame, label, editor and Clear button; the widget owns the query and
 results, and can put a match count in its `end` slot.
 
-To fold content it may show again, set its `hidden` to `"until-found"`. Find-in-page and
-fragment links still reach it and fire `beforematch` on it, where the widget opens it;
-print shows it open. Take a folded element that is itself a Tab stop out of the Tab
+To fold content it may show again, set its `hidden` to `"until-found"`. Find-in-page,
+fragment links and Leaf's travel still reach it and fire `beforematch` on it, where the
+widget opens it (`module-scroll-and-motion.md`, "Travel and history"); print shows it
+open. Take a folded element that is itself a Tab stop out of the Tab
 order, since the fold hides only what it holds.

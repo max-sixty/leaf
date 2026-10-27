@@ -46,10 +46,9 @@
  * head, which composes ahead of theme.css and every package sheet, so each component rule
  * that names the same property wins on ordinary cascade order; stated in theme.css, after
  * this sheet, it beat them, and .lf-compose-submit drew near-black on Send and on Add
- * option instead of the accent. It keeps a class's specificity, so the page's own element
- * rules lose to it: a page dressing its `button` and `a` is dressing its prose, and at no
- * specificity those rules took the family and ink of 131 of corpus.html's 264 widget
- * controls. And it matches only under the document's root: a declared tree copies this
+ * option instead of the accent. It keeps a class's specificity, so the element rules of the
+ * layered sheets lose to it; the page's own rules are unlayered and win over it, as they
+ * win over every layer. And it matches only under the document's root: a declared tree copies this
  * sheet, but no element in a shadow tree descends from `:root`, so what a widget draws
  * there keeps its host's face. lf-diff marks its line numbers and hunk separators `lf-ui`,
  * and a plain `.lf-ui` repainted them at the control's size and ink.
@@ -60,9 +59,8 @@
  * asking for mono drew sans. Nothing catches that, because
  * no test and no browser gate reads a rule that never applied.
  *
- * The rest of the face is stated too, at no weight at all. A page's own rules select no
- * control unless they name its widget (runtime/page-sheets.js), and inheritance is the
- * route that leaves open: a page that set its body bold, italic, small-capped, spaced
+ * The rest of the face is stated too, at no weight at all. Inheritance reaches a control
+ * that no page rule selects: a page that set its body bold, italic, small-capped, spaced
  * or in capitals set every control standing in it so too. The `font` shorthand resets
  * every font property it has, weight, slant, variants and stretch among them. Any declared value beats an inherited one,
  * so a rule that weighs nothing is enough to stop that, and it leaves every rule that

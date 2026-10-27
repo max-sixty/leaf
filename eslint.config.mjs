@@ -999,6 +999,35 @@ export const layerReturnsRule = {
   },
 };
 
+// A module that awaits outside every function, anywhere in a rolldown build, turns off
+// the build's chunk optimization (`mergeCommonChunks`, `avoidRedundantChunkLoads`) for
+// every module in it, since that is how rolldown keeps a waiting module's execution
+// order, and the build says nothing. When leaf.js awaited at its top level, every page
+// loaded eleven more kernel chunks before it presented. Both builds compile from this
+// tree: the kernel from `browser/`, and the website's rebundle from each published
+// layer, which adds the packages' widgets and an example's own. It is a rule of its own
+// rather than a `no-restricted-syntax` selector because a file takes that rule's options
+// from the last block matching it, and the runtime's blocks set their own.
+const topLevelAwaitRule = {
+  meta: { type: "problem", schema: [] },
+  create(context) {
+    const report = (node) => {
+      for (let scope = node.parent; scope; scope = scope.parent)
+        if (/Function/u.test(scope.type)) return;
+      context.report({
+        node,
+        message:
+          "A top-level await turns off the bundler's chunk merging for the whole build; await inside a function the module calls.",
+      });
+    };
+    return {
+      AwaitExpression: report,
+      "ForOfStatement[await=true]": report,
+      'VariableDeclaration[kind="await using"]': report,
+    };
+  },
+};
+
 const architecturePlugin = {
   rules: {
     "semantic-store-ownership": semanticStoreOwnershipRule,
@@ -1009,6 +1038,7 @@ const architecturePlugin = {
     "open-layers": openLayersRule,
     moves: movesRule,
     "layer-returns": layerReturnsRule,
+    "top-level-await": topLevelAwaitRule,
     "root-state-ownership": {
       meta: { type: "problem", schema: [] },
       create(context) {
@@ -1528,6 +1558,16 @@ export default [
     files: ["browser/**/*.js", "packages/*/**/*.js"],
     languageOptions: { globals: browserGlobals },
     rules: { "no-undef": "error" },
+  },
+  {
+    // What the kernel build and the website's rebundle compile (`topLevelAwaitRule`).
+    files: [
+      "browser/**/*.js",
+      "packages/*/**/*.js",
+      "examples/**/*.page/widgets/**/*.js",
+    ],
+    plugins: { architecture: architecturePlugin },
+    rules: { "architecture/top-level-await": "error" },
   },
   {
     // The settled reading answers only for the rendering callbacks and size observers it

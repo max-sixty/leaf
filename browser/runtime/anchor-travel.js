@@ -350,7 +350,8 @@ export function createAnchorTravel({
   // the fragment rule itself (`scrollToFragment`).
   function returnToFragment(url) {
     const where = fragmentTarget(url.hash);
-    return where && !where.checkVisibility()
+    // A hidden="until-found" container keeps its own box while concealing its contents.
+    return where && (where.hasAttribute("hidden") || !where.checkVisibility())
       ? fragmentNavigationStep(url, false)
       : null;
   }

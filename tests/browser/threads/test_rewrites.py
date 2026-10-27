@@ -422,6 +422,16 @@ def test_a_rewrite_is_the_reply_box_where_the_words_stood(browser, serve, surfac
     rendered(page)
     unmoved()
 
+    # Editing an earlier message is still work in this thread; the reply being
+    # composed keeps its own words while the rewrite opens and closes beside it.
+    write(reply, "My unfinished reply.")
+    message.get_by_role("button", name="Edit message", exact=True).click()
+    expect(editor).to_be_focused()
+    expect(reply).to_have_js_property("value", "My unfinished reply.")
+    page.keyboard.press("Escape")
+    expect(reply).to_be_focused()
+    expect(reply).to_have_js_property("value", "My unfinished reply.")
+
 
 # Words that wrap on every surface, and a picture under them.
 PICTURED = (

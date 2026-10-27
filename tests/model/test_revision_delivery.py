@@ -321,7 +321,7 @@ const lazy = () => import('/page/later.js');
 
 def test_stylesheet_rel_is_case_insensitive_in_delivery_and_export():
     source = (
-        '<html><head><link rel="StyleSheet" data-controls href="/page/style.css"></head>'
+        '<html><head><link rel="StyleSheet" media="screen" href="/page/style.css"></head>'
         "<body><main></main></body></html>"
     )
 
@@ -333,7 +333,7 @@ def test_stylesheet_rel_is_case_insensitive_in_delivery_and_export():
         source, embedded.address, inline_stylesheet=embedded.stylesheet
     )
     assert "<link" not in exported
-    assert "data-controls" in SourceDocument(exported).tree.find("style").attrs
+    assert SourceDocument(exported).tree.find("style").attrs["media"] == "screen"
     assert "main { color: green; }" in exported
 
 
@@ -702,12 +702,9 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
     a package's pane before any script runs. An occurrence's own `data-width`,
     `data-bound` or `data-height` says it for that occurrence. An element naming page
     media carries the box that holds all of it, read from the images, so a frame stands
-    in their shape before they decode. A widget declaring the structure its module will
-    draw (`x-prepaint`) carries it as its first child, marked as delivery's, so the
-    browser lays that structure out before the module runs, and one that first paints
-    as another widget will stand in it carries that widget's (`as`). A mark is its
-    tag's, so a selector idiom declares none. Markup inside a template is
-    inert, and everything else in the source stays as written."""
+    in their shape before they decode. A mark is its tag's, so a selector idiom declares
+    none. Markup inside a template is inert, and everything else in the source stays
+    as written."""
 
     def png(width, height):
         return Resource(
@@ -721,9 +718,6 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         "lf-label": {"x-inline": True},
         "lf-feed": {"x-bound": "end"},
         "lf-plot": {"x-height": 400},
-        "lf-meter": {"x-prepaint": '<span class="lf-meter-face">0 left</span>'},
-        "lf-gauge": {"x-prepaint": {"as": "lf-meter"}},
-        "lf-face": {"x-prepaint": '<foo_bar class="face">Ready</foo_bar>'},
         "table": {"description": "A table.", "x-example": "<table></table>"},
     }
     source = (
@@ -737,11 +731,7 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         '<pre data-bound="start">log</pre>'
         '<lf-plot id="plot"></lf-plot><lf-plot id="tall" data-height="240"></lf-plot>'
         '<lf-pair id="pair" before="/media/a.png" after="/media/b.png"></lf-pair>'
-        '<lf-meter id="meter" value="3"><p>3 left</p></lf-meter>'
-        '<lf-gauge id="gauge"></lf-gauge>'
-        '<lf-face id="face"></lf-face>'
-        "<template><lf-zone id=later label=Later><p>x</p></lf-zone>"
-        "<lf-meter id=inert></lf-meter></template>"
+        "<template><lf-zone id=later label=Later><p>x</p></lf-zone></template>"
         "</main></body></html>"
     )
     delivered = compose_document(
@@ -780,28 +770,6 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         "data-lf-media-height": "800",
     }
     assert marks[("lf-zone", "later")] == {}
-    prepaint = (
-        '<lf-meter id="meter" value="3"><span data-lf-prepaint data-lf-gen="1" '
-        'class="lf-meter-face">0 left</span><p>3 left</p></lf-meter>'
-    )
-    assert prepaint in delivered
-    assert (
-        '<lf-gauge id="gauge"><span data-lf-prepaint data-lf-gen="1" '
-        'class="lf-meter-face">0 left</span></lf-gauge>'
-    ) in delivered
-    assert "<lf-meter id=inert></lf-meter>" in delivered
-    face = served.tree.find("foo_bar")
-    assert face.attrs == {
-        "data-lf-prepaint": "",
-        "data-lf-gen": "1",
-        "class": ["face"],
-    }
-    assert face.text == "Ready"
-    unmarked = delivered.replace(
-        '<span data-lf-prepaint data-lf-gen="1" class="lf-meter-face">0 left</span>', ""
-    ).replace(
-        '<foo_bar data-lf-prepaint data-lf-gen="1" class="face">Ready</foo_bar>', ""
-    )
     for mark in (
         ' data-lf-space="wide"',
         ' data-lf-reading-role="pane"',
@@ -814,11 +782,12 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         ' data-lf-height="240"',
         ' data-lf-media-width="1200" data-lf-media-height="800"',
     ):
-        unmarked = unmarked.replace(mark, "", 1)
+        delivered = delivered.replace(mark, "", 1)
     # Media is addressed at the page root, which is the rebase's change rather than a mark.
-    unmarked = unmarked.replace(f"{PAGE_ROOT}/media/", "/media/")
-    assert source.removeprefix("<!doctype html><html><head>").split("</head>")[1] in (
-        unmarked
+    delivered = delivered.replace(f"{PAGE_ROOT}/media/", "/media/")
+    assert (
+        source.removeprefix("<!doctype html><html><head>").split("</head>")[1]
+        in delivered
     )
 
 

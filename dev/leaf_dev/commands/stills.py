@@ -340,6 +340,16 @@ def floating_thread(page: Page) -> None:
     expect(page.locator(".lf-fp-view[data-view=thread]")).to_be_visible()
 
 
+def floating_thread_resting(page: Page) -> None:
+    """The same thread with the reader's focus in its view, so the reply field rests
+    without its frame and only the view's foot stands between them."""
+    floating_thread(page)
+    page.locator(".lf-fp-view[data-view=thread]").focus()
+    page.wait_for_function(
+        "() => !document.querySelector('.lf-fp-field').matches(':focus-within')"
+    )
+
+
 def floating_thread_retitled(page: Page) -> None:
     """The same thread once its opening message is rewritten short, so its title is far
     narrower than the view it names."""
@@ -571,6 +581,26 @@ def on_agent(page: Page) -> None:
         has_text=re.compile(r"^\s*On (?!me)")
     ).first.click()
     expect(page.locator(".lf-fp-view[data-view=queue]")).to_be_visible()
+
+
+def threads_returning(page: Page) -> None:
+    """Threads as the user reads it while the agent's reply reopens a resolved thread,
+    whose open row would lead the list, and the agent starts a thread on the page."""
+    returning = "7b3e0a41"
+    as_agent("thread", "resolve", returning)
+    # Threads opens on the resolve, which the list would otherwise hold as news.
+    wait_until_ready(page, PageClient(served_page.get().address).state())
+    go_to_threads(page)
+    count = page.locator(".lf-fp-filters button", has_text="Threads").locator(
+        ".lf-fp-count"
+    )
+    opened = int(count.inner_text())
+    as_agent(
+        "thread", "reply", returning, "--text", "The resend covers a cold start too."
+    )
+    as_agent("thread", "create", "--text", "Should the beta notes mention the resend?")
+    expect(count).to_have_text(str(opened + 2))
+    settle(page)
 
 
 def call_tree(page: Page) -> None:
@@ -1182,6 +1212,22 @@ def diff_file_reply(page: Page) -> None:
     )
 
 
+def diff_moved_reply(page: Page) -> None:
+    """The active reply after a widget moves its thread outlets outside its owner."""
+    diff_file_reply(page)
+    sample = page.frame_locator("#dfg-sample iframe")
+    diff = sample.locator("#dfg-patch")
+    diff.evaluate("""async widget => {
+      const boot = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
+      const {threadSurface} = await import(new URL('runtime/widget-api.js', new URL(boot, location.href)));
+      for (const outlet of widget.shadowRoot.querySelectorAll('.lf-diff-thread-outlet'))
+        document.querySelector('main').append(outlet);
+      threadSurface(widget).update();
+    }""")
+    expect(diff.locator(".lf-page-thread")).to_have_count(0)
+    settle(page)
+
+
 def diff_file_resolved_closed(page: Page) -> None:
     """Both conversations under a diff file resolved, their outlet as it folds them."""
     diff = page.frame_locator("#dfg-sample iframe").locator("#dfg-patch")
@@ -1465,7 +1511,7 @@ def page_end(page: Page) -> None:
 
 def visual_review_inspection(page: Page) -> None:
     """Capture the artifact inspection popover beside the selected comparison."""
-    page.locator('.lf-vr-case[aria-hidden="false"] .lf-vr-inspect').click()
+    page.locator(".lf-vr-case:not([hidden]) .lf-vr-inspect").click()
     page.mouse.move(0, 0)
 
 
@@ -1687,6 +1733,19 @@ STATES = (
     ),
     State("panel-status-hover", "review-a-plan", panel_status_hover),
     State("floating-thread", "ship-review", floating_thread, region=".lf-fp-opened"),
+    State(
+        "floating-thread-resting",
+        "ship-review",
+        floating_thread_resting,
+        region=".lf-fp-card",
+    ),
+    State(
+        "floating-thread-resting-dark",
+        "ship-review",
+        floating_thread_resting,
+        scheme="dark",
+        region=".lf-fp-card",
+    ),
     State("ship-threads", "ship-review", go_to_threads, region=".lf-fp-opened"),
     State("plan-option-picked", "review-a-plan", option_picked, region=".lf-fp-row"),
     State(
@@ -1707,6 +1766,17 @@ STATES = (
         option_references,
         viewport=(390, 844),
         region="#off-workaround-decision",
+    ),
+    State(
+        "threads-returning", "ship-review", threads_returning, region=".lf-fp-opened"
+    ),
+    State(
+        "threads-returning-phone",
+        "ship-review",
+        threads_returning,
+        viewport=(390, 844),
+        touch=True,
+        region=".lf-fp-opened",
     ),
     State(
         "floating-thread-retitled",
@@ -1973,6 +2043,7 @@ STATES = (
         region="#worktree-example-workbench",
     ),
     State("diff-file-reply", "developer/diff-thread-gallery", diff_file_reply),
+    State("diff-moved-reply", "developer/diff-thread-gallery", diff_moved_reply),
     State(
         "diff-file-resolved-closed",
         "developer/diff-thread-gallery",

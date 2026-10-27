@@ -356,7 +356,7 @@ def test_file_editor_status_controls_take_a_finger_on_a_phone(browser, serve, tm
 
     def short_aims(control):
         expect(widget.locator(control)).to_be_visible()
-        return page.evaluate(AIM_BOXES, aim_selectors())["short"]
+        return widget.evaluate_all(AIM_BOXES, aim_selectors())["short"]
 
     def fail_write(route):
         route.abort() if route.request.method == "POST" else route.continue_()

@@ -44,7 +44,7 @@ def test_diff_filter_has_one_frame_and_clears_with_its_count_inside(
     field = diff.locator(".lf-diff-search")
     editor = field.locator("input")
     count = diff.locator(".lf-diff-progress")
-    rows = diff.locator(".lf-diff-file:not(.lf-diff-filtered)")
+    rows = diff.locator(".lf-diff-file:not([hidden])")
     expect(editor).to_have_accessible_name("Filter diff files")
     page.get_by_role("heading", name="Changed files").click()
     for _ in range(8):
@@ -211,7 +211,7 @@ def test_response_and_message_reading_keep_their_face_across_shadow_seating(
             "Review source and prose",
             '<h1>Review source and prose</h1><p id="subject">Discuss this paragraph.</p>'
             '<lf-diff id="patch" source="patch-data"><pre></pre></lf-diff>',
-            head="""<style id="response-inset-override" data-controls>
+            head="""<style id="response-inset-override">
               :is(.lf-fab-bar, .lf-margin-preview) {
                 --lf-thread-text-pad-block: 12px !important;
                 --lf-comment-text-end: 60px !important;

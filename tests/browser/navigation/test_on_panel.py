@@ -248,6 +248,8 @@ def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):
     button = page.locator("#left").get_by_role("button", name="Next on me")
     first, second = page.locator("#first-decision"), page.locator("#second-decision")
     expect(words).to_have_text("2 left to answer")
+    count = page.locator("#left .lf-tally-count")
+    waiting_color = count.evaluate("node => getComputedStyle(node).color")
     box = page.locator("#left").bounding_box()
 
     # The row opens the obligation the user reads. Enter its obligation before deciding: the
@@ -312,22 +314,22 @@ def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):
         page.locator("#first-decision .lf-pick").first.click()
     round_trip(page)
     expect(words).to_have_text("All 2 answered")
+    expect(count).not_to_have_css("color", waiting_color)
     expect(button).to_be_disabled()
-    expect(page.locator("#left")).to_have_attribute("data-lf-done", "")
     with sending(page, "undo the first decision's answer"):
         page.keyboard.press("z")
     round_trip(page)
     expect(words).to_have_text("1 left to answer")
+    expect(count).to_have_css("color", waiting_color)
     expect(button).to_be_enabled()
-    expect(page.locator("#left")).not_to_have_attribute("data-lf-done", "")
     # A comment on the open obligation hands it to the agent until a reply: the tally and
     # the item's row say so rather than calling it the user's to answer, beside a
     # disabled Next on me.
     panel_comment(serve.page_dir, "Why Alpha?", {"section": "first-decision"})
     expect(words).to_have_text("1 on Claude")
+    expect(count).to_have_css("color", waiting_color)
     expect(page.locator("#queue .lf-tab-answer").first).to_have_text("On Claude")
     expect(button).to_be_disabled()
-    expect(page.locator("#left")).not_to_have_attribute("data-lf-done", "")
     assert page.locator("#left").bounding_box() == box
 
 
@@ -664,8 +666,11 @@ def test_an_m_step_newer_focus_cancels_at_a_thread_claims_no_arrival(browser, se
         """() => {
           const held = new Promise(resolve => { window.releaseThreadReveal = resolve; });
           held.then(() => { window.threadRevealSettled = true; });
-          document.body.addEventListener('lf-reveal', event => {
-            event.detail.present(held);
+          // Revealing the thread's passage waits for its update, which the test holds.
+          const passage = document.querySelector('#cadence');
+          passage.hidden = 'until-found';
+          passage.addEventListener('beforematch', () => {
+            passage.updateComplete = held;
             window.threadRevealStarted = true;
           }, {once: true});
         }"""

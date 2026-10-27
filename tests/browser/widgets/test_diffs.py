@@ -468,7 +468,7 @@ def test_filtering_a_diff_keeps_its_field_and_toolbar_controls_fixed(browser, se
     diff = page.locator("#patch")
     search = diff.locator(".lf-diff-search input")
     progress = diff.locator(".lf-diff-progress")
-    rows = diff.locator(".lf-diff-file:not(.lf-diff-filtered)")
+    rows = diff.locator(".lf-diff-file:not([hidden])")
     geometry = """host => Object.fromEntries(
       ['.lf-diff-search', '.lf-diff-progress']
         .map(selector => {

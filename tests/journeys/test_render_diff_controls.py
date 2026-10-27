@@ -211,7 +211,7 @@ def test_response_and_message_reading_keep_their_face_across_shadow_seating(
             "Review source and prose",
             '<h1>Review source and prose</h1><p id="subject">Discuss this paragraph.</p>'
             '<lf-diff id="patch" source="patch-data"><pre></pre></lf-diff>',
-            head="""<style id="response-inset-override" data-controls>
+            head="""<style id="response-inset-override">
               :is(.lf-fab-bar, .lf-margin-preview) {
                 --lf-thread-text-pad-block: 12px !important;
                 --lf-comment-text-end: 60px !important;

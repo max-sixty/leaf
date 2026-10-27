@@ -11,8 +11,9 @@ the next arm still runs, since a probe is most often run where one version is br
 
 `--log` starts the page from a log that already holds given events: threads, replies,
 resolutions, a message still waiting for its delivery. Each arm admits them through its
-own `event_contracts.append_admitted` (`arms.admit_log`) after the source's companion
-history, which a receipt acknowledges, so they stay unacknowledged as a writer's would.
+own `event_contracts.append_admitted` (`page_fixtures.admit_events`) after the source's
+companion history, which a receipt acknowledges, so they stay unacknowledged as a
+writer's would.
 """
 
 import json

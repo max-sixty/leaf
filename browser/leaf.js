@@ -12,7 +12,6 @@ import { landingPlace } from "./runtime/reading-place.js";
 import { claimTraversals, mountHistory, replaceEntry } from "./runtime/history.js";
 import { holdArrivingBounds } from "./runtime/bounds.js";
 import { chromeSheet, marksSheet, annotationSheets } from "./runtime/stylesheets.js";
-import { keepPageRulesOffLayer } from "./runtime/page-sheets.js";
 import { reportPageError, uploadMedia } from "./runtime/layer-client.js";
 import { upgradeWidgets } from "./runtime/widget-loader.js";
 import {
@@ -153,7 +152,6 @@ import { retainUserIntent, restrictUserIntent } from "./runtime/user-intent.js";
 async function boot() {
   await document.documentElement.lfSample?.ready;
   initializeServedDocument();
-  keepPageRulesOffLayer();
   holdArrivingBounds();
 
   // A published shell may bundle the entry without publishing its source modules beside

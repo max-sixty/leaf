@@ -256,6 +256,12 @@ def test_inline_sample_choices_use_parent_state_and_undo(browser, serve):
         ),
     )
     sample = page.locator("#working")
+    # A working sample's note is its label alone; a quoted one opens with "quoted".
+    prefix = """sample => getComputedStyle(
+      sample.querySelector(':scope > [data-lf-said="label"]'), '::before'
+    ).content"""
+    assert sample.evaluate(prefix) == '""'
+    assert page.locator("#quoted").evaluate(prefix) == '"quoted · "'
     expect(sample.locator("iframe")).to_have_count(0)
     expect(page.locator("#quoted").get_by_role("checkbox")).to_have_count(0)
     choice = sample.locator("#express").get_by_role("checkbox")

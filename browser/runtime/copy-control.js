@@ -8,7 +8,7 @@
  * A control wrapping a trigger of its own wears that trigger's face
  * instead of the icon. A failed copy remains an error after the control's transient
  * face changes again; Web Awesome announces the outcome itself. */
-import { offer } from "./widget-elements.js";
+import { offer, offerActionElement } from "./widget-elements.js";
 import { iconElement } from "./icons.js";
 import { notice } from "./notifications.js";
 import { raiseError } from "./errors.js";
@@ -45,9 +45,14 @@ function copyThroughSelection(value, trigger) {
 }
 
 /** A copy control named `label`, drawn with `icon`, that says `success` or `error`
- * once pressed. */
-export function copyControl(className, { label = "", success, error, icon = "copy" }) {
-  const copy = offer("wa-copy-button", className);
+ * once pressed, wearing the face of `role` where one is given (`offerAction`). */
+export function copyControl(
+  className,
+  { label = "", success, error, icon = "copy", role = undefined },
+) {
+  const copy = role
+    ? offerActionElement(document.createElement("wa-copy-button"), role, className)
+    : offer("wa-copy-button", className);
   for (const [name, slot] of [
     [icon, "copy-icon"],
     ["check", "success-icon"],

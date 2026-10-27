@@ -35,8 +35,8 @@ first:
 leaf thread reply <answer.ref> --ephemeral --text "<what you will do, in a line>"
 ```
 
-The line shows at once as the thread's working message and the panel's **Working**
-status, and it starts the update. Start any other item, such as a
+The line shows at once as the thread's working message and the panel's status, under
+your name, and it starts the update. Start any other item, such as a
 to-do or an action on a page widget, with `leaf task start`:
 
 ```bash
@@ -140,6 +140,15 @@ exceptions are a command hub worker (the `worker` value from
 (`references/codex-watcher.md`). Say so in each brief, since a worker that inherits
 your conversation inherits the page too. Work that needs its own conversation with
 the user belongs in its own session, with its own page.
+
+Decisions built from a worker's report tend to keep the report's shape, and the
+brief sets that shape. When the user will decide on what a worker finds, such as an
+audit's candidates, ask it for each decision's material rather than a record of each
+finding: the question the finding raises, each option titled by the result the user
+would get for that finding (not a kind of change shared by every finding, such as
+Remove), and each result shown as the user would meet it, such as a capture of the
+interface with the change applied beside today's, or a request the service would
+then refuse (`authoring-on-me.md`, "What a question holds").
 
 A start lasts only for the turn that wrote it.
 Within a long turn a start goes stale after about 15 minutes. The status shows the item you started last, so

@@ -613,6 +613,43 @@ def test_a_finger_s_taller_grip_leaves_the_blocks_under_a_title_their_width(
     assert measured["under"] == 0, measured
 
 
+def test_a_card_s_prose_starts_under_its_title_in_every_shape(browser, serve):
+    """Authors follow a card's title with a plain sentence, one holding an inline
+    element, or a paragraph, and each card reads alike: the title's margin set a
+    sentence holding an element 2px lower than a plain one, and a paragraph's margin
+    set it 13px lower."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "card shapes",
+                '<h1>Sprint</h1><lf-board id="shapes"><lf-column id="col" label="Now">'
+                '<lf-card id="plain"><strong>Plain</strong> The importer is wired.</lf-card>'
+                '<lf-card id="element"><strong>Element</strong> The <em>importer</em> '
+                "is wired.</lf-card>"
+                '<lf-card id="paragraph"><strong>Paragraph</strong>'
+                "<p>The importer is wired.</p></lf-card>"
+                "</lf-column></lf-board>",
+            )
+        ),
+    )
+    gaps = page.evaluate(
+        """() => Object.fromEntries(['plain', 'element', 'paragraph'].map((id) => {
+          const card = document.getElementById(id);
+          const title = card.querySelector(':scope > strong');
+          const walk = document.createTreeWalker(card, NodeFilter.SHOW_TEXT);
+          walk.currentNode = title.lastChild;
+          let text = walk.nextNode();
+          while (!text.data.trim()) text = walk.nextNode();
+          const range = document.createRange();
+          range.selectNodeContents(text);
+          return [id, range.getClientRects()[0].top - title.getBoundingClientRect().bottom];
+        }))"""
+    )
+    for shape in ("element", "paragraph"):
+        assert gaps[shape] == pytest.approx(gaps["plain"], abs=1), gaps
+
+
 def test_a_phone_board_gives_its_column_room_and_keeps_the_next_one_discoverable(
     browser, serve
 ):

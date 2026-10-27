@@ -1310,11 +1310,12 @@ export function controlNavigationKeys(node) {
 // user lands, since that is the whole of what the rung is for, and letting go of an obligation
 // names the act, since they were on the page all along.
 //
-// Where they land is the block they are reading in the page region they last acted in
-// (reading-regions.js, `pageReadingRegion`), which is a reading of that region's current
-// scroll rather than a place remembered from before the press: a surface closing moves
-// the page under them, and what they can see when it has gone is the answer. Only the
-// region is remembered, so no revision, repaint or reflow can strand the block.
+// Where they land is beside what they let go of, while they see it, since that is what
+// they were reading; otherwise the block they are reading in the page region they last
+// acted in (reading-regions.js, `pageReadingRegion`), which is a reading of that region's
+// current scroll rather than a place remembered from before the press: a surface closing
+// moves the page under them, and what they can see when it has gone is the answer. Only
+// the region is remembered, so no revision, repaint or reflow can strand the block.
 //
 // Focus and then blur, which is the pair and not either half. The focus moves the
 // browser's sequential focus navigation starting point to the block, so the user's next
@@ -1329,6 +1330,7 @@ export function controlNavigationKeys(node) {
 // such as a run of figures, where the honest answer is that the user has no reading
 // position for the browser to continue from. A region in that state still has one: the
 // declared reading lands on its body (reading-place.js, `landingPlace`).
+/** @type {(from?: Element | null) => HTMLElement | null} */
 let readingBlock = () => null;
 export function declareReading(read) {
   readingBlock = read;
@@ -1362,16 +1364,24 @@ export function release() {
   released();
   if (letGoes === before) letGo();
 }
-// A landing on the page is the user going on to it, a `move`.
+// A landing on the page is the user going on to it, a `move`. It leaves them at nothing,
+// beside what they let go of rather than anywhere else, and each reader `onLetGo` names
+// hears that node once the landing is done (current-target.js, `walkOrigin`).
+const letGoReaders = new Set();
+export const onLetGo = (read) => {
+  letGoReaders.add(read);
+  return () => letGoReaders.delete(read);
+};
 export function letGo() {
   letGoes++;
-  const block = readingBlock();
-  if (!block?.isConnected) {
-    releaseFocus();
-    return;
+  const from = focused();
+  const block = readingBlock(from);
+  if (!block?.isConnected) releaseFocus();
+  else {
+    focusDestination(block, "move");
+    block.blur();
   }
-  focusDestination(block, "move");
-  block.blur();
+  if (from && from !== document.body) for (const read of letGoReaders) read(from);
 }
 
 // Handing the user back when a layer closes with them inside it. The closer names where,

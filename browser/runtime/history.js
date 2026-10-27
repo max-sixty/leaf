@@ -44,6 +44,7 @@ import { pageRange, selectEnds, selectionBackward } from "./passages.js";
 import { retainUserIntent } from "./user-intent.js";
 import { placeOf } from "./current-target.js";
 import { upFrom } from "./shadow.js";
+import { presented } from "./geometry.js";
 import { unconcealedReadingRegions } from "./reading-regions.js";
 import { pageScroller, stopScroll } from "./scrolling.js";
 
@@ -87,15 +88,16 @@ export function returnPlace(checkpoint) {
     const length = node?.nodeType === 3 ? node.length : node?.childNodes.length;
     return [node, Math.min(offset, length ?? offset)];
   });
-  if (focus !== document.body && drawn(focus)) {
+  if (focus !== document.body && focus?.isConnected && presented(focus)) {
     focusDestination(focus, "return", { caret });
     // A field's caret is its whole selection, and clearing the document's would
     // collapse it.
     if (caret) return;
   }
-  // A thread card may have closed on departure. Its page target is the same working
-  // place from the other side, and remains a browser focus destination on return.
-  else if (drawn(place)) focusDestination(place, "return");
+  // A thread card may have closed on departure, still painted but inert during
+  // its closing fade. Its page target is the same working place from the other
+  // side, and remains a browser focus destination on return.
+  else if (place?.isConnected && presented(place)) focusDestination(place, "return");
   else /** @type {HTMLElement | null} */ (deepFocus())?.blur();
   const selection = getSelection();
   selection.removeAllRanges();

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { effect } from "/vendor/browser-runtime.js";
+import { effect } from "/runtime/framework.js";
 import { adoptRegistry } from "/runtime/registry.js";
 import {
   claimed,

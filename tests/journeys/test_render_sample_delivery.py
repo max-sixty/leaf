@@ -58,7 +58,7 @@ def test_sample_upgrade_does_not_wait_for_child_saved_state(
     expect(child.locator("body")).not_to_have_attribute("inert")
     expect(child.locator("body")).not_to_have_attribute("data-lf-presented", "1")
     expect(child.locator(".lf-fp-leaf")).to_have_attribute(
-        "aria-label", "Page menu · Loading saved state…"
+        "aria-label", "Page menu · Loading comments and choices…"
     )
     # The page's own panel floats over the window's foot, where the sample's stands
     # too until the page is scrolled to the foot room it keeps clear of its chrome.

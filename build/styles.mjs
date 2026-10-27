@@ -33,7 +33,9 @@ export async function styleEntries() {
       if (error.code === "ENOENT") continue;
       throw error;
     }
-    for (const file of files.filter((file) => /^(theme|shadow)\.css$/.test(file)))
+    for (const file of files.filter((file) =>
+      /^(widgets|widget-shadow|theme|theme-shadow|controls)\.css$/.test(file),
+    ))
       entries.push([`${source}/${file}`, `${packages}/${packageName}/${file}`]);
   }
   return entries;

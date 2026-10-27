@@ -15,7 +15,7 @@
    (`joinDataDelivery`). Modules draw the value into the authored seat; they do not
    fetch it, mutate the accepted copy, or keep a hidden current-value map of their own.*/
 
-import { computed, signal, untracked } from "/vendor/browser-runtime.js";
+import { computed, signal, untracked } from "/runtime/framework.js";
 import { offlineData, offlineInteractive, pageUrl, runtime } from "./context.js";
 import { applicationState, whenApplicationRegionsPresented } from "./semantic-state.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
@@ -58,6 +58,14 @@ const declaredInput = (element, input) => {
   return declaration;
 };
 
+// A check subscribes before widgets run and keeps the values it exercises. The
+// production runtime retains no output history and does no schema validation here.
+const outputObservers = new Set();
+export function observeOutputs(observe) {
+  outputObservers.add(observe);
+  return () => outputObservers.delete(observe);
+}
+
 // Mounted widgets own their derived values. The publication holds the immutable
 // reading, while this weak lifetime record only lets a retained node return with it.
 const outputOwners = new WeakMap();
@@ -95,6 +103,13 @@ export function publishOutput(element, output, value) {
     value === null
       ? null
       : { contract: declaration.contract, value: structuredClone(value) };
+  for (const observe of outputObservers)
+    observe({
+      element,
+      output,
+      contract: declaration.contract,
+      value: reading === null ? null : reading.value,
+    });
   owner.values.set(output, reading);
   if (owner.connected)
     applicationState.publishOutput(outputKey(element), output, reading);

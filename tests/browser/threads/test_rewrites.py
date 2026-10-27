@@ -17,6 +17,7 @@ from render_harness import (
     LONG_PAGE,
     consume_browser_errors,
     example_media,
+    expect_panel_says,
     holding,
     http_error_console,
     leaf_page,
@@ -1324,6 +1325,8 @@ def test_a_rewrite_leaves_a_card_at_the_windows_foot_as_it_stood(browser, serve)
         },
     )
     page = open_page(browser, url)
+    # Where the card stands once it has moved, not its motion (box-motion.js).
+    page.emulate_media(reduced_motion="reduce")
     resized(page, 1512, 860)
     page.locator("#p30").evaluate("n => n.scrollIntoView({block: 'end'})")
     rendered(page)
@@ -1411,6 +1414,8 @@ def test_a_card_at_the_windows_foot_grows_back_to_how_it_stood(browser, serve):
         },
     )
     page = open_page(browser, url)
+    # Where the card stands once it has moved, not its motion (box-motion.js).
+    page.emulate_media(reduced_motion="reduce")
     resized(page, 1512, 860)
     page.locator("#p30").evaluate("n => n.scrollIntoView({block: 'end'})")
     rendered(page)
@@ -1596,4 +1601,5 @@ def test_a_refused_rewrite_puts_the_resolved_thread_back(browser, serve):
     expect(settle).to_have_accessible_name("Reopen")
     expect(thread).to_be_visible()
     expect(message.locator(".lf-msg-kept")).to_have_text("unsaved edit")
+    expect_panel_says(page, "Couldn't save the edit — Please retry.")
     page.unroute_all(behavior="wait")

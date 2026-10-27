@@ -14,7 +14,7 @@ import {
   PRESENTATION_DOM,
   readPart,
 } from "./semantic-state.js";
-import { announce, notice } from "./notifications.js";
+import { announce } from "./notifications.js";
 import { answeredInWords, readObligations } from "./obligations/model.js";
 import { watchPendingTraffic } from "./traffic.js";
 import { createCommandDispatch } from "./pending/dispatch.js";
@@ -155,7 +155,7 @@ export function mountApplication(dependencies) {
     // than turning an accepted gesture into an apparent refusal, and it cannot strand
     // the gesture before transport or leave later sends behind an unanswered entry.
     try {
-      if (isMessageEvent(entry.event)) announce("Message sent");
+      if (isMessageEvent(entry.event)) announce("Message added");
       if (entry.event.kind === "edit") announce("Message edited");
     } catch (error) {
       reportPageError(error, "optimistic presentation");
@@ -166,12 +166,13 @@ export function mountApplication(dependencies) {
 
   commandDispatch.mount({
     afterEnqueue,
-    // A widget's gesture is acknowledged by the name the widget gave it, the name its
-    // undo is announced by too.
+    // A widget's gesture is announced by the name the widget gave it, the name its undo
+    // is announced by too. The live region alone says it: the pick is drawn where the
+    // user made it, and the margin's receipt says it was saved.
     named: (entry, says) => {
       undo.retainGesture(entry.event.attempt, { says });
       void entry.answer.then((admitted) => {
-        if (admitted) notice(`${says} — sent`);
+        if (admitted) announce(says);
       });
     },
     withdraw: (candidate) => undo.withdraw(candidate),
@@ -225,7 +226,8 @@ export function mountApplication(dependencies) {
   const settlementView = {
     pendingEntries: ledger.snapshot,
     actions: threadActions,
-    retainGesture: undo.retainGesture,
+    landedAway: undo.landedAway,
+    returnToThread: undo.returnToThread,
   };
   const reactionView = {
     registerSurface: dependencies.registerReactSurface,
@@ -319,6 +321,7 @@ export function mountApplication(dependencies) {
     placedAt: dependencies.anchorPlacement.placedAt,
     marksFor: (id) => dependencies.anchorPaint?.marksFor(id) ?? [],
     scrollToElement: dependencies.anchorTravel.scrollToElement,
+    openInPanel: dependencies.annotationCommands.openInPanel,
   });
   const threadDestinations = createThreadDestinations({
     threadIdsAt: annotations.threadIdsAt,

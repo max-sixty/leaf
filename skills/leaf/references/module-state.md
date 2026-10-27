@@ -140,7 +140,7 @@ from; it throws if the source changed in the meantime.
 ### Marking drawn data
 
 Mark which nodes show data with plain attributes, so comments on them anchor to the
-data rather than to prose. Once the marks for a drawing stand, dispatch `drawn` with
+data rather than to prose. After setting the drawing's marks, dispatch `drawn` with
 the value you drew, in the same synchronous turn:
 
 ```js

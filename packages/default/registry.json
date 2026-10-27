@@ -55,8 +55,8 @@
     }
   },
   "lf-ask": {
-    "description": "A question for the user. Around decision widgets it gives their heading and context, each widget answered separately; with no widget inside, it is a question the user answers in words.",
-    "x-instructions": "Around decision widgets, give it a heading that states the shared question or context without leaning on the prose around it, with any eyebrow beside it in an `<hgroup>`. Each widget inside that asks for input stays its own obligation with its own answer, and the frame asks nothing itself. With no widget inside, it is a question answered in words: in a reply's markup, by the user's next message in that thread; on the page, by their comment on it. Write the question itself as its content, with no heading needed. Wrap the context in a `section` when the document needs a section landmark.",
+    "description": "A question for the user. Around other widgets that ask for input it gives their heading and context, each widget answered separately; with no other widget inside, it is itself a question the user answers in words.",
+    "x-instructions": "Around widgets that ask for input, give it a heading that states the shared question or context without leaning on the prose around it, with any eyebrow beside it in an `<hgroup>`. Each widget inside that asks for input stays its own obligation with its own answer, and the frame asks nothing itself. With no other widget inside, it is itself a question answered in words: in a reply's markup, by the user's next message in that thread; on the page, by their comment on it. Write the question itself as its content, with no heading needed. Wrap the context in a `section` when the document needs a section landmark.",
     "type": "object",
     "properties": {
       "id": {
@@ -229,7 +229,7 @@
   },
   "lf-options": {
     "description": "Alternatives the user can choose individually or as a set to answer a question.",
-    "x-instructions": "Keep shared premises and evidence with the group (lf-ask can frame its question and context), and each alternative's own case and picture inside its lf-option. `multiple` lets the user pick several options as one answer (references/authoring-decisions.md says when). The built-in Another option field takes unlisted answers, so add no catch-all option. Use `for` only to point at sections or work items that exist apart from the decision. A `multiple` group needs the user's Done even when `chosen` is authored. `settled` collapses a decided group while keeping its options and anchors.",
+    "x-instructions": "Keep shared premises and evidence with the group (lf-ask can frame its question and context), and each alternative's own case and picture inside its lf-option. `multiple` lets the user pick several options as one answer (references/authoring-on-me.md says when). The built-in Another option field takes unlisted answers, so add no catch-all option. Use `for` only to point at sections or work items that exist apart from the question. A `multiple` group needs the user's Done even when `chosen` is authored. `settled` collapses a decided group while keeping its options and anchors.",
     "type": "object",
     "properties": {
       "id": {
@@ -320,7 +320,7 @@
   },
   "lf-option": {
     "description": "One alternative in a decision: a compact label, or a card showing what choosing it gives the user.",
-    "x-instructions": "Word, label and illustrate the alternatives as `references/authoring-decisions.md` says. A card opens with its small.tag labels, then `<small class=\"tag ok\">recommended</small>` on the option you advise, then a `<strong>` title and a sentence naming its consequence, then any picture as block HTML, such as an svg.drawing. Give your reason for the recommendation in prose beside the group, such as the `lf-ask`'s paragraph, so each card states only what choosing it does. Direct text takes inline Markdown. `chosen` records the user's pick. Use `$restated` to withdraw that pick and ask again. A `for` target must stay useful whatever is decided, and does not supply the option's words. `value` names what the option answers wherever a view shows the group's answer, such as a board column (`authoring-decisions.md`, \"One decision in its section and on a board\").",
+    "x-instructions": "Word, label and illustrate the alternatives as `references/authoring-on-me.md` says. A card opens with its small.tag labels, then `<small class=\"tag ok\">recommended</small>` on the option you advise, then a `<strong>` title and a sentence naming its consequence, then any picture as block HTML, such as an svg.drawing. Give your reason for the recommendation in prose beside the group, such as the `lf-ask`'s paragraph, so each card states only what choosing it does. Direct text takes inline Markdown. `chosen` records the user's pick. Use `$restated` to withdraw that pick and ask again. A `for` target must stay useful whatever is decided, and does not supply the option's words. `value` names what the option answers wherever a view shows the group's answer, such as a board column (`authoring-on-me.md`, \"One decision in its section and on a board\").",
     "type": "object",
     "properties": {
       "id": {
@@ -509,7 +509,7 @@
   },
   "lf-card": {
     "description": "One board card whose identity and comments survive user moves.",
-    "x-instructions": "Lead with a `<strong>` title and follow with prose. Keep its id stable across moves. Use `$restated` to withdraw the user's moves. `shows` makes the card a view of a decision widget's answer: it stands in the column whose `value` that answer names, and moving it changes the answer (`authoring-decisions.md`, \"One decision in its section and on a board\").",
+    "x-instructions": "Lead with a `<strong>` title and follow with prose. Keep its id stable across moves. Use `$restated` to withdraw the user's moves. `shows` makes the card a view of a decision widget's answer: it stands in the column whose `value` that answer names, and moving it changes the answer (`authoring-on-me.md`, \"One decision in its section and on a board\").",
     "type": "object",
     "properties": {
       "id": {

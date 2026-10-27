@@ -11,7 +11,7 @@ import {
   createPresentationCoordinator,
   createPresentationSchedule,
   createSemanticApplication,
-} from "/vendor/browser-runtime.js";
+} from "/runtime/framework.js";
 
 import { bindQueuedWork } from "./queued-work.js";
 import { tick } from "./version-signal.js";
@@ -27,7 +27,7 @@ const presentation = createPresentationCoordinator({
 const schedule = createPresentationSchedule(bindQueuedWork);
 
 /** The compiled factory is generated from this checked source contract. */
-/** @type {ReturnType<typeof import("../framework/application.ts").createSemanticApplication>} */
+/** @type {ReturnType<typeof import("./framework/application.js").createSemanticApplication>} */
 export const applicationState = createSemanticApplication({
   presentation: {
     begin: (semanticEpoch) => presentation.begin(documentToken, semanticEpoch),
@@ -140,7 +140,7 @@ const documentPresenters = [];
 // that changes a part `paint` read schedules a paint. One that changes only parts
 // `reading` read schedules a paint only if `reading` now returns a different value. One
 // that changes neither carries the region's last paint into the new epoch
-// (presentation.ts, `begin`). Reading the whole root subscribes to every publication,
+// (framework/presentation.js, `begin`). Reading the whole root subscribes to every publication,
 // so renderers select the parts they draw.
 //
 // Recording sees only synchronous code. A paint that awaits wraps each continuation in

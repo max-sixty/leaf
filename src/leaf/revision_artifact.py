@@ -3,11 +3,10 @@
 Logical resource URLs are rooted at the page (``/page/app.js``,
 ``/runtime/widget-api.js``). Page imports use literal, unescaped URL strings;
 Tree-sitter reads JavaScript and tinycss2 reads CSS. Only the declared public
-layer entry points may cross from authored code into the layer. Capturing the
-vendored layer whole also preserves its declaration-driven dynamic imports. The
-runtime is not captured: the Leaf delivering a revision supplies it
-(`runtime_selection`), so the public entry points are addresses a capture names but
-never holds.
+layer entry points may cross from authored code into the layer. Neither the layer
+nor the runtime is captured: the Leaf delivering a revision supplies both
+(`runtime_selection`), the layer composed from the selection the manifest names, so
+the public entry points are addresses a capture names but never holds.
 
 A bundle contains exact source bytes, resources, MIME
 types, the effective registry, and implementation provenance. Its canonical
@@ -55,13 +54,9 @@ from leaf.findings import Finding, Rejected
 from leaf.page_memory import Slot, memo
 from leaf.passages import SourceReading, enclosing_ids
 from leaf.registry.contract import is_element_name
+from leaf.registry.storage import revision_vocabulary
 from leaf.resource_urls import ReferenceError, resource_reference
-from leaf.schema import (
-    BROWSER_DIRS,
-    CONTENT_TYPES,
-    SERVED_PATH,
-    VENDORED_FILES,
-)
+from leaf.schema import CONTENT_TYPES
 from leaf.state import fsync_parents
 from leaf.structure import (
     SourceDocument,
@@ -71,6 +66,9 @@ from leaf.structure import (
 )
 
 PUBLIC_MODULES = ("/runtime/widget-api.js", "/vendor/floating-ui.esm.js")
+# The page's own declarations, which a revision captures beside its modules; the
+# layer they compose over is the reading Leaf's.
+PAGE_DECLARATIONS = "/page/registry.json"
 
 
 RESOURCE_TYPES = {
@@ -169,7 +167,13 @@ class RevisionArtifact:
 
     @cached_property
     def registry(self) -> dict:
-        return json.loads(self.resources["/registry.json"].data)
+        """The vocabulary this Leaf reads the revision in: its own declarations over
+        the layer its manifest selects (`registry.storage.revision_vocabulary`)."""
+        declarations = self.resources.get(PAGE_DECLARATIONS)
+        return revision_vocabulary(
+            json.loads(self.manifest),
+            declarations.data if declarations is not None else None,
+        )
 
     @cached_property
     def entries(self) -> list[str]:
@@ -506,8 +510,8 @@ def _path_stamp(path: Path) -> tuple:
 
 def _capture_input_stamps(page_dir: Path) -> tuple[tuple[str, tuple], ...]:
     """Name every mutable filesystem input from which a capture may read."""
-    paths = [page_dir / name for name in VENDORED_FILES]
-    for name in (*BROWSER_DIRS, "page", "media"):
+    paths = []
+    for name in ("page", "media"):
         root = page_dir / name
         paths.append(root)
         if root.is_dir() and not root.is_symlink():
@@ -617,22 +621,20 @@ class _ResourceCapture:
 
     Record a resource before following its edges, so each path is read once. The
     explicit worklist keeps graph depth independent of Python's call stack. A public
-    entry point an authored module imports is the runtime's, which the delivering Leaf
-    supplies, so capture skips it unless the vendored layer holds its own (`vendored`),
-    as a package replacing a vendor module does; the layer's files are added first.
+    entry point an authored module imports is the runtime's or the layer's, which the
+    delivering Leaf supplies, so capture skips it.
     """
 
     def __init__(self, read_resource: Callable[[str], Resource]) -> None:
         self.read_resource = read_resource
         self.resources: dict[str, Resource] = {}
 
-    def add(self, path: str, *, vendored: bool = False) -> None:
+    def add(self, path: str) -> None:
         pending = [path]
         while pending:
             path = pending.pop()
-            if path in self.resources or (path in PUBLIC_MODULES and not vendored):
+            if path in self.resources or path in PUBLIC_MODULES:
                 continue
-            vendored = False  # what it imports is a dependency
             resource = self.read_resource(path)
             data = resource.data
             edges = resource_dependencies(path, data, resource.mime)
@@ -653,32 +655,28 @@ def _capture_artifact(
     capture = _ResourceCapture(read_resource)
     resources = capture.resources
 
-    # The layer's own imports are trusted and include computed widget module URLs.
-    # Preserve the complete selected payload rather than infer that dynamic graph.
-    for name in VENDORED_FILES:
-        if (page_dir / name).is_file():
-            capture.add("/" + name)
-    for directory in BROWSER_DIRS:
-        for path in sorted((page_dir / directory).rglob("*")):
-            if path.is_file() and SERVED_PATH.fullmatch(
-                "/" + path.relative_to(page_dir).as_posix()
-            ):
-                capture.add("/" + path.relative_to(page_dir).as_posix(), vendored=True)
-    resources["/registry.json"] = Resource(_json(registry), "application/json")
+    # The layer is the reading Leaf's (`registry.storage.revision_vocabulary`), so a
+    # revision captures only what its page owns: its declarations, its widgets, and
+    # what its document names. Its manifest names the layer's selection.
+    if (page_dir / PAGE_DECLARATIONS.lstrip("/")).is_file():
+        capture.add(PAGE_DECLARATIONS)
     for tag, entry in registry.items():
-        if is_element_name(tag) and (initial := entry.get("x-initial")):
+        if (
+            is_element_name(tag)
+            and (initial := entry.get("x-initial"))
+            and initial.startswith("/page/")
+        ):
             capture.add(initial)
 
     if widget_sources is None:
         widget_sources = {
             tag: f"widgets/{tag}.js"
             for tag, entry in registry.items()
-            if is_element_name(tag)
-            and entry.get("x-upgrade")
-            and f"/widgets/{tag}.js" in resources
+            if is_element_name(tag) and entry.get("x-upgrade")
         }
     for source in widget_sources.values():
-        capture.add("/" + source.lstrip("/"))
+        if source.startswith("page/"):
+            capture.add("/" + source)
 
     entries = []
     documents = [document]
@@ -732,7 +730,11 @@ def _capture_artifact(
         tag: {
             "path": "/" + source.lstrip("/"),
             "owner": "page" if source.startswith("page/") else "layer",
-            "digest": resources["/" + source.lstrip("/")].digest,
+            **(
+                {"digest": resources["/" + source].digest}
+                if source.startswith("page/")
+                else {}
+            ),
         }
         for tag, source in widget_sources.items()
     }
@@ -743,13 +745,12 @@ def _capture_artifact(
     # prose, and markup are absent because an open document can be given all of
     # them, and a revision that only edits those should keep the user's document.
     #
-    # The vocabulary is digested without `$layer`, which describes the vendoring
-    # run rather than the code it installed: its fingerprint and producer commit
-    # say where a layer was built. Its generation is the one part a document runs
-    # under, since a tab speaks it to the server (`runtime/layer-client.js`), so a
-    # re-vendor gives every later revision a new executable and the tab a new
-    # document. The runtime's modules are not captured; a runtime change reaches an
-    # open document as a server that refuses it (`runtime_selection`).
+    # The vocabulary is digested without `$layer`, whose selection the vocabulary
+    # already reflects. Its generation is the one part a document runs under, since
+    # a tab speaks it to the server (`runtime/layer-client.js`), so a new selection
+    # gives every later revision a new executable and the tab a new document. The
+    # runtime's and the layer's modules are not captured; a change to either reaches
+    # an open document as a server that refuses it (`runtime_selection`).
     executable = _digest(
         _canonical_json(
             {
@@ -929,7 +930,7 @@ def staged_reading(page_dir: Path, name: str) -> SourceReading:
     bundle = page_dir / "revisions" / name
     return SourceReading(
         SourceDocument((bundle / "index.html").read_bytes().decode("utf-8")),
-        _shared_registry((bundle / "resources" / "registry.json").read_bytes()),
+        _bundle_vocabulary(bundle),
     )
 
 
@@ -1048,11 +1049,10 @@ class RevisionReading(SourceReading):
 
     @cached_property
     def registry(self) -> dict:
-        """The captured vocabulary, shared read-only with every revision that
-        captured the same bytes (`_shared_registry`)."""
-        return _shared_registry(
-            (self.bundle / "resources" / "registry.json").read_bytes()
-        )
+        """The vocabulary this Leaf reads the revision in, shared read-only with
+        every revision that selects the same layer and declares the same
+        (`registry.storage.revision_vocabulary`)."""
+        return _bundle_vocabulary(self.bundle)
 
     @cached_property
     def inventory(self):
@@ -1233,17 +1233,13 @@ def active_enclosing(page_dir: Path) -> dict:
     return read_revision(page_dir, revision).enclosing
 
 
-@lru_cache(maxsize=16)
-def _shared_registry(data: bytes) -> dict:
-    """Parse once for all the revisions that captured the same vocabulary.
-
-    Revisions rewrite the authored page far more often than they re-vendor the layer,
-    so a long history holds a handful of distinct registries. Keying the parse on the
-    exact captured bytes keeps what the held revision readings retain proportional to
-    those rather than to the revision count. A reading is shared, so it is read-only,
-    on the same terms as ``RevisionArtifact.registry``.
-    """
-    return json.loads(data)
+def _bundle_vocabulary(bundle: Path) -> dict:
+    """The vocabulary of a stored bundle, as `RevisionArtifact.registry` reads it."""
+    declarations = bundle / ("resources" + PAGE_DECLARATIONS)
+    return revision_vocabulary(
+        json.loads((bundle / "manifest.json").read_bytes()),
+        declarations.read_bytes() if declarations.is_file() else None,
+    )
 
 
 def _materialize(path: Path, bundle: Path) -> RevisionArtifact:

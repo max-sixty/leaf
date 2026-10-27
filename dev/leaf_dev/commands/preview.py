@@ -74,7 +74,7 @@ from leaf.file_changes import FileChanges
 from leaf.locations import canonical_path
 from leaf.publishing import authored_digest, authored_files, write_authored_files
 from leaf.refusals import Refused
-from leaf.schema import BROWSER_DIRS, VENDORED_FILES
+from leaf.schema import LAYER_FILE
 from leaf_dev import ROOT
 from leaf_dev.commands.distribution import (
     COMPILER_INPUTS,
@@ -530,9 +530,14 @@ def refresh_preview(
                 str(page),
             )
         )
-        if planned["changed"]:
+        # A page composes its layer from the Leaf serving it, so a runtime or
+        # package edit, which builds another installation, needs a server of that
+        # installation as much as a new selection does.
+        if planned["changed"] or launcher != state.get("launcher"):
             with service.replacing():
-                leaf(launcher, runtime, "page", "init", *selection_args, str(page))
+                if planned["changed"]:
+                    leaf(launcher, runtime, "page", "init", *selection_args, str(page))
+            state["launcher"] = launcher
         if source_changed and previous_digest != incoming_digest:
             # Resolve the complete candidate before touching served authored files.
             # The selected payload's stamp owner installs and publishes it under
@@ -540,12 +545,9 @@ def refresh_preview(
             with tempfile.TemporaryDirectory(prefix="leaf-preview-candidate-") as raw:
                 candidate = Path(raw) / "page"
                 candidate.mkdir()
-                for name in VENDORED_FILES:
-                    if (page / name).is_file():
-                        shutil.copyfile(page / name, candidate / name)
-                for name in (*BROWSER_DIRS, "media"):
-                    if (page / name).is_dir():
-                        shutil.copytree(page / name, candidate / name)
+                shutil.copyfile(page / LAYER_FILE, candidate / LAYER_FILE)
+                if (page / "media").is_dir():
+                    shutil.copytree(page / "media", candidate / "media")
                 # Media's ordinary CLI door needs an initialized, isolated log.
                 # The candidate holds no history or feedback from the served page.
                 (candidate / "events.jsonl").write_text("")
@@ -798,8 +800,8 @@ def serve_preview(
     handshake=None,
 ) -> None:
     """Build this slot's page, serve it, and follow its inputs until stopped."""
-    from leaf.files import read_json
     from leaf.layer import layer_inputs
+    from leaf.registry.storage import layer_record
     from leaf.server import PREVIEW
     from leaf.themes import with_theme
 
@@ -825,7 +827,7 @@ def serve_preview(
     service = None
     changes = None
     try:
-        launcher = cached_installation(runtime) / "bin/leaf"
+        launcher = state["launcher"] = cached_installation(runtime) / "bin/leaf"
         prepared_page = None
         if resumed:
             service = PreviewService(page, user, prepared_claim)
@@ -855,7 +857,7 @@ def serve_preview(
         )
         with service.starting() as url:
             pass
-        layer = read_json(page / "registry.json")["$layer"]
+        layer = layer_record(page)
         roots = layer_inputs(with_theme(tuple(layer["packages"]), layer["theme"]))
         watched = watch_paths(source, runtime, roots)
         changes = watch_changes(watched)
@@ -920,7 +922,7 @@ def serve_preview(
             # Init can commit a selection even when the following source stamp
             # refuses. Follow the installed layer after every attempt, so that
             # its newly selected packages remain observable while source is fixed.
-            layer = read_json(page / "registry.json")["$layer"]
+            layer = layer_record(page)
             roots = layer_inputs(with_theme(tuple(layer["packages"]), layer["theme"]))
             try:
                 rebuilt = watch_paths(source, runtime, roots)

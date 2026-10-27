@@ -41,12 +41,11 @@
       "type": "object",
       "properties": {
         "layer": {
-          "description": "The identity of the layer the shown revision was read under, or the vendored layer's before a revision exists (`layer-registry.md`). A layer another Leaf at this protocol vendored may carry more.",
+          "description": "The identity of the layer the shown revision was read under, or the page's before a revision exists (`layer-registry.md`): its generation and selection, and the fingerprint and producer of the layer the serving Leaf composes for it.",
           "type": "object",
           "properties": {
             "generation": { "type": "string" },
             "fingerprint": { "type": "string" },
-            "server": { "type": "string" },
             "packages": { "type": "array", "items": { "type": "string" } },
             "theme": {
               "type": ["object", "null"],

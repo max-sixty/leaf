@@ -338,7 +338,7 @@ def page() -> None:
     """Create, check, stamp, and read pages."""
 
 
-@page.command(short_help="Create or re-vendor a page directory.")
+@page.command(short_help="Create a page directory or change its packages.")
 @click.argument("dir", metavar="PAGE")
 @click.option(
     "--package",
@@ -364,7 +364,7 @@ def page() -> None:
 @click.option(
     "--dry-run",
     is_flag=True,
-    help="report whether re-vendoring would change an initialized page",
+    help="report whether initialization would change an initialized page",
 )
 def init(
     dir: str,
@@ -374,13 +374,14 @@ def init(
     no_theme: bool,
     dry_run: bool,
 ) -> dict:
-    """Create or re-vendor a page directory.
+    """Create a page directory, recording the packages it selects.
 
-    Creates PAGE/revisions/, then vendors the widget layer.
-    The author writes PAGE/index.html. Re-running preserves the page's explicit packages unless --package or
-    --no-packages replaces them, and validates the current vocabulary and markup.
-    A changed layer restarts its server at the same URL; identical initialization
-    leaves it running. --dry-run reports the planned change without writing it.
+    The author writes PAGE/index.html; every Leaf that serves or checks the page
+    composes its layer from the selection. Re-running preserves the page's explicit
+    packages unless --package or --no-packages replaces them, and validates the
+    current vocabulary and markup. A changed selection restarts its server at the
+    same URL; identical initialization leaves it running. --dry-run reports the
+    planned change without writing it.
     A package may contain any subset of the package layout, including zero, one,
     or many widgets.
     """
@@ -605,6 +606,18 @@ def instructions(
     from leaf.page import page_instructions
 
     return page_instructions(page_dir, entries=entries, contracts=contracts)
+
+
+@page.command(short_help="Print the vocabulary the page is written in as JSON.")
+@page_argument(renew=False)
+def vocabulary(page_dir: Path) -> dict:
+    """Print the vocabulary PAGE/index.html is checked against: the layer this Leaf
+    composes for the page's packages, with the page's own declarations over it.
+    Ordinary keys are element names or CSS selectors; `$` keys are facts shared
+    across the layer."""
+    from leaf.registry.storage import require_candidate
+
+    return require_candidate(page_dir).registry
 
 
 @page.command("list", short_help="List this machine's pages and who holds each.")

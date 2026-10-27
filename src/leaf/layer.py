@@ -20,7 +20,6 @@ from .schema import (
     BROWSER_DIRS,
     BUNDLED_PACKAGES,
     DEFAULT_PACKAGE,
-    EXTENSION_SCHEMA,
     HTML_NAME,
     INSTRUCTIONS_DIR,
     INSTRUCTIONS_FILE,
@@ -409,6 +408,35 @@ class LayerComposition(NamedTuple):
     top_files: dict[str, bytes]
     directory_files: dict[str, dict[str, bytes]]
 
+    @property
+    def files(self) -> dict[str, bytes]:
+        """Every file the layer serves, by its rooted page path."""
+        return {
+            **{f"/{name}": data for name, data in self.top_files.items()},
+            **{
+                f"/{directory}/{name}": data
+                for directory, entries in self.directory_files.items()
+                if directory != INSTRUCTIONS_DIR
+                for name, data in entries.items()
+            },
+        }
+
+
+@cache
+def selected_layer(packages: tuple[str, ...], theme: str | None) -> LayerComposition:
+    """The layer this Leaf composes for a page that selects `packages` and the
+    personal `theme`, the package composed last: its core and bundled packages and
+    the user's installed ones, as this process first read them.
+
+    A page records only its selection (`registry.storage.LAYER`), so every Leaf
+    that serves, checks or exports it composes its own layer, the way it supplies
+    its own runtime (`runtime_selection`). Held for the process, since a plugin
+    update may replace the tree under a running server, which keeps answering with
+    the bytes it started with."""
+    if theme is not None:
+        packages = (*(name for name in packages if name != theme), theme)
+    return compose_layer(checked_layer_inputs(layer_inputs(packages)))
+
 
 def files_identity(files: dict[str, bytes]) -> str:
     """Identify a set of named bytes, unambiguously across names and contents."""
@@ -496,145 +524,35 @@ def payload_server_fingerprint() -> str:
     )
 
 
-def incompatible_layer(page_dir: Path, registry: dict) -> Finding | None:
-    """Why this Leaf can neither serve a page nor write its log, given the registry it
-    would serve the page under; None when it may. Either the registry's `$events`
-    were vendored at another `protocol` than this Leaf's own
-    (`registry.kernel.kernel_protocol`), or its `$keys` document an x- key this Leaf
-    no longer admits (`schema.EXTENSION_SCHEMA`).
+def incompatible_layer(page_dir: Path, record: dict) -> Finding | None:
+    """Why this Leaf can neither serve a page nor write its log, given the page's
+    layer record (`registry.storage.LAYER`); None when it may. The record names the
+    page protocol a Leaf last initialized the page at, and this Leaf serves and
+    writes only a page at its own (`registry.kernel.kernel_protocol`).
 
-    A Leaf serves and writes any page vendored at its own number, whichever Leaf
-    vendored it, so a plugin update leaves open pages working. A page vendored before
-    the number was declared names none, and is refused too. A page vendored at a
-    higher number is refused as `newer-layer`, naming the Leaf that vendored it,
-    since its repair is a newer Leaf: this one does not re-vendor it down
-    (`vendoring._plan_page`). A key renamed or removed since the page was vendored
-    is the same kind of fact: this Leaf would read the key's new name, find nothing,
-    and drop what the page's layer declares under the old one, so the page is
-    refused rather than misread. The check is one-sided: a key this Leaf added and
-    an older layer lacks refuses nothing. Every server of the page's live files, the
-    website's included (`http.page_endpoint`, `leaf_website.page_binding`), the one
-    append door and the writers that ask it first (`event_contracts.write_refusal`),
-    and `page check` refuse on this one reading, each naming its repair. For a page
-    vendored at an older number, the holding session's prompt and Stop hooks, and
-    each of its commands that names the page, make that re-vendor first
-    (`vendoring.renew_layer`). So does the source
-    check (`validation.source.check_source`), so activation writes no revision under
-    the layer and `page state` reports the refusal as `source.error`. A revision the
-    page saved before its last re-vendor is judged on its own registry
-    (`incompatible_revision`). The vendored layer's reader asks the protocol half
-    (`protocol_refusal`) before it validates the layer's shape
-    (`registry.storage.load_registry`).
-    """
-    if refusal := protocol_refusal(page_dir, registry):
-        return refusal
-    if retired := _retired_keys(registry):
-        return Finding(
-            "retired-layer",
-            values={
-                "page": str(page_dir),
-                "retired": retired,
-                "leaf": str(PLUGIN_ROOT),
-            },
-        )
-    return None
-
-
-def protocol_refusal(page_dir: Path, registry: dict) -> Finding | None:
-    """The half of `incompatible_layer` that reads only the page protocol a registry's
-    `$events` declare. It reads `$events` and `$layer` only where they are objects,
-    so it may run on a layer before this Leaf validates what its entries hold
-    (`registry.storage.load_registry`): that shape is this Leaf's protocol's, which a
-    layer vendored at another one need not have."""
-    if (vendored := _foreign_protocol(registry)) is not None:
-        if type(vendored) is int and vendored > kernel_protocol():
-            return Finding(
-                "newer-layer",
-                values={
-                    "page": str(page_dir),
-                    "vendored": vendored,
-                    "vendored_by": provenance_label(_producer(registry)),
-                    "leaf": str(PLUGIN_ROOT),
-                    "protocol": kernel_protocol(),
-                },
-            )
-        return Finding(
-            "foreign-layer",
-            values={
-                "page": str(page_dir),
-                "vendored": vendored,
-                "leaf": str(PLUGIN_ROOT),
-                "protocol": kernel_protocol(),
-            },
-        )
-    return None
-
-
-def incompatible_revision(revision: int, registry: dict) -> Finding | None:
-    """Why this Leaf can neither serve one of a page's revisions nor admit input made
-    against it, given the registry that revision captured: it was saved at another
-    protocol, or its vocabulary uses an x- key this Leaf no longer admits, the two
-    refusals `incompatible_layer` makes of the page's layer. None when it may.
-
-    Each revision captures the runtime and registry it was saved with, and a
-    re-vendor leaves existing revisions as they were, so a page re-vendored across a
-    bump still holds revisions saved before it. Served, one would run its own runtime
-    against this Leaf's server, which is the break the protocol announces. The
-    document server, a snapshot's capture (`page_snapshot.capture_page_snapshot`),
-    and the append door ask this of the revision they would serve or admit under;
-    readings of the log keep reading every revision's registry, so history still
-    projects. Serving the page saves its source as a revision first,
-    so its live revision is one of these only where the source no longer saves.
-    A revision whose vocabulary uses a retired key is refused for the reason the
-    layer is: this Leaf would read the key's new name there, find nothing, and draw
-    the revision without what it declares, such as a framed obligation's prompt.
-    """
-    if (saved := _foreign_protocol(registry)) is not None:
-        return Finding(
-            "foreign-revision",
-            values={
-                "revision": revision,
-                "saved": saved,
-                "protocol": kernel_protocol(),
-            },
-        )
-    if retired := _retired_keys(registry):
-        return Finding(
-            "retired-revision", values={"revision": revision, "retired": retired}
-        )
-    return None
-
-
-def _retired_keys(registry: dict) -> list[str]:
-    """The x- keys a vocabulary documents in `$keys` or declares on an entry that
-    this Leaf no longer admits (`schema.EXTENSION_SCHEMA`), in order; none where it
-    uses only admitted ones. One-sided: a key this Leaf added and the vocabulary
-    lacks is not among them."""
-    admitted = set(EXTENSION_SCHEMA["properties"])
-    keys = registry.get("$keys")
-    used = set(keys if isinstance(keys, dict) else ()) - {"description"}
-    for name, entry in registry.items():
-        if not name.startswith("$") and isinstance(entry, dict):
-            used |= {key for key in entry if key.startswith("x-")}
-    return sorted(used - admitted)
-
-
-def _foreign_protocol(registry: dict) -> int | str | None:
-    """The protocol a registry's `$events` declare where this Leaf does not speak
-    it, `"none"` where they declare none, or None where it is this Leaf's own."""
-    events = registry.get("$events")
-    declared = events.get("protocol") if isinstance(events, dict) else None
-    if type(declared) is int and declared == kernel_protocol():
+    The page's layer is composed by whichever Leaf reads it (`selected_layer`), so
+    the protocol covers only what a page keeps across Leaf versions: its event log
+    and the records kept outside it (`layer-registry.md`, "Page protocol"). A page
+    at a higher number is refused as `newer-layer`, since its repair is a newer
+    Leaf: this one does not take it down (`vendoring._plan_page`). For a page at an
+    older number, the holding session's prompt and Stop hooks, and each of its
+    commands that names the page, take it to this Leaf's number first
+    (`vendoring.renew_layer`). Every server of the page's files, the website's
+    included (`http.page_endpoint`, `leaf_website.page_binding`), the one append
+    door and the writers that ask it first (`event_contracts.write_refusal`), and
+    `page check` refuse on this one reading, each naming its repair."""
+    recorded = record.get("protocol")
+    if type(recorded) is int and recorded == kernel_protocol():
         return None
-    return declared if declared is not None else "none"
-
-
-def _producer(registry: dict) -> dict:
-    """The provenance a registry's `$layer` records, or none where a layer of
-    another shape records it elsewhere."""
-    layer = registry.get("$layer")
-    producer = layer.get("producer") if isinstance(layer, dict) else None
-    return producer if isinstance(producer, dict) else {}
+    values = {
+        "page": str(page_dir),
+        "vendored": recorded if recorded is not None else "none",
+        "leaf": str(PLUGIN_ROOT),
+        "protocol": kernel_protocol(),
+    }
+    if type(recorded) is int and recorded > kernel_protocol():
+        return Finding("newer-layer", values=values)
+    return Finding("foreign-layer", values=values)
 
 
 def payload_provenance(*, include_path: bool = False, root: Path | None = None) -> dict:

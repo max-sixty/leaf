@@ -25,7 +25,7 @@ from ..files import (
 from ..passages import SourceReading
 from ..presence import presence_with_activity
 from ..registry.contract import RegistryError
-from ..registry.storage import layer_metadata, page_vocabulary
+from ..registry.storage import layer_metadata, page_vocabulary, served_layer
 from ..revision_artifact import read_revision
 from ..state import now_iso
 
@@ -130,7 +130,7 @@ def read_page(
         revisions=revisions,
         revision=lambda revision: read_revision(page_dir, revision),
         registry=registry,
-        stored_layer=lambda: (
+        stored_layer=lambda: served_layer(
             registry["$layer"]
             if active is not None and registry is not None
             else layer_metadata(page_dir)

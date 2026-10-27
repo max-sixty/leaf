@@ -310,16 +310,6 @@ def _unservable_layer(v: dict, why: str, action: str) -> str:
     )
 
 
-def _unservable_revision(v: dict, why: str) -> str:
-    """Why this Leaf can neither serve one revision nor admit input made on it."""
-    return (
-        f"Revision {v['revision']} {why}, so it cannot serve that revision or accept"
-        " input made against it. Revisions saved since the page was re-vendored still"
-        " open, and serving the page saves one from its source; where that fails,"
-        " `leaf page check` names why."
-    )
-
-
 def _invalid_record(v: dict) -> str:
     """How the refusal of a record one widget's verb writes begins."""
     return f"<{v['tag']}> {v['kind']} {v['verb']!r} is invalid: "
@@ -760,10 +750,6 @@ _TEXT = {
         lambda v: "; ".join(str(Finding.loads(found)) for found in v["findings"])
     ),
     "fixture-refused": _fixture(lambda v: v["error"]),
-    "missing-vendored": lambda at, v: (
-        f"{v['file']} missing from the page directory; run `leaf page init` to vendor"
-        " the layer"
-    ),
     "head-count": lambda at, v: (
         "the page must have one explicit <head> directly under <html>; found"
         f" {v['tags']} head tags, {v['parsed']} parsed heads, and {v['direct']} direct"
@@ -1050,11 +1036,12 @@ _TEXT = {
         lambda v: "the incoming layer has no registry.json"
     ),
     "page-layer": _declared(lambda v: "$layer belongs to the selected layer"),
-    "layer-packages": _declared(
-        lambda v: "$layer.packages must be a unique list of non-empty strings"
+    "layer-unavailable": lambda at, v: (
+        f"this Leaf cannot compose the page's layer: {v['error']}; choose its"
+        " packages again with `leaf page init --package`"
     ),
-    "layer-identity": _declared(
-        lambda v: "vendored registry lacks its $layer identity; run `leaf page init`"
+    "no-layer": lambda at, v: (
+        f"{v['page']} has no layer.json; run `leaf page init` first"
     ),
     # Its shared layer facts.
     "layer-facts": _declared(lambda v: f"{_json_path(v['path'])}: {v['reason']}"),
@@ -1579,9 +1566,6 @@ _TEXT = {
     "layer-import-missing": _captured(lambda v: "captured layer import is missing"),
     # The package check's refusal.
     "package": lambda at, v: v["text"],
-    "leaf-version": lambda at, v: (
-        f"Leaf {v['vendored']} vendored this page; this is Leaf {v['running']}."
-    ),
     # The widget quality report, for a widget's author.
     "unreadable-examples": lambda at, v: (
         f"widget examples could not be drawn: {v['error']}"
@@ -1611,34 +1595,18 @@ _TEXT = {
     ),
     "foreign-layer": lambda at, v: _unservable_layer(
         v,
-        f"was vendored by a Leaf at page protocol {v['vendored']}, and this Leaf"
+        f"was initialized by a Leaf at page protocol {v['vendored']}, and this Leaf"
         f" ({v['leaf']}) speaks protocol {v['protocol']}",
         "Update the page's Leaf runtime",
     ),
     "newer-layer": lambda at, v: (
-        f"{v['page']} was vendored at page protocol {v['vendored']} by a newer Leaf"
-        f" ({v['vendored_by']}), and this Leaf ({v['leaf']}) speaks protocol"
-        f" {v['protocol']}, so it can neither serve nor re-vendor the page. Use a"
-        f" Leaf at protocol {v['vendored']} or later; in Claude Code,"
-        " `/reload-plugins` loads an installed update."
+        f"{v['page']} was initialized at page protocol {v['vendored']} by a newer"
+        f" Leaf, and this Leaf ({v['leaf']}) speaks protocol {v['protocol']}, so it"
+        f" can neither serve nor write the page. Use a Leaf at protocol"
+        f" {v['vendored']} or later; in Claude Code, `/reload-plugins` loads an"
+        " installed update."
     ),
-    "retired-layer": lambda at, v: _unservable_layer(
-        v,
-        f"was vendored by a Leaf that declares {', '.join(v['retired'])}, which this"
-        f" Leaf ({v['leaf']}) no longer admits",
-        "Re-vendor it",
-    ),
-    "foreign-revision": lambda at, v: _unservable_revision(
-        v,
-        f"was saved at page protocol {v['saved']}, and this Leaf speaks protocol"
-        f" {v['protocol']}",
-    ),
-    "retired-revision": lambda at, v: _unservable_revision(
-        v,
-        f"was saved by a Leaf that declares {', '.join(v['retired'])}, which this"
-        " Leaf no longer admits",
-    ),
-    "no-registry": lambda at, v: "the page has no registry.json",
+    "no-registry": lambda at, v: "the page has no layer.json",
     "unknown-kind": lambda at, v: f"kind must be one of {_json(v['kinds'])}",
     "invalid-event": lambda at, v: f"{v['kind']} event is invalid: {v['error']}",
     "unknown-revision": lambda at, v: (

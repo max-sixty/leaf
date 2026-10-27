@@ -1,77 +1,164 @@
-"""Vendored registry storage and page lookup."""
+"""A page's layer record, and the vocabulary every reader composes from it.
 
+A page records which packages and personal theme it selects (`LAYER`), never the
+layer itself: every Leaf that serves, checks or exports the page composes its own
+(`layer.selected_layer`), as it supplies its own runtime (`runtime_selection`)."""
+
+import json
+import re
 from collections.abc import Collection
+from functools import lru_cache
 from pathlib import Path
 
-from leaf.files import file_stamp, latest_revision, read_json
+from leaf.files import file_stamp, latest_revision
+from leaf.findings import Finding
 from leaf.page_memory import Slot, memo
+from leaf.schema import LAYER_FILE
+from leaf.state import Record
 
 from ..refusals import Refused
 from .contract import (
     RegistryError,
     read_registry_declarations,
-    read_registry_object,
-    registry_error,
 )
-from .layer import check_layer_facts
+
+LAYER = Record(
+    "layer",
+    {
+        "description": (
+            "A page's layer selection, `layer.json` in its directory: the packages"
+            " and personal theme every Leaf that reads the page composes, the"
+            " generation an open document speaks, and the page protocol a Leaf last"
+            " initialized it at."
+        ),
+        "type": "object",
+        "properties": {
+            "packages": {
+                "type": "array",
+                "items": {"type": "string", "minLength": 1},
+                "uniqueItems": True,
+            },
+            "theme": {
+                "anyOf": [
+                    {"type": "null"},
+                    {
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string", "minLength": 1},
+                            "source": {"enum": ["explicit", "default"]},
+                        },
+                        "required": ["name", "source"],
+                    },
+                ]
+            },
+            "generation": {"type": "string", "minLength": 1},
+            "protocol": {"type": "integer"},
+        },
+        "required": ["packages", "theme", "generation", "protocol"],
+    },
+    since=33,
+)
 
 
 class IncompatibleLayer(RegistryError):
-    """A vendored layer at another page protocol than this Leaf's, refused for its
-    protocol (`layer.protocol_refusal`) before its shape is validated, since the
-    shape a layer must have is its own protocol's. Its repair is the one that
-    refusal names rather than the re-vendor a shape fault names: a layer a newer
-    Leaf vendored would otherwise read as damaged, and its refusal would tell the
-    agent to take the page back to this Leaf."""
+    """A page initialized at another page protocol than this Leaf's
+    (`layer.incompatible_layer`), refused before its layer is composed. Its repair
+    is the one that refusal names."""
 
 
 class _Layer(Slot):
-    """The page's vendored layer, by its file's stamp."""
+    """The page's composed layer vocabulary, by its record's stamp."""
 
 
 class _Candidate(Slot):
     """The page's candidate vocabulary, by its inputs' stamps and active revision."""
 
 
+def layer_record(page_dir: Path) -> dict | None:
+    """The page's layer record, or None before `page init`."""
+    return LAYER.read(page_dir / LAYER_FILE)
+
+
+def selected(record: dict):
+    """The layer `record` selects, as this Leaf composes it (`layer.selected_layer`),
+    refused as a registry fault where a selected package is gone or invalid."""
+    from leaf.layer import selected_layer
+
+    theme = record["theme"]["name"] if record["theme"] else None
+    try:
+        return selected_layer(tuple(record["packages"]), theme)
+    except Refused as error:
+        raise RegistryError(
+            Finding("layer-unavailable", values={"error": str(error)})
+        ) from None
+
+
+def layer_vocabulary(record: dict) -> dict:
+    """The vocabulary of the layer `record` selects, with the selection and the
+    generation the browser speaks under `$layer`."""
+    return {**selected(record).registry, "$layer": layer_metadata_of(record)}
+
+
+def layer_widgets(record: dict) -> list[str]:
+    """The page-root-relative widget entry modules the selected layer serves."""
+    return sorted(
+        f"widgets/{name}"
+        for name in selected(record).directory_files["widgets"]
+        if re.fullmatch(r"lf-[^/]*\.js", name)
+    )
+
+
+def revision_vocabulary(manifest: dict, declarations: bytes | None) -> dict:
+    """The vocabulary this Leaf reads a revision in: the declarations it captured,
+    `declarations`, over the layer its `manifest` selects, with the page widgets it
+    captured. Every revision selecting the same layer and declaring the same shares
+    one read-only reading."""
+    widgets = tuple(
+        implementation["path"].lstrip("/")
+        for implementation in manifest["implementations"].values()
+        if implementation["owner"] == "page"
+    )
+    return _revision_vocabulary(
+        json.dumps(manifest["layer"], sort_keys=True), declarations, widgets
+    )
+
+
+@lru_cache(maxsize=16)
+def _revision_vocabulary(
+    layer: str, declarations: bytes | None, widgets: tuple[str, ...]
+) -> dict:
+    from .page import compose_page_registry
+
+    record = json.loads(layer)
+    return compose_page_registry(
+        layer_vocabulary(record),
+        json.loads(declarations) if declarations else {},
+        [*layer_widgets(record), *widgets],
+    ).registry
+
+
 def load_registry(page_dir: Path):
-    """The page's complete vendored layer, or None before `page init`.
+    """The vocabulary of the page's layer, or None before `page init`.
 
-    The layer is `page init`'s own output rather than anything an author writes, so a
-    reader that rejects it wants a re-vendor rather than an edit. It refuses a layer
-    at another page protocol first (`IncompatibleLayer`), then checks only that the
-    layer declares what every reader looks up. Its `$events` copy may be another
-    Leaf's at this protocol: it is the page runtime's, and admission reads the running
-    Leaf's own (`registry.kernel`); `read_page_registry` validates the vocabulary where
-    it is new.
-
-    Kept in the page's memory while the file's stamp holds, because an action POST
+    It refuses a page at another page protocol first (`IncompatibleLayer`). Kept
+    in the page's memory while the record's stamp holds, because an action POST
     asks for the whole vocabulary before it can check a single press."""
-    path = page_dir / "registry.json"
+    from leaf.layer import incompatible_layer
+
+    path = page_dir / LAYER_FILE
+
+    def read():
+        record = layer_record(page_dir)
+        if record is None:
+            return None
+        if refusal := incompatible_layer(page_dir, record):
+            raise IncompatibleLayer(refusal)
+        return layer_vocabulary(record)
+
     stamp = file_stamp(path)
     if not stamp:
-        return _read_layer(page_dir, path)
-    return memo(page_dir, _Layer).get(stamp, lambda: _read_layer(page_dir, path))
-
-
-def _read_layer(page_dir: Path, path: Path) -> dict | None:
-    from leaf.layer import protocol_refusal
-
-    try:
-        parsed = read_registry_object(path)
-    except RegistryError as error:
-        raise _revendor(page_dir, error) from None
-    if parsed is None:
-        return None
-    # The protocol before any check of what the entries hold, whose shape is this
-    # Leaf's protocol's.
-    if refusal := protocol_refusal(page_dir, parsed):
-        raise IncompatibleLayer(refusal)
-    try:
-        registry = read_registry_declarations(path)
-        check_layer_facts(registry, path)
-    except RegistryError as error:
-        raise _revendor(page_dir, error) from None
-    return registry
+        return read()
+    return memo(page_dir, _Layer).get(stamp, read)
 
 
 def read_page_registry(page_dir: Path):
@@ -91,12 +178,11 @@ def read_page_registry(page_dir: Path):
     page_dir = page_dir.absolute()
     widgets = tuple(
         (path, file_stamp(page_dir / path))
-        for directory in ("widgets", "page/widgets")
-        for path in widget_paths(page_dir, directory)
+        for path in widget_paths(page_dir, "page/widgets")
     )
     active = latest_revision(page_dir)
     key = (
-        file_stamp(page_dir / "registry.json"),
+        file_stamp(page_dir / LAYER_FILE),
         file_stamp(page_dir / "page" / "registry.json"),
         widgets,
         active,
@@ -109,7 +195,7 @@ def read_page_registry(page_dir: Path):
         return compose_candidate(
             page_dir,
             layer,
-            [path for path, _stamp in widgets],
+            [*layer_widgets(layer_record(page_dir)), *(path for path, _ in widgets)],
             validated=read_revision(page_dir, active).registry if active else None,
         )
 
@@ -135,102 +221,81 @@ def compose_candidate(
     """The candidate's vocabulary: the page's own declarations over `layer`.
 
     `widgets` are the page-root-relative widget files the candidate can load, the
-    layer's `widgets/` and the page's own `page/widgets/`. `read_page_registry`
-    composes the vendored layer; `page init` composes the layer it is about to
-    vendor, to check a re-vendor before writing it. ``validated`` is a vocabulary
-    already validated, which a composition equal to it is not validated against again.
-
-    A fault the layer shows on its own is the vendored layer's, which a re-vendor
-    repairs, whether or not the page declares anything over it; one that appears only
-    with the page's declarations is the page's to fix."""
+    layer's `widgets/` and the page's own `page/widgets/`. ``validated`` is a
+    vocabulary already validated, which a composition equal to it is not validated
+    against again."""
     from .page import compose_page_registry
 
     source = page_dir / "page" / "registry.json"
     declarations = read_registry_declarations(source) or {}
-
-    try:
-        return compose_page_registry(
-            layer,
-            declarations,
-            widgets,
-            source=source if declarations else page_dir / "registry.json",
-            validated=validated,
-        )
-    except RegistryError as error:
-        if not declarations:
-            raise _revendor(page_dir, error) from None
-        # The layer alone, validated afresh: the active revision's vocabulary may be
-        # this same layer, stamped before this Leaf, and would excuse it unread.
-        try:
-            compose_page_registry(layer, {}, widgets, source=page_dir / "registry.json")
-        except RegistryError as layer_error:
-            raise _revendor(page_dir, layer_error) from None
-        raise
-
-
-def _revendor(page_dir: Path, error: RegistryError) -> RegistryError:
-    """A fault in the vendored layer, which `page init` wrote and re-vendoring fixes."""
-    return RegistryError(error.findings[0].but(values={"revendor": str(page_dir)}))
-
-
-def _layer_packages(layer: dict, path: Path) -> list[str]:
-    packages = layer.get("packages", [])
-    if (
-        not isinstance(packages, list)
-        or not all(isinstance(value, str) and value for value in packages)
-        or len(set(packages)) != len(packages)
-    ):
-        raise registry_error("layer-packages", path)
-    return packages
+    return compose_page_registry(
+        layer,
+        declarations,
+        widgets,
+        source=source if declarations else page_dir / LAYER_FILE,
+        validated=validated,
+    )
 
 
 def layer_packages(page_dir: Path) -> list[str]:
-    """The package selections this page's vendored layer records.
+    """The package selections this page's layer record names; none before init."""
+    record = layer_record(page_dir)
+    return list(record["packages"]) if record else []
 
-    Read on its own, rather than through `layer_metadata` or the declarations
-    reader, since a re-vendor exists to repair the rest of the file: `page init`
-    reuses the recorded selection when no `--package` is given, so the page it
-    would fix must not refuse it."""
-    path = page_dir / "registry.json"
-    return _layer_packages((read_json(path) or {}).get("$layer", {}), path)
+
+def layer_metadata_of(record: dict) -> dict:
+    """What a page's layer is to its readers: its generation and selection."""
+    return {
+        "generation": record["generation"],
+        "packages": list(record["packages"]),
+        "theme": record["theme"],
+    }
+
+
+def served_layer(metadata: dict) -> dict:
+    """`metadata` as the served state names the layer a page is read under: with the
+    fingerprint of the layer this Leaf composes for it, and this Leaf as its
+    producer, the one the leaf's menu shows (`runtime/page-about.js`)."""
+    from leaf.layer import running_leaf
+
+    return {
+        **metadata,
+        "fingerprint": _fingerprint(
+            tuple(metadata["packages"]),
+            metadata["theme"]["name"] if metadata["theme"] else None,
+        ),
+        "producer": running_leaf(),
+    }
+
+
+@lru_cache(maxsize=16)
+def _fingerprint(packages: tuple[str, ...], theme: str | None) -> str:
+    from leaf.layer import layer_fingerprint, selected_layer
+
+    return layer_fingerprint(selected_layer(packages, theme))
 
 
 def layer_metadata(page_dir: Path) -> dict:
-    """The identity recorded by this page's complete vendored layer.
+    """The page's layer identity (`layer_metadata_of`), refused before init."""
+    record = layer_record(page_dir)
+    if record is None:
+        raise RegistryError(Finding("no-layer", values={"page": str(page_dir)}))
+    return layer_metadata_of(record)
 
-    `page init` writes it, so it is read as written; a layer lacking any part of
-    it is one `page init` replaces. It reads `$layer` alone, as
-    `layer_packages` reads its selection, so a layer at another protocol, whose other
-    entries may have another shape, still names the Leaf that vendored it."""
-    path = page_dir / "registry.json"
-    layer = (read_registry_object(path) or {}).get("$layer", {})
-    if not (
-        isinstance(layer, dict)
-        and layer.get("generation")
-        and layer.get("fingerprint")
-        and layer.get("server")
-    ):
-        raise registry_error("layer-identity", path)
-    producer = {
-        kind: value
-        for kind in ("commit", "dirty", "committed", "installed")
-        if (value := layer.get("producer", {}).get(kind)) is not None
-    }
-    return {
-        "generation": layer["generation"],
-        "fingerprint": layer["fingerprint"],
-        "server": layer["server"],
-        "packages": _layer_packages(layer, path),
-        "theme": layer.get("theme"),
-        **({"producer": producer} if producer else {}),
-    }
+
+def require_candidate(page_dir: Path):
+    """The candidate's vocabulary (`read_page_registry`), refused before init."""
+    candidate = read_page_registry(page_dir)
+    if candidate is None:
+        raise Refused(f"no {LAYER_FILE} in {page_dir}; run `leaf page init` first")
+    return candidate
 
 
 def require_registry(page_dir: Path) -> dict:
     """The active revision's vocabulary, or the candidate before first activation."""
     registry = active_registry(page_dir)
     if registry is None:
-        raise Refused(f"no registry.json in {page_dir}; run `leaf page init` first")
+        raise Refused(f"no {LAYER_FILE} in {page_dir}; run `leaf page init` first")
     return registry
 
 

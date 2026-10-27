@@ -46,12 +46,12 @@ from .files import (
 )
 from .findings import Rejected
 from .interaction_log import admit_batch, append_interactions, client_records
-from .layer import incompatible_layer, incompatible_revision, running_leaf, same_leaf
+from .layer import incompatible_layer, running_leaf
 from .locations import path_is_within
 from .media import MAX_MEDIA_UPLOAD_BYTES, MediaUploadError, store_uploaded_media
 from .passages import SourceReading
 from .refusals import Refused
-from .registry.storage import layer_metadata, load_registry
+from .registry.storage import layer_metadata, layer_record
 from .revision_artifact import (
     Resource,
     RevisionArtifact,
@@ -473,10 +473,6 @@ class PageEndpoint:
         what it was just handed. Between the two, the worst case is a token already
         stale on arrival, which costs one more request and no news.
 
-        Where the Leaf this server runs is another than the one that vendored the
-        page, `leaf` names it, and the leaf's menu shows it beside the page's own
-        (`AGENTS.md`, "Pages across Leaf updates").
-
         A tab names the data version it holds in `Leaf-Data-Version`, and an answer
         whose data is still that version leaves out its sources, which the tab
         restores from the reading it named (`completeData` in `layer-client.js`).
@@ -484,8 +480,6 @@ class PageEndpoint:
         answer would carry back each source value the tab already holds.
         """
         state = self._state_service().page_state(view_revision)
-        if not same_leaf(state["layer"].get("producer", {}), self.server.leaf):
-            state["leaf"] = self.server.leaf
         if self.headers.get("Leaf-Data-Version") == state["data"]["version"]:
             state["data"] = {"version": state["data"]["version"]}
         return state
@@ -888,8 +882,6 @@ class PageEndpoint:
         if revision is None:
             return self.layer
         reading = self._reading(revision)
-        if reading.refused:
-            return self.layer
         return reading.registry["$layer"]["generation"]
 
     def _artifact_root(self, revision: int) -> str:
@@ -915,10 +907,7 @@ class PageEndpoint:
     def _serve_document(
         self, artifact: RevisionArtifact, revision: int, version: int | None
     ) -> Response:
-        """Serve one immutable document under the current delivery boundary, unless
-        it was saved at another protocol (`incompatible_revision`)."""
-        if refusal := incompatible_revision(revision, artifact.registry):
-            return self._json({"error": str(refusal)}, 409)
+        """Serve one immutable document under the current delivery boundary."""
         self.response_layer = artifact.registry["$layer"]["generation"]
         artifact = executing(artifact)
         projected = compose_document(
@@ -1457,10 +1446,8 @@ def page_endpoint(
     The key has no default: every server over a page directory is reachable by
     whatever reached the machine, so there is no construction that should quietly go
     without one."""
-    # The registry first: its reader refuses a layer at another protocol before any
-    # check of a shape that is this Leaf's protocol's, as the identity's reader does.
     if page_snapshot is None and (
-        refusal := incompatible_layer(page_dir, load_registry(page_dir))
+        refusal := incompatible_layer(page_dir, layer_record(page_dir) or {})
     ):
         raise Rejected([refusal])
     identity = (

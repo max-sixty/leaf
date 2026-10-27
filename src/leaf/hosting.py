@@ -388,21 +388,14 @@ def cmd_serve_temporary(page_dir: Path, host: str | None = None) -> None:
 
 def server_reading(page_dir: Path) -> dict:
     """What a started server serves, beside its URL: the page, the server's lifetime
-    (`server.served_lifetime`) with the command that stops a persistent one, the
-    vendored layer's fingerprint and the Leaf that vendored it, and the Leaf serving
-    it (`payload_provenance`), or None for a service whose record names none."""
-    from .registry.storage import layer_metadata
-
-    layer = layer_metadata(page_dir)
+    (`server.served_lifetime`) with the command that stops a persistent one, and the
+    Leaf serving it (`payload_provenance`), or None for a service whose record names
+    none."""
     lifetime = served_lifetime(page_dir)
     reading = {"page": str(page_dir), "lifetime": lifetime}
     if lifetime == "persistent":
         reading["stop"] = f"leaf server stop {shlex.quote(str(page_dir))}"
     return reading | {
-        "layer": {
-            "fingerprint": layer["fingerprint"],
-            "leaf": layer.get("producer", {}),
-        },
         # An older live service has no trustworthy runtime identity. Naming this
         # command's payload instead would make the exact stale-server case this
         # reading exists to expose look current merely because a newer client
@@ -463,12 +456,12 @@ def _reuse_server(page_dir: Path, host: str | None, persistent: bool) -> str | N
     URL is handed out as this Leaf's."""
     from .findings import Rejected
     from .layer import incompatible_layer
-    from .registry.storage import load_registry
+    from .registry.storage import layer_record
 
     existing = running_server(page_dir)
     if not existing:
         return None
-    if refusal := incompatible_layer(page_dir, load_registry(page_dir)):
+    if refusal := incompatible_layer(page_dir, layer_record(page_dir) or {}):
         raise Rejected([refusal])
     if host and urlsplit(existing["url"]).hostname != host.lower():
         raise Refused(

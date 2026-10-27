@@ -21,7 +21,7 @@ from leaf.events import (
 )
 from leaf.findings import Finding
 from leaf.harness import message_identity
-from leaf.layer import incompatible_layer, incompatible_revision
+from leaf.layer import incompatible_layer
 from leaf.obligations import (
     quoted_in,
     response_address,
@@ -37,7 +37,6 @@ from leaf.projection import (
 )
 from leaf.read_state import read_contract_error
 from leaf.registry.contract import (
-    RegistryError,
     created_child,
     detail_schema,
     event_spec,
@@ -54,7 +53,7 @@ from leaf.registry.kernel import (
 )
 from leaf.registry.reactions import reaction_tokens
 from leaf.registry.schema import schema_complaint
-from leaf.registry.storage import IncompatibleLayer, load_registry
+from leaf.registry.storage import layer_record
 from leaf.shown_answers import shown_widget
 from leaf.todos import todo_error
 from leaf.validation.instances import attribute_slot_errors
@@ -485,12 +484,7 @@ def admitting_registry(view, event: dict) -> dict:
     the user made against the document in front of them. Admission records that
     semantic definition in the event. An event naming no revision takes the newest,
     which is the document any writer of one is looking
-    at, and a page with no revision yet has the candidate's vocabulary. Nothing made
-    against a revision saved at another protocol is admitted
-    (`layer.incompatible_revision`): one the event names, or the newest a widget
-    to-do is opened against (`opens_on_newest`). Any other event is judged by the
-    page's layer alone (`write_refusal`), so the bookkeeping a re-vendored page
-    takes before its source saves again, such as a pickup, still goes through.
+    at, and a page with no revision yet has the candidate's vocabulary.
 
     Read through `PageView.registry`, which opens the one captured file rather
     than materializing the whole bundle: this runs on every append."""
@@ -502,12 +496,6 @@ def admitting_registry(view, event: dict) -> dict:
     registry = view.registry(revision)
     if registry is None:
         raise EventRefused(Finding("no-registry"), event)
-    if (
-        (named or opens_on_newest(event))
-        and revision is not None
-        and (refusal := incompatible_revision(revision, registry))
-    ):
-        raise EventRefused(refusal, event)
     return registry
 
 
@@ -907,21 +895,12 @@ def admitted_event(view, events: list, event: dict) -> dict:
 
 
 def write_refusal(page_dir: Path) -> Finding | None:
-    """Why this Leaf may write no event to the page, or None where it may: its
-    vendored layer is one this Leaf cannot serve (`layer.incompatible_layer`). A
-    writer that must not fail on a page it cannot write, such as a hook, asks this
-    first, and so does `page check`."""
-    try:
-        registry = load_registry(page_dir)
-    except IncompatibleLayer as error:
-        return error.findings[0]
-    except RegistryError:
-        registry = None
-    if registry is None:
-        # A broken or missing candidate registry does not invalidate an active
-        # revision's captured vocabulary. Admission will read that vocabulary.
-        return None
-    return incompatible_layer(page_dir, registry)
+    """Why this Leaf may write no event to the page, or None where it may: the page
+    is at another page protocol (`layer.incompatible_layer`). A writer that must not
+    fail on a page it cannot write, such as a hook, asks this first, and so does
+    `page check`."""
+    record = layer_record(page_dir)
+    return None if record is None else incompatible_layer(page_dir, record)
 
 
 def voiced(event: dict) -> dict:

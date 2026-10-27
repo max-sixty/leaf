@@ -11,13 +11,11 @@ from leaf.data_contracts import (
     measurement_lag,
 )
 from leaf.findings import Finding, Rejected
-from leaf.layer import incompatible_layer
 from leaf.passages import SourceReading
 from leaf.registry.contract import RegistryError
 from leaf.registry.storage import IncompatibleLayer, read_page_registry
 from leaf.revision_artifact import ArtifactError, RevisionArtifact, capture_artifact
 from leaf.sample_content import initial_sample_events
-from leaf.schema import VENDORED_FILES
 from leaf.structure import SourceDocument, script_kind
 from leaf.styles import (
     css_syntax_errors,
@@ -85,13 +83,7 @@ def _source_bytes(page_dir: Path) -> tuple[bytes, Finding | None]:
 
 def _document_errors(page_dir: Path, parser) -> list[Finding]:
     """Validate the authored document shell before reading its vocabulary."""
-    errors = [
-        Finding("missing-vendored", values={"file": name})
-        for name in VENDORED_FILES
-        if not (page_dir / name).exists()
-    ]
-
-    errors.extend(structure_errors(parser))
+    errors = structure_errors(parser)
     errors.extend(page_boundary_errors(parser))
     errors.extend(authored_allocation_errors(parser))
 
@@ -318,8 +310,6 @@ def check_source(page_dir: Path, events: list) -> SourceCheck:
         registry = None
         errors.extend(error.findings)
     reading = SourceReading(document, registry)
-    if registry is not None and (refusal := incompatible_layer(page_dir, registry)):
-        return SourceCheck(reading, registry, [refusal], [])
     contracts = read_contracts(page_dir)
     # A conflicting binding lies within one document, and history holds none
     # (`data_contracts.data_binding_errors`), so the check reads this one alone.

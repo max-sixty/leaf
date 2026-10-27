@@ -625,7 +625,9 @@ ATTRIBUTE_KEYS = (
 KERNEL = PLUGIN_ROOT / "dist" / "kernel"
 BUNDLED_PACKAGES = PLUGIN_ROOT / "packages"
 DEFAULT_PACKAGE = BUNDLED_PACKAGES / "default"
-# The files `page init` writes at the top of a page directory.
+# A page's layer record (`registry.storage.LAYER`): the packages it selects.
+LAYER_FILE = "layer.json"
+# The top-level files a composed layer serves beside the page (`layer.compose_layer`).
 VENDORED_FILES = ("theme.css", "shadow.css", "registry.json", "icon.svg")
 # A package's source contributions are composed into the page files above. Their
 # roles depend on their filenames, not on whether the package declares widgets.
@@ -702,16 +704,17 @@ SESSION_FILES = (
 )
 # Process declarations, leases, browser observations and diagnostics are disposable.
 PAGE_PROCESS_FILES = (*SESSION_FILES, INTERACTIONS_FILE)
-# The files Leaf writes in a page directory as it runs. With the author's index.html,
-# the vendored files, and PAGE_OWNED_DIRS, the whole of page-storage.md's "Files".
+# The files Leaf writes in a page directory as it runs. With the author's index.html
+# and PAGE_OWNED_DIRS, the whole of page-storage.md's "Files".
 PAGE_STATE_FILES = (
+    LAYER_FILE,
     EVENTS_FILE,
     INTERACTIONS_FILE,
     FILE_BINDINGS_FILE,
     *SESSION_FILES,
 )
-PAGE_OWNED_FILES = ("index.html", *VENDORED_FILES, *PAGE_STATE_FILES)
-PAGE_OWNED_DIRS = ("revisions", *PACKAGE_DIRS, MEDIA_DIR, DATA_DIR, "page")
+PAGE_OWNED_FILES = ("index.html", *PAGE_STATE_FILES)
+PAGE_OWNED_DIRS = ("revisions", MEDIA_DIR, DATA_DIR, "page")
 # A revision's and a version's file name, without `.html`.
 REVISION_NAME = r"r(?P<revision>[1-9][0-9]*)-[a-f0-9]{16}"
 VERSION_NAME = r"v(?P<version>[1-9][0-9]*)"

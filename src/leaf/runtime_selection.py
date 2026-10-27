@@ -1,15 +1,16 @@
-"""The browser runtime a page's documents execute: the serving Leaf's own.
+"""The browser runtime and layer a page's documents execute: the serving Leaf's own.
 
-A page directory vendors what its layer's packages and its author own — the registry,
-the composed theme, widgets, package modules — and each revision captures those
-(`revision_artifact`). The runtime that executes them is not vendored: `leaf.js`,
-`runtime/`, the kernel's `vendor/` modules and the render-check probes come from the
-Leaf serving, checking or exporting the page, so the state a server serves crosses no
-version gap. What still crosses one, the event log, what a page sends, records kept
-outside a page, vendored declarations and the public package API, is the page
-protocol's (`layer-registry.md`, "Page protocol"). A historical revision therefore
-runs under the current runtime: its authored content and recorded decisions remain
-available independently of the renderer that drew them.
+A revision captures what its author owns — the document, its modules and media, and
+its own declarations (`revision_artifact`). Everything else comes from the Leaf
+serving, checking or exporting the page: `leaf.js`, `runtime/`, the kernel's
+`vendor/` modules and the render-check probes, and the layer composed from the
+packages the revision selects (`layer.selected_layer`), its registry, theme,
+widgets and package modules. So neither the state a server serves nor the widgets
+it draws with cross a version gap. What still crosses one, the event log and the
+records kept outside a page, is the page protocol's (`layer-registry.md`, "Page
+protocol"). A historical revision therefore runs under the current runtime and
+layer: its authored content and recorded decisions remain available independently
+of the renderer that drew them.
 
 `serving_runtime` reads the whole runtime once per process, which a page server does
 as it binds (`http.page_app`), and holds its bytes rather than its paths: a plugin
@@ -25,10 +26,10 @@ than reading a newer server's state with older code (`runtime/layer-client.js`).
 
 A package may add modules beside the runtime's and replace a vendor module of the
 kernel's (`layer.compose_layer` refuses one replacing a private runtime module), so a
-captured `/vendor/` file wins over the runtime's. Where it replaces a module compiled
+layer's `/vendor/` file wins over the runtime's. Where it replaces a module compiled
 into the kernel, the revision runs the source modules instead, since the kernel holds
 its own copy: the kernel is chosen only while it was compiled from the modules this
-tree holds and no captured file replaces one it compiled in.
+tree holds and no layer file replaces one it compiled in.
 """
 
 import hashlib
@@ -41,9 +42,20 @@ from pathlib import PurePosixPath
 from types import MappingProxyType
 
 from .layer import files_identity, stylesheet
+from .registry.storage import selected
 from .render_checks import PROBE_SOURCES
 from .revision_artifact import RESOURCE_TYPES, Resource, RevisionArtifact
-from .schema import ASSETS, KERNEL, RUNTIME_DIRS, RUNTIME_ENTRY
+from .schema import ASSETS, KERNEL, RUNTIME_DIRS, RUNTIME_ENTRY, VENDORED_FILES
+from .state import PLUGIN_ROOT, json_bytes
+
+# Every input of a layer this tree composes: the core layer files beside the
+# runtime, and the bundled packages (`layer.layer_inputs`).
+LAYER_SOURCES = (
+    *(f"browser/{name}" for name in VENDORED_FILES if name != "registry.json"),
+    "browser/registry.json",
+    "browser/widgets",
+    "packages",
+)
 
 
 def _files(root, *names) -> dict[str, bytes]:
@@ -78,6 +90,9 @@ class ServingRuntime:
 
     @cached_property
     def identity(self) -> str:
+        """Names every runtime input and every layer input this tree holds, so a
+        change to a bundled widget, like one to the runtime, gives an open document
+        a server that refuses it."""
         return files_identity(
             {
                 **self.source,
@@ -85,6 +100,10 @@ class ServingRuntime:
                     f"kernel:{path}": data for path, data in (self.kernel or {}).items()
                 },
                 **self.probes,
+                **{
+                    f"layer:{path}": data
+                    for path, data in _files(PLUGIN_ROOT, *LAYER_SOURCES).items()
+                },
             }
         ).removeprefix("sha256:")[:16]
 
@@ -93,12 +112,7 @@ class ServingRuntime:
         def resources(files: Mapping[str, bytes]) -> Mapping[str, Resource]:
             return MappingProxyType(
                 {
-                    path: Resource(
-                        data,
-                        RESOURCE_TYPES.get(
-                            PurePosixPath(path).suffix, "application/octet-stream"
-                        ),
-                    )
+                    path: Resource(data, _resource_type(path))
                     for path, data in {**files, **self.probes}.items()
                 }
             )
@@ -113,13 +127,15 @@ class ServingRuntime:
             variants[True] = resources({**kernelled, **self.kernel})
         return variants
 
-    def resources(self, captured: Mapping[str, Resource]) -> Mapping[str, Resource]:
-        """What a revision that captured `captured` runs: the runtime's files, with
-        the captured `/vendor/` modules that replace one of them, and every captured
-        file the runtime does not supply."""
+    def resources(
+        self, layer: Mapping[str, Resource], captured: Mapping[str, Resource]
+    ) -> Mapping[str, Resource]:
+        """What a revision runs over `layer` with what it `captured`: the runtime's
+        files, with the layer's `/vendor/` modules that replace one of them, the
+        rest of the layer, and every captured file."""
         source = self._variants[False]
         replaced = {
-            path for path in captured if path in source and path.startswith("/vendor/")
+            path for path in layer if path in source and path.startswith("/vendor/")
         }
         runtime = self._variants[
             self.kernel is not None and not replaced & self.replaces
@@ -128,8 +144,13 @@ class ServingRuntime:
             **runtime,
             **{
                 path: resource
-                for path, resource in captured.items()
+                for path, resource in layer.items()
                 if path not in runtime or path in replaced
+            },
+            **{
+                path: resource
+                for path, resource in captured.items()
+                if path not in runtime
             },
         }
 
@@ -173,9 +194,11 @@ def serving_runtime() -> ServingRuntime:
 
 def executing(artifact: RevisionArtifact) -> RevisionArtifact:
     """`artifact` with the resources its documents run with under this process's
-    runtime (`ServingRuntime.resources`). Its captured identity is unchanged: the
+    runtime and the layer its manifest selects (`ServingRuntime.resources`), its
+    vocabulary served as `/registry.json`. Its captured identity is unchanged: the
     manifest, and with it the digest and executable, describe what the revision
-    captured, and the runtime is named beside it by `serving_runtime().identity`.
+    captured, and the runtime and layer are named beside it by
+    `serving_runtime().identity`.
 
     The runtime keeps one per artifact for as long as the artifact is kept
     (`revision_artifact.read_artifact`), so what a reader derives from it, such as
@@ -184,8 +207,20 @@ def executing(artifact: RevisionArtifact) -> RevisionArtifact:
     runtime = serving_runtime()
     executed = runtime._executed.get(artifact)
     if executed is None:
+        layer = {
+            path: Resource(data, _resource_type(path))
+            for path, data in selected(json.loads(artifact.manifest)["layer"])
+            .files.items()
+        }
+        layer["/registry.json"] = Resource(
+            json_bytes(artifact.registry), "application/json"
+        )
         executed = runtime._executed[artifact] = replace(
             artifact,
-            resources=MappingProxyType(runtime.resources(artifact.resources)),
+            resources=MappingProxyType(runtime.resources(layer, artifact.resources)),
         )
     return executed
+
+
+def _resource_type(path: str) -> str:
+    return RESOURCE_TYPES.get(PurePosixPath(path).suffix, "application/octet-stream")

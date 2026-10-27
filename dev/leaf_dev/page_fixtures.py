@@ -264,7 +264,12 @@ def import_referenced_media(
             run_leaf("page", "media", str(page), str(candidate))
         return capture_local_resource(page, path)
 
-    registry = json.loads((page / "registry.json").read_text(encoding="utf-8"))
+    from leaf.registry.storage import load_registry
+
+    # A base arm from before pages composed their layer at read time vendored it.
+    registry = load_registry(page) or json.loads(
+        (page / "registry.json").read_text(encoding="utf-8")
+    )
     for document in documents:
         capture_artifact(
             page, SourceDocument(document), registry, read_resource=read_resource

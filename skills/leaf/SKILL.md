@@ -179,7 +179,7 @@ Read references from this skill directory.
 
 - `references/serving-pages.md`: for the first handoff, `--export`, an unreachable
   URL, whether an operation changes a page's URL, `--host`, a persistent page,
-  re-vendoring a served page, a page a Leaf update broke, or resuming another
+  changing a served page's packages, a page a Leaf update broke, or resuming another
   session's page.
 - `references/module-authoring.md`: before writing or changing browser behavior in
   a page script, page-owned widget or package widget. Then, as the behavior needs

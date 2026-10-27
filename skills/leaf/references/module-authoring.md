@@ -40,6 +40,9 @@ Preact Signals it exports `signal`, for private state a command's `when` reads
 
 ## What a behavior module owes
 
+This is what a widget owes; a page script owes only what `page-behavior.md`, "A page
+script", lists.
+
 - Build once, in a widget's `setup()` or behind `once()` in any other element, and
   hold each connection's listeners, observers and registrations in `whileConnected`
   ("Upgrade", "Connection lifetimes").
@@ -383,10 +386,6 @@ element with `generatedElement(node, {says})`, which takes the same answers; in 
 template, write `<h2 ${generated({ says: true })}>`. `wrote()` then leaves them out,
 and a comment's quote doesn't run across them into the author's words. Don't write the
 `data-lf-gen`, `data-lf-said` or `data-lf-echo` attributes yourself.
-
-A widget can upgrade inside a shut panel where every box measures zero, so take
-measurements inside `measure(element, take)`, which runs `take` once the element has a
-box.
 
 For changing text, use `page-layout.md`, "Space for changing text";
 the same `data-room` layout applies to authored and generated controls.

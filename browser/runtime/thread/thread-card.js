@@ -36,10 +36,15 @@ import {
   currentLocationTouches,
   currentLocationIn,
 } from "../focus.js";
-import { html, render, nothing, share, signal } from "/vendor/browser-runtime.js";
+import { html, render, nothing, share, signal } from "/runtime/framework.js";
 import { turns, threadKey } from "./model.js";
 import { anchorLabel, messageReading, threadSummary } from "./messages.js";
-import { generatedElement, offer, measure } from "../widget-elements.js";
+import {
+  generatedElement,
+  offerAction,
+  offeredAction,
+  measure,
+} from "../widget-elements.js";
 import { keeps, layoutPx } from "../keeps.js";
 import { keys } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
@@ -203,13 +208,7 @@ export function threadTodos(todos, done) {
       (todo) =>
         html`<li class="lf-thread-todo">
           <span class="lf-thread-todo-title">To-do · ${todo.title}</span
-          ><button
-            type="button"
-            class="lf-btn lf-thread-action"
-            @click=${() => done(todo.id)}
-          >
-            Done
-          </button>
+          ><button ${offeredAction("word")} @click=${() => done(todo.id)}>Done</button>
         </li>`,
     )}
   </ul>`;
@@ -766,11 +765,10 @@ export class ThreadView {
     const face = `${state.kind} ${place}`;
     let button = this.#settlements.get(face);
     if (!button) {
-      button = offer(
-        "button",
-        `lf-btn ${reopen ? "lf-reopen" : "lf-resolve"} ${icon ? "lf-icon-action" : "lf-thread-action"}`,
+      button = offerAction(
+        icon ? "symbol" : "word",
+        reopen ? "lf-reopen" : "lf-resolve",
       );
-      button.type = "button";
       this.#settlements.set(face, button);
       const word = reopen ? "Reopen" : "Resolve";
       keys(button, `On a thread's ${word} button`, [
@@ -837,21 +835,16 @@ export class ThreadView {
       source: this.node,
       available: () => this.node.isConnected,
     });
-    const land = async (may = mayLand, reverse = false) => {
+    return async () => {
       // The summary is semantically available at once, but a long departing card
       // still puts it below the viewport. Keep this gesture's original authority
       // while its pixels leave; a later user move still vetoes the landing.
       await this.#retirement?.catch(() => {});
       const place = this.#fold?.querySelector(":scope > summary") ?? this.node;
-      if (!may()) return false;
-      // An existing resolved group survives when this card returns. Its summary
-      // cannot hand focus back by disappearing, so the reversal owns that handoff.
-      if (reverse) may.handoff(() => focusDestination(place, "return"));
-      if (!currentLocationIn(place)) return false;
+      if (!mayLand() || !currentLocationIn(place)) return false;
       scrollThreadIntoView(place, focused());
       return true;
     };
-    return { optimistic: () => land(), reverse: (may) => land(may, true) };
   };
 
   #createReply(model) {

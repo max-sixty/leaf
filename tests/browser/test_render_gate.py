@@ -976,7 +976,9 @@ def test_shadow_stage_withholds_package_transitions_until_presentation(
     """The shared shadow stage suppresses a package transition during arrival."""
     theme = tmp_path / "transition-theme"
     theme.mkdir()
-    (theme / "shadow.css").write_text("details { transition: color 60s linear; }\n")
+    (theme / "theme-shadow.css").write_text(
+        "details { transition: color 60s linear; }\n"
+    )
     page = browser.new_page()
     held = []
     page.route("**/api/state*", lambda route: held.append(route))
@@ -1403,7 +1405,7 @@ def test_the_state_wait_covers_a_status_that_moves_neither_log_nor_data(browser,
         held = render_gate_scheme.served(page, url, "/api/state").json()
         wait_until_ready(page, held, through="state")
         # The leaf names the agent's status.
-        assert "awaits" in page.locator(".lf-fp-leaf").get_attribute("aria-label")
+        assert "Ready" in page.locator(".lf-fp-leaf").get_attribute("aria-label")
     finally:
         leases_model.release_lease(lease)
 
@@ -4333,6 +4335,15 @@ def test_scrollbar_clearance_reads_generic_content_and_open_shadow_words(
     last = page.get_by_role("button", name="Last choice")
     expect(last).to_be_focused()
     assert last.evaluate("el => el.matches(':focus-visible')")
+    # Native focus scrolling can finish after focus arrives (notably on macOS).
+    # Read the clearance once the keyboard destination has actually come into view.
+    page.wait_for_function(
+        """() => {
+          const box = document.getElementById('strip');
+          return box.lastElementChild.getBoundingClientRect().right <=
+                 box.getBoundingClientRect().right + 1;
+        }"""
+    )
     reached = last.evaluate(
         """el => {
           const box = el.parentElement, rect = box.getBoundingClientRect();

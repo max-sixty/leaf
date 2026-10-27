@@ -5,6 +5,7 @@ styles."""
 import io
 import json
 import re
+from datetime import datetime, timedelta
 
 import pytest
 from interact_support import append_carried_log_record
@@ -18,10 +19,12 @@ from render_cases_interaction import (
 )
 from render_harness import (
     LONG_PAGE,
+    displayed,
     example_media,
     leaf_page,
     open_page,
     resized,
+    restarting,
     round_trip,
     scroll_settled,
     select_words,
@@ -39,7 +42,7 @@ from browser.threads import (
     paste_image,
 )
 from leaf import thread as thread_model
-from leaf.render_checks import one_frame, rendered
+from leaf.render_checks import one_frame, rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -116,6 +119,54 @@ def test_thread_actions_share_consistently_sized_message_headers(
             geometry
         )
         assert geometry["bodyLeft"] == geometry["headLeft"], geometry
+
+
+@pytest.mark.parametrize("surface", ["panel", "margin"])
+def test_a_message_says_its_age_only_where_it_changes(browser, serve, surface):
+    """A thread says each message's age only where that age, as displayed, differs
+    from the message above, the first always saying it: three messages written on one
+    day three days ago read one age, and a reply written now reads its own."""
+    url = serve(PANEL_PAGE)
+    then = datetime.now().astimezone() - timedelta(days=3)
+    root = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Is the retry bounded?",
+            "ts": then.isoformat(),
+            **({"anchor": {"section": "lede"}} if surface == "margin" else {}),
+        },
+    )["id"]
+    for at, (author, text) in enumerate(
+        [("agent", "Yes, three tries."), ("user", "Then park it after.")], start=1
+    ):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": author,
+                **({"agent": "Claude"} if author == "agent" else {}),
+                "parent": root,
+                "revision": 1,
+                "text": text,
+                "ts": (then + timedelta(minutes=at)).isoformat(),
+            },
+        )
+    append_agent_reply(serve.page_dir, root, "Parked after the third.")
+    page = open_page(browser, url)
+    if surface == "panel":
+        card = open_panel_thread(page, root)
+    else:
+        page.locator(".lf-margin-marker").first.click()
+        card = page.locator(".lf-margin-preview .lf-page-thread")
+        expect(card).to_be_visible()
+    ages = card.locator(".lf-msg-head")
+    expect(ages).to_have_count(4)
+    assert ages.evaluate_all(
+        "heads => heads.map((head) => head.querySelector('time')?.textContent ?? null)"
+    ) == ["3d ago", None, None, "just now"]
 
 
 # Where a message's words may run to, and the thread's inset before its words.
@@ -377,52 +428,149 @@ setTimeout(() => {
     assert not [f for f in faces["chrome"] if f in {"cursive", "fantasy"}], faces
 
 
-def test_a_packages_rules_reach_only_inside_its_widgets(browser, serve, tmp_path):
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
+def test_a_packages_rules_reach_only_inside_its_widgets(
+    request, serve, tmp_path, engine
+):
     """A package that declares widgets styles those widgets and nothing else, whatever
     its sheet says: its rule for `p` dresses the paragraph inside its widget and leaves
     the page's own paragraphs alone, and its rule for the widget's host still reaches
-    the host. The confinement is the composition's (layer.py, `widget_confinement`),
-    so it holds for any package, not only the ones this repository ships."""
+    the host. Its scope stops below a foreign widget, while same-package compound
+    parts and independently nested instances retain their own scope. Page-declared
+    widgets obey the same boundary before upgrade, after upgrade, and on revision,
+    in every engine, since each reads the composed scope and its limit itself."""
     package = tmp_path / ".leaf"
     package.mkdir()
-    (package / "theme.css").write_text(
+    (package / "widgets.css").write_text(
         "p { color: rgb(0, 128, 0); }\n"
         "em { @media screen { color: rgb(0, 128, 0); } }\n"
-        ":scope:is(lf-shelf) { display: block; border: 3px solid rgb(0, 128, 0); }\n"
+        ":scope:is(lf-shelf) { display: block; border: 3px solid rgb(0, 128, 0); --scope-input: plum; }\n"
+        "lf-foreign, lf-page-box, lf-page-live { display: block; border: 3px solid rgb(0, 128, 0); }\n"
     )
+    declaration = {
+        "description": "A project-supplied box.",
+        "type": "object",
+        "properties": {"id": {"type": "string"}},
+        "required": ["id"],
+        "additionalProperties": False,
+        "x-content": "markup",
+        "x-upgrade": False,
+    }
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "registry.json").write_text(json.dumps({"lf-foreign": declaration}))
+    source = leaf_page(
+        "t",
+        '<h1>t</h1><p id="out">Outside <em id="out-em">here</em>.</p>'
+        '<lf-shelf id="shelf"><p id="in">Inside <em id="in-em">here</em>.</p>'
+        '<lf-shelf-part id="part"><p id="same-package">Compound part.</p></lf-shelf-part>'
+        '<lf-foreign id="foreign"><p id="nested">Foreign authored content.</p>'
+        '<div><p id="deeper">Deeper foreign content.</p></div>'
+        '<lf-shelf id="nested-own"><p id="nested-own-words">Own again.</p></lf-shelf>'
+        "</lf-foreign>"
+        '<lf-page-box id="page-box"><p id="page-words">Page vocabulary.</p>'
+        '<lf-shelf-part id="page-own"><p id="page-own-words">Own part again.</p></lf-shelf-part>'
+        "</lf-page-box>"
+        '<lf-page-live id="page-live"><p id="page-live-words">Before upgrade.</p></lf-page-live>'
+        "</lf-shelf>",
+    )
+    page_registry = {
+        "lf-page-box": declaration,
+        "lf-page-live": {**declaration, "x-upgrade": True},
+        # Replacing a declaration does not withdraw selected package CSS.
+        "lf-shelf-part": {**declaration, "description": "A page-described part."},
+    }
     url = serve(
-        leaf_page(
-            "t",
-            '<h1>t</h1><p id="out">Outside <em id="out-em">here</em>.</p>'
-            '<lf-shelf id="shelf"><p id="in">Inside <em id="in-em">here</em>.</p>'
-            "</lf-shelf>",
-        ),
-        layer_registry={
-            "lf-shelf": {
-                "description": "A project-supplied box.",
-                "type": "object",
-                "properties": {"id": {"type": "string"}},
-                "required": ["id"],
-                "additionalProperties": False,
-                "x-content": "markup",
-                "x-upgrade": False,
-            }
+        source,
+        packages=("./other",),
+        layer_registry={"lf-shelf": declaration, "lf-shelf-part": declaration},
+        page_files={
+            "registry.json": json.dumps(page_registry),
+            "widgets/lf-page-live.js": """
+customElements.define('lf-page-live', class extends HTMLElement {
+  connectedCallback() {
+    if (this.querySelector('[data-lf-gen]')) return;
+    const words = document.createElement('p');
+    words.id = `${this.id}-generated`;
+    words.dataset.lfGen = '1';
+    words.textContent = 'After upgrade.';
+    this.append(words);
+  }
+});
+""",
         },
     )
-    page = open_page(browser, url)
-    faces = page.evaluate("""() => Object.fromEntries(
-        ['out', 'in', 'out-em', 'in-em', 'shelf'].map(id => {
+    page = request.getfixturevalue(engine).new_page()
+    boot = []
+    page.route("**/leaf.js", lambda route: boot.append(route))
+
+    def faces():
+        return page.evaluate("""() => Object.fromEntries(
+        ['out', 'in', 'out-em', 'in-em', 'shelf', 'same-package', 'foreign',
+         'nested', 'deeper', 'nested-own-words', 'page-box', 'page-words',
+         'page-own-words', 'page-live', 'page-live-words'].map(id => {
         const cs = getComputedStyle(document.getElementById(id));
-        return [id, [cs.color, cs.borderTopWidth]]; }))""")
-    assert faces["in"][0] == faces["in-em"][0] == "rgb(0, 128, 0)", faces
-    assert "rgb(0, 128, 0)" not in (faces["out"][0], faces["out-em"][0]), faces
-    assert faces["shelf"][1] == "3px", faces
+        return [id, [cs.color, cs.borderTopWidth, cs.getPropertyValue('--scope-input').trim()]]; }))""")
+
+    try:
+        with page.expect_request("**/leaf.js"):
+            page.goto(live_url(url), wait_until="commit")
+        displayed(page)
+        assert boot
+        assert not page.evaluate("!!customElements.get('lf-page-live')")
+        before = faces()
+        for own in (
+            "in",
+            "in-em",
+            "same-package",
+            "nested-own-words",
+            "page-own-words",
+        ):
+            assert before[own][0] == "rgb(0, 128, 0)", before
+        assert "rgb(0, 128, 0)" not in (before["out"][0], before["out-em"][0]), before
+        for host in ("shelf", "foreign", "page-box", "page-live"):
+            assert before[host][1] == "3px", before
+        for foreign in ("nested", "deeper", "page-words", "page-live-words"):
+            assert before[foreign][0] == before["out"][0], before
+            assert before[foreign][2] == "plum", before
+
+        boot.pop().continue_()
+        wait_until_ready(page)
+        page.unroute_all(behavior="wait")
+        assert faces() == before
+        expect(page.locator("#page-live-generated")).to_have_css(
+            "color", before["out"][0]
+        )
+
+        with restarting(page):
+            page_registry["lf-page-new"] = declaration
+            (serve.page_dir / "page/registry.json").write_text(
+                json.dumps(page_registry)
+            )
+            stamp_page(
+                serve.page_dir,
+                source.replace(
+                    '<lf-page-box id="page-box">',
+                    '<lf-page-new id="revised"><p id="revised-words">New vocabulary.</p></lf-page-new>'
+                    '<lf-page-box id="page-box">',
+                ),
+                "Add a page-declared widget",
+            )
+            wait_for_revision(page, 2)
+            expect(page.locator("#revised-words")).to_have_css(
+                "color", before["out"][0]
+            )
+            assert faces() == before
+    finally:
+        for route in boot:
+            route.continue_()
+        page.unroute_all(behavior="wait")
 
 
 def test_a_theme_package_styles_every_page_as_the_pages_own_sheet_does_one(
     browser, serve, tmp_path
 ):
-    """A package that declares no widgets is a theme: its rules outrank the Layouts and
+    """A theme contribution, even beside a widget, outranks the Layouts and
     every widget package's defaults (layer.py, `lf-theme`), so its `main` padding beats
     the column Layout's and its plain `lf-card` rule beats the board's own
     `:scope:is(lf-card)`. Like the page's own rules, its bare `button` dresses the
@@ -430,6 +578,21 @@ def test_a_theme_package_styles_every_page_as_the_pages_own_sheet_does_one(
     sheet grants deliberate access to board controls (runtime/page-sheets.js)."""
     theme = tmp_path / "theme"
     theme.mkdir()
+    (theme / "registry.json").write_text(
+        json.dumps(
+            {
+                "lf-theme-box": {
+                    "description": "A widget beside a page-wide theme.",
+                    "type": "object",
+                    "properties": {"id": {"type": "string"}},
+                    "required": ["id"],
+                    "additionalProperties": False,
+                    "x-content": "markup",
+                    "x-upgrade": False,
+                }
+            }
+        )
+    )
     (theme / "theme.css").write_text(
         "main { padding-top: 11px; }\n"
         "lf-card { padding-left: 13px; }\n"
@@ -472,17 +635,19 @@ def test_a_theme_package_styles_every_page_as_the_pages_own_sheet_does_one(
     assert {color for _, color in faces["controls"]} == {"rgb(0, 128, 0)"}, faces
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
 def test_a_packages_shadow_rules_reach_only_trees_its_widgets_host(
-    browser, serve, tmp_path
+    request, serve, tmp_path, engine
 ):
     """Every declared shadow tree receives the layer's shadow sheet, so a package's
-    `shadow.css` is confined there too: its rule for `span` dresses the tree its own
-    widget hosts and not the tree another package's widget hosts."""
+    `widget-shadow.css` is confined there too: its rule for `span` dresses the tree its own
+    widget hosts and not the tree another package's widget hosts. Each engine reads
+    the composed scope itself: Firefox applied none of it while the scope had a limit."""
     own, own_module = _shadow_tree_widget("lf-own-tree")
     other, other_module = _shadow_tree_widget("lf-other-tree")
     project = tmp_path / ".leaf"
     project.mkdir()
-    (project / "shadow.css").write_text("span { color: rgb(0, 128, 0); }\n")
+    (project / "widget-shadow.css").write_text("span { color: rgb(0, 128, 0); }\n")
     neighbour = tmp_path / "other"
     (neighbour / "widgets").mkdir(parents=True)
     (neighbour / "registry.json").write_text(json.dumps({"lf-other-tree": other}))
@@ -497,7 +662,7 @@ def test_a_packages_shadow_rules_reach_only_trees_its_widgets_host(
         layer_registry={"lf-own-tree": own},
         layer_widgets={"lf-own-tree.js": own_module},
     )
-    page = open_page(browser, url)
+    page = open_page(request.getfixturevalue(engine), url)
     colors = page.evaluate("""() => Object.fromEntries(['own', 'other'].map(id => [id,
         getComputedStyle(document.getElementById(id).shadowRoot.querySelector('span'))
             .color]))""")
@@ -508,16 +673,18 @@ def test_a_packages_shadow_rules_reach_only_trees_its_widgets_host(
 def test_a_theme_packages_shadow_rules_outrank_the_widget_packages_own(
     browser, serve, tmp_path
 ):
-    """A theme package's `shadow.css` reaches every declared shadow tree from the
+    """A theme contribution's `theme-shadow.css` reaches every declared shadow tree from the
     `lf-theme` tier, above the shadow rules of the package that owns the widget: its
     bare `span` beats the owner's more specific rule for the same span."""
     own, own_module = _shadow_tree_widget("lf-own-tree")
     project = tmp_path / ".leaf"
     project.mkdir()
-    (project / "shadow.css").write_text(":scope span { color: rgb(255, 0, 0); }\n")
+    (project / "widget-shadow.css").write_text(
+        ":scope span { color: rgb(255, 0, 0); }\n"
+    )
     theme = tmp_path / "theme"
     theme.mkdir()
-    (theme / "shadow.css").write_text("span { color: rgb(0, 128, 0); }\n")
+    (theme / "theme-shadow.css").write_text("span { color: rgb(0, 128, 0); }\n")
     url = serve(
         leaf_page("t", '<h1>t</h1><lf-own-tree id="own"></lf-own-tree>'),
         packages=("./theme",),
@@ -863,9 +1030,18 @@ def test_a_stuck_card_head_keeps_the_name_and_lets_its_annotations_scroll_out(
     """Reading down a long reply keeps its writer and time at the top while the
     edited annotation leaves with the reply's first line."""
     url = serve(PANEL_PAGE)
-    root = panel_comment(
-        serve.page_dir, "Explain with examples?", {"section": "how-store"}
-    )
+    # Asked an hour before the answer, so the answer's head says an age of its own.
+    root = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Explain with examples?",
+            "anchor": {"section": "how-store"},
+            "ts": (datetime.now().astimezone() - timedelta(hours=1)).isoformat(),
+        },
+    )["id"]
     answer = thread_model.post_reply(
         serve.page_dir, {"responds": root}, LANDING_WORDS * 8
     )["id"]

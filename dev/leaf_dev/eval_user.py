@@ -259,7 +259,7 @@ def cli() -> list[str]:
         raise click.ClickException(
             "Browser agents need Node and eval dependencies; run pnpm install --frozen-lockfile"
         )
-    return [str(Path(node).resolve()), str(script), "cli"]
+    return [node, str(script), "cli"]
 
 
 def decide(url: str, task: str, evidence: Path, *, viewport: tuple[int, int]) -> dict:

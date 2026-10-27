@@ -172,6 +172,8 @@ def test_visual_review_keeps_the_dashboard_stable_while_inspecting(
       return {decision: box('.lf-vr-decision').y, evidence: box('.lf-vr-evidence').y};
     }"""
     baseline = case.evaluate(reading)
+    # The header names size and browser; Capture details holds the rest.
+    expect(case.locator(".lf-vr-evidence-note")).to_have_text("390 × 844 · Chromium")
     buttons = widget.locator(".lf-vr-case-button")
     expect(buttons).to_have_count(3)
     for button in buttons.all():

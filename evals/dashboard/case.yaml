@@ -1,7 +1,7 @@
 # Complete task; diagnostic contexts retain the original fixed checks.
 # healthy-release contrasts an automatic rollout with a rollback decision: Codex
 # base 0/2, conditional rollback guidance 2/2 with the same snapshot time and rubric.
-description: Dashboard
+description: Release rollout dashboard
 metadata:
   purpose: Compose and revise a dashboard; inspect its rendered output against the
     request and, on Leaf, read and preserve a user choice on that page.

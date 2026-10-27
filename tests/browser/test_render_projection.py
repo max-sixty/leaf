@@ -110,7 +110,14 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
                 {
                     "path": "gateway/limits.py",
                     "patch": patch,
-                }
+                },
+                # A second file, so the diff draws the filter a reveal clears.
+                {
+                    "path": "gateway/README.md",
+                    "patch": "diff --git a/gateway/README.md b/gateway/README.md\n"
+                    "--- a/gateway/README.md\n+++ b/gateway/README.md\n"
+                    "@@ -1 +1 @@\n-Limits by address.\n+Limits by token.\n",
+                },
             ]
         },
     )
@@ -573,7 +580,7 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve, provided)
     page = open_page(browser, live_url(url))
     draft = page.locator("#ledger-cargo")
     draft_control(page, "edit", "ledger-cargo").click()
-    editor = draft.get_by_role("textbox", name="Edit ledger-cargo")
+    editor = draft.locator("leaf-text")
     if provided.startswith("\n"):
         # CodeMirror's bulk insertText reading drops an initial LF;
         # create that line through the editor's ordinary key route instead.

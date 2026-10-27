@@ -1,13 +1,16 @@
-/* On-demand page diagnostics. The server owns exact source attribution; user-view.js
- * owns passive browser observations. Capture the tab before opening the modal, keep
+/* About this page brings page identity and on-demand diagnostics together. The server
+ * owns exact source attribution; user-view.js owns passive browser observations. Capture the tab before opening the modal, keep
  * that revision throughout the request, and label the captured reading rather than
  * pretending it follows later edits or resizes. Closing releases the request. Nothing
  * here changes authored content, starts a website session, or polls for updates.
- * This module is loaded only by the page menu's inspection gesture. */
-import { html, nothing, render } from "/vendor/browser-runtime.js";
+ * Page controls own identity values; copyable-text.js supplies every read-only text
+ * block with its copy control. This module loads only when About opens. */
+import { html, nothing, render } from "/runtime/framework.js";
 import { chromeForeground } from "./chrome.js";
 import { offlineInteractive, pageUrl, runtime } from "./context.js";
 import { copyControl } from "./copy-control.js";
+import { copyableText } from "./copyable-text.js";
+import { pageControls } from "./page-controls.js";
 import {
   closeLayer,
   focusDestination,
@@ -22,37 +25,48 @@ import { retainUserIntent } from "./user-intent.js";
 import { scrollIntoView } from "./landing-scroll.js";
 import { scrollBehavior } from "./motion.js";
 import { readCurrentUserView } from "./user-view.js";
-import { closeControl, el, reveal } from "./widget-elements.js";
+import {
+  closeControl,
+  el,
+  offerAction,
+  offeredAction,
+  reveal,
+} from "./widget-elements.js";
 
 const dialog = el("dialog", "lf-ui lf-inspection-dialog");
-dialog.setAttribute("aria-label", "Page diagnostics");
+dialog.setAttribute("aria-label", "About this page");
 const head = el("div", "lf-inspection-head");
-head.append(el("strong", "", "Page diagnostics"));
+head.append(el("strong", "", "About this page"));
 const copy = copyControl("", {
   label: "Copy diagnostics",
   success: "Diagnostics copied",
   error: "Diagnostics not copied. Select the report text to copy it manually.",
 });
-const copyLabel = el("button", "lf-btn", "Copy diagnostics");
-copyLabel.type = "button";
+const copyLabel = offerAction("word", "", "Copy diagnostics");
 copy.append(copyLabel);
 const close = closeControl({
-  name: "Close page diagnostics",
-  title: "Close page diagnostics (Esc)",
+  name: "Close about this page",
+  title: "Close about this page (Esc)",
 });
 head.append(copy, close);
 // The page's status line is behind this modal. Keep copy outcomes beside its
 // trigger; Web Awesome still owns clipboard access and the spoken announcement.
 const copyResult = el("p");
 copyResult.hidden = true;
-const body = el("div", "lf-inspection-body");
-dialog.append(head, copyResult, body);
+const scroll = el("div", "lf-inspection-body");
+const identity = el("section");
+identity.setAttribute("aria-label", "Page details");
+const body = el("div");
+scroll.append(identity, body);
+dialog.append(head, copyResult, scroll);
 for (const type of ["wa-copy", "wa-error"]) {
   copy.addEventListener(type, () => {
     if (!dialog.open) return;
     const failed = type === "wa-error";
     const fallback = failed
-      ? html`<button class="lf-btn" @click=${selectReport}>Select report text</button>`
+      ? html`<button ${offeredAction("word")} @click=${selectReport}>
+          Select report text
+        </button>`
       : nothing;
     render(
       html`<span>${failed ? copy.errorLabel : copy.successLabel}</span> ${fallback}`,
@@ -130,7 +144,10 @@ const observations = (label, rows, describe) =>
                     <code>${row.at}</code>: ${describe(row)}
                     ${
                       destinations.has(row)
-                        ? html`<button class="lf-btn" @click=${() => showOnPage(row)}>
+                        ? html`<button
+                            ${offeredAction("word")}
+                            @click=${() => showOnPage(row)}
+                          >
                             Show on page
                           </button>`
                         : nothing
@@ -171,7 +188,7 @@ function browserReading(view) {
     </p>
     <details>
       <summary>Rendering environment</summary>
-      <pre>${JSON.stringify(view.identity, null, 2)}</pre>
+      ${copyableText("rendering environment", JSON.stringify(view.identity, null, 2))}
     </details>
     ${view.unavailable ? html`<p>${view.unavailable}</p>` : nothing}
     ${
@@ -211,7 +228,7 @@ function browserReading(view) {
     }
     <details>
       <summary>Browser observations and locations</summary>
-      <pre>${JSON.stringify(view, null, 2)}</pre>
+      ${copyableText("browser observations and locations", JSON.stringify(view, null, 2))}
     </details>`;
 }
 
@@ -242,7 +259,7 @@ function present() {
             ? html`<p role="status">${sourceError}</p>
                 ${
                   report.basis
-                    ? html`<button class="lf-btn" @click=${loadSource}>
+                    ? html`<button ${offeredAction("word")} @click=${loadSource}>
                         Retry source inspection
                       </button>`
                     : nothing
@@ -314,7 +331,7 @@ function present() {
       </section>
       <details>
         <summary>Structured report</summary>
-        <pre tabindex="0" aria-label="Structured diagnostics">${serialized}</pre>
+        ${copyableText("Structured diagnostics", serialized)}
       </details>
     `,
     body,
@@ -379,6 +396,19 @@ export async function openPageInspection(intent) {
     ? null
     : "Source inspection is unavailable in this export or public preview. Browser context is shown below.";
   loading = available;
+  render(
+    html`<h2>Page details</h2>
+      ${pageControls()
+        .filter((entry) => entry.copies)
+        .map(
+          (entry) =>
+            html`${copyableText(
+              entry.label[0].toUpperCase() + entry.label.slice(1),
+              entry.copies,
+            )}${entry.value ? html`<p>${entry.value}</p>` : nothing}`,
+        )}`,
+    identity,
+  );
   openLayer(dialog);
   if (available) void loadSource();
   else present();

@@ -123,18 +123,21 @@ leaf-composition-field {
 }
 /* Under a mouse, where Return sends, the words run the whole line and Send shows in
    its corner while no words reach it (`:state(corner-taken)`, text-field.js). Once
-   words reach it, Send waits unseen in the corner and shows over them, on its opaque
-   hover disc, when the pointer comes to it or focus does. Rejected: showing it on
-   hovering the whole box, since the pointer rests there while typing and Send would
-   cover the words at the corner most of the time. */
+   words reach it, Send waits unseen in the corner, letting presses through to the
+   words, and shows over them on an opaque disc when focus comes to it or the pointer
+   has rested on it (`data-send-pointed`, input.js). Rejected: showing it on hovering
+   the whole box, since the pointer rests there while typing and Send would cover the
+   words at the corner most of the time; and showing it as soon as the pointer
+   arrives, which put it under a press meant to place the caret at the words' end. */
 @media (hover: hover) and (pointer: fine) {
   .lf-compose-field:where(:has(> .lf-compose-submit)) > leaf-text:not(.lf-fab-input) {
     --lf-field-end-room: 0px;
     --lf-field-corner: calc(var(--lf-icon-action-hit) + var(--lf-compose-action-inset));
   }
-  .lf-compose-field:has(> leaf-text:state(corner-taken))
-    > .lf-compose-submit:not(:hover, [data-lf-focus-visible]) {
+  .lf-compose-field:has(> leaf-text:state(corner-taken)):not([data-send-pointed])
+    > .lf-compose-submit:not([data-lf-focus-visible]) {
     opacity: 0;
+    pointer-events: none;
   }
   .lf-compose-field:has(> leaf-text:state(corner-taken))
     > .lf-compose-submit:not(:hover)::before {

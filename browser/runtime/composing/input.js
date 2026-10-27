@@ -75,6 +75,9 @@ import { coarsePointer } from "../pointer.js";
 import { offered, offeredAction } from "../widget-elements.js";
 
 const INPUT_DRAFT = Symbol("composition draft");
+// How long the pointer rests on Send's corner, once words reach it, before Send shows
+// there and takes presses: longer than a press aimed at the words' end takes to land.
+const SEND_DWELL = 250;
 
 /** @typedef {CompositionField} CompositionFieldElement For its tag. */
 class CompositionField extends SignalWatcher(LitElement) {
@@ -404,6 +407,33 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       const word = sendWord();
       return word.charAt(0).toUpperCase() + word.slice(1);
     };
+    // Once words reach Send's corner, Send shows there only after the pointer has rested
+    // on it (response.css), so a quick press at the words' end places the caret. Typing,
+    // or a press on the words, puts Send away until the pointer next moves, so a second
+    // press of a double-click selects rather than sends.
+    let dwell = 0;
+    const unpoint = () => {
+      clearTimeout(dwell);
+      dwell = 0;
+      ta.parentElement?.removeAttribute("data-send-pointed");
+    };
+    const point = (event) => {
+      if (event.pointerType === "touch") return;
+      const box = event.currentTarget;
+      const send = sendBtn?.getBoundingClientRect();
+      const on =
+        send &&
+        event.clientX >= send.left &&
+        event.clientX < send.right &&
+        event.clientY >= send.top &&
+        event.clientY < send.bottom;
+      if (!on) unpoint();
+      else if (!dwell && !box.hasAttribute("data-send-pointed"))
+        dwell = setTimeout(() => {
+          dwell = 0;
+          box.setAttribute("data-send-pointed", "");
+        }, SEND_DWELL);
+    };
     let sending = false;
     let uploading = false;
     const canSend = () => !sending && !uploading && !held() && hasContent(draftValue());
@@ -552,7 +582,17 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
           </button>`
         : nothing;
       return html`${sentMedia ? nothing : shelf}
-        <div class="lf-compose-field" ?data-words=${hasWords}>${content}</div>
+        <div
+          class="lf-compose-field"
+          ?data-words=${hasWords}
+          @pointermove=${point}
+          @pointerleave=${unpoint}
+          @pointerdown=${(event) => {
+            if (!sendBtn?.contains(event.target)) unpoint();
+          }}
+        >
+          ${content}
+        </div>
         ${alternate}`;
     };
     field.updated = () =>
@@ -642,6 +682,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       }
     };
     ta.addEventListener("input", () => {
+      unpoint();
       loadingFailure = "";
       dictation?.edited();
       // A user's edit also retires a microphone press still loading its module.

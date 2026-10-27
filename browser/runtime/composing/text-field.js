@@ -108,8 +108,8 @@
  * A box may instead give the words the whole line and set `--lf-field-corner` to the
  * square at the field's trailing foot its action stands in. The field then says
  * whether words in view, or its caret, reach that square (`:state(corner-taken)`), and
- * the box shows its action while the corner is free, and over the words only when the
- * pointer or focus comes to it. Wrapping still turns on nothing but the words; only the
+ * the box shows its action while the corner is free, and over the words only when
+ * focus comes to it or the pointer rests on it. Wrapping still turns on nothing but the words; only the
  * action comes and goes. Under a mouse, Return sends when the action is hidden.
  *
  * Leaf's key dispatcher owns submission and Escape. Return inserts a newline unless

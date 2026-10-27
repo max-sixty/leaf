@@ -635,8 +635,8 @@ def test_a_widget_declaring_it_renders_a_picture_exposes_a_comment_target(
     overlay = page.locator(".lf-visual-mark-pending")
     expect(overlay).to_be_visible()
     look = overlay.evaluate(
-        """el => { const style = getComputedStyle(el); return {
-          background: style.backgroundImage,
+        """el => { const style = getComputedStyle(el, '::after'); return {
+          background: getComputedStyle(el).backgroundImage,
           outline: [style.outlineStyle, style.outlineWidth],
         }; }"""
     )
@@ -652,8 +652,8 @@ def test_a_widget_declaring_it_renders_a_picture_exposes_a_comment_target(
     ).not_to_be_visible()
 
 
-def _edge_ink_changes(quiet, painted, target, clip, ink):
-    """Count newly painted target ink on each edge of a clipped screenshot."""
+def _bracket_ink_changes(quiet, painted, target, clip, ink):
+    """Count new ink along both bracket sides and each of their four end caps."""
     difference = ImageChops.difference(quiet, painted)
     left = target["x"] - clip["x"]
     top = target["y"] - clip["y"]
@@ -672,19 +672,18 @@ def _edge_ink_changes(quiet, painted, target, clip, ink):
             math.ceil(right) + 1,
             math.ceil(bottom) - 4,
         ),
-        "top": (
-            math.floor(left) + 4,
-            math.floor(top) - 1,
-            math.ceil(right) - 4,
-            math.ceil(top) + 2,
-        ),
-        "bottom": (
-            math.floor(left) + 4,
-            math.floor(bottom) - 2,
-            math.ceil(right) - 4,
-            math.ceil(bottom) + 1,
-        ),
     }
+    for side, x1, x2 in [
+        ("left", left + 4, left + 10),
+        ("right", right - 10, right - 4),
+    ]:
+        for end, y in [("top", top), ("bottom", bottom)]:
+            boxes[f"{end}-{side}"] = (
+                math.floor(x1),
+                math.floor(y) - 1,
+                math.ceil(x2),
+                math.ceil(y) + 2,
+            )
     changed = {
         name: sum(
             delta != (0, 0, 0)
@@ -712,7 +711,8 @@ def test_a_screenshot_comment_contour_paints_above_its_edge_to_edge_frame(
 
     lf-shot is the causal case: its positioned frame reaches every side of a host with
     no border of its own. A source-element outline sits below that frame and disappears
-    down both sides. The projected contour remains visible above all four edges.
+    down both sides. Both projected brackets, including their end caps, remain above
+    the frame.
     """
     example = next(path for path in EXAMPLES if path.stem == "release-notes")
     page = open_page(browser, serve(example))
@@ -739,7 +739,7 @@ def test_a_screenshot_comment_contour_paints_above_its_edge_to_edge_frame(
     overlay = page.locator(".lf-visual-mark-pending")
     expect(overlay).to_be_visible()
     contour = overlay.evaluate(
-        """element => { const style = getComputedStyle(element);
+        """element => { const style = getComputedStyle(element, '::after');
           // A mixed ink computes as color(srgb …); a canvas reads any colour as bytes.
           const pen = document.createElement('canvas').getContext('2d');
           pen.fillStyle = style.outlineColor;
@@ -759,7 +759,7 @@ def test_a_screenshot_comment_contour_paints_above_its_edge_to_edge_frame(
         "width": box["width"] + 2 * outset,
         "height": box["height"] + 2 * outset,
     }
-    changed, _ = _edge_ink_changes(quiet, marked, outer, clip, contour["ink"])
+    changed, _ = _bracket_ink_changes(quiet, marked, outer, clip, contour["ink"])
     assert all(changed[side] > 0 for side in changed), (
         f"the screenshot frame covered part of its annotation contour: {changed}"
     )
@@ -812,7 +812,7 @@ def test_a_focused_card_comment_never_paints_over_the_cards_contents(browser, se
     mark.evaluate("element => { element.style.removeProperty('visibility'); }")
 
 
-def test_a_screenshot_margin_trace_paints_one_complete_quiet_contour(browser, serve):
+def test_a_screenshot_margin_trace_paints_both_quiet_brackets(browser, serve):
     """A margin control traces a visual target above its edge-to-edge children."""
     example = next(path for path in EXAMPLES if path.stem == "release-notes")
     page = open_page(browser, serve(example))
@@ -852,14 +852,24 @@ def test_a_screenshot_margin_trace_paints_one_complete_quiet_contour(browser, se
         """element => {
           const canvas = document.createElement('canvas');
           const context = canvas.getContext('2d');
-          context.fillStyle = getComputedStyle(element).borderLeftColor;
+          context.fillStyle = getComputedStyle(element, '::after').outlineColor;
           context.fillRect(0, 0, 1, 1);
           return [...context.getImageData(0, 0, 1, 1).data.slice(0, 3)];
         }"""
     )
     traced = screenshot()
 
-    changed, missing = _edge_ink_changes(quiet, traced, box, clip, ink)
+    outset = trace.evaluate(
+        "element => { const s = getComputedStyle(element, '::after');"
+        " return parseFloat(s.outlineOffset) + parseFloat(s.outlineWidth); }"
+    )
+    outer = {
+        "x": box["x"] - outset,
+        "y": box["y"] - outset,
+        "width": box["width"] + 2 * outset,
+        "height": box["height"] + 2 * outset,
+    }
+    changed, missing = _bracket_ink_changes(quiet, traced, outer, clip, ink)
     assert not missing, (
         f"the screenshot frame covered the trace's {missing} edge: {changed} ink pixels"
     )
@@ -1027,8 +1037,8 @@ def test_a_diagram_takes_the_room_and_scrolls_only_past_it(browser, serve):
 
 
 def test_a_marked_scrolling_visual_keeps_its_keyboard_focus_ring(browser, serve):
-    """A focused visual paints one ring: its own, since its thread draws nothing at
-    rest. Located in that thread moves the contour into the projected mark."""
+    """A focused visual paints one projected ring; entering its thread keeps the
+    reference on the same target without restoring a second source outline."""
     url = serve(WIDE_DIAGRAM_PAGE)
     append_carried_log_record(
         serve.page_dir,
@@ -1047,10 +1057,11 @@ def test_a_marked_scrolling_visual_keeps_its_keyboard_focus_ring(browser, serve)
     expect(diagram).to_have_attribute("tabindex", "0")
     diagram.focus()
     assert diagram.evaluate("element => element.matches(':focus-visible')")
-    expect(diagram).to_have_css("outline-style", "solid")
-    expect(diagram).to_have_css("outline-width", "2px")
+    rendered(page)
+    ring = current_location_ring(page)
+    assert ring and ring["cuts"] == ring["covers"] == [], ring
     mark = page.locator(".lf-visual-mark")
-    expect(mark).to_have_count(0)
+    expect(page.locator(".lf-visual-mark-focus")).to_have_attribute("data-for", "flow")
 
     resized(page, 1200, 900)
     stand_on_thread(page, "diagram-comment")

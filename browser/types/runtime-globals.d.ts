@@ -238,16 +238,6 @@ interface DocumentEventMap {
   "lf-sample-step": CustomEvent<{ amount: number; unit: string }>;
 }
 
-interface HTMLElementEventMap {
-  /** An ancestor is asked to show `target` (`widget-elements.js`, `reveal`). */
-  "lf-reveal": CustomEvent<{
-    target: Element;
-    mayReveal(): boolean;
-    replacedView(): void;
-    present(ready?: Promise<unknown>): void;
-  }>;
-}
-
 // TypeScript's DOM library lacks the platform's close watcher (HTML, "Close requests
 // and close watchers"), which `keyboard/close-requests.js` holds; only what it uses.
 interface CloseWatcher extends EventTarget {

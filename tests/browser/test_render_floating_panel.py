@@ -1182,7 +1182,7 @@ def test_threads_grow_in_place_and_hold_news_until_asked(browser, serve):
     """Threads fits the rows it lists, growing from its top edge as the user turns to it
     from On me, so the Threads tab just pressed and Close, among the controls at its
     foot, stay under the pointer; a thread arriving after that moves none of its rows,
-    the inventory keeping its height. A reply that arrives while its thread is open
+    waiting behind a notice. A reply that arrives while its thread is open
     waits behind the thread's notice."""
     url = serve(LONG_PAGE, comments=3)
     root = panel_comment(serve.page_dir, "Is the window long enough?")
@@ -1217,13 +1217,21 @@ def test_threads_grow_in_place_and_hold_news_until_asked(browser, serve):
     assert shown["y"] + shown["height"] == short["y"] + short["height"]
     assert threads_tab.bounding_box() == before
     assert close.bounding_box() == closes
+    rows = inventory.locator(".lf-fp-thread")
+    tops = "rows => rows.map(row => [row.dataset.key, row.getBoundingClientRect().top])"
+    row_positions = rows.evaluate_all(tops)
     panel_comment(serve.page_dir, "Who watches the weekend?")
     told(page)
-    expect(inventory.locator(".lf-fp-thread")).to_have_count(5)
+    joined = page.locator(".lf-fp-joined .lf-thread-news")
+    expect(joined).to_have_attribute("title", "1 new thread")
     settled(page)
-    assert inventory.bounding_box() == shown
+    expect(rows).to_have_count(4)
+    assert rows.evaluate_all(tops) == row_positions
     assert threads_tab.bounding_box() == before
     assert close.bounding_box() == closes
+    joined.click()
+    expect(rows).to_have_count(5)
+    expect(rows.filter(has_text="Who watches the weekend?")).to_be_visible()
 
     inventory.locator(".lf-fp-thread", has_text="Is the window long enough?").click()
     reader = page.locator(panel_view("thread"))

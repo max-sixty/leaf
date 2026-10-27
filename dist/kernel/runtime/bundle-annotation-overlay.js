@@ -346,7 +346,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 				const card = transcript.parentElement;
 				card.style.setProperty("--lf-thread-fade-top", layoutPx(edge));
 				card.style.setProperty("--lf-thread-fade-height", layoutPx(height));
-				card.style.setProperty("--lf-thread-room-cover", layoutPx(above ? room : 0));
+				keeps(card, "data-lf-scrolled", above ? "" : null);
 			}
 		});
 	}

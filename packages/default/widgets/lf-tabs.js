@@ -2,10 +2,10 @@
  * Lit draws the generated strip from panel labels and tracked readings; authored
  * panels stay outside its render root. The upgrade hides
  * inactive panels with hidden="until-found", so browser find-in-page and
- * fragment navigation still reach them — `beforematch` opens the owning tab,
- * and the runtime's reveal() asks the same via the lf-reveal event when it
- * scrolls to a comment anchor. A page can make a panel itself scroll with CSS,
- * so the widget declares each panel as a scroll surface; its CSS still decides
+ * fragment navigation still reach them, and so does Leaf's travel to a comment
+ * anchor, which reveals as they do: `beforematch` opens the owning tab. A page can
+ * make a panel itself scroll with CSS, so the widget declares each panel as a scroll
+ * surface; its CSS still decides
  * whether that panel scrolls. The open tab is view state for this user,
  * remembered per browser tab (`keepView`): switching is reading, not editing, so it
  * never sends an action and no version carries it — this widget doesn't ride the
@@ -211,14 +211,8 @@ export class TabSet extends LeafElement {
       panel.setAttribute("role", "tabpanel");
       panel.setAttribute("aria-label", panel.getAttribute("label"));
       // The browser found something inside (find-in-page, an anchor jump), or
-      // the runtime is about to scroll a comment anchor into view: open up.
+      // Leaf is about to scroll a comment anchor into view: open up.
       panel.addEventListener("beforematch", () => this.#activate(panel, "reveal"));
-      panel.addEventListener("lf-reveal", (event) => {
-        if (this.#active.value && this.#active.value !== panel)
-          event.detail.replacedView();
-        const ready = this.#activate(panel, "reveal");
-        event.detail?.present?.(ready);
-      });
     }
     // Build the strip before opening its panel: activation measures the selected
     // name and the underline in this same task. Later publication uses LeafElement's

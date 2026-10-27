@@ -21,6 +21,7 @@ from browser.threads import (
     summarize_thread,
 )
 from leaf import thread as thread_model
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -480,7 +481,8 @@ def test_a_summary_folds_its_messages_where_they_stand(request, serve, engine):
     loaded, and words the user selected in another stay selected. Moving a message
     reloaded its frame in WebKit, which lacks `moveBefore`, and lost the selection in
     every engine. The checkpoint groups its messages for assistive technology by
-    `aria-owns`, since it no longer contains them."""
+    `aria-owns`, since it no longer contains them. Its toggle takes a press while those
+    words stay selected."""
     url = serve(SEATED_OBLIGATION_PAGE)
     root = panel_comment(serve.page_dir, "Which job first?", {"section": "jobs"})
     framed = append_agent_reply(
@@ -538,11 +540,22 @@ def test_a_summary_folds_its_messages_where_they_stand(request, serve, engine):
     owned = checkpoint.evaluate("node => node.getAttribute('aria-owns').split(' ')")
     assert owned == [message.evaluate("node => node.id") for message in covered]
 
-    toggle.press("Enter")
+    # A press, with those words still selected, folds and unfolds them: the guard that
+    # takes a drag ending on a control for the selection's mouseup once asked the whole
+    # card, so a selection anywhere in it deadened the toggle. Show and Hide leave their
+    # toggle under the user's aim: the thread landing it brought the thread's head back
+    # into view and lifted the toggle 20px.
+    toggle.scroll_into_view_if_needed()
+    stood = toggle.evaluate("node => node.getBoundingClientRect().top")
+    toggle.click()
     for message in covered:
         expect(message).to_be_hidden()
-    toggle.press("Enter")
+    rendered(page)
+    assert toggle.evaluate("node => node.getBoundingClientRect().top") == stood
+    toggle.click()
     expect(covered[0]).to_be_visible()
+    rendered(page)
+    assert toggle.evaluate("node => node.getBoundingClientRect().top") == stood
     kept()
 
     append_carried_log_record(

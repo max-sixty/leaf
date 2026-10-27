@@ -13,10 +13,11 @@
 #   leaf wait          The agent runs `leaf wait` in the background. It prints
 #                      the delivery as JSON and exits, and the harness hands that
 #                      output to the agent as the command's result, which wakes
-#                      it. The agent acknowledges the delivery itself, with
-#                      `leaf wait --ack <delivery-id>`, and answers with
-#                      `leaf thread reply <answer.ref>`. A Codex task without Leaf's
-#                      adapter uses this route, and so does a bare shell.
+#                      it. The agent acknowledges the delivery itself and waits
+#                      again, with `leaf delivery ack <delivery-id> && leaf wait`,
+#                      and answers with `leaf thread reply <answer.ref>`. A Codex
+#                      task without Leaf's adapter uses this route, and so does a
+#                      bare shell.
 #   Claude Code hook   Leaf's native hook watcher runs between turns. When input
 #                      arrives it wakes the session with one line naming the page,
 #                      which opens a turn. Leaf's prompt hook runs as that
@@ -82,10 +83,10 @@ leaf wait:
     created_at: 1790046750.29
     acknowledge: >-
       If the output was cut off, reread it with `leaf delivery read 11111111` and
-      follow any `next` commands. Then, before any other work, start `leaf wait
-      --ack 11111111` as the next background task, which confirms this delivery
-      and waits for the next. If you forward the delivery instead of handling it,
-      acknowledge once it arrives where you sent it.
+      follow any `next` commands. Then, before any other work, start `leaf delivery
+      ack 11111111 && leaf wait /path/to/page` as the next background task, which
+      confirms this delivery and waits for the next. If you forward the delivery
+      instead of handling it, acknowledge once it arrives where you sent it.
     batches:
       - page: /path/to/page
         claim: null
@@ -114,15 +115,18 @@ leaf wait:
             reply <answer.ref> --ephemeral --text "<what you will do, in a line>"`.
             Then do the work, put the result on the page with what shows it (captures,
             a figure, the numbers), and answer with `leaf thread reply <answer.ref>
-            --done --file reply.md`: what changed, in a sentence or two, linking
-            the section that shows it. If the event asks for no work, answer it
-            with that reply at once. The reply checks your saved page edit and makes
-            it live before posting. Mark an answer that promises work beyond this
-            turn `--todo "<what you owe>"` instead of `--done`. When your reply
-            needs the user's answer, decision, permission or review, add `--obligation`
-            to put the message on On me until they answer. Omit it for progress
-            or information that needs no response. A widget in `--markup` can register
-            the answer it captures instead (`references/threads.md`).
+            <declaration> --file reply.md`: what changed, in a sentence or two,
+            linking the section that shows it. If the event asks for no work, answer
+            it with that reply at once. The reply checks your saved page edit and
+            makes it live before posting. The declaration says whose move your answer
+            leaves, which delivering what was asked doesn't settle. `--obligation`
+            when it is the user's: it leaves them a decision, or something to try
+            or review before making one, or asks them for an answer or permission.
+            That puts your answer on their On me list until they reply or resolve
+            the thread, even where the decision itself is already there. `--todo
+            "<what you owe>"` when it is yours, promising work beyond this turn.
+            `--done` when it leaves nobody a move. A widget in `--markup` can register
+            the answer it captures instead of `--obligation` (`references/threads.md`).
           h3: >-
             Your reply renders as Markdown in a narrow column: give each point its
             own short paragraph or list item, link a page section as `[its name](#section-id)`,
@@ -190,15 +194,19 @@ Claude Code hook:
               reply <answer.ref> --ephemeral --text "<what you will do, in a line>"`.
               Then do the work, put the result on the page with what shows it (captures,
               a figure, the numbers), and answer with `leaf thread reply <answer.ref>
-              --done --file reply.md`: what changed, in a sentence or two, linking
-              the section that shows it. If the event asks for no work, answer it
-              with that reply at once. The reply checks your saved page edit and
-              makes it live before posting. Mark an answer that promises work beyond
-              this turn `--todo "<what you owe>"` instead of `--done`. When your
-              reply needs the user's answer, decision, permission or review, add
-              `--obligation` to put the message on On me until they answer. Omit
-              it for progress or information that needs no response. A widget in
-              `--markup` can register the answer it captures instead (`references/threads.md`).
+              <declaration> --file reply.md`: what changed, in a sentence or two,
+              linking the section that shows it. If the event asks for no work,
+              answer it with that reply at once. The reply checks your saved page
+              edit and makes it live before posting. The declaration says whose
+              move your answer leaves, which delivering what was asked doesn't settle.
+              `--obligation` when it is the user's: it leaves them a decision, or
+              something to try or review before making one, or asks them for an
+              answer or permission. That puts your answer on their On me list until
+              they reply or resolve the thread, even where the decision itself is
+              already there. `--todo "<what you owe>"` when it is yours, promising
+              work beyond this turn. `--done` when it leaves nobody a move. A widget
+              in `--markup` can register the answer it captures instead of `--obligation`
+              (`references/threads.md`).
             h3: >-
               Your reply renders as Markdown in a narrow column: give each point
               its own short paragraph or list item, link a page section as `[its
@@ -269,15 +277,18 @@ Codex queue:
             reply <answer.ref> --ephemeral --text "<what you will do, in a line>"`.
             Then do the work, put the result on the page with what shows it (captures,
             a figure, the numbers), and answer with `leaf thread reply <answer.ref>
-            --done --file reply.md`: what changed, in a sentence or two, linking
-            the section that shows it. If the event asks for no work, answer it
-            with that reply at once. The reply checks your saved page edit and makes
-            it live before posting. Mark an answer that promises work beyond this
-            turn `--todo "<what you owe>"` instead of `--done`. When your reply
-            needs the user's answer, decision, permission or review, add `--obligation`
-            to put the message on On me until they answer. Omit it for progress
-            or information that needs no response. A widget in `--markup` can register
-            the answer it captures instead (`references/threads.md`).
+            <declaration> --file reply.md`: what changed, in a sentence or two,
+            linking the section that shows it. If the event asks for no work, answer
+            it with that reply at once. The reply checks your saved page edit and
+            makes it live before posting. The declaration says whose move your answer
+            leaves, which delivering what was asked doesn't settle. `--obligation`
+            when it is the user's: it leaves them a decision, or something to try
+            or review before making one, or asks them for an answer or permission.
+            That puts your answer on their On me list until they reply or resolve
+            the thread, even where the decision itself is already there. `--todo
+            "<what you owe>"` when it is yours, promising work beyond this turn.
+            `--done` when it leaves nobody a move. A widget in `--markup` can register
+            the answer it captures instead of `--obligation` (`references/threads.md`).
           h3: >-
             Your reply renders as Markdown in a narrow column: give each point its
             own short paragraph or list item, link a page section as `[its name](#section-id)`,
@@ -343,10 +354,14 @@ Codex App Server:
                 answered this input. Before your first tool call, tell the user
                 briefly the answer or what you are about to do; later working messages
                 stay in Codex. End with the answer, or what changed and where it
-                shows. For widgets, a message awaiting the user (`--obligation`),
-                work promised beyond this turn (`--todo`), a title or moving the
-                thread, reply explicitly with `leaf thread reply <answer.ref>` (`references/threads.md`);
-                it posts at once, and your final message is then not posted.
+                shows. A final message leaves the user no move, so where your answer
+                leaves them one, such as a decision or something to try or review
+                before making one, answer with `leaf thread reply <answer.ref> --obligation`
+                instead: it puts the answer on their On me list even where the decision
+                itself is already there. Reply explicitly too for widgets, work
+                promised beyond this turn (`--todo`), a title or moving the thread
+                (`references/threads.md`); an explicit reply posts at once, and
+                your final message is then not posted.
               h2: >-
                 Your reply renders as Markdown in a narrow column: give each point
                 its own short paragraph or list item, link a page section as `[its

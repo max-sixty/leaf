@@ -2,7 +2,7 @@
    that semantic intake and revision comparison read before behavior modules start. */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { initialRender, initialOrigin } from "/runtime/initial-render.js";
+import { authoredBody, initialRender, initialOrigin } from "/runtime/initial-render.js";
 import { unmarkedCopy } from "/runtime/initial-render.js";
 import { tabStore } from "/runtime/storage.js";
 import { adoptRegistry } from "/runtime/registry.js";
@@ -281,4 +281,27 @@ test("generated words say which kind they are, and a producer can't leave it uns
   // A later write restates the kind, as one element can wear both over its life.
   generatedElement(name, { says: false });
   assert.deepEqual(markers(name), ["1", null, null]);
+});
+
+test("an authored body takes every child its host was written with, source intact", () => {
+  document.body.innerHTML =
+    '<main><lf-bodied id="bodied"><p>One</p> <p>Two</p></lf-bodied><lf-plain id="plain"></lf-plain></main>';
+  const host = document.querySelector("lf-bodied");
+  const authored = host.outerHTML;
+  const written = [...host.childNodes];
+  const coordinator = document.documentElement.lfInitial;
+  coordinator.register("lf-bodied", (node, tools) => {
+    const body = tools.authoredBody(document.createElement("div"));
+    const frame = document.createElement("section");
+    frame.append(tools.offer("span", "bodied-label", "Label"), body);
+    node.append(frame);
+    return { body };
+  });
+  coordinator.register("lf-plain", () => ({}));
+  const { body } = coordinator.paint(host);
+  coordinator.paint(document.querySelector("lf-plain"));
+  assert.deepEqual([...body.childNodes], written);
+  assert.equal(authoredBody(host), body);
+  assert.equal(authoredBody(document.querySelector("lf-plain")), null);
+  assert.equal(unmarkedCopy(host).outerHTML, authored);
 });

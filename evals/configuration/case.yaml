@@ -1,6 +1,6 @@
 # Complete task, added for the plain HTML comparison of 2026-10-12: configuration
 # beside the document review and the queue.
-description: Configuration
+description: Alert configuration
 metadata:
   purpose: Compose a configuration page, revise it, and apply a user comment;
     inspect its rendered output against the request.

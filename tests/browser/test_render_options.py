@@ -2401,7 +2401,7 @@ def test_a_sample_holds_a_wide_exhibit_inside_the_column(browser, serve):
         '<h1>A wide exhibit</h1><lf-sample id="spec" label="wide content">'
         '<div id="wide-exhibit" style="overflow-x: auto">'
         '<div style="width: 600px">An exhibit wider than the page column.</div>'
-        '</div></lf-sample>',
+        "</div></lf-sample>",
     )
     page = open_page(browser, serve(source))
     page.evaluate(

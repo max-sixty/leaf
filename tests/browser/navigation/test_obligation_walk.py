@@ -768,7 +768,9 @@ def test_the_obligation_walk_uses_the_visible_reading_after_its_focus_is_release
     expect(page.locator("#question-3")).to_be_focused()
 
 
-def test_letting_go_of_an_obligation_on_screen_leaves_the_user_beside_it(browser, serve):
+def test_letting_go_of_an_obligation_on_screen_leaves_the_user_beside_it(
+    browser, serve
+):
     """With several obligations in view, letting go of the second leaves the user beside
     it rather than at the top of the view: `m` returns to it, and Tab carries on into
     it."""

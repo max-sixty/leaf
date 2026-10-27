@@ -53,7 +53,7 @@ long as any architectural problem they leave stays easy to fix. Make
 improvements that follow from the repository, and ask the user only when the
 choice depends on purpose or intent the code can't supply.
 
-### Responsiveness
+## Responsiveness
 
 When the user acts, the page draws what that act decides by itself before the
 browser's next frame, in the task that handles it: the user's message in its
@@ -65,7 +65,7 @@ predict that reading: a prediction is a second copy of the server's rules, and
 each case it misses shows the wrong state until the reading arrives. Where the
 reading takes longer than 100 ms, make that path faster.
 
-### Pages across Leaf updates
+## Pages across Leaf updates
 
 A page keeps the layer (registry, theme, widgets and package modules) that
 `leaf page init` vendored into it, and runs the runtime of the Leaf that serves,
@@ -268,13 +268,10 @@ preparation, gesture holds and semantic presentation proof.
 
 A gesture's own result shows in the task that sends it, before the server
 answers ("Responsiveness"); a disabled control, spinner or delivery status is
-not that result. Everything that depends on the whole log, such as which obligations
-remain, which the user owes and whose turn a thread is, comes from the server's
-reading. The browser adds only what a gesture decides by itself: a to-do the
-user ends, a thread the user opens, the
-user's own reply and its wait for an answer, and the resend a refused send
-leaves. A refusal restores
-the server's state.
+not that result. The browser adds only what a gesture decides by itself: a
+to-do the user ends, a thread the user opens, the user's own reply and its wait
+for an answer, and the resend a refused send leaves. A refusal restores the
+server's state.
 
 Focus, scroll, selection, open disclosures, a draft being typed, a drag and
 layout stay with the browser until a gesture makes them part of the page's

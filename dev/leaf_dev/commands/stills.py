@@ -190,11 +190,9 @@ def drawing_comment(page: Page) -> None:
     page.mouse.up()
     page.locator(".lf-composer-drawing").wait_for(state="visible")
     settle(page)
-    context = page.locator(".lf-composer-drawing canvas")
-    if context.count():
-        page.locator(
-            '.lf-composer-drawing canvas[data-lf-drawing-context="ready"]'
-        ).wait_for(state="visible")
+    page.locator(
+        '.lf-composer-drawing canvas[data-lf-drawing-context="ready"]'
+    ).wait_for(state="visible")
 
 
 def drawing_comment_hover(page: Page) -> None:
@@ -366,6 +364,11 @@ def motion_controls(page: Page) -> None:
     select.focus()
 
 
+def timeline_steps(page: Page) -> None:
+    """A timeline's Previous and Next beside its position, above its lanes."""
+    page.locator("#race-before .lf-timeline-controls").scroll_into_view_if_needed()
+
+
 def card_by_pointer(page: Page) -> None:
     """The first margin card, opened by a click on its marker."""
     open_card(page, page.locator(".lf-margin-marker").first)
@@ -485,6 +488,20 @@ def seat_held_news(page: Page) -> None:
     held_news(page, thread)
 
 
+def option_picked(page: Page) -> None:
+    """The panel's row just after the plan's rollout option is picked and admitted,
+    while a passing notice would still stand in its status seat."""
+    option = page.locator("#plan-admin")
+    option.scroll_into_view_if_needed()
+    option.click()
+    expect(page.locator(".lf-live")).to_contain_text("— sent")
+
+
+def option_references(page: Page) -> None:
+    """The patch decision, whose two options both name the stall block above them."""
+    page.locator("#off-workaround-review").scroll_into_view_if_needed()
+
+
 def on_me(page: Page) -> None:
     """On me, opened from the floating panel's On me mark."""
     page.locator(".lf-fp-on-user").click()
@@ -586,12 +603,14 @@ def retained_quote(page: Page) -> None:
 
 
 def retained_quote_full(page: Page) -> None:
-    """The same original words opened locally, where this runtime offers it."""
+    """The same original words opened locally. Full quote shows a frame after the
+    thread's messages, once the panel has measured the quotation as cut, so the click
+    waits for it."""
     retained_quote(page)
     child = page.locator("#bg-retained-quote-sample").frame_locator("iframe")
     full = child.get_by_role("button", name="Full quote", exact=True)
-    if full.count():
-        full.click()
+    full.click()
+    expect(full).to_have_attribute("aria-expanded", "true")
 
 
 def progress_messages(page: Page) -> None:
@@ -872,6 +891,11 @@ def activity_feed(page: Page) -> None:
     page.locator("#triage-moves").scroll_into_view_if_needed()
 
 
+def settled_option(page: Page) -> None:
+    """A settled decision collapsed to its one line."""
+    page.locator("#bg-outcome").scroll_into_view_if_needed()
+
+
 def settled_option_hover(page: Page) -> None:
     """An expanded decision answers hover without lifting the card."""
     page.locator("#bg-outcome .lf-settled").click()
@@ -1086,13 +1110,15 @@ def diff_file_resolved_closed(page: Page) -> None:
 
 
 def diff_file_resolved(page: Page) -> None:
-    """Both conversations under a diff file resolved, and every resolved disclosure the
-    outlet draws opened."""
+    """Both conversations under a diff file resolved, and the outlet's one Resolved
+    disclosure, which holds them, opened."""
     diff_file_resolved_closed(page)
-    diff = page.frame_locator("#dfg-sample iframe").locator("#dfg-patch")
-    folded = diff.locator(".lf-diff-thread-outlet details:not([open]) > summary")
-    while folded.count():
-        folded.first.click()
+    resolved = page.frame_locator("#dfg-sample iframe").locator(
+        "#dfg-patch .lf-diff-thread-outlet details.lf-resolved-threads"
+    )
+    expect(resolved).to_have_count(1)
+    resolved.locator(":scope > summary").click()
+    expect(resolved).to_have_attribute("open", "")
 
 
 def diff_line_composer(page: Page) -> None:
@@ -1240,6 +1266,11 @@ def steps_in_view(page: Page) -> None:
     page.locator("#security-contract-list").scroll_into_view_if_needed()
 
 
+def security_flow(page: Page) -> None:
+    """The case study's five-step flow diagram, every step in view."""
+    page.locator("#security-before-flow").scroll_into_view_if_needed()
+
+
 def go_to(page: Page) -> None:
     """The Go-to sequence armed from the keyboard, its destinations on the line."""
     page.keyboard.press("g")
@@ -1333,13 +1364,9 @@ def visual_review_inspection(page: Page) -> None:
 
 def code_reader_feedback(page: Page) -> None:
     """The built reader and the place where its author receives design feedback."""
-    tab = page.get_by_role("tab", name="Comment on the reader")
-    if tab.count():
-        tab.click()
-        settle(page)
-    page.locator(
-        "#code-reader-feedback, #code-targeting-ask"
-    ).scroll_into_view_if_needed()
+    page.get_by_role("tab", name="Comment on the reader").click()
+    settle(page)
+    page.locator("#code-reader-feedback").scroll_into_view_if_needed()
 
 
 def margin_gallery(page: Page) -> None:
@@ -1394,6 +1421,11 @@ def live_sample_embedded(page: Page) -> None:
         sample.frame_locator("iframe").locator("#bg-live-sample-copy")
     ).to_be_visible()
     sample.scroll_into_view_if_needed()
+
+
+def interactive_sample(page: Page) -> None:
+    """An interactive sample, whose widgets use this page's state, under its note."""
+    page.locator("#bg-inline-sample").scroll_into_view_if_needed()
 
 
 def live_sample_full_view(page: Page) -> None:
@@ -1548,6 +1580,27 @@ STATES = (
     ),
     State("panel-status-hover", "review-a-plan", panel_status_hover),
     State("floating-thread", "ship-review", floating_thread, region=".lf-fp-opened"),
+    State("ship-threads", "ship-review", go_to_threads, region=".lf-fp-opened"),
+    State("plan-option-picked", "review-a-plan", option_picked, region=".lf-fp-row"),
+    State(
+        "plan-option-card-picked",
+        "review-a-plan",
+        option_picked,
+        region="lf-options:has(> #plan-admin)",
+    ),
+    State(
+        "ship-option-references",
+        "ship-review",
+        option_references,
+        region="#off-workaround-decision",
+    ),
+    State(
+        "ship-option-references-phone",
+        "ship-review",
+        option_references,
+        viewport=(390, 844),
+        region="#off-workaround-decision",
+    ),
     State(
         "floating-thread-retitled",
         "ship-review",
@@ -1610,6 +1663,12 @@ STATES = (
         "developer/feature-gallery",
         live_sample_full_view,
         region="#bg-live-sample .lf-sample-view",
+    ),
+    State(
+        "interactive-sample",
+        "developer/feature-gallery",
+        interactive_sample,
+        region="#bg-inline-sample",
     ),
     State(
         "trace-comparison-header",
@@ -1781,6 +1840,7 @@ STATES = (
         "developer/visual-review-gallery",
         visual_review_inspection,
     ),
+    State("visual-review", "developer/visual-review-gallery", at_rest),
     State("diff-file-threads", "developer/diff-thread-gallery", at_rest),
     State("diff-long-lines", "developer/diff-thread-gallery", diff_long_lines),
     State("worktree-diffs", "developer/worktree-diffs", at_rest),
@@ -1829,6 +1889,12 @@ STATES = (
     ),
     State("activity-feed", "triage-board", activity_feed, region="#triage-moves"),
     State(
+        "settled-option",
+        "developer/feature-gallery",
+        settled_option,
+        region="#bg-outcome",
+    ),
+    State(
         "settled-option-hover",
         "developer/feature-gallery",
         settled_option_hover,
@@ -1853,6 +1919,12 @@ STATES = (
         "developer/motion",
         motion_controls,
         region="#fold-motion .lf-motion-controls",
+    ),
+    State(
+        "timeline-steps",
+        "lost-update",
+        timeline_steps,
+        region="#race-before .lf-timeline-controls",
     ),
     State(
         "trace-timeline-keyboard",
@@ -2297,6 +2369,35 @@ STATES = (
         "security-boundary",
         steps_in_view,
         region="#security-contract-list",
+    ),
+    # The case study's five-step flow, drawn top-down so a phone shows every step.
+    State(
+        "security-flow",
+        "security-boundary",
+        security_flow,
+        region="#security-before-flow",
+    ),
+    State(
+        "security-flow-dark",
+        "security-boundary",
+        security_flow,
+        scheme="dark",
+        region="#security-before-flow",
+    ),
+    State(
+        "security-flow-phone",
+        "security-boundary",
+        security_flow,
+        viewport=(390, 844),
+        touch=True,
+    ),
+    State(
+        "security-flow-phone-dark",
+        "security-boundary",
+        security_flow,
+        viewport=(390, 844),
+        scheme="dark",
+        touch=True,
     ),
     State(
         "table-scrolled-phone",

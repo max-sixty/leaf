@@ -814,7 +814,7 @@ const OUTCOMES = Object.freeze({
 	failed: "Failed",
 	dropped: "Dropped"
 });
-const itemOutcome = (item) => item.kind === "update" ? "Sent" : OUTCOMES[item.state] ?? item.state;
+const itemOutcome = (item) => item.kind === "update" ? "Answered" : OUTCOMES[item.state] ?? item.state;
 
 //#endregion
 //#region runtime/framework/application.js
@@ -2168,7 +2168,6 @@ const readApplication = applicationState.read;
 const readPart = (derive) => applicationState.select(derive).read;
 const agent = readPart((root) => root.authoritative?.agent ?? null);
 const agentName = () => agent() || "the agent";
-const agentLabel = () => agentName().replace(/^./, (first) => first.toUpperCase());
 const pageClaimed = readPart((root) => root.authoritative?.claim_session != null);
 const projectView = applicationState.projectView;
 const selectWidgets = applicationState.selectWidgets;
@@ -2437,4 +2436,4 @@ const runtime = {
 const revisionLabel = (revision) => part.revisionLabels()[revision];
 
 //#endregion
-export { AsyncDirective, COLLAPSE, DELIVERY, DRAFT_FORMAT, Directive, LIVE_ROOT, LitElement, PAGE_ROOT, PENDING, PRESENTATION_DOM, PartType, SHARE_ROOT, TEXT_BLOCK, WEBSITE_DELIVERY, actionForWidget, agentLabel, agentName, anchorKey, annotationMode, applicationPresented, applicationPresenter, applicationRegionsPresented, applicationState, attachApplicationPresentation, attachWidgetPresentation, authoredRank, bareReaction, carriesObligation, classMap, createPresentationSchedule, createRef, describeFailure, directive, discussed, documentChanged, drawingSchema, editable, foldWidgetStates, guard, html, isElementName, isMessageEvent, isNews, isReaction, isThreadEvent, itemNoun, itemOutcome, keyed, lastMovedAt, layerRoot, live, marks, messageKey, moved, noChange, nothing, obligationValue, offlineData, offlineInteractive, offlineState, pageClaimed, pageUrl, pendingForParent, presentDocument, projectView, projectionOrigins, projectionRegionsPresented, queueWidgetUpdate, rankAt, reactionsAt, readApplication, readApplicationPresentation, readPart, ref, render, repeat, revisionLabel, runtime, runtimeModule, runtimeResource, sameAnchor, seatRoot, selectWidgets, setPresentationFailureReporter, share, shareUrl, stateCoordinate, styleMap, threadCounts, threadKey, threadNames, tokenChoices, turns, unsafeHTML, watchPresentation, watchSemantic, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented };
+export { AsyncDirective, COLLAPSE, DELIVERY, DRAFT_FORMAT, Directive, LIVE_ROOT, LitElement, PAGE_ROOT, PENDING, PRESENTATION_DOM, PartType, SHARE_ROOT, TEXT_BLOCK, WEBSITE_DELIVERY, actionForWidget, agentName, anchorKey, annotationMode, applicationPresented, applicationPresenter, applicationRegionsPresented, applicationState, attachApplicationPresentation, attachWidgetPresentation, authoredRank, bareReaction, carriesObligation, classMap, createPresentationSchedule, createRef, describeFailure, directive, discussed, documentChanged, drawingSchema, editable, foldWidgetStates, guard, html, isElementName, isMessageEvent, isNews, isReaction, isThreadEvent, itemNoun, itemOutcome, keyed, lastMovedAt, layerRoot, live, marks, messageKey, moved, noChange, nothing, obligationValue, offlineData, offlineInteractive, offlineState, pageClaimed, pageUrl, pendingForParent, presentDocument, projectView, projectionOrigins, projectionRegionsPresented, queueWidgetUpdate, rankAt, reactionsAt, readApplication, readApplicationPresentation, readPart, ref, render, repeat, revisionLabel, runtime, runtimeModule, runtimeResource, sameAnchor, seatRoot, selectWidgets, setPresentationFailureReporter, share, shareUrl, stateCoordinate, styleMap, threadCounts, threadKey, threadNames, tokenChoices, turns, unsafeHTML, watchPresentation, watchSemantic, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented };

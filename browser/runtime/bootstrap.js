@@ -415,7 +415,7 @@
     status.setAttribute("role", "status");
     status.textContent = page
       ? "Leaf couldn't start: this page has a problem its author needs to fix."
-      : "Leaf couldn't start. Waiting for the server to update.";
+      : "Leaf couldn't start. Waiting for Leaf to update.";
     const show = () => {
       if (!started) document.body.prepend(status);
     };

@@ -1,10 +1,10 @@
 import { SVG_NS, boxMotion, dropStand, liftReach, paintGeometry, paintShape, paintStand, paintTrace, placement, standOver } from "./bundle-box-motion.js";
 import { Z } from "./bundle-signals-core.js";
 import { TEXT_FIELD, afterScript, cancelAnimation, cancelRender, closeLayer, currentLocationIn, declareRelease, drawn, focusDestination, focused, handBack, holdFocus, inputCount, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, nativeLayerHolding, nextAnimation, nextRender, onCurrentLocation, onPressAway, onUserInput, pressLed, renderedOrder, renderedUnder, ringBox, roomPx, rove, sizeObserver, tabStops, under, visibleFocus } from "./bundle-dom-move.js";
-import { setRuntimeRootAttribute } from "./bundle-layer-client.js";
+import { PAGE_PAINT_ATTRIBUTE, setRuntimeRootAttribute } from "./bundle-layer-client.js";
 import { clamp, hostIn, rightCover, seenRect, shownBox, shownWindow, skipped, slotTop, union, watchRoom } from "./bundle-geometry.js";
 import { bareReaction, html, render, sameAnchor, turns } from "./bundle-context.js";
-import { LAYOUT, PRESS, closeControl, coarsePointer, cycledRow, el, generatedElement, iconElement, keys, notice, offer, paintKeys, repaint, rowArrows } from "./bundle-errors.js";
+import { LAYOUT, PRESS, closeControl, coarsePointer, cycledRow, el, generatedElement, keys, notice, offer, offerAction, paintKeys, repaint, rowArrows } from "./bundle-errors.js";
 import { atScrollEnd, effectiveScroller, moveScrollerBy, readingRegionFor, registerReadingRegion, scrollToEnd } from "./bundle-reading-regions.js";
 import { chromeForeground, chromeRoot } from "./bundle-page-controls.js";
 import { blockAt, closestAcross, elementFromPointAcross, inChrome, labelWords, pageRange, pageWords, quoteFrom, rangeOf, segmentsIn } from "./bundle-passages.js";
@@ -232,20 +232,10 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 	});
 	const previewNav = el("span", "lf-margin-preview-nav");
 	const previewPosition = el("span", "lf-margin-preview-position");
-	const previewPrevious = offer("button", "lf-btn lf-icon-action lf-margin-preview-step");
-	previewPrevious.append(iconElement("previous", "lf-action-icon"));
-	previewPrevious.setAttribute("aria-label", "Previous thread");
-	previewPrevious.title = "Previous thread";
-	const previewNext = offer("button", "lf-btn lf-icon-action lf-margin-preview-step");
-	previewNext.append(iconElement("next", "lf-action-icon"));
-	previewNext.setAttribute("aria-label", "Next thread");
-	previewNext.title = "Next thread";
+	const previewPrevious = offerAction("symbol", "lf-margin-preview-step", "Previous thread", { icon: "previous" });
+	const previewNext = offerAction("symbol", "lf-margin-preview-step", "Next thread", { icon: "next" });
 	previewNav.append(previewPrevious, previewPosition, previewNext);
-	const previewOpenInPanel = offer("button", "lf-btn lf-icon-action lf-quiet-action lf-margin-preview-expand");
-	previewOpenInPanel.type = "button";
-	previewOpenInPanel.append(iconElement("expand", "lf-action-icon"));
-	previewOpenInPanel.setAttribute("aria-label", "Open in panel");
-	previewOpenInPanel.title = "Open in panel";
+	const previewOpenInPanel = offerAction("symbol", "lf-margin-preview-expand", "Open in panel", { icon: "expand" });
 	const previewList = el("div", "lf-margin-preview-list");
 	let dismiss = () => {};
 	const carry = surfaceGrip({
@@ -891,7 +881,7 @@ function mountAnnotationControls() {
 		when: () => watchers.size > 0,
 		run: () => {
 			setAnnotationsHidden(!hidden.value);
-			notice(!hidden.value ? "Annotations shown" : coarsePointer.matches ? "Annotations hidden" : "Annotations hidden. o shows them");
+			notice(!hidden.value ? "Annotations shown" : coarsePointer.matches ? "Annotations hidden" : "Annotations hidden — o shows them");
 		}
 	});
 }
@@ -2199,7 +2189,7 @@ function createAnchorPaint({ targetPaint, pointer, currentLocationThreadId, rowT
 			here
 		].flatMap((states) => [...states]).filter((element) => element instanceof Element));
 		const active = visibleFocus();
-		const ownsRing = active && ringBox(active) === active;
+		const ownsRing = active && ringBox(active) === active && !active.hasAttribute(PAGE_PAINT_ATTRIBUTE.obligation);
 		if (ownsRing && active.getRootNode() === document && pageWords(active)) elements.add(active);
 		const focus = new Set(ownsRing && elements.has(active) ? [active] : []);
 		const sources = [

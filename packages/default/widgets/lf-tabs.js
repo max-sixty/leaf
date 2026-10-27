@@ -63,8 +63,9 @@
  * of that group, which each of their tabs' descriptions names. A side list's row adds
  * the panel's `summary` under the name, then its obligations' state on a reserved line. While any
  * obligation the panel holds is unanswered, it shows an open mark and whose turn it is, by the
- * server's next actor, the reading an `lf-tally` and its Next on me use: "To answer" while one
- * waits on the user, else "On Claude" (`agentName`) while one is the agent's, as after the user
+ * server's next actor, the reading an `lf-tally` and its Next on me use: the mark alone while one
+ * waits on the user, since the mark and the tally already say so (its description says "To
+ * answer"), else "On Claude" (`agentName`) while one is the agent's, as after the user
  * comments on it, else "Open", as in a resolved thread. Once every one is answered it shows a
  * check, with the answer's own words where the panel holds one obligation. So a queue shows each obligation's state
  * and how far the user has worked through it, and an undo that reopens an obligation puts the
@@ -118,6 +119,8 @@ import {
   scrollIntoView,
   focused,
   fitsWhole,
+  landingInsets,
+  layoutPx,
   motion,
   pressIsKeyboardActivation,
   signal,
@@ -395,7 +398,8 @@ export class TabSet extends LeafElement {
     const answered = items.length > 0 && done.length === items.length;
     const only = items.length === 1 ? items[0] : null;
     const open = items.filter((item) => item.status === "open");
-    const turn = open.some((item) => item.next_actor === "user")
+    const onUser = open.some((item) => item.next_actor === "user");
+    const turn = onUser
       ? "To answer"
       : open.some((item) => item.next_actor === "agent")
         ? `On ${agentName()}`
@@ -404,7 +408,7 @@ export class TabSet extends LeafElement {
       ? only
         ? answerWords(only)
         : ""
-      : items.length
+      : items.length && !onUser
         ? turn
         : "";
     const group = this.#side && panel.getAttribute("group");
@@ -661,16 +665,38 @@ export class TabSet extends LeafElement {
   // in a workspace that fills the window (theme.css), and the tab comes into it the
   // same way, down the column.
   // Where the strip has room for it, the tab comes in with its run's label, so the
-  // name of the group the user opened stays beside it. That room is the landing's own
-  // (`fitsWhole`), the tab's ring room included.
+  // name of the group the user opened stays beside it. Down a column that room is
+  // the landing's own (`fitsWhole`) and the run from heading to tab lands together.
+  // Along a row the label sticks at the row's start as the run scrolls under it (the
+  // package theme), so a range over the two measures where the label stands rather
+  // than the run's length; the row's room is asked whether the label and the tab
+  // can share it side by side, and the tab lands clear of the label's room through
+  // the theme's `scroll-margin`, which this measures for it (`--lf-tab-group-size`):
+  // the run's first tab brings the label in with it, standing in its own place, and
+  // a later tab comes in beside the stuck label. Where they cannot share the row,
+  // the tab lands whole and the label gives way (`data-lf-group-apart`).
   #showTab(btn) {
     const strip = this.#strip;
     if (!btn) return;
-    const label = btn.parentElement.querySelector(":scope > .lf-tab-group");
-    const run = label && document.createRange();
-    run?.setStartBefore(label);
-    run?.setEndAfter(btn);
-    scrollIntoView(run && fitsWhole(run) ? run : btn, {
+    const run = btn.parentElement;
+    const label = run.querySelector(":scope > .lf-tab-group");
+    if (label && getComputedStyle(strip).flexDirection === "row") {
+      const inset = landingInsets(strip);
+      const room = strip.clientWidth - inset.left - inset.right;
+      const gap = Number.parseFloat(getComputedStyle(run).columnGap) || 0;
+      const size = label.getBoundingClientRect().width;
+      const apart = size + gap + btn.getBoundingClientRect().width > room;
+      run.toggleAttribute("data-lf-group-apart", apart);
+      const measured = layoutPx(size);
+      if (run.style.getPropertyValue("--lf-tab-group-size") !== measured)
+        run.style.setProperty("--lf-tab-group-size", measured);
+      scrollIntoView(btn, { block: "nearest", within: strip });
+      return;
+    }
+    const range = label && document.createRange();
+    range?.setStartBefore(label);
+    range?.setEndAfter(btn);
+    scrollIntoView(range && fitsWhole(range) ? range : btn, {
       block: "nearest",
       within: strip,
     });

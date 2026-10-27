@@ -204,6 +204,84 @@ def test_an_obligation_framing_a_figure_lays_its_options_across(browser, serve):
     assert len(set(middle["lefts"])) == 1, middle
 
 
+def chipped_obligation(id, cards):
+    """An obligation framing a drawing, so its titled cards lay across; each card is
+    (chips, title, attributes)."""
+    options = "".join(
+        f'<lf-option id="{id}-{n}"{attributes}>'
+        + "".join(f'<small class="tag">{chip}</small>' for chip in chips)
+        + f"<strong>{title}</strong><p>Its consequence.</p></lf-option>"
+        for n, (chips, title, attributes) in enumerate(cards)
+    )
+    return (
+        f'<lf-ask id="{id}"><h3>Which fix first?</h3>'
+        '<svg class="drawing" viewBox="0 0 480 60" role="img" aria-label="Loss by fix">'
+        '<rect width="480" height="60" fill="none" stroke="currentColor" /></svg>'
+        f'<lf-options id="{id}-choice" choose>{options}</lf-options></lf-ask>'
+    )
+
+
+CHIPPED_CARDS_PAGE = leaf_page(
+    "cards laid across opening with chips",
+    "<h1>Heat loss</h1>"
+    + chipped_obligation(
+        "some",
+        [
+            (["recommended"], "Seal the hatch", ""),
+            ([], "Glaze the bay", ""),
+            (["risky"], "Insulate the floor", " chosen"),
+        ],
+    )
+    + chipped_obligation(
+        "all",
+        [
+            (
+                ["recommended", "£180", "one afternoon", "needs the installer"],
+                "Seal the hatch",
+                "",
+            ),
+            (["£1,180"], "Glaze the bay", ""),
+            (["risky"], "Insulate the floor", ""),
+        ],
+    ),
+)
+
+
+@pytest.mark.parametrize(
+    ("engine", "rows"),
+    [("browser", ("some",)), ("firefox_browser", ("some", "all"))],
+)
+def test_cards_laid_across_align_their_titles_whatever_chips_open_them(
+    request, serve, engine, rows
+):
+    """Cards side by side read as one comparison, so each title, and the sentence under
+    it, stands on one line across the row whether its card opens with chips, with
+    none, or with the "selected" state beside them. A card whose chips wrap to several
+    lines moves its neighbours' contents down with it, which needs baseline
+    content-alignment: Chromium lacks it, so there only chips that fit beside the
+    state seat keep the row aligned (`notes/browser-support.md`)."""
+    page = open_page(request.getfixturevalue(engine), serve(CHIPPED_CARDS_PAGE))
+    resized(page, 1440, 900)
+    at = page.evaluate(
+        """(rows) => Object.fromEntries(rows.map((id) => {
+          const cards = [...document.querySelectorAll(`#${id}-choice > lf-option`)];
+          const top = (card, part) =>
+            Math.round(card.querySelector(`:scope > ${part}`).getBoundingClientRect().top);
+          return [id, {
+            cards: cards.map((card) => Math.round(card.getBoundingClientRect().top)),
+            titles: cards.map((card) => top(card, 'strong')),
+            sentences: cards.map((card) => top(card, 'p')),
+          }];
+        }))""",
+        list(rows),
+    )
+    for id in rows:
+        row = at[id]
+        assert len(set(row["cards"])) == 1, f"{id}: the cards share a row: {row}"
+        assert len(set(row["titles"])) == 1, f"{id}: titles misaligned: {row}"
+        assert len(set(row["sentences"])) == 1, f"{id}: sentences misaligned: {row}"
+
+
 def test_options_laid_across_take_a_widened_obligations_width(browser, serve):
     """The column bounds a line of text, and no card's line is wider than its column, so
     an obligation granted the wide measure for its figure lays its cards under all of it rather
@@ -215,8 +293,9 @@ def test_options_laid_across_take_a_widened_obligations_width(browser, serve):
     assert at["obligation"] > 720, at
     assert abs(at["list"] - at["obligation"]) <= 1, at
     assert len(set(at["tops"])) == 1, at
-    # The group's frame takes 2px of its width.
-    assert abs(sum(at["widths"]) - (at["list"] - 2)) <= 2, at
+    # The group's frame takes 2px of its width, and each hairline between cards 1px.
+    hairlines = len(at["widths"]) - 1
+    assert abs(sum(at["widths"]) - (at["list"] - 2 - hairlines)) <= 2, at
 
 
 def test_ideas_shortlist_survives_revision_and_can_reopen(browser, serve):
@@ -1323,36 +1402,30 @@ def test_the_obligation_walk_starts_from_where_the_user_is(browser, serve):
     halfway down and press `d` and you were taken back past everything you had read,
     and so was anyone who had just selected a paragraph to comment on.
 
-    With focus in the chrome, the walk measures from what they are reading, which the
-    last walk's landing scroll put in front of them. The panel's On me mark is no place:
-    pressing it opens On me and leaves the focus in the panel, so a walk measured from
-    the focus after it would restart on every press, and the ring is gone from the page
-    by then, the user being in the panel. A selected passage now enters its comment field immediately;
-    while that field stands, letters are text rather than page-navigation keys."""
+    Reading an obligation is being at it without being on it, so the walk arrives
+    there. The panel's On me mark is no place: pressing it opens On me and leaves the
+    focus in the panel, which holds the user's place on the page, so the walk after it
+    steps on from the obligation they stood on rather than restarting. A selected
+    passage now enters its comment field immediately; while that field stands, letters
+    are text rather than page-navigation keys."""
     page = open_page(browser, serve(OBLIGATIONS_PAGE))
 
     # A window short enough that reading down the page leaves the top of it behind,
     # which is the whole of what the user has to do to be somewhere.
     resized(page, 900, 400)
 
-    # Scrolled to the change with nothing selected and nothing focused: the decision after
-    # it, not the question above it. They are located *in* that suggestion, which is
-    # why it is the decision they step off rather than the one they step to.
-    page.locator("#refill-now").evaluate("el => el.scrollIntoView({block: 'center'})")
+    # Scrolled to the change with nothing selected and nothing focused: the change
+    # itself, not the question above it nor the decision after it.
+    page.locator("#refill-was").evaluate("el => el.scrollIntoView({block: 'start'})")
     page.keyboard.press("m")
-    expect(page.locator("#t-baffles-decision")).to_have_attribute(
-        "data-lf-obligation", "1"
-    )
-    # The walk scrolls to the obligation it arrived at, and the next walk measures from what
-    # that scroll leaves in front of the user, so the scroll has to have landed.
+    expect(page.locator("#sug-refill")).to_have_attribute("data-lf-obligation", "1")
     scroll_settled(page)
 
-    # The mark's press opens On me and takes the focus into the panel, so the walk
-    # after it measures from the current location in the page and steps on rather
-    # than restarting — the panel being no place to measure from.
+    # The mark's press opens On me and takes the focus into the panel, which holds the
+    # suggestion as the user's place, so the walk steps on rather than restarting.
     panel_control(page, "queue").click()
     page.keyboard.press("m")
-    expect(page.locator("#t-bath-decision")).to_have_attribute(
+    expect(page.locator("#t-baffles-decision")).to_have_attribute(
         "data-lf-obligation", "1"
     )
 
@@ -1430,10 +1503,7 @@ def test_the_ring_is_one_box_around_the_whole_change(browser, serve):
     # promise.
     marks = page.evaluate("""() => [...document.querySelectorAll('main [data-lf-obligation]')].map(e => {
       return { what: e.id || e.tagName, fragments: e.getClientRects().length,
-               ring: (() => {
-                 const mark = document.querySelector(`.lf-visual-mark[data-for="${e.id}"]`);
-                 return mark && getComputedStyle(mark, '::after').outlineStyle === 'solid';
-               })() };
+               ring: getComputedStyle(e).outlineStyle !== 'none' };
     })""")
     assert [m["what"] for m in marks] == ["sug-refill"]
     assert marks[0]["ring"]

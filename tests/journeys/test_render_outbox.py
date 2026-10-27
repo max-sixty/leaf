@@ -56,13 +56,13 @@ def test_a_tab_whose_key_is_refused_keeps_its_moves_and_names_the_link(browser, 
         pass
     leaf = page.locator(".lf-fp-leaf")
     expect(leaf).to_have_attribute(
-        "aria-label", "Page menu · Key refused — open Leaf's link in a new tab"
+        "aria-label", "Page menu · This tab lost access — open the link again"
     )
     expect(page.locator(PANEL_THREAD)).to_contain_text("Words the server never read")
     # The leaf's menu says what the user can do about it, and that the tab stays open.
     expect(panel_menu(page).locator(".lf-fp-state")).to_have_text(
-        "Key refused — open Leaf's link in a new tab"
-        "Keep this tab open so pending changes can send."
+        "This tab lost access — open the link again"
+        "Keep this tab open so changes made here go through."
     )
     leaf.click()
     expect(pick).to_have_attribute("aria-checked", "true")
@@ -81,7 +81,7 @@ def test_a_tab_whose_key_is_refused_keeps_its_moves_and_names_the_link(browser, 
         {"value": ["opt-a"]}
     ]
     expect(pick).to_have_attribute("aria-checked", "true")
-    expect(leaf).not_to_have_attribute("aria-label", re.compile("Key refused"))
+    expect(leaf).not_to_have_attribute("aria-label", re.compile("This tab lost access"))
     consume_browser_errors(
         page,
         http_error_console(401),

@@ -8,7 +8,7 @@ import pytest
 from interact_support import append_carried_log_record, element_declaration
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, SEATED_OBLIGATION_PAGE, panel_comment
-from render_cases_layout import ring_faults, rings_drawn
+from render_cases_layout import overlapped_words, ring_faults, rings_drawn
 from render_cases_navigation import NOTED_PAGE, compose
 from render_harness import (
     INLINE_PAGE,
@@ -869,7 +869,7 @@ def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
                   controlBottom: control.bottom, controlsTop: controls.top,
                   controlsBottom: controls.bottom, headTop: head.top,
                   headBottom: head.bottom, headRight: head.right,
-                  controlLeft: control.left,
+                  controlLeft: control.left, controlsLeft: controls.left,
                   authorBottom: author.bottom,
                   bodyTop: body.top,
                   bodyMargin: parseFloat(getComputedStyle(bodyNode).marginTop)};
@@ -883,6 +883,11 @@ def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
     assert placement["controlBottom"] <= placement["controlsBottom"]
     assert placement["headTop"] == pytest.approx(placement["controlsTop"], abs=1)
     assert placement["headRight"] <= placement["controlLeft"], placement
+    # The controls' box stands past the header's words, not over them: axe reads what
+    # covers words by geometry, so a box spanning the line, however transparent, leaves
+    # the author and time with no contrast reading (`overlapped_words`).
+    assert placement["headRight"] <= placement["controlsLeft"], placement
+    assert overlapped_words(page) == []
     assert placement["bodyTop"] - placement["headBottom"] == pytest.approx(
         placement["bodyMargin"], abs=1
     ), f"the first inline message has extra space below its author: {placement}"

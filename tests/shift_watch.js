@@ -1329,6 +1329,7 @@
           : {};
       const paint = {
         parent: up(node),
+        domParent: node.parentNode,
         next: range ? null : node.nextElementSibling,
         display: style.display,
         float: style.float,
@@ -2801,8 +2802,23 @@
   // Retain DOM sibling order as well as ancestry. Named slots can reorder those
   // siblings visually; this has the same limit as compareDocumentPosition did.
   const followsAt = (branch, follower, at) => {
-    for (let next = paintAt(branch, at)?.next; next; next = paintAt(next, at)?.next)
-      if (next === follower) return true;
+    const ancestors = new Set();
+    for (let node = follower; node; node = paintAt(node, at)?.domParent)
+      ancestors.add(node);
+    let before = branch;
+    while (
+      paintAt(before, at)?.domParent &&
+      !ancestors.has(paintAt(before, at).domParent)
+    )
+      before = paintAt(before, at).domParent;
+    const parent = paintAt(before, at)?.domParent;
+    if (!parent) return false;
+    let after = follower;
+    while (after && paintAt(after, at)?.domParent !== parent)
+      after = paintAt(after, at)?.domParent;
+    if (!after) return false;
+    for (let next = paintAt(before, at)?.next; next; next = paintAt(next, at)?.next)
+      if (next === after) return true;
     return false;
   };
   const sizeReaches = (target, element, from, to, axis, change) => {

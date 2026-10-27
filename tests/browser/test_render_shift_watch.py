@@ -2496,13 +2496,18 @@ def test_press_owned_size_flow_crosses_a_shadow_boundary(browser, seated):
 
 
 @pytest.mark.parametrize("follows", [True, False], ids=["carried", "independent"])
-def test_fold_reparenting_keeps_only_its_original_flow_credit(browser, follows):
+@pytest.mark.parametrize("boxless", [False, True], ids=["direct", "boxless-parent"])
+def test_fold_reparenting_keeps_only_its_original_flow_credit(
+    browser, follows, boxless
+):
     """A fold can reach its endpoint and join closed history in one task. Its old
     following control is carried; moving a preceding control as far is independent."""
     control = (
         '<button id="control" style="position:relative;display:block">Control</button>'
     )
     fold = '<div id="fold" style="height:100px"></div>'
+    if boxless:
+        fold = '<div style="display:contents">' + fold + "</div>"
     page = browser.new_page()
     page.goto(
         "data:text/html,"

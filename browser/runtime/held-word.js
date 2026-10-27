@@ -15,12 +15,17 @@
    slides off before letting go.
 
    The release presses by dispatching the control's click, counted as the pointer's
-   (surfaces read the count to tell a pointer from the keyboard), and the browser's own
-   click after it is swallowed: a finger held long enough to read may get none, so the
-   release, not the click, is the commit. The swallowed click is the next pointer click
-   wherever it lands, since the press may have put something else under the finger,
-   such as the thread a margin entry opens. A keyboard press carries no count and passes
-   untouched; the keyboard reads a word by focusing its control, which paints the same.
+   (surfaces read the count to tell a pointer from the keyboard), and the release claims
+   the browser's own click after it (`claimReleaseClick`, pointer.js): a finger held
+   long enough to read may get none, so the release, not the click, is the commit, and
+   the press may have put something else under the finger, such as the thread a margin
+   entry opens. The release first focuses the control
+   without a ring, as a pointer's press does. A finger's press is focused only by the
+   browser's events after the release, so without this what the press opens is laid
+   out with nothing marking where the user is: a margin pin unfolding lost the seat it
+   keeps while focused (margin-layout.js, `HELD`). A keyboard press carries no count
+   and passes untouched; the keyboard reads a word by focusing its control, which
+   paints the same.
    Touch capture is released at the press so the slide is heard over each control. A
    finger that starts scrolling instead ends the press with `pointercancel`, which
    presses nothing; a control that should not scroll from a press says so with
@@ -30,7 +35,7 @@
    context menu, and Option/Alt aims at the item. Such a press is left to the platform
    and the control's own click handling. A modifier arriving before the release ends the
    hold without this gesture's press and leaves the press to the browser's own click. */
-import { plainPress, pressIsKeyboardActivation } from "./pointer.js";
+import { claimReleaseClick, plainPress } from "./pointer.js";
 
 export const HOLDS_WORD = "lf-holds-word";
 
@@ -38,7 +43,6 @@ const HOLDER = `.${HOLDS_WORD}`;
 
 export function holdToRead() {
   let hold = null;
-  let released = null;
   const holderIn = (event) =>
     event
       .composedPath()
@@ -59,7 +63,8 @@ export function holdToRead() {
     read(null);
     hold = null;
     if (!holder) return;
-    released = holder;
+    claimReleaseClick();
+    holder.focus({ preventScroll: true, focusVisible: false });
     holder.dispatchEvent(
       new MouseEvent("click", {
         bubbles: true,
@@ -74,7 +79,6 @@ export function holdToRead() {
   document.addEventListener(
     "pointerdown",
     (event) => {
-      released = null;
       if (hold) read(null);
       hold = null;
       if (!event.isPrimary || !plainPress(event)) return;
@@ -105,16 +109,6 @@ export function holdToRead() {
   document.addEventListener("pointercancel", (event) => end(event, false), {
     capture: true,
   });
-  document.addEventListener(
-    "click",
-    (event) => {
-      if (!released || !event.isTrusted || pressIsKeyboardActivation(event)) return;
-      released = null;
-      event.preventDefault();
-      event.stopImmediatePropagation();
-    },
-    { capture: true },
-  );
   // A held control would offer the platform's own long-press menu instead.
   document.addEventListener(
     "contextmenu",

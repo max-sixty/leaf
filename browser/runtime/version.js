@@ -102,6 +102,7 @@ import { commandSteps } from "./keyboard/control-keys.js";
 import { pruneScopedElements } from "./keyboard/scopes.js";
 import { repaint } from "./repaint.js";
 import { notice } from "./notifications.js";
+import { backgroundFlash, flashDuration } from "./motion.js";
 import {
   authored,
   elementById,
@@ -111,9 +112,10 @@ import {
   textNodesUnder,
   wrote,
 } from "./passages.js";
-import { TEXT_BLOCK } from "./passage-facts.js";
+import { TEXT_BLOCK } from "./kernel-facts.js";
 import { registry, tagsDeclaring } from "./registry.js";
 import {
+  inlineMarkdownFragment,
   paintMarkdown,
   prepareDeclaredMarkdown,
   formatDeclaredMarkdown,
@@ -156,7 +158,7 @@ import { pointerAt, restorePointer } from "./pointer.js";
 
 import { LayerRefused, admitReading, reportPageError } from "./layer-client.js";
 import { projectView, readApplication } from "./semantic-state.js";
-import { batch, effect, signal } from "/vendor/browser-runtime.js";
+import { batch, effect, signal } from "/runtime/framework.js";
 
 import { ADDRESSABLE, anchoringIsReady, fragmentTarget } from "./anchor-resolution.js";
 import { scrollToFragment } from "./anchor-travel.js";
@@ -585,7 +587,7 @@ function diffBlocks(root) {
   return pairs;
 }
 /** One revision's browser reading at a log boundary, as `/api/view` answers it.
- * @returns {Promise<import("../framework/contract.js").ServedViewAnswer["browser"]>} */
+ * @returns {Promise<import("../types/contract.js").ServedViewAnswer["browser"]>} */
 async function baseReading(baseRevision, throughSeq) {
   const params = new URLSearchParams({
     revision: String(baseRevision),
@@ -618,6 +620,102 @@ function inOrder(before, after) {
     else j++;
   return kept;
 }
+// The before surface holds the same accepted body projection as its version would
+// show: the event's exact source, never a collapsed comparison value.
+function paintBodies(doc, widgets) {
+  for (const [id, { state, specs }] of widgets)
+    for (const [verb, spec] of specs) {
+      // A body record's state is an action's value.
+      if (
+        spec.record?.kind !== "body" ||
+        !(/** @type {{action: string | null}} */ (state[verb]).action)
+      )
+        continue;
+      const body = doc.getElementById(id)?.querySelector(":scope > .lf-markdown-body");
+      if (body) paintMarkdown(body, state[verb].value);
+    }
+}
+// A child an action in force created (`creates`) stood on the page that version
+// showed, so the base holds it too, as passages.py adds it to the file's reading: at
+// its owner's end, marked `data-lf-added`, its words formatted as its entry says.
+// Without it, an option the user added before the base reads as changed since.
+function placeCreated(doc, widgets) {
+  for (const [id, { state, specs }] of widgets)
+    for (const [verb, spec] of specs) {
+      const owner = spec.creates && doc.getElementById(id);
+      if (!owner) continue;
+      const { child, words } = spec.creates;
+      const markdown = registry[child]?.["x-text-format"] === "inline-markdown";
+      for (const [unit, { detail }] of Object.entries(state[verb].units ?? {})) {
+        if (doc.getElementById(unit)) continue;
+        const created = doc.createElement(child);
+        created.id = unit;
+        created.toggleAttribute("data-lf-added", true);
+        const text = detail[words];
+        created.append(
+          markdown ? doc.importNode(inlineMarkdownFragment(text), true) : text,
+        );
+        owner.append(created);
+      }
+    }
+}
+// The content half: the blocks under `live` whose words `doc`, a base version's
+// unupgraded document, doesn't hold, each with the words the comparison read in it.
+// Multiset membership rather than an alignment: an unchanged block that merely moved
+// stays unmarked; a changed or new one has no twin.
+/** @param {Document} doc @param {Element} [live] */
+function blocksWithoutTwin(doc, live = document.body) {
+  const base = new Map();
+  for (const [, key] of diffBlocks(doc)) base.set(key, (base.get(key) ?? 0) + 1);
+  const without = [];
+  for (const [b, key] of diffBlocks(live)) {
+    const left = base.get(key) ?? 0;
+    if (left > 0) base.set(key, left - 1);
+    else without.push([b, key]);
+  }
+  return without;
+}
+// This version's source and the live node each of its nodes stands for, as the
+// controller holds them.
+/** @type {() => {source: Element | null, pairs: WeakMap<Node, Node>} | null} */
+let versionSource = () => null;
+// The version being read compared with its own source, which should mark nothing: the
+// state half has the same fold on both sides, so only words the live page shows and
+// its source doesn't, such as a widget's that it wrote without `generatedElement`,
+// can mark a block. The render gate reads it (`render-checks/words.js`,
+// `wordsReadAsChanged`). It reads the controller's source of this version rather than
+// fetching it, because a candidate `page check` serves has no stamped address yet.
+// Formatting is synchronous here: a source holding Markdown formatted the live page
+// with the same loaded renderer.
+export function selfComparison() {
+  const source = versionSource()?.source;
+  return source ? blocksNewSince(source) : [];
+}
+// The live page's blocks a version's source has no twin for, read as the comparison
+// reads them, with the current widget state painted on both sides. A revision landing
+// asks it of the source it replaced, to tint the blocks the revision changed.
+function blocksNewSince(source) {
+  const doc = document.implementation.createHTMLDocument("");
+  doc.body.replaceChildren(doc.importNode(source, true));
+  formatDeclaredMarkdown(doc);
+  const { widgets } = readApplication().effective;
+  paintBodies(doc, widgets);
+  placeCreated(doc, widgets);
+  // The source is the page's `main`, so the live side is too.
+  return blocksWithoutTwin(doc, pageDocument());
+}
+// The live elements this version's source wrote: whether the page or Leaf put an
+// element there is this, not whether a module marked the words it fills it with.
+export function servedElements() {
+  const { source, pairs } = versionSource() ?? { source: null, pairs: new WeakMap() };
+  const served = new Set();
+  if (!source) return served;
+  for (const node of [source, ...source.querySelectorAll("*")]) {
+    const live = pairs.get(node);
+    if (live) served.add(live);
+  }
+  return served;
+}
 function applyDiff(doc, baseAuthored, baseVersion, baseReading) {
   const baseView = baseReading.views[String(stamped(baseVersion).revision)];
   // The base version's widget state, folded as the publisher folds the current one:
@@ -641,30 +739,11 @@ function applyDiff(doc, baseAuthored, baseVersion, baseReading) {
       [...baseProjection.desired].filter(([, entry]) => declaredAlike(entry)),
     ),
   });
-  // The before surface holds the same accepted body projection as its version
-  // would show: the event's exact source, never a collapsed comparison value.
-  for (const [id, { state, specs }] of baseWidgets)
-    for (const [verb, spec] of specs) {
-      // A body record's state is an action's value.
-      if (
-        spec.record?.kind !== "body" ||
-        !(/** @type {{action: string | null}} */ (state[verb]).action)
-      )
-        continue;
-      const body = doc.getElementById(id)?.querySelector(":scope > .lf-markdown-body");
-      if (body) paintMarkdown(body, state[verb].value);
-    }
-  // Multiset membership rather than an alignment: an unchanged block that
-  // merely moved stays unmarked; a changed or new one has no base twin.
-  const base = new Map();
-  for (const [, key] of diffBlocks(doc)) base.set(key, (base.get(key) ?? 0) + 1);
-  for (const [b, key] of diffBlocks(document.body)) {
-    const left = base.get(key) ?? 0;
-    if (left > 0) base.set(key, left - 1);
-    else {
-      b.classList.add("lf-ins-block");
-      diffMarked.add(b);
-    }
+  paintBodies(doc, baseWidgets);
+  placeCreated(doc, baseWidgets);
+  for (const [b] of blocksWithoutTwin(doc)) {
+    b.classList.add("lf-ins-block");
+    diffMarked.add(b);
   }
   // The state half: block keys catch words, and a pure state change — a card
   // in a different column, a pick on a different option — has no text of its
@@ -1052,6 +1131,7 @@ export function createVersionController({
   // Every revision pairs its own source here; a superseded source's pairs leave with it.
   const sourcePairs = initialDocument.pairs;
   initialDocument = null;
+  versionSource = () => ({ source: authoredSource, pairs: sourcePairs });
   // What this document's widgets were written as, and the source each live node stands
   // for. Both are replaced by every revision this document takes on.
   let authoredWidgets = servedWidgets;
@@ -1347,6 +1427,7 @@ export function createVersionController({
     const comparedFrom = selectedBase();
     if (comparedFrom !== null) setDiff(false);
     const live = pageDocument();
+    const outgoing = authoredSource;
     // Capture before replacing nodes, using the outgoing source as the baseline.
     const carry = captureCarry(live, authoredSource);
     const source = pageDocument(doc);
@@ -1516,6 +1597,10 @@ export function createVersionController({
             await restoreEditingContinuity(editingContinuity, currentIntent);
           }
           if (comparedFrom !== null) showComparison(comparedFrom);
+          // Each block the revision changed takes a newly arrived message's tint,
+          // which paints and moves nothing.
+          for (const [block] of blocksNewSince(outgoing))
+            backgroundFlash(block, flashDuration());
           notice(`Updated to ${target.label}`, { background: true });
         }),
     };
@@ -1917,7 +2002,10 @@ export function createVersionController({
   // box's own end, or its raw offset where its width and revision are those it was read
   // at (reading-place.js, `rawOffsetFits`). `before` names the scrollers that carried the
   // box's words before the shift; with none, as for a region returning from
-  // concealment, only the box's own place speaks for it.
+  // concealment, only the box's own place speaks for it. Places the reader made rank
+  // by when they made them; among places none of them made, such as those the page
+  // arrived with, the box's own speaks for it, so a region the reader never read in
+  // doesn't move the page to itself as a resize carries it into the page.
   function placeFor(box, recorded, before) {
     const own = box === pageScroller ? PAGE : regionForBox(box).id;
     let found = null;
@@ -1927,7 +2015,9 @@ export function createVersionController({
       const carried = node
         ? boxOf(node) === box
         : id === own && (entry.reading.end || rawOffsetFits(entry.reading, box));
-      if ((carried || id === own || before?.has(id)) && !(found?.at > entry.at))
+      const ranks =
+        !found || entry.at > found.at || (entry.at === found.at && id === own);
+      if ((carried || id === own || before?.has(id)) && ranks)
         found = { ...entry, lands: carried || (node && under(box, node)) };
     }
     return found?.lands ? found : null;

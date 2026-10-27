@@ -63,7 +63,6 @@ import { boxMotion, liftReach } from "../box-motion.js";
 import { closestAcross } from "../passages.js";
 import { threadIdNamed } from "../thread/state.js";
 import { turns } from "../thread/model.js";
-import { whenDocumentPresented } from "../semantic-state.js";
 import { iconElement } from "../icons.js";
 import { anchorLabel, releaseAuthoredUnder } from "../thread/messages.js";
 import { coarsePointer } from "../pointer.js";
@@ -103,7 +102,6 @@ export function createThreadPreview({
   inventory,
   renderMarginThread,
   placedAt,
-  openPageThread,
   scrollThreadIntoView,
   scrollToElement,
   openInPanel,
@@ -837,28 +835,16 @@ export function createThreadPreview({
         // (box-motion.js, "send"), read before the send draws.
         sending: following.stream,
         // A resolved thread with no draft has no margin card, so resolving closes it and
-        // hands the user to its target, and a resolve that no longer stands opens the
-        // card on the thread again, while the margin is still where threads open.
+        // hands the user to its target.
         prepareLanding: () => {
           const target = targetFor(previewSession?.entry);
-          const thread = sourceItem(item).thread.id;
           const mayLand = retainUserIntent({
             source: focused(),
             available: () => Boolean(target?.isConnected),
           });
-          return {
-            optimistic: () => {
-              if (previewOpen()) return false;
-              return mayLand.handoff(() => focusDestination(target, "return"));
-            },
-            reverse: async (may = mayLand) => {
-              await whenDocumentPresented();
-              return (
-                may() &&
-                mayLand.available() &&
-                Boolean(await openPageThread(thread, { part: "thread", intent: may }))
-              );
-            },
+          return () => {
+            if (previewOpen()) return false;
+            return mayLand.handoff(() => focusDestination(target, "return"));
           };
         },
       },

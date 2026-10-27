@@ -48,7 +48,6 @@ export class SettledOptions {
     ]);
     this.#host.prepend(this.#row);
     this.#host.addEventListener("beforematch", () => this.#open(true, true), true);
-    this.#host.addEventListener("lf-reveal", () => this.#open(true, true), true);
     this.#host.classList.toggle("lf-rendered", true);
     this.#open(tabStore.get(SETTLED_KEY + this.#host.id) === "1", false);
   }

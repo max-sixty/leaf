@@ -1187,7 +1187,7 @@ def test_datum_travel_resolves_the_destination_after_reveal(browser, serve):
             "reveal replaces projection",
             '<h1 id="title">Call change</h1>'
             '<lf-call-diff id="calls" source="calls-data" diff="patch"></lf-call-diff>'
-            '<lf-diff id="patch" source="patch-data"><pre></pre></lf-diff>',
+            '<div id="holder"><lf-diff id="patch" source="patch-data"><pre></pre></lf-diff></div>',
         ),
         packages=("diff",),
     )
@@ -1214,10 +1214,12 @@ def test_datum_travel_resolves_the_destination_after_reveal(browser, serve):
     # A container may synchronously rebuild its projection while revealing it.
     # Repeat that lifecycle on every reveal so a second reveal after resolution
     # cannot hide a stale-node scroll behind the first successful re-query.
+    # Each reveal reaches the patch through a holder hidden until found.
+    hide = "() => { document.querySelector('#holder').hidden = 'until-found'; }"
     page.locator("#patch").evaluate(
         """source => {
           let revealed = false;
-          source.addEventListener('lf-reveal', () => {
+          source.parentElement.addEventListener('beforematch', () => {
             const row = source.shadowRoot.querySelector(
               `[data-lf-datum='["app.py","new",2]']`);
             if (!row) return;
@@ -1234,11 +1236,13 @@ def test_datum_travel_resolves_the_destination_after_reveal(browser, serve):
           });
         }"""
     )
+    page.evaluate(hide)
     page.locator("#calls .lf-call-location").last.click()
     expect(page.locator(".lf-live")).to_have_text("Opened app.py:2 in the exact patch")
     expect(
         page.locator('lf-diff [data-lf-datum=\'["app.py","new",2]\'][data-rebuilt]')
     ).to_be_in_viewport()
+    page.evaluate(hide)
     page.locator("#calls .lf-call-location").last.click()
     expect(page.locator(".lf-live")).to_have_text(
         "app.py:2 is not present in the exact patch"

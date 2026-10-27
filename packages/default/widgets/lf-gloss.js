@@ -76,6 +76,17 @@ customElements.define(
       // trailing generated chrome. Writing that declared span here lets this module
       // also make it the popover; renderSaid sees the same marker and adds no duplicate.
       this.append(this.#bubble, this.#mark);
+      // A comment can rest on the x-says tip itself, and following it opens the tip as
+      // Leaf opens any closed popover holding a destination. Opened by anyone but this
+      // module, the tip stays pinned open, as a click pins it.
+      this.#bubble.addEventListener("beforetoggle", (event) => {
+        if (event.newState !== "open" || this.#shown) return;
+        this.#dismissed = false;
+        this.#pinned = true;
+        this.#shown = true;
+        this.#mark.setAttribute("aria-expanded", "true");
+        paintKeys();
+      });
       this.#bubble.addEventListener("toggle", (event) => {
         if (event.newState !== "closed" || !this.#shown || isNativeLayer(this.#bubble))
           return;
@@ -126,20 +137,6 @@ customElements.define(
           if (this.contains(/** @type {Node | null} */ (event.relatedTarget))) return;
           this.#focused = false;
           this.#dismissed = false;
-          this.#sync();
-        },
-        { signal },
-      );
-      this.addEventListener(
-        "lf-reveal",
-        (event) => {
-          // A comment can rest on the x-says tip itself. Following it asks every
-          // ancestor to reveal the target before scrolling; open only for that hidden
-          // span, not for an ordinary comment on the phrase beside it.
-          const target = event.detail?.target;
-          if (target !== this.#bubble && !this.#bubble.contains(target)) return;
-          this.#dismissed = false;
-          this.#pinned = true;
           this.#sync();
         },
         { signal },

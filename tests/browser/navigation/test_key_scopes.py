@@ -1435,6 +1435,51 @@ def test_escape_takes_one_step_where_a_back_gesture_would_take_it(browser, serve
     page.wait_for_function("window.browserBack === 1")
 
 
+def test_a_back_gesture_takes_a_step_inside_a_modal_before_the_modal(browser, serve):
+    """A modal dialog opened over a view holds a newer watcher than the page's, so back
+    closed the dialog where Escape took the step a command inside it declares. The
+    page's watcher is made again above the dialog: back takes the inner step, the next
+    closes the dialog as the browser does, and the one after that the view."""
+    page = open_page(browser, serve(INLINE_PAGE))
+    page.evaluate(BROWSER_BACK)
+    open_threads(page)
+    page.evaluate(
+        """async () => {
+          const { commands } = await window.__lfWidgetApi();
+          const dialog = document.createElement('dialog');
+          dialog.id = 'inner-step';
+          const button = document.createElement('button');
+          button.textContent = 'Inside';
+          dialog.append(button);
+          document.querySelector('main').append(dialog);
+          commands(button, 'Inside the dialog', [{id: 'test.inner', keys: ['Escape'],
+            title: 'Take the inner step', when: () => !button.dataset.fired,
+            run: () => (button.dataset.fired = 'Escape')}]);
+          dialog.showModal();
+          button.focus();
+        }"""
+    )
+    dialog = page.locator("#inner-step")
+    settled = "() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))"
+    page.evaluate(settled)
+
+    back_gesture(page)
+    expect(dialog.get_by_role("button", name="Inside")).to_have_attribute(
+        "data-fired", "Escape"
+    )
+    expect(dialog).to_have_attribute("open", "")
+
+    page.evaluate(settled)
+    back_gesture(page)
+    expect(dialog).not_to_have_attribute("open", "")
+    panel_settled(page, view="threads")
+
+    page.evaluate(settled)
+    back_gesture(page)
+    panel_settled(page, open=False)
+    assert page.evaluate("window.browserBack") == 0
+
+
 @pytest.mark.parametrize("owner", ["draft", "rewrite"])
 def test_a_back_gesture_never_throws_away_unsent_words(browser, serve, owner):
     """Escape's step in an open draft editor or message rewrite is Discard, which

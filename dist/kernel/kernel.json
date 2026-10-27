@@ -229,7 +229,7 @@
     "runtime/thread/state.js": "e1726e7c812338074abcca4e774c1c18e23cef119e8b08fd1797415fe12dde45",
     "runtime/thread/summary-ranges.js": "3626f3e40c96e57b2cf3d802095efac43c504ec954fbedde3d195520a883d4b4",
     "runtime/thread/surfaces.js": "e9e361ee3a5990ff8a92c9b3ee9018acd475d5b7fd96abc970fd140037f72c37",
-    "runtime/thread/thread-card.js": "c7ffd31ff12b270b46f7835166776a79d931aebf80e0bd86d15eef74194dccc3",
+    "runtime/thread/thread-card.js": "270faa53831dd97d9796429410b56847c144b3b2b2a1d0c6d07f79a1e9c4e200",
     "runtime/thread/transcript.js": "d05d0d9261484d9d304202b15f3710f463f87fce2e9fc4331e3e5be912d98414",
     "runtime/thread/workflow.js": "0b2e3294e4864ed4c465196f4740efe250bc18468ccc443c5d4501f9f0fd13e7",
     "runtime/time-axis.js": "dfbfe647b1e566117727eb8c687454f807cf410bc327405ef89b5f0db7a4393c",

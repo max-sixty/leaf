@@ -562,9 +562,7 @@ export class ThreadView {
     // thread's name.
     keeps(this.node, "role", "group");
     keeps(this.node, "aria-label", `Thread, ${model.summary.topic}`);
-    const settlement = model.settlement
-      ? this.#settlement(model)
-      : nothing;
+    const settlement = model.settlement ? this.#settlement(model) : nothing;
     const threadActions =
       marginControls || model.settlement || model.news
         ? html`<span class="lf-thread-meta-actions">

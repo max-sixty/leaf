@@ -71,71 +71,15 @@ def test_a_recorded_body_accepts_empty_text_but_not_a_missing_value():
     assert registry_schema.schema_error(schema, {}) is not None
 
 
-@pytest.mark.parametrize(
-    ("prepaint", "upgrade", "code", "values"),
-    [
-        ("<span>0 running</span>", False, "prepaint-upgrade", {}),
-        ("<span>0</span><span>1</span>", True, "prepaint-shape", {}),
-        ("<td>0</td>", True, "prepaint-shape", {}),
-        ("<div>", True, "prepaint-shape", {}),
-        ("<div><span>0</div>", True, "prepaint-shape", {}),
-        (
-            '<div><span id="count">0</span></div>',
-            True,
-            "prepaint-marks",
-            {"element": "span"},
-        ),
-        (
-            '<div><lf-gloss tip="Zero">0</lf-gloss></div>',
-            True,
-            "prepaint-element",
-            {"element": "lf-gloss"},
-        ),
-        ({"as": "lf-nothing"}, True, "prepaint-as", {"as": "lf-nothing"}),
-    ],
-)
-def test_a_prepaint_is_one_plain_element_only_a_module_takes_out(
-    page_dir, prepaint, upgrade, code, values
-):
-    """Delivery copies an x-prepaint into every occurrence for the first paint, and the
-    widget's module takes it out, so it must be markup that stays one element where it
-    is written and that nothing but that module acts on."""
-    registry = json.loads((page_dir / "registry.json").read_text())
-    tag = next(
-        tag
-        for tag, entry in registry.items()
-        if not tag.startswith("$") and entry.get("x-upgrade")
-    )
-    registry[tag].update({"x-prepaint": prepaint, "x-upgrade": upgrade})
-
-    finding = registry_refusal(
-        lambda: registry_validation.validate_registry(registry, "test registry")
-    )
-    assert found([finding], code, f"<{tag}>", **values)
-
-
-@pytest.mark.parametrize(
-    ("upgrade", "prepaint", "code", "values"),
-    [
-        (False, None, "requires", {"key": "x-initial", "needs": "x-upgrade"}),
-        (True, "<span>Room</span>", "initial-and-prepaint", {}),
-    ],
-)
-def test_initial_rendering_has_one_structure_owner(
-    page_dir, upgrade, prepaint, code, values
-):
+def test_initial_rendering_requires_an_upgraded_handler(page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
     tag = next(tag for tag in registry if tag.startswith("lf-"))
     entry = registry[tag]
-    entry.update({"x-initial": "/vendor/early.js", "x-upgrade": upgrade})
-    if prepaint is None:
-        entry.pop("x-prepaint", None)
-    else:
-        entry["x-prepaint"] = prepaint
+    entry.update({"x-initial": "/vendor/early.js", "x-upgrade": False})
     finding = registry_refusal(
         lambda: registry_validation.validate_registry(registry, "test registry")
     )
-    assert found([finding], code, f"<{tag}>", **values)
+    assert found([finding], "requires", f"<{tag}>", key="x-initial", needs="x-upgrade")
 
 
 @pytest.mark.parametrize(

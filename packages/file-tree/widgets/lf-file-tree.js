@@ -26,7 +26,7 @@ import {
   keepsHidden,
   keepsText,
   navigateToDatum,
-  offer,
+  initialRender,
   LeafElement,
   nothing,
   onCurrentLocation,
@@ -58,7 +58,7 @@ customElements.define(
     #applied;
 
     setup() {
-      const empty = offer("p", "lf-file-tree-empty", "No files available.");
+      const empty = initialRender(this);
       const root = shadowStage(this, [empty]);
       const theme = root.firstChild;
       const label = this.getAttribute("aria-label") || "Files";

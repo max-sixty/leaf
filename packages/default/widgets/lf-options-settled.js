@@ -1,5 +1,8 @@
 /* A settled options group's tab-local disclosure. The current option projection is
- * always read from the host; the row never becomes a second record of selection. */
+ * always read from the host; the row never becomes a second record of selection.
+ * Options remain the host's direct children, the boundary its selection, replay and
+ * page-authored layout selectors read. A native details wrapper would reparent them,
+ * so this disclosure owns their hidden state without changing that boundary. */
 import {
   DISCLOSE,
   commands,
@@ -45,7 +48,6 @@ export class SettledOptions {
     ]);
     this.#host.prepend(this.#row);
     this.#host.addEventListener("beforematch", () => this.#open(true, true), true);
-    this.#host.addEventListener("lf-reveal", () => this.#open(true, true), true);
     this.#host.classList.toggle("lf-rendered", true);
     this.#open(tabStore.get(SETTLED_KEY + this.#host.id) === "1", false);
   }

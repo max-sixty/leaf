@@ -26,8 +26,8 @@ implementation terms keep their exact spelling where the reader needs them.
 | **Response** | Work owed to user input of unknown kind: “2 responses owed” |
 | **Answer** | The current value of an obligation, or the response that satisfies a user update; there is no separate Answer record |
 | **Reply** | A message in a conversation, including an answer or an unprompted message |
-| **Delivery** | How far an update has got toward the agent: **Saving…** and **Saved** on the user's side, then the agent's **Up next** (stage `queued`) and **Got it** (stage `picked_up`), handed into its turn. Got it doesn't mean work has begun |
-| **Saved** | An update Leaf has logged that no harness has queued or opened into a turn yet (stage `sent` in `workflows.py`); before the log accepts it, the browser shows **Saving…** |
+| **Delivery** | How far an update has got toward the agent: **Queued for Claude** until a harness has queued it (**Up next**, stage `queued`) or handed it into the agent's turn (**Got it**, stage `picked_up`). Got it doesn't mean work has begun |
+| **Queued for Claude** | An update no harness has queued or opened into a turn (stages `sending` and `sent`), whether or not the log has accepted it, in Leaf's italic voice with the agent's name; past the pickup grace it reads **Still queued for Claude** |
 | **On it** | The agent has explicitly started this update or to-do (stage `working`); page activity alone doesn't mean it has |
 | **Undo** | Taking back the user's latest update that can be taken back, leaving the user at what it changed (`undo.js`) |
 | **Threads** | The mark in Leaf's panel and the view it opens, listing conversations. A **thread** is one conversation; a **comment box** is the field where the user writes a comment or reply |
@@ -43,7 +43,9 @@ composes from what it observes, such as an agent that stopped or a server it can
 reach, is Leaf's best guess at what the agent would say, and reads the same way. Only
 words the agent can't be saying, such as an instruction about the agent (“Not
 answering — nudge the terminal”), Leaf's own state (“Lost the connection —
-reconnecting”) or an error, are set apart in italic, as a script sets a stage direction
+reconnecting”), an update the agent doesn't have yet (“Queued for Claude”, which
+names the agent because the agent isn't the one speaking) or an error, are set apart
+in italic, as a script sets a stage direction
 apart from the lines (`pageStatus`, `voice`).
 
 The agent's lines take no first person, so *me* and *my* always mean the user: **Me**
@@ -141,7 +143,7 @@ behavior. A compound widget may own reading regions without being a pane.
 | **Leaf panel** | Leaf's chrome (`floating-panel.js`): one box floating at the bottom of the window. Its **row** contains the leaf, the comment field, and one **seat** at the end. That seat shows the **On me mark**, with its count and a dot when a thread has an unread reply. While a view or stance is active, the seat instead shows the ✕ that closes it. A **folded** panel shows only the leaf in the window's corner |
 | **Leaf** | The mark at the row's start, coloured by the agent's state; a press opens the leaf's menu, or unfolds a folded panel |
 | **Leaf's menu** | The small menu above the leaf of the page's other controls (`page-controls.js`), one line each with its shortcut. A row ending in a chevron opens its list in the menu's place: Navigate, Annotations, About this page, Versions |
-| **Comment field** | The panel's one box for writing: a page comment, or a reply while a thread is open. Search uses the same space with a persistent **Search page** or **Search threads** label and keeps the comment draft and caret. Outside search, the empty field shows the agent's status, a temporary notice or a walk's position in place of a placeholder; in an open thread it shows the reply, with a walk's position at its end |
+| **Comment field** | The panel's one box for writing: a page comment, or a reply while a thread is open. Search uses the same space with a persistent **Search page** or **Search threads** label and keeps the comment draft and caret. Outside search, the empty field shows the agent's status, a temporary notice or a walk's position in place of a placeholder; in an open thread it shows whose turn it is and a walk's position beside the leaf, and Reply with its key at its end |
 | **View** | What opens above the row and covers the page beneath it: a thread, the On view (tabs On me, On *agent*, Threads and the plan) or All pages. Escape or a press on the page closes it |
 
 A view takes no width from the page and leaves it live. A thread about a passage opens

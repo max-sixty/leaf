@@ -666,36 +666,38 @@ export function boxMotion({
       motions.set(part.element, { from, to, gaveUp: gaveUp + left });
       const reach = Math.max(0, rtl ? dx : -dx, -dy);
       if (reach > 0) hold(part.element, "overflow", "visible");
+      // The field's line-end caret needs its 2px paint margin during motion too,
+      // both beyond its own overflow clip and beyond the moving content's cut.
+      const caretRoom = 2;
+      const fieldCut = cut().map((side, index) => side - (index % 2 ? caretRoom : 0));
       start(part.element, [
         {
           "--lf-field-carry": `${dx}px ${dy}px`,
-          "--lf-field-cut": cut()
-            .map((side) => `${side}px`)
-            .join(" "),
-          "--lf-field-reach": `${reach}px`,
+          "--lf-field-cut": fieldCut.map((side) => `${side}px`).join(" "),
+          "--lf-field-reach": `${Math.max(caretRoom, reach)}px`,
         },
         {
           "--lf-field-carry": "0px 0px",
-          "--lf-field-cut": "0px 0px 0px 0px",
-          "--lf-field-reach": `${reach}px`,
+          "--lf-field-cut": `0px -${caretRoom}px 0px -${caretRoom}px`,
+          "--lf-field-reach": `${Math.max(caretRoom, reach)}px`,
         },
       ]);
     }
 
     // Drawn where its layout puts it, cut to its outline growing from where it stood.
-    // A part a carried part holds starts drawn where that carry puts it, and its cut
-    // closes with the carry on the same clock.
+    // Cancel any carrying ancestor: native scroll and landing already put its content
+    // where it belongs, so inheriting that carry would move it away and back.
     function grow(part, from) {
       const to = part.box;
-      motions.set(part.element, { from, to });
-      const drawnTo = shifted(to, ...carriedBy(0)(part.element.parentElement));
+      motions.set(part.element, { from: to, to });
+      carry(part, to);
       cutFrom(
         part.element,
         [
-          from.top - drawnTo.top,
-          drawnTo.right - from.right,
-          drawnTo.bottom - from.bottom,
-          from.left - drawnTo.left,
+          from.top - to.top,
+          to.right - from.right,
+          to.bottom - from.bottom,
+          from.left - to.left,
         ].map((inset) => Math.max(0, inset)),
         radiusOf(part.style),
       );
@@ -871,7 +873,7 @@ export function boxMotion({
         else if (!sized && paints(style) && !part.holdsWindow)
           carries ? carryContent(part, from) : grow(part, from);
         if (!same(from, to))
-          motions.set(element, { ...motions.get(element), from, to, frames: true });
+          motions.set(element, { from, to, ...motions.get(element), frames: true });
       }
       // What carries is placed first, so what is new beside it is revealed from it.
       const placed = [...part.parts].sort(

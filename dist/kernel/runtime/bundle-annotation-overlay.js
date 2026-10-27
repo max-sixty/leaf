@@ -1,6 +1,6 @@
 import { TEXT_FIELD, Z, afterScript, cancelAnimation, cancelRender, closeLayer, currentLocationIn, declareRelease, drawn, focusDestination, focused, handBack, holdFocus, inputCount, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, nativeLayerHolding, nextAnimation, nextFrame, nextRender, onCurrentLocation, onPressAway, onUserInput, pressLed, renderedOrder, renderedUnder, ringBox, roomPx, rove, sizeObserver, tabStops, under, visibleFocus } from "./bundle-dom-move.js";
 import { LAYOUT, PAGE_PAINT_ATTRIBUTE, PRESS, closeControl, coarsePointer, cycledRow, el, generatedElement, keys, notice, offer, offerAction, paintKeys, paintKeysWithin, repaint, rowArrows, setRuntimeRootAttribute } from "./bundle-layer-client.js";
-import { bareReaction, clamp, hostIn, html, render, rightCover, sameAnchor, seenRect, shownBox, shownWindow, skipped, slotTop, turns, union, watchRoom } from "./bundle-geometry.js";
+import { bareReaction, clamp, hostIn, html, render, rightCover, sameAnchor, seenRect, shownBox, shownWindow, showsContents, skipped, slotTop, turns, union, watchRoom } from "./bundle-geometry.js";
 import { atScrollEnd, chromeForeground, chromeRoot, effectiveScroller, exactTarget, moveScrollerBy, pageScroller, passageGeometry, placeKept, pointBand, rangeGeometry, readingRegionFor, registerReadingRegion, scrollToEnd, targetElement, targetParts, targetRange, targetSegments, targetSurface, visualAt } from "./bundle-content-layout.js";
 import { ANNOTATIONS_KEY } from "./bundle-restore-state.js";
 import { anchorLabel, arrivalOf, beginWalk, carryingThreadPlace, claimSeatReplies, claimed, currentLocationThreadId, declareOffFlowSurface, declareSide, keepThreadLanding, listWalkPosition, pageCommand, pageRung, pageScope, pageSelection, placeKeeper, releaseAuthoredUnder, releaseReplies, revealHeld, rowWalk, selectionAnchor, setChildLists, setChildren, showReturnTurn, tabStore, threadFocusDestination, threadIdNamed, threadNamed } from "./bundle-data.js";
@@ -346,7 +346,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 				const card = transcript.parentElement;
 				card.style.setProperty("--lf-thread-fade-top", layoutPx(edge));
 				card.style.setProperty("--lf-thread-fade-height", layoutPx(height));
-				card.style.setProperty("--lf-thread-room-cover", layoutPx(above ? room : 0));
+				keeps(card, "data-lf-scrolled", above ? "" : null);
 			}
 		});
 	}
@@ -624,7 +624,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 		const latest = turns(sourceItem(selected).thread).at(-1);
 		const messageSelector = ":scope > .lf-margin-thread > .lf-margin-thread-body > .lf-page-thread > .lf-thread-transcript > .lf-msg";
 		const replySelector = ":scope > .lf-margin-thread > .lf-margin-thread-body > .lf-page-thread > .lf-thread-reply";
-		const lastBox = [...previewList.querySelectorAll(messageSelector)].findLast((node) => node.checkVisibility())?.getBoundingClientRect();
+		const lastBox = [...previewList.querySelectorAll(messageSelector)].findLast((node) => showsContents(node))?.getBoundingClientRect();
 		const listBox = session.transcript?.getBoundingClientRect();
 		const replyBox = previewList.querySelector(replySelector)?.getBoundingClientRect();
 		const follow = !arriving && session.latest && latest?.author === "agent" && (latest.id !== session.latest.id || latest.text !== session.latest.text) && lastBox && listBox && lastBox.bottom >= listBox.top && lastBox.bottom <= (replyBox?.top ?? listBox.bottom) + 80 && atScrollEnd(session.transcript);
@@ -1489,6 +1489,7 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 			key: `reading:${choice?.key ?? "none"}`,
 			icon: face.icon,
 			label: readingLabel(choice),
+			voice: items.length === 1 && face.voice || "agent",
 			context: readingContext(choice),
 			behavior,
 			rank: "reading",

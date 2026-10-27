@@ -220,12 +220,11 @@ def test_webawesome_chrome_loads_without_optional_controls(browser, serve):
 
     page = library_select(browser, serve)
     control = page.locator(".library-select")
-    # A page rule granted control access and with no specificity at all can outrank
+    # A page rule with no specificity at all can outrank
     # the shared theme's `:is(wa-select, …)` mapping.
     page.evaluate(
         """() => {
           const style = document.createElement('style');
-          style.setAttribute('data-controls', '');
           style.textContent = ':where(wa-select){--wa-color-text-quiet: rgb(1, 2, 3);}';
           document.head.append(style);
         }"""
@@ -235,7 +234,7 @@ def test_webawesome_chrome_loads_without_optional_controls(browser, serve):
             "el => getComputedStyle(el).getPropertyValue('--wa-color-text-quiet')"
         ).strip()
         == "rgb(1, 2, 3)"
-    ), "a page rule granted control access must outrank the lazy vendor defaults"
+    ), "a page rule must outrank the lazy vendor defaults"
 
 
 def test_webawesome_menu_text_stays_readable_as_the_current_option_moves(

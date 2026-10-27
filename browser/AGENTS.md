@@ -105,8 +105,9 @@ representative desktop viewport.
   the screen, where scroll anchoring absorbs it, or below it. Anywhere else it waits
   behind a fixed-size control until the reader goes to it, and an editor in use stays
   still. Check: `test_news_just_after_a_press_moves_nothing`. Owners:
-  `thread/held-news.js`, `newsMoves` in `thread/thread-card.js`, and
-  `reading-continuity.js` for a hidden tab. The user chose one exception: the answer
+  `thread/held-news.js`, `newsMoves` in `thread/thread-card.js`, `threadsListing` in
+  `floating-panel.js` for the rows of Threads, and `reading-continuity.js` for a
+  hidden tab. The user chose one exception: the answer
   they wait for in the floating panel's thread grows that view upward while its
   controls stay put (`fitAnswer` in `floating-panel.js`, credited by `appendGrowth` in
   `tests/shift_watch.js`).
@@ -185,7 +186,9 @@ representative desktop viewport.
   they can tell what the control does before hovering it. The words on Leaf's controls
   compete with the page's own words for the reader's attention, and a symbol is
   smaller and quieter. Draw it from `runtime/icon-paths.js` and give the control its
-  name as tooltip and accessible name, without the word beside the symbol. One control
+  name as tooltip and accessible name, without the word beside the symbol. An action
+  shows one symbol, or one word, wherever Leaf offers it, so a reader who learns it in
+  one place knows it in every other. One control
   whose symbol follows its state, such as play turning to pause, replaces a button for
   each state. A symbol that is only related to the action, such as a speech bubble for
   answering a question, leaves the reader guessing, and a tooltip doesn't fix that:
@@ -267,7 +270,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Reactions and design review                                                                                 | `reactions.js`, `design.js`, `design-readings.js`                                                                                                        |
 | Presentation and validation                                                                                 | `presentation.js`, `declared-words.js`, `validation.js`, `leaf-element.js`                                                                               |
 | Child pages                                                                                                 | `sample*.js`                                                                                                                                             |
-| Shadow trees and styles                                                                                     | `shadow.js`, `shadow-stage.js`, `stylesheets.js`, `page-sheets.js`                                                                                       |
+| Shadow trees and styles                                                                                     | `shadow.js`, `shadow-stage.js`, `stylesheets.js`                                                                                                         |
 | Paint that belongs to an element while it is in the page, whoever added it                                  | `arrivals.js`                                                                                                                                            |
 | Utilities                                                                                                   | `abort.js`, `icons.js`, `markdown.js`, `syntax.js`, `motion.js`, `color-scheme.js`, `storage.js`, `interaction-log.js`                                   |
 
@@ -300,8 +303,9 @@ these rules on every corpus page.
 
 Stylesheets apply in cascade layers, in the order `CASCADE_LAYERS` in `layer.py` declares
 (`../skills/leaf/references/packages.md`, "Styles and composition"). A widget package's rules
-name the widgets they style, so a rule several packages need belongs in the kernel. Page and theme-package rules skip the chrome and every `.lf-ui`
-control unless a sheet is granted access (`runtime/page-sheets.js`).
+name the widgets they style, so a rule several packages need belongs in the kernel. Page and theme-package rules reach widget
+controls as they reach the page's own; the chrome keeps unlayered page rules up to one
+class's weight off itself (`styles/chrome-guard.css`).
 
 A `:has()` rule can turn a local write into a restyle of the whole page or chrome. An
 unkeyed rightmost compound widens what it invalidates, and a condition on the chrome
@@ -410,6 +414,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | When none of some nodes is seen any more                                                              | `geometry.js` `whenNone`                                                           |
 | How much of the window the page shows                                                                 | `geometry.js` `shownWindow`                                                        |
 | The window's box, less its scrollbars                                                                 | `geometry.js` `layoutWindow`                                                       |
+| Whether a box shows what it holds, not only its own box as one hidden until found does                | `geometry.js` `showsContents`                                                      |
 | Whether the page shows a node at all, and what it shows of a sample it holds                          | `geometry.js` `presented`, `frameView`, `watchRoom`                                |
 | Whether a box placed against a target belongs in layout yet                                           | `geometry.js` `nearWindow`, `nearObserver`                                         |
 | Where an element or Range destination is, and how much of it survives clipping                        | `geometry.js` `placeBox`, `clippedPlace`                                           |

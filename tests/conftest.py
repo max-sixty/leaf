@@ -38,14 +38,11 @@ from leaf.render_gate import command as render_command_model
 
 __all__ = ["LEAF_COMMAND"]
 
-# Test modules retain this shared sequence when importing it. The active fixture
-# selects its launcher in place, so subprocess page producers follow the same kernel
-# as in-process commands without depending on the order modules were collected.
+# The canonical subprocess command: this checkout, on this environment's
+# interpreter. Tests of a particular installed harness invoke that payload's own
+# `bin/leaf`.
 LEAF_COMMAND = list(SOURCE_LEAF_COMMAND)
 
-# The canonical subprocess command. Browser tiers select the prepared payload;
-# source-installation model/process tests run the checkout directly. Tests of a
-# particular installed harness invoke that payload's own `bin/leaf`.
 # Start every child the way a terminal starts one. A run launched as a shell's
 # background job is handed SIGINT set to SIG_IGN, and an inherited SIG_IGN
 # survives both Python startup and `exec`, so everything the run spawns ignores
@@ -235,40 +232,28 @@ def _page_pool(tmp_path_factory):
 
 
 @pytest.fixture(scope="session")
-def compiled_installation():
-    """The existing prepared kernel, shared by workers and developer previews.
+def compiled_checkout():
+    """This checkout, with its kernel compiled in place where it is stale.
 
-    Preparation is serialized by content identity, so xdist workers reuse one build.
+    A lock serializes the compile, so xdist workers wait for one build.
     Source-only model tests need no compiler; the browser tiers request it lazily.
     """
-    from leaf_dev.commands.distribution import cached_installation
+    from leaf_dev.commands.distribution import current_kernel
 
-    return cached_installation()
+    return current_kernel()
 
 
 @pytest.fixture(autouse=True)
 def compiled_pages(request, monkeypatch, isolated_session):
-    """Browser-tier page producers vendor the same kernel the website ships.
-
-    In-process commands retain their normal Python contracts and package resolution.
-    Only their kernel input comes from the prepared installation, whose kernel is
-    current for its modules. In-process model and process tests vendor the source
-    modules whether or not this checkout's committed kernel is current, so their
-    readings of a page's runtime do not depend on when it was last rebuilt.
+    """Browser-tier page producers vendor the same kernel the website ships: this
+    checkout's, compiled where stale (`compiled_checkout`). In-process model and
+    process tests vendor the source modules whether or not that kernel is current,
+    so their readings of a page's runtime do not depend on when it was last rebuilt.
     """
     if request.path.parent.name not in {"smoke", "browser", "journeys"}:
         monkeypatch.setattr(layer_model, "KERNEL", request.path.parent / "no-kernel")
         return
-    installation = request.getfixturevalue("compiled_installation")
-    monkeypatch.setattr(layer_model, "ASSETS", installation / "browser")
-    monkeypatch.setattr(layer_model, "KERNEL", installation / "dist/kernel")
-    monkeypatch.setattr(layer_model, "PLUGIN_ROOT", installation)
-    monkeypatch.setenv("LEAF_HOST_LAUNCHER", str(installation / "bin/leaf"))
-    original_command = LEAF_COMMAND[:]
-    LEAF_COMMAND[:] = [str(installation / "bin/leaf")]
-    request.addfinalizer(
-        lambda: LEAF_COMMAND.__setitem__(slice(None), original_command)
-    )
+    request.getfixturevalue("compiled_checkout")
 
 
 @pytest.fixture
@@ -535,8 +520,9 @@ def isolated_session(tmp_path_factory, monkeypatch):
     by the loop guard. Isolate XDG_STATE_HOME, where Leaf stores claims and installed
     packages, and CODEX_HOME, where Codex reads its configuration and sessions,
     while retaining HOME so subprocesses share the host's uv cache. Clear the
-    developer's App Server endpoint and host launcher override so a fake task
-    cannot use them.
+    developer's App Server endpoint, host launcher override and page commit
+    provider so a fake task cannot use them and a website restore cannot leave
+    its provider in later tests.
 
     The session the tests run as is this worker: a synthetic id, so nothing of
     the developer's answers for it, and the worker's own pid. Every page a test
@@ -566,6 +552,7 @@ def isolated_session(tmp_path_factory, monkeypatch):
     monkeypatch.setenv("CODEX_HOME", str(home / "codex"))
     monkeypatch.delenv(codex_model.APP_SERVER_ENV, raising=False)
     monkeypatch.delenv("LEAF_HOST_LAUNCHER", raising=False)
+    monkeypatch.delenv("LEAF_PAGE_COMMIT", raising=False)
     monkeypatch.delenv("CODEX_INTERNAL_ORIGINATOR_OVERRIDE", raising=False)
     for name in (*harness_model.IDENTITY_VARIABLES, *machine_model.SANDBOX_REMEDIES):
         monkeypatch.delenv(name, raising=False)

@@ -416,7 +416,7 @@
       "prefixes": ["trace-"]
     },
     "x-example": "<lf-trace id=\"recorded-checkout\" source=\"checkout-trace\"></lf-trace>",
-    "x-prepaint": "<p class=\"lf-trace-waiting\">Waiting for a Playwright recording.</p>"
+    "x-initial": "/vendor/lf-trace-initial.js"
   },
   "lf-trace-bookmark": {
     "description": "A labeled link to one captured image or action phase in its trace.",

@@ -249,12 +249,12 @@ CONTROL_ARCHETYPES = (
     {
         "name": "visual-review-inspection",
         "source": VISUAL_REVIEW_GALLERY,
-        "target": '.lf-vr-case[aria-hidden="false"] .lf-shot-views button:nth-child(2)',
+        "target": ".lf-vr-case:not([hidden]) .lf-shot-views button:nth-child(2)",
     },
     {
         "name": "visual-review-approval",
         "source": VISUAL_REVIEW_GALLERY,
-        "target": '.lf-vr-case[aria-hidden="false"] .lf-vr-approval',
+        "target": ".lf-vr-case:not([hidden]) .lf-vr-approval",
     },
 )
 
@@ -1422,7 +1422,6 @@ def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serv
     page.evaluate("""() => {
         const style = document.createElement('style');
         style.id = 'lf-ring-negative-control';
-        style.setAttribute('data-controls', '');
         style.textContent =
           '.lf-fp-on-user:focus { outline: none !important;'
           + ' box-shadow: none !important; }';
@@ -1458,7 +1457,6 @@ def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serv
         )
     page.evaluate("""() => {
         const style = document.createElement('style');
-        style.setAttribute('data-controls', '');
         style.textContent =
           '.lf-tab-btn > .lf-tab-name { outline: none !important; }';
         document.head.append(style);

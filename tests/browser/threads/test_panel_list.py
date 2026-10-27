@@ -192,6 +192,6 @@ def test_a_thread_nobody_picked_up_reads_its_opening_words(browser, serve):
     )["id"]
     page = open_page(browser, url)
     row = thread_row(page, root)
-    expect(row.locator(".lf-fp-value")).to_have_text("Haven't seen it yet")
+    expect(row.locator(".lf-fp-value")).to_have_text(re.compile(r"^Still queued for "))
     expect(row.locator(".lf-fp-label")).to_have_text(opening)
     assert not take_browser_errors(page)

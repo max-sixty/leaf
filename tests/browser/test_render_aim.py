@@ -1732,7 +1732,9 @@ def test_a_margin_label_covers_the_target_trace(browser, serve, monkeypatch):
     told(page)
 
     marker = page.locator('[data-lf-margin-for="jobs"] > .lf-margin-marker')
-    expect(marker).to_have_attribute("aria-label", re.compile(r"^Haven't seen it yet,"))
+    expect(marker).to_have_attribute(
+        "aria-label", re.compile(r"^Still queued for \w+,")
+    )
     marker.hover()
     label = marker.locator(":scope > .lf-margin-entry-label")
     trace = page.locator('.lf-target-trace[data-for="jobs"]')
@@ -3498,7 +3500,7 @@ def test_a_held_aim_in_a_pane_paints_in_the_frame_its_target_scrolls(browser, se
     <lf-pane id="other-pane" label="Notes"><div><p>Notes.</p></div></lf-pane>
   </div>""",
                 head=regions_side_by_side("aim-split")
-                + f"<style data-controls>#pane-target {{ background:{SUBJECT_MARK}; }}"
+                + f"<style>#pane-target {{ background:{SUBJECT_MARK}; }}"
                 f" .lf-aim {{ outline:6px solid {FOLLOWER_MARK} !important; }}</style>",
                 layout="workspace",
             )
@@ -4555,7 +4557,7 @@ def test_design_paint_in_a_pane_paints_in_the_frame_its_target_scrolls(
         serve(
             DESIGN_PANE_PAGE.replace(
                 "</head>",
-                f"<style data-controls>#pane-target {{ background:{SUBJECT_MARK}; }} {follower}"
+                f"<style>#pane-target {{ background:{SUBJECT_MARK}; }} {follower}"
                 ".lf-legend-tag { display: none; }</style></head>",
             )
         ),

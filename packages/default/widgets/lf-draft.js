@@ -35,17 +35,17 @@
  * drawing drafts in a sent message's face, which the editor already wore, since drafts
  * would lose their document type, chosen by the user on 2026-10-23.
  *
- * The editor reads as an ordinary text box: its words stand in the field until Save,
- * Discard or a press away from the draft, and the field's own undo walks them back.
- * Save submits one absolute edit through the shared send generation, and a press away
- * saves as Save does (focus.js, `onPressAway`), so a tap elsewhere on a phone keeps what
- * was typed without finding the check mark first. Discard and Escape close the editor,
- * throwing away its changes, as a message rewrite's do. Android's back gesture, which
- * may be an accidental edge swipe, closes it keeping them (`keep`, close-requests.js):
- * a notice says "Edit kept", the closed box's toolbar stays in view saying "unsaved
- * edit" beside Edit, and Edit, Resume writing or a reload opens them again. Rejected:
- * saving at each pause in the typing, as a form does, since every save is an edit
- * delivered to the agent, which would read half-written words. Pointer Discard returns the frame
+ * The editor reads as an ordinary text box: its words stand in the field until the user
+ * leaves it, and the field's own undo walks them back. Two ways out throw its changes
+ * away, Discard and Escape, as a message rewrite's do; every other way out saves them
+ * as Save does, which submits one absolute edit through the shared send generation. A
+ * press away from the draft saves (focus.js, `onPressAway`), so a tap elsewhere on a
+ * phone keeps what was typed without finding Save first, and Android's back
+ * gesture saves the same way (`keep`, close-requests.js). A stray edge swipe therefore
+ * sends the agent a turn, as a stray tap does (the user's decision, 2026-10-27). Rejected: back closing the editor with its
+ * words kept unsaved, a third way out whose state the closed box had to show beside
+ * Edit; and saving at each pause in the typing, as a form does, since every save is an
+ * edit delivered to the agent, which would read half-written words. Pointer Discard returns the frame
  * over a short native size interpolation; its words and Edit focus return at once.
  * Keyboard discarding and reduced motion are instant; reopening cancels the effect.
  * A saved edit is withdrawn with the page's undo (`z`), and the log keeps every version for the agent. Rejected: Escape setting
@@ -79,7 +79,6 @@ import {
   quoted,
   sendDraft,
   raiseError,
-  notice,
   commands,
   copyBlock,
   saveDraft,
@@ -101,10 +100,11 @@ import {
   PRESSABLE,
 } from "/runtime/widget-api.js";
 
-// Each control's key, name and mark.
+// Each control's key, name and mark. Save and Discard wear a message rewrite's
+// symbols (thread/message-edit.js): the save mark, since a check is Resolve and Done.
 const ACTIONS = [
   ["edit", "Edit", "edit"],
-  ["save", "Save", "check"],
+  ["save", "Save", "save"],
   ["cancel", "Discard", "cross"],
 ];
 
@@ -240,9 +240,8 @@ customElements.define(
       // reason `#watchDraft` leaves a closed box closed. On a page that has just loaded,
       // startup hands the focus to the page after this runs either way.
       //
-      // The store holds words only while an editor stands open on them or back kept
-      // them (`#keep`), so any it holds reopen that editor. They are not compared with
-      // the current text: this
+      // The store holds words only while an editor stands open on them, so any it
+      // holds reopen that editor. They are not compared with the current text: this
       // first reading can precede the log's, and words walking a saved edit back to the
       // authored text are an edit all the same.
       const pending = loadEdit(this.id);
@@ -257,8 +256,6 @@ customElements.define(
           if (text === null) this.#close(false);
           else if (this.#editor && this.#editor.value !== text)
             this.#editor.value = text;
-          // A closed box says whether it holds kept words, as another tab leaves them.
-          this.#paintTools();
         },
         {
           input: () => this.#editor,
@@ -320,7 +317,7 @@ customElements.define(
           title: "Discard",
           when: () => Boolean(this.#editor),
           run: () => this.#close(true),
-          keep: () => this.#keep(),
+          keep: () => this.#commit(),
         },
       ]);
       commands(this, this.#commandScope);
@@ -337,20 +334,9 @@ customElements.define(
       if (!this.#tools) return;
       const editing = Boolean(this.#editor);
       if (this.#editor) this.#editor.readOnly = !this.#available();
-      const kept = !editing && !this.#sending && loadEdit(this.id) !== null;
       render(
         html`<span ${offered("lf-draft-status")} role="status"
-            >${
-              this.#failed
-                ? "Save failed. The edit is kept."
-                : kept
-                  ? html`<span
-                      class="lf-draft-kept"
-                      title="The edit is kept; open it to save or discard"
-                      >unsaved edit</span
-                    >`
-                  : ""
-            }</span
+            >${this.#failed ? "Save failed. The edit is kept." : ""}</span
           >
           ${ACTIONS.map(([key, title, icon]) => {
             const retry = key === "save" && this.#failed;
@@ -481,15 +467,6 @@ customElements.define(
       // invalidation that lets the state feed retry the complete reading now.
       this.#resumeProjection?.();
       this.#resumeProjection = null;
-    }
-
-    // Back's way out (`keep`, close-requests.js): closing as Discard does, but changed
-    // words stay in the store, which the toolbar says it holds, and Edit finds them.
-    #keep() {
-      if (this.#editor?.value === this.controller.read().state.edit.value)
-        return this.#close(true);
-      this.#close(false);
-      notice("Edit kept");
     }
 
     async #commit() {

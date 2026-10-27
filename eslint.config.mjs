@@ -258,6 +258,12 @@ const ownerBoundary = {
         "ImportExpression[source.value=/^\\.{1,2}\\/(?:.*\\/)?(?:leaf|widget-api)\\.js$/]",
       message: "Private runtime owners never import the entry or public facade.",
     },
+    {
+      selector:
+        'AssignmentExpression[operator="+="][left.type="MemberExpression"][left.property.name="value"]',
+      message:
+        "`x.value += 1` reads the signal before writing it, and inside a paint subscribes that paint to its own write; advance a version signal with tick() from version-signal.js.",
+    },
   ],
 };
 

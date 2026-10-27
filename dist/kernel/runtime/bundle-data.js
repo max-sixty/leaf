@@ -2,7 +2,7 @@ import { J, W, Z, d, x } from "./bundle-signals-core.js";
 import { PRESSES, TEXT_BOX, deepFocus, drawn, focusDestination, focused, inputCount, keeps, move, nextAnimation, nextRender, onCurrentLocation, onUserInput, readCaret, renderingState, sizeObserver, typesText, under, upFrom } from "./bundle-dom-move.js";
 import { LayerRefused, PAGE_PAINT_ATTRIBUTE, admitReading, reportPageError, requestJson, runtimeRootState, setRuntimeRootAttribute } from "./bundle-layer-client.js";
 import { clippedPlace, decisionFor, frameFor, landingBand, placeBox, placeHolder, presented, registry, shownBox, skipped, tagsDeclaring, watchOwner } from "./bundle-geometry.js";
-import { LIVE_ROOT, PRESENTATION_DOM, TEXT_BLOCK, applicationPresenter, applicationState, foldWidgetStates, layerRoot, obligationValue, offlineData, offlineInteractive, pageUrl, projectView, projectionOrigins, projectionRegionsPresented, readApplication, readPart, revisionLabel, runtime, watchPresentation, whenApplicationRegionsPresented } from "./bundle-context.js";
+import { LIVE_ROOT, PRESENTATION_DOM, TEXT_BLOCK, applicationPresenter, applicationState, foldWidgetStates, layerRoot, obligationValue, offlineData, offlineInteractive, pageUrl, projectView, projectionOrigins, projectionRegionsPresented, readApplication, readPart, revisionLabel, runtime, tick, watchPresentation, whenApplicationRegionsPresented } from "./bundle-context.js";
 import { PRESSABLE, ariaShortcuts, bindings, buttonCommand, commandAvailable, commandRoutes, el, holdingError, labelOf, layoutChanged, live, notice, pointerAt, pruneScopedElements, raiseError, repaint, restorePointer, reveal, savedReadingSettled, spell, word } from "./bundle-errors.js";
 import { chosenSince, containingReadingRegionFor, effectiveScroller, moveScrollerBy, onReadingInput, pageScroller, placeKept, readingRegionFor, readingRegions, recentReadingRegion, regionScrollBehavior, regionsSettled, scrollChainOf, scrollChoices, scrollLimit, scrollersOf, shownRegionBounds, stopScroll, unconcealedReadingRegions, watchReadingRegionTransitions } from "./bundle-reading-regions.js";
 import { PAGE_CONTROL_RANK, registerPageControl } from "./bundle-page-controls.js";
@@ -226,7 +226,10 @@ function narrowSheet(sheet, runtime) {
 }
 let watching = false;
 function keepPageRulesOffLayer() {
-	for (const sheet of document.styleSheets) narrowSheet(sheet, sheet.ownerNode?.hasAttribute("data-lf-runtime"));
+	for (const sheet of document.styleSheets) {
+		const owner = sheet.ownerNode;
+		if (owner) narrowSheet(sheet, owner.hasAttribute("data-lf-runtime"));
+	}
 	if (watching) return;
 	watching = true;
 	document.addEventListener("load", (event) => {
@@ -1308,7 +1311,7 @@ const inlineComparison = (target) => diffOn.value && diffBefore.has(target) && (
 function toggleInlineComparison(target) {
 	if (!inlineComparison(target)) return null;
 	const said = inlineOpen.has(target) ? closeInlineComparison(target) : openInlineComparison(target);
-	comparisonGeneration.value += 1;
+	tick(comparisonGeneration);
 	return said;
 }
 const comparable = (version) => {
@@ -1327,7 +1330,7 @@ function setDiff(on, base, pendingBase = null) {
 			for (const b of diffMarked) b.classList.remove("lf-ins-block");
 			diffMarked.clear();
 		}
-		comparisonGeneration.value += 1;
+		tick(comparisonGeneration);
 	});
 }
 async function showComparison(base) {
@@ -2192,7 +2195,7 @@ function acceptData(candidate, taken) {
 const joined = /* @__PURE__ */ new Set();
 async function notifyDataSubscribers() {
 	const version = runtime.data.version;
-	deliveries.value += 1;
+	tick(deliveries);
 	await whenApplicationRegionsPresented([...joined], () => runtime.data.version === version);
 	if (version !== null && runtime.data.version === version) setRuntimeRootAttribute(document.body, PAGE_PAINT_ATTRIBUTE.dataVersion, version);
 }

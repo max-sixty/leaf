@@ -1608,7 +1608,14 @@ html[data-lf-region-capture] body,
 html[data-lf-draw-mode],
 html[data-lf-draw-mode] body {
   cursor: crosshair;
+}
+html[data-lf-region-capture],
+html[data-lf-region-capture] body {
   touch-action: none;
+}
+html[data-lf-draw-mode],
+html[data-lf-draw-mode] body {
+  touch-action: pinch-zoom;
 }
 html[data-lf-region-capture] main,
 html[data-lf-region-capture] main * {
@@ -1909,7 +1916,7 @@ html[data-lf-region-capture] main * {
     padding: 14px 18px;
     flex-direction: column;
   }
-  .lf-command-reference.open {
+  .lf-command-reference[open] {
     display: flex;
   }
   .lf-command-reference::backdrop {
@@ -1923,11 +1930,11 @@ html[data-lf-region-capture] main * {
       display var(--lf-motion-disclosure) allow-discrete,
       overlay var(--lf-motion-disclosure) allow-discrete;
   }
-  :is(.lf-command-reference:not(.open), .lf-page-map-dialog:not([open])) {
+  :is(.lf-command-reference:not([open]), .lf-page-map-dialog:not([open])) {
     pointer-events: none;
   }
-  :is(.lf-command-reference.open, .lf-page-map-dialog[open]),
-  :is(.lf-command-reference.open, .lf-page-map-dialog[open])::backdrop {
+  :is(.lf-command-reference[open], .lf-page-map-dialog[open]),
+  :is(.lf-command-reference[open], .lf-page-map-dialog[open])::backdrop {
     opacity: 1;
     @starting-style {
       opacity: 0;

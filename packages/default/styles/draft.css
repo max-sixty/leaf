@@ -101,14 +101,20 @@
     font: var(--t-5)/var(--lf-ui-lh) var(--sans);
     white-space: nowrap;
   }
+  /* An edit back kept, as a rewrite's head says it holds one (shadow.css, `.lf-msg-kept`). */
+  .lf-draft-kept {
+    color: var(--muted-2);
+  }
   .lf-draft-status:empty {
     display: none;
   }
+  /* A status stays in view: a failed save, or an edit kept in a closed box. */
   :scope:is(lf-draft):is(
       :hover,
       [data-lf-focus-within],
       [needed],
-      :has(> .lf-draft-edit)
+      :has(> .lf-draft-edit),
+      :has(.lf-draft-status:not(:empty))
     )
     .lf-draft-tools {
     opacity: 1;

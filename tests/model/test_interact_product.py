@@ -40,6 +40,7 @@ from interact_support import (
     words,
 )
 from leaf_dev.example_data import regression_sources
+from leaf_dev.page_fixtures import prepare_page, read_fixture
 
 from leaf import cli as cli_model
 from leaf import event_log as events_model
@@ -1928,6 +1929,35 @@ def test_example_layer_selects_existing_packages(tmp_path, monkeypatch):
     resolved = layer_model.resolve_packages(tuple(packages))
     assert resolved == [schema_model.BUNDLED_PACKAGES / name for name in packages]
     assert layer_model.checked_inputs(resolved) == resolved
+
+
+def test_a_seed_no_writer_could_send_stops_the_page_it_seeds(tmp_path, monkeypatch):
+    """An example's companion log enters through the append door, so a seed in a
+    shape no real page holds fails the build that lays it in, rather than reaching
+    the site and every sweep. A line copied from a stored log is that shape: it
+    carries what admission derives, which goes stale as the contract moves."""
+    monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
+    source = tmp_path / "seeded.html"
+    source.write_text(PAGE)
+    stored = {
+        "kind": "comment",
+        "author": "user",
+        "revision": 1,
+        "text": "Why this plan?",
+        "anchor": {"section": "plan"},
+        "attention": True,
+    }
+    source.with_suffix(".jsonl").write_text(json.dumps(stored) + "\n")
+    with pytest.raises(RuntimeError, match="attention"):
+        prepare_page(
+            tmp_path / "page", read_fixture(source), run_leaf, final_status=None
+        )
+    del stored["attention"]
+    source.with_suffix(".jsonl").write_text(json.dumps(stored) + "\n")
+    page = tmp_path / "admitted"
+    prepare_page(page, read_fixture(source), run_leaf, final_status=None)
+    [seeded] = [e for e in events_model.read_events(page) if e["kind"] == "comment"]
+    assert seeded["attention"] is True
 
 
 def test_page_state_reads_reactions_as_marks(page_dir):

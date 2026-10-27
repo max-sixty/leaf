@@ -190,6 +190,7 @@ import {
   messageText,
   threadHeading,
   threadName,
+  titlePending,
 } from "./thread/messages.js";
 import { drawnThreadId, THREAD } from "./thread/selectors.js";
 import { declareThreadParts } from "./thread/focus.js";
@@ -967,7 +968,9 @@ export function createFloatingPanel({
   // - `title`: its name, over it, on the way back to it and in the Escape that closes it;
   //   `head` in its heading where that says more, and `quiet` where something in view
   //   already says it, so the heading names it to assistive tech alone: On's tabs, or an
-  //   untitled thread's opening message, whose words its name would repeat.
+  //   untitled thread's opening message, whose words its name would repeat. While a
+  //   title is on its way, the heading shows and says so, as every list of threads does;
+  //   the user chose that on 26 October over a heading of the opening words.
   // - `draw` and `controls`: what it holds, and what stands at its foot after the way
   //   back (`controlsTemplate`): `crumb`, in its row, and `aux`, the view's presses.
   // - `nominate`: the outlets in it Leaf's reader draws messages into.
@@ -993,7 +996,10 @@ export function createFloatingPanel({
         const thread = threadOf(route);
         return thread ? threadHeading(thread) : threadTitle(route.thread);
       },
-      quiet: (route) => threadOf(route)?.title == null,
+      quiet: (route) => {
+        const thread = threadOf(route);
+        return thread?.title == null && !(thread && titlePending(thread));
+      },
       draw: (route) => threadView(route.thread),
       controls: (route) => threadControls(route),
       nominate: (route, collection, parts) => nominateThread(route, collection, parts),

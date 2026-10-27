@@ -302,13 +302,13 @@ function invocationFor(row, binding, command, recovered = null) {
 		native: Boolean(row.native)
 	} : null;
 }
-function announceInvocation(invocation) {
+function announceInvocation(invocation, title = null) {
 	const { row, entry } = invocation;
 	const route = entry.route;
 	document.dispatchEvent(new window.CustomEvent("lf-command-invoked", { detail: {
 		id: invocation.id,
 		binding: invocation.binding,
-		title: titleOf(route?.title === void 0 ? row : route),
+		title: title ?? titleOf(route?.title === void 0 ? row : route),
 		description: descriptionOf(route?.description === void 0 ? row : route),
 		travels: Boolean(row.travels)
 	} }));
@@ -354,6 +354,19 @@ function resolveKey(ev) {
 	return null;
 }
 const keyReady = (ev) => resolveKey(ev) !== INPUT_PENDING;
+const escapePress = () => new window.KeyboardEvent("keydown", { key: "Escape" });
+const escapeTakesAStep = () => {
+	const matched = resolveKey(escapePress());
+	return Boolean(matched) && matched !== INPUT_PENDING;
+};
+function answerCloseRequest() {
+	const matched = resolveKey(escapePress());
+	if (!matched || matched === INPUT_PENDING) return;
+	const keeps = Boolean(matched.row.keep);
+	announceInvocation(matched, keeps ? "keep" : null);
+	if (keeps) matched.row.keep();
+	else matched.run();
+}
 function dispatchKey(ev) {
 	const matched = resolveKey(ev);
 	if (!matched || matched === INPUT_PENDING) return false;
@@ -420,4 +433,4 @@ function executeCommand(id) {
 }
 
 //#endregion
-export { activeCommandLabel, availableCommandRoutes, dispatchKey, executeCommand, innermostStance, invokePress, keyReady, onSampleNotice, registerSampleCommand, sampleNotice, stack, userIn };
+export { activeCommandLabel, answerCloseRequest, availableCommandRoutes, dispatchKey, escapeTakesAStep, executeCommand, innermostStance, invokePress, keyReady, onSampleNotice, registerSampleCommand, sampleNotice, stack, userIn };

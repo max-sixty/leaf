@@ -264,7 +264,6 @@ def test_draft_and_page_map_reaction_actions_stay_reachable(browser, serve, widt
     editor = page.locator("#d-draft leaf-text")
     body = "The workshop moved outdoors.\nBring a folding chair."
     write(editor, body)
-    page.locator("#editing-guide").click()
     expect(draft_control(page, "save", "d-draft")).to_be_visible()
     expect(draft_control(page, "cancel", "d-draft")).to_be_visible()
     with sending(page, "save the draft"):

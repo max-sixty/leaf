@@ -63,6 +63,12 @@ phrase the command reference shows while it isn't, such as `in an open draft edi
 Set `runFromCommandReference: false` for a step the reference can't run without a choice
 it lacks. `ready` is described in `module-authoring.md`, "Startup and presentation".
 
+Android's back gesture takes the step Escape would. A row whose `run` throws away words
+the user wrote and hasn't sent, such as an editor's Escape, also declares `keep`, which
+back runs instead: it closes the editor the same way, keeps the changed words where
+reopening finds them, shows that the widget holds them, and says so with
+`notice("Edit kept")`.
+
 Leaf re-evaluates a `when` or a computed field when the readings it uses change, such as
 a widget's state or the threads. For any other state it reads, hold the value in a
 `signal` or call `paintKeys()` after changing it.

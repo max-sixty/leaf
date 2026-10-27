@@ -1398,6 +1398,7 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
   margin-top: 14px;
 }
 .lf-tabstrip {
+  anchor-scope: --lf-tab-mark;
   display: none;
   gap: 2px;
   --lf-tab-focus-gap: 2px;
@@ -1439,15 +1440,33 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
   inset-inline: 0;
   bottom: -2px;
   block-size: 2px;
-  background: currentColor;
   visibility: hidden;
   pointer-events: none;
-  transform-origin: left center;
+}
+.lf-tab-selection {
+  position: absolute;
+  position-anchor: --lf-tab-mark;
+  left: anchor(left);
+  top: anchor(top);
+  width: anchor-size(width);
+  block-size: 2px;
+  background: var(--ink);
+  pointer-events: none;
+  transition: none;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .lf-tabstrip[data-lf-selection-travel] > .lf-tab-selection {
+    transition:
+      left 160ms ease,
+      top 160ms ease,
+      width 160ms ease;
+  }
 }
 .lf-tabstrip .lf-tab-btn[aria-selected=true] {
   color: var(--ink);
 }
 .lf-tabstrip .lf-tab-btn[aria-selected=true] .lf-tab-mark {
+  anchor-name: --lf-tab-mark;
   visibility: visible;
 }
 @container style(--lf-tabstrip-flow: column) {
@@ -1457,7 +1476,8 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
   .lf-tabstrip .lf-tab-btn > .lf-tab-name {
     border-bottom: 0;
   }
-  .lf-tab-mark {
+  .lf-tab-mark,
+  .lf-tab-selection {
     display: none;
   }
   .lf-tabstrip .lf-tab-btn[aria-selected=true] > .lf-tab-name {
@@ -1469,7 +1489,7 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
   .lf-tabstrip .lf-tab-btn > .lf-tab-name {
     border-bottom-color: Canvas;
   }
-  .lf-tab-mark {
+  .lf-tab-selection {
     forced-color-adjust: none;
     background: CanvasText;
   }
@@ -1971,11 +1991,12 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
   @scope (body > main:not(.layout-column, .layout-sidebar, .layout-workspace) > :scope) {
     :scope:is(lf-parts).lf-rendered > .lf-tabstrip {
       position: fixed;
-      top: calc(var(--lf-top) + var(--lf-parts-title-h, 0px));
+      position-anchor: --lf-parts-title;
+      top: anchor(bottom, var(--lf-top));
       inline-size: var(--lf-parts-list);
       box-sizing: border-box;
       align-self: start;
-      block-size: calc(100dvh - var(--lf-head-room) - var(--lf-parts-title-h, 0px));
+      block-size: calc(100dvh - var(--lf-head-room) - anchor-size(height, 0px));
       min-block-size: 0;
       --lf-tabstrip-flow: column;
       gap: 0;
@@ -2002,6 +2023,7 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
         --lf-top: calc(var(--lf-top-outer) + var(--lf-tabstrip-h));
       }
       :scope:is(lf-parts).lf-rendered > .lf-tabstrip {
+        position-anchor: normal;
         position: sticky;
         --lf-head-inset: 0px;
         top: var(--lf-top);
@@ -3001,6 +3023,16 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
     }
   }
 }
+@media screen {
+  :scope:is(lf-code)[data-lf-reader-wrap=wrap] .lf-code-line {
+    white-space: pre-wrap !important;
+    overflow-wrap: anywhere !important;
+  }
+  :scope:is(lf-code)[data-lf-reader-wrap=scroll] .lf-code-line {
+    white-space: pre !important;
+    overflow-wrap: normal !important;
+  }
+}
 @media print {
   :scope:is(lf-code)[data-lf-reader-wrap] .lf-code-line {
     white-space: pre-wrap !important;
@@ -3241,10 +3273,13 @@ html[data-lf-interactive] :scope:is(lf-text-document):not(:has(> *))::before {
     font: var(--t-5)/var(--lf-ui-lh) var(--sans);
     white-space: nowrap;
   }
+  .lf-draft-kept {
+    color: var(--muted-2);
+  }
   .lf-draft-status:empty {
     display: none;
   }
-  :scope:is(lf-draft):is(:hover, [data-lf-focus-within], [needed], :has(> .lf-draft-edit)) .lf-draft-tools {
+  :scope:is(lf-draft):is(:hover, [data-lf-focus-within], [needed], :has(> .lf-draft-edit), :has(.lf-draft-status:not(:empty))) .lf-draft-tools {
     opacity: 1;
   }
   @media (hover: none) {

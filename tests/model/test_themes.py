@@ -36,6 +36,28 @@ def catalogue(tmp_path, *, default="editorial"):
     return config
 
 
+def test_an_installed_theme_keeps_the_files_its_sheet_imports(tmp_path):
+    """A theme split into files with `@import` installs whole, so a page vendored
+    from the installed copy carries the imported rules, whether an imported file
+    stands in a directory of its own or in one the package already ships."""
+    source = tmp_path / "split"
+    (source / "styles").mkdir(parents=True)
+    (source / "widgets").mkdir()
+    (source / "theme.css").write_text(
+        '@import "./styles/accent.css";\n@import "./widgets/paper.css";\n'
+    )
+    (source / "styles/accent.css").write_text(":root { --accent: #123456; }\n")
+    (source / "widgets/paper.css").write_text(":root { --paper: #fedcba; }\n")
+    cmd_package_install(source)
+    config = Path(os.environ["XDG_CONFIG_HOME"]) / "leaf/themes.toml"
+    config.parent.mkdir(parents=True)
+    config.write_text('themes = ["split"]\n')
+    page = tmp_path / "page"
+    cmd_init(page, theme="split")
+    theme = (page / "theme.css").read_text()
+    assert "#123456" in theme and "#fedcba" in theme
+
+
 def test_theme_selection_is_independent_of_content_packages_and_later_defaults(
     tmp_path,
 ):

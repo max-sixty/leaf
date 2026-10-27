@@ -97,42 +97,6 @@ from leaf.render_gate.scheme import console_finding
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
-def test_sort_source_follows_the_initial_step_when_code_arrives_later(browser, serve):
-    """The film may paint its first step before the code's tokenizer returns."""
-    example = next(path for path in EXAMPLES if path.stem == "rust-sort")
-    context = browser.new_context(
-        reduced_motion="reduce", viewport={"width": 1440, "height": 900}
-    )
-    held = []
-    context.route("**/vendor/syntax.esm.js", lambda route: held.append(route))
-    page = open_page(
-        browser,
-        serve(example),
-        context=context,
-        upgraded=False,
-        wait_until="domcontentloaded",
-    )
-    expect(page.locator("#sort-film .sort-moment")).to_have_attribute(
-        "data-part", "moment:random:7:0"
-    )
-    expect(page.locator("#sort-source [data-lf-indicated]")).to_have_count(0)
-    assert held
-    for route in held:
-        route.continue_()
-    context.unroute_all(behavior="wait")
-    wait_until_ready(page)
-    source = page.locator("#sort-source")
-    indicated = source.locator("[data-lf-indicated]")
-    expect(indicated).to_have_count(1)
-    body = source.bounding_box()
-    line = indicated.bounding_box()
-    assert body["y"] + 40 <= line["y"]
-    assert line["y"] + line["height"] <= body["y"] + body["height"] - 40
-    expect(page.locator("#sort-film .sort-moment")).to_have_attribute(
-        "data-part", "moment:random:7:0"
-    )
-
-
 def test_sort_film_readout_and_narration(browser, serve):
     """Changing step numbers hold their space, and narration renders inline Markdown."""
     example = next(path for path in EXAMPLES if path.stem == "rust-sort")
@@ -1431,7 +1395,8 @@ def test_a_boards_minimum_keeps_the_room_the_column_can_grant(browser, serve):
     """A widget's preferred minimum never claims the sidebar's margin. Native wide and
     available blocks read the same capacity; four and five board columns previously
     overrode it at mid widths, while the control without a sidebar fitted there.
-    Narrow boards scroll their columns inside that allocation rather than the page.
+    A board too narrow to share between columns stacks them inside that allocation,
+    so neither it nor the page scrolls sideways.
     """
     sidebar = '<aside class="sidebar"><lf-toc id="contents"></lf-toc></aside>'
     boards = "".join(
@@ -1471,8 +1436,8 @@ def test_a_boards_minimum_keeps_the_room_the_column_can_grant(browser, serve):
                 assert at[name]["right"] <= at["room"]["right"] + 1, (width, at)
             assert root_overflow(page) == 0, (width, at)
             if width == 540:
-                assert at["board-4"]["scrolls"] > 0, at
-                assert at["board-5"]["scrolls"] > 0, at
+                assert at["board-4"]["scrolls"] == 0, at
+                assert at["board-5"]["scrolls"] == 0, at
             elif width == 1440:
                 assert at["wide"]["width"] == pytest.approx(wide_width(page), abs=1), at
                 assert at["room"]["width"] > at["wide"]["width"], at

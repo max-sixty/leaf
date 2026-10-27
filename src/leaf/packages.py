@@ -15,6 +15,7 @@ from .layer import (
     checked_inputs,
     checked_layer_inputs,
     compose_layer,
+    imported_sheets,
     input_paths,
     layer_inputs,
     named_package,
@@ -317,6 +318,16 @@ def copy_package_contract(package: Path, staged: Path) -> None:
             target.mkdir()
     if (package / SCRIPTS_DIR).is_dir():
         shutil.copytree(package / SCRIPTS_DIR, staged / SCRIPTS_DIR)
+    # A sheet's imports are part of it (`layer.stylesheet`), wherever in the package
+    # they stand; one inside a directory copied above is already staged.
+    for name in PACKAGE_FILES:
+        if not name.endswith(".css") or not (package / name).is_file():
+            continue
+        for imported in imported_sheets(package / name, package):
+            target = staged / imported.relative_to(package.resolve())
+            if not target.exists():
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(imported, target)
 
 
 def validate_starter_candidate(package: Path, files: dict[str, bytes]) -> None:

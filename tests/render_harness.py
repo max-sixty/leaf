@@ -1311,7 +1311,8 @@ def _picture_pages(test, pages):
             continue
         try:
             page.screenshot(
-                path=ROOT / f".tmp/test-results/screens/{name}-{n}.png", timeout=5000
+                path=ROOT / f".tmp/test-results/screens/{name}-{n}.png",
+                timeout=render_checks_model.SERVED_TIMEOUT_MS,
             )
         except PlaywrightError:
             continue
@@ -2582,6 +2583,18 @@ SHELL_BOX = """(() => {
 # Put the user nowhere, with the next Tab starting at the top of the document: the
 # runtime's own let-go (focus.js, `releaseFocus`). Body holds no stop of its own, so
 # `document.body.focus()` moves nothing on a page whose root does not scroll.
+# Each field's closed shadow root, so a test can read inside it.
+EDITOR_ROOTS = """
+  window.editorRoots = new Map();
+  const attach = Element.prototype.attachShadow;
+  Element.prototype.attachShadow = function(options) {
+    const root = attach.call(this, options);
+    if (this.localName === 'leaf-text') window.editorRoots.set(this, root);
+    return root;
+  };
+"""
+
+
 RELEASE_FOCUS = """async () =>
   (await window.__lfCheckApi()).releaseFocus()"""
 

@@ -7,9 +7,12 @@
    retained reply space. A margin card instead allocates its own scrolling transcript
    and overlay controls. Thread controls stay outside message and summary folds. MessageView
    owns each complete message, so no container extracts or reparents its header.
-   Independent controls overlay its first header line. That line reserves a notice's
-   minimum hit area from its first paint; the metadata edge measured before news
-   arrives is retained while it waits, including when its workflow receipt goes.
+   Independent controls stand on its first header line, in the room the line keeps at
+   its end, and a held-news notice stands on the same line after the header's words,
+   each a box of its own anchored to the header, so no box stands over the words. That
+   line reserves a notice's minimum hit area from its first paint; the metadata edge
+   measured before news arrives is retained while it waits, including when its
+   workflow receipt goes.
    Each message header text item keeps its allocated width while news waits, so a later
    receipt grows only inside its own clipped box. The first notice may use spare
    room for its new receipt without moving the author or time already shown.
@@ -592,15 +595,20 @@ export class ThreadView {
       appends: model.surface === "margin",
     });
     if (reply && !this.#reply) this.#reply = this.#createReply(model);
+    // In the head place the notice is a box of its own on the first header's line,
+    // anchored to the header beside the controls' box at its end (surfaces.css,
+    // `.lf-thread-content > .lf-thread-news`); its words change in place.
+    keeps(notice.node, "data-lf-reflow", marginControls ? null : "text");
     const body = html`
       ${threadTodos(model.todos, (id) => this.#commands.todos.done(id))}${this.#transcript.node}
       ${
         threadActions
           ? marginControls
             ? html`<div class="lf-margin-thread-controls">${threadActions}</div>`
-            : html`<div class="lf-thread-controls" data-lf-reflow="text">
-                ${news}${threadActions}
-              </div>`
+            : html`${news}
+                <div class="lf-thread-controls" data-lf-reflow="text">
+                  ${threadActions}
+                </div>`
           : nothing
       }
     `;
@@ -639,6 +647,8 @@ export class ThreadView {
     this.#observedHeader = null;
     this.#releaseHeaderItems();
     this.#news.node.removeAttribute("data-room");
+    this.#news.node.style.removeProperty("--lf-thread-news-start");
+    this.#news.node.style.removeProperty("--lf-thread-news-visible-end");
   }
 
   #releaseHeaderItems() {
@@ -655,8 +665,6 @@ export class ThreadView {
       return;
     }
     const content = this.node.querySelector(":scope > .lf-thread-content");
-    /** @type {HTMLElement | null} */
-    const controls = content?.querySelector(":scope > .lf-thread-controls");
     const first = content?.querySelector(
       ":scope > .lf-thread-transcript > :nth-child(1 of .lf-msg, .lf-thread-checkpoint)",
     );
@@ -664,7 +672,7 @@ export class ThreadView {
     const header =
       first?.querySelector(":scope > .lf-summary-checkpoint > .lf-summary-header") ??
       first?.querySelector(":scope > .lf-msg-head");
-    if (!controls || !header) {
+    if (!header) {
       this.#releaseHeaderSlot();
       return;
     }
@@ -730,24 +738,27 @@ export class ThreadView {
       }
       this.#headerSlot.held = true;
     }
+    // The notice's readings are lengths from the header's start: where the words end,
+    // which the notice starts after, and where the header's line stops showing, which
+    // it stops before (surfaces.css, `.lf-thread-content > .lf-thread-news`).
+    const notice = this.#news.node;
     const right = Math.max(
       box.left,
       ...this.#headerSlot.items.map(({ node }) => node.getBoundingClientRect().right),
     );
-    controls.style.setProperty("--lf-thread-news-start", layoutPx(right - box.left));
+    notice.style.setProperty("--lf-thread-news-start", layoutPx(right - box.left));
     if (this.#model.news) {
       // While news stands, the notice keeps the width of the words it first showed, so
       // later news never narrows or widens it under the pointer; longer news is cut.
-      if (!this.#news.node.hasAttribute("data-room"))
-        this.#news.node.dataset.room = this.#model.news.label;
-      const line = controls.getBoundingClientRect();
-      const shown = shownRect(controls, new Map());
+      if (!notice.hasAttribute("data-room"))
+        notice.dataset.room = this.#model.news.label;
+      const shown = shownRect(header, new Map());
       if (shown)
-        controls.style.setProperty(
+        notice.style.setProperty(
           "--lf-thread-news-visible-end",
-          layoutPx(Math.max(0, shown.right - line.left)),
+          layoutPx(Math.max(0, shown.right - box.left)),
         );
-    } else this.#news.node.removeAttribute("data-room");
+    } else notice.removeAttribute("data-room");
   }
 
   // Whether the progress behind the working message stood open when last drawn
@@ -848,13 +859,14 @@ export class ThreadView {
   };
 
   #createReply(model) {
+    // A settled thread keeps its box while a session stands, which every pass and the
+    // margin follow (`replyIsEditing`), so a keystroke repaints this card alone.
     const replyChanged = () => {
       if (!this.#reply) return;
       this.#draftFrame ||= nextRender(() => {
         this.#draftFrame = 0;
         if (!this.#reply) return;
         if (this.#model.resolved) this.repaint();
-        if (this.#model.resolved) this.#commands.reply.changed();
       });
     };
     const commands = this.#commands.reply;

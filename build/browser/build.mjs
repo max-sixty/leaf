@@ -7,9 +7,9 @@
  * Run with --check to compare a fresh, typechecked build with committed bytes
  * without writing them. This module type-checks the runtime, builds the framework's
  * third-party packages, and writes and checks every other committed Node-built output
- * beside them: the initial renderers (`build/initial.mjs`), the stylesheets
- * (`build/styles.mjs`), the page protocol's types, the event records and the served
- * state (`contract-types.mjs`), and the baseline its schemas are held to
+ * beside them: the initial renderers (`build/initial.mjs`), the third-party
+ * stylesheets (`build/styles.mjs`), the page protocol's types, the event records and
+ * the served state (`contract-types.mjs`), and the baseline its schemas are held to
  * (`protocol.mjs`), the third-party bundles and the runtime's table of their grammars
  * (`build/vendor.mjs`), and last the kernel compiled from all of them
  * (`build/runtime-bundle.mjs`). The kernel's directory, the layer's `vendor/` and each

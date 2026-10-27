@@ -43,16 +43,12 @@ import threading
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from functools import cached_property, lru_cache, partial
+from functools import cache, cached_property, lru_cache, partial
 from pathlib import Path
 from types import MappingProxyType
 
-import tinycss2
-import tree_sitter_javascript
 import turbohtml
 from pywhatwgurl import URL
-from tinycss2.serializer import serialize_string_value
-from tree_sitter import Language, Parser, Query, QueryCursor
 
 from leaf.files import file_stamp, latest_revision, list_revisions, revision_path
 from leaf.findings import Finding, Rejected
@@ -84,14 +80,24 @@ RESOURCE_TYPES = {
     ".ttf": "font/ttf",
     ".otf": "font/otf",
 }
-_JAVASCRIPT = Language(tree_sitter_javascript.language())
-# The nodes `javascript_imports` reads, matched in the parser's own code rather than
-# by visiting every node of a vendored bundle in Python.
-_IMPORT_NODES = Query(
-    _JAVASCRIPT,
-    "(import_statement) @node (export_statement) @node "
-    "(call_expression function: (import)) @node",
-)
+
+
+@cache
+def _javascript_reader():
+    """Tree-sitter's JavaScript parser and the query for the nodes `javascript_imports`
+    reads, matched in the parser's own code rather than by visiting every node of a
+    vendored bundle in Python. Built when a module is first read: most processes
+    (every hook) never read one, and the imports cost tens of milliseconds."""
+    import tree_sitter_javascript
+    from tree_sitter import Language, Parser, Query
+
+    language = Language(tree_sitter_javascript.language())
+    query = Query(
+        language,
+        "(import_statement) @node (export_statement) @node "
+        "(call_expression function: (import)) @node",
+    )
+    return Parser(language), query
 
 
 class ArtifactError(Rejected):
@@ -149,7 +155,9 @@ class Resource:
         return _digest(self.data)
 
 
-@dataclass(frozen=True)
+# Compared and hashed by identity, so a kept reading can be keyed by the artifact
+# it was made from (`runtime_selection.executing`).
+@dataclass(frozen=True, eq=False)
 class RevisionArtifact:
     html: bytes
     resources: Mapping[str, Resource]
@@ -242,11 +250,14 @@ def javascript_imports(data: bytes, path: str) -> tuple[tuple[int, int, str], ..
         data.decode("utf-8")
     except UnicodeDecodeError as error:
         raise artifact_error("script-not-utf8", path) from error
-    tree = Parser(_JAVASCRIPT).parse(data)
+    from tree_sitter import QueryCursor
+
+    parser, import_nodes = _javascript_reader()
+    tree = parser.parse(data)
     # Document order, a node before the nodes it holds, as a walk of the tree meets
     # them, so the spans come back in the order the file states them.
     nodes = sorted(
-        QueryCursor(_IMPORT_NODES).captures(tree.root_node).get("node", []),
+        QueryCursor(import_nodes).captures(tree.root_node).get("node", []),
         key=lambda node: (node.start_byte, -node.end_byte),
     )
     imports = []
@@ -340,6 +351,8 @@ def _css_references(tokens):
 
 def _parse_css(source: str, declarations: bool):
     """A stylesheet, or with `declarations` the body of a `style` attribute."""
+    import tinycss2
+
     if declarations:
         return tinycss2.parse_declaration_list(source)
     return tinycss2.parse_stylesheet(source)
@@ -390,6 +403,8 @@ def _read_css(source: str, declarations: bool) -> _CssReading:
         return _CssReading(references, None)
     for index, token in enumerate(found):
         token.representation = f"{_CSS_MARK[0]}{index}{_CSS_MARK[1]}"
+    import tinycss2
+
     parts = re.split(
         f"{_CSS_MARK[0]}([0-9]+){_CSS_MARK[1]}", tinycss2.serialize(tokens)
     )
@@ -423,6 +438,8 @@ def rewrite_css(source: str, address, *, declarations: bool = False) -> str:
     dependencies from the same `_css_references`, so all three agree on which URLs a
     sheet has.
     """
+    from tinycss2.serializer import serialize_string_value
+
     reading = _read_css(source, declarations)
     targets = {value: address(value) for value, _, _ in reading.references}
     if all(target == value for value, target in targets.items()):
@@ -442,6 +459,9 @@ def rewrite_css(source: str, address, *, declarations: bool = False) -> str:
 
 def _rewrite_parsed(source: str, targets: dict, declarations: bool) -> str:
     """`rewrite_css` over a fresh parse, for an omitted URL or an unsplit sheet."""
+    import tinycss2
+    from tinycss2.serializer import serialize_string_value
+
     tokens = _parse_css(source, declarations)
     omitted = {reference for reference, value in targets.items() if value is None}
 

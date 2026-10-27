@@ -2,7 +2,7 @@ import { J, Z } from "./bundle-signals-core.js";
 import { LENT_REACH_STOP, TEXT_BOX, afterScript, deepFocus, keeps, nextFrame, nextRender, onCurrentLocation, pressing, renderedParent, renderedUnder, renderingState, sizeObserver, tabStops, under, upFrom, wearsLentStop } from "./bundle-dom-move.js";
 import { PAGE_PAINT_ATTRIBUTE, pagePresented, reportPageError, setRuntimeRootAttribute } from "./bundle-layer-client.js";
 import { landingBand, scrollsBy, shadowRootsIn, shownRect, skipped, userScrollport, watchArrivals, watchOwner, whileConnected } from "./bundle-geometry.js";
-import { applicationPresented } from "./bundle-context.js";
+import { applicationPresented, tick } from "./bundle-context.js";
 import { LAYOUT } from "./bundle-errors.js";
 import { layoutBox, pageDocument } from "./bundle-passages.js";
 
@@ -17,7 +17,7 @@ const clockValue = (read) => J(() => {
 }).value;
 async function tickClock(reportError) {
 	try {
-		pulse.value += 1;
+		tick(pulse);
 	} catch (error) {
 		reportError(error, "clock paint failed");
 	}

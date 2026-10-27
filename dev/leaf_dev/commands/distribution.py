@@ -22,10 +22,12 @@ import os
 import shutil
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 
 import click
 
+from leaf import state
 from leaf.layer import files_identity, payload_provenance
 from leaf.state import flocked, write_json
 from leaf_dev import ROOT
@@ -44,6 +46,71 @@ COMPILER_INPUTS = (
 def compiler_root() -> Path:
     """The developer checkout that launched a selected-runtime preview."""
     return Path(os.environ.get("LEAF_PREVIEW_COMPILER_ROOT", ROOT)).resolve()
+
+
+KEEP_ENTRIES = 12
+KEEP_SECONDS = 24 * 3600
+
+
+def cache_root() -> Path:
+    """Where prepared installations live: one directory per user, not per checkout.
+
+    An entry's name is the hash of everything that determines it (payload, compiler
+    inputs, provenance), so worktrees and arms with the same content share one, and
+    a new worktree starts warm instead of compiling the kernel again.
+    """
+    base = os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache"
+    return Path(os.environ.get("LEAF_DEV_CACHE_DIR", Path(base) / "leaf-dev")) / (
+        "compiled-runtime"
+    )
+
+
+def launched_entries() -> set[Path]:
+    """The cache entries that live sessions have selected as their launcher.
+
+    A `--user` preview saves its entry's `bin/leaf` in the session record
+    (`session_runtime.select_launcher`), and the session's hooks and page server run
+    from it for as long as the record exists, however long ago the entry was
+    selected. The record is Leaf's own answer to "is this install in use".
+    """
+    sessions = state.state_home() / "sessions"
+    records = (
+        state.SESSION.read(path) for path in sessions.glob(f"*.{state.SESSION_SUFFIX}")
+    )
+    return {
+        Path(record["launcher"]).parent.parent
+        for record in records
+        if record and not record["ended"] and record.get("launcher")
+    }
+
+
+def evict(cache: Path) -> None:
+    """Delete entries beyond the newest `KEEP_ENTRIES` that nothing has selected for
+    `KEEP_SECONDS` (a hit touches its entry) and no live session launches from, and
+    abandoned staging directories. Age is read again under the entry's lock, since a
+    reader may have selected it since the listing. Lock files stay: removing one
+    would let a waiter and a newcomer lock different inodes."""
+    now = time.time()
+    entries = sorted(
+        (p for p in cache.iterdir() if p.is_dir() and not p.name.startswith(".")),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+    stale = [
+        p
+        for p in cache.iterdir()
+        if p.name.startswith(".preparing-") and now - p.stat().st_mtime > KEEP_SECONDS
+    ]
+    for old in entries[KEEP_ENTRIES:]:
+        with flocked(cache / f"{old.name}.lock"):
+            if (
+                old.is_dir()
+                and now - old.stat().st_mtime > KEEP_SECONDS
+                and old.resolve() not in launched_entries()
+            ):
+                shutil.rmtree(old, ignore_errors=True)
+    for path in stale:
+        shutil.rmtree(path, ignore_errors=True)
 
 
 def bundle_runtime(assets: Path, kernel: Path) -> None:
@@ -179,7 +246,7 @@ def cached_installation(runtime: Path = ROOT) -> Path:
     runtime = runtime.resolve()
     if (runtime / "leaf-distribution.json").is_file():
         return runtime
-    cache = compiler_root() / ".tmp/compiled-runtime"
+    cache = cache_root()
     cache.mkdir(parents=True, exist_ok=True)
 
     def identity():
@@ -201,6 +268,7 @@ def cached_installation(runtime: Path = ROOT) -> Path:
             if output.is_dir():
                 if identity() != selected:
                     continue
+                os.utime(output)
                 return output
             with tempfile.TemporaryDirectory(prefix=".preparing-", dir=cache) as raw:
                 staged = Path(raw) / "installation"
@@ -208,6 +276,12 @@ def cached_installation(runtime: Path = ROOT) -> Path:
                 if identity() != selected:
                     continue
                 staged.rename(output)
+            # Best effort: a concurrent sweep or publisher can remove a path this one
+            # listed, and the runtime is already published.
+            try:
+                evict(cache)
+            except FileNotFoundError:
+                pass
             return output
 
 

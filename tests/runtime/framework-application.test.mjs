@@ -1361,18 +1361,21 @@ test("a pending gesture leaves obligations and On me as served until the log ans
   const app = setup();
   const accepted = state(2, [kept]);
   const answered = {
-    id: "widget:keep-chart",
-    source: { kind: "widget", id: "keep-chart", tag: "lf-ask" },
+    id: `message:${item.id}`,
+    source: { kind: "message", id: item.id },
     thread: item.id,
     message: item.id,
-    prompt: { text: item.text, target: "keep-chart" },
+    prompt: { text: item.text, target: null },
     answer: { value: { token: "keep" }, event: kept },
     status: "answered",
     next_actor: null,
   };
   accepted.browser.views[1].obligations = [answered];
   const done = {
-    ...servedObligationRow(answered, { subject: { kind: "thread", id: item.id } }),
+    ...servedObligationRow(answered, {
+      kind: "message",
+      subject: { kind: "thread", id: item.id },
+    }),
     state: "done",
     ended: null,
     detail: null,
@@ -1387,14 +1390,22 @@ test("a pending gesture leaves obligations and On me as served until the log ans
   assert.deepEqual(pending.queues.on_user, []);
   assert.deepEqual(
     pending.queues.done.map(({ kind, id }) => [kind, id]),
-    [["widget", answered.id]],
+    [["message", answered.id]],
   );
 
   const reopened = { ...answered, answer: null, status: "open", next_actor: "user" };
   const undo = { kind: "undo", id: "e-undo", undoes: kept.id, attempt: "take-back" };
   const answeredUndo = state(3, [kept, undo]);
   answeredUndo.browser.views[1].obligations = [reopened];
-  answeredUndo.browser.views[1].queues = obligationQueues([reopened]);
+  answeredUndo.browser.views[1].queues = {
+    ...obligationQueues([]),
+    on_user: [
+      servedObligationRow(reopened, {
+        kind: "message",
+        subject: { kind: "thread", id: item.id },
+      }),
+    ],
+  };
   answeredUndo.browser.views[1].thread.threads = [
     servedThread([item], {
       attention: { kind: "needs_user", reason: "obligation", workflow: null },
@@ -1405,7 +1416,7 @@ test("a pending gesture leaves obligations and On me as served until the log ans
   assert.equal(thread.all[0].attention.kind, "needs_user");
   assert.deepEqual(
     queues.on_user.map(({ kind, id }) => [kind, id]),
-    [["widget", answered.id]],
+    [["message", answered.id]],
   );
 });
 

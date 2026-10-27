@@ -31,10 +31,6 @@ const actions = commandScope("In a classifier", [
 commands(classifier, actions);
 ```
 
-`executeCommand(id)` runs a command by its id from the user's current location, as its
-key would there, and returns whether it ran; a control can use it to offer a command
-another owner declares, as `lf-deck`'s Reply runs `c`'s `comment.create`.
-
 In a template, `commandsOn(title, rows, options)` attaches a scope to the element it is
 bound on, takes the current rows on each render, and detaches when the element goes.
 Where the rows need the element, pass a function of it, such as
@@ -66,6 +62,12 @@ browser or an outer handler makes. `control` is the visible element that activat
 phrase the command reference shows while it isn't, such as `in an open draft editor`.
 Set `runFromCommandReference: false` for a step the reference can't run without a choice
 it lacks. `ready` is described in `module-authoring.md`, "Startup and presentation".
+
+Android's back gesture takes the step Escape would. A row whose `run` throws away words
+the user wrote and hasn't sent, such as an editor's Escape, also declares `keep`, which
+back runs instead: it closes the editor the same way, keeps the changed words where
+reopening finds them, shows that the widget holds them, and says so with
+`notice("Edit kept")`.
 
 Leaf re-evaluates a `when` or a computed field when the readings it uses change, such as
 a widget's state or the threads. For any other state it reads, hold the value in a
@@ -290,5 +292,6 @@ its id:
 
 `lf-options`' box for adding an option (`lf-options-addition.js`) is the worked example.
 
-For a CodeMirror editor, construct `LeafEditorView` in place of `EditorView`, so focus
-and reveals go through Leaf.
+For a CodeMirror editor, construct the class `leafEditorView(codemirror)` returns in
+place of `EditorView`, so focus and reveals go through Leaf. Pass the module your widget
+imports (`import * as codemirror from "/vendor/codemirror.esm.js"`).

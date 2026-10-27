@@ -331,7 +331,8 @@ def test_published_product_page_renders(site, browser, name):
 
 def test_published_examples_keep_the_site_theme_out_of_their_layer(site):
     """A website example uses the authored example's layout layer."""
-    context_theme = (DOCS / "package" / "theme.css").read_text().rstrip()
+    package = DOCS / "package"
+    context_theme = layer_model.stylesheet(package / "theme.css", package).rstrip()
     for source in site_build.published_page_sources():
         theme = site / "examples" / source.stem / "theme.css"
         assert context_theme not in theme.read_text(), source

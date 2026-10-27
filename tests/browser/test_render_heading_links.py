@@ -52,11 +52,15 @@ def test_a_heading_copies_the_link_to_the_section_it_opens(browser, serve):
     page.locator("section:not([id]) > h2").hover()
     expect(page.locator(LINK)).to_have_count(1)
 
-    # On the section, Enter copies its link, and the command reference names it.
+    # Being on the section shows no mark, since a route such as `m` lands there to act
+    # on it. Enter copies its link and shows the mark with its result, and the command
+    # reference names it.
     page.evaluate("navigator.clipboard.writeText('')")
     page.locator("section[id]").focus()
+    assert shown(page) == 0
     page.keyboard.press("Enter")
     until_copied(page, link)
+    assert shown(page) == 1
     page.evaluate("navigator.clipboard.writeText('')")
     page.keyboard.press("?")
     page.locator(".lf-command-reference").get_by_role(
@@ -106,3 +110,21 @@ def test_a_tap_shows_a_headings_link_and_a_second_tap_copies_it(browser, serve):
     assert copied(page) == ""
     page.locator(LINK).get_by_role("button", name="Copy link to section").tap()
     until_copied(page, page.url.split("#")[0] + "#rates%252Flimits")
+
+
+def test_enter_copies_a_link_no_pointer_has_shown(browser, serve):
+    """Enter on a decision `m` landed on copies its link, though the press itself makes
+    the link's control, which has not drawn its button yet."""
+    source = leaf_page(
+        "A decision's link",
+        '<lf-ask id="q"><h3>Which store?</h3><lf-options id="c" choose>'
+        '<lf-option id="a">Redis</lf-option><lf-option id="b">Postgres</lf-option>'
+        "</lf-options></lf-ask>",
+    )
+    url = live_url(serve(source))
+    context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
+    page = open_page(browser, url, context=context)
+    page.keyboard.press("m")
+    expect(page.locator("#q")).to_be_focused()
+    page.keyboard.press("Enter")
+    until_copied(page, page.url.split("#")[0] + "#q")

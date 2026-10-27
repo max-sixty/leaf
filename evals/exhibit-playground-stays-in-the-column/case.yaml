@@ -1,9 +1,10 @@
 # Guardrail for surface-page-takes-the-window: a playground that is one exhibit in a
-# document keeps the document's column, and the page is not turned into a workspace.
-# Claude Code: base 9/9 (c20bf406f twice, c71562813 once), candidate 9/9.
+# document preserves the reading sequence and stays beside its explanation.
+# Historical exact-layout rubric: Claude Code base 9/9 (c20bf406f twice, c71562813 once),
+# candidate 9/9. The current rubric judges reading flow instead of a Layout class.
 description: exhibit-playground-stays-in-the-column
 metadata:
-  purpose: "Arranging a page: a document read top to bottom that cites one small playground stays a column page, the playground breaking out in its section."
+  purpose: "Arranging a page: a document read top to bottom keeps its reading flow, with the retry-policy playground beside the explanation it supports."
   tags:
     - layout
     - playground
@@ -16,7 +17,11 @@ vars:
     retries that amplified the outage are the point: include a playground where the
     reader tunes the retry policy's base delay, multiplier and maximum attempts, sees
     the resulting retry schedule against the 30-second outage window, and submits the
-    policy to adopt.
+    policy to adopt. The schedule must show timing spatially so the reader can see
+    which attempts fall inside the outage. Include this qualification beside it:
+    "This model assumes independent retries; production clients also share a rate limit."
+    Root cause also has an optional incident-log appendix of about 1,200 words;
+    use placeholder paragraphs for that appendix. Polish the page for the review.
 
     Read references/page-authoring.md and ../../packages/playground/instructions/author.md
     relative to the leaf skill's base directory. The page directory is not reachable from
@@ -25,7 +30,24 @@ assert:
   - type: llm-rubric
     metric: judgment
     value: |
-      Read the HTML. Pass only if `main` is a `layout-column` page whose seven sections
-      are read in order in the page's own scroll, and the playground, in its `lf-ask`,
-      stands within the Root cause section. Fail if `main` is a `layout-workspace`, or if
-      the page is split into tabs that separate the playground from the sections.
+      Read the HTML. Pass if the seven sections can be read top to bottom in order,
+      with the retry-policy playground within Root cause beside the explanation it
+      supports. Fail if the page makes the reader switch views to follow that sequence
+      or separates the playground from its explanation. Judge the reading flow, not
+      the presence of a particular Layout class or width attribute.
+  - type: llm-rubric
+    metric: default-style-and-useful-geometry
+    value: |
+      Pass if ordinary prose, headings and sections use Leaf's existing treatment
+      while the retry schedule communicates time spatially and remains adjustable.
+      Page CSS or SVG for that visualization and its task-specific arrangement is
+      appropriate. Fail if generic polish adds decorative card wrappers or replaces
+      ordinary document typography, colors and spacing, or if avoiding customization
+      reduces the retry schedule to prose or a table without a spatial visualization.
+  - type: llm-rubric
+    metric: disclosure-reading-cost
+    value: |
+      Pass if the independent-retries qualification is visible beside the schedule
+      without opening a disclosure, while the substantial optional incident log is
+      available behind a clearly labeled disclosure. Fail if the short qualification
+      is hidden or if the optional log interrupts the seven-section reading sequence.

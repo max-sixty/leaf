@@ -200,7 +200,7 @@ def test_the_registered_watch_hook_wakes_the_session(claimed, tmp_path):
     env = os.environ | {"CLAUDE_PLUGIN_ROOT": str(PLUGIN_ROOT)}
     leases_model.mark_hooks("s1")  # its harness runs Leaf's hooks
     serving(claimed, 1)
-    session_model.cmd_waiting(claimed, "")
+    session_model.cmd_waiting(claimed)
     cleanup_model.close_session_turn("s1")
     append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "hi"}
@@ -670,6 +670,24 @@ print(json.dumps(imported))
     )
     for loaded in json.loads(done.stdout):
         assert [module for module in heavy if module in loaded] == []
+
+
+def test_a_claimed_hook_imports_no_css_script_or_watch_parser():
+    """The claimed hook reads the page and validates its events, so it needs the schema
+    validators, but not what only capture, vendoring and a watch
+    use. Their imports cost tens of milliseconds at every tool boundary."""
+    probe = (
+        "import sys, json, leaf.hook_transport; print(json.dumps(sorted(sys.modules)))"
+    )
+    done = subprocess.run(
+        [sys.executable, "-c", probe],
+        capture_output=True,
+        text=True,
+        timeout=STATED_TIMEOUT,
+        check=True,
+    )
+    loaded = set(json.loads(done.stdout))
+    assert {"tinycss2", "tree_sitter", "watchfiles"} & loaded == set()
 
 
 @pytest.mark.parametrize(

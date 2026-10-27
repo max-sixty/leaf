@@ -173,7 +173,7 @@ describe("published runtime bundle", () => {
       expect(kernel).toContain('"accepted:presented"');
       expect(kernel).toContain('from"/vendor/lit.js"');
       expect(kernel).not.toContain("litHtmlVersions");
-      expect(kernel).not.toContain("browser-runtime");
+      expect(kernel).not.toContain("/vendor/signals-core.js");
       expect(
         await readFile(join(output, "widgets", "lf-suggestion.js"), "utf8"),
       ).not.toContain("/runtime/widget-api.js");

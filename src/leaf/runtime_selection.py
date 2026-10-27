@@ -138,15 +138,16 @@ def read_runtime() -> ServingRuntime:
     record = KERNEL / "kernel.json"
     if record.is_file():
         built = json.loads(record.read_text())
-        # The build records the SHA-256 of each module it read, `leaf.js` and each
-        # `.js` under the kernel's browser directories (`build/runtime-bundle.mjs`,
-        # `kernelOutputs`). A tree whose modules differ, such as a branch whose runtime
-        # edit has not been rebuilt, runs its source modules, so an install never runs
-        # a runtime other than the one its tree holds.
+        # The build records the SHA-256 of each file it read: `leaf.js`, each `.js`
+        # under the kernel's browser directories, and each file it compiled in as
+        # values, such as the kernel registry (`build/runtime-bundle.mjs`,
+        # `kernelOutputs`). A tree whose files differ, such as a branch whose runtime or
+        # registry edit has not been rebuilt, runs its source modules, so an install
+        # never runs a runtime other than the one its tree holds.
         modules = {
             path.lstrip("/"): hashlib.sha256(data).hexdigest()
             for path, data in {**source, **_files(ASSETS, "widgets")}.items()
-            if path.endswith(".js")
+            if path.endswith(".js") or path.lstrip("/") in built["inputs"]
         }
         if modules == built["inputs"]:
             kernel = _files(KERNEL, "leaf.js", "runtime")

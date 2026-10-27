@@ -18,7 +18,9 @@
       .query-row-actions {
         display: flex;
         flex-wrap: wrap;
-        gap: var(--sp-2);
+        /* Wrapped rows keep each button's reach, which stands past its face
+           under a finger, clear of the row above it. */
+        gap: max(var(--sp-2), 2 * var(--lf-reach-room)) var(--sp-2);
         align-items: center;
       }
 
@@ -78,13 +80,14 @@
     </style>
     <script type="module">
       import {
-        PAGE_INTERFACE,
+        generatedElement,
         keepsText,
         layoutChanged,
         offer,
+        offerAction,
         once,
         setChildren,
-        whileConnected,
+        whileInterfaceConnected,
       } from "/runtime/widget-api.js";
 
       const RELEASES = [
@@ -142,7 +145,10 @@
           connectedCallback() {
             if (!once(this)) return;
             this.#build();
-            whileConnected(this, (signal) => this.#connect(signal));
+            whileInterfaceConnected(this, {
+              declare: () => this.#initialize(),
+              connect: () => this.#playground.subscribe(() => this.#render()),
+            });
           }
 
           #build() {
@@ -151,7 +157,7 @@
             toolbar.append(
               document.createTextNode("Releases must match every filter."),
             );
-            const add = offer("button", "lf-btn query-add", "Add filter");
+            const add = offerAction("word", "query-add", "Add filter");
             add.addEventListener("click", () => {
               const state = this.#filters.get();
               const next =
@@ -186,23 +192,12 @@
             const tableFrame = document.createElement("div");
             tableFrame.className = "query-table-frame";
             tableFrame.append(table);
+            // The module writes every word here: the filter rows label controls, and the
+            // rest is the explorer speaking.
+            for (const box of [toolbar, this.#count, tableFrame])
+              generatedElement(box, { says: true });
+            generatedElement(this.#rows, { says: false });
             this.append(toolbar, this.#rows, this.#count, tableFrame);
-          }
-
-          #connect(signal) {
-            let unsubscribe;
-            const initialize = () => {
-              if (signal.aborted || unsubscribe) return;
-              if (!this.#filters) this.#initialize();
-              unsubscribe = this.#playground.subscribe(() => this.#render());
-            };
-            document.addEventListener(
-              PAGE_INTERFACE,
-              (event) => event.detail.present(Promise.resolve().then(initialize)),
-              { signal },
-            );
-            if (this.#filters) initialize();
-            return () => unsubscribe?.();
           }
 
           #initialize() {
@@ -304,9 +299,9 @@
             valueLabel.append(input);
             const actions = document.createElement("div");
             actions.className = "query-row-actions";
-            const up = offer("button", "lf-btn small");
-            const down = offer("button", "lf-btn small");
-            const remove = offer("button", "lf-btn small");
+            const up = offerAction("word", "small");
+            const down = offerAction("word", "small");
+            const remove = offerAction("word", "small");
             up.addEventListener("click", () => this.#move(id, -1));
             down.addEventListener("click", () => this.#move(id, 1));
             remove.addEventListener("click", () => this.#remove(id));
@@ -383,6 +378,7 @@
         <h2>Which release query should the agent build?</h2>
         <lf-playground
           id="release-query-playground"
+          contract="data-explorer-values"
           submit-label="Build query"
           data-width="available"
         >

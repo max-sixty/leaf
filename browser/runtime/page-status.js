@@ -12,7 +12,7 @@ import { el } from "./widget-elements.js";
 import { WEBSITE_DELIVERY, runtime, runtimeResource } from "./context.js";
 import { chromeRoot } from "./chrome.js";
 import { announce } from "./notifications.js";
-import { effect, signal, untracked } from "/vendor/browser-runtime.js";
+import { effect, signal, untracked } from "/runtime/framework.js";
 import { agentName, readPart } from "./semantic-state.js";
 import { UPGRADE } from "./presentation.js";
 import { readQueues } from "./queue-api.js";
@@ -21,14 +21,15 @@ import { holdingError } from "./errors.js";
 // ---------- status ----------
 // Upgrade opens new comments before the buffered saved reading is applied.
 const LOADING_LINE =
-  "The page is ready for reading and new comments. Saved comments and choices are still loading; new comments will be sent when the server responds." +
+  "The page is ready for reading and new comments. Saved comments and choices are still loading; new comments go through once they have." +
   (WEBSITE_DELIVERY
-    ? " Website examples can take longer to load their saved state than a usual Leaf page."
+    ? " Website examples can take longer to load their comments and choices than a usual Leaf page."
     : "");
 const LOADING = Object.freeze({
   kind: "loading",
   tone: "",
-  summary: "Loading saved state…",
+  summary: "Loading comments and choices…",
+  voice: "leaf",
   explanation: LOADING_LINE,
   adds: LOADING_LINE,
 });

@@ -199,9 +199,9 @@ def page_delivery(
     `probe` is where a tab asks whether its source has moved on to another layer or
     release (`layer-client.js`, `sourceMovedOn`, and `bootstrap.js`'s startup
     recovery), so its answer must name the layer or release a fresh document would
-    start under. It defaults to the kernel's registry, whose answer names its release.
-    `runtime_identity` is the runtime a host without a release serves the document
-    with (`runtime_selection`), which the tab holds every answer to.
+    start under. It defaults to the page's `/registry.json`, whose answer names its
+    release. `runtime_identity` is the runtime a host without a release serves the
+    document with (`runtime_selection`), which the tab holds every answer to.
     """
     assets = asset_root if asset_root is not None else page_root
     address = DeliveryAddress(page_root, assets)
@@ -427,30 +427,26 @@ class PageEndpoint:
 
     def read_body(self, limit: int) -> bytes | None:
         """The request body, read from inside the route that has earned it, and
-        never past a bound the route states — `None` says the peer went past it.
+        kept only up to a bound the route states — `None` says the peer went past it.
 
         Deliberately not read on arrival: the key gate is upstream of every read
         here, so an unauthenticated peer can neither choose an allocation nor park
-        a request on bytes it never sends. A declared oversized body is refused before
-        waiting for it; the read keeps the same bound when the peer streams without
-        `Content-Length`.
+        a request on bytes it never sends. Past the bound the rest is read and
+        discarded rather than refused unread: a close with bytes still arriving
+        resets the connection, and a browser still sending its body reports the
+        reset instead of the refusal.
         """
 
         async def read() -> bytes | None:
-            body = bytearray()
+            kept: bytearray | None = bytearray()
             async for chunk in self.request.stream():
-                body += chunk
-                if len(body) > limit:
-                    return None
-            return bytes(body)
+                if kept is not None:
+                    kept += chunk
+                    if len(kept) > limit:
+                        kept = None
+            return None if kept is None else bytes(kept)
 
-        body = (
-            None
-            if int(self.headers.get("Content-Length", 0)) > limit
-            else anyio.from_thread.run(read)
-        )
-        self.body_unread = body is None
-        return body
+        return anyio.from_thread.run(read)
 
     def _state_service(self) -> PageStateService:
         return PageStateService(
@@ -1455,18 +1451,17 @@ def page_endpoint(
     request: they are facts about the vendored page this server was started over. So
     is whether this Leaf can serve that page at all: every one-page server, durable
     or temporary, passes here before it binds, and refuses naming the re-vendor when
-    the page's layer is one this Leaf cannot serve (`incompatible_layer`).
+    the page's layer is one this Leaf cannot serve (`incompatible_layer`). A
+    snapshot serves the revision it froze, which its capture already judged
+    (`page_snapshot.capture_page_snapshot`).
     The key has no default: every server over a page directory is reachable by
     whatever reached the machine, so there is no construction that should quietly go
     without one."""
     # The registry first: its reader refuses a layer at another protocol before any
     # check of a shape that is this Leaf's protocol's, as the identity's reader does.
-    registry = (
-        page_snapshot.context.registry
-        if page_snapshot is not None
-        else load_registry(page_dir)
-    )
-    if refusal := incompatible_layer(page_dir, registry):
+    if page_snapshot is None and (
+        refusal := incompatible_layer(page_dir, load_registry(page_dir))
+    ):
         raise Rejected([refusal])
     identity = (
         page_snapshot.context.layer

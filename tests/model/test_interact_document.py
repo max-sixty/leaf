@@ -68,6 +68,7 @@ from leaf import page_memory as page_memory_model
 from leaf import passages as passages_model
 from leaf import projection as projection_model
 from leaf import publishing as publishing_model
+from leaf import reports as reports_model
 from leaf import revision_artifact as artifact_model
 from leaf import revision_delivery as revision_delivery_model
 from leaf import revisioning as revisioning_model
@@ -138,8 +139,7 @@ def test_stamp_installs_or_restores_complete_authored_inputs_before_activation(
             publishing_model.cmd_stamp,
             page_dir,
             "Candidate",
-            from_directory=candidate,
-            if_source=expected,
+            replace=(candidate, expected),
         )
         try:
             assert reached.wait(timeout=STATED_TIMEOUT)
@@ -159,17 +159,13 @@ def test_stamp_installs_or_restores_complete_authored_inputs_before_activation(
     assert (page_dir / "events.jsonl").read_bytes() == log
 
     (candidate / "page/b.js").write_text("export const b = 2;")
-    publishing_model.cmd_stamp(
-        page_dir, "Complete", from_directory=candidate, if_source=expected
-    )
+    publishing_model.cmd_stamp(page_dir, "Complete", replace=(candidate, expected))
     assert files_model.latest_revision(page_dir) > first
     assert artifact_model.read_artifact(page_dir, first).resources[
         "/page/a.js"
     ].data == (b"export const a = 1;")
     with pytest.raises(Refused, match="authored inputs changed"):
-        publishing_model.cmd_stamp(
-            page_dir, "Stale", from_directory=candidate, if_source=expected
-        )
+        publishing_model.cmd_stamp(page_dir, "Stale", replace=(candidate, expected))
 
 
 def test_page_state_digest_guards_the_complete_authored_tree(page_dir, tmp_path):
@@ -193,9 +189,8 @@ def test_page_state_digest_guards_the_complete_authored_tree(page_dir, tmp_path)
         "page",
         "stamp",
         str(page_dir),
-        "--from-directory",
+        "--replace",
         str(candidate),
-        "--if-source",
         added,
         "--text",
         "Updated plan",
@@ -216,7 +211,7 @@ def test_page_state_digest_guards_the_complete_authored_tree(page_dir, tmp_path)
     assert not companion.exists()
 
     (candidate / "page" / "nested" / "notes.txt").unlink()
-    command[command.index("--if-source") + 1] = deleted
+    command[command.index("--replace") + 2] = deleted
     stamped = CliRunner().invoke(cli_model.cli, command)
     assert stamped.exit_code == 0, stamped.output
     assert "Updated plan" in (page_dir / "index.html").read_text()
@@ -245,9 +240,8 @@ def test_page_state_digest_can_repair_invalid_or_missing_source(
             "page",
             "stamp",
             str(page_dir),
-            "--from-directory",
+            "--replace",
             str(candidate),
-            "--if-source",
             invalid["digest"],
             "--text",
             "Repaired source",
@@ -463,6 +457,7 @@ const computed = import(text, { with: { type: './missing.js' } });
 def test_invalid_dependencies_leave_the_previous_revision_active(page_dir, tmp_path):
     authored = page_dir / "page"
     (authored / "data.json").write_text('{"value": 1}')
+    (authored / "notes.txt").write_text("notes")
     outside = tmp_path / "outside.js"
     outside.write_text("export const value = 1;")
     (authored / "escape.js").symlink_to(outside)
@@ -487,7 +482,7 @@ def test_invalid_dependencies_leave_the_previous_revision_active(page_dir, tmp_p
         ('import "./data.json#variant";', "dependency-not-local"),
         ('import "/runtime/events.js";', "module-outside-page"),
         ('import "/vendor/lit.js";', "module-outside-page"),
-        ('import "./data.json";', "module-type"),
+        ('import "./notes.txt";', "module-type"),
         ('import "./escape.js";', "dependency-symlink"),
         ('import "./data\\u002ejson";', "dependency-not-local"),
     ]:
@@ -669,7 +664,7 @@ def test_an_anchorless_comment_uses_the_last_good_revision_during_an_edit(page_d
     assert "anchor" not in event
 
     [anchored] = command_findings(
-        "thread", "open", page_dir, "--quote", "Plan", "--text", "Change this"
+        "thread", "create", page_dir, "--quote", "Plan", "--text", "Change this"
     )
     assert (anchored.code, anchored.values["operation"]) == ("invalid-source", "anchor")
 
@@ -2064,7 +2059,7 @@ def test_a_cli_write_is_admitted_through_the_browser_door(page_dir):
     assert (invalid.code, invalid.values["field"]) == ("invalid-event", "/attempt")
 
     with pytest.raises(Refused) as unknown_widget:
-        thread_model.cmd_report(page_dir, "no-such-widget", "status", ())
+        reports_model.cmd_report(page_dir, "no-such-widget", "status", ())
     assert refused_on(unknown_widget.value).values == {
         "kind": "report",
         "widget": "no-such-widget",
@@ -2077,11 +2072,8 @@ def test_a_cli_write_is_admitted_through_the_browser_door(page_dir):
     ]
 
 
-def test_response_attempt_is_idempotent(page_dir):
-    """An attempt is an opaque durable key, and the append door holds every
-    writer to the record contract's shape for one — the delivery transports mint
-    theirs from a digest, so a short hand-written label is not a retry key."""
-    attempt = "retry-inferred-reply-1"
+def test_response_reference_is_idempotent(page_dir):
+    """A rerun of an answer with the same reference posts nothing new."""
     comment = append_carried_log_record(
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "update it"},
@@ -2097,8 +2089,8 @@ def test_response_attempt_is_idempotent(page_dir):
         )
 
     reference = response_reference(page_dir, comment)
-    first = thread_model.post_response(reference, "Updated.", attempt=attempt)
-    retried = thread_model.post_response(reference, "Updated.", attempt=attempt)
+    first = thread_model.post_response(reference, "Updated.")
+    retried = thread_model.post_response(reference, "Updated.")
 
     assert retried["id"] == first["id"]
     assert (
@@ -2111,32 +2103,6 @@ def test_response_attempt_is_idempotent(page_dir):
         )
         == 1
     )
-
-
-def test_reply_for_a_stale_event_reports_the_failed_fence(page_dir):
-    append_carried_log_record(
-        page_dir,
-        {"kind": "comment", "id": "c1", "author": "user", "text": "update it"},
-    )
-    reference = response_reference(page_dir, "c1")
-    thread_model.post_response(reference, "Updated.")
-
-    result = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "thread",
-            "reply",
-            "--done",
-            reference,
-            "--attempt",
-            "distinct-retry-attempt",
-            "--text",
-            "Again.",
-        ],
-    )
-
-    assert result.exit_code != 0
-    assert refused_on(result.stderr).code == "superseded-reply"
 
 
 @pytest.mark.parametrize(
@@ -2328,7 +2294,7 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
         json.loads(line)
         for line in run(
             "thread",
-            "open",
+            "create",
             "--text",
             "Which store?",
             "--markup",
@@ -2486,7 +2452,7 @@ def test_stamp_and_report_choose_one_log_order(page_dir, monkeypatch):
         )
         serialized = leases_model.lock_is_held(page_dir / "events.jsonl")
         reporting = executor.submit(
-            thread_model.cmd_report,
+            reports_model.cmd_report,
             page_dir,
             "t-parser",
             "status",
@@ -2511,6 +2477,117 @@ def test_stamp_and_report_choose_one_log_order(page_dir, monkeypatch):
     assert serialized, "publish calculated mutable log state outside its transaction"
     assert note["version"] == 2 and "settles" not in note
     assert report["revision"] == 2
+
+
+def test_a_save_goes_live_during_a_stamps_check_and_the_stamp_names_it(
+    monkeypatch, page_dir
+):
+    """The tab's state read activates a save without waiting on a stamp's check of
+    it, and a user's action can land meanwhile (`publishing` header). The stamp
+    then checks again against the log and revisions it publishes onto: it names
+    the revision the read activated rather than publishing the source twice."""
+    html = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
+    (page_dir / "index.html").write_text(html)
+    publish(page_dir)
+    (page_dir / "index.html").write_text(
+        html.replace("<title>t</title>", "<title>next</title>")
+    )
+    entered = threading.Event()
+    release = threading.Event()
+    original = publishing_model.check_source
+
+    def paused_check(*args, **kwargs):
+        checked = original(*args, **kwargs)
+        if not entered.is_set():
+            entered.set()
+            assert release.wait(STATED_TIMEOUT), "the stamp's check was never released"
+        return checked
+
+    monkeypatch.setattr(publishing_model, "check_source", paused_check)
+    failures = []
+
+    def run_stamp():
+        try:
+            publishing_model.cmd_stamp(page_dir, "next")
+        except (AssertionError, Refused) as error:  # surface thread failures here
+            failures.append(error)
+
+    action = {
+        "kind": "action",
+        "author": "user",
+        "revision": 1,
+        "widget": "choice",
+        "action": "choose",
+        "detail": {"value": ["flag-first"]},
+    }
+
+    def tab():
+        append_command(page_dir, action)
+        assert revisioning_model.activate_source(page_dir).created
+
+    publisher = threading.Thread(target=run_stamp)
+    publisher.start()
+    writer = threading.Thread(target=tab)
+    try:
+        assert entered.wait(STATED_TIMEOUT), "the stamp never reached its check"
+        writer.start()
+        writer.join(STATED_TIMEOUT)
+        assert not writer.is_alive(), "the tab waited on the stamp's check"
+    finally:
+        release.set()
+        publisher.join(STATED_TIMEOUT)
+        writer.join(STATED_TIMEOUT)
+
+    assert not failures
+    assert not publisher.is_alive()
+    assert files_model.list_revisions(page_dir) == [1, 2]
+    ordered = [
+        (event["kind"], event.get("version"), event.get("revision"))
+        for event in events_model.read_events(page_dir)
+        if event["kind"] in {"note", "action"}
+    ]
+    assert ordered == [
+        ("note", 1, 1),
+        ("action", None, 1),
+        ("note", 2, 2),
+    ]
+
+
+def test_a_stamp_lands_on_a_page_that_moves_during_every_check(monkeypatch, page_dir):
+    """A page written faster than the stamp checks it outside the transaction
+    still gets its stamp: the last check runs under the transaction."""
+    html = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
+    (page_dir / "index.html").write_text(html)
+    publish(page_dir)
+    (page_dir / "index.html").write_text(
+        html.replace("<title>t</title>", "<title>next</title>")
+    )
+    original = publishing_model.check_source
+    moved = []
+
+    def moving_check(*args, **kwargs):
+        checked = original(*args, **kwargs)
+        if len(moved) < publishing_model.UNLOCKED_CHECKS:
+            moved.append(
+                append_command(
+                    page_dir,
+                    {
+                        "kind": "action",
+                        "author": "user",
+                        "revision": 1,
+                        "widget": "choice",
+                        "action": "choose",
+                        "detail": {"value": ["flag-first"]},
+                    },
+                )
+            )
+        return checked
+
+    monkeypatch.setattr(publishing_model, "check_source", moving_check)
+    note = publishing_model.cmd_stamp(page_dir, "next")
+
+    assert (note["version"], note["revision"]) == (2, 2)
+    assert note["seq"] > max(action["seq"] for action in moved)
 
 
 def test_page_state_folds_the_log_onto_the_published_page(page_dir):
@@ -4363,7 +4440,18 @@ def test_projected_verbatim_includes_generated_children():
             "x-verbatim": True,
             "x-state": {
                 "add": {
-                    "detail": {"type": "object"},
+                    "detail": {
+                        "type": "object",
+                        "properties": {
+                            "item": {
+                                "type": "string",
+                                "pattern": f"^{schema_model.ELEMENT_ID}$",
+                            },
+                            "text": {"type": "string", "minLength": 1},
+                        },
+                        "required": ["item", "text"],
+                        "additionalProperties": False,
+                    },
                     "unit": "item",
                     "creates": {"child": "lf-item", "words": "text"},
                 }

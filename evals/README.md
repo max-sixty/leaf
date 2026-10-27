@@ -61,13 +61,18 @@ supplies the existing browser CLI; the judge opens and operates its own browser.
 The native agent stream and its screenshots retain the evidence. Report
 screenshots show arrival only. Unvisited required content remains
 insufficient evidence, while supported defects still fail when other parts remain
-unobserved. The judge follows the requested output's scope.
+unobserved. The judge follows the requested output's scope. Where every page judged
+is a Leaf page and one shows a workspace on arrival, the judge's task also carries
+what `dev/leaf_dev/pane_readings.py` measured of each of its regions: how far it
+scrolls, how much of it is empty and which Tab press reaches it. A pair judge
+comparing Leaf with HTML gets none, so neither side alone carries measured defects.
+The judgment's `metadata.judge.metadata.panes` keeps them.
 
 ## Viewports, saved comparisons and discovery
 
 For the goal, task/model/viewport selection, sampling, improvement loop and
 acceptance decisions, use the
-[grinding playbook](../.claude/skills/grinding-ui/SKILL.md).
+[hill-climbing playbook](../.claude/skills/hill-climb-ui/SKILL.md).
 This section describes the commands that execute a selected experiment.
 
 `evals/workflows/eval.yaml` owns viewport presets and the default. Case definitions
@@ -123,20 +128,106 @@ unverified work and a proposed next check under
 
 ### Render a report
 
-`leaf-dev eval-report PAGE RUN...` replaces `PAGE/index.html` with a Leaf page
-containing each pair's arrival
-screens, author spend, judge reasons and named defects. It reads each sample's
-saved task, phases and viewport dimensions; unlike task inputs are unscored,
-and incomplete records fail where read. Provider labels distinguish Leaf versions
-as well as the HTML control. Exploratory observations appear separately from pair
-outcomes, with expandable screenshot evidence. Missing captures and supplementary
-trace paths remain explicit.
+`leaf-dev eval-report PAGE RUN...` replaces `PAGE/index.html` with one Leaf report
+of the selected runs. Its Outputs view links every sample to its saved pages,
+screenshots, checks and grading reasons, including failed attempts and unequal
+repetitions. Task views collect the arms and saved phases; pairwise judgments and
+exploratory observations retain their separate meanings. Mechanical checks alone
+do not establish page quality.
+
+The report reads the saved requests, runtimes and viewport dimensions. Short
+authoring cases retain their final render-check captures and page in the same
+result metadata as complete workflows. Missing evidence remains visible. Saved
+Leaf pages export from disposable copies of those phases; local previews and
+navigation work, while comments and agent submissions need a live session.
+Plain HTML retains its authored files.
+
+To open outputs and raw evidence in the browser, serve the report's `evidence/`
+directory on a separate static origin and give its URL to the generator. Leaf's
+page server continues to serve the report and screenshots. For example, replacing
+`HOST` with the machine's browser-reachable hostname:
 
 ```sh
-uv run leaf-dev eval-report ~/.tmp/leaf/eval-comparison .tmp/eval/<run>
+uv run leaf-dev eval-report ~/.tmp/leaf/eval-comparison .tmp/eval/<run> --output-url http://HOST:57912
+uv run python -m http.server 57912 --bind 0.0.0.0 --directory ~/.tmp/leaf/eval-comparison/evidence
 ```
 
-`pnpm run eval:view` opens Promptfoo's viewer on every run recorded on
+Start the report with `bin/leaf server start ~/.tmp/leaf/eval-comparison` in another
+terminal. Without `--output-url`, the report names exported files without linking
+to an unavailable server. Regenerate the same report with additional run directories
+to keep one entry point for a campaign.
+
+For an improvement campaign, pass `--review FILE` with an agent-authored JSON
+assessment. The report is a workspace: its title and navigation stay in view
+while the selected result scrolls. **Changes tested** opens one intervention at a
+time, with an explicitly labeled recommendation and matched before/after outputs.
+Before/after captures use Leaf’s comparison viewer for Slider, Pair and pixel views,
+with shared scale and synchronized scrolling at 100%. Output links sit below the
+viewer. Other paired captures share caption and image rows, including when their
+links wrap. **Latest outputs** separates the
+current validation from earlier attempts in **All outputs**. Run identifiers,
+costs, source code and methodology sit in details beside the output they describe.
+Checks distinguish a finished author, a saved output and render validation;
+quality assessments retain their criteria and reasons. The agent supplies the
+causal interpretation; the renderer never infers improvement from a passing score
+or calls feedback turns independent before/after authors.
+
+Keep the review beside the run results. Paths below are absolute, and every run
+referenced by the review is also an argument to `eval-report`. A latest run group
+can include several executions, such as a short case and a longer workflow.
+
+```json
+{
+  "title": "UI improvement campaign",
+  "latest": {
+    "title": "Latest validation",
+    "runs": ["/absolute/path/to/run"],
+    "summary": "What this run establishes and what it cannot establish.",
+    "findings": [
+      {
+        "run": "/absolute/path/to/run",
+        "sample": "sample-name",
+        "finding": "Observed outcome."
+      }
+    ]
+  },
+  "experiments": [
+    {
+      "id": "change-name",
+      "label": "Short navigation label",
+      "title": "The change tested",
+      "period": "When this experiment ran",
+      "change": "The intervention and its intended effect.",
+      "recommendation": "Keep, revise or reject",
+      "reason": "What improved, regressed or remains unproven.",
+      "limits": "Conditions and limits of this evidence.",
+      "comparisons": [
+        {
+          "label": "Short task label",
+          "title": "Task and repetition",
+          "summary": "Desktop: After preferred · Phone: Before preferred",
+          "before": { "run": "/absolute/path/to/run", "sample": "before-sample" },
+          "after": { "run": "/absolute/path/to/run", "sample": "after-sample" },
+          "finding": "What the matched outputs show.",
+          "evidence": ["/absolute/path/to/judgment.json"]
+        }
+      ],
+      "evidence": ["/absolute/path/to/change.diff"]
+    }
+  ]
+}
+```
+
+The optional `label` fields shorten navigation without shortening the evidence's
+title; a comparison's optional `summary` gives the assessment beside its images,
+with the full `finding` in details. Use empty comparison/evidence arrays where
+no such evidence exists, and say why in the assessment. Screenshot evidence
+renders inline; other files are linked.
+Same-page runtime probes and sequential repairs describe that scope explicitly.
+Without a review, the report remains a result browser and says no change-retention
+assessment was supplied.
+
+`pnpm run eval:view` opens Promptfoo's diagnostic viewer on every run recorded on
 this machine, each named by branch, commits and cases. It shows each sample's
 output, assertion reasons, metadata, cost and tokens, and compares runs.
 
@@ -175,7 +266,9 @@ the time first, `now` in `workflows/eval.yaml` or the case's own `vars.now`, so
 the ages its fixtures' times give hold whenever it runs. Opus 5.5's safeguards refuse a
 prompt asking for its tool calls with their JSON input. The leading comment records
 where the case came from and what it measured, `metadata.purpose` the behavior it
-pins, and `metadata.tags` its area.
+pins, and `metadata.tags` its area. `description` is the short task name shown in
+reports (for example, "CSS cascade survey"); the directory address remains the case
+ID used for selection and grouping.
 
 A short case that needs real authoring declares `metadata.authoring: true`.
 Its agent has native file and command tools, an initialized writable page, the
@@ -252,13 +345,13 @@ judge may read. `metadata.conditions` and `metadata.harnesses` restrict where it
 `metadata.authoring` and `metadata.executor` select distinct execution modes;
 declaring both on a case, including through inherited variant metadata, is an error.
 
-| Executor           | Runs                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `arrangement_eval` | One live author builds the page, receives the width preference and passage comment, and applies the browser user's decision. Leaf uses its installed plugin and anchored comments; HTML uses chat and the page's copy route or a typed decision. Python retains the revisions, native traces, final/predecision screenshots and author accounting. One final live judge checks the outcome and operates the earlier decision controls. Optional `eval-pairs` compares saved samples.                                                              |
-| `usability_eval`   | Seeded pages read, resumed and revised, and live handoffs where the driver posts user updates through the served page. One agent rubric judges the task from canonical page state, active markup, data, events, delivery envelopes and the full native trace. The driver retains exact input, turn and progress observations as metadata; it does not grade per-case tags, card counts or word ratios. Fixtures are in `usability/fixtures/`.                                                                                                     |
-| `delivery_eval`    | Comments posted between turns and mid-turn through the shared live session. `parent-keeps-leaf-responsive/during-work` adds a repair task and consecutive comments. The response-times query retains exact first feedback, answers and missing observations at a fixed cutoff. The fixture checks the retained repair; semantic rubrics judge answers and the published result. A completed addressed reply checks thread closure separately from task correctness and page content. Native parent and worker traces are retained by the session. |
-| `website_eval`     | Runs the arm's hosted App Server adapter and installed plugin on its configured model and reasoning effort. Asks a page question and a contextual follow-up, without requesting page construction. Queries the adapter's private page diagnostics for native turn status, the opening and final reply updates actually published, and follower completion after cleanup. Retains exact-input completed replies. Checks successful turns, replies and an unchanged page; judges whether the answers and visible openings address the user.         |
-| `reader_eval`      | Calibrates the screenshot judge: `dashboard/reader-seeded` and `reader-clean` each show it one triage board, with a seeded count defect or the correct count, and ask both whether the count matches the cards.                                                                                                                                                                                                                                                                                                                                   |
+| Executor           | Runs                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `arrangement_eval` | One live author builds the page, receives the width preference and passage comment, and applies the browser user's decision; a scenario's `revision` then changes what the page is for, and `request` names another task whose request it starts from. Leaf uses its installed plugin and anchored comments; HTML uses chat and the page's copy route or a typed decision. Python retains the revisions, native traces, final/predecision screenshots and author accounting. One final live judge checks the outcome and operates the earlier decision controls. Optional `eval-pairs` compares saved samples. |
+| `usability_eval`   | Seeded pages read, resumed and revised, and live handoffs where the driver posts user updates through the served page. One agent rubric judges the task from canonical page state, active markup, data, events, delivery envelopes and the full native trace. The driver retains exact input, turn and progress observations as metadata; it does not grade per-case tags, card counts or word ratios. Fixtures are in `usability/fixtures/`.                                                                                                                                                                  |
+| `delivery_eval`    | Comments posted between turns and mid-turn through the shared live session. `parent-keeps-leaf-responsive/during-work` adds a repair task and consecutive comments. The response-times query retains exact first feedback, answers and missing observations at a fixed cutoff. The fixture checks the retained repair; semantic rubrics judge answers and the published result. A completed addressed reply checks thread closure separately from task correctness and page content. Native parent and worker traces are retained by the session.                                                              |
+| `website_eval`     | Runs the arm's hosted App Server adapter and installed plugin on its configured model and reasoning effort. Asks a page question and a contextual follow-up, without requesting page construction. Queries the adapter's private page diagnostics for native turn status, the opening and final reply updates actually published, and follower completion after cleanup. Retains exact-input completed replies. Checks successful turns, replies and an unchanged page; judges whether the answers and visible openings address the user.                                                                      |
+| `reader_eval`      | Calibrates the screenshot judge: `dashboard/reader-seeded` and `reader-clean` each show it one triage board, with a seeded count defect or the correct count, and ask both whether the count matches the cards.                                                                                                                                                                                                                                                                                                                                                                                                |
 
 The responsiveness workload uses the same stream session as other live evals.
 It does not force native compaction: that required a separate interactive driver,

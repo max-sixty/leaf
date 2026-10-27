@@ -867,7 +867,7 @@ summary {
   animation: lf-sheen 2s ease-in-out infinite alternate;
 }
 /* The one continuous animation, which marks work under way (browser/AGENTS.md,
-   "Motion"): a highlight passing across words, which are painted in ink and dimmed by
+   "Motion is brief and keeps the user oriented"): a highlight passing across words, which are painted in ink and dimmed by
    a mask to their rest face, ink at `--lf-sheen-rest`, but where the highlight
    passes. A box runs it by naming it, and sets `--lf-sheen-rest` where its own colour
    is not the default's; everything it paints lives in the keyframes, so where it stops

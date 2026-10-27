@@ -1,4 +1,4 @@
-"""The browser fixture fails the layout shifts the "Stability" rule forbids
+"""The browser fixture fails the layout shifts "The page holds still under the user's aim" forbids
 (`shift_watch.js`): a shift without input, and typing that carries its field."""
 
 from datetime import UTC, datetime, timedelta

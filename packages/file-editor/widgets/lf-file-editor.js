@@ -18,7 +18,7 @@
  * Ordinary writes have no status transition. A write pending for one second earns a
  * quiet word in the header's fixed status slot until the newest buffer is
  * acknowledged. A failure and a conflict stand in that same slot, so the editor's top
- * and height measure the same in every state (`browser/AGENTS.md`, "Stability"). A
+ * and height measure the same in every state (`browser/AGENTS.md`, "The page holds still under the user's aim"). A
  * failure reads "Not saved · Retry", with the error as the status's tooltip and
  * Retry's description. A conflict reads "Changed on disk" in the warning tone, one
  * control opening a small menu of its choices: Compare, Save draft, Use file version.

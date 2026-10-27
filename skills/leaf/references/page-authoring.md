@@ -127,9 +127,6 @@ surface lead, with supporting reading below it or in later parts.
 Leaf reserves space for its panel at the bottom of the window. Comment markers appear
 in the margin or over their targets. Page CSS needs no extra spacing for either. The reader hides markers with
 `o`, or the leaf's menu → Annotations → Hide annotations, to read what's under one.
-Use page CSS for the task's arrangement or visualization, or a design the user
-requests. Let the content supply the hierarchy; give a card surface a grouping or
-interaction to express.
 
 ## Contents navigation
 

@@ -796,7 +796,7 @@ def displaced(before, boxes, news=False):
     rather than moved, which is a thing both sweeps below deliberately allow.
 
     `news` reads the rule for a change nobody gestured (`browser/AGENTS.md`,
-    "Stability"): a box whose own words changed may grow or shrink into free room, so its
+    "The page holds still under the user's aim"): a box whose own words changed may grow or shrink into free room, so its
     width is its own, but its place is not, and no other box may move or resize. The
     free room may lie on either side: a box packed against the run to its right grows
     leftward into the room before it, and the edge that holds still is its place. A box that grew by pushing its neighbours still fails, as

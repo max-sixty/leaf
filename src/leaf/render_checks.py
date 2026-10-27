@@ -280,10 +280,12 @@ _REFUSED = """() => {
     && !root.hasAttribute('data-lf-interactive') ? root.dataset.lfStartupError : null;
 }"""
 _READY_OR_REFUSED = f"asked => ({_READY})(asked) || ({_REFUSED})() !== null"
-_OUTSTANDING = f"asked => ({_READINESS})(asked) ?? 'ready'"
+# The stage the page has yet to state, or 'ready'. A reader without Playwright's waits,
+# such as the iOS probe's WebDriver, polls this itself (`leaf_dev.ios_safari`).
+OUTSTANDING = f"asked => ({_READINESS})(asked) ?? 'ready'"
 # How a failure words each stage `pageReadiness` names. `state` fails only against an
 # answer the caller holds.
-_UNREADY = {
+UNREADY = {
     "answering": "the page stopped answering",
     "started": "the runtime never started",
     "upgraded": "the widget layer never finished upgrading",
@@ -357,13 +359,13 @@ def wait_until_ready(
     # page whose own code holds its main thread answers neither.
     try:
         stage = page.wait_for_function(
-            _OUTSTANDING, arg=asked, timeout=_STAGE_READ_MS
+            OUTSTANDING, arg=asked, timeout=_STAGE_READ_MS
         ).json_value()
     except PlaywrightTimeout:
         stage = "answering"
     if stage == "ready":
         return
-    words = _UNREADY[stage].format_map(asked["held"] or {})
+    words = UNREADY[stage].format_map(asked["held"] or {})
     raise PageNotReady(stage, f"{words} within {timeout_ms}ms")
 
 

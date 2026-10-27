@@ -1,0 +1,36 @@
+:scope {
+  display: block;
+  --lf-block-frame: 1;
+  padding: var(--sp-4);
+  border: 1px solid var(--rule);
+  border-radius: var(--r);
+}
+
+/* Package scope must end at the nested package's widget boundary. */
+p {
+  border-inline-start: 0.2rem solid var(--accent);
+  padding-inline-start: var(--sp-3);
+}
+
+.review-controls {
+  font-family: var(--sans);
+}
+
+.review-result {
+  color: var(--muted);
+}
+
+.review-result[data-outcome="pass"] {
+  color: var(--ok-ink);
+}
+
+.review-result[data-outcome="fail"] {
+  color: var(--danger-ink);
+}
+
+.review-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  --lf-holds-edge: 1;
+}

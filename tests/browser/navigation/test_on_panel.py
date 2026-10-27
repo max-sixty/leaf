@@ -142,10 +142,9 @@ def test_m_walks_what_waits_on_you_and_on_me_counts_it(browser, serve):
         },
     )
     page = open_page(browser, url)
-    on_me = page.locator(".lf-fp-on-user")
 
     def counts(you):
-        expect(on_me).to_have_attribute("aria-label", f"On me: {you}")
+        expect_on_me(page, you)
 
     counts(2)
 
@@ -674,13 +673,13 @@ def test_an_m_step_newer_focus_cancels_at_a_thread_claims_no_arrival(browser, se
 
     page.keyboard.press("m")
     page.wait_for_function("window.threadRevealStarted === true")
-    page.locator(".lf-fp-threads").focus()
-    expect(page.locator(".lf-fp-threads")).to_be_focused()
+    page.locator(".lf-fp-on-user").focus()
+    expect(page.locator(".lf-fp-on-user")).to_be_focused()
     page.evaluate("releaseThreadReveal()")
     page.wait_for_function("window.threadRevealSettled === true")
     rendered(page)
 
-    expect(page.locator(".lf-fp-threads")).to_be_focused()
+    expect(page.locator(".lf-fp-on-user")).to_be_focused()
     assert walk_position(page) is None
     # The control: the same press left alone arrives and says where.
     page.locator("#h").click()

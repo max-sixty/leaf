@@ -12,8 +12,7 @@ interfaces included. A module reads a name it imports or re-exports, names in a 
 namespace, each resolved to the module that exports it; `imports` says how. A read
 through `export * from` reaches the modules re-exported. A committed bundle, the kernel
 included, exports nothing this checks, since its source is checked, but its imports
-are readers: what it left external is what it reads from the tree. A read of a bundle compiled from one
-module here, such as `vendor/browser-runtime.js`, is a read of that module.
+are readers: what it left external is what it reads from the tree.
 
 The readers that are not JavaScript are found by word, and only in the files that hold
 them: a Python test that imports runtime modules inside a string
@@ -45,8 +44,13 @@ BUNDLED = re.compile(r"(^|/)vendor/|^dist/kernel/")
 # A third-party bundle's own input under `build/` exports the surface of the package
 # it stands in for, which the bundled dependency reads and this tree never names
 # (`build/vendor.mjs`'s header). Its own imports are still readers. `contract.d.ts` exports a
-# type for each definition its schemas declare, whichever a reader selects.
-UNCHECKED = re.compile(r"^build/(?!browser/)[^/]+/|^browser/framework/contract\.d\.ts$")
+# type for each definition its schemas declare, whichever a reader selects. The
+# declarations of the framework's bundles describe a bundle a reader names by its
+# served path, so a read resolves to the bundle.
+UNCHECKED = re.compile(
+    r"^build/(?!browser/)[^/]+/"
+    r"|^browser/types/(?:contract|lit|signals-core)\.d\.ts$"
+)
 # An escape is consumed whole, so `"\ndefine(…)"` in a Python string reads `define`.
 WORD = re.compile(r"\\[a-z]|([A-Za-z_$][\w$]*)")
 WORKER = "worker/wrangler.toml"

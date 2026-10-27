@@ -23,6 +23,7 @@ from render_harness import (
     leaf_page,
     nudge,
     open_page,
+    open_threads,
     panel_settled,
     round_trip,
     said,
@@ -34,7 +35,9 @@ from render_harness import (
     write,
 )
 
-from browser.threads import open_panel_thread, open_threads
+from browser.threads import (
+    open_panel_thread,
+)
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import thread as thread_model

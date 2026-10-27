@@ -1,14 +1,20 @@
 ---
-name: grinding-backlog
-description: Runs a campaign of parallel agents on Leaf's backlog issues while the user is away, each item reviewed and landed, or left as a decision for the user. Use for "grind the backlog", "run grinds overnight", or a batch of agent-ready items.
+name: fan-out-backlog
+description: Runs a campaign of parallel agents on Leaf's backlog issues while the user is away, each item reviewed and landed, or left as a decision for the user. Use for "fan out the backlog", "grind the backlog", or a batch of agent-ready items when spare tokens are plentiful.
 ---
 
-# Grinding the backlog
+# Fanning out the backlog
 
 Turn the backlog items that need no judgment from the user into reviewed,
 landed changes, and leave the user only the decisions the work raised. The user's
 attention is the scarce resource: they read the results, not the work, so every
 PR has to be right without them. Load `/developing-leaf` for repository work.
+
+## When to run one
+
+The maintainer isn't sure a backlog campaign beats doing work as it comes up,
+and prefers the latter by default. So run one only when there are many spare
+tokens to spend, and not on a schedule or from Tend.
 
 ## Choose the items
 

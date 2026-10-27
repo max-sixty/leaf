@@ -295,8 +295,8 @@ export function createThreadPreview({
           // A head sticks only while its own message is under it. Follow its real
           // lower edge as the next message pushes it away; between messages the
           // transcript's edge is the cut. A declared head height cannot say this.
-          // Once anything is scrolled away, the heads and the actions cover what passes
-          // beneath them (`data-lf-scrolled`, annotation-chrome.css).
+          // Once anything is scrolled away, the head rows cover the room above them
+          // (`data-lf-scrolled`, annotation-chrome.css).
           let edge = 0;
           let height = above ? 12 : 0;
           const room = slotTop(transcript);

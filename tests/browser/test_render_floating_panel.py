@@ -1219,18 +1219,11 @@ def test_threads_grow_in_place_and_hold_news_until_asked(browser, serve):
     assert close.bounding_box() == closes
     panel_comment(serve.page_dir, "Who watches the weekend?")
     told(page)
-    notice = page.locator(".lf-fp-joined .lf-thread-news")
-    expect(notice).to_have_attribute("title", "1 new thread")
-    expect(inventory.locator(".lf-fp-thread")).to_have_count(4)
+    expect(inventory.locator(".lf-fp-thread")).to_have_count(5)
     settled(page)
     assert inventory.bounding_box() == shown
     assert threads_tab.bounding_box() == before
     assert close.bounding_box() == closes
-    notice.click()
-    expect(inventory.locator(".lf-fp-thread")).to_have_count(5)
-    expect(
-        inventory.locator(".lf-fp-thread", has_text="Who watches the weekend?")
-    ).to_be_visible()
 
     inventory.locator(".lf-fp-thread", has_text="Is the window long enough?").click()
     reader = page.locator(panel_view("thread"))

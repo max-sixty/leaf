@@ -1,0 +1,22 @@
+{
+  "lf-dial": {
+    "description": "A control that sets how much of the page shows: Skim shows the headings, the lede and each section's gist, Read the page as written, and Everything also opens every closed detail.",
+    "x-instructions": "Write it empty with a stable id, after the page's title and lede, on a page long enough that a reader might want only its conclusions. It governs the nearest tab or part containing it, or the whole main. Skim is only as good as the gists: mark each section's conclusion `.gist` (the detail package's author instructions).",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      }
+    },
+    "required": ["id"],
+    "additionalProperties": false,
+    "x-content": "empty",
+    "x-upgrade": true,
+    "x-example": "<h1>Why checkout latency doubled</h1>\n<p class=\"lede\">A cache key change on Tuesday sent every checkout to the database.</p>\n<lf-dial id=\"depth\"></lf-dial>\n<section id=\"cause\">\n  <h2>Cause</h2>\n  <p class=\"gist\">The 4.2 release added the currency to the cart cache key, so no cached cart matched.</p>\n  <p>Hit rate fell from 94% to 3% within a minute of the deploy, and p99 rose from 180 ms to 410 ms.</p>\n  <details>\n    <summary>The key, before and after</summary>\n    <pre>cart:{user}  →  cart:{user}:{currency}</pre>\n  </details>\n</section>"
+  },
+  ".gist": {
+    "description": "A block that says what its section concludes, readable without the rest of the section; with `lf-dial` at Skim, the headings and gists are all that shows.",
+    "x-example": "<section id=\"cause\">\n  <h2>Cause</h2>\n  <p class=\"gist\">The cache key changed, so no cached cart matched.</p>\n  <p>Hit rate fell from 94% to 3% within a minute of the deploy.</p>\n</section>"
+  }
+}

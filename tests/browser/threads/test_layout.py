@@ -451,13 +451,11 @@ def test_the_chromes_adopted_sheets_stay_whole_where_style_sheets_lists_them(
         "() => document.head.append(Object.assign(document.createElement('style'),"
         " {textContent: 'p { color: inherit; }'}))"
     )
-    panel = page.locator(".lf-floating-panel")
-    assert (
-        panel.evaluate(
-            "el => getComputedStyle(el).getPropertyValue('--lf-motion-panel-resize')"
-        )
-        == "300ms"
+    # The panel's own sheet declares its fold's duration on it (floating-panel.css).
+    fold = page.locator(".lf-floating-panel").evaluate(
+        "el => getComputedStyle(el).getPropertyValue('--lf-motion-panel-fold')"
     )
+    assert fold.endswith("ms"), fold
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])

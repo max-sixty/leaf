@@ -31,22 +31,8 @@
     position: fixed;
     inset: 0;
     z-index: calc(var(--lf-z-panel) - 1);
-    pointer-events: none;
-    filter: drop-shadow(var(--raise-2));
-  }
-  .lf-fp-ground,
-  .lf-fp-ground > * {
-    clip-path: inset(50%);
-  }
-  .lf-fp-ground > * {
-    position: absolute;
-    inset: 0;
-  }
-  .lf-fp-ring {
-    background: var(--lf-fp-ring);
-  }
-  .lf-fp-fill {
-    background: var(--lf-fp-surface);
+    --lf-box-ring: var(--lf-fp-ring);
+    --lf-box-fill: var(--lf-fp-surface);
   }
   .lf-floating-panel {
     position: fixed;
@@ -1514,12 +1500,6 @@
     }
   }
   @media (forced-colors: active) {
-    .lf-fp-fill {
-      background: Canvas;
-    }
-    .lf-fp-ring {
-      background: CanvasText;
-    }
     .lf-fp-menu,
     .lf-fp-peek {
       border: 1px solid CanvasText;
@@ -1653,9 +1633,34 @@ html[data-lf-region-capture] main * {
   }
 }
 @scope (.lf-chrome) {
-  :is(.lf-floating-panel, .lf-margin-preview) {
+  :scope {
     --lf-motion-box-ease: cubic-bezier(0.23, 1, 0.32, 1);
     --lf-motion-box-resize: 300ms;
+  }
+  .lf-box-ground {
+    pointer-events: none;
+  }
+  .lf-box-ground,
+  .lf-box-ground > * {
+    clip-path: inset(50%);
+  }
+  .lf-box-ground > * {
+    position: absolute;
+    inset: 0;
+  }
+  .lf-box-ring {
+    background: var(--lf-box-ring);
+  }
+  .lf-box-fill {
+    background: var(--lf-box-fill);
+  }
+  @media (forced-colors: active) {
+    .lf-box-fill {
+      background: Canvas;
+    }
+    .lf-box-ring {
+      background: CanvasText;
+    }
   }
   .lf-foreground {
     position: absolute;

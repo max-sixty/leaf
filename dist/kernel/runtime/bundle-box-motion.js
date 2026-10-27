@@ -4,7 +4,7 @@ import { el } from "./bundle-layer-client.js";
 import { hasArea, headerCuts, intersect, nearObserver, nearWindow, paintClips, scrollsContent, shownBox } from "./bundle-geometry.js";
 import { anchorAt, anchorBox, anchorElement, anchorReaches, anchorReading, contentRides, cutFrames, nameAnchor, scrollsWith } from "./bundle-content-layout.js";
 import { inChrome } from "./bundle-passages.js";
-import { motionPlays, playMotion } from "./bundle-media.js";
+import { motionEasing, motionPlays, motionTime, playMotion } from "./bundle-media.js";
 
 //#region runtime/target-paint-geometry.js
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -626,7 +626,8 @@ function listen() {
 }
 const liftReach = (element, level) => {
 	const lift = getComputedStyle(element);
-	return ["drop", "blur"].map((part) => Number.parseFloat(lift.getPropertyValue(`--raise-${level}-${part}`))).reduce((reach, part) => reach + part);
+	const [drop, blur] = ["drop", "blur"].map((part) => Number.parseFloat(lift.getPropertyValue(`--raise-${level}-${part}`)));
+	return drop + 2 * blur;
 };
 const near = (a, b) => Math.abs(a - b) < .5;
 const boxOf = (rect) => ({
@@ -664,8 +665,40 @@ const paints = (style) => !seeThrough(style.backgroundColor) || style.background
 	"Left"
 ].some((side) => Number.parseFloat(style[`border${side}Width`]) > 0);
 const rings = (style) => style.outlineStyle !== "none" && Number.parseFloat(style.outlineWidth) > 0;
-function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], observer, held = () => null }) {
+function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer, held = () => null }) {
 	listen();
+	const layer = (name) => {
+		const node = document.createElement("div");
+		node.className = name;
+		return node;
+	};
+	const room = layer(`lf-box-ground ${surfaceClass}`);
+	room.setAttribute("aria-hidden", "true");
+	const [ring, fill, ringLayer, ringFill] = [
+		"lf-box-ring",
+		"lf-box-fill",
+		"lf-box-moving-ring",
+		"lf-box-fill"
+	].map(layer);
+	room.append(ring, fill, ringLayer, ringFill);
+	const shadowReach = () => liftReach(room, lift);
+	const surface = () => [
+		[
+			room,
+			shadowReach(),
+			`filter: drop-shadow(var(--raise-${lift})); `
+		],
+		[
+			ring,
+			outset,
+			""
+		],
+		[
+			fill,
+			outset - 1,
+			""
+		]
+	];
 	let sent = -1;
 	const theirs = () => gesture !== null && sent === gestures ? "send" : gesture;
 	let rests = null;
@@ -686,6 +719,10 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 		if (event.type !== "input") noteFieldScrolls();
 	});
 	root.addEventListener("lf-before-edit", noteFieldScrolls, { passive: true });
+	const forget = () => {
+		rests = null;
+	};
+	addEventListener("resize", forget);
 	function rebase() {
 		const at = boxOf(root.getBoundingClientRect());
 		const edges = held();
@@ -800,7 +837,7 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 		childList: true,
 		attributeFilter: ["hidden"]
 	});
-	function follow({ duration, easing }, compact = false) {
+	function follow({ duration = motionTime("--lf-motion-box-resize", box), easing = motionEasing("--lf-motion-box-ease", box) } = {}, compact = false) {
 		timing = {
 			duration,
 			easing
@@ -854,7 +891,7 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 		const boxAt = rests.get(box);
 		const boxStyle = getComputedStyle(box);
 		const boxRadius = radiusOf(boxStyle);
-		for (const [layer, reach] of surface()) keeps(layer, "style", `clip-path: ${insetOf(...outline(boxAt, reach, boxRadius))}`);
+		for (const [layer, reach, paint] of surface()) keeps(layer, "style", `${paint}clip-path: ${insetOf(...outline(boxAt, reach, boxRadius))}`);
 		if (!was?.has(box)) {
 			restoreTranslations();
 			return;
@@ -1153,6 +1190,7 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 		});
 		for (const [layer, reach] of surface()) start(layer, contour(boxFrom, boxAt, reach, boxRadius, compact));
 		if (rings(boxStyle)) drawRing(box, boxStyle, boxFrom, boxAt, compact);
+		else hold(box, "outlineColor", "transparent");
 		hold(box, "backgroundColor", "transparent");
 		hold(box, "overflow", "visible");
 		const animations = running;
@@ -1163,6 +1201,8 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 		};
 	}
 	return {
+		ground: room,
+		shadowReach,
 		follow,
 		theirs,
 		stream() {
@@ -1194,11 +1234,25 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 				});
 			}
 		},
-		forget() {
-			rests = null;
-		}
+		placed(place) {
+			rebase();
+			place();
+			frame = boxOf(root.getBoundingClientRect());
+		},
+		outline() {
+			const moving = motions.get(box);
+			const progress = running[0]?.effect.getComputedTiming().progress ?? 1;
+			if (moving && progress < 1) return interpolate(moving.from, moving.to, progress);
+			return boxOf(box.getBoundingClientRect());
+		},
+		drawnAt(rect) {
+			frame = boxOf(root.getBoundingClientRect());
+			motions = /* @__PURE__ */ new Map();
+			rests = /* @__PURE__ */ new Map([[box, boxOf(rect)]]);
+		},
+		forget
 	};
 }
 
 //#endregion
-export { SVG_NS, aimLayer, boxMotion, dropStand, liftReach, mountTargetPaint, paintGeometry, paintSet, paintShape, paintStand, paintTrace, placement, standOver, targetTraceLayer, target_paint_exports };
+export { SVG_NS, aimLayer, boxMotion, dropStand, mountTargetPaint, paintGeometry, paintSet, paintShape, paintStand, paintTrace, placement, standOver, targetTraceLayer, target_paint_exports };

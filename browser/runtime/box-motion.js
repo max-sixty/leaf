@@ -13,8 +13,12 @@
  *   the outline, so the outline moves by its cut from where it was drawn to where it
  *   stands. A ring the box or a part of it wears, such as the field's focus ring, is
  *   drawn there too while it moves (`ring`), since no transform draws a box changing
- *   size. A box anchored in the page holds its surface inside itself, so the page's
- *   scroll carries both.
+ *   size. The surface stands behind every part, so the box's face is the only ground
+ *   between it and a ring it draws: a part around the ring's wearer that paints its
+ *   own would cover the ring's band. The wearer's own ground already stands at its new
+ *   size and would cover the band on the side it grows toward, so the surface draws
+ *   that ground too, inside the ring. A box anchored in the page holds its surface
+ *   inside itself, so the page's scroll carries both.
  * - A part that kept its size is carried: drawn where it stood, and moved by a
  *   transform to where it stands.
  * - A part that changed size and holds parts of its own leaves each of them to these
@@ -173,8 +177,9 @@ const clipFrame = (sides, radius = 0) => ({
   "--lf-box-cut": sides.map((side) => `${side}px`).join(" "),
 });
 const radiusOf = (style) => Number.parseFloat(style.borderTopLeftRadius) || 0;
+const seeThrough = (color) => /^(transparent|rgba\(.*,\s*0\))$/.test(color);
 const paints = (style) =>
-  !/^(transparent|rgba\(.*,\s*0\))$/.test(style.backgroundColor) ||
+  !seeThrough(style.backgroundColor) ||
   style.backgroundImage !== "none" ||
   style.boxShadow !== "none" ||
   ["Top", "Right", "Bottom", "Left"].some(
@@ -767,13 +772,17 @@ export function boxMotion({
     }
 
     // The surface draws a ring that changes size while it moves, in the ring's own
-    // colour, the box's own ring among them.
+    // colour, the box's own ring among them, and inside it the part's own ground, which
+    // the part stands without meanwhile.
     function drawRing(element, style, from, to, compact = false) {
       const offset = Number.parseFloat(style.outlineOffset);
       const reach = Number.parseFloat(style.outlineWidth) + offset;
       const radius = radiusOf(style);
+      const colour = seeThrough(style.backgroundColor) ? null : style.backgroundColor;
       keeps(ringLayer, "style", `background: ${style.outlineColor}`);
+      keeps(ringFill, "style", colour && `background: ${colour}`);
       hold(element, "outlineColor", "transparent");
+      if (colour) hold(element, "backgroundColor", "transparent");
       for (const [layer, grown] of [
         [ringLayer, reach],
         // The fill meets the outline's inner edge, including an inward ring.

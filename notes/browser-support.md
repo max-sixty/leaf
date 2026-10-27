@@ -18,8 +18,8 @@ and observed behavior from published compatibility data. A successful API
 adoption needs no entry. Resolved failures leave this list; reasons the current
 implementation still needs belong beside its code. Rewrite an entry when its
 status changes rather than appending the investigation's chronology.
-`uv run leaf-dev probe SOURCE --firefox` runs a probe or journey in Playwright's
-Firefox.
+`uv run leaf-dev probe SOURCE --browser firefox` (or `webkit`) runs a probe or
+journey in Playwright's Firefox or WebKit.
 
 Minor visual differences are acceptable when content remains readable and
 controls remain usable. Lost drafts, broken actions, inaccessible controls, and
@@ -322,7 +322,7 @@ place in its `right` inset because Playwright Firefox 155, on 2026-10-25, left
 a `left`-inset link where its heading had stood before the window widened, as
 commit 00e03385c records without a reproduction. The same day, a `left` form of
 the current arithmetic followed its heading in Firefox 155 when
-`leaf-dev probe --firefox` narrowed `release-notes`, `review-a-plan`,
+`leaf-dev probe --browser firefox` narrowed `release-notes`, `review-a-plan`,
 `live-progress` and a one-heading page to 440px and widened them to 1200px, so
 the gap is unconfirmed. The `right` form costs nothing else. Recheck by
 swapping in the `left` form and comparing the link's box after that resize with

@@ -259,10 +259,9 @@ with a shadow root unloaded every iframe in that shadow tree, leaving it
 connected with a null `contentWindow`, even when the host had no children to
 remove; `textContent = ""` did the same when it had some. Removing each child
 with `remove()` kept the frames, as Chromium 153.0.8010.12 and Firefox 155.0
-did for all three. `lf-diff` removes its authored placeholder child by child on
-each rendering, since a thread outlet in its stage can hold a frame. Leaf's
-other calls clear a host without a shadow root, or a stage's host once at
-setup, before anything stands in the stage. Recheck with `test_a_diff_revision_leaves_a_line_thread_where_it_stands`
+did for all three. `shadowStage` (`browser/runtime/shadow-stage.js`) removes a host's
+light children child by child, the one place a widget clears its host, since a thread
+outlet in a stage can hold a frame. Recheck with `test_a_diff_revision_leaves_a_line_thread_where_it_stands`
 in `tests/browser/widgets/test_diffs.py`.
 
 ### Area capture rendering

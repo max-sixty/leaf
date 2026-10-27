@@ -1184,6 +1184,24 @@ def element_thread(page: Page) -> None:
     page.locator("#off-t-vendor").evaluate("el => el.scrollIntoView({block: 'center'})")
 
 
+def ship_tasks(page: Page) -> None:
+    """The ship review's task list, each task's status beside its title."""
+    page.locator("#off-readiness").evaluate(
+        "el => el.scrollIntoView({block: 'center'})"
+    )
+
+
+def ship_answered(page: Page) -> None:
+    """On me once the user has pressed Done in the reconnect thread and picked the
+    release: what still waits on them."""
+    card_by_pointer(page)
+    page.locator(".lf-margin-preview:not([hidden]) .lf-done").click()
+    page.keyboard.press("Escape")
+    page.locator("#off-release-ship").click()
+    page.locator(".lf-fp-on-user").click()
+    expect(page.locator(".lf-fp-opened")).to_be_visible()
+
+
 def element_thread_open(page: Page) -> None:
     """The same element while the user is in its thread, opened from its margin card:
     the contour that says which element the thread is about, beside the heading's
@@ -1264,6 +1282,11 @@ def ask_by_keyboard(page: Page) -> None:
 def steps_in_view(page: Page) -> None:
     """A list of steps in body prose, each number beside its first line."""
     page.locator("#security-contract-list").scroll_into_view_if_needed()
+
+
+def disclosures_in_view(page: Page) -> None:
+    """Two closed disclosures written one after the other at the page's end."""
+    page.locator("#security-source-disclosure").scroll_into_view_if_needed()
 
 
 def security_flow(page: Page) -> None:
@@ -2259,6 +2282,15 @@ STATES = (
     ),
     State("plan-card-reply-resolved", "review-a-plan", card_reply_resolved),
     State("triage", "triage-board", at_rest),
+    State("triage-phone", "triage-board", at_rest, viewport=(390, 844), touch=True),
+    State(
+        "triage-phone-dark",
+        "triage-board",
+        at_rest,
+        viewport=(390, 844),
+        scheme="dark",
+        touch=True,
+    ),
     State("triage-metrics", "triage-board", at_rest, region="#triage-counts"),
     State(
         "triage-metrics-dark",
@@ -2370,6 +2402,7 @@ STATES = (
         steps_in_view,
         region="#security-contract-list",
     ),
+    State("stacked-disclosures", "security-boundary", disclosures_in_view),
     # The case study's five-step flow, drawn top-down so a phone shows every step.
     State(
         "security-flow",
@@ -2429,6 +2462,7 @@ STATES = (
         touch=True,
     ),
     State("triage-grabbed", "triage-board", card_grabbed),
+    State("walkthrough", "pr-walkthrough", at_rest),
     State("walkthrough-wide", "pr-walkthrough", into_the_body),
     State(
         "walkthrough-body-short",
@@ -2521,6 +2555,22 @@ STATES = (
         touch=True,
     ),
     State("ship-thread", "ship-review", element_thread),
+    State("ship-tasks", "ship-review", ship_tasks, region="#off-readiness"),
+    State(
+        "ship-tasks-dark",
+        "ship-review",
+        ship_tasks,
+        scheme="dark",
+        region="#off-readiness",
+    ),
+    State(
+        "ship-tasks-phone",
+        "ship-review",
+        ship_tasks,
+        viewport=(390, 844),
+        touch=True,
+    ),
+    State("ship-answered", "ship-review", ship_answered, region=".lf-fp-opened"),
     State(
         "ship-thread-open", "ship-review", element_thread_open, region="#off-t-vendor"
     ),

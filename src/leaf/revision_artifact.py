@@ -155,7 +155,9 @@ class Resource:
         return _digest(self.data)
 
 
-@dataclass(frozen=True)
+# Compared and hashed by identity, so a kept reading can be keyed by the artifact
+# it was made from (`runtime_selection.executing`).
+@dataclass(frozen=True, eq=False)
 class RevisionArtifact:
     html: bytes
     resources: Mapping[str, Resource]

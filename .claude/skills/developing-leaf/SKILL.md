@@ -13,7 +13,8 @@ Before writing words the user sees, such as a label, status line or placeholder,
 naming anything they operate or an identifier for one, read `references/glossary.md`,
 Leaf's canonical vocabulary and guidance for visible text. Before changing anything
 Leaf draws, read `<root>/skills/leaf/references/interface-principles.md`, whose "Visual
-grammar" says when a control needs no words at all.
+grammar" says when a control needs no words at all, and for Leaf's own panel,
+overlays, cards and margin also `<root>/browser/AGENTS.md`, "Leaf's chrome".
 
 ## Take a backlog item
 

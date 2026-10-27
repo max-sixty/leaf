@@ -276,7 +276,12 @@ def cached_installation(runtime: Path = ROOT) -> Path:
                 if identity() != selected:
                     continue
                 staged.rename(output)
-            evict(cache)
+            # Best effort: a concurrent sweep or publisher can remove a path this one
+            # listed, and the runtime is already published.
+            try:
+                evict(cache)
+            except FileNotFoundError:
+                pass
             return output
 
 

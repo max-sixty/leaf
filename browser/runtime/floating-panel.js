@@ -1515,7 +1515,7 @@ export function createFloatingPanel({
   // foot until a press on it, or the user scrolling there, shows it; the user's turn
   // stays wholly in sight above the press, its head included (`fitAnswer`). The user
   // chose this growth (2026-10-14), the one case where news may carry what a view shows
-  // without a gesture (`browser/AGENTS.md`, "Stability"), reversing the view
+  // without a gesture (`browser/AGENTS.md`, "The page holds still under the user's aim"), reversing the view
   // holding its height while the user waited (#2892), which left a short thread's
   // answer behind New reply in a view one message tall. Rejected then and now: holding
   // the answer behind the reader's "1 new reply", which left the reply the user waited
@@ -2874,7 +2874,7 @@ export function createFloatingPanel({
 
   // ---------- choosing an arrangement ----------
   // A view's choice among its arrangements, at its foot: a symbol, as Leaf's controls
-  // are (browser/AGENTS.md, "Visual grammar"), over the platform's own select, which
+  // are (browser/AGENTS.md, "Controls are few and quiet"), over the platform's own select, which
   // a key, a pointer and a finger each open on its list of words, the chosen one
   // checked. The select stands unseen over the symbol, so it is what each of them
   // presses; its name and choice are the tooltip. The choice is kept for every page,

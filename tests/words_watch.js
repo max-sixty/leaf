@@ -1,5 +1,5 @@
 // Watches every page for words the user typed leaving the screen without the user
-// putting them away: the "Words stay where they were typed" rule
+// putting them away: the "Typed words survive" rule
 // (browser/AGENTS.md). The browser fixture installs it on every page a test
 // opens (render_harness.watched), so every test checks it.
 //

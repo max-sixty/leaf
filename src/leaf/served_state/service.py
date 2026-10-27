@@ -238,10 +238,7 @@ class PageStateService:
                 "on_user": len(view["queues"]["on_user"]) if view is not None else 0,
                 "threads": thread_counts(threads),
             }
-            live = {
-                key: context.presence[key]
-                for key in ("listening", "session_alive", "live_turn")
-            }
+            live = {key: context.presence[key] for key in presence_model.LIVE_FACTS}
         return row, reading, live
 
     def page_browser_view(self, view_revision: int, through_seq: int) -> dict:

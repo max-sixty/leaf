@@ -57,6 +57,11 @@ DRAWN = """() => {
   for (let node; (node = walker.nextNode()); ) {
     const parent = node.parentElement;
     if (!parent || parent.closest("script, style, template, noscript")) continue;
+    // Leaf's pageWords boundary: a declared label can speak through widget UI,
+    // while generated navigation and the panel remain apparatus, not passages.
+    const near = parent.closest(".lf-ui, [data-lf-said]");
+    if (parent.closest(".lf-chrome") ||
+        (near && !near.matches("[data-lf-said]"))) continue;
     if (!parent.checkVisibility({ visibilityProperty: true, opacityProperty: true }))
       continue;
     for (let i = 0; i < node.data.length; i++) {
@@ -253,7 +258,7 @@ def cli() -> list[str]:
         raise click.ClickException(
             "Browser agents need Node and eval dependencies; run pnpm install --frozen-lockfile"
         )
-    return [str(Path(node).resolve()), str(script), "cli"]
+    return [node, str(script), "cli"]
 
 
 def decide(url: str, task: str, evidence: Path, *, viewport: tuple[int, int]) -> dict:

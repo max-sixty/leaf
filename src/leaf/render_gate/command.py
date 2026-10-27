@@ -61,7 +61,13 @@ def desktop_viewport(page_dir: Path) -> Desktop:
         return Desktop(*fixed, f"fixed, pinned by {PIN_VARIABLE}")
     views = read_user_views(page_dir, None)["sessions"]
     if not views:
-        return Desktop(*fixed, "fixed, since no browser has shown the page in a day")
+        # Authors who knew the user's window but read only "fixed" went looking for a
+        # way to set it; the words say it follows the user once they open the page.
+        return Desktop(
+            *fixed,
+            "fixed, since no browser has shown the page in a day; once the user"
+            " opens it, the check reads their window",
+        )
     window = views[0]["viewport"]
     return Desktop(round(window["width"]), round(window["height"]), "the user's window")
 
@@ -157,8 +163,7 @@ class BrowserCheck:
                 "directory": str(into),
                 "files": [{"file": shot.name, "shows": label} for shot, label in saved],
                 "next": (
-                    "have a subagent without your notes review these screens"
-                    ' (page-checkpoints.md, "Pre-handover review")'
+                    'before handover, follow page-checkpoints.md, "Pre-handover review"'
                 ),
             }
         return reading
@@ -189,7 +194,13 @@ def browser_check(
         errors = run_page_code(browser, url) if page_code else None
         if errors or not render:
             return errors, None, None
-        reading = render_version(browser, url, desktop=desktop.viewport)
+        reading = render_version(
+            browser,
+            url,
+            desktop=desktop.viewport,
+            implementations=artifact.implementations,
+            declaration_sources=artifact.declaration_sources,
+        )
         if reading.failures:
             return errors, reading, None
         screens = save_screens(browser, url, reading, page_dir, desktop.viewport)
@@ -209,12 +220,51 @@ def browser_check(
     )
 
 
+def message_check(page_dir: Path, kind: str, markup: str) -> None:
+    """Run a message's markup once, as a page of its own (`page_code.message_page`),
+    where it places a widget only a browser can judge, and refuse it on every error
+    that run reports, as plain `page check` refuses a page. Takes the page's current
+    layer, the one the thread will draw the message with. Where the host has no
+    browser the message posts unrun, and reports any failure when its thread draws."""
+    from leaf.files import latest_revision
+    from leaf.findings import Rejected
+    from leaf.registry.storage import read_page_registry
+    from leaf.revision_artifact import ArtifactError, capture_artifact
+
+    from .page_code import message_page, places_judged_widget
+
+    layer = read_page_registry(page_dir)
+    if layer is None:
+        return
+    document = message_page(markup)
+    try:
+        artifact = capture_artifact(
+            page_dir,
+            document,
+            layer.registry,
+            declaration_sources=layer.declaration_sources,
+            widget_sources=layer.widget_sources,
+        )
+    except ArtifactError:
+        # Markup that names what no page may load, such as the theme's stylesheet,
+        # is the markup gate's to refuse, in its own words, under the page lease.
+        return
+    if not places_judged_widget(document, artifact):
+        return
+    revision = (latest_revision(page_dir) or 0) + 1
+    ran = browser_check(
+        page_dir, document, revision, artifact, page_code=True, render=False
+    )
+    if ran.status:
+        raise Rejected(ran.findings(), f"{kind} markup doesn't draw")
+
+
 @dataclass(frozen=True, slots=True)
 class WidgetQuality:
     """What `package check --render` read of the package's `widgets`: its findings
     and the browser that drew the worked examples, or why no browser could. A finding
-    is advice for the widgets' author, apart from examples that could not be drawn
-    (`unreadable-examples`), which leave nothing to read and fail the check."""
+    is advice for the widgets' author, apart from invalid output contracts and examples
+    that could not be drawn (`unreadable-examples`), which fail the check."""
 
     widgets: int
     browser: str | None = None

@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>Page diagnostics: inspect styling and browser measurements</title>
+    <meta
+      name="description"
+      content="Leaf page diagnostics, with measured CSS examples, command usage and implementation scope."
+    />
+    <style>
+      main {
+        max-width: 1000px;
+        margin: 32px auto 100px;
+        padding: 0 28px;
+      }
+      .lede {
+        max-width: 72ch;
+      }
+      .stats {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 18px 40px;
+        margin: 24px 0;
+      }
+      .stats div {
+        min-width: 100px;
+      }
+      .stats dt {
+        font: 13px var(--sans);
+        color: var(--muted);
+      }
+      .stats dd {
+        margin: 5px 0;
+        font: 600 26px var(--sans);
+        font-variant-numeric: tabular-nums;
+      }
+      section {
+        margin-block: 38px;
+      }
+      td {
+        vertical-align: top;
+      }
+      code {
+        overflow-wrap: anywhere;
+      }
+      .note {
+        font-size: 14px;
+        color: var(--muted);
+      }
+      @media (max-width: 600px) {
+        main {
+          padding-inline: 18px;
+        }
+        .stats {
+          gap: 16px 24px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main id="diagnostics">
+      <h1>Show what a page adds, and where to look</h1>
+      <p class="lede">
+        Start with Leaf’s styling. Add CSS for the task’s arrangement, visualizations or
+        a requested design. A diagnostic report can make that choice inspectable without
+        deciding whether the page looks good.
+      </p>
+      <lf-toc id="contents"></lf-toc>
+      <section id="measured">
+        <h2>What the disclosure demo actually adds</h2>
+        <p>
+          The demo’s authored <code>style.css</code>, parsed with Leaf’s existing CSS
+          parser:
+        </p>
+        <dl class="stats">
+          <div>
+            <dt>UTF-8 bytes</dt>
+            <dd>6,504</dd>
+          </div>
+          <div>
+            <dt>Style rules</dt>
+            <dd>83</dd>
+          </div>
+          <div>
+            <dt>Declarations</dt>
+            <dd>234</dd>
+          </div>
+          <div>
+            <dt>Media rules</dt>
+            <dd>2</dd>
+          </div>
+        </dl>
+        <p>The card treatment is directly visible in the source:</p>
+        <pre id="card-rule"><code class="language-css">.evidence details {
+  margin: 12px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border-2);
+  border-radius: var(--r, 6px);
+}</code></pre>
+        <p>
+          A useful diagnostic links this rule to its file and affected disclosure. It
+          does not infer that 6.5 KB is excessive. This sheet also arranges the
+          comparison columns and responsive controls.
+        </p>
+        <table id="examples-css">
+          <thead>
+            <tr>
+              <th>Shipped source</th>
+              <th>Embedded CSS bytes</th>
+              <th>Style rules</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>examples/review-a-fix.html</code></td>
+              <td>0</td>
+              <td>0</td>
+            </tr>
+            <tr>
+              <td><code>examples/triage-board.html</code></td>
+              <td>536</td>
+              <td>4</td>
+            </tr>
+            <tr>
+              <td><code>examples/notification-playground.html</code></td>
+              <td>5,061</td>
+              <td>27</td>
+            </tr>
+          </tbody>
+        </table>
+        <p class="note">
+          These are inventories of the named stylesheet or embedded style blocks, not
+          total downloaded CSS. The example counts exclude linked assets and vendored
+          styles. Counts include nested style rules; whitespace affects bytes but not
+          parsed declaration counts. The notification playground needs its own
+          composition, so a lower number would not by itself be an improvement.
+        </p>
+      </section>
+      <section id="first-command">
+        <h2>Inspect source and browser observations</h2>
+        <p>
+          Inspect the saved page source, or add <code>--revision N</code> for a captured
+          revision:
+        </p>
+        <pre id="command"><code>leaf page inspect &lt;page&gt;</code></pre>
+        <p>
+          The command returns structured facts with their locations and measurement
+          basis. A successfully measured large page still succeeds; unreadable input or
+          a failed requested measurement is reported explicitly. No quality score,
+          traffic-light rating or arbitrary CSS budget.
+        </p>
+        <dl id="first-report">
+          <dt><strong>Authored CSS, by source</strong></dt>
+          <dd>
+            Bytes, CSS rules, declarations, inline styles and <code>!important</code>,
+            with file and line locations. Separate page files, embedded sheets and
+            registered page-owned widget styles from the selected layer. Count imports
+            once; show child documents separately.
+          </dd>
+          <dt><strong>Existing browser observations, when available</strong></dt>
+          <dd>
+            Reuse Leaf’s passive overflow, arrangement and label readings, with affected
+            element locations. Include viewport, scheme and observation time.
+          </dd>
+          <dt><strong>Measurement basis</strong></dt>
+          <dd>
+            Identify the exact source revision and the browser state inspected.
+            Unavailable or stale readings remain explicit; a source edit must not
+            inherit geometry from an older open tab.
+          </dd>
+        </dl>
+        <p>
+          The command and menu share the source report. Existing parsers and browser
+          probes supply the measurements; normal page checks keep their validation role.
+        </p>
+      </section>
+      <section id="menu">
+        <h2>Open Page diagnostics from the Leaf menu</h2>
+        <p>
+          <strong>Page diagnostics</strong> opens beside the menu’s existing revision
+          and runtime information. It loads on demand, showing source totals, file and
+          line locations, and the current tab’s browser observations.
+          <strong>Copy diagnostics</strong> copies the structured reading. The view is
+          captured at opening; close and reopen to inspect again. Exports and public
+          previews show browser context without starting a private session.
+        </p>
+        <p>
+          The menu’s browser readings must be passive. It must not open disclosures,
+          scroll the page, or change styles to measure them. A collapsed-versus-expanded
+          comparison belongs in a disposable browser session, identified by revision and
+          viewport. New disclosure measurements can follow once the source inventory is
+          useful in practice.
+        </p>
+        <p>
+          An especially useful later experiment is a separate preview with page-authored
+          CSS disabled. That lets the user see what the default theme already supplies.
+          It must be clearly marked as a comparison: removing layout CSS can break a
+          valid visualization, and it should never change the live page.
+        </p>
+      </section>
+      <section id="later">
+        <h2>Add measurements when they answer a real question</h2>
+        <dl id="extensions">
+          <dt><strong>Disclosure anatomy</strong></dt>
+          <dd>
+            Labels, nesting, immediate body contents and child disclosure counts expose
+            wrappers around further controls. Browser geometry could show an 18 px
+            target inside a 40 px card. Those facts help the agent judge the design;
+            body length alone cannot establish whether a disclosure is useful.
+          </dd>
+          <dt><strong>Style vocabulary</strong></dt>
+          <dd>
+            Literal colors, font sizes, radii and repeated declarations, alongside token
+            references and source locations. Several colors may encode data; computed
+            values cannot reveal whether an author used a token.
+          </dd>
+          <dt><strong>Rule effects</strong></dt>
+          <dd>
+            Highlight what a page-authored selector currently matches, and use browser
+            facilities to identify winning declarations. Matching is not winning;
+            states, media queries, nesting and shadow scopes need their actual context.
+          </dd>
+          <dt><strong>Page weight and startup</strong></dt>
+          <dd>
+            CSS, JavaScript and media bytes by owner; requests before first presented
+            state and later loads. Separate delivered bytes from captured source bytes
+            and reuse startup probes. This measures a different cost from visual
+            complexity.
+          </dd>
+          <dt><strong>Recorded CSS coverage</strong></dt>
+          <dd>
+            Rules observed during a named interaction journey. “Not observed” is not
+            “safe to delete”: a closed tab, responsive breakpoint or error state may
+            need them.
+          </dd>
+          <dt><strong>Version comparison</strong></dt>
+          <dd>
+            Changes since the previous revision, with comparable viewport and journey. A
+            smaller number is not necessarily better; compare the actual result.
+          </dd>
+        </dl>
+        <p>
+          Do not start with a “card count,” “unnecessary CSS” percentage or overall
+          complexity grade. Those names claim design judgment that borders, byte counts
+          and DOM depth cannot establish. A control, a chart and a card can all have the
+          same border properties.
+        </p>
+      </section>
+      <section id="ownership">
+        <h2>Reuse the existing owners</h2>
+        <p>
+          <code>SourceDocument.authoring</code> already indexes authored styles and
+          locations. <code>styles.py</code> already parses CSS with tinycss2.
+          <code>RevisionArtifact</code> captures page resources and import dependencies.
+          These should produce the source inventory from exact revision bytes.
+        </p>
+        <p>
+          <code>readViewChecks()</code> already provides passive layout measurements,
+          and <code>user_views</code> records revision, viewport, freshness and source
+          matches. Reuse those readings. Keep source facts in Python and geometry in the
+          browser; one small report owner combines compatible observations for CLI and
+          HTTP consumers.
+        </p>
+        <p>
+          The menu already has <code>page-about.js</code> and the
+          <code>page-controls.js</code> registration point. Extend those surfaces on
+          demand. No new continuous monitor, duplicate diagnostics database, or generic
+          metrics plugin framework is needed.
+        </p>
+        <p>
+          Static authored CSS is the honest initial scope. A script may generate CSS at
+          runtime; that is not counted by scanning source sheets. Summing live
+          stylesheets instead would count shared Leaf sheets repeatedly across shadow
+          roots and misattribute the framework’s styles to the page.
+        </p>
+      </section>
+      <section id="evidence">
+        <h2>Evidence and limits</h2>
+        <p>
+          The CSS counts above were measured in this checkout using Leaf’s parsers. The
+          command, menu and default-styling guidance are implemented. Later measurements
+          above remain ideas. Focused checks cover imported CSS attribution, sample
+          documents, CSS-only source drift, immutable HTTP readings, and the menu’s
+          copy, close and focus behavior.
+        </p>
+        <p>
+          <a href="https://developer.chrome.com/docs/devtools/css-overview"
+            >Chrome’s CSS Overview</a
+          >
+          is a useful precedent: inventory entries lead to affected elements. Its
+          <a href="https://developer.chrome.com/docs/devtools/coverage"
+            >Coverage panel</a
+          >
+          records use while interacting, which is why an unvisited state must remain
+          outside the claim.
+        </p>
+      </section>
+    </main>
+  </body>
+</html>

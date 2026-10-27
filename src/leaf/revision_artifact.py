@@ -175,6 +175,11 @@ class RevisionArtifact:
         return json.loads(self.manifest)["implementations"]
 
     @cached_property
+    def declaration_sources(self) -> dict[str, str]:
+        """The captured owners of widget and named data contract declarations."""
+        return json.loads(self.manifest)["declarations"]
+
+    @cached_property
     def widget_aliases(self) -> dict[str, str]:
         """The loader's widget module paths, mapped to their captured implementations.
 
@@ -1082,6 +1087,15 @@ def read_revision(page_dir: Path, revision: int) -> RevisionReading:
     readings = memo(page_dir, _Readings)
     reading = readings.get(marker, stamp) or RevisionReading(marker)
     return readings.hold(marker, stamp, reading)
+
+
+def latest_title(page_dir: Path) -> tuple[int | None, str]:
+    """The page's latest revision and its authored title, empty where the page has
+    no revision or the revision no title."""
+    revision = latest_revision(page_dir)
+    if revision is None:
+        return None, ""
+    return revision, read_revision(page_dir, revision).document.authoring.title.strip()
 
 
 class _Readings:

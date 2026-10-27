@@ -15,6 +15,7 @@ runs:
       with:
         tool: worktrunk@0.80.0
     - name: Use Ubuntu archive mirrors
+      if: runner.os == 'Linux'
       shell: bash
       run: |
         # Azure's mirror can keep transferring too slowly to trigger apt's

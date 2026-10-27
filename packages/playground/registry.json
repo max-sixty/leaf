@@ -8,6 +8,10 @@
         "type": "string",
         "pattern": "^[a-z0-9][a-z0-9-]*$"
       },
+      "contract": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*(?:/[a-z0-9][a-z0-9-]*)*$"
+      },
       "submit-label": {
         "type": "string",
         "minLength": 1
@@ -28,6 +32,7 @@
     },
     "x-state": {
       "choose": {
+        "contract": { "field": "values", "attribute": "contract" },
         "detail": {
           "type": "object",
           "properties": {
@@ -35,7 +40,7 @@
               "type": "object",
               "minProperties": 1,
               "propertyNames": {
-                "pattern": "^[a-z][a-z0-9-]*$"
+                "pattern": "^[a-z0-9][a-z0-9-]*$"
               },
               "additionalProperties": {}
             },
@@ -59,9 +64,13 @@
     "x-name": "label",
     "type": "object",
     "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
       "name": {
         "type": "string",
-        "pattern": "^[a-z][a-z0-9-]*$"
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
       },
       "label": {
         "type": "string",
@@ -69,6 +78,9 @@
       },
       "kind": {
         "enum": ["range", "toggle", "choice", "color", "text"]
+      },
+      "appearance": {
+        "const": "select"
       },
       "value": {
         "type": "string"
@@ -94,6 +106,10 @@
     },
     "required": ["name", "label", "kind", "value"],
     "allOf": [
+      {
+        "if": { "required": ["appearance"] },
+        "then": { "properties": { "kind": { "const": "choice" } } }
+      },
       {
         "if": {
           "properties": {
@@ -160,6 +176,10 @@
     "x-name": "label",
     "type": "object",
     "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
       "value": {
         "type": "string",
         "minLength": 1
@@ -182,6 +202,10 @@
     "x-name": "label",
     "type": "object",
     "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
       "label": {
         "type": "string",
         "minLength": 1
@@ -200,7 +224,7 @@
     "properties": {
       "for": {
         "type": "string",
-        "pattern": "^[a-z][a-z0-9-]*$"
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
       },
       "value": {
         "type": "string"
@@ -251,7 +275,7 @@
     "properties": {
       "for": {
         "type": "string",
-        "pattern": "^[a-z][a-z0-9-]*$"
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
       }
     },
     "required": ["for"],

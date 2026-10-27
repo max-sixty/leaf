@@ -11,11 +11,11 @@
    carries its detached native owner through a complete commit, then hands the
    session to the current same-key route. The owner's row is the session's, not its
    view's, so the editor moves with the thread, its caret and undo history with it. A
-   view that can draw the thread no more, a seat the thread left or a margin card whose
-   thread left the margin, open or closed, releases the row (`releaseReplies`): to a
-   view that draws the thread now, or else to a parked place, connected and out of
-   sight, until the next view drawing the thread claims it in place of its own row
-   (`claim`). A thread pass releases and claims in one task, so a user writing in the
+   view that can draw the thread no more, a seat the thread left, a margin card whose
+   thread left the margin, open or closed, or the floating panel's view of a thread the
+   page takes from it, releases the row (`releaseReplies`): to a view that draws the
+   thread now, or else to a parked place, connected and out of sight, until the next
+   view drawing the thread claims it in place of its own row (`claim`). A thread pass releases and claims in one task, so a user writing in the
    row keeps focus throughout; a row left parked past it keeps its words, caret and
    history, but not the user. A route's view also puts the row in place of its own
    (`carry`), taking it from a view that holds it out of sight. A closed card whose
@@ -255,16 +255,12 @@ export function replyControlDestination(node) {
 // A thread's reply draft has several views, and sending claims its exact generation.
 // A second view pressing Send afterwards reads the generation as
 // spent and refuses on its own — in this tab and in any other showing the page, which is
-// further than a hold kept in this document's memory reached. A send returns its
-// flight, which says whether the log took it; nothing when nothing was sent.
+// further than a hold kept in this document's memory reached. A send returns the
+// message it drew; nothing when nothing was sent.
 function sendReply(draftCtx, key, text, owns, actions) {
-  let flight = null;
-  const sent = sendMessage(
-    draftCtx,
-    owns,
-    (attempt) => (flight = actions.reply(key, text, { attempt })),
+  return sendMessage(draftCtx, owns, (attempt) =>
+    actions.reply(key, text, { attempt }),
   );
-  return sent && { flight };
 }
 
 // One reply row: its native editor, wired once to the thread's draft, send, and typing
@@ -310,14 +306,14 @@ function wireReply(
     },
     // The new turn is drawn above the box; the landing shows it with the box the user
     // sent from, read before the send draws, around wherever the send left them
-    // current location. A view whose box stays for the next turn lands the send itself (`sent`),
-    // told whether the log takes it.
+    // current location. A view whose box stays for the next turn lands the send itself
+    // (`sent`).
     send: (_text, raw, owns) => {
-      const { actions, landSent, sent } = composition.binding;
+      const { actions, landSent, sending, sent } = composition.binding;
       const land = sendLanding(input);
-      const reply = sendReply(draftCtx, key, raw, owns, actions);
-      if (!reply) return;
-      if (sent) return sent(reply.flight);
+      sending?.();
+      if (!sendReply(draftCtx, key, raw, owns, actions)) return;
+      if (sent) return sent();
       landSent(closestAcross(input, THREAD));
       land(focused());
     },
@@ -423,7 +419,8 @@ export async function restoreReplyEditing(editing, land) {
 // (`hintAside`), and is named
 // (`accessibleName`), hold its sends while it covers the box's words (`busy`), and
 // where its box stays for the next turn, as the floating panel's field does, land a
-// send itself (`sent`) rather than stand on the thread. The view draws its row again
+// send itself (`sent`) rather than stand on the thread, told before the send draws
+// (`sending`). The view draws its row again
 // on `redraw`, as it takes another in its place.
 export function createReplyView(
   key,
@@ -436,6 +433,7 @@ export function createReplyView(
     hintAside = () => "",
     accessibleName = "Reply",
     busy = () => false,
+    sending = null,
     sent = null,
   } = {},
 ) {
@@ -443,7 +441,7 @@ export function createReplyView(
     const row = offer("div", "lf-thread-reply");
     const input = offer(TEXT_FIELD);
     input.name = "reply";
-    const send = offer("button", "lf-btn lf-thread-send", "Send");
+    const send = offer("button", "lf-thread-send", "Send");
     row.append(input, send);
     return wireReply(key, row, input, send, commands.wireInput, {
       hint,
@@ -453,7 +451,7 @@ export function createReplyView(
     });
   };
   let composition = fresh();
-  const binding = { ...commands, onChange, editLast, sent };
+  const binding = { ...commands, onChange, editLast, sending, sent };
   let detach = attach(composition, binding);
   // A view takes the session's row in its place and draws it (`redraw`), and gives its
   // own up for a fresh one (`carry`), drawn by the step it returns.

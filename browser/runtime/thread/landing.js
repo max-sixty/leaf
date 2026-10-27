@@ -11,6 +11,7 @@
    floating panel's field, which stands for the thread open above it, keeps focus for
    the next turn. Returning to the page is a separate navigation gesture. */
 import { alreadyShown, fitsWhole, scrollIntoView } from "../landing-scroll.js";
+import { seenRect } from "../geometry.js";
 import {
   focusDestination,
   focused,
@@ -125,9 +126,11 @@ pageScope("text entry", {
 // arrival. A thread too tall to show whole and already shown stands around the box, and
 // landing its title would take the user away from the turn they were answering, so it
 // is a `return` that leaves it where it is. One that fits, or one the user has
-// scrolled out of view since, is a `move`, brought into view. One the user already
-// sees stays where it is: the box they left stands beside the gesture, and a landing
-// would carry it by the room the thread's focus ring asks at its foot.
+// scrolled out of view since, is a `move`, brought into view. While the box the user
+// left still stands in front of them, nothing scrolls: it stands beside the gesture,
+// and a landing would carry it, by the room the thread's focus ring asks at its foot or
+// by bringing back a head they scrolled above the window. A box the send gave up, as a
+// seat's does to the thread it starts, leaves nothing there to carry.
 function returnToThread(thread) {
   const shown = alreadyShown(thread);
   if (!fitsWhole(thread) && shown) {
@@ -135,7 +138,9 @@ function returnToThread(thread) {
     return;
   }
   focusThread(thread, "move");
-  if (!shown) scrollIntoView(thread, { block: "nearest" });
+  const box = threadReplyInput(thread);
+  if (!shown && !(box && seenRect(box, new Map())))
+    scrollIntoView(thread, { block: "nearest" });
 }
 
 // The thread whose card the user is on.

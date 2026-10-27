@@ -74,7 +74,7 @@ def test_pages_follower_without_owned_pages_does_not_open_a_watcher(
     claimed, monkeypatch, capsys
 ):
     cleanup_model.end_session("s1")
-    assert cleanup_model.holds_claims("s1")
+    assert cleanup_model.held_claims("s1")
     assert service_model.owned_pages("s1") == []
 
     def unexpected_watcher(*_args, **_kwargs):

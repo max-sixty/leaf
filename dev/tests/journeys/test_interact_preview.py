@@ -146,7 +146,7 @@ def test_desktop_user_preview_survives_instance_unload_with_live_feedback(
         )
         assert ended.returncode == 0, ended.stderr
         assert state.session_record(sid)["generation"] == before["generation"]
-        assert state.holds_claims(sid)
+        assert state.held_claims(sid)
         assert leases.lock_is_held(preview.preview_lease(page))
         assert server.running_server(page)["url"] == url
 

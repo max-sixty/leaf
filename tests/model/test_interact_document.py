@@ -2479,6 +2479,117 @@ def test_stamp_and_report_choose_one_log_order(page_dir, monkeypatch):
     assert report["revision"] == 2
 
 
+def test_a_save_goes_live_during_a_stamps_check_and_the_stamp_names_it(
+    monkeypatch, page_dir
+):
+    """The tab's state read activates a save without waiting on a stamp's check of
+    it, and a user's action can land meanwhile (`publishing` header). The stamp
+    then checks again against the log and revisions it publishes onto: it names
+    the revision the read activated rather than publishing the source twice."""
+    html = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
+    (page_dir / "index.html").write_text(html)
+    publish(page_dir)
+    (page_dir / "index.html").write_text(
+        html.replace("<title>t</title>", "<title>next</title>")
+    )
+    entered = threading.Event()
+    release = threading.Event()
+    original = publishing_model.check_source
+
+    def paused_check(*args, **kwargs):
+        checked = original(*args, **kwargs)
+        if not entered.is_set():
+            entered.set()
+            assert release.wait(STATED_TIMEOUT), "the stamp's check was never released"
+        return checked
+
+    monkeypatch.setattr(publishing_model, "check_source", paused_check)
+    failures = []
+
+    def run_stamp():
+        try:
+            publishing_model.cmd_stamp(page_dir, "next")
+        except (AssertionError, Refused) as error:  # surface thread failures here
+            failures.append(error)
+
+    action = {
+        "kind": "action",
+        "author": "user",
+        "revision": 1,
+        "widget": "choice",
+        "action": "choose",
+        "detail": {"value": ["flag-first"]},
+    }
+
+    def tab():
+        append_command(page_dir, action)
+        assert revisioning_model.activate_source(page_dir).created
+
+    publisher = threading.Thread(target=run_stamp)
+    publisher.start()
+    writer = threading.Thread(target=tab)
+    try:
+        assert entered.wait(STATED_TIMEOUT), "the stamp never reached its check"
+        writer.start()
+        writer.join(STATED_TIMEOUT)
+        assert not writer.is_alive(), "the tab waited on the stamp's check"
+    finally:
+        release.set()
+        publisher.join(STATED_TIMEOUT)
+        writer.join(STATED_TIMEOUT)
+
+    assert not failures
+    assert not publisher.is_alive()
+    assert files_model.list_revisions(page_dir) == [1, 2]
+    ordered = [
+        (event["kind"], event.get("version"), event.get("revision"))
+        for event in events_model.read_events(page_dir)
+        if event["kind"] in {"note", "action"}
+    ]
+    assert ordered == [
+        ("note", 1, 1),
+        ("action", None, 1),
+        ("note", 2, 2),
+    ]
+
+
+def test_a_stamp_lands_on_a_page_that_moves_during_every_check(monkeypatch, page_dir):
+    """A page written faster than the stamp checks it outside the transaction
+    still gets its stamp: the last check runs under the transaction."""
+    html = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
+    (page_dir / "index.html").write_text(html)
+    publish(page_dir)
+    (page_dir / "index.html").write_text(
+        html.replace("<title>t</title>", "<title>next</title>")
+    )
+    original = publishing_model.check_source
+    moved = []
+
+    def moving_check(*args, **kwargs):
+        checked = original(*args, **kwargs)
+        if len(moved) < publishing_model.UNLOCKED_CHECKS:
+            moved.append(
+                append_command(
+                    page_dir,
+                    {
+                        "kind": "action",
+                        "author": "user",
+                        "revision": 1,
+                        "widget": "choice",
+                        "action": "choose",
+                        "detail": {"value": ["flag-first"]},
+                    },
+                )
+            )
+        return checked
+
+    monkeypatch.setattr(publishing_model, "check_source", moving_check)
+    note = publishing_model.cmd_stamp(page_dir, "next")
+
+    assert (note["version"], note["revision"]) == (2, 2)
+    assert note["seq"] > max(action["seq"] for action in moved)
+
+
 def test_page_state_folds_the_log_onto_the_published_page(page_dir):
     """`page state` is /api/state folded for the agent: the On me list,
     the current state replay paints, as one queryable

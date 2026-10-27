@@ -76,6 +76,7 @@ export const attachWidgetPresentation = (widget, kind, renderer) =>
 // and gesture holds belong only to its presentation tickets.
 const widgetCommits = new Map();
 const documentCommits = new Map();
+const ownCommits = new Map();
 const currentWidgetParents = readPart((root) => root.effective.widgetParents);
 export const queueWidgetUpdate = (widget, update, committed) => {
   const { ready, committed: dom } = schedule.enqueue(
@@ -113,8 +114,8 @@ export const queueWidgetUpdate = (widget, update, committed) => {
 // thread/surfaces.js `claimed`), not as DOM it waits for. An obligation's control is a
 // widget, so one a seat mounts after this commit presents the whole document as it
 // connects (widget-controller.js, `widgetMounted`), and obligations locate it on the
-// pass that follows. Reply continuity waits for the margin's commit alone
-// (`annotations`), since the card it lands in is the margin's.
+// pass that follows. Each entry is transitive: it settles once its region and
+// everything upstream of it have committed.
 export const PRESENTATION_DOM = Object.freeze({
   widgets: () => [...widgetCommits.values()],
   projection: () => documentCommits.get("projection:chrome")?.() ?? [],
@@ -122,6 +123,14 @@ export const PRESENTATION_DOM = Object.freeze({
   obligations: () => documentCommits.get("obligations")?.() ?? [],
   annotations: () => documentCommits.get("annotations")?.() ?? [],
 });
+
+// A region's own DOM commit, without the upstream DOM its paint waits for: settled
+// unless the region owes a paint. Reply continuity reads the margin's this way
+// (`regionCommitted("annotations")`), since the card it lands in is the margin's and
+// an upstream owner it doesn't read, such as a widget holding its commit through a
+// drag, shouldn't keep a displaced reply editor from its new box.
+export const regionCommitted = (region) =>
+  ownCommits.get(region)?.() ?? Promise.resolve();
 
 // The document-wide presenters, in registration order. `presentDocument` is what a
 // caller reaches for when it has changed something every region may be showing and has
@@ -236,6 +245,7 @@ export const applicationPresenter = ({
   // Keep the dependency transitive even then; its last DOM commit cannot certify
   // the new upstream DOM. Each owner still declares only the edges it reads.
   documentCommits.set(region, () => [...(after?.() ?? []), presenter.committed()]);
+  ownCommits.set(region, presenter.committed);
   const claim = (value) => {
     claimed = value;
     if (value === null) return schedule.passed();

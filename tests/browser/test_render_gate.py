@@ -1320,7 +1320,7 @@ def test_a_transition_on_a_hidden_control_leaves_the_page_settled(
     """A scheme switch starts the colour transitions of controls inside a closed
     disclosure too. Firefox never runs them while the disclosure stays closed, and they
     move no box, so the page settles; reading them as motion held `leaf-dev probe
-    --firefox` on live-progress until its 120 s limit."""
+    --browser firefox` on live-progress until its 120 s limit."""
     page = open_page(
         firefox_browser,
         serve(
@@ -3239,10 +3239,13 @@ def test_a_diagrams_reserved_box_includes_its_scrollbar_clearance(
     the overlay and classic track share the drawing's own blank bottom padding.
     """
     source = (ROOT / "examples" / "security-boundary.html").read_text()
-    source = source.replace(
-        'id="security-before-flow" data-height="77"',
+    # The example draws its five-step chain top-down so it fits a phone; drawn
+    # left-to-right it runs past a 678px viewport and scrolls, which this test needs.
+    source = source.replace("flowchart TD", "flowchart LR", 1).replace(
+        'id="security-before-flow" data-height="449"',
         'id="security-before-flow" data-height="200"',
     )
+    assert "flowchart LR" in source and 'data-height="200"' in source
     if track:
         source = source.replace(
             "</head>",

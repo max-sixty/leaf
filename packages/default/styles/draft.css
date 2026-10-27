@@ -101,19 +101,31 @@
     font: var(--t-5)/var(--lf-ui-lh) var(--sans);
     white-space: nowrap;
   }
+  /* An edit back kept, as a rewrite's head says it holds one (shadow.css, `.lf-msg-kept`). */
+  .lf-draft-kept {
+    color: var(--muted-2);
+  }
   .lf-draft-status:empty {
     display: none;
   }
+  /* A status stays in view: a failed save, or an edit kept in a closed box. */
   :scope:is(lf-draft):is(
       :hover,
       [data-lf-focus-within],
       [needed],
-      :has(> .lf-draft-edit)
+      :has(> .lf-draft-edit),
+      :has(.lf-draft-status:not(:empty))
     )
     .lf-draft-tools {
     opacity: 1;
   }
+  /* A mark's reach stands half a finger's floor above the border it is centred on,
+     which the box's padding keeps clear of words, so a press on the last line puts
+     the caret there rather than pressing Discard. */
   @media (hover: none) {
+    :scope:is(lf-draft) {
+      padding-block-end: max(10px, var(--aim-floor) / 2);
+    }
     .lf-draft-tools {
       inset-block: auto 0;
       translate: 0 calc(50% + 0.5px);

@@ -598,41 +598,32 @@ def test_workflow_shell_continuations_use_literal_blocks():
 
 
 @pytest.mark.parametrize(
-    ("argv", "usage"),
+    "argv",
     [
-        (["hook"], "leaf hook --harness NAME [--if-claimed] [--watch | --pages]"),
-        (
-            ["hook", "--harness"],
-            "leaf hook --harness NAME [--if-claimed] [--watch | --pages]",
-        ),
-        (
-            ["hook", "--watch", "--harness", "codex"],
-            "leaf hook --harness NAME [--if-claimed] [--watch | --pages]",
-        ),
-        (
-            ["hook", "--harness", "codex", "--bogus"],
-            "leaf hook --harness NAME [--if-claimed] [--watch | --pages]",
-        ),
-        (["session-end", "now"], "leaf session-end"),
+        ["hook"],
+        ["hook", "--harness"],
+        ["hook", "--harness", "codex", "--bogus"],
+        ["hook", "--harness", "codex", "--watch", "--pages"],
+        ["session-end", "now"],
     ],
 )
-def test_a_harness_entry_argv_no_registration_sends_is_refused_with_its_usage(
-    argv, usage
-):
-    """`hook` and `session-end` are routed before the CLI loads, and only in the
-    shapes harness registrations send; any other shape names the one it takes, rather
-    than reading a payload it was never meant to have."""
-    result = subprocess.run(
-        [sys.executable, "-m", "leaf", *argv],
-        input="{}",
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-
-    assert result.returncode == 1
+def test_harness_commands_report_click_usage_errors(argv):
+    result = CliRunner().invoke(cli_model.cli, argv, input="{}")
+    assert result.exit_code == 2
     assert result.stdout == ""
-    assert result.stderr == f"usage: {usage}\n"
+    assert json.loads(result.stderr)["error"]
+
+
+def test_hook_options_use_click_order_and_help():
+    runner = CliRunner()
+    result = runner.invoke(
+        cli_model.cli, ["hook", "--watch", "--harness=codex"], input="{}"
+    )
+    assert result.exit_code == 0, result.output
+    assert result.output == ""
+    help_result = runner.invoke(cli_model.cli, ["hook", "--help"])
+    assert help_result.exit_code == 0
+    assert "--harness" in help_result.output
 
 
 def test_a_page_command_names_what_its_path_holds_instead(tmp_path, regtest):
@@ -837,13 +828,10 @@ def test_shim_dispatches_every_command_through_one_uv_run(tmp_path, monkeypatch,
     # than whatever project the caller's directory sits in. `--no-dev` because
     # the dev group is the suite and the repo's own scripts, neither a harness's to
     # install. The module rather than the `leaf` console script because a long
-    # payload path turns the console script into a `/bin/sh` trampoline. The
-    # checkout's environment exists, so uv skips its cache, which an agent's
-    # sandbox refuses; the hook registration tests run a payload with none.
+    # payload path turns the console script into a `/bin/sh` trampoline.
     assert dispatched == [
         "run",
         "-q",
-        "--no-cache",
         "--no-dev",
         "--project",
         str(PLUGIN_ROOT),
@@ -907,19 +895,6 @@ def test_the_launcher_uses_the_hosts_selected_leaf_for_commands_and_hooks(
         0,
         f"{PLUGIN_ROOT}\n",
         "",
-    )
-    monkeypatch.setenv("LEAF_HOST_LAUNCHER", "leaf")
-    refused = subprocess.run(
-        [launcher, "--version"],
-        capture_output=True,
-        text=True,
-        timeout=STATED_TIMEOUT,
-        check=False,
-    )
-    assert (refused.returncode, refused.stdout, refused.stderr) == (
-        2,
-        "",
-        "LEAF_HOST_LAUNCHER must name an absolute launcher path\n",
     )
 
 

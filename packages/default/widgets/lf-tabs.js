@@ -119,7 +119,8 @@ import {
   scrollIntoView,
   focused,
   fitsWhole,
-  motion,
+  landingInsets,
+  layoutPx,
   pressIsKeyboardActivation,
   signal,
   LeafElement,
@@ -162,7 +163,6 @@ export class TabSet extends LeafElement {
   #pageFlow = false;
   #revealMotion = null;
   #stopList = null;
-  #selectionMotion = null;
 
   createRenderRoot() {
     return this.#strip ?? this;
@@ -357,35 +357,35 @@ export class TabSet extends LeafElement {
   render() {
     if (!this.#panels.length) return nothing;
     return html`${this.#edge("start")}${
-      this.#side
-        ? repeat(
-            this.#runs,
-            (run) => run.panel,
-            (run) =>
-              html` <div class="lf-tab-run" role="none">
-                ${
-                  run.group
-                    ? html`<span
-                        class="lf-tab-group"
-                        aria-hidden="true"
-                        ${generated({ says: true })}
-                        >${run.group}</span
-                      >`
-                    : nothing
-                }
-                ${repeat(
-                  run.panels,
-                  (panel) => panel,
-                  (panel) => this.#tab(panel),
-                )}
-              </div>`,
-          )
-        : repeat(
-            this.#panels,
-            (panel) => panel,
-            (panel) => this.#tab(panel),
-          )
-    }${this.#edge("end")}`;
+        this.#side
+          ? repeat(
+              this.#runs,
+              (run) => run.panel,
+              (run) =>
+                html` <div class="lf-tab-run" role="none">
+                  ${
+                    run.group
+                      ? html`<span
+                          class="lf-tab-group"
+                          aria-hidden="true"
+                          ${generated({ says: true })}
+                          >${run.group}</span
+                        >`
+                      : nothing
+                  }
+                  ${repeat(
+                    run.panels,
+                    (panel) => panel,
+                    (panel) => this.#tab(panel),
+                  )}
+                </div>`,
+            )
+          : repeat(
+              this.#panels,
+              (panel) => panel,
+              (panel) => this.#tab(panel),
+            )
+      }${this.#edge("end")}<span class="lf-tab-selection" aria-hidden="true"></span>`;
   }
 
   #tab(panel) {
@@ -480,15 +480,9 @@ export class TabSet extends LeafElement {
       previous &&
       Math.abs(order.indexOf(active) - order.indexOf(previous)) === 1 &&
       getComputedStyle(this.#strip).flexDirection === "row";
-    // Read before cancelling: a second press starts at the line the eye sees,
-    // which can still be between the two names.
-    const first = travels
-      ? this.#buttons
-          .get(previous)
-          .querySelector(".lf-tab-mark")
-          .getBoundingClientRect()
-      : null;
-    this.#stopSelectionMotion();
+    // CSS carries one retained line between the selected marks. Keeping the
+    // transition enabled lets a reversed choice continue from its painted place.
+    keeps(this.#strip, "data-lf-selection-travel", travels ? "" : null);
     // A press or a traversal between views switches them; a reveal is travel to
     // something inside the view, which the traveller lands.
     const switched = this.#pageFlow && ["ordinary", "history"].includes(reason);
@@ -520,8 +514,7 @@ export class TabSet extends LeafElement {
         keeps(panel, "tabindex", panel === active ? 0 : -1);
       }
       this.#active.value = active;
-      // Selection and the underline's final box must exist before the measurement
-      // below. Use the same template synchronously; Lit's scheduled update then
+      // Selection changes in this task. Lit's scheduled update then
       // keeps its dependency subscription current without replacing any nodes.
       render(this.render(), this.#strip);
       const button = this.#buttons.get(active);
@@ -538,20 +531,6 @@ export class TabSet extends LeafElement {
       if (switched) this.#open(active, from);
       else if (pinnedBox) scrollIntoReadingBand(this, this, "start", "instant");
 
-      if (first) {
-        const mark = button.querySelector(".lf-tab-mark");
-        const last = mark.getBoundingClientRect();
-        this.#selectionMotion = motion(
-          mark,
-          [
-            {
-              transform: `translate(${first.left - last.left}px, ${first.top - last.top}px) scaleX(${first.width / last.width})`,
-            },
-            { transform: "none" },
-          ],
-          160,
-        );
-      }
       keepView(this, active);
       const presentation = [];
       for (const panel of [previous, active].filter(Boolean)) {
@@ -663,16 +642,38 @@ export class TabSet extends LeafElement {
   // in a workspace that fills the window (theme.css), and the tab comes into it the
   // same way, down the column.
   // Where the strip has room for it, the tab comes in with its run's label, so the
-  // name of the group the user opened stays beside it. That room is the landing's own
-  // (`fitsWhole`), the tab's ring room included.
+  // name of the group the user opened stays beside it. Down a column that room is
+  // the landing's own (`fitsWhole`) and the run from heading to tab lands together.
+  // Along a row the label sticks at the row's start as the run scrolls under it (the
+  // package theme), so a range over the two measures where the label stands rather
+  // than the run's length; the row's room is asked whether the label and the tab
+  // can share it side by side, and the tab lands clear of the label's room through
+  // the theme's `scroll-margin`, which this measures for it (`--lf-tab-group-size`):
+  // the run's first tab brings the label in with it, standing in its own place, and
+  // a later tab comes in beside the stuck label. Where they cannot share the row,
+  // the tab lands whole and the label gives way (`data-lf-group-apart`).
   #showTab(btn) {
     const strip = this.#strip;
     if (!btn) return;
-    const label = btn.parentElement.querySelector(":scope > .lf-tab-group");
-    const run = label && document.createRange();
-    run?.setStartBefore(label);
-    run?.setEndAfter(btn);
-    scrollIntoView(run && fitsWhole(run) ? run : btn, {
+    const run = btn.parentElement;
+    const label = run.querySelector(":scope > .lf-tab-group");
+    if (label && getComputedStyle(strip).flexDirection === "row") {
+      const inset = landingInsets(strip);
+      const room = strip.clientWidth - inset.left - inset.right;
+      const gap = Number.parseFloat(getComputedStyle(run).columnGap) || 0;
+      const size = label.getBoundingClientRect().width;
+      const apart = size + gap + btn.getBoundingClientRect().width > room;
+      run.toggleAttribute("data-lf-group-apart", apart);
+      const measured = layoutPx(size);
+      if (run.style.getPropertyValue("--lf-tab-group-size") !== measured)
+        run.style.setProperty("--lf-tab-group-size", measured);
+      scrollIntoView(btn, { block: "nearest", within: strip });
+      return;
+    }
+    const range = label && document.createRange();
+    range?.setStartBefore(label);
+    range?.setEndAfter(btn);
+    scrollIntoView(range && fitsWhole(range) ? range : btn, {
       block: "nearest",
       within: strip,
     });
@@ -698,8 +699,7 @@ export class TabSet extends LeafElement {
   });
 
   #stopSelectionMotion = () => {
-    this.#selectionMotion?.cancel();
-    this.#selectionMotion = null;
+    keeps(this.#strip, "data-lf-selection-travel", null);
   };
 
   #listenForHistory(signal) {

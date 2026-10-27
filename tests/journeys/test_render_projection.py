@@ -989,9 +989,9 @@ def test_a_thread_obligation_waits_until_answered(browser, serve):
     open_panel_thread(page, "c-any")
     expect(page.locator("#tq-set .lf-done")).to_be_visible()
 
-    # The group's hairline belongs to the upper neighbour, so the Done press keeps its
-    # own frame whole. Drawn by the lower neighbour instead, the divider recolored the
-    # press's top edge and left the seam above it to nothing.
+    # The group's hairline stands between the cells, so the Done press keeps its own
+    # frame whole. Drawn on the press instead, the divider recolored its top edge and
+    # left the seam above it to nothing.
     assert page.locator("#tq-set .lf-done").evaluate(
         """el => { const s = getComputedStyle(el);
                    return s.borderTopColor === s.borderBottomColor
@@ -1018,7 +1018,8 @@ def test_a_thread_obligation_waits_until_answered(browser, serve):
         "the Done press no longer fills the column, so what follows is about a shape "
         "this test no longer describes"
     )
-    assert seam["gap"] < 0.5, (
+    # The hairline is the group's ground in a 1px gap; more is dead ground.
+    assert seam["gap"] < 1.5, (
         f"the hairline above the Done press floats {seam['gap']}px above it"
     )
 

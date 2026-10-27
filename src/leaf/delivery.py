@@ -1353,7 +1353,7 @@ def receive_held(
     ended or was replaced, a log this Leaf may not write
     (`layer.incompatible_layer`), or locks still held at `deadline`, for a hook
     that must exit by then for its handover to stand. The other batches are still
-    recorded, and the hook hands only those over (`hook_transport.render`)."""
+    recorded, and the hook hands only those over (`hook_transport.carry_turn`)."""
     recorded = []
     for batch in payload["batches"]:
         try:

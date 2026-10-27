@@ -48,6 +48,7 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list="side"]) {
 /* Laid out by the live-page block below; hidden until then, because a row of
  * buttons is worth showing only where something will answer one. */
 .lf-tabstrip {
+  anchor-scope: --lf-tab-mark;
   display: none;
   gap: 2px;
   --lf-tab-focus-gap: 2px;
@@ -109,15 +110,35 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list="side"]) {
   inset-inline: 0;
   bottom: -2px;
   block-size: 2px;
-  background: currentColor;
   visibility: hidden;
   pointer-events: none;
-  transform-origin: left center;
+}
+.lf-tab-selection {
+  position: absolute;
+  position-anchor: --lf-tab-mark;
+  left: anchor(left);
+  top: anchor(top);
+  width: anchor-size(width);
+  block-size: 2px;
+  background: var(--ink);
+  pointer-events: none;
+  transition: none;
+}
+/* The shared line follows native layout, including an interrupted transition.
+ * The controller states only which pointer choices travel; CSS owns their motion. */
+@media (prefers-reduced-motion: no-preference) {
+  .lf-tabstrip[data-lf-selection-travel] > .lf-tab-selection {
+    transition:
+      left 160ms ease,
+      top 160ms ease,
+      width 160ms ease;
+  }
 }
 .lf-tabstrip .lf-tab-btn[aria-selected="true"] {
   color: var(--ink);
 }
 .lf-tabstrip .lf-tab-btn[aria-selected="true"] .lf-tab-mark {
+  anchor-name: --lf-tab-mark;
   visibility: visible;
 }
 @container style(--lf-tabstrip-flow: column) {
@@ -128,7 +149,8 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list="side"]) {
   .lf-tabstrip .lf-tab-btn > .lf-tab-name {
     border-bottom: 0;
   }
-  .lf-tab-mark {
+  .lf-tab-mark,
+  .lf-tab-selection {
     display: none;
   }
   .lf-tabstrip .lf-tab-btn[aria-selected="true"] > .lf-tab-name {
@@ -144,7 +166,7 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list="side"]) {
   .lf-tabstrip .lf-tab-btn > .lf-tab-name {
     border-bottom-color: Canvas;
   }
-  .lf-tab-mark {
+  .lf-tab-selection {
     forced-color-adjust: none;
     background: CanvasText;
   }
@@ -338,6 +360,10 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list="side"]) {
     --lf-tabstrip-bg: var(--field);
     gap: 0;
     overflow: visible;
+    /* No press stands at a column's edge, so a landing keeps clear of none, and a run
+       * from its heading to a tab, as wide as the column, fits it (lf-tabs.js,
+       * `#showTab`). */
+    scroll-padding-inline: 0;
     padding: 8px 8px calc(8px + var(--lf-end-room));
     border-bottom: 0;
     border-inline-end: 1px solid var(--border-2);
@@ -461,6 +487,7 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list="side"]) {
       gap: 2px;
       overflow-x: auto;
       overflow-y: hidden;
+      scroll-padding-inline: var(--lf-tabstrip-press);
       padding: 8px var(--lf-tabstrip-pad) 0;
       border-inline-end: 0;
       border-bottom: 1px solid var(--border-2);
@@ -479,7 +506,8 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list="side"]) {
     :scope:is(lf-tabs)[list="side"].lf-rendered > .lf-tabstrip > .lf-tab-run {
       flex: none;
       flex-direction: row;
-      gap: 2px;
+      --lf-tab-run-gap: 2px;
+      gap: var(--lf-tab-run-gap);
     }
     :scope:is(lf-tabs)[list="side"].lf-rendered
       > .lf-tabstrip
@@ -491,10 +519,45 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list="side"]) {
       padding-inline-start: 4px;
       border-inline-start: 1px solid var(--border-2);
     }
+    /* The label sticks at the row's start while its run scrolls under it, and the run's
+       * end pushes it out as the next run's label comes in, so the open item's group
+       * stays named however far along a long run the user is. It stands clear of the
+       * start press while that shows (`data-lf-more-before`, reach.js), which is the
+       * only time a label can be stuck, and covers the whole height of the names that
+       * slide under it, its word still centred on theirs, so a tab landing in the row
+       * keeps the label's room before it: the module measures the label for this
+       * margin (lf-tabs.js, `#showTab`). Where the label and the open tab cannot share
+       * the row (`data-lf-group-apart`), the tab lands whole and the label stands in
+       * its own place, scrolling with its run. */
     :scope:is(lf-tabs)[list="side"].lf-rendered > .lf-tabstrip .lf-tab-group {
       flex: none;
-      align-self: center;
+      display: flex;
+      align-items: center;
       padding: 0 4px;
+      position: sticky;
+      inset-inline-start: calc(-1 * var(--lf-tabstrip-pad));
+      z-index: 1;
+      background: var(--lf-tabstrip-bg);
+    }
+    :scope:is(lf-tabs)[list="side"].lf-rendered
+      > .lf-tabstrip[data-lf-more-before]
+      .lf-tab-group {
+      inset-inline-start: calc(var(--lf-tabstrip-press) - var(--lf-tabstrip-pad));
+    }
+    :scope:is(lf-tabs)[list="side"].lf-rendered
+      > .lf-tabstrip
+      > .lf-tab-run:not([data-lf-group-apart])
+      > .lf-tab-group
+      ~ .lf-tab-btn {
+      scroll-margin-inline-start: calc(
+        var(--lf-tab-group-size) + var(--lf-tab-run-gap)
+      );
+    }
+    :scope:is(lf-tabs)[list="side"].lf-rendered
+      > .lf-tabstrip
+      > .lf-tab-run[data-lf-group-apart]
+      > .lf-tab-group {
+      position: static;
     }
     :scope:is(lf-tabs)[list="side"].lf-rendered
       > .lf-tabstrip
@@ -823,11 +886,12 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list="side"]) {
   @scope (body > main:not(.layout-column, .layout-sidebar, .layout-workspace) > :scope) {
     :scope:is(lf-parts).lf-rendered > .lf-tabstrip {
       position: fixed;
-      top: calc(var(--lf-top) + var(--lf-parts-title-h, 0px));
+      position-anchor: --lf-parts-title;
+      top: anchor(bottom, var(--lf-top));
       inline-size: var(--lf-parts-list);
       box-sizing: border-box;
       align-self: start;
-      block-size: calc(100dvh - var(--lf-head-room) - var(--lf-parts-title-h, 0px));
+      block-size: calc(100dvh - var(--lf-head-room) - anchor-size(height, 0px));
       min-block-size: 0;
       --lf-tabstrip-flow: column;
       gap: 0;
@@ -859,6 +923,7 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list="side"]) {
         --lf-top: calc(var(--lf-top-outer) + var(--lf-tabstrip-h));
       }
       :scope:is(lf-parts).lf-rendered > .lf-tabstrip {
+        position-anchor: normal;
         position: sticky;
         --lf-head-inset: 0px;
         top: var(--lf-top);

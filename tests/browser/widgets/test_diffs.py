@@ -7,6 +7,7 @@ import re
 import pytest
 from leaf_dev.example_data import patch_manifest
 from playwright.sync_api import expect
+from render_cases_interaction import panel_comment
 from render_cases_widgets import (
     DIFF_CLIPPING,
     DIFF_LANDING,
@@ -35,6 +36,7 @@ from render_harness import (
     write,
 )
 
+from browser.threads import append_agent_reply
 from browser.widgets import (
     _bound_diff,
     expect_walk_says,
@@ -286,18 +288,20 @@ def test_diff_wraps_prose_by_default_and_accepts_an_overflow_choice(browser, ser
 
 
 # Scrolls the box with the given id 400px down and reads how far below the top of its
-# content the diff's file header inside it stands. A sticky box stops at its scroller's
-# padding edge, so a box that states no start of its own pins it below its padding.
+# content and scrollport the diff's file header inside it stands. Ordinary scrollers
+# pin below their padding; tab panels put the header at the scrollport's edge.
 PINNED_IN_BOX = """async (id) => {
     const box = document.getElementById(id);
     box.scrollTop = 400;
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     const head = box.querySelector('lf-diff').shadowRoot
         .querySelector('.lf-diff-file > details > summary');
+    const edge = box.getBoundingClientRect().top + box.clientTop;
     return {
         scrolled: box.scrollTop,
-        gap: head.getBoundingClientRect().top - (box.getBoundingClientRect().top
-            + box.clientTop + parseFloat(getComputedStyle(box).paddingTop)),
+        gap: head.getBoundingClientRect().top - (edge
+            + parseFloat(getComputedStyle(box).paddingTop)),
+        scrollportGap: head.getBoundingClientRect().top - edge,
     };
 }"""
 
@@ -359,9 +363,9 @@ def test_any_box_that_scrolls_starts_the_sticky_header_slot_again(browser, serve
 
 
 def test_a_diff_pins_to_its_page_tab_panel_or_past_an_option_card(browser, serve):
-    """A page tab panel the page makes scroll is the box its diff's header pins to, though
-    the tab strip stacks its height onto what the panel holds: the panel's own scroll
-    restarts `--lf-top`. An undecided option card clips its rounded corners and scrolls
+    """A page tab panel the page makes scroll pins its diff's header to the scrollport
+    edge, leaving no padding band where scrolled rows can show above the header.
+    An undecided option card clips its rounded corners and scrolls
     nothing, so a diff in an option pins at the root's slot as the page scrolls past it."""
     page = open_page(
         browser,
@@ -400,7 +404,7 @@ def test_a_diff_pins_to_its_page_tab_panel_or_past_an_option_card(browser, serve
     }}"""
     )
     assert read["tab"]["scrolled"] == 400, read
-    assert read["tab"]["gap"] == pytest.approx(0, abs=1.5), read
+    assert read["tab"]["scrollportGap"] == pytest.approx(0, abs=1.5), read
     assert read["option"] == pytest.approx(read["top"], abs=1), read
 
 
@@ -851,6 +855,55 @@ def test_a_file_row_a_revision_brings_reads_its_cut_path(browser, serve):
             "title", f"{source} → {path}"
         )
         assert head.evaluate("node => node === window.retainedDiffHead")
+
+
+@pytest.mark.parametrize("engine", ["browser", "webkit_browser"])
+def test_a_diff_revision_leaves_a_line_thread_where_it_stands(request, serve, engine):
+    """A revision that redraws a thread's own line, and puts another file before its
+    file, leaves the thread's outlet where it stands, so a frame in a reply keeps the
+    document it loaded. Clearing the host's light DOM with `replaceChildren()` on each
+    revision unloaded it in WebKit, which lacks `moveBefore` too."""
+
+    def patch(path, body):
+        return f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n{body}"
+
+    first = patch("a.py", "@@ -1,3 +1,3 @@\n one\n-old\n+new\n three\n")
+    url = serve(LONG_LINE_DIFF_PAGE)
+    root = panel_comment(
+        serve.page_dir, "Why?", {"section": "patch", "datum": '["a.py","new",2]'}
+    )
+    append_agent_reply(
+        serve.page_dir,
+        root,
+        "Here is the plan.",
+        '<iframe title="Plan" srcdoc="<p>The plan</p>"></iframe>',
+    )
+    data_model.cmd_data_set(serve.page_dir, "review-patch", patch_manifest(first))
+    page = open_page(request.getfixturevalue(engine), url)
+    frame = page.locator("lf-diff .lf-diff-thread-outlet iframe")
+    expect(frame).to_be_attached()
+    frame.evaluate("""frame => new Promise(loaded => {
+      const settle = () => {
+        frame.contentWindow.lfKept = true;
+        window.lfFrameLoads = 0;
+        window.lfOutlet = frame.closest('.lf-diff-thread-outlet');
+        frame.addEventListener("load", () => window.lfFrameLoads++);
+        loaded();
+      };
+      if (frame.contentDocument?.readyState === "complete") settle();
+      else frame.addEventListener("load", settle, {once: true});
+    })""")
+    redrawn = patch("0.py", "@@ -1 +1 @@\n-x\n+y\n") + first.replace("+new", "+newer")
+    data_model.cmd_data_set(serve.page_dir, "review-patch", patch_manifest(redrawn))
+    told(page)
+    rendered(page)
+    expect(
+        page.locator('lf-diff [data-lf-datum=\'["a.py","new",2]\']')
+    ).to_contain_text("newer")
+    assert frame.evaluate(
+        """frame => [frame.closest('.lf-diff-thread-outlet') === window.lfOutlet,
+          frame.contentWindow?.lfKept, window.lfFrameLoads]"""
+    ) == [True, True, 0]
 
 
 @pytest.mark.parametrize("manifest, changes_kind", [(False, True), (True, False)])

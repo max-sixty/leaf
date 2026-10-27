@@ -31,7 +31,11 @@ import {
   commitThreadSeats,
   retainThreadSeats,
 } from "./inline.js";
-import { applicationPresenter, PRESENTATION_DOM } from "../semantic-state.js";
+import {
+  applicationPresenter,
+  PRESENTATION_DOM,
+  regionCommitted,
+} from "../semantic-state.js";
 import { runtime } from "../context.js";
 
 // Each held element names the thread holding it, decided whole before any is written, so
@@ -176,16 +180,17 @@ export function createThreadPresentation({
             pageGeometry.pageShifted();
             read.present();
             // Continuity lands the user where the pass left their thread, a margin card
-            // included, so it starts once the margin has committed, and waits for
-            // nothing else: not the whole pass, which a widget may hold through a drag.
-            // The margin's claim for what this commit moved lands when this stretch's
-            // batch ends, so its commit is read a microtask later; a margin owing no
-            // repaint has already committed. It may reveal a route needing this very
+            // included, so it starts once the margin's own DOM has committed, and waits
+            // for nothing else: not the whole pass, nor the upstream DOM the margin's
+            // paint follows, either of which a widget may hold through a drag
+            // (`regionCommitted`). The margin's claim for what this commit moved lands
+            // when this stretch's batch ends, so its commit is read a microtask later; a
+            // margin owing no repaint has already committed. It may reveal a route needing this very
             // presenter, and never joins the ticket it is completing. Once the user is
             // placed, a thread the primary held as the last resort goes back to the page
             // where the page now draws its place (thread/destination.js, `returnToPage`).
             void Promise.resolve()
-              .then(() => Promise.allSettled(PRESENTATION_DOM.annotations()))
+              .then(() => regionCommitted("annotations"))
               .then(() => continueReplies(restorePlace))
               .then(returnToPage)
               .catch((error) => reportPageError(error, `Reply continuation failed`));

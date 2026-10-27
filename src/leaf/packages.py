@@ -31,15 +31,14 @@ from .locations import (
 from .machine import package_store
 from .refusals import Refused
 from .schema import (
-    BROWSER_DIRS,
     ELEMENT_ID,
     HTML_NAME,
+    LAYER_FILE,
     PACKAGE_DIRS,
     PACKAGE_FILES,
     PAGE_OWNED_DIRS,
     PAGE_OWNED_FILES,
     SCRIPTS_DIR,
-    VENDORED_FILES,
     WIDGET_NAME,
     WIDGET_NAME_RULE,
 )
@@ -188,13 +187,10 @@ def initialized_page_owning(path: Path):
     resolved = path.resolve()
     at = path_location(resolved)
     for root in (resolved, *resolved.parents):
-        # The append-only event log is the successful-init marker. Disposable
-        # runtime state cannot identify the page whose owned paths this gate protects.
-        if not (
-            (root / EVENTS_FILE).is_file()
-            and all((root / name).is_file() for name in VENDORED_FILES)
-            and all((root / name).is_dir() for name in BROWSER_DIRS)
-        ):
+        # The append-only event log is the successful-init marker, beside the layer
+        # record init writes. Disposable runtime state cannot identify the page whose
+        # owned paths this gate protects.
+        if not ((root / EVENTS_FILE).is_file() and (root / LAYER_FILE).is_file()):
             continue
         if (
             at == path_location(root)

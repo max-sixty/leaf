@@ -73,7 +73,7 @@ from leaf.findings import Finding
 from leaf.obligations import collection
 from leaf.refusals import Refused
 from leaf.registry.contract import RegistryError
-from leaf.registry.storage import load_registry
+from leaf.registry.storage import load_registry, require_registry
 from leaf.revision_artifact import active_enclosing
 from leaf.served_state import page as served_page
 from leaf.validation import composition as composition_model
@@ -522,23 +522,42 @@ def declare_on_page(page_dir: Path, mutate) -> None:
     A page's layer is the Leaf's own (`layer.selected_layer`), so a test that needs
     a vocabulary the shipped layer lacks declares it where an author would, in
     `page/registry.json`: each entry `mutate` changes or adds, whole, and each `$`
-    fact by the members it changes, which merge over the layer's."""
+    fact by the members it changes, which merge over the layer's, a map member by
+    merge-patch (`registry.layer.merge_layer_declarations`). `mutate` sees the
+    declarations the page already makes."""
     from copy import deepcopy
 
-    before = {
-        key: value for key, value in load_registry(page_dir).items() if key != "$layer"
-    }
-    after = deepcopy(before)
-    mutate(after)
+    from leaf.registry.layer import merge_layer_declarations
+
     path = page_dir / "page" / "registry.json"
     declarations = json.loads(path.read_text()) if path.is_file() else {}
+    before = deepcopy(
+        {
+            key: value
+            for key, value in load_registry(page_dir).items()
+            if key != "$layer"
+        }
+    )
+    merge_layer_declarations(before, deepcopy(declarations))
+    after = deepcopy(before)
+    mutate(after)
     for key, value in after.items():
         if value == before.get(key):
             continue
         if key.startswith("$") and isinstance(before.get(key), dict):
             members = declarations.setdefault(key, {})
             for member, item in value.items():
-                if item != before[key].get(member):
+                earlier = before[key].get(member)
+                if item == earlier:
+                    continue
+                if isinstance(item, dict) and isinstance(earlier, dict):
+                    patch = members.get(member)
+                    members[member] = {
+                        **(patch if isinstance(patch, dict) else {}),
+                        **{k: v for k, v in item.items() if earlier.get(k) != v},
+                        **{k: None for k in earlier.keys() - item.keys()},
+                    }
+                else:
                     members[member] = item
         else:
             declarations[key] = value
@@ -674,8 +693,9 @@ def command_findings(*args) -> list[Finding]:
 
 
 def read_page_data(page_dir) -> dict:
-    """Every source the page records, judged against the page's own layer."""
-    return data_model.read_data(page_dir, load_registry(page_dir))
+    """Every source the page records, judged against the vocabulary its live
+    document is read in."""
+    return data_model.read_data(page_dir, require_registry(page_dir))
 
 
 def declare_data_input(

@@ -87,6 +87,7 @@ function patch(beforeMarkup, afterMarkup = beforeMarkup) {
   };
   return {
     live,
+    after,
     rules,
     retains: (node) => patchRetains(before, after, node, rules),
     install: () => patchTree(before, after, rules),
@@ -206,6 +207,22 @@ test("a native shadow editor follows its containing owner's authored retention",
     root.append(editor);
     assert.equal(retains(editor), !changed);
   }
+});
+
+test("a widget a revision keeps stands for the same live nodes inside it", () => {
+  const { live, after, rules, install } = patch(
+    '<test-owner id="o"><p>Kept words.</p></test-owner><p>Before</p>',
+    '<test-owner id="o"><p>Kept words.</p></test-owner><p>After</p>',
+  );
+  const words = live.querySelector("test-owner p");
+  // The controller moved its paragraph into a box of its own.
+  const box = document.createElement("div");
+  live.firstElementChild.append(box);
+  box.append(words);
+  install();
+  const source = after.querySelector("test-owner p");
+  assert.equal(rules.pairs.get(source), words);
+  assert.equal(rules.pairs.get(source.firstChild), words.firstChild);
 });
 
 test("a revision reaching a widget writes inside the authored body its module built", () => {

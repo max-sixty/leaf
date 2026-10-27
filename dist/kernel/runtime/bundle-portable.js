@@ -640,40 +640,6 @@ function watchScrollEnds(listener) {
 }
 
 //#endregion
-//#region runtime/shown-box.js
-const skipped = (el) => document.documentElement.lfInitial?.skipped(el, renderedParent) ?? false;
-function elementBox(el) {
-	const r = el.getBoundingClientRect();
-	if (r.width || r.height || skipped(el) || getComputedStyle(el).display !== "contents") return r;
-	const contents = document.createRange();
-	contents.selectNodeContents(el);
-	return contents.getBoundingClientRect();
-}
-const measurements = /* @__PURE__ */ new WeakMap();
-const drawn = (el) => {
-	const box = elementBox(el);
-	return Boolean(box.width || box.height);
-};
-const unmeasured = sizeObserver((entries) => {
-	const taking = [];
-	for (const { target } of entries) {
-		if (!drawn(target)) continue;
-		unmeasured.unobserve(target);
-		taking.push(measurements.get(target));
-		measurements.delete(target);
-	}
-	for (const take of taking) take();
-});
-function measure(el, take) {
-	if (drawn(el)) {
-		if (measurements.delete(el)) unmeasured.unobserve(el);
-		return take();
-	}
-	measurements.set(el, take);
-	unmeasured.observe(el);
-}
-
-//#endregion
 //#region runtime/widget-upgrade.js
 const initialized = /* @__PURE__ */ new WeakSet();
 function once(el) {
@@ -738,6 +704,40 @@ function releaseTemplate(el) {
 	if (!part) return;
 	part.setConnected(false);
 	delete el._$litPart$;
+}
+
+//#endregion
+//#region runtime/shown-box.js
+const skipped = (el) => document.documentElement.lfInitial?.skipped(el, renderedParent) ?? false;
+function elementBox(el) {
+	const r = el.getBoundingClientRect();
+	if (r.width || r.height || skipped(el) || getComputedStyle(el).display !== "contents") return r;
+	const contents = document.createRange();
+	contents.selectNodeContents(el);
+	return contents.getBoundingClientRect();
+}
+const measurements = /* @__PURE__ */ new WeakMap();
+const drawn = (el) => {
+	const box = elementBox(el);
+	return Boolean(box.width || box.height);
+};
+const unmeasured = sizeObserver((entries) => {
+	const taking = [];
+	for (const { target } of entries) {
+		if (!drawn(target)) continue;
+		unmeasured.unobserve(target);
+		taking.push(measurements.get(target));
+		measurements.delete(target);
+	}
+	for (const take of taking) take();
+});
+function measure(el, take) {
+	if (drawn(el)) {
+		if (measurements.delete(el)) unmeasured.unobserve(el);
+		return take();
+	}
+	measurements.set(el, take);
+	unmeasured.observe(el);
 }
 
 //#endregion

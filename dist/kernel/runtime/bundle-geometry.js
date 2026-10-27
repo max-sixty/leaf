@@ -244,8 +244,9 @@ function seenRect(item, clips, box = shownBox(item)) {
 		bottom: room.bottom
 	} : null;
 }
+const showsContents = (node, options) => node.getAttribute("hidden") !== "until-found" && node.checkVisibility(options);
 function presented(node) {
-	if (!node.checkVisibility({ visibilityProperty: true }) || excludedByInert(node) || !nativeModalAdmits(node)) return false;
+	if (!showsContents(node, { visibilityProperty: true }) || excludedByInert(node) || !nativeModalAdmits(node)) return false;
 	for (let at = node; at; at = renderedParent(at)) if (at.getAttribute?.("aria-hidden") === "true") return false;
 	return true;
 }
@@ -603,4 +604,4 @@ function uncovered(rect, box) {
 }
 
 //#endregion
-export { clamp, clippedContents, clippedPlace, clippingAxes, clipsPastSurfaces, declareOccluder, declareWindowChrome, frameView, growthAfterIsSeen, growthIsSeen, hasArea, headerCuts, headerInset, inWindowChrome, intersect, landingBand, landingInsets, layoutWindow, nearObserver, nearWindow, nearestScrollBy, overlaps, overlapsAcross, paintClips, placeBox, placeHolder, presented, rightCover, scrollContainer, scrollsBy, scrollsContent, seenRect, shellRight, shownBand, shownBox, shownExtent, shownParts, shownRect, shownWindow, slotTop, stackLevel, startsAt, stuckBox, underOccluder, union, userScrollport, visibleBand, watchRoom, whenNone, windowChromeBoxes };
+export { clamp, clippedContents, clippedPlace, clippingAxes, clipsPastSurfaces, declareOccluder, declareWindowChrome, frameView, growthAfterIsSeen, growthIsSeen, hasArea, headerCuts, headerInset, inWindowChrome, intersect, landingBand, landingInsets, layoutWindow, nearObserver, nearWindow, nearestScrollBy, overlaps, overlapsAcross, paintClips, placeBox, placeHolder, presented, rightCover, scrollContainer, scrollsBy, scrollsContent, seenRect, shellRight, shownBand, shownBox, shownExtent, shownParts, shownRect, shownWindow, showsContents, slotTop, stackLevel, startsAt, stuckBox, underOccluder, union, userScrollport, visibleBand, watchRoom, whenNone, windowChromeBoxes };

@@ -849,6 +849,8 @@ export function createMarginProjection({
         key: `reading:${choice?.key ?? "none"}`,
         icon: face.icon,
         label: readingLabel(choice),
+        // A lone receipt's label is its workflow's word, said in that workflow's voice.
+        voice: (items.length === 1 && face.voice) || "agent",
         context: readingContext(choice),
         behavior,
         rank: "reading",

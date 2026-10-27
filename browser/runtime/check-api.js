@@ -124,4 +124,4 @@ export { WORKS } from "./control-selectors.js";
 export { readingReturn, completeReadingReturn } from "./reading-continuity.js";
 
 export { observeOutputs } from "./data.js";
-export { selfComparison, servedElements } from "./version.js";
+export { servedElements } from "./version.js";

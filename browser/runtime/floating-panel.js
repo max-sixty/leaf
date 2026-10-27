@@ -186,6 +186,7 @@ import {
   todoLabel,
   workflowLabel,
   workflowStep,
+  workflowVoice,
 } from "./thread/workflow.js";
 import {
   messageReading,
@@ -258,7 +259,7 @@ import { scrollIntoView } from "./landing-scroll.js";
 import { gesturedOn, newsNotice } from "./thread/held-news.js";
 import { moveScrollerBy, SCROLL_SLACK, scrollLimit, scrollToEnd } from "./scrolling.js";
 import { showReturnTurn } from "./thread/reply-landing.js";
-import { declareOccluder, declareWindowChrome } from "./geometry.js";
+import { declareOccluder, declareWindowChrome, showsContents } from "./geometry.js";
 import { registerReadingRegion } from "./reading-regions.js";
 import { agentName, documentChanged } from "./semantic-state.js";
 import { runtime } from "./context.js";
@@ -924,7 +925,9 @@ export function createFloatingPanel({
       : walk.kind === "thread" && walk.target === thread?.id
         ? `${walk.position} of ${walk.total}`
         : walk.text;
-    return [threadAttention(thread)?.label, position].filter(Boolean).join(" · ");
+    return [threadAttention(thread, agentName())?.label, position]
+      .filter(Boolean)
+      .join(" · ");
   }
   // Where the words go, as the focused field's placeholder says it; the thread's own
   // name already heads its view.
@@ -1150,13 +1153,12 @@ export function createFloatingPanel({
   // me mark's dot counts it: the user chose (2026-10-25) that a resolved thread's unread
   // reply says nothing new. Rows name attention and drafts, and resolution where no
   // Resolved heading over them says it already.
-  const threadStatus = (thread, { headed }) =>
-    [
-      thread.resolved ? !headed && "Resolved" : threadAttention(thread)?.label,
-      draftHasContent(replyContext(thread.key)) && "Draft",
-    ]
-      .filter(Boolean)
-      .join(" · ");
+  const threadStatus = (thread, { headed }) => {
+    const attention = thread.resolved ? null : threadAttention(thread, agentName());
+    const word = thread.resolved ? !headed && "Resolved" : attention?.label;
+    const draft = draftHasContent(replyContext(thread.key)) && "Draft";
+    return html`${word ? html`<span data-voice=${attention?.voice ?? "agent"}>${word}</span>` : nothing}${word && draft ? " · " : ""}${draft || nothing}`;
+  };
   const rows = () => pageControls();
 
   // ---------- the views ----------
@@ -1716,7 +1718,7 @@ export function createFloatingPanel({
         outlet.querySelectorAll(`.lf-msg[data-message], ${WORKING}`)
       ),
     ]
-      .filter((node) => node.checkVisibility())
+      .filter((node) => showsContents(node))
       .map((node) => node.dataset.message ?? FACE + node.dataset.face);
     const before = drawnThread?.key === top.thread ? drawnThread : null;
     const msgs = threadByKey(top.thread)?.msgs ?? [];
@@ -2478,7 +2480,7 @@ export function createFloatingPanel({
         data-key=${thread.key}
         ?data-unread=${isNews(thread)}
         ?data-resolved=${thread.resolved}
-        ?data-yours=${threadAttention(thread)?.kind === "needs_user"}
+        ?data-yours=${threadAttention(thread, agentName())?.kind === "needs_user"}
         @click=${() => open({ view: "thread", thread: thread.key })}
       >
         <span class="lf-fp-news-mark"
@@ -3019,8 +3021,9 @@ export function createFloatingPanel({
           since: item.todo.running?.ts ?? item.todo.ts,
         }
       : {
-          word: workflowLabel(item.workflow),
-          line: workflowStep(item.workflow),
+          word: workflowLabel(item.workflow, agentName()),
+          voice: workflowVoice(item.workflow),
+          line: workflowStep(item.workflow, agentName()),
           since: item.workflow?.ts ?? null,
         };
   // A press on a line opens its card, or folds it; the view keeps its height where the
@@ -3321,7 +3324,7 @@ export function createFloatingPanel({
     if (list === "agent") {
       const work = workOn(item);
       end = html`<span class="lf-fp-value"
-        >${work.word}${
+        ><span data-voice=${work.voice ?? "agent"}>${work.word}</span>${
           work.since
             ? html` <span class="lf-fp-age">${shortAgo(work.since)}</span>`
             : nothing

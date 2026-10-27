@@ -13,7 +13,7 @@ export function unreducedMotion() {
   const found = new Map();
   for (const animation of document.getAnimations()) {
     const { effect } = animation;
-    const target = effect instanceof KeyframeEffect ? effect.target : null;
+    const target = effect && "target" in effect ? effect.target : null;
     if (!(target instanceof Element) || animation.playState !== "running") continue;
     if (!target.closest("main") || target.closest(".lf-chrome, .lf-ui")) continue;
     found.set(target, { code: "unreduced-motion", at: at(target) });

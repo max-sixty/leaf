@@ -2,7 +2,7 @@
   "inputs": {
     "leaf.js": "3f7291311fc3c3f78fd397e1f74bd9d60abcd665b33a589c940886603431c717",
     "runtime/abort.js": "a95360fd44e7614c6faa7d08a527b95a26646a52602d4908c786b97106d7f254",
-    "runtime/activity-words.js": "3a37d6b36a35967448817d723a758c57622703a318df1c2d583100c2c0275f0b",
+    "runtime/activity-words.js": "9c229b83fc10f869086ed06e8b6f858b011803d0ce94e6859b948fd9aff81b28",
     "runtime/addressable-names.js": "a91c6440c4aaec79fa9a9f0e08185db6bd376cd5e599d5470dad729d32868b16",
     "runtime/anchor-controls.js": "de57a8d5b8e46430128bdc93fcb89b438872d9f7f501462b777b33362870743b",
     "runtime/anchor-coordinate.js": "6dce53e1d9f3b17259a6d2ef8194ab8c62c0bea84a814f6a664274e153dc6959",
@@ -81,7 +81,7 @@
     "runtime/element-frame.js": "6cedf757197018b4e0ab5a33a73b806c6f1d8312efd7ee08b6e1017369052f31",
     "runtime/errors.js": "7dd996bf402b05ba7eeaf82a3f87be1bb76244c1ea98725324c475c7b6c5057e",
     "runtime/file-api.js": "4ffa7c003279a45c649db56e3904e7c535f94407fa052ad39797141394107bd9",
-    "runtime/floating-panel.js": "47396dfdee9c37dd35b5e01ebc42988f447eeb7fedf6efedccaaf536cf991ccd",
+    "runtime/floating-panel.js": "68eea953752720ad475c5ef777d52fa232a6549e03671e6d302d58f75775f15a",
     "runtime/focus.js": "79d74ad04c23bb666fc59c097189c219dab6fc7a3c669e5277ee2385cbd09464",
     "runtime/frame-visibility.js": "bf7a4b7783b0b7c55dccb59d89863ba6e5252b63c3c43331493c59e510d3c0a1",
     "runtime/framework.js": "4231f9a0801ba1042f075e44a390e84f7b6a3992f97c216ca9d1b5029dbae0b7",

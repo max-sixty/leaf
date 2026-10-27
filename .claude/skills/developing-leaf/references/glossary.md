@@ -42,9 +42,9 @@ working”, “Waiting for Claude”), which puts a third party between them. A 
 composes from what it observes, such as an agent that stopped or a server it can't
 reach, is Leaf's best guess at what the agent would say, and reads the same way. Only
 words the agent can't be saying, such as an instruction about the agent (“Not
-answering — nudge the terminal”) or Leaf's own state (“Lost the connection —
-reconnecting”), are set apart in italic, as a script sets a stage direction apart from
-the lines (`pageStatus`, `voice`).
+answering — nudge the terminal”), Leaf's own state (“Lost the connection —
+reconnecting”) or an error, are set apart in italic, as a script sets a stage direction
+apart from the lines (`pageStatus`, `voice`).
 
 The agent's lines take no first person, so *me* and *my* always mean the user: **Me**
 as an author, **Waiting on me** and **On me**, **my change**, and commands such as

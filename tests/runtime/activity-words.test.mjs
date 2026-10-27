@@ -412,6 +412,15 @@ test("a leaves row says each kind in a row's words, with the updates still waiti
     }),
     "Using a tool · 2 responses owed on queued updates · 1 response owed on updates awaiting delivery",
   );
+  assert.equal(
+    row({
+      kind: "working",
+      detail: "Writing the page",
+      observed_kind: "awaiting_approval",
+      awaiting: true,
+    }),
+    "Need your approval in the terminal — Writing the page",
+  );
   assert.equal(row({ kind: "listening", detail: "" }), "Ready");
   assert.equal(
     row({ kind: "listening", detail: "", counts: { pending: 1 } }),

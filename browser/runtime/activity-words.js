@@ -455,9 +455,13 @@ export function leafRow(entry) {
     : since
       ? `Last checked in${since}`
       : "Haven't checked in yet";
+  // A wait the user answers in the terminal leads, as the status's does, so a blocked
+  // page doesn't read as a busy one.
   const primary =
     kind === "working"
-      ? detail || facts.work
+      ? entry.activity.awaiting
+        ? stated(facts.work)
+        : detail || facts.work
       : kind === "listening"
         ? "Ready"
         : kind === "stalled"

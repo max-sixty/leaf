@@ -669,7 +669,7 @@ export function createFloatingPanel({
   const hiddenLead = () => (annotationsHidden() ? `${HIDDEN} · ` : "");
   function fieldReading(key, input) {
     const [error] = sayable();
-    if (error) return { says: "error", words: error.message };
+    if (error) return { says: "error", words: error.message, voice: "leaf" };
     const thread = key ? threadByKey(key) : null;
     if (input === focused() && !thread?.resolved)
       return { says: "destination", words: whereTo(key) };
@@ -703,7 +703,12 @@ export function createFloatingPanel({
         says: "stance",
         words: annotationsHidden() ? `${stance} · ${HIDDEN}` : stance,
       };
-    if (!key) return { says: "status", words: hiddenLead() + status().summary };
+    if (!key)
+      return {
+        says: "status",
+        words: hiddenLead() + status().summary,
+        voice: status().voice,
+      };
     return { says: "turn", words: "Reply" };
   }
   // The reply the open thread's field takes, then whose turn it is, so a field too
@@ -729,10 +734,15 @@ export function createFloatingPanel({
   const whereTo = (key) => (key ? "Reply in this thread" : "Comment on the page");
   // An editor's empty words, as its own paint draws them (composing/input.js, `hint`),
   // which marks the editor with whose reading they are, so the face the theme gives that
-  // reading changes in the same paint as the words (floating-panel.css).
+  // reading changes in the same paint as the words (floating-panel.css). Words the agent
+  // can't be saying, an error or Leaf's own state, are marked Leaf's (`pageStatus`,
+  // `voice`).
   function saying(key, input) {
     const reading = fieldReading(key, input);
-    if (input) keeps(input, "data-says", reading.says);
+    if (input) {
+      keeps(input, "data-says", reading.says);
+      keeps(input, "data-voice", reading.voice === "leaf" ? "leaf" : null);
+    }
     return reading.words;
   }
   // The page's own editor: the field where no thread is open.
@@ -3870,10 +3880,6 @@ export function createFloatingPanel({
     keeps(host, "data-offers", !search && reading.says === "selection" ? "" : null);
     keeps(host, "data-tone", status().tone || null);
     keeps(host, "data-asks", status().asks ? "" : null);
-    // A status the agent can't be saying, Leaf's own state or an instruction about the
-    // agent such as nudging its terminal, takes a face of its own, as a script sets a
-    // stage direction apart from the lines (`pageStatus`, `voice`).
-    keeps(host, "data-voice", status().voice === "leaf" ? "leaf" : null);
     // A mode names the destination while a draft hides the placeholder. Passing
     // notices use the empty field and live region; they never allocate another row.
     const selection = !search && reading.says === "selection" && words;

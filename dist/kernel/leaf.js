@@ -4285,7 +4285,7 @@ function leafRow(entry) {
 	const stated = (word) => word + (detail ? " — " + detail : "");
 	const since = facts.silentSince ? ` ${facts.silentSince}` : "";
 	const silence = facts.left ? `Stopped${since}` : since ? `Last checked in${since}` : "Haven't checked in yet";
-	const primary = kind === "working" ? detail || facts.work : kind === "listening" ? "Ready" : kind === "stalled" ? stated(silence) : kind === "away" ? counts.overdue ? silence : "Away" : kind === "unheld" ? "Not on this page right now" : "Done with this page";
+	const primary = kind === "working" ? entry.activity.awaiting ? stated(facts.work) : detail || facts.work : kind === "listening" ? "Ready" : kind === "stalled" ? stated(silence) : kind === "away" ? counts.overdue ? silence : "Away" : kind === "unheld" ? "Not on this page right now" : "Done with this page";
 	const line = facts.waiting.length ? `${primary} · ${facts.waiting.join(" · ")}` : primary;
 	return {
 		tone: facts.tone,
@@ -5026,7 +5026,8 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const [error] = sayable();
 		if (error) return {
 			says: "error",
-			words: error.message
+			words: error.message,
+			voice: "leaf"
 		};
 		const thread = key ? threadByKey(key) : null;
 		if (input === focused() && !thread?.resolved) return {
@@ -5061,7 +5062,8 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		};
 		if (!key) return {
 			says: "status",
-			words: hiddenLead() + status().summary
+			words: hiddenLead() + status().summary,
+			voice: status().voice
 		};
 		return {
 			says: "turn",
@@ -5080,7 +5082,10 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	const whereTo = (key) => key ? "Reply in this thread" : "Comment on the page";
 	function saying(key, input) {
 		const reading = fieldReading(key, input);
-		if (input) keeps(input, "data-says", reading.says);
+		if (input) {
+			keeps(input, "data-says", reading.says);
+			keeps(input, "data-voice", reading.voice === "leaf" ? "leaf" : null);
+		}
 		return reading.words;
 	}
 	let general = null;
@@ -7061,7 +7066,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		keeps(host, "data-offers", !search && reading.says === "selection" ? "" : null);
 		keeps(host, "data-tone", status().tone || null);
 		keeps(host, "data-asks", status().asks ? "" : null);
-		keeps(host, "data-voice", status().voice === "leaf" ? "leaf" : null);
 		const selection = !search && reading.says === "selection" && words;
 		const searchLabel = pageSearch?.open ? "Search page" : "Search threads";
 		render(search ? html`<span class="lf-fp-mode-word">Search </span>${iconTemplate("search", "lf-fp-mode-icon")}<span>${pageSearch?.open ? "page" : "threads"}</span>` : selection ? "Selection" : nothing, fieldMode);

@@ -878,6 +878,9 @@ export function createFloatingPanel({
     const [error] = sayable();
     if (error) return { says: "error", words: error.message, voice: "leaf" };
     const thread = key ? threadByKey(key) : null;
+    // A retained field can repaint between a thread leaving the reading and its
+    // route being retired. Its native row survives that interval, not its turn.
+    if (key && !thread) return { says: "absent", words: "" };
     if (input === focused() && !thread?.resolved)
       return { says: "destination", words: whereTo(key) };
     if (

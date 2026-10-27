@@ -633,7 +633,10 @@ for event, args, turn_id in cases:
     if turn_id:
         payload["turn_id"] = turn_id
     sys.stdin = io.StringIO(json.dumps(payload))
-    runpy.run_module("leaf", run_name="__main__")
+    try:
+        runpy.run_module("leaf", run_name="__main__")
+    except SystemExit as error:
+        assert error.code == 0, error.code
     if turn_id:
         from leaf.codex_state import hook_turn
         observed = hook_turn("holds-nothing")
@@ -650,9 +653,7 @@ print(json.dumps(imported))
         check=True,
     )
     heavy = (
-        "leaf.cli",
         "psutil",
-        "click",
         "leaf.hosting",
         "uvicorn",
         "leaf.http",

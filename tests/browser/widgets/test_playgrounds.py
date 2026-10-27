@@ -307,7 +307,7 @@ def test_plain_choices_wrap_between_whole_labels_until_the_author_sets_columns(
     browser, serve
 ):
     """Plain label choices run in a row that breaks between labels, and
-    `--playground-choice-columns` arranges them, or rich choices, in the author's
+    `--playground-choice-columns` arranges them, and rich choices, in the author's
     columns instead."""
     choices = "".join(
         f'<lf-playground-choice value="{value}" label="{label}"></lf-playground-choice>'
@@ -317,17 +317,12 @@ def test_plain_choices_wrap_between_whole_labels_until_the_author_sets_columns(
             ("mute", "Mute"),
         )
     )
-    rich = "".join(
-        f'<lf-playground-choice value="{value}" label="{value}"><p>{value}</p>'
-        "</lf-playground-choice>"
-        for value in ("page", "ticket", "mute")
-    )
     source = leaf_page(
         "Choice arrangements",
         f"""<style>
   .card {{ inline-size: 28rem; }}
   #columned {{ --playground-choice-columns: repeat(2, minmax(0, 1fr)); }}
-  #rich {{ --playground-choice-columns: repeat(3, minmax(0, 1fr)); }}
+  #stacked {{ inline-size: 60rem; --playground-choice-columns: minmax(0, 1fr); }}
 </style>
 <h1>Route the alert</h1>
 <lf-playground id="routes">
@@ -336,8 +331,11 @@ def test_plain_choices_wrap_between_whole_labels_until_the_author_sets_columns(
       kind="choice" value="page">{choices}</lf-playground-control></div>
     <div class="card" id="columned"><lf-playground-control name="columns"
       label="Columns" kind="choice" value="page">{choices}</lf-playground-control></div>
-    <div class="card"><lf-playground-control id="rich" name="rich" label="Rich"
-      kind="choice" value="page">{rich}</lf-playground-control></div>
+    <div id="stacked"><lf-playground-control name="rich" label="Layout"
+      kind="choice" value="list">
+      <lf-playground-choice value="list" label="List"><p>Rows</p></lf-playground-choice>
+      <lf-playground-choice value="grid" label="Grid"><p>Tiles</p></lf-playground-choice>
+    </lf-playground-control></div>
   </lf-playground-preview>
   <lf-playground-output>Route the alert.</lf-playground-output>
 </lf-playground>""",
@@ -356,12 +354,11 @@ def test_plain_choices_wrap_between_whole_labels_until_the_author_sets_columns(
     columns = page.locator('lf-playground-control[name="columns"]').evaluate(read)
     assert columns[0]["left"] == columns[2]["left"] < columns[1]["left"]
     assert columns[0]["top"] == columns[1]["top"] < columns[2]["top"]
-    # Rich choices default to cells at least 20rem wide, one a row in this card, and
-    # the author's three columns hold them in one row.
-    rich_rows = page.locator("#rich label.choice").evaluate_all(
-        "faces => faces.map(face => Math.round(face.getBoundingClientRect().top))"
-    )
-    assert len(set(rich_rows)) == 1
+    # Rich choices take the author's columns over their own responsive grid.
+    rich = page.locator('lf-playground-control[name="rich"] lf-playground-choice')
+    boxes = [rich.nth(index).bounding_box() for index in range(2)]
+    assert boxes[0]["x"] == boxes[1]["x"]
+    assert boxes[0]["y"] < boxes[1]["y"]
 
 
 def test_playground_keeps_contributor_drafts_until_reset_or_a_new_choice(

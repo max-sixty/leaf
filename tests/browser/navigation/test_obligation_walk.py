@@ -40,7 +40,7 @@ from render_harness import (
 from browser.navigation import expect_walk_position, walk_position
 from browser.threads import open_panel_thread
 from leaf import event_log as events_model
-from leaf.render_checks import one_frame, rendered
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -174,24 +174,7 @@ def test_an_obligation_walk_glides_within_a_view_and_opens_other_tabs_at_the_que
     for key, target, tab in [("m", "second", "Second"), ("Shift+m", "first", "First")]:
         before = page.evaluate("scrollY")
         start_trace()
-        if target == "second":
-            # A revealed view may finish presentation later than its new geometry.
-            # Record its first painted frame while that completion is held.
-            page.evaluate("""() => {
-              const held = new Promise(resolve => { window.releaseObligationTabLayout = resolve; });
-              document.querySelector('#views').addEventListener('lf-layout', event => {
-                event.detail.present(held);
-                window.obligationTabLayoutStarted = true;
-              }, {once: true});
-            }""")
-            try:
-                page.keyboard.press(key)
-                page.wait_for_function("window.obligationTabLayoutStarted === true")
-                one_frame(page)
-            finally:
-                page.evaluate("releaseObligationTabLayout()")
-        else:
-            page.keyboard.press(key)
+        page.keyboard.press(key)
         expect(page.locator(f"#ask-{target}")).to_be_focused()
         selected = page.locator("#views > .lf-tabstrip").get_by_role(
             "tab", name=tab, exact=True

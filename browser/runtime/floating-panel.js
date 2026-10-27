@@ -2520,6 +2520,7 @@ export function createFloatingPanel({
         </button>
         ${resolvedShown ? rowsOf(resolved) : nothing}`;
     const allSettled = !listed.length && !searched && inventoried();
+    /** @type {unknown} */
     let resolvedPart = nothing;
     if (resolved.length) {
       if (variant === "fold") {

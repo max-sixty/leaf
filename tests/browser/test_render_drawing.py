@@ -864,7 +864,10 @@ def test_two_fingers_pan_and_zoom_in_draw_mode_while_one_draws(browser, serve):
         [(240, 700 - 30 * n) for n in range(12)],
     )
     page.wait_for_function(f"visualViewport.pageTop > {still['top'] + 100}")
-    expect(page.locator(".lf-live")).to_contain_text("Stroke canceled")
+    # A pan the browser takes at once begins no stroke, so it may say nothing; what it
+    # leaves is no stroke under way and the drawing as it was.
+    expect(page.locator(".lf-drawing-active")).to_have_count(0)
+    expect(page.locator(".lf-drawing-mark")).to_have_count(1)
     # Two fingers spread apart: the page zooms.
     page.locator(".lf-live").evaluate("live => live.replaceChildren()")
     fingers(

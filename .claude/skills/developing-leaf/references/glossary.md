@@ -29,7 +29,7 @@ implementation terms keep their exact spelling where the reader needs them.
 | **Delivery** | How far an update has got toward the agent: **Saving…** and **Saved** on the user's side, then the agent's **Up next** (stage `queued`) and **Got it** (stage `picked_up`), handed into its turn. Got it doesn't mean work has begun |
 | **Saved** | An update Leaf has logged that no harness has queued or opened into a turn yet (stage `sent` in `workflows.py`); before the log accepts it, the browser shows **Saving…** |
 | **On it** | The agent has explicitly started this update or to-do (stage `working`); page activity alone doesn't mean it has |
-| **Undo** | Taking back the user's latest update that can be taken back |
+| **Undo** | Taking back the user's latest update that can be taken back, leaving the user at what it changed (`undo.js`) |
 | **Threads** | The mark in Leaf's panel and the view it opens, listing conversations. A **thread** is one conversation; a **comment box** is the field where the user writes a comment or reply |
 | **Version** | A stamped page the user can revisit: **Showing v4** in the version picker, or **Showing Draft** for the live unstamped source |
 

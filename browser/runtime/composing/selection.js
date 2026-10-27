@@ -131,13 +131,14 @@ fabBar.append(fab, fabOptions);
 
 const composer = el("div", "lf-ui lf-composer");
 composer.id = "lf-composer";
-// Only ever shown detached — anchor paint, its one writer, keeps it out of sight while
-// the page is marking the passage. lf-ui on the element itself, not just on the composer
+// Never shown: anchor paint, its one writer, fills it with the words the field's
+// description reads (below). lf-ui on the element itself, not just on the composer
 // around it: this is the only injected chrome carrying an id, and "which section is this
 // in" is asked as `[id]:not(.lf-ui)` of the element rather than of its ancestors, so
 // without the class it answers that question with itself.
 export const composerQuote = el("blockquote", "lf-ui lf-quote detached");
 composerQuote.id = "lf-composer-quote";
+composerQuote.hidden = true;
 // The page-anchored composer is the extended Comment control itself. The hidden
 // composer node keeps the draft's controls and quote description, while this field
 // stays in the response bar and never jumps to a second box.

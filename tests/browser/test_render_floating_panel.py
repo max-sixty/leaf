@@ -2589,9 +2589,18 @@ def test_the_empty_field_says_the_agent_s_status_until_the_caret_is_in(browser, 
 
     sheen(True)
     box = page.locator(".lf-fp-field").bounding_box()
+    animation = field(page).evaluate_handle("""node => window.editorRoots.get(node)
+      .querySelector('[part~="placeholder"]').getAnimations()
+      .find(animation => animation.animationName === 'lf-sheen')""")
+    assert animation.evaluate("animation => animation?.playState") == "running"
+    # The highlight spends part of each sweep beyond this short line. Compare known
+    # phases so two captures cannot both land on that unchanged part of the sweep.
+    animation.evaluate("animation => { animation.pause(); animation.currentTime = 0; }")
     first = page.screenshot(clip=box)
-    page.wait_for_timeout(400)
+    animation.evaluate("animation => animation.currentTime = 1000")
     assert page.screenshot(clip=box) != first, "the working status stands still"
+    animation.evaluate("animation => animation.play()")
+    animation.dispose()
     # Still under reduced motion, in a face well short of the ink words are written in.
     page.emulate_media(reduced_motion="reduce")
     sheen(False)

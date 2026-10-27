@@ -863,6 +863,10 @@ export function createFloatingPanel({
   // (`turnLead`). The user asked for this on 22 October, when a walk's "Thread 11 of
   // 11" in the field's place left nothing saying how to reply to the thread they were
   // reading.
+  //
+  // A reading that offers a press (`offers`), the reply or the selected words, reads in
+  // ink with the key that makes it; every other reading, and the words standing before
+  // the reply, are the agent's or Leaf's, and read dim (floating-panel.css).
   const HIDDEN = "Annotations hidden";
   const hiddenLead = () => (annotationsHidden() ? `${HIDDEN} · ` : "");
   function fieldReading(key, input) {
@@ -877,7 +881,7 @@ export function createFloatingPanel({
       !noticeReading().visible &&
       !statusContextReading().goTo
     )
-      return { says: "turn", words: "Reply" };
+      return { says: "turn", words: "Reply", offers: true };
     const stance = key ? null : statusContextReading().stance;
     // Keep the current navigation context alongside the selection's comment offer.
     // The field's own name says what a press does (`pageEditor`); on a narrow phone
@@ -885,6 +889,7 @@ export function createFloatingPanel({
     if (!key && selectedWords)
       return {
         says: "selection",
+        offers: true,
         words: [stance, navigationWords(), `“${excerptWords(selectedWords.quote, 60)}”`]
           .filter(Boolean)
           .join(" · "),
@@ -907,7 +912,7 @@ export function createFloatingPanel({
         words: hiddenLead() + status().summary,
         voice: status().voice,
       };
-    return { says: "turn", words: "Reply" };
+    return { says: "turn", words: "Reply", offers: true };
   }
   // What stands before an open thread's reply while the field says it, beside the leaf
   // (composing/input.js, `hintLead`): whose turn it is, in the agent's voice, then a
@@ -939,6 +944,7 @@ export function createFloatingPanel({
     if (input) {
       keeps(input, "data-says", reading.says);
       keeps(input, "data-voice", reading.voice === "leaf" ? "leaf" : null);
+      keeps(input, "data-offers", reading.offers ? "" : null);
     }
     return reading.words;
   }
@@ -4043,7 +4049,7 @@ export function createFloatingPanel({
     markRoom();
     keeps(host, "data-expanded", expanded ? "" : null);
     const reading = fieldReading(replying ? top.thread : null, input);
-    keeps(host, "data-offers", !search && reading.says === "selection" ? "" : null);
+    keeps(host, "data-offers", !search && reading.offers ? "" : null);
     keeps(host, "data-tone", status().tone || null);
     keeps(host, "data-asks", status().asks ? "" : null);
 

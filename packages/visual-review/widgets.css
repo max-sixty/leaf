@@ -1,6 +1,6 @@
 /* @noformat Generated from packages/visual-review/styles/widgets.css by build/styles.mjs. */
 /* packages/visual-review/styles/widgets.css */
-:scope:is(lf-visual-review) {
+lf-visual-review {
   display: block;
   min-inline-size: 0;
   container-type: inline-size;

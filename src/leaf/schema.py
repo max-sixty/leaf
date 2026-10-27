@@ -640,7 +640,6 @@ VENDORED_FILES = ("theme.css", "shadow.css", "registry.json", "icon.svg")
 PACKAGE_STYLES = (
     "widget-shadow.css",
     "widgets.css",
-    "theme-shadow.css",
     "theme.css",
     "controls.css",
 )

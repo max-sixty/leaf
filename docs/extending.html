@@ -495,12 +495,11 @@ packages/callout/
           <section id="theme">
             <h2>Style the element</h2>
             <p>
-              A package's <code>widgets.css</code> joins Leaf's existing cascade. Leaf
-              scopes a package's rules to the elements it declares, so
-              <code>:scope</code> names the <code>lf-callout</code> element itself and
-              any other selector names something inside it:
+              A package's <code>widgets.css</code> joins Leaf's existing cascade as
+              written, so its rules name the elements they style, starting with
+              <code>lf-callout</code> itself:
             </p>
-            <pre id="callout-theme"><code class="language-css">:scope {
+            <pre id="callout-theme"><code class="language-css">lf-callout {
   display: block;
   padding: var(--sp-3);
   border: 1px solid var(--rule);
@@ -660,7 +659,7 @@ $ leaf page check PAGE --render</code></pre>
                       class="try-where"
                       >The widget's package, with a more specific selector</span
                     ><code class="try-decl"
-                      >:scope.featured { padding: 8px }</code
+                      >lf-card.featured { padding: 8px }</code
                     ></label
                   >
                 </div>
@@ -677,10 +676,9 @@ $ leaf page check PAGE --render</code></pre>
             </figure>
             <p id="styles-ranking">
               A lower tier's rule loses however specific its selector is, as the widget
-              package's <code>:scope.featured</code> shows. Within a tier, the more
-              specific selector wins; between equally specific selectors, a widget
-              package's rule, scoped to its widget, beats an unscoped one; after that,
-              the later rule wins. <code>!important</code> reverses the order of the
+              package's <code>lf-card.featured</code> shows. Within a tier, the more
+              specific selector wins, and between equally specific selectors the later
+              rule wins. <code>!important</code> reverses the order of the
               tiers, so a page's <code>!important</code> loses to Leaf's own; an
               ordinary rule is all an override needs.
             </p>
@@ -747,8 +745,7 @@ flowchart TD
                   <tr>
                     <td><code>lf-theme</code></td>
                     <td>
-                      <code>theme.css</code> and <code>theme-shadow.css</code>, in
-                      package order. Only the latter enters shadow trees.
+                      Each package's <code>theme.css</code>, in package order.
                     </td>
                   </tr>
                   <tr>
@@ -832,19 +829,15 @@ flowchart TD
                 <tbody>
                   <tr>
                     <td><code>widgets.css</code></td>
-                    <td>The package's widgets in the page document.</td>
+                    <td>The page document, below Leaf's Layouts.</td>
                   </tr>
                   <tr>
                     <td><code>widget-shadow.css</code></td>
-                    <td>The same scope, plus its widgets' declared shadow trees.</td>
+                    <td>The page document and its widgets' declared shadow trees.</td>
                   </tr>
                   <tr>
                     <td><code>theme.css</code></td>
-                    <td>The page document, across package boundaries.</td>
-                  </tr>
-                  <tr>
-                    <td><code>theme-shadow.css</code></td>
-                    <td>The page document and every declared shadow tree.</td>
+                    <td>The page document, above Leaf's Layouts.</td>
                   </tr>
                   <tr>
                     <td><code>controls.css</code></td>
@@ -853,12 +846,11 @@ flowchart TD
                 </tbody>
               </table>
               <p id="styles-scope-details">
-                In a widget sheet, <code>:scope</code> names the widget and ordinary
-                selectors name what it contains. The boundary applies to foreign widgets
-                declared by another package or by the page. Widgets from the same
-                package can share their compound structure. Shadow trees form a further
-                browser boundary: document selectors do not enter them, but inherited
-                inputs and public <code>::part</code> selectors can.
+                Leaf adds no scope to a sheet, so each rule names the widget it styles:
+                <code>lf-callout .title</code> in the document, and
+                <code>:host(lf-callout) .title</code> in a widget's shadow tree. Shadow
+                trees form a browser boundary: document selectors do not enter them,
+                but inherited inputs and public <code>::part</code> selectors can.
               </p>
               <p id="styles-package-reference">
                 The

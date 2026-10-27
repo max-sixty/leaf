@@ -3,7 +3,7 @@
    editing, and neither grows nor narrows for its controls. The frame holds focus, and
    print retains saved prose. On screen it keeps the reading measure as its prose does
    (theme.css), its outer width the measure. */
-:scope:is(lf-draft) {
+lf-draft {
   display: block;
   --lf-draft-inset: 14px;
   border: 1px solid var(--border-2);
@@ -14,24 +14,24 @@
   font-size: max(var(--entry-floor), 1em);
 }
 @media screen {
-  :scope:is(lf-draft) {
+  lf-draft {
     box-sizing: border-box;
     max-inline-size: var(--lf-measure);
   }
 }
 .lf-draft-body,
-:scope:is(lf-draft) > .lf-markdown-body {
+lf-draft > .lf-markdown-body {
   white-space: normal;
 }
-:is(.lf-draft-body, :scope:is(lf-draft) > .lf-markdown-body) > :first-child {
+:is(.lf-draft-body, lf-draft > .lf-markdown-body) > :first-child {
   margin-top: 0;
 }
-:is(.lf-draft-body, :scope:is(lf-draft) > .lf-markdown-body) > :last-child {
+:is(.lf-draft-body, lf-draft > .lf-markdown-body) > :last-child {
   margin-bottom: 0;
 }
 /* The shared source primitive owns fallback presentation, which a draft's source
  * does not wear: it reads as prose lines. */
-:scope:is(lf-draft) > pre {
+lf-draft > pre {
   white-space: pre-line;
   background: none;
   border: 0;
@@ -62,18 +62,18 @@
   }
 }
 @media screen {
-  :scope:is(lf-draft):not(:where([data-lf-exhibit], [data-lf-exhibit] *)) {
+  lf-draft:not(:where([data-lf-exhibit], [data-lf-exhibit] *)) {
     position: relative;
   }
-  :scope:is(lf-draft):has(.lf-draft-edit) {
+  lf-draft:has(.lf-draft-edit) {
     border-color: var(--muted);
   }
-  :scope:is(lf-draft):has(.lf-draft-edit[data-lf-focus-visible]) {
+  lf-draft:has(.lf-draft-edit[data-lf-focus-visible]) {
     outline: var(--focus-ring);
     outline-offset: calc(-1 * var(--focus-ring-room));
     --lf-wears-ring: 1;
   }
-  :scope:is(lf-draft):has(.lf-draft-edit:state(ready)) > .lf-draft-body {
+  lf-draft:has(.lf-draft-edit:state(ready)) > .lf-draft-body {
     display: none;
   }
   /* The toolbar is Leaf's mark toolbar (integration.css, `.lf-mark-bar`), whose face
@@ -103,7 +103,7 @@
   .lf-draft-status:empty {
     display: none;
   }
-  :scope:is(lf-draft):is(:hover, [data-lf-focus-within], :has(> .lf-draft-edit))
+  lf-draft:is(:hover, [data-lf-focus-within], :has(> .lf-draft-edit))
     .lf-draft-tools {
     opacity: 1;
   }

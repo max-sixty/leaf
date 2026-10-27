@@ -288,8 +288,7 @@ these rules on every corpus page.
 
 Stylesheets apply in cascade layers, in the order `CASCADE_LAYERS` in `layer.py` declares
 (`../skills/leaf/references/packages.md`, "Styles and composition"). A widget package's rules
-reach only its own widgets (`widget_confinement`), so a rule several packages need
-belongs in the kernel. Page and theme-package rules skip the chrome and every `.lf-ui`
+name the widgets they style, so a rule several packages need belongs in the kernel. Page and theme-package rules skip the chrome and every `.lf-ui`
 control unless a sheet is granted access (`runtime/page-sheets.js`).
 
 A `:has()` rule can turn a local write into a restyle of the whole page or chrome. An

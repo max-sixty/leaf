@@ -8,7 +8,7 @@
    scrolls, rather than squeezing the screenshots away: at 720px tall a stacked case list
    left the shots 5px. The shot is size-contained there, so that minimum is the floor
    and not the screenshots' natural height, which the shot fits to its room. */
-:scope:is(lf-visual-review) {
+lf-visual-review {
   display: block;
   min-inline-size: 0;
   container-type: inline-size;

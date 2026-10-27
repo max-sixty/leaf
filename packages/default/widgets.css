@@ -1,6 +1,6 @@
 /* @noformat Generated from packages/default/styles/widgets.css by build/styles.mjs. */
 /* packages/default/styles/shot.css */
-:scope:is(lf-shot) {
+lf-shot {
   display: flex;
   flex-direction: column;
   min-inline-size: 0;
@@ -156,7 +156,7 @@
   --lf-top: 0px;
   scrollbar-gutter: stable;
 }
-:scope:is(lf-shot)[data-lf-shot-mode=compare] .lf-shotstage {
+lf-shot[data-lf-shot-mode=compare] .lf-shotstage {
   overflow: hidden;
 }
 .lf-shotcanvas {
@@ -174,14 +174,14 @@
   background: var(--card);
   overflow: clip;
 }
-:scope:is(lf-shot)[data-lf-shot-mode=compare] .lf-shotframe {
+lf-shot[data-lf-shot-mode=compare] .lf-shotframe {
   inline-size: calc(var(--lf-shot-viewport-width) + 2px);
 }
 .lf-shotviewport {
   inline-size: var(--lf-shot-frame-width);
   block-size: var(--lf-shot-frame-height);
 }
-:scope:is(lf-shot)[data-lf-shot-mode=compare] .lf-shotviewport {
+lf-shot[data-lf-shot-mode=compare] .lf-shotviewport {
   --lf-holds-height: 1;
   inline-size: var(--lf-shot-viewport-width);
   block-size: var(--lf-shot-viewport-height);
@@ -196,10 +196,10 @@
   border-block-end: 1px solid var(--rule);
   font: 600 var(--t-working-label)/1.4 var(--sans);
 }
-:scope:is(lf-shot)[data-lf-shot-mode=compare][data-lf-shot-layout=stack] .lf-shot-frame-label {
+lf-shot[data-lf-shot-mode=compare][data-lf-shot-layout=stack] .lf-shot-frame-label {
   display: flex;
 }
-:scope:is(lf-shot)[data-lf-shot-mode=compare][data-lf-shot-layout=stack] .lf-shot-toolbar > .lf-shotcap {
+lf-shot[data-lf-shot-mode=compare][data-lf-shot-layout=stack] .lf-shot-toolbar > .lf-shotcap {
   display: none;
 }
 .lf-shotcap {
@@ -255,26 +255,26 @@
   padding: 0;
   margin: 0;
 }
-:scope:is(lf-shot)[data-lf-shot-mode=compare][data-lf-shot-layout=side] .lf-shotcanvas {
+lf-shot[data-lf-shot-mode=compare][data-lf-shot-layout=side] .lf-shotcanvas {
   inline-size: 100%;
   justify-content: space-between;
   grid-template-columns: repeat(2, calc(var(--lf-shot-viewport-width) + 2px));
 }
-:scope:is(lf-shot)[data-lf-shot-mode=compare][data-lf-shot-layout=stack] .lf-shotcanvas {
+lf-shot[data-lf-shot-mode=compare][data-lf-shot-layout=stack] .lf-shotcanvas {
   grid-template-columns: calc(var(--lf-shot-viewport-width) + 2px);
 }
-:scope:is(lf-shot):not([data-lf-shot-mode=compare]) .lf-shotcanvas {
+lf-shot:not([data-lf-shot-mode=compare]) .lf-shotcanvas {
   grid-template-columns: calc(var(--lf-shot-frame-width) + 2px);
   gap: 0;
 }
-:scope:is(lf-shot):not([data-lf-shot-mode=compare]) .lf-shotcanvas > .lf-shotframe {
+lf-shot:not([data-lf-shot-mode=compare]) .lf-shotcanvas > .lf-shotframe {
   grid-area: 1 / 1;
 }
-:scope:is(lf-shot)[data-lf-shot-mode=flip] .lf-shotcanvas > .lf-shotframe[data-lf-state=before] {
+lf-shot[data-lf-shot-mode=flip] .lf-shotcanvas > .lf-shotframe[data-lf-state=before] {
   clip-path: inset(0 50% 0 0);
   z-index: 1;
 }
-:scope:is(lf-shot)[data-lf-shot-mode=pixels] .lf-shotframe {
+lf-shot[data-lf-shot-mode=pixels] .lf-shotframe {
   display: none;
 }
 .lf-shotcomparison {
@@ -332,10 +332,10 @@
 .lf-shotdiff > span[data-lf-shot-mark=moved] {
   border-color: var(--accent);
 }
-:scope:is(lf-shot):not([data-lf-shot-outlines=true]) .lf-shotdiff {
+lf-shot:not([data-lf-shot-outlines=true]) .lf-shotdiff {
   display: none;
 }
-:scope:is(lf-shot)[data-lf-shot-focus=true][data-lf-shot-crop=false] .lf-shotframe .lf-shotplane::after {
+lf-shot[data-lf-shot-focus=true][data-lf-shot-crop=false] .lf-shotframe .lf-shotplane::after {
   content: "";
   position: absolute;
   box-sizing: border-box;
@@ -353,7 +353,7 @@
   block-size: calc(var(--lf-shot-frame-height) + 2px);
   border: 1px solid transparent;
 }
-:scope:is(lf-shot)[data-lf-shot-mode=pixels] .lf-shotpixels {
+lf-shot[data-lf-shot-mode=pixels] .lf-shotpixels {
   display: block;
 }
 .lf-shotpixels .lf-shotplane > img {
@@ -370,19 +370,19 @@
   background: var(--warn);
 }
 @container style(--lf-full-height:1) {
-  :scope:is(lf-shot) {
+  lf-shot {
     --lf-holds-height: 1;
     block-size: 100%;
     overflow: clip;
   }
 }
 @container style(--lf-holds-height:1) {
-  :scope:is(lf-shot) > .lf-shotstage {
+  lf-shot > .lf-shotstage {
     --lf-holds-height: 1;
   }
 }
 @media print {
-  :scope:is(lf-shot) {
+  lf-shot {
     block-size: auto;
     overflow: visible;
   }
@@ -396,7 +396,7 @@
   .lf-shotcanvas,
   .lf-shotcomparison,
   .lf-shotframe,
-  :scope:is(lf-shot)[data-lf-shot-mode=pixels] .lf-shotframe,
+  lf-shot[data-lf-shot-mode=pixels] .lf-shotframe,
   .lf-shot-frame-label,
   .lf-shotviewport,
   .lf-shotimage,
@@ -443,23 +443,23 @@
 }
 
 /* packages/default/styles/gloss.css */
-:scope:is(lf-gloss) {
+lf-gloss {
   display: inline;
 }
-:scope:is(lf-gloss)[tip]::after {
+lf-gloss[tip]::after {
   content: " (" attr(tip) ")";
   color: var(--muted);
 }
-@scope (html[data-lf-interactive] :scope) {
+@scope (html[data-lf-interactive] lf-gloss) {
   :scope:is(lf-gloss)[tip]::after {
     content: none;
   }
 }
-:scope:is(lf-gloss):has(> [data-lf-said=tip])::after {
+lf-gloss:has(> [data-lf-said=tip])::after {
   content: none;
 }
 @media screen {
-  :scope:is(lf-gloss) {
+  lf-gloss {
     text-decoration-line: underline;
     text-decoration-color: var(--accent);
     text-decoration-thickness: 1px;
@@ -479,7 +479,7 @@
   opacity: 0;
   pointer-events: none;
 }
-:scope:is(lf-gloss):has(> .lf-gloss-mark[data-lf-focus-visible]) {
+lf-gloss:has(> .lf-gloss-mark[data-lf-focus-visible]) {
   outline: var(--focus-ring);
   outline-offset: calc(-1 * var(--focus-ring-w));
   --lf-wears-ring: 1;
@@ -520,7 +520,7 @@
   background: transparent;
 }
 @media print {
-  :scope:is(lf-gloss) > .lf-gloss-popover {
+  lf-gloss > .lf-gloss-popover {
     display: inline;
     position: static;
     width: auto;
@@ -533,21 +533,21 @@
     box-shadow: none;
     font: inherit;
   }
-  :scope:is(lf-gloss) > .lf-gloss-popover::before {
+  lf-gloss > .lf-gloss-popover::before {
     content: " (";
   }
-  :scope:is(lf-gloss) > .lf-gloss-popover::after {
+  lf-gloss > .lf-gloss-popover::after {
     content: ")";
   }
 }
 
 /* packages/default/styles/apparatus.css */
 .lf-shotcap,
-:scope:is(lf-sample)::before,
-:scope:is(lf-sample) > [data-lf-said=label],
-:scope:is(lf-column)::before,
-:scope:is(lf-column) > [data-lf-said=label],
-:scope:is(lf-tab)::before {
+lf-sample::before,
+lf-sample > [data-lf-said=label],
+lf-column::before,
+lf-column > [data-lf-said=label],
+lf-tab::before {
   font-family: var(--sans);
   font-variant-numeric: tabular-nums;
 }
@@ -555,7 +555,7 @@
 /* packages/default/styles/options.css */
 @property --lf-options-across { syntax: "<integer>"; inherits: false; initial-value: 0; }
 @property --lf-option-line { syntax: "<length>"; inherits: true; initial-value: 0px; }
-:scope:is(lf-options) {
+lf-options {
   display: block;
   margin: 14px 0;
   --lf-joined: 0;
@@ -566,55 +566,55 @@
   container-type: inline-size;
 }
 @media screen {
-  :scope:is(lf-options) {
+  lf-options {
     box-sizing: border-box;
     max-inline-size: var(--lf-measure);
   }
 }
-:scope:is(lf-options):not(:has(> lf-option > strong)) {
+lf-options:not(:has(> lf-option > strong)) {
   --lf-option-font: var(--t-5)/1.5 var(--sans);
   font: var(--lf-option-font);
 }
-:scope:is(lf-options):has(> lf-option > strong) {
+lf-options:has(> lf-option > strong) {
   --lf-option-pad-min: var(--sp-3);
 }
-:scope:is(lf-option) {
+lf-option {
   display: block;
   position: relative;
 }
-:scope:is(lf-option) > .lf-markdown-words,
-:scope:is(lf-option) > .lf-option-words {
+lf-option > .lf-markdown-words,
+lf-option > .lf-option-words {
   white-space: normal;
 }
-:scope:is(lf-options):has(> lf-option > strong) > lf-option {
+lf-options:has(> lf-option > strong) > lf-option {
   padding: var(--lf-option-pad-block) var(--sp-3);
   --lf-block-frame: 1;
 }
 @container style(--lf-joined: 0) {
-  :scope:is(lf-options):has(> lf-option > strong) > lf-option {
+  lf-options:has(> lf-option > strong) > lf-option {
     border: 1px solid var(--rule);
     border-radius: var(--r);
     --lf-ground: var(--card);
     background: var(--lf-ground);
   }
-  :scope:is(lf-options):has(> lf-option > strong) > .lf-another {
+  lf-options:has(> lf-option > strong) > .lf-another {
     border: 1px solid transparent;
   }
 }
 @container not (style(--lf-density: working) and (width >= 30rem)) {
-  :scope:is(lf-option) > strong {
+  lf-option > strong {
     display: block;
     margin: 0 0 4px;
   }
-  :scope:is(lf-option) > strong:has(+ p) {
+  lf-option > strong:has(+ p) {
     margin-block-end: 0;
   }
-  :scope:is(lf-option) > strong + p {
+  lf-option > strong + p {
     margin-block-start: 0;
   }
 }
 @container style(--lf-density: working) and (width >= 30rem) {
-  :scope:is(lf-options):has(> lf-option > strong) > lf-option {
+  lf-options:has(> lf-option > strong) > lf-option {
     & > strong {
       margin-inline-end: 0.35em;
     }
@@ -624,10 +624,10 @@
     }
   }
 }
-:scope:is(lf-option) > .tag {
+lf-option > .tag {
   margin: 0 6px 2px 0;
 }
-:scope:is(lf-options):has(> lf-option > strong) {
+lf-options:has(> lf-option > strong) {
   display: block;
   & > lf-option {
     display: flow-root;
@@ -667,25 +667,25 @@
   }
 }
 @container style(--lf-joined: 0) {
-  :scope:is(lf-options):has(> lf-option > strong) > lf-option[chosen] {
+  lf-options:has(> lf-option > strong) > lf-option[chosen] {
     border-color: var(--ok);
   }
 }
 @media screen {
-  :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *) > lf-option {
+  lf-options[choose]:not(:where([data-lf-exhibit]) *) > lf-option {
     cursor: pointer;
   }
 }
-:scope:is(lf-options):has(> lf-option > strong) > lf-option[chosen] {
+lf-options:has(> lf-option > strong) > lf-option[chosen] {
   padding-bottom: 32px;
 }
-:scope:is(lf-options):has(> lf-option > strong) > lf-option > .lf-pick {
+lf-options:has(> lf-option > strong) > lf-option > .lf-pick {
   position: absolute;
   left: var(--sp-3);
   bottom: 9px;
 }
 @media screen {
-  :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *):has(> lf-option > strong) {
+  lf-options[choose]:not(:where([data-lf-exhibit]) *):has(> lf-option > strong) {
     --lf-card-state-room: 80px;
     --lf-card-state-height: 22px;
     & > :is(lf-option, .lf-another) {
@@ -762,7 +762,7 @@
     }
   }
 }
-:scope:is(lf-option) .lf-pick {
+lf-option .lf-pick {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -771,7 +771,7 @@
   line-height: 1.5;
   color: var(--muted);
 }
-:scope:is(lf-option) .lf-pick::before {
+lf-option .lf-pick::before {
   content: "";
   width: 11px;
   height: 11px;
@@ -784,68 +784,68 @@
   line-height: 1;
   color: var(--card);
 }
-:scope:is(lf-options):not([multiple]) > lf-option > .lf-pick::before {
+lf-options:not([multiple]) > lf-option > .lf-pick::before {
   border-radius: 50%;
 }
-:scope:is(lf-options)[multiple] > lf-option > .lf-pick::before {
+lf-options[multiple] > lf-option > .lf-pick::before {
   border-radius: var(--r-s);
 }
-:scope:is(lf-option) .lf-pick[role=checkbox] {
+lf-option .lf-pick[role=checkbox] {
   cursor: pointer;
 }
-:scope:is(lf-option) .lf-pick:not([data-lf-said]) {
+lf-option .lf-pick:not([data-lf-said]) {
   font-size: 0;
   gap: 0;
 }
 @media screen {
-  :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *) > lf-option:not([chosen]):is(:hover, :has(> .lf-pick[data-lf-focus])) > .lf-pick::before {
+  lf-options[choose]:not(:where([data-lf-exhibit]) *) > lf-option:not([chosen]):is(:hover, :has(> .lf-pick[data-lf-focus])) > .lf-pick::before {
     border-color: var(--ink-2);
   }
 }
-:scope:is(lf-option)[chosen] > .lf-pick {
+lf-option[chosen] > .lf-pick {
   color: var(--ok-ink);
 }
-:scope:is(lf-option)[chosen] > .lf-pick::before {
+lf-option[chosen] > .lf-pick::before {
   content: "✓";
   border-color: var(--ok);
   background: var(--ok);
 }
 @media print {
-  :scope:is(lf-option)[chosen]::after {
+  lf-option[chosen]::after {
     content: "✓";
     color: var(--ok-ink);
     font-family: var(--sans);
     font-weight: 700;
   }
 }
-:scope:is(lf-option) .lf-pick[data-lf-focus-visible] {
+lf-option .lf-pick[data-lf-focus-visible] {
   outline: var(--focus-ring);
   outline-offset: var(--focus-ring-gap);
   border-radius: var(--r-s);
 }
-:scope:is(lf-option) > .lf-key-badge {
+lf-option > .lf-key-badge {
   position: absolute;
   z-index: 1;
   inset-inline-start: var(--lf-key-badge-start);
 }
-:scope:is(lf-options):has(> lf-option > strong) > lf-option > .lf-key-badge {
+lf-options:has(> lf-option > strong) > lf-option > .lf-key-badge {
   top: 8px;
 }
-:scope:is(lf-options) > lf-options-done > .lf-done[aria-pressed=true] {
+lf-options > lf-options-done > .lf-done[aria-pressed=true] {
   color: var(--ok-ink);
   border-color: var(--ok);
   background: var(--ok-tint);
 }
-:scope:is(lf-options) > lf-options-done {
+lf-options > lf-options-done {
   position: relative;
   display: grid;
   padding: 0;
 }
-:scope:is(lf-options) > lf-options-done > .lf-done {
+lf-options > lf-options-done > .lf-done {
   width: 100%;
   padding-block: max(4px, (max(var(--lf-line), var(--aim-floor)) - 1lh) / 2 - 1px);
 }
-:scope:is(lf-options) > lf-options-done > .lf-done > .lf-key-badge {
+lf-options > lf-options-done > .lf-done > .lf-key-badge {
   z-index: 1;
   inset-inline-start: var(--lf-key-badge-start);
   top: 0;
@@ -853,16 +853,16 @@
   margin: auto 0;
 }
 @media screen {
-  :where(:scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *)) > * {
+  :where(lf-options[choose]:not(:where([data-lf-exhibit]) *)) > * {
     padding-inline-start: var(--lf-key-badge-col);
   }
-  :where(:scope:is(lf-options)[choose]:not([settled]):not(:where([data-lf-exhibit]) *)) > * {
+  :where(lf-options[choose]:not([settled]):not(:where([data-lf-exhibit]) *)) > * {
     padding-block: var(--sp-2);
     padding-inline-end: var(--sp-3);
   }
 }
 @media screen {
-  :scope:is(lf-options)[choose]:not([settled]):not(:where([data-lf-exhibit]) *) {
+  lf-options[choose]:not([settled]):not(:where([data-lf-exhibit]) *) {
     display: grid;
     --lf-ground: var(--card);
     background: var(--lf-ground);
@@ -930,7 +930,7 @@
     }
   }
   @container style(--lf-options-across: 1) {
-    :scope:is(lf-options)[choose]:not([settled]):not(:where([data-lf-exhibit]) *):has(> lf-option > strong) {
+    lf-options[choose]:not([settled]):not(:where([data-lf-exhibit]) *):has(> lf-option > strong) {
       --lf-option-count: 99;
       &:has(> lf-option:nth-of-type(1):last-of-type) {
         --lf-option-count: 1;
@@ -954,18 +954,18 @@
       max-inline-size: none;
     }
   }
-  :is(:scope, :scope *)[data-lf-obligation]:has(lf-options[choose]:not(:where([data-lf-exhibit]) *) [data-lf-focus-visible]) {
+  :is(lf-activity, lf-ask, lf-board, lf-card, lf-chart, lf-code, lf-column, lf-draft, lf-gloss, lf-note, lf-num, lf-option, lf-options, lf-pane, lf-part, lf-parts, lf-sample, lf-shot, lf-tab, lf-tabs, lf-tally, lf-text-document, lf-toc, :is(lf-activity, lf-ask, lf-board, lf-card, lf-chart, lf-code, lf-column, lf-draft, lf-gloss, lf-note, lf-num, lf-option, lf-options, lf-pane, lf-part, lf-parts, lf-sample, lf-shot, lf-tab, lf-tabs, lf-tally, lf-text-document, lf-toc) *)[data-lf-obligation]:has(lf-options[choose]:not(:where([data-lf-exhibit]) *) [data-lf-focus-visible]) {
     --lf-obligation-ring: none;
   }
-  :scope:is(lf-options)[choose]:not([settled]):not(:where([data-lf-exhibit]) *) > lf-option:has(> .lf-pick[data-lf-focus-visible]) {
+  lf-options[choose]:not([settled]):not(:where([data-lf-exhibit]) *) > lf-option:has(> .lf-pick[data-lf-focus-visible]) {
     outline: var(--focus-ring);
     outline-offset: calc(-1 * var(--focus-ring-w));
     z-index: 1;
   }
-  :scope:is(lf-options)[choose]:not([settled]):not(:where([data-lf-exhibit]) *) > lf-option:has(> .lf-pick:focus) {
+  lf-options[choose]:not([settled]):not(:where([data-lf-exhibit]) *) > lf-option:has(> .lf-pick:focus) {
     --lf-wears-ring: 1;
   }
-  :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *) > .lf-another:has(leaf-text[data-lf-focus-visible]) {
+  lf-options[choose]:not(:where([data-lf-exhibit]) *) > .lf-another:has(leaf-text[data-lf-focus-visible]) {
     outline: var(--focus-ring);
     outline-offset: calc(-1 * var(--focus-ring-w));
     z-index: 1;
@@ -1025,16 +1025,16 @@
   .lf-another .lf-compose-submit[data-lf-empty]:not([data-lf-focus]) {
     visibility: hidden;
   }
-  :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *) {
+  lf-options[choose]:not(:where([data-lf-exhibit]) *) {
     --lf-option-pad-block: max( var(--lf-option-pad-min), (var(--lf-icon-action-hit) - var(--lf-option-line)) / 2 );
     --lf-key-badge-start: var(--sp-2);
     --lf-key-badge-col: calc( var(--lf-key-badge-start) + var(--lf-key-badge-size) + 6px );
   }
-  :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *) > lf-option {
+  lf-options[choose]:not(:where([data-lf-exhibit]) *) > lf-option {
     padding-inline-start: var(--lf-key-badge-col);
   }
 }
-:scope:is(lf-options):not(:has(> lf-option > strong)) > lf-option {
+lf-options:not(:has(> lf-option > strong)) > lf-option {
   position: relative;
   display: table;
   width: 100%;
@@ -1043,32 +1043,32 @@
   padding: var(--lf-option-pad-block) 0;
   --lf-block-frame: 1;
 }
-:scope:is(lf-options):not(:has(> lf-option > strong)) > :is(lf-option, .lf-another) {
+lf-options:not(:has(> lf-option > strong)) > :is(lf-option, .lf-another) {
   --lf-pick-col: 17px;
   --lf-row-gap: var(--sp-2);
   padding-inline-start: var(--lf-pick-col);
 }
-:scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *):not(:has(> lf-option > strong)) > :is(lf-option, .lf-another) {
+lf-options[choose]:not(:where([data-lf-exhibit]) *):not(:has(> lf-option > strong)) > :is(lf-option, .lf-another) {
   padding-inline-start: calc(var(--lf-key-badge-col) + var(--lf-pick-col));
 }
-:scope:is(lf-options):not(:has(> lf-option > strong)) > .lf-another:not([hidden]) {
+lf-options:not(:has(> lf-option > strong)) > .lf-another:not([hidden]) {
   gap: 0;
   padding-block: var(--lf-option-pad-block);
   padding-inline-end: var(--lf-row-gap);
 }
-:scope:is(lf-options):not(:has(> lf-option > strong)) > .lf-another {
+lf-options:not(:has(> lf-option > strong)) > .lf-another {
   --lf-compose-text-margin-inline-start: var(--lf-row-gap);
 }
 @container (max-width: 20rem) {
-  :scope:is(lf-options):not(:has(> lf-option > strong)) > :is(lf-option, .lf-another) {
+  lf-options:not(:has(> lf-option > strong)) > :is(lf-option, .lf-another) {
     --lf-row-gap: var(--sp-1);
   }
 }
 @container style(--lf-joined: 0) {
-  :scope:is(lf-options):not(:has(> lf-option > strong)) > lf-option {
+  lf-options:not(:has(> lf-option > strong)) > lf-option {
     border-radius: var(--r);
   }
-  :scope:is(lf-options):not(:has(> lf-option > strong)) > lf-option[chosen] {
+  lf-options:not(:has(> lf-option > strong)) > lf-option[chosen] {
     --lf-ground: var(--ok-tint);
     background: var(--lf-ground);
     box-shadow: inset 0 0 0 2px var(--ok);
@@ -1076,21 +1076,21 @@
 }
 @media screen {
   @container style(--lf-joined: 0) {
-    :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *) > lf-option:hover {
+    lf-options[choose]:not(:where([data-lf-exhibit]) *) > lf-option:hover {
       --lf-ground: var(--chip);
       background: var(--lf-ground);
     }
-    :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *) > lf-option[chosen]:hover {
+    lf-options[choose]:not(:where([data-lf-exhibit]) *) > lf-option[chosen]:hover {
       --lf-ground: color-mix(in srgb, var(--ok-tint) 92%, var(--ink));
     }
   }
 }
-:scope:is(lf-options):not(:has(> lf-option > strong)) > lf-option > .lf-ref {
+lf-options:not(:has(> lf-option > strong)) > lf-option > .lf-ref {
   float: inline-end;
   margin-inline-start: var(--lf-row-gap);
   line-height: 1lh;
 }
-:scope:is(lf-options):not(:has(> lf-option > strong)) > lf-option > .lf-pick {
+lf-options:not(:has(> lf-option > strong)) > lf-option > .lf-pick {
   position: absolute;
   inset-inline-start: var(--lf-key-badge-col, 0px);
   top: 0;
@@ -1098,12 +1098,12 @@
   margin: auto 0;
   height: 11px;
 }
-:scope:is(lf-options):not(:has(> lf-option > strong)) > lf-option > .lf-key-badge {
+lf-options:not(:has(> lf-option > strong)) > lf-option > .lf-key-badge {
   top: 0;
   bottom: 0;
   margin: auto 0;
 }
-:scope:is(lf-options)[settled] > .lf-settled {
+lf-options[settled] > .lf-settled {
   display: none;
   width: 100%;
   align-items: baseline;
@@ -1118,13 +1118,13 @@
   border: 1px solid transparent;
   border-radius: var(--r);
 }
-:scope:is(lf-options)[settled] > .lf-settled[aria-expanded=false] {
+lf-options[settled] > .lf-settled[aria-expanded=false] {
   margin-bottom: 0;
 }
-:scope:is(lf-options)[settled] > .lf-settled:hover {
+lf-options[settled] > .lf-settled:hover {
   border-color: var(--border-2);
 }
-:scope:is(lf-options)[settled] > .lf-settled[data-lf-focus-visible] {
+lf-options[settled] > .lf-settled[data-lf-focus-visible] {
   outline: var(--focus-ring);
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
@@ -1145,10 +1145,10 @@
   color: var(--ok-ink);
 }
 @media screen {
-  :scope:is(lf-options)[settled] > .lf-settled {
+  lf-options[settled] > .lf-settled {
     display: flex;
   }
-  :scope:is(lf-options)[settled] > [hidden=until-found] {
+  lf-options[settled] > [hidden=until-found] {
     display: block !important;
     block-size: 0 !important;
     min-block-size: 0 !important;
@@ -1160,7 +1160,7 @@
 }
 
 /* packages/default/styles/board.css */
-:scope:is(lf-board) {
+lf-board {
   --lf-board-columns: 1;
   --lf-grip-room: 0px;
   --lf-grip-block: 0px;
@@ -1168,26 +1168,26 @@
   --lf-grip-pad-block: 8px;
 }
 @media screen {
-  :scope:is(lf-board) {
+  lf-board {
     min-inline-size: min(calc(var(--lf-board-columns) * var(--lf-reading-column-floor) + (var(--lf-board-columns) - 1) * var(--sp-2)), var(--lf-reach, min(100%, 100cqi)), var(--lf-box-cap, 100vw));
   }
 }
-:scope:is(lf-board):has(> lf-column:nth-of-type(2)) {
+lf-board:has(> lf-column:nth-of-type(2)) {
   --lf-board-columns: 2;
 }
-:scope:is(lf-board):has(> lf-column:nth-of-type(3)) {
+lf-board:has(> lf-column:nth-of-type(3)) {
   --lf-board-columns: 3;
 }
-:scope:is(lf-board):has(> lf-column:nth-of-type(4)) {
+lf-board:has(> lf-column:nth-of-type(4)) {
   --lf-board-columns: 4;
 }
-:scope:is(lf-board):has(> lf-column:nth-of-type(5)) {
+lf-board:has(> lf-column:nth-of-type(5)) {
   --lf-board-columns: 5;
 }
-:scope:is(lf-board):has(> lf-column:nth-of-type(6)) {
+lf-board:has(> lf-column:nth-of-type(6)) {
   --lf-board-columns: 6;
 }
-:scope:is(lf-board) {
+lf-board {
   display: grid;
   grid-auto-flow: column;
   container: lf-board / inline-size;
@@ -1203,7 +1203,7 @@
   scroll-snap-type: inline proximity;
   --lf-top: 0px;
 }
-:scope:is(lf-column) {
+lf-column {
   display: block;
   --lf-ground: var(--field);
   background: var(--lf-ground);
@@ -1219,7 +1219,7 @@
 }
 @media screen {
   @container lf-board (width <= 640px) {
-    :scope:is(lf-column) {
+    lf-column {
       min-width: max(var(--lf-reading-column-floor), calc(100cqi - var(--sp-4)));
       scroll-snap-align: start;
     }
@@ -1249,8 +1249,8 @@
     }
   }
 }
-:scope:is(lf-column)::before,
-:scope:is(lf-column) > [data-lf-said=label] {
+lf-column::before,
+lf-column > [data-lf-said=label] {
   display: block;
   font-size: var(--t-working-label);
   font-weight: 600;
@@ -1258,24 +1258,24 @@
   color: var(--ink-2);
   padding: 2px var(--lf-card-inset) 10px;
 }
-:scope:is(lf-column)::before {
+lf-column::before {
   content: attr(label);
 }
-:scope:is(lf-column) {
+lf-column {
   position: relative;
   --lf-tone-dot: var(--border-2);
 }
-:scope:is(lf-column)[tone=ok] {
+lf-column[tone=ok] {
   --lf-tone-dot: var(--ok);
 }
-:scope:is(lf-column)[tone=warn] {
+lf-column[tone=warn] {
   --lf-tone-dot: var(--warn);
 }
-:scope:is(lf-column)[tone=danger] {
+lf-column[tone=danger] {
   --lf-tone-dot: var(--danger);
 }
-:scope:is(lf-column)::before,
-:scope:is(lf-column) > [data-lf-said=label] {
+lf-column::before,
+lf-column > [data-lf-said=label] {
   padding-left: calc(var(--lf-card-inset) + 14px);
   padding-right: calc(var(--lf-card-inset) + 2.5em);
   background:
@@ -1284,7 +1284,7 @@
       var(--lf-tone-dot) 3.5px,
       transparent 4px) no-repeat var(--lf-card-inset) 0.62em / 8px 8px;
 }
-:scope:is(lf-column) > .lf-column-count {
+lf-column > .lf-column-count {
   position: absolute;
   top: calc(var(--lf-reading-column-inset) + 2px);
   right: calc(var(--lf-reading-column-inset) + var(--lf-card-inset));
@@ -1292,10 +1292,10 @@
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
-:scope:is(lf-column):has(> [data-lf-said=label])::before {
+lf-column:has(> [data-lf-said=label])::before {
   content: none;
 }
-:scope:is(lf-card) {
+lf-card {
   --lf-card-inset-block: 12px;
   --lf-grip-inset-block: 2px;
   display: block;
@@ -1311,28 +1311,28 @@
   --lf-block-frame: 1;
 }
 @media screen {
-  html[data-lf-interactive] :scope:is(lf-board):not(:where([data-lf-exhibit]) *) {
+  html[data-lf-interactive] lf-board:not(:where([data-lf-exhibit]) *) {
     --lf-grip-room: max( var(--aim-floor), calc(var(--t-5) + 2 * var(--lf-grip-pad-inline)) );
     --lf-grip-block: max( var(--aim-floor), calc(var(--t-5) + 2 * var(--lf-grip-pad-block)) );
   }
-  html[data-lf-interactive] :scope:is(lf-card):not(:where([data-lf-exhibit]) *)::before {
+  html[data-lf-interactive] lf-card:not(:where([data-lf-exhibit]) *)::before {
     content: "";
     float: right;
     inline-size: var(--lf-grip-room);
     block-size: var(--lf-grip-block);
     margin-block-start: calc(var(--lf-grip-inset-block) - var(--lf-card-inset-block));
   }
-  :scope:is(lf-card) > :not(:first-child) {
+  lf-card > :not(:first-child) {
     clear: right;
   }
 }
-:scope:is(lf-card) > strong {
+lf-card > strong {
   display: block;
   font-weight: 600;
   line-height: 1.4;
   margin: 0 0 2px;
 }
-:scope:is(lf-card) .lf-grip {
+lf-card .lf-grip {
   position: absolute;
   top: var(--lf-grip-inset-block);
   right: 0;
@@ -1350,56 +1350,56 @@
   line-height: 1;
   touch-action: none;
 }
-:scope:is(lf-card) .lf-grip {
+lf-card .lf-grip {
   scroll-margin-inline-start: calc(100cqi + 2 * var(--lf-card-inset));
 }
-:scope:is(lf-card):hover > .lf-grip {
+lf-card:hover > .lf-grip {
   color: var(--ink-2);
 }
-:scope:is(lf-card) .lf-grip:hover {
+lf-card .lf-grip:hover {
   background: var(--chip);
 }
-:scope:is(lf-card) .lf-grip[data-lf-focus-visible] {
+lf-card .lf-grip[data-lf-focus-visible] {
   outline: var(--focus-ring);
   outline-offset: calc(-1 * var(--focus-ring-w));
   color: var(--ink-2);
 }
-:scope:is(lf-card).lf-ghost {
+lf-card.lf-ghost {
   opacity: 0.4;
   border-style: dashed;
   border-color: var(--accent);
 }
-:scope:is(lf-card).lf-lift {
+lf-card.lf-lift {
   box-shadow: var(--raise-1);
   border-color: var(--accent);
 }
 
 /* packages/default/styles/tabs.css */
 @property --lf-views-flow { syntax: "*"; inherits: false; initial-value: box; }
-body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
+body > main > lf-tabs:nth-child(1 of lf-tabs):not([list=side]) {
   --lf-views-flow: page;
 }
-:where(:scope:is(lf-tabs)) {
+:where(lf-tabs) {
   --lf-tab-end: calc(var(--sp-4) + var(--lf-end-room));
   display: block;
   margin: 14px 0;
 }
-:scope:is(lf-tab, lf-parts, lf-part) {
+:is(lf-tab, lf-parts, lf-part) {
   display: block;
 }
-:scope:is(lf-tab, lf-part)::before,
+:is(lf-tab, lf-part)::before,
 .lf-tabstrip .lf-tab-group {
   font-size: var(--t-6);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--muted);
 }
-:scope:is(lf-tab, lf-part)::before {
+:is(lf-tab, lf-part)::before {
   content: attr(label);
   display: block;
   margin: 18px 0 8px;
 }
-:scope:is(lf-tabs).lf-rendered > lf-tab {
+lf-tabs.lf-rendered > lf-tab {
   margin-top: 14px;
 }
 .lf-tabstrip {
@@ -1502,7 +1502,7 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
   color: var(--ok-ink);
 }
 @media screen {
-  :where(:scope:is(lf-tabs).lf-rendered, html[data-lf-interactive] :scope:is(lf-tabs):not(.lf-rendered):has(> lf-tab)) {
+  :where(lf-tabs.lf-rendered, html[data-lf-interactive] lf-tabs:not(.lf-rendered):has(> lf-tab)) {
     margin: var(--sp-4) 0 32px;
     border: 1px solid var(--border-2);
     border-radius: var(--r);
@@ -1528,33 +1528,33 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
     --lf-tabstrip-press: 36px;
     --lf-more-fade-to: #000;
   }
-  :scope:is(lf-tabs).lf-rendered > lf-tab::before,
-  html[data-lf-interactive] :scope:is(lf-tabs):not(.lf-rendered):has(> lf-tab) > lf-tab::before {
+  lf-tabs.lf-rendered > lf-tab::before,
+  html[data-lf-interactive] lf-tabs:not(.lf-rendered):has(> lf-tab) > lf-tab::before {
     content: none;
   }
-  :scope:is(lf-tabs).lf-rendered > lf-tab {
+  lf-tabs.lf-rendered > lf-tab {
     margin: 0;
     padding: 0;
   }
-  :scope:is(lf-tabs).lf-rendered > lf-tab:not([hidden]),
-  html[data-lf-interactive] :scope:is(lf-tabs):not(.lf-rendered):has(> lf-tab) > lf-tab {
+  lf-tabs.lf-rendered > lf-tab:not([hidden]),
+  html[data-lf-interactive] lf-tabs:not(.lf-rendered):has(> lf-tab) > lf-tab {
     padding: var(--sp-4) var(--sp-4) var(--lf-tab-end);
     --lf-end-room: inherit;
     --lf-block-frame: 1;
   }
-  :scope:is(lf-tabs, lf-parts).lf-rendered {
+  :is(lf-tabs, lf-parts).lf-rendered {
     position: relative;
     anchor-scope: --lf-tab-panel;
   }
-  :scope:is(lf-tabs, lf-parts).lf-rendered > :is(lf-tab, lf-part):not([hidden]) {
+  :is(lf-tabs, lf-parts).lf-rendered > :is(lf-tab, lf-part):not([hidden]) {
     position: relative;
     z-index: 0;
     anchor-name: --lf-tab-panel;
   }
-  :scope:is(lf-tabs, lf-parts).lf-rendered > :is(lf-tab, lf-part)[data-lf-focus-visible] {
+  :is(lf-tabs, lf-parts).lf-rendered > :is(lf-tab, lf-part)[data-lf-focus-visible] {
     outline: none;
   }
-  :scope:is(lf-tabs, lf-parts).lf-rendered:has(> :is(lf-tab, lf-part)[data-lf-focus-visible])::after {
+  :is(lf-tabs, lf-parts).lf-rendered:has(> :is(lf-tab, lf-part)[data-lf-focus-visible])::after {
     content: "";
     position: absolute;
     position-anchor: --lf-tab-panel;
@@ -1564,35 +1564,35 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
     outline: var(--focus-ring);
     outline-offset: calc(-1 * var(--focus-ring-w));
   }
-  :scope:is(lf-tabs).lf-rendered > lf-tab[hidden] {
+  lf-tabs.lf-rendered > lf-tab[hidden] {
     margin: 0;
   }
-  :scope:is(lf-tabs, lf-parts).lf-rendered > :is(lf-tab, lf-part)[hidden] {
+  :is(lf-tabs, lf-parts).lf-rendered > :is(lf-tab, lf-part)[hidden] {
     overflow-anchor: none;
   }
-  :scope:is(lf-tabs).lf-rendered[data-lf-views-flow=box] > lf-tab {
+  lf-tabs.lf-rendered[data-lf-views-flow=box] > lf-tab {
     container-type: inline-size;
   }
-  :scope:is(lf-tabs[list=side], lf-parts) {
+  :is(lf-tabs[list=side], lf-parts) {
     --lf-tab-summary-h: 17px;
     --lf-tab-context-h: 0px;
     --lf-tab-outcome-h: 0px;
   }
-  :scope:is(lf-tabs)[list=side]:has(> lf-tab[summary]) {
+  lf-tabs[list=side]:has(> lf-tab[summary]) {
     --lf-tab-context-h: var(--lf-tab-summary-h);
   }
-  :scope:is(lf-tabs)[list=side]:has(> lf-tab [data-lf-awaits]) {
+  lf-tabs[list=side]:has(> lf-tab [data-lf-awaits]) {
     --lf-tab-outcome-h: var(--lf-tab-summary-h);
   }
-  :scope:is(lf-tabs)[list=side].lf-rendered,
-  html[data-lf-interactive] :scope:is(lf-tabs)[list=side]:not(.lf-rendered):has(> lf-tab) {
+  lf-tabs[list=side].lf-rendered,
+  html[data-lf-interactive] lf-tabs[list=side]:not(.lf-rendered):has(> lf-tab) {
     container-type: inline-size;
     display: grid;
     grid-template-columns: minmax(10rem, 18rem) minmax(0, 1fr);
     align-items: start;
   }
-  :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip,
-  html[data-lf-interactive] :scope:is(lf-tabs)[list=side]:not(.lf-rendered):has(> lf-tab)::before {
+  lf-tabs[list=side].lf-rendered > .lf-tabstrip,
+  html[data-lf-interactive] lf-tabs[list=side]:not(.lf-rendered):has(> lf-tab)::before {
     grid-column: 1;
     grid-row: 1;
     --lf-tabstrip-flow: column;
@@ -1605,7 +1605,7 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
     border-radius: calc(var(--r) - 1px) 0 0 calc(var(--r) - 1px);
     align-self: stretch;
   }
-  :scope:is(lf-tabs[list=side], lf-parts).lf-rendered > .lf-tabstrip .lf-tab-btn {
+  :is(lf-tabs[list=side], lf-parts).lf-rendered > .lf-tabstrip .lf-tab-btn {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     align-content: start;
@@ -1624,7 +1624,7 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
       margin-left: calc(6px + var(--focus-ring-w) + var(--lf-tab-focus-gap));
     }
   }
-  :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip .lf-tab-answer {
+  lf-tabs[list=side].lf-rendered > .lf-tabstrip .lf-tab-answer {
     container-type: inline-size;
     grid-column: 1 / -1;
     grid-row: 3;
@@ -1638,12 +1638,12 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
     font-weight: 600;
     color: var(--ink-2);
   }
-  :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip .lf-tab-answer::before {
+  lf-tabs[list=side].lf-rendered > .lf-tabstrip .lf-tab-answer::before {
     content: "✓" / "";
     flex: none;
     color: var(--ok-ink);
   }
-  :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip .lf-tab-answer[data-lf-obligations=open] {
+  lf-tabs[list=side].lf-rendered > .lf-tabstrip .lf-tab-answer[data-lf-obligations=open] {
     font-weight: 400;
     color: var(--muted);
     &::before {
@@ -1651,16 +1651,16 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
       color: inherit;
     }
   }
-  :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip .lf-tab-answer:not([data-lf-obligations]) {
+  lf-tabs[list=side].lf-rendered > .lf-tabstrip .lf-tab-answer:not([data-lf-obligations]) {
     visibility: hidden;
   }
-  :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip .lf-tab-answer-words {
+  lf-tabs[list=side].lf-rendered > .lf-tabstrip .lf-tab-answer-words {
     min-inline-size: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  :scope:is(lf-tabs[list=side], lf-parts).lf-rendered > .lf-tabstrip .lf-tab-summary {
+  :is(lf-tabs[list=side], lf-parts).lf-rendered > .lf-tabstrip .lf-tab-summary {
     grid-column: 1 / -1;
     grid-row: 2;
     padding: 0 5px;
@@ -1668,26 +1668,26 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
     line-height: var(--lf-tab-summary-h);
     color: var(--muted);
   }
-  :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip > .lf-tab-run {
+  lf-tabs[list=side].lf-rendered > .lf-tabstrip > .lf-tab-run {
     display: flex;
     flex-direction: column;
   }
-  :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip > .lf-tab-run + .lf-tab-run {
+  lf-tabs[list=side].lf-rendered > .lf-tabstrip > .lf-tab-run + .lf-tab-run {
     margin-block-start: 2px;
     padding-block-start: 2px;
     border-block-start: 1px solid var(--border-2);
   }
-  :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip .lf-tab-group {
+  lf-tabs[list=side].lf-rendered > .lf-tabstrip .lf-tab-group {
     padding: 4px 12px 2px;
   }
-  :scope:is(lf-tabs)[list=side].lf-rendered > lf-tab,
-  html[data-lf-interactive] :scope:is(lf-tabs)[list=side]:not(.lf-rendered):has(> lf-tab) > lf-tab {
+  lf-tabs[list=side].lf-rendered > lf-tab,
+  html[data-lf-interactive] lf-tabs[list=side]:not(.lf-rendered):has(> lf-tab) > lf-tab {
     grid-column: 2;
     grid-row: 1;
   }
   @container (width < 36rem) {
-    :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip,
-    html[data-lf-interactive] :scope:is(lf-tabs)[list=side]:not(.lf-rendered):has(> lf-tab)::before {
+    lf-tabs[list=side].lf-rendered > .lf-tabstrip,
+    html[data-lf-interactive] lf-tabs[list=side]:not(.lf-rendered):has(> lf-tab)::before {
       grid-column: 1 / -1;
       grid-row: auto;
       --lf-tabstrip-flow: row;
@@ -1700,61 +1700,61 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
       border-bottom: 1px solid var(--border-2);
       border-radius: calc(var(--r) - 1px) calc(var(--r) - 1px) 0 0;
     }
-    :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip,
-    html[data-lf-interactive] :scope:is(lf-tabs)[list=side]:not(.lf-rendered):has(> lf-tab)::before {
+    lf-tabs[list=side].lf-rendered > .lf-tabstrip,
+    html[data-lf-interactive] lf-tabs[list=side]:not(.lf-rendered):has(> lf-tab)::before {
       min-block-size: calc(var(--lf-tabstrip-h) + var(--lf-tab-context-h) + var(--lf-tab-outcome-h));
     }
-    :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip .lf-tab-btn {
+    lf-tabs[list=side].lf-rendered > .lf-tabstrip .lf-tab-btn {
       max-inline-size: 16rem;
     }
-    :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip > .lf-tab-run {
+    lf-tabs[list=side].lf-rendered > .lf-tabstrip > .lf-tab-run {
       flex: none;
       flex-direction: row;
       gap: 2px;
     }
-    :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip > .lf-tab-run + .lf-tab-run {
+    lf-tabs[list=side].lf-rendered > .lf-tabstrip > .lf-tab-run + .lf-tab-run {
       margin-block-start: 0;
       padding-block-start: 0;
       border-block-start: 0;
       padding-inline-start: 4px;
       border-inline-start: 1px solid var(--border-2);
     }
-    :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip .lf-tab-group {
+    lf-tabs[list=side].lf-rendered > .lf-tabstrip .lf-tab-group {
       flex: none;
       align-self: center;
       padding: 0 4px;
     }
-    :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip .lf-tab-btn > :is(.lf-tab-name, .lf-tab-summary) {
+    lf-tabs[list=side].lf-rendered > .lf-tabstrip .lf-tab-btn > :is(.lf-tab-name, .lf-tab-summary) {
       max-inline-size: 100%;
       box-sizing: border-box;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-    :scope:is(lf-tabs)[list=side].lf-rendered > lf-tab,
-    html[data-lf-interactive] :scope:is(lf-tabs)[list=side]:not(.lf-rendered):has(> lf-tab) > lf-tab {
+    lf-tabs[list=side].lf-rendered > lf-tab,
+    html[data-lf-interactive] lf-tabs[list=side]:not(.lf-rendered):has(> lf-tab) > lf-tab {
       grid-column: 1 / -1;
       grid-row: auto;
     }
   }
   @container style(--lf-full-height: 1) {
-    :scope:is(lf-tabs)[list=side].lf-rendered {
+    lf-tabs[list=side].lf-rendered {
       min-block-size: 0;
       grid-template-rows: auto minmax(0, 1fr);
       --lf-full-height: inherit;
     }
-    :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip {
+    lf-tabs[list=side].lf-rendered > .lf-tabstrip {
       grid-row: 1;
     }
-    :scope:is(lf-tabs)[list=side].lf-rendered > lf-tab {
+    lf-tabs[list=side].lf-rendered > lf-tab {
       grid-row: 2;
     }
     @container (width >= 36rem) {
-      :scope:is(lf-tabs)[list=side].lf-rendered > :is(.lf-tabstrip, lf-tab) {
+      lf-tabs[list=side].lf-rendered > :is(.lf-tabstrip, lf-tab) {
         grid-row: 1 / -1;
       }
     }
-    :scope:is(lf-tabs)[list=side].lf-rendered > :is(.lf-tabstrip, lf-tab:not([hidden])) {
+    lf-tabs[list=side].lf-rendered > :is(.lf-tabstrip, lf-tab:not([hidden])) {
       align-self: stretch;
       min-block-size: 0;
       overflow: auto;
@@ -1764,7 +1764,7 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
       --lf-holds-height: 1;
     }
   }
-  :where(:scope:is(lf-tabs).lf-rendered[data-lf-views-flow=page], html[data-lf-interactive] :scope:is(lf-tabs):not(.lf-rendered)[data-lf-views-flow=page]:has(> lf-tab)) {
+  :where(lf-tabs.lf-rendered[data-lf-views-flow=page], html[data-lf-interactive] lf-tabs:not(.lf-rendered)[data-lf-views-flow=page]:has(> lf-tab)) {
     --lf-tab-end: var(--lf-end-room);
     margin-block: 0 32px;
     min-block-size: calc(100dvh - var(--lf-top));
@@ -1774,21 +1774,21 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
     --lf-ground: inherit;
     --lf-block-frame: 0;
   }
-  :scope:is(lf-tabs):not([list=side]) {
+  lf-tabs:not([list=side]) {
     isolation: isolate;
     --lf-top-outer: var(--lf-top);
   }
-  :scope:is(lf-tabs):not([list=side]) > lf-tab {
+  lf-tabs:not([list=side]) > lf-tab {
     --lf-top: calc(var(--lf-top-outer) + var(--lf-tabstrip-h));
   }
-  :scope:is(lf-tabs):not([list=side]) > .lf-tabstrip {
+  lf-tabs:not([list=side]) > .lf-tabstrip {
     position: sticky;
     top: var(--lf-top);
     --lf-head-inset: 8px;
     z-index: 2;
     block-size: var(--lf-tabstrip-h);
   }
-  :scope:is(lf-tabs)[data-lf-views-flow=page] > .lf-tabstrip {
+  lf-tabs[data-lf-views-flow=page] > .lf-tabstrip {
     border-radius: 0;
     --lf-tabstrip-pad: 0px;
     --lf-tabstrip-bg: var(--paper);
@@ -1871,12 +1871,12 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
   .lf-tabstrip-scroll[data-to=end]:dir(rtl) > span::before {
     content: "‹" / "";
   }
-  :scope:is(lf-tabs).lf-rendered[data-lf-views-flow=page] > lf-tab:not([hidden]),
-  html[data-lf-interactive] :scope:is(lf-tabs):not(.lf-rendered)[data-lf-views-flow=page]:has(> lf-tab) > lf-tab {
+  lf-tabs.lf-rendered[data-lf-views-flow=page] > lf-tab:not([hidden]),
+  html[data-lf-interactive] lf-tabs:not(.lf-rendered)[data-lf-views-flow=page]:has(> lf-tab) > lf-tab {
     padding: var(--sp-4) 0 var(--lf-tab-end);
     --lf-block-frame: trim;
   }
-  :scope:is(lf-tabs).lf-rendered[data-lf-views-flow=page] > lf-tab[hidden] {
+  lf-tabs.lf-rendered[data-lf-views-flow=page] > lf-tab[hidden] {
     align-self: start;
     height: 0;
     min-height: 0;
@@ -1884,8 +1884,8 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
     pointer-events: none;
   }
   @container style(--lf-full-height: 1) {
-    :scope:is(lf-tabs).lf-rendered[data-lf-views-flow=page],
-    html[data-lf-interactive] :scope:is(lf-tabs):not(.lf-rendered)[data-lf-views-flow=page]:has(> lf-tab) {
+    lf-tabs.lf-rendered[data-lf-views-flow=page],
+    html[data-lf-interactive] lf-tabs:not(.lf-rendered)[data-lf-views-flow=page]:has(> lf-tab) {
       display: flex;
       flex-direction: column;
       min-block-size: 0;
@@ -1894,29 +1894,29 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
       padding: 0 var(--focus-ring-room) var(--focus-ring-room);
       --lf-full-height: inherit;
     }
-    :scope:is(lf-tabs).lf-rendered[data-lf-views-flow=page] > .lf-tabstrip,
-    html[data-lf-interactive] :scope:is(lf-tabs):not(.lf-rendered)[data-lf-views-flow=page]:has(> lf-tab)::before {
+    lf-tabs.lf-rendered[data-lf-views-flow=page] > .lf-tabstrip,
+    html[data-lf-interactive] lf-tabs:not(.lf-rendered)[data-lf-views-flow=page]:has(> lf-tab)::before {
       flex: none;
     }
-    :scope:is(lf-tabs).lf-rendered[data-lf-views-flow=page] > lf-tab:not([hidden]),
-    html[data-lf-interactive] :scope:is(lf-tabs):not(.lf-rendered)[data-lf-views-flow=page]:has(> lf-tab) > lf-tab[data-lf-opening] {
+    lf-tabs.lf-rendered[data-lf-views-flow=page] > lf-tab:not([hidden]),
+    html[data-lf-interactive] lf-tabs:not(.lf-rendered)[data-lf-views-flow=page]:has(> lf-tab) > lf-tab[data-lf-opening] {
       flex: 1 0 auto;
     }
-    :scope:is(lf-tabs).lf-rendered[data-lf-views-flow=page] > lf-tab:not([hidden]):has(> :nth-child(1 of :not(script, style, template)):nth-last-child(1 of :not(script, style, template))),
-    html[data-lf-interactive] :scope:is(lf-tabs):not(.lf-rendered)[data-lf-views-flow=page]:has(> lf-tab) > lf-tab[data-lf-opening]:has(> [data-lf-sole-content]) {
+    lf-tabs.lf-rendered[data-lf-views-flow=page] > lf-tab:not([hidden]):has(> :nth-child(1 of :not(script, style, template)):nth-last-child(1 of :not(script, style, template))),
+    html[data-lf-interactive] lf-tabs:not(.lf-rendered)[data-lf-views-flow=page]:has(> lf-tab) > lf-tab[data-lf-opening]:has(> [data-lf-sole-content]) {
       flex: 1 1 0;
       min-block-size: 0;
       display: flex;
       flex-direction: column;
       --lf-full-height: inherit;
     }
-    :scope:is(lf-tabs).lf-rendered[data-lf-views-flow=page] > lf-tab:not([hidden]) > :nth-child(1 of :not(script, style, template)):nth-last-child(1 of :not(script, style, template)),
-    html[data-lf-interactive] :scope:is(lf-tabs):not(.lf-rendered)[data-lf-views-flow=page]:has(> lf-tab) > lf-tab[data-lf-opening] > [data-lf-sole-content] {
+    lf-tabs.lf-rendered[data-lf-views-flow=page] > lf-tab:not([hidden]) > :nth-child(1 of :not(script, style, template)):nth-last-child(1 of :not(script, style, template)),
+    html[data-lf-interactive] lf-tabs:not(.lf-rendered)[data-lf-views-flow=page]:has(> lf-tab) > lf-tab[data-lf-opening] > [data-lf-sole-content] {
       flex: 1 1 0;
       margin-block: 0;
     }
   }
-  @scope (html[data-lf-interactive] :scope) {
+  @scope (html[data-lf-interactive] lf-tabs) {
     :scope:is(lf-tabs):not(.lf-rendered):has(> lf-tab) {
       &::before {
         content: "";
@@ -1930,29 +1930,29 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
       }
     }
   }
-  @scope (html[data-lf-interactive] body > main > :scope) {
+  @scope (html[data-lf-interactive] body > main > lf-tabs) {
     :scope:is(lf-tabs):not(.lf-rendered)[data-lf-views-flow=page]:has(> lf-tab)::before {
       border-radius: 0;
       background: var(--paper);
     }
   }
-  :scope:is(lf-parts).lf-rendered > lf-part {
+  lf-parts.lf-rendered > lf-part {
     margin: 0;
     padding: 0;
   }
-  :scope:is(lf-parts).lf-rendered > lf-part::before {
+  lf-parts.lf-rendered > lf-part::before {
     content: none;
   }
-  :scope:is(lf-parts).lf-rendered > lf-part:not([hidden]) {
+  lf-parts.lf-rendered > lf-part:not([hidden]) {
     --lf-block-frame: trim;
   }
-  :scope:is(lf-parts).lf-rendered > lf-part[hidden] {
+  lf-parts.lf-rendered > lf-part[hidden] {
     block-size: 0;
     min-block-size: 0;
     overflow: clip;
     pointer-events: none;
   }
-  @scope (body > main:not(.layout-column, .layout-sidebar, .layout-workspace) > :scope) {
+  @scope (body > main:not(.layout-column, .layout-sidebar, .layout-workspace) > lf-parts) {
     :scope:is(lf-parts).lf-rendered > .lf-tabstrip {
       position: fixed;
       top: calc(var(--lf-top) + var(--lf-parts-title-h, 0px));
@@ -2007,7 +2007,7 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
       }
     }
   }
-  @scope (html[data-lf-interactive] :scope) {
+  @scope (html[data-lf-interactive] lf-parts) {
     :scope:is(lf-parts):not(.lf-rendered):has(> lf-part) {
       &::before {
         content: "";
@@ -2031,7 +2031,7 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
       }
     }
   }
-  @scope (html[data-lf-interactive] body > main:not(.layout-column, .layout-sidebar, .layout-workspace) > :scope) {
+  @scope (html[data-lf-interactive] body > main:not(.layout-column, .layout-sidebar, .layout-workspace) > lf-parts) {
     :scope:is(lf-parts):not(.lf-rendered):has(> lf-part) {
       &::before {
         content: none;
@@ -2053,21 +2053,21 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
   }
 }
 @media print {
-  :scope:is(lf-tabs)[list=side] > lf-tab[group]::before {
+  lf-tabs[list=side] > lf-tab[group]::before {
     content: attr(group) " · " attr(label);
   }
 }
 @media screen {
   @container not style(--lf-end-room: 0px) {
-    :scope:is(lf-tabs) > lf-tab:not([hidden]):has(> :is(lf-tabs, [data-lf-reading-role=pane]):only-child) {
+    lf-tabs > lf-tab:not([hidden]):has(> :is(lf-tabs, [data-lf-reading-role=pane]):only-child) {
       --lf-tab-end: 0px;
     }
-    :scope:is(lf-tabs) > lf-tab:not([hidden]) > :is(lf-tabs, [data-lf-reading-role=pane]):only-child {
+    lf-tabs > lf-tab:not([hidden]) > :is(lf-tabs, [data-lf-reading-role=pane]):only-child {
       --lf-end-room: inherit;
       margin-block-end: 0;
     }
     @container (width >= 36rem) {
-      :scope:is(lf-tabs)[list=side] > .lf-tabstrip {
+      lf-tabs[list=side] > .lf-tabstrip {
         --lf-end-room: inherit;
       }
     }
@@ -2075,25 +2075,25 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
 }
 
 /* packages/default/styles/tally.css */
-:scope:is(lf-tally) {
+lf-tally {
   display: inline-block;
   max-width: 100%;
   vertical-align: middle;
 }
-:scope:is(lf-tally) .lf-tally-face {
+lf-tally .lf-tally-face {
   display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--sp-1) var(--sp-2);
   max-width: 100%;
 }
-:scope:is(lf-tally):not([data-lf-ready]) .lf-tally-face {
+lf-tally:not([data-lf-ready]) .lf-tally-face {
   visibility: hidden;
 }
-:scope:is(lf-tally):not([next]) .lf-tally-next {
+lf-tally:not([next]) .lf-tally-next {
   display: none;
 }
-:scope:is(lf-tally) .lf-tally-count {
+lf-tally .lf-tally-count {
   display: inline-grid;
   font-family: var(--sans);
   font-size: var(--t-6);
@@ -2105,18 +2105,18 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
   background: var(--chip);
   color: var(--ink-2);
 }
-:scope:is(lf-tally) .lf-tally-count > * {
+lf-tally .lf-tally-count > * {
   grid-area: 1 / 1;
   justify-self: center;
 }
-:scope:is(lf-tally) .lf-tally-room {
+lf-tally .lf-tally-room {
   visibility: hidden;
 }
-:scope:is(lf-tally)[data-lf-done] .lf-tally-count {
+lf-tally[data-lf-done] .lf-tally-count {
   background: var(--ok-tint);
   color: var(--ok-ink);
 }
-:scope:is(lf-tally) .lf-tally-next {
+lf-tally .lf-tally-next {
   font-size: var(--t-6);
   padding-block: 0;
   min-height: var(--aim-floor);
@@ -2124,106 +2124,106 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
 }
 
 /* packages/default/styles/toc.css */
-:scope:is(lf-toc) {
+lf-toc {
   display: block;
   margin: var(--sp-4) 0 30px;
 }
-:scope:is(lf-toc):is(:empty, [data-lf-toc-empty]) {
+lf-toc:is(:empty, [data-lf-toc-empty]) {
   display: none;
 }
-:scope:is(lf-toc) .lf-toc-nav {
+lf-toc .lf-toc-nav {
   position: relative;
   border-left: 1px solid var(--border-2);
   padding-left: var(--sp-3);
   color: var(--muted);
   font: var(--t-5)/1.3 var(--sans);
 }
-:scope:is(lf-toc) .lf-toc-disclosure {
+lf-toc .lf-toc-disclosure {
   border: 0;
   padding: 0;
   margin: 0;
   border-radius: 0;
   --lf-block-frame: 0;
 }
-:scope:is(lf-toc) .lf-toc-heading {
+lf-toc .lf-toc-heading {
   display: none;
   margin: 0 0 7px;
 }
-:scope:is(lf-toc) .lf-toc-toggle {
+lf-toc .lf-toc-toggle {
   margin: 0;
   padding-block: max(7px, (var(--aim-floor) - 1lh) / 2);
 }
-:scope:is(lf-toc) .lf-toc-toggle[data-lf-focus-visible] {
+lf-toc .lf-toc-toggle[data-lf-focus-visible] {
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
-:scope:is(lf-toc) .lf-toc-disclosure[open] .lf-toc-toggle {
+lf-toc .lf-toc-disclosure[open] .lf-toc-toggle {
   margin-bottom: 7px;
 }
 @media print {
-  :scope:is(lf-toc) .lf-toc-heading {
+  lf-toc .lf-toc-heading {
     display: block;
   }
-  :scope:is(lf-toc) .lf-toc-toggle {
+  lf-toc .lf-toc-toggle {
     display: none;
   }
 }
 @media screen {
   @container style(--lf-sidebar-slot: beside) {
-    :scope:is(lf-toc) .lf-toc-heading {
+    lf-toc .lf-toc-heading {
       display: block;
     }
-    :scope:is(lf-toc) .lf-toc-toggle {
+    lf-toc .lf-toc-toggle {
       display: none;
     }
-    :scope:is(lf-toc) a[aria-current=location] {
+    lf-toc a[aria-current=location] {
       color: var(--ink);
     }
   }
 }
-:scope:is(lf-toc) .lf-toc-start,
-:scope:is(lf-toc) .lf-toc-window {
+lf-toc .lf-toc-start,
+lf-toc .lf-toc-window {
   display: none;
 }
 @media print {
-  :scope:is(lf-toc) .lf-toc-start {
+  lf-toc .lf-toc-start {
     display: block;
   }
 }
-:scope:is(lf-toc) ol {
+lf-toc ol {
   list-style: none;
   margin: 0;
   padding: 0;
 }
-:scope:is(lf-toc) li {
+lf-toc li {
   --lf-toc-indent: 0px;
   margin: 0 0 0 var(--lf-toc-indent);
 }
-:scope:is(lf-toc) li[data-lf-depth="1"] {
+lf-toc li[data-lf-depth="1"] {
   --lf-toc-indent: 10px;
 }
-:scope:is(lf-toc) li[data-lf-depth="2"] {
+lf-toc li[data-lf-depth="2"] {
   --lf-toc-indent: 20px;
 }
-:scope:is(lf-toc) li[data-lf-depth="3"] {
+lf-toc li[data-lf-depth="3"] {
   --lf-toc-indent: 30px;
 }
-:scope:is(lf-toc) li[data-lf-depth="4"] {
+lf-toc li[data-lf-depth="4"] {
   --lf-toc-indent: 40px;
 }
-:scope:is(lf-toc) a {
+lf-toc a {
   display: inline-block;
   color: inherit;
   text-decoration: none;
   padding-block: max(3px, (var(--aim-floor) - 1lh) / 2);
 }
-:scope:is(lf-toc) a:hover,
-:scope:is(lf-toc) a[data-lf-focus] {
+lf-toc a:hover,
+lf-toc a[data-lf-focus] {
   color: var(--accent);
 }
 @media screen and (hover: hover) and (pointer: fine) {
   @container lf-content-frame style(--lf-sidebar-placement: margin) {
     @container style(--lf-sidebar-slot: margin) {
-      :scope:is(lf-toc) {
+      lf-toc {
         position: fixed;
         left: calc(var(--lf-shell-left, 0px) + var(--sp-4));
         top: var(--lf-head-room, 0px);
@@ -2234,7 +2234,7 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
         height: var(--lf-view-height);
         margin: 0;
       }
-      :scope:is(lf-toc) .lf-toc-nav {
+      lf-toc .lf-toc-nav {
         width: 100%;
         height: 100%;
         border: 0;
@@ -2244,28 +2244,28 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
         pointer-events: none;
         transition: background-color 0.24s ease-out;
       }
-      :scope:is(lf-toc):is(:hover, [data-lf-focus-within]) .lf-toc-nav {
+      lf-toc:is(:hover, [data-lf-focus-within]) .lf-toc-nav {
         width: calc(var(--sidebar-max) - var(--sp-4));
       }
-      @scope (body[data-lf-go-to-active] :scope) {
+      @scope (body[data-lf-go-to-active] lf-toc) {
         :scope:is(lf-toc) .lf-toc-nav {
           width: calc(var(--sidebar-max) - var(--sp-4));
         }
       }
-      :scope:is(lf-toc) .lf-toc-toggle {
+      lf-toc .lf-toc-toggle {
         display: none;
       }
-      :scope:is(lf-toc) .lf-toc-disclosure {
+      lf-toc .lf-toc-disclosure {
         display: contents;
       }
-      :scope:is(lf-toc) .lf-toc-rows {
+      lf-toc .lf-toc-rows {
         position: relative;
         display: flex;
         height: calc(var(--lf-view-height) - 2 * var(--sp-4));
         --lf-toc-spine-width: 1px;
         flex-direction: column;
       }
-      :scope:is(lf-toc) .lf-toc-rows::after {
+      lf-toc .lf-toc-rows::after {
         content: "";
         position: absolute;
         z-index: 1;
@@ -2275,16 +2275,16 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
         width: var(--sp-4);
         pointer-events: auto;
       }
-      :scope:is(lf-toc):is(:hover, [data-lf-focus-within], [data-lf-outline]),
-      :scope:is(lf-toc):is(:hover, [data-lf-focus-within], [data-lf-outline]) .lf-toc-nav {
+      lf-toc:is(:hover, [data-lf-focus-within], [data-lf-outline]),
+      lf-toc:is(:hover, [data-lf-focus-within], [data-lf-outline]) .lf-toc-nav {
         pointer-events: auto;
       }
-      @scope (body[data-lf-go-to-active] :scope) {
+      @scope (body[data-lf-go-to-active] lf-toc) {
         :is(:scope:is(lf-toc), :scope:is(lf-toc) .lf-toc-nav) {
           pointer-events: auto;
         }
       }
-      :scope:is(lf-toc) .lf-toc-rows::before {
+      lf-toc .lf-toc-rows::before {
         content: "";
         position: absolute;
         z-index: 0;
@@ -2294,7 +2294,7 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
         width: var(--lf-toc-spine-width);
         background: var(--border-2);
       }
-      :scope:is(lf-toc) .lf-toc-window {
+      lf-toc .lf-toc-window {
         display: block;
         position: absolute;
         z-index: 1;
@@ -2305,8 +2305,8 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
         transform-origin: top;
         background: var(--accent);
       }
-      :scope:is(lf-toc) .lf-toc-start,
-      :scope:is(lf-toc) li {
+      lf-toc .lf-toc-start,
+      lf-toc li {
         --lf-toc-indent: 0px;
         position: relative;
         z-index: 2;
@@ -2316,14 +2316,14 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
         margin: 0;
         pointer-events: none;
       }
-      :scope:is(lf-toc) :is(.lf-toc-start, li)[data-lf-toc-hidden] {
+      lf-toc :is(.lf-toc-start, li)[data-lf-toc-hidden] {
         display: none;
       }
-      :scope:is(lf-toc) ol {
+      lf-toc ol {
         display: contents;
       }
-      :scope:is(lf-toc) .lf-toc-start::before,
-      :scope:is(lf-toc) li::before {
+      lf-toc .lf-toc-start::before,
+      lf-toc li::before {
         content: "";
         position: absolute;
         z-index: 2;
@@ -2336,25 +2336,25 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
         border-radius: 50%;
         background: var(--muted);
       }
-      :scope:is(lf-toc) .lf-toc-start::before {
+      lf-toc .lf-toc-start::before {
         width: 9px;
         height: 9px;
       }
-      :scope:is(lf-toc) li[data-lf-depth="0"]::before {
+      lf-toc li[data-lf-depth="0"]::before {
         width: 6px;
         height: 6px;
       }
-      :scope:is(lf-toc) .lf-toc-start::before,
-      :scope:is(lf-toc) li[data-lf-depth="0"]::before {
+      lf-toc .lf-toc-start::before,
+      lf-toc li[data-lf-depth="0"]::before {
         border: 1px solid var(--muted);
         background: var(--paper);
       }
-      :scope:is(lf-toc) :is(.lf-toc-start, li):has(> a[aria-current=location])::before {
+      lf-toc :is(.lf-toc-start, li):has(> a[aria-current=location])::before {
         background: var(--accent);
         border-color: var(--accent);
       }
-      :scope:is(lf-toc) .lf-toc-start a,
-      :scope:is(lf-toc) li a {
+      lf-toc .lf-toc-start a,
+      lf-toc li a {
         position: absolute;
         z-index: 3;
         display: -webkit-box;
@@ -2372,72 +2372,72 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
         pointer-events: none;
         transition: color 0.12s ease-out, opacity 0.24s ease-out;
       }
-      :scope:is(lf-toc) .lf-toc-start a {
+      lf-toc .lf-toc-start a {
         font-weight: 650;
         line-height: 1.2;
         max-height: 2.4em;
       }
-      :scope:is(lf-toc) :is(.lf-toc-start a, li a[aria-current=location]):not(:hover, [data-lf-focus]) {
+      lf-toc :is(.lf-toc-start a, li a[aria-current=location]):not(:hover, [data-lf-focus]) {
         color: var(--ink-2);
       }
-      :scope:is(lf-toc) a[data-lf-focus-visible] {
+      lf-toc a[data-lf-focus-visible] {
         outline: var(--focus-ring);
         outline-offset: calc(-1 * var(--focus-ring-w));
       }
-      :scope:is(lf-toc):is(:hover, [data-lf-focus-within]) .lf-toc-nav {
+      lf-toc:is(:hover, [data-lf-focus-within]) .lf-toc-nav {
         --lf-toc-label-opacity: 1;
         background: color-mix(in srgb, var(--paper) 92%, transparent);
       }
-      @scope (body[data-lf-go-to-active] :scope) {
+      @scope (body[data-lf-go-to-active] lf-toc) {
         :scope:is(lf-toc) .lf-toc-nav {
           --lf-toc-label-opacity: 1;
           background: color-mix(in srgb, var(--paper) 92%, transparent);
         }
       }
-      :scope:is(lf-toc):is(:hover, [data-lf-focus-within]) .lf-toc-nav a {
+      lf-toc:is(:hover, [data-lf-focus-within]) .lf-toc-nav a {
         pointer-events: auto;
       }
-      @scope (body[data-lf-go-to-active] :scope) {
+      @scope (body[data-lf-go-to-active] lf-toc) {
         :scope:is(lf-toc) .lf-toc-nav a {
           pointer-events: auto;
         }
       }
-      :scope:is(lf-toc)[data-lf-compact] :is(.lf-toc-start, li) a {
+      lf-toc[data-lf-compact] :is(.lf-toc-start, li) a {
         max-height: 1.25em;
         font-size: var(--t-6);
         line-height: 1.25;
         -webkit-line-clamp: 1;
       }
-      :scope:is(lf-toc)[data-lf-outline] .lf-toc-nav {
+      lf-toc[data-lf-outline] .lf-toc-nav {
         --lf-toc-label-opacity: 1;
         width: max(40px, min(320px, calc(var(--lf-beside) + var(--lf-shift, 0px) - 2 * var(--sp-4))));
         background: var(--paper);
         overflow-y: auto;
         pointer-events: auto;
       }
-      :scope:is(lf-toc)[data-lf-outline] .lf-toc-rows::before,
-      :scope:is(lf-toc)[data-lf-outline] .lf-toc-window,
-      :scope:is(lf-toc)[data-lf-outline] :is(.lf-toc-start, li)::before {
+      lf-toc[data-lf-outline] .lf-toc-rows::before,
+      lf-toc[data-lf-outline] .lf-toc-window,
+      lf-toc[data-lf-outline] :is(.lf-toc-start, li)::before {
         display: none;
       }
-      :scope:is(lf-toc)[data-lf-outline] .lf-toc-heading {
+      lf-toc[data-lf-outline] .lf-toc-heading {
         display: block;
       }
-      :scope:is(lf-toc)[data-lf-outline] .lf-toc-rows {
+      lf-toc[data-lf-outline] .lf-toc-rows {
         display: block;
         height: auto;
       }
-      :scope:is(lf-toc)[data-lf-outline] ol {
+      lf-toc[data-lf-outline] ol {
         display: block;
       }
-      :scope:is(lf-toc)[data-lf-outline] :is(.lf-toc-start, li) {
+      lf-toc[data-lf-outline] :is(.lf-toc-start, li) {
         display: block;
         margin: 0 0 0 var(--lf-toc-indent);
       }
-      :scope:is(lf-toc)[data-lf-outline] :is(.lf-toc-start, li)[data-lf-toc-hidden] {
+      lf-toc[data-lf-outline] :is(.lf-toc-start, li)[data-lf-toc-hidden] {
         display: none;
       }
-      :scope:is(lf-toc)[data-lf-outline] :is(.lf-toc-start, li) a {
+      lf-toc[data-lf-outline] :is(.lf-toc-start, li) a {
         position: relative;
         display: block;
         width: 100%;
@@ -2452,25 +2452,25 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  :scope:is(lf-toc) a {
+  lf-toc a {
     transition: none;
   }
 }
 @media (forced-colors: active) {
-  :scope:is(lf-toc) .lf-toc-rows::before,
-  :scope:is(lf-toc) .lf-toc-start::before,
-  :scope:is(lf-toc) li::before,
-  :scope:is(lf-toc) li[data-lf-depth="0"]::before {
+  lf-toc .lf-toc-rows::before,
+  lf-toc .lf-toc-start::before,
+  lf-toc li::before,
+  lf-toc li[data-lf-depth="0"]::before {
     forced-color-adjust: none;
     background: CanvasText;
     border-color: CanvasText;
   }
-  :scope:is(lf-toc) .lf-toc-start::before,
-  :scope:is(lf-toc) li[data-lf-depth="0"]::before {
+  lf-toc .lf-toc-start::before,
+  lf-toc li[data-lf-depth="0"]::before {
     background: Canvas;
   }
-  :scope:is(lf-toc) .lf-toc-window,
-  :scope:is(lf-toc) :is(.lf-toc-start, li):has(> a[aria-current=location])::before {
+  lf-toc .lf-toc-window,
+  lf-toc :is(.lf-toc-start, li):has(> a[aria-current=location])::before {
     forced-color-adjust: none;
     background: Highlight;
     border-color: Highlight;
@@ -2478,11 +2478,11 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
 }
 
 /* packages/default/styles/activity.css */
-:scope:is(lf-activity) {
+lf-activity {
   display: block;
   margin: var(--sp-3) 0;
 }
-:scope:is(lf-activity) .lf-activity-news {
+lf-activity .lf-activity-news {
   display: block;
   box-sizing: border-box;
   inline-size: 100%;
@@ -2503,54 +2503,54 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
-:scope:is(lf-activity) .lf-activity-news[data-lf-news] {
+lf-activity .lf-activity-news[data-lf-news] {
   color: var(--danger);
 }
-:scope:is(lf-activity) .lf-activity-list {
+lf-activity .lf-activity-list {
   list-style: none;
   margin: 0;
   padding: 0;
   font: var(--t-5)/var(--lf-ui-lh) var(--sans);
 }
 @media screen {
-  :scope:is(lf-activity)[data-lf-bound] {
+  lf-activity[data-lf-bound] {
     --lf-bound-box: .lf-activity-list;
     max-block-size: none;
     overflow: visible;
     --lf-top: inherit;
   }
-  :scope:is(lf-activity)[data-lf-bound] > .lf-activity-list {
+  lf-activity[data-lf-bound] > .lf-activity-list {
     max-block-size: var(--lf-bound, 28rem);
     overflow: auto;
     --lf-holds-height: 1;
     --lf-top: 0px;
   }
 }
-:scope:is(lf-activity) .lf-activity-row {
+lf-activity .lf-activity-row {
   padding: 7px 0;
   border-top: 1px solid var(--rule);
 }
-:scope:is(lf-activity) .lf-activity-row:first-child {
+lf-activity .lf-activity-row:first-child {
   border-top: 0;
 }
-:scope:is(lf-activity) .lf-activity-line {
+lf-activity .lf-activity-line {
   margin: 0;
   overflow-wrap: anywhere;
 }
-:scope:is(lf-activity) .lf-activity-actor {
+lf-activity .lf-activity-actor {
   color: var(--ink);
   font-weight: 600;
 }
-:scope:is(lf-activity) .lf-activity-what {
+lf-activity .lf-activity-what {
   color: var(--ink-2);
 }
-:scope:is(lf-activity) :is(a[href], button).lf-activity-target {
+lf-activity :is(a[href], button).lf-activity-target {
   color: var(--accent);
   text-decoration: underline;
   text-underline-offset: 2px;
   text-decoration-color: color-mix(in srgb, var(--accent) 40%, transparent);
 }
-:scope:is(lf-activity) button.lf-activity-target {
+lf-activity button.lf-activity-target {
   appearance: none;
   background: none;
   border: 0;
@@ -2560,14 +2560,14 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
   text-align: start;
   cursor: pointer;
 }
-:scope:is(lf-activity) :is(a[href], button).lf-activity-target:hover {
+lf-activity :is(a[href], button).lf-activity-target:hover {
   text-decoration-color: currentColor;
 }
-:scope:is(lf-activity) :is(span, a:not([href])).lf-activity-target {
+lf-activity :is(span, a:not([href])).lf-activity-target {
   color: var(--ink-2);
   text-decoration: none;
 }
-:scope:is(lf-activity) .lf-activity-time {
+lf-activity .lf-activity-time {
   color: var(--muted);
   white-space: nowrap;
   display: inline-block;
@@ -2577,42 +2577,42 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
   text-overflow: ellipsis;
   vertical-align: bottom;
 }
-:scope:is(lf-activity) .lf-activity-time::before {
+lf-activity .lf-activity-time::before {
   content: "· ";
 }
-:scope:is(lf-activity) .lf-activity-undone {
+lf-activity .lf-activity-undone {
   color: var(--muted);
   font-size: var(--t-6);
   border: 1px solid var(--border-2);
   border-radius: var(--chip-r);
   padding: var(--chip-pad);
 }
-:scope:is(lf-activity) [data-lf-undone] :is(.lf-activity-what, .lf-activity-target, .lf-activity-excerpt) {
+lf-activity [data-lf-undone] :is(.lf-activity-what, .lf-activity-target, .lf-activity-excerpt) {
   text-decoration: line-through;
   text-decoration-color: var(--muted);
 }
-:scope:is(lf-activity) .lf-activity-excerpt {
+lf-activity .lf-activity-excerpt {
   margin: 2px 0 0;
   color: var(--muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-:scope:is(lf-activity) .lf-activity-empty {
+lf-activity .lf-activity-empty {
   margin: 0;
   color: var(--muted);
   font: var(--t-5) var(--sans);
 }
 
 /* packages/default/styles/ask.css */
-:scope:is(lf-ask) {
+lf-ask {
   display: block;
 }
-:scope:is(lf-ask)[data-lf-obligation] {
+lf-ask[data-lf-obligation] {
   position: relative;
   outline: none !important;
 }
-:scope:is(lf-ask)[data-lf-obligation]::after {
+lf-ask[data-lf-obligation]::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -2622,22 +2622,22 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
   outline-offset: var(--focus-ring-gap);
 }
 @container style(--lf-full-height: 1) {
-  :scope:is(lf-ask)[data-lf-obligation]::after {
+  lf-ask[data-lf-obligation]::after {
     outline-offset: calc(-1 * var(--focus-ring-w));
   }
 }
 @media screen {
-  :scope:is(lf-ask) {
+  lf-ask {
     box-sizing: border-box;
     max-inline-size: var(--lf-measure);
   }
-  :scope:is(lf-ask):has(> [data-lf-space=wide]) {
+  lf-ask:has(> [data-lf-space=wide]) {
     max-inline-size: max(var(--lf-measure), var(--wide));
   }
-  :scope:is(lf-ask):has(> [data-lf-space=available]) {
+  lf-ask:has(> [data-lf-space=available]) {
     max-inline-size: none;
   }
-  :scope:is(lf-ask):not([data-lf-space]):has(> [data-lf-space]:not([data-lf-kept])) {
+  lf-ask:not([data-lf-space]):has(> [data-lf-space]:not([data-lf-kept])) {
     margin-left: calc(-1 * var(--lf-grow-l));
     margin-right: calc(-1 * var(--lf-grow-r));
     padding-left: var(--lf-grow-l);
@@ -2645,28 +2645,28 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
     --lf-breakout: 1;
   }
 }
-:scope:is(lf-ask):has(> :is(figure, img, svg, table, [data-lf-visual]) ~ lf-options, > lf-options > lf-option :is(figure, img, svg, table, [data-lf-visual])) {
+lf-ask:has(> :is(figure, img, svg, table, [data-lf-visual]) ~ lf-options, > lf-options > lf-option :is(figure, img, svg, table, [data-lf-visual])) {
   --lf-options-across: 1;
 }
 @container style(--lf-full-height: 1) {
-  :scope:is(lf-ask) {
+  lf-ask {
     display: flex;
     flex-direction: column;
   }
-  :scope:is(lf-ask) > * {
+  lf-ask > * {
     flex: none;
   }
-  :scope:is(lf-ask):has(> :nth-last-child(1 of :not(script, style, template)):not(:nth-child(1 of :not(script, style, template)))) {
+  lf-ask:has(> :nth-last-child(1 of :not(script, style, template)):not(:nth-child(1 of :not(script, style, template)))) {
     --lf-full-height: inherit;
   }
-  :scope:is(lf-ask) > :nth-last-child(1 of :not(script, style, template)):not(:nth-child(1 of :not(script, style, template))) {
+  lf-ask > :nth-last-child(1 of :not(script, style, template)):not(:nth-child(1 of :not(script, style, template))) {
     flex: 1 1 0;
     margin-block: 0;
   }
 }
 
 /* packages/default/styles/sample.css */
-:scope:is(lf-sample) {
+lf-sample {
   display: table;
   table-layout: fixed;
   width: 100%;
@@ -2676,11 +2676,11 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
   border-left: 3px solid var(--border-2);
   --lf-block-frame: 1;
 }
-:scope:is(lf-sample) > * {
+lf-sample > * {
   --lf-box-cap: 100%;
 }
-:scope:is(lf-sample)::before,
-:scope:is(lf-sample) > [data-lf-said=label] {
+lf-sample::before,
+lf-sample > [data-lf-said=label] {
   display: table-caption;
   font-size: var(--t-6);
   margin-bottom: var(--sp-1);
@@ -2688,25 +2688,25 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
   text-transform: uppercase;
   color: var(--muted);
 }
-:scope:is(lf-sample) {
+lf-sample {
   --lf-sample-word: "quoted";
 }
-:scope:is(lf-sample)[interactive] {
+lf-sample[interactive] {
   --lf-sample-word: "interactive sample";
 }
-:scope:is(lf-sample)[data-lf-sample-live] {
+lf-sample[data-lf-sample-live] {
   --lf-sample-word: "live sample";
 }
-:scope:is(lf-sample)::before {
+lf-sample::before {
   content: var(--lf-sample-word);
 }
-:scope:is(lf-sample)[label]::before {
+lf-sample[label]::before {
   content: var(--lf-sample-word) " · " attr(label);
 }
-:scope:is(lf-sample):has(> [data-lf-said=label])::before {
+lf-sample:has(> [data-lf-said=label])::before {
   content: none;
 }
-:scope:is(lf-sample) > [data-lf-said=label]::before {
+lf-sample > [data-lf-said=label]::before {
   content: var(--lf-sample-word) " · ";
 }
 .lf-sample-view {
@@ -2721,10 +2721,10 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
   color: inherit;
   background: transparent;
 }
-:scope:is(lf-sample):has(> .lf-sample-view:modal) {
+lf-sample:has(> .lf-sample-view:modal) {
   height: var(--lf-sample-height);
 }
-:scope:is(lf-sample)[data-lf-sample-live] {
+lf-sample[data-lf-sample-live] {
   padding-left: 0;
   border-left: 0;
 }
@@ -2804,7 +2804,7 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
   outline: var(--focus-ring);
   outline-offset: 2px;
 }
-:scope:is(lf-sample)[window] .lf-sample-frame {
+lf-sample[window] .lf-sample-frame {
   box-sizing: border-box;
   height: min(75vh, 48rem);
 }
@@ -2835,7 +2835,7 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
   flex: 1;
   min-height: 0;
 }
-@scope (html[data-lf-sample-block] :scope) {
+@scope (html[data-lf-sample-block] lf-sample) {
   :scope:is(lf-sample)[window] .lf-sample-frame {
     height: 32rem;
   }
@@ -2849,42 +2849,42 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
 }
 
 /* packages/default/styles/chart.css */
-:scope:is(lf-chart) .lf-chart-drawing {
+lf-chart .lf-chart-drawing {
   display: block;
   font: 10px var(--sans);
   color: var(--muted);
 }
-@scope (html[data-lf-interactive] :scope) {
+@scope (html[data-lf-interactive] lf-chart) {
   :scope:is(lf-chart):not(.lf-rendered) > pre {
     visibility: hidden;
   }
 }
-:scope:is(lf-chart) .lf-chart-drawing svg {
+lf-chart .lf-chart-drawing svg {
   display: block;
   font: inherit;
   height: attr(height px, auto);
 }
-:scope:is(lf-chart) .lf-chart-drawing svg[role=img] {
+lf-chart .lf-chart-drawing svg[role=img] {
   --plot-background: var(--paper);
 }
-:scope:is(lf-chart) .lf-chart-drawing [class*=-swatches] {
+lf-chart .lf-chart-drawing [class*=-swatches] {
   font-family: inherit;
 }
 
 /* packages/default/styles/code.css */
-:scope:is(lf-code) {
+lf-code {
   contain: inline-size;
   --lf-code-gap: 8px;
   --lf-code-inset-inline: 14px;
   --lf-code-inset-block: 12px;
 }
 @property --lf-code-gutter { syntax: "<length>"; inherits: true; initial-value: 38px; }
-:scope:is(lf-code).lf-rendered pre {
+lf-code.lf-rendered pre {
   padding: var(--lf-code-inset-block) 0;
   --lf-block-frame: 1;
   --lf-code-gutter: max(38px, calc(var(--lf-code-digits, 2) * 1ch + 16px));
 }
-:scope:is(lf-code) .lf-code-line {
+lf-code .lf-code-line {
   display: block;
   position: relative;
   --lf-code-hang: calc(min(var(--lf-code-indent, 0), 22) * 1ch + 2ch);
@@ -2893,7 +2893,7 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-:scope:is(lf-code) :is(.lf-code-line, .lf-code-elided)::before {
+lf-code :is(.lf-code-line, .lf-code-elided)::before {
   content: attr(data-line);
   display: inline-block;
   width: var(--lf-code-gutter);
@@ -2906,67 +2906,67 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
   color: var(--code-muted);
   font-variant-numeric: tabular-nums;
 }
-:scope:is(lf-code) .lf-code-line::before {
+lf-code .lf-code-line::before {
   position: absolute;
   inset-block: 0;
   inset-inline-start: 0;
   text-indent: 0;
 }
-:scope:is(lf-code) .lf-code-elided {
+lf-code .lf-code-elided {
   display: flex;
   align-items: baseline;
   padding: 0 var(--lf-code-inset-inline) 0 0;
   color: var(--code-muted);
   user-select: none;
 }
-:scope:is(lf-code) .lf-code-elided::before {
+lf-code .lf-code-elided::before {
   content: "⋮";
   flex: none;
   order: -2;
 }
-:scope:is(lf-code) .lf-code-elided::after {
+lf-code .lf-code-elided::after {
   content: attr(data-elided);
   order: -1;
   flex: none;
 }
-:scope:is(lf-code) .lf-code-elided::after,
-:scope:is(lf-code) .lf-code-elided > lf-note {
+lf-code .lf-code-elided::after,
+lf-code .lf-code-elided > lf-note {
   font-family: var(--sans);
   font-size: var(--t-6);
   font-style: italic;
 }
-:scope:is(lf-code) .lf-code-elided > lf-note {
+lf-code .lf-code-elided > lf-note {
   display: block;
   min-width: 0;
   margin-inline-start: 0.5em;
   white-space: normal;
   user-select: text;
 }
-:scope:is(lf-code) .lf-code-elided > lf-note::before {
+lf-code .lf-code-elided > lf-note::before {
   content: "— ";
 }
-:scope:is(lf-code) :is(.lf-code-line, .lf-code-elided).hi {
+lf-code :is(.lf-code-line, .lf-code-elided).hi {
   background: var(--hi-tint);
 }
-:scope:is(lf-code) :is(.lf-code-line, .lf-code-elided).hi::before {
+lf-code :is(.lf-code-line, .lf-code-elided).hi::before {
   border-right-color: var(--warn);
 }
-:scope:is(lf-code) :is(.lf-code-line, .lf-code-elided)[data-lf-indicated] {
+lf-code :is(.lf-code-line, .lf-code-elided)[data-lf-indicated] {
   outline: none;
 }
-:scope:is(lf-code) :is(.lf-code-line, .lf-code-elided)[data-lf-indicated]:not(.hi) {
+lf-code :is(.lf-code-line, .lf-code-elided)[data-lf-indicated]:not(.hi) {
   background: var(--accent-tint);
 }
-:scope:is(lf-code) :is(.lf-code-line, .lf-code-elided)[data-lf-indicated]::before {
+lf-code :is(.lf-code-line, .lf-code-elided)[data-lf-indicated]::before {
   box-shadow: inset 3px 0 0 var(--accent);
   color: var(--accent);
   font-weight: 600;
 }
-:scope:is(lf-code) lf-note {
+lf-code lf-note {
   display: block;
 }
-:scope:is(lf-code) > lf-note,
-:scope:is(lf-code) > pre > lf-note {
+lf-code > lf-note,
+lf-code > pre > lf-note {
   margin: 5px 0 6px;
   padding: 7px var(--lf-code-inset-inline) 8px calc(var(--lf-code-gutter) + var(--lf-code-gap));
   background: var(--pre-bg);
@@ -2978,7 +2978,7 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
   white-space: normal;
   --lf-block-frame: 1;
 }
-@scope (html[data-lf-interactive] :scope) {
+@scope (html[data-lf-interactive] lf-code) {
   :scope:is(lf-code):not(.lf-rendered) {
     & > pre {
       background: var(--pre-bg);
@@ -2995,19 +2995,19 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
   }
 }
 @media print {
-  :scope:is(lf-code)[data-lf-reader-wrap] .lf-code-line {
+  lf-code[data-lf-reader-wrap] .lf-code-line {
     white-space: pre-wrap !important;
     overflow-wrap: anywhere !important;
   }
 }
 
 /* packages/default/styles/text-document.css */
-:scope:is(lf-text-document) {
+lf-text-document {
   display: block;
   margin: 14px 0;
   min-height: 2px;
 }
-:scope:is(lf-text-document) > .lf-text-document-view {
+lf-text-document > .lf-text-document-view {
   margin: 0;
   border: 1px solid var(--code-border);
   border-radius: var(--r);
@@ -3015,8 +3015,8 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
   background: var(--pre-bg);
   --lf-block-frame: 1;
 }
-:scope:is(lf-text-document) figcaption,
-html[data-lf-interactive] :scope:is(lf-text-document):not(:has(> *))::before {
+lf-text-document figcaption,
+html[data-lf-interactive] lf-text-document:not(:has(> *))::before {
   max-inline-size: none;
   padding: 7px 11px;
   border-bottom: 1px solid var(--rule);
@@ -3026,14 +3026,14 @@ html[data-lf-interactive] :scope:is(lf-text-document):not(:has(> *))::before {
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
 }
-:scope:is(lf-text-document) pre {
+lf-text-document pre {
   margin: 0;
   padding: 0;
   border: 0;
   border-radius: 0;
   white-space: pre-wrap;
 }
-:scope:is(lf-text-document) .lf-text-document-listing {
+lf-text-document .lf-text-document-listing {
   color-scheme: inherit;
   --diffs-font-family: var(--mono);
   --diffs-font-size: var(--code-size);
@@ -3043,10 +3043,10 @@ html[data-lf-interactive] :scope:is(lf-text-document):not(:has(> *))::before {
   --diffs-fg: var(--code-ink);
   --diffs-fg-number: var(--code-muted);
 }
-:scope:is(lf-text-document) [data-line-number-content]::before {
+lf-text-document [data-line-number-content]::before {
   content: attr(data-number);
 }
-:scope:is(lf-text-document) code[data-code] {
+lf-text-document code[data-code] {
   display: grid;
   padding: 0;
   border: 0;
@@ -3056,21 +3056,21 @@ html[data-lf-interactive] :scope:is(lf-text-document):not(:has(> *))::before {
   overscroll-behavior: auto;
 }
 @media screen {
-  :scope:is(lf-text-document)[data-lf-bound] {
+  lf-text-document[data-lf-bound] {
     max-block-size: none;
     overflow: visible;
     --lf-top: inherit;
   }
-  :scope:is(lf-text-document):not([preview])[data-lf-bound] pre {
+  lf-text-document:not([preview])[data-lf-bound] pre {
     block-size: var(--lf-bound, 28rem);
     overflow: auto;
     --lf-holds-height: 1;
     --lf-top: 0px;
   }
-  :scope:is(lf-text-document):not([preview])[data-lf-bound] {
+  lf-text-document:not([preview])[data-lf-bound] {
     --lf-bound-box: .lf-text-document-listing > pre;
   }
-  html[data-lf-interactive] :scope:is(lf-text-document):not(:has(> *)) {
+  html[data-lf-interactive] lf-text-document:not(:has(> *)) {
     border: 1px solid var(--code-border);
     border-radius: var(--r);
     background: var(--pre-bg);
@@ -3091,17 +3091,17 @@ html[data-lf-interactive] :scope:is(lf-text-document):not(:has(> *))::before {
     }
   }
 }
-:scope:is(lf-text-document) .lf-text-document-listing {
+lf-text-document .lf-text-document-listing {
   position: relative;
 }
-:scope:is(lf-text-document) .lf-text-document-listing > pre {
+lf-text-document .lf-text-document-listing > pre {
   position: relative;
   z-index: 0;
 }
-:scope:is(lf-text-document) .lf-text-document-listing > pre[data-lf-focus-visible] {
+lf-text-document .lf-text-document-listing > pre[data-lf-focus-visible] {
   outline: none;
 }
-:scope:is(lf-text-document) .lf-text-document-listing:has(> pre[data-lf-focus-visible])::after {
+lf-text-document .lf-text-document-listing:has(> pre[data-lf-focus-visible])::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -3110,26 +3110,26 @@ html[data-lf-interactive] :scope:is(lf-text-document):not(:has(> *))::before {
   outline: var(--focus-ring);
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
-:scope:is(lf-text-document) .lf-text-document-listing:has(> pre[data-lf-focus-visible]) {
+lf-text-document .lf-text-document-listing:has(> pre[data-lf-focus-visible]) {
   --lf-wears-ring: 1;
 }
-:scope:is(lf-text-document)[preview] > .lf-text-document-view {
+lf-text-document[preview] > .lf-text-document-view {
   background: var(--paper);
 }
-:scope:is(lf-text-document)[preview] .lf-text-document-view > lf-tabs {
+lf-text-document[preview] .lf-text-document-view > lf-tabs {
   margin: 0;
   border: 0;
   border-radius: 0;
 }
-:scope:is(lf-text-document)[preview] .lf-text-document-view > lf-tabs > lf-tab {
+lf-text-document[preview] .lf-text-document-view > lf-tabs > lf-tab {
   margin: 0;
   padding: 0;
 }
-:scope:is(lf-text-document) div.lf-text-document-preview {
+lf-text-document div.lf-text-document-preview {
   padding: var(--sp-4);
   overflow-wrap: anywhere;
 }
-:scope:is(lf-text-document) iframe.lf-text-document-preview {
+lf-text-document iframe.lf-text-document-preview {
   display: block;
   inline-size: 100%;
   block-size: var(--lf-bound, 28rem);
@@ -3137,17 +3137,17 @@ html[data-lf-interactive] :scope:is(lf-text-document):not(:has(> *))::before {
   background: white;
 }
 @media screen {
-  :scope:is(lf-text-document)[preview] .lf-text-document-view > lf-tabs > lf-tab:not([hidden]) {
+  lf-text-document[preview] .lf-text-document-view > lf-tabs > lf-tab:not([hidden]) {
     block-size: var(--lf-bound, 28rem);
     overscroll-behavior: auto;
   }
-  :scope:is(lf-text-document) iframe.lf-text-document-preview {
+  lf-text-document iframe.lf-text-document-preview {
     block-size: 100%;
   }
 }
 
 /* packages/default/styles/draft.css */
-:scope:is(lf-draft) {
+lf-draft {
   display: block;
   --lf-draft-inset: 14px;
   border: 1px solid var(--border-2);
@@ -3158,22 +3158,22 @@ html[data-lf-interactive] :scope:is(lf-text-document):not(:has(> *))::before {
   font-size: max(var(--entry-floor), 1em);
 }
 @media screen {
-  :scope:is(lf-draft) {
+  lf-draft {
     box-sizing: border-box;
     max-inline-size: var(--lf-measure);
   }
 }
 .lf-draft-body,
-:scope:is(lf-draft) > .lf-markdown-body {
+lf-draft > .lf-markdown-body {
   white-space: normal;
 }
-:is(.lf-draft-body, :scope:is(lf-draft) > .lf-markdown-body) > :first-child {
+:is(.lf-draft-body, lf-draft > .lf-markdown-body) > :first-child {
   margin-top: 0;
 }
-:is(.lf-draft-body, :scope:is(lf-draft) > .lf-markdown-body) > :last-child {
+:is(.lf-draft-body, lf-draft > .lf-markdown-body) > :last-child {
   margin-bottom: 0;
 }
-:scope:is(lf-draft) > pre {
+lf-draft > pre {
   white-space: pre-line;
   background: none;
   border: 0;
@@ -3204,18 +3204,18 @@ html[data-lf-interactive] :scope:is(lf-text-document):not(:has(> *))::before {
   }
 }
 @media screen {
-  :scope:is(lf-draft):not(:where([data-lf-exhibit], [data-lf-exhibit] *)) {
+  lf-draft:not(:where([data-lf-exhibit], [data-lf-exhibit] *)) {
     position: relative;
   }
-  :scope:is(lf-draft):has(.lf-draft-edit) {
+  lf-draft:has(.lf-draft-edit) {
     border-color: var(--muted);
   }
-  :scope:is(lf-draft):has(.lf-draft-edit[data-lf-focus-visible]) {
+  lf-draft:has(.lf-draft-edit[data-lf-focus-visible]) {
     outline: var(--focus-ring);
     outline-offset: calc(-1 * var(--focus-ring-room));
     --lf-wears-ring: 1;
   }
-  :scope:is(lf-draft):has(.lf-draft-edit:state(ready)) > .lf-draft-body {
+  lf-draft:has(.lf-draft-edit:state(ready)) > .lf-draft-body {
     display: none;
   }
   .lf-draft-tools {
@@ -3237,7 +3237,7 @@ html[data-lf-interactive] :scope:is(lf-text-document):not(:has(> *))::before {
   .lf-draft-status:empty {
     display: none;
   }
-  :scope:is(lf-draft):is(:hover, [data-lf-focus-within], :has(> .lf-draft-edit)) .lf-draft-tools {
+  lf-draft:is(:hover, [data-lf-focus-within], :has(> .lf-draft-edit)) .lf-draft-tools {
     opacity: 1;
   }
   @media (hover: none) {

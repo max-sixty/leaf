@@ -78,16 +78,6 @@ def css_syntax_errors(css: str, source: str, *, block=False) -> tuple[Finding, .
     return tuple(errors)
 
 
-def scoped(css: str, root: str, limit: str | None = None) -> str:
-    """Place one package stylesheet inside its browser-owned widget scope.
-
-    Package authors name their root with :scope; ordinary selectors name its
-    descendants. Native CSS owns selector parsing, nesting, and scope proximity.
-    """
-    boundary = f" to ({limit})" if limit else ""
-    return f"@scope ({root}){boundary} {{\n{css}}}\n"
-
-
 def inline_style_at(inline: dict) -> str:
     """Name one style="" by the element and line an author finds it at."""
     return f"<{inline['tag']} style> (line {inline['line']})"

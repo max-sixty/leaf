@@ -1,12 +1,12 @@
 /* @noformat Generated from packages/diff/styles/widgets.css by build/styles.mjs. */
 /* packages/diff/styles/palette.css */
-:where(:scope, :scope:host) {
+:where(lf-call-diff, lf-diff, lf-worktree, lf-worktree-diffs) {
   --lf-code-add-fill: color-mix(in srgb, var(--ok) 16%, var(--pre-bg));
   --lf-code-del-fill: color-mix(in srgb, var(--danger) 16%, var(--pre-bg));
 }
 
 /* packages/diff/styles/geometry.css */
-:where(:scope, :scope:host) {
+:where(lf-call-diff, lf-diff, lf-worktree, lf-worktree-diffs) {
   --lf-diff-gap: 8px;
   --lf-diff-action-h: 26px;
   --lf-diff-action-top: max(6px, (var(--aim-floor) - var(--lf-diff-action-h)) / 2);
@@ -39,7 +39,7 @@
 }
 
 /* packages/diff/styles/worktrees.css */
-:scope:is(lf-worktree-diffs) {
+lf-worktree-diffs {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) repeat(5, auto);
   column-gap: var(--sp-3);
@@ -51,13 +51,13 @@
   line-height: 1.5;
   container-type: inline-size;
 }
-:scope:is(lf-worktree),
+lf-worktree,
 .lf-worktree-disclosure,
 .lf-worktree-summary,
 .lf-worktree-summary > .lf-worktree-stats {
   column-gap: inherit;
 }
-:scope:is(lf-worktree) {
+lf-worktree {
   display: grid;
   grid-template-columns: subgrid;
   grid-column: 1 / -1;
@@ -71,7 +71,7 @@
   font-size: var(--t-5);
   line-height: 1.5;
 }
-:scope:is(lf-worktree-diffs) > lf-worktree + lf-worktree {
+lf-worktree-diffs > lf-worktree + lf-worktree {
   margin-block-start: var(--sp-2);
 }
 .lf-worktree-overview {
@@ -235,7 +235,7 @@
   color: var(--ink);
 }
 @container (max-width: 38rem) {
-  :scope:is(lf-worktree),
+  lf-worktree,
   .lf-worktree-disclosure {
     display: block;
   }
@@ -277,21 +277,21 @@
 }
 
 /* packages/diff/styles/widgets.css */
-:scope:is(lf-diff) {
+lf-diff {
   contain: inline-size;
 }
-:scope:is(lf-diff).lf-rendered {
+lf-diff.lf-rendered {
   font-family: var(--mono);
   font-size: var(--code-size);
   line-height: var(--code-line);
   font-variant-ligatures: none;
 }
-html[data-lf-interactive] :scope:is(lf-diff):not(.lf-rendered, :has(> .lf-error)) {
+html[data-lf-interactive] lf-diff:not(.lf-rendered, :has(> .lf-error)) {
   box-sizing: border-box;
   block-size: calc(var(--lf-line) + var(--lf-diff-gap) + 1px + var(--lf-diff-files) * (var(--lf-diff-head-pressed) + 1px + var(--lf-diff-open) * (var(--lf-text-scroll-track) + 1px)) + var(--lf-diff-rows) * var(--code-line));
   overflow: clip;
 }
-:scope:is(lf-call-diff) {
+lf-call-diff {
   --lf-block-frame: 1;
   display: block;
   max-width: 100%;
@@ -456,7 +456,7 @@ html[data-lf-interactive] :scope:is(lf-diff):not(.lf-rendered, :has(> .lf-error)
   white-space: normal;
 }
 @media print {
-  :scope:is(lf-call-diff),
+  lf-call-diff,
   .lf-call-line[data-meta],
   .lf-call-root-location,
   .lf-call-line[data-status=added],

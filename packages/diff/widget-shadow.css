@@ -1,19 +1,4 @@
 /* @noformat Generated from packages/diff/styles/widget-shadow.css by build/styles.mjs. */
-/* packages/diff/styles/palette.css */
-:where(:scope, :scope:host) {
-  --lf-code-add-fill: color-mix(in srgb, var(--ok) 16%, var(--pre-bg));
-  --lf-code-del-fill: color-mix(in srgb, var(--danger) 16%, var(--pre-bg));
-}
-
-/* packages/diff/styles/geometry.css */
-:where(:scope, :scope:host) {
-  --lf-diff-gap: 8px;
-  --lf-diff-action-h: 26px;
-  --lf-diff-action-top: max(6px, (var(--aim-floor) - var(--lf-diff-action-h)) / 2);
-  --lf-diff-head-line: 35px;
-  --lf-diff-head-pressed: max( var(--lf-diff-head-line), calc(var(--lf-diff-action-top) + var(--lf-diff-action-h)), var(--aim-floor) );
-}
-
 /* packages/diff/styles/disclosure.css */
 @media screen and (prefers-reduced-motion: no-preference) {
   @supports (block-size: calc-size(auto, size)) and (interactivity: inert) {
@@ -39,8 +24,8 @@
 }
 
 /* packages/diff/styles/widget-shadow.css */
-:where(:scope:host(.lf-rendered)) :where(.lf-diff-file) > details,
-:where(:scope:host(.lf-rendered)) .lf-diff-metadata {
+:where(:host(lf-diff.lf-rendered)) :where(.lf-diff-file) > details,
+:where(:host(lf-diff.lf-rendered)) .lf-diff-metadata {
   margin: 0;
   padding: 0;
   overflow: clip;
@@ -48,22 +33,22 @@
   border: 1px solid var(--code-border);
   border-radius: var(--lf-diff-r-start) var(--lf-diff-r-start) var(--lf-diff-r-end) var(--lf-diff-r-end);
 }
-:scope:host(.lf-rendered) {
+:host(lf-diff.lf-rendered) {
   --lf-diff-head-inset: 10px;
 }
-:scope:host(.lf-rendered) :where(.lf-diff-file) > details > summary,
-:scope:host(.lf-rendered) .lf-diff-metadata {
+:host(lf-diff.lf-rendered) :where(.lf-diff-file) > details > summary,
+:host(lf-diff.lf-rendered) .lf-diff-metadata {
   padding: 7px var(--lf-diff-head-inset);
   font-size: var(--t-5);
   font-family: var(--sans);
   color: var(--code-ink);
   background: var(--code-chrome);
 }
-:scope:host(.lf-rendered) .lf-diff-fold > .lf-error {
+:host(lf-diff.lf-rendered) .lf-diff-fold > .lf-error {
   padding: 10px;
 }
-:scope:host(.lf-rendered) :where(.lf-diff-file) > details > summary,
-:scope:host(.lf-rendered) .lf-diff-file-thread-outlet > .lf-resolved-threads > .lf-resolved-summary {
+:host(lf-diff.lf-rendered) :where(.lf-diff-file) > details > summary,
+:host(lf-diff.lf-rendered) .lf-diff-file-thread-outlet > .lf-resolved-threads > .lf-resolved-summary {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -72,8 +57,8 @@
   white-space: nowrap;
   overflow: hidden;
 }
-:scope:host(.lf-rendered) :where(.lf-diff-file) > details > summary::before,
-:scope:host(.lf-rendered) .lf-diff-file-thread-outlet > .lf-resolved-threads > .lf-resolved-summary::before {
+:host(lf-diff.lf-rendered) :where(.lf-diff-file) > details > summary::before,
+:host(lf-diff.lf-rendered) .lf-diff-file-thread-outlet > .lf-resolved-threads > .lf-resolved-summary::before {
   flex: none;
   font-size: var(--t-5);
 }
@@ -132,7 +117,7 @@
 .lf-diff-head > .lf-diff-stat {
   flex: none;
 }
-:scope:host(.lf-rendered) :where(.lf-diff-file) > details > summary {
+:host(lf-diff.lf-rendered) :where(.lf-diff-file) > details > summary {
   position: relative;
 }
 .lf-diff-file:has(> .lf-diff-fold > .lf-diff-head[data-path-cut]:is([data-lf-held-word], [data-lf-focus])) {
@@ -141,7 +126,7 @@
 .lf-diff-fold:has(> .lf-diff-head[data-path-cut]:is([data-lf-held-word], [data-lf-focus], [data-lf-focus])) {
   overflow: visible;
 }
-:scope:host(.lf-rendered) :where(.lf-diff-file) > details > summary[data-path-cut]:is([data-lf-held-word], [data-lf-focus]) {
+:host(lf-diff.lf-rendered) :where(.lf-diff-file) > details > summary[data-path-cut]:is([data-lf-held-word], [data-lf-focus]) {
   overflow: visible;
   border-start-start-radius: calc(var(--lf-diff-r-start) - 1px);
   border-start-end-radius: calc(var(--lf-diff-r-start) - 1px);
@@ -325,29 +310,29 @@
   outline: var(--focus-ring);
   outline-offset: 1px;
 }
-:scope:host(.lf-rendered) .lf-diff-file > details > summary[data-lf-focus-visible] {
+:host(lf-diff.lf-rendered) .lf-diff-file > details > summary[data-lf-focus-visible] {
   outline: var(--focus-ring);
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
-:scope:host(.lf-rendered) .lf-diff-line > [data-line][data-lf-focus-visible] {
+:host(lf-diff.lf-rendered) .lf-diff-line > [data-line][data-lf-focus-visible] {
   outline: var(--focus-ring);
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
 @media screen {
-  :scope:host(.lf-rendered[data-lf-diff-pinned]) .lf-diff-file {
+  :host(lf-diff.lf-rendered[data-lf-diff-pinned]) .lf-diff-file {
     --lf-top-outer: var(--lf-top);
   }
-  :scope:host(.lf-rendered[data-lf-diff-pinned]) .lf-diff-file > details {
+  :host(lf-diff.lf-rendered[data-lf-diff-pinned]) .lf-diff-file > details {
     --lf-top: calc(var(--lf-top-outer) + var(--lf-diff-head-h));
   }
-  :scope:host(.lf-rendered[data-lf-diff-pinned]) .lf-diff-file > details > summary {
+  :host(lf-diff.lf-rendered[data-lf-diff-pinned]) .lf-diff-file > details > summary {
     position: sticky;
     --lf-head-inset: 0px;
     --lf-top: var(--lf-top-outer);
     top: var(--lf-top, 0px);
     z-index: 3;
   }
-  :scope:host(.lf-rendered[data-lf-diff-pinned]) .lf-diff-file-actions {
+  :host(lf-diff.lf-rendered[data-lf-diff-pinned]) .lf-diff-file-actions {
     position: sticky;
     top: calc(var(--lf-top, 0px) + var(--lf-diff-action-top) - 1px);
     --lf-head-inset: calc(var(--lf-diff-action-top) - 1px);
@@ -381,7 +366,7 @@
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-:scope:host(.lf-rendered) .lf-diff-fold > pre {
+:host(lf-diff.lf-rendered) .lf-diff-fold > pre {
   position: relative;
   margin: 0;
   padding: 0;
@@ -392,7 +377,7 @@
   color: var(--code-ink);
   background: var(--pre-bg);
 }
-:scope:host(.lf-rendered) code[data-code] {
+:host(lf-diff.lf-rendered) code[data-code] {
   isolation: isolate;
   display: block;
   overflow: auto hidden;
@@ -477,7 +462,7 @@ pre[data-overflow=wrap] .lf-diff-rows {
   border: 1px solid var(--rule);
   border-radius: var(--r);
 }
-:scope:host(.lf-rendered) .lf-diff-file-thread-outlet > .lf-resolved-threads > .lf-resolved-summary {
+:host(lf-diff.lf-rendered) .lf-diff-file-thread-outlet > .lf-resolved-threads > .lf-resolved-summary {
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
 .lf-diff-thread-outlet > :is(.lf-page-thread, .lf-resolved-threads) {
@@ -496,17 +481,17 @@ pre[data-overflow=wrap] .lf-diff-rows {
   .lf-diff-file > :is(.lf-diff-fold, .lf-diff-metadata) {
     margin-top: 0 !important;
   }
-  :scope:host(.lf-rendered) .lf-diff-file > details > summary {
+  :host(lf-diff.lf-rendered) .lf-diff-file > details > summary {
     padding-right: 10px;
   }
-  :scope:host(.lf-rendered) .lf-diff-metadata {
+  :host(lf-diff.lf-rendered) .lf-diff-metadata {
     padding-right: 0;
   }
   .lf-diff-file > .lf-diff-fold > .lf-diff-head::before,
   .lf-diff-file .lf-diff-metadata::before {
     display: none;
   }
-  :scope:host(.lf-rendered) :where(.lf-diff-file) > details > summary {
+  :host(lf-diff.lf-rendered) :where(.lf-diff-file) > details > summary {
     block-size: auto;
     min-block-size: var(--lf-diff-head-h);
     align-items: baseline;

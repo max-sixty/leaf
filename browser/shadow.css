@@ -568,7 +568,7 @@ button.lf-thread-notice[data-lf-focus-visible] {
   display: flex;
   flex-wrap: wrap;
   row-gap: 1lh;
-  block-size: 1lh;
+  block-size: 1.5lh;
   padding-block-end: 0.5lh;
   margin-block-end: -0.5lh;
   overflow: visible clip;

@@ -50,6 +50,7 @@ import click
 from PIL import Image, ImageDraw
 from playwright.sync_api import Locator, Page, expect
 
+from leaf.render_checks import wait_until_ready
 from leaf_dev import ROOT
 from leaf_dev.arms import (
     PageClient,
@@ -473,6 +474,20 @@ def card_held_news(page: Page) -> None:
     drafts a reply in it."""
     open_card(page, page.locator('[data-lf-margin-for="plan-stop"] .lf-margin-marker'))
     held_news(page, page.locator(".lf-margin-preview .lf-page-thread"))
+
+
+def card_held_step(page: Page) -> None:
+    """A margin card holding the agent's progress step while the user drafts a reply
+    in it, which its notice doesn't say (held-news.js)."""
+    open_card(page, page.locator('[data-lf-margin-for="plan-stop"] .lf-margin-marker'))
+    thread = page.locator(".lf-margin-preview .lf-page-thread")
+    thread.get_by_role("textbox", name="Reply", exact=True).click()
+    page.keyboard.insert_text("Drafting a reply while the agent works")
+    root = thread.get_attribute("data-thread")
+    assert root
+    as_agent("thread", "reply", root, "--ephemeral", "--text", "Checking the stop.")
+    state = PageClient(served_page.get().address).state()
+    wait_until_ready(page, state, through="state")
 
 
 def seat_held_news(page: Page) -> None:
@@ -2174,6 +2189,19 @@ STATES = (
         "plan-card-held-news",
         "review-a-plan",
         card_held_news,
+        region=".lf-margin-preview",
+    ),
+    State(
+        "plan-card-held-step",
+        "review-a-plan",
+        card_held_step,
+        region=".lf-margin-preview",
+    ),
+    State(
+        "plan-card-held-step-dark",
+        "review-a-plan",
+        card_held_step,
+        scheme="dark",
         region=".lf-margin-preview",
     ),
     State(

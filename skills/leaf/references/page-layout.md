@@ -243,11 +243,13 @@ before attaching a dynamic sheet. A token such as `--accent` on `:root` changes 
 a page-specific inset, use the frame declaration in `package-themes.md`, "A theme
 change".
 
-To make a control you write match Leaf's, give it `class="button"`,
-`class="button primary"` for the committing action, or `class="field"` for a text
-input or select. A native radio or checkbox uses
+A native control you write keeps the browser's default face until it takes Leaf's:
+`class="button"`, `class="button primary"` for the committing action, `class="field"`
+for a text input or select, and
 `<label class="choice"><input type="radio" name="view" value="summary">Summary</label>`
-(or `type="checkbox"`).
+(or `type="checkbox"`) for a radio or checkbox. A control drawn for the task, such as
+a stack of layer tiles or a curve's handles, is the page's own design
+(`page-authoring.md`, "Composing a page").
 
 Leaf's panel, thread cards and markers draw over everything in `main`, whatever its
 `z-index`. Open a modal or menu of the page's own in the top layer: a `<dialog>` shown

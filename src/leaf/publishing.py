@@ -183,11 +183,13 @@ def _stamp_event(
     return event
 
 
-def _checked(page_dir: Path, events: list) -> tuple[tuple, object]:
+def _checked(page_dir: Path, events: list | None = None) -> tuple[tuple, object]:
     """Check the source, with the source and history readings taken before the
     check (`source_readings`), the readings activation keys its answer on."""
     readings = source_readings(page_dir)
-    return readings, check_source(page_dir, events)
+    return readings, check_source(
+        page_dir, read_events(page_dir) if events is None else events
+    )
 
 
 def _stamp_locked(
@@ -221,7 +223,7 @@ def _stamp_in_place(page_dir: Path, body: str, completes: tuple[str, ...]) -> di
     moved. The page's own activation of the save usually lands during the first
     check, so a second one runs outside it too; the last checks under it."""
     for _ in range(UNLOCKED_CHECKS):
-        readings, checked = _checked(page_dir, read_events(page_dir))
+        readings, checked = _checked(page_dir)
         with PageTransaction(page_dir) as page:
             if source_readings(page_dir) == readings:
                 return _stamp_locked(page_dir, page, readings, checked, body, completes)

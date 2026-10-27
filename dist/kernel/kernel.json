@@ -52,7 +52,7 @@
     "runtime/composing/page-image.js": "f74b17dffa1569822c73b93b8b2c762fd8367f10d440f30975e40de690f0be24",
     "runtime/composing/region-capture.js": "54f2ff5fa0f6f072a0569cf5d71fdc6677ed676b62292ac8671a022e314f2a64",
     "runtime/composing/region-selector.js": "c8ead8696d8418ac01716ac1bb42dc8f8ba28ec5a73dba0a4ecfd547f25f968c",
-    "runtime/composing/selection.js": "56bc87cd13279f7ff04d9d25f91c584fcc97952eb6091e7159218b3513b6790f",
+    "runtime/composing/selection.js": "b64caa7b77f350b89e6394441cb4219627b418b5d407569cdb7097ec68a1a5ff",
     "runtime/composing/surface.js": "728fb7c779a018903a11b538e18d21e9db8ab9840ddee23dcf21f041fa2574d5",
     "runtime/composing/target-picker.js": "ebe8616f2e6ea8de5a93910bbc1524ddecebabc9bd2fd3d670afcdc127be8a58",
     "runtime/composing/text-field.js": "897332e427e3191de00b7949092ed95d18aacd703824837c3c8e399cee4e39d1",

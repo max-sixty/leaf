@@ -3,7 +3,9 @@
    The selection composer keeps its passage painted after an explicit Comment gesture
    moves focus into the field. Automatic passage selection leaves the native
    selection in place. Its `.lf-composer` wrapper contributes state and draft machinery
-   through `display: contents`; only `.lf-fab-input` draws. `showComposer` states
+   and draws nothing: seated in a widget it is `display: contents`, and floating it is
+   the box holding what moves as the field changes size (annotation-chrome.css), and
+   only the field's frame draws. `showComposer` states
    whether it is open through `data-lf-open`; the shared response stylesheet derives
    its field and bar's visible shape from that and the surface's target-only state.
    Reopening the same passage resumes its words, seed, and modes; omitted modes

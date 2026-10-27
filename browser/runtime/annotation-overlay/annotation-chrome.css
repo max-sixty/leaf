@@ -161,7 +161,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   .lf-fab-bar:not([data-lf-presentation="inline"]) leaf-text.lf-fab-input {
     min-height: 0;
     border: 0;
-    border-radius: calc(var(--r) - 1px);
     background: transparent;
     filter: none;
     outline: none;

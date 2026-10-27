@@ -29,6 +29,7 @@ from render_cases_interaction import (
 )
 from render_cases_layout import solid_png
 from render_harness import (
+    EDITOR_ROOTS,
     LONG_PAGE,
     consume_browser_errors,
     holding,
@@ -72,17 +73,6 @@ OBLIGATION_PAGE = leaf_page(
 </lf-options></lf-ask>""",
 )
 
-
-# Each field's closed shadow root, so a test can read inside it.
-EDITOR_ROOTS = """
-  window.editorRoots = new Map();
-  const attach = Element.prototype.attachShadow;
-  Element.prototype.attachShadow = function(options) {
-    const root = attach.call(this, options);
-    if (this.localName === 'leaf-text') window.editorRoots.set(this, root);
-    return root;
-  };
-"""
 
 
 def floating(browser, url):

@@ -53,6 +53,7 @@ from render_cases_widgets import (
     prefixed_visual_layer,
 )
 from render_harness import (
+    EDITOR_ROOTS,
     EXAMPLES,
     FOLLOWER_MARK,
     LONG_PAGE,
@@ -148,7 +149,7 @@ def open_compact_comment(page, text=None):
     expect(bar).to_be_visible()
     expect(field).to_be_visible()
     expect(field).to_be_focused()
-    expect(composer).to_have_css("display", "contents")
+    expect(composer).to_have_attribute("data-lf-open", "")
     if text is None:
         return field
     else:
@@ -156,7 +157,7 @@ def open_compact_comment(page, text=None):
         expect(field).to_have_js_property("value", text)
         expect(field).to_be_focused()
         expect(bar).to_be_visible()
-        expect(composer).to_have_css("display", "contents")
+        expect(composer).to_have_attribute("data-lf-open", "")
     return field
 
 
@@ -194,7 +195,7 @@ def test_the_catalog_sidenote_can_be_aimed_whole(browser, serve):
     page.keyboard.press("Shift+Enter")
     page.keyboard.type("because every active session must end before support continues")
     assert field.bounding_box()["height"] > one_line
-    expect(page.locator(".lf-composer")).to_have_css("display", "contents")
+    expect(page.locator(".lf-composer")).to_have_attribute("data-lf-open", "")
     with sending(page, "the compact comment"):
         page.keyboard.press("Enter")
     sent = events_model.read_events(serve.page_dir)[-1]
@@ -735,6 +736,103 @@ def test_a_side_comment_at_the_window_s_foot_rises_only_as_far_as_it_must(
     rendered(page)
     assert field.evaluate("node => node.scrollHeight > node.clientHeight")
     assert page.evaluate(SIDE_COMMENT)["bottom"] <= foot + 0.5
+
+
+# How far the side comment's first line of words stands below its outline's top edge as
+# drawn, and its Send above the outline's foot: its surface draws the outline, a pixel
+# outside the cut of its fill (box-motion.js).
+FROM_THE_EDGES = r"""() => {
+  const ground = document.querySelector('.lf-fab-ground');
+  const at = ground.getBoundingClientRect();
+  const [top, right = top, bottom = top] = /inset\(([^r)]*)/
+    .exec(getComputedStyle(ground.querySelector('.lf-box-fill')).clipPath)[1]
+    .trim().split(/\s+/).map(Number.parseFloat);
+  const host = document.querySelector('.lf-fab-input');
+  const words = window.editorRoots.get(host).querySelector('.cm-line');
+  const send = document.querySelector('.lf-fab-bar .lf-compose-submit');
+  return {
+    words: words.getBoundingClientRect().top - (at.top + top - 1),
+    send: at.bottom - bottom + 1 - send.getBoundingClientRect().bottom,
+  };
+}"""
+
+
+def test_a_side_comment_s_words_and_send_ride_its_edges_as_it_grows(browser, serve):
+    """The comment box moves as the floating panel's field does (box-motion.js): a
+    line it gains at the window's foot shifts it up, and its words ride its top edge
+    up while Send rides its foot, as a line removed carries the words back down with
+    that edge. It used to change size in one frame, and a line taking it past the
+    window's foot jumped it up whole, its words with it."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "A low passage",
+                '<div style="height: 1200px"></div>'
+                '<p id="passage">This passage has room beside it for a response.</p>'
+                '<div style="height: 700px"></div>',
+            )
+        ),
+        init_script=EDITOR_ROOTS,
+    )
+    page.emulate_media(reduced_motion="no-preference")
+    resized(page, 1440, 900)
+    passage = page.locator("#passage")
+    passage.evaluate(
+        """node => scrollBy({
+          top: node.getBoundingClientRect().top - (innerHeight - 260),
+          behavior: 'instant'
+        })"""
+    )
+    rendered(page)
+    passage.click(modifiers=["Alt"])
+    field = open_compact_comment(page, "Line 0")
+    bar = page.locator(".lf-fab-bar")
+    foot = page.evaluate(
+        """async () => (await window.__lfWidgetApi())
+          .shownWindow({gap: 8}).bottom"""
+    )
+    # Lines until one more takes the box past the window's foot.
+    lines = 1
+    while (box := bar.bounding_box())["y"] + box["height"] + 21 < foot:
+        page.keyboard.press("Shift+Enter")
+        page.keyboard.type(f"Line {lines}")
+        lines += 1
+        rendered(page)
+    resting = page.evaluate(FROM_THE_EDGES)
+    for key in ("Shift+Enter", "Backspace"):
+        stood = bar.bounding_box()
+        page.evaluate(
+            "() => { window.__lfAnimate = Element.prototype.animate;"
+            + HOLD_MOTION
+            + "}"
+        )
+        page.keyboard.press(key)
+        page.wait_for_function(
+            """() => __lfHeld.some(motion =>
+              motion.effect?.target?.matches?.('.lf-fab-ground'))"""
+        )
+        # The line shifts the box up inside the window, which its placement does a
+        # moment after the box grew.
+        if key == "Shift+Enter":
+            page.wait_for_function(
+                "top => document.querySelector('.lf-fab-bar')"
+                ".getBoundingClientRect().top < top - 0.5",
+                arg=stood["y"],
+            )
+        for at in (0, 60, 150):
+            page.evaluate(
+                "at => __lfHeld.forEach(motion => { motion.currentTime = at; })", at
+            )
+            drawn = page.evaluate(FROM_THE_EDGES)
+            assert drawn == pytest.approx(resting, abs=1), (key, at, drawn)
+        page.evaluate(
+            "() => { Element.prototype.animate = window.__lfAnimate;"
+            " __lfHeld.splice(0).filter(motion => motion.playState !== 'idle')"
+            ".forEach(motion => motion.finish()); }"
+        )
+        rendered(page)
+        assert page.evaluate(FROM_THE_EDGES) == pytest.approx(resting, abs=1), key
 
 
 def test_a_comment_near_the_bottom_grows_up_before_it_scrolls(browser, serve):

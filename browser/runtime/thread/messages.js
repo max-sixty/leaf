@@ -40,7 +40,12 @@ import {
   stageAuthoredStates,
 } from "../projection/authored.js";
 import { stageWidgetDescriptors } from "../widget-descriptors.js";
-import { strongestWorkflow, workflowLabel, workflowTitle } from "./workflow.js";
+import {
+  NOT_ANSWERED,
+  strongestWorkflow,
+  workflowLabel,
+  workflowTitle,
+} from "./workflow.js";
 import {
   markDeclared,
   renderQuiet,
@@ -255,7 +260,6 @@ export function authoredHolder(id) {
     if (view.model.id === id && shown(view)) return view.node;
   return null;
 }
-const FAILURE_LABEL = "Not answered";
 export function messageReading(
   message,
   { authoredRank = 0, reactions, workflows, leaves = null },
@@ -476,7 +480,7 @@ export class MessageView {
           }
           ${
             model.failure
-              ? html`<span class="lf-msg-failure">${FAILURE_LABEL}</span>`
+              ? html`<span class="lf-msg-failure">${NOT_ANSWERED}</span>`
               : nothing
           }
           ${

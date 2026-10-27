@@ -321,7 +321,7 @@ def test_keys_answer_an_obligation_from_its_marks(browser, serve):
     page.evaluate(
         """async () => {
           const {notice} = await window.__lfWidgetApi();
-          notice('Saved — sent');
+          notice('Saved');
           dispatchEvent(new Event('resize'));
         }"""
     )

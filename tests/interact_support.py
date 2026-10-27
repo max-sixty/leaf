@@ -499,38 +499,55 @@ def install_payload(destination):
 
 
 def vendored_at_another_protocol(page_dir: Path, *, newer: bool = False) -> int:
-    """Record another page protocol in the page's vendored `$events`, and return it.
+    """Record another page protocol in the page's layer record, and return it.
 
-    The state a breaking Leaf update leaves a page in: its layer is the one an
-    earlier `page init` copied, at an older number this Leaf no longer speaks, or
-    with `newer`, one a later Leaf vendored. Only the number changes, which is all
-    the comparison reads, and the file is replaced rather than written through, as
-    every file a lent page may share with its template has to be.
+    The state a breaking Leaf update leaves a page in: an earlier `page init`
+    recorded an older number this Leaf no longer speaks, or with `newer`, a later
+    Leaf recorded a higher one. The file is replaced rather than written through,
+    as every file a lent page may share with its template has to be.
     """
-    stamp = page_dir / "registry.json"
-    registry = json.loads(stamp.read_text(encoding="utf-8"))
-    foreign = registry["$events"]["protocol"] + (1 if newer else -1)
-    registry["$events"]["protocol"] = foreign
-    cleanup_model.write_json(stamp, registry)
+    from leaf.registry.storage import LAYER, layer_record
+
+    path = page_dir / schema_model.LAYER_FILE
+    record = layer_record(page_dir)
+    foreign = record["protocol"] + (1 if newer else -1)
+    path.unlink()
+    LAYER.write(path, {**record, "protocol": foreign})
     return foreign
 
 
-def vendored_before_a_key_rename(page_dir: Path) -> None:
-    """Spell `x-word` as `x-noun`, as if that were its name before a rename, in the
-    page's layer and in every registry its revisions captured: in `$keys` and in each
-    entry that declares it, `lf-ask`'s among them. The state an older Leaf leaves
-    a page in, at the same protocol; files are replaced rather than written through."""
-    for path in [
-        page_dir / "registry.json",
-        *page_dir.glob("revisions/*/resources/registry.json"),
-    ]:
-        registry = json.loads(path.read_text(encoding="utf-8"))
-        assert "x-word" in registry["$keys"]
-        for entry in [registry["$keys"], *registry.values()]:
-            if isinstance(entry, dict) and "x-word" in entry:
-                entry["x-noun"] = entry.pop("x-word")
+def declare_on_page(page_dir: Path, mutate) -> None:
+    """Apply `mutate` to the page's vocabulary as the page's own declarations.
+
+    A page's layer is the Leaf's own (`layer.selected_layer`), so a test that needs
+    a vocabulary the shipped layer lacks declares it where an author would, in
+    `page/registry.json`: each entry `mutate` changes or adds, whole, and each `$`
+    fact by the members it changes, which merge over the layer's."""
+    from copy import deepcopy
+
+    before = {
+        key: value
+        for key, value in load_registry(page_dir).items()
+        if key != "$layer"
+    }
+    after = deepcopy(before)
+    mutate(after)
+    path = page_dir / "page" / "registry.json"
+    declarations = json.loads(path.read_text()) if path.is_file() else {}
+    for key, value in after.items():
+        if value == before.get(key):
+            continue
+        if key.startswith("$") and isinstance(before.get(key), dict):
+            members = declarations.setdefault(key, {})
+            for member, item in value.items():
+                if item != before[key].get(member):
+                    members[member] = item
+        else:
+            declarations[key] = value
+    path.parent.mkdir(exist_ok=True)
+    if path.is_file():
         path.unlink()
-        cleanup_model.write_json(path, registry)
+    path.write_text(json.dumps(declarations))
 
 
 PAGE = """<!doctype html>
@@ -675,13 +692,10 @@ def declare_data_input(
     activate=True,
 ):
     """Add one typed widget input and bind it in the mutable source."""
-    registry_path = page_dir / "registry.json"
-    registry = json.loads(registry_path.read_text())
     declaration = {"description": "Test data contract.", "schema": schema}
     if instructions:
         declaration["instructions"] = instructions
-    registry["$data"]["contracts"][contract] = declaration
-    registry[tag] = {
+    entry = {
         "description": "A test widget with one external-data input.",
         "type": "object",
         "properties": {
@@ -694,7 +708,12 @@ def declare_data_input(
         "x-data": {input_name: {"contract": contract, "source": "source"}},
         "x-upgrade": False,
     }
-    registry_path.write_text(json.dumps(registry))
+
+    def declare(registry):
+        registry["$data"]["contracts"][contract] = declaration
+        registry[tag] = entry
+
+    declare_on_page(page_dir, declare)
     source_path = page_dir / "index.html"
     html = source_path.read_text()
     source_path.write_text(
@@ -731,9 +750,12 @@ def let_a_pick_settle_a_thread(page_dir, thread):
     which is where the append door reads the vocabulary and the markup that
     admit an action.
     """
-    registry = files_model.read_json(page_dir / "registry.json")
-    registry["lf-options"]["properties"]["resolves"] = {"type": "string"}
-    cleanup_model.write_json(page_dir / "registry.json", registry)
+    declare_on_page(
+        page_dir,
+        lambda registry: registry["lf-options"]["properties"].update(
+            resolves={"type": "string"}
+        ),
+    )
     # An obligation, so a pick answers it; the markup already records that pick, so the
     # answer owes no version of its own and only the thread is left to settle.
     source = page_dir / "index.html"

@@ -52,9 +52,7 @@ How to build an alternative waits for the user's pick.
 ## Asking and retiring
 
 Let the user answer in the form the answer takes: a widget wherever it is a choice or
-an edit, and a thread message with `--obligation` for a conversational answer. An
-`lf-ask` with no other widget inside is itself a question on the page, which the user
-answers in words by commenting on it.
+an edit, and a thread message with `--obligation` for a conversational answer.
 Each widget that asks puts one question on On me and records its answer. A choice can hold a
 partial answer before the user presses Done, and an empty selection can be a complete
 answer.

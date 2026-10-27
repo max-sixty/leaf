@@ -9,8 +9,6 @@ from functools import cache
 from pathlib import Path
 from typing import NamedTuple
 
-import tinycss2
-
 from .findings import Finding
 from .locations import first_overlap, located
 from .machine import package_store
@@ -212,6 +210,8 @@ _CSS_SURROGATES = dict.fromkeys(range(0xD800, 0xE000), 0xFFFD)
 
 def _sheet(source: Path) -> str:
     """Validate one source and complete its EOF recovery before composition."""
+    import tinycss2
+
     from .styles import css_stylesheet, css_syntax_errors
 
     try:

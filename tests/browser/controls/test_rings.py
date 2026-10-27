@@ -223,6 +223,11 @@ def test_controls_show_keyboard_focus_without_ringing_pointer_activation(
   <lf-option id="focus-peer" for="focus-heading">Keep another option.</lf-option>
 </lf-options></lf-ask>
 <lf-shadow-focus id="focus-shadow"><button class="button" type="button">Shadow button</button></lf-shadow-focus>
+<lf-ask id="focus-open-decision"><h2>Which other option?</h2>
+<lf-options id="focus-open-options" choose>
+  <lf-option id="focus-open-choice">Keep this one.</lf-option>
+  <lf-option id="focus-open-peer">Keep that one.</lf-option>
+</lf-options></lf-ask>
 """,
             ),
             layer_registry={"lf-shadow-focus": declaration},
@@ -300,6 +305,16 @@ customElements.define('lf-shadow-focus', class extends HTMLElement {
 
     assert page.locator("#focus-shadow").evaluate(paint)["style"] == "none", (
         "retargeting focus to the widget host drew a second ring around its button"
+    )
+
+    # An On me arrival focuses the decision, and its location ring is its focus cue.
+    page.keyboard.press("m")
+    expect(page.locator("#focus-open-decision")).to_be_focused()
+    rendered(page)
+    drawn = rings_drawn(page)
+    assert len([ring for ring in drawn if ring["sample"]]) == 1, (
+        "the arrived-at decision wore a projected focus contour beside its location ring",
+        drawn,
     )
 
     select = page.locator("#focus-shadow wa-select")

@@ -200,7 +200,7 @@ def test_the_registered_watch_hook_wakes_the_session(claimed, tmp_path):
     env = os.environ | {"CLAUDE_PLUGIN_ROOT": str(PLUGIN_ROOT)}
     leases_model.mark_hooks("s1")  # its harness runs Leaf's hooks
     serving(claimed, 1)
-    session_model.cmd_waiting(claimed, "")
+    session_model.cmd_waiting(claimed)
     cleanup_model.close_session_turn("s1")
     append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "hi"}

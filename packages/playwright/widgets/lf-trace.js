@@ -20,6 +20,15 @@
  * (2026-10-19): a muted line saying each of these at rest, and the default basis as
  * the heading's hover title, which neither a key nor a finger reaches.
  *
+ * Each fact about where the playhead stands has one label at rest: its time in the
+ * toolbar, the moment it stands on as the selected Moments row, and the call and its
+ * checkpoint in the selected point's details. The toolbar adds the shown image's own
+ * time only where it differs from the playhead's; the image's badge names the input
+ * and its relation alone, and its caption only what nothing else says, the page where
+ * the recording has several, a frame, and a preview. Rejected (2026-10-25): the same
+ * time on five labels around one image, and the moment's name in the toolbar beside
+ * its selected row.
+ *
  * The playhead is a time. The shown evidence is the latest capture at or before
  * it. A checkpoint with an image stands at that image's capture time, which ends
  * the snapshot its DOM time begins; one without stands at its DOM time. Stepping,
@@ -89,6 +98,7 @@ import {
   classMap,
   styleMap,
   offered,
+  offeredAction,
   pressIsKeyboardActivation,
   createRef,
   ref,
@@ -100,7 +110,6 @@ import {
   LeafElement,
   onUserInput,
   paintKeys,
-  projectData,
   signal,
   quoted,
   registerVisualParts,
@@ -165,6 +174,14 @@ const INPUT_NAMES = {
   mouseClick: "Click",
   dragTo: "Drag",
 };
+// The marks that make a drawn part a datum on a Leaf page, taken off a part kept after
+// it stops showing one.
+const MARKS = [
+  "data-lf-datum",
+  "data-lf-identity",
+  "data-lf-datum-label",
+  "data-lf-origin-path",
+];
 // The longest an image on screen may trail the playing clock, in milliseconds.
 const MAX_LAG = 150;
 // How long after an input is sent the image keeps marking it, in milliseconds of
@@ -218,10 +235,8 @@ const playbackLayer = () =>
 // A command row owns each transport button's activation and availability.
 const transport = (target, label, icon, disabled, title = label) =>
   html`<button
-    ${offered("lf-btn lf-quiet-action lf-trace-transport-button")}
+    ${offeredAction("symbol", "lf-trace-transport-button", label, { title })}
     ${ref(target)}
-    aria-label=${label}
-    title=${title}
     ?disabled=${disabled}
   >
     ${iconTemplate(icon, "lf-action-icon")}
@@ -230,10 +245,20 @@ const transport = (target, label, icon, disabled, title = label) =>
 customElements.define(
   "lf-trace",
   class extends LeafElement {
-    #snapshot = null;
-    // The delivery the last render read, and the one shown.
+    // The recording, set by whoever hosts the widget: Leaf from the bound source (the
+    // registry's `x-data.trace.property`), or null while that source has none.
+    static properties = { value: { attribute: false } };
+
+    constructor() {
+      super();
+      this.value = null;
+    }
+
+    // The recording the last render read, and the one shown.
     #delivered;
     #shown;
+    // The elements the last paint marked as drawn data.
+    #marked = new Set();
     #origins = new Map();
     #imageSizes = new Map();
     #trace = null;
@@ -479,7 +504,7 @@ customElements.define(
     }
 
     render() {
-      this.#delivered = this.data("trace");
+      this.#delivered = this.value;
       return nothing;
     }
 
@@ -534,6 +559,7 @@ customElements.define(
         commands(this.#timelineHost.value, "On a recording timeline", [
           {
             id: "trace.first",
+            travels: true,
             keys: ["Home"],
             title: "first capture",
             control: this.#first.value,
@@ -542,6 +568,7 @@ customElements.define(
           },
           {
             id: "trace.last",
+            travels: true,
             keys: ["End"],
             title: "last capture",
             run: () => this.#navigate(this.#items().at(-1)?.id ?? null),
@@ -911,12 +938,11 @@ customElements.define(
           : ["start", "end"];
     }
 
-    #show(snapshot) {
+    #show(trace) {
       this.pause(false);
       const restore = holdFocus(this);
       const oldArchive = this.#trace?.archive.sha256;
-      this.#snapshot = snapshot;
-      this.#trace = snapshot?.value ?? null;
+      this.#trace = trace;
       this.#boundsByScope.clear();
       this.#itemsCache = null;
       this.#origins = this.#trace ? streamOrigins(this.#trace) : new Map();
@@ -1218,7 +1244,7 @@ customElements.define(
             : !fitted && this.#picture?.imageData.ratio === 1,
         );
       keepsText(
-        this.#imageTools.value.querySelector(".lf-trace-image-status"),
+        this.#imageTools.value.querySelector(".lf-trace-tools-status"),
         this.#picture?.viewed
           ? ""
           : this.#pendingPicture
@@ -1635,17 +1661,17 @@ customElements.define(
       const span = action
         ? `${this.#time(action.startTime, action.stream)}–${this.#time(action.endTime ?? action.startTime, action.stream)}`
         : "";
-      // At rest the badge says when the image was captured and whether the input
-      // was next, under way or done. Playing, the readout names the time and those
-      // words would change within a few hundred milliseconds of each input, so the
-      // badge names the input alone.
+      // At rest the badge says whether the input was next, under way or done; the
+      // toolbar says when (the header's labels at rest). Playing, those words would
+      // change within a few hundred milliseconds of each input, so the badge names
+      // the input alone.
       keepsText(
         this.#inputBadge,
         !relation
           ? ""
           : this.#playing
             ? this.#inputLabel(action)
-            : `${this.#time(image.timestamp, image.stream)} · ${relation === "next" ? "next:" : relation} ${this.#inputLabel(action)}`,
+            : `${relation === "next" ? "next:" : relation} ${this.#inputLabel(action)}`,
       );
       keeps(
         this.#inputBadge,
@@ -1768,7 +1794,6 @@ customElements.define(
     // parts, is too heavy to run per frame, so they are written directly; so is
     // the image zoom status, which changes on each pinch step.
     #drawTime() {
-      const point = this.#point();
       const playhead = this.#playheadTime();
       if (this.#trace && playhead !== null)
         this.#timeline.setTime(playhead - this.#bounds().start);
@@ -1790,30 +1815,17 @@ customElements.define(
           "--lf-trace-position-chars",
           longest,
         );
-      const selectedMoments = this.#moments.filter(
-        (moment) =>
-          this.#selected && this.#destination(moment.target) === this.#selected,
-      );
-      const selectedMoment =
-        selectedMoments.find((moment) => moment.index === this.#chosenBookmark) ??
-        selectedMoments[0];
-      const description = selectedMoment
-        ? `Moment ${selectedMoment.number} · ${selectedMoment.label}`
-        : point?.action
-          ? `${PHASES[point.phase]}${["before", "action", "after"].includes(point.phase) ? " checkpoint" : ""} · ${point.action.title}`
-          : point
-            ? "Captured frame"
-            : "";
       // When the image on screen was taken at another time than the playhead,
       // say so: between captures, at a checkpoint without its own image, or
-      // while the next image prepares.
+      // while the next image prepares. What the playhead stands on is said by the
+      // selected moment's row and the point's details (the header's labels at rest).
       const shown = this.#shownImage();
       const selection =
         shown && playhead !== null && Math.abs(playhead - shown.timestamp) >= 0.5
-          ? `Image from ${this.#time(shown.timestamp, shown.stream)} · ${description}`
-          : description;
+          ? `Image from ${this.#time(shown.timestamp, shown.stream)}`
+          : "";
       keepsText(this.#selectionLabel.value, selection);
-      keeps(this.#selectionLabel.value, "title", selection);
+      keeps(this.#selectionLabel.value, "title", selection || null);
       this.#drawInput();
     }
 
@@ -1855,8 +1867,17 @@ customElements.define(
       const metadataPoint = this.#metadataPoint;
       const metadataAction = metadataPoint?.action;
       const committed = this.#shownImage();
+      // What the image is, where nothing else says it (the header's labels at rest).
       const caption = committed
-        ? `${this.#targets.get(this.#id("image", committed.id)).label}${this.#picturePreview ? " · First capture after this point" : ""}`
+        ? [
+            trace.pages.length > 1 || trace.streams.length > 1
+              ? this.#pageLabel(committed.pageId)
+              : "",
+            committed.kind === "frame" ? "Captured frame" : "",
+            this.#picturePreview ? "First capture after this point" : "",
+          ]
+            .filter(Boolean)
+            .join(" · ")
         : this.#pendingPicture
           ? "Loading captured image…"
           : "No captured image at this point.";
@@ -1908,7 +1929,7 @@ customElements.define(
         <section class="lf-trace-bookmarks">
           <div class="lf-trace-options">
             <p class="lf-trace-moments-heading" ?hidden=${!this.#moments.length}>
-              Moments (${available.length + unavailable.length})
+              Moments
             </p>
             <a
               ${offered("lf-trace-viewer")}
@@ -1928,7 +1949,7 @@ customElements.define(
                   ? this.#time(moment.time, moment.stream)
                   : "Unavailable";
                 return html`<button
-                  ${offered("lf-btn lf-quiet-action lf-trace-bookmark")}
+                  ${offeredAction("word", "lf-trace-bookmark")}
                   ?hidden=${!(available.includes(moment) || !moment.scope)}
                   ?disabled=${!moment.scope || q}
                   aria-label=${`Moment ${moment.number} · ${moment.label} · ${time}`}
@@ -1962,12 +1983,12 @@ customElements.define(
                   <div class="lf-trace-transport">
                     ${transport(this.#first, "Start", "start", q)}
                     <button
-                      ${offered(
-                        "lf-btn lf-quiet-action lf-trace-transport-button lf-trace-play",
+                      ${offeredAction(
+                        "symbol",
+                        "lf-trace-transport-button lf-trace-play",
+                        playLabel,
                       )}
                       ${ref(this.#play)}
-                      aria-label=${playLabel}
-                      title=${playLabel}
                       data-playing=${this.#playing ? "" : nothing}
                       ?disabled=${q}
                       @pointerdown=${(event) => {
@@ -2075,8 +2096,7 @@ customElements.define(
                 ].map(
                   ([text, label, run]) =>
                     html`<button
-                      ${offered("lf-btn lf-quiet-action")}
-                      aria-label=${label ?? nothing}
+                      ${offeredAction("symbol", "", label)}
                       ?disabled=${!this.#picture?.viewed || q}
                       @click=${run}
                     >
@@ -2084,7 +2104,7 @@ customElements.define(
                     </button>`,
                 )}
                 <button
-                  ${offered("lf-btn lf-quiet-action lf-trace-image-scale")}
+                  ${offeredAction("word", "lf-trace-image-scale")}
                   ${ref(this.#imageScale)}
                   aria-label="Image scale"
                   aria-controls=${`${this.id}-image-scale-options`}
@@ -2143,7 +2163,7 @@ customElements.define(
                   ].map(
                     ({ scale, text, label, run }) =>
                       html`<button
-                        ${offered("lf-btn lf-quiet-action")}
+                        ${offeredAction("word", "")}
                         data-scale=${scale}
                         aria-label=${label}
                         @click=${() => {
@@ -2156,11 +2176,15 @@ customElements.define(
                       </button>`,
                   )}
                 </div>
-                <span class="lf-trace-image-status"></span>
+                <span class="lf-trace-tools-status"></span>
               </div>
             </div>
             <div class="lf-trace-capture-footer" ?hidden=${!trace}>
-              <p class="lf-trace-caption" title=${caption} ?hidden=${!extent}>
+              <p
+                class="lf-trace-caption"
+                title=${caption || nothing}
+                ?hidden=${!extent}
+              >
                 ${caption}
               </p>
               <a
@@ -2228,7 +2252,7 @@ customElements.define(
               <h3 class="lf-trace-phase" ${ref(this.#phaseHeading)}>
                 ${
                   metadataAction
-                    ? `${PHASES[metadataPoint.phase]}${metadataAction.phases[metadataPoint.phase] ? " checkpoint" : ""} · ${this.#time(metadataPoint.timestamp, metadataAction.stream)}`
+                    ? `${PHASES[metadataPoint.phase]}${metadataAction.phases[metadataPoint.phase] ? " checkpoint" : ""}`
                     : ""
                 }
               </h3>
@@ -2389,19 +2413,22 @@ customElements.define(
             "nodes",
             index,
           ]);
-      // Only drawn evidence is projected. Hidden parts keep their archive coordinate
-      // in the inventory reader's label/reveal routes, not in a second semantic fold.
-      projectData(
-        this,
-        projection.map((record) => ({
-          node: record.element,
-          key: record.id,
-          identity: record.id,
-          label: record.label,
-          origin: { ...this.#snapshot.origin, path: record.path },
-        })),
-        { snapshot: this.#snapshot },
-      );
+      // Only drawn evidence is marked as data (`module-state.md`, "Marking drawn
+      // data"). Hidden parts keep their archive coordinate in the inventory reader's
+      // label/reveal routes, not in a second semantic fold.
+      const marked = new Set();
+      for (const { id, element, label, path } of projection) {
+        keeps(element, "data-lf-datum", id);
+        keeps(element, "data-lf-identity", id);
+        keeps(element, "data-lf-datum-label", label);
+        keeps(element, "data-lf-origin-path", JSON.stringify(path));
+        marked.add(element);
+      }
+      for (const element of this.#marked)
+        if (!marked.has(element))
+          for (const name of MARKS) element.removeAttribute(name);
+      this.#marked = marked;
+      this.dispatchEvent(new CustomEvent("drawn", { detail: { value: this.#trace } }));
       this.#parts.update();
       paintKeys();
     }

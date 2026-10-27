@@ -25,7 +25,11 @@ from leaf.files import stamped_version
 from leaf.leases import contract_writer
 from leaf.projection import folded_value, markup_value, page_reading
 from leaf.refusals import Refused
-from leaf.revisioning import planned_activation, publish_checked_event
+from leaf.revisioning import (
+    hold_published,
+    planned_activation,
+    publish_checked_event,
+)
 from leaf.served_state.reading import source_readings
 from leaf.service import PageTransaction
 from leaf.todos import TodoReading
@@ -114,8 +118,21 @@ def _completed_tasks(
     on_widgets = [todo for todo in todos if todo["subject"]["kind"] == "widget"]
     unearned = sorted(set(completes) - {todo["subject"]["id"] for todo in on_widgets})
     if unearned:
+        # An author who has just recorded a user's answer on a widget, such as a
+        # playground's submitted settings, reaches for --completes to finish it; the
+        # version that records an answer takes it in by itself.
+        mine = "; ".join(
+            f"{todo['id']} on {todo['subject'].get('id') or todo['subject']['kind']}"
+            f" ({todo['title']})"
+            for todo in todos
+        )
         raise Refused(
-            "no open to-do on " + ", ".join(repr(widget) for widget in unearned)
+            "no open to-do on "
+            + ", ".join(repr(widget) for widget in unearned)
+            + ": --completes ends the agent's own to-dos opened on a widget, and "
+            + (f"the open ones are {mine}" if todos else "none is open")
+            + ". A user's answer on a widget needs no --completes: the version that"
+            " records it takes it in; end a to-do on the page with `leaf task end`"
         )
     completed = [todo for todo in on_widgets if todo["subject"]["id"] in completes]
     not_later = sorted(
@@ -166,16 +183,25 @@ def _stamp_event(
     return event
 
 
+def _checked(page_dir: Path, events: list) -> tuple[tuple, object]:
+    """Check the source, with the source and history readings taken before the
+    check (`source_readings`), the readings activation keys its answer on."""
+    readings = source_readings(page_dir)
+    return readings, check_source(page_dir, events)
+
+
 def _stamp_locked(
-    page_dir: Path, page, checked, body: str, completes: tuple[str, ...]
+    page_dir: Path, page, readings, checked, body: str, completes: tuple[str, ...]
 ) -> dict:
-    """Map `checked`, a check of what `page`'s transaction holds, to a version."""
+    """Map `checked`, a check of what `page`'s transaction holds, to a version.
+    `readings` are those taken before that check."""
     if checked.errors:
         raise Refused(
             f"refusing to stamp index.html: {'; '.join(map(str, checked.errors))}"
         )
     events = page.events
-    revision = planned_activation(page_dir, checked).revision
+    activation = planned_activation(page_dir, checked)
+    revision = activation.revision
     registry, projection, parser, spk = _stamp_reading(events, checked, revision)
     completed = _completed_tasks(events, revision, completes)
     settled_reports = _settled_reports(projection, parser, spk, registry)
@@ -184,7 +210,10 @@ def _stamp_locked(
     event = _stamp_event(body, version, revision, parser, settled_reports, completed)
     # Stamp-specific refusals precede publication. The publisher admits this
     # note and every anchor move it requires before the revision marker.
-    return publish_checked_event(page, checked, event)
+    accepted = publish_checked_event(page, checked, event)
+    source, _history = readings
+    hold_published(page_dir, source, activation)
+    return accepted
 
 
 def _stamp_in_place(page_dir: Path, body: str, completes: tuple[str, ...]) -> dict:
@@ -192,14 +221,15 @@ def _stamp_in_place(page_dir: Path, body: str, completes: tuple[str, ...]) -> di
     moved. The page's own activation of the save usually lands during the first
     check, so a second one runs outside it too; the last checks under it."""
     for _ in range(UNLOCKED_CHECKS):
-        readings = source_readings(page_dir)
-        checked = check_source(page_dir, read_events(page_dir))
+        readings, checked = _checked(page_dir, read_events(page_dir))
         with PageTransaction(page_dir) as page:
             if source_readings(page_dir) == readings:
-                return _stamp_locked(page_dir, page, checked, body, completes)
+                return _stamp_locked(
+                    page_dir, page, readings, checked, body, completes
+                )
     with PageTransaction(page_dir) as page:
-        checked = check_source(page_dir, page.events)
-        return _stamp_locked(page_dir, page, checked, body, completes)
+        readings, checked = _checked(page_dir, page.events)
+        return _stamp_locked(page_dir, page, readings, checked, body, completes)
 
 
 @contract_writer
@@ -208,28 +238,25 @@ def cmd_stamp(
     text,
     completes: tuple[str, ...] = (),
     *,
-    from_directory: Path | None = None,
-    if_source: str | None = None,
+    replace: tuple[Path, str] | None = None,
 ) -> dict:
-    """Map the exact current source to the next public version."""
+    """Map the exact current source to the next public version. `replace`, a
+    candidate directory and the authored digest it was prepared against, first
+    swaps in the candidate's index.html and page/ tree, refusing if the source
+    no longer has that digest."""
     body = checked_text(page_dir, text)
-    if (from_directory is None) != (if_source is None):
-        raise Refused("--from-directory and --if-source are used together")
-    incoming = (
-        authored_files(from_directory / "index.html", from_directory / "page")
-        if from_directory is not None
-        else None
-    )
-    if incoming is None:
+    if replace is None:
         return _stamp_in_place(page_dir, body, completes)
+    candidate, digest = replace
+    incoming = authored_files(candidate / "index.html", candidate / "page")
     with PageTransaction(page_dir) as page:
         previous = authored_files(page_dir / "index.html", page_dir / "page")
-        if authored_digest(previous) != if_source:
+        if authored_digest(previous) != digest:
             raise Refused("authored inputs changed; reconcile them before retrying")
         try:
             write_authored_files(page_dir, incoming, previous)
-            checked = check_source(page_dir, page.events)
-            return _stamp_locked(page_dir, page, checked, body, completes)
+            readings, checked = _checked(page_dir, page.events)
+            return _stamp_locked(page_dir, page, readings, checked, body, completes)
         except BaseException:
             write_authored_files(
                 page_dir,

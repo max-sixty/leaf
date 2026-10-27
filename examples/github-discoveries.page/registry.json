@@ -154,7 +154,8 @@
     "x-data": {
       "changes": {
         "contract": "repo-feed",
-        "source": "source"
+        "source": "source",
+        "property": "value"
       }
     },
     "x-example": "<lf-repo-feed id=\"repo-feed\" source=\"repo-changes\"></lf-repo-feed>",

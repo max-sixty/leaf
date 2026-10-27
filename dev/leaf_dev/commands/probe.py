@@ -31,6 +31,7 @@ from leaf_dev.browser import (
     headless_shell,
     load,
     settle,
+    slow_cpu,
     tab,
 )
 from leaf_dev.commands.stills import DRIVERS
@@ -288,9 +289,7 @@ def probe(
                         page.add_init_script(path=MAIN_THREAD_SCRIPT)
                         observe_startup(page)
                         if throttle:
-                            page.context.new_cdp_session(page).send(
-                                "Emulation.setCPUThrottlingRate", {"rate": throttle}
-                            )
+                            slow_cpu(page, throttle)
                         doing = "load"
                         if isinstance(source, str):
                             page.goto(address)

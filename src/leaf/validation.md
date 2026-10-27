@@ -59,9 +59,10 @@ successful reply publishes the source it checked (`thread._compose_and_append`, 
 Plain `page check` runs one browser reading as well. A page that runs code of its own,
 or places a data widget or a widget naming page media, is run once, and fails on each
 `error` event its runtime posts, the same events `leaf wait` delivers
-(`render_gate/page_code.py`). Message markup is not run, so a thread command never
-waits on a browser; a message's widget reports its failure as an `error` event when its
-thread draws.
+(`render_gate/page_code.py`). A thread command runs message markup placing one of those
+widgets the same way before it posts, apart from the page lease, and refuses it on the
+same reports (`render_gate/command.message_check`); markup without one waits on no
+browser.
 
 Leaf runs without a browser. Where the host has none, every browser gate (this run,
 `--render` and `package check --render`) is skipped with a note and leaves the status
@@ -96,6 +97,11 @@ that window's height.
 The suite uses Chromium's headless shell; the end-to-end render-check tests cover the
 launches the command uses.
 
+Every widget output published during the check, including one subsequently withdrawn
+or published by a disposed sample, is validated against its data contract. A failure
+identifies the producer and the captured owners of its module, output declaration
+and contract (`data_contracts.output_findings`).
+
 A decision in force may paint over a changed authored baseline. That is the state
 fold's behavior, not a reason to refuse the revision; `restated` retracts a decision
 when the agent needs a fresh answer.
@@ -113,7 +119,7 @@ it.
 
 ## Passages
 
-The browser resolves an anchor and records it in the log, so `leaf thread open` reads
+The browser resolves an anchor and records it in the log, so `leaf thread create` reads
 the active revision's file the way the anchor pass reads the DOM. `passages.py`'s
 header comment owns that reading: what the registry's `x-says`, `x-verbatim` and
 `x-retired-when` contribute, and where a fence stops a quote. Both runtimes take

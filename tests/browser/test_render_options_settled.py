@@ -165,7 +165,8 @@ def test_settled_options_collapse_without_going_out_of_reach(browser, serve):
     collapsed = group.evaluate(height)
     assert page.locator("#transport lf-option:visible").count() == 0
     row = page.locator("#transport .lf-settled")
-    assert row.inner_text().startswith("Settled: Lax cookie")
+    # The outcome alone: the disclosure marker says the alternatives are inside.
+    expect(row).to_have_text("Settled: Lax cookie")
     assert row.get_attribute("aria-expanded") == "false"
     assert collapsed == row.evaluate(height), (
         "hidden cards or controls keep empty space"

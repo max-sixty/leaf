@@ -103,3 +103,15 @@ export function nativeLayerHolding(node) {
   for (let at = node; at; at = renderedParent(at)) if (isNativeLayer(at)) return at;
   return null;
 }
+
+// Explicit inertness excludes a node through its composed ancestry. An open native
+// modal escapes inherited inertness outside itself, but an inert modal or descendant
+// remains excluded. Read node kind rather than realm-specific Element: a sample asks
+// this of the frame its containing document holds too.
+export function excludedByInert(node) {
+  for (let owner = node; owner; owner = renderedParent(owner)) {
+    if (owner.inert) return true;
+    if (nativeLayerKind(owner) === "modal") break;
+  }
+  return false;
+}

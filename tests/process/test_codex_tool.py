@@ -25,7 +25,7 @@ exit 3
 
 
 @pytest.fixture
-def server(tmp_path, monkeypatch):
+def server(tmp_path, monkeypatch, spawn):
     """The MCP server as Codex starts it, after the handshake, with a stand-in
     for Leaf behind the launcher."""
     launcher = tmp_path / "host-leaf"
@@ -37,25 +37,20 @@ def server(tmp_path, monkeypatch):
     # MCP inherits its platform defaults plus the plugin's declared variables.
     # HOME and PATH are the only platform defaults this stand-in needs.
     forwarded = {"HOME", "PATH", *manifest["mcpServers"]["leaf"]["env_vars"]}
-    process = subprocess.Popen(
+    # `spawn` ends it as Codex does, by closing the stdin it reads.
+    process = spawn(
         [sys.executable, "-I", str(SERVER)],
         env={key: value for key, value in os.environ.items() if key in forwarded},
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         text=True,
     )
-    try:
-        session = Session(process)
-        assert session.request(
-            0, "initialize", {"protocolVersion": "2025-06-18", "capabilities": {}}
-        )["capabilities"] == {"tools": {}}
-        session.send({"method": "notifications/initialized"})
-        yield session
-    finally:
-        process.kill()
-        process.wait()
-        process.stdin.close()
-        process.stdout.close()
+    session = Session(process)
+    assert session.request(
+        0, "initialize", {"protocolVersion": "2025-06-18", "capabilities": {}}
+    )["capabilities"] == {"tools": {}}
+    session.send({"method": "notifications/initialized"})
+    return session
 
 
 class Session:

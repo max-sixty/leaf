@@ -278,7 +278,7 @@ def test_a_failed_first_read_stays_unpresented_across_the_retry_clock(browser, s
     rendered(page)
     expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
     expect(panel_field(page)).to_have_attribute(
-        "placeholder", re.compile("^Page couldn't apply current state — reload")
+        "placeholder", re.compile("^Couldn't show the latest — reload")
     )
     assert (
         page.evaluate(
@@ -618,7 +618,7 @@ def test_the_help_overlay_answers_to_one_owner(browser, serve):
         )
     ).to_be_visible()
     expect(
-        page.locator('.lf-command-reference tr[data-lf-command="draft.edit"]')
+        page.locator('.lf-command-reference [role=row][data-lf-command="draft.edit"]')
     ).to_be_attached()
     # Help is a scope: the table stands down behind it, so c must open nothing under
     # the sheet, neither a panel view nor the page comment in the panel's field.

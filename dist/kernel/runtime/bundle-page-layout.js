@@ -9,7 +9,7 @@ import { awaitsData, bindsInput, comparisonBase, comparisonChanges, createProjec
 import { closestAcross, elementById, excerptWords, inChrome, labelWords, leafSurface, pageParts, pageReadingVersion, quoteFrom, textNodesUnder } from "./bundle-passages.js";
 import { addressableLabel, addressableWord, anchorForRange, anchoringIsReady, commitPoint, declaredName, livePoint, scheduleMarginContentLayout, sectionOf, targetSegments, visualPartLabel, widgetWord } from "./bundle-content-layout.js";
 import { alreadyShown, fitsWhole, restrictUserIntent, retainUserIntent, scrollIntoReadingBand, scrollIntoView } from "./bundle-copy-control.js";
-import { HOLDS_WORD, HeldNews, MessageView, SAYS_IN, THREAD, ThreadView, Transcript, allButCommandReference, allThreads, anchorLabel, answeredInWords, authoredHolder, beginThreadSeats, beginWalk, bringBackSurfaceOf, claimed, clearDraft, commitThreadSeats, completeReadingReturn, createReplyView, declareSide, dismissReplyAt, draftContexts, drawnThreadId, focusThread, focusedThreadTarget, heldOut, heldThread, holdReplyCompositions, holdThreadPlace, importWidgets, isPageWidgetWorkflow, isWorkflowProgress, keepRefusedWords, listWalkPosition, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, messageHolding, messageReading, messageText, mountFirstMessage, newsNotice, obligationHolding, obligationPlace, openMessageEditIn, pageCommand, pageScope, pageSelection, placeOf as placeOf$1, placePageThreads as placePageThreads$1, placedMarkdownTokens, prepareAuthoredMessage, readObligations, readThreads, readingReturn, registerWritingDestination, rememberWriting, renderMarginThread, renderSeats, renderSurfaces, replyAvailable, replyDraftContext, replyThreadKey, retainThreadSeats, revealHeld, saveDraft, sendLanding, sendMessage, settleAcceptedDrafts, showHeld, showHeldThread, strongestWorkflow, surfaceFocusTarget, threadDraft, threadIdNamed, threadList, threadName, threadNamed, threadPart, threadReading, threadReplyInput, threadRewrites, threadState, todoLabel, transferDraft, watchDraft, watchDrafts, watchThreadSurfaces, wholeThread, workflowLabel } from "./bundle-surfaces.js";
+import { HOLDS_WORD, HeldNews, MessageView, SAYS_IN, THREAD, ThreadView, Transcript, allButCommandReference, allThreads, anchorLabel, answeredInWords, authoredHolder, beginThreadSeats, beginWalk, bringBackSurfaceOf, claimed, clearDraft, commitThreadSeats, completeReadingReturn, createReplyView, declareSide, dismissReplyAt, draftContexts, drawnThreadId, focusThread, focusedThreadTarget, heldOut, heldThread, holdReplyCompositions, holdThreadPlace, importWidgets, isPageWidgetWorkflow, isWorkflowProgress, keepRefusedWords, listWalkPosition, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, messageHolding, messageReading, messageText, mountFirstMessage, newsNotice, obligationHolding, obligationPlace, openMessageEditIn, pageCommand, pageScope, pageSelection, placeOf as placeOf$1, placePageThreads as placePageThreads$1, placedMarkdownTokens, prepareAuthoredMessage, readObligations, readThreads, readingReturn, registerWritingDestination, rememberWriting, renderMarginThread, renderSeats, renderSurfaces, replyAvailable, replyDraftContext, replyThreadKey, retainThreadSeats, revealHeld, saveDraft, sendLanding, sendMessage, settleAcceptedDrafts, showHeld, showHeldThread, strongestWorkflow, surfaceFocusTarget, threadDraft, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading, threadReplyInput, threadRewrites, threadState, todoLabel, transferDraft, watchDraft, watchDrafts, watchThreadSurfaces, wholeThread, workflowLabel } from "./bundle-surfaces.js";
 import { aborted, authoredStates, commitWidgetDescriptors, descriptorStillMatches, failSoft, failSoftUnreported, once, orderChildren, placesFailure, quoted as quoted$1, reportFailure, setChildren, widgetDescriptor } from "./bundle-abort.js";
 import { scrollBehavior } from "./bundle-motion.js";
 import { isCanonicalMediaUrl, scopedMediaUrl } from "./bundle-media.js";
@@ -3238,21 +3238,24 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 		const thread = allThreads().find((candidate) => candidate.id === id);
 		return thread ? threadPlace(thread, placedAt) : null;
 	};
-	const threadHere = () => {
-		const held = heldThread();
+	const threadHere = (active = focused()) => {
+		const held = threadIn(active);
 		if (held) return held;
 		const shown = preview?.accompanied() ?? null;
-		const active = focused();
 		if (!active || active === document.body) return shown;
 		const ids = threadIdsAt(active);
 		const drawn = [shown, ...ids.map((id) => surfaceFocusTarget(id, { part: "thread" }))].filter((thread) => thread && ids.includes(drawnThreadId(thread)));
 		return drawn.length === 1 ? drawn[0] : null;
 	};
-	const threadAtCurrentLocation = () => {
-		const here = drawnThreadId(threadHere());
+	let lastIn = null;
+	onCurrentLocation((node) => {
+		lastIn = drawnThreadId(threadIn(node)) ?? lastIn;
+	});
+	const threadAtCurrentLocation = (active = focused()) => {
+		const here = drawnThreadId(threadHere(active));
 		if (here) return here;
-		const active = focused();
-		return (active && threadIdsAt(active)[0]) ?? null;
+		const ids = active ? threadIdsAt(active) : [];
+		return (ids.includes(lastIn) ? lastIn : ids[0]) ?? null;
 	};
 	const replyThreadAtCurrentLocation = () => {
 		const id = threadAtCurrentLocation();

@@ -265,6 +265,22 @@ def _scheme_findings(context: _SchemeContext) -> list[Finding]:
     found += map(Finding.read, missing_threads)
     found += map(Finding.read, retired)
     found += context.unsettled
+    if context.light:
+        found += _unreduced_motion(page)
+    return found
+
+
+def _unreduced_motion(page) -> list[Finding]:
+    """Advice naming page content that keeps animating once the reader asks for less
+    motion, which Leaf leaves to the page (state.css). Read last, since setting the
+    preference stops Leaf's own motion for the readings after it."""
+    page.emulate_media(reduced_motion="reduce")
+    one_frame(page)
+    found = [
+        Finding.read(m, severity="advice")
+        for m in evaluate_probe(page, "unreducedMotion")
+    ]
+    page.emulate_media(reduced_motion="null")
     return found
 
 

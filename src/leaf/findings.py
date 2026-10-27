@@ -686,6 +686,10 @@ _TEXT = {
         f" {_json(v['covered'])}"
     ),
     # Advice: what the author decides.
+    "unreduced-motion": lambda at, v: (
+        f"{at} keeps moving for a reader who asked for less motion; stop or shorten it"
+        " under @media (prefers-reduced-motion: reduce)"
+    ),
     "squeezed-table": _squeezed,
     "shrunk-labels": lambda at, v: (
         f"{at} draws labels below {v['threshold']}px, {v['labels']} at"

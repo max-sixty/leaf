@@ -538,7 +538,7 @@
   .lf-fp-field .lf-compose-error > span {
     text-overflow: ellipsis;
   }
-  /* The shared reduced-motion guard (surfaces.css) stops at the field's closed tree. */
+  /* The shared reduced-motion guard (state.css) stops at the field's closed tree. */
   @media (prefers-reduced-motion: no-preference) {
     .lf-floating-panel[data-tone="working"]:not([data-asks])
       .lf-fp-field

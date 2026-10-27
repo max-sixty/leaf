@@ -531,6 +531,17 @@ def test_the_add_field_says_its_whole_hint_on_a_phone(browser, serve):
     assert fit["words"] <= fit["room"], fit
 
 
+def test_a_closed_group_answers_only_from_its_options(browser, serve):
+    """`closed` leaves out the field for an unlisted answer, so a page that draws its
+    own choice ends at its own options; the listed options still answer."""
+    page = open_page(
+        browser, serve(OBLIGATION_PAGE.replace('id="jobs"', 'id="jobs" closed'))
+    )
+
+    expect(page.locator("#jobs > lf-option").first).to_be_visible()
+    expect(page.locator("#jobs > .lf-another")).to_have_count(0)
+
+
 def test_another_option_becomes_a_real_option_without_starting_a_thread(browser, serve):
     """The answer the author missed joins the control as a row of its own.
 

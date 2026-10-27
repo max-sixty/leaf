@@ -8,21 +8,41 @@ import {
 } from "/runtime/dom-children.js";
 import { under } from "/runtime/shadow.js";
 import { shadowStage } from "/runtime/shadow-stage.js";
-import { failSoftUnreported } from "/runtime/widget-upgrade.js";
+import { failSoftUnreported, placesFailure } from "/runtime/widget-upgrade.js";
 import { createRef, html, ref, render } from "/runtime/framework.js";
 
-test("failure replacement releases directives and the next native draw replaces it", () => {
+test("failure replacement releases directives and supports native and template recovery", () => {
   const host = document.createElement("test-widget");
   const reference = createRef();
-  render(html`<p ${ref(reference)}>Before failure</p>`, host);
+  const paint = (text) => render(html`<p ${ref(reference)}>${text}</p>`, host);
+  paint("Before failure");
   assert.equal(reference.value.textContent, "Before failure");
   failSoftUnreported(host, new Error("first failure"));
   assert.equal(reference.value, undefined);
   assert.equal(host.textContent, "<test-widget> failed: first failure");
+  paint("Recovered template");
+  assert.equal(host.textContent, "Recovered template");
+  failSoftUnreported(host, new Error("second failure"));
   const native = document.createElement("p");
   native.textContent = "Recovered native reading";
   setChildren(host, [native]);
   assert.equal(host.textContent, "Recovered native reading");
+  failSoftUnreported(host, new Error("third failure"));
+  paint("Final template");
+  assert.equal(host.textContent, "Final template");
+});
+
+test("an owner that registers its failure placer on every connection keeps one", () => {
+  const host = document.createElement("test-widget");
+  const asked = [];
+  for (const connection of ["first", "second"])
+    placesFailure(host, (box) => {
+      asked.push(connection);
+      host.append(box);
+      return true;
+    });
+  failSoftUnreported(host, new Error("failed"));
+  assert.deepEqual(asked, ["second"]);
 });
 
 test("a staged widget shows each failure in its stage and its next stage replaces it", () => {

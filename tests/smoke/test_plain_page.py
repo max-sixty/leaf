@@ -16,14 +16,13 @@ composes into a page loads as well as any other.
 import http.server
 import json
 from dataclasses import dataclass
-from pathlib import PurePosixPath
 
 import pytest
 from interact_support import running_http_server
 from playwright.sync_api import expect
 
 from leaf.layer import compose_layer, layer_inputs
-from leaf.revision_artifact import RESOURCE_TYPES, Resource
+from leaf.revision_artifact import Resource, resource_type
 from leaf.revision_delivery import layer_import_map
 from leaf.runtime_selection import read_runtime
 from leaf.schema import BROWSER_DIRS
@@ -67,10 +66,7 @@ def install() -> dict[str, Resource]:
         layer_inputs(tuple(sorted({widget.package for widget in PORTABLE})))
     )
     captured = {
-        f"/{sub}/{name}": Resource(
-            data,
-            RESOURCE_TYPES.get(PurePosixPath(name).suffix, "application/octet-stream"),
-        )
+        f"/{sub}/{name}": Resource(data, resource_type(name))
         for sub in BROWSER_DIRS
         for name, data in layer.directory_files[sub].items()
     }
@@ -127,6 +123,10 @@ def test_a_display_widget_draws_on_a_page_without_leaf(browser, subtests):
     httpd = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Host)
     with running_http_server(httpd):
         page = browser.new_page(viewport={"width": 900, "height": 1200})
+        console = []
+        page.on(
+            "console", lambda message: console.append(f"{message.type}: {message.text}")
+        )
         page.goto(f"http://127.0.0.1:{httpd.server_port}/")
         assert page.evaluate("() => !document.documentElement.lfInitial"), (
             "the page must run none of Leaf's runtime"
@@ -147,3 +147,6 @@ def test_a_display_widget_draws_on_a_page_without_leaf(browser, subtests):
         heard = page.evaluate("heard")
         assert [event["target"] for event in heard] == ["refused"], heard
         assert "Unexpected token" in heard[0]["message"], heard
+        # The refusal is the page's to show, and nothing of it, or of any widget,
+        # reaches the console of a page that runs no Leaf.
+        assert console == [], console

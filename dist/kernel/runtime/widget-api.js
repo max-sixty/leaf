@@ -1,4 +1,4 @@
-import { PendingTaskEvent, afterScript, bodyText, cancelAnimation, cancelRender, dataBody, failSoft, frameFor, inBaseLayer, isNativeLayer, measure, nextAnimation, nextFrame, nextRender, once, placesFailure, reportFailure, sizeObserver, under, watchArrivalsIn, whileConnected } from "./bundle-portable.js";
+import { PendingTaskEvent, afterScript, bodyText, cancelAnimation, cancelRender, dataBody, failSoft, frameFor, inBaseLayer, isNativeLayer, measure, nextAnimation, nextFrame, nextRender, once, placesFailure, reportFailure, sizeObserver, stagesFailure, under, watchArrivalsIn, whileConnected } from "./bundle-portable.js";
 import { TEXT_BOX, TEXT_FIELD, Z, atLayoutPrecision, closeLayer, currentLocationIn, focusDestination, focused, handBack, holdFocus, keeps, keepsHidden, keepsText, layoutPx, move, onCurrentLocation, onPressAway, onUserInput, openLayer, openerOf, rove, watchCurrentLocationIn, whenLeft } from "./bundle-dom-move.js";
 import { SHADOW_LEADING_CSS, agentName, annotationMarkSheets, applicationRegionsPresented, applicationState, classMap, closeNativeLayer, createRef, declarationFor, elementsDeclaring, guard, html, keyed, layerFact, live, marksSheet, matchesWhen, noChange, nothing, offlineInteractive, pageUrl, projectionRegionsPresented, rankAt, readPart, ref, registry, render, repeat, revisionLabel, shadowRules, showNativeLayer, styleMap, turns, unsafeHTML, watchLayers } from "./bundle-layer-stack.js";
 import { LAYOUT, LayerRefused, PRESS, PRESSABLE, announce, commandScope, commandsOn, cycledRow, dragging, el, generated, generatedElement, iconElement, iconTemplate, keys, labelOf, layoutChanged, motionPreview, notice, offer, offerAction, offered, offeredAction, paintKeys, plainPress, pressIsKeyboardActivation, raiseError, reachedForWords, relabel, requestJson, rowArrows, saying, searchField, selectableOffer, selectableOffered, worksInside } from "./bundle-layer-client.js";
@@ -262,7 +262,7 @@ function shadowStage(host, nodes) {
 	return root;
 }
 function stageFor(host) {
-	placesFailure(host, (box) => {
+	stagesFailure(host, (box) => {
 		shadowStage(host, [box]);
 		return true;
 	});

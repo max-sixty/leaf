@@ -99,12 +99,14 @@ anything else that sends input back. Its presentation and view state still work.
 
 When an upgrade or one part of it fails, `failSoft(element, error, source)` replaces
 the widget or part with an error box naming it, with `source` beneath when given, and
-dispatches an `error` `ErrorEvent` on the element, bubbling and composed, which Leaf
-reports as a page error naming the widget, and which fails `page check`. The widget's
-next draw of the element's children removes the box.
+dispatches an `error` `ErrorEvent` on the element, bubbling and composed, or on the
+window while the element is out of the document. Leaf reports it as a page error
+naming the widget, which fails `page check`. The widget's next draw removes the box,
+a template render into the element included.
 A native renderer that retains its nodes can register `placesFailure(element, place)`
 to place the box beside them: `place(box)` returns true when it handles the box, and
-the renderer removes it when the failed content recovers. Where the widget shows a
+the renderer removes it when the failed content recovers. An element has one placer,
+which registering again replaces. Where the widget shows a
 failed part its own way, as `lf-diff` does for a patch it cannot draw,
 `reportFailure(element, error)` only reports.
 

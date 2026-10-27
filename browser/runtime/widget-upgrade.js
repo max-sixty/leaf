@@ -7,14 +7,13 @@
    duplicate it. A failed upgrade becomes a visible error box (`failSoft`) rather than
    a blank page.
 
-   The widget tells its host what Leaf needs to hear through standard events on itself,
-   which Leaf reads from outside and a plain page may ignore. A failure is an `error`
-   ErrorEvent, bubbling and composed, which a Leaf page reports to the agent as the
-   page's error, naming the widget (layer-client.js). Drawing still under way is a
+   The widget tells its host what Leaf needs to hear through standard events, which Leaf
+   reads from outside and a plain page may ignore. A failure is an `error` ErrorEvent,
+   bubbling and composed, which a Leaf page reports to the agent as the page's error,
+   naming the widget (layer-client.js, `failureOf`). Drawing still under way is a
    `pending-task` event (`PendingTaskEvent`), the Web Components Community Group's draft
    protocol for a component's asynchronous work, whose `complete` promise Leaf holds the
-   widget's presentation on (widget-controller.js). An element that is not in a document
-   when it dispatches either reaches no one. */
+   widget's presentation on (widget-controller.js). */
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 
 const initialized = new WeakSet();
@@ -66,16 +65,39 @@ export function failSoft(el, err, source) {
 }
 
 // The report alone, for a widget that shows a part's failure its own way, such as a
-// diff file whose patch it cannot draw beside the files it can.
+// diff file whose patch it cannot draw beside the files it can. It is dispatched on the
+// element, so it reaches the element's listeners and, through the document, the
+// window's; an element out of the document, such as a cached message body while its
+// thread is shut, has no way out to the window, so its failure is dispatched there
+// directly. Every listener gets an Error: a reason thrown as something else is wrapped,
+// and Leaf reports the reason as thrown.
 export function reportFailure(el, err) {
-  el.dispatchEvent(
-    new ErrorEvent("error", {
-      error: err,
-      message: err?.message ?? String(err),
-      bubbles: true,
-      composed: true,
-    }),
-  );
+  const event = new ErrorEvent("error", {
+    error: err instanceof Error ? err : siteless(err),
+    message: err?.message ?? String(err),
+    bubbles: true,
+    composed: true,
+  });
+  event[FAILURE] = { element: el, reason: err };
+  (el.isConnected ? el : window).dispatchEvent(event);
+}
+
+// The element and reason a failure event of `reportFailure`'s carries.
+const FAILURE = Symbol("failure");
+
+// An Error for a reason thrown as something else, with no stack: its site would be the
+// line here rather than the failure's (`exceptionText`, layer-client.js).
+const siteless = (reason) =>
+  Object.assign(Object.create(Error.prototype), { message: String(reason) });
+
+// The failure an `error` event reports, as Leaf reads it: the element and reason
+// `reportFailure` gave it, or, for one another element dispatched, that element, where
+// the event began rather than the shadow host it reached the document by, and the
+// event's error. Null for an error that is the window's own, such as an exception.
+export function failureOf(event) {
+  if (event[FAILURE]) return event[FAILURE];
+  const [origin] = event.composedPath();
+  return origin instanceof Element ? { element: origin, reason: event.error } : null;
 }
 
 // How a failure names its widget to the agent: by tag and id, since that is how the
@@ -98,16 +120,19 @@ const widgetOf = (el) => {
   return owner.localName.includes("-") ? owner : el;
 };
 
-// An owner that keeps the nodes it drew through a failure places the box itself, beside
-// them, rather than have them replaced by it: LeafElement and native renderers retain
-// nodes no later draw would make again, and a shadow stage shows only what it holds
-// (shadow-stage.js). Each placer answers whether it placed the box, in the order the
-// owners took the element on, so an owner can leave a case to the next. With none
-// placing it, the box replaces the element's children, and the widget's next draw of
-// them replaces the box.
+// Where the box goes, in this order. An owner that keeps the nodes it drew through a
+// failure places the box itself, beside them, rather than have them replaced by it:
+// LeafElement and native renderers retain nodes no later draw would make again. Each
+// element has one such placer, and registering again replaces it, so an owner may
+// register on every connection. `place(box)` answers whether it placed the box; one that
+// declines leaves it to the rest. Next, a shadow host shows only what its stage holds,
+// so the box stands there (`stagesFailure`, which only shadow-stage.js registers), and
+// the widget's next stage replaces it. Otherwise the box replaces the element's
+// children, and the widget's next draw of them replaces the box, a template's included.
 const placers = new WeakMap();
-export const placesFailure = (el, place) =>
-  placers.set(el, [...(placers.get(el) ?? []), place]);
+export const placesFailure = (el, place) => placers.set(el, place);
+const stages = new WeakMap();
+export const stagesFailure = (host, place) => stages.set(host, place);
 
 function showFailure(el, text, source) {
   const box = document.createElement("div");
@@ -118,18 +143,22 @@ function showFailure(el, text, source) {
     pre.textContent = source;
     box.append(pre);
   }
-  if (placers.get(el)?.some((place) => place(box))) return;
-  releaseTemplate(el);
-  el.replaceChildren(box);
-}
-
-// End a template's ownership of `el`, whose nodes the box replaces: Lit's public
-// RootPart.setConnected(false) disconnects its directives, but render() has no public
-// reset, so its pinned, deliberately unminified cache key goes too, and a template
-// drawn there again starts afresh, after the box.
-function releaseTemplate(el) {
+  if (placers.get(el)?.(box) || stages.get(el)?.(box)) return;
   const part = el._$litPart$;
-  if (!part) return;
-  part.setConnected(false);
-  delete el._$litPart$;
+  if (!part) {
+    el.replaceChildren(box);
+    return;
+  }
+  // A template drawn into the element owns its children, so the box becomes that
+  // template's value, and the widget's next render replaces it as it replaces any value.
+  // Setting it clears the template's own value, which disconnects its directives. Lit
+  // keeps the part on the element under the name it pins for every copy of Lit to share,
+  // and has no public way to set the part's value from outside a directive, so this sets
+  // it as lit/directive-helpers.js's `setChildPartValue` does, by the name every
+  // production build of Lit 3 gives the setter (`_$AI`; a development build keeps
+  // `_$setValue`). Importing Lit's `render` instead would tie this module to a Lit, and
+  // Leaf's loads only on a Leaf page. A native draw may have taken the part's marker
+  // since; the box stands after it, in the part's place.
+  el.replaceChildren(part.startNode);
+  (part._$AI ?? part._$setValue).call(part, box);
 }

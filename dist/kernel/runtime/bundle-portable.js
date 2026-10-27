@@ -411,7 +411,7 @@ const pageUpgraded = () => document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.upgra
 //#endregion
 //#region runtime/arrivals.js
 const watches = /* @__PURE__ */ new Set();
-const stages = /* @__PURE__ */ new WeakSet();
+const stages$1 = /* @__PURE__ */ new WeakSet();
 const stageRefs = /* @__PURE__ */ new Set();
 const owners = /* @__PURE__ */ new WeakMap();
 let offerOwner;
@@ -503,10 +503,10 @@ function liveStages() {
 	}
 	return live;
 }
-const isStage = (root) => stages.has(root);
+const isStage = (root) => stages$1.has(root);
 const stands = (el) => {
 	const root = el.getRootNode();
-	return root === document ? document.body.contains(el) : stages.has(root) && root.host.isConnected;
+	return root === document ? document.body.contains(el) : stages$1.has(root) && root.host.isConnected;
 };
 function* matching(node, selector) {
 	if (node?.nodeType !== Node.ELEMENT_NODE) return;
@@ -575,8 +575,8 @@ function enroll({ selector, attributes, observer, offerMany }, root) {
 	offerMany(root.querySelectorAll(selector));
 }
 function watchArrivalsIn(stage) {
-	if (stages.has(stage)) return;
-	stages.add(stage);
+	if (stages$1.has(stage)) return;
+	stages$1.add(stage);
 	stageRefs.add(new WeakRef(stage));
 	for (const watch of watches) enroll(watch, stage);
 	stage.addEventListener("scroll", heardIn(stage), SCROLL);
@@ -665,12 +665,27 @@ function failSoft(el, err, source) {
 	showFailure(el, `<${widgetOf(el).localName}> failed: ${err?.message || err}`, source);
 }
 function reportFailure(el, err) {
-	el.dispatchEvent(new ErrorEvent("error", {
-		error: err,
+	const event = new ErrorEvent("error", {
+		error: err instanceof Error ? err : siteless(err),
 		message: err?.message ?? String(err),
 		bubbles: true,
 		composed: true
-	}));
+	});
+	event[FAILURE] = {
+		element: el,
+		reason: err
+	};
+	(el.isConnected ? el : window).dispatchEvent(event);
+}
+const FAILURE = Symbol("failure");
+const siteless = (reason) => Object.assign(Object.create(Error.prototype), { message: String(reason) });
+function failureOf(event) {
+	if (event[FAILURE]) return event[FAILURE];
+	const [origin] = event.composedPath();
+	return origin instanceof Element ? {
+		element: origin,
+		reason: event.error
+	} : null;
 }
 function failureContext(el) {
 	const owner = widgetOf(el);
@@ -685,7 +700,9 @@ const widgetOf = (el) => {
 	return owner.localName.includes("-") ? owner : el;
 };
 const placers = /* @__PURE__ */ new WeakMap();
-const placesFailure = (el, place) => placers.set(el, [...placers.get(el) ?? [], place]);
+const placesFailure = (el, place) => placers.set(el, place);
+const stages = /* @__PURE__ */ new WeakMap();
+const stagesFailure = (host, place) => stages.set(host, place);
 function showFailure(el, text, source) {
 	const box = document.createElement("div");
 	box.className = "lf-error";
@@ -695,15 +712,14 @@ function showFailure(el, text, source) {
 		pre.textContent = source;
 		box.append(pre);
 	}
-	if (placers.get(el)?.some((place) => place(box))) return;
-	releaseTemplate(el);
-	el.replaceChildren(box);
-}
-function releaseTemplate(el) {
+	if (placers.get(el)?.(box) || stages.get(el)?.(box)) return;
 	const part = el._$litPart$;
-	if (!part) return;
-	part.setConnected(false);
-	delete el._$litPart$;
+	if (!part) {
+		el.replaceChildren(box);
+		return;
+	}
+	el.replaceChildren(part.startNode);
+	(part._$AI ?? part._$setValue).call(part, box);
 }
 
 //#endregion
@@ -745,4 +761,4 @@ function measure(el, take) {
 const inBaseLayer = (text) => `@layer lf-base {\n${text}\n}`;
 
 //#endregion
-export { PAGE_PAINT_ATTRIBUTE, PENDING_TASK, PendingTaskEvent, afterScript, afterSettling, bindQueuedWork, bodyText, byRenderedOrder, cancelAnimation, cancelRender, composedParentNode, dataBody, elementBox, excludedByInert, failSoft, failSoftUnreported, failureContext, frameFor, frameVisibility, holdRendering, inBaseLayer, isNativeLayer, isStage, liveStages, measure, nativeLayerHolding, nativeLayerKind, nextAnimation, nextFrame, nextRender, observePreparations, observeQueuedWork, onFrameVisibility, once, pagePresented, pageUpgraded, placesFailure, readSampleVisibility, renderedOrder, renderedParent, renderedUnder, renderingState, reportFailure, scrollGlides, scrolling, shadowHost, sizeObserver, skipped, under, upFrom, watchArrivals, watchArrivalsIn, watchFrame, watchOwner, watchScrollEnds, watchScrolls, whileConnected };
+export { PAGE_PAINT_ATTRIBUTE, PENDING_TASK, PendingTaskEvent, afterScript, afterSettling, bindQueuedWork, bodyText, byRenderedOrder, cancelAnimation, cancelRender, composedParentNode, dataBody, elementBox, excludedByInert, failSoft, failSoftUnreported, failureContext, failureOf, frameFor, frameVisibility, holdRendering, inBaseLayer, isNativeLayer, isStage, liveStages, measure, nativeLayerHolding, nativeLayerKind, nextAnimation, nextFrame, nextRender, observePreparations, observeQueuedWork, onFrameVisibility, once, pagePresented, pageUpgraded, placesFailure, readSampleVisibility, renderedOrder, renderedParent, renderedUnder, renderingState, reportFailure, scrollGlides, scrolling, shadowHost, sizeObserver, skipped, stagesFailure, under, upFrom, watchArrivals, watchArrivalsIn, watchFrame, watchOwner, watchScrollEnds, watchScrolls, whileConnected };

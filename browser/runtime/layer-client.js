@@ -41,7 +41,7 @@ import { recordInteraction } from "./interaction-log.js";
 import { DELIVERY, offlineInteractive, pageUrl, runtime } from "./context.js";
 import { notice } from "./notifications.js";
 import { holdingError } from "./errors.js";
-import { failureContext } from "./widget-upgrade.js";
+import { failureContext, failureOf } from "./widget-upgrade.js";
 
 const { layer: layerGeneration, release, probe, runtime: runtimeIdentity } = DELIVERY;
 
@@ -411,10 +411,11 @@ export function exceptionText(reason, context = "") {
 }
 
 window.addEventListener("error", (e) => {
-  // A widget's own failure, which it shows where it stands and dispatches on itself
-  // (`reportFailure`, widget-upgrade.js), named for the widget it reached the page from.
-  if (e.target instanceof Element) {
-    reportPageError(e.error, failureContext(e.target));
+  // A widget's own failure, which it shows where it stands and dispatches
+  // (`reportFailure`, widget-upgrade.js), named for the widget it happened in.
+  const failure = failureOf(e);
+  if (failure) {
+    reportPageError(failure.reason, failureContext(failure.element));
     return;
   }
   // Chrome also puts ResizeObserver loop notices on window.error without an

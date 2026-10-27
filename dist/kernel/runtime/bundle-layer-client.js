@@ -1,4 +1,4 @@
-import { PAGE_PAINT_ATTRIBUTE, failureContext, isNativeLayer, nextRender, renderedParent, under } from "./bundle-portable.js";
+import { PAGE_PAINT_ATTRIBUTE, failureContext, failureOf, isNativeLayer, nextRender, renderedParent, under } from "./bundle-portable.js";
 import { CARET_KEYS, PRESSES, TEXT_BOX, WORKS, Z, controlNavigationKeys, focusRevision, focused, keeps, keepsText, onCurrentLocation, onFocusVisibility, takesLetters, x as x$1 } from "./bundle-dom-move.js";
 import { AsyncDirective, DELIVERY, Directive, PAGE_ROOT, PartType, describeFailure, directive, html, nothing, offlineInteractive, pageUrl, render, runtime, showNativeLayer, tagsDeclaring } from "./bundle-layer-stack.js";
 
@@ -2043,8 +2043,9 @@ function exceptionText(reason, context = "") {
 	return `${context}: ${reason instanceof Error ? describeFailure(reason) : message ?? String(reason)}${message === void 0 ? "" : `\n${evidence}`}`;
 }
 window.addEventListener("error", (e) => {
-	if (e.target instanceof Element) {
-		reportPageError(e.error, failureContext(e.target));
+	const failure = failureOf(e);
+	if (failure) {
+		reportPageError(failure.reason, failureContext(failure.element));
 		return;
 	}
 	if (e.message?.startsWith("ResizeObserver loop")) return;

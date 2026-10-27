@@ -36,7 +36,7 @@ import { watchLayers } from "./keyboard/layer-stack.js";
 import { setChildren } from "./dom-children.js";
 import { watchPassageRoot } from "./passages.js";
 import { watchArrivalsIn } from "./arrivals.js";
-import { placesFailure } from "./widget-upgrade.js";
+import { stagesFailure } from "./widget-upgrade.js";
 
 // A stage's theme <style>, kept while its rules are unchanged. A widget stages again
 // whenever its content changes, and a fresh <style> restyles every node in the root,
@@ -78,7 +78,7 @@ export function shadowStage(host, nodes) {
 // An x-shadow widget shows only what its stage holds, so its failure box stands there,
 // and the widget's next stage replaces it.
 function stageFor(host) {
-  placesFailure(host, (box) => {
+  stagesFailure(host, (box) => {
     shadowStage(host, [box]);
     return true;
   });

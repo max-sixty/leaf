@@ -1090,9 +1090,7 @@ _TEXT = {
         lambda v: f"idiom {v['selector']!r} selector cannot be matched: {v['error']}"
     ),
     "idiom-schema": _declared(
-        lambda v: (
-            f"idiom {v['selector']!r} {_json_path(v['path'])}: {v['reason']}"
-        )
+        lambda v: f"idiom {v['selector']!r} {_json_path(v['path'])}: {v['reason']}"
     ),
     "undeclared-language": _declared(
         lambda v: (

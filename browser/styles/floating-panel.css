@@ -502,7 +502,7 @@
     outline: none;
   }
   /* The empty field's words read dimmer than anything written in it: the agent's
-     status, a thread's turn, and, once the caret is in, where the words go. A passing
+     status, whose turn a thread is, and, once the caret is in, where the words go. A passing
      notice is news, so it reads a step brighter until it passes. While the agent works,
      its status carries the sheen that marks work under way (surfaces.css), from its own
      dim face to ink and back. The face is the field's placeholder part, so it holds
@@ -512,6 +512,24 @@
      for a frame, as the notice's weight once did over the status, carrying it sideways. */
   .lf-fp-field leaf-text::part(placeholder) {
     color: var(--lf-fp-quiet);
+  }
+  /* In an open thread, whose turn it is stands beside the leaf in that dim face, the
+     agent's words as the status is at rest, and Reply stands at the field's end with
+     its key, in ink as the press it offers (floating-panel.js, `turnLead`). */
+  .lf-fp-field leaf-text[data-says="turn"] .lf-compose-placeholder > span:last-of-type {
+    margin-inline-start: auto;
+    color: var(--ink);
+  }
+  /* Its key comes only while the panel holds focus (composing/input.js, `enteringHint`),
+     so where keys are shown its room stands without it and Reply never moves as focus
+     comes and goes, standing out of the baseline it has no text for; a coarse pointer
+     is shown no keys (keyboard/bindings.js, `advertisesKeys`). */
+  @media not (pointer: coarse) {
+    .lf-fp-field leaf-text[data-says="turn"] .lf-compose-placeholder > kbd:empty {
+      display: inline-flex;
+      align-self: center;
+      visibility: hidden;
+    }
   }
   .lf-fp-field leaf-text[data-says="notice"]::part(placeholder) {
     color: var(--lf-fp-muted);
@@ -609,15 +627,14 @@
     min-height: 0;
     padding: 0;
   }
-  /* A thread walk's aside keeps the room drafting reserves for the Send corner, so the
-     placeholder doesn't shrink by that corner's width mid-read. */
+  /* An open thread's Reply, standing at the field's end, keeps the room drafting
+     reserves for the Send corner, so it doesn't move by that corner's width as writing
+     starts and ends. */
   .lf-floating-panel:is([data-writing], [data-drafted])
     .lf-fp-field
     .lf-compose-field
     > leaf-text,
-  .lf-fp-field
-    .lf-compose-field
-    > leaf-text:has(.lf-compose-placeholder-aside:not(:empty)) {
+  .lf-fp-field .lf-compose-field > leaf-text[data-says="turn"] {
     --lf-field-end-room: var(--lf-fp-send-room);
   }
   /* Send shows while the user writes words, in every composer's face: the accent arrow,

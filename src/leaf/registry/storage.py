@@ -130,10 +130,14 @@ def _revision_vocabulary(
     from .page import compose_page_registry
 
     record = json.loads(layer)
+    # The selected layer was validated where it was composed, so a revision
+    # declaring nothing over it is not validated again.
+    vocabulary = layer_vocabulary(record)
     return compose_page_registry(
-        layer_vocabulary(record),
+        vocabulary,
         json.loads(declarations) if declarations else {},
         [*layer_widgets(record), *widgets],
+        validated=vocabulary,
     ).registry
 
 

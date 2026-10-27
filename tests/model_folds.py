@@ -131,13 +131,7 @@ def served_reading(
     # the same packages the page would install, without writing an installation.
     registry = {
         **(registry or model_layer()),
-        "$layer": {
-            "generation": "0" * 32,
-            "fingerprint": "0" * 64,
-            "runtime": "0" * 64,
-            "server": "0" * 64,
-            "packages": [],
-        },
+        "$layer": {"generation": "0" * 32, "packages": [], "theme": None},
     }
     data = data or {"version": "0" * 16, "sources": {}}
     door = ModelPage(documents=parsed, registry=registry, data=data)

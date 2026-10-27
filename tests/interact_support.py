@@ -526,9 +526,7 @@ def declare_on_page(page_dir: Path, mutate) -> None:
     from copy import deepcopy
 
     before = {
-        key: value
-        for key, value in load_registry(page_dir).items()
-        if key != "$layer"
+        key: value for key, value in load_registry(page_dir).items() if key != "$layer"
     }
     after = deepcopy(before)
     mutate(after)
@@ -1343,9 +1341,7 @@ def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
 
 
 def _mutated_registry_check(page_dir, mutate):
-    registry = json.loads((page_dir / "registry.json").read_text())
-    mutate(registry)
-    (page_dir / "registry.json").write_text(json.dumps(registry))
+    declare_on_page(page_dir, mutate)
     return check_findings(page_dir)
 
 
@@ -1707,6 +1703,25 @@ def _no_page_outlives_its_test(tmp_path, isolated_session):
     servers")."""
     yield
     retire_test_services(tmp_path, isolated_session)
+
+
+@pytest.fixture(autouse=True)
+def _each_test_composes_its_own_layers():
+    """Each test composes the layers its pages select afresh, as a new process does.
+
+    A process holds each selection's composition for its life
+    (`layer.selected_layer`), keyed by the selection as recorded, and a
+    project-relative package such as `./.leaf` names another directory, with other
+    contents, in every test's `tmp_path`."""
+    from leaf.registry import storage
+
+    yield
+    for held in (
+        layer_model.selected_layer,
+        storage._revision_vocabulary,
+        storage._fingerprint,
+    ):
+        held.cache_clear()
 
 
 def retire_bridge(lock):

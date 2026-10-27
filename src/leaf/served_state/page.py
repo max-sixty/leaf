@@ -12,6 +12,7 @@ from typing import NamedTuple
 from ..activity import WORKING_GRACE
 from ..data import browser_data_from
 from ..files import revision_label
+from ..registry.storage import served_layer
 from .browser import BrowserReading, project_browser_state
 from .context import PageRead, read_page
 
@@ -59,7 +60,11 @@ def read_served_page(
         if active is not None
         else context.registry
     )
-    identity = selected_registry["$layer"] if active is not None else context.layer
+    identity = (
+        served_layer(selected_registry["$layer"])
+        if active is not None
+        else context.layer
+    )
     state = {
         "layer": identity,
         "now": context.now,

@@ -5,7 +5,14 @@ import pytest
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATIONS_PAGE, panel_comment
-from render_cases_layout import SHOT_SRC, SHOTS, ring_faults, ring_rule, rings_drawn
+from render_cases_layout import (
+    SHOT_SRC,
+    SHOTS,
+    current_location_ring,
+    ring_faults,
+    ring_rule,
+    rings_drawn,
+)
 from render_cases_navigation import (
     ADDRESSED_PAGE,
     BINDING_BADGE_PAGE,
@@ -1480,12 +1487,8 @@ def test_a_label_press_keeps_the_controls_current_keyboard_location(browser, ser
     )
     first.focus()
     assert offered_routes(page) == current_location
-    focus_paint = """control => { const s = getComputedStyle(control); return {
-      style: s.outlineStyle, width: s.outlineWidth, color: s.outlineColor,
-      offset: s.outlineOffset
-    }; }"""
-    first_ring = first.evaluate(focus_paint)
-    assert first_ring["style"] == "solid", first_ring
+    rendered(page)
+    assert current_location_ring(page)
 
     bounds = words.bounding_box()
     assert bounds is not None
@@ -1508,7 +1511,7 @@ def test_a_label_press_keeps_the_controls_current_keyboard_location(browser, ser
     # destination remains in place until the label's click transfers focus. The
     # pointer press removes its keyboard cue without moving that location.
     assert not first.evaluate("control => control.matches(':focus')")
-    assert first.evaluate(focus_paint)["style"] == "none"
+    assert current_location_ring(page) is None
     assert not ring_faults(rings_drawn(page), "while the label press holds focus")
     intermediate = page.locator("#label-thread")
     expect(intermediate).to_be_focused()
@@ -1520,7 +1523,7 @@ def test_a_label_press_keeps_the_controls_current_keyboard_location(browser, ser
     assert intermediate.evaluate(thread_paint) == ["none", "none"]
     page.emulate_media(forced_colors="active")
     assert intermediate.evaluate(thread_paint) == ["none", "none"]
-    assert first.evaluate(focus_paint)["style"] == "none"
+    assert current_location_ring(page) is None
     page.emulate_media(forced_colors="none")
     page.mouse.up()
     expect(control).to_be_checked()

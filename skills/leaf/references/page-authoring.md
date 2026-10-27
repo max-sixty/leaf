@@ -127,9 +127,29 @@ surface lead, with supporting reading below it or in later parts.
 Leaf reserves space for its panel at the bottom of the window. Comment markers appear
 in the margin or over their targets. Page CSS needs no extra spacing for either. The reader hides markers with
 `o`, or the leaf's menu → Annotations → Hide annotations, to read what's under one.
-Use page CSS for the task's arrangement or visualization, or a design the user
-requests. Let the content supply the hierarchy; give a card surface a grouping or
-interaction to express.
+
+The vendored theme already gives ordinary content (headings, prose, tables, code and
+widgets) a finished treatment in both colour schemes, so polish it through clearer
+content and hierarchy: a card wrapped around elements the theme already styles adds
+visual weight without meaning. Page
+CSS is for what is particular to the task: its arrangement, a visualization, an
+instrument drawn for the decision, or a design the user asks for. Design that part for
+the judgment it serves, and build it from the theme's colour tokens
+(`package-themes.md`, "Theme colors") and spacing steps, `--sp-1` to `--sp-5`, which
+`density-working` tightens, so it follows both colour schemes and sits with Leaf's
+own surfaces. A card surface earns its place by expressing a grouping or interaction
+the task needs. A box page CSS makes opaque, such as a sticky bar, uses
+`background: var(--lf-ground)` to match its containing surface; cards and playground
+previews set this property for their contents.
+
+When page CSS reveals controls while a container is hovered or focused, include
+`:has([data-lf-control-active])` in the condition if it contains a code block.
+Leaf marks that block while its floating Copy control is hovered or focused, since
+Copy lives outside the block's tree. For example,
+`.card:is(:hover, :focus-within, :has([data-lf-control-active])) .actions`
+keeps a card's actions visible when the pointer or focus moves onto Copy.
+`page-checkpoints.md`, "Page diagnostics", describes the optional source inventory
+for inspecting how much CSS a page adds and where it comes from.
 
 ## Contents navigation
 
@@ -153,27 +173,6 @@ disclosure. Workspaces and root page tabs have their own navigation, and so does
 page of parts, whose column parts each take their own outline.
 
 ## Read the registry
-
-Use Leaf's default styling for ordinary content, with semantic HTML from the registry's
-elements and class idioms. The vendored theme supplies colours, type, spacing,
-headings, tables, code and widgets. Page CSS spaces with its steps, `--sp-1` to
-`--sp-5`, which `density-working` tightens. Polish a page through clearer content and hierarchy
-within that treatment. Reserve page CSS for task-specific arrangement, visualization
-or a particular design the user requests. An added card surface should express a
-grouping or interaction the task needs; wrapping already styled elements just for
-polish adds visual weight without meaning. A box page CSS makes opaque, such as a
-sticky bar, uses `background: var(--lf-ground)` to match its containing surface.
-Cards and playground previews set this property for their contents.
-
-When page CSS reveals controls while a container is hovered or focused, include
-`:has([data-lf-control-active])` in the condition if it contains a code block.
-Leaf marks that block while its floating Copy control is hovered or focused, since
-Copy lives outside the block's tree. For example,
-`.card:is(:hover, :focus-within, :has([data-lf-control-active])) .actions`
-keeps a card's actions visible when the pointer or focus moves onto Copy.
-
-`page-checkpoints.md`, "Page diagnostics", describes the optional source inventory
-for inspecting how much CSS a page adds and where it comes from.
 
 First read the shared author instructions of the page's packages, which can steer
 which entries you pick:

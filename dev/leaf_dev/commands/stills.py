@@ -777,7 +777,9 @@ def composer_caret_motion(page: Page) -> None:
         return motion;
       };
     }""")
-    page.keyboard.insert_text("it's not really a feed as much as a list? I see a feed as")
+    page.keyboard.insert_text(
+        "it's not really a feed as much as a list? I see a feed as"
+    )
 
 
 def composer_space(page: Page) -> None:

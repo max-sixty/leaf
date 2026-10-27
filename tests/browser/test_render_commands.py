@@ -1338,7 +1338,8 @@ def test_the_gate_passes_words_set_close_or_declared_decorative(browser, serve):
     """Display type set solid overlaps its neighbour's line box with no letter near
     another, and a faint numeral the page marks aria-hidden sits behind a label on
     purpose; neither is words drawn on words. Two labels a few pixels apart still are,
-    and so is an opaque aria-hidden word over a label."""
+    and so is an opaque aria-hidden word over a label, words over capitals a stylesheet
+    raised from lowercase, and vertical lines laid along each other."""
     url = serve(
         leaf_page(
             "close words",
@@ -1355,7 +1356,15 @@ def test_the_gate_passes_words_set_close_or_declared_decorative(browser, serve):
             '<p id="lower" style="position:absolute;top:150px;left:400px;margin:0">'
             "One label</p>"
             '<p id="upper" style="position:absolute;top:154px;left:400px;margin:0">'
-            "Another label</p></div>",
+            "Another label</p>"
+            '<p style="position:absolute;top:300px;left:0;margin:0;'
+            'font:80px/1 Arial;text-transform:uppercase">xxxxxx</p>'
+            '<p style="position:absolute;top:297px;left:0;margin:0;font:20px Arial">'
+            "Over the caps</p>"
+            '<p style="position:absolute;top:0;left:700px;margin:0;'
+            'font:40px Arial;writing-mode:vertical-rl">MMMMMM</p>'
+            '<p style="position:absolute;top:140px;left:700px;margin:0;'
+            'font:40px Arial;writing-mode:vertical-rl">WWWWWW</p></div>',
         )
     )
     page = open_page(browser, url)
@@ -1364,6 +1373,8 @@ def test_the_gate_passes_words_set_close_or_declared_decorative(browser, serve):
     assert sorted(sorted([f["words"], f["covered"]]) for f in found) == [
         ["Another label", "One label"],
         ["Cannot proceed", "Decoration"],
+        ["MMMMMM", "WWWWWW"],
+        ["Over the caps", "xxxxxx"],
     ], found
 
 

@@ -476,19 +476,17 @@ registerPageControl({
 // Which blocks and which widgets is the registry's answer both times, so a widget added
 // to the vocabulary diffs on the strength of its declaration: a compound member whose content
 // model is prose is a block of the page's prose the same way a paragraph is.
-// A widget set among the words around it (x-inline), such as a gloss, is part of its
-// paragraph's words rather than a block of its own, or the leaf-blocks-only rule below
-// would skip the paragraph and miss a change to the words around it.
 const diffBlockSel = () =>
   [
     TEXT_BLOCK,
     "aside",
-    ...tagsDeclaring(
-      (e) =>
-        !e["x-inline"] && e["x-owners"] && (e["x-content"] ?? "markup") === "markup",
-    ),
+    ...tagsDeclaring((e) => e["x-owners"] && (e["x-content"] ?? "markup") === "markup"),
     // Preserving widgets contribute their own prose. The leaf-blocks-only rule
-    // below avoids counting nested blocks twice.
+    // below avoids counting nested blocks twice. One set among the words around it
+    // (x-inline), such as a gloss, is part of its paragraph's words instead, or that
+    // rule would skip the paragraph and miss a change to the words around it. A
+    // suggestion's slots stay blocks: the decision retiring one makes the suggestion
+    // opaque, and its paragraph's words would run across it.
     ...tagsDeclaring((e) => !e["x-inline"] && e["x-verbatim"]),
   ].join(",");
 // Opaque: a widget whose upgrade renders its data body, so the text on screen is the

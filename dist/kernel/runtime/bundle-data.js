@@ -8403,7 +8403,7 @@ registerPageControl({
 const diffBlockSel = () => [
 	TEXT_BLOCK,
 	"aside",
-	...tagsDeclaring((e) => !e["x-inline"] && e["x-owners"] && (e["x-content"] ?? "markup") === "markup"),
+	...tagsDeclaring((e) => e["x-owners"] && (e["x-content"] ?? "markup") === "markup"),
 	...tagsDeclaring((e) => !e["x-inline"] && e["x-verbatim"])
 ].join(",");
 const diffOpaqueSel = () => [

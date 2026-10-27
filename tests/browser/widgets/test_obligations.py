@@ -293,8 +293,9 @@ def test_options_laid_across_take_a_widened_obligations_width(browser, serve):
     assert at["obligation"] > 720, at
     assert abs(at["list"] - at["obligation"]) <= 1, at
     assert len(set(at["tops"])) == 1, at
-    # The group's frame takes 2px of its width.
-    assert abs(sum(at["widths"]) - (at["list"] - 2)) <= 2, at
+    # The group's frame takes 2px of its width, and each hairline between cards 1px.
+    hairlines = len(at["widths"]) - 1
+    assert abs(sum(at["widths"]) - (at["list"] - 2 - hairlines)) <= 2, at
 
 
 def test_ideas_shortlist_survives_revision_and_can_reopen(browser, serve):
@@ -1502,10 +1503,7 @@ def test_the_ring_is_one_box_around_the_whole_change(browser, serve):
     # promise.
     marks = page.evaluate("""() => [...document.querySelectorAll('main [data-lf-obligation]')].map(e => {
       return { what: e.id || e.tagName, fragments: e.getClientRects().length,
-               ring: (() => {
-                 const mark = document.querySelector(`.lf-visual-mark[data-for="${e.id}"]`);
-                 return mark && getComputedStyle(mark, '::after').outlineStyle === 'solid';
-               })() };
+               ring: getComputedStyle(e).outlineStyle !== 'none' };
     })""")
     assert [m["what"] for m in marks] == ["sug-refill"]
     assert marks[0]["ring"]

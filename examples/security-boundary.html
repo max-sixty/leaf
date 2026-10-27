@@ -55,9 +55,9 @@
           one known consumer while Git, PATH entries, language startup files, action
           manifests, and setup-generated shims remained open paths into runner work.
         </p>
-        <lf-diagram id="security-before-flow" data-height="77" parts="all">
+        <lf-diagram id="security-before-flow" data-height="449" parts="all">
           <pre>
-flowchart LR
+flowchart TD
   accTitle: Shared checkout crosses the sandbox boundary
   accDescr: Runner setup hands its checkout to the agent, then resumes runner steps and action POSTs on the same writable tree.
   R0[Runner checkout] --> R1[Runner setup]

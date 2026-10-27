@@ -6,7 +6,7 @@ from conftest import (  # noqa: F401
     _playwright,
     browser,
     codex_env,
-    compiled_installation,
+    compiled_checkout,
     compiled_pages,
     dead_pid,
     failing_harness_programs,

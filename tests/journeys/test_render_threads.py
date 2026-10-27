@@ -342,8 +342,8 @@ def test_firefox_paints_the_author_and_words_in_the_same_send_flash(
               cue.finished.then(() => {
                 const head = message.querySelector('.lf-msg-head').getBoundingClientRect();
                 const body = message.querySelector('.lf-msg-body').getBoundingClientRect();
-                // Clear of the card's actions, whose own ground stands beside the
-                // heads of the messages they are level with.
+                // Clear of the card's actions, whose controls stand beside the heads
+                // of the messages they are level with.
                 const actions = root.querySelector('.lf-margin-thread-controls')
                   ?.getBoundingClientRect();
                 const beside = actions && actions.top < head.bottom

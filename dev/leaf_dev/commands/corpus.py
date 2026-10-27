@@ -54,6 +54,7 @@ DEVELOPER_SOURCES = (
     "playwright-trace-gallery",
     "motion",
     "deck",
+    "detail",
     "playground",
 )
 

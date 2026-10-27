@@ -1344,6 +1344,32 @@ def test_the_gate_passes_collapsed_words_that_overlap_when_visible(browser, serv
     assert render_checks_model.evaluate_probe(page, "coveredWords") == []
 
 
+def test_the_gate_passes_words_set_close_or_declared_decorative(browser, serve):
+    """Display type set solid overlaps its neighbour's line box by a few pixels with no
+    letter near another, and a numeral the page marks aria-hidden sits behind a label on
+    purpose; neither is words drawn on words. Two labels a few pixels apart still are."""
+    url = serve(
+        leaf_page(
+            "close words",
+            '<h1>Close words</h1><div style="position:relative;height:200px">'
+            '<p id="kpi" style="font:700 44px/1 sans-serif;margin:0">'
+            '1,204<span style="display:block">requests</span></p>'
+            '<span aria-hidden="true" style="position:absolute;top:0;left:0;'
+            'font-size:120px;opacity:.08">7</span>'
+            '<p id="lower" style="position:absolute;top:150px;left:0;margin:0">'
+            "One label</p>"
+            '<p id="upper" style="position:absolute;top:154px;left:0;margin:0">'
+            "Another label</p></div>",
+        )
+    )
+    page = open_page(browser, url)
+    found = render_checks_model.evaluate_probe(page, "coveredWords")
+
+    assert [{f["words"], f["covered"]} for f in found] == [
+        {"One label", "Another label"}
+    ], found
+
+
 def test_the_gate_passes_a_page_that_carries_a_comment(browser, serve):
     """A comment on a widget's option leaves a page the gate passes
     (`test_every_table_the_theme_sets_honestly_passes_the_gate` gates one): the mark

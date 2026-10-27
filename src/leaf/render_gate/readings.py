@@ -56,7 +56,9 @@ class DevtoolsIssues:
     autofill cannot identify. The headless shell the suite runs raises Blink's issues
     but not the autofill layer's.
     Listening starts before navigation; the reading is taken once the page settles,
-    when the probe that locates a node has loaded."""
+    when the probe that locates a node has loaded. Each is advice: an issue's code
+    names Chrome's lint, and a request that actually fails also reaches the console
+    as an error, which refuses the page."""
 
     def __init__(self, page):
         self._cdp = page.context.new_cdp_session(page)
@@ -112,6 +114,7 @@ class DevtoolsIssues:
                     "devtools-issue",
                     node["at"] if node else "",
                     {"issue": issue["code"], "details": details},
+                    severity="advice",
                 )
             )
         return list(dict.fromkeys(found))

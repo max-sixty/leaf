@@ -174,11 +174,11 @@ positions. A shared page scroll lets content grow together; separate regions hel
 when the task needs independent positions kept in view. Live updates should preserve
 the reader's place and input as content grows.
 
-For a live stream, set `data-bound` to the end where new entries arrive:
-`data-bound="end"` for a list that grows downward, which follows the last line while
-the user is at the bottom, and `data-bound="start"` for a newest-first list. Don't make
-a box scroll vertically with page CSS: Leaf keeps no reading position in a scroll box
-it didn't make.
+Make a box scroll vertically with `data-bound` rather than `overflow` alone: Leaf
+keeps the reader's place in a bounded box across revisions, and in no other scroller.
+`data-bound="start"` opens at the top, and `data-bound="end"`, for a stream that grows
+downward, follows the newest entry while the user is at the end. The box takes the
+height page CSS gives it, as `max-block-size` or `--lf-bound`, and 28rem otherwise.
 
 `data-width` widens one block, overriding its widget's default. Put it on the block
 itself, such as a `table` or `lf-code`, and write no CSS that copies its widths. It

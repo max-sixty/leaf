@@ -1556,14 +1556,15 @@ for (const [tag, marked] of [["count-note", false], ["marked-note", true]])
         )
     )
 
-    failures = render_gate_model.render_version(
+    reading = render_gate_model.render_version(
         browser,
         serve(
             source,
             packages=(*EXAMPLE_PACKAGES, "./.leaf"),
             media={src: SHOTS["before"]},
         ),
-    ).failures
+    )
+    failures = reading.failures
 
     def reported(code, at=""):
         return [f for f in failures if f.code == code and at in f.at]
@@ -1583,7 +1584,7 @@ for (const [tag, marked] of [["count-note", false], ["marked-note", true]])
         "Escalated",
     }, failures
     # Delivery serves media under the revision, so the issue names that URL.
-    issues = reported("devtools-issue")
+    issues = [f for f in reading.advice if f.code == "devtools-issue"]
     # Chromium may emit the same issue for a frame more than once. The gate's
     # contract is which owned source nodes receive it, not CDP's event count.
     assert {(f.scheme, f.at, f.values["issue"]) for f in issues} == {

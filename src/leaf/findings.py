@@ -635,7 +635,9 @@ _TEXT = {
         f"{at} stands {v['past']}px outside the {v['host']} it is part of"
     ),
     "past-column": lambda at, v: (
-        f"{at} is set {v['past']}px past the column, out in the margin"
+        f"{at} is set {v['past']}px past the column, out in the margin; to give it"
+        ' more room, mark it data-width="wide" or "available" rather than sizing it'
+        " past the column"
     ),
     "outside-frame": lambda at, v: (
         f"{at} stands {v['past']}px outside the {v['frame']} that frames it — declare"
@@ -774,8 +776,9 @@ _TEXT = {
         f" bodies, {v['mains']} mains, and {v['direct']} direct body mains"
     ),
     "outside-main": lambda at, v: (
-        "paintable authored content must stay inside the one <main> directly under"
-        f" <body>; found {_json(_outside_main(v['content']))}"
+        "the page's content goes inside the one <main> directly under <body>, which"
+        " Leaf reads as the page; move these inside it (a grid or header of the"
+        f" page's own goes on or in <main>): {_json(_outside_main(v['content']))}"
     ),
     "unclosed": lambda at, v: (
         "unclosed tags: "
@@ -1570,7 +1573,11 @@ _TEXT = {
     ),
     "dependency-escapes": _captured(lambda v: "dependency escapes the page"),
     "dependency-outside-page": _captured(
-        lambda v: "dependency escapes /page/ and /media/"
+        lambda v: (
+            "a page's own files (stylesheets, scripts, images, data) live under page/"
+            " beside index.html, or media/; move the file there and name it by that"
+            " path, such as page/style.css"
+        )
     ),
     "dependency-symlink": _captured(
         lambda v: "dependency escapes its source directory through a symlink"
@@ -1580,16 +1587,25 @@ _TEXT = {
     ),
     "dependency-type": _captured(lambda v: "unsupported dependency MIME type"),
     "module-not-local": _captured(
-        lambda v: "a module import must name a relative or absolute local URL"
+        lambda v: (
+            "a bare module name has no import map to resolve it; import a file under"
+            " page/ by its path, or a package by its full http(s) URL (such as"
+            " https://esm.sh/NAME)"
+        )
     ),
     "module-type": _captured(
         lambda v: "a module dependency must be JavaScript or JSON"
     ),
     "module-outside-page": _captured(
-        lambda v: "module imports may use /page/ or a public layer entry point"
+        lambda v: (
+            "a module the page imports lives under page/, is a public entry point"
+            " such as /runtime/widget-api.js, or is an http(s) URL"
+        )
     ),
     "script-not-utf8": _captured(lambda v: "JavaScript is not UTF-8"),
-    "script-outside-page": _captured(lambda v: "authored scripts must be under /page/"),
+    "script-outside-page": _captured(
+        lambda v: "a page's own scripts live under page/; move it there"
+    ),
     "stylesheet-type": _captured(
         lambda v: "a stylesheet dependency must have CSS MIME type"
     ),

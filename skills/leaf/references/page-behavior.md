@@ -15,10 +15,31 @@ When you change the registry or JavaScript, the page reloads. Leaf restores read
 position, unsent drafts, and focus and control state for elements that keep their id and
 tag, but module state is lost.
 
-Page modules follow `module-authoring.md`, "What a behavior module owes", whose rules
-keep page controls working after a reconnect and inside quoted threads.
-For text that changes during an interaction, read `page-layout.md`, "Space for
-changing text".
+## A page script
+
+A page script is ordinary JavaScript over the page's DOM: it queries elements, listens,
+draws with the DOM, lit-html or a canvas, animates with CSS or the Web Animations API,
+and builds plain elements that page CSS styles. Leaf asks four things of it:
+
+- Send whatever the agent must hear through a widget: a playground's contributor or
+  actions (the playground package's author instructions), `lf-options`, `lf-draft`, or
+  a page widget whose controller records it (`module-state.md`, "The widget
+  controller"). State the script keeps itself, in memory or `localStorage`, never
+  reaches the log.
+- Leaf takes printed letter keys before the page's listeners, for its own walks and
+  commands. Give the interface keys of its own with `commands()` (`module-input.md`,
+  "Commands and keyboard routes"); arrows, Enter and Escape reach the page first.
+- A revision that changes only content patches the page in place without running
+  scripts again, so an element it adds or replaces has none of the listeners the script
+  attached. Listen on `document` or a stable ancestor, or set up again when
+  `PAGE_INTERFACE` fires (`module-authoring.md`, "Startup and presentation").
+- Animate from JavaScript through `motion()`, which skips the animation for a user who
+  asked for less motion; CSS motion already stops for them.
+
+Reach a widget's methods with `whileInterfaceConnected` (`module-authoring.md`,
+"Startup and presentation"). The rest of `/runtime/widget-api.js` is there where its
+helpers save work; `module-authoring.md` is for writing widgets. For text that changes
+during an interaction, read `page-layout.md`, "Space for changing text".
 
 A page module that shows the obligations in each card or section of its own layout reads them
 from Leaf (`module-reading.md`, "Reading obligations and the On lists").

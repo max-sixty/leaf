@@ -122,6 +122,10 @@ export function coveredWords({
       const b = runs[j];
       if (a.el === b.el || a.el.contains(b.el) || b.el.contains(a.el)) continue;
       if (holdLabelLines && a.label && a.label === b.label) continue;
+      // Words the page declares decorative, such as a faint numeral set behind a
+      // label, are drawn under other words on purpose.
+      if (a.el.closest("[aria-hidden=true]") || b.el.closest("[aria-hidden=true]"))
+        continue;
       // SVG renderers can draw a stroked copy directly behind a filled label
       // to make its letters legible. They are one painted word, not two words
       // covering each other; keep comparing either copy with every other run.
@@ -143,7 +147,12 @@ export function coveredWords({
         Math.min(a.box.right, b.box.right) - Math.max(a.box.left, b.box.left);
       const down =
         Math.min(a.box.bottom, b.box.bottom) - Math.max(a.box.top, b.box.top);
-      if (across <= 2 || down <= 2) continue;
+      // A run's box is its font's ascent to descent, taller than its letters, so
+      // display type set solid (line-height near 1) overlaps the next line's box by
+      // a few pixels with no letter near another. A quarter of the shorter run's
+      // height is past any font's leading and well inside any real collision.
+      const slack = Math.max(2, Math.min(a.box.height, b.box.height) / 4);
+      if (across <= 2 || down <= slack) continue;
       found.push({
         code: "covered-words",
         at: at(a.el),

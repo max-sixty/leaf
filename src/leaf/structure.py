@@ -3,7 +3,7 @@
 import hashlib
 import re
 from collections.abc import Mapping
-from functools import cached_property
+from functools import cached_property, lru_cache
 from html import escape
 
 import turbohtml
@@ -196,8 +196,13 @@ def element_attrs(element) -> dict:
     }
 
 
+@lru_cache(maxsize=4096)
 def _local_resource(value: str) -> tuple[str, str] | None:
-    """Read an attribute candidate; arbitrary prose need not be a valid URL."""
+    """Read an attribute candidate; arbitrary prose need not be a valid URL.
+
+    A pure reading of the value, asked of every attribute a document carries, so it
+    is kept by value: a layer's examples and a page's revisions repeat the same
+    attributes, each of which costs two WHATWG parses."""
     try:
         return resource_reference(value, "/index.html")
     except ReferenceError:

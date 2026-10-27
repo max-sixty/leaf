@@ -171,6 +171,9 @@ export function paintStand(box = null) {
   root.className = "lf-ui lf-target-paint lf-paint-stand";
   root.setAttribute("aria-hidden", "true");
   root.style.position = "fixed";
+  // A contour spends its stroke outside the target. Let that stroke survive when
+  // the target meets a scrollport edge; drawings and chips use stands without a box.
+  if (box) root.style.setProperty("--lf-paint-outset", "var(--focus-ring-w)");
   const carrier = document.createElement("div");
   carrier.className = "lf-paint-carrier";
   if (box) carrier.append(box);
@@ -251,8 +254,12 @@ export function standBox(box, rect, stood, anchor, at = anchor && anchorBox(anch
   });
 }
 
-// A stand over one target, its box anchored to that target where the anchor reaches.
-// Answers the stand and the anchor, read as `placed` was, for what stands beside it.
+// All target contours (Aim brackets, references and full focus) use the target's
+// full box and radius. A cut clips that perimeter rather than inventing corners at
+// the cut: percentage radii retain their shape, and the browser carries the paint
+// with scrolling.
+// SVG targets retain their drawn contour, whose stroke straddles the path, rather
+// than acquiring rectangular brackets. Answers the stand and anchor for its label.
 export function standOver(stand, placed, borderRadius) {
   const anchor = anchoredBy(placed.surface, stand.root);
   const at = anchor && anchorBox(anchor);

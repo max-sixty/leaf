@@ -6,6 +6,11 @@
    - Each turn is one MessageView, which shows whether its version is unread and
      reports its exposure to read tracking (read.js), so a reply counts as read the same
      way in every reader.
+   - A message says its age only where that age, as displayed, changes from the
+     message shown just above it, and the first message always says it: a thread
+     written in one sitting reads one age, and one spanning days marks each change.
+     The user chose that on 26 October 2026 over an age after every author name,
+     which repeated one age down a thread written at once ("72d ago" four times).
    - A summary the agent wrote folds the turns it covers behind its checkpoint.
      Completed progress disappears when its answer shows, including a streaming answer.
      Each pending progress run stands behind a dim line showing its latest step
@@ -28,16 +33,26 @@
      nesting such a container in a `repeat` inside the transcript's `repeat`, which
      rebuilt a gathered message's row.
    - An explicit summary that arrives over a message the user is on or reads stays
-     open. Completed progress disappears even if the reader had opened it. */
+     open. Completed progress disappears even if the reader had opened it.
+   - A message that leaves the thread while drawn, as a reply the log refuses does,
+     folds away where it stood (motion.js, `foldBlock`). It leaves the transcript's
+     messages at once: the fold keeps only its pixels, inert and without the names a
+     reader finds a message by, until they have collapsed. Where no fold plays, under
+     reduced motion, before presentation or in an engine without intrinsic-size
+     interpolation, it goes in the same frame. */
 import { setChildren } from "../dom-children.js";
 import { focusDestination, focused } from "../focus.js";
-import { html, render, nothing } from "/vendor/browser-runtime.js";
+import { html, render, nothing } from "/runtime/framework.js";
 import { MessageView } from "./messages.js";
 import { keeps, keepsHidden } from "../keeps.js";
 import { renderMarkdown } from "../markdown.js";
 import { summaryRanges, withPendingProgress, workingPlace } from "./summary-ranges.js";
 import { growthAfterIsSeen, growthIsSeen, seenRect } from "../geometry.js";
 import { scrollThreadIntoView } from "./reply-landing.js";
+import { foldBlock, motionPlays } from "../motion.js";
+
+// The names a reader finds a drawn message by (messages.js), which a folding one gives up.
+const MESSAGE_NAMES = ["data-message", "data-event", "data-attempt"];
 
 // A progress run's face: its latest step, drawn as a message is, with who wrote it and
 // when at its head, but dimmed, and under a passing sheen while it is the working
@@ -100,6 +115,9 @@ export class Transcript {
   #pendingCovers = new Map();
   #pendingOpen = false;
   #checkpoints = new Map();
+  // Each message folding away, by its key: its node, the names it gave up, and the
+  // fold once it plays.
+  #folding = new Map();
   #expandedSummaries = new Set();
   #id = ++nextTranscriptId;
   // Counts the names this transcript gives: a covered message's id, a fold's anchors.
@@ -144,6 +162,14 @@ export class Transcript {
   // The node a message stands in.
   messageNode(key) {
     return this.#messages.get(key)?.node ?? null;
+  }
+
+  // The drawn messages `model` no longer holds, which leave as it is presented.
+  leaving(model) {
+    const wanted = new Set(model.messages.map(({ key }) => key));
+    return [...this.#messages].flatMap(([key, { node }]) =>
+      wanted.has(key) || !node.isConnected ? [] : [node],
+    );
   }
 
   // The checkpoint a summary stands in.
@@ -234,7 +260,24 @@ export class Transcript {
     }
     this.#model = model;
     const wanted = new Set(model.messages.map((message) => message.key));
-    for (const [key, view] of this.#messages) if (!wanted.has(key)) view.retire();
+    for (const key of [...this.#folding.keys()])
+      if (wanted.has(key)) this.#endFold(key, false);
+    for (const [key, view] of this.#messages) {
+      if (wanted.has(key)) continue;
+      const { node } = view;
+      if (
+        motionPlays() &&
+        !this.#folding.has(key) &&
+        node.parentNode === this.node &&
+        node.checkVisibility()
+      ) {
+        const names = MESSAGE_NAMES.map((name) => [name, node.getAttribute(name)]);
+        for (const [name] of names) node.removeAttribute(name);
+        node.inert = true;
+        this.#folding.set(key, { node, names, played: null });
+      }
+      view.retire();
+    }
     // A resolved thread holds no work in hand, so its progress stands as messages.
     const summarized = summaryRanges(model.messages, model.summaries);
     const describedRanges = model.resolved
@@ -283,6 +326,31 @@ export class Transcript {
     const lead =
       rangeState.find((range) => range.kind === "message")?.message ??
       model.messages[0];
+    // The working message stands after the range holding the last message said before
+    // its words: as the face of that range where it is a progress run, else as a face
+    // of its own.
+    const workingAt = model.working
+      ? workingPlace(rangeState, model.working.after)
+      : -1;
+    // The messages that say their age: the first, and each whose age, as the reader
+    // reads it, differs from the message shown just above it. A checkpoint or a run's
+    // face between them parts them, so the message after one says its age too.
+    const dated = new Set();
+    let above = null;
+    for (const [at, range] of rangeState.entries()) {
+      const shown =
+        range.kind === "message"
+          ? [range.message]
+          : range.expanded
+            ? range.messages
+            : [];
+      if (range.kind !== "message") above = null;
+      for (const message of shown) {
+        if (message.age !== above) dated.add(message.key);
+        above = message.age;
+      }
+      if (range.summary?.pending || at === workingAt) above = null;
+    }
     for (const message of model.messages) {
       let view = this.#messages.get(message.key);
       if (!view)
@@ -292,6 +360,7 @@ export class Transcript {
         );
       view.present(message, {
         arrived,
+        dated: dated.has(message.key),
         headerControls: notice && message === lead ? notice : nothing,
       });
       // A reply still streaming at the thread's end grows at its foot as its words
@@ -314,12 +383,6 @@ export class Transcript {
     const checkpoints = new Map();
     const faces = new Map();
     const transcript = [];
-    // The working message stands after the range holding the last message said before
-    // its words: as the face of that range where it is a progress run, else as a face
-    // of its own.
-    const workingAt = model.working
-      ? workingPlace(rangeState, model.working.after)
-      : -1;
     let working = null;
     const facing = new Map();
     const face = (node, reading, controls) => {
@@ -384,7 +447,21 @@ export class Transcript {
       else node.style.removeProperty("--lf-fold-foot");
     }
     keeps(this.node, "data-lf-reflow", appends ? "append" : null);
-    setChildren(this.node, transcript);
+    setChildren(this.node, this.#withFolds(transcript));
+    for (const [key, fold] of this.#folding) {
+      if (fold.played) continue;
+      fold.played = foldBlock(fold.node);
+      if (!fold.played) {
+        this.#endFold(key, true);
+        continue;
+      }
+      fold.played.finished.then(
+        () => {
+          if (this.#folding.get(key) === fold) this.#endFold(key, true);
+        },
+        () => {},
+      );
+    }
     if (!currentLocationToggle || currentLocationToggle.isConnected) return null;
     /** @type {(id: string) => HTMLElement | null} */
     const toggleFor = (id) =>
@@ -397,6 +474,36 @@ export class Transcript {
         .map(toggleFor)
         .find(Boolean) ?? null
     );
+  }
+
+  // `nodes` with each folding message where it stands now: after the last node before
+  // it that stays, else first.
+  #withFolds(nodes) {
+    if (!this.#folding.size) return nodes;
+    const folding = new Set([...this.#folding.values()].map(({ node }) => node));
+    const staying = new Set(nodes);
+    const after = new Map();
+    let anchor = null;
+    for (const child of this.node.children)
+      if (folding.has(child)) after.set(anchor, [...(after.get(anchor) ?? []), child]);
+      else if (staying.has(child)) anchor = child;
+    return [
+      ...(after.get(null) ?? []),
+      ...nodes.flatMap((node) => [node, ...(after.get(node) ?? [])]),
+    ];
+  }
+
+  // A fold ends with its node `removed`, else, its message having come back, with the
+  // node standing again as it was. Either way the node is as its view drew it, since
+  // the view may draw it again before the reader commits.
+  #endFold(key, removed) {
+    const fold = this.#folding.get(key);
+    this.#folding.delete(key);
+    if (removed) fold.node.remove();
+    else fold.played?.cancel();
+    fold.node.inert = false;
+    for (const [name, value] of fold.names)
+      if (value !== null) fold.node.setAttribute(name, value);
   }
 
   // A progress run's face (`workingView`), retained while its run stands, and named
@@ -513,6 +620,10 @@ export class Transcript {
   retire() {
     this.#stopWorkingExposure?.();
     this.#stopWorkingExposure = null;
+    for (const [key, { played }] of this.#folding) {
+      played?.cancel();
+      this.#endFold(key, true);
+    }
     for (const view of this.#messages.values()) view.retire();
   }
 }

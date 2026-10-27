@@ -23,7 +23,7 @@ Prepare a separate directory holding the replacement `index.html` and whole `pag
 tree, with any media it uses already in the live page, then publish:
 
 ```sh
-leaf page stamp <page> --from-directory <candidate> --if-source <digest> --text 'Updated the page'
+leaf page stamp <page> --replace <candidate> <digest> --text 'Updated the page'
 ```
 
 A successful stamp adds its version note while preserving the existing event history
@@ -81,9 +81,9 @@ When a revision removes a passage a thread quotes, the thread moves to the survi
 section, or is detached if the section is gone too. When you know where the subject
 went, name the replacement passage (`threads.md`, "Preserve revised anchors").
 
-A list of work holds what is still to do. When an item of a plan, backlog or list of
+A work list shows unfinished items. When an item of a plan, backlog or list of
 problems is done, cut it down to its outcome and move it to the finished work,
-collapsed after the open work, such as a `<details>` at the foot or a tab of its own.
+collapsed after the open work, such as a `<details>` at the bottom or a separate tab.
 A widget that tracks completion itself, such as a board or task list, keeps its
 members. Remove material the current state replaces, such as a concluded run or a
 superseded section; keep older material, collapsed, only where current work needs its
@@ -91,16 +91,25 @@ context. Keep deferred work in the list with enough context to resume it.
 
 A decision the user answered and you have acted on becomes a record. Give its
 `lf-options` group the `settled` attribute, which collapses it to the pick, and say
-beside it what came of the choice. Keep the result and its evidence in the current
-reading flow while the reader still needs them (`page-authoring.md`, "Reading cost");
-retire the superseded interaction as finished work. Pose anything still worth asking
-as a new decision with new ids. Use `$restated` to withdraw the decision and ask again.
+beside it what you did about the choice. Anything the choice sets in motion that
+hasn't happened yet reads as decided, not under way. Keep the result and its evidence
+in the current reading flow while the reader still needs them (`page-authoring.md`,
+"Reading cost"); retire the superseded interaction as finished work. Pose anything
+still worth asking as a new decision with new ids. Use `$restated` to withdraw the
+decision and ask again.
 Don't mark a decision `settled` until you have finished applying it, and keep a section
 open while the user is still commenting there.
 
-The user reads threads to learn where their input stands. When a revision settles or
-lands what an open thread discusses, reply in that thread with what happened and where
-the page shows it, so the thread is not left looking unanswered.
+A playground whose submitted configuration you have applied becomes a record too.
+Author each control at the chosen value, so the preview, Reset and the page's account
+of the choice agree, and keep it and its evidence open beside what came of the choice,
+since the user reads the record against that evidence. The user can still explore from
+it, and Reset brings them back to the record.
+
+The user reads threads to find out how their input was addressed. When a revision
+resolves the question or completes the work discussed in an open thread, reply there
+with the result and where the page shows it, so the thread is not left looking
+unanswered.
 
 Before handing the page back, check that its status, open to-dos and outstanding work
 agree with what you tell the user.

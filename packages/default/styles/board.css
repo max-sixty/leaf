@@ -258,11 +258,18 @@
     clear: right;
   }
 }
+/* The prose after the title starts on its next line in whatever shape the author wrote
+   it. A title margin was trimmed only where no element followed it (the frame's trim
+   reads a plain sentence's title as the card's last block), and a paragraph's margin
+   set its prose 13px lower than a sentence's. */
 :scope:is(lf-card) > strong {
   display: block;
   font-weight: 600;
   line-height: 1.4;
-  margin: 0 0 2px;
+  margin: 0;
+}
+:scope:is(lf-card) > strong + p {
+  margin-block-start: 0;
 }
 /* Enter grabs the grip and arrows move the card. Its type comes from .lf-ui;
    the box and title float read the card's allocation above. A unit line-height

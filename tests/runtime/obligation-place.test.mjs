@@ -91,3 +91,55 @@ test("a region holds the live widget obligations whose source is it or stands un
     document.body.replaceChildren();
   }
 });
+
+test("a to-do on the user stands at its subject, holding it but no region", () => {
+  document.body.innerHTML =
+    '<main><section id="notes"><h2>Notes</h2><div id="pick"><button>Beta</button></div></section></main>';
+  const todo = (id, subject) => ({
+    id,
+    thread: null,
+    message: null,
+    status: "open",
+    source: { kind: "todo", id, subject },
+    prompt: { text: id, target: subject.id ?? null },
+  });
+  const pick = {
+    id: "widget:pick",
+    thread: null,
+    message: null,
+    status: "open",
+    source: { kind: "widget", id: "pick" },
+    prompt: { target: "pick" },
+  };
+  const notes = todo("t-notes", { kind: "element", id: "notes" });
+  const onPick = todo("t-pick", { kind: "widget", id: "pick" });
+  const whole = todo("t-page", { kind: "page" });
+  const onThread = todo("t-thread", { kind: "thread", id: "th-1" });
+  // As the inventory lists them: widgets' obligations, then the user's tasks.
+  const items = [pick, notes, onPick, whole, onThread];
+  const at = (id) => document.getElementById(id);
+  try {
+    assert.equal(obligationPlace(notes, items).node, at("notes"));
+    assert.equal(obligationPlace(notes, items).source, null);
+    assert.equal(obligationPlace(onThread, items).node, null);
+    // With no top-level heading, the page's head is its first heading.
+    assert.equal(obligationPlace(whole, items).node, document.querySelector("h2"));
+    assert.equal(obligationHolding(items, at("notes")), notes);
+    // On a widget a to-do is on, the widget's own question holds the user.
+    assert.equal(obligationHolding(items, at("pick").firstElementChild), pick);
+    assert.equal(obligationHolding([onPick], at("pick")), onPick);
+    // The section's heading is the page's head, inside the notes' to-do.
+    assert.equal(obligationHolding(items, document.querySelector("h2")), whole);
+    // A region counts what its widgets ask, which a to-do is not.
+    assert.deepEqual(
+      obligationsIn(at("notes"), items).map((held) => held.id),
+      ["widget:pick"],
+    );
+    document.querySelector("main").insertAdjacentHTML("afterbegin", "<h1>Release</h1>");
+    assert.equal(obligationPlace(whole, items).node, document.querySelector("h1"));
+    document.querySelector("main").innerHTML = '<p id="lead">Plain words.</p>';
+    assert.equal(obligationPlace(whole, items).node, at("lead"));
+  } finally {
+    document.body.replaceChildren();
+  }
+});

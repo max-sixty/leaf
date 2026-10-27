@@ -762,6 +762,24 @@ def page_comment_resting(page: Page) -> None:
     )
 
 
+def composer_caret_motion(page: Page) -> None:
+    """A line-end caret in the last frame of the comment box's growth."""
+    composer_empty(page)
+    settle(page)
+    page.evaluate("""() => {
+      const animate = Element.prototype.animate;
+      Element.prototype.animate = function (...args) {
+        const motion = animate.apply(this, args);
+        if (motion.timeline === document.timeline) {
+          motion.pause();
+          motion.currentTime = Number(motion.effect.getTiming().duration) - 0.01;
+        }
+        return motion;
+      };
+    }""")
+    page.keyboard.insert_text("it's not really a feed as much as a list? I see a feed as")
+
+
 def composer_space(page: Page) -> None:
     """A narrow comment ending in a space, beside Send."""
     composer(page)
@@ -2368,6 +2386,12 @@ STATES = (
         "triage-board",
         composer_resting,
         scheme="dark",
+        region=".lf-fab-bar",
+    ),
+    State(
+        "triage-composer-caret-motion",
+        "triage-board",
+        composer_caret_motion,
         region=".lf-fab-bar",
     ),
     State("triage-composer-space", "triage-board", composer_space, viewport=(362, 900)),

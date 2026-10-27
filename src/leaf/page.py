@@ -37,7 +37,14 @@ def instruction_selection(
     while pending:
         name = pending.pop()
         if name not in declarations:
-            raise Refused(f"unknown instructions vocabulary entry {name!r}")
+            # Authors land here asking for a Layout class, which the page's CSS
+            # provides and page-layout.md describes, outside the registry.
+            raise Refused(
+                f"unknown instructions vocabulary entry {name!r}: the page's registry"
+                " declares no element or idiom by that name (its keys list the"
+                " vocabulary); Layout classes such as `layout-tiles` aren't entries,"
+                " and page-layout.md describes them"
+            )
         if name in selected_entries:
             continue
         selected_entries.add(name)

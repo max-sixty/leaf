@@ -209,8 +209,10 @@ def _squeezed(at: str, v: dict) -> str:
             if widest["wraps"]
             else f" beside {widest['name']} at {widest['width']}px"
         )
-        + " — an identifier in <code> breaks inside its cell; a column fewer, or a"
-        " shorter word in the widest, gives the rest the measure"
+        + " — every column stays in reach, so what this costs the reader is the"
+        " wrapped cells' words a few to a line; an identifier in <code> breaks inside"
+        " its cell, and a shorter word in the widest column gives the rest the measure,"
+        " while hiding a column at this width takes its facts from the reader"
     )
 
 
@@ -434,6 +436,24 @@ def _listed(findings: list[dict]) -> str:
 # words are what the console said; read by the gate in a color scheme, beside findings
 # of its own, it says "console: " first.
 _TEXT = {
+    "invalid-output": lambda at, v: (
+        f"{at} ("
+        + "; ".join(
+            f"{owner} {part}"
+            for part, owner in (
+                ("implementation", v["owner"]),
+                ("output declaration", v.get("declaration_owner")),
+                ("contract", v.get("contract_owner")),
+            )
+            if owner is not None
+        )
+        + f"): {v['error']}"
+        if any(
+            v.get(key) not in (None, v["owner"])
+            for key in ("declaration_owner", "contract_owner")
+        )
+        else f"{at} ({v['owner']} producer): {v['error']}"
+    ),
     # What the browser's console and the page's window reported.
     "console-error": lambda at, v: (
         f"{v['text']} — {v['url']}" if v.get("url") else v["text"]
@@ -467,6 +487,12 @@ _TEXT = {
     "typing-moved": lambda at, v: (
         f"typing in {placed(v['field'])} moved {placed(v['node'])}{_by(v)};"
         f" the key found {_box(v['found'])}, the frame painted {_box(v['painted'])}"
+        f"{_shift_evidence(v)}"
+    ),
+    "gesture-scrolled": lambda at, v: (
+        f"a scroll during the {v['input']} on {placed(v['node'])} moved it{_by(v)};"
+        " only a gesture that takes the user somewhere may, as its command's"
+        " `travels` or the history entry it adds says"
         f"{_shift_evidence(v)}"
     ),
     "shift-watch-missed": lambda at, v: (
@@ -587,6 +613,13 @@ _TEXT = {
         " widget's own styles or module must be showing it, and no comment can"
         " anchor to its words"
     ),
+    "read-as-changed": lambda at, v: (
+        f"{at} reads as changed when this version is compared with itself: a module"
+        f" wrote {_json(v['words'])} there without marking it, so every version"
+        " comparison marks it though nobody changed it. Mark the element the module"
+        " fills with generatedElement(node, {says}), or generated({says}) in a"
+        " template, from /runtime/widget-api.js"
+    ),
     "render-threw": lambda at, v: (
         f"{at} render() threw when the complete state was rendered a second time:"
         f" {v['error']}"
@@ -668,13 +701,15 @@ _TEXT = {
         " (authoring-evidence.md, Interactive and visual evidence)"
     ),
     "unreserved-height": lambda at, v: (
-        f"{at} draws {v['drawn']}px tall where its first paint "
+        f"{at} first paints {v['first']}px tall, "
         + (
-            "reserves no height"
+            "reserving no height"
             if v["reserved"] is None
-            else f"reserves {v['reserved']}px"
+            else f"reserving {v['reserved']}px"
         )
-        + f', so what follows it moves when it is drawn: state data-height="{v["drawn"]}"'
+        + f", and draws {v['drawn']}px tall, so what follows it moves"
+        f" {abs(v['drawn'] - v['first'])}px when it is drawn:"
+        f' state data-height="{v["drawn"]}"'
     ),
     # The page's own code, run once in the browser.
     "page-report": lambda at, v: v["text"],
@@ -896,6 +931,35 @@ _TEXT = {
     "output-contract": lambda at, v: (
         f"{_line(at, v)}: input {v['input']!r} requires output {v['output']!r} of {v['target']!r} with contract {v['contract']!r}"
     ),
+    "shows-outside": lambda at, v: (
+        f'{_line(at, v)}: {v["attr"]}="{v["target"]}" names a widget outside its own'
+        " document; a view shows answers in the page or message it stands in"
+    ),
+    "shows-no-answer": lambda at, v: (
+        f'{_line(at, v)}: {v["attr"]}="{v["target"]}" names a widget whose answer no'
+        " view can show: its x-awaits value verb records neither a value nor members"
+        " an x-awaits key names"
+    ),
+    "shows-without-open": lambda at, v: (
+        f"{_line(at, v)}: every <{v['place']}> beside its own has a `{v['value_attr']}`,"
+        f" so none can hold it while {v['target']}'s answer names no value; add a"
+        f" <{v['place']}> without `{v['value_attr']}`"
+    ),
+    "shows-untakeable": lambda at, v: (
+        f"{_line(at, v)}: {v['target']} has no answer {v['value']!r}, which a"
+        f" <{v['place']}> beside it holds"
+    ),
+    "shown-elsewhere": lambda at, v: (
+        f"{_line(at, v)}: stands in a <{v['place']}> holding "
+        + (f"{v['stands']!r}" if v["stands"] else "no value")
+        + f", but {v['target']}'s answer is "
+        + (
+            f"{v['answer']!r}; move it to the <{v['place']}> whose"
+            f" `{v['value_attr']}` is {v['answer']!r}"
+            if v["answer"]
+            else f"no value; move it to a <{v['place']}> without `{v['value_attr']}`"
+        )
+    ),
     "outside-reference": lambda at, v: (
         f'{_line(at, v)}: {v["attr"]}="{v["target"]}" names an element outside its'
         " own document, which it fills"
@@ -1077,6 +1141,7 @@ _TEXT = {
     "invalid-extensions": _declared(
         lambda v: f"registry extensions are invalid: {v['reason']}"
     ),
+    "example-data": _declared(lambda v: f"x-example-data is invalid: {v['reason']}"),
     "invalid-example": _declared(
         lambda v: f"x-example is invalid: {Finding.loads(v['finding'])}"
     ),
@@ -1277,6 +1342,23 @@ _TEXT = {
     "awaits-value": _declared(
         lambda v: "x-awaits value must name a user-written x-state verb"
     ),
+    "awaits-key": _declared(
+        lambda v: (
+            f"x-awaits key `{v['key']}` needs an attribute-record value verb whose"
+            f" members declare `{v['key']}` in x-unique for this widget"
+        )
+    ),
+    "shows-reference": _declared(
+        lambda v: (
+            f"x-shows attr `{v['attr']}` must be an x-refers relation to any element"
+        )
+    ),
+    "shows-value": _declared(
+        lambda v: (
+            f"x-shows value `{v['attr']}` is no attribute of "
+            + ", ".join(f"<{owner}>" for owner in v["owners"])
+        )
+    ),
     "awaits-retired": _declared(
         lambda v: (
             f"x-awaits retires with `{v['flag']}`, but its `when` does not"
@@ -1432,16 +1514,27 @@ _TEXT = {
     ),
     "deciding-verbs": _declared(
         lambda v: (
-            f"x-state verbs {_json(v['verbs'])} all declare detail field"
-            " `outcome`, a reserved name only one deciding verb may carry"
+            f"x-state verbs {_json(v['verbs'])} all declare `decides: true`;"
+            " only one verb may decide which members retire"
         )
     ),
     "deciding-verb": _declared(
         lambda v: (
-            f"x-state verb `{v['verb']}` declares detail field `outcome`, a"
-            " reserved name: the deciding verb folds by widget, is written by the user,"
+            f"x-state verb `{v['verb']}` declares `decides: true`:"
+            " the deciding verb folds by widget, is written by the user,"
             " and requires `outcome` as a string enum"
         )
+    ),
+    "verb-contract": _declared(
+        lambda v: (
+            f"x-state verb `{v['verb']}` binds detail field `{v['field']}` to"
+            f" attribute `{v['attribute']}`: the field must be declared and the"
+            " attribute must be a string matching the data contract name pattern"
+        )
+    ),
+    "instance-contract": lambda at, v: (
+        f"{at} attribute `{v['attribute']}` names unknown data contract"
+        f" {v['contract']!r} for `{v['verb']}` detail field `{v['field']}`"
     ),
     "withdrawn-as": _declared(
         lambda v: f"x-withdrawn-as `{v['outcome']}` is not a deciding outcome"
@@ -1518,7 +1611,7 @@ _TEXT = {
         lambda v: "a module import must name a relative or absolute local URL"
     ),
     "module-type": _captured(
-        lambda v: "a module dependency must have JavaScript MIME type"
+        lambda v: "a module dependency must be JavaScript or JSON"
     ),
     "module-outside-page": _captured(
         lambda v: "module imports may use /page/ or a public layer entry point"
@@ -1664,6 +1757,10 @@ _TEXT = {
     "foreign-unit": lambda at, v: (
         f"{_invalid_record(v)}position record unit {v['unit']!r} is not owned by"
         f" action widget {v['widget']!r}"
+    ),
+    "shown-unit": lambda at, v: (
+        f"{_invalid_record(v)}{v['unit']!r} shows the answer of {v['shows']!r}, which"
+        " decides where it stands; change that answer instead"
     ),
     "nested-unit": lambda at, v: (
         f"{_invalid_record(v)}position record cannot put {v['unit']!r} inside itself"

@@ -32,7 +32,12 @@ from .presence import nudge_unwatched, turn_ending
 from .refusals import Refused
 from .registry.kernel import kinds_declaring
 from .schema import ANSWER_INSTRUCTION
-from .served_state.reading import outside_inputs, page_input, page_reading
+from .served_state.reading import (
+    outside_inputs,
+    page_input,
+    page_reading,
+    page_roots,
+)
 from .server import read_service, running_server
 from .service import PageTransaction, owned_pages, unacknowledged
 from .state import (
@@ -236,27 +241,32 @@ class Watch:
         """What the next pass starts from, taken before it reads, so a write that
         lands during the pass moves the stamps `await_news` compares against."""
         pages = tuple(self.watched)
-        discovery = self.discovery_targets()
-        targets = discovery | {
-            target for page in pages for target in outside_inputs(page)
-        }
-        if self.session_id:
-            targets.add(session_file(self.session_id, SESSION_SUFFIX).resolve())
-        targets.update(path.resolve() for path in self.lease_paths)
-        roots = {self.claims: False}
-        roots.update({target.parent: False for target in targets})
-        for page in pages:
-            roots[page.parent] = False
-            roots[page] = True
-        key = (pages, frozenset(targets))
-        if (
-            self.changes is None
-            or key != self.change_pages
-            or not self.changes.matches(roots)
-        ):
+
+        def plan():
+            discovery = self.discovery_targets()
+            targets = discovery | {
+                target for page in pages for target in outside_inputs(page)
+            }
+            if self.session_id:
+                targets.add(session_file(self.session_id, SESSION_SUFFIX).resolve())
+            targets.update(path.resolve() for path in self.lease_paths)
+            roots = {self.claims: False}
+            roots.update({target.parent: False for target in targets})
+            for page in pages:
+                roots.update(page_roots(page))
+            return discovery, (pages, frozenset(targets)), roots
+
+        def holds(key, roots):
+            return (
+                self.changes is not None
+                and key == self.change_pages
+                and self.changes.matches(roots)
+            )
+
+        def install(key, roots):
             if self.changes is not None:
                 self.changes.close()
-            watched = target_paths(targets)
+            watched = target_paths(key[1])
             self.changes = FileChanges(
                 roots,
                 lambda changed: (
@@ -267,9 +277,20 @@ class Watch:
                 ),
             )
             self.change_pages = key
-        # Stamp the subscribed set. A locator added during installation must
-        # differ at the next comparison, so its target is subscribed in turn.
-        return (list(pages), self.reading(discovery), self.changes.mark())
+
+        while True:
+            discovery, key, roots = plan()
+            if not holds(key, roots):
+                install(key, roots)
+            # Stamp the subscribed set. A locator added during installation must
+            # differ at the next comparison, so its target is subscribed in turn.
+            reading = self.reading(discovery)
+            generation = self.changes.mark()
+            # The roots follow each page's subdirectories, so a plan taken after
+            # the generation must still match: one created before it is
+            # subscribed now, and one created after it wakes the wait.
+            if holds(*plan()[1:]):
+                return (list(pages), reading, generation)
 
     def await_news(self, mark: tuple, timeout: float = REVIVAL_CHECK_S) -> bool:
         """Return True once anything the pass since `mark` read has moved, or False
@@ -650,7 +671,9 @@ def left_owed(page: PageTransaction) -> list[dict]:
     ]
 
 
-def watch_between_turns(harness: Harness, *, interrupted: bool = False) -> str | None:
+def watch_between_turns(
+    harness: Harness, *, interrupted: bool = False, at_prompt: bool = False
+) -> str | None:
     """Wake for meaningful unreceived input, without treating a log look as pickup.
 
     Input already present at startup waits for the concurrent Stop hook to close
@@ -660,7 +683,7 @@ def watch_between_turns(harness: Harness, *, interrupted: bool = False) -> str |
     unless it arrives in a later turn than the one the watch follows
     (`later_turn_wakes`), which takes it itself. A watch after Escape
     wakes for what the stopped turn left deliverable: input that never entered its
-    context, and input its hooks handed over that no later hook of it confirmed
+    context, and input its hooks handed over that its transcript does not show
     (`delivery.deliverable`); input the turn confirmed waits for a prompt.
     Settled thread input alone never wakes; it remains in the next receipt batch.
     The session lease and each page transaction retain ownership of delivery,
@@ -676,9 +699,12 @@ def watch_between_turns(harness: Harness, *, interrupted: bool = False) -> str |
     settled = time.monotonic() + HOOK_TIMEOUT_S
     watch = Watch(harness)
     watch.acquire(supersede=True)
-    # The turn this watch follows, and when it saw a later turn closed.
-    followed = (session_record(harness.session) or {}).get("turn")
-    later_closed: list[float] = []
+    # The turn this watch follows, none for a prompt's watch, and when it saw each
+    # later turn closed.
+    followed = (
+        None if at_prompt else (session_record(harness.session) or {}).get("turn")
+    )
+    later_closed: dict[str, float] = {}
 
     def later_turn_wakes(claim: dict) -> bool:
         """Whether input wakes the session in a turn opened after the one this
@@ -689,13 +715,16 @@ def watch_between_turns(harness: Harness, *, interrupted: bool = False) -> str |
         no successor has come within the Stop hooks' time. Escape ends a turn
         with no Stop hook, leaving its record open, and the harness's own `idle`
         is the reading that moves then; a harness that gives none keeps the
-        immediate wake."""
+        immediate wake, except for a prompt's watch."""
         if claim["turn_closed"] is not None:
-            if not later_closed:
-                later_closed.append(time.monotonic())
-            return time.monotonic() > later_closed[0] + HOOK_TIMEOUT_S
+            closed = later_closed.setdefault(claim["turn"], time.monotonic())
+            return time.monotonic() > closed + HOOK_TIMEOUT_S
         live = harness.live_turn()
-        return live is None or live["state"] == "idle"
+        if live is None:
+            # A prompt's watch follows the running turn itself, which its Stop hook
+            # hands over to the next watch.
+            return not at_prompt
+        return live["state"] == "idle"
 
     # What `left_owed` found on each page, by the log and turn it read, so a pass
     # that finds nothing changed folds no page.
@@ -770,8 +799,8 @@ def watch_between_turns(harness: Harness, *, interrupted: bool = False) -> str |
 
 def woke_after(session: str) -> None:
     """Mark each page the session holds as messaged for the ending of its turn, as a
-    watch exits to wake the session, so the page's server does not nudge it too
-    in the moment before the woken turn starts (`presence.nudge_interrupted`)."""
+    watch exits to wake the session, so admission does not nudge it too in the
+    moment before the woken turn starts (`presence.nudge_unwatched`)."""
     for page_dir in owned_pages(session):
         with contextlib.suppress(FileNotFoundError), PageTransaction(page_dir) as page:
             if claim := page.active_claim:

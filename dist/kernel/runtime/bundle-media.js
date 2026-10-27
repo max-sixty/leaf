@@ -1,5 +1,6 @@
-import { closeControl, closeNativeLayer, keys, nativeLayers, offered, offlineInteractive, pagePresented, pageUrl, paintKeys, plainPress, runtimeResource, showNativeLayer } from "./bundle-layer-client.js";
-import { closeLayer, focusDestination, handBack, html, keeps, keepsHidden, keepsText, openLayer, openerOf, render } from "./bundle-dom-move.js";
+import { closeLayer, focusDestination, handBack, keeps, keepsHidden, keepsText, openLayer, openerOf } from "./bundle-dom-move.js";
+import { closeControl, keys, offerAction, offered, pagePresented, paintKeys, plainPress } from "./bundle-layer-client.js";
+import { closeNativeLayer, html, nativeLayers, offlineInteractive, pageUrl, render, runtimeResource, showNativeLayer } from "./bundle-geometry.js";
 import { says } from "./bundle-passages.js";
 
 //#region runtime/motion.js
@@ -53,10 +54,10 @@ function backgroundFlash(el, ms) {
 const foldDuration = () => motionTime("--lf-motion-fold");
 const returnDuration = () => motionTime("--lf-motion-return");
 function foldBlock(el, allocation = null) {
-	if (!CSS.supports("block-size", "calc-size(auto, size)")) return null;
 	const adjustment = allocation ? allocation.priorSize - allocation.container.getBoundingClientRect().height : 0;
-	return motion(el, [{
-		blockSize: `calc-size(auto, size + ${adjustment}px)`,
+	const native = CSS.supports("block-size", "calc-size(auto, size)");
+	const frames = (blockSize) => [{
+		blockSize,
 		display: "block",
 		overflow: "clip",
 		opacity: 1
@@ -72,7 +73,17 @@ function foldBlock(el, allocation = null) {
 		display: "block",
 		overflow: "clip",
 		opacity: 0
-	}], foldDuration());
+	}];
+	const played = motion(el, frames(native ? `calc-size(auto, size + ${adjustment}px)` : "auto"), foldDuration());
+	if (!played || native) return played;
+	if (getComputedStyle(el).display === "none") {
+		el.style.display = "block";
+		const release = () => el.style.removeProperty("display");
+		played.finished.then(release, release);
+	}
+	const size = parseFloat(getComputedStyle(el).blockSize) + adjustment;
+	played.effect.setKeyframes(frames(`${size}px`));
+	return played;
 }
 
 //#endregion
@@ -104,10 +115,7 @@ const viewerClose = closeControl({
 	name: "Close image preview",
 	title: "Close image preview (Esc)"
 });
-const viewerZoom = document.createElement("button");
-viewerZoom.type = "button";
-viewerZoom.className = "lf-btn lf-media-viewer-zoom";
-viewerZoom.textContent = "100%";
+const viewerZoom = offerAction("word", "lf-media-viewer-zoom", "100%");
 const stage = document.createElement("div");
 stage.className = "lf-media-viewer-stage";
 const caption = document.createElement("p");

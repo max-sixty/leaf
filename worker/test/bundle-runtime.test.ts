@@ -173,7 +173,7 @@ describe("published runtime bundle", () => {
       expect(kernel).toContain('"accepted:presented"');
       expect(kernel).toContain('from"/vendor/lit.js"');
       expect(kernel).not.toContain("litHtmlVersions");
-      expect(kernel).not.toContain("browser-runtime");
+      expect(kernel).not.toContain("/vendor/signals-core.js");
       // A widget's runtime imports are compiled chunks, never the public module URL.
       // The compiled widget-api.js entry can be one of them, holding modules the
       // compiler merged into it.

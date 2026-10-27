@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import itertools
 import json
+import mmap
 import os
 import time
 from collections.abc import Callable
@@ -75,12 +76,15 @@ class Harness:
       session's pages in the background and wakes the session when input arrives
       (`watches_between_turns`), and the prompt hook, which runs as the turn the
       wake opens begins, and the tool-batch hook within a turn put the input in
-      the turn's context (`hook_delivers`), which the turn's next hook confirms
+      the turn's context (`hook_delivers`), which its transcript confirms
       (`commits_hook_context`); the other Stop hook does only under plain
-      `--print`, where no watch follows the turn (`hook_transport`). A turn that
-      ends without its Stop hooks, as an interrupt does, starts no watch, so
-      where no watch from before it runs, nothing watches while the session lives
-      on, which is why this is the harness with a `nudge`.
+      `--print`, where no watch follows the turn (`hook_transport`). The prompt
+      hook starts a watch too, which waits while its turn runs, so a turn an
+      interrupt ends without its Stop hooks still has one, unless the session
+      held no page when that turn's prompt came. Then nothing watches, as when a
+      watch fails, reaches its hook's timeout or loses a background job's retired
+      worker, while the session lives on, which is why this is the harness with a
+      `nudge` (`presence.nudge_interrupted`).
     - Pi runs Leaf's extension in its own process, which calls the same hooks at
       the same points of a run and starts the same watch as each run settles, and
       starts the turn the watch wakes itself.
@@ -103,8 +107,9 @@ class Harness:
     hook_delivers: ClassVar[bool] = False
     # Whether the context a hook hands over is in the session once the hook
     # returns, so the hook confirms what it hands over. Where it is not, the hand-
-    # over waits for a later hook of the same turn to confirm it, and is offered
-    # again if the turn ends first (`delivery.confirm_turn`).
+    # over waits for the harness's record of the model's context to show it
+    # (`entered_context`, `delivery.confirm_entered`), and is offered again if its
+    # turn ends without it.
     commits_hook_context: ClassVar[bool] = True
     # The most UTF-8 bytes of hook context the harness shows the model whole, or
     # None where it shows any size.
@@ -256,12 +261,25 @@ class Harness:
             "hookSpecificOutput": {"hookEventName": event, "additionalContext": message}
         }
 
+    @classmethod
+    def hook_payload(cls, payload: dict) -> dict:
+        """A hook's payload as `hooks` reads it, with the harness's own name for the
+        turn under `turn_id`, where it names one."""
+        return payload
+
     def reconcile_turn(self, payload: dict, expected: dict | None) -> dict | None:
         """The session's lifecycle as a hook goes on to read it, from `expected`, the
         record as the hook found it. A harness that records turns its hooks never
         see applies them here. A prompt hook reconciles after recording its own
         turn, every other hook before checking the turn its payload names."""
         return expected
+
+    def entered_context(self, payload: dict) -> set[str]:
+        """The ids of the inputs this session's hooks handed over inline that the
+        harness's own record, named in hook `payload`, shows in the model's context.
+        Only a harness whose hooks don't commit their context
+        (`commits_hook_context`) is asked (`delivery.confirm_entered`)."""
+        return set()
 
     def offer_at_step(
         self, event: str, payload: dict, expected: dict | None
@@ -283,6 +301,13 @@ class Harness:
         its session stands, so only such a harness has anywhere to put this. A
         watcher that is a process of its own is either running, and needs no
         telling, or gone along with the session it served."""
+        return False
+
+    def input_wakes(self) -> bool:
+        """Whether `nudge` would now start a turn of this session's for the page's
+        next input, so the page reads its agent as taking input while no watch
+        holds the lease (`activity.canonical_activity`). Only a nudge whose
+        recipient takes the message says so; one it may hold or drop doesn't."""
         return False
 
     def inference_generator(self) -> Callable[..., dict] | None:
@@ -361,8 +386,7 @@ class ClaudeCodeHarness(EnvironmentHarness):
     # It reads a hook's output only once every hook of that event has exited, and
     # Escape before then drops the whole prompt, Leaf's context with it (measured
     # at 2.1.304 with a second prompt hook sleeping 6 s). No hook says the output
-    # was taken, so the turn's next hook confirms it: a tool call or the turn's
-    # end means the model read the context.
+    # was taken; the transcript does (`entered_context`).
     commits_hook_context = False
     # It writes a larger hook context to a file and hands the turn a 2 KB preview
     # and the path instead: measured at 2.1.283 with ASCII, 9,990 characters
@@ -420,6 +444,48 @@ class ClaudeCodeHarness(EnvironmentHarness):
     @classmethod
     def process_pid(cls) -> int | None:
         return int(pid) if (pid := os.environ.get("CLAUDE_PID")) else None
+
+    @classmethod
+    def hook_payload(cls, payload: dict) -> dict:
+        """Claude Code names the turn by its prompt, `prompt_id`, in every hook but
+        SessionStart, and a prompt Escape dropped is submitted again under a new one
+        (measured at 2.1.310), so a handover into a dropped prompt belongs to a turn
+        that never ran. Releases before 2.1.196 send no `prompt_id` (found in each
+        npm release's hook input), so their turns are Leaf's, and a resubmitted
+        prompt renews the dropped one's; receipt then stops short of its handover
+        (`delivery.confirm_entered`), which is input again once the turn ends."""
+        prompt = payload.get("prompt_id")
+        return {**payload, "turn_id": prompt} if prompt else payload
+
+    def reconcile_turn(self, payload: dict, expected: dict | None) -> dict | None:
+        """Claude Code runs some turns under a prompt no prompt hook named: a prompt
+        the user types while a turn runs gets its prompt hook at once, under the
+        running turn's `prompt_id`, and when Escape then ends that turn Claude Code
+        submits the typed prompt as a turn of its own under a new one (measured at
+        2.1.310). Nor does a claim's new lifetime know Claude Code's turn. Claude
+        Code runs a session's hooks in order, so a step naming a prompt the record
+        does not hold is that turn starting, never a late callback, and it opens
+        it."""
+        turn = payload.get("turn_id")
+        if (
+            not turn
+            or payload.get("hook_event_name") == "UserPromptSubmit"
+            or (expected is not None and expected["turn"] == turn)
+        ):
+            return expected
+        from .state import advance_turn, flocked, session_lock_path, session_record
+
+        with flocked(session_lock_path(self.session)):
+            record = session_record(self.session)
+            if record is None or record["ended"] is not None or record["turn"] == turn:
+                return record
+            return advance_turn(self.session, turn, running=True)
+
+    def entered_context(self, payload: dict) -> set[str]:
+        """What the session's transcript, which every hook's payload names, shows
+        entered the model's context (`claude_code_entered`)."""
+        path = payload.get("transcript_path")
+        return claude_code_entered(Path(path)) if path else set()
 
     def escape_sandbox(self) -> None:
         """Leaf's bridge (`bridge.py`), which Claude Code's network proxy reaches."""
@@ -482,6 +548,21 @@ class ClaudeCodeHarness(EnvironmentHarness):
         return message_claude_code_session(self.session, text) or (
             self.job is not None and resume_claude_code_job(self.session, text)
         )
+
+    def input_wakes(self) -> bool:
+        """A live session takes the nudge through its socket as a turn where its
+        settings accept other sessions' messages (`claude_code_accepts_peers`);
+        otherwise it may hold the message behind a dialog or let it expire
+        (`message_claude_code_session`), so it promises nothing. A background job no
+        worker hosts is resumed with the input as its prompt
+        (`resume_claude_code_job`)."""
+        if claude_code_worker_runs(self.session):
+            return any(
+                pid_alive(record["pid"])
+                and claude_code_accepts_peers(record.get("cwd"))
+                for record, _address, _token in claude_code_peers(self.session)
+            )
+        return self.job is not None
 
 
 # One phrase, because the two remedies below name the same recovery: a `leaf
@@ -918,10 +999,128 @@ def message_identity() -> dict:
     return {"agent": harness.agent, "session": harness.session}
 
 
+def claude_code_entered(transcript: Path) -> set[str]:
+    """The ids of the inputs Leaf's hooks handed inline into a Claude Code session,
+    read from the session's transcript at `transcript`.
+
+    Claude Code writes a `hook_additional_context` record once a hook's output joins
+    the conversation, and none for a prompt Escape dropped with its hooks' output;
+    Escape during a tool boundary's hooks keeps that boundary's context and its
+    record (measured at 2.1.310). So the record, not a later hook running, says the
+    model read a handover. A missing or unreadable transcript shows nothing.
+
+    Every hook of a session holding a page reads it, and a long session's
+    transcript runs to hundreds of MB, so this maps the file and parses only the
+    lines holding Leaf's opening: 34 ms on a 200 MB transcript, where reading and
+    splitting it took 105 ms and 500 MB of memory."""
+    from .hook_transport import INLINE_OPENING
+
+    marker = INLINE_OPENING.encode()
+    lines = []
+    try:
+        with (
+            transcript.open("rb") as file,
+            mmap.mmap(file.fileno(), 0, access=mmap.ACCESS_READ) as mapped,
+        ):
+            at = 0
+            while (hit := mapped.find(marker, at)) != -1:
+                start = mapped.rfind(b"\n", 0, hit) + 1
+                end = mapped.find(b"\n", hit)
+                end = len(mapped) if end == -1 else end
+                lines.append(mapped[start:end])
+                at = end
+    except (OSError, ValueError):
+        # mmap refuses an empty file with ValueError.
+        return set()
+    entered = set()
+    for line in lines:
+        if b'"hook_additional_context"' not in line:
+            continue
+        try:
+            attachment = json.loads(line).get("attachment") or {}
+        except ValueError:
+            continue
+        for content in attachment.get("content") or []:
+            opening, _, rest = content.partition("\n")
+            if opening != INLINE_OPENING:
+                continue
+            try:
+                delivery = json.loads(rest.partition("\n")[0])
+            except ValueError:
+                continue
+            entered.update(
+                event["id"]
+                for batch in delivery["batches"]
+                for event in batch["events"]
+            )
+    return entered
+
+
+def claude_code_config() -> Path:
+    """Claude Code's configuration directory."""
+    return Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")
+
+
 def claude_code_sessions() -> Path:
     """Claude Code's session registry: one `<pid>.json` per running session."""
-    config = Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")
-    return config / "sessions"
+    return claude_code_config() / "sessions"
+
+
+def claude_code_accepts_peers(cwd: str | None) -> bool:
+    """Whether Claude Code's settings for a session started in `cwd` deliver another
+    process's message straight into it (`crossSessionInbound: accept`) rather than
+    holding it behind a dialog, as they do in a session that bypasses permissions.
+
+    In 2.1.310 only the user's settings grant `accept`, while a project's settings,
+    which it finds from the session's directory up to its repository's root, can
+    narrow it to `hold` or `refuse`. So the user's file has to say `accept`, and any
+    other value in a project file on that path reads as no. Managed policy and
+    `--settings` aren't read. Each file is another program's, so one caught
+    mid-write reads as no."""
+    if _claude_code_inbound(claude_code_config() / "settings.json") != "accept":
+        return False
+    directory = Path(cwd) if cwd else None
+    while directory is not None and directory != Path.home():
+        for name in ("settings.json", "settings.local.json"):
+            if _claude_code_inbound(directory / ".claude" / name) not in (
+                None,
+                "accept",
+            ):
+                return False
+        repository = (directory / ".git").exists()
+        directory = (
+            None if repository or directory == directory.parent else directory.parent
+        )
+    return True
+
+
+def _claude_code_inbound(path: Path):
+    """The `crossSessionInbound` a settings file sets: None where the file or the
+    key is absent, and `False` where the file can't be read whole."""
+    try:
+        settings = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return None
+    except (OSError, ValueError):
+        return False
+    return settings.get("crossSessionInbound") if isinstance(settings, dict) else False
+
+
+def claude_code_peers(session_id: str) -> list[tuple[dict, str, str]]:
+    """The session's registry records a message can be addressed to, each with its
+    socket and the `peerToken` its 0600 `<pid>.<hash>.key` holds. Each record and
+    key is another program's live file, so one that vanished, was caught
+    mid-write or lacks a field this reads is left out."""
+    sessions = claude_code_sessions()
+    peers = []
+    for record in claude_code_session_records(session_id):
+        try:
+            key_path = next(sessions.glob(f"{record['pid']}.*.key"))
+            token = json.loads(key_path.read_text(encoding="utf-8"))["peerToken"]
+            peers.append((record, record["messagingSocketPath"], token))
+        except (OSError, ValueError, KeyError, TypeError, StopIteration):
+            continue
+    return peers
 
 
 def claude_code_current_record(records: list[dict]) -> dict:
@@ -1088,10 +1287,7 @@ def resume_claude_code_job(session_id: str, text: str) -> bool:
     runs under the page's lock, and the turn it starts takes that lock in its
     prompt hook. So True means only that it started, as a socket taking the frames
     is all `message_claude_code_session` can say."""
-    if any(
-        isinstance(record.get("pid"), int) and pid_alive(record["pid"])
-        for record in claude_code_session_records(session_id)
-    ):
+    if claude_code_worker_runs(session_id):
         return False
     import subprocess
 
@@ -1108,14 +1304,22 @@ def resume_claude_code_job(session_id: str, text: str) -> bool:
     return True
 
 
+def claude_code_worker_runs(session_id: str) -> bool:
+    """Whether a live process hosts the session: a registry record whose pid runs."""
+    return any(
+        isinstance(record.get("pid"), int) and pid_alive(record["pid"])
+        for record in claude_code_session_records(session_id)
+    )
+
+
 def message_claude_code_session(session_id: str, text: str) -> bool:
     """Put `text` into a Claude Code session as a user message, through the
     messaging socket every session binds, and say whether a socket took it.
 
-    Each registry record for the session (`claude_code_session_records`) names the
-    socket, beside a 0600 `<pid>.<hash>.key` holding the `peerToken` it authenticates.
-    The socket reads newline JSON and answers nothing: an auth line, then a user frame
-    whose `session_id` makes a socket that has since passed to another session drop it.
+    Each of the session's peers (`claude_code_peers`) names a socket and the token
+    it authenticates. The socket reads newline JSON and answers nothing: an auth
+    line, then a user frame whose `session_id` makes a socket that has since passed
+    to another session drop it.
 
     The recipient decides delivery. Measured on Claude Code 2.1.274: a session
     in a prompting permission mode queues the text as a user turn, which wakes
@@ -1126,32 +1330,25 @@ def message_claude_code_session(session_id: str, text: str) -> bool:
     held message expire. The server `leaf server start` spawns runs in a process
     session of its own, so it is outside that tree. Nothing reports the outcome
     to the sender, so True means only that a listening socket took the frames.
-
-    Each record and key is another program's live file, and a session can exit
-    between reading its record and connecting, so a file that vanished, was
-    caught mid-write, lacks a field this reads, or names a socket nobody listens
-    on skips that record."""
+    A session can exit between reading its record and connecting, so a socket
+    nobody listens on is skipped."""
     import socket
 
-    sessions = claude_code_sessions()
-    for record in claude_code_session_records(session_id):
+    for _record, address, token in claude_code_peers(session_id):
+        frames = (
+            {"type": "auth", "token": token},
+            {
+                "type": "user",
+                "session_id": session_id,
+                "message": {"role": "user", "content": text},
+            },
+        )
         try:
-            key_path = next(sessions.glob(f"{record['pid']}.*.key"))
-            token = json.loads(key_path.read_text(encoding="utf-8"))["peerToken"]
-            address = record["messagingSocketPath"]
-            frames = (
-                {"type": "auth", "token": token},
-                {
-                    "type": "user",
-                    "session_id": session_id,
-                    "message": {"role": "user", "content": text},
-                },
-            )
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as peer:
                 peer.settimeout(1)
                 peer.connect(address)
                 peer.sendall("".join(json.dumps(f) + "\n" for f in frames).encode())
-        except (OSError, ValueError, KeyError, TypeError, StopIteration):
+        except (OSError, TypeError):
             continue
         return True
     return False

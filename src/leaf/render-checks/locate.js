@@ -23,26 +23,39 @@ export const at = (el) => {
   return tag(el);
 };
 
-// Which element a finding is about, where `at` only names it: two id-less drawings in
-// one figure share a name. The element's position under its nearest authored id, as
-// the child index at each step up and a `/` where a shadow root is crossed, so a
-// reading taken again at another width (the gate's sweep) tells one element's fault
-// met again from another element's, even after a widget redraws the same structure.
+// A structured path under the nearest authored id, or the document when none exists.
+// Child indices and explicit shadow steps keep two id-less boxes distinct. Consumers
+// serialize it only when they need a map key; navigation never parses a display label.
 export const place = (el) => {
   const steps = [];
   for (let node = el; node;) {
-    if (node.matches?.(ADDRESSABLE)) return `#${node.id}${steps.join("")}`;
+    if (node.matches?.(ADDRESSABLE) && document.getElementById(node.id) === node)
+      return { id: node.id, steps };
     const parent = node.parentNode;
     if (parent instanceof ShadowRoot) {
-      steps.unshift(`/${[...parent.children].indexOf(node)}`);
+      steps.unshift({ shadow: [...parent.children].indexOf(node) });
       node = parent.host;
     } else if (parent?.children) {
-      steps.unshift(`>${[...parent.children].indexOf(node)}`);
+      steps.unshift({ child: [...parent.children].indexOf(node) });
       node = parent.nodeType === Node.ELEMENT_NODE ? parent : null;
     } else node = null;
   }
-  return steps.join("");
+  return { id: null, steps };
 };
+
+export function resolvePlace(location) {
+  /** @type {Document | Element | null} */
+  let node = location.id === null ? document : document.getElementById(location.id);
+  for (const step of location.steps) {
+    node =
+      "shadow" in step
+        ? node instanceof Element
+          ? node.shadowRoot?.children[step.shadow]
+          : null
+        : node?.children?.[step.child];
+  }
+  return node instanceof Element ? node : null;
+}
 
 // Each record once, where a probe meets the same finding more than once.
 export const unique = (records) => {

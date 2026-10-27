@@ -39,6 +39,9 @@ prompts:
     At every declared width, substantive evidence and navigation are readable and reachable.
     Each decision can be answered where the user lands on it, without asking what something
     it names is or does.
+    In a workspace, read each pane's whole content through the pane's own scroll, and count
+    a pane the keyboard can't reach, or one left mostly empty while another is
+    cramped, against the page where it affects the task.
     The final page incorporates the user's comment and lasting width preference, and clearly
     preserves the final decision the user supplied. On the before_decision page, exercise the
     original browser decision task through the offered controls, including keyboard routes; judge the actual outcome, not a settings summary or a claim of success. On the final
@@ -77,7 +80,7 @@ cases:
             stability; unvisited required states leave insufficient evidence.
   document:
     inputs:
-      comment:
+      comment: &document-comment
         target: the recommendation's ask of the database owners
         quotes:
           - the database owners to say whether 55% peak CPU is acceptable
@@ -86,7 +89,7 @@ cases:
         text:
           The database owners are Mei Tanaka's team. Name them here and ask for their answer
           by Wednesday, the day before the decision.
-      decision:
+      decision: &document-decision
         task:
           "As the platform team, decide the review's question: choose option 1, staying
           on managed Redis and shortening the TTL to 7 days."
@@ -101,7 +104,7 @@ cases:
           rubric: ""
   dashboard:
     inputs:
-      comment:
+      comment: &dashboard-comment
         target: the follow-up to confirm the timeout change with the payments team
         quotes:
           - Confirm the timeout change with the payments team (Dana).
@@ -110,7 +113,7 @@ cases:
         text:
           Dana confirmed at 15:52 that 7.2's 3 s connect timeout is the cause. Mark this
           follow-up done and say so where the page explains the cause.
-      decision:
+      decision: &dashboard-decision
         task: "Decide eu-west: roll it back to 4.11 and ship 4.12.1 with the old timeout."
         typed: Roll eu-west back to 4.11 and ship 4.12.1 with the old timeout.
       reveal: ""
@@ -166,7 +169,7 @@ cases:
             editing and recording outcomes, not a particular widget, editor engine or layout geometry."
   queue:
     inputs:
-      comment:
+      comment: &queue-comment
         target: ESC-4110 (Brightline Dental)'s suggested action
         quotes:
           - point to the feature request board, already planned for Q4
@@ -175,7 +178,7 @@ cases:
         text:
           "Brightline is on a Team trial that converts next week, so don't just close it:
           route it to their account manager, Sam Okafor, with the Q4 plan."
-      decision:
+      decision: &queue-decision
         task:
           "Work through the queue and decide each ticket: ESC-4107: fix; ESC-4108: close;
           ESC-4109: fix; ESC-4111: escalate to engineering; ESC-4112: escalate to engineering;
@@ -414,3 +417,90 @@ cases:
             future validation from an executed run or deployment and retains the single synthetic
             five-minute run per cell limitation, without claiming production performance, uncertainty
             estimates or SLO proof.
+  # Revisions that change what a page is for, kept when they compose by Layouts
+  # (TODO.md, "Test the Layouts on agents"). Each reuses its task's request,
+  # comment and decision, then sends one revision.
+  document-live-status:
+    inputs:
+      request: document
+      comment: *document-comment
+      decision: *document-decision
+      reveal: ""
+      revision:
+        "We've gone ahead with that, and the TTL change rolls out region by region this
+        week. Make this the page the platform team follows during the rollout: add its
+        live status, which you'll keep current as regions finish, and keep the review
+        and its comment thread as they are, since it's still the record of why. Status
+        now: us-east finished Monday, and the cluster's memory is down from 81% to 58%;
+        eu-west has been rolling out since 09:00 today; ap-southeast starts Thursday.
+        Logout-everywhere still lags up to 90 s during failover, as expected."
+    assert:
+      - type: javascript
+        metric: quality
+        value: file://../dev/leaf_dev/authoring_assertion.mjs
+        config:
+          rubric:
+            "The final page is the review turned into the page the platform team follows
+            during the TTL rollout. On arrival, at every declared width, the rollout's
+            current status reads at a glance: us-east finished with memory down from 81%
+            to 58%, eu-west in progress since 09:00, ap-southeast starting Thursday, and
+            logout lag unchanged. It is presented as current status the author will keep
+            up to date, distinct from the review's analysis. The review remains readable
+            in order as the record: its question, measurements, options, risks and the
+            recorded decision to stay on managed Redis with a 7-day TTL. The user's comment
+            thread about the database owners is still reachable with its answer, attached
+            to its passage where that passage still stands. The status does not crowd the
+            review out of view or overlap it."
+  dashboard-write-up:
+    inputs:
+      request: dashboard
+      comment: *dashboard-comment
+      decision: *dashboard-decision
+      reveal: ""
+      revision:
+        "16:35: eu-west is back on 4.11 and its error rate is down to 0.33%. 4.12.1, with
+        the 10 s connect timeout pinned, is building and goes to eu-west at 1% at 17:30;
+        the other regions carry on with 4.12 meanwhile. Keep this page for the rest of the
+        rollout, and add the eu-west write-up the team reads tomorrow: what happened, the
+        cause, what we decided and the follow-ups. Keep the comment thread where it is."
+    assert:
+      - type: javascript
+        metric: quality
+        value: file://../dev/leaf_dev/authoring_assertion.mjs
+        config:
+          rubric:
+            "The final page serves both uses. On arrival, at every declared width, the
+            rollout's live state as of 16:35 reads at a glance: eu-west back on 4.11 at
+            0.33%, 4.12.1 with the 10 s timeout going to eu-west at 1% at 17:30, the other
+            regions continuing on 4.12. Figures from 15:40 that are no longer current are
+            labelled with their time or replaced. The eu-west write-up reads in order as a
+            document: what happened, the cause (payments-sdk 7.2's 3 s connect timeout,
+            confirmed by Dana at 15:52), the decision to roll eu-west back and ship 4.12.1,
+            and the follow-ups with the confirmed one marked done. The write-up is not
+            split into equal tiles or squeezed beside the status where it is hard to read.
+            The user's comment thread on the follow-up remains reachable with its answer."
+  queue-hand-off:
+    inputs:
+      request: queue
+      comment: *queue-comment
+      decision: *queue-decision
+      reveal: ESC-4110
+      revision:
+        "Thanks. Add a hand-off for Lena Park, the support lead, who reads it tomorrow
+        morning before stand-up: for each of the eight tickets, its outcome, why, and who
+        owns it next, and what is still waiting on someone. Keep the queue as it is, threads
+        included; I'll come back to it if anything reopens."
+    assert:
+      - type: javascript
+        metric: quality
+        value: file://../dev/leaf_dev/authoring_assertion.mjs
+        config:
+          rubric:
+            "The hand-off reads in order for a reader who did not work the queue: all eight
+            tickets with the recorded outcome (ESC-4110 routed to Sam Okafor with the Q4
+            plan, as the user's comment asked), its reason and its next owner, and what is
+            still waiting on someone. The queue still works as before: its list beside the
+            selected ticket, each ticket's recorded decision visible with it, and the
+            earlier comment thread reachable. Neither use squeezes the other: the hand-off
+            is not confined to a narrow pane or tab strip beside the queue, and the queue
+            keeps the room to read a ticket and its decision."

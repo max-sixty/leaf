@@ -46,6 +46,23 @@ def compiler_root() -> Path:
     return Path(os.environ.get("LEAF_PREVIEW_COMPILER_ROOT", ROOT)).resolve()
 
 
+def bundle_runtime(assets: Path, kernel: Path) -> None:
+    """Compile the browser runtime with the developer checkout's bundler."""
+    compiler = compiler_root()
+    if not (compiler / "node_modules").is_dir():
+        # A fresh worktree's background setup may not have started or finished.
+        # Setup installs browsers too, so run it by hand rather than from here.
+        raise click.ClickException(
+            f"{compiler} has no node_modules, which the runtime bundle needs; "
+            "run `uv run --frozen leaf-dev setup` (it waits for any install in progress)"
+        )
+    subprocess.run(
+        ["node", str(compiler / "build/runtime-bundle.mjs"), str(assets), str(kernel)],
+        cwd=compiler,
+        check=True,
+    )
+
+
 def prepare(output: Path, runtime: Path = ROOT) -> None:
     """Build a new installation tree from this checkout or an extracted payload.
 
@@ -81,17 +98,7 @@ def prepare(output: Path, runtime: Path = ROOT) -> None:
         text=True,
     )
     assets, kernel = json.loads(resources.stdout)
-    compiler = compiler_root()
-    subprocess.run(
-        [
-            "node",
-            str(compiler / "build/runtime-bundle.mjs"),
-            str(output / assets),
-            str(output / kernel),
-        ],
-        cwd=compiler,
-        check=True,
-    )
+    bundle_runtime(output / assets, output / kernel)
     write_json(
         output / "leaf-distribution.json",
         {"producer": payload_provenance(root=runtime)},

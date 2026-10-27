@@ -249,6 +249,8 @@ class GestureWords:
     def name(self, event: dict, identity: str) -> str:
         """What the gesture's document calls one element it names: its title, else
         its words, else the words a user wrote it with, else the id itself."""
+        if event["kind"] == "undo":
+            event = self.by_id.get(event["undoes"], event)
         document = self._document(event)
         if document is None:
             return identity

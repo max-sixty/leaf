@@ -1,14 +1,10 @@
-import { __exportAll, frameView, layoutWindow, pageUrl, presented, recordInteraction, requestJson, runtime, watchRoom } from "./bundle-layer-client.js";
-import { frameVisibility, keeps, move, nextRender, onFrameVisibility, readSampleVisibility, sizeObserver, watchFrame } from "./bundle-dom-move.js";
-import { aborted, widgetDescriptor } from "./bundle-surfaces.js";
+import { frameVisibility, inputInFrame, keeps, move, nextRender, onFrameVisibility, readSampleVisibility, sizeObserver, watchFrame } from "./bundle-dom-move.js";
+import { recordInteraction, requestJson } from "./bundle-layer-client.js";
+import { frameView, layoutWindow, pageUrl, presented, runtime, watchRoom } from "./bundle-geometry.js";
+import { aborted, widgetDescriptor } from "./bundle-data.js";
 import { dressFor, registerSampleDress } from "./bundle-dress.js";
 
 //#region runtime/sample.js
-var sample_exports = /* @__PURE__ */ __exportAll({
-	isSampleFrame: () => isSampleFrame,
-	mountSample: () => mountSample,
-	sampleFrameImage: () => sampleFrameImage
-});
 const MAX_LOADING_SAMPLES = 3;
 let loadingSamples = 0;
 const loadWaiters = [];
@@ -41,7 +37,7 @@ async function loadWithinLimit(work, signal) {
 const departure = (message) => new DOMException(message, "SampleDepartedError");
 const mounted = /* @__PURE__ */ new Map();
 const isSampleFrame = (node) => mounted.has(node);
-const sampleFrameImage = (frame, crop) => mounted.get(frame).call("image", crop);
+const sampleFrameImage = (frame, crop) => mounted.get(frame)("image", crop);
 const request = (url, body, headers = {}) => requestJson(url, {
 	method: "POST",
 	headers: {
@@ -258,7 +254,10 @@ function mountSample(frame, { template, window: asWindow = false }) {
 				composed: true,
 				detail: data.detail
 			}));
-			else notify(data.type, data.detail);
+			else {
+				if (data.type === "input") inputInFrame(frame, data.detail.type);
+				notify(data.type, data.detail);
+			}
 		};
 		event.source.postMessage({
 			sample: event.data.sample,
@@ -372,45 +371,42 @@ function mountSample(frame, { template, window: asWindow = false }) {
 		if (!operation) begin(replace());
 		return operation;
 	}
+	function call(method, detail = {}) {
+		const ready = host.ready;
+		return ready.then(() => {
+			if (ready !== host.ready || !channel) throw lost;
+			const id = ++nextId;
+			return new Promise((resolve, reject) => {
+				pending.set(id, {
+					resolve,
+					reject
+				});
+				channel.postMessage({
+					id,
+					method,
+					detail
+				});
+			});
+		});
+	}
 	const host = {
 		ready: null,
 		reset,
 		setWindow(value) {
 			asWindow = value;
-			return host.call("window", { window: value });
-		},
-		call(method, detail = {}) {
-			const ready = host.ready;
-			return ready.then(() => {
-				if (ready !== host.ready || !channel) throw lost;
-				const id = ++nextId;
-				return new Promise((resolve, reject) => {
-					pending.set(id, {
-						resolve,
-						reject
-					});
-					channel.postMessage({
-						id,
-						method,
-						detail
-					});
-				});
-			});
+			return call("window", { window: value });
 		},
 		on(type, callback) {
 			if (!listeners.has(type)) listeners.set(type, /* @__PURE__ */ new Set());
 			listeners.get(type).add(callback);
 			return () => listeners.get(type).delete(callback);
 		},
-		dress: (dress) => channel?.postMessage({
-			type: "dress",
-			detail: dress
-		}),
+		restoreCurrentLocation: () => call("restore-current-location"),
 		showThread(id, { signal, ...options }) {
 			if (signal.aborted) return Promise.resolve(false);
 			const cancel = () => channel?.postMessage({ type: "cancel-view" });
 			signal.addEventListener("abort", cancel, { once: true });
-			return host.call("thread", {
+			return call("thread", {
 				id,
 				...options
 			}).finally(() => signal.removeEventListener("abort", cancel));
@@ -440,10 +436,10 @@ function mountSample(frame, { template, window: asWindow = false }) {
 		if (!event.persisted) host.destroy();
 	};
 	window.addEventListener("pagehide", departing);
-	mounted.set(frame, host);
+	mounted.set(frame, call);
 	reset();
 	return host;
 }
 
 //#endregion
-export { isSampleFrame, sampleFrameImage, sample_exports };
+export { isSampleFrame, mountSample, sampleFrameImage };

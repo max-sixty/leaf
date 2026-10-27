@@ -725,7 +725,11 @@ document.addEventListener(
     const left = event.composedPath()[0];
     lastLocation = new WeakRef(left);
     if (restoring) return;
-    queueMicrotask(() => {
+    const departure = readings;
+    // Native pointer focus can checkpoint microtasks between departure and arrival.
+    // Read after that task, when an intended arrival has either completed or failed.
+    setTimeout(() => {
+      if (readings !== departure) return;
       const at = document.activeElement;
       if (at !== null && at !== document.body) return;
       if (heldByLabel()) return;

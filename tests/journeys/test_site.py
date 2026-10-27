@@ -715,7 +715,7 @@ def test_published_visual_evidence_loads_from_its_page(served_example, browser):
         review.locator(
             f'.lf-vr-case-button[aria-controls="visual-review-run-{case_id}"]'
         ).click()
-        comparison = review.locator('.lf-vr-case[aria-hidden="false"] lf-shot')
+        comparison = review.locator(".lf-vr-case:not([hidden]) lf-shot")
         expect(comparison).to_be_visible()
         images = comparison.locator("img")
         expect(images).to_have_count(2)

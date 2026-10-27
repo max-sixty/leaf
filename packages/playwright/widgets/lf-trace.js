@@ -75,7 +75,7 @@
  */
 import {
   commands,
-  declarationFor,
+  initialRender,
   dragging,
   cancelAnimation,
   nextAnimation,
@@ -329,7 +329,7 @@ customElements.define(
     #selectionLabel = createRef();
     #actionDetails = createRef();
     #phaseHeading = createRef();
-    // The prepaint face, shown until a recording arrives.
+    // The initial face, shown until a recording arrives.
     #waiting = null;
     // Viewer owns the viewport's figures; these overlays stand beside them.
     #missingImage = el("p", "lf-trace-missing-image");
@@ -518,11 +518,7 @@ customElements.define(
     }
 
     #build() {
-      const waiting = document.createElement("template");
-      waiting.innerHTML = declarationFor(this, "x-prepaint");
-      this.#waiting = waiting.content.firstElementChild;
-      generatedElement(this.#waiting, { says: false });
-      this.querySelector(":scope > [data-lf-prepaint]")?.remove();
+      this.#waiting = initialRender(this);
       this.#bookmarks = [...this.querySelectorAll(":scope > lf-trace-bookmark")].map(
         (member, index) => ({
           index,
@@ -531,8 +527,8 @@ customElements.define(
           key: member.getAttribute("key"),
         }),
       );
-      // Lit owns only this generated container; authored bookmarks and the
-      // prepaint face remain outside its child-part markers.
+      // Lit owns this generated container, retaining the initial paragraph as a
+      // node value. Authored bookmarks stay outside its child-part markers.
       this.#view = el("div", "lf-trace-view");
       generatedElement(this.#view, { says: false });
       this.append(this.#view);

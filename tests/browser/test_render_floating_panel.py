@@ -1182,7 +1182,7 @@ def test_threads_grow_in_place_and_hold_news_until_asked(browser, serve):
     """Threads fits the rows it lists, growing from its top edge as the user turns to it
     from On me, so the Threads tab just pressed and Close, among the controls at its
     foot, stay under the pointer; a thread arriving after that moves none of its rows,
-    the inventory keeping its height. A reply that arrives while its thread is open
+    waiting behind a notice. A reply that arrives while its thread is open
     waits behind the thread's notice."""
     url = serve(LONG_PAGE, comments=3)
     root = panel_comment(serve.page_dir, "Is the window long enough?")
@@ -1217,13 +1217,21 @@ def test_threads_grow_in_place_and_hold_news_until_asked(browser, serve):
     assert shown["y"] + shown["height"] == short["y"] + short["height"]
     assert threads_tab.bounding_box() == before
     assert close.bounding_box() == closes
+    rows = inventory.locator(".lf-fp-thread")
+    tops = "rows => rows.map(row => [row.dataset.key, row.getBoundingClientRect().top])"
+    row_positions = rows.evaluate_all(tops)
     panel_comment(serve.page_dir, "Who watches the weekend?")
     told(page)
-    expect(inventory.locator(".lf-fp-thread")).to_have_count(5)
+    joined = page.locator(".lf-fp-joined .lf-thread-news")
+    expect(joined).to_have_attribute("title", "1 new thread")
     settled(page)
-    assert inventory.bounding_box() == shown
+    expect(rows).to_have_count(4)
+    assert rows.evaluate_all(tops) == row_positions
     assert threads_tab.bounding_box() == before
     assert close.bounding_box() == closes
+    joined.click()
+    expect(rows).to_have_count(5)
+    expect(rows.filter(has_text="Who watches the weekend?")).to_be_visible()
 
     inventory.locator(".lf-fp-thread", has_text="Is the window long enough?").click()
     reader = page.locator(panel_view("thread"))
@@ -1245,6 +1253,65 @@ def test_threads_grow_in_place_and_hold_news_until_asked(browser, serve):
     expect(reader.locator(".lf-msg")).to_have_count(2)
     held.click()
     expect(reader.locator(".lf-msg")).to_have_count(3)
+
+
+def test_threads_holds_a_row_that_joins_or_moves_behind_a_notice(browser, serve):
+    """A reply reopening a resolved thread would move its row from Resolved to the head
+    of the list, and a thread the agent starts would join among the open rows. Neither
+    moves a row the user reads: the reopened row keeps its place, the new one waits,
+    and a notice says what joined. Enter on it lets the list settle and lands on the
+    first row it named. A tab press draws the list whole, a row it held included."""
+    url = serve(LONG_PAGE, comments=3)
+    root = panel_comment(serve.page_dir, "Is the opening right?", {"section": "p0"})
+    append_carried_log_record(
+        serve.page_dir, {"kind": "resolve", "author": "user", "parent": root}
+    )
+    page = floating(browser, url)
+    open_threads(page)
+    rows = page.locator(panel_view("threads")).locator(".lf-fp-thread")
+    returned = rows.filter(has_text="Is the opening right?")
+    expect(rows).to_have_count(4)
+    expect(returned).to_have_attribute("data-resolved", "")
+    settled(page)
+    tops = "rows => rows.map(row => [row.dataset.key, row.getBoundingClientRect().top])"
+    before = rows.evaluate_all(tops)
+    notice = page.locator(".lf-fp-joined .lf-thread-news")
+
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "parent": root,
+            "revision": 1,
+            "text": "The opening undersells the retry.",
+        },
+    )
+    panel_comment(serve.page_dir, "Should the close name the rollout?", author="agent")
+    told(page)
+    expect(notice).to_have_attribute("title", "1 new thread · 1 thread reopened")
+    settled(page)
+    assert rows.evaluate_all(tops) == before
+
+    notice.focus()
+    page.keyboard.press("Enter")
+    expect(notice).to_have_count(0)
+    expect(rows).to_have_count(5)
+    expect(rows.first).to_have_text(re.compile("Is the opening right?"))
+    expect(returned).to_be_focused()
+
+    append_carried_log_record(
+        serve.page_dir,
+        {"kind": "resolve", "author": "agent", "agent": "Claude", "parent": root},
+    )
+    told(page)
+    expect(notice).to_have_attribute("title", "1 thread resolved")
+    expect(rows.first).to_have_text(re.compile("Is the opening right?"))
+    panel_tab(page, "Threads").click()
+    expect(notice).to_have_count(0)
+    expect(returned).to_have_attribute("data-resolved", "")
+    expect(rows.first).not_to_have_text(re.compile("Is the opening right?"))
 
 
 AGENDA_PAGE = titled_page(

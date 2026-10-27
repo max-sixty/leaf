@@ -49,6 +49,7 @@ import { summaryRanges, withPendingProgress, workingPlace } from "./summary-rang
 import { growthAfterIsSeen, growthIsSeen, seenRect } from "../geometry.js";
 import { scrollThreadIntoView } from "./reply-landing.js";
 import { foldBlock, motionPlays } from "../motion.js";
+import { revealedBy } from "../widget-elements.js";
 
 // The names a reader finds a drawn message by (messages.js), which a folding one gives up.
 const MESSAGE_NAMES = ["data-message", "data-event", "data-attempt"];
@@ -135,16 +136,15 @@ export class Transcript {
     this.#home = home;
     this.node = document.createElement("div");
     this.node.className = "lf-thread-transcript";
-    // A route revealing a message a fold holds opens the fold (widget-elements.js,
-    // `reveal`).
-    this.node.addEventListener("lf-reveal", (event) => {
-      /** @type {HTMLElement | undefined} */
-      const message = event.detail?.target?.closest?.(".lf-msg[data-lf-summary]");
-      const id = message?.dataset.lfSummary;
-      if (!id || this.#expandedSummaries.has(id)) return;
-      this.#expandedSummaries.add(id);
-      this.#repaint();
-    });
+  }
+
+  // A route revealing a message a fold holds opens the fold (widget-elements.js,
+  // `revealedBy`).
+  #unfold(node) {
+    const id = node.dataset.lfSummary;
+    if (!id || this.#expandedSummaries.has(id)) return;
+    this.#expandedSummaries.add(id);
+    this.#repaint();
   }
 
   // Each message's view, in the thread's order: what its rewrites walk.
@@ -348,11 +348,14 @@ export class Transcript {
     }
     for (const message of model.messages) {
       let view = this.#messages.get(message.key);
-      if (!view)
+      if (!view) {
         this.#messages.set(
           message.key,
           (view = new MessageView(this.#messageCommands)),
         );
+        const { node } = view;
+        revealedBy(node, () => this.#unfold(node));
+      }
       view.present(message, {
         arrived,
         dated: dated.has(message.key),

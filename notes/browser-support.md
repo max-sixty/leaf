@@ -175,8 +175,8 @@ Recheck with real speech in the affected browser.
 
 ### Find-in-page scrolling to folded content
 
-`lf-tabs`, `lf-options` and `lf-trace-compare` use `hidden="until-found"`.
-WebKit's reported gap is that finding a match reveals folded content without
+Widgets fold content with `hidden="until-found"`, which Leaf's own travel reveals
+too (`runtime/widget-elements.js`, `reveal`). WebKit's reported gap is that finding a match reveals folded content without
 scrolling to the match. [WebKit 304174](https://webkit.org/b/304174) remained
 open when checked on 2026-10-22; this is published evidence, not a local Safari
 reproduction. Recheck native find-in-page on text inside a closed panel before

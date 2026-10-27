@@ -837,11 +837,15 @@
 
   /* ---------- an opened view: its name over it, its controls at its foot ---------- */
   /* Drawn only while a view is open, since it stands over the page while it is
-     (geometry.js, `declareOccluder`). */
+     (geometry.js, `declareOccluder`). A hairline across the card's full width ends
+     it, so the field below reads apart from the view even while the field draws no
+     contour of its own; painted inside its foot, it takes no room. */
   .lf-fp-opened {
     display: flex;
     flex-direction: column;
     min-height: 0;
+    background: linear-gradient(var(--lf-fp-faint), var(--lf-fp-faint)) bottom / 100%
+      1px no-repeat;
   }
   .lf-floating-panel:not([data-open]) .lf-fp-opened {
     display: none;
@@ -913,6 +917,20 @@
     align-items: baseline;
     gap: 6px;
     margin-inline: auto 12px;
+  }
+  /* What Threads holds while the user reads it stands over the rows it would have
+     moved, at the inset of the Resolved heading: its line grows the box upward from
+     the row the box stands on, so no row moves (floating-panel.js, `threadsListing`). */
+  .lf-fp-head:has(> .lf-fp-joined) {
+    display: flex;
+    align-items: center;
+    min-height: 32px;
+    padding: 6px 6px 0 calc(14px + var(--lf-fp-inset));
+    box-sizing: border-box;
+  }
+  .lf-fp-joined {
+    display: flex;
+    min-width: 0;
   }
   .lf-fp-news-outlet {
     display: contents;

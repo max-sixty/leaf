@@ -220,7 +220,7 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
         "node => ({family: getComputedStyle(node).fontFamily, "
         "size: getComputedStyle(node).fontSize})"
     )
-    assert field.bounding_box()["height"] == 32
+    assert page.locator(".lf-fab-bar .lf-compose-field").bounding_box()["height"] == 32
     write(field, "Carry this comment into its thread.")
     page.evaluate(
         """() => {
@@ -3498,7 +3498,7 @@ def test_a_held_aim_in_a_pane_paints_in_the_frame_its_target_scrolls(browser, se
     <lf-pane id="other-pane" label="Notes"><div><p>Notes.</p></div></lf-pane>
   </div>""",
                 head=regions_side_by_side("aim-split")
-                + f"<style data-controls>#pane-target {{ background:{SUBJECT_MARK}; }}"
+                + f"<style>#pane-target {{ background:{SUBJECT_MARK}; }}"
                 f" .lf-aim {{ outline:6px solid {FOLLOWER_MARK} !important; }}</style>",
                 layout="workspace",
             )
@@ -4555,7 +4555,7 @@ def test_design_paint_in_a_pane_paints_in_the_frame_its_target_scrolls(
         serve(
             DESIGN_PANE_PAGE.replace(
                 "</head>",
-                f"<style data-controls>#pane-target {{ background:{SUBJECT_MARK}; }} {follower}"
+                f"<style>#pane-target {{ background:{SUBJECT_MARK}; }} {follower}"
                 ".lf-legend-tag { display: none; }</style></head>",
             )
         ),

@@ -1,10 +1,10 @@
 /* The chrome a widget injects, the words it labels, and the room it measures.
 
    A behavior module builds injected controls with `offer`, a press wearing one of
-   Leaf's control faces with `offerAction` by its role, marks other words it
-   writes with `generatedElement`, and uses `relabel` when a control's label is also
-   one of the page's words. A Lit template reaches the same writers through element
-   directives built by `elementDirective`. A behavior module
+   Leaf's control faces with `offerAction` by its role, marks words it writes that
+   should stand apart from the author's with `generatedElement`, and uses `relabel`
+   when a control's label is also one of the page's words. A Lit template reaches the
+   same writers through element directives built by `elementDirective`. A behavior module
    reads a box from inside `measure`: a widget upgrades wherever the runtime connects
    it, and a shut panel is `display: none`, where every word measures zero. A label
    whose words change holds one room for all of them with `data-room`, which the
@@ -267,8 +267,9 @@ export function worksInside(node, container) {
 
 // The chrome a widget injects: a control, or the box that holds controls. Three
 // markers, one per question asked of it — `lf-ui` for apparatus identity, which
-// anchoring reads where no label speaks nearer; `data-lf-gen` so the diff looks away; `data-lf-offer`
-// for a thing to work, which paper drops because there is nothing there to press.
+// anchoring reads where no label speaks nearer; `data-lf-gen` for words the author
+// didn't write; `data-lf-offer` for a thing to work, which paper drops because there is
+// nothing there to press.
 // A widget writes none of the three by hand: they are what make an element chrome,
 // and one of them going missing is invisible until something breaks.
 //
@@ -453,8 +454,8 @@ document.addEventListener(
 // `.lf-ui` box around it — that box is a look, the chrome face, and it was standing
 // in for a permission the user has no category for — and paper reads it beside
 // data-lf-offer to keep a control whose label is one of the page's own words.
-// data-lf-gen goes on either way, because the diff parses the base version
-// unupgraded and would read any label as text that version lacked.
+// data-lf-gen goes on either way, because no label is words the author wrote, which
+// is what the `wrote` reading keeps (passages.js).
 //
 // Those are two questions with one answer until a label is a copy of words the page
 // says somewhere else — a roster row naming a worker, a generated index entry, any
@@ -482,10 +483,10 @@ document.addEventListener(
 // `generatedElement(node, {says})` writes those markers without the words: for a box
 // whose contents the widget writes, or words it fills in some other way. prepaint.js
 // holds it so that an initial producer receives it as it receives `offerElement`.
-// A forgotten marker shows as a widget's words read by the version diff as a change
-// nobody wrote, which only the render gate's comparison of a version with itself
-// reports (`version.js`, `selfComparison`), so widgets write the markers only through
-// it, `relabel` and the offers. `generated({says})` is its template form:
+// Widgets write the markers only through it, `relabel` and the offers, so the three
+// stay consistent. Words a module writes unmarked are the page's: the version
+// comparison reads sources (`version.js`), so they never read as a change, but `wrote`
+// keeps them and a quote can run across them. `generated({says})` is its template form:
 // `<h2 ${generated({ says: true })}>${title}</h2>`. Three writers stand apart because
 // they do something it doesn't: the datum projection (projection/data.js) marks and
 // unmarks authored nodes as their data comes and goes, markdown.js serializes its

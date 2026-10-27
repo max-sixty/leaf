@@ -1549,7 +1549,6 @@ _TEXT = {
     "dependency-unreadable": _captured(
         lambda v: f"cannot capture dependency: {v['error']}"
     ),
-    "dependency-type": _captured(lambda v: "unsupported dependency MIME type"),
     "module-not-local": _captured(
         lambda v: (
             "a bare module name has no import map to resolve it; import a file under"

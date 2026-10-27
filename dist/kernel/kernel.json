@@ -83,7 +83,7 @@
     "runtime/errors.js": "7dd996bf402b05ba7eeaf82a3f87be1bb76244c1ea98725324c475c7b6c5057e",
     "runtime/file-api.js": "4ffa7c003279a45c649db56e3904e7c535f94407fa052ad39797141394107bd9",
     "runtime/floating-panel.js": "916aebf89e14fb9706e677ffc1272b632bdb25c059ee3e614c5278b0f16ba369",
-    "runtime/focus.js": "42095b50860a7c18a7e3f8d8027c3aeb1851b3e0fcdee5396bcf44585c6b533e",
+    "runtime/focus.js": "4a2abd9244538cde0c165d0a92650999edfbaeb4184b14a4d90e0abb44bba48c",
     "runtime/frame-visibility.js": "bf7a4b7783b0b7c55dccb59d89863ba6e5252b63c3c43331493c59e510d3c0a1",
     "runtime/framework.js": "4231f9a0801ba1042f075e44a390e84f7b6a3992f97c216ca9d1b5029dbae0b7",
     "runtime/framework/application.js": "c624323aab0d995e76f43083f39de67f5a22ffe8cd1bd070915f3aab33706b65",

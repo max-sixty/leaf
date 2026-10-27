@@ -1,0 +1,45 @@
+/* The dial stands at the column's end and sticks at the window's top while the page
+   scrolls under it, so it can be turned wherever the reader is. */
+lf-dial {
+  position: sticky;
+  top: var(--lf-top, 0px);
+  z-index: 2;
+  display: block;
+  inline-size: fit-content;
+  margin-block: var(--sp-3);
+  margin-inline-start: auto;
+}
+/* The dial's row, drawn at upgrade, keeps the box it has at first paint. */
+html[data-lf-interactive] lf-dial {
+  min-block-size: calc(var(--lf-line) + var(--sp-2));
+}
+.lf-dial-depths {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: 2px;
+  border: 1px solid var(--rule);
+  border-radius: calc(var(--r) * 2);
+  background: var(--paper);
+  font: var(--t-working-label) / 1.4 var(--sans);
+}
+.lf-dial-depths > .lf-btn {
+  /* Selection changes the face, never the width of its words. */
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* A block Skim folds takes no room. Until-found keeps it findable but keeps its
+   margins, padding and borders, which the page's own rules set and this state must
+   override. */
+[data-lf-dial-folded][hidden="until-found"] {
+  margin-block: 0 !important;
+  padding-block: 0 !important;
+  border-block-width: 0 !important;
+}
+
+/* Where a run of blocks is folded: a quiet mark the reader can press to show it. */
+.lf-dial-more {
+  display: flex;
+  margin-block: calc(-1 * var(--sp-1)) var(--sp-2);
+}

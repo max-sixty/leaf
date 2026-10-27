@@ -59,8 +59,8 @@ import { generatedElement } from "./widget-elements.js";
 const PAGE_PAINT_ATTRIBUTES = new Set(Object.values(PAGE_PAINT_ATTRIBUTE));
 // Whether an attribute on the page's own element is paint rather than the author's: the
 // runtime's, or a declared mark, which delivery paints into the served document and
-// `markDeclared` into a message. The version diff reads the live DOM against a file
-// nothing has painted, and paint it did not look past is a change the author never made.
+// `markDeclared` into a message. A reading of the author's attributes on the live DOM
+// (`shallowSigs`) looks past it, since paint is no change the author made.
 export const isPagePaint = (name) =>
   PAGE_PAINT_ATTRIBUTES.has(name) ||
   Object.values(marks).some((mark) => mark.paint === name);
@@ -68,7 +68,7 @@ export const isPagePaint = (name) =>
 // A word for a user listening, silent on screen: real text — the one thing every
 // screen reader announces in every mode — placed after the element's leading title,
 // wearing .lf-ui (an invisible word is apparatus the anchor pass must not offer),
-// .lf-quiet (the shared clip), and data-lf-gen (the diff looks away). One writer per
+// .lf-quiet (the shared clip), and data-lf-gen (no author wrote it). One writer per
 // element, and the empty word removes what stands: a fact the page has stopped painting
 // must stop being said too, so a caller states the whole of what this element says
 // quietly and never appends to it. Content widgets once hand-copied this idiom
@@ -227,9 +227,8 @@ export function markDeclared(root) {
 //
 // The theme's pseudo rules stay as the no-script fallback; they stand down where this
 // pass has been, asked by :has(), so the two are never both on. The span is data-lf-gen
-// and not .lf-ui: the
-// diff parses the base version unupgraded and must not read it as text that version
-// lacked, and the user must be able to quote it.
+// and not .lf-ui: no source holds it, so the authored reading leaves it out, and the
+// user must be able to quote it.
 //
 // data-lf-said names the attribute here and stands bare on a label generatedElement
 // wrote, because the two are one claim — these words are the page's, whoever rendered

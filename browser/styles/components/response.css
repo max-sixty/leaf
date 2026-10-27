@@ -65,15 +65,18 @@ leaf-composition-field {
 .lf-compose-placeholder > kbd {
   flex: none;
 }
-/* Words passing at the empty box's far end (composing/input.js, `hintAside`), after
-   the hint and its key, inside the hint's layer, so they move none of the box's
-   controls as they come and go. */
-.lf-compose-placeholder > .lf-compose-placeholder-aside {
-  max-width: 40%;
-  margin-inline-start: auto;
-  padding-inline-start: 0.75em;
+/* Words standing before the hint (composing/input.js, `hintLead`), inside the hint's
+   layer, so they move none of the box's controls as they come and go. They send the
+   hint and its key to the box's far end, and a narrow box shortens them first, keeping
+   the hint whole. */
+.lf-compose-placeholder > .lf-compose-placeholder-lead {
+  margin-inline-end: auto;
+  padding-inline-end: 0.75em;
 }
-.lf-compose-placeholder-aside:empty {
+.lf-compose-placeholder-lead:not(:empty) ~ span {
+  flex: none;
+}
+.lf-compose-placeholder-lead:empty {
   display: none;
 }
 .lf-compose-placeholder .lf-key-badge {

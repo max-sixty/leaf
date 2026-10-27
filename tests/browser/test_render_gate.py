@@ -1386,14 +1386,8 @@ def test_a_pane_compares_its_words_without_its_opaque_children_rendered_data(
         "</pre></lf-diff></div><footer>Tests not run</footer></lf-pane>",
     )
     page = open_page(browser, live_url(serve(source, packages=("diff", "file-tree"))))
-    assert render_checks_model.evaluate_probe(page, "wordsReadAsChanged") == []
-    page.locator("#code > header").evaluate("el => el.textContent = 'Approved patch'")
-    changed = render_checks_model.evaluate_probe(page, "wordsReadAsChanged")
-    assert [(row["at"], row["words"]) for row in changed] == [
-        ("<lf-pane id=code>", "Approved patch Tests not run")
-    ]
-
-    # The same prose boundary owns the inline explanation of a real revision.
+    # The pane's prose, without its opaque children's rendered data, owns the inline
+    # explanation of a revision.
     stamp_page(
         serve.page_dir,
         source.replace(">Patch</header>", ">xxx  </header>").replace(
@@ -1414,7 +1408,6 @@ def test_a_pane_compares_its_words_without_its_opaque_children_rendered_data(
     expect(page.locator("#patch .lf-version-inline-deletion")).to_have_count(0)
     change.click()
     expect(page.locator("#code > header")).to_have_text("xxx")
-    assert render_checks_model.evaluate_probe(page, "wordsReadAsChanged") == []
 
 
 def test_the_state_wait_follows_a_source_back_to_the_version_the_page_shows(
@@ -1496,13 +1489,7 @@ def test_the_render_gate_holds_project_widgets_to_their_declarations(
     hidden light-DOM span and `querySelector` finds it, so a check written against the
     markup passes on a page whose user is never handed the word. Asking `says()` for
     the words is what tells the two apart — the layer's own reading enters a declared
-    root in the host's stead.
-
-    The page's own `count-note` writes a paragraph without marking it, so comparing
-    the version with itself marks that paragraph as changed, as every comparison a
-    user asks for would; `marked-note` writes the same words through
-    `generatedElement` and is not named. `lf-callout`'s words in its body's stead read
-    as changed too."""
+    root in the host's stead."""
     monkeypatch.chdir(tmp_path)
     package = tmp_path / ".leaf"
     _author_lying_callout(tmp_path)
@@ -1571,21 +1558,8 @@ customElements.define("field-host", class extends HTMLElement {{
     shadow_frame = escape(
         "<head>" + control + "<body><field-host></field-host></body>", quote=True
     )
-    counts = """<script type="module">
-import { generatedElement } from "/runtime/widget-api.js";
-for (const [tag, marked] of [["count-note", false], ["marked-note", true]])
-  customElements.define(tag, class extends HTMLElement {
-    connectedCallback() {
-      const count = document.createElement("p");
-      count.textContent = `Three items counted by ${tag}.`;
-      if (marked) generatedElement(count, { says: true });
-      this.append(count);
-    }
-  });
-</script></head>"""
     source = (
         CUSTOM_WIDGET_PAGE.replace("</head>", control)
-        .replace("</head>", counts)
         .replace(
             '<h1 id="title">Project vocabulary</h1>',
             f"""<h1 id="title">Project vocabulary</h1>
@@ -1602,29 +1576,24 @@ for (const [tag, marked] of [["count-note", false], ["marked-note", true]])
             "</lf-dusk>\n"
             '<lf-stager id="staged-note"><strong>Heads up</strong> Staged.</lf-stager>\n'
             '<lf-veil id="veiled-note" label="Escalated">'
-            "<strong>Heads up</strong> Clipped words.</lf-veil>\n"
-            '<count-note id="count-note"></count-note>\n'
-            '<marked-note id="marked-note"></marked-note>\n</main>',
+            "<strong>Heads up</strong> Clipped words.</lf-veil>\n</main>",
         )
     )
 
-    failures = render_gate_model.render_version(
+    reading = render_gate_model.render_version(
         browser,
         serve(
             source,
             packages=(*EXAMPLE_PACKAGES, "./.leaf"),
             media={src: SHOTS["before"]},
         ),
-    ).failures
+    )
+    failures = reading.failures
 
     def reported(code, at=""):
         return [f for f in failures if f.code == code and at in f.at]
 
     assert reported("verbatim", "custom-note"), failures
-    assert [(f.at, f.values["words"]) for f in reported("read-as-changed")] == [
-        ("<lf-callout id=custom-note>", "Entirely different words."),
-        ("<p> in <count-note id=count-note>", "Three items counted by count-note."),
-    ], failures
     assert any("<div>" in f.values["hosts"] for f in reported("undeclared-shadow")), (
         failures
     )
@@ -1635,7 +1604,7 @@ for (const [tag, marked] of [["count-note", false], ["marked-note", true]])
         "Escalated",
     }, failures
     # Delivery serves media under the revision, so the issue names that URL.
-    issues = reported("devtools-issue")
+    issues = [f for f in reading.advice if f.code == "devtools-issue"]
     # Chromium may emit the same issue for a frame more than once. The gate's
     # contract is which owned source nodes receive it, not CDP's event count.
     assert {(f.scheme, f.at, f.values["issue"]) for f in issues} == {

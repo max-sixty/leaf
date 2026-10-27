@@ -554,13 +554,16 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
      so the words keep their width and place and nothing scrolls sideways. Once
      anything is scrolled away, what stands on the heads' line covers the room above
      it, the stuck head and the actions each over its own track
-     (`--lf-thread-room-cover`, thread-preview.js); at the top a ring still has it.
+     (`data-lf-scrolled`, thread-preview.js); at the top a ring still has it.
      The card's face is the thread's ground (above), so the thread paints none, not
      even the quiet one a thread holding focus wears (surfaces.css). */
   .lf-margin-thread .lf-page-thread {
     --lf-transcript-room: max(var(--focus-ring-room), var(--lf-group-ring-end));
     padding: 0;
     background: none;
+  }
+  .lf-margin-thread .lf-page-thread[data-lf-scrolled] {
+    --lf-thread-room-cover: var(--lf-transcript-room);
   }
   .lf-margin-thread .lf-page-thread::after {
     /* Share the transcript's grid track without reserving reading space. The
@@ -681,12 +684,14 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  /* The actions' ground hides words scrolling past beside a head. It stands beneath the
-     head's own controls, which stop short of the actions by its padding, so a focused
-     control's ring stays whole over that ground. A notice of held news stands first
-     in the row, whole (thread-card.js); the card keeps its width while it holds news
-     (thread-preview.js), so the notice takes its room from the heads' track, and the
-     actions after it keep their places. */
+  /* The actions' ground hides words scrolling past beside a head, so it is drawn only
+     once anything is scrolled away. At the top the actions stand over the first
+     message's own line, where nothing passes and its arrival tint shows through. The
+     ground stands beneath the head's own controls, which stop short of the actions by
+     its padding, so a focused control's ring stays whole over it. A notice of held
+     news stands first in the row, whole (thread-card.js); the card keeps its width
+     while it holds news (thread-preview.js), so the notice takes its room from the
+     heads' track, and the actions after it keep their places. */
   /* The row is a message head's line, so Reopen taking Resolve's place is as tall as
      Resolve was. */
   .lf-margin-thread .lf-page-thread > .lf-margin-thread-controls {
@@ -703,6 +708,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     margin-block-start: calc(-1 * var(--lf-thread-room-cover, 0px));
     padding-block-start: var(--lf-thread-room-cover, 0px);
     padding-inline-start: var(--sp-2);
+  }
+  .lf-margin-thread .lf-page-thread[data-lf-scrolled] > .lf-margin-thread-controls {
     background: var(--paper);
   }
   /* A sticky head and its words paint the message's one animated ground.

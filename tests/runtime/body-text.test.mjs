@@ -425,7 +425,8 @@ test("preloading an arriving Markdown widget preserves its exact authored body",
 
 test("Markdown paragraphs keep reading grain while annotations retain the authored host", async () => {
   const { registry } = await import("/runtime/registry.js");
-  const { prepareDeclaredMarkdown } = await import("/runtime/markdown.js");
+  const { loadDeclaredMarkdown, formatDeclaredMarkdown } =
+    await import("/runtime/markdown.js");
   const { annotationAt } = await import("/runtime/anchor-resolution.js");
   const { blockAt, elementReading } = await import("/runtime/passages.js");
   registry["lf-seat-contract"] = { "x-text-format": "markdown" };
@@ -433,7 +434,8 @@ test("Markdown paragraphs keep reading grain while annotations retain the author
     const host = document.createElement("lf-seat-contract");
     host.id = "authored-seat";
     host.innerHTML = "<pre>First **words**.\n\n- Second words.</pre>";
-    await prepareDeclaredMarkdown(host);
+    await loadDeclaredMarkdown(host);
+    formatDeclaredMarkdown(host);
     const first = host.querySelector("strong").firstChild;
     const second = host.querySelector("li").firstChild;
     assert.equal(blockAt(first), host.querySelector("p"));

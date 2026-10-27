@@ -1,5 +1,5 @@
 import { CARET_KEYS, PRESSES, TEXT_BOX, WORKS, Z, controlNavigationKeys, focusRevision, focused, isNativeLayer, keeps, keepsText, nextRender, onCurrentLocation, onFocusVisibility, renderedParent, sizeObserver, takesLetters, under, x as x$1 } from "./bundle-dom-move.js";
-import { AsyncDirective, DELIVERY, Directive, PAGE_ROOT, PartType, describeFailure, directive, html, nothing, offlineInteractive, pageUrl, render, runtime, shownBox, tagsDeclaring } from "./bundle-geometry.js";
+import { AsyncDirective, DELIVERY, Directive, PAGE_ROOT, PartType, describeFailure, directive, html, nothing, offlineInteractive, pageUrl, render, runtime, showNativeLayer, shownBox, tagsDeclaring } from "./bundle-geometry.js";
 
 //#region runtime/page-paint.js
 const PAGE_PAINT_ATTRIBUTE = Object.freeze({
@@ -1523,24 +1523,27 @@ function iconTemplate(icon, className = "lf-margin-entry-icon") {
 
 //#endregion
 //#region runtime/widget-elements.js
+const openers = /* @__PURE__ */ new WeakMap();
+const revealedBy = (node, open) => openers.set(node, open);
 function reveal(el, mayReveal) {
 	const chain = [];
-	const pending = [];
+	const settling = /* @__PURE__ */ new Set();
 	let replacedView = false;
 	for (let a = el; a; a = renderedParent(a)) chain.push(a);
-	for (const a of chain.reverse()) {
+	chain.reverse();
+	for (const [at, a] of chain.entries()) {
 		if (!mayReveal()) break;
 		if (a.tagName === "DETAILS" && !a.open) a.open = true;
-		a.dispatchEvent(new CustomEvent("lf-reveal", { detail: {
-			target: el,
-			mayReveal,
-			replacedView: () => {
-				replacedView = true;
-			},
-			present: (ready) => ready?.then && pending.push(ready)
-		} }));
+		if (a.hasAttribute?.("popover") && !isNativeLayer(a)) showNativeLayer(a, { modal: false });
+		openers.get(a)?.();
+		if (a.getAttribute?.("hidden") !== "until-found") continue;
+		const shown = [...a.parentNode?.children ?? []].filter((s) => !s.hidden);
+		a.dispatchEvent(new Event("beforematch", { bubbles: true }));
+		a.removeAttribute("hidden");
+		if (shown.some((sibling) => sibling.hidden)) replacedView = true;
+		for (const owner of chain.slice(0, at + 1)) if (owner.updateComplete?.then) settling.add(owner.updateComplete);
 	}
-	const ready = Promise.all(pending);
+	const ready = Promise.all(settling);
 	ready.catch(() => {});
 	return {
 		ready,
@@ -1564,15 +1567,10 @@ const dragging = (el, on) => {
 };
 const LAYOUT = "lf-layout";
 const layoutChanged = (el) => {
-	const pending = [];
 	el.dispatchEvent(new CustomEvent(LAYOUT, {
 		bubbles: true,
-		composed: true,
-		detail: { present: (ready) => ready?.then && pending.push(ready) }
+		composed: true
 	}));
-	const ready = Promise.all(pending);
-	ready.catch(() => {});
-	return ready;
 };
 const measurements = /* @__PURE__ */ new WeakMap();
 const drawn = (el) => {
@@ -2111,4 +2109,4 @@ window.addEventListener("unhandledrejection", (e) => {
 });
 
 //#endregion
-export { EVERYTHING, LAYOUT, LINK, LayerRefused, PAGE_PAINT_ATTRIBUTE, PRESS, PRESSABLE, TEXT_ENTRY, admitReading, admitResponse, advertisesKeys, allBindings, announce, answers, ariaShortcuts, bindingEnabled, bindingEnabledFor, bindings, buttonCommand, checked, claimReleaseClick, claimsEsc, clampedRow, closeControl, coarsePointer, commandAvailable, commandBinding, commandDeclarationsWithin, commandEntries, commandPresentations, commandReady, commandRoutes, commandScope, commandsOn, commandsWithin, completeData, contextBindings, contextScopes, controlAvailabilityOutput, countTraffic, cycledRow, dataHeaders, decisionControls, declareCommandReadiness, declaredBindings, descriptionOf, dismissError, dismissErrors, dragHeld, dragging, el, elementDirective, errorsReading, exceptionText, generated, generatedElement, holdStatus, holdingError, hoveringPointer, iconElement, iconTemplate, isCommandScope, keys, labelOf, layerHeaders, layoutChanged, live, liveEl, measure, merge, motionPreview, mountRepaint, nativeActivationAt, nativeClaimAt, notice, noticeReading, offer, offerAction, offerActionElement, offered, offeredAction, pagePresented, pageUpgraded, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, plainPress, pointerAt, postEvent, pressIsKeyboardActivation, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, randomId, reachedForWords, recordInteraction, referencedCommandEntry, reflectFirstScopes, reflectKeys, relabel, removeRuntimeRootStyle, repaint, repaintPage, reportCarried, reportPageError, requestJson, responseAction, restorePointer, reveal, revealLayer, routedCommand, rowArrows, runtimeRootState, sameLayer, savedReadingSettled, saying, scopeAvailable, scopeIdentity, scopeRefs, scopesAt, scopesFor, searchField, seeErrors, selectableOffer, selectableOffered, sessionIsActive, setNoticeContext, setQuickShortcuts, setRuntimeRootAttribute, setRuntimeRootStyle, spell, spokenBinding, submitBindings, titleOf, touchPresses, uploadMedia, watchCommandAvailability, watchCommandScopes, watchPendingTraffic, word, worksInside };
+export { EVERYTHING, LAYOUT, LINK, LayerRefused, PAGE_PAINT_ATTRIBUTE, PRESS, PRESSABLE, TEXT_ENTRY, admitReading, admitResponse, advertisesKeys, allBindings, announce, answers, ariaShortcuts, bindingEnabled, bindingEnabledFor, bindings, buttonCommand, checked, claimReleaseClick, claimsEsc, clampedRow, closeControl, coarsePointer, commandAvailable, commandBinding, commandDeclarationsWithin, commandEntries, commandPresentations, commandReady, commandRoutes, commandScope, commandsOn, commandsWithin, completeData, contextBindings, contextScopes, controlAvailabilityOutput, countTraffic, cycledRow, dataHeaders, decisionControls, declareCommandReadiness, declaredBindings, descriptionOf, dismissError, dismissErrors, dragHeld, dragging, el, elementDirective, errorsReading, exceptionText, generated, generatedElement, holdStatus, holdingError, hoveringPointer, iconElement, iconTemplate, isCommandScope, keys, labelOf, layerHeaders, layoutChanged, live, liveEl, measure, merge, motionPreview, mountRepaint, nativeActivationAt, nativeClaimAt, notice, noticeReading, offer, offerAction, offerActionElement, offered, offeredAction, pagePresented, pageUpgraded, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, plainPress, pointerAt, postEvent, pressIsKeyboardActivation, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, randomId, reachedForWords, recordInteraction, referencedCommandEntry, reflectFirstScopes, reflectKeys, relabel, removeRuntimeRootStyle, repaint, repaintPage, reportCarried, reportPageError, requestJson, responseAction, restorePointer, reveal, revealLayer, revealedBy, routedCommand, rowArrows, runtimeRootState, sameLayer, savedReadingSettled, saying, scopeAvailable, scopeIdentity, scopeRefs, scopesAt, scopesFor, searchField, seeErrors, selectableOffer, selectableOffered, sessionIsActive, setNoticeContext, setQuickShortcuts, setRuntimeRootAttribute, setRuntimeRootStyle, spell, spokenBinding, submitBindings, titleOf, touchPresses, uploadMedia, watchCommandAvailability, watchCommandScopes, watchPendingTraffic, word, worksInside };

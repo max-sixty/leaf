@@ -146,7 +146,12 @@ lf-visual-review {
   min-block-size: 0;
   --lf-full-height: inherit;
 }
-.lf-vr-case[aria-hidden="true"] {
+/* Every case stands in the same cell, so the tracks hold the tallest and choosing
+   another case moves no control. A case not chosen is hidden until found, so travel to
+   a comment in it chooses it (`beforematch`), but until-found's containment would drop
+   its size from those tracks, so it stays laid out and is hidden by visibility. */
+.lf-vr-case[hidden="until-found"] {
+  content-visibility: visible;
   visibility: hidden;
   opacity: 0;
   pointer-events: none;
@@ -388,7 +393,7 @@ lf-visual-review {
   .lf-vr-case {
     display: block;
   }
-  .lf-vr-case[aria-hidden="true"] {
+  .lf-vr-case[hidden="until-found"] {
     visibility: visible;
     opacity: 1;
   }

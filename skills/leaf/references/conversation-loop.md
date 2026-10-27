@@ -215,7 +215,7 @@ Progress and information that need no response create no obligation. When a widg
 in the message's markup captures the same answer, its obligation is sufficient.
 
 Obligation ids are `message:<message>` for an explicit message request,
-`widget:<widget-id>` for a widget, `lf-ask` included,
+`widget:<widget-id>` for a widget that asks,
 and `update:<event-id>` for an update
 the user handed over. A to-do on the user keeps the id `task create` printed. It can sit on a thread; replies discuss the action and Done completes it.
 The user's next message in a thread answers every conversational request before it.
@@ -262,7 +262,6 @@ leaf task end <page> message:<message> done --text "<where the answer is>"
 leaf task end <page> message:<message> dropped --text "<why>"
 ```
 
-For a reply-answered widget, use its `widget:<widget-id>` obligation id instead.
 An obligation answered through a widget's controls ends through its state or an
 authored withdrawal (`authoring-revisions.md`). Explicit user to-dos also end with
 `leaf task end` when the work is complete, failed or dropped.

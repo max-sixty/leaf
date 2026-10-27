@@ -79,6 +79,14 @@ def test_a_leaf_serves_the_kernel_only_while_it_matches_the_tree(tmp_path, monke
     assert "/vendor/signals-core.js" in files
     assert stale.identity != runtime.identity
 
+    # The runtime's sheets are read from their sources, so an edit to a file one
+    # imports needs no build to be served.
+    imported = assets / "styles/floating-panel.css"
+    imported.write_text(imported.read_text() + ".lf-edited { color: red; }\n")
+    chrome = runtime_selection.read_runtime().resources({})["/runtime/chrome.css"]
+    assert b".lf-edited" in chrome.data
+    assert b"@import" not in chrome.data
+
 
 @pytest.mark.parametrize("directory", ["runtime", "widgets", "vendor"])
 @pytest.mark.parametrize("suffix", [".js", ".mjs"])

@@ -42,6 +42,39 @@ from leaf.registry import layer as registry_layer
 from leaf.registry import storage as registry_storage
 
 
+@pytest.mark.parametrize(
+    ("changes", "keyword", "path"),
+    [
+        ({"description": " \n\t"}, "pattern", ["description"]),
+        ({"x-example": " \n\t"}, "pattern", ["x-example"]),
+        ({"x-example": False}, "type", ["x-example"]),
+        ({"x-example": None}, "required", []),
+        ({"x-instructions": ""}, "pattern", ["x-instructions"]),
+        ({"x-work": True}, "additionalProperties", []),
+    ],
+)
+def test_idioms_have_nonblank_authoring_fields_and_no_widget_behavior(
+    changes, keyword, path
+):
+    registry = shipped_core_registry()
+    entry = {"description": "An eyebrow.", "x-example": '<p class="eyebrow">Title</p>'}
+    registry[".eyebrow"] = entry
+    registry_layer.validate_layer_declarations(registry, "registry.json")
+    entry["x-instructions"] = "Use above a heading."
+    registry_layer.validate_layer_declarations(registry, "registry.json")
+    for key, value in changes.items():
+        if value is None:
+            del entry[key]
+        else:
+            entry[key] = value
+    refused = registry_refusal(
+        lambda: registry_layer.validate_layer_declarations(registry, "registry.json")
+    )
+    assert found(
+        [refused], "idiom-schema", selector=".eyebrow", keyword=keyword, path=path
+    )
+
+
 def test_layer_facts_read_names_whole_and_an_absent_records_as_null():
     """The layer facts' schema holds names as the hand checks before it did: a
     trailing newline is no part of a token or contract name, and an optional

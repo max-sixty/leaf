@@ -190,6 +190,7 @@ import {
   messageText,
   threadHeading,
   threadName,
+  titlePending,
 } from "./thread/messages.js";
 import { drawnThreadId, THREAD } from "./thread/selectors.js";
 import { declareThreadParts } from "./thread/focus.js";
@@ -251,7 +252,7 @@ import {
 import { rowWalk } from "./walk-position.js";
 import { excerptWords } from "./words.js";
 import { holdRendering, nextRender, sizeObserver } from "./rendering.js";
-import { boxMotion, liftReach } from "./box-motion.js";
+import { boxMotion } from "./box-motion.js";
 import { scrollIntoView } from "./landing-scroll.js";
 import { moveScrollerBy, SCROLL_SLACK, scrollLimit, scrollToEnd } from "./scrolling.js";
 import { showReturnTurn } from "./thread/reply-landing.js";
@@ -354,18 +355,6 @@ export function createFloatingPanel({
   const outMs = () => motionTime("--lf-motion-view-out", host);
   host.setAttribute("role", "region");
   host.setAttribute("aria-label", "Leaf");
-  // The surface the box stands on: a layer of its own over the whole window, cut to the
-  // box's outline, with a ring a pixel outside it, so its outline can move between two
-  // places without either box's layout moving.
-  const ground = el("div", "lf-ui lf-fp-ground");
-  ground.setAttribute("aria-hidden", "true");
-  const ring = el("div", "lf-fp-ring");
-  const fill = el("div", "lf-fp-fill");
-  // The field's focus ring, drawn here only while the box moves (box-motion.js), since
-  // no transform draws a ring changing size.
-  const fieldRing = el("div", "lf-fp-field-ring");
-  const fieldFill = el("div", "lf-fp-fill");
-  ground.append(ring, fill, fieldRing, fieldFill);
   const card = el("div", "lf-fp-card");
   const inner = el("div", "lf-fp-inner");
   // What stands above the row while a view is open: its name, with nothing to press, the
@@ -967,7 +956,9 @@ export function createFloatingPanel({
   // - `title`: its name, over it, on the way back to it and in the Escape that closes it;
   //   `head` in its heading where that says more, and `quiet` where something in view
   //   already says it, so the heading names it to assistive tech alone: On's tabs, or an
-  //   untitled thread's opening message, whose words its name would repeat.
+  //   untitled thread's opening message, whose words its name would repeat. While a
+  //   title is on its way, the heading shows and says so, as every list of threads does;
+  //   the user chose that on 26 October over a heading of the opening words.
   // - `draw` and `controls`: what it holds, and what stands at its foot after the way
   //   back (`controlsTemplate`): `crumb`, in its row, and `aux`, the view's presses.
   // - `nominate`: the outlets in it Leaf's reader draws messages into.
@@ -993,7 +984,10 @@ export function createFloatingPanel({
         const thread = threadOf(route);
         return thread ? threadHeading(thread) : threadTitle(route.thread);
       },
-      quiet: (route) => threadOf(route)?.title == null,
+      quiet: (route) => {
+        const thread = threadOf(route);
+        return thread?.title == null && !(thread && titlePending(thread));
+      },
       draw: (route) => threadView(route.thread),
       controls: (route) => threadControls(route),
       nominate: (route, collection, parts) => nominateThread(route, collection, parts),
@@ -1252,20 +1246,16 @@ export function createFloatingPanel({
   const following = boxMotion({
     root: host,
     box: card,
-    room: ground,
-    // The ground is cut too, to the outline grown by its shadow's reach (`--raise-2`'s
-    // blur dropped by its drop, theme.css), so it stands over nothing else in the
-    // window: a layer over the whole window that paints nothing left every word under
-    // it unmeasured by a contrast checker. Its cut moves with the ring's, so it holds
-    // the ring every frame.
-    surface: () => [
-      [ground, liftReach(ground, 2)],
-      [ring, 1],
-      [fill, 0],
-    ],
-    ring: [fieldRing, fieldFill],
+    // The surface the box stands on: a layer of its own over the whole window, with a
+    // ring a pixel outside the box's outline, cast at the height of what opens over
+    // the page, so its outline can move between two places without either box's
+    // layout moving.
+    surface: "lf-ui lf-fp-ground",
+    lift: 2,
+    outset: 1,
     observer: follow,
   });
+  const { ground } = following;
   // A send is the user's change joining the stream the box shows (box-motion.js,
   // "send"): the box reads where that stream stands before the send draws, and the
   // readings until the send's rendering settles carry it from there on the box's own
@@ -1293,10 +1283,8 @@ export function createFloatingPanel({
         : resizeMs();
     following.follow({ duration, easing: compact ? foldEase() : ease() }, compact);
   }
-  addEventListener("resize", () => {
-    following.forget();
-    followBox();
-  });
+  // The window changed size, which the box's motion takes as it stands (box-motion.js).
+  addEventListener("resize", followBox);
 
   // A view is as tall as what it holds, up to its cap (floating-panel.css,
   // `--lf-fp-view-height`); what does not fit scrolls inside it. A thread's view follows

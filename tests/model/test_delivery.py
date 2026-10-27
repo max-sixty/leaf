@@ -1143,7 +1143,7 @@ def test_a_settling_reaction_wakes_only_when_it_answers_the_agent(
     publish(page_dir)
     session_model.cmd_waiting(page_dir)
     question = thread_model.cmd_comment(
-        page_dir, "", "", "", "One question:", '<lf-ask id="forty">Forty?</lf-ask>'
+        page_dir, "", "", "", "Forty?", "", obligation=True
     )
     quiet = append_command(
         page_dir,

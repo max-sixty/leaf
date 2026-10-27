@@ -63,7 +63,6 @@ customElements.define(
       const theme = root.firstChild;
       const label = this.getAttribute("aria-label") || "Files";
       keeps(this, "aria-label", label);
-      this.replaceChildren();
 
       let tree = null;
       let files = [];

@@ -2,9 +2,11 @@
 reply editor's growth, and what a sent or arriving turn leaves in view."""
 
 import base64
+from io import BytesIO
 
 import pytest
 from interact_support import append_carried_log_record
+from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import (
     HOLD_MOTION,
@@ -243,14 +245,14 @@ def test_a_margin_card_is_one_frame_that_rings_for_its_thread(browser, serve):
         };
         return {card: Math.round(card.getBoundingClientRect().left),
                 ground: getComputedStyle(thread).backgroundColor,
-                paper: getComputedStyle(card.querySelector('.lf-margin-preview-card')).backgroundColor,
                 words: x(words), field: x(field),
                 fieldBorder: getComputedStyle(field).borderTopStyle,
                 inset: Math.round(words.getBoundingClientRect().left
                                   - card.getBoundingClientRect().left)};
     }"""
     )
-    assert frame["ground"] == frame["paper"], frame
+    # The thread paints no ground, so the card's paper shows through it.
+    assert frame["ground"] == "rgba(0, 0, 0, 0)", frame
     assert frame["fieldBorder"] == "solid", frame
     # The field's box stands at the card's padding; words share the conversation's
     # reading inset, rather than gaining a second frame.
@@ -326,7 +328,7 @@ CARD_AT_REST = (
 # Where the card's outline, its head row and each turn are drawn now: the outline as its
 # surface's ring is cut (box-motion.js), the rest by their boxes.
 CARD_DRAWN = """card => {
-  const ring = card.querySelector('.lf-margin-preview-ring');
+  const ring = card.querySelector('.lf-margin-preview-ground > .lf-box-ring');
   const ground = card.querySelector('.lf-margin-preview-ground');
   const cut = getComputedStyle(ring).clipPath.match(/inset\\(([-\\d.]+)px/);
   return [cut ? ground.getBoundingClientRect().top + Number(cut[1])
@@ -372,7 +374,7 @@ def test_a_card_send_moves_the_card_as_one_stream(browser, serve):
 
 # Where a card's outline, its head row, each turn and each turn's name are drawn now.
 FULL_CARD_DRAWN = """card => {
-  const ring = card.querySelector('.lf-margin-preview-ring');
+  const ring = card.querySelector('.lf-margin-preview-ground > .lf-box-ring');
   const ground = card.querySelector('.lf-margin-preview-ground');
   const cut = getComputedStyle(ring).clipPath.match(/inset\\(([-\\d.]+)px/);
   const tops = (selector) => [...card.querySelectorAll(selector)]
@@ -491,6 +493,66 @@ def test_a_press_on_a_moving_card_reaches_what_it_aims_at(browser, serve):
     close = preview.locator(".lf-margin-preview-close").bounding_box()
     page.mouse.click(close["x"] + close["width"] / 2, close["y"] + close["height"] / 2)
     expect(preview).to_be_hidden()
+
+
+def test_a_growing_margin_reply_keeps_its_whole_ring_from_the_first_frame(
+    browser, serve
+):
+    """While the card grows with its reply field, the field's focus ring is drawn
+    whole where the field stood, from the motion's first frame. The field's own paper
+    already stood at its grown size, over the ring's lower edge, until the ring had
+    nearly reached its rest."""
+    page = open_page(browser, serve(LONG_THREAD_PAGE, events=[LONG_THREAD_ROOT]))
+    page.emulate_media(reduced_motion="no-preference")
+    resized(page, 1440, 900)
+    page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
+    preview = page.locator(".lf-margin-preview")
+    expect(preview).to_be_visible()
+    editor = preview.get_by_role("textbox", name="Reply", exact=True)
+    editor.click()
+    write(editor, "A first line.")
+    rendered(page)
+    page.wait_for_function(CARD_AT_REST)
+    field = preview.locator(".lf-thread-reply .lf-compose-field")
+    stood = field.bounding_box()
+    ring = field.evaluate(
+        "node => getComputedStyle(node).outlineColor.match(/\\d+/g).map(Number)"
+    )
+    page.evaluate("() => {" + HOLD_MOTION + "}")
+    page.keyboard.press("Shift+Enter")
+    page.wait_for_function("() => window.__lfHeld.some(m => m.playState !== 'idle')")
+    assert field.bounding_box()["height"] > stood["height"] + 10, "the field never grew"
+    pixels = Image.open(
+        BytesIO(
+            page.screenshot(
+                clip={
+                    "x": stood["x"] - 4,
+                    "y": stood["y"] - 4,
+                    "width": stood["width"] + 8,
+                    "height": stood["height"] + 8,
+                }
+            )
+        )
+    ).convert("RGB")
+    scale = pixels.width / (stood["width"] + 8)
+
+    def ringed(y):
+        """The share of the field's width along row `y`, in the clip's CSS pixels,
+        drawn in the ring's colour."""
+        row = [
+            pixels.getpixel((round(x * scale), round(y * scale)))
+            for x in range(24, round(stood["width"]) - 16)
+        ]
+        return sum(
+            sum(abs(a - b) for a, b in zip(seen, ring, strict=True)) < 90
+            for seen in row
+        ) / len(row)
+
+    # The ring stands two pixels outside the field's box: its top band ends at the
+    # field's top, 4 px into the clip, and its bottom band starts at the field's foot.
+    edges = {"top": ringed(3), "bottom": ringed(stood["height"] + 5)}
+    page.evaluate("() => window.__lfHeld.splice(0).forEach(motion => motion.finish())")
+    assert min(edges.values()) > 0.8, edges
 
 
 def test_typing_in_a_margin_reply_leaves_the_transcript_where_the_reader_put_it(

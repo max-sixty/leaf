@@ -1,9 +1,12 @@
 /* How a floating box follows a change of its layout, whatever made the change, a line
  * the field gained, more room, a view opening, the box folding to its leaf: the one model
- * of motion for the floating panel (floating-panel.js, `followBox`) and the margin
- * thread card (thread-preview.js, `followCard`). The user asked on 25 October for one
- * canonical animation, after a card's send jumped to its new turn's head while a second
- * mechanism slid its words by scrolling.
+ * of motion for the floating panel (floating-panel.js, `followBox`), the margin thread
+ * card (thread-preview.js, `followCard`) and the comment box beside a passage
+ * (composing/floating-response.js, `followFab`), whose Send grows the card out of its
+ * field (`drawnAt`). The user asked on 25 October for one canonical animation, after a
+ * card's send jumped to its new turn's head while a second mechanism slid its words by
+ * scrolling, and on 26 October for the comment box to move the same way, which grew a
+ * line in one frame and grew its card by a clip of its own on another clock.
  *
  * The layout changes in one step, so nothing a press aims at waits on a tween, and what
  * the user sees then travels from where it was drawn to where it now stands, every part
@@ -13,8 +16,12 @@
  *   the outline, so the outline moves by its cut from where it was drawn to where it
  *   stands. A ring the box or a part of it wears, such as the field's focus ring, is
  *   drawn there too while it moves (`ring`), since no transform draws a box changing
- *   size. A box anchored in the page holds its surface inside itself, so the page's
- *   scroll carries both.
+ *   size. The surface stands behind every part, so the box's face is the only ground
+ *   between it and a ring it draws: a part around the ring's wearer that paints its
+ *   own would cover the ring's band. The wearer's own ground already stands at its new
+ *   size and would cover the band on the side it grows toward, so the surface draws
+ *   that ground too, inside the ring. A box anchored in the page holds its surface
+ *   inside itself, so the page's scroll carries both.
  * - A part that kept its size is carried: drawn where it stood, and moved by a
  *   transform to where it stands.
  * - A part that changed size and holds parts of its own leaves each of them to these
@@ -101,7 +108,7 @@
  * running one when the next change starts, as each keystroke would; here every part
  * stays live and pressable, which takes reading where each was drawn. */
 import { keeps } from "./keeps.js";
-import { motionPlays, playMotion } from "./motion.js";
+import { motionEasing, motionPlays, motionTime, playMotion } from "./motion.js";
 import { TEXT_FIELD } from "./control-selectors.js";
 import { onUserInput } from "./focus.js";
 import { afterSettling, nextRender } from "./rendering.js";
@@ -133,13 +140,17 @@ function listen() {
   window.addEventListener("click", beginGesture, { capture: true, passive: true });
 }
 
-// How far a lift of the theme's (`--raise-N`, theme.css) paints past the box it raises:
-// its drop and its blur, read off `element`, where the theme registers them as lengths.
+// How far a lift of the theme's (`--raise-N`, theme.css) paints past the box it raises,
+// cast as a filter's drop shadow: its drop, and twice its blur, which a filter takes as
+// the deviation of its Gaussian, so the shadow has faded to nothing seen by then. Read
+// off `element`, where the theme registers them as lengths. Cut at the drop and one
+// blur, the shadow stopped in a step.
 export const liftReach = (element, level) => {
   const lift = getComputedStyle(element);
-  return ["drop", "blur"]
-    .map((part) => Number.parseFloat(lift.getPropertyValue(`--raise-${level}-${part}`)))
-    .reduce((reach, part) => reach + part);
+  const [drop, blur] = ["drop", "blur"].map((part) =>
+    Number.parseFloat(lift.getPropertyValue(`--raise-${level}-${part}`)),
+  );
+  return drop + 2 * blur;
 };
 
 const near = (a, b) => Math.abs(a - b) < 0.5;
@@ -173,8 +184,9 @@ const clipFrame = (sides, radius = 0) => ({
   "--lf-box-cut": sides.map((side) => `${side}px`).join(" "),
 });
 const radiusOf = (style) => Number.parseFloat(style.borderTopLeftRadius) || 0;
+const seeThrough = (color) => /^(transparent|rgba\(.*,\s*0\))$/.test(color);
 const paints = (style) =>
-  !/^(transparent|rgba\(.*,\s*0\))$/.test(style.backgroundColor) ||
+  !seeThrough(style.backgroundColor) ||
   style.backgroundImage !== "none" ||
   style.boxShadow !== "none" ||
   ["Top", "Right", "Bottom", "Left"].some(
@@ -186,23 +198,49 @@ const rings = (style) =>
 // root: the element whose parts move, the box among them, and only what moves with the
 // box: a part with a job of its own beside it, such as a grip whose clip leaves its
 // middle open to presses, stands outside it, since a cut would replace that clip. box:
-// the part the surface draws. room: the surface's layer, reaching past every outline
-// the box can travel through, against which its cuts are measured; it moves with the
-// box's plane. surface(): each layer drawing the box, with how far past the outline it
-// reaches. ring: the two layers that draw a part's ring, a ring and a fill inside it.
-// observer: reads the box again when any part changes size. held(): the root's edges
-// that hold it in its plane, as `{x: "left" | "right", y: "top" | "bottom"}`, or null
-// for a box fixed in the window.
+// the part the surface draws. surface: the class of the surface's layer (`ground`),
+// which the caller stands behind the box in the box's plane, and whose rule places it
+// reaching past every outline the box can travel through, against which its cuts are
+// measured, and colours its ring and fill (`--lf-box-ring`, `--lf-box-fill`,
+// chrome.css). lift: the theme's lift (`--raise-N`) whose shadow the surface casts.
+// outset: how far the surface's ring stands outside the box, 1 for a ring around it, 0
+// for one drawn inside its edge as a border is. observer: reads the box again when any
+// part changes size. held(): the root's edges that hold it in its plane, as
+// `{x: "left" | "right", y: "top" | "bottom"}`, or null for a box fixed in the window.
 export function boxMotion({
   root,
   box,
-  room,
-  surface,
-  ring: [ringLayer, ringFill],
+  surface: surfaceClass,
+  lift,
+  outset,
   observer,
   held = () => null,
 }) {
   listen();
+  // The surface: a ring and a fill inside it, cut to the box's outline, under one
+  // shadow, and a ring a part of the box wears, drawn here only while the box moves,
+  // in that ring's own colour, since no transform draws a ring changing size.
+  const layer = (name) => {
+    const node = document.createElement("div");
+    node.className = name;
+    return node;
+  };
+  const room = layer(`lf-box-ground ${surfaceClass}`);
+  room.setAttribute("aria-hidden", "true");
+  const [ring, fill, ringLayer, ringFill] = [
+    "lf-box-ring",
+    "lf-box-fill",
+    "lf-box-moving-ring",
+    "lf-box-fill",
+  ].map(layer);
+  room.append(ring, fill, ringLayer, ringFill);
+  const shadowReach = () => liftReach(room, lift);
+  // Each layer, how far past the outline it is cut, and what it paints besides.
+  const surface = () => [
+    [room, shadowReach(), `filter: drop-shadow(var(--raise-${lift})); `],
+    [ring, outset, ""],
+    [fill, outset - 1, ""],
+  ];
   // Whether this box's send is the gesture under way (`stream`): the gesture's number.
   let sent = -1;
   const theirs = () => (gesture !== null && sent === gestures ? "send" : gesture);
@@ -244,6 +282,12 @@ export function boxMotion({
     if (event.type !== "input") noteFieldScrolls();
   });
   root.addEventListener("lf-before-edit", noteFieldScrolls, { passive: true });
+  const forget = () => {
+    rests = null;
+  };
+  // The window changed size: the next reading takes the box as it stands, rather than
+  // trail the window's edge by a tween.
+  addEventListener("resize", forget);
   function rebase() {
     const at = boxOf(root.getBoundingClientRect());
     const edges = held();
@@ -400,7 +444,15 @@ export function boxMotion({
     watch();
   }).observe(root, { subtree: true, childList: true, attributeFilter: ["hidden"] });
 
-  function follow({ duration, easing }, compact = false) {
+  // The tween a change of layout travels on, the box's own unless its caller names
+  // another (`--lf-motion-box-resize`, chrome.css).
+  function follow(
+    {
+      duration = motionTime("--lf-motion-box-resize", box),
+      easing = motionEasing("--lf-motion-box-ease", box),
+    } = {},
+    compact = false,
+  ) {
     timing = { duration, easing };
     rebase();
     const progress = running[0]?.effect.getComputedTiming().progress ?? 1;
@@ -485,11 +537,11 @@ export function boxMotion({
     const boxAt = rests.get(box);
     const boxStyle = getComputedStyle(box);
     const boxRadius = radiusOf(boxStyle);
-    for (const [layer, reach] of surface())
+    for (const [layer, reach, paint] of surface())
       keeps(
         layer,
         "style",
-        `clip-path: ${insetOf(...outline(boxAt, reach, boxRadius))}`,
+        `${paint}clip-path: ${insetOf(...outline(boxAt, reach, boxRadius))}`,
       );
     if (!was?.has(box)) {
       restoreTranslations();
@@ -767,13 +819,17 @@ export function boxMotion({
     }
 
     // The surface draws a ring that changes size while it moves, in the ring's own
-    // colour, the box's own ring among them.
+    // colour, the box's own ring among them, and inside it the part's own ground, which
+    // the part stands without meanwhile.
     function drawRing(element, style, from, to, compact = false) {
       const offset = Number.parseFloat(style.outlineOffset);
       const reach = Number.parseFloat(style.outlineWidth) + offset;
       const radius = radiusOf(style);
+      const colour = seeThrough(style.backgroundColor) ? null : style.backgroundColor;
       keeps(ringLayer, "style", `background: ${style.outlineColor}`);
+      keeps(ringFill, "style", colour && `background: ${colour}`);
       hold(element, "outlineColor", "transparent");
+      if (colour) hold(element, "backgroundColor", "transparent");
       for (const [layer, grown] of [
         [ringLayer, reach],
         // The fill meets the outline's inner edge, including an inward ring.
@@ -835,7 +891,11 @@ export function boxMotion({
     motions.set(box, { from: boxFrom, to: boxAt });
     for (const [layer, reach] of surface())
       start(layer, contour(boxFrom, boxAt, reach, boxRadius, compact));
+    // A ring the box comes to wear while it moves, as focus reaching the card a
+    // comment's Send opened does, would stand at the box's rest size over an outline
+    // still travelling, so it waits for the tween's end.
     if (rings(boxStyle)) drawRing(box, boxStyle, boxFrom, boxAt, compact);
+    else hold(box, "outlineColor", "transparent");
     // The box stands transparent over the surface's own fill while everything moves,
     // and lets what it carries stand past its rest outline on the way.
     hold(box, "backgroundColor", "transparent");
@@ -849,6 +909,10 @@ export function boxMotion({
   }
 
   return {
+    // The surface's layer, which the caller stands behind the box.
+    ground: room,
+    // How far the surface's shadow reaches past the box's outline.
+    shadowReach,
     follow,
     // whose change is being read: "typing" or "press" for the user's own, "send" once
     // that gesture sends from this box (`stream`), null for news.
@@ -891,9 +955,33 @@ export function boxMotion({
           });
       }
     },
-    // The window changed size: the next reading takes the box as it stands.
-    forget() {
-      rests = null;
+    // The box's placement moves it, as a line it gained can shift it inside the
+    // window (`place`): unlike its plane carrying it (`rebase`), what that moves travels
+    // from where it was drawn, as any change of its layout does, so the edge the
+    // placement now holds it by doesn't jump.
+    placed(place) {
+      rebase();
+      place();
+      frame = boxOf(root.getBoundingClientRect());
     },
+    // The box's outline where it is drawn now, in the window: where its motion has
+    // carried it, or its rest.
+    outline() {
+      const moving = motions.get(box);
+      const progress = running[0]?.effect.getComputedTiming().progress ?? 1;
+      if (moving && progress < 1) return interpolate(moving.from, moving.to, progress);
+      return boxOf(box.getBoundingClientRect());
+    },
+    // The box was drawn a moment ago at `rect`, in the window, as the card a comment's
+    // Send opens was the field it replaces: the next reading draws the box's outline
+    // from there, and reveals each part as that outline's edges reach it.
+    drawnAt(rect) {
+      frame = boxOf(root.getBoundingClientRect());
+      motions = new Map();
+      rests = new Map([[box, boxOf(rect)]]);
+    },
+    // Nothing stands the box where the next reading could move it from, such as a box
+    // no placement stands yet: that reading takes it as it stands.
+    forget,
   };
 }

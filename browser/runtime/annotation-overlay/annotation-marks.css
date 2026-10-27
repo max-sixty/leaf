@@ -1,6 +1,6 @@
 /* Passage annotation highlights, adopted by overlay documents and their shadow stages.
  * The runtime's highlight registry paints these ranges without wrapping their words.
- * Message delivery, version insertion and widget indication remain in marks.css. */
+ * Message delivery and version insertion remain in marks.css. */
 
 /* The highlights rank `lf-mark`, `lf-mark-hover`, `lf-mark-here`, `lf-pending`, and a
    higher one supplies only the properties it states. Hover and the current thread share

@@ -356,23 +356,29 @@ export function pageStatus(state, { reach = "reached", fault = null } = {}) {
 // them: each side's kinds and each open to-do's title. The floating panel counts what
 // waits on the user on its On me mark. What a widget registered is counted as what is
 // left to answer, since only a row or the walk names it by its widget (`obligationWord`).
+// A question asked in a message is counted with them, so kinds that share words share
+// one count.
+const TO_ANSWER = Object.freeze(["to answer", "to answer"]);
+const TODO = Object.freeze(["to-do", "to-dos"]);
 const QUEUE_WORDS = Object.freeze({
-  widget: ["to answer", "to answer"],
-  message: ["to answer", "to answer"],
+  widget: TO_ANSWER,
+  message: TO_ANSWER,
   resend: ["update to send again", "updates to send again"],
   answer: ["answer", "answers"],
   reply: ["reply", "replies"],
-  todo: ["to-do", "to-dos"],
+  todo: TODO,
 });
 function queueKinds(items) {
-  const byKind = new Map();
-  for (const item of items)
-    byKind.set(itemNoun(item), [...(byKind.get(itemNoun(item)) ?? []), item]);
-  return [...byKind].map(([kind, all]) => {
-    const words = `${all.length} ${QUEUE_WORDS[kind][all.length === 1 ? 0 : 1]}`;
+  const byWords = new Map();
+  for (const item of items) {
+    const nouns = QUEUE_WORDS[itemNoun(item)];
+    byWords.set(nouns, [...(byWords.get(nouns) ?? []), item]);
+  }
+  return [...byWords].map(([nouns, all]) => {
+    const words = `${all.length} ${nouns[all.length === 1 ? 0 : 1]}`;
     // A to-do outlasts the turns and the thread that opened it (`todos.py`), so each
     // open one is named, including one on a thread the user has resolved.
-    return kind === "todo"
+    return nouns === TODO
       ? `${words} (${all.map((row) => row.obligation?.prompt.text ?? row.todo.title).join(" · ")})`
       : words;
   });

@@ -290,6 +290,7 @@ function shadowStage(host, nodes) {
 		stageStyles.set(root, style);
 	}
 	setChildren(root, [style, ...nodes]);
+	for (const child of [...host.childNodes]) child.remove();
 	watchPassageRoot(root);
 	return root;
 }

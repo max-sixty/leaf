@@ -130,8 +130,8 @@ in the margin or over their targets. Page CSS needs no extra spacing for either.
 
 The vendored theme already gives ordinary content (headings, prose, tables, code and
 widgets) a finished treatment in both colour schemes, so polish it through clearer
-content and hierarchy: a card wrapped around elements the theme already styles, or a
-page-wide override of its type and colour, adds visual weight without meaning. Page
+content and hierarchy: a card wrapped around elements the theme already styles adds
+visual weight without meaning. Page
 CSS is for what is particular to the task: its arrangement, a visualization, an
 instrument drawn for the decision, or a design the user asks for. Design that part for
 the judgment it serves, and build it from the theme's colour tokens

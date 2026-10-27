@@ -54,6 +54,13 @@ def test_a_failed_thread_surface_continues_the_keyboard_opened_reply(browser, se
     _exercise_failed_thread_surface(browser, serve, "hidden", activation="keyboard")
 
 
+def test_a_moved_thread_outlet_continues_the_pointer_opened_reply(browser, serve):
+    """A failed outlet must keep the active reply visible after a sibling press."""
+    _exercise_failed_thread_surface(
+        browser, serve, "moved", activation="pointer-continuation"
+    )
+
+
 def _exercise_failed_thread_surface(browser, serve, failure, *, activation):
     """An adapter failure cannot keep stale local views or stop the next widget.
 
@@ -206,19 +213,23 @@ customElements.define('lf-test-surface', class extends LeafElement {
     strip = broken.locator(".lf-react-strip")
     trigger = strip.locator(".lf-react-trigger")
     if activation == "pointer":
+        # Exercise retirement of a saved draft separately from active continuations.
+        input.press("Escape")
+        assert not page.evaluate(editing, roots[0])
+    if activation.startswith("pointer"):
         trigger.click()
     else:
         trigger.focus()
         page.keyboard.press("Enter")
     expect(strip.locator(".lf-react-palette:popover-open")).to_have_count(1)
-    assert page.evaluate(editing, roots[0]) == (activation == "keyboard")
+    assert page.evaluate(editing, roots[0]) == (activation != "pointer")
     assert stored_draft_text(page, f"reply:{roots[0]}") == "Keep this unsent reply."
 
     broken.evaluate("(widget, phase) => widget.fail(phase)", failure)
     rendered(page)
     page.evaluate("lfWordsJudged()")
     if activation == "pointer":
-        # The reaction press already ended this composition, before the passive
+        # Escape already ended this composition, before the passive
         # adapter fault. Retiring its unfocused view withdraws saved work, not a
         # typing continuation. Calibrate only this exact report at that handoff;
         # adapter faults and every other loss remain with the strict collector.

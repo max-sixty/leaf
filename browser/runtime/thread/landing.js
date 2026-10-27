@@ -143,6 +143,20 @@ const cardThread = () => focusedThreadTarget();
 const resolutionControl = (thread) =>
   thread ? threadPart(thread, "settlement") : null;
 
+// The Copy of the message the user is in, by focus or by the caret a click on its words
+// leaves, else of the thread's latest message.
+const messageAt = (node) =>
+  (node instanceof Element ? node : node?.parentElement)?.closest(".lf-msg") ?? null;
+function messageCopy(thread) {
+  if (!thread) return null;
+  const caret = getSelection().anchorNode;
+  const message =
+    messageAt(focused()) ??
+    (thread.contains(caret) ? messageAt(caret) : null) ??
+    [...thread.querySelectorAll(".lf-msg")].at(-1);
+  return message?.querySelector(":scope > .lf-msg-copy") ?? null;
+}
+
 // A box a presentation declares as its thread's reply may stand outside the thread
 // (selectors.js, `threadPart`), so landing in one asks for the box alone.
 function prepareLanding({ held = null, box, route = null }) {
@@ -193,7 +207,10 @@ export function createThreadLanding() {
  * thread a card shows beside it, which is one place with it, as `c` there continues that
  * thread. `r` settles the thread from any of them, since a control, a widget, or a text
  * box that owns a letter is walked first. Enter replies or reopens only from the card,
- * where no control inside has an Enter of its own to lose. The reopen button tells the
+ * where no control inside has an Enter of its own to lose. The platform's copy key with
+ * nothing selected presses Copy on the message the user is in, else on the thread's
+ * latest, the keyboard's route to what Copy gives a pointer; with words selected it keeps
+ * the browser's copy, which is Markdown too (markdown.js). The reopen button tells the
  * two states apart; absent a thread, the reference describes the open state users first
  * meet. */
 export function declareThreadKeys(landIn, threadHere) {
@@ -236,6 +253,14 @@ export function declareThreadKeys(landIn, threadHere) {
             ':not(:disabled, [aria-disabled="true"])',
           ),
         run: () => resolutionControl(threadHere()).click(),
+      },
+      {
+        id: "message.copy",
+        touch: false,
+        keys: ["Mod+c"],
+        title: "copy message as Markdown",
+        when: () => Boolean(messageCopy(threadHere())) && getSelection().isCollapsed,
+        run: () => messageCopy(threadHere()).shadowRoot.querySelector("button").click(),
       },
     ],
   });

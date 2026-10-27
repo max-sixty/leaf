@@ -6663,6 +6663,12 @@ function returnToThread(thread) {
 }
 const cardThread = () => focusedThreadTarget();
 const resolutionControl = (thread) => thread ? threadPart(thread, "settlement") : null;
+const messageAt = (node) => (node instanceof Element ? node : node?.parentElement)?.closest(".lf-msg") ?? null;
+function messageCopy(thread) {
+	if (!thread) return null;
+	const caret = getSelection().anchorNode;
+	return (messageAt(focused()) ?? (thread.contains(caret) ? messageAt(caret) : null) ?? [...thread.querySelectorAll(".lf-msg")].at(-1))?.querySelector(":scope > .lf-msg-copy") ?? null;
+}
 function prepareLanding({ held = null, box, route = null }) {
 	if (!box) return false;
 	held ??= closestAcross(box, SAYS_IN);
@@ -6704,29 +6710,40 @@ function declareThreadKeys(landIn, threadHere) {
 		root: focused,
 		when: () => threadList().length > 0,
 		at: () => Boolean(threadHere()),
-		rows: [{
-			id: "thread.primary",
-			touch: false,
-			keys: ["Enter"],
-			title: () => resolutionControl(cardThread())?.matches(".lf-reopen") ? "reopen" : "reply",
-			when: () => Boolean(threadInput(cardThread())) || resolutionControl(cardThread())?.matches(".lf-reopen:not(:disabled, [aria-disabled=\"true\"])"),
-			run: () => {
-				const thread = cardThread();
-				const reopen = resolutionControl(thread)?.matches(".lf-reopen") ? resolutionControl(thread) : null;
-				if (reopen) reopen.click();
-				else landIn({
-					held: thread,
-					box: threadInput(thread)
-				});
+		rows: [
+			{
+				id: "thread.primary",
+				touch: false,
+				keys: ["Enter"],
+				title: () => resolutionControl(cardThread())?.matches(".lf-reopen") ? "reopen" : "reply",
+				when: () => Boolean(threadInput(cardThread())) || resolutionControl(cardThread())?.matches(".lf-reopen:not(:disabled, [aria-disabled=\"true\"])"),
+				run: () => {
+					const thread = cardThread();
+					const reopen = resolutionControl(thread)?.matches(".lf-reopen") ? resolutionControl(thread) : null;
+					if (reopen) reopen.click();
+					else landIn({
+						held: thread,
+						box: threadInput(thread)
+					});
+				}
+			},
+			{
+				id: "thread.resolution.toggle",
+				touch: false,
+				keys: ["r"],
+				title: () => resolutionControl(threadHere())?.matches(".lf-reopen") ? "reopen" : "resolve",
+				when: () => resolutionControl(threadHere())?.matches(":not(:disabled, [aria-disabled=\"true\"])"),
+				run: () => resolutionControl(threadHere()).click()
+			},
+			{
+				id: "message.copy",
+				touch: false,
+				keys: ["Mod+c"],
+				title: "copy message as Markdown",
+				when: () => Boolean(messageCopy(threadHere())) && getSelection().isCollapsed,
+				run: () => messageCopy(threadHere()).shadowRoot.querySelector("button").click()
 			}
-		}, {
-			id: "thread.resolution.toggle",
-			touch: false,
-			keys: ["r"],
-			title: () => resolutionControl(threadHere())?.matches(".lf-reopen") ? "reopen" : "resolve",
-			when: () => resolutionControl(threadHere())?.matches(":not(:disabled, [aria-disabled=\"true\"])"),
-			run: () => resolutionControl(threadHere()).click()
-		}]
+		]
 	});
 }
 

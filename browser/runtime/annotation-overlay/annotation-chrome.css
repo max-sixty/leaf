@@ -759,10 +759,13 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
       inset-block-start: calc(anchor(top) + var(--lf-msg-head-height) / 2);
       inset-inline-end: anchor(right);
     }
-    &:has(> .lf-msg-copy) > .lf-msg-edit {
-      inset-inline-end: calc(
-        anchor(right) + var(--lf-msg-control-width) + var(--lf-msg-edit-gap)
-      );
+    /* Under a finger Copy is left out (controls.css), so Edit takes the edge. */
+    @media (hover: hover) and (pointer: fine) {
+      &:has(> .lf-msg-copy) > .lf-msg-edit {
+        inset-inline-end: calc(
+          anchor(right) + var(--lf-msg-control-width) + var(--lf-msg-edit-gap)
+        );
+      }
     }
   }
   /* A short name keeps its whole width even where the shared cap

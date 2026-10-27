@@ -608,9 +608,9 @@ export class MessageView {
   }
 
   // Copy stands at the head's end, after the message's own control (controls.css), and
-  // copies the message whole as Markdown. Like Edit it is no Tab stop, which would add one to every message
-  // between a thread's controls: the keyboard copies a message by selecting its words
-  // with the caret (F7), and that copy is Markdown too (markdown.js).
+  // copies the message whole as Markdown. Like Edit it is no Tab stop, which would add
+  // one to every message between a thread's controls; the keyboard presses it with the
+  // copy key in the thread (landing.js, `message.copy`).
   #copyControl(markdown) {
     if (!this.#copy) {
       this.#copy = copyControl("lf-msg-control lf-msg-copy", {
@@ -619,6 +619,7 @@ export class MessageView {
         error: "Message not copied · select its words to copy",
       });
       this.#copy.tabIndex = -1;
+      this.#copy.title = "Copy as Markdown";
     }
     if (this.#copy.value !== markdown) this.#copy.value = markdown;
     return this.#copy;

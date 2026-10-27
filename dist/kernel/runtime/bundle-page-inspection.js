@@ -56,7 +56,9 @@ dialog.append(head, copyResult, scroll);
 for (const type of ["wa-copy", "wa-error"]) copy.addEventListener(type, () => {
 	if (!dialog.open) return;
 	const failed = type === "wa-error";
-	const fallback = failed ? html`<button ${offeredAction("word")} @click=${selectReport}>Select report text</button>` : nothing;
+	const fallback = failed ? html`<button ${offeredAction("word")} @click=${selectReport}>
+          Select report text
+        </button>` : nothing;
 	render(html`<span>${failed ? copy.errorLabel : copy.successLabel}</span> ${fallback}`, copyResult);
 	if (copyResult.hidden) copyResult.hidden = false;
 });
@@ -112,7 +114,10 @@ const observations = (label, rows, describe) => html` <dt>${label}</dt>
       ${rows.length ? html`<ul>
               ${rows.map((row) => html` <li>
                     <code>${row.at}</code>: ${describe(row)}
-                    ${destinations.has(row) ? html`<button ${offeredAction("word")} @click=${() => showOnPage(row)}>
+                    ${destinations.has(row) ? html`<button
+                            ${offeredAction("word")}
+                            @click=${() => showOnPage(row)}
+                          >
                             Show on page
                           </button>` : nothing}
                   </li>`)}

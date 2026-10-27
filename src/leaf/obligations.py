@@ -18,8 +18,8 @@ answer, the user once a harness handed the update back, and nobody once a reply
 answered it; `response_address` derives the operation that answers it. A thread is
 never an obligation itself: its messages publish them.
 
-A widget whose `x-awaits` declares `reply`, such as `lf-ask` holding no widget of its
-own, is a question the user answers in words: their next message in the thread
+A widget whose `x-awaits` declares `reply`, such as `lf-ask` holding no other
+widget, is a question the user answers in words: their next message in the thread
 whose message holds it, a reaction there whose token settles it, or on the page a
 message in a thread anchored inside it. It has no x-state, so its answer is that
 message's text or token. An agent message carrying `obligation` creates the same

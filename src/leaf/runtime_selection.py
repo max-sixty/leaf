@@ -33,8 +33,9 @@ tree holds and no captured file replaces one it compiled in.
 
 import hashlib
 import json
+import weakref
 from collections.abc import Mapping
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from functools import cache, cached_property
 from pathlib import PurePosixPath
 from types import MappingProxyType
@@ -65,6 +66,10 @@ class ServingRuntime:
     kernel: Mapping[str, bytes] | None
     replaces: frozenset[str]
     probes: Mapping[str, bytes]
+    # What `executing` made of each artifact something still holds.
+    _executed: weakref.WeakKeyDictionary[RevisionArtifact, RevisionArtifact] = field(
+        default_factory=weakref.WeakKeyDictionary, init=False, repr=False, compare=False
+    )
 
     @cached_property
     def identity(self) -> str:
@@ -133,15 +138,16 @@ def read_runtime() -> ServingRuntime:
     record = KERNEL / "kernel.json"
     if record.is_file():
         built = json.loads(record.read_text())
-        # The build records the SHA-256 of each module it read, `leaf.js` and each
-        # `.js` under the kernel's browser directories (`build/runtime-bundle.mjs`,
-        # `kernelOutputs`). A tree whose modules differ, such as a branch whose runtime
-        # edit has not been rebuilt, runs its source modules, so an install never runs
-        # a runtime other than the one its tree holds.
+        # The build records the SHA-256 of each file it read: `leaf.js`, each `.js`
+        # under the kernel's browser directories, and each file it compiled in as
+        # values, such as the kernel registry (`build/runtime-bundle.mjs`,
+        # `kernelOutputs`). A tree whose files differ, such as a branch whose runtime or
+        # registry edit has not been rebuilt, runs its source modules, so an install
+        # never runs a runtime other than the one its tree holds.
         modules = {
             path.lstrip("/"): hashlib.sha256(data).hexdigest()
             for path, data in {**source, **_files(ASSETS, "widgets")}.items()
-            if path.endswith(".js")
+            if path.endswith(".js") or path.lstrip("/") in built["inputs"]
         }
         if modules == built["inputs"]:
             kernel = _files(KERNEL, "leaf.js", "runtime")
@@ -164,8 +170,17 @@ def executing(artifact: RevisionArtifact) -> RevisionArtifact:
     """`artifact` with the resources its documents run with under this process's
     runtime (`ServingRuntime.resources`). Its captured identity is unchanged: the
     manifest, and with it the digest and executable, describe what the revision
-    captured, and the runtime is named beside it by `serving_runtime().identity`."""
-    return replace(
-        artifact,
-        resources=MappingProxyType(serving_runtime().resources(artifact.resources)),
-    )
+    captured, and the runtime is named beside it by `serving_runtime().identity`.
+
+    The runtime keeps one per artifact for as long as the artifact is kept
+    (`revision_artifact.read_artifact`), so what a reader derives from it, such as
+    its registry and widget aliases, is read once rather than on each of the few
+    dozen resource requests a document makes."""
+    runtime = serving_runtime()
+    executed = runtime._executed.get(artifact)
+    if executed is None:
+        executed = runtime._executed[artifact] = replace(
+            artifact,
+            resources=MappingProxyType(runtime.resources(artifact.resources)),
+        )
+    return executed

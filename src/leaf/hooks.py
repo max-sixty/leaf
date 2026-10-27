@@ -50,6 +50,8 @@ records the receipt of what its transcript shows entered the model's context
 Session-start and prompt hooks also inspect retained claims for disconnected pages
 (`reconnect`), including inactive ownership. That notice does not reclaim a
 page or reopen a turn at SessionStart, and it persists across session generations.
+A SessionStart after a compaction also has an agent holding a page read the leaf
+skill again (`reload_skill`).
 
 Each harness's registrations name it (`--harness`) and its payload names the
 session; `harness.hook_harness` says why neither comes from the environment. A
@@ -122,6 +124,8 @@ def cmd_hook(harness: str, payload: dict) -> None:
         from .reconnect import notices
 
         context = notices(harness, sid, expected)
+        if context is not None and payload.get("source") == "compact":
+            context += reload_skill(sid)
         if context:
             print(
                 json.dumps(hooked.hook_context(event, "\n\n".join(context))),
@@ -189,6 +193,30 @@ def cmd_hook(harness: str, payload: dict) -> None:
     )
     if ended:
         close_session_turn(sid, turn_id, expected=expected)
+
+
+def reload_skill(session_id: str) -> list[str]:
+    """What a compaction tells an agent holding pages: to read the leaf skill again,
+    which the compaction may have dropped from its context.
+
+    On 2026-10-25 five sessions left questions for the user only in their replies,
+    so On me read empty and told the user nothing waited on them. Each had read the
+    skill hours or days before, four of them before compacting, while their
+    harness's own instructions for asking the user stayed in context. Restating one
+    rule on every prompt weighed on every turn and covered only that rule; the
+    skill is where every rule a page-holding agent follows lives."""
+    from .schema import SKILL_FILE
+
+    pages = owned_pages(session_id)
+    if not pages:
+        return []
+    return [
+        (
+            f"This session holds the Leaf page {', '.join(map(str, pages))}. A "
+            f"compaction may have dropped the leaf skill; read {SKILL_FILE} again "
+            "before you next reply or run a leaf command."
+        )
+    ]
 
 
 def cmd_watch(harness: str, payload: dict) -> str | None:

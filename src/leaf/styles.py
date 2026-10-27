@@ -10,20 +10,22 @@ the wrapper or a later sheet inside this sheet's last block, string or comment.
 
 from functools import lru_cache
 
-import tinycss2
-
 from .findings import Finding
 
 
 def css_block(css):
     """What a block holds: the declarations it states, and the rules nested inside it. A
     style="" attribute is a block written without the braces around it."""
+    import tinycss2
+
     return tinycss2.parse_blocks_contents(css, skip_comments=True, skip_whitespace=True)
 
 
 @lru_cache(maxsize=32)
 def css_stylesheet(css: str):
     """One independent stylesheet's read-only syntax tree, including EOF recovery."""
+    import tinycss2
+
     return tinycss2.parse_stylesheet(css)
 
 
@@ -78,13 +80,14 @@ def css_syntax_errors(css: str, source: str, *, block=False) -> tuple[Finding, .
     return tuple(errors)
 
 
-def scoped(css: str, root: str) -> str:
+def scoped(css: str, root: str, limit: str | None = None) -> str:
     """Place one package stylesheet inside its browser-owned widget scope.
 
     Package authors name their root with :scope; ordinary selectors name its
     descendants. Native CSS owns selector parsing, nesting, and scope proximity.
     """
-    return f"@scope ({root}) {{\n{css}}}\n"
+    boundary = f" to ({limit})" if limit else ""
+    return f"@scope ({root}){boundary} {{\n{css}}}\n"
 
 
 def inline_style_at(inline: dict) -> str:

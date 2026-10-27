@@ -16,6 +16,7 @@ from leaf import event_log as events_model
 from leaf import service as service_model
 from leaf.registry import validation as registry_validation
 from leaf.registry.schema import check_schema
+from leaf.state import kernel_registry
 from leaf.structure import SourceDocument
 from leaf.validation import composition as validation_model
 
@@ -28,7 +29,7 @@ DEVELOPER_PAGES = tuple(sorted((EXAMPLES / "developer").glob("*.html")))
 
 
 def test_kernel_event_contracts_declare_closed_records():
-    events = json.loads((ASSETS / "registry.json").read_text())["$events"]["kinds"]
+    events = kernel_registry()["$events"]["kinds"]
     assert events
     envelope = {"id", "ts", "author", "kind", "seq"}
     for kind, contract in events.items():

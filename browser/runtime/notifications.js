@@ -2,7 +2,7 @@
 
    News arriving without the user's send gesture may show a notice but does
    not move focus or scroll the panel. `notice` is the one visible surface for a
-   moment's news, such as a recorded gesture or an arrived version, and it stands in
+   moment's news, such as an arrived version or an undo, and it stands in
    one seat: the floating panel's seat for passing words, in place of the current walk
    position, which returns when the notice's time is up (floating-panel.js, `passing`). The
    live region hears the same words. It is text rather than a control: what a notice
@@ -10,7 +10,7 @@
    nothing floats in a corner to become a stale pointer target. A failure is no news:
    it goes through errors.js, which keeps it until the user has dealt with it. */
 import { el } from "./widget-elements.js";
-import { signal } from "/vendor/browser-runtime.js";
+import { signal } from "/runtime/framework.js";
 
 export const liveEl = el("div", "lf-ui lf-live");
 liveEl.setAttribute("aria-live", "polite");
@@ -48,8 +48,10 @@ export function announce(msg) {
   }, 30);
 }
 
-// The acknowledgement of a gesture ("Moved to Done — sent"), an arrival ("Updated
-// to v3"): the quiet words in the panel's seat. A sentence that is also a button for
+// An undo ("Undid: Chose “Fast” · just now"), an arrival ("Updated to v3"): the
+// quiet words in the panel's seat. A widget's gesture is no notice, since the widget
+// draws it where it was made; the live region alone hears it (application.js,
+// `named`). A sentence that is also a button for
 // four seconds is a target
 // the user cannot learn.
 function showNotice(msg, background = null) {

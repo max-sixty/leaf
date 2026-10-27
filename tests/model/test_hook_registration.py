@@ -673,6 +673,24 @@ print(json.dumps(imported))
         assert [module for module in heavy if module in loaded] == []
 
 
+def test_a_claimed_hook_imports_no_css_script_or_watch_parser():
+    """The claimed hook reads the page and validates its events, so it needs the schema
+    validators, but not what only capture, vendoring and a watch
+    use. Their imports cost tens of milliseconds at every tool boundary."""
+    probe = (
+        "import sys, json, leaf.hook_transport; print(json.dumps(sorted(sys.modules)))"
+    )
+    done = subprocess.run(
+        [sys.executable, "-c", probe],
+        capture_output=True,
+        text=True,
+        timeout=STATED_TIMEOUT,
+        check=True,
+    )
+    loaded = set(json.loads(done.stdout))
+    assert {"tinycss2", "tree_sitter", "watchfiles"} & loaded == set()
+
+
 @pytest.mark.parametrize(
     ("native_session", "started"),
     [("dispatched-chat", True), ("dispatched-chat", False), ("another-chat", True)],

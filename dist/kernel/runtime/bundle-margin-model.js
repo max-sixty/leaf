@@ -1,5 +1,5 @@
-import { html, render } from "./bundle-browser-runtime.js";
 import { afterScript, focusDestination, focused, keeps, keepsText } from "./bundle-dom-move.js";
+import { html, render } from "./bundle-context.js";
 import { commandAvailable, commandBinding, commandRoutes, controlAvailabilityOutput, elementDirective, iconTemplate, isCommandScope, offer, pressIsKeyboardActivation, projectCommandScope, watchCommandAvailability } from "./bundle-errors.js";
 import { excerptWords } from "./bundle-passages.js";
 import { HOLDS_WORD, progressFace, threadAttention, workflowLabel } from "./bundle-surfaces.js";
@@ -103,19 +103,19 @@ const KINDS = Object.freeze(Object.fromEntries(Object.entries({
 		priority: 2
 	},
 	sent: {
-		label: "Sent",
+		label: "Saved",
 		icon: "sent",
 		priority: 3,
 		indication: true
 	},
 	queued: {
-		label: "Queued",
+		label: "Up next",
 		icon: "pickup",
 		priority: 3,
 		indication: true
 	},
 	pickup: {
-		label: "Delivered",
+		label: "Got it",
 		icon: "pickup",
 		priority: 3,
 		indication: true

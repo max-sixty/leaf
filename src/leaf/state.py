@@ -227,12 +227,17 @@ def write_json(path: Path, obj) -> None:
     replace_bytes([(path, json_bytes(obj), not path.is_symlink())])
 
 
+# The running Leaf's kernel registry, the facts no layer changes, whose `$events`
+# state its page protocol (`registry.kernel`). It sits in the runtime, which the
+# browser reads it from too (`runtime/kernel-facts.js`), and composition lays each
+# layer over it (`validation.composition.incoming_registry`).
+KERNEL_REGISTRY = PLUGIN_ROOT / "browser" / "runtime" / "kernel-registry.json"
+
+
 @functools.cache
 def kernel_registry() -> dict:
-    """The running Leaf's shipped registry, whose `$events` state its page protocol
-    (`registry.kernel`)."""
-    path = PLUGIN_ROOT / "browser" / "registry.json"
-    return json.loads(path.read_text(encoding="utf-8"))
+    """The kernel registry (`KERNEL_REGISTRY`), read once."""
+    return json.loads(KERNEL_REGISTRY.read_text(encoding="utf-8"))
 
 
 # Every declared `Record` by its kind, which names one shape.

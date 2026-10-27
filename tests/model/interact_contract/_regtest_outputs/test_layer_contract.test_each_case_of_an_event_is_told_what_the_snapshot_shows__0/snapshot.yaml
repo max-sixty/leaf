@@ -217,7 +217,7 @@
 # ----------------------
 #
 # Step 3, for one example of every case, using the clauses in
-# browser/registry.json (the file `leaf page init` copies into a page).
+# browser/runtime/kernel-registry.json (which `leaf page init` composes into a page).
 # Each top-level key below names a case and holds:
 #
 #   event:  the input: a log line's `kind`, the kind of answer its delivery
@@ -839,6 +839,38 @@ pick before Done:
     - when: {"not": {"required": ["answer"]}}
       text: >-
         This action owes no answer of its own.
+
+pick a thread's open question is about:
+  event:
+    kind: action
+    meaning:
+      scope: page
+    waiting:
+      - id: message:m1
+        text: Try the previews first.
+    answer:
+      kind: markup
+  told:
+    - text: >-
+        The user already sees the action applied.
+    - when: {"not": {"required": ["meaning"], "properties": {"meaning": {"required": ["scope"], "properties": {"scope": {"const": "thread"}}}}}}
+      text: >-
+        If you need clarification, ask in a thread on the picked option. To override
+        the pick in a later version, mark the element `restated` and say why in
+        the version note.
+    - when: {"required": ["waiting"]}
+      text: >-
+        Your questions in `waiting`, asked in a thread about this widget, still
+        wait on the user. Judge from each one's `text` whether this action answers
+        it: end one it settles with `leaf task end <page> <id> done --text "<what
+        answered it>"`, and leave one that still needs the user.
+    - text: >-
+        It answers the page's obligation, which waits on you until the markup records
+        the answer. Before starting the work it selects or unblocks, name it with
+        `leaf task start <page> <event-id> --text "<the work, in a line>"`; then
+        do it, write the answer into the markup, and stamp a version. An option
+        the user added needs no writing in; the page keeps it where the user put
+        it.
 
 decided suggestion:
   event:

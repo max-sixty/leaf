@@ -98,21 +98,29 @@
  * Leaf's key dispatcher owns submission and Escape. Return inserts a newline unless
  * its owner cancels `lf-edit-return` to reserve the press for submission. Android's
  * EditContext supplies no native insertion after CodeMirror handles the press, so this
- * editing route is explicit. Shift+Enter inserts a line and continues
- * a list or quote. Mod+Z and Mod+Shift+Z walk one history: the words' edits, and the
- * steps an owner records for what its draft holds beside them (`record`), such as a
- * composer's drawing, each taken back or redone in the order it was made.
+ * editing route is explicit. Shift+Enter inserts a line and continues a list or
+ * quote. A host the page marks `aria-multiline="false"`, such as an option's title,
+ * holds one line: Shift+Enter inserts nothing, a line break pasted or inserted any other
+ * way becomes a space, and its owner reserves Return. Mod+Z
+ * and Mod+Shift+Z walk one history: the words' edits, and the steps an owner records
+ * for what its draft holds beside them (`record`), such as a composer's drawing, each
+ * taken back or redone in the order it was made.
  *
  * The host is the textarea's scrollport. CodeMirror's content-sized inner scroller
- * never clips the words; the page sizes the host. When that room changes, the field
- * reveals its focused selection again under the new constraint. CodeMirror's edit
- * reveal may have preceded the owner's sizing pass, and its own resize observer
- * watches the inner scroller, whose natural height need not change with the host.
- * This reveal belongs to the host alone: resizing a focused field does not move a
- * reading pane the user scrolled away from it.
+ * never clips the words; the page sizes the host. The field reveals the caret's whole
+ * row, its leading as well as the caret, inside the host's padding, so typing on the
+ * last line rests the words at their end with nothing more to scroll to. A native
+ * textarea reveals only the caret and leaves its foot's padding, and in Chromium part
+ * of the row, out of view. An edit's reveal does this before the view carries the
+ * caret out through the page, and when the host's room changes the field reveals its
+ * focused caret again under the new constraint: CodeMirror's edit reveal may have
+ * preceded the owner's sizing pass, and its own resize observer watches the inner
+ * scroller, whose natural height need not change with the host. The resize reveal
+ * belongs to the host alone: resizing a focused field does not move a reading pane
+ * the user scrolled away from it.
  */
 import { scrollIntoView } from "../landing-scroll.js";
-import { landingInsets } from "../geometry.js";
+import { moveScrollerBy } from "../scrolling.js";
 import {
   EditorView,
   EditorState,
@@ -131,7 +139,7 @@ import {
   markdownLanguage,
   insertNewlineContinueMarkup,
 } from "../../vendor/codemirror.esm.js";
-import { LeafEditorView } from "../editor-view.js";
+import { caretAt, LeafEditorView } from "../editor-view.js";
 import { TEXT_FIELD } from "../control-selectors.js";
 import { loadMarkdown, markdownReady, placedMarkdownTokens } from "../markdown.js";
 import { isCanonicalMediaUrl, scopedMediaUrl } from "../media.js";
@@ -248,7 +256,10 @@ sheet.replaceSync(`
     fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round;
     stroke-linejoin: round; overflow: visible; user-select: none;
     -webkit-user-select: none; }
-  /* Code with no fence lines takes the message's padding at its ends instead. */
+  /* A fence's line, while the caret is away from it, stands for the sent pre's padding,
+     and code with no fence lines takes that padding at its ends instead. A field that
+     edits in place reads its display's padding over this (\`readFaces\`). */
+  .lf-face-fence-open, .lf-face-fence-close { line-height: var(--pre-pad-block); }
   .lf-md-code-bare.lf-md-code-first { padding-block-start: var(--pre-pad-block); }
   .lf-md-code-bare.lf-md-code-last { padding-block-end: calc(var(--pre-pad-block) + 8px); }
 `);
@@ -506,8 +517,8 @@ function decorate(state, placed) {
         const lead = each.text.match(/^[ \t]*/)[0].length;
         add(each.from, each.from + lead - kept.match(/^[ \t]*/)[0].length, hide);
       });
-      // A fence's lines keep their room, as the message's code keeps its padding, and
-      // each shows its marks while the caret is on it.
+      // A fence's lines stand for the message's code padding (`standBlocks`), and each
+      // shows its marks, at a line's height, while the caret is on it.
       for (const [a, b] of markers ?? []) {
         const fence = state.doc.lineAt(a);
         add(a, b, touches(state, fence.from, fence.to) ? dim : unseen);
@@ -570,7 +581,7 @@ function decorate(state, placed) {
 // Each outermost block's lines name its face, and the lines between two blocks the gap
 // the display leaves there: the blank lines that part them in the source, or the
 // second's first line where none do. A field that edits in place has rules for the
-// names (`readFaces`); elsewhere they draw nothing. A code fence's lines stand for its
+// names (`readFaces`); elsewhere only a fence's do. A code fence's lines stand for its
 // block's padding while the caret is away, and an item after the first in a list stands
 // its gap above it. The display trims the outer margins of its first and last blocks,
 // so the field leaves none there, but a list's first and last items keep theirs.
@@ -739,60 +750,49 @@ class LeafText extends HTMLElement {
     if (view?.hasFocus)
       view.requestMeasure({
         key: this,
-        read: () => {
-          const caret = view.coordsAtPos(view.state.selection.main.head);
-          const box = this.getBoundingClientRect();
-          const { scaleX, scaleY } = view;
-          // The caret's whole line, its leading as well as the caret, lands inside
-          // the host's `scroll-padding`, as a landing does.
-          const inset = landingInsets(this);
-          const leading = caret
-            ? Math.max(
-                0,
-                (parseFloat(getComputedStyle(this).lineHeight) * scaleY -
-                  (caret.bottom - caret.top)) /
-                  2,
-              )
-            : 0;
-          return {
-            caret,
-            scaleX,
-            scaleY,
-            top: box.top + (this.clientTop + inset.top) * scaleY + leading,
-            left: box.left + (this.clientLeft + inset.left) * scaleX,
-            // client dimensions round fractional CSS sizes. Keep the trailing
-            // edges on the actual box, inset by its native border and scrollbar.
-            bottom:
-              box.bottom -
-              (this.offsetHeight - this.clientTop - this.clientHeight + inset.bottom) *
-                scaleY -
-              leading,
-            right:
-              box.right -
-              (this.offsetWidth - this.clientLeft - this.clientWidth + inset.right) *
-                scaleX,
-          };
-        },
-        write: ({ caret, top, left, bottom, right, scaleX, scaleY }) => {
-          if (!caret) return;
-          // Native scroll offsets quantize a fractional correction. Round away from
-          // zero so a caret just beyond an edge actually enters the host's scrollport.
-          const wholePixel = (distance) =>
-            distance < 0 ? Math.floor(distance) : Math.ceil(distance);
-          this.scrollBy({
-            top: wholePixel(
-              (Math.min(0, caret.top - top) + Math.max(0, caret.bottom - bottom)) /
-                scaleY,
-            ),
-            left: wholePixel(
-              (Math.min(0, caret.left - left) + Math.max(0, caret.right - right)) /
-                scaleX,
-            ),
-            behavior: "instant",
-          });
-        },
+        read: () => this.#rowTravel(view, view.state.selection.main.head),
+        write: (travel) => moveScrollerBy(this, travel),
       });
   });
+
+  // How far the host scrolls to show the row holding `pos` whole, its leading as well
+  // as the caret, inside the host's padding (see the header). The words wrap, so the
+  // host scrolls only down and up.
+  #rowTravel(view, pos) {
+    const { destination, rectangle: caret } = caretAt(view, pos);
+    const node =
+      destination instanceof Range ? destination.startContainer : destination;
+    const row =
+      (node instanceof Element ? node : node.parentElement)?.closest(".cm-line") ??
+      this;
+    const { scaleY } = view;
+    const leading =
+      Math.max(
+        0,
+        (parseFloat(getComputedStyle(row).lineHeight) * scaleY -
+          (caret.bottom - caret.top)) /
+          2,
+      ) || 0;
+    const style = getComputedStyle(this);
+    const box = this.getBoundingClientRect();
+    const top = box.top + (this.clientTop + parseFloat(style.paddingTop)) * scaleY;
+    // client dimensions round fractional CSS sizes. Keep the bottom on the actual box,
+    // inset by its native border and scrollbar.
+    const bottom =
+      box.bottom -
+      (this.offsetHeight -
+        this.clientTop -
+        this.clientHeight +
+        parseFloat(style.paddingBottom)) *
+        scaleY;
+    const travel =
+      (Math.min(0, caret.top - leading - top) +
+        Math.max(0, caret.bottom + leading - bottom)) /
+      scaleY;
+    // Native scroll offsets quantize a fractional correction. Round away from zero so
+    // a row just beyond an edge actually enters.
+    return travel < 0 ? Math.floor(travel) : Math.ceil(travel);
+  }
 
   // Whether the host's words overflow it (`data-scrolls`), and which edges they run
   // past (`more-above`, `more-below`), read again as the host scrolls, so an owner can
@@ -893,13 +893,37 @@ class LeafText extends HTMLElement {
           }
           return true;
         }),
+        // An edit's reveal shows the caret's row in the host first; the view's own
+        // reveal (editor-view.js) then carries the caret out through the page.
+        EditorView.scrollHandler.of((view, range) => {
+          moveScrollerBy(this, this.#rowTravel(view, range.head));
+          return false;
+        }),
         this.#history.of(history()),
+        // A one-line field holds one line, so a line break pasted or inserted by the
+        // platform, as Android's editing does, becomes a space.
+        EditorState.transactionFilter.of((tr) => {
+          if (!tr.docChanged || !this.#oneLine) return tr;
+          const breaks = [];
+          tr.changes.iterChanges((_fromA, _toA, fromB, _toB, inserted) => {
+            const text = inserted.toString();
+            for (
+              let at = text.indexOf("\n");
+              at !== -1;
+              at = text.indexOf("\n", at + 1)
+            )
+              breaks.push({ from: fromB + at, to: fromB + at + 1, insert: " " });
+          });
+          return breaks.length ? [tr, { changes: breaks, sequential: true }] : tr;
+        }),
         invertedEffects.of((tr) =>
           tr.effects
             .filter((effect) => effect.is(ownerStep))
             .map(({ value }) => ownerStep.of({ run: value.back, back: value.run })),
         ),
         keymap.of([
+          // A one-line field takes no line break (`#oneLine`).
+          { key: "Shift-Enter", run: () => this.#oneLine },
           {
             key: "Enter",
             run: (view) =>
@@ -982,7 +1006,6 @@ class LeafText extends HTMLElement {
     const wanted = {
       ...this.#contentAttributes(),
       role: "textbox",
-      "aria-multiline": "true",
       contenteditable: "plaintext-only",
       ...(this.#readOnly && { "aria-readonly": "true" }),
     };
@@ -1130,11 +1153,16 @@ class LeafText extends HTMLElement {
     else this.#model = this.#model.update(spec).state;
   }
 
+  get #oneLine() {
+    return this.getAttribute("aria-multiline") === "false";
+  }
+
   #contentAttributes() {
     const attributes = {
       spellcheck: "true",
       autocorrect: "on",
       autocapitalize: "sentences",
+      "aria-multiline": String(!this.#oneLine),
     };
     if (this.placeholder) attributes["aria-placeholder"] = this.placeholder;
     const label = this.getAttribute("aria-label");

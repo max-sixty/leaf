@@ -40,12 +40,18 @@ Where the rows need the element, pass a function of it, such as
 
 A row's `id` is a stable, lowercase dotted name such as `draft.save`; keep it when keys
 or words change. `title` names the command and may be a function where state changes
-it; `description` is the command reference's tooltip for it, and `label` replaces the
-keycap.
+it, and `label` replaces the keycap. `description` is the command reference's tooltip
+for it and the line under its title where a touch menu or an On me card offers it. A
+`decision: true` row answers an obligation, and `recommended: true` marks the answer
+the page advises, which an On me card names.
 
 `keys` lists bindings in canonical spelling, such as `"a"`, `"Shift+a"` or
 `"Mod+Enter"`, or is a function returning them. `repeat: true` also runs on a held key's
-repeats, and `native: true` runs without preventing the browser's default. Where one
+repeats, and `native: true` runs without preventing the browser's default.
+`travels: true` marks a command that takes the user somewhere, such as a step to the
+next item, so its result may scroll away the control it was pressed on; every other
+command leaves that control where it stood on screen, unless it brings the control
+whole into a scroller that showed only part of it. Where one
 row's keys mean different things, `routes` lists subcommands, each with its own `id`,
 `title`, `binding` or `contextKeys`, and optional `when`; the command reference lists
 and runs each route.
@@ -161,8 +167,11 @@ A live revision moves focus from a generated control to its replacement by a
 
 `focused()` is the focused element across shadow trees, and `currentLocationIn(scope)` says
 whether focus is in a scope. `whenLeft(element, leave)` runs `leave` once when focus
-leaves an element. A group the user moves through with arrow keys offers one Tab stop
-with `rove(items, stop)`.
+leaves an element. `onPressAway(away, dismiss)` hears each primary press that begins and
+ends where `away(path)` is true of its composed path, as an open editor that a tap
+elsewhere should save does, and calls `dismiss(path, from)` before the press's click; it
+ignores a touch scroll the browser cancels, and returns its unsubscribe function. A group
+the user moves through with arrow keys offers one Tab stop with `rove(items, stop)`.
 
 `onCurrentLocation(read)` calls `read(node, cause, left)` synchronously when focus
 changes, including inside a declared shadow root, and returns its unsubscribe function;
@@ -243,7 +252,9 @@ place until then, so the scroller doesn't shrink.
 
 Wire the box with `wireInput(box, options)`. Enter sends on a physical keyboard,
 Shift+Enter writes a newline, and Mod+Enter sends anywhere; on a touch screen the
-visible control sends. The options are `sendBtn`, the send control; `sends`, its action
+visible control sends. A box for one line, such as a name, carries
+`aria-multiline="false"` before it is wired: Enter then sends from every keyboard, a
+phone's included, Shift+Enter writes nothing, and a pasted line break becomes a space. The options are `sendBtn`, the send control; `sends`, its action
 in words; `hint`, the placeholder; `save(value)`, called with the whole draft on each
 edit; `send(text, raw, owns)`, called on send with the trimmed and raw draft; `busy()`
 and `hasContent(raw)`, which hold sending back; and `paint()`, the widget's own drawing

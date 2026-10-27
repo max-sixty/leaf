@@ -5,7 +5,14 @@ import pytest
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATIONS_PAGE, panel_comment
-from render_cases_layout import SHOT_SRC, SHOTS, ring_faults, ring_rule, rings_drawn
+from render_cases_layout import (
+    SHOT_SRC,
+    SHOTS,
+    current_location_ring,
+    ring_faults,
+    ring_rule,
+    rings_drawn,
+)
 from render_cases_navigation import (
     ADDRESSED_PAGE,
     BINDING_BADGE_PAGE,
@@ -29,6 +36,7 @@ from render_harness import (
     is_problem,
     leaf_page,
     open_page,
+    open_threads,
     open_versions,
     panel_field,
     panel_settled,
@@ -166,16 +174,16 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
     page.set_viewport_size({"width": 1200, "height": 844})
     on_body = "() => document.activeElement === document.body"
     preview = page.locator(".lf-margin-preview")
-    toggle = page.locator(".lf-fp-threads")
+    toggle = page.locator(".lf-fp-on-user")
     marker = page.locator('[data-lf-margin-for="p"] > .lf-margin-marker')
     threads = [
         page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
         for root in roots
     ]
 
-    # Threads by pointer: out with the panel's view.
+    # On me by pointer: out with the panel's view.
     toggle.click()
-    panel_settled(page, view="threads")
+    panel_settled(page, view="queue")
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
     assert page.evaluate(on_body)
@@ -196,7 +204,12 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
     expect(threads[0]).to_be_focused()
     rendered(page)
     # The pointer route keeps keyboard standing without showing a keyboard ring.
-    assert preview.evaluate("node => getComputedStyle(node).outlineStyle") == "none"
+    assert (
+        preview.locator(".lf-margin-preview-card").evaluate(
+            "node => getComputedStyle(node).outlineStyle"
+        )
+        == "none"
+    )
     page.keyboard.press("t")
     expect(threads[1]).to_be_focused()
     out_through("#p2")
@@ -218,7 +231,7 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
 
     toggle.focus()
     page.keyboard.press("Enter")
-    panel_settled(page, view="threads")
+    panel_settled(page, view="queue")
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
     assert page.evaluate(on_body)
@@ -1200,7 +1213,9 @@ def test_native_controls_need_no_generic_space_binding(browser, serve):
     page.keyboard.press("?")
     help_el = page.locator(".lf-command-reference")
     expect(help_el).not_to_contain_text("On a control")
-    expect(help_el.locator("tr", has_text="Grab the card")).to_contain_text("space")
+    expect(help_el.get_by_role("row").filter(has_text="Grab the card")).to_contain_text(
+        "space"
+    )
     page.keyboard.press("Escape")
 
     # And the key does what the reference says it does.
@@ -1298,8 +1313,7 @@ def test_escape_backs_out_from_a_control_nothing_is_typed_into(browser, serve):
     # The mouse opens between rounds because c is the select's own letter, and the
     # press has to be made the same way on both to be comparing anything.
     for control in ("#zoom", "#pick"):
-        page.locator(".lf-fp-threads").click()
-        panel_settled(page, view="threads")
+        open_threads(page)
         page.locator(control).focus()
         page.keyboard.press("Escape")
         assert page.evaluate("() => document.activeElement === document.body")
@@ -1322,7 +1336,7 @@ def test_a_margin_marker_backs_out_onto_the_page_like_the_toggle(browser, serve)
     marker = page.locator('[data-lf-margin-for="p"] > .lf-margin-marker')
     expect(marker).to_be_visible()
 
-    for control in (page.locator(".lf-fp-threads"), marker):
+    for control in (page.locator(".lf-fp-on-user"), marker):
         control.focus()
         expect(control).to_be_focused()
         page.keyboard.press("Escape")
@@ -1473,12 +1487,8 @@ def test_a_label_press_keeps_the_controls_current_keyboard_location(browser, ser
     )
     first.focus()
     assert offered_routes(page) == current_location
-    focus_paint = """control => { const s = getComputedStyle(control); return {
-      style: s.outlineStyle, width: s.outlineWidth, color: s.outlineColor,
-      offset: s.outlineOffset
-    }; }"""
-    first_ring = first.evaluate(focus_paint)
-    assert first_ring["style"] == "solid", first_ring
+    rendered(page)
+    assert current_location_ring(page)
 
     bounds = words.bounding_box()
     assert bounds is not None
@@ -1501,7 +1511,7 @@ def test_a_label_press_keeps_the_controls_current_keyboard_location(browser, ser
     # destination remains in place until the label's click transfers focus. The
     # pointer press removes its keyboard cue without moving that location.
     assert not first.evaluate("control => control.matches(':focus')")
-    assert first.evaluate(focus_paint)["style"] == "none"
+    assert current_location_ring(page) is None
     assert not ring_faults(rings_drawn(page), "while the label press holds focus")
     intermediate = page.locator("#label-thread")
     expect(intermediate).to_be_focused()
@@ -1513,7 +1523,7 @@ def test_a_label_press_keeps_the_controls_current_keyboard_location(browser, ser
     assert intermediate.evaluate(thread_paint) == ["none", "none"]
     page.emulate_media(forced_colors="active")
     assert intermediate.evaluate(thread_paint) == ["none", "none"]
-    assert first.evaluate(focus_paint)["style"] == "none"
+    assert current_location_ring(page) is None
     page.emulate_media(forced_colors="none")
     page.mouse.up()
     expect(control).to_be_checked()
@@ -1641,8 +1651,7 @@ def test_a_page_element_named_host_leaves_the_keyboard_climb_at_the_document(
         ),
     )
     assert page.evaluate("document.host instanceof HTMLFormElement")
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    open_threads(page)
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
 

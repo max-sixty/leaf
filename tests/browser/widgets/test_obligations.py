@@ -204,6 +204,84 @@ def test_an_obligation_framing_a_figure_lays_its_options_across(browser, serve):
     assert len(set(middle["lefts"])) == 1, middle
 
 
+def chipped_obligation(id, cards):
+    """An obligation framing a drawing, so its titled cards lay across; each card is
+    (chips, title, attributes)."""
+    options = "".join(
+        f'<lf-option id="{id}-{n}"{attributes}>'
+        + "".join(f'<small class="tag">{chip}</small>' for chip in chips)
+        + f"<strong>{title}</strong><p>Its consequence.</p></lf-option>"
+        for n, (chips, title, attributes) in enumerate(cards)
+    )
+    return (
+        f'<lf-ask id="{id}"><h3>Which fix first?</h3>'
+        '<svg class="drawing" viewBox="0 0 480 60" role="img" aria-label="Loss by fix">'
+        '<rect width="480" height="60" fill="none" stroke="currentColor" /></svg>'
+        f'<lf-options id="{id}-choice" choose>{options}</lf-options></lf-ask>'
+    )
+
+
+CHIPPED_CARDS_PAGE = leaf_page(
+    "cards laid across opening with chips",
+    "<h1>Heat loss</h1>"
+    + chipped_obligation(
+        "some",
+        [
+            (["recommended"], "Seal the hatch", ""),
+            ([], "Glaze the bay", ""),
+            (["risky"], "Insulate the floor", " chosen"),
+        ],
+    )
+    + chipped_obligation(
+        "all",
+        [
+            (
+                ["recommended", "£180", "one afternoon", "needs the installer"],
+                "Seal the hatch",
+                "",
+            ),
+            (["£1,180"], "Glaze the bay", ""),
+            (["risky"], "Insulate the floor", ""),
+        ],
+    ),
+)
+
+
+@pytest.mark.parametrize(
+    ("engine", "rows"),
+    [("browser", ("some",)), ("firefox_browser", ("some", "all"))],
+)
+def test_cards_laid_across_align_their_titles_whatever_chips_open_them(
+    request, serve, engine, rows
+):
+    """Cards side by side read as one comparison, so each title, and the sentence under
+    it, stands on one line across the row whether its card opens with chips, with
+    none, or with the "selected" state beside them. A card whose chips wrap to several
+    lines moves its neighbours' contents down with it, which needs baseline
+    content-alignment: Chromium lacks it, so there only chips that fit beside the
+    state seat keep the row aligned (`notes/browser-support.md`)."""
+    page = open_page(request.getfixturevalue(engine), serve(CHIPPED_CARDS_PAGE))
+    resized(page, 1440, 900)
+    at = page.evaluate(
+        """(rows) => Object.fromEntries(rows.map((id) => {
+          const cards = [...document.querySelectorAll(`#${id}-choice > lf-option`)];
+          const top = (card, part) =>
+            Math.round(card.querySelector(`:scope > ${part}`).getBoundingClientRect().top);
+          return [id, {
+            cards: cards.map((card) => Math.round(card.getBoundingClientRect().top)),
+            titles: cards.map((card) => top(card, 'strong')),
+            sentences: cards.map((card) => top(card, 'p')),
+          }];
+        }))""",
+        list(rows),
+    )
+    for id in rows:
+        row = at[id]
+        assert len(set(row["cards"])) == 1, f"{id}: the cards share a row: {row}"
+        assert len(set(row["titles"])) == 1, f"{id}: titles misaligned: {row}"
+        assert len(set(row["sentences"])) == 1, f"{id}: sentences misaligned: {row}"
+
+
 def test_options_laid_across_take_a_widened_obligations_width(browser, serve):
     """The column bounds a line of text, and no card's line is wider than its column, so
     an obligation granted the wide measure for its figure lays its cards under all of it rather
@@ -638,7 +716,7 @@ def test_obligation_contextual_bindings_are_independent_of_widget_bindings(
     page.keyboard.press("?")
     page.keyboard.press("?")
     inspect_reference = page.locator(
-        '.lf-command-reference tr[data-lf-command="test.inspect"]'
+        '.lf-command-reference [role=row][data-lf-command="test.inspect"]'
     )
     expect(inspect_reference.locator("kbd")).to_have_text("I")
     expect(inspect_reference.locator(".lf-binding-sequence")).to_have_attribute(
@@ -710,7 +788,7 @@ def test_obligation_contextual_bindings_are_independent_of_widget_bindings(
     page.keyboard.press("?")
     page.keyboard.press("?")
     focused_inspect = page.locator(
-        '.lf-command-reference tr[data-lf-command="test.inspect"]'
+        '.lf-command-reference [role=row][data-lf-command="test.inspect"]'
     )
     expect(focused_inspect.locator("kbd")).to_have_text("I")
 
@@ -970,6 +1048,18 @@ def test_obligation_actions_replace_unusable_package_binding_badge_faces(
                 has_text=binding,
             )
         ).to_have_count(1)
+    # A covered or clipped face's chip takes the face's place, which the widget chose,
+    # rather than its control's corner, where a field's chip covered its first words.
+    for face, binding in (
+        ("#covered-binding-badge", "6"),
+        ("#clipped-binding-badge", "7"),
+    ):
+        seat = page.locator(face).bounding_box()
+        chip = page.locator(
+            ".lf-command-binding-badges .lf-command-binding-badge", has_text=binding
+        ).bounding_box()
+        assert abs(chip["x"] + chip["width"] / 2 - seat["x"] - seat["width"] / 2) <= 1
+        assert abs(chip["y"] + chip["height"] / 2 - seat["y"] - seat["height"] / 2) <= 1
 
 
 def test_obligation_binding_badges_do_not_cover_their_key_line(browser, serve):
@@ -1418,7 +1508,10 @@ def test_the_ring_is_one_box_around_the_whole_change(browser, serve):
     # promise.
     marks = page.evaluate("""() => [...document.querySelectorAll('main [data-lf-obligation]')].map(e => {
       return { what: e.id || e.tagName, fragments: e.getClientRects().length,
-               ring: getComputedStyle(e).outlineStyle !== 'none' };
+               ring: (() => {
+                 const mark = document.querySelector(`.lf-visual-mark[data-for="${e.id}"]`);
+                 return mark && getComputedStyle(mark, '::after').outlineStyle === 'solid';
+               })() };
     })""")
     assert [m["what"] for m in marks] == ["sug-refill"]
     assert marks[0]["ring"]

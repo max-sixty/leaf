@@ -53,7 +53,7 @@ import { highlightBlocks } from "./syntax.js";
 import { keeps } from "./keeps.js";
 import { move } from "./dom-move.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
-import { marks } from "./marks.js";
+import { marks } from "./kernel-facts.js";
 import { generatedElement } from "./widget-elements.js";
 
 const PAGE_PAINT_ATTRIBUTES = new Set(Object.values(PAGE_PAINT_ATTRIBUTE));
@@ -172,8 +172,8 @@ export function paintDeclaredWords(root) {
 // An attribute, because the theme cannot read the registry — the same arrangement x-says
 // already has with data-lf-said. Which declarations are marks, the attribute each is
 // painted as, the attribute an occurrence overrides it with, and whether it holds in a
-// message are one table, the kernel registry's `$marks`, which this runtime imports as
-// generated `marks.js`. A page's document arrives painted from it: delivery writes
+// message are one table, the kernel registry's `$marks`, which this runtime imports from
+// `kernel-facts.js`. A page's document arrives painted from it: delivery writes
 // the marks into the served source (revision_delivery.py, `mark_declared`), so the first
 // paint already gives a board its room and a workspace its panes, before any module or
 // the registry loads, and a revision the page patches in arrives painted the same way. A

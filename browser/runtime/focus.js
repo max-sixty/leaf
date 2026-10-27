@@ -54,18 +54,23 @@
    and a group's one Tab stop (`rove`).
 
    The selector vocabulary lives in control-selectors.js, which imports nothing.
-   In a sample, only the document already holding input may place focus. A trusted
-   pointer or keyboard entry gives the child that ownership before Leaf handles the
-   gesture; remote commands and delayed work cannot borrow it from the parent. This
-   is a rule for Leaf placements, not a restriction on authored browser scripts.
+   In a framed document, a sample's or any other, only the document already holding
+   input may place focus: one the user has not entered would take them from the page
+   around it. A top-level document always may, since placing focus in a background tab
+   takes it from nobody. A trusted pointer or keyboard entry gives the frame that
+   ownership before Leaf handles the gesture (bootstrap.js); arrival, the embedding
+   page's navigation, remote commands and delayed work cannot borrow it from the
+   parent. This is a rule for Leaf placements, not a restriction on authored browser
+   scripts.
 
    Its dependencies are structural vocabulary, rendering and writes; importing a
    gesture owner would cycle through its focus dependency. */
 import { afterScript, nextRender } from "./rendering.js";
-import { signal } from "/vendor/browser-runtime.js";
+import { signal } from "/vendor/signals-core.js";
 import { keeps } from "./keeps.js";
 import { MODIFIER_KEYS, TEXT_BOX, TAB_STOP } from "./control-selectors.js";
 import {
+  excludedByInert,
   isNativeLayer,
   renderedParent,
   renderedUnder,
@@ -147,8 +152,7 @@ export const tabStops = (root) =>
 //
 // Placements never ask the browser to reveal their target: native focus scrolling
 // crosses browsing contexts. A caller needing reveal uses document-local scrolling.
-export const canPlaceFocus = () =>
-  !document.documentElement.lfSample || document.hasFocus();
+export const canPlaceFocus = () => window === window.top || document.hasFocus();
 const CAUSES = new Set(["move", "step", "return", "press"]);
 export function focusDestination(
   destination,
@@ -471,6 +475,13 @@ let paintedFocus = null;
 let paintedWithin = new Set();
 let paintedVisible = null;
 let paintedVisibleWithin = new Set();
+// Modality can change the cue without moving the destination. Paint readers need
+// that change too; navigation readers must not hear it as another focus move.
+const visibilityReaders = new Set();
+export const onFocusVisibility = (read) => {
+  visibilityReaders.add(read);
+  return () => visibilityReaders.delete(read);
+};
 function markFocus(node, name, present) {
   keeps(node, `data-lf-${name}`, present ? "" : null);
   // Removing an absent token still rewrites the attribute.
@@ -481,6 +492,24 @@ function markFocus(node, name, present) {
     node.hasAttribute("part")
   )
     node.part.add(`lf-${name}`);
+}
+// The keyboard cue's destination, read before or after its attributes are painted.
+// Current location and its visibility are separate: a click keeps a control as the
+// keyboard destination without advertising a keyboard cue. The browser owns
+// focus-visible (including text entry and modality changes on the same node).
+// Closed text-field roots expose their host, not the focused editor; text
+// entry always needs a cue, as it does for native editors. A frame never matches
+// :focus-visible on its host, so it takes the platform's rule from the inputs: visible
+// unless a press put the user there (`inputInFrame`).
+export function visibleFocus(node = focused()) {
+  return node &&
+    node !== document.body &&
+    node !== document.documentElement &&
+    (node.matches(":focus-visible") ||
+      node.matches(TEXT_BOX) ||
+      (node.localName === "iframe" && !pressLed()))
+    ? node
+    : null;
 }
 function paintFocus(node) {
   const next =
@@ -507,17 +536,12 @@ function paintFocus(node) {
     if (!paintedWithin.has(owner)) markFocus(owner, "focus-within", true);
   }
   paintedWithin = within;
-  // Current location and its visibility are separate: a click keeps a control as the
-  // keyboard destination without advertising a keyboard cue. The browser owns
-  // focus-visible (including text entry and modality changes on the same node).
-  // Closed text-field roots expose their host, not the focused editor; text
-  // entry always needs a cue, as it does for native editors.
-  const visible =
-    next && (next.matches(":focus-visible") || next.matches(TEXT_BOX)) ? next : null;
+  const visible = visibleFocus(next);
   if (visible !== paintedVisible) {
     if (paintedVisible) markFocus(paintedVisible, "focus-visible", false);
     if (visible) markFocus(visible, "focus-visible", true);
     paintedVisible = visible;
+    for (const read of visibilityReaders) read();
   }
   const visibleWithin = visible ? within : new Set();
   for (const owner of paintedVisibleWithin) {
@@ -724,20 +748,39 @@ const sequential = (event) =>
 // Where the user is, read again once a key's or a press's task ends, and once a
 // click's does, since a tap focuses at the click that follows it rather than at its
 // press. A component's roots join current location observation when focus first enters them;
-// the final input reading also covers a label's held intermediate move.
+// the final input reading also covers a label's held intermediate move. Leaving for
+// nowhere is the `focusout` reading's, except from a frame, which focus leaves with no
+// event here when a press on this document takes it back.
 function reconcile(step, pressed) {
   if (heldByLabel()) return;
-  const at = deepFocus();
-  if (!at || at === document.body || at === published?.deref()) return;
+  const deep = deepFocus();
+  const at = deep === document.body ? null : deep;
+  const was = published?.deref() ?? null;
+  if (at === was || (!at && was?.localName !== "iframe")) return;
   placements += 1;
-  lastLocation = new WeakRef(at);
-  const was = [stepping, pressedPath];
+  lastLocation = at && new WeakRef(at);
+  const input = [stepping, pressedPath];
   [stepping, pressedPath] = [step, pressed];
   try {
     publish(at, cause(at));
   } finally {
-    [stepping, pressedPath] = was;
+    [stepping, pressedPath] = input;
   }
+}
+// A press inside a frame goes to the frame's document, and focus follows it there with
+// no event here: Firefox fires none at all, and Chromium only the window's `blur`. The
+// frame's owner hears of each input from the frame's document, by its event `type`, and
+// reports it here. A key or a press there is the user's latest input, which decides
+// whether the frame wears its ring, and one that left focus in a frame the user was not
+// yet on, which only a press does without an event here, puts them on the frame as a
+// Tab into it would have.
+export function inputInFrame(frame, type) {
+  if (deepFocus() !== frame) return;
+  if (type === "keydown") pressedPath = null;
+  else if (type === "pointerdown" || type === "touchstart")
+    pressedPath = [new WeakRef(frame)];
+  if (published?.deref() === frame) queueFocusPaint();
+  else reconcile(null, pressedPath);
 }
 addEventListener(
   "click",
@@ -955,10 +998,13 @@ export function ringBox(node) {
     if (getComputedStyle(box).getPropertyValue("--lf-wears-ring") === "1") return box;
   return node;
 }
+// A focus place excludes inert content, even while its closing animation paints it.
 // Drawn counts `visibility: hidden` as hidden: a node under it keeps focus for a frame
 // and then the browser blurs it to the body, as it does a node under `display: none`.
 export const drawn = (node) =>
-  node?.isConnected && node.checkVisibility({ visibilityProperty: true });
+  node?.isConnected &&
+  !excludedByInert(node) &&
+  node.checkVisibility({ visibilityProperty: true });
 // The node hidden or removed by a change that left the user with no current location.
 const dropped = () => {
   const at = deepFocus();

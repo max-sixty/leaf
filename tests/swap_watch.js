@@ -1,5 +1,5 @@
 // Watches every page for a line of occupants that grows or shrinks as one occupant
-// gives way to another: the "What takes turns in a place doesn't size it" rule
+// gives way to another: the "Shared containers determine control dimensions" rule
 // (browser/AGENTS.md, "Stability"). The browser fixture installs it on every page a test
 // opens (render_harness.watched), so every test checks it.
 //

@@ -3,6 +3,7 @@
 import ast
 import contextlib
 import inspect
+import itertools
 import json
 import os
 import re
@@ -347,11 +348,16 @@ def pytest_addoption(parser):
 @pytest.hookimpl(wrapper=True)
 def pytest_runtest_call(item):
     """A test body that returns has its last shifts and lost words judged before its
-    fixtures end (`render_harness.judge_watches`)."""
+    fixtures end (`render_harness.judge_watches`). One that fails is marked so its
+    browser fixture keeps a picture of each page (`render_harness.clean_browser`)."""
     from render_harness import judge_watches
 
-    result = yield
-    judge_watches()
+    try:
+        result = yield
+        judge_watches()
+    except (Exception, pytest.fail.Exception):
+        item.lf_failed = True
+        raise
     return result
 
 
@@ -501,6 +507,8 @@ CLAUDE_IDENTITY = harness_model.ClaudeCodeHarness.identity_variables
 # The Claude Code sessions `isolated_session` marks as hooked: the worker's own
 # and the id lifecycle fixtures claim under (`record_claim`).
 HOOKED_SESSIONS = (f"pytest-{os.getpid()}", "s1")
+# The tests this worker has isolated so far (`isolated_session`).
+_SESSIONS = itertools.count()
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -543,9 +551,18 @@ def isolated_session(tmp_path_factory, monkeypatch):
     The state home is the fixture's value, for `_no_page_outlives_its_test`:
     the sweep takes its root from here rather than from the environment, which
     it would read before this fixture sets it and after `monkeypatch` unsets it
-    (tests/AGENTS.md, "Processes and servers")."""
-    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path_factory.mktemp("state")))
-    monkeypatch.setenv("CODEX_HOME", str(tmp_path_factory.mktemp("codex")))
+    (tests/AGENTS.md, "Processes and servers").
+
+    The directories are named by a count rather than by `mktemp`'s numbering, which
+    finds the next number by reading every entry in the worker's base directory: a
+    run's tests fill it, so each test's three lookups grew with the tests before it,
+    1.3 worker-minutes of a push run in October 2026."""
+    home = tmp_path_factory.mktemp(f"session{next(_SESSIONS)}", numbered=False)
+    for name in ("state", "config", "codex", "claude"):
+        (home / name).mkdir()
+    monkeypatch.setenv("XDG_STATE_HOME", str(home / "state"))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(home / "config"))
+    monkeypatch.setenv("CODEX_HOME", str(home / "codex"))
     monkeypatch.delenv(codex_model.APP_SERVER_ENV, raising=False)
     monkeypatch.delenv("LEAF_HOST_LAUNCHER", raising=False)
     monkeypatch.delenv("CODEX_INTERNAL_ORIGINATOR_OVERRIDE", raising=False)
@@ -554,7 +571,7 @@ def isolated_session(tmp_path_factory, monkeypatch):
     # Claude Code's session registry, where a live turn is read
     # (`harness.claude_code_session_records`): empty, so no session of the developer's
     # answers for a test's.
-    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path_factory.mktemp("claude")))
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(home / "claude"))
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", f"pytest-{os.getpid()}")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     # A test's own browser reports its window to the pages it opens, so `page check

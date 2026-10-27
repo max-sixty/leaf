@@ -1,4 +1,4 @@
-import { Z, cancelWork, enqueueWork, runWork } from "./bundle-browser-runtime.js";
+import { Z, cancelWork, enqueueWork, runWork } from "./bundle-signals-core.js";
 
 //#region runtime/frame-visibility.js
 const child = document.documentElement.lfSample;
@@ -181,14 +181,55 @@ function afterScript(callback) {
 	if (!owedThisScript.size) queueMicrotask(settleScript);
 	if (!owedThisScript.has(callback)) owedThisScript.set(callback, enqueueWork(callback));
 }
+let deliveringSizes = 0;
 function sizeObserver(callback, { counted = true } = {}) {
-	return new ResizeObserver((entries, observer) => {
+	const pending = /* @__PURE__ */ new Map();
+	let installation = null;
+	const observer = new ResizeObserver((entries, observer) => {
 		if (counted) {
 			heard = true;
 			unsettle();
 		}
-		callback(entries, observer);
+		deliveringSizes++;
+		try {
+			callback(entries, observer);
+		} finally {
+			deliveringSizes--;
+		}
 	});
+	const observe = observer.observe.bind(observer);
+	const unobserve = observer.unobserve.bind(observer);
+	const disconnect = observer.disconnect.bind(observer);
+	const install = () => {
+		installation = null;
+		for (const [target, options] of pending) observe(target, options);
+		pending.clear();
+	};
+	const retireInstallation = () => {
+		if (pending.size || installation === null) return;
+		(counted ? cancelRender : cancelAnimation)(installation);
+		installation = null;
+	};
+	observer.observe = (target, options) => {
+		if (!deliveringSizes) {
+			pending.delete(target);
+			retireInstallation();
+			return observe(target, options);
+		}
+		pending.set(target, options);
+		if (installation === null) installation = (counted ? nextRender : nextAnimation)(install);
+	};
+	observer.unobserve = (target) => {
+		pending.delete(target);
+		retireInstallation();
+		unobserve(target);
+	};
+	observer.disconnect = () => {
+		pending.clear();
+		retireInstallation();
+		disconnect();
+	};
+	return observer;
 }
 const renderingState = () => {
 	const visible = rendered();
@@ -371,6 +412,13 @@ function nativeLayerHolding(node) {
 	for (let at = node; at; at = renderedParent(at)) if (isNativeLayer(at)) return at;
 	return null;
 }
+function excludedByInert(node) {
+	for (let owner = node; owner; owner = renderedParent(owner)) {
+		if (owner.inert) return true;
+		if (nativeLayerKind(owner) === "modal") break;
+	}
+	return false;
+}
 
 //#endregion
 //#region runtime/focus.js
@@ -384,7 +432,7 @@ function* renderedElements(node) {
 }
 const SEQUENTIAL = `${TAB_STOP}, iframe, audio[controls], video[controls]`;
 const tabStops = (root) => [...renderedElements(root)].filter((node) => node.matches(SEQUENTIAL) && node.tabIndex >= 0 && !node.shadowRoot?.delegatesFocus && !node.matches(":disabled") && !node.inert && node.checkVisibility({ visibilityProperty: true }));
-const canPlaceFocus = () => !document.documentElement.lfSample || document.hasFocus();
+const canPlaceFocus = () => window === window.top || document.hasFocus();
 const CAUSES = /* @__PURE__ */ new Set([
 	"move",
 	"step",
@@ -526,11 +574,19 @@ let paintedFocus = null;
 let paintedWithin = /* @__PURE__ */ new Set();
 let paintedVisible = null;
 let paintedVisibleWithin = /* @__PURE__ */ new Set();
+const visibilityReaders = /* @__PURE__ */ new Set();
+const onFocusVisibility = (read) => {
+	visibilityReaders.add(read);
+	return () => visibilityReaders.delete(read);
+};
 function markFocus(node, name, present) {
 	keeps(node, `data-lf-${name}`, present ? "" : null);
 	if (!present) {
 		if (node.part?.contains(`lf-${name}`)) node.part.remove(`lf-${name}`);
 	} else if (node.getRootNode().nodeType === Node.DOCUMENT_FRAGMENT_NODE && node.hasAttribute("part")) node.part.add(`lf-${name}`);
+}
+function visibleFocus(node = focused()) {
+	return node && node !== document.body && node !== document.documentElement && (node.matches(":focus-visible") || node.matches(TEXT_BOX) || node.localName === "iframe" && !pressLed()) ? node : null;
 }
 function paintFocus(node) {
 	const next = node === document.body || node === document.documentElement ? null : node;
@@ -544,11 +600,12 @@ function paintFocus(node) {
 	for (const owner of paintedWithin) if (!within.has(owner)) markFocus(owner, "focus-within", false);
 	for (const owner of within) if (!paintedWithin.has(owner)) markFocus(owner, "focus-within", true);
 	paintedWithin = within;
-	const visible = next && (next.matches(":focus-visible") || next.matches(TEXT_BOX)) ? next : null;
+	const visible = visibleFocus(next);
 	if (visible !== paintedVisible) {
 		if (paintedVisible) markFocus(paintedVisible, "focus-visible", false);
 		if (visible) markFocus(visible, "focus-visible", true);
 		paintedVisible = visible;
+		for (const read of visibilityReaders) read();
 	}
 	const visibleWithin = visible ? within : /* @__PURE__ */ new Set();
 	for (const owner of paintedVisibleWithin) if (!visibleWithin.has(owner)) markFocus(owner, "focus-visible-within", false);
@@ -678,17 +735,26 @@ document.addEventListener("focusout", (event) => {
 const sequential = (event) => event.key === "Tab" && !event.altKey && !event.ctrlKey && !event.metaKey;
 function reconcile(step, pressed) {
 	if (heldByLabel()) return;
-	const at = deepFocus();
-	if (!at || at === document.body || at === published?.deref()) return;
+	const deep = deepFocus();
+	const at = deep === document.body ? null : deep;
+	const was = published?.deref() ?? null;
+	if (at === was || !at && was?.localName !== "iframe") return;
 	placements += 1;
-	lastLocation = new WeakRef(at);
-	const was = [stepping, pressedPath];
+	lastLocation = at && new WeakRef(at);
+	const input = [stepping, pressedPath];
 	[stepping, pressedPath] = [step, pressed];
 	try {
 		publish(at, cause(at));
 	} finally {
-		[stepping, pressedPath] = was;
+		[stepping, pressedPath] = input;
 	}
+}
+function inputInFrame(frame, type) {
+	if (deepFocus() !== frame) return;
+	if (type === "keydown") pressedPath = null;
+	else if (type === "pointerdown" || type === "touchstart") pressedPath = [new WeakRef(frame)];
+	if (published?.deref() === frame) queueFocusPaint();
+	else reconcile(null, pressedPath);
 }
 addEventListener("click", () => {
 	const pressed = pressedPath;
@@ -842,7 +908,7 @@ function ringBox(node) {
 	for (let box = renderedParent(node); box instanceof Element; box = renderedParent(box)) if (getComputedStyle(box).getPropertyValue("--lf-wears-ring") === "1") return box;
 	return node;
 }
-const drawn = (node) => node?.isConnected && node.checkVisibility({ visibilityProperty: true });
+const drawn = (node) => node?.isConnected && !excludedByInert(node) && node.checkVisibility({ visibilityProperty: true });
 const dropped = () => {
 	const at = deepFocus();
 	if (at && at !== document.body) return null;
@@ -1112,4 +1178,4 @@ function move(parent, node, before) {
 document.documentElement.lfInitial.move = move;
 
 //#endregion
-export { CARET_KEYS, LENT_REACH_STOP, MODIFIER_KEYS, PRESSES, TAB_STOP, TEXT_BOX, TEXT_FIELD, WORKS, afterScript, afterSettling, atLayoutPrecision, byRenderedOrder, canPlaceFocus, cancelAnimation, cancelRender, caretAtKey, carriedFrom, closeLayer, composedParentNode, controlNavigationKeys, currentLocationIn, currentLocationNodes, currentLocationTouches, declareReading, declareRelease, deepFocus, drawn, focusDestination, focusRevision, focused, frameVisibility, handBack, holdCurrentLocation, holdFocus, holdRendering, inputCount, isNativeLayer, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, nativeLayerHolding, nativeLayerKind, nextAnimation, nextFrame, nextRender, observePreparations, onCurrentLocation, onFrameVisibility, onPress, onPressAway, onUserInput, openLayer, openerOf, pressLed, pressing, readCaret, readSampleVisibility, recentPlaceInput, recoveredLabelFocus, release, releaseFocus, renderedOrder, renderedParent, renderedUnder, renderingState, ringBox, roomPx, rove, selectsAll, shadowHost, sizeObserver, tabStops, takesLetters, typesText, under, upFrom, watchCurrentLocationIn, watchFrame, wearsLentStop, whenLeft };
+export { CARET_KEYS, LENT_REACH_STOP, MODIFIER_KEYS, PRESSES, TAB_STOP, TEXT_BOX, TEXT_FIELD, WORKS, afterScript, afterSettling, atLayoutPrecision, byRenderedOrder, canPlaceFocus, cancelAnimation, cancelRender, caretAtKey, carriedFrom, closeLayer, composedParentNode, controlNavigationKeys, currentLocationIn, currentLocationNodes, currentLocationTouches, declareReading, declareRelease, deepFocus, drawn, excludedByInert, focusDestination, focusRevision, focused, frameVisibility, handBack, holdCurrentLocation, holdFocus, holdRendering, inputCount, inputInFrame, isNativeLayer, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, nativeLayerHolding, nativeLayerKind, nextAnimation, nextFrame, nextRender, observePreparations, onCurrentLocation, onFocusVisibility, onFrameVisibility, onPress, onPressAway, onUserInput, openLayer, openerOf, pressLed, pressing, readCaret, readSampleVisibility, recentPlaceInput, recoveredLabelFocus, release, releaseFocus, renderedOrder, renderedParent, renderedUnder, renderingState, ringBox, roomPx, rove, selectsAll, shadowHost, sizeObserver, tabStops, takesLetters, typesText, under, upFrom, visibleFocus, watchCurrentLocationIn, watchFrame, wearsLentStop, whenLeft };

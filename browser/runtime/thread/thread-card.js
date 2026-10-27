@@ -36,10 +36,15 @@ import {
   currentLocationTouches,
   currentLocationIn,
 } from "../focus.js";
-import { html, render, nothing, share, signal } from "/vendor/browser-runtime.js";
+import { html, render, nothing, share, signal } from "/runtime/framework.js";
 import { turns, threadKey } from "./model.js";
 import { anchorLabel, messageReading, threadSummary } from "./messages.js";
-import { generatedElement, offer, measure } from "../widget-elements.js";
+import {
+  generatedElement,
+  offerAction,
+  offeredAction,
+  measure,
+} from "../widget-elements.js";
 import { keeps, layoutPx } from "../keeps.js";
 import { keys } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
@@ -191,6 +196,24 @@ function workingMessage(thread, attention, messages) {
   });
 }
 
+// The user's open to-dos on a thread, over the conversation about them: each title
+// with its Done in words, since a thread head's check is Resolve. Done is the user's
+// `todo_end`, which takes the line away in the turn it is pressed (queue-api.js,
+// `done`). A card draws them at its head, and so does the floating panel's view of a
+// thread, under its quote.
+export function threadTodos(todos, done) {
+  if (!todos.length) return nothing;
+  return html`<ul class="lf-thread-todos">
+    ${todos.map(
+      (todo) =>
+        html`<li class="lf-thread-todo">
+          <span class="lf-thread-todo-title">To-do · ${todo.title}</span
+          ><button ${offeredAction("word")} @click=${() => done(todo.id)}>Done</button>
+        </li>`,
+    )}
+  </ul>`;
+}
+
 /** @param {ReturnType<typeof import("./model.js").readThreadRecords>[number]} thread */
 export function threadReading(thread, surface, commands) {
   const resolved = Boolean(thread.resolved);
@@ -261,6 +284,12 @@ export function threadReading(thread, surface, commands) {
       pending: settling,
     }),
     reply: replyAvailable(thread),
+    // The user's open to-dos on the thread, each named at the thread's head with its
+    // Done (`threadTodos`), as the floating panel's field names one the user stands on
+    // in the page.
+    todos: Object.freeze(
+      thread.userTodos.map(({ id, title }) => Object.freeze({ id, title })),
+    ),
     summaries: Object.freeze(thread.summaries),
     messages: Object.freeze(messages),
     working: workingMessage(thread, attention, messages),
@@ -504,10 +533,15 @@ export class ThreadView {
     // Capture the current words only when news starts waiting, before its update
     // removes a receipt. This allocation lives with the held view, not its reading.
     if (model.news && !prior?.news) this.#retainHeaderSlot({ observe: false });
-    const rewritten = this.#transcript.views
-      .filter((view) => view.editing)
-      .map(({ node }) => node);
-    const bodyPlace = published ? this.#continuity?.before(rewritten) : null;
+    // The rewrites the user has open, and the messages leaving, change their own room.
+    const bodyPlace = published
+      ? this.#continuity?.before([
+          ...this.#transcript.views
+            .filter((view) => view.editing)
+            .map(({ node }) => node),
+          ...this.#transcript.leaving(model),
+        ])
+      : null;
     const restoreFocus = holdFocus(this.node);
     this.#model = model;
     const reply = model.reply || replyIsEditing(model.key);
@@ -546,6 +580,7 @@ export class ThreadView {
       ? [
           model.news ? notice.node : null,
           marginControls.nav,
+          marginControls.expand,
           settlement,
           marginControls.close,
         ].filter(Boolean)
@@ -558,7 +593,7 @@ export class ThreadView {
     });
     if (reply && !this.#reply) this.#reply = this.#createReply(model);
     const body = html`
-      ${this.#transcript.node}
+      ${threadTodos(model.todos, (id) => this.#commands.todos.done(id))}${this.#transcript.node}
       ${
         threadActions
           ? marginControls
@@ -730,11 +765,10 @@ export class ThreadView {
     const face = `${state.kind} ${place}`;
     let button = this.#settlements.get(face);
     if (!button) {
-      button = offer(
-        "button",
-        `lf-btn ${reopen ? "lf-reopen" : "lf-resolve"} ${icon ? "lf-icon-action" : "lf-thread-action"}`,
+      button = offerAction(
+        icon ? "symbol" : "word",
+        reopen ? "lf-reopen" : "lf-resolve",
       );
-      button.type = "button";
       this.#settlements.set(face, button);
       const word = reopen ? "Reopen" : "Resolve";
       keys(button, `On a thread's ${word} button`, [
@@ -801,21 +835,16 @@ export class ThreadView {
       source: this.node,
       available: () => this.node.isConnected,
     });
-    const land = async (may = mayLand, reverse = false) => {
+    return async () => {
       // The summary is semantically available at once, but a long departing card
       // still puts it below the viewport. Keep this gesture's original authority
       // while its pixels leave; a later user move still vetoes the landing.
       await this.#retirement?.catch(() => {});
       const place = this.#fold?.querySelector(":scope > summary") ?? this.node;
-      if (!may()) return false;
-      // An existing resolved group survives when this card returns. Its summary
-      // cannot hand focus back by disappearing, so the reversal owns that handoff.
-      if (reverse) may.handoff(() => focusDestination(place, "return"));
-      if (!currentLocationIn(place)) return false;
+      if (!mayLand() || !currentLocationIn(place)) return false;
       scrollThreadIntoView(place, focused());
       return true;
     };
-    return { optimistic: () => land(), reverse: (may) => land(may, true) };
   };
 
   #createReply(model) {
@@ -849,6 +878,8 @@ export class ThreadView {
       {
         onChange: replyChanged,
         editLast: this.#rewrites.editLast,
+        // A margin card moves with the send it presents (thread-preview.js).
+        sending: () => this.#marginControls?.sending?.(),
       },
     );
   }

@@ -128,6 +128,12 @@ PLATED_OPTION = """
       </lf-option>"""
 
 
+CAPTURED_OPTION = """
+      <lf-option id="captured-{side}"><strong>{title}</strong>
+        <a href="{src}"><img id="captured-{side}-picture" src="{src}" alt="{title}"></a>
+      </lf-option>"""
+
+
 PICTURED_OBLIGATION_PAGE = leaf_page(
     "options holding their pictures",
     "<h1>Plan context</h1>"
@@ -136,73 +142,44 @@ PICTURED_OBLIGATION_PAGE = leaf_page(
     + '<lf-ask id="plated"><h3>Which latency?</h3><lf-options id="plated-choice" choose>'
     + PLATED_OPTION.format(side="yes", title="Backend")
     + PLATED_OPTION.format(side="no", title="Frontend")
-    + "</lf-options></lf-ask>",
-)
-
-
-CAPTURED_OPTION = """
-      <lf-option id="captured-{side}"><strong>{title}</strong>
-        <a href="{src}"><img id="captured-{side}-picture" src="{src}" alt="{title}"></a>
-      </lf-option>"""
-
-
-CAPTURED_OBLIGATION_PAGE = leaf_page(
-    "options holding captures",
-    '<h1>Panel</h1><lf-ask id="captured"><h3>Which panel?</h3>'
-    '<lf-options id="captured-choice" choose>'
+    + "</lf-options></lf-ask>"
+    + '<lf-ask id="captured"><h3>Which panel?</h3><lf-options id="captured-choice" choose>'
     + CAPTURED_OPTION.format(side="yes", title="Both lines", src=SHOT_SRC["before"])
     + CAPTURED_OPTION.format(side="no", title="One line", src=SHOT_SRC["after"])
     + "</lf-options></lf-ask>",
 )
 
 
-def test_options_holding_pictures_lay_across(browser, serve):
-    """An obligation whose options each hold a picture of what choosing it gives, with
-    no figure before them, sets the cards side by side, so each picture stands over its
-    own pick and the two compare in one row, though each is wrapped in a link. A widget
-    whose entry declares it draws a picture (`x-visual`), such as a chart, counts as one.
-    A group given `data-width` lays them across its own width, with each picture
-    growing toward its authored size as the group gains room."""
-    page = open_page(
-        browser, serve(PICTURED_OBLIGATION_PAGE, layer_registry=PLATE_PACKAGE)
-    )
-    resized(page, 1440, 900)
-    at = page.evaluate(
-        """() => Object.fromEntries(['pictured', 'widened', 'plated'].map((id) => {
-          const box = (s) => document.getElementById(`${id}-${s}`).getBoundingClientRect();
-          return [id, {
-            tops: ['yes', 'no'].map((s) => Math.round(box(s).top)),
-            lefts: ['yes', 'no'].map((s) => Math.round(box(s).left)),
-            pictures: ['yes', 'no'].map((s) => Math.round(box(`${s}-picture`).width)),
-          }];
-        }))"""
-    )
-    for id in ("pictured", "widened", "plated"):
-        assert at[id]["tops"][0] == at[id]["tops"][1], at
-        assert at[id]["lefts"][0] < at[id]["lefts"][1], at
-    assert at["widened"]["pictures"][0] == at["widened"]["pictures"][1], at
-    assert at["pictured"]["pictures"][0] < at["widened"]["pictures"][0] < 480, at
-
-
-def test_options_holding_captures_read_down(browser, serve):
-    """Options holding a capture, drawn at one scale, keep reading down, so each
-    capture stands at its own size rather than shrunk to a card's share of a row."""
+def test_options_holding_pictures_read_down(browser, serve):
+    """An obligation whose options each hold a picture of what choosing it gives keeps
+    its cards reading down, so each picture stands at the size its author gave it,
+    rather than shrunk to a card's share of a row: a drawing, a capture, and a widget
+    whose entry declares it draws a picture (`x-visual`), each wrapped in the link that
+    opens it or not, in the reading column or a group given `data-width`."""
     media = {SHOT_SRC[name]: data for name, data in SHOTS.items()}
-    page = open_page(browser, serve(CAPTURED_OBLIGATION_PAGE, media=media))
+    page = open_page(
+        browser,
+        serve(PICTURED_OBLIGATION_PAGE, layer_registry=PLATE_PACKAGE, media=media),
+    )
     resized(page, 1440, 900)
     page.wait_for_function("[...document.images].every((i) => i.complete)")
     at = page.evaluate(
-        """() => ['yes', 'no'].map((s) => {
-          const box = (id) => document.getElementById(id).getBoundingClientRect();
-          return {
-            left: Math.round(box(`captured-${s}`).left),
-            top: Math.round(box(`captured-${s}`).top),
-            picture: Math.round(box(`captured-${s}-picture`).width),
-          };
-        })"""
+        """() => Object.fromEntries(
+          ['pictured', 'widened', 'plated', 'captured'].map((id) => {
+            const box = (s) => document.getElementById(`${id}-${s}`).getBoundingClientRect();
+            return [id, {
+              tops: ['yes', 'no'].map((s) => Math.round(box(s).top)),
+              lefts: ['yes', 'no'].map((s) => Math.round(box(s).left)),
+              pictures: ['yes', 'no'].map((s) => Math.round(box(`${s}-picture`).width)),
+            }];
+          }))"""
     )
-    assert at[0]["left"] == at[1]["left"] and at[0]["top"] < at[1]["top"], at
-    assert [a["picture"] for a in at] == [600, 600], at
+    for id in ("pictured", "widened", "plated", "captured"):
+        assert at[id]["tops"][0] < at[id]["tops"][1], at
+        assert at[id]["lefts"][0] == at[id]["lefts"][1], at
+    for id in ("pictured", "widened"):
+        assert at[id]["pictures"] == [480, 480], at
+    assert at["captured"]["pictures"] == [600, 600], at
 
 
 ACROSS_GEOMETRY = """(id) => {

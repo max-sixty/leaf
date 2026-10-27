@@ -2,6 +2,7 @@
 
 import json
 import re
+from io import BytesIO
 from pathlib import Path
 
 import pytest
@@ -12,6 +13,7 @@ from interact_support import (
     refused_on,
     working,
 )
+from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import (
     CHIP_PAGE,
@@ -978,6 +980,54 @@ def test_joined_option_cells_share_edges_and_text_column(browser, serve):
             f"#{group}'s user-written option stands on {user['ground']} where an "
             f"unpicked option stands on {open_option}, so it reads as apparatus under the "
             "answers rather than as one of them"
+        )
+
+
+def test_a_picked_cell_rings_every_side_alike(browser, serve):
+    """A pick rings its cell in the ok ink, inside the joined frame. Cells paint in
+    order, so the next cell's hairline lay over the ring's lower edge and left it half
+    as thick as the other three, reading as the grey divider rather than the pick's
+    edge. Counted in pixels down the picked cell's middle and across its top, in both
+    joined forms."""
+    page = open_page(browser, serve(OBLIGATION_SHAPES_PAGE))
+    for option in ("#c-redis", "#r-drill"):
+        page.locator(f"{option} > .lf-pick").click()
+        expect(page.locator(option)).to_have_attribute("chosen", "")
+    rendered(page)
+    ok = page.evaluate(
+        """() => {
+             const probe = document.body.appendChild(document.createElement('i'));
+             probe.style.color = 'var(--ok)';
+             const rgb = getComputedStyle(probe).color.match(/\\d+/g).slice(0, 3);
+             probe.remove();
+             return rgb.map(Number);
+           }"""
+    )
+
+    def ok_run(clip):
+        shot = Image.open(BytesIO(page.screenshot(clip=clip))).convert("RGB")
+        inked = [
+            sum(abs(a - b) for a, b in zip(px, ok, strict=True)) < 40
+            for px in shot.getdata()
+        ]
+        # The ring's two edges along this line, each counted from its own end.
+        half = len(inked) // 2
+        return sum(inked[:half]), sum(inked[half:])
+
+    for option in ("#c-redis", "#r-drill"):
+        box = page.locator(option).bounding_box()
+        mid_x = round(box["x"] + box["width"] / 2)
+        # Above the cell's words and its mark, which a row hangs at its start.
+        clear_y = round(box["y"] + 4)
+        top, bottom = ok_run(
+            {"x": mid_x, "y": box["y"] - 4, "width": 1, "height": box["height"] + 8}
+        )
+        left, right = ok_run(
+            {"x": box["x"] - 4, "y": clear_y, "width": box["width"] + 8, "height": 1}
+        )
+        assert top == bottom == left == right > 0, (
+            f"{option}'s ring is {top}px at the top, {bottom}px at the bottom, "
+            f"{left}px on the left and {right}px on the right"
         )
 
 

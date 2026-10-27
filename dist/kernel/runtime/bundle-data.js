@@ -1,6 +1,6 @@
 import { CARET_KEYS, J, PRESSES, TEXT_BOX, TEXT_FIELD, W, Z, afterScript, bindQueuedWork, cancelRender, caretAtKey, currentLocationIn, currentLocationNodes, currentLocationTouches, d, deepFocus, drawn as drawn$2, focusDestination, focused, holdCurrentLocation, holdFocus, inputCount, keeps, keepsHidden, layoutPx, move, nextAnimation, nextFrame, nextRender, onCurrentLocation, onLetGo, onPress, onPressAway, onUserInput, readCaret, recentPlaceInput, renderedOrder, renderedParent, renderedUnder, renderingState, selectsAll, sizeObserver, takesLetters, typesText, under, upFrom, watchCurrentLocationIn, x } from "./bundle-dom-move.js";
-import { LayerRefused, PAGE_PAINT_ATTRIBUTE, PRESS, PRESSABLE, admitReading, admitResponse, announce, ariaShortcuts, bindings, buttonCommand, checked, claimReleaseClick, clampedRow, commandAvailable, commandRoutes, commandScope, commandsOn, cycledRow, declareCommandReadiness, descriptionOf, el, generatedElement, holdStatus, holdingError, iconElement, iconTemplate, keys, labelOf, layoutChanged, live, measure, notice, offer, offered, offeredAction, pagePresented, paintKeys, paintKeysWithin, passErrorsAt, plainPress, pointerAt, projectCommandScope, pruneScopedElements, raiseError, randomId, repaint, reportPageError, requestJson, restorePointer, reveal, revealLayer, revealedBy, rowArrows, runtimeRootState, sameLayer, savedReadingSettled, setRuntimeRootAttribute, spell, titleOf, touchPresses as touchPresses$1, watchCommandScopes, word } from "./bundle-layer-client.js";
-import { COLLAPSE as COLLAPSE$1, LIVE_ROOT, PENDING, PRESENTATION_DOM, SHADOW_LEADING_CSS, TEXT_BLOCK, adoptRegistry, agentName, annotationMarkSheets, applicationPresenter, applicationState, attachApplicationPresentation, authoredRank, clippedContents, clippedPlace, decisionFor, declarationFor, editable, elementDeclarations, elementsDeclaring, exhibits, foldWidgetStates, frameFor, growthAfterIsSeen, growthIsSeen, headerInset, html, inUi, inWindowChrome, isElementName, isReaction, keyed, landingBand, lastMovedAt, layerRoot, live as live$1, loadShadowRules, marks, marksSheet, messageKey, moved, nothing, obligationValue, offlineData, offlineInteractive, pageClaimed, pageUrl, pendingForParent, placeBox, placeHolder, presented, projectView, projectionOrigins, projectionRegionsPresented, readApplication, readPart, recordedWidgetSelector, registry as registry$1, render as render$1, repeat, revisionLabel, runtime, runtimeModule, runtimeResource, sameAnchor, seatRoot, seenRect, shadowRules, share, shownBox, shownRect, shownWindow, skipped, slotTop, stateSpecs, stuckBox, tagsDeclaring, threadKey, threadNames, tick, tokenEntry, turns, union, userScrollport, visibleBand, watchArrivals, watchArrivalsIn, watchLayers, watchOwner, watchPresentation, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenNone, whenWidgetsPresented } from "./bundle-geometry.js";
+import { LayerRefused, PAGE_PAINT_ATTRIBUTE, PRESS, PRESSABLE, admitReading, admitResponse, announce, ariaShortcuts, bindings, buttonCommand, checked, claimReleaseClick, clampedRow, commandAvailable, commandRoutes, commandScope, commandsOn, cycledRow, declareCommandReadiness, descriptionOf, el, generatedElement, holdStatus, holdingError, iconElement, iconTemplate, keys, labelOf, layoutChanged, live, measure, notice, offer, offered, offeredAction, pagePresented, paintKeys, paintKeysWithin, passErrorsAt, plainPress, pointerAt, projectCommandScope, pruneScopedElements, raiseError, randomId, repaint, reportPageError, requestJson, restorePointer, reveal, revealLayer, rowArrows, runtimeRootState, sameLayer, savedReadingSettled, setRuntimeRootAttribute, spell, titleOf, touchPresses as touchPresses$1, watchCommandScopes, word } from "./bundle-layer-client.js";
+import { COLLAPSE as COLLAPSE$1, LIVE_ROOT, PENDING, PRESENTATION_DOM, SHADOW_LEADING_CSS, TEXT_BLOCK, adoptRegistry, agentName, annotationMarkSheets, applicationPresenter, applicationState, attachApplicationPresentation, authoredRank, clippedContents, clippedPlace, decisionFor, declarationFor, editable, elementDeclarations, elementsDeclaring, exhibits, foldWidgetStates, frameFor, growthAfterIsSeen, growthIsSeen, headerInset, html, inUi, inWindowChrome, isElementName, isReaction, keyed, landingBand, lastMovedAt, layerRoot, live as live$1, loadShadowRules, marks, marksSheet, messageKey, moved, nothing, obligationValue, offlineData, offlineInteractive, pageClaimed, pageUrl, pendingForParent, placeBox, placeHolder, presented, projectView, projectionOrigins, projectionRegionsPresented, readApplication, readPart, recordedWidgetSelector, registry as registry$1, render as render$1, repeat, revisionLabel, runtime, runtimeModule, runtimeResource, sameAnchor, seatRoot, seenRect, shadowRules, share, shownBox, shownRect, shownWindow, showsContents, skipped, slotTop, stateSpecs, stuckBox, tagsDeclaring, threadKey, threadNames, tick, tokenEntry, turns, union, userScrollport, visibleBand, watchArrivals, watchArrivalsIn, watchLayers, watchOwner, watchPresentation, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenNone, whenWidgetsPresented } from "./bundle-geometry.js";
 import { ADDRESSABLE, PAGE_CONTROL_RANK, addressableWord, addressedElements, ago, aimTargetAt, aimedTop, anchorBox, anchorForPassage, anchorForRange, anchorReading, anchorView, anchoringIsReady, atScrollEnd, authoredBody, chosenSince, chromeForeground, chromeRoot, claimReachStop, containingReadingRegionFor, cutFrames, datumAimTarget, datumLabel, effectiveScroller, followingItsEnd, fragmentTarget, headerLevels, initialOrigin, initialParent, initialSource, isAddressable, leadingTitle, livePoint, moveScrollerBy, nameAnchor, nameable, onReadingInput, pageReadingRegion, pageScroller, placeKept, projectedDatum, reachScrollers, readingRegionFor, readingRegions, recentReadingRegion, refreshAnchorView, regionScrollBehavior, regionsSettled, registerPageControl, releaseReachStop, resolveAnchor, restoreInitialSource, revealAddressed, scrollChainOf, scrollChoices, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, sectionLabel, sectionOf, settleMarginContentLayout, shortAgo, shownRegionBounds, stopScroll, targetElement, targetPlace, targetSegments, unconcealedReadingRegions, unmarkedCopy, visualPartLabel, watchReadingRegionTransitions } from "./bundle-content-layout.js";
 import { alignInlineText, alignText, authored, authoredScope, blockAt, closestAcross, elementById, elementReading, fencePassageParts, inChrome, labelWords, pageBlocks, pageDocument, pageQueryAll, pageRange, pageText, pageWords, pointAt as pointAt$1, quoteFrom, rangeOf, readingFrom, renderRetired, segmentBlock, segmentsIn, selectEnds, selectionBackward, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity, watchPassageRoot } from "./bundle-passages.js";
 import { alreadyShown, copyControl, fitsWhole, passOn, restrictUserIntent, retainUserIntent, scrollIntoReadingBand, scrollIntoView } from "./bundle-copy-control.js";
@@ -3688,8 +3688,8 @@ const onScreen = (node) => seenRect(node, /* @__PURE__ */ new Map()) !== null;
 const returnTurn = (transcript, unread) => {
 	const turns = [...transcript.querySelectorAll(":scope > :is(.lf-msg, .lf-thread-checkpoint)")];
 	let start = unread && turns.find((node) => node.dataset.message === unread);
-	while (start && !start.checkVisibility()) start = start.previousElementSibling;
-	return start ?? turns.findLast((node) => node.checkVisibility()) ?? null;
+	while (start && !showsContents(start)) start = start.previousElementSibling;
+	return start ?? turns.findLast((node) => showsContents(node)) ?? null;
 };
 function showReturnTurn(transcript, thread) {
 	const scroller = scrollerFor(transcript);
@@ -4410,8 +4410,8 @@ const authoredMessage = (message) => {
 };
 const authoredDrawings = /* @__PURE__ */ new Map();
 const authoredHolders = /* @__PURE__ */ new Map();
-const shown = (view) => view.node.isConnected && view.node.checkVisibility();
-const hidden = (view) => view.node.isConnected && !view.node.checkVisibility();
+const shown = (view) => view.node.isConnected && showsContents(view.node);
+const hidden = (view) => view.node.isConnected && !showsContents(view.node);
 const outranks = (a, b) => a.model.authoredRank > b.model.authoredRank;
 function settleAuthored(key) {
 	const drawings = authoredDrawings.get(key) ?? /* @__PURE__ */ new Set();
@@ -6316,7 +6316,7 @@ var Transcript = class {
 		return this.node.querySelector(`:scope > [data-summary-id="${CSS.escape(id)}"]`);
 	}
 	get foot() {
-		return [...this.node.children].findLast((node) => node.checkVisibility()) ?? null;
+		return [...this.node.children].findLast((node) => showsContents(node)) ?? null;
 	}
 	get progressOpen() {
 		return this.#pendingOpen;
@@ -6350,7 +6350,7 @@ var Transcript = class {
 		for (const [key, view] of this.#messages) {
 			if (wanted.has(key)) continue;
 			const { node } = view;
-			if (motionPlays() && !this.#folding.has(key) && node.parentNode === this.node && node.checkVisibility()) {
+			if (motionPlays() && !this.#folding.has(key) && node.parentNode === this.node && showsContents(node)) {
 				const names = MESSAGE_NAMES.map((name) => [name, node.getAttribute(name)]);
 				for (const [name] of names) node.removeAttribute(name);
 				node.inert = true;
@@ -6402,7 +6402,7 @@ var Transcript = class {
 			if (!view) {
 				this.#messages.set(message.key, view = new MessageView(this.#messageCommands));
 				const { node } = view;
-				revealedBy(node, () => this.#unfold(node));
+				node.addEventListener("beforematch", () => this.#unfold(node));
 			}
 			view.present(message, {
 				arrived,
@@ -6414,7 +6414,7 @@ var Transcript = class {
 		const placed = (key, summary = null, folded = false) => {
 			const node = this.#messages.get(key).node;
 			keeps(node, "data-lf-summary", summary);
-			keepsHidden(node, folded);
+			keepsHidden(node, folded && "until-found");
 			return node;
 		};
 		const feet = /* @__PURE__ */ new Map();
@@ -8038,7 +8038,7 @@ function createAnchorTravel({ anchors, refreshThread, focusForNavigation, thread
 	}
 	function returnToFragment(url) {
 		const where = fragmentTarget(url.hash);
-		return where && (where.hasAttribute("hidden") || !where.checkVisibility()) ? fragmentNavigationStep(url, false) : null;
+		return where && !showsContents(where) ? fragmentNavigationStep(url, false) : null;
 	}
 	function fragmentNavigationStep(url, focus) {
 		const mayArrive = retainTravel();

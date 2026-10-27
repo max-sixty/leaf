@@ -39,7 +39,8 @@ and builds plain elements that page CSS styles. Leaf asks four things of it:
   attached. Listen on `main` or another stable ancestor, or set up again when
   `PAGE_INTERFACE` fires (`module-authoring.md`, "Startup and presentation").
 - Animate from JavaScript through `motion()`, which skips the animation for a user who
-  asked for less motion; CSS motion already stops for them.
+  asked for less motion. Leaf stops only its own CSS motion for that user, so stop or
+  shorten the page's under `@media (prefers-reduced-motion: reduce)`.
 
 Reach a widget's methods with `whileInterfaceConnected` (`module-authoring.md`,
 "Startup and presentation"). The rest of `/runtime/widget-api.js` is there where its

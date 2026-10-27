@@ -351,7 +351,7 @@ def test_a_message_workflow_changes_phase_in_place_and_then_stands_still(
     thread = open_panel_thread(page, comment["id"])
     workflow = workflow_of(thread, comment["id"])
     expect(workflow).to_be_visible()
-    expect(workflow).to_have_text("Saved")
+    expect(workflow).to_have_text(re.compile(r"^Queued for "))
     assert workflow.evaluate(
         "node => node.parentElement.matches('.lf-msg-meta') "
         "&& node.previousElementSibling.matches('time')"

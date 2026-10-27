@@ -47,8 +47,8 @@ pytestmark = pytest.mark.shifts_unsurveyed
 
 
 RECEIPT_PHASES = {
-    "Saved": "sent",
-    "Haven't seen it yet": "waiting",
+    "Queued for Claude": "sent",
+    "Still queued for Claude": "waiting",
     "Got it": "pickup",
 }
 
@@ -964,7 +964,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
 ):
     """A margin entry keeps the margin entry family visible without promising a press.
 
-    Saved, Haven't seen it yet, and Got it report a move already made. Their status
+    Queued for Claude, Still queued for Claude, and Got it report a move already made. Their status
     margin entry therefore keeps the family silhouette and full ink, while leaving the
     accessibility tree as a status rather than a control and showing no hover fill.
     Hovering the status draws a soft neutral trace to the
@@ -1140,7 +1140,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
             "leader": "none",
         }
 
-    assert_status("Saved", "just now")
+    assert_status("Queued for Claude", "just now")
     result = Axe().run(
         page,
         options={
@@ -1192,8 +1192,10 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         monkeypatch.setattr(clock_owner, "now_iso", advanced_now)
     declare_idle(page_dir)
     told(page)
-    expect(marker).to_have_attribute("aria-label", re.compile(r"^Haven't seen it yet,"))
-    assert_status("Haven't seen it yet", "3m ago")
+    expect(marker).to_have_attribute(
+        "aria-label", re.compile(r"^Still queued for Claude,")
+    )
+    assert_status("Still queued for Claude", "3m ago")
 
     # Pickup belongs to an active agent turn; an unclaimed pickup is stale work.
     record_claim(page_dir)

@@ -225,7 +225,8 @@ export function mountApplication(dependencies) {
   const settlementView = {
     pendingEntries: ledger.snapshot,
     actions: threadActions,
-    retainGesture: undo.retainGesture,
+    landedAway: undo.landedAway,
+    returnToThread: undo.returnToThread,
   };
   const reactionView = {
     registerSurface: dependencies.registerReactSurface,

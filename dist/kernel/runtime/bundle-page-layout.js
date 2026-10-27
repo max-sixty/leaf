@@ -2689,6 +2689,7 @@ const KEYS_HELD = /* @__PURE__ */ new Set([
 	"CapsLock",
 	"Fn"
 ]);
+const UNDO_KEYS = ["z"];
 function createUndo({ post, stateApplying, unaccountedGesture, openThread, threadPlace }) {
 	const gestures = /* @__PURE__ */ new Map();
 	function retainGesture(attempt, facts) {
@@ -2723,10 +2724,8 @@ function createUndo({ post, stateApplying, unaccountedGesture, openThread, threa
 			raiseError(WAIT);
 			return null;
 		}
-		const reverse = gestures.get(event.attempt)?.reverse;
 		const taken = takes(event);
-		const mayLand = retainUserIntent();
-		const answer = post({
+		return post({
 			kind: "undo",
 			undoes: event.id
 		}).then((accepted) => {
@@ -2736,12 +2735,6 @@ function createUndo({ post, stateApplying, unaccountedGesture, openThread, threa
 			}
 			return accepted;
 		});
-		if (reverse) answer.then(async (accepted) => {
-			if (!accepted) return;
-			await whenDocumentPresented();
-			await reverse(mayLand);
-		}).catch(() => {});
-		return answer;
 	}
 	let armed = null;
 	function disarm() {
@@ -2749,25 +2742,48 @@ function createUndo({ post, stateApplying, unaccountedGesture, openThread, threa
 		armed = null;
 	}
 	onUserInput((event) => {
-		if (!armed || event.type === "wheel" || event.type === "blur") return;
-		if (event.type === "keydown" && (event.repeat || KEYS_HELD.has(event.key))) return;
+		if (!armed || event.type === "blur") return;
+		if (event.type === "wheel" && !armed.returns) return;
+		if (event.type === "keydown" && (event.repeat || KEYS_HELD.has(event.key) || UNDO_KEYS.includes(event.key))) return;
 		if ((event.type === "pointerdown" || event.type === "touchstart") && inChrome(event.composedPath()[0])) return;
 		armed.inputs.push(inputCount());
 		if (armed.inputs.length > 1) disarm();
 	});
-	const armedFor = (event) => armed?.id === event.id && armed.shown && armed.inputs.every((input) => input === inputCount());
+	const armedFor = (event) => Boolean(armed?.is(event)) && armed.shown && armed.inputs.every((input) => input === inputCount());
+	function landedAway(attempt) {
+		disarm();
+		armed = {
+			is: (event) => event.attempt === attempt,
+			stop: () => {},
+			inputs: [],
+			shown: true,
+			returns: true
+		};
+	}
 	const drawingsOf = (id) => [...[...document.querySelectorAll(THREAD)].filter((node) => drawnThreadId(node) === id), surfaceFocusTarget(id, { part: "thread" })];
 	const inView = (place) => [...place.thread ? [threadPlace(place.thread), ...drawingsOf(place.thread)] : [], ...place.nodes].some(seen);
 	function needsShowing(entry) {
 		if (entry.picked_up) return true;
-		if (gestures.get(entry.event.attempt)?.reverse) return false;
 		const place = placeOf(entry.event);
 		return Boolean(place) && !inView(place);
 	}
-	async function show(event) {
+	async function returnToThread(id, intent) {
+		const seated = drawingsOf(id).find((node) => node && !inChrome(node) && seen(node));
+		if (!seated) return openThread(id, {
+			part: "thread",
+			intent
+		});
+		intent.handoff(() => focusDestination(seated, "move"));
+		return seated;
+	}
+	async function show(event, intent = retainUserIntent()) {
 		const place = placeOf(event);
 		if (!place) return [];
-		if (place.thread) return [await openThread(place.message ?? place.thread, { part: place.message ? "message" : "thread" }), ...place.nodes].filter(Boolean);
+		if (place.message) return [await openThread(place.message, {
+			part: "message",
+			intent
+		}), ...place.nodes].filter(Boolean);
+		if (place.thread) return [await returnToThread(place.thread, intent)].filter(Boolean);
 		const url = new URL(window.location.href);
 		url.hash = place.fragment;
 		if (window.navigation) await window.navigation.navigate(url.href).finished.catch(() => {});
@@ -2778,10 +2794,11 @@ function createUndo({ post, stateApplying, unaccountedGesture, openThread, threa
 		disarm();
 		let stop = () => {};
 		const current = {
-			id: event.id,
+			is: (other) => other.id === event.id,
 			stop: () => stop(),
 			inputs: [],
-			shown: false
+			shown: false,
+			returns: false
 		};
 		armed = current;
 		notice(`Press again to undo: ${takes(event)}`);
@@ -2806,17 +2823,27 @@ function createUndo({ post, stateApplying, unaccountedGesture, openThread, threa
 		}
 		const event = undoable();
 		if (!event) return null;
-		if (!armedFor(event) && needsShowing(runtime.undo[0])) {
+		const [entry] = runtime.undo;
+		const taking = armedFor(event) && !(armed.returns && entry.picked_up);
+		if (!taking && needsShowing(entry)) {
 			arm(event);
 			return null;
 		}
+		const returning = taking && armed.returns && retainUserIntent();
+		const answer = withdraw(event);
+		if (!answer) return null;
 		disarm();
-		return withdraw(event);
+		if (returning) answer.then(async (accepted) => {
+			if (!accepted) return;
+			await whenDocumentPresented();
+			await show(event, returning);
+		}).catch(() => {});
+		return answer;
 	}
 	pageCommand({
 		id: "history.undo",
 		ready: savedReadingSettled,
-		keys: ["z"],
+		keys: UNDO_KEYS,
 		description: () => head() ? `Undo: ${takes(head())}` : "Undo the latest update",
 		title: "undo",
 		touch: () => head() ? `Undo: ${said(head())}` : "Undo",
@@ -2826,6 +2853,8 @@ function createUndo({ post, stateApplying, unaccountedGesture, openThread, threa
 		run: (...args) => undoLast(...args)
 	});
 	return {
+		landedAway,
+		returnToThread,
 		retainGesture,
 		undoable,
 		undoLast,
@@ -4974,7 +5003,8 @@ function mountApplication(dependencies) {
 	const settlementView = {
 		pendingEntries: ledger.snapshot,
 		actions: threadActions,
-		retainGesture: undo.retainGesture
+		landedAway: undo.landedAway,
+		returnToThread: undo.returnToThread
 	};
 	const inlineView = {
 		reply: replyView,

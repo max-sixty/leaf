@@ -5324,50 +5324,32 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const fromThreads = trail.value.at(-2)?.view === "threads";
 		const at = openThreads().indexOf(thread);
 		const mayLand = retainUserIntent();
-		let mayRestore = () => false;
-		return {
-			optimistic: () => {
-				if (!mayLand() || trail.value.at(-1) !== route) return false;
-				const kept = openThreads();
-				const next = fromThreads ? kept[at] ?? kept[at - 1] : null;
-				if (next) {
-					open({
-						view: "thread",
-						thread: next.key
-					}, {
-						replace: true,
-						focus: false
-					});
-					const view = shownView();
-					if (view) focusDestination(view, "move");
-				} else back();
-				mayRestore = retainUserIntent();
-				return true;
-			},
-			reverse: (may = mayRestore) => {
-				if (!may() || !showing({ view: "threads" })) return;
-				const row = shownView()?.querySelector(`.lf-fp-thread[data-key="${CSS.escape(thread.key)}"]`);
-				if (row) focusDestination(row, "move");
-			}
+		return () => {
+			if (!mayLand() || trail.value.at(-1) !== route) return false;
+			const kept = openThreads();
+			const next = fromThreads ? kept[at] ?? kept[at - 1] : null;
+			if (next) {
+				open({
+					view: "thread",
+					thread: next.key
+				}, {
+					replace: true,
+					focus: false
+				});
+				const view = shownView();
+				if (view) focusDestination(view, "move");
+			} else back();
+			return true;
 		};
 	}
 	function reopenLanding() {
 		const route = trail.value.at(-1);
 		const mayLand = retainUserIntent();
-		let mayRestore = () => false;
-		return {
-			optimistic: () => {
-				const input = fieldInput();
-				if (!mayLand() || trail.value.at(-1) !== route || !input) return false;
-				focusDestination(input, "move");
-				mayRestore = retainUserIntent();
-				return true;
-			},
-			reverse: (may = mayRestore) => {
-				const view = shownView();
-				if (!may() || trail.value.at(-1) !== route || !view) return;
-				focusDestination(view, "return");
-			}
+		return () => {
+			const input = fieldInput();
+			if (!mayLand() || trail.value.at(-1) !== route || !input) return false;
+			focusDestination(input, "move");
+			return true;
 		};
 	}
 	function back() {

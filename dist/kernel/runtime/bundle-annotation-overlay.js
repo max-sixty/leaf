@@ -3,7 +3,7 @@ import { Z } from "./bundle-signals-core.js";
 import { TEXT_FIELD, afterScript, cancelAnimation, cancelRender, closeLayer, currentLocationIn, declareRelease, drawn, focusDestination, focused, handBack, holdFocus, inputCount, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, nativeLayerHolding, nextAnimation, nextRender, onCurrentLocation, onPressAway, onUserInput, pressLed, renderedOrder, renderedUnder, ringBox, roomPx, rove, sizeObserver, tabStops, under, visibleFocus } from "./bundle-dom-move.js";
 import { setRuntimeRootAttribute } from "./bundle-layer-client.js";
 import { clamp, hostIn, rightCover, seenRect, shownBox, shownWindow, skipped, slotTop, union, watchRoom } from "./bundle-geometry.js";
-import { bareReaction, html, render, sameAnchor, turns, whenDocumentPresented } from "./bundle-context.js";
+import { bareReaction, html, render, sameAnchor, turns } from "./bundle-context.js";
 import { LAYOUT, PRESS, closeControl, coarsePointer, cycledRow, el, generatedElement, iconElement, keys, notice, offer, paintKeys, repaint, rowArrows } from "./bundle-errors.js";
 import { atScrollEnd, effectiveScroller, moveScrollerBy, readingRegionFor, registerReadingRegion, scrollToEnd } from "./bundle-reading-regions.js";
 import { chromeForeground, chromeRoot } from "./bundle-page-controls.js";
@@ -218,7 +218,7 @@ const CUT_EDGES = [
 	"--lf-cut-bottom",
 	"--lf-cut-left"
 ];
-function createThreadPreview({ inventory, renderMarginThread, placedAt, openPageThread, scrollThreadIntoView, scrollToElement, openInPanel, onClose }) {
+function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollThreadIntoView, scrollToElement, openInPanel, onClose }) {
 	const { targetFor, entryPoint, entryPlace, sourceItem } = inventory;
 	const preview = el("aside", "lf-ui lf-margin-preview");
 	preview.id = THREAD_CARD;
@@ -714,23 +714,13 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 			sending: following.stream,
 			prepareLanding: () => {
 				const target = targetFor(previewSession?.entry);
-				const thread = sourceItem(item).thread.id;
 				const mayLand = retainUserIntent({
 					source: focused(),
 					available: () => Boolean(target?.isConnected)
 				});
-				return {
-					optimistic: () => {
-						if (previewOpen()) return false;
-						return mayLand.handoff(() => focusDestination(target, "return"));
-					},
-					reverse: async (may = mayLand) => {
-						await whenDocumentPresented();
-						return may() && mayLand.available() && Boolean(await openPageThread(thread, {
-							part: "thread",
-							intent: may
-						}));
-					}
+				return () => {
+					if (previewOpen()) return false;
+					return mayLand.handoff(() => focusDestination(target, "return"));
 				};
 			}
 		});
@@ -1123,7 +1113,6 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 		inventory,
 		renderMarginThread,
 		placedAt,
-		openPageThread,
 		scrollThreadIntoView,
 		scrollToElement,
 		openInPanel,

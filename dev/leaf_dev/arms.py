@@ -91,15 +91,16 @@ PAYLOAD = (
 # The harnesses an arm's child runs, named as the shipped harness names itself.
 HARNESSES = (ClaudeCodeHarness.name, CodexHarness.name)
 
-# The models evals run, pinned so runs on different days compare: each harness's
-# agents, the judge behind `llm-rubric` assertions, the screenshot judge, and the
-# agent that plays the user in a page's browser.
+# Pin authors and the simulated user separately from quality judges, so changing
+# the author under evaluation never changes who assesses its output.
 MODELS = {
     ClaudeCodeHarness.name: "claude-opus-5-5",
     CodexHarness.name: "gpt-6.1-sol",
-    "judge": "claude-sonnet-5-5",
-    "screenshots": "gpt-6.1-sol",
     "user": "claude-sonnet-5-5",
+}
+JUDGE_MODELS = {
+    ClaudeCodeHarness.name: "claude-opus-5-5",
+    CodexHarness.name: "gpt-6-astra",
 }
 
 
@@ -649,6 +650,7 @@ def run_agent(
     dirs: Iterable[Path] = (),
     env: dict | None = None,
     harness: str = ClaudeCodeHarness.name,
+    model: str | None = None,
     limit: float = TURN_LIMIT,
     **options: str | bool,
 ) -> list[dict]:
@@ -658,8 +660,9 @@ def run_agent(
     notifications live beside `err` with a `.codex.jsonl` suffix. Both harnesses
     have the same `limit`, TURN_LIMIT unless the caller bounds its turn more
     tightly; a timeout retains their partial native evidence and
-    marks `out.with_suffix(".timed-out")` without fabricating completion. `options`
-    passes a Claude Code child's `model` and `sandbox` (`claude_child`).
+    marks `out.with_suffix(".timed-out")` without fabricating completion. `model`
+    overrides either harness's author default; `options` passes Claude Code's
+    remaining child options (`claude_child`).
     """
     if harness == CodexHarness.name:
         with (
@@ -673,6 +676,7 @@ def run_agent(
                 timed_out=out.with_suffix(".timed-out"),
                 dirs=dirs,
                 env=env,
+                model=model,
             ) as child,
             out.open("w") as stream,
         ):
@@ -686,7 +690,14 @@ def run_agent(
     with out.open("w") as stdout, err.open("w") as stderr:
         try:
             subprocess.run(
-                **claude_child(cwd, *args, dirs=dirs, env=env, **options),
+                **claude_child(
+                    cwd,
+                    *args,
+                    dirs=dirs,
+                    env=env,
+                    model=model or MODELS[harness],
+                    **options,
+                ),
                 stdin=subprocess.DEVNULL,
                 stdout=stdout,
                 stderr=stderr,

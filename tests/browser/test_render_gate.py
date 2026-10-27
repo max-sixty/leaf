@@ -24,6 +24,7 @@ from render_cases_interaction import (
     CHANGE_SHAPES_PAGE,
     PANEL_PAGE,
     SHORT_SUGGESTION,
+    live_url,
     panel_comment,
 )
 from render_cases_layout import (
@@ -66,6 +67,7 @@ from render_harness import (
     _traffic,
     _until,
     at_rest,
+    compare_with,
     consume_browser_errors,
     leaf_page,
     left_alone,
@@ -84,9 +86,11 @@ from render_harness import (
     scroll_followers,
     scroll_settled,
     scroll_writes,
+    stamp_page,
     state_changes,
     still_page,
     take_browser_errors,
+    wait_for_revision,
 )
 
 from browser.threads import open_panel_thread
@@ -1359,6 +1363,50 @@ def test_the_state_wait_follows_a_source_rewritten_under_it(browser, serve):
         "data-lf-reading", held["reading"]
     )
     wait_until_ready(page, held)
+
+
+def test_a_pane_compares_its_words_without_its_opaque_children_rendered_data(
+    browser, serve
+):
+    source = leaf_page(
+        "Patch reading",
+        '<lf-pane id="files" label="Files"><header>Changed files</header>'
+        '<lf-file-tree id="tree" for="patch"></lf-file-tree></lf-pane>'
+        '<lf-pane id="code" label="Code"><header>Patch</header>'
+        '<lf-diff id="patch" view="file"><pre>'
+        "diff --git a/config.txt b/config.txt\n"
+        "--- a/config.txt\n+++ b/config.txt\n@@ -1 +1 @@\n-old\n+new\n"
+        "</pre></lf-diff><footer>Tests not run</footer></lf-pane>",
+    )
+    page = open_page(browser, live_url(serve(source, packages=("diff", "file-tree"))))
+    assert render_checks_model.evaluate_probe(page, "wordsReadAsChanged") == []
+    page.locator("#code > header").evaluate("el => el.textContent = 'Approved patch'")
+    changed = render_checks_model.evaluate_probe(page, "wordsReadAsChanged")
+    assert [(row["at"], row["words"]) for row in changed] == [
+        ("<lf-pane id=code>", "Approved patch Tests not run")
+    ]
+
+    # The same prose boundary owns the inline explanation of a real revision.
+    stamp_page(
+        serve.page_dir,
+        source.replace(">Patch</header>", ">Approved patch</header>"),
+        "Approve patch",
+    )
+    wait_for_revision(page, 2)
+    compare_with(page, 1)
+    change = page.locator('[data-lf-margin-for="code"] [data-lf-kinds~="change"]')
+    change.click()
+    expect(page.locator("#code .lf-version-inline-deletion del")).to_have_text("Patch")
+    assert (
+        page.evaluate(
+            "() => [...CSS.highlights.get('lf-version-insert') ?? []].map(range => range.toString()).join(' ')"
+        )
+        == "Approved patch"
+    )
+    expect(page.locator("#patch .lf-version-inline-deletion")).to_have_count(0)
+    change.click()
+    expect(page.locator("#code > header")).to_have_text("Approved patch")
+    assert render_checks_model.evaluate_probe(page, "wordsReadAsChanged") == []
 
 
 def test_the_state_wait_follows_a_source_back_to_the_version_the_page_shows(

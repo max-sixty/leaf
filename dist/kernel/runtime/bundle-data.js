@@ -6,7 +6,7 @@ import { LIVE_ROOT, PRESENTATION_DOM, TEXT_BLOCK, applicationPresenter, applicat
 import { PRESSABLE, ariaShortcuts, bindings, buttonCommand, commandAvailable, commandRoutes, el, holdingError, labelOf, layoutChanged, live, notice, pointerAt, pruneScopedElements, raiseError, repaint, restorePointer, reveal, savedReadingSettled, spell, word } from "./bundle-errors.js";
 import { chosenSince, containingReadingRegionFor, effectiveScroller, moveScrollerBy, onReadingInput, pageScroller, placeKept, readingRegionFor, readingRegions, recentReadingRegion, regionScrollBehavior, regionsSettled, scrollChainOf, scrollChoices, scrollLimit, scrollersOf, shownRegionBounds, stopScroll, unconcealedReadingRegions, watchReadingRegionTransitions } from "./bundle-reading-regions.js";
 import { PAGE_CONTROL_RANK, registerPageControl } from "./bundle-page-controls.js";
-import { alignInlineText, authored, authoredScope, closestAcross, elementById, inChrome, pageDocument, pageQueryAll, pageRange, rangeOf, readingFrom, renderRetired, selectEnds, selectionBackward, textNodesUnder, wrote } from "./bundle-passages.js";
+import { alignInlineText, authored, authoredScope, closestAcross, elementById, inChrome, pageDocument, pageQueryAll, pageRange, quoteFrom, rangeOf, readingFrom, renderRetired, selectEnds, selectionBackward, textNodesUnder } from "./bundle-passages.js";
 import { ADDRESSABLE, addressedElements, anchoringIsReady, fragmentTarget, livePoint, resolveAnchor, revealAddressed, sectionOf, settleMarginContentLayout, targetElement, targetPlace, targetSegments } from "./bundle-content-layout.js";
 import { authoredBody, initialOrigin, restoreInitialSource, unmarkedCopy } from "./bundle-initial-render.js";
 import { restrictUserIntent, retainUserIntent, scrollIntoView } from "./bundle-copy-control.js";
@@ -658,7 +658,7 @@ function createAnchorTravel({ anchors, refreshThread, focusForNavigation, thread
 	}
 	function returnToFragment(url) {
 		const where = fragmentTarget(url.hash);
-		return where && !where.checkVisibility() ? fragmentNavigationStep(url, false) : null;
+		return where && (where.hasAttribute("hidden") || !where.checkVisibility()) ? fragmentNavigationStep(url, false) : null;
 	}
 	function fragmentNavigationStep(url, focus) {
 		const mayArrive = retainTravel();
@@ -1034,11 +1034,13 @@ const diffMarked = /* @__PURE__ */ new Set();
 const diffBefore = /* @__PURE__ */ new Map();
 const inlineOpen = /* @__PURE__ */ new Map();
 let diffRequest = 0;
-function diffWords(block) {
-	if (!block.querySelector("[data-lf-source-words]")) return wrote(block);
+const comparisonTextNodes = (root, opaque = diffOpaqueSel()) => textNodesUnder(root, "wrote", (child) => child.matches(opaque));
+function diffWords(block, opaque) {
+	const words = (root) => quoteFrom(comparisonTextNodes(root, opaque));
+	if (!block.querySelector("[data-lf-source-words]")) return words(block);
 	const source = block.cloneNode(true);
 	for (const island of source.querySelectorAll("[data-lf-source-words]")) island.replaceWith(document.createTextNode(island.dataset.lfSourceWords));
-	return wrote(source);
+	return words(source);
 }
 function diffBlocks(root) {
 	const pairs = [];
@@ -1051,8 +1053,8 @@ function diffBlocks(root) {
 	}
 	for (const b of root.querySelectorAll(blocks)) {
 		if (inChrome(b) || b.closest(opaque) || b.closest(".lf-markdown-body")) continue;
-		if (b.querySelector(blocks)) continue;
-		let key = diffWords(b);
+		if ([...b.querySelectorAll(blocks)].some((child) => !child.closest(opaque))) continue;
+		let key = diffWords(b, opaque);
 		for (const [attr, edge] of Object.entries(registry[b.localName]?.["x-says"] ?? {})) {
 			const said = b.getAttribute(attr);
 			if (said) key = edge === "before" ? `${said} ${key}` : `${key} ${said}`;
@@ -1209,12 +1211,12 @@ function applyDiff(doc, baseAuthored, baseVersion, baseReading) {
 	for (const block of diffMarked) {
 		if (!block.matches("[id]:not(.lf-ui):not([id^=\"lf-\"])") || block.closest(opaque)) continue;
 		const baseBlock = doc.getElementById(block.id);
-		diffBefore.set(block, baseBlock ? wrote(baseBlock) : null);
+		diffBefore.set(block, baseBlock ? quoteFrom(comparisonTextNodes(baseBlock, opaque)) : null);
 	}
 	return diffMarked.size;
 }
 const inlineId = (target) => `lf-version-inline-${target.id}`;
-const authoredReading = (target) => readingFrom(textNodesUnder(target, "wrote"));
+const authoredReading = (target) => readingFrom(comparisonTextNodes(target));
 function pointAt(target, reading, offset) {
 	if (!reading.units.length) return {
 		node: target,
@@ -1300,7 +1302,7 @@ function closeInlineComparison(target) {
 	layoutChanged(target);
 	return `inline diff from v${diffBase.value} hidden`;
 }
-const inlineComparison = (target) => diffOn.value && diffBefore.has(target) && (diffBefore.get(target) === null || diffBefore.get(target) !== wrote(target)) ? {
+const inlineComparison = (target) => diffOn.value && diffBefore.has(target) && (diffBefore.get(target) === null || diffBefore.get(target) !== quoteFrom(comparisonTextNodes(target))) ? {
 	id: inlineId(target),
 	open: inlineOpen.has(target),
 	offer: `v${diffBase.value} → ${currentVersionToken()}`

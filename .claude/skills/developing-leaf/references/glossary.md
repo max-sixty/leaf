@@ -26,21 +26,38 @@ implementation terms keep their exact spelling where the reader needs them.
 | **Response** | Work owed to user input of unknown kind: “2 responses owed” |
 | **Answer** | The current value of an obligation, or the response that satisfies a user update; there is no separate Answer record |
 | **Reply** | A message in a conversation, including an answer or an unprompted message |
-| **Delivery** | How far an update has got toward the agent: **Sending**, **Sent**, **Queued**, then **Delivered** (stage `picked_up`), handed into the agent's turn. Delivered doesn't mean work has begun |
-| **Sent** | An update Leaf has logged that no harness has queued or opened into a turn yet (stage `sent` in `workflows.py`); before the log accepts it, the browser shows **Sending** |
-| **Working** | The agent has explicitly started this update or to-do; page activity alone doesn't mean it has |
+| **Delivery** | How far an update has got toward the agent: **Saving…** and **Saved** on the user's side, then the agent's **Up next** (stage `queued`) and **Got it** (stage `picked_up`), handed into its turn. Got it doesn't mean work has begun |
+| **Saved** | An update Leaf has logged that no harness has queued or opened into a turn yet (stage `sent` in `workflows.py`); before the log accepts it, the browser shows **Saving…** |
+| **On it** | The agent has explicitly started this update or to-do (stage `working`); page activity alone doesn't mean it has |
 | **Undo** | Taking back the user's latest update that can be taken back, leaving the user at what it changed (`undo.js`) |
 | **Threads** | The mark in Leaf's panel and the view it opens, listing conversations. A **thread** is one conversation; a **comment box** is the field where the user writes a comment or reply |
 | **Version** | A stamped page the user can revisit: **Showing v4** in the version picker, or **Showing Draft** for the live unstamped source |
 
-Visible copy speaks in the user's voice, since the page is their space. Use the first
-person only for labels that tell the user's side from the agent's: **Me** as an
-author, **Waiting on me**, **My turn to answer**, **my change**, and commands such as
+Leaf's interface speaks in the agent's voice: the user is talking with the agent, and
+the page is where that conversation happens. Every status, notice and label reads as
+something the agent would say to the user in conversation (“Got it”, “Your turn”,
+“running the browser suite”, “Lost the connection — reconnecting”), with no name in
+front of it and never as a narrator describing the agent from outside (“Claude is
+working”, “Waiting for Claude”), which puts a third party between them. A line Leaf
+composes from what it observes, such as an agent that stopped or a server it can't
+reach, is Leaf's best guess at what the agent would say, and reads the same way. Only
+words the agent can't be saying, such as an instruction about the agent (“Not
+answering — nudge the terminal”), Leaf's own state (“Lost the connection —
+reconnecting”) or an error, are set apart in italic, as a script sets a stage direction
+apart from the lines (`pageStatus`, `voice`).
+
+The agent's lines take no first person, so *me* and *my* always mean the user: **Me**
+as an author, **Waiting on me** and **On me**, **my change**, and commands such as
 **Edit my last message**. Never narrate what the user saw, decided or is doing (*since
-I last looked*), since Leaf can't know it. Other status drops the pronoun rather than
-saying *you* or *my*: “The draft is kept”, “New messages”. Text addressed to the
-agent, such as `x-instructions` and event handling, uses the second person, as does
-the website's prose to a visitor.
+I last looked*), since Leaf can't know it. Text addressed to the agent, such as
+`x-instructions` and event handling, uses the second person, as does the website's
+prose to a visitor.
+
+Visible copy is personal, not technical: it speaks of the user, the agent and the page,
+never of the machinery between them. Say what the user did (“Moved to Done”) or what
+the agent is doing, not that something was sent, logged, stored or retried. Name the
+machinery only where the user must act on it, as an unreachable server asks them to keep
+the tab open.
 
 Name an update's kind where it is known: a **comment**, **reply**, **choice**
 or **reaction**; in protocol text a widget's is an **action**, after its
@@ -54,9 +71,9 @@ agent owes as **Reply** and a revision it owes as **Answer**. Undo keeps its nam
 whatever widget action it takes back.
 
 **All pages**, a view of Leaf's panel opened from Navigate in the leaf's menu, lists
-live pages on this machine. **No session** means no agent session holds the page, in
-the panel's status and on All pages' rows. **Page closed** means the page's work has
-ended.
+live pages on this machine. **Not on this page right now** means no agent session holds
+the page, in the panel's status and on All pages' rows. **Done with this page** means
+the page's work has ended.
 
 ## Pages, packages, and layers
 

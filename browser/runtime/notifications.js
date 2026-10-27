@@ -48,7 +48,7 @@ export function announce(msg) {
   }, 30);
 }
 
-// An undo ("Undid: Chose “Fast” · just now — sent"), an arrival ("Updated to v3"): the
+// An undo ("Undid: Chose “Fast” · just now"), an arrival ("Updated to v3"): the
 // quiet words in the panel's seat. A widget's gesture is no notice, since the widget
 // draws it where it was made; the live region alone hears it (application.js,
 // `named`). A sentence that is also a button for

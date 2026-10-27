@@ -535,6 +535,7 @@ export function createFloatingPanel({
     adds: "",
     addsParts: [],
     asks: false,
+    voice: "leaf",
     publication: null,
   };
   const status = () => statusReading() ?? CONNECTING;
@@ -669,7 +670,7 @@ export function createFloatingPanel({
   const hiddenLead = () => (annotationsHidden() ? `${HIDDEN} · ` : "");
   function fieldReading(key, input) {
     const [error] = sayable();
-    if (error) return { says: "error", words: error.message };
+    if (error) return { says: "error", words: error.message, voice: "leaf" };
     const thread = key ? threadByKey(key) : null;
     if (input === focused() && !thread?.resolved)
       return { says: "destination", words: whereTo(key) };
@@ -703,8 +704,13 @@ export function createFloatingPanel({
         says: "stance",
         words: annotationsHidden() ? `${stance} · ${HIDDEN}` : stance,
       };
-    if (!key) return { says: "status", words: hiddenLead() + status().summary };
-    return { says: "turn", words: "Reply…" };
+    if (!key)
+      return {
+        says: "status",
+        words: hiddenLead() + status().summary,
+        voice: status().voice,
+      };
+    return { says: "turn", words: "Reply" };
   }
   // The reply the open thread's field takes, then whose turn it is, so a field too
   // narrow for both, as on a phone, still says Reply. The agent's own line, a to-do's
@@ -729,10 +735,15 @@ export function createFloatingPanel({
   const whereTo = (key) => (key ? "Reply in this thread" : "Comment on the page");
   // An editor's empty words, as its own paint draws them (composing/input.js, `hint`),
   // which marks the editor with whose reading they are, so the face the theme gives that
-  // reading changes in the same paint as the words (floating-panel.css).
+  // reading changes in the same paint as the words (floating-panel.css). Words the agent
+  // can't be saying, an error or Leaf's own state, are marked Leaf's (`pageStatus`,
+  // `voice`).
   function saying(key, input) {
     const reading = fieldReading(key, input);
-    if (input) keeps(input, "data-says", reading.says);
+    if (input) {
+      keeps(input, "data-says", reading.says);
+      keeps(input, "data-voice", reading.voice === "leaf" ? "leaf" : null);
+    }
     return reading.words;
   }
   // The page's own editor: the field where no thread is open.
@@ -3213,7 +3224,7 @@ export function createFloatingPanel({
     const queued = lists.agent.filter((item) => !item.live);
     const groups = [
       { key: "in-hand", title: "In hand", items: inHand },
-      { key: "queued", title: "Queued", items: queued },
+      { key: "queued", title: "Up next", items: queued },
       { key: "done", title: "Done", items: lists.done },
     ].filter((group) => group.items.length);
     forgetOpened([...lists.agent, ...lists.done]);
@@ -3233,7 +3244,6 @@ export function createFloatingPanel({
   // what is queued, what its newest step says, how far the plan has come, and what it
   // finished last.
   function workSummary(inHand, queued, done) {
-    const agent = agentName();
     const work = inHand.map(workOn);
     const since = work
       .map((each) => each.since)
@@ -3241,19 +3251,19 @@ export function createFloatingPanel({
       .toSorted()[0];
     const longest = since ? shortAgo(since) : "";
     const held = inHand.length
-      ? `${agent} has ${inHand.length} in hand${
+      ? `Working on ${inHand.length}${
           longest && longest !== "now" ? `, the longest for ${longest}` : ""
         }`
       : "";
-    const waiting = queued.length ? `${queued.length} queued` : "";
+    const waiting = queued.length ? `${queued.length} up next` : "";
     const first =
       held && waiting
-        ? `${held}, and ${waiting}.`
+        ? `${held}; ${waiting}.`
         : held
           ? `${held}.`
           : waiting
-            ? `${agent} has ${waiting}.`
-            : `Nothing is on ${agent}.`;
+            ? `${waiting[0].toUpperCase()}${waiting.slice(1)}.`
+            : "Nothing to do right now.";
     const now = work.find((each) => each.line && each.line !== each.word)?.line;
     const progress = planProgress();
     const [last] = done;

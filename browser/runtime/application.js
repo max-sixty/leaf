@@ -155,7 +155,7 @@ export function mountApplication(dependencies) {
     // than turning an accepted gesture into an apparent refusal, and it cannot strand
     // the gesture before transport or leave later sends behind an unanswered entry.
     try {
-      if (isMessageEvent(entry.event)) announce("Message sent");
+      if (isMessageEvent(entry.event)) announce("Message added");
       if (entry.event.kind === "edit") announce("Message edited");
     } catch (error) {
       reportPageError(error, "optimistic presentation");
@@ -168,11 +168,11 @@ export function mountApplication(dependencies) {
     afterEnqueue,
     // A widget's gesture is announced by the name the widget gave it, the name its undo
     // is announced by too. The live region alone says it: the pick is drawn where the
-    // user made it, and the margin's receipt says it was sent.
+    // user made it, and the margin's receipt says it was saved.
     named: (entry, says) => {
       undo.retainGesture(entry.event.attempt, { says });
       void entry.answer.then((admitted) => {
-        if (admitted) announce(`${says} — sent`);
+        if (admitted) announce(says);
       });
     },
     withdraw: (candidate) => undo.withdraw(candidate),

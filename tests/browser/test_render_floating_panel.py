@@ -684,7 +684,7 @@ def test_the_on_view_is_titled_by_its_tab_with_that_list_s_done_under_it(
     expect(sent).to_have_count(1)
     expect(sent).to_contain_text("Forty-eight hours covers the first cohort.")
     expect(sent.locator(".lf-fp-on-says > .lf-fp-value")).to_have_text(
-        re.compile(r"^Sent")
+        re.compile(r"^Answered")
     )
     # The On me tab turns the open view back to the user's list, and the ✕ closes it.
     panel_tab(page, "On me").click()
@@ -2480,7 +2480,7 @@ def test_only_the_folded_leaf_shows_a_status_peek(browser, serve):
     peek = page.locator(".lf-fp-peek")
     leaf = page.locator(".lf-fp-leaf")
     seat = page.locator(".lf-fp-field")
-    expect(field(page)).to_have_attribute("placeholder", re.compile(r" away\b"))
+    expect(field(page)).to_have_attribute("placeholder", re.compile(r"^Away\b"))
     assert seat.get_attribute("title") is None
     for target in (leaf, seat):
         target.hover()
@@ -2501,7 +2501,7 @@ def test_only_the_folded_leaf_shows_a_status_peek(browser, serve):
     page.keyboard.press(".")
     leaf.hover()
     expect(peek).to_be_visible()
-    expect(peek).to_contain_text("isn't watching right now.")
+    expect(peek).to_contain_text("Away right now.")
     leaf.click()
     expect(peek).to_be_hidden()
     # Tab back onto the expanded leaf: keyboard focus must not repeat the status.
@@ -2652,19 +2652,23 @@ def test_a_refused_key_is_an_error_the_field_says(browser, serve):
         found = re.search(r"/\s*([\d.]+)\)$", color)
         return float(found.group(1)) if found else 1.0
 
-    expect(field(page)).to_have_attribute("placeholder", re.compile("^Claude working"))
+    expect(field(page)).to_have_attribute(
+        "placeholder", re.compile("^Drafting the rollout")
+    )
     page.locator(".lf-fp-field").hover()
     expect(peek).to_be_hidden()
 
     page.route("**/api/state*", lambda route: route.fulfill(status=401, body="{}"))
     declare_idle(serve.page_dir)
     expect(field(page)).to_have_attribute("data-says", "error")
-    expect(field(page)).to_have_attribute("placeholder", re.compile("^Key refused"))
+    expect(field(page)).to_have_attribute(
+        "placeholder", re.compile("^This tab lost access")
+    )
     assert alpha() > 0.6, "the refused key reads as dim as a report"
     expect(peek).to_be_hidden()
     page.locator(".lf-fp-leaf").click()
     expect(page.locator(".lf-fp-menu")).to_contain_text(
-        "Key refused — open Leaf's link in a new tab"
+        "This tab lost access — open the link again"
     )
     page.keyboard.press("Escape")
     field(page).click()
@@ -3481,7 +3485,7 @@ def test_on_claude_lists_its_work_in_hand_queued_and_done_or_says_it(browser, se
     expect(view.locator(".lf-fp-on-group")).to_have_text(
         [
             re.compile(r"^\s*In hand\s*1\s*$"),
-            re.compile(r"^\s*Queued\s*1\s*$"),
+            re.compile(r"^\s*Up next\s*1\s*$"),
             re.compile(r"^\s*Done\s*1\s*$"),
         ]
     )
@@ -3491,7 +3495,7 @@ def test_on_claude_lists_its_work_in_hand_queued_and_done_or_says_it(browser, se
     )
     expect(lines.locator(".lf-fp-on-says > .lf-fp-value")).to_have_text(
         [
-            re.compile(r"^Working \S+$"),
+            re.compile(r"^On it \S+$"),
             re.compile(r"^To-do open \S+$"),
             re.compile(r"^Done \S+$"),
         ]
@@ -3507,7 +3511,7 @@ def test_on_claude_lists_its_work_in_hand_queued_and_done_or_says_it(browser, se
     chooser.select_option("summary")
     summary = view.locator(".lf-fp-work-summary")
     expect(summary).to_contain_text(
-        "Claude has 1 in hand, and 1 queued. Now: “Drafting the note's first line”."
+        "Working on 1; 1 up next. Now: “Drafting the note's first line”."
     )
     expect(summary).to_contain_text("Last done: Tidy the wording")
     expect(view.locator(".lf-fp-on-line")).to_have_count(0)
@@ -3716,7 +3720,7 @@ def test_a_website_copy_says_who_revises_it_and_where_leaf_comes_from(browser, s
         ),
     )
     expect(field(page)).to_have_attribute(
-        "placeholder", re.compile("^Leaf guide awaits — comment to revise this copy")
+        "placeholder", re.compile("^Ready — comment to revise this copy")
     )
     expect(page.locator(".lf-fp-leaf .lf-dot")).to_have_class("lf-dot listening")
     expect(page.locator(".lf-fp-row-notice")).to_be_hidden()
@@ -3904,7 +3908,7 @@ def test_the_leaf_s_menu_says_the_agent_s_state_once(browser, serve):
     url = serve(OBLIGATION_PAGE)
     working(serve.page_dir, "Drafting the rollout")
     page = floating(browser, url)
-    line = re.compile(r"^Claude working\b.* — Drafting the rollout")
+    line = re.compile(r"^(\S+ ago · )?Drafting the rollout")
     page.locator(".lf-fp-leaf").click()
     head = page.locator(".lf-fp-state")
     expect(head.locator("> *")).to_have_count(2)
@@ -3936,7 +3940,7 @@ def test_news_under_the_open_menu_moves_nothing_in_it(browser, serve):
     leaf = page.locator(".lf-fp-leaf")
     leaf.click()
     head = page.locator(".lf-fp-state")
-    expect(head.locator(".lf-fp-summary")).to_have_text(re.compile(r" away$"))
+    expect(head.locator(".lf-fp-summary")).to_have_text("Away")
     settled(page)
     boxes = (
         "() => [...document.querySelectorAll('.lf-fp-menu > *')]"

@@ -388,7 +388,7 @@ def test_a_late_refusal_cannot_restore_an_attempt_another_tab_settled(
                     "error": "the earlier execution was refused",
                 },
             )
-        expect_panel_says(first, "Couldn't send")
+        expect_panel_says(first, "Couldn't take this")
         expected_error = Finding(
             "console-error",
             values={

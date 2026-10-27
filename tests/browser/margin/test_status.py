@@ -1117,35 +1117,26 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         assert hovered["wordOpacity"] == "1"
         assert hovered["wordPosition"] == "absolute"
         assert hovered["wordBackground"] != "rgba(0, 0, 0, 0)"
-        # The trace is the whole of what a hovered status says about its target: the item
-        # draws no leader out to it, so the box alone spends both declared tokens. Width
-        # is read through a probe wearing the same token for the same reason ink is: the
-        # theme states 1.5px and the platform lays a border down in whole device pixels,
-        # so what the box must match is the token as this display resolves it.
+        # A rectangular trace uses the same outside stroke as target focus, in the
+        # trace's quiet ink. Read the painted bracket, not its transparent container.
         trace = page.evaluate(
             """() => {
-              const box = getComputedStyle(document.querySelector('.lf-target-trace'));
-              const probe = document.createElement('span');
-              probe.style.borderTop = 'var(--target-trace-w) solid';
-              document.body.append(probe);
-              const declaredWidth = getComputedStyle(probe).borderTopWidth;
-              probe.remove();
+              const trace = document.querySelector('.lf-target-trace');
+              const box = getComputedStyle(trace, '::before');
               return {
-                declaredToken: box.getPropertyValue('--target-trace-w').trim(),
-                declaredWidth,
-                boxWidth: box.borderTopWidth,
-                boxColor: box.borderTopColor,
+                boxWidth: box.outlineWidth,
+                boxColor: box.outlineColor,
+                gap: box.outlineOffset,
                 leader: getComputedStyle(
                   document.querySelector('.lf-margin-cluster'), '::before',
                 ).content,
               };
             }"""
         )
-        declared_width = trace.pop("declaredWidth")
         assert trace == {
-            "declaredToken": "1.5px",
-            "boxWidth": declared_width,
+            "boxWidth": "2px",
             "boxColor": resolved_color("--target-trace-ink"),
+            "gap": "0px",
             "leader": "none",
         }
 

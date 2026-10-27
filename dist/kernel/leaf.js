@@ -3389,8 +3389,17 @@ function createTargetPicker({ scrollToRange, hintChrome, commentOnTarget, update
 }
 
 //#endregion
+//#region runtime/obligations/view-elements.js
+const OBLIGATION_CONTROL = ":is(button[data-lf-offer], [data-lf-offer][tabindex])";
+
+//#endregion
 //#region runtime/composing/current-target.js
-function createCurrentTarget({ isObligationControl, currentLocationIn }) {
+function frameHolding(node) {
+	const framed = readObligations().all.map((item) => obligationPlace(item)).filter(({ source, context }) => source && context && context !== source && under(node, context));
+	const frame = framed.reduce((inner, { context }) => inner && under(inner, context) ? inner : context, null);
+	return framed.some(({ source, context }) => context === frame && under(node, source)) ? null : frame;
+}
+function createCurrentTarget({ currentLocationIn }) {
 	return function currentTarget() {
 		const held = focused();
 		if (!held || held === document.body) return null;
@@ -3398,8 +3407,12 @@ function createCurrentTarget({ isObligationControl, currentLocationIn }) {
 		const place = placeOf(held);
 		if (!place || inChrome(place)) return null;
 		if (place !== held) return aimTargetAt(place);
-		const working = isObligationControl(held) ? currentLocationIn() : null;
-		return aimTargetAt(working ?? held);
+		const working = held.matches(":is(button[data-lf-offer], [data-lf-offer][tabindex])") ? currentLocationIn() : null;
+		if (working) return aimTargetAt(working);
+		const aim = aimTargetAt(held);
+		if (!aim || aim.anchor.datum || aim.anchor.visual || aim.element === held) return aim;
+		const frame = frameHolding(held);
+		return frame ? aimTargetAt(frame) : aim;
 	};
 }
 
@@ -7794,10 +7807,6 @@ function createPageMapDialog({ inventory, activeInAnnotations, releaseAnnotation
 }
 
 //#endregion
-//#region runtime/obligations/view-elements.js
-const OBLIGATION_CONTROL = ":is(button[data-lf-offer], [data-lf-offer][tabindex])";
-
-//#endregion
 //#region runtime/obligations/view.js
 function createObligationView({ prepareNavigationStep, arrive, openPageThread, focusForNavigation, presentedControl, announce, repaint }) {
 	const obligationNode = (item) => obligationPlace(item).node;
@@ -10484,10 +10493,7 @@ const queueWalk = createQueueWalk({
 	announce
 });
 const commandHints = createCommandHints({ presentedControl: (control) => app.overlay?.presentedControl(control) ?? control });
-const currentTarget = createCurrentTarget({
-	isObligationControl: (node) => node?.matches?.(OBLIGATION_CONTROL),
-	currentLocationIn: items.currentLocationIn
-});
+const currentTarget = createCurrentTarget({ currentLocationIn: items.currentLocationIn });
 floatingPanel = createFloatingPanel({
 	wireInput: inputs.wireInput,
 	observeFeedback: app.read.observeFeedback,

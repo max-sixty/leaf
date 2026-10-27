@@ -348,11 +348,16 @@ def pytest_addoption(parser):
 @pytest.hookimpl(wrapper=True)
 def pytest_runtest_call(item):
     """A test body that returns has its last shifts and lost words judged before its
-    fixtures end (`render_harness.judge_watches`)."""
+    fixtures end (`render_harness.judge_watches`). One that fails is marked so its
+    browser fixture keeps a picture of each page (`render_harness.clean_browser`)."""
     from render_harness import judge_watches
 
-    result = yield
-    judge_watches()
+    try:
+        result = yield
+        judge_watches()
+    except (Exception, pytest.fail.Exception):
+        item.lf_failed = True
+        raise
     return result
 
 

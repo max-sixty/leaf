@@ -278,8 +278,7 @@ flowchart TD
                     <td>Reusable visual choices and presentation idioms.</td>
                     <td>
                       Theme inputs and explicit page-wide styles, independently of
-                      whether the package declares widgets. It may include
-                      <code>controls.css</code> for generated controls.
+                      whether the package declares widgets.
                     </td>
                   </tr>
                   <tr>
@@ -686,15 +685,14 @@ $ leaf page check PAGE --render</code></pre>
             <h3 id="styles-tiers">The tiers</h3>
             <figure id="cascade-figure" class="diagram-figure">
               <h4 id="cascade-document">The page’s document</h4>
-              <lf-diagram id="cascade-document-order" data-height="728" parts="all">
+              <lf-diagram id="cascade-document-order" data-height="635" parts="all">
                 <pre>
 flowchart TD
   accTitle: CSS precedence in the page document
-  accDescr: For normal declarations, unlayered page rules have the highest precedence, then the page's own layers, lf-state, lf-controls, lf-theme, lf-layouts, lf-base and lf-reset. Each arrow points from a higher tier to a lower tier.
+  accDescr: For normal declarations, unlayered page rules have the highest precedence, then the page's own layers, lf-state, lf-theme, lf-layouts, lf-base and lf-reset. Each arrow points from a higher tier to a lower tier.
   Page["Page rules · unlayered"] --> Layers["Page's own layers"]
   Layers --> State["lf-state · Leaf"]
-  State --> Controls["lf-controls · packages"]
-  Controls --> Theme["lf-theme · packages"]
+  State --> Theme["lf-theme · packages"]
   Theme --> Layout["lf-layouts · Leaf"]
   Layout --> Base["lf-base · Leaf and widgets"]
   Base --> Reset["lf-reset · Leaf"]
@@ -735,13 +733,6 @@ flowchart TD
                   </tr>
                 </thead>
                 <tbody>
-                  <tr>
-                    <td><code>lf-controls</code></td>
-                    <td>
-                      Each package’s <code>controls.css</code> explicitly styles
-                      generated controls.
-                    </td>
-                  </tr>
                   <tr>
                     <td><code>lf-theme</code></td>
                     <td>Each package's <code>theme.css</code>, in package order.</td>
@@ -843,10 +834,6 @@ flowchart TD
                   <tr>
                     <td><code>theme.css</code></td>
                     <td>The page document, above Leaf's Layouts.</td>
-                  </tr>
-                  <tr>
-                    <td><code>controls.css</code></td>
-                    <td>Explicit styling of generated controls in the document.</td>
                   </tr>
                 </tbody>
               </table>

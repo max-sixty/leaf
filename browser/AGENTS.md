@@ -105,8 +105,9 @@ representative desktop viewport.
   the screen, where scroll anchoring absorbs it, or below it. Anywhere else it waits
   behind a fixed-size control until the reader goes to it, and an editor in use stays
   still. Check: `test_news_just_after_a_press_moves_nothing`. Owners:
-  `thread/held-news.js`, `newsMoves` in `thread/thread-card.js`, and
-  `reading-continuity.js` for a hidden tab. The user chose one exception: the answer
+  `thread/held-news.js`, `newsMoves` in `thread/thread-card.js`, `threadsListing` in
+  `floating-panel.js` for the rows of Threads, and `reading-continuity.js` for a
+  hidden tab. The user chose one exception: the answer
   they wait for in the floating panel's thread grows that view upward while its
   controls stay put (`fitAnswer` in `floating-panel.js`, credited by `appendGrowth` in
   `tests/shift_watch.js`).
@@ -267,7 +268,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Reactions and design review                                                                                 | `reactions.js`, `design.js`, `design-readings.js`                                                                                                        |
 | Presentation and validation                                                                                 | `presentation.js`, `declared-words.js`, `validation.js`, `leaf-element.js`                                                                               |
 | Child pages                                                                                                 | `sample*.js`                                                                                                                                             |
-| Shadow trees and styles                                                                                     | `shadow.js`, `shadow-stage.js`, `stylesheets.js`, `page-sheets.js`                                                                                       |
+| Shadow trees and styles                                                                                     | `shadow.js`, `shadow-stage.js`, `stylesheets.js`                                                                                                         |
 | Paint that belongs to an element while it is in the page, whoever added it                                  | `arrivals.js`                                                                                                                                            |
 | Utilities                                                                                                   | `abort.js`, `icons.js`, `markdown.js`, `syntax.js`, `motion.js`, `color-scheme.js`, `storage.js`, `interaction-log.js`                                   |
 
@@ -300,8 +301,9 @@ these rules on every corpus page.
 
 Stylesheets apply in cascade layers, in the order `CASCADE_LAYERS` in `layer.py` declares
 (`../skills/leaf/references/packages.md`, "Styles and composition"). A widget package's rules
-name the widgets they style, so a rule several packages need belongs in the kernel. Page and theme-package rules skip the chrome and every `.lf-ui`
-control unless a sheet is granted access (`runtime/page-sheets.js`).
+name the widgets they style, so a rule several packages need belongs in the kernel. Page and theme-package rules reach widget
+controls as they reach the page's own; the chrome keeps unlayered page rules up to one
+class's weight off itself (`styles/chrome-guard.css`).
 
 A `:has()` rule can turn a local write into a restyle of the whole page or chrome. An
 unkeyed rightmost compound widens what it invalidates, and a condition on the chrome

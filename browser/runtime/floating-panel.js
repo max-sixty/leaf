@@ -250,6 +250,7 @@ import { excerptWords } from "./words.js";
 import { holdRendering, nextRender, sizeObserver } from "./rendering.js";
 import { boxMotion } from "./box-motion.js";
 import { scrollIntoView } from "./landing-scroll.js";
+import { gesturedOn, newsNotice } from "./thread/held-news.js";
 import { moveScrollerBy, SCROLL_SLACK, scrollLimit, scrollToEnd } from "./scrolling.js";
 import { showReturnTurn } from "./thread/reply-landing.js";
 import { declareOccluder, declareWindowChrome } from "./geometry.js";
@@ -427,7 +428,9 @@ export function createFloatingPanel({
       <div class="lf-fp-card">
         <div class="lf-fp-inner">
           <div class="lf-fp-opened">
-            <div class="lf-fp-head">${top ? headTemplate(top) : nothing}</div>
+            <div class="lf-fp-head">
+              ${top ? headTemplate(top) : nothing}${initial ? nothing : joinedTemplate()}
+            </div>
             <div class="lf-fp-stage">
               ${
                 initial
@@ -1664,8 +1667,13 @@ export function createFloatingPanel({
   // then fits, moving as one opening does; each such press repaints. The list takes
   // its room again from the next frame, once it stands at what it now fits.
   let refitting = false;
+  // Each row standing Threads draws, by its thread's key, with its section; null while
+  // no list stands, so the next paint draws every row where it now belongs
+  // (`threadsListing`).
+  let drawnSections = null;
   function refit() {
     room = null;
+    drawnSections = null;
     viewMovingUntil = performance.now() + viewResizeMs();
     if (refitting) return;
     refitting = true;
@@ -1859,6 +1867,7 @@ export function createFloatingPanel({
       (before ? routeKey(before) : null) !== (after ? routeKey(after) : null);
     if (changed) {
       room = null;
+      drawnSections = null;
       rewriting = false;
       pressed = null;
       quoteExpanded = false;
@@ -2357,11 +2366,106 @@ export function createFloatingPanel({
       : threads();
     return inPageOrder(shown, placedAt);
   }
-  function threadsView() {
-    const shown = shownThreads();
+  // A row joining Threads while the list stands, a thread the agent starts, or a row
+  // changing section, one a reply reopens or one resolved elsewhere, would move the
+  // rows the user reads there (`browser/AGENTS.md`, "News never moves what the reader
+  // is reading"). So the standing list draws each row in the section it drew it in,
+  // and a thread new to it not at all, and says what joined or moved in the notice a
+  // thread's held news uses (thread/held-news.js, `newsNotice`) until the user
+  // presses it, which lets the list settle and lands on the first row it names. The
+  // notice stands over the list, in the view's head, which grows the panel upward by
+  // its line so no row moves, as a feed says "2 new posts" over its top. The user chose
+  // that on 27 October over the notice in the controls after the tabs, which fill the
+  // start where a thread's held news stands and left it "1 …+1" at a phone's width,
+  // and over the notice in the held row's own place, which a long list scrolls out of
+  // sight. The browser reads
+  // nothing ahead of the server: a held row draws the thread as the server now reads
+  // it, in its old place. A row the user's own gesture moves, as their resolve or its
+  // Undo, moves at once (`gesturedOn`), and a press that changes what the list shows,
+  // a tab or a search, or the next opening, draws it whole (`refit`, `transition`).
+  // Rejected (2026-10-25, #3883 before the single list): holding only rows that would
+  // land among the rows in sight, by their geometry, which a list whose rows change
+  // section rather than join would have held none of.
+  // The rows the list draws, each in its section, and the threads joining or moving
+  // that it holds: `was` the section a moving row still stands in, null for one new.
+  function threadsListing() {
     const searched = Boolean(query.trim());
-    const listed = searched ? shown : shown.filter((thread) => !thread.resolved);
-    const resolved = searched ? [] : shown.filter((thread) => thread.resolved);
+    const rows = [];
+    const joined = [];
+    for (const thread of shownThreads()) {
+      const now = searched ? "found" : thread.resolved ? "resolved" : "open";
+      const was = drawnSections ? (drawnSections.get(thread.key) ?? null) : now;
+      if (was === now || gesturedOn(thread)) rows.push({ thread, section: now });
+      else {
+        joined.push({ thread, was, now });
+        if (was) rows.push({ thread, section: was });
+      }
+    }
+    return { rows, joined, searched };
+  }
+  // After a paint: what the standing list drew, which the next paint holds to.
+  function noteDrawnSections() {
+    drawnSections =
+      showing({ view: "threads" }) && inventoried()
+        ? new Map(
+            threadsListing().rows.map(({ thread, section }) => [thread.key, section]),
+          )
+        : null;
+  }
+  // What the notice says, a fact for each way a row joined.
+  function joinedFacts(joined) {
+    const counted = (kind, one, many) => {
+      const count = joined.filter(
+        ({ was, now }) => (was === null ? "new" : now) === kind,
+      ).length;
+      return count ? `${count} ${count === 1 ? one : many}` : null;
+    };
+    return [
+      counted("new", "new thread", "new threads"),
+      counted("open", "thread reopened", "threads reopened"),
+      counted("resolved", "thread resolved", "threads resolved"),
+      counted("found", "new match", "new matches"),
+    ].filter(Boolean);
+  }
+  const joinedNotice = newsNotice();
+  // The notice's press: the list settles, and the first row it named, in the list's
+  // order, comes into sight with the walk standing on it, and focus too where the
+  // notice held it.
+  function showJoined() {
+    const keys = new Set(threadsListing().joined.map(({ thread }) => thread.key));
+    const pressed = focused() === joinedNotice.node;
+    drawnSections = null;
+    paint();
+    const row = threadRows().find((candidate) => keys.has(candidate.dataset.key));
+    if (!row) return null;
+    scrollIntoView(row, { block: "nearest" });
+    rove(threadRows(), row);
+    if (pressed) focusDestination(row, "move");
+    return null;
+  }
+  // The notice while the list holds a row, else nothing.
+  function joinedTemplate() {
+    if (!showing({ view: "threads" })) return nothing;
+    const facts = joinedFacts(threadsListing().joined);
+    if (!facts.length) return nothing;
+    joinedNotice.set({
+      parts: facts.map((fact, index) => (index ? ` · ${fact}` : fact)),
+      label: facts.join(" · "),
+      reopened: false,
+      open: showJoined,
+    });
+    return html`<span class="lf-fp-joined"
+      ><span class="lf-fp-news-outlet">${joinedNotice.node}</span></span
+    >`;
+  }
+  function threadsView() {
+    const { rows, searched } = threadsListing();
+    const listed = rows
+      .filter(({ section }) => section !== "resolved")
+      .map(({ thread }) => thread);
+    const resolved = rows
+      .filter(({ section }) => section === "resolved")
+      .map(({ thread }) => thread);
     const row = (thread, headed) =>
       html`<button
         type="button"
@@ -3939,6 +4043,7 @@ export function createFloatingPanel({
     keeps(host, "data-asks", status().asks ? "" : null);
 
     render(panelTemplate(), host);
+    noteDrawnSections();
 
     // Geometry, native focus and reading regions consume the committed tree.
     for (const copy of copyItems.values()) if (!copy.isConnected) copy.remove();

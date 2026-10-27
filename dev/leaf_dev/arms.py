@@ -216,8 +216,8 @@ def serving(arm: Path, state: Path, page: Path):
 
 def build_source(arm: Path, state: Path, source: Path, page: Path) -> None:
     """Build the authored `source` into the page directory `page` with the arm's own
-    launcher under the state home `state`. Callers select a prepared installation
-    before building, then use that same installation to serve or check the page.
+    launcher under the state home `state`. Callers make the arm's kernel current
+    before building (`current_kernel`), then serve or check the page from that arm.
     """
     prepare_page(
         page,
@@ -245,11 +245,11 @@ served_page: ContextVar[ServedPage] = ContextVar("served_page")
 def serving_source(arm: Path, source: Path, scratch: Path, log: Path | None = None):
     """Build `source` into a page under `scratch` (`build_source`), admit `log`'s
     events after its own history, unacknowledged as a writer's would be
-    (`admit_events`), serve it (`serving`), and yield the address, all using one
-    prepared installation."""
-    from leaf_dev.commands.distribution import cached_installation
+    (`admit_events`), serve it (`serving`), and yield the address, all from `arm`
+    with its kernel current (`current_kernel`)."""
+    from leaf_dev.commands.distribution import current_kernel
 
-    arm = cached_installation(arm)
+    arm = current_kernel(arm)
     state, page = scratch / "state", scratch / "page"
     build_source(arm, state, source, page)
     if log is not None:
@@ -344,9 +344,8 @@ def arm_commit(ref: str | None) -> str:
 
 def extract_arm(ref: str | None, dest: Path) -> str:
     """Extract an arm's payload without building its environment, for a caller that
-    serves it through `serving_source`: that serves a shared prepared installation
-    (`cached_installation`) keyed by the payload's content, so a second run of the
-    same ref reuses the first's and builds no environment here. Return the commit."""
+    serves it through `serving_source`, whose first `uv run` in the arm builds one.
+    Return the commit."""
     extract_payload(dest, ref)
     return arm_commit(ref)
 

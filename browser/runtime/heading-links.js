@@ -237,9 +237,13 @@ export function watchHeadingLinks() {
         title: "copy link to section",
         // The link's own control beside the heading takes a finger.
         touch: false,
-        run: () => {
+        // A control made by this press has not drawn its button yet.
+        run: async () => {
           const link = stand(headingOn(focused()));
-          link?.control.shadowRoot.querySelector("button").click();
+          if (!link) return;
+          await customElements.whenDefined(link.control.localName);
+          await link.control.updateComplete;
+          link.control.shadowRoot.querySelector("button").click();
         },
       },
     ],

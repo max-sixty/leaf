@@ -17,6 +17,7 @@ from render_harness import (
     consume_browser_errors,
     draft_control,
     expect_obligations_answered,
+    expect_on_me,
     holding,
     http_error_console,
     open_page,
@@ -615,7 +616,7 @@ def test_closing_a_thread_withdraws_the_obligation_in_it(browser, serve):
         serve.page_dir, {"kind": "resolve", "author": "agent", "parent": "c-which"}
     )
     told(page)
-    expect(page.locator(".lf-fp-on-user")).to_have_attribute("aria-label", "On me")
+    expect_on_me(page, 0)
     view = open_panel_thread(page, "c-which")
     expect(view.locator("#tq-one")).to_have_count(1)
     expect(page.locator("#tq-redis")).not_to_have_attribute("chosen", "")

@@ -138,6 +138,10 @@ FIRST_PAINT_PAGE = leaf_page(
     + _patch_file("src/app.py", 1200, ["x = 1", "y = 2"])
     + _patch_file("src/util.py", 1, ["z = 3"])
     + "</pre></lf-diff>"
+    # One file draws no filter row.
+    + '<lf-diff id="single"><pre>'
+    + _patch_file("src/only.py", 1, ["w = 0"])
+    + "</pre></lf-diff>"
     # Prose wraps at the drawing's column: words, runs of spaces, and words longer
     # than the column by every count up to a few columns, so a column more or less
     # than the drawing's changes some row's lines at either width.
@@ -200,7 +204,6 @@ def test_an_inline_patch_first_paints_at_the_height_it_draws_at(
         for route in boot:
             route.continue_()
         page.unroute_all(behavior="wait")
-        context.close()
     moved = [
         (id, before, after)
         for (id, before), (_, after) in zip(first, drawn, strict=True)
@@ -444,7 +447,8 @@ def test_inline_diff_lines_and_files_can_start_comments(browser, serve):
 
 def test_filtering_a_diff_keeps_its_field_and_toolbar_controls_fixed(browser, serve):
     """The matching count leaves the filter field in place at every result count, on a
-    phone and on a desktop window."""
+    phone and on a desktop window. A patch of one file has nothing to filter, so it
+    draws no filter."""
     url = serve(MANIFEST_DIFF_PAGE)
 
     def patch(count):
@@ -472,7 +476,7 @@ def test_filtering_a_diff_keeps_its_field_and_toolbar_controls_fixed(browser, se
 
     for width in (390, 1280):
         resized(page, width, 844)
-        for total in (12, 1):
+        for total in (12, 2):
             data_model.cmd_data_set(
                 serve.page_dir, "review-patch", patch_manifest(patch(total))
             )
@@ -494,6 +498,11 @@ def test_filtering_a_diff_keeps_its_field_and_toolbar_controls_fixed(browser, se
                 after = diff.evaluate(geometry)
                 assert after == before, (width, query, before, after)
                 expect(search).to_be_focused()
+
+    data_model.cmd_data_set(serve.page_dir, "review-patch", patch_manifest(patch(1)))
+    told(page)
+    expect(rows).to_have_count(1)
+    expect(diff.locator(".lf-diff-search")).to_have_count(0)
 
 
 def test_a_diff_refresh_keeps_the_readers_inspection(browser, serve):
@@ -1234,6 +1243,55 @@ def test_tab_onto_a_seat_under_the_pinned_file_name_brings_it_out(browser, serve
     )
     assert read["inSeat"], read
     assert read["top"] >= read["head"], read
+
+
+def test_a_diff_conversation_s_reply_rests_as_a_press_that_c_opens(browser, serve):
+    """A conversation in a diff ends in a Reply press, one control high and with no
+    frame or microphone, rather than an open field. A press opens the field, which
+    rests again once the user leaves it empty, and `c` from the conversation opens it
+    with the caret in it."""
+    datum = json.dumps([LONG_DIFF_PATH, "new", 3], separators=(",", ":"))
+    page = open_page(
+        browser,
+        serve(
+            leaf_page("Seated", f"<h1>Seated</h1>{long_diff('patch')}"),
+            events=[
+                {
+                    "kind": "comment",
+                    "author": "user",
+                    "revision": 1,
+                    "text": "Why this value?",
+                    "anchor": {"section": "patch", "datum": datum},
+                }
+            ],
+        ),
+    )
+    resized(page, 1280, 720)
+    thread = page.locator("lf-diff .lf-diff-thread-outlet .lf-page-thread")
+    reply = thread.get_by_role("textbox", name="Reply", exact=True)
+    face = """field => {
+      const box = field.parentElement;
+      return {
+        height: field.getBoundingClientRect().height,
+        frame: getComputedStyle(box).borderTopColor,
+        mic: getComputedStyle(box.querySelector('.lf-compose-dictate')).display,
+      };
+    }"""
+    resting = {"height": 24, "frame": "rgba(0, 0, 0, 0)", "mic": "none"}
+    expect(reply).to_be_visible()
+    assert reply.evaluate(face) == resting
+    reply.click()
+    expect(reply).to_be_focused()
+    opened = reply.evaluate(face)
+    assert opened["height"] > resting["height"] and opened["mic"] != "none", opened
+    page.keyboard.press("Escape")
+    expect(reply).not_to_be_focused()
+    assert reply.evaluate(face) == resting
+    thread.locator(".lf-msg-body").first.click()
+    page.keyboard.press("c")
+    expect(reply).to_be_focused()
+    reached = reply.evaluate(face)
+    assert (reached["height"], reached["mic"]) == (opened["height"], opened["mic"])
 
 
 def test_a_diff_in_a_pane_pins_the_file_name_at_the_pane_top_and_lands_below_it(

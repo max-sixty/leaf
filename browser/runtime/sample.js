@@ -103,7 +103,7 @@ const departure = (message) => new DOMException(message, "SampleDepartedError");
 const mounted = new Map();
 export const isSampleFrame = (node) => mounted.has(node);
 // A crop in the frame's viewport coordinates.
-export const sampleFrameImage = (frame, crop) => mounted.get(frame).call("image", crop);
+export const sampleFrameImage = (frame, crop) => mounted.get(frame)("image", crop);
 
 const request = (url, body, headers = {}) =>
   requestJson(
@@ -446,7 +446,7 @@ export function mountSample(frame, { template, window: asWindow = false }) {
       loadWithinLimit(async (release) => {
         if (destroyed) throw new DOMException("sample destroyed", "AbortError");
         record("allocating");
-        /** @type {import("../framework/contract.js").ServedSampleAnswer} */
+        /** @type {import("../types/contract.js").ServedSampleAnswer} */
         const { url, page } = await request(
           pageUrl("api/samples"),
           { template, message },
@@ -497,38 +497,38 @@ export function mountSample(frame, { template, window: asWindow = false }) {
     if (!operation) begin(replace());
     return operation;
   }
+  function call(method, detail = {}) {
+    const ready = host.ready;
+    return ready.then(() => {
+      if (ready !== host.ready || !channel) throw lost;
+      const id = ++nextId;
+      return new Promise((resolve, reject) => {
+        pending.set(id, { resolve, reject });
+        channel.postMessage({ id, method, detail });
+      });
+    });
+  }
   const host = {
     ready: null,
     reset,
     // Full view keeps the realm, log and native editor; only its allocation changes.
     setWindow(value) {
       asWindow = value;
-      return host.call("window", { window: value });
-    },
-    call(method, detail = {}) {
-      const ready = host.ready;
-      return ready.then(() => {
-        if (ready !== host.ready || !channel) throw lost;
-        const id = ++nextId;
-        return new Promise((resolve, reject) => {
-          pending.set(id, { resolve, reject });
-          channel.postMessage({ id, method, detail });
-        });
-      });
+      return call("window", { window: value });
     },
     on(type, callback) {
       if (!listeners.has(type)) listeners.set(type, new Set());
       listeners.get(type).add(callback);
       return () => listeners.get(type).delete(callback);
     },
-    dress: (dress) => channel?.postMessage({ type: "dress", detail: dress }),
+    restoreCurrentLocation: () => call("restore-current-location"),
     showThread(id, { signal, ...options }) {
       if (signal.aborted) return Promise.resolve(false);
       const cancel = () => channel?.postMessage({ type: "cancel-view" });
       signal.addEventListener("abort", cancel, { once: true });
-      return host
-        .call("thread", { id, ...options })
-        .finally(() => signal.removeEventListener("abort", cancel));
+      return call("thread", { id, ...options }).finally(() =>
+        signal.removeEventListener("abort", cancel),
+      );
     },
     destroy() {
       if (closing) return closing;
@@ -556,7 +556,7 @@ export function mountSample(frame, { template, window: asWindow = false }) {
     if (!event.persisted) void host.destroy();
   };
   window.addEventListener("pagehide", departing);
-  mounted.set(frame, host);
+  mounted.set(frame, call);
   reset();
   return host;
 }

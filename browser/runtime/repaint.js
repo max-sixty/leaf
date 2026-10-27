@@ -22,7 +22,7 @@
    answering that as a move would paint the fixed chrome, whose layout pass asks for
    the next placement. */
 
-import { onCurrentLocation } from "./focus.js";
+import { onCurrentLocation, onFocusVisibility } from "./focus.js";
 import { nextRender } from "./rendering.js";
 
 let painters = null;
@@ -32,6 +32,7 @@ let movePage = false;
 export function mountRepaint(slots) {
   painters = slots;
   onCurrentLocation(requestFrame);
+  onFocusVisibility(requestFrame);
   requestFrame();
 }
 

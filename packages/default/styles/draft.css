@@ -80,7 +80,8 @@
      and seat a code block's lone Copy shares: Edit and Copy at rest, Save, Discard and
      Copy while editing, Copy keeping the last seat, and a refused save's status before
      them. A pointer sees it on the top border while over the box or a key is in it,
-     and the open editor always. A finger sees it always, on the bottom border, since
+     and the open editor and a draft that asks for an edit (`needed`) always, since
+     there Edit is the way to answer. A finger sees it always, on the bottom border, since
      on a phone the margin's entries hang past the end of the line they mark, into the
      room over the next block, which is where a top toolbar would stand. */
   .lf-draft-tools {
@@ -111,6 +112,7 @@
   :scope:is(lf-draft):is(
       :hover,
       [data-lf-focus-within],
+      [needed],
       :has(> .lf-draft-edit),
       :has(.lf-draft-status:not(:empty))
     )

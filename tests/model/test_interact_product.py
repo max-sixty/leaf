@@ -31,6 +31,7 @@ from interact_support import (
     fresh_process,
     live_versions,
     owed,
+    page_packages,
     page_state,
     publish,
     published,
@@ -50,7 +51,6 @@ from leaf import layer as layer_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import service as service_model
-from leaf import state as cleanup_model
 from leaf import todos as todos_model
 from leaf.findings import Finding, Rejected
 from leaf.registry import storage as registry_storage
@@ -480,7 +480,7 @@ def test_every_path_a_diff_resolves_names_a_language_the_bundles_carry(page_dir)
     `paths` is what a filename means, which is how a diff colours a file nobody declared
     a language for. A path resolving outside `names` would resolve to a language neither
     bundle is required to carry."""
-    reg = json.loads((page_dir / "registry.json").read_text())
+    reg = registry_storage.load_registry(page_dir)
     names = set(reg["$languages"]["names"])
     paths = reg["$languages"]["paths"]
     assert (
@@ -851,13 +851,19 @@ def test_a_playground_control_stands_in_the_rail_or_inside_its_preview():
 
 def test_reply_validates_widget_markup(page_dir):
     """The current layer checks replies; older layers do not constrain their markup."""
-    path = page_dir / "registry.json"
-    current = path.read_text()
-    earlier = json.loads(current)
-    del earlier["lf-diagram"]
-    path.write_text(json.dumps(earlier))
+
+    def init(*packages):
+        result = CliRunner().invoke(
+            cli_model.cli,
+            ["page", "init", str(page_dir)]
+            + [arg for package in packages for arg in ("--package", package)],
+        )
+        assert result.exit_code == 0, result.output
+
+    # An earlier version under a layer without `diagram`'s lf-diagram.
+    init(*(package for package in page_packages() if package != "diagram"))
     publish(page_dir)
-    path.write_text(current)
+    init(*page_packages())
     publish(page_dir)
     append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
@@ -1819,9 +1825,8 @@ def test_edit_uses_the_captured_contract_when_the_candidate_registry_is_invalid(
             "text": "The old layer can render this message.",
         },
     )
-    registry = files_model.read_json(page_dir / "registry.json")
-    del registry["$events"]["kinds"]["edit"]
-    cleanup_model.write_json(page_dir / "registry.json", registry)
+    (page_dir / "page").mkdir()
+    (page_dir / "page" / "registry.json").write_text("{")
     before = events_model.read_events(page_dir)
 
     result = CliRunner().invoke(
@@ -1863,7 +1868,7 @@ def test_reply_refuses_a_missing_current_layer(page_dir, markup):
     """An addressed reply validates current source, even when its text needs no widget."""
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
-    (page_dir / "registry.json").unlink()
+    (page_dir / schema_model.LAYER_FILE).unlink()
     append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
     )
@@ -1883,20 +1888,19 @@ def test_reply_refuses_a_missing_current_layer(page_dir, markup):
         ],
     )
     assert result.exit_code != 0, result.output
-    assert "registry.json missing" in result.output
+    assert "has no layer.json" in result.output
     assert "run `leaf page init`" in result.output
     assert events_model.read_events(page_dir) == before
 
 
 def test_comment_requires_the_registry_its_runtime_reads(page_dir):
     published(page_dir)
-    (page_dir / "registry.json").unlink()
+    (page_dir / schema_model.LAYER_FILE).unlink()
     before = events_model.read_events(page_dir)
     result = comment(page_dir, "--quote", "Ship dark", "--text", "Still posts")
     assert result.exit_code != 0
     assert (
-        "registry.json missing" in result.output
-        and "run `leaf page init`" in result.output
+        "has no layer.json" in result.output and "run `leaf page init`" in result.output
     )
     assert events_model.read_events(page_dir) == before
 

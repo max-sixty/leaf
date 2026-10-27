@@ -54,7 +54,7 @@ from leaf.findings import Finding, Rejected
 from leaf.page_memory import Slot, memo
 from leaf.passages import SourceReading, enclosing_ids
 from leaf.registry.contract import is_element_name
-from leaf.registry.storage import revision_vocabulary
+from leaf.registry.storage import revision_vocabulary, selected
 from leaf.resource_urls import ReferenceError, resource_reference
 from leaf.schema import CONTENT_TYPES
 from leaf.state import fsync_parents
@@ -642,6 +642,14 @@ class _ResourceCapture:
             pending.extend(reversed(edges))
 
 
+def _layer_files(registry: dict) -> Mapping[str, bytes]:
+    """The files of the layer `registry`'s `$layer` selects, which the delivering Leaf
+    serves beside the revision (`runtime_selection.executing`): a document may name
+    one, such as the layer's icon, without the revision capturing it."""
+    layer = registry.get("$layer")
+    return selected(layer).files if layer else {}
+
+
 def _capture_artifact(
     page_dir: Path,
     document: SourceDocument,
@@ -720,6 +728,10 @@ def _capture_artifact(
         for specifier in authored.authoring.resource_refs:
             reference = dependency_reference(specifier, "/index.html")
             if reference is None or reference[0] in resources:
+                continue
+            if not reference[0].startswith(("/page/", "/media/")) and (
+                reference[0] in _layer_files(registry)
+            ):
                 continue
             entries.append(resolve_dependency(specifier, "/index.html"))
     entries = [entry for entry in entries if entry is not None]

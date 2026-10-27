@@ -302,6 +302,8 @@ def check_source(page_dir: Path, events: list) -> SourceCheck:
     try:
         page_registry = read_page_registry(page_dir)
         registry = page_registry.registry if page_registry is not None else None
+        if page_registry is None:
+            errors.append(Finding("no-layer", values={"page": str(page_dir)}))
     except IncompatibleLayer as error:
         return SourceCheck(
             SourceReading(document, None), None, list(error.findings), []

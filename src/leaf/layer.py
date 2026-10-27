@@ -422,7 +422,6 @@ class LayerComposition(NamedTuple):
         }
 
 
-@cache
 def selected_layer(packages: tuple[str, ...], theme: str | None) -> LayerComposition:
     """The layer this Leaf composes for a page that selects `packages` and the
     personal `theme`, the package composed last: its core and bundled packages and
@@ -430,12 +429,18 @@ def selected_layer(packages: tuple[str, ...], theme: str | None) -> LayerComposi
 
     A page records only its selection (`registry.storage.LAYER`), so every Leaf
     that serves, checks or exports it composes its own layer, the way it supplies
-    its own runtime (`runtime_selection`). Held for the process, since a plugin
-    update may replace the tree under a running server, which keeps answering with
-    the bytes it started with."""
+    its own runtime (`runtime_selection`). Held for the process by the directories
+    the selection resolves to, since a project-relative path names another package
+    from another directory, and a plugin update may replace the tree under a
+    running server, which keeps answering with the bytes it started with."""
     if theme is not None:
         packages = (*(name for name in packages if name != theme), theme)
-    return compose_layer(checked_layer_inputs(layer_inputs(packages)))
+    return _composed(tuple(layer_inputs(packages)))
+
+
+@cache
+def _composed(inputs: tuple[Path, ...]) -> LayerComposition:
+    return compose_layer(checked_layer_inputs(list(inputs)))
 
 
 def files_identity(files: dict[str, bytes]) -> str:

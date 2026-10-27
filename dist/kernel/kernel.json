@@ -11,7 +11,7 @@
     "runtime/anchor-resolution.js": "3da7d1bb0042344eda6ae05f717fee65bfdb1bd9a318665bcf0c9dcc7bad65b4",
     "runtime/anchor-travel.js": "7c4e3a5edf375fd2bcd7f7d6f172469190149bc5cf803857a712c9646a05afe9",
     "runtime/annotation-inventory.js": "b5c38d6715113e8e5dc4bcd0654dfa15c12cd81a853db4304254f8246e3d6d09",
-    "runtime/annotation-overlay/anchor-paint.js": "0928a49786ee219c18d9ae1cfdb5e65e2a52a20429f62befe1ad6af6b2568c06",
+    "runtime/annotation-overlay/anchor-paint.js": "51fc3f8b6a87ff71e73929297dd8696953e78d068a1f829ecd6492c97207021f",
     "runtime/annotation-overlay/annotation-layer.js": "475f2892b08eee81a610c85c662939241e10d9bc06bf9060d69042ea793a5d3c",
     "runtime/annotation-overlay/check-api.js": "e329869cd53d08ea0a8e423cc6a7fe1fbb22311cc172881aacc5f9274051b5c7",
     "runtime/annotation-overlay/comment-placement.js": "b09602e4465ecf3123119b1e2ff7d29766353090778646d260ca3a0c2457a430",

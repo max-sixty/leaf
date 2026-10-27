@@ -113,7 +113,6 @@ customElements.define(
       const comparisonMount = el("div", "lf-file-editor-comparison");
       view.append(mount);
       shadowStage(this, [view]);
-      this.replaceChildren();
       const useFile = () => {
         if (busy || !latest) return;
         base = latest;

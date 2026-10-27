@@ -1431,7 +1431,8 @@ def test_a_boards_minimum_keeps_the_room_the_column_can_grant(browser, serve):
     """A widget's preferred minimum never claims the sidebar's margin. Native wide and
     available blocks read the same capacity; four and five board columns previously
     overrode it at mid widths, while the control without a sidebar fitted there.
-    Narrow boards scroll their columns inside that allocation rather than the page.
+    A board too narrow to share between columns stacks them inside that allocation,
+    so neither it nor the page scrolls sideways.
     """
     sidebar = '<aside class="sidebar"><lf-toc id="contents"></lf-toc></aside>'
     boards = "".join(
@@ -1471,8 +1472,8 @@ def test_a_boards_minimum_keeps_the_room_the_column_can_grant(browser, serve):
                 assert at[name]["right"] <= at["room"]["right"] + 1, (width, at)
             assert root_overflow(page) == 0, (width, at)
             if width == 540:
-                assert at["board-4"]["scrolls"] > 0, at
-                assert at["board-5"]["scrolls"] > 0, at
+                assert at["board-4"]["scrolls"] == 0, at
+                assert at["board-5"]["scrolls"] == 0, at
             elif width == 1440:
                 assert at["wide"]["width"] == pytest.approx(wide_width(page), abs=1), at
                 assert at["room"]["width"] > at["wide"]["width"], at

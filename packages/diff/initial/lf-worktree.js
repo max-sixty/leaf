@@ -1,6 +1,14 @@
-/* Decorate the authored native disclosure before first paint. Its evidence stays
- * where the author put it, so a revision can patch prose while retaining the
- * nested diff reader. Native disclosure and revision carry own the open state. */
+/* Build the worktree's native disclosure before first paint. The author writes the
+ * evidence directly in the host; it moves whole into the disclosure's authored body,
+ * where a revision patches prose while retaining the nested diff reader. The host's
+ * `open` sets the first state, and a reader's toggle, kept by host id, outlasts a
+ * revision that rebuilds the row.
+ *
+ * Leaf owns the disclosure rather than decorating one the author writes: a summary
+ * written into the author's `details` stood among their elements, where the page's
+ * rules read its structure. A shadow root holding the disclosure around a slot was
+ * rejected because initial drawings get no shadow stage, so the summary would
+ * appear only at upgrade. */
 document.documentElement.lfInitial.register("lf-worktree", (host, tools) => {
   const node = (tag, className, text) => {
     const result = document.createElement(tag);
@@ -8,8 +16,21 @@ document.documentElement.lfInitial.register("lf-worktree", (host, tools) => {
     if (text !== undefined) result.textContent = text;
     return result;
   };
-  const details = host.querySelector(":scope > details");
-  details.classList.add("lf-worktree-disclosure");
+  const body = tools.authoredBody(node("div", "lf-worktree-body"));
+  const details = node("details", "lf-worktree-disclosure");
+  const key = `worktree:${host.id}`;
+  const kept = tools.tabStore.get(key);
+  details.open = kept === null ? host.hasAttribute("open") : kept === "open";
+  details.addEventListener("toggle", () =>
+    tools.tabStore.set(
+      key,
+      details.open === host.hasAttribute("open")
+        ? null
+        : details.open
+          ? "open"
+          : "closed",
+    ),
+  );
   // Like lf-diff's file summary, this native disclosure names evidence. It is
   // content, not an apparatus-only offer: it must remain visible on paper.
   const summary = node("summary", "lf-worktree-summary lf-disclosure-marker");
@@ -26,12 +47,13 @@ document.documentElement.lfInitial.register("lf-worktree", (host, tools) => {
       .join(" · "),
   );
   identity.append(label, ref);
+  summary.append(identity);
   const status = host.getAttribute("status");
-  const state = node(
-    "span",
-    "lf-worktree-status",
-    { changed: "Changed", clean: "Clean", unavailable: "Unavailable" }[status],
-  );
+  // A changed row's counts already say it changed, so a word marks only Clean and
+  // Unavailable, which counts can't say. The user chose this on 2026-10-26 over
+  // "Changed" beside every changed row's counts.
+  const word = { clean: "Clean", unavailable: "Unavailable" }[status];
+  if (word) summary.append(node("span", "lf-worktree-status", word));
   const stats = node("span", "lf-worktree-stats");
   if (status !== "unavailable") {
     const files = Number(host.getAttribute("files"));
@@ -45,13 +67,14 @@ document.documentElement.lfInitial.register("lf-worktree", (host, tools) => {
     const binary = Number(host.getAttribute("binary-files"));
     if (binary) stats.append(node("span", "lf-worktree-binary", `${binary} binary`));
   }
-  summary.append(identity, state, stats);
+  summary.append(stats);
   const path = node("div", "lf-worktree-path");
   tools.generatedElement(path, { says: true });
   path.append(
     node("span", "", "Worktree"),
     node("code", "", host.getAttribute("path")),
   );
-  details.prepend(summary, path);
+  details.append(summary, path, body);
+  host.append(details);
   return { details };
 });

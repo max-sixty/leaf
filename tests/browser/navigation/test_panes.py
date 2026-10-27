@@ -12,13 +12,13 @@ from render_cases_navigation import pending_text, wait_for_pending_mark
 from render_harness import (
     CORPUS_SOURCES,
     EXAMPLES,
-    PANEL,
     RELEASE_FOCUS,
     comment_note,
     holding,
     leaf_page,
     margins_laid_out,
     open_page,
+    open_threads,
     pane_scroll_behavior,
     panel_settled,
     panel_view,
@@ -261,9 +261,7 @@ def test_a_closed_threads_panel_hands_the_page_back_where_the_user_was_reading(
         }"""
     )
 
-    if page.locator(PANEL).get_attribute("data-open") != "threads":
-        page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    open_threads(page)
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
     top = page.evaluate("document.scrollingElement.scrollTop")
@@ -502,10 +500,15 @@ def test_a_passage_read_in_a_flowing_pane_returns_after_the_panes_scroll_alone(
     page = open_page(browser, serve(next(p for p in EXAMPLES if p.stem == "wt-merge")))
     resized(page, 390, 800)
     rendered(page)
+    # Reach the Steps pane before reading it; the preceding film grows on a phone.
+    page.locator("#merge-steps-pane p").first.scroll_into_view_if_needed()
+    scroll_settled(page)
+    rendered(page)
     box = page.locator("#merge-steps-pane").bounding_box()
     page.mouse.move(box["x"] + 40, min(box["y"] + 120, 700))
+    before = page.evaluate("document.scrollingElement.scrollTop")
     page.mouse.wheel(0, 300)
-    page.wait_for_function("document.scrollingElement.scrollTop > 0")
+    page.wait_for_function(f"document.scrollingElement.scrollTop > {before}")
     scroll_settled(page)
     rendered(page)
     below = page.evaluate(
@@ -514,13 +517,14 @@ def test_a_passage_read_in_a_flowing_pane_returns_after_the_panes_scroll_alone(
             .scrollPaddingTop) || 0;
           const block = [...document.querySelectorAll('#merge-steps-pane p')]
             .find(p => p.getBoundingClientRect().top >= band);
-          block.id ||= 'read-step';
+          block.id = 'read-step';
           window.__read = block;
           return block.getBoundingClientRect().top - band;
         }"""
     )
     measure = """() => window.__read.getBoundingClientRect().top
       - (parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop) || 0)"""
+    expect(page.locator("#read-step")).to_be_in_viewport()
     for width in (1200, 390):
         resized(page, width, 800)
         rendered(page)

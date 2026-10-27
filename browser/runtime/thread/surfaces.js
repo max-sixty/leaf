@@ -39,7 +39,7 @@ import { HeldArrivals } from "./held-news.js";
 import { under } from "../shadow.js";
 import { declareSide } from "../current-target.js";
 import { whenDocumentPresented } from "../semantic-state.js";
-import { signal } from "/vendor/browser-runtime.js";
+import { signal } from "/runtime/framework.js";
 import { tick } from "../version-signal.js";
 
 const registrations = new Map();
@@ -404,7 +404,7 @@ export function renderSurfaces(collection, placements, commands) {
                   placements.placedAt(thread.id),
                 ) &&
                 (plan.registration.kind === "widget" ||
-                  (!widgetClaims.has(thread.id) && !heldOut(thread.id))),
+                  (!widgetClaims.has(thread.id) && !holdsOut(thread.id))),
             ),
           );
         if (

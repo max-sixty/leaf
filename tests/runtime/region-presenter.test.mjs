@@ -210,7 +210,7 @@ test("a paint advancing a version it does not read claims no second pass", async
   // commits. `tick` writes without reading, so the paint is not subscribed to its own
   // write; `x.value += 1` reads first, and claims the region again for nothing.
   const { tick } = await import("/runtime/version-signal.js");
-  const { signal } = await import("/vendor/browser-runtime.js");
+  const { signal } = await import("/runtime/framework.js");
   const paints = { ticked: 0, added: 0 };
   const ticked = signal(0);
   const added = signal(0);

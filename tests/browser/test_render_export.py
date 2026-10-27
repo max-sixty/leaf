@@ -168,7 +168,8 @@ def test_interactive_export_runs_captured_local_behavior_without_a_host(
         "request",
         lambda request: (
             external.append(request.url)
-            if request.url != document_url and not request.url.startswith("data:")
+            if request.url != document_url
+            and not request.url.startswith(("data:", "blob:"))
             else None
         ),
     )
@@ -243,7 +244,8 @@ def test_interactive_export_hydrates_captured_deferred_values_offline(
         "request",
         lambda request: (
             external.append(request.url)
-            if request.url != document_url and not request.url.startswith("data:")
+            if request.url != document_url
+            and not request.url.startswith(("data:", "blob:"))
             else None
         ),
     )
@@ -656,7 +658,7 @@ def test_inline_threads_keep_their_words_without_live_controls_in_print(
         '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24">'
         '<rect width="24" height="24" fill="navy"/></svg>'
     )
-    _, image_url = media_model.cmd_media(serve.page_dir, [image])[0]
+    image_url = media_model.cmd_media(serve.page_dir, [image])[0]["path"]
     root = append_carried_log_record(
         serve.page_dir,
         {
@@ -676,7 +678,14 @@ def test_inline_threads_keep_their_words_without_live_controls_in_print(
     if not resolved:
         result = CliRunner().invoke(
             cli_model.cli,
-            ["task", "start", str(serve.page_dir), root["id"], "checking the shard"],
+            [
+                "task",
+                "start",
+                str(serve.page_dir),
+                root["id"],
+                "--text",
+                "checking the shard",
+            ],
         )
         assert result.exit_code == 0, result.output
     if resolved:
@@ -691,10 +700,10 @@ def test_inline_threads_keep_their_words_without_live_controls_in_print(
     expect(thread.locator("button")).not_to_have_count(0)
     if not resolved:
         inline_workflow = thread.locator(".lf-msg-sending")
-        expect(inline_workflow).to_have_text("Working")
+        expect(inline_workflow).to_have_text("On it")
         # The same message in the panel's view of the thread says it the same way.
         panel_workflow = open_panel_thread(live, root["id"]).locator(".lf-msg-sending")
-        expect(panel_workflow).to_have_text("Working")
+        expect(panel_workflow).to_have_text("On it")
         workflow_face = """node => {
           const style = getComputedStyle(node);
           const separator = getComputedStyle(node, '::before');

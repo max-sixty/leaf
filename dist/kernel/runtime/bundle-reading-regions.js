@@ -1,7 +1,9 @@
-import { J, Z } from "./bundle-browser-runtime.js";
+import { J, Z } from "./bundle-signals-core.js";
 import { LENT_REACH_STOP, TEXT_BOX, afterScript, deepFocus, keeps, nextFrame, nextRender, onCurrentLocation, pressing, renderedParent, renderedUnder, renderingState, sizeObserver, tabStops, under, upFrom, wearsLentStop } from "./bundle-dom-move.js";
-import { LAYOUT, PAGE_PAINT_ATTRIBUTE, landingBand, pagePresented, reportPageError, scrollsBy, setRuntimeRootAttribute, shadowRootsIn, shownRect, skipped, userScrollport, watchArrivals } from "./bundle-layer-client.js";
+import { PAGE_PAINT_ATTRIBUTE, pagePresented, reportPageError, setRuntimeRootAttribute } from "./bundle-layer-client.js";
+import { landingBand, scrollsBy, shadowRootsIn, shownRect, skipped, userScrollport, watchArrivals, whileConnected } from "./bundle-geometry.js";
 import { applicationPresented, tick } from "./bundle-context.js";
+import { LAYOUT } from "./bundle-errors.js";
 import { layoutBox, pageDocument } from "./bundle-passages.js";
 
 //#region runtime/presence.js
@@ -106,6 +108,25 @@ async function settlePageInterface() {
 	document.dispatchEvent(new CustomEvent(PAGE_INTERFACE, { detail: { present } }));
 	for (const result of await Promise.allSettled(pending)) if (result.status === "rejected") reportPageError(result.reason, "Page interface failed");
 }
+function whileInterfaceConnected(element, { declare, connect }) {
+	let declared = false;
+	return whileConnected(element, (signal) => {
+		let connected = false;
+		let cleanup;
+		const start = () => {
+			if (signal.aborted || connected) return;
+			if (!declared) {
+				declare?.();
+				declared = true;
+			}
+			connected = true;
+			cleanup = connect(signal);
+		};
+		document.addEventListener(PAGE_INTERFACE, (event) => event.detail.present(Promise.resolve().then(start)), { signal });
+		if (declared) start();
+		return () => cleanup?.();
+	});
+}
 
 //#endregion
 //#region runtime/scrolling.js
@@ -159,13 +180,25 @@ document.addEventListener("scrollend", ({ target }) => {
 	capture: true,
 	passive: true
 });
-const scrollLimit = (box) => Math.max(0, box.scrollHeight - box.clientHeight);
+const riding = /* @__PURE__ */ new WeakSet();
+const contentRides = (box, rides) => rides ? riding.add(box) : riding.delete(box);
+function laidOutHeight(box) {
+	let end = 0;
+	for (const child of box.children) {
+		if (!child.checkVisibility()) continue;
+		if (child.offsetParent !== box) return box.scrollHeight;
+		end = Math.max(end, child.offsetTop + child.offsetHeight + Number.parseFloat(getComputedStyle(child).marginBottom));
+	}
+	const padding = Number.parseFloat(getComputedStyle(box).paddingBottom);
+	return Math.min(box.scrollHeight, end + padding);
+}
+const scrollLimit = (box) => Math.max(0, (riding.has(box) ? laidOutHeight(box) : box.scrollHeight) - box.clientHeight);
 const SCROLL_SLACK = 2;
 const atScrollEnd = (box) => scrollLimit(box) - box.scrollTop <= 2;
 const scrollToEnd = (box, behavior = "instant") => {
 	if (behavior !== "instant" && !atScrollEnd(box)) startScroll(box);
 	box.scrollTo({
-		top: box.scrollHeight,
+		top: scrollLimit(box),
 		behavior
 	});
 };
@@ -808,4 +841,4 @@ sizes.observe(pageScroller);
 addEventListener("resize", () => nextRender(measureRegions), { passive: true });
 
 //#endregion
-export { JUST_NOW, PAGE_INTERFACE, PRESENTATION, UPGRADE, activityTransitionDue, afterPresentation, ago, aimedTop, atScrollEnd, chosenSince, claimReachStop, clockValue, compoundReadingRegionId, containingReadingRegionFor, deferredArrival, effectiveScroller, markPagePresented, markPageUpgraded, markStateApplied, moveScrollerBy, observeServerNow, observeWorkingGrace, onReadingInput, pageReadiness, pageReadingRegion, pageScroller, placeKept, preserveReadingRegions, quietSince, reachScrollers, reachable, readingRegion, readingRegionFor, readingRegions, recentReadingRegion, regionScrollBehavior, regionsSettled, registerReadingRegion, releaseReachStop, saidNow, scrollChainOf, scrollChoices, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, settlePageInterface, shortAgo, showReadingSubject, shownRegionBounds, startScroll, stopScroll, syncLayoutRegion, tickClock, unconcealedReadingRegions, userReadingRegion, watchReadingRegionTransitions, whenArrived, whenArriving };
+export { JUST_NOW, PAGE_INTERFACE, PRESENTATION, UPGRADE, activityTransitionDue, afterPresentation, ago, aimedTop, atScrollEnd, chosenSince, claimReachStop, clockValue, compoundReadingRegionId, containingReadingRegionFor, contentRides, deferredArrival, effectiveScroller, markPagePresented, markPageUpgraded, markStateApplied, moveScrollerBy, observeServerNow, observeWorkingGrace, onReadingInput, pageReadiness, pageReadingRegion, pageScroller, placeKept, preserveReadingRegions, quietSince, reachScrollers, reachable, readingRegion, readingRegionFor, readingRegions, recentReadingRegion, regionScrollBehavior, regionsSettled, registerReadingRegion, releaseReachStop, saidNow, scrollChainOf, scrollChoices, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, settlePageInterface, shortAgo, showReadingSubject, shownRegionBounds, startScroll, stopScroll, syncLayoutRegion, tickClock, unconcealedReadingRegions, userReadingRegion, watchReadingRegionTransitions, whenArrived, whenArriving, whileInterfaceConnected };

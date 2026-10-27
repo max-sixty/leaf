@@ -56,7 +56,9 @@ class DevtoolsIssues:
     autofill cannot identify. The headless shell the suite runs raises Blink's issues
     but not the autofill layer's.
     Listening starts before navigation; the reading is taken once the page settles,
-    when the probe that locates a node has loaded."""
+    when the probe that locates a node has loaded. Each is advice: an issue's code
+    names Chrome's lint, and a request that actually fails also reaches the console
+    as an error, which refuses the page."""
 
     def __init__(self, page):
         self._cdp = page.context.new_cdp_session(page)
@@ -112,6 +114,7 @@ class DevtoolsIssues:
                     "devtools-issue",
                     node["at"] if node else "",
                     {"issue": issue["code"], "details": details},
+                    severity="advice",
                 )
             )
         return list(dict.fromkeys(found))
@@ -245,7 +248,6 @@ def _scheme_findings(context: _SchemeContext) -> list[Finding]:
     unmarkable = evaluate_probe(page, "unmarkableElements")
     missing_threads = []
     retired = []
-    changed = []
     if context.light:
         # x-thread-seat promises one page view per matching instance. A widget in
         # thread chrome already has the thread's reply surface and threadBox
@@ -257,17 +259,28 @@ def _scheme_findings(context: _SchemeContext) -> list[Finding]:
         # yet. Before the widget readings, whose replay is the last.
         if context.replayed and (holders := _retired_holders(context)):
             retired = evaluate_probe(page, "retiredSlots", holders)
-        # Behind the same wait, since a report or a body record repaints words the
-        # comparison reads; and scheme-blind, so the light scheme reads it once.
-        if context.replayed:
-            changed = evaluate_probe(page, "wordsReadAsChanged")
     found = [*context.errors, *_widget_findings(context)]
     found += map(Finding.read, unmarkable)
     found += context.devtools.findings()
     found += map(Finding.read, missing_threads)
     found += map(Finding.read, retired)
-    found += map(Finding.read, changed)
     found += context.unsettled
+    if context.light:
+        found += _unreduced_motion(page)
+    return found
+
+
+def _unreduced_motion(page) -> list[Finding]:
+    """Advice naming page content that keeps animating once the reader asks for less
+    motion, which Leaf leaves to the page (state.css). Read last, since setting the
+    preference stops Leaf's own motion for the readings after it."""
+    page.emulate_media(reduced_motion="reduce")
+    one_frame(page)
+    found = [
+        Finding.read(m, severity="advice")
+        for m in evaluate_probe(page, "unreducedMotion")
+    ]
+    page.emulate_media(reduced_motion="null")
     return found
 
 

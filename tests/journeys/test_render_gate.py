@@ -540,8 +540,8 @@ def test_every_restore_case_a_user_can_return_to_is_arrived_in(browser, serve):
 def test_a_recurring_resize_notice_fails_the_render_gate(browser, serve):
     """A notice the page raises on the rendering turn after the gate's last probe, in
     every attempt, is heard and confirmed by a second whole four-render attempt, and
-    the gate reports it once as recurring. A console warning beside it fails the gate
-    once per scheme however many attempts heard it."""
+    the gate reports it once as recurring. A console warning beside it is advice,
+    reported once per scheme however many attempts heard it."""
     pages = []
 
     def prepare(page):
@@ -552,9 +552,10 @@ def test_a_recurring_resize_notice_fails_the_render_gate(browser, serve):
         )
         pages.append(page)
 
-    failures = render_gate_model.render_version(
+    reading = render_gate_model.render_version(
         primed(browser.unwatched, prepare), serve(LONG_PAGE)
-    ).failures
+    )
+    failures = reading.failures
 
     assert len(pages) == 8
     recurring = [
@@ -566,12 +567,12 @@ def test_a_recurring_resize_notice_fails_the_render_gate(browser, serve):
     assert [failure.scheme for failure in recurring] == ["light"], failures
     assert recurring[0].values["text"].startswith("ResizeObserver loop"), recurring
     warnings = [
-        failure
-        for failure in failures
-        if failure.code == "console-warning"
-        and failure.values["text"] == "authored warning"
+        advice
+        for advice in reading.advice
+        if advice.code == "console-warning"
+        and advice.values["text"] == "authored warning"
     ]
-    assert len(warnings) == 2, failures
+    assert len(warnings) == 2, reading.findings
 
 
 def test_the_gate_passes_what_the_renderer_draws(browser, serve):

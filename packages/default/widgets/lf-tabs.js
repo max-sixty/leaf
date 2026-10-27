@@ -465,7 +465,7 @@ export class TabSet extends LeafElement {
     // scrolling the row away.
     if (active === this.#active.value) {
       this.#showTab(this.#buttons.get(active));
-      return Promise.resolve();
+      return;
     }
     const previous = this.#active.value;
     const order = [...this.#buttons.keys()];
@@ -526,13 +526,11 @@ export class TabSet extends LeafElement {
       else if (pinnedBox) scrollIntoReadingBand(this, this, "start", "instant");
 
       keepView(this, active);
-      const presentation = [];
       for (const panel of [previous, active].filter(Boolean)) {
         const child = soleSubstantiveElement(panel);
-        if (child) presentation.push(layoutChanged(child));
+        if (child) layoutChanged(child);
       }
-      presentation.push(layoutChanged(this));
-      return Promise.all(presentation);
+      layoutChanged(this);
     };
     return this.#pageFlow && previous ? preserveReadingRegions(this, change) : change();
   }
@@ -704,9 +702,10 @@ export class TabSet extends LeafElement {
         if (!this.#root) return null;
         const view = this.#panelForLocation([...this.#buttons.keys()], url.hash);
         return view && view !== this.#active.value
-          ? () => {
+          ? async () => {
               const placesPage = this.#pageFlow;
-              return this.#activate(view, "history").then(() => placesPage);
+              await this.#activate(view, "history");
+              return placesPage;
             }
           : null;
       },

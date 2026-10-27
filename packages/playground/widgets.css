@@ -285,9 +285,10 @@ lf-playground-choice {
  * at its words' width (`.choice`, controls.css), so its label wraps only where the
  * column is narrower. No `var()` fallback can turn the plain row's flex box into a
  * grid, so a style query asks the group's parent, the control, whether the property is
- * set; `:scope`, the control, outweighs the rich default above. */
+ * set; naming the rich control's class weighs as much as the rich default above, and
+ * the later rule wins. */
 @container style(--playground-choice-columns) {
-  lf-playground-control > .lf-playground-choices {
+  :is(lf-playground-control, .lf-playground-candidates) > .lf-playground-choices {
     display: grid;
     grid-template-columns: var(--playground-choice-columns);
   }

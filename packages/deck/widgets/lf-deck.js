@@ -206,7 +206,7 @@ customElements.define(
     #show(card) {
       // Arriving at the open card, as `m` does at the card a motion is bringing up,
       // leaves that motion to finish.
-      if (card === this.#open.value) return Promise.resolve();
+      if (card === this.#open.value) return;
       this.#landing?.();
       for (const each of this.#cards) {
         keeps(each, "data-lf-deck-open", each === card ? "" : null);
@@ -218,7 +218,7 @@ customElements.define(
       this.#waited = null;
       this.#pressed = null;
       if (card) keepView(this, card);
-      return layoutChanged(this);
+      layoutChanged(this);
     }
 
     // Move from the open card to `next`, or to the end of the pass when it is null.

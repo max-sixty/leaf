@@ -250,12 +250,11 @@ export function releaseReplies(surface) {
     const shown = [...views.get(owner.context)].find(
       (view) => view !== owner && drawn(view.controls.input),
     );
-    if (shown) handOver(shown, owner);
-    else {
-      const redrawGiver = owner.binding.give();
-      parkRow(owner.row);
-      redrawGiver();
-    }
+    // This view is leaving. Redrawing its replacement row could restore focus into
+    // that retiring view and adopt a new session owner just before it disappears.
+    owner.binding.give();
+    if (shown) shown.binding.take(owner);
+    else parkRow(owner.row);
   }
 }
 
@@ -297,7 +296,7 @@ function wireReply(
   row,
   input,
   wireInput,
-  { hint, hintAside, accessibleName, busy },
+  { hint, hintLead, accessibleName, busy },
 ) {
   row.classList.add("lf-comment-box");
   const draftCtx = replyContext(key);
@@ -313,7 +312,7 @@ function wireReply(
   input.value = loadDraft(draftCtx) ?? "";
   const sync = wireInput(input, {
     hint,
-    hintAside,
+    hintLead,
     accessibleName,
     busy,
     sends: "send",
@@ -441,9 +440,8 @@ export async function restoreReplyEditing(editing, land) {
 
 // Native editor construction has one home; cards and package fragments share its
 // draft, input, delivery and recovery lifetime rather than constructing another one.
-// A presentation may say what its empty box reads (`hint`), what passes at its end
-// (`hintAside`), and is named
-// (`accessibleName`), hold its sends while it covers the box's words (`busy`), and
+// A presentation may say what its empty box reads (`hint`), what stands before that
+// (`hintLead`), and is named (`accessibleName`), hold its sends while it covers the box's words (`busy`), and
 // where its box stays for the next turn, as the floating panel's field does, land a
 // send itself (`sent`) rather than stand on the thread, told before the send draws
 // (`sending`). The view draws its row again
@@ -456,7 +454,7 @@ export function createReplyView(
     onChange = () => {},
     editLast = null,
     hint = "Reply",
-    hintAside = () => "",
+    hintLead = () => "",
     accessibleName = "Reply",
     busy = () => false,
     sending = null,
@@ -470,7 +468,7 @@ export function createReplyView(
     row.append(input);
     return wireReply(key, row, input, commands.wireInput, {
       hint,
-      hintAside,
+      hintLead,
       accessibleName,
       busy,
     });

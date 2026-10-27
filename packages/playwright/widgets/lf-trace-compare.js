@@ -95,7 +95,7 @@ customElements.define(
         keeps(recording, "aria-label", recording.getAttribute("label"));
       }
       if (this.#views[this.#selected]) keepView(this, this.#views[this.#selected]);
-      return layoutChanged(this);
+      layoutChanged(this);
     }
   },
 );

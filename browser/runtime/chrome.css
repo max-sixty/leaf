@@ -917,62 +917,6 @@
     margin-inline-end: -2px;
     color: var(--lf-fp-muted);
   }
-  .lf-fp-copy {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-    column-gap: 4px;
-    padding: 5px 8px 8px;
-  }
-  .lf-fp-copy-label {
-    grid-column: 1 / -1;
-    line-height: 20px;
-  }
-  .lf-fp-copy-text {
-    min-width: 0;
-    margin: 0;
-    padding: 4px 8px;
-    border: 1px solid var(--lf-fp-ring);
-    border-radius: var(--r);
-    background: none;
-    color: var(--ink);
-    font: 12px / 18px var(--mono);
-    field-sizing: fixed;
-    max-height: none;
-    resize: none;
-    scrollbar-width: none;
-  }
-  .lf-fp-copy-press {
-    align-self: start;
-    width: 28px;
-    height: 28px;
-    color: var(--lf-fp-muted);
-    font-size: 0;
-    line-height: 0;
-  }
-  .lf-fp-copy-press::part(button) {
-    display: grid;
-    place-items: center;
-    width: 28px;
-    height: 28px;
-    padding: 0;
-    border: 0;
-    border-radius: var(--r);
-    background: none;
-    color: inherit;
-    font-size: 16px;
-    cursor: pointer;
-  }
-  .lf-fp-copy-press::part(button):hover {
-    background: var(--lf-fp-hover);
-    color: var(--ink);
-  }
-  .lf-fp-copy-note {
-    grid-column: 1 / -1;
-    margin: 4px 0 0;
-    color: var(--lf-fp-muted);
-    font-size: 12px;
-  }
   .lf-fp-item[data-lf-urgent] .lf-fp-value {
     color: var(--accent);
   }
@@ -1179,7 +1123,8 @@
     padding: 0 8px 10px;
   }
   .lf-fp-on-item[data-card] {
-    display: block;
+    display: flex;
+    flex-direction: column;
     padding: 10px 8px 12px;
   }
   .lf-fp-ended {
@@ -1210,12 +1155,17 @@
     overflow: hidden;
   }
   .lf-fp-answers {
+    box-sizing: content-box;
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 6px;
     margin-top: 9px;
     min-height: var(--lf-fp-press);
+  }
+  .lf-fp-on-item[data-card] > .lf-fp-answers {
+    margin-top: auto;
+    padding-top: 9px;
   }
   .lf-fp-show {
     margin-inline-start: auto;
@@ -1653,12 +1603,11 @@ html[data-lf-draw-mode] body {
 html[data-lf-region-capture] main,
 html[data-lf-region-capture] main *,
 html[data-lf-draw-mode] main,
-html[data-lf-draw-mode] main * {
+html[data-lf-draw-mode] main :not([data-lf-runtime], [data-lf-runtime] *) {
   cursor: crosshair !important;
 }
-html[data-lf-draw-mode] main [data-lf-runtime],
-html[data-lf-draw-mode] main [data-lf-runtime] * {
-  cursor: auto !important;
+:where(html[data-lf-draw-mode] main [data-lf-runtime]) {
+  cursor: auto;
 }
 .lf-react-mark {
   text-align: center;
@@ -1779,15 +1728,38 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     display: none;
     pointer-events: none;
     box-sizing: border-box;
-    border: var(--target-trace-w) solid var(--target-trace-ink);
+    --lf-target-outline: var(--focus-ring-w) solid var(--target-trace-ink);
     --lf-shape-ink: var(--target-trace-ink);
     --lf-shape-stroke: var(--target-trace-w);
     --lf-shape-dash: none;
   }
-  .lf-shaped {
-    border: 0 !important;
-    border-radius: 0 !important;
-    background: none !important;
+  :is(.lf-aim, .lf-target-trace, .lf-visual-mark):not(.lf-shaped) {
+    &::before,
+    &::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      outline: var(--lf-target-outline, var(--focus-ring));
+      outline-offset: 0;
+      pointer-events: none;
+    }
+    &::before {
+      clip-path: inset(calc(-1 * var(--focus-ring-w)) calc(100% + var(--focus-ring-w) - 8px) calc(-1 * var(--focus-ring-w)) calc(-1 * var(--focus-ring-w)));
+    }
+    &.lf-visual-mark-inset::before,
+    &.lf-visual-mark-inset::after {
+      outline-offset: calc(-1 * var(--focus-ring-w));
+    }
+    &.lf-visual-mark-focus::after {
+      clip-path: none;
+    }
+    &.lf-visual-mark-focus::before {
+      content: none;
+    }
+    &::after {
+      clip-path: inset(calc(-1 * var(--focus-ring-w)) calc(-1 * var(--focus-ring-w)) calc(-1 * var(--focus-ring-w)) calc(100% + var(--focus-ring-w) - 8px));
+    }
   }
   .lf-target-trace-shape {
     display: block;
@@ -1891,14 +1863,16 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     --lf-shape-ink: var(--accent);
     --lf-shape-stroke: 2px;
     --lf-shape-dash: none;
-    border: 2px solid var(--accent);
-    background: color-mix(in srgb, var(--accent) 8%, transparent);
+    background: color-mix(in srgb, var(--accent) 4%, transparent);
   }
   .lf-aim-shape {
     display: block;
     width: 100%;
     height: 100%;
     overflow: hidden;
+  }
+  .lf-shaped {
+    background: none;
   }
   .lf-drawings {
     pointer-events: none;
@@ -1922,9 +1896,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
   .lf-drawing-mark.lf-drawing-parked path {
     stroke-dasharray: 7 6;
-  }
-  .lf-fab-bar .lf-composer > :not(.lf-compose-field, .lf-composer-media) {
-    display: none !important;
   }
   .lf-live {
     position: fixed;
@@ -2363,6 +2334,25 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     white-space: pre-wrap;
     overflow-wrap: anywhere;
     font-size: var(--t-6);
+  }
+  .lf-copyable-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .lf-copyable-head wa-copy-button::part(button) {
+    min-width: var(--aim-floor);
+    min-height: var(--aim-floor);
+  }
+  .lf-copyable-text pre {
+    margin-block: 0 10px;
+    padding: 8px;
+    border: 1px solid var(--border-2);
+    border-radius: var(--r);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font: var(--t-6) / 1.5 var(--mono);
   }
   .lf-inspection-metrics {
     display: flex;

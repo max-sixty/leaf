@@ -378,13 +378,17 @@ setTimeout(() => {
     assert not [f for f in faces["chrome"] if f in {"cursive", "fantasy"}], faces
 
 
-def test_a_packages_rules_reach_only_inside_its_widgets(browser, serve, tmp_path):
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
+def test_a_packages_rules_reach_only_inside_its_widgets(
+    request, serve, tmp_path, engine
+):
     """A package that declares widgets styles those widgets and nothing else, whatever
     its sheet says: its rule for `p` dresses the paragraph inside its widget and leaves
     the page's own paragraphs alone, and its rule for the widget's host still reaches
     the host. Its scope stops below a foreign widget, while same-package compound
     parts and independently nested instances retain their own scope. Page-declared
-    widgets obey the same boundary before upgrade, after upgrade, and on revision."""
+    widgets obey the same boundary before upgrade, after upgrade, and on revision,
+    in every engine, since each reads the composed scope and its limit itself."""
     package = tmp_path / ".leaf"
     package.mkdir()
     (package / "widgets.css").write_text(
@@ -446,7 +450,7 @@ customElements.define('lf-page-live', class extends HTMLElement {
 """,
         },
     )
-    page = browser.new_page()
+    page = request.getfixturevalue(engine).new_page()
     boot = []
     page.route("**/leaf.js", lambda route: boot.append(route))
 
@@ -576,12 +580,14 @@ def test_a_theme_package_styles_every_page_as_the_pages_own_sheet_does_one(
     assert {color for _, color in faces["controls"]} == {"rgb(0, 128, 0)"}, faces
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
 def test_a_packages_shadow_rules_reach_only_trees_its_widgets_host(
-    browser, serve, tmp_path
+    request, serve, tmp_path, engine
 ):
     """Every declared shadow tree receives the layer's shadow sheet, so a package's
     `widget-shadow.css` is confined there too: its rule for `span` dresses the tree its own
-    widget hosts and not the tree another package's widget hosts."""
+    widget hosts and not the tree another package's widget hosts. Each engine reads
+    the composed scope itself: Firefox applied none of it while the scope had a limit."""
     own, own_module = _shadow_tree_widget("lf-own-tree")
     other, other_module = _shadow_tree_widget("lf-other-tree")
     project = tmp_path / ".leaf"
@@ -601,7 +607,7 @@ def test_a_packages_shadow_rules_reach_only_trees_its_widgets_host(
         layer_registry={"lf-own-tree": own},
         layer_widgets={"lf-own-tree.js": own_module},
     )
-    page = open_page(browser, url)
+    page = open_page(request.getfixturevalue(engine), url)
     colors = page.evaluate("""() => Object.fromEntries(['own', 'other'].map(id => [id,
         getComputedStyle(document.getElementById(id).shadowRoot.querySelector('span'))
             .color]))""")

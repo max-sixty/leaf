@@ -243,15 +243,21 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     reaches every declared shadow tree. controls.css explicitly opts into generated
     controls from lf-controls. Declaring a widget changes none of these roles.
 
-    Widget scopes stop below foreign widget hosts, including page declarations:
-    an outer widget may arrange that host, while the nested widget styles its own
-    interior. Delivery paints the declared-content mark before first paint and
-    on revisions; messages paint it as they render. Known foreign tags also cover
-    generated widgets, such as Visual Review's Shot, which arrive without marks.
+    Document widget scopes stop below foreign widget hosts, including page
+    declarations: an outer widget may arrange that host, while the nested widget
+    styles its own interior. Delivery paints the declared-content mark before first
+    paint and on revisions; messages paint it as they render. Known foreign tags
+    also cover generated widgets, such as Visual Review's Shot, which arrive
+    without marks.
     Same-package compound parts remain in scope, even if a page replaces their
     declarations: declaration replacement does not withdraw selected styles.
     Inheritance still crosses the boundary, and a nested widget belonging to the
     outer package starts its own scope. CSS owns matching and scope proximity.
+
+    The shadow scope takes no limit, because Firefox 158 drops a `:host` scope
+    whole for many limits, the document scope's among them. A package's
+    widget-shadow.css therefore reaches everything its widgets' shadow trees
+    hold, including core views placed there, such as a diff's threads.
 
     The kernel supplies the unscoped base and shared shadow defaults. Its Layouts
     and semantic state retain their own tiers. Page CSS remains unlayered. The
@@ -292,7 +298,7 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
             else:
                 placed = css
             if shared:
-                shadow_css = scoped(css, f":host({scope})", limit) if widget else css
+                shadow_css = scoped(css, f":host({scope})") if widget else css
                 tier = "lf-shadow" if kernel or widget else "lf-theme"
                 shadow.append(f"@layer {tier} {{\n{shadow_css}}}\n")
             tier = "lf-base" if kernel or widget else "lf-theme"

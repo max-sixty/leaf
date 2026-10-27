@@ -98,7 +98,10 @@ already withdrawn do not. It says what it would take back and how long ago, in e
 and after a reload, so a gesture made weeks ago is not taken back unseen. Where the
 gesture's thread or element is out of view, or the agent has picked the gesture up, the
 first press opens that place and only the next press, with nothing pressed between,
-withdraws it; showing writes nothing. The served undo list marks `picked_up` each entry
+withdraws it; showing writes nothing. Either way the press leaves the user at that place:
+a gesture whose own landing has just carried the user off it, such as resolving a
+thread, is taken in one press that returns them to its thread, while they have not
+acted elsewhere since (`runtime/undo.js`). The served undo list marks `picked_up` each entry
 a delivery handed into an agent's turn (`delivery.opened_input_ids`).
 `runtime/undo.js` names each gesture, and the served list words an action at its head
 (`GestureWords.gesture`). An exact control, such as a widget's Undo, may withdraw an

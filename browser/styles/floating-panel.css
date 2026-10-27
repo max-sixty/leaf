@@ -1226,68 +1226,6 @@
     margin-inline-end: -2px;
     color: var(--lf-fp-muted);
   }
-  /* A row whose press copies a text: its name over the text, selectable, with Leaf's
-     copy control beside it, and what the text is beneath. */
-  .lf-fp-copy {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-    column-gap: 4px;
-    padding: 5px 8px 8px;
-  }
-  .lf-fp-copy-label {
-    grid-column: 1 / -1;
-    line-height: 20px;
-  }
-  .lf-fp-copy-text {
-    min-width: 0;
-    margin: 0;
-    padding: 4px 8px;
-    border: 1px solid var(--lf-fp-ring);
-    border-radius: var(--r);
-    background: none;
-    color: var(--ink);
-    font: 12px / 18px var(--mono);
-    /* Its first few lines, as its `rows` say, not the theme's grown-to-fit field. */
-    field-sizing: fixed;
-    max-height: none;
-    resize: none;
-    scrollbar-width: none;
-  }
-  /* The copy control is the text's one line tall, an icon at the size of the panel's
-     others, quiet until the pointer is on it. */
-  .lf-fp-copy-press {
-    align-self: start;
-    width: 28px;
-    height: 28px;
-    color: var(--lf-fp-muted);
-    /* The host is only the press's box; its words would give it a line of their own. */
-    font-size: 0;
-    line-height: 0;
-  }
-  .lf-fp-copy-press::part(button) {
-    display: grid;
-    place-items: center;
-    width: 28px;
-    height: 28px;
-    padding: 0;
-    border: 0;
-    border-radius: var(--r);
-    background: none;
-    color: inherit;
-    font-size: 16px;
-    cursor: pointer;
-  }
-  .lf-fp-copy-press::part(button):hover {
-    background: var(--lf-fp-hover);
-    color: var(--ink);
-  }
-  .lf-fp-copy-note {
-    grid-column: 1 / -1;
-    margin: 4px 0 0;
-    color: var(--lf-fp-muted);
-    font-size: 12px;
-  }
   .lf-fp-item[data-lf-urgent] .lf-fp-value {
     color: var(--accent);
   }
@@ -1529,7 +1467,8 @@
      the answers it takes, answered here. What it is and its question's heading set
      cards apart, with the space between them, so no rule runs between them. */
   .lf-fp-on-item[data-card] {
-    display: block;
+    display: flex;
+    flex-direction: column;
     padding: 10px 8px 12px;
   }
   /* What left the list in view, under it: a section of its own, so a rule opens it. */
@@ -1561,14 +1500,22 @@
     overflow: hidden;
   }
   /* A line of answers is a button's height even where it holds only words, so the Undo
-     a reading brings an answer later moves nothing beside it. */
+     a reading brings an answer later moves nothing beside it. Its minimum sizes the
+     content, leaving any card spacing outside the line a button fills. */
   .lf-fp-answers {
+    box-sizing: content-box;
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 6px;
     margin-top: 9px;
     min-height: var(--lf-fp-press);
+  }
+  /* The card keeps its height after an answer; keep its answers at the foot too,
+     so Show stays put when described choices give way to the result and Undo. */
+  .lf-fp-on-item[data-card] > .lf-fp-answers {
+    margin-top: auto;
+    padding-top: 9px;
   }
   .lf-fp-show {
     margin-inline-start: auto;

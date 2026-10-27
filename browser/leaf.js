@@ -241,6 +241,7 @@ async function boot() {
     targetPaint: visualMarkPaint,
     pointer: pointerAt,
     currentLocationThreadId,
+    currentLocationObligation: () => items.currentLocationIn(),
     rowThread: () => floatingPanel?.hoveredThread() ?? null,
     threadRow: (id) => floatingPanel?.threadRow(id) ?? null,
     marginThread: () => app?.overlay?.pointedThread() ?? null,

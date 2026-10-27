@@ -1,6 +1,6 @@
 import { TEXT_FIELD, Z, afterScript, cancelAnimation, cancelRender, closeLayer, currentLocationIn, declareRelease, drawn, focusDestination, focused, handBack, holdFocus, inputCount, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, nativeLayerHolding, nextAnimation, nextRender, onCurrentLocation, onPressAway, onUserInput, pressLed, renderedOrder, renderedUnder, ringBox, roomPx, rove, sizeObserver, tabStops, under, visibleFocus } from "./bundle-dom-move.js";
-import { LAYOUT, PAGE_PAINT_ATTRIBUTE, PRESS, closeControl, coarsePointer, cycledRow, el, generatedElement, keys, notice, offer, offerAction, paintKeys, repaint, rowArrows, setRuntimeRootAttribute } from "./bundle-layer-client.js";
-import { bareReaction, clamp, hostIn, html, render, rightCover, sameAnchor, seenRect, shownBox, shownWindow, skipped, slotTop, turns, union, watchRoom } from "./bundle-geometry.js";
+import { LAYOUT, PRESS, closeControl, coarsePointer, cycledRow, el, generatedElement, keys, notice, offer, offerAction, paintKeys, repaint, rowArrows, setRuntimeRootAttribute } from "./bundle-layer-client.js";
+import { bareReaction, clamp, hostIn, html, render, rightCover, sameAnchor, seenRect, shownBox, shownParts, shownWindow, skipped, slotTop, turns, union, watchRoom } from "./bundle-geometry.js";
 import { atScrollEnd, chromeForeground, chromeRoot, effectiveScroller, exactTarget, moveScrollerBy, passageGeometry, pointBand, rangeGeometry, readingRegionFor, registerReadingRegion, scrollToEnd, targetElement, targetParts, targetRange, targetSegments, targetSurface, visualAt } from "./bundle-content-layout.js";
 import { ANNOTATIONS_KEY } from "./bundle-restore-state.js";
 import { anchorLabel, arrivalOf, beginWalk, carryingThreadPlace, claimSeatReplies, claimed, currentLocationThreadId, declareOffFlowSurface, declareSide, keepThreadLanding, listWalkPosition, pageCommand, pageRung, pageScope, pageSelection, placeKeeper, releaseAuthoredUnder, releaseReplies, revealHeld, rowWalk, selectionAnchor, setChildLists, setChildren, showReturnTurn, tabStore, threadFocusDestination, threadIdNamed, threadNamed } from "./bundle-data.js";
@@ -2131,7 +2131,7 @@ const PENDING = "lf-pending";
 const REACT = "lf-react";
 const HOVER = "lf-mark-hover";
 const HERE = "lf-mark-here";
-function createAnchorPaint({ targetPaint, pointer, currentLocationThreadId, rowThread, threadRow, marginThread }) {
+function createAnchorPaint({ targetPaint, pointer, currentLocationThreadId, currentLocationObligation, rowThread, threadRow, marginThread }) {
 	const marked = /* @__PURE__ */ new Map();
 	const visualTargets = /* @__PURE__ */ new Map();
 	let pendingMarks = [];
@@ -2163,7 +2163,8 @@ function createAnchorPaint({ targetPaint, pointer, currentLocationThreadId, rowT
 			here
 		].flatMap((states) => [...states]).filter((element) => element instanceof Element));
 		const active = visibleFocus();
-		const ownsRing = active && ringBox(active) === active && !active.hasAttribute(PAGE_PAINT_ATTRIBUTE.obligation);
+		const obligation = currentLocationObligation();
+		const ownsRing = active && ringBox(active) === active && active !== obligation && (!obligation || !shownParts(obligation).includes(active));
 		if (ownsRing && active.getRootNode() === document && pageWords(active)) elements.add(active);
 		const focus = new Set(ownsRing && elements.has(active) ? [active] : []);
 		const sources = [

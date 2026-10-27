@@ -226,7 +226,10 @@ function narrowSheet(sheet, runtime) {
 }
 let watching = false;
 function keepPageRulesOffLayer() {
-	for (const sheet of document.styleSheets) narrowSheet(sheet, sheet.ownerNode?.hasAttribute("data-lf-runtime"));
+	for (const sheet of document.styleSheets) {
+		const owner = sheet.ownerNode;
+		if (owner) narrowSheet(sheet, owner.hasAttribute("data-lf-runtime"));
+	}
 	if (watching) return;
 	watching = true;
 	document.addEventListener("load", (event) => {

@@ -428,6 +428,37 @@ setTimeout(() => {
     assert not [f for f in faces["chrome"] if f in {"cursive", "fantasy"}], faces
 
 
+def test_the_chromes_adopted_sheets_stay_whole_where_style_sheets_lists_them(
+    browser, serve
+):
+    """iOS WebKit lists adopted sheets in `document.styleSheets`, where the other
+    engines leave them out. The chrome's own sheets are adopted, so narrowing page CSS
+    by walking that list once took every chrome rule off the chrome on iPhones: the
+    panel lost its face and its motion timings, and each animation threw."""
+    url = serve(leaf_page("t", "<h1>t</h1><p>Body.</p>"))
+    page = open_page(
+        browser,
+        live_url(url),
+        init_script="""{
+          const listed = Object.getOwnPropertyDescriptor(Document.prototype, "styleSheets").get;
+          Object.defineProperty(Document.prototype, "styleSheets", {
+            configurable: true,
+            get() { return [...listed.call(this), ...this.adoptedStyleSheets]; },
+          });
+        }""",
+    )
+    # A sheet a page script writes later sends the narrowing over the list again.
+    page.evaluate(
+        "() => document.head.append(Object.assign(document.createElement('style'),"
+        " {textContent: 'p { color: inherit; }'}))"
+    )
+    # The panel's own sheet declares its fold's duration on it (floating-panel.css).
+    fold = page.locator(".lf-floating-panel").evaluate(
+        "el => getComputedStyle(el).getPropertyValue('--lf-motion-panel-fold')"
+    )
+    assert fold.endswith("ms"), fold
+
+
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
 def test_a_packages_rules_reach_only_inside_its_widgets(
     request, serve, tmp_path, engine

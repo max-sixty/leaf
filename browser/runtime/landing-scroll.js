@@ -239,23 +239,13 @@ function verticalTravel(box, movement) {
   return { local, moved: local * scale };
 }
 
-// Where travel's landing (`scrollIntoReadingBand`, centred, as anchor travel lands)
-// would leave `where` in its reading region, by the arithmetic the move makes: in the
-// band where the region can scroll that far, and short of it at the region's end.
-export function landedBox(where) {
-  const rect = destinationBox(where);
-  const [box] = scrollersOf(holderOf(where));
-  if (!box) return rect;
-  const { moved } = verticalTravel(
-    box,
-    placementBy(where, "center", box, topMargin(where, box)),
-  );
-  return new DOMRect(rect.x, rect.y - moved, rect.width, rect.height);
-}
-
-export function scrollIntoReadingBand(where, holder, block, behavior) {
+// The moves a landing in the reading band makes, region by region from the one
+// holding `where` outward, each a box and the local offset it scrolls by, and how far
+// they carry the destination down the window together (`moved`). Scrolling and its
+// prediction (`landedBox`) both read it, so they can't disagree.
+function readingBandMoves(where, holder, block) {
   const [box, ...around] = scrollersOf(holder);
-  if (!box) return;
+  if (!box) return { moves: [], moved: 0 };
   const rect = destinationBox(where);
   const margin = topMargin(where, box);
   let { top, bottom } = rect;
@@ -266,13 +256,13 @@ export function scrollIntoReadingBand(where, holder, block, behavior) {
     bottom += scrollMargin(where, "Bottom");
   }
   let { local, moved } = verticalTravel(box, placementBy(where, block, box, margin));
-  if (Math.abs(moved) >= 1) land(box, { top: local }, behavior);
+  const moves = [{ box, local, moved }];
   let inner = box;
   for (const outer of around) {
     top -= moved;
     bottom -= moved;
     const band = landingBand(outer);
-    if (!band) return;
+    if (!band) break;
     // An inner scroller restarts its own header slot. Read what covers its box
     // from the enclosing region, rather than reading the destination's reset slot.
     band.top = Math.max(band.top, readingTop(inner, outer));
@@ -283,9 +273,24 @@ export function scrollIntoReadingBand(where, holder, block, behavior) {
       outer,
       nearestScrollBy(top, bottom, band.top, band.bottom),
     ));
-    if (Math.abs(moved) >= 1) land(outer, { top: local }, behavior);
+    moves.push({ box: outer, local, moved });
     inner = outer;
   }
+  return { moves, moved: moves.reduce((sum, move) => sum + move.moved, 0) };
+}
+
+// Where travel's landing (`scrollIntoReadingBand`, centred, as anchor travel lands)
+// would leave `where`: in the band where its regions can scroll that far, and short
+// of it at a region's end.
+export function landedBox(where) {
+  const rect = destinationBox(where);
+  const { moved } = readingBandMoves(where, holderOf(where), "center");
+  return new DOMRect(rect.x, rect.y - moved, rect.width, rect.height);
+}
+
+export function scrollIntoReadingBand(where, holder, block, behavior) {
+  for (const { box, local, moved } of readingBandMoves(where, holder, block).moves)
+    if (Math.abs(moved) >= 1) land(box, { top: local }, behavior);
 }
 
 // Reveal inner overflow before aligning its owning reading region. The ancestry

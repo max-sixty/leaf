@@ -295,6 +295,63 @@ def test_travel_puts_away_a_panel_view_standing_over_where_it_lands(browser, ser
     lands_whole("#foot-ask")
 
 
+# A choice at the end of a bounded block at the page's foot: landing on it scrolls the
+# block and then the page, and no scroll brings it above an open view.
+BOUNDED_FOOT_PAGE = leaf_page(
+    "A choice in a bounded block",
+    '<h1 id="h">Release</h1>'
+    + FILLER
+    + FILLER
+    + '<section id="bounded" data-bound="start" style="height: 220px">'
+    + "".join(f"<p>Log line {i} of the bounded block.</p>" for i in range(12))
+    + '<lf-ask id="bound-ask"><h2>Ship notes with it?</h2>'
+    '<lf-options id="bound" choose><lf-option id="yes">Yes</lf-option>'
+    '<lf-option id="no">No</lf-option></lf-options></lf-ask></section>'
+    '<p id="end">The end.</p>',
+)
+
+
+def test_travel_reads_the_landing_through_every_region_it_scrolls(browser, serve):
+    """Whether the open view would cover a destination is read where the whole landing
+    leaves it, the page's scroll after its bounded block's included: `m` from a panel
+    thread, with the page scrolled back to its top, to a choice at the end of a
+    bounded block at the page's foot puts the view away."""
+    url = serve(BOUNDED_FOOT_PAGE)
+    asked = append_carried_log_record(
+        serve.page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "Ready?"},
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Agent",
+            "parent": asked["id"],
+            "responds": asked["id"],
+            "revision": 1,
+            "text": "Which way should the rollout go first?",
+            "obligation": True,
+        },
+    )
+    page = open_page(browser, url)
+    resized(page, 1280, 900)
+    page.evaluate("getSelection().removeAllRanges()")
+    page.keyboard.press("m")
+    expect_walk_position(page, "1 of 2 waiting on me · Options")
+    page.keyboard.press("m")
+    expect_walk_position(page, "2 of 2 waiting on me · Reply")
+    panel_settled(page, view="thread")
+    page.evaluate("document.scrollingElement.scrollTo({top: 0, behavior: 'instant'})")
+    scroll_settled(page)
+    page.keyboard.press("m")
+    expect_walk_position(page, "1 of 2 waiting on me · Options")
+    expect(page.locator("#bound-ask")).to_be_focused()
+    panel_settled(page, open=False)
+    scroll_settled(page)
+    assert page.evaluate(SEEN_SHARE, "#bound-ask") > 0.99
+
+
 def test_on_me_stays_over_only_the_items_it_lists(browser, serve):
     """On me stays open over a place `m` reaches, whose card it rings, and gives way to
     one it doesn't list: `t` to a thread at the page's foot, which On me would stand

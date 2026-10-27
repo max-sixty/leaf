@@ -152,10 +152,9 @@ arrives. Each `source.kind` adds its own facts:
 
 - A bound-data record's obligation names the owning widget in `source.id` and the
   record key in `source.unit`.
-- For a widget declaring `x-awaits.reply`, such as an `lf-ask` holding no other widget, the
-  user's next message in its thread or comment on it is its `answer.value` (`{text}`,
-  or `{token}` for a settling reaction); `answeredInWords(obligation)` says whether an
-  obligation is one. When the agent ends it with `leaf task end`, `status` is
+- For a `message` obligation, an agent message sent with `--obligation`, the user's
+  next message in its thread is its `answer.value` (`{text}`, or `{token}` for a
+  settling reaction); `answeredInWords(obligation)` says whether an obligation is one. When the agent ends it with `leaf task end`, `status` is
   `answered_elsewhere` or `withdrawn` and `end.detail` says why.
 - An `update` is what a message the user sent, or an action in an answered widget's
   obligation, is owed. `source.id` names the event and `source.subject` the thread or
@@ -171,7 +170,7 @@ returns the widgets' obligations, not withdrawn, inside `region`; `lf-tabs` and
 too, passing `readObligations().user` for those waiting on the user.
 `tally(obligations)` counts such a set as `{onUser, onAgent, open, total}`, splitting the
 open ones by next actor, and `tallyWords(count, agentName())` words it as `lf-tally`
-does, such as "2 of 8 to answer · 1 on Claude", so every count of a queue reads alike.
+does, such as "2 left to answer · 1 on Claude", so every count of a queue reads alike.
 
 `obligationActions.open(id)` takes the user to an obligation, resolving to `false` if
 it is gone. `obligationActions.next({within, dir})` steps to the next obligation

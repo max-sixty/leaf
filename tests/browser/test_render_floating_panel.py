@@ -692,7 +692,7 @@ def test_on_shows_an_obligation_as_its_message_and_reply_comes_back(browser, ser
         "Which build should ship? These are the candidates:\n\n- #4813 schedule\n"
         "- #4812 manual",
         author="agent",
-        question="Which build should ship?",
+        obligation=True,
     )
     page = floating(browser, url)
     page.locator(".lf-fp-on-user").click()
@@ -1373,7 +1373,9 @@ def test_threads_search_reads_rendered_messages_and_summaries(browser, serve):
         serve.page_dir,
         {"responds": root},
         "The **room** photo.",
-        '<lf-ask id="crop">Should I reshoot it wider?</lf-ask>',
+        '<lf-ask id="crop"><h3>Should I reshoot it wider?</h3>'
+        '<lf-options id="crop-pick" choose><lf-option id="crop-wider">Wider</lf-option>'
+        '<lf-option id="crop-same">As it is</lf-option></lf-options></lf-ask>',
     )
     summarize_thread(serve.page_dir, root, reply["id"], "A **wider** view would help.")
     page = floating(browser, url)
@@ -1386,7 +1388,7 @@ def test_threads_search_reads_rendered_messages_and_summaries(browser, serve):
     rows.click()
     view = page.locator(panel_view("thread"))
     expect(view.locator(".lf-summary-text")).to_have_text("A wider view would help.")
-    expect(view.locator("#crop")).to_have_text("Should I reshoot it wider?")
+    expect(view.locator("#crop h3")).to_have_text("Should I reshoot it wider?")
 
 
 def test_keys_in_threads_act_on_threads(browser, serve):
@@ -4389,7 +4391,7 @@ def test_a_thread_the_page_draws_nowhere_opens_in_the_panel(browser, serve):
         "Should the rollout pause on Fridays?",
         anchor={"section": "p3", "quote": "Paragraph 3."},
         author="agent",
-        question="Pause on Fridays?",
+        obligation=True,
     )
     page = floating(browser, url)
     reader = page.locator(panel_view("thread"))

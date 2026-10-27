@@ -307,7 +307,7 @@ def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -
     # strings must be values the attribute's schema admits, or the widget silently
     # disappears from every consumer.
     awaits = entry.get("x-awaits", {})
-    if awaits.get("encloses"):
+    if entry.get("x-encloses"):
         if "id" not in entry.get("required", []):
             raise registry_error("enclosing-id", path, tag)
         if entry.get("x-content") != "markup":
@@ -382,13 +382,13 @@ def _validate_widget_interactions(
                 "work-content", path, tag, content=entry.get("x-content")
             )
     answered = awaits.get("answered", {})
-    if entry.get("x-awaits") is not None and not answered and not awaits.get("reply"):
+    if entry.get("x-awaits") is not None and not answered:
         raise registry_error("awaits-unanswered", path, tag)
     # The user answers their own obligation, so only a verb the user writes can answer it.
     user_verbs = {verb for verb, _spec in state_specs(entry, writer="user")}
     if unknown := sorted(set(answered) - user_verbs):
         raise registry_error("awaits-verbs", path, tag, verbs=unknown)
-    if awaits and not awaits.get("reply") and awaits["value"] not in user_verbs:
+    if awaits and awaits["value"] not in user_verbs:
         raise registry_error("awaits-value", path, tag)
     # A retired obligation was asked and has ended, so the flag that retires it has to be
     # one registration already reads as stopping the widget asking.

@@ -572,11 +572,11 @@ def test_retirement_verbs_fold_by_the_parent_widget(page_dir, fault):
             {"key": "x-awaits", "attr": "choose", "value": "yes"},
         ),
         (
-            "lf-test-task",
+            "lf-options",
             "x-awaits",
-            {"when": {"status": [True]}, "reply": True},
+            {"when": {"id": [True]}},
             None,
-            {"key": "x-awaits", "attr": "status", "value": True},
+            {"key": "x-awaits", "attr": "id", "value": True},
         ),
         (
             "lf-test-task",
@@ -630,7 +630,7 @@ def test_check_holds_predicates_to_presence_or_declared_attribute_values(
     A predicate naming an impossible value silently omits the widget from every
     consumer. An undeclared answering verb leaves its obligation open forever."""
     registry = json.loads((page_dir / "registry.json").read_text())
-    if key == "x-awaits" and not declaration.get("reply"):
+    if key == "x-awaits":
         declaration = {
             "value": next(iter(registry[tag]["x-state"])),
             "answered": {"choose": {}},

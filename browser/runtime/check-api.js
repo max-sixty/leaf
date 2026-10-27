@@ -26,7 +26,6 @@ export {
 export {
   shownBand,
   shownBox,
-  skipped,
   shownRect,
   visibleBand,
   landingBand,
@@ -37,6 +36,7 @@ export {
   stackLevel,
   shownParts,
 } from "./geometry.js";
+export { skipped } from "./shown-box.js";
 export { renderedParent, uiInside, upFrom } from "./shadow.js";
 export { authoredBody } from "./initial-render.js";
 export {

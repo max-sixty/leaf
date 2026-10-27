@@ -11,24 +11,18 @@ import { shadowStage } from "/runtime/shadow-stage.js";
 import { failSoftUnreported } from "/runtime/widget-upgrade.js";
 import { createRef, html, ref, render } from "/runtime/framework.js";
 
-test("failure replacement releases directives and supports native and template recovery", () => {
+test("failure replacement releases directives and the next native draw replaces it", () => {
   const host = document.createElement("test-widget");
   const reference = createRef();
-  const paint = (text) => render(html`<p ${ref(reference)}>${text}</p>`, host);
-  paint("Before failure");
+  render(html`<p ${ref(reference)}>Before failure</p>`, host);
   assert.equal(reference.value.textContent, "Before failure");
   failSoftUnreported(host, new Error("first failure"));
   assert.equal(reference.value, undefined);
-  paint("Recovered template");
-  assert.equal(host.textContent, "Recovered template");
-  failSoftUnreported(host, new Error("second failure"));
+  assert.equal(host.textContent, "<test-widget> failed: first failure");
   const native = document.createElement("p");
   native.textContent = "Recovered native reading";
   setChildren(host, [native]);
   assert.equal(host.textContent, "Recovered native reading");
-  failSoftUnreported(host, new Error("third failure"));
-  paint("Final template");
-  assert.equal(host.textContent, "Final template");
 });
 
 test("a staged widget shows each failure in its stage and its next stage replaces it", () => {

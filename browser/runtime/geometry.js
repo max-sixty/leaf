@@ -14,6 +14,7 @@ import {
 } from "./rect.js";
 import { cancelRender, nextRender, sizeObserver } from "./rendering.js";
 import { watchScrolls } from "./arrivals.js";
+import { elementBox } from "./shown-box.js";
 
 /* Shared readings of the boxes the page actually shows.
 
@@ -49,8 +50,9 @@ import { watchScrolls } from "./arrivals.js";
      and what this page shows of a sample it holds, and `watchRoom` for when any of
      those readings may have changed.
 
-   `skipped` is asked first by a reading that can leave out a box the browser is not
-   drawing, since reading one in skipped content forces that content's style and layout.
+   `skipped` (shown-box.js) is asked first by a reading that can leave out a box the
+   browser is not drawing, since reading one in skipped content forces that content's
+   style and layout.
 
    Do not read `getBoundingClientRect()` directly when the target may generate no box.
    A `display: contents` element reports an origin-like zero rectangle that does not
@@ -408,49 +410,14 @@ export function landingInsets(scroller) {
     left: inset("Left"),
   };
 }
-// Whether `el` stands in content the browser skips: what a `content-visibility: hidden`
-// box holds, which a hidden tab's panel (`hidden="until-found"`) is, and a closed
-// disclosure's content. The browser leaves skipped content unstyled and unlaid, and one
-// question about any box inside — its computed style, its rect, its scroll offsets —
-// makes it style and lay out that whole subtree first to answer. On the corpus, whose
-// examples each stand in a hidden tab, those forced passes were most of a revision's
-// style time. So a reading that has nothing to say about a box on no screen — where it
-// stands, whether it scrolls, what room it takes — asks this first and leaves the box
-// out until a pass after it is drawn: revealing a panel or opening a disclosure resizes
-// what holds it, which brings those passes round. A reading that marks what the user
-// will see once it is drawn (an anchor's outline) still asks, and pays.
-//
-// Answered without forcing anything: `checkVisibility` reads the tree the browser has,
-// and is false for a box that is not drawn for any reason. The nearest drawn ancestor
-// says which reason — a box skipping what it holds, or `display: none`/`contents` on
-// the way down, which are not skipped and cheap to ask about — and it is drawn, so its
-// own style is not skipped either. A disclosure skips through a pseudo-element of its
-// own, so it is asked by its state rather than by its style.
-export const skipped = (el) =>
-  document.documentElement.lfInitial.skipped(el, renderedParent);
-// The box an element shows as. An element that generates none of its own — a
-// display: contents wrapper — shows as what its contents paint, so its bounds are
-// theirs, and a range asks the platform for that union in one read. Its own rect is
-// (0,0) at the document's origin, which is not a degenerate box but a wrong one: it
-// reads as a real place at the top of the page, so whatever measured it travelled there.
-//
-// No widget in the vocabulary displays as contents, but the wrong answer is the
-// platform's rather than any widget's: a page or a project layer styles any wrapper
-// this way in a line. So the answer is a fact about elements, kept here rather than in
-// one reader, and every reader asks this one function where an element is.
+// The box an element shows as (`elementBox`, shown-box.js), and for the document's
+// scroller the band of the window it shows.
 export function shownBox(el) {
   if (el === document.scrollingElement) {
     const { left, top, right, bottom } = shownBand(el);
     return new DOMRect(left, top, right - left, bottom - top);
   }
-  const r = el.getBoundingClientRect();
-  // A zero-sized box still belongs to its element. Only a boxless wrapper takes
-  // its bounds from contents, which a hidden-until-found panel deliberately skips.
-  if (r.width || r.height || skipped(el) || getComputedStyle(el).display !== "contents")
-    return r;
-  const contents = document.createRange();
-  contents.selectNodeContents(el);
-  return contents.getBoundingClientRect();
+  return elementBox(el);
 }
 // The same reading in elements rather than pixels, for the marks the runtime paints on
 // the page's own elements: an outline needs a box to hang on, so a mark aimed at a

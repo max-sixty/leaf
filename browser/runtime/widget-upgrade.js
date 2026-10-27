@@ -1,14 +1,21 @@
-/* The upgrade lifecycle every behavior module shares.
+/* The upgrade lifecycle every behavior module shares, in a form any document can load:
+   it imports nothing Leaf composes into a page, so a widget built on it also runs on a
+   plain HTML page that maps `/runtime/` with its own import map (portable-api.js).
 
    A module defines its custom element once and makes `connectedCallback` safe to run
    after reconnection, using `once(el)` for generated chrome so reconnecting does not
    duplicate it. A failed upgrade becomes a visible error box (`failSoft`) rather than
-   a blank page, and reaches the agent as the page's error; widgetController owns
-   asynchronous presentation. */
-import { reportPageError } from "./layer-client.js";
+   a blank page.
+
+   The widget tells its host what Leaf needs to hear through standard events on itself,
+   which Leaf reads from outside and a plain page may ignore. A failure is an `error`
+   ErrorEvent, bubbling and composed, which a Leaf page reports to the agent as the
+   page's error, naming the widget (layer-client.js). Drawing still under way is a
+   `pending-task` event (`PendingTaskEvent`), the Web Components Community Group's draft
+   protocol for a component's asynchronous work, whose `complete` promise Leaf holds the
+   widget's presentation on (widget-controller.js). An element that is not in a document
+   when it dispatches either reaches no one. */
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
-import { render } from "/runtime/framework.js";
-import { shadowStage } from "./shadow-stage.js";
 
 const initialized = new WeakSet();
 
@@ -37,13 +44,22 @@ export const dataBody = (el) => el.querySelector(":scope > pre").textContent;
 // such as a diff or exact Markdown source, read `dataBody` instead.
 export const bodyText = (el) => dataBody(el).replace(/^\n+/, "").trimEnd();
 
+// Drawing an element has under way, as the community protocol spells it: `complete`
+// settles once the drawing is in, or the element shows why it could not draw.
+export const PENDING_TASK = "pending-task";
+export class PendingTaskEvent extends Event {
+  constructor(complete) {
+    super(PENDING_TASK, { bubbles: true, composed: true });
+    this.complete = complete;
+  }
+}
+
 // A failed upgrade becomes a visible error box rather than a blank page. A widget failure
 // may failSoft its own element, or a part of it, so the rest of the page and Threads
 // remain usable, but it does not convert a partial state read into a committed one. The
 // box is where the user is looking; the agent that wrote the widget hears the same
-// failure as the page's error, through reportPageError, which is also what `page check`
-// fails on wherever it runs the page. Both name the widget the failing element belongs to, and the report adds its
-// id, since that is how the agent finds it.
+// failure as the page's error, which is also what `page check` fails on wherever it
+// runs the page.
 export function failSoft(el, err, source) {
   reportFailure(el, err);
   showFailure(el, `<${widgetOf(el).localName}> failed: ${err?.message || err}`, source);
@@ -52,11 +68,21 @@ export function failSoft(el, err, source) {
 // The report alone, for a widget that shows a part's failure its own way, such as a
 // diff file whose patch it cannot draw beside the files it can.
 export function reportFailure(el, err) {
-  const owner = widgetOf(el);
-  reportPageError(
-    err,
-    `<${owner.localName}${owner.id ? ` id="${owner.id}"` : ""}> failed`,
+  el.dispatchEvent(
+    new ErrorEvent("error", {
+      error: err,
+      message: err?.message ?? String(err),
+      bubbles: true,
+      composed: true,
+    }),
   );
+}
+
+// How a failure names its widget to the agent: by tag and id, since that is how the
+// agent finds it.
+export function failureContext(el) {
+  const owner = widgetOf(el);
+  return `<${owner.localName}${owner.id ? ` id="${owner.id}"` : ""}> failed`;
 }
 
 // The box alone, for the presentation coordinator's fallback: the coordinator reports
@@ -73,12 +99,15 @@ const widgetOf = (el) => {
 };
 
 // An owner that keeps the nodes it drew through a failure places the box itself, beside
-// them, rather than have them replaced by it. LeafElement and native renderers can
-// retain nodes that no later draw would make again. The owner's placer
-// answers whether it placed the box; otherwise the box goes where it would for any
-// widget.
+// them, rather than have them replaced by it: LeafElement and native renderers retain
+// nodes no later draw would make again, and a shadow stage shows only what it holds
+// (shadow-stage.js). Each placer answers whether it placed the box, in the order the
+// owners took the element on, so an owner can leave a case to the next. With none
+// placing it, the box replaces the element's children, and the widget's next draw of
+// them replaces the box.
 const placers = new WeakMap();
-export const placesFailure = (el, place) => placers.set(el, place);
+export const placesFailure = (el, place) =>
+  placers.set(el, [...(placers.get(el) ?? []), place]);
 
 function showFailure(el, text, source) {
   const box = document.createElement("div");
@@ -89,24 +118,15 @@ function showFailure(el, text, source) {
     pre.textContent = source;
     box.append(pre);
   }
-  if (placers.get(el)?.(box)) return;
-  // An x-shadow widget shows only what its stage holds, so the box stands there, and
-  // the widget's next stage replaces it.
-  if (el.shadowRoot) {
-    shadowStage(el, [box]);
-    return;
-  }
-  // Rendered as a template value, so the widget's next template render replaces it.
-  // A native renderer may have replaced the children since a template last owned them,
-  // leaving Lit's cached part pointing at markers no longer here.
+  if (placers.get(el)?.some((place) => place(box))) return;
   releaseTemplate(el);
-  el.replaceChildren();
-  render(box, el);
+  el.replaceChildren(box);
 }
 
-// End a template's ownership of `el`: Lit's public RootPart.setConnected(false)
-// disconnects its directives, but render() has no public reset, so its pinned,
-// deliberately unminified cache key goes too, letting the next render start afresh.
+// End a template's ownership of `el`, whose nodes the box replaces: Lit's public
+// RootPart.setConnected(false) disconnects its directives, but render() has no public
+// reset, so its pinned, deliberately unminified cache key goes too, and a template
+// drawn there again starts afresh, after the box.
 function releaseTemplate(el) {
   const part = el._$litPart$;
   if (!part) return;

@@ -132,7 +132,8 @@ import { claimed, revealHeld } from "../thread/surfaces.js";
 
 import { createMarginClusterViews } from "./margin-cluster-view.js";
 
-import { seenRect, shownWindow, skipped, watchRoom } from "../geometry.js";
+import { seenRect, shownWindow, watchRoom } from "../geometry.js";
+import { skipped } from "../shown-box.js";
 
 import { hostIn, renderedUnder, under } from "../shadow.js";
 import { retainUserIntent } from "../user-intent.js";

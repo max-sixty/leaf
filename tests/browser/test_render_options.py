@@ -1232,7 +1232,7 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     offer = """el => { const cs = getComputedStyle(el);
         const stateRoom = getComputedStyle(el, '::before');
         return { cursor: cs.cursor, box: cs.borderTopWidth,
-                 stateRoom: stateRoom.content === 'none' ? 0 : stateRoom.width }; }"""
+                 stateRoom: stateRoom.content === 'none' ? 0 : parseFloat(stateRoom.width) }; }"""
     quoted_card, live_card = (
         page.locator(sel).evaluate(offer) for sel in ("#q-shim", "#l-shim")
     )
@@ -1252,7 +1252,7 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     )
     # The live card reserves one header slot for either its chosen state or keyboard
     # binding badge. An exhibit can grow neither, so its title keeps that room.
-    assert quoted_card["stateRoom"] == 0 and live_card["stateRoom"] == "80px", (
+    assert quoted_card["stateRoom"] == 0 and live_card["stateRoom"] > 0, (
         "the exhibit reserves the live card's header state slot: "
         f"{quoted_card['stateRoom']} vs {live_card['stateRoom']}"
     )

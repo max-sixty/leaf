@@ -409,7 +409,9 @@ export function presentContributionEntry(control, offered, options = {}) {
   render(
     html`${glyph}<span class="lf-margin-entry-space" aria-hidden="true"> </span
       ><span class="lf-margin-entry-label" aria-hidden="true"
-        ><span class="lf-margin-entry-label-word">${visibleLabel}</span>${
+        ><span class="lf-margin-entry-label-word" data-voice=${record.voice}
+          >${visibleLabel}</span
+        >${
           record.context
             ? html`<span class="lf-margin-entry-context">${record.context}</span>`
             : null

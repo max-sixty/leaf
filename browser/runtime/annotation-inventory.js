@@ -33,6 +33,7 @@ import {
   strongestWorkflow,
   todoLabel,
   workflowLabel,
+  workflowVoice,
 } from "./thread/workflow.js";
 import { renderedOrder, shadowHost, under } from "./shadow.js";
 import { placeOf } from "./current-target.js";
@@ -381,7 +382,11 @@ export function createAnnotationInventory({
         kind: face.kind,
         id: `acknowledgment:${receipt.id}`,
         text: labelWords(`${face.text} · ${account}`),
-        workflowFace: Object.freeze({ ...KINDS[face.kind], label: face.text }),
+        workflowFace: Object.freeze({
+          ...KINDS[face.kind],
+          label: face.text,
+          voice: workflowVoice(receipt),
+        }),
         workflowReceipt: receipt,
         ...(face.context ? { context: face.context } : {}),
         activate: () =>

@@ -2514,7 +2514,7 @@ def test_a_sample_in_a_reply_is_quoted_there_too(browser, serve):
     message = page.locator(".lf-msg:has(#rp-live)")
     status = message.locator(":scope > .lf-msg-head .lf-msg-sending")
     expect(page.locator("#rp-live > .lf-msg-sending")).to_have_count(0)
-    expect(status).to_have_text("Not seen yet")
+    expect(status).to_have_text(re.compile(r"^Queued for "))
     record_claim(d)
     with service_model.PageTransaction(d) as transaction:
         delivery_model.record_pickup(transaction, actions)
@@ -2616,7 +2616,7 @@ def test_a_thread_obligations_done_press_keeps_its_keys_and_one_workflow(
     )
     statuses = message.locator(":scope > .lf-msg-head .lf-msg-sending")
     expect(statuses).to_have_count(1)
-    expect(statuses).to_have_text("Not seen yet")
+    expect(statuses).to_have_text(re.compile(r"^Queued for "))
 
 
 def test_an_answered_cards_badges_keep_their_seats_beside_a_pin(browser, serve):
@@ -2636,7 +2636,7 @@ def test_an_answered_cards_badges_keep_their_seats_beside_a_pin(browser, serve):
     page.keyboard.press("2")
     expect(page.locator("#ar-canary-suppress")).to_have_attribute("chosen", "")
     # The answer's pin stands in the first card's corner, where the seats are.
-    expect(page.locator('.lf-margin-entry[aria-label^="Not seen yet"]')).to_be_visible()
+    expect(page.locator('.lf-margin-entry[aria-label^="Queued for "]')).to_be_visible()
     rendered(page)
     seats = page.evaluate(
         """() => [...document.querySelectorAll('#ar-canary-choice > lf-option')].map((o) => {

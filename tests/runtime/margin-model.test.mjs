@@ -231,7 +231,7 @@ test("thread aggregation preserves canonical user attention and obligation prece
 
 test("a thread's margin entry and Page Map row say the word Threads gives it", () => {
   // The server's attention for a thread an open to-do holds once the reply it
-  // answered has settled, and for one an agent is working on. Threads says To-do open
+  // answered has settled, and for one an agent is working on. Threads says Still to do
   // and Working on their cards; the margin and Page Map say the same of them.
   const working = Object.freeze({ id: "w", stage: "working", condition: null });
   const thread = (attention, { workflows = [], unread = 0, todos = [] } = {}) => ({
@@ -255,8 +255,8 @@ test("a thread's margin entry and Page Map row say the word Threads gives it", (
     return [readingContext({ items: [item] }), row.context];
   };
   assert.deepEqual(said(thread(waitingOnTodo, { todos: todo() })), [
-    "To-do open",
-    "To-do open",
+    "Still to do",
+    "Still to do",
   ]);
   assert.deepEqual(
     said(thread(waitingOnTodo, { todos: todo("Rebuilding it"), unread: 1 })),

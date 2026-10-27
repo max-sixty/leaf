@@ -181,6 +181,7 @@ import {
   todoLabel,
   workflowLabel,
   workflowStep,
+  workflowVoice,
 } from "./thread/workflow.js";
 import {
   messageReading,
@@ -1145,13 +1146,12 @@ export function createFloatingPanel({
   // me mark's dot counts it: the user chose (2026-10-25) that a resolved thread's unread
   // reply says nothing new. Rows name attention and drafts, and resolution where no
   // Resolved heading over them says it already.
-  const threadStatus = (thread, { headed }) =>
-    [
-      thread.resolved ? !headed && "Resolved" : threadAttention(thread)?.label,
-      draftHasContent(replyContext(thread.key)) && "Draft",
-    ]
-      .filter(Boolean)
-      .join(" · ");
+  const threadStatus = (thread, { headed }) => {
+    const attention = thread.resolved ? null : threadAttention(thread);
+    const word = thread.resolved ? !headed && "Resolved" : attention?.label;
+    const draft = draftHasContent(replyContext(thread.key)) && "Draft";
+    return html`${word ? html`<span data-voice=${attention?.voice ?? "agent"}>${word}</span>` : nothing}${word && draft ? " · " : ""}${draft || nothing}`;
+  };
   const rows = () => pageControls();
 
   // ---------- the views ----------
@@ -3015,6 +3015,7 @@ export function createFloatingPanel({
         }
       : {
           word: workflowLabel(item.workflow),
+          voice: workflowVoice(item.workflow),
           line: workflowStep(item.workflow),
           since: item.workflow?.ts ?? null,
         };
@@ -3316,7 +3317,7 @@ export function createFloatingPanel({
     if (list === "agent") {
       const work = workOn(item);
       end = html`<span class="lf-fp-value"
-        >${work.word}${
+        ><span data-voice=${work.voice ?? "agent"}>${work.word}</span>${
           work.since
             ? html` <span class="lf-fp-age">${shortAgo(work.since)}</span>`
             : nothing

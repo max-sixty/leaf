@@ -13,14 +13,18 @@
    surface; a thread's word is `threadAttention`'s label, which Threads states as its
    status and the margin and Page Map as its line (`margin-model.js`, `threadMarks`). */
 
-// Each stage as the agent would say it (glossary.md, "Reader-facing words"). Until the
-// agent has the update in a turn or its harness's queue, all it can say is that it
-// hasn't seen it, whether or not the server has logged it yet: the message drawn in
-// the thread already shows the user's own gesture, and the page's status says when a
-// send isn't getting through.
+import { agentName } from "../semantic-state.js";
+
+// Each stage the agent has the update at, as it would say it (glossary.md,
+// "Reader-facing words"). Before then the agent can say nothing about it, so Leaf
+// speaks, in its own voice (`workflowVoice`): the update waits for the agent, whether
+// or not the server has logged it yet, since the message drawn in the thread already
+// shows the user's gesture and the page's status says when a send isn't getting
+// through. The user chose this over the agent's "Not seen yet" (2026-10-27).
+const queuedFor = () => `Queued for ${agentName()}`;
 const STAGE_LABELS = Object.freeze({
-  sending: "Not seen yet",
-  sent: "Not seen yet",
+  sending: queuedFor,
+  sent: queuedFor,
   queued: "Up next",
   picked_up: "Got it",
   working: "On it",
@@ -35,8 +39,8 @@ const CONDITION_LABELS = Object.freeze({
   failed: "Failed",
 });
 
-// An update still unseen past the pickup grace (`activity.PICKUP_GRACE`).
-const WAITING_FOR_DELIVERY = "Still not seen";
+// An update still waiting past the pickup grace (`activity.PICKUP_GRACE`).
+const waitingForDelivery = () => `Still queued for ${agentName()}`;
 // A failed response's word, on its workflow and on the failure reply that reports it.
 export const NOT_ANSWERED = "Couldn't answer";
 
@@ -45,14 +49,20 @@ export const workflowLabel = (workflow, { answered = false } = {}) => {
   if (workflow.condition)
     return workflow.condition.kind === "stale" &&
       workflow.condition.operation === "delivery"
-      ? WAITING_FOR_DELIVERY
+      ? waitingForDelivery()
       : workflow.condition.kind === "failed" &&
           workflow.condition.operation === "response"
         ? NOT_ANSWERED
         : (CONDITION_LABELS[workflow.condition.kind] ?? "Failed");
   if (workflow.stage === "answered" && !answered) return "";
-  return STAGE_LABELS[workflow.stage] ?? "";
+  const label = STAGE_LABELS[workflow.stage] ?? "";
+  return typeof label === "function" ? label() : label;
 };
+
+// Who says a workflow's word: Leaf while the agent doesn't have the update, which a
+// surface sets apart in italic (`data-voice`, glossary.md), else the agent.
+export const workflowVoice = (workflow) =>
+  workflow && ["sending", "sent"].includes(workflow.stage) ? "leaf" : "agent";
 
 export const workflowTitle = (workflow) => {
   if (!workflow) return "";
@@ -107,8 +117,9 @@ export function strongestWorkflow(workflows) {
   return strongest;
 }
 
-// An open to-do's word, wherever it stands: Working while a start runs on it.
-export const todoLabel = (running) => (running ? "On it" : "To-do open");
+// An open to-do's word, wherever it stands: On it while a start runs on it, else what
+// it means for the user's request, which the user chose over "To-do open" (2026-10-27).
+export const todoLabel = (running) => (running ? "On it" : "Still to do");
 
 export function threadAttention(thread) {
   if (thread.resolved) return null;
@@ -140,6 +151,7 @@ export function threadAttention(thread) {
     return Object.freeze({
       kind: "needs_user",
       label: nextMove,
+      voice: "agent",
       workflow,
       secondary: [answering ? "" : workflowLabel(workflow), workflowLabel(secondary)]
         .filter(Boolean)
@@ -154,6 +166,7 @@ export function threadAttention(thread) {
     return Object.freeze({
       kind: "waiting",
       label: todoLabel(running),
+      voice: "agent",
       workflow: null,
       secondary: running?.text ?? title,
     });
@@ -164,6 +177,7 @@ export function threadAttention(thread) {
       label:
         workflowLabel(workflow) ||
         (thread.attention.reason === "uncertain" ? "Uncertain" : "Waiting"),
+      voice: workflowVoice(workflow),
       workflow,
       secondary: "",
     });

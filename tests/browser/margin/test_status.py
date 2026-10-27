@@ -763,7 +763,7 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
 def test_a_thread_an_open_to_do_holds_says_so_beside_the_page(browser, serve):
     """A thread with no title yet, held by a to-do its agent opened, reads as
     Threads states it on every surface that shows it: the margin entry's line, which
-    its name says too, and its Page Map row say To-do open as the card's status does,
+    its name says too, and its Page Map row say Still to do as the card's status does,
     and Threads, Page Map and the activity feed name the thread by the words its
     opening renders, not that opening's Markdown, until a title names it on all of
     them."""
@@ -810,8 +810,8 @@ def test_a_thread_an_open_to_do_holds_says_so_beside_the_page(browser, serve):
     )
     told(page)
     marker = page.locator('[data-lf-margin-for="bracket"] > .lf-margin-marker')
-    expect(marker.locator(".lf-margin-entry-context")).to_have_text("To-do open")
-    expect(marker).to_have_attribute("aria-label", re.compile(r"^Thread, To-do open,"))
+    expect(marker.locator(".lf-margin-entry-context")).to_have_text("Still to do")
+    expect(marker).to_have_attribute("aria-label", re.compile(r"^Thread, Still to do,"))
 
     page.locator("#feed .lf-activity-news").click()
     feed = page.locator("#feed .lf-activity-row", has_text="replied in")
@@ -820,7 +820,7 @@ def test_a_thread_an_open_to_do_holds_says_so_beside_the_page(browser, serve):
     page.keyboard.press("Shift+p")
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)
     row = dialog.locator('.lf-page-map-action[data-lf-map-item^="comment:"]')
-    expect(row.locator(".lf-page-map-action-context")).to_have_text("To-do open")
+    expect(row.locator(".lf-page-map-action-context")).to_have_text("Still to do")
     expect(row.locator(".lf-page-map-action-label-word")).to_have_text(named)
     page.keyboard.press("Escape")
     expect(dialog).to_be_hidden()
@@ -829,7 +829,7 @@ def test_a_thread_an_open_to_do_holds_says_so_beside_the_page(browser, serve):
     panel_settled(page, view="threads")
     listed = page.locator(f'.lf-fp-thread[data-key="{root["id"]}"]')
     expect(listed.locator(".lf-fp-label")).to_have_text(named)
-    expect(listed.locator(".lf-fp-value")).to_contain_text("To-do open")
+    expect(listed.locator(".lf-fp-value")).to_contain_text("Still to do")
 
     # A title names it on every surface, the margin's included.
     append_carried_log_record(

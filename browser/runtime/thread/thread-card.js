@@ -57,7 +57,7 @@ import { settleThread } from "./folding.js";
 import { iconTemplate } from "../icons.js";
 import { answeredInWords } from "../obligations/model.js";
 import { SAY_BOX } from "./selectors.js";
-import { threadAttention, workflowLabel } from "./workflow.js";
+import { threadAttention, todoLabel, workflowLabel } from "./workflow.js";
 import { growthIsSeen, shownRect } from "../geometry.js";
 import { ago, shortAgo } from "../presence.js";
 import { retainUserIntent } from "../user-intent.js";
@@ -237,7 +237,7 @@ export function threadReading(thread, surface, commands) {
     asking.has(message.id)
       ? "Waiting on me"
       : message.todo && openTodos.has(message.id)
-        ? "To-do open"
+        ? todoLabel(null)
         : null;
   // Completion comes from the server, including the provisional answer. A held
   // reading keeps progress until its completing reply is among the messages shown.

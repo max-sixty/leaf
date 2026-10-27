@@ -1191,7 +1191,7 @@ flowchart TD
                   <tr id="ontology-workflow">
                     <td>Workflow</td>
                     <td>
-                      An unsettled update's delivery and work stage: Not seen yet, Up next, Got
+                      An unsettled update's delivery and work stage: Queued for Claude, Up next, Got
                       it, On it, Replying or Answered. Conditions report interruptions
                       or failures. The workflow names its thread and owed answer, if
                       any.
@@ -1700,8 +1700,9 @@ flowchart TD
             <ol id="progress-timeline">
               <li id="progress-sent">
                 <time>0s</time> <small>observation</small>
-                <strong>Not seen yet</strong> The comment appears in its thread
-                immediately, reading Not seen yet until the agent has it.
+                <strong>Queued for Claude</strong> The comment appears in its thread
+                immediately, reading <em>Queued for Claude</em> until the agent has
+                it.
               </li>
               <li id="progress-picked">
                 <time>1s</time> <small>observation</small> <strong>Got it</strong> The
@@ -1748,11 +1749,13 @@ flowchart TD
               </thead>
               <tbody>
                 <tr id="stages-sent">
-                  <td>Not seen yet</td>
+                  <td><em>Queued for Claude</em></td>
                   <td>
                     No harness has queued the update or put it into the agent's turn.
                     The label is the same while the browser is still sending it and
-                    once the server has added it to the page's event log.
+                    once the server has added it to the page's event log. It names
+                    the page's agent and is set in italic, as Leaf's own words are,
+                    since the agent can't yet be saying anything about the update.
                   </td>
                 </tr>
                 <tr id="stages-queued">
@@ -1818,8 +1821,8 @@ flowchart TD
                   <th colspan="2">Delayed, interrupted, or unanswered</th>
                 </tr>
                 <tr id="stages-pickup-late">
-                  <td>Still not seen</td>
-                  <td>The update is still Not seen yet two minutes after the user sent it.</td>
+                  <td><em>Still queued for Claude</em></td>
+                  <td>The update is still queued two minutes after the user sent it.</td>
                 </tr>
                 <tr id="stages-ended">
                   <td>Stopped</td>
@@ -2043,7 +2046,7 @@ flowchart TD
               Leaf shows work as active when a start is still current, when the harness
               reports a step in an active turn, or when that turn has received input
               requiring an answer. The freshness rules above determine when a start or
-              turn stops counting as active. Input is stalled if it remains Not seen yet for
+              turn stops counting as active. Input is stalled if it remains queued for
               two minutes, or if the turn that received it ends without answering. After
               about a minute, the status also shows the working reading's age, for
               example
@@ -2492,7 +2495,7 @@ flowchart TD
             <p id="browser-updates-drawn">
               A pick, drag or comment enters an ordered pending list. Its result appears
               in the sending task, before the next frame: the option is selected, the
-              card moves, or the comment appears reading Not seen yet (<a href="#stages"
+              card moves, or the comment appears reading Queued for Claude (<a href="#stages"
                 >Stages of an update</a
               >). Sent words leave the input but remain in the draft store until
               accepted.

@@ -962,7 +962,7 @@ def test_an_answer_says_what_it_leaves_while_that_stands(browser, serve, request
     page = open_page(browser, url)
     for root, reply, words, section in (
         (asked, question, "Waiting on me", "h-how"),
-        (promised, promise, "To-do open", "lede"),
+        (promised, promise, "Still to do", "lede"),
     ):
         open_margin_card(page, section)
         thread = page.locator(card_of(root))

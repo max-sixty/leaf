@@ -6,6 +6,7 @@ import {
   strongestWorkflow,
   threadAttention,
   workflowLabel,
+  workflowVoice,
 } from "../../browser/runtime/thread/workflow.js";
 import { foldThreads, readThreadRecords } from "../../browser/runtime/thread/model.js";
 import { isTurnEvent, turnMessage } from "../../browser/runtime/pending/model.js";
@@ -84,6 +85,20 @@ test("workflow labels retain exact input progress and positive conditions", () =
   );
 });
 
+// Until the agent has an update it can say nothing of it, so Leaf says the update waits
+// for the agent, in its own voice, sent or still sending, and again once it is late.
+test("an update the agent doesn't have yet is queued for it, in Leaf's voice", () => {
+  for (const stage of ["sending", "sent"]) {
+    assert.equal(workflowLabel(workflow(stage, stage)), "Queued for the agent");
+    assert.equal(workflowVoice(workflow(stage, stage)), "leaf");
+  }
+  const late = workflow("late", "sent", {
+    condition: { kind: "stale", operation: "delivery" },
+  });
+  assert.equal(workflowLabel(late), "Still queued for the agent");
+  assert.equal(workflowVoice(workflow("got", "picked_up")), "agent");
+});
+
 test("thread attention gives an open user obligation precedence over agent work", () => {
   const work = workflow("a", "working");
   const recovery = workflow("recovery", "sent", {
@@ -99,6 +114,7 @@ test("thread attention gives an open user obligation precedence over agent work"
   assert.deepEqual(threadAttention(thread), {
     kind: "needs_user",
     label: "Your turn",
+    voice: "agent",
     workflow: recovery,
     secondary: "On it",
   });
@@ -114,7 +130,8 @@ test("a thread an open to-do holds waits on the agent under the to-do's title", 
   };
   assert.deepEqual(threadAttention(thread), {
     kind: "waiting",
-    label: "To-do open",
+    label: "Still to do",
+    voice: "agent",
     workflow: null,
     secondary: "Rebuild the banner quieter",
   });
@@ -128,6 +145,7 @@ test("a frozen move that owes nothing leaves an owed thread on the user alone", 
   assert.deepEqual(threadAttention(record), {
     kind: "needs_user",
     label: "Your turn",
+    voice: "agent",
     workflow: null,
     secondary: "",
   });

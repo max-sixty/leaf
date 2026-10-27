@@ -271,10 +271,9 @@ def aged_entries(cache, ages):
 
 
 def test_eviction_keeps_recent_entries_and_drops_old_ones(tmp_path, monkeypatch):
-    """Entries past the cap go once unused for a day; a recent one stays."""
-    monkeypatch.setattr(distribution, "KEEP_ENTRIES", 1)
+    """An entry nothing has selected for hours goes, however few entries there are."""
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path.parent / "state"))
-    aged_entries(tmp_path, {"new": 0, "recent": 3600, "old": 3 * 86400})
+    aged_entries(tmp_path, {"new": 0, "recent": 3600, "old": 4 * 3600})
     distribution.evict(tmp_path)
     assert sorted(p.name for p in tmp_path.iterdir() if p.is_dir()) == [
         "new",
@@ -284,7 +283,6 @@ def test_eviction_keeps_recent_entries_and_drops_old_ones(tmp_path, monkeypatch)
 
 def test_eviction_keeps_an_entry_a_session_launches_from(tmp_path, monkeypatch):
     """A preview left open for days still runs from its entry."""
-    monkeypatch.setattr(distribution, "KEEP_ENTRIES", 0)
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
     cache = tmp_path / "cache"
     cache.mkdir()
@@ -304,7 +302,6 @@ def test_eviction_keeps_an_entry_a_session_launches_from(tmp_path, monkeypatch):
 
 def test_eviction_rechecks_age_after_a_reader_selects_the_entry(tmp_path, monkeypatch):
     """A reader that touches an entry while eviction waits for its lock keeps it."""
-    monkeypatch.setattr(distribution, "KEEP_ENTRIES", 0)
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
     aged_entries(tmp_path, {"old": 3 * 86400})
     flocked = distribution.flocked

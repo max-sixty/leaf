@@ -1,12 +1,10 @@
 import { closeLayer, currentLocationIn, focusDestination, handBack, openLayer, openerOf } from "./bundle-dom-move.js";
-import { requestJson, sessionIsActive } from "./bundle-layer-client.js";
-import { closeNativeLayer, showNativeLayer } from "./bundle-geometry.js";
-import { guard, html, nothing, offlineInteractive, pageUrl, render, runtime } from "./bundle-context.js";
-import { closeControl, el, reveal } from "./bundle-errors.js";
-import { chromeForeground, pageControls } from "./bundle-page-controls.js";
+import { closeControl, el, offerAction, offeredAction, requestJson, reveal, sessionIsActive } from "./bundle-layer-client.js";
+import { closeNativeLayer, guard, html, nothing, offlineInteractive, pageUrl, render, runtime, showNativeLayer } from "./bundle-geometry.js";
+import { chromeForeground, pageControls } from "./bundle-content-layout.js";
 import { copyControl, retainUserIntent, scrollIntoView } from "./bundle-copy-control.js";
-import { scrollBehavior } from "./bundle-motion.js";
-import { readCurrentUserView } from "./bundle-user-view2.js";
+import { scrollBehavior } from "./bundle-media.js";
+import { readCurrentUserView } from "./bundle-user-view.js";
 
 //#region runtime/copyable-text.js
 function copyableText(label, value) {
@@ -38,8 +36,7 @@ const copy = copyControl("", {
 	success: "Diagnostics copied",
 	error: "Diagnostics not copied. Select the report text to copy it manually."
 });
-const copyLabel = el("button", "lf-btn", "Copy diagnostics");
-copyLabel.type = "button";
+const copyLabel = offerAction("word", "", "Copy diagnostics");
 copy.append(copyLabel);
 const close = closeControl({
 	name: "Close about this page",
@@ -57,7 +54,9 @@ dialog.append(head, copyResult, scroll);
 for (const type of ["wa-copy", "wa-error"]) copy.addEventListener(type, () => {
 	if (!dialog.open) return;
 	const failed = type === "wa-error";
-	const fallback = failed ? html`<button class="lf-btn" @click=${selectReport}>Select report text</button>` : nothing;
+	const fallback = failed ? html`<button ${offeredAction("word")} @click=${selectReport}>
+          Select report text
+        </button>` : nothing;
 	render(html`<span>${failed ? copy.errorLabel : copy.successLabel}</span> ${fallback}`, copyResult);
 	if (copyResult.hidden) copyResult.hidden = false;
 });
@@ -113,7 +112,10 @@ const observations = (label, rows, describe) => html` <dt>${label}</dt>
       ${rows.length ? html`<ul>
               ${rows.map((row) => html` <li>
                     <code>${row.at}</code>: ${describe(row)}
-                    ${destinations.has(row) ? html`<button class="lf-btn" @click=${() => showOnPage(row)}>
+                    ${destinations.has(row) ? html`<button
+                            ${offeredAction("word")}
+                            @click=${() => showOnPage(row)}
+                          >
                             Show on page
                           </button>` : nothing}
                   </li>`)}
@@ -186,7 +188,7 @@ function present() {
         <h2>Authored CSS</h2>
         ${loading ? html`<p role="status">Reading source…</p>` : nothing}
         ${sourceError ? html`<p role="status">${sourceError}</p>
-                ${report.basis ? html`<button class="lf-btn" @click=${loadSource}>
+                ${report.basis ? html`<button ${offeredAction("word")} @click=${loadSource}>
                         Retry source inspection
                       </button>` : nothing}` : nothing}
         ${report.css ? html`

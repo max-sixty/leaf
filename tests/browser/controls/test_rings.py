@@ -7,12 +7,14 @@ from html import escape
 
 import pytest
 from interact_support import append_carried_log_record, element_declaration
+from journeys.test_render_controls import seen_stop
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_layout import (
     current_location_ring,
     mark_edges,
     ring_faults,
+    ring_rule,
     rings_drawn,
     token_colour,
 )
@@ -25,16 +27,38 @@ from render_harness import (
     open_page,
     open_threads,
     page_comment,
+    panel_settled,
     scroll_settled,
 )
 
 from browser.controls import (
     RING_NEW_STOP,
 )
+from browser.threads import open_panel_thread
 from leaf import data as data_model
 from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
+
+
+def test_the_ring_rule_reading_uses_browser_serialization(browser):
+    """Formatting cannot hide a matched ring rule or credit an unmatched selector."""
+    page = browser.new_page()
+    page.set_content("""
+      <style>
+        @scope (.surface) {
+          .absent, .carrier:has(
+            > :is(button,input)
+          )[data-note="x,  y"] { outline: var(--focus-ring); }
+        }
+      </style>
+      <div class="surface"><div class="carrier" data-note="x,  y">
+        <button>Read</button>
+      </div></div>
+    """)
+    assert ring_rule(page.locator(".carrier")) == (
+        '@scope (.surface) { .carrier:has(> :is(button, input))[data-note="x,  y"]'
+    )
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
@@ -220,6 +244,11 @@ def test_controls_show_keyboard_focus_without_ringing_pointer_activation(
   <lf-option id="focus-peer" for="focus-heading">Keep another option.</lf-option>
 </lf-options></lf-ask>
 <lf-shadow-focus id="focus-shadow"><button class="button" type="button">Shadow button</button></lf-shadow-focus>
+<lf-ask id="focus-open-decision"><h2>Which other option?</h2>
+<lf-options id="focus-open-options" choose>
+  <lf-option id="focus-open-choice">Keep this one.</lf-option>
+  <lf-option id="focus-open-peer">Keep that one.</lf-option>
+</lf-options></lf-ask>
 """,
             ),
             layer_registry={"lf-shadow-focus": declaration},
@@ -268,6 +297,7 @@ customElements.define('lf-shadow-focus', class extends HTMLElement {
         rendered(page)
         pointer = carrier.evaluate(paint)
         assert pointer["style"] == "none", pointer
+        expect(page.locator(".lf-visual-mark-focus")).to_have_count(0)
         drawn = rings_drawn(page)
         samples = [ring for ring in drawn if ring["sample"]]
         assert not samples, drawn
@@ -279,13 +309,33 @@ customElements.define('lf-shadow-focus', class extends HTMLElement {
         page.keyboard.press("Tab")
         expect(control).to_be_focused()
         rendered(page)
-        assert carrier.evaluate(paint)["style"] == "solid"
+        if control is button:
+            projected = page.locator(".lf-visual-mark-focus")
+            expect(projected).to_have_attribute("data-for", "focus-button")
+            assert (
+                projected.evaluate(
+                    "node => getComputedStyle(node, '::after').outlineStyle"
+                )
+                == "solid"
+            )
+        else:
+            assert carrier.evaluate(paint)["style"] == "solid"
         drawn = rings_drawn(page)
         assert len([ring for ring in drawn if ring["sample"]]) == 1, drawn
         assert not ring_faults(drawn, "after keyboard arrival")
 
     assert page.locator("#focus-shadow").evaluate(paint)["style"] == "none", (
         "retargeting focus to the widget host drew a second ring around its button"
+    )
+
+    # An On me arrival focuses the decision, and its location ring is its focus cue.
+    page.keyboard.press("m")
+    expect(page.locator("#focus-open-decision")).to_be_focused()
+    rendered(page)
+    drawn = rings_drawn(page)
+    assert len([ring for ring in drawn if ring["sample"]]) == 1, (
+        "the arrived-at decision wore a projected focus contour beside its location ring",
+        drawn,
     )
 
     select = page.locator("#focus-shadow wa-select")
@@ -327,6 +377,78 @@ customElements.define('lf-shadow-focus', class extends HTMLElement {
     assert not select.locator('[part~="combobox"]').evaluate(
         "el => el.part.contains('lf-focus-within')"
     ), "the field retained its public focus part after focus left"
+
+
+def _button_pairs(serve):
+    """A page holding two symbols, two worded buttons and a two-mode toggle."""
+    return serve(
+        leaf_page(
+            "Button pairs",
+            '<h1 id="pairs-heading">Button pairs</h1>\n<lf-button-pairs id="pairs"></lf-button-pairs>',
+        ),
+        layer_registry={
+            "lf-button-pairs": element_declaration("lf-button-pairs", upgrade=True)
+        },
+        layer_widgets={
+            "lf-button-pairs.js": """
+import {offerAction, once} from '/runtime/widget-api.js';
+customElements.define('lf-button-pairs', class extends HTMLElement {
+  connectedCallback() {
+    if (!once(this)) return;
+    for (const [id, role, icon] of [
+      ['quiet-back', 'symbol', 'previous'],
+      ['quiet-next', 'symbol', 'next'],
+      ['plain-back', 'word'],
+      ['plain-next', 'word'],
+      ['mode-on', 'word'],
+      ['mode-off', 'word'],
+    ]) {
+      const button = offerAction(role, '', id, {icon});
+      button.id = id;
+      if (id.startsWith('mode-')) button.setAttribute('aria-pressed', String(id === 'mode-on'));
+      this.append(button);
+    }
+  }
+});
+"""
+        },
+    )
+
+
+FACE = "el => getComputedStyle(el).backgroundColor"
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_pressed_quiet_action_looks_like_its_neighbour(request, serve, engine):
+    """A press leaves focus on a quiet action, as on any button, and leaves its face
+    alone: once the pointer goes, it matches the action beside it until a key moves
+    focus there, which wears the chip."""
+    page = open_page(request.getfixturevalue(engine), _button_pairs(serve))
+    back, forward = page.locator("#quiet-back"), page.locator("#quiet-next")
+    forward.click()
+    page.mouse.move(0, 0)
+    expect(forward).to_be_focused()
+    rendered(page)
+    assert forward.evaluate(FACE) == back.evaluate(FACE)
+    page.keyboard.press("Shift+Tab")
+    expect(back).to_be_focused()
+    rendered(page)
+    assert back.evaluate(FACE) != forward.evaluate(FACE)
+
+
+def test_a_tapped_button_looks_like_its_neighbour(browser, serve):
+    """A finger leaves the button it tapped matching :hover, so a tapped button of
+    either face keeps the face of the untapped one beside it."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, _button_pairs(serve), context=context)
+    for tapped, beside in (("quiet-next", "quiet-back"), ("plain-next", "plain-back")):
+        page.locator(f"#{tapped}").tap()
+        rendered(page)
+        assert page.locator(f"#{tapped}").evaluate(FACE) == page.locator(
+            f"#{beside}"
+        ).evaluate(FACE), tapped
 
 
 def test_choice_rings_fit_clipped_edges_and_follow_native_visibility(browser, serve):
@@ -426,15 +548,66 @@ def test_a_marked_element_draws_nothing_under_the_pointer(browser, serve):
         )
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_contour_stands_inside_a_target_its_clip_leaves_no_room_around(
+    request, serve, engine
+):
+    """A joined option group clips its cells to its frame, so the brackets of the thread
+    the user is in, drawn flush outside a cell, lost their sides and left stubs across
+    the neighbouring cells. Inside the frame they stand just within the cell's edge; a
+    paragraph with room around it is the control that keeps them outside."""
+    url = serve(
+        leaf_page(
+            "Contours",
+            """
+<h1>Contours</h1>
+<p id="said">A paragraph with room around it.</p>
+<lf-options id="pick" choose>
+  <lf-option id="keep"><strong>Keep</strong> the words alone.</lf-option>
+  <lf-option id="place" chosen><strong>Place</strong> them in the line.</lf-option>
+</lf-options>
+""",
+        )
+    )
+    for ident in ("said", "place"):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "id": f"on-{ident}",
+                "author": "user",
+                "revision": 1,
+                "text": "Say more about this.",
+                "anchor": {"section": ident},
+            },
+        )
+    page = open_page(request.getfixturevalue(engine), url)
+    for ident, inside in (("said", False), ("place", True)):
+        open_panel_thread(page, f"on-{ident}")
+        page.locator(".lf-fp-aux").get_by_role(
+            "button", name="Show on page", exact=True
+        ).click()
+        panel_settled(page, open=False)
+        mark = page.locator(f'.lf-visual-mark-here[data-for="{ident}"]')
+        expect(mark).to_be_visible()
+        room = mark.evaluate(
+            "n => { const s = getComputedStyle(n, '::after');"
+            " return parseFloat(s.outlineOffset) + parseFloat(s.outlineWidth); }"
+        )
+        assert (room <= 0) is inside, (ident, room)
+
+
 # A page holding a paragraph and one control, for the readings below that plant the
 # shape they are about rather than finding it in the product: which of the layer's
 # controls draws an inset ring, or names no z-index, moves with the product and is not
-# what these readings are held to.
+# what these readings are held to. A runtime control keeps its native carrier so
+# the probe can move and cover that carrier independently of target projection.
 RING_PROBE_PAGE = leaf_page(
     "ring",
     "<h1>Ring</h1><p>Words.</p>"
     '<div id="ring-holder"><button id="ring-control" type="button">Control</button></div>'
-    "<p>After.</p>",
+    "<p>After.</p>"
+    '<script type="module">document.getElementById("ring-control").classList.add("lf-ui");</script>',
 )
 
 
@@ -492,95 +665,41 @@ def test_the_ring_reading_names_every_way_a_box_can_draw_nothing_past_its_edge(
         )
 
 
-def test_the_ring_reading_distinguishes_element_marks_from_focus(browser, serve):
-    """The reading ignores element contours and still recognizes the real focus ring.
-
-    A hovered passage deliberately shares the ring's accent and width but its rule
-    writes the contour out rather than drawing the ring's token, so the browser's
-    answer for which rule drew it keeps it out of the population of keyboard rings. The
-    focus state on that same element, a token ring on a plain box, and a contour on a
-    focused mark follow as positive controls; without them a reading that ignored all
-    element contours would pass the first case and prove only that it was silent."""
-    example = next(e for e in EXAMPLES if e.stem == "release-notes")
-    url = serve(example, comments=2, seed_log=False)
-    page = open_page(browser, url)
-    any_suggestion_control(page, "accept").first.focus()
-
-    plant = """(how) => {
-      const box = document.querySelector('main p');
-      box.classList.toggle('probe-target', true);
-      for (const name of ['lf-mark-el', 'lf-mark-hover'])
-        box.classList.toggle(name, false);
-      box.toggleAttribute('data-lf-focus-visible', how === 'focused mark');
-      box.style.outline = '';
-      // Keep the paints identical so the mark's role is what excludes it.
-      box.style.setProperty('--mark-contour-w', 'var(--focus-ring-w)');
-      box.style.setProperty('--mark-contour-ink', 'var(--accent)');
-      if (how === 'mark') box.classList.add('lf-mark-el', 'lf-mark-hover');
-      if (how === 'focused mark') box.classList.add('lf-mark-el');
-      if (how === 'the ring itself') box.style.outline = 'var(--focus-ring)';
-      if (how === 'contour on a focused mark') {
-        box.classList.add('lf-mark-el');
-        box.style.outline = 'var(--focus-ring-w) solid var(--accent)';
-        box.tabIndex = -1;
-        box.focus();
-      }
-      const cs = getComputedStyle(box);
-      return [cs.outlineStyle, cs.outlineWidth, cs.outlineColor];
-    }"""
-
-    def claimed():
-        """The reading's ring claims for this one box.
-
-        Asked of the box rather than of how many rings the page has: the runtime
-        repaints the panel on its own schedule, so two whole-page counts taken a moment
-        apart differ for reasons that have nothing to do with what was planted here.
-        """
-        return [
-            seen
-            for seen in rings_drawn(page)
-            if seen["here"] and "probe-target" in seen["who"]
-        ]
-
-    page.evaluate(plant, "none")
-    assert not claimed(), "the box is called a ring before anything is painted on it"
-    current_location = current_location_ring(page)
-    assert current_location and current_location["here"], (
-        "no ring is painted with the keyboard on a control, so the reading is silent "
-        "here and would pass this test however it behaved"
+def test_the_ring_reading_distinguishes_target_brackets_from_focus(browser, serve):
+    """Shared outline ink identifies a target; only its full focus state is a ring."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Target rings",
+                '<h1>Target rings</h1><button id="target">Review</button>',
+            )
+        ),
     )
-
-    mark_paint = page.evaluate(plant, "mark")
-    style, _width, colour = mark_paint
-    assert style == "solid", "the element comment lost its complete contour"
-    assert not claimed(), (
-        f"the reading counted the mark ({colour}) as a focus ring: {claimed()}"
+    target = page.locator("#target")
+    target.hover()
+    page.keyboard.down("Alt")
+    aim = page.locator(".lf-aim")
+    expect(aim).to_have_attribute("data-for", "target")
+    assert (
+        aim.evaluate("node => getComputedStyle(node, '::before').outlineStyle")
+        == "solid"
     )
-
-    _style, _width, colour = page.evaluate(plant, "focused mark")
-    focused_claims = claimed()
-    assert [".lf-mark-el" in seen["rule"] for seen in focused_claims] == [True], (
-        f"the marked element's focus ring ({colour}) was not credited to its rule: "
-        f"{focused_claims}"
+    assert not any("lf-aim" in seen["who"] for seen in rings_drawn(page))
+    page.keyboard.up("Alt")
+    page.keyboard.press("Tab")
+    expect(target).to_be_focused()
+    rendered(page)
+    ring = current_location_ring(page)
+    assert ring and ring["here"] and ring["pseudo"] == "after", ring
+    assert "lf-visual-mark-focus" in ring["who"], ring
+    assert ring["cuts"] == ring["covers"] == [], ring
+    assert seen_stop(page) is None
+    page.locator(".lf-visual-mark-focus").evaluate(
+        "node => node.style.setProperty('--lf-target-outline', 'none')"
     )
-
-    ring_paint = page.evaluate(plant, "the ring itself")
-    assert mark_paint == ring_paint, (
-        f"the mark paints {mark_paint} and the ring paints {ring_paint}, so the mark "
-        "case above was kept out by paint rather than by the element-feedback role "
-        "this reading now divides on"
-    )
-    ring_claims = claimed()
-    assert [seen["rule"] for seen in ring_claims] == ["style attribute"], (
-        f"a box wearing the layer's own ring ({ring_paint}) was not counted, so the cases "
-        "above prove only that this reading is silent"
-    )
-
-    focused_mark_paint = page.evaluate(plant, "contour on a focused mark")
-    focused_mark_claims = claimed()
-    assert [seen["rule"] for seen in focused_mark_claims] == [""], (
-        f"a focused element mark wearing a contour no ring rule drew "
-        f"({focused_mark_paint}) was not counted: {focused_mark_claims}"
+    assert seen_stop(page), (
+        "the focused target has no ring, but the stop reading accepts it"
     )
 
 
@@ -1093,7 +1212,9 @@ def test_the_ring_reading_measures_a_displaced_pseudo_element(browser, serve):
     """A pseudo's ring is checked where it paints, even outside its originating box."""
     page = open_page(browser, serve(RING_PROBE_PAGE))
     page.evaluate("""() => {
-      const sheet = document.head.appendChild(document.createElement('style'));
+      const sheet = document.createElement('style');
+      sheet.setAttribute('data-controls', '');
+      document.head.append(sheet);
       sheet.textContent = `
         #ring-holder { position: relative; height: 200px; }
         #ring-control { outline: none; }
@@ -1118,3 +1239,16 @@ def test_the_ring_reading_measures_a_displaced_pseudo_element(browser, serve):
         width: 120px; height: 2px;`;
     }""")
     assert any("top edge is under" in c for c in current_location_ring(page)["covers"])
+
+
+def test_a_quiet_toggle_still_shows_its_chosen_mode(browser, serve):
+    """Words are quiet, with no frame at rest, so a mode toggle's chosen mode draws its
+    own selected face: a frame and ground the unchosen word beside it lacks."""
+    page = open_page(browser, _button_pairs(serve))
+    page.mouse.move(0, 0)
+    rendered(page)
+    face = "el => [getComputedStyle(el).borderTopColor, getComputedStyle(el).backgroundColor]"
+    chosen = page.locator("#mode-on").evaluate(face)
+    other = page.locator("#mode-off").evaluate(face)
+    assert other == page.locator("#plain-back").evaluate(face)
+    assert chosen[0] != other[0] and chosen[1] != other[1], (chosen, other)

@@ -486,3 +486,14 @@ test("a landing built away from its close runs only as a layer closes", () => {
   );
   assert.equal(focused(), first);
 });
+
+test("a failed focus arrival publishes the departure to the document", async () => {
+  const { first, other } = scene();
+  focusDestination(first, "move");
+  heard.length = 0;
+  other.addEventListener("focus", () => other.remove(), { once: true });
+  other.focus();
+  await settled();
+  assert.equal(focused(), document.body);
+  assert.deepEqual(heard, [[null, "move"]]);
+});

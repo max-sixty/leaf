@@ -46,7 +46,8 @@ Preact Signals it exports `signal`, for private state a command's `when` reads
 - Check `quoted()` before wiring anything that sends input back ("Upgrade").
 - Read the page's words with `says()` or `wrote()`, never `textContent`
   (`module-reading.md`, "Reading the page").
-- Build injected controls with `offer()`, `offered` or `selectableOffer()`, label
+- Build injected controls with `offer()`, `offered` or `selectableOffer()`, a press
+  that looks like Leaf's controls with `offerAction()` or `offeredAction` by its role, label
   them with `relabel()`, and mark other words the widget writes with
   `generatedElement()` or `generated` ("Generated controls").
 - Keep the box the widget has at first paint ("First paint").
@@ -170,7 +171,7 @@ moving anything. `leaf package check --render` reports a widget that moves as
   values (`module-state.md`, "Tab-local working state") goes in `x-initial`: the path of
   a committed classic script that calls
   `document.documentElement.lfInitial.register(tag, render)`. Delivery calls
-  `render(host, {tabStore, offer, offerElement, generatedElement, keeps, authoredBody})`
+  `render(host, {tabStore, offer, offerElement, offerAction, generatedElement, keeps, authoredBody})`
   as soon as each host's markup arrives, so the widget first appears whole. `render` is
   synchronous, fetches nothing and reads nothing from the log; it may move authored
   nodes within the host. To put every authored child inside a box it builds, as
@@ -192,7 +193,8 @@ moving anything. `leaf package check --render` reports a widget that moves as
 - A widget that shows one member at a time, as `lf-tabs` does, declares `x-views`.
   Before upgrade only the member marked `data-lf-opening` shows; on upgrade, open the
   member `openingView(holder, members)` returns, and record each member it shows with
-  `keepView(holder, member)` so a reload reopens it. A holder whose members share the
+  `keepView(holder, member)` so a reload reopens it. Pass `null` as a third argument
+  to get null where neither the address nor the tab names a member, and choose then. A holder whose members share the
   surrounding page's flow declares `--lf-views-flow: page` in its stylesheet (the
   default is `box`), so Layouts can seat a member's sidebar in the page margin.
 
@@ -242,14 +244,18 @@ nodes)` edits only changed text and keeps a text selection the user made in it.
 These helpers, `render` and `repeat` keep the user's focus in a moved node, so a reorder
 needs no `holdFocus`; a plain `append` or `insertBefore` of a node already in the page
 blurs it. A moved editable loses its selection even under `moveBefore`, so a
-custom element holding a `LeafEditorView` calls the view's `placeSelection()` from its
-`connectedMoveCallback`.
+custom element holding a Leaf editor view (`leafEditorView()`) calls the view's
+`placeSelection()` from its `connectedMoveCallback`.
 
 ### Shadow stages and styles
 
 Build an `x-shadow` widget's shadow root with `shadowStage(host, nodes)`, never
 `attachShadow`; it applies the theme's styles and returns the root. For a template,
 stage a container with `shadowStage(host, [container])` and render into that container.
+
+An `x-shadow` widget slots none of its authored children, so `shadowStage` removes them
+all from the host on every call (WebKit unloads the frames in a shadow tree when a host
+is cleared any other way). Read what the widget needs from them before the first stage.
 
 Wrap stylesheet text the module writes itself in `inBaseLayer(css)`, so its rules sit in
 the theme's `lf-base` cascade layer, below Layouts, theme packages and the page's own
@@ -334,10 +340,28 @@ a compound widget delegates events to its own controls.
 `offer(tag, className, label, inputType, pressable)` makes a native control, or a box of
 controls, marked as Leaf-generated; the browser keeps its activation, focus and
 accessibility. `inputType` is for an `input`. Pass `pressable: true` for a custom element
-whose host implements `focus()` and `click()`. In a template, `<button
-${offered("lf-btn")}>` does the same, with an input's `type` binding placed before
-`offered`. Shared control styles (`page-layout.md`, "Page CSS and Leaf's controls")
-apply to generated controls too.
+whose host implements `focus()` and `click()`. In a template, `<div
+${offered("my-tools")}>` does the same, with an input's `type` binding placed before
+`offered`.
+
+A button that looks like Leaf's own controls is built by its role, so every control of
+one kind wears one face: `offerAction(role, className, label, {title, icon})`, or
+`<button ${offeredAction(role, className, label)}>` in a template. The roles are:
+
+- `"symbol"`, a press drawn as one of Leaf's icons (`icon`; `module-reading.md`,
+  "Icons"). `label` is its tooltip and accessible name, and `title` replaces the
+  tooltip where it says more, such as the key that does the same. In a template, put
+  `${iconTemplate(name, "lf-action-icon")}` inside the button.
+- `"word"`, a press that says what it does, a row of a list or menu included; `label`
+  is its words. A toggle is a word with `aria-pressed`, which draws as selected.
+- `"commit"`, the one press on a surface that commits the user's work.
+- `"mark"`, a small symbol seated on the thing it acts on, at its corner.
+
+`className` places the control; don't restyle its face. Use a symbol where a standard
+symbol for the action exists, one readers know from other software, and words where
+none does.
+Shared control styles (`page-layout.md`, "Page CSS and Leaf's controls") apply to
+generated controls too.
 
 A control whose label is the page's own words, such as a tab's name, must stay
 selectable, so build it with `selectableOffer(role, className, label)`, a focusable span

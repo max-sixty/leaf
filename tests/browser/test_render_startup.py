@@ -30,7 +30,7 @@ def test_a_page_hears_again_when_its_server_comes_back(browser, serve):
     url = serve(LONG_PAGE)
     page = open_page(browser, url)
     status = page.locator(".lf-fp-leaf")
-    offline = re.compile("Server offline")
+    offline = re.compile("Lost the connection")
     port = serve.httpd.server_address[1]
     next(server for server in serve.servers if server.httpd is serve.httpd).close()
     expect(status).to_have_attribute("aria-label", offline)

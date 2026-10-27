@@ -181,7 +181,6 @@ export function createMarginProjection({
     inventory,
     renderMarginThread,
     placedAt,
-    openPageThread,
     scrollThreadIntoView,
     scrollToElement,
     openInPanel,

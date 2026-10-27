@@ -51,12 +51,12 @@
    placement, independently of whichever view draws a Thread. */
 import { aborted } from "../abort.js";
 import { threadDraft } from "../drafts.js";
-import { focused } from "../focus.js";
+import { focused, onCurrentLocation } from "../focus.js";
 import { presented } from "../geometry.js";
 import { restrictUserIntent, retainUserIntent } from "../user-intent.js";
 import { replyAvailable, replyThreadKey } from "./replies.js";
 import { allThreads, threadIdNamed, threadNamed } from "./state.js";
-import { heldThread } from "./focus.js";
+import { heldThread, threadIn } from "./focus.js";
 import { showHeld, showHeldThread } from "./held-news.js";
 import { revealHeld, surfaceFocusTarget } from "./surfaces.js";
 import { reveal } from "../widget-elements.js";
@@ -106,12 +106,12 @@ export function createThreadDestinations({
   // and a widget may seat its threads beside it, as lf-diff does under a line; where
   // several are drawn there, the user is at none of them. Chrome standing at no place
   // is at none. Returning to the page can leave a margin card open with focus on the
-  // body, and its visible conversation remains the current one in that state.
-  const threadHere = () => {
-    const held = heldThread();
+  // body, and its visible conversation remains the current one in that state. A walk
+  // asks the same of the node its origin was read from (current-target.js).
+  const threadHere = (active = focused()) => {
+    const held = threadIn(active);
     if (held) return held;
     const shown = preview?.accompanied() ?? null;
-    const active = focused();
     if (!active || active === document.body) return shown;
     const ids = threadIdsAt(active);
     const drawn = [
@@ -121,13 +121,18 @@ export function createThreadDestinations({
     return drawn.length === 1 ? drawn[0] : null;
   };
   // Discussion identity precedes the view that realizes it: where no thread is shown,
-  // the first thread at the place. Reply availability narrows an editable destination
-  // without erasing the user's current location thread.
-  const threadAtCurrentLocation = () => {
-    const here = drawnThreadId(threadHere());
+  // the thread at the place the user was last in, else the first there, so a walk back
+  // to a place they let go of returns to the thread they left. Reply availability
+  // narrows an editable destination without erasing the user's current location thread.
+  let lastIn = null;
+  onCurrentLocation((node) => {
+    lastIn = drawnThreadId(threadIn(node)) ?? lastIn;
+  });
+  const threadAtCurrentLocation = (active = focused()) => {
+    const here = drawnThreadId(threadHere(active));
     if (here) return here;
-    const active = focused();
-    return (active && threadIdsAt(active)[0]) ?? null;
+    const ids = active ? threadIdsAt(active) : [];
+    return (ids.includes(lastIn) ? lastIn : ids[0]) ?? null;
   };
   const replyThreadAtCurrentLocation = () => {
     const id = threadAtCurrentLocation();

@@ -243,11 +243,11 @@ def test_a_coarse_pointer_keeps_useful_status_without_keyboard_hints(browser, se
 
     page.evaluate(
         """async () => {
-              (await window.__lfWidgetApi()).notice('Saved — sent');
+              (await window.__lfWidgetApi()).notice('Saved');
               dispatchEvent(new Event('resize'));
             }"""
     )
-    expect(panel_field(page)).to_have_attribute("placeholder", "Saved — sent")
+    expect(panel_field(page)).to_have_attribute("placeholder", "Saved")
 
     # And the page is still whole underneath. Everything that asks how far down the
     # page reaches asks it of the chrome's box, and one with no box answers 0 — the top

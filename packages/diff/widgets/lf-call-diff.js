@@ -25,7 +25,7 @@ import {
   LeafElement,
   navigateToDatum,
   nothing,
-  offer,
+  offerAction,
   setChildLists,
   setChildren,
   plainPress,
@@ -120,13 +120,9 @@ function buildToolbar(owner) {
   // quoting them: that is `.lf-ui`, which `lf-diff` adds beside it on its line numbers.
   const summary = el("p", "lf-call-summary");
   generatedElement(summary, { says: false });
-  // `offer`, not a bare button: the disclosure control is chrome this widget injected,
-  // and `offer` gives it the press markers the theme and the keyboard read.
-  const button = offer(
-    "button",
-    "lf-btn lf-icon-action lf-quiet-action lf-call-toggle",
-  );
-  button.type = "button";
+  // An offer, not a bare button: the disclosure control is chrome this widget injected,
+  // and the offer gives it the press markers the theme and the keyboard read.
+  const button = offerAction("symbol", "lf-call-toggle");
   button.addEventListener("click", () => {
     const groups = [...owner.querySelectorAll(":scope > .lf-call-group")];
     const open = groups.some((group) => !group.open);

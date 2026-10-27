@@ -25,6 +25,10 @@ def screenshot_judge(screenshots: Path | None, login: Path) -> dict:
         "config": {
             "model": JUDGE_MODELS["codex"],
             "codex_path_override": str(codex_program()),
+            # Promptfoo takes `@openai/codex-sdk` ^0.156.1 and checks for a CLI of
+            # exactly the SDK's version, but CLI 0.156.1 refuses the pinned model on
+            # a ChatGPT login, so the judge runs the host's newer CLI unchecked.
+            "skip_codex_version_check": True,
             "screenshots": str(screenshots) if screenshots is not None else None,
             "pythonExecutable": sys.executable,
             "login": str(codex_home(login)),

@@ -342,9 +342,7 @@ def test_a_transient_notice_does_not_move_generated_address_hints(browser, serve
 
     # The paint that can read a notice is the one taken while it shows, and only a
     # notice wide enough to reach under the hint could move it.
-    page.evaluate(
-        "async () => (await window.__lfWidgetApi()).notice('Moved to Done — sent.')"
-    )
+    page.evaluate("async () => (await window.__lfWidgetApi()).notice('Moved to Done.')")
     expect(page.locator(".lf-fp-field leaf-text")).to_have_attribute(
         "data-says", "notice"
     )

@@ -29,6 +29,7 @@ matching build is installed once with `playwright install chromium --only-shell`
 
 import base64
 import difflib
+import hashlib
 import io
 import itertools
 import json
@@ -1274,7 +1275,8 @@ def clean_browser(test=None):
     A worker runs one test at a time, so one process-local collector covers pages made
     by `WatchedBrowser`, render helpers, and tests that navigate a page
     themselves. The fixture hands over its `test` node to select shift coverage
-    (`watches_shifts`); every problem a watch reports reaches this collector.
+    (`watches_shifts`); every problem a watch reports reaches this collector. A test
+    that failed or left problems leaves a picture of each page (`_picture_pages`).
     """
     global _BROWSER_PROBLEM_LISTS, _TEST
     assert _BROWSER_PROBLEM_LISTS is None, "browser problem collector already active"
@@ -1291,7 +1293,29 @@ def clean_browser(test=None):
         for page, problem_list in captured
         for problem in problem_list
     ]
+    if test is not None and (problems or getattr(test, "lf_failed", False)):
+        _picture_pages(test, [page for page, _ in captured])
     assert not problems, "\n".join(problems)
+
+
+def _picture_pages(test, pages):
+    """Save what each page of a failing test shows under `.tmp/test-results/screens/`,
+    which CI uploads with the junit results: an assertion names only what it read, and
+    the picture shows the rest, such as a widget drawn without its styles. A page that
+    can't answer leaves no picture, since the test's own failure is the one to report.
+    The node id is cut to fit a file name, and its hash keeps cut names apart."""
+    stem = re.sub(r"[^\w.-]+", "_", test.nodeid)[:150]
+    name = f"{stem}-{hashlib.sha1(test.nodeid.encode()).hexdigest()[:8]}"
+    for n, page in enumerate(pages):
+        if page.is_closed():
+            continue
+        try:
+            page.screenshot(
+                path=ROOT / f".tmp/test-results/screens/{name}-{n}.png",
+                timeout=render_checks_model.SERVED_TIMEOUT_MS,
+            )
+        except PlaywrightError:
+            continue
 
 
 def judge_watches():
@@ -1476,11 +1500,14 @@ def watch_sources(shifts: bool) -> str:
 
 @contextmanager
 def restarting(page):
-    """Enclose a span in which the test stops and replaces the page's own server.
+    """Enclose a span in which the test replaces the page's server or executable layer.
 
-    A stopped server answers no fetch, and the words the failure arrives in depend on
-    which fetch was in flight when it stopped: a bare `Failed to fetch`, a named module,
-    a stack through the icon load, one of several `net::` codes. A reading written over
+    A layer replacement reloads the document. WebKit reports even a caught fetch
+    rejection from the departing document as a native page exception while its
+    replacement is loading. A stopped server answers no fetch, and the words the
+    failure arrives in depend on which fetch was in flight when it stopped: a bare
+    `Failed to fetch`, a named module, a stack through the icon load, one of several
+    `net::` codes. A reading written over
     those words needs a new member every time a fetch moves, and it ends up describing
     the noise this test makes.
 
@@ -1539,14 +1566,29 @@ def said(problem):
 _ABSENT = object()
 
 
+def place_step_matches(actual, expected):
+    """Match a watch's tag/id step and the classes an assertion names.
+
+    Classes describe the node at observation time, not a complete identity: focus,
+    rendering and other state can add classes. Keep the tag/id and every requested
+    class, without depending on additional classes or their order. These are the
+    watch's unescaped diagnostic steps, not arbitrary CSS selectors.
+    """
+    actual_name, *actual_classes = actual.split(".")
+    expected_name, *expected_classes = expected.split(".")
+    return actual_name == expected_name and set(expected_classes) <= set(actual_classes)
+
+
 def is_problem(problem, expected):
     """Whether a browser problem is the one a test expects.
 
     A string is a fragment of what the page said (`said`), so stack locations cannot
     authorize a problem. A dict names the record as a probe returns one,
-    `{code, at, ...values}`: its `code`, and each field the test cares about, equal to
+    `{code, at, ...values}`: its `code`, and each field the test cares about, match
     what was found, such as `{"code": "console-error", "url": "http://page/api/event"}`.
-    A function of the record answers for itself, for a field read other than by equality."""
+    Watch paths (`node`, `field`, `place`) keep every step and match the tag/id and
+    requested classes via `place_step_matches`. Other fields compare by equality.
+    A function of the record answers for itself, for another kind of reading."""
     if callable(expected):
         return expected(problem)
     if isinstance(expected, str):
@@ -1554,10 +1596,16 @@ def is_problem(problem, expected):
     fields = dict(expected)
     if problem.code != fields.pop("code"):
         return False
-    return all(
-        (problem.at if name == "at" else problem.values.get(name, _ABSENT)) == value
-        for name, value in fields.items()
-    )
+    for name, value in fields.items():
+        actual = problem.at if name == "at" else problem.values.get(name, _ABSENT)
+        if name in {"node", "field", "place"} and isinstance(value, list):
+            if not isinstance(actual, list) or len(actual) != len(value):
+                return False
+            if not all(place_step_matches(a, e) for a, e in zip(actual, value)):
+                return False
+        elif actual != value:
+            return False
+    return True
 
 
 def shown(problems):
@@ -2520,6 +2568,18 @@ SHELL_BOX = """(() => {
 # Put the user nowhere, with the next Tab starting at the top of the document: the
 # runtime's own let-go (focus.js, `releaseFocus`). Body holds no stop of its own, so
 # `document.body.focus()` moves nothing on a page whose root does not scroll.
+# Each field's closed shadow root, so a test can read inside it.
+EDITOR_ROOTS = """
+  window.editorRoots = new Map();
+  const attach = Element.prototype.attachShadow;
+  Element.prototype.attachShadow = function(options) {
+    const root = attach.call(this, options);
+    if (this.localName === 'leaf-text') window.editorRoots.set(this, root);
+    return root;
+  };
+"""
+
+
 RELEASE_FOCUS = """async () =>
   (await window.__lfCheckApi()).releaseFocus()"""
 

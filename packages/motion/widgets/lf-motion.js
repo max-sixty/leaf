@@ -22,9 +22,8 @@ import {
   reducedMotion,
   onMotionPreferenceChange,
   onUserInput,
-  keeps,
-  keepsText,
   paintKeys,
+  signal,
   tabStore,
   raiseError,
 } from "/runtime/widget-api.js";
@@ -35,10 +34,9 @@ customElements.define(
     #ui;
     #draw;
     #time = 0;
-    #playing = false;
+    #playing = signal(false);
     #frame = null;
     #last = 0;
-    #label;
     #rate = 1;
 
     get #videos() {
@@ -123,8 +121,11 @@ customElements.define(
             this.#pause();
         });
         const preference = onMotionPreferenceChange(() => {
-          if (reducedMotion() && this.#playing) this.currentTime = this.duration;
-          else this.#paintControls();
+          if (reducedMotion() && this.#playing.value) this.currentTime = this.duration;
+          else {
+            this.#paintControls();
+            paintKeys();
+          }
         });
         for (const video of this.#videos) {
           video.addEventListener("loadedmetadata", () => this.#seekVideos(), {
@@ -141,13 +142,13 @@ customElements.define(
       });
     }
 
-    // Initial markup and authored figures are retained, not template-owned.
+    // The initial drawing owns transport templates; authored figures stay native.
     render() {
       return noChange;
     }
 
     #playLabel() {
-      if (this.#playing) return "Pause";
+      if (this.#playing.value) return "Pause";
       if (reducedMotion()) return "Show end";
       return "Play";
     }
@@ -156,9 +157,9 @@ customElements.define(
       if (this.#frame !== null) cancelAnimation(this.#frame);
       this.#frame = null;
       const readVideo =
-        this.#playing && this.#videos.length && this.#time < this.duration;
+        this.#playing.value && this.#videos.length && this.#time < this.duration;
       if (readVideo) this.#readVideoTime();
-      this.#playing = false;
+      this.#playing.value = false;
       for (const video of this.#videos) video.pause();
       this.#seekVideos();
       this.#paintControls();
@@ -174,7 +175,7 @@ customElements.define(
     }
 
     #toggle() {
-      if (this.#playing) {
+      if (this.#playing.value) {
         this.#pause();
         return;
       }
@@ -184,7 +185,7 @@ customElements.define(
       }
       if (this.#time >= this.duration) this.#time = 0;
       this.#seekVideos();
-      this.#playing = true;
+      this.#playing.value = true;
       this.#last = performance.now();
       this.#paint();
       for (const video of this.#videos) {
@@ -231,20 +232,17 @@ customElements.define(
         this.#pause();
       }
       this.#paint();
-      if (this.#playing) this.#frame = nextAnimation(() => this.#tick());
+      if (this.#playing.value) this.#frame = nextAnimation(() => this.#tick());
     }
 
     #paintControls() {
       if (!this.#ui) return;
-      this.#ui.time.value = String(this.#time);
-      keeps(this.#ui.time, "aria-valuetext", `${Math.round(this.#time)} milliseconds`);
-      keepsText(this.#ui.clock, `${Math.round(this.#time)} ms`);
-      const label = this.#playLabel();
-      if (this.#label !== label) {
-        this.#label = label;
-        this.#ui.paintPlay(label, this.#playing);
-        paintKeys();
-      }
+      this.#ui.paint({
+        time: this.#time,
+        rate: this.#rate,
+        label: this.#playLabel(),
+        playing: this.#playing.value,
+      });
     }
 
     #paint() {

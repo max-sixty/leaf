@@ -19,6 +19,7 @@ from render_cases_interaction import (
 from render_harness import (
     LONG_PAGE,
     PANEL,
+    PANEL_THREAD,
     CutOff,
     expect_open_threads,
     holding,
@@ -197,6 +198,10 @@ def test_inline_retirement_is_resolved_before_its_pixels_finish(
         resolve()
     held.pop().fulfill(json={"ok": False, "final": True, "error": "Please retry."})
     expect(thread).not_to_have_attribute("inert", "")
+    # The refusal returns the user to the thread in its seat, not to another surface.
+    page.wait_for_function(
+        "node => node.contains(document.activeElement)", arg=thread.element_handle()
+    )
     expect(
         thread.get_by_role("button", name="Resolve thread", exact=True)
     ).to_be_enabled()
@@ -340,10 +345,11 @@ def test_z_leaves_the_user_in_a_seated_thread_they_resolved(browser, serve):
 
 
 @pytest.mark.parametrize("gesture", ["resolve", "reopen"])
-def test_z_opens_no_surface_the_user_closed_after_settling(browser, serve, gesture):
-    """Putting the user back is the settling surface's to do while it stands. With
-    the panel closed since, taking the gesture back changes the thread and nothing
-    else."""
+def test_z_shows_a_settlement_the_user_left_before_taking_it(browser, serve, gesture):
+    """A settlement's landing arms `z` to take it back in one press only until the
+    user acts. With the panel closed since and a press on the page, the thread is
+    out of view like any other gesture's place: the first `z` opens it and takes
+    nothing, and the second takes the gesture back there."""
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, "Settle this one, then think better of it.")
     if gesture == "reopen":
@@ -359,10 +365,13 @@ def test_z_opens_no_surface_the_user_closed_after_settling(browser, serve, gestu
     panel_settled(page, open=False)
     page.locator("h1").first.click()
 
+    page.keyboard.press("z")
+    expect(page.locator(PANEL_THREAD)).to_have_attribute("data-thread", root)
+    expect(page.locator(".lf-live")).to_contain_text("Press again to undo")
     undo(page)
     round_trip(page)
     expect_open_threads(page, 1 if gesture == "resolve" else 0)
-    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
+    expect(page.locator(PANEL_THREAD)).to_have_attribute("data-thread", root)
 
 
 def test_resolving_one_of_two_threads_leaves_the_user_in_the_card(browser, serve):

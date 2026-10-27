@@ -809,13 +809,28 @@ def test_the_floating_response_bar_has_one_compact_face(browser, serve):
     expect(hint).to_be_visible()
     assert len(set(hint.evaluate(hint_ink))) == 1
 
-    family = """el => { const s = getComputedStyle(el);
-        return Object.fromEntries(["font-family", "font-size",
-            "border-top-width", "border-top-style",
-            "background-color"].map(p => [p, s.getPropertyValue(p)])); }"""
+    # The editor's frame is drawn by the moving surface. Compare that paint with
+    # the button's own border and fill, rather than the transparent editor's CSS.
+    family = r"""el => {
+        const s = getComputedStyle(el);
+        const ground = el.closest('.lf-fab-bar').querySelector('.lf-fab-ground');
+        const field = el.matches('.lf-fab-input');
+        const ring = field && getComputedStyle(ground.querySelector('.lf-box-ring'));
+        const fill = field && getComputedStyle(ground.querySelector('.lf-box-fill'));
+        const inset = style => Number.parseFloat(/^inset\(([^ ]+)/.exec(style.clipPath)[1]);
+        return {
+            font: s.fontFamily,
+            size: s.fontSize,
+            border: field ? inset(fill) - inset(ring) : Number.parseFloat(s.borderTopWidth),
+            ink: field ? ring.backgroundColor : s.borderTopColor,
+            face: field ? fill.backgroundColor : s.backgroundColor,
+        };
+    }"""
+    rendered(page)
     raised = page.locator(".lf-fab-input").evaluate(family)
     page.keyboard.press("e")
     expect(page.locator(".lf-fab-bar .lf-fab-suggest")).to_be_visible()
+    rendered(page)
     adjacent = page.locator(".lf-fab-bar .lf-fab-suggest").evaluate(family)
     assert raised == adjacent, (
         "the floating field and its other responses are drawn differently:\n  "
@@ -825,11 +840,11 @@ def test_the_floating_response_bar_has_one_compact_face(browser, serve):
             if raised[k] != adjacent[k]
         )
     )
-    assert "system-ui" in raised["font-family"], (
-        f"the response bar speaks in the document's voice: {raised['font-family']}"
+    assert "system-ui" in raised["font"], (
+        f"the response bar speaks in the document's voice: {raised['font']}"
     )
     assert (
-        page.locator(".lf-fab-input").evaluate("el => getComputedStyle(el).filter")
+        page.locator(".lf-fab-ground").evaluate("el => getComputedStyle(el).filter")
         != "none"
     ), "the field that floats over the page says nothing about its elevation"
     page.locator(".lf-fab-input").click()
@@ -1608,6 +1623,44 @@ def test_code_copy_reads_sources_before_positioning_many_controls(browser, serve
     assert many <= one, {"60 controls": many, "1 control": one}
 
 
+def test_hidden_code_arrivals_do_not_read_skipped_blocks(browser, serve):
+    """Arriving code must leave the browser's skipped subtrees unmeasured."""
+    page = open_page(
+        browser,
+        serve(leaf_page("Hidden arrivals", '<h1>Arrivals</h1><div id="slots"></div>')),
+    )
+    page.evaluate("""() => {
+      window.hiddenCodeReads = [];
+      const rect = Element.prototype.getBoundingClientRect;
+      Element.prototype.getBoundingClientRect = function (...args) {
+        if (this.matches('pre[data-hidden-probe]')) hiddenCodeReads.push('rect');
+        return rect.apply(this, args);
+      };
+      const computed = window.getComputedStyle;
+      window.getComputedStyle = function (node, ...args) {
+        if (node.matches('pre[data-hidden-probe]')) hiddenCodeReads.push('style');
+        return computed.call(this, node, ...args);
+      };
+      document.querySelector('#slots').innerHTML =
+        '<section hidden="until-found"><pre data-hidden-probe><code>tab</code></pre></section>' +
+        '<details><summary>Code</summary><pre data-hidden-probe><code>details</code></pre></details>';
+    }""")
+    rendered(page)
+    assert page.evaluate("hiddenCodeReads") == []
+    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
+    page.locator("#slots section").evaluate("node => node.removeAttribute('hidden')")
+    expect(page.locator(".lf-code-copy")).to_have_count(1)
+    page.locator("#slots summary").click()
+    expect(page.locator(".lf-code-copy")).to_have_count(2)
+    page.keyboard.press("Tab")
+    expect(page.locator("#slots details pre")).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(
+        page.locator(".lf-code-copy").nth(1).get_by_role("button")
+    ).to_have_accessible_name("Code copied")
+    assert page.evaluate("navigator.clipboard.readText()") == "details"
+
+
 @pytest.mark.parametrize("holder", ["disclosure", "tab"])
 def test_code_copy_leaves_the_window_with_its_hidden_source(browser, serve, holder):
     """Hidden and distant sources take no anchored control layout; Copy still works."""
@@ -1628,10 +1681,8 @@ def test_code_copy_leaves_the_window_with_its_hidden_source(browser, serve, hold
     page = open_page(browser, url)
     page.context.grant_permissions(["clipboard-read", "clipboard-write"])
     controls = page.locator(".lf-chrome .lf-code-copy")
-    expect(controls).to_have_count(100)
     control = controls.first
     expect(page.locator("#source")).to_be_hidden()
-    expect(control).not_to_be_in_viewport()
     assert (
         controls.evaluate_all(
             "nodes => nodes.filter(node => node.getClientRects().length).length"
@@ -1652,6 +1703,7 @@ def test_code_copy_leaves_the_window_with_its_hidden_source(browser, serve, hold
     opener.click()
     rendered(page)
     expect(page.locator("#source")).to_be_visible()
+    expect(controls).to_have_count(100)
     expect(control).to_be_in_viewport()
     assert (
         0
@@ -2855,15 +2907,15 @@ def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
     mark = page.locator('.lf-visual-mark[data-for="fig"]')
     expect(mark).to_be_visible()
     look = mark.evaluate(
-        """node => { const style = getComputedStyle(node); return {
-          background: style.backgroundImage,
+        """node => { const style = getComputedStyle(node, '::after'); return {
+          background: getComputedStyle(node).backgroundImage,
           outline: [style.outlineStyle, style.outlineWidth],
           offset: parseFloat(style.outlineOffset),
         }; }"""
     )
     assert look["background"] == "none", look
     assert look["outline"][0] == "solid" and look["outline"][1] != "0px", look
-    assert look["offset"] > 0, look
+    assert look["offset"] == 0, look
 
 
 FOCUSED_THREAD = "document.activeElement?.closest('.lf-page-thread')"
@@ -3118,7 +3170,7 @@ def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
     mark = page.locator('.lf-visual-mark[data-for="fig"]')
     expect(mark).to_have_count(0)
 
-    look = """node => { const style = getComputedStyle(node); return {
+    look = """node => { const style = getComputedStyle(node, '::after'); return {
       line: style.outlineStyle,
       drawn: parseFloat(style.outlineWidth) > 0,
     }; }"""

@@ -20,7 +20,7 @@ import { reportCarried, sameLayer } from "./layer-client.js";
 import { importWidgets } from "./widget-loader.js";
 import { observeServerNow, observeWorkingGrace } from "./presence.js";
 import { settleAcceptedDrafts } from "./drafts.js";
-import { notice } from "./notifications.js";
+import { announce, notice } from "./notifications.js";
 import { markStateApplied, settlePageInterface } from "./presentation.js";
 import {
   loadMessageMarkdown,
@@ -174,16 +174,22 @@ export function createStateApplication({
         presentedNewsReading = semanticNewsReading(readApplication());
         const reading = observeSemanticNews(observedSemanticNews, presentedNewsReading);
         observedSemanticNews = reading.observed;
-        if (reading.news.length) {
+        // The agent's new words are heard, not shown: the On me mark's dot and each
+        // margin marker's already show unread news, so the seat keeps the agent's status.
+        // The user chose this on 25 October over a line counting the messages.
+        if (reading.news.length) announce(semanticNewsNotice(reading.news));
+        const shown = reading.news.filter((item) => item.kind !== "agent_content");
+        if (shown.length) {
           const format = (value) =>
             semanticNewsNotice(
               currentSemanticNews(value, presentedNewsReading, observedSemanticNews),
             );
-          notice(format(reading.news), {
+          notice(format(shown), {
             background: true,
+            announce: false,
             group: {
               key: "semantic-news",
-              value: reading.news,
+              value: shown,
               combine: combineSemanticNews,
               format,
             },

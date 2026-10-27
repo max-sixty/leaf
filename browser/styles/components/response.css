@@ -1,7 +1,8 @@
 /* Response composition owns the shared field, actions and attachment shelf.
  * Presentation owners allocate and position this control, in the document or a
  * declared shadow tree; they do not restate its typography, focus or face. */
-/* An icon action's face; its hit box, the face or the aim floor where that is larger
+/* A symbol's face (controls.css, `.lf-icon-action`), which the composer's own Send
+   and Dictate share; its hit box, the face or the aim floor where that is larger
    (the box is that wide, and its reach stands out to it above and below, surfaces.css);
    and the height of an empty composer field, which stands the face inside its action
    inset on either side. Stated at the root, where a widget holds a composer's room
@@ -13,6 +14,9 @@
 }
 /* How far in from a field's frame the words of a field holding Send stop: Send's hit
    box with the action inset on either side of it. */
+leaf-composition-field {
+  display: contents;
+}
 .lf-compose-field {
   --lf-compose-send-end: calc(
     var(--lf-icon-action-hit) + 2 * var(--lf-compose-action-inset)
@@ -20,7 +24,9 @@
 }
 :root,
 .lf-compose-field,
-.lf-icon-action {
+.lf-icon-action,
+.lf-compose-submit,
+.lf-compose-dictate {
   --lf-icon-action-hit: max(var(--lf-icon-action-face), var(--aim-floor));
 }
 :root,
@@ -115,7 +121,20 @@
     var(--lf-compose-send-end) - var(--lf-compose-pad-inline-start)
   );
 }
-.lf-icon-action {
+.lf-action-icon {
+  position: relative;
+  z-index: 1;
+  pointer-events: none;
+}
+/* Send and resolve are the two glyph actions: a bare glyph in the action's own ink,
+   whose ::before is the action's disc that stays clear at rest and takes its tint
+   on hover. The hit box around the disc is a symbol's (controls.css). Resolve is a
+   symbol drawn in its own ink; the composer's Send and Dictate are the composer's own
+   controls, which wireInput dresses whatever its caller made them, so they state the
+   symbol's box here. The glyph's ink outranks the .lf-ui face by coming later. Reopen
+   standing in Resolve's place is the same glyph drawn done, on every surface that
+   seats a thread. */
+:is(.lf-compose-submit, .lf-compose-dictate) {
   box-sizing: border-box;
   width: var(--lf-icon-action-hit);
   height: var(--lf-icon-action-face);
@@ -125,17 +144,12 @@
   display: grid;
   place-items: center;
   border-radius: var(--r);
+  cursor: pointer;
 }
-.lf-action-icon {
-  position: relative;
-  z-index: 1;
-  pointer-events: none;
+:where(.lf-compose-submit, .lf-compose-dictate)[data-lf-focus-visible] {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
 }
-/* Send and resolve are the two glyph actions: a bare glyph in the action's own ink,
-   whose ::before is the action's disc that stays clear at rest and takes its tint
-   on hover. The hit box around the disc is the icon action's above. The glyph's
-   ink outranks the .lf-ui face by coming later. Reopen standing in Resolve's place
-   is the same glyph drawn done, on every surface that seats a thread. */
 :is(.lf-compose-submit, .lf-compose-dictate, .lf-response-trigger),
 :is(.lf-resolve, .lf-reopen).lf-icon-action {
   border: 0;
@@ -184,6 +198,7 @@
 :is(.lf-compose-submit, .lf-compose-dictate):is(:disabled, [aria-disabled="true"]) {
   opacity: 1;
   color: var(--muted);
+  cursor: default;
 }
 :is(.lf-compose-dictate, .lf-response-trigger) {
   color: var(--muted);
@@ -238,9 +253,11 @@
    shelf comes first and takes a line of its own, so it stands above the field and
    never takes the field's width; a seated comment box's composer adds no box of its
    own (`display: contents`). */
-:is(.lf-thread-reply, .lf-say):has(> .lf-composer-media:not([hidden])),
+:is(.lf-thread-reply, .lf-say):has(
+  > leaf-composition-field > .lf-composer-media:not([hidden])
+),
 .lf-fab-bar[data-lf-presentation="inline"]:has(
-    > .lf-composer > .lf-composer-media:not([hidden])
+    > .lf-composer > leaf-composition-field > .lf-composer-media:not([hidden])
   ) {
   flex-wrap: wrap;
 }
@@ -384,13 +401,15 @@ button.lf-media-open {
 /* Comment boxes and anchored response controls share their frame and focus paint.
    Other uses of the editor plumbing, such as option entry, supply their own face.
    Containers place comment boxes; they do not supply a second frame. */
-.lf-comment-box > .lf-compose-field,
+.lf-comment-box > leaf-composition-field > .lf-compose-field,
 .lf-response-control {
   border: 1px solid var(--border-2);
   border-radius: var(--r);
   background: var(--card);
 }
-.lf-comment-box > .lf-compose-field:has(> leaf-text[data-lf-focus-visible]),
+.lf-comment-box
+  > leaf-composition-field
+  > .lf-compose-field:has(> leaf-text[data-lf-focus-visible]),
 .lf-response-control[data-lf-focus-visible] {
   outline: var(--focus-ring);
   outline-offset: 0;
@@ -402,7 +421,7 @@ button.lf-media-open {
 .lf-response-control {
   filter: drop-shadow(var(--raise-1));
 }
-.lf-comment-box > .lf-compose-field > leaf-text {
+.lf-comment-box > leaf-composition-field > .lf-compose-field > leaf-text {
   padding: var(--lf-compose-pad-block) var(--lf-compose-pad-inline-start);
   border: 0;
   border-radius: 0;
@@ -412,7 +431,10 @@ button.lf-media-open {
   max-height: 50vh;
   overflow-y: auto;
 }
-.lf-comment-box > .lf-compose-field > leaf-text[data-lf-focus-visible] {
+.lf-comment-box
+  > leaf-composition-field
+  > .lf-compose-field
+  > leaf-text[data-lf-focus-visible] {
   outline: none;
 }
 .lf-thread-reply {
@@ -445,7 +467,7 @@ button.lf-media-open {
 .lf-msg-body:has(> .lf-msg-editor) {
   display: flow-root;
 }
-.lf-msg-editor > .lf-compose-field {
+.lf-msg-editor > leaf-composition-field > .lf-compose-field {
   --lf-compose-pad-block: calc(
     (var(--lf-response-height, var(--lf-line)) - 2px - 1lh) / 2
   );
@@ -454,17 +476,22 @@ button.lf-media-open {
     var(--lf-thread-text-pad-block, 0px) - var(--lf-compose-pad-block) - 1px
   );
 }
-.lf-msg-editor > .lf-compose-field > leaf-text {
+.lf-msg-editor > leaf-composition-field > .lf-compose-field > leaf-text {
   min-height: 0;
   padding-inline-end: calc(var(--lf-msg-text-end) - 1px);
 }
-.lf-msg-editor > .lf-compose-field:has(> .lf-msg-media:not([hidden])) {
+.lf-msg-editor
+  > leaf-composition-field
+  > .lf-compose-field:has(> .lf-msg-media:not([hidden])) {
   margin-block-end: calc(-1 * var(--lf-compose-pad-block) - 1px);
 }
-.lf-msg-editor > .lf-compose-field:has(> .lf-msg-media:not([hidden])) > leaf-text {
+.lf-msg-editor
+  > leaf-composition-field
+  > .lf-compose-field:has(> .lf-msg-media:not([hidden]))
+  > leaf-text {
   padding-block-end: var(--lf-thread-text-pad-block, 0px);
 }
-.lf-msg-editor > .lf-compose-field > .lf-msg-media {
+.lf-msg-editor > leaf-composition-field > .lf-compose-field > .lf-msg-media {
   margin-inline: calc(var(--lf-thread-text-inset) - 1px) -1px;
   padding-block-end: var(--lf-compose-pad-block);
 }
@@ -644,7 +671,7 @@ leaf-text.lf-fab-input {
   display: none;
 }
 .lf-fab-bar:not([data-lf-target-only]) > .lf-fab {
-  display: none !important;
+  display: none;
 }
 /* The picker stands over the ⋯ that opened it, or over the field once words have taken
    the ⋯ away and Tab or `e` opens it. */
@@ -708,13 +735,17 @@ leaf-text.lf-fab-input {
   display: block;
 }
 /* The target-only control and its open composer are the bar's two presentations.
-   Both are local mechanical state; the stylesheet also reads them in widget seats. */
+   Both are local mechanical state; the stylesheet also reads them in widget seats.
+   Either shows only on screen: paper has no press to answer with, so a bar open in a
+   widget's seat prints as nothing, as the chrome holding a floating one does. */
 .lf-fab-bar {
   display: none;
   font: var(--t-5)/1.5 var(--sans);
 }
-.lf-fab-bar:is([data-lf-target-only], :has(> .lf-composer[data-lf-open])) {
-  display: var(--lf-response-display, inline-flex);
+@media screen {
+  .lf-fab-bar:is([data-lf-target-only], :has(> .lf-composer[data-lf-open])) {
+    display: var(--lf-response-display, inline-flex);
+  }
 }
 .lf-fab-bar[data-lf-presentation="inline"] {
   position: static;
@@ -731,11 +762,6 @@ leaf-text.lf-fab-input {
 .lf-fab-bar[data-lf-presentation="inline"] *::after {
   box-sizing: inherit;
 }
-.lf-fab-bar[data-lf-presentation="inline"]
-  .lf-composer
-  > :not(.lf-compose-field, .lf-composer-media) {
-  display: none !important;
-}
 .lf-fab-bar[data-lf-presentation="inline"] leaf-text.lf-fab-input {
   max-width: none;
   max-height: 50vh;
@@ -744,9 +770,4 @@ leaf-text.lf-fab-input {
 /* Only a floating box is carried (surface-grip.js), so a seated one shows no grip. */
 .lf-fab-bar[data-lf-presentation="inline"] > .lf-surface-grip {
   display: none;
-}
-@media print {
-  .lf-fab-bar[data-lf-presentation="inline"] {
-    display: none !important;
-  }
 }

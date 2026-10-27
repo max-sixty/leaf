@@ -24,12 +24,10 @@ export const threadBox = (el, hint, { createComment, onDraftChanged, wireInput }
   const row = offer("div", "lf-say lf-comment-box");
   const ta = offer(TEXT_FIELD);
   ta.name = "comment";
-  const send = offer("button", "lf-btn", "Send");
-  const hold = declaration.hold ? offer("button", "lf-btn", declaration.hold) : null;
   const ctx = "say:" + el.id;
   ta.value = loadDraft(ctx) ?? "";
   ta.setAttribute("aria-label", hint);
-  row.append(ta, send, ...(hold ? [hold] : []));
+  row.append(ta);
   // A seat that keeps its box after the send shows the new thread above it; one that
   // gives its box up hands the user to the thread it started (inline.js).
   const sendComment = (text, owns, holds = false) => {
@@ -48,8 +46,7 @@ export const threadBox = (el, hint, { createComment, onDraftChanged, wireInput }
   const sync = wireInput(ta, {
     hint,
     sends: "send",
-    sendBtn: send,
-    altBtn: hold,
+    altLabel: declaration.hold ?? null,
     save: (value) => saveDraft(ctx, value),
     // The message stands in the seat's own thread the moment it is sent, and that
     // is the acknowledgement; a notice saying the same thing would be a second one. A
@@ -60,9 +57,9 @@ export const threadBox = (el, hint, { createComment, onDraftChanged, wireInput }
     send: (_text, raw, owns) => {
       sendComment(raw, owns);
     },
-    altSend: hold
+    altSend: declaration.hold
       ? (_text, raw, owns) => {
-          if (sendComment(raw, owns, true)) notice("Message sent — goal paused");
+          if (sendComment(raw, owns, true)) notice("Replied — goal paused");
         }
       : null,
   });

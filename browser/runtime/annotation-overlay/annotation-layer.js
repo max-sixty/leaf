@@ -48,7 +48,7 @@ export function mountAnnotationControls() {
           ? "Annotations shown"
           : coarsePointer.matches
             ? "Annotations hidden"
-            : "Annotations hidden. o shows them",
+            : "Annotations hidden — o shows them",
       );
     },
   });

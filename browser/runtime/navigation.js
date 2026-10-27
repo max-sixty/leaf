@@ -18,13 +18,21 @@ import {
   scrollChainOf,
   scrollersOf,
 } from "./reading-regions.js";
-import { walkOrigin, heldObligation, placeOf, stepFrom } from "./current-target.js";
+import {
+  currentLocationOrigin,
+  walkOrigin,
+  heldObligation,
+  heldPagePlace,
+  placeOf,
+  stepFrom,
+} from "./current-target.js";
 import { focused } from "./focus.js";
 import { pageSelection } from "./composing/capture.js";
 import { blockAt, closestAcross, pageRange } from "./passages.js";
 import { readingBlock } from "./reading-place.js";
 import { scrollIntoReadingBand, scrollIntoView } from "./landing-scroll.js";
 import { drawnThreadId, THREAD } from "./thread/selectors.js";
+import { threadIn } from "./thread/focus.js";
 import { threadList } from "./thread/state.js";
 import { inPageOrder } from "./thread/placement.js";
 import { under } from "./shadow.js";
@@ -42,16 +50,18 @@ const openThreads = (placedAt) =>
     placedAt,
   ).map((thread) => thread.id);
 
-// The walk's place: the thread the user is at from its target (`threadHere`), drawn
-// wherever it is drawn.
-const currentThread = (threads, threadHere) => {
-  const id = drawnThreadId(threadHere());
+// The thread the walk stands on: the one the origin's current location is in,
+// wherever it is drawn. Its target, with the thread's card beside it, is at the thread,
+// not on it (current-target.js, `walkOrigin`).
+const currentThread = (threads, origin) => {
+  const id =
+    origin?.kind === "current-location" ? drawnThreadId(threadIn(origin.node)) : null;
   return threads.includes(id) ? id : null;
 };
 
-const threadPosition = (threadHere, placedAt) => {
+const threadPosition = (placedAt) => {
   const threads = openThreads(placedAt);
-  return listWalkPosition(threads, currentThread(threads, threadHere));
+  return listWalkPosition(threads, currentThread(threads, currentLocationOrigin()));
 };
 
 // Arrive at one thread a walk chose, by its id: the one arrival both the t/T walk and
@@ -69,17 +79,18 @@ async function arriveAtThread(id, { openPageThread }, intent) {
 // t/T walk the open threads in page order, coming round from either end to the other
 // (`cycledRow`).
 //
-// From a place at no thread, the walk steps by the page walks' one rule (`stepFrom`,
+// From anywhere but a thread, the walk steps by the page walks' one rule (`stepFrom`,
 // current-target.js): a place on the page against each thread's place (`threadPlace`).
-// A thread whose place holds the user's is where they are without the thread open, so
-// the press opens it. A general thread has no place and stands after every placed one.
+// A thread at the user's current location, or whose place holds where they are, is
+// where they are without being in it, so the press opens it. A general thread has no
+// place and stands after every placed one.
 function stepThread(dir, destinations, placedAt) {
-  const { threadHere, threadAtCurrentLocation, threadPlace } = destinations;
+  const { threadAtCurrentLocation, threadPlace } = destinations;
   const threads = openThreads(placedAt);
   const origin = walkOrigin();
-  const current = currentThread(threads, threadHere);
+  const current = currentThread(threads, origin);
   const targetId =
-    !current && origin.kind === "current-location" && threadAtCurrentLocation();
+    !current && origin.kind !== "enter" && threadAtCurrentLocation(origin.node);
   const atTarget = targetId && threads.includes(targetId) ? targetId : null;
   const next = current
     ? cycledRow(threads, current, dir)
@@ -91,7 +102,7 @@ function stepThread(dir, destinations, placedAt) {
     (arrived) => {
       if (!arrived) return;
       announce(
-        beginWalk("thread", "Thread", () => threadPosition(threadHere, placedAt)) ??
+        beginWalk("thread", "Thread", () => threadPosition(placedAt)) ??
           walkPositionLabel("Thread", threads.indexOf(next) + 1, threads.length),
       );
     },
@@ -256,11 +267,11 @@ export function stopGlide(box) {
   setGlide(null);
 }
 
-export function createNavigation({ threadDestinations, placedAt, heldPlace }) {
+export function createNavigation({ threadDestinations, placedAt }) {
   const currentItem = () => {
     // The place the floating panel holds while the user is in it is the same current location,
     // read without moving focus merely to paint whether its row is available.
-    const at = heldPlace()?.focus?.deref() ?? focused();
+    const at = heldPagePlace() ?? focused();
     const item = heldObligation(at);
     if (item && under(at, item)) return item;
     const thread = closestAcross(at, THREAD);

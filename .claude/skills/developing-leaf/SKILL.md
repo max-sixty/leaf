@@ -46,11 +46,16 @@ Record browser API and rendering support gaps in
 [`notes/browser-support.md`](../../../notes/browser-support.md), as its "Recording and
 assessing a gap" section says.
 
-Before handing over a change to browser controls, navigation, focus, motion, forms or
-layout, run `/ui-sweep` (`../ui-sweep/SKILL.md`) on the changed surface and the
-interactions that depend on it. Its "External review" section says when to use the
-skills below, and its "Review a design system" section covers theme and shared-control
-changes.
+The user judges a UI change by using it, so review it that way before handing it
+over. Whoever reviews it, you or an independent reviewer, first uses the live
+candidate cold for the user's task, before reading its code or the author's account:
+reach each result by every route Leaf gives to it, look at each state those routes
+leave, and judge each control against its neighbours and against Leaf's controls for
+the same role. A reviewer's brief gives the task and the candidate, asks for that pass
+before any code review, and keeps how the change looks in scope. For a theme or
+shared-control change, also run `/ui-sweep` (`../ui-sweep/SKILL.md`), whose "Review a
+design system" section covers it and whose "External review" section says when to use
+the skills below.
 
 ### External UI skills
 
@@ -175,9 +180,10 @@ small misalignment. Re-vendor after a runtime, theme, registry or widget change,
 judge the composed page.
 
 To ask a page where an element sits, what style it computes, or what holds focus after
-a key, run `uv run leaf-dev probe` rather than writing a Playwright script. It builds
-the page from this working tree, runs your input steps, and prints what a JavaScript
-expression returns, with `--base` for the merge base beside it (`leaf-dev probe --help`).
+a key, run `uv run leaf-dev probe` rather than writing a Playwright script or a scratch
+test. It builds the page from this working tree, with `--log` adding threads and
+messages to its log, runs your input steps, and prints what a JavaScript expression
+returns, with `--base` for the merge base beside it (`leaf-dev probe --help`).
 
 When an interaction depends on a sequence of inputs or changes over time, record it
 with `leaf-dev probe --record .tmp/recordings/NAME` (its `--help` covers journeys and

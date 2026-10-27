@@ -1169,7 +1169,8 @@ diff --git a/tests/second.py b/tests/second.py
     page = open_page(browser, serve(authored))
     diff = page.locator("#patch")
 
-    expect(page.locator("#single .lf-diff-progress")).to_have_text("1 file")
+    # One file has nothing to filter, and its header already names it.
+    expect(page.locator("#single .lf-diff-search")).to_have_count(0)
     expect(diff.locator(".lf-diff-progress")).to_have_text("2 files")
     search = diff.locator(".lf-diff-search input")
     search.fill("second")

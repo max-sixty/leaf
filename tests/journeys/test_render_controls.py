@@ -302,10 +302,8 @@ RING_CASES = (
             "notification-playground": (
                 ("lf-playground input[type=radio]", ".choice:has"),
             ),
-            "review-a-plan": (
-                ("main details > summary", ":where([data-lf-focus-visible])"),
-            ),
             "pr-walkthrough": (
+                ("#pr-path-tree > summary", ".lf-visual-mark"),
                 (
                     "#pr-flow-tab",
                     ".lf-rendered:has(> :is(lf-tab, lf-part)",
@@ -316,7 +314,7 @@ RING_CASES = (
                 ("lf-diff code", ".lf-diff-frame"),
             ),
             "release-notes": (
-                ("main p.lf-mark-el", ".lf-mark-el"),
+                ("main p.lf-mark-el", ".lf-visual-mark"),
                 (
                     'lf-shot .lf-shotcomparison [part~="handle"]',
                     "wa-comparison::part(",
@@ -326,7 +324,7 @@ RING_CASES = (
             "wt-merge": (
                 (
                     '[data-lf-reading-role="pane"] > [tabindex="0"]',
-                    "[data-lf-reading-role=pane]",
+                    '[data-lf-reading-role="pane"]',
                 ),
             ),
         },
@@ -379,7 +377,7 @@ RING_CASES = (
     (
         "the response bar",
         ("Tab", "s", "Shift+Tab", "Tab", "Enter"),
-        {RING_CHROME: ((".lf-fab-input", ".lf-response-control"),)},
+        {RING_CHROME: ((".lf-fab-input", ".lf-compose-field"),)},
     ),
     # These controls live behind exact page-owned view states: a settled group's
     # disclosure, and the options it puts away.
@@ -399,7 +397,7 @@ RING_CASES = (
             "current-proposed-comparison": (
                 (
                     "#comparison-policy > lf-option > .lf-pick",
-                    ":is(lf-option) .lf-pick",
+                    "lf-option .lf-pick",
                 ),
             )
         },
@@ -407,7 +405,7 @@ RING_CASES = (
     (
         "a contents link",
         (),
-        {"feature-gallery": (("#bg-contents li a:visible", ":is(lf-toc) a"),)},
+        {"feature-gallery": (("#bg-contents li a:visible", "lf-toc a"),)},
     ),
     # The reaction palette a message's strip opens. Its chips are the last boxes the
     # layer dresses in the chrome's chip face, and they are behind a press: the strip
@@ -453,7 +451,7 @@ RING_CASES = (
             "ship-review": (
                 (
                     ".lf-margin-preview .lf-resolve",
-                    ".lf-page-thread :is(.lf-btn, summary)",
+                    ".lf-icon-action",
                 ),
             )
         },
@@ -527,8 +525,8 @@ RING_SCOPE_SURFACE = {
     "All pages": '.lf-floating-panel[data-open="leaves"]',
     "the leaf's menu": ".lf-floating-panel[data-menu]",
     "the versions menu": ".lf-floating-panel[data-menu]",
-    "the command reference": ".lf-command-reference.open",
-    "a reaction palette": ".lf-react-strip.lf-react-open",
+    "the command reference": ".lf-command-reference[open]",
+    "a reaction palette": ".lf-react-strip:has(> .lf-react-palette:popover-open)",
 }
 
 
@@ -1112,11 +1110,10 @@ def test_each_control_archetype_holds_its_neighbours_still(browser, serve, arche
     )
 
 
-def test_a_recorded_move_is_acknowledged_in_the_panel_and_nowhere_else(browser, serve):
-    """The page has one place for brief news. A gesture's acknowledgement used to arrive
-    as both a count and a toast in the opposite corner. The panel's field says it now:
-    "Moved to Done — sent" stands in for its words while it lasts, the live region hears
-    the same sentence, and the field's own words return when it fades."""
+def test_a_recorded_move_is_announced_and_shown_only_where_it_was_made(browser, serve):
+    """A widget's gesture shows where the user made it, and the margin's receipt says
+    it was saved, so no passing notice repeats it: the live region alone hears "Moved
+    to Done", and neither the panel's field nor a toast says it."""
     page = open_page(browser, serve(BOARD_PAGE))
     board = page.locator("#sprint")
     assert "Moved to Done" not in panel_says(page)
@@ -1125,13 +1122,10 @@ def test_a_recorded_move_is_acknowledged_in_the_panel_and_nowhere_else(browser, 
     page.keyboard.press("Enter")
     page.keyboard.press("ArrowRight")
     page.keyboard.press("Enter")
-    expect_panel_says(page, "Moved to Done — sent")
-    expect(page.locator(".lf-live")).to_have_text("Moved to Done — sent")
-    assert page.locator(".lf-toast").count() == 0, "a second surface says the news"
+    expect(page.locator(".lf-live")).to_have_text("Moved to Done")
     round_trip(page)
-
-    # The field's own words come back once the notice has had its moment.
-    expect_panel_says(page, "Moved to Done", says=False)
+    assert "Moved to Done" not in panel_says(page), "the panel's field repeats the move"
+    assert page.locator(".lf-toast").count() == 0, "a second surface says the news"
 
 
 def test_leaves_keep_focus_through_reordering_and_stay_in_the_list_on_removal(
@@ -1286,6 +1280,10 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     def sweep(where):
         violations, report = serious_axe_violations(page)
         assert violations == [], f"{where}: {report}"
+        unread = overlapped_words(page)
+        assert unread == [], (
+            f"{where}: no contrast read under a box that paints nothing: {unread}"
+        )
 
     sweep("the page as it arrives")
 

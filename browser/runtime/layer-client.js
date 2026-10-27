@@ -99,7 +99,7 @@ function reloadDelivery(message) {
         // The answers stay refused, which is the offline reading this page already knows
         // how to hold: authored content stays readable and the feed keeps asking, so the
         // page rejoins the log by itself once the server is back on this delivery.
-        holdWaiting("Waiting for the server to finish updating.");
+        holdWaiting("Waiting for Leaf to finish updating.");
         return;
       }
       reloadNow(message);

@@ -166,7 +166,7 @@ leaf thread reply <answer.ref> --ephemeral --text "Checking the keyboard route."
 
 It does not answer the update, so a turn whose final message is the answer still
 posts that message. On an update you owe it starts the update, and
-its text becomes the **Working** status in Leaf's panel, so keep it to one line
+its text becomes your line in Leaf's panel status, so keep it to one line
 ([conversation loop, "When to write"](conversation-loop.md#when-to-write)). In a
 thread that owes no reply, use `leaf thread reply <page> <message> --ephemeral`.
 
@@ -178,7 +178,7 @@ questions, to-dos, markup, anchor moves and failure receipts each need a reply o
 their own.
 
 Any widget in a reply's markup whose registry entry declares `x-awaits`, such as an
-`lf-options` or an `lf-ask`, waits on the user and keeps its thread at "My turn to answer"
+`lf-options`, waits on the user and keeps its thread at "Your turn"
 until they answer it. A thread you open waits on nobody by itself: `--obligation` registers the
 message's request without markup. A user task attached to the thread instead waits
 for Done; discussing it does not complete it.

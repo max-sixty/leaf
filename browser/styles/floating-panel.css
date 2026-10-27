@@ -82,32 +82,14 @@
     --lf-motion-menu-slide: 200ms;
   }
 
-  /* The surface: a layer over the whole window, cut to the box's outline by the
-     panel's script, with a ring a pixel outside it and one soft shadow around both,
-     cast at the height of what opens over the page. The layer itself is cut to that
-     outline grown by its shadow's reach. While the box moves, a ring a part of it
-     wears, the field's focus ring, stands on it too, a ring and a fill like the box's
-     own, in the colour of the ring it stands in for (runtime/box-motion.js). */
+  /* The surface (runtime/box-motion.js, chrome.css): a layer over the whole window,
+     under the box, in the panel's own ring and ground. */
   .lf-fp-ground {
     position: fixed;
     inset: 0;
     z-index: calc(var(--lf-z-panel) - 1);
-    pointer-events: none;
-    filter: drop-shadow(var(--raise-2));
-  }
-  .lf-fp-ground,
-  .lf-fp-ground > * {
-    clip-path: inset(50%);
-  }
-  .lf-fp-ground > * {
-    position: absolute;
-    inset: 0;
-  }
-  .lf-fp-ring {
-    background: var(--lf-fp-ring);
-  }
-  .lf-fp-fill {
-    background: var(--lf-fp-surface);
+    --lf-box-ring: var(--lf-fp-ring);
+    --lf-box-fill: var(--lf-fp-surface);
   }
 
   .lf-floating-panel {
@@ -162,11 +144,11 @@
      or wear the face, as it took the fill off a chosen reaction in a thread, drew the
      shelf's × as a panel press, stood the seated box's Send on a line under its field
      and washed a thread's held news on hover, a wash that notice declines. It is a
-     default, so it stands in the components' layer (`lf-base`), as the marks sheet's
-     indication default does (runtime/stylesheets.js), at a plain selector's weight: the
-     panel's own rules, unlayered, outrank it, while it still outranks the chrome's
-     control reset (chrome.css) and the layer's focus band at no weight (surfaces.css).
-     A press reaches the pointer's floor by the shared reach (surfaces.css). */
+     default, so it stands in the components' layer (`lf-base`), at a plain selector's
+     weight: the panel's own rules, unlayered, outrank it, while it still outranks the
+     chrome's control reset (chrome.css) and the layer's focus band at no weight
+     (surfaces.css). A press reaches the pointer's floor by the shared reach
+     (surfaces.css). */
   @layer lf-base {
     :is(button, input, textarea):where(.lf-fp-face) {
       font: inherit;
@@ -357,23 +339,35 @@
      draft has room to be read and written whatever its length. The user asked on 25
      October for much more than the 760px it widened to before; the window's whole
      width ran lines past 200 characters and left a long draft fewer, longer lines in a
-     shorter box. */
+     shorter box.
+     The mark stands in its corner whether or not it shows, and fades in and out on the
+     tween of the line that brings or takes it, as the fold's corner mark fades
+     (`.lf-fp-minimize`), so the box's motion carries it with the corner it rides
+     (box-motion.js). Drawn only once the draft ran long, it was new to the box, which
+     uncovered it where it stood as the top edge rose past it. */
   .lf-fp-expand {
     flex: none;
-    display: none;
+    display: grid;
     place-items: center;
     width: 24px;
     min-height: 0;
     height: 1lh;
     padding: 0;
     color: var(--lf-fp-muted);
+    opacity: 0;
+    visibility: hidden;
+    transition:
+      opacity var(--lf-motion-box-resize),
+      visibility 0s var(--lf-motion-box-resize);
   }
   .lf-fp-expand .lf-action-icon {
     width: 14px;
     height: 14px;
   }
   .lf-floating-panel[data-long] .lf-fp-expand {
-    display: grid;
+    opacity: 1;
+    visibility: visible;
+    transition: opacity var(--lf-motion-box-resize);
   }
   .lf-floating-panel[data-expanded] {
     --lf-fp-max: 1100px;
@@ -586,6 +580,12 @@
     leaf-text[data-says="status"]::part(placeholder) {
     color: color-mix(in srgb, var(--danger-ink) 62%, transparent);
   }
+  /* Words the agent can't be saying are set in italic, as a stage direction stands
+     apart from the lines spoken: an error, Leaf's own state, or an instruction about
+     the agent (the user's choice, 26 October 2026; `saying`). */
+  .lf-fp-field leaf-text[data-voice="leaf"]::part(placeholder) {
+    font-style: italic;
+  }
   /* The panel shows no key hints but the one that enters an open thread's reply, which
      the empty field says as a margin card's reply box does (`fieldReading`). */
   .lf-fp-field leaf-text:not([data-says="turn"]) .lf-compose-placeholder kbd {
@@ -754,6 +754,7 @@
     right: calc(var(--lf-floating-gap) + var(--lf-safe-right));
     margin: 0;
     .lf-fp-field,
+    .lf-fp-expand,
     .lf-fp-row-notice,
     .lf-fp-quick,
     .lf-fp-opened {
@@ -867,9 +868,6 @@
     box-sizing: border-box;
     background: linear-gradient(var(--lf-fp-faint), var(--lf-fp-faint)) top center /
       calc(100% - 2 * (6px + var(--lf-fp-inset))) 1px no-repeat;
-  }
-  .lf-fp-controls:empty {
-    display: none;
   }
   .lf-fp-crumb {
     flex: 1 1 auto;
@@ -1468,7 +1466,7 @@
     font-weight: 600;
     color: var(--lf-fp-muted);
   }
-  .lf-fp-on-kind,
+  .lf-fp-on-place,
   .lf-fp-on-title {
     margin: 0 0 2px;
     font: inherit;
@@ -1574,7 +1572,7 @@
   /* A rewrite in a thread's view stands where the message stood (response.css,
      `.lf-msg-editor`), at the height of the field below it, frame included, its frame
      reaching back over the words' inset as far as the quote's rule. */
-  .lf-fp-messages .lf-msg-editor > .lf-compose-field {
+  .lf-fp-messages .lf-msg-editor > leaf-composition-field > .lf-compose-field {
     --lf-response-height: var(--lf-line);
   }
 
@@ -1898,12 +1896,6 @@
     }
   }
   @media (forced-colors: active) {
-    .lf-fp-fill {
-      background: Canvas;
-    }
-    .lf-fp-ring {
-      background: CanvasText;
-    }
     .lf-fp-menu,
     .lf-fp-peek {
       border: 1px solid CanvasText;

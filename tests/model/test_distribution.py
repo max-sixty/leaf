@@ -2,10 +2,9 @@
 boundary."""
 
 import shutil
-import subprocess
 
 import pytest
-from leaf_dev import ROOT
+from leaf_dev.commands.distribution import bundle_runtime
 
 from leaf import layer as layer_model
 from leaf import runtime_selection
@@ -19,11 +18,7 @@ def test_a_leaf_serves_the_kernel_only_while_it_matches_the_tree(tmp_path, monke
     page's vendored layer holds none of it."""
     assets, kernel = tmp_path / "assets", tmp_path / "kernel"
     shutil.copytree(layer_model.ASSETS, assets)
-    subprocess.run(
-        ["node", ROOT / "build/runtime-bundle.mjs", assets, kernel],
-        cwd=ROOT,
-        check=True,
-    )
+    bundle_runtime(assets, kernel)
     monkeypatch.setattr(runtime_selection, "ASSETS", assets)
     monkeypatch.setattr(runtime_selection, "KERNEL", kernel)
 
@@ -83,6 +78,14 @@ def test_a_leaf_serves_the_kernel_only_while_it_matches_the_tree(tmp_path, monke
     assert not any(path.startswith("/runtime/bundle-") for path in files)
     assert "/vendor/signals-core.js" in files
     assert stale.identity != runtime.identity
+
+    # The runtime's sheets are read from their sources, so an edit to a file one
+    # imports needs no build to be served.
+    imported = assets / "styles/floating-panel.css"
+    imported.write_text(imported.read_text() + ".lf-edited { color: red; }\n")
+    chrome = runtime_selection.read_runtime().resources({})["/runtime/chrome.css"]
+    assert b".lf-edited" in chrome.data
+    assert b"@import" not in chrome.data
 
 
 @pytest.mark.parametrize("directory", ["runtime", "widgets", "vendor"])

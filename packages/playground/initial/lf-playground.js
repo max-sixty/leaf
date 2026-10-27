@@ -24,7 +24,7 @@ const ownControls = (host, preview) => [
   ),
 ];
 
-function render(host, { tabStore, offer, generatedElement, keeps }) {
+function render(host, { tabStore, offer, offerAction, generatedElement, keeps }) {
   const presets = own(host, "lf-playground-preset");
   const outputs = own(host, "lf-playground-output");
   const previews = own(host, "lf-playground-preview");
@@ -162,9 +162,10 @@ function render(host, { tabStore, offer, generatedElement, keeps }) {
         );
     }
   }
-  // A quotation draws no controls, so a box the preview wrote around them alone, at
-  // any depth, would stand empty; it is marked to hide with them (theme.css). A box
-  // that also holds words or another element keeps them.
+  // A quotation draws no controls or presets, so they are hidden, which outranks
+  // whatever display the page's own stylesheet gives them (theme.css, `[hidden]`). A
+  // box the preview wrote around controls alone, at any depth, would stand empty, so
+  // it is hidden with them. A box that also holds words or another element keeps them.
   if (!interactive) {
     const bare = new Set(
       controls.filter(
@@ -184,8 +185,8 @@ function render(host, { tabStore, offer, generatedElement, keeps }) {
         box = box.parentElement
       ) {
         bare.add(box);
-        box.classList.add("lf-playground-control-box");
       }
+    for (const hidden of [...bare, ...presets]) hidden.hidden = true;
   }
   const inputs = new Map(),
     presetButtons = new Map(),
@@ -209,12 +210,12 @@ function render(host, { tabStore, offer, generatedElement, keeps }) {
     instruction = null;
   if (interactive) {
     const railed = controls.filter((control) => control.parentElement === host);
+    // The box of controls evidently is one, and each control carries its own label, so
+    // its name is for assistive tech alone.
     const panel = node("div", "lf-playground-controls");
-    const panelTitle = node("p", "lf-playground-controls-title lf-label", "Controls");
-    panelTitle.id = `${host.id}-controls-title`;
     panel.setAttribute("role", "group");
-    panel.setAttribute("aria-labelledby", panelTitle.id);
-    panel.append(panelTitle, ...railed);
+    panel.setAttribute("aria-label", "Controls");
+    panel.append(...railed);
     for (const control of controls) {
       const name = control.getAttribute("name"),
         kind = control.getAttribute("kind"),
@@ -280,18 +281,18 @@ function render(host, { tabStore, offer, generatedElement, keeps }) {
     let presetBar = null;
     if (presets.length) {
       // The presets head the rail's controls, or are the whole pane when every
-      // control stands in the preview.
+      // control stands in the preview. The buttons stand alone, with "Starting
+      // points" only as the group's accessible name: the user chose this on
+      // 2026-10-26 over a visible label before them.
       presetBar = node(railed.length ? "header" : "div", "lf-playground-presets");
-      const title = node("span", "lf-playground-presets-title", "Starting points");
-      title.id = `${host.id}-presets-title`;
       presetBar.setAttribute("role", "group");
-      presetBar.setAttribute("aria-labelledby", title.id);
-      presetBar.append(title, ...presets);
+      presetBar.setAttribute("aria-label", "Starting points");
+      presetBar.append(...presets);
     }
     for (const preset of presets) {
-      const button = offer(
-        "button",
-        "lf-btn lf-playground-preset",
+      const button = offerAction(
+        "word",
+        "lf-playground-preset",
         preset.getAttribute("label"),
       );
       button.setAttribute("aria-pressed", "false");
@@ -304,8 +305,7 @@ function render(host, { tabStore, offer, generatedElement, keeps }) {
     // agent's thread once sent. Shown at rest, a long instruction took more of the
     // playground's room than the controls that wrote it (2026-10-25).
     const actions = node("div", "lf-playground-actions");
-    reset = offer("button", "lf-btn lf-playground-reset");
-    reset.ariaLabel = reset.title = "Reset";
+    reset = offerAction("symbol", "lf-playground-reset", "Reset");
     reset.append(iconElement("retry", "lf-action-icon"));
     instruction = node("div", "lf-playground-instruction");
     instruction.id = `${host.id}-instruction`;
@@ -323,12 +323,13 @@ function render(host, { tabStore, offer, generatedElement, keeps }) {
     const instructionBody = node("div", "lf-playground-instruction-body");
     instructionBody.append(output);
     instruction.append(instructionHead, instructionBody);
-    reveal = offer("button", "lf-btn lf-playground-reveal");
-    reveal.ariaLabel = reveal.title = "Show instruction";
+    reveal = offerAction("symbol", "lf-playground-reveal", "Show instruction");
+    reveal.popoverTargetElement = instruction;
+    // Leaf's disclosure keys and Go-to routes read this explicit relation.
     reveal.setAttribute("aria-controls", instruction.id);
     reveal.setAttribute("aria-expanded", "false");
     reveal.append(iconElement("more", "lf-action-icon"));
-    submit = offer("button", "lf-btn primary lf-playground-submit");
+    submit = offerAction("commit", "lf-playground-submit");
     const submitLabel = host.getAttribute("submit-label") ?? "Use these settings";
     submit.dataset.room = `${submitLabel}\nUndo choice`;
     submit.append(node("span", "", submitLabel));

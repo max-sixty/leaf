@@ -608,13 +608,16 @@ def test_a_short_workspace_shows_more_below_its_playground_regions(browser, serv
     a one-row bar of actions, so the notification playground's longer list scrolls."""
 
     def cue(page, body):
-        """How many pixels of the box's bottom band the mark changes."""
+        """How many pixels of the box's bottom band the mark changes. It puts the mark
+        back only where it found one, since a box the runtime already marked as at its
+        end is not marked again until it scrolls."""
         box = body.bounding_box()
         clip = {**box, "y": box["y"] + box["height"] - 12, "height": 12}
         marked = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
+        had = body.evaluate("el => el.hasAttribute('data-lf-more-below')")
         body.evaluate("el => el.removeAttribute('data-lf-more-below')")
         bare = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
-        body.evaluate("el => el.toggleAttribute('data-lf-more-below', true)")
+        body.evaluate("(el, had) => el.toggleAttribute('data-lf-more-below', had)", had)
         delta = ImageChops.difference(marked, bare).get_flattened_data()
         return sum(1 for pixel in delta if max(pixel) > 24)
 
@@ -626,7 +629,9 @@ def test_a_short_workspace_shows_more_below_its_playground_regions(browser, serv
     assert cue(page, preview) > 100
 
     page = open_page(browser, serve(ROOT / "examples" / "notification-playground.html"))
-    resized(page, 1100, 700)
+    # Without a Controls label or a Starting points label over them, the list fits
+    # at 700px tall; 600 still runs it past the rail's foot.
+    resized(page, 1100, 600)
     playground = page.locator("#notification-playground")
     controls = playground.locator(".lf-playground-controls")
     assert controls.evaluate("el => el.scrollHeight > el.clientHeight + 1")
@@ -788,7 +793,9 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
       };
     }"""
 
-    resized(page, 1100, 700)
+    # Without a Controls label or a Starting points label over them, the list fits
+    # at 700px tall; 600 still runs it past the rail's foot, so it scrolls.
+    resized(page, 1100, 600)
     expect(actions).to_be_visible()
     bounded = page.evaluate(reading)
     assert bounded == {
@@ -806,6 +813,10 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
         "spokenWords": True,
     }
     assert bounded["controlsSize"][1] > bounded["controlsSize"][0], bounded
+    # The band is its buttons alone; "Starting points" only names the group.
+    expect(presets).to_have_text(
+        re.compile(r"^\s*Routine release\s*Needs attention\s*$")
+    )
     # The presets band heading the controls is ruled off from them, over the generic
     # region header's unruled box.
     assert playground.locator(".lf-playground-presets").evaluate(
@@ -914,11 +925,13 @@ def test_a_playground_opens_its_instruction_over_the_page(browser, serve):
     leaves the user on the reveal. Tab goes on from the reveal to the copy."""
     source = leaf_page(
         "Instruction popover",
+        '<button id="outside">Before playground</button>'
         '<lf-ask id="fold-ask"><h1>Choose a density</h1>'
         '<lf-playground id="fold-playground" data-width="available">'
         '<lf-playground-control name="rows" label="Rows" kind="range" value="4" '
         'min="1" max="8"></lf-playground-control>'
-        "<lf-playground-preview><p>Rows of the report.</p></lf-playground-preview>"
+        "<lf-playground-preview><p>Rows of the report.</p>"
+        '<button id="preview-action">Preview action</button></lf-playground-preview>'
         '<lf-playground-output>Use <lf-playground-value for="rows">'
         "</lf-playground-value> rows in the weekly report and show me its "
         "rendered page.</lf-playground-output>"
@@ -935,6 +948,7 @@ def test_a_playground_opens_its_instruction_over_the_page(browser, serve):
     rail = playground.locator(".lf-playground-rail").bounding_box()
     pressed = reveal.bounding_box()
 
+    page.locator("#outside").click()
     reveal.click()
     expect(reveal).to_have_attribute("aria-expanded", "true")
     expect(instruction).to_contain_text("Use 4 rows")
@@ -952,6 +966,16 @@ def test_a_playground_opens_its_instruction_over_the_page(browser, serve):
     page.keyboard.press("Escape")
     expect(instruction).to_be_hidden()
     expect(reveal).to_be_focused()
+
+    preview = playground.get_by_role("button", name="Preview action")
+    preview.click()
+    playground.get_by_role("button", name="Reset", exact=True).click()
+    expect(preview).to_be_focused()
+    reveal.click()
+    expect(instruction).to_be_visible()
+    expect(reveal).to_be_focused()
+    reveal.click()
+    expect(instruction).to_be_hidden()
 
 
 def test_notification_playground_admits_only_its_exact_page_configuration(

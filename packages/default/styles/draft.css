@@ -3,7 +3,7 @@
    editing, and neither grows nor narrows for its controls. The frame holds focus, and
    print retains saved prose. On screen it keeps the reading measure as its prose does
    (theme.css), its outer width the measure. */
-:scope:is(lf-draft) {
+lf-draft {
   display: block;
   --lf-draft-inset: 14px;
   border: 1px solid var(--border-2);
@@ -14,24 +14,24 @@
   font-size: max(var(--entry-floor), 1em);
 }
 @media screen {
-  :scope:is(lf-draft) {
+  lf-draft {
     box-sizing: border-box;
     max-inline-size: var(--lf-measure);
   }
 }
 .lf-draft-body,
-:scope:is(lf-draft) > .lf-markdown-body {
+lf-draft > .lf-markdown-body {
   white-space: normal;
 }
-:is(.lf-draft-body, :scope:is(lf-draft) > .lf-markdown-body) > :first-child {
+:is(.lf-draft-body, lf-draft > .lf-markdown-body) > :first-child {
   margin-top: 0;
 }
-:is(.lf-draft-body, :scope:is(lf-draft) > .lf-markdown-body) > :last-child {
+:is(.lf-draft-body, lf-draft > .lf-markdown-body) > :last-child {
   margin-bottom: 0;
 }
 /* The shared source primitive owns fallback presentation, which a draft's source
  * does not wear: it reads as prose lines. */
-:scope:is(lf-draft) > pre {
+lf-draft > pre {
   white-space: pre-line;
   background: none;
   border: 0;
@@ -62,25 +62,26 @@
   }
 }
 @media screen {
-  :scope:is(lf-draft):not(:where([data-lf-exhibit], [data-lf-exhibit] *)) {
+  lf-draft:not(:where([data-lf-exhibit], [data-lf-exhibit] *)) {
     position: relative;
   }
-  :scope:is(lf-draft):has(.lf-draft-edit) {
+  lf-draft:has(.lf-draft-edit) {
     border-color: var(--muted);
   }
-  :scope:is(lf-draft):has(.lf-draft-edit[data-lf-focus-visible]) {
+  lf-draft:has(.lf-draft-edit[data-lf-focus-visible]) {
     outline: var(--focus-ring);
     outline-offset: calc(-1 * var(--focus-ring-room));
     --lf-wears-ring: 1;
   }
-  :scope:is(lf-draft):has(.lf-draft-edit:state(ready)) > .lf-draft-body {
+  lf-draft:has(.lf-draft-edit:state(ready)) > .lf-draft-body {
     display: none;
   }
   /* The toolbar is Leaf's mark toolbar (integration.css, `.lf-mark-bar`), whose face
      and seat a code block's lone Copy shares: Edit and Copy at rest, Save, Discard and
      Copy while editing, Copy keeping the last seat, and a refused save's status before
      them. A pointer sees it on the top border while over the box or a key is in it,
-     and the open editor always. A finger sees it always, on the bottom border, since
+     and the open editor and a draft that asks for an edit (`needed`) always, since
+     there Edit is the way to answer. A finger sees it always, on the bottom border, since
      on a phone the margin's entries hang past the end of the line they mark, into the
      room over the next block, which is where a top toolbar would stand. */
   .lf-draft-tools {
@@ -100,14 +101,31 @@
     font: var(--t-5)/var(--lf-ui-lh) var(--sans);
     white-space: nowrap;
   }
+  /* An edit back kept, as a rewrite's head says it holds one (shadow.css, `.lf-msg-kept`). */
+  .lf-draft-kept {
+    color: var(--muted-2);
+  }
   .lf-draft-status:empty {
     display: none;
   }
-  :scope:is(lf-draft):is(:hover, [data-lf-focus-within], :has(> .lf-draft-edit))
+  /* A status stays in view: a failed save, or an edit kept in a closed box. */
+  lf-draft:is(
+      :hover,
+      [data-lf-focus-within],
+      [needed],
+      :has(> .lf-draft-edit),
+      :has(.lf-draft-status:not(:empty))
+    )
     .lf-draft-tools {
     opacity: 1;
   }
+  /* A mark's reach stands half a finger's floor above the border it is centred on,
+     which the box's padding keeps clear of words, so a press on the last line puts
+     the caret there rather than pressing Discard. */
   @media (hover: none) {
+    lf-draft {
+      padding-block-end: max(10px, var(--aim-floor) / 2);
+    }
     .lf-draft-tools {
       inset-block: auto 0;
       translate: 0 calc(50% + 0.5px);

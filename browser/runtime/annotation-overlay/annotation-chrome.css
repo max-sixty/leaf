@@ -11,8 +11,8 @@ body.lf-over-mark {
    on its row in Threads, the thread the user is in — and is one hollow line.
    Unlike a text highlight, an element mark is projected above everything the target
    draws, so any interior paint can obscure the target's own words or picture. The
-   target painter keeps the contour above those descendants; the declarations below
-   are the no-JS fallback. The element still takes a press that opens its thread. */
+   target painter keeps the contour above those descendants. The element still takes
+   a press that opens its thread. */
 .lf-mark-el {
   cursor: pointer;
 }
@@ -22,22 +22,8 @@ body.lf-over-mark {
   .lf-mark-el:not(.lf-pending, .lf-mark-here, [data-lf-focus]) {
   cursor: auto;
 }
-/* The draft's own element (an open composer is on screen whenever this is), the pointer
-   on the thread's row in Threads and the thread the user is in share one contour
-   (--mark-contour-w and --mark-contour-ink, theme.css). It stands outside the element
-   at the focus ring's gap, clear of the words at its edge: drawn inside, it ran into a
-   heading's first letters. Focus on the element itself is the distinct state that
-   earns the full ring, in the same place. */
-.lf-mark-el:is(.lf-pending, .lf-mark-hover, .lf-mark-here) {
-  outline: var(--mark-contour-w) solid var(--mark-contour-ink);
-  outline-offset: var(--focus-ring-gap);
-}
 .lf-mark-el.lf-pending {
   cursor: auto;
-}
-.lf-mark-el:not(.lf-projected-mark)[data-lf-focus-visible] {
-  outline: var(--focus-ring);
-  outline-offset: var(--focus-ring-gap);
 }
 /* Armed, a press on a thread-marked element is the aim's, not the thread's, so the
    hand here is the aim's answer rather than the thread's: it stands where the aim has
@@ -49,9 +35,11 @@ body:is(.lf-aiming, [data-lf-design-mode]) .lf-mark-el {
 body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   cursor: pointer;
 }
-/* The chrome layer projects every element mark above the element's own descendants,
-   so source paint would duplicate it. */
-:is(.lf-mark-el, .lf-action-target).lf-projected-mark {
+/* Replace only the source focus cue, preserving authored outlines and obligations
+   while a reference is projected. Native visibility covers the return before the
+   focus owner has reflected its attribute. :root outranks field focus rules even
+   when their sheet arrives later. */
+:root .lf-projected-mark:is(:focus-visible, [data-lf-focus-visible]) {
   outline: none;
 }
 
@@ -91,7 +79,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   /* Placement fits the finished thread before typing: the frame reserves the card's
      header and reply rows around the editor, and is at least as wide as the card
      (`--thread-card-min`), so the card Send opens stands in the frame and grows out of
-     the field (`.lf-margin-preview[data-lf-grows]`). Only the editor paints; the
+     the field (thread-preview.js, `followCard`). Only the field paints; the
      transparent rows neither take document flow nor intercept presses. Its tracks
      shrink into that frame, and attached images hang outside it. */
   .lf-fab-bar:not([data-lf-target-only], [data-lf-presentation="inline"]) {
@@ -135,7 +123,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     max-width: var(--lf-float-w, calc(100vw - 16px));
   }
   .lf-fab-bar[data-lf-margin-raised] {
-    display: none !important;
+    display: none;
   }
   /* A floating surface anchored in the page's plane (floating.js) shows wherever its
      placement puts it, its anchor scrolled away or not. */
@@ -146,12 +134,60 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   :is(.lf-fab-bar, .lf-margin-preview)[data-lf-plane="window"] {
     will-change: opacity;
   }
+  /* Floating, the box moves as the card it grows into does (floating-response.js,
+     box-motion.js): the composer is a box of its own in the frame's field row, holding
+     what moves, and the field's frame is the box its surface draws, its border the
+     surface's ring showing through the pixel its own face leaves round it. The editor
+     paints nothing of its own, so its words travel inside the frame while it moves. */
+  .lf-fab-bar:not([data-lf-presentation="inline"]) > .lf-composer[data-lf-open] {
+    display: grid;
+    grid-column: 1;
+    grid-row: 1;
+    align-self: stretch;
+    min-height: 0;
+    grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+  }
   .lf-fab-bar:not([data-lf-presentation="inline"]) .lf-compose-field {
+    box-sizing: border-box;
     min-height: var(--lf-response-height);
     grid-column: 1;
     grid-row: 1;
     align-self: stretch;
     grid-template-rows: minmax(0, 1fr);
+    padding: 1px;
+    border-radius: var(--r);
+    background: var(--card) content-box;
+  }
+  .lf-fab-bar:not([data-lf-presentation="inline"]) leaf-text.lf-fab-input {
+    min-height: 0;
+    border: 0;
+    background: transparent;
+    filter: none;
+    outline: none;
+    --lf-wears-ring: 0;
+  }
+  .lf-fab-bar:not([data-lf-presentation="inline"])
+    .lf-compose-field:has(> leaf-text[data-lf-focus-visible]) {
+    outline: var(--focus-ring);
+    outline-offset: 0;
+    --lf-wears-ring: 1;
+  }
+  .lf-fab-ground {
+    display: none;
+    position: absolute;
+    inset: -100vmax;
+    z-index: -1;
+    --lf-box-ring: var(--border-2);
+    --lf-box-fill: var(--card);
+  }
+  .lf-fab-bar:not([data-lf-presentation="inline"]):has(> .lf-composer[data-lf-open])
+    > .lf-fab-ground {
+    display: block;
+    pointer-events: none;
+  }
+  /* The focus ring stands outside the field in place of its border. */
+  .lf-fab-bar:has(leaf-text.lf-fab-input[data-lf-focus-visible]) > .lf-fab-ground {
+    --lf-box-ring: var(--card);
   }
   /* Attached images hang off the box on the side away from its passage, outside its
      frame, so attaching neither grows the box nor moves a word and the passage stays in
@@ -192,26 +228,21 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   .lf-visual-marks {
     display: contents;
   }
-  /* Every projected state is a moment (anchor-paint.js), drawn as the contour the
-     fallback above draws, outside the target; focus on the target wears the focus ring
-     there instead, and an action's target alone keeps the hairline. A shaped mark
-     strokes the target's own shape (target-paint-geometry.js), so it spends no outline. */
+  /* Rectangles use the shared brackets in chrome.css; focus draws that perimeter
+     whole. SVG marks retain their actual contour instead of a rectangular frame. */
   .lf-visual-mark {
     position: absolute;
     display: none;
     pointer-events: none;
     --lf-shape-ink: var(--mark-contour-ink);
     --lf-shape-stroke: var(--mark-contour-w);
-    outline: var(--lf-shape-stroke) solid var(--lf-shape-ink);
-    outline-offset: var(--focus-ring-gap);
-    /* This layer is above the target's children. Keep its interior physically unable
-       to paint over them, including under package and page-local theme rules. */
-    background: none !important;
+    /* This layer is above the target's children, so its interior paints nothing over
+       them. */
+    background: none;
   }
   .lf-visual-mark.lf-visual-mark-focus {
     --lf-shape-ink: var(--accent);
     --lf-shape-stroke: var(--focus-ring-w);
-    outline: var(--focus-ring);
   }
   .lf-visual-mark.lf-visual-mark-action:not(
       .lf-visual-mark-pending,
@@ -220,9 +251,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
       .lf-visual-mark-here
     ) {
     --lf-shape-stroke: 1px;
-  }
-  .lf-visual-mark.lf-shaped {
-    outline: none;
+    --lf-target-outline: 1px solid var(--mark-contour-ink);
   }
   .lf-visual-mark-shape {
     display: block;
@@ -275,33 +304,15 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     display: flex;
     flex-direction: column;
   }
-  /* The surface: a layer behind the face reaching far past the card on every side, so
-     the outline it is cut to can travel anywhere the card can go, with one soft shadow
-     cast at the height of what stands over the page for a task of its own. The card's
-     motion cuts it to the outline grown by that shadow's reach, its ring to the outline
-     and its fill a pixel inside, and, while the card moves, a ring a part of it wears,
-     the reply field's focus ring, in that ring's colour (runtime/box-motion.js). Until
-     then each is cut to nothing. */
+  /* The surface (runtime/box-motion.js, chrome.css): a layer behind the face reaching
+     far past the card on every side, so the outline it is cut to can travel anywhere
+     the card can go, its ring the card's border, in the card's own paper. */
   .lf-margin-preview-ground {
     position: absolute;
     inset: -100vmax;
     z-index: -1;
-    pointer-events: none;
-    filter: drop-shadow(var(--raise-3));
-  }
-  .lf-margin-preview-ground,
-  .lf-margin-preview-ground > * {
-    clip-path: inset(50%);
-  }
-  .lf-margin-preview-ground > * {
-    position: absolute;
-    inset: 0;
-  }
-  .lf-margin-preview-ring {
-    background: var(--border-2);
-  }
-  .lf-margin-preview-fill {
-    background: var(--paper);
+    --lf-box-ring: var(--border-2);
+    --lf-box-fill: var(--paper);
   }
   /* Open before its first placement lands (thread-preview.js, `placeThreadPreview`),
      the card has no spot yet, so it is not seen or pressed where it happens to lie. */
@@ -312,8 +323,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   /* So it fades in where its first placement stands it, and out where it stood when the
      user put it away (thread-preview.js, `close`), in a disclosure's time. Only its
      paint changes: it takes presses from the frame it is placed, and none once put away.
-     A card Send opened grows out of its comment box instead (`data-lf-grows`, below),
-     which the same task that places it marks. */
+     A card Send opened stands at once and grows out of its comment box's field
+     instead (`data-lf-grows`, thread-preview.js). */
   .lf-margin-preview {
     transition: opacity var(--lf-motion-disclosure) linear;
   }
@@ -342,41 +353,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     clip-path: inset(
       var(--lf-cut-top) var(--lf-cut-right) var(--lf-cut-bottom) var(--lf-cut-left)
     );
-  }
-  /* A card Send opened grows out of the comment box it replaces (thread-preview.js,
-     `growOut`). The box paints only its field while it is written: the user preferred
-     (2026-10-19) a field that opens into its card at Send to a box painted as the card
-     throughout (#3157). The box's frame and the card share their corner, width and
-     height, so the clip opens from the field, which stands the frame's insets inside the
-     card, to the card's edge, then past `--raise-3`'s reach (48px), so the shadow is
-     whole when the clip lifts. The card is whole beneath the clip from the first frame,
-     so no word moves. Each edge stops at the region's cut, so the growth never paints
-     past the region the card stands in. */
-  .lf-margin-preview[data-lf-grows] {
-    animation: lf-comment-grow 240ms ease;
-  }
-  @keyframes lf-comment-grow {
-    from {
-      clip-path: inset(
-        max(var(--lf-comment-frame-top), var(--lf-cut-top, -48px))
-          max(var(--lf-comment-frame-inline), var(--lf-cut-right, -48px))
-          max(var(--lf-comment-frame-bottom), var(--lf-cut-bottom, -48px))
-          max(var(--lf-comment-frame-inline), var(--lf-cut-left, -48px)) round var(--r)
-      );
-    }
-    85% {
-      clip-path: inset(
-        max(0px, var(--lf-cut-top, -48px)) max(0px, var(--lf-cut-right, -48px))
-          max(0px, var(--lf-cut-bottom, -48px)) max(0px, var(--lf-cut-left, -48px))
-          round 10px
-      );
-    }
-    to {
-      clip-path: inset(
-        var(--lf-cut-top, -48px) var(--lf-cut-right, -48px) var(--lf-cut-bottom, -48px)
-          var(--lf-cut-left, -48px) round 10px
-      );
-    }
   }
   /* A floating comment surface is carried by its edge (surface-grip.js): a band
      `--lf-grip-out` outside its box and `--lf-grip-in` inside, cut out of a box over
@@ -419,13 +395,17 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   .lf-margin-preview > .lf-surface-grip {
     z-index: 1;
   }
-  .lf-fab-bar:is(:has(> .lf-surface-grip:hover), [data-lf-carried])
-    .lf-fab-input:not([data-lf-focus]) {
-    border-color: color-mix(in srgb, var(--accent) 55%, var(--border-2));
-    transition: border-color 0.1s 0.15s;
+  .lf-fab-bar:is(:has(> .lf-surface-grip:hover), [data-lf-carried]):not(
+      :has(.lf-fab-input[data-lf-focus])
+    )
+    > .lf-fab-ground
+    > .lf-box-ring {
+    background: color-mix(in srgb, var(--accent) 55%, var(--border-2));
+    transition: background-color 0.1s 0.15s;
   }
   .lf-margin-preview:is(:has(> .lf-surface-grip:hover), [data-lf-carried])
-    .lf-margin-preview-ring {
+    .lf-margin-preview-ground
+    > .lf-box-ring {
     background: color-mix(in srgb, var(--accent) 55%, var(--border-2));
     transition: background-color 0.1s 0.15s;
   }
@@ -462,20 +442,11 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   .lf-margin-preview-position {
     white-space: nowrap;
   }
-  .lf-margin-preview-step {
-    border: 0;
-    background: transparent;
-    color: var(--muted);
-  }
   .lf-margin-preview-step:first-child > .lf-action-icon {
     inset-inline-start: 4px;
   }
   .lf-margin-preview-step:last-child > .lf-action-icon {
     inset-inline-end: 4px;
-  }
-  .lf-margin-preview-step:not(:disabled):hover {
-    background: var(--chip);
-    color: var(--ink);
   }
   /* Only the turns scroll, each with its head: the actions and reply keep their own
      places, so the scrollbar describes the content it moves. The card grows to its
@@ -583,11 +554,13 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
      so the words keep their width and place and nothing scrolls sideways. Once
      anything is scrolled away, what stands on the heads' line covers the room above
      it, the stuck head and the actions each over its own track
-     (`--lf-thread-room-cover`, thread-preview.js); at the top a ring still has it. */
+     (`--lf-thread-room-cover`, thread-preview.js); at the top a ring still has it.
+     The card's face is the thread's ground (above), so the thread paints none, not
+     even the quiet one a thread holding focus wears (surfaces.css). */
   .lf-margin-thread .lf-page-thread {
     --lf-transcript-room: max(var(--focus-ring-room), var(--lf-group-ring-end));
     padding: 0;
-    background: var(--paper);
+    background: none;
   }
   .lf-margin-thread .lf-page-thread::after {
     /* Share the transcript's grid track without reserving reading space. The
@@ -632,7 +605,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     align-items: stretch;
     margin: 0;
     padding-block: var(--lf-comment-foot-gap) 0;
-    background: inherit;
   }
   .lf-margin-thread .lf-thread-reply .lf-composer-media {
     grid-row: 1;
@@ -822,12 +794,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     }
     .lf-margin-thread .lf-thread-transcript .lf-msg-head > * {
       forced-color-adjust: auto;
-    }
-    .lf-margin-preview-fill {
-      background: Canvas;
-    }
-    .lf-margin-preview-ring {
-      background: CanvasText;
     }
   }
 }

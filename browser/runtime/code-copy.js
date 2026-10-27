@@ -33,6 +33,8 @@ import {
   tabFromBlock,
 } from "./block-controls.js";
 import { headerLevels } from "./css-anchors.js";
+import { skipped } from "./geometry.js";
+import { nextRender, sizeObserver } from "./rendering.js";
 import { focusDestination, onCurrentLocation } from "./focus.js";
 import { upFrom } from "./shadow.js";
 import { claimReachStop, releaseReachStop } from "./reach.js";
@@ -40,6 +42,19 @@ import { commandScope, projectCommandScope } from "./keyboard/scopes.js";
 
 const controls = new WeakMap();
 const wired = new WeakMap();
+// Observe only deferred document blocks. Opening a disclosure or a hidden panel gives
+// its blocks boxes again; prepare that batch without polling hidden DOM.
+const deferred = new WeakSet();
+let prepareDocumentBlocks;
+const revealed = sizeObserver((entries) => {
+  // Preparing controls changes scroll reach and can resize other observed boxes.
+  // Leave the observer's delivery loop before writing those changes.
+  nextRender(() =>
+    prepareDocumentBlocks(
+      entries.map(({ target }) => target).filter((target) => deferred.has(target)),
+    ),
+  );
+});
 // The key this module projects its Copy scope under, beside the block's other owners.
 const COPY_SCOPE = Symbol("code copy");
 
@@ -47,6 +62,7 @@ const COPY_SCOPE = Symbol("code copy");
 // route must see the control in that same gesture, widgets included.
 onCurrentLocation((node) => {
   for (let at = node; at; at = upFrom(at)) {
+    if (deferred.has(at) && !skipped(at)) prepareDocumentBlocks([at]);
     const copy = controls.get(at);
     if (copy) return revealControl(copy, at);
   }
@@ -56,7 +72,8 @@ onCurrentLocation((node) => {
 function prepareCodeBlock(pre, source, noun) {
   let copy = controls.get(pre);
   if (!copy) {
-    copy = copyControl("lf-code-copy lf-mark", {
+    copy = copyControl("lf-code-copy", {
+      role: "mark",
       label: `Copy ${noun}`,
       success: `${noun[0].toUpperCase()}${noun.slice(1)} copied`,
       error: `Unable to copy ${noun}`,
@@ -117,58 +134,71 @@ export function watchCodeBlocks() {
   );
   // A widget's shadow stage is its renderer's notation, not an ordinary document
   // block. Its module supplies the source explicitly through copyBlock.
-  watchArrivals("pre:has(> code)", ["style"], {
-    arriveBatch(blocks) {
-      // Read every source before anchor names and connected controls change layout.
-      const prepared = blocks
-        .filter((pre) => pre.getRootNode() === document)
-        .map(
-          (pre) =>
-            /** @type {[HTMLElement, ReturnType<typeof prepareCodeBlock>, any[]]} */ ([
-              pre,
-              prepareCodeBlock(
-                pre,
-                () => pre.querySelector(":scope > code").textContent,
-                "code",
-              ),
-              headerLevels(pre),
-            ]),
-        );
-      for (const [pre, pending, levels] of prepared) {
-        const copy = aimControl(pending);
-        standInChrome(copy, pre, levels);
-        copy.tabIndex = -1;
-        claimReachStop(pre);
-        if (!wired.has(pre)) {
-          const events = new AbortController();
-          wired.set(pre, events);
-          declareCopy(pre, copy, "code");
-          const options = { signal: events.signal };
-          tabFromBlock(copy, pre, events.signal);
-          pre.addEventListener(
-            "pointerenter",
-            () => copy.classList.add("lf-code-copy-hover"),
-            options,
-          );
-          pre.addEventListener(
-            "pointerleave",
-            () => copy.classList.remove("lf-code-copy-hover"),
-            options,
-          );
-          pre.addEventListener(
-            "focus",
-            () => copy.classList.add("lf-code-copy-focused"),
-            options,
-          );
-          pre.addEventListener(
-            "blur",
-            () => copy.classList.remove("lf-code-copy-focused"),
-            options,
-          );
+  prepareDocumentBlocks = (blocks) => {
+    // Read every source before anchor names and connected controls change layout.
+    const prepared = blocks
+      .filter((pre) => {
+        if (pre.getRootNode() !== document) return false;
+        if (skipped(pre)) {
+          if (!wired.has(pre) && !deferred.has(pre)) {
+            deferred.add(pre);
+            revealed.observe(pre);
+          }
+          return false;
         }
+        if (deferred.delete(pre)) revealed.unobserve(pre);
+        return true;
+      })
+      .map(
+        (pre) =>
+          /** @type {[HTMLElement, ReturnType<typeof prepareCodeBlock>, any[]]} */ ([
+            pre,
+            prepareCodeBlock(
+              pre,
+              () => pre.querySelector(":scope > code").textContent,
+              "code",
+            ),
+            headerLevels(pre),
+          ]),
+      );
+    for (const [pre, pending, levels] of prepared) {
+      const copy = aimControl(pending);
+      standInChrome(copy, pre, levels);
+      copy.tabIndex = -1;
+      claimReachStop(pre);
+      if (!wired.has(pre)) {
+        const events = new AbortController();
+        wired.set(pre, events);
+        declareCopy(pre, copy, "code");
+        const options = { signal: events.signal };
+        tabFromBlock(copy, pre, events.signal);
+        pre.addEventListener(
+          "pointerenter",
+          () => copy.classList.add("lf-code-copy-hover"),
+          options,
+        );
+        pre.addEventListener(
+          "pointerleave",
+          () => copy.classList.remove("lf-code-copy-hover"),
+          options,
+        );
+        pre.addEventListener(
+          "focus",
+          () => copy.classList.add("lf-code-copy-focused"),
+          options,
+        );
+        pre.addEventListener(
+          "blur",
+          () => copy.classList.remove("lf-code-copy-focused"),
+          options,
+        );
       }
-    },
+    }
+  };
+  watchArrivals("pre:has(> code)", ["style"], {
+    arriveBatch: prepareDocumentBlocks,
     leave(pre) {
+      if (deferred.delete(pre)) revealed.unobserve(pre);
       wired.get(pre)?.abort();
       wired.delete(pre);
       const copy = controls.get(pre);

@@ -608,6 +608,10 @@ def test_lit_margin_projection_reorders_retained_controls_without_moving_the_use
     box = action_a.bounding_box()
     page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
     page.mouse.down()
+    # Native pointer focus leaves B before arriving at A. That transfer stays
+    # inside the cluster, so it must not fold the options under the held press.
+    expect(action_a).to_be_focused()
+    expect(host).to_have_attribute("data-lf-options-open", "")
     page.evaluate("() => window.lfRetainedMargin.change()")
     expect(action_a).to_have_accessible_name("Action A now")
     assert action_a.evaluate("node => node === window.lfRetainedMarginA")
@@ -741,20 +745,19 @@ def test_a_margin_row_is_unseen_until_its_first_placement_lands(browser, serve):
         """async () => {
           const {contributionEntry, registerContribution} =
             await window.__lfWidgetApi();
-          return new Promise(resolve => requestAnimationFrame(() => {
-            const registration = registerContribution({
-              key: 'first-placement', target: document.querySelector('#how-cap'),
-              read: () => ({entries: [contributionEntry({
-                key: 'act', icon: 'dot', label: 'New margin action'
-              })]}), activate: () => {}
-            });
-            const row = registration.control('act', 'margin')
-              .closest('.lf-margin-cluster');
-            const rect = row.getBoundingClientRect();
-            resolve({place: row.dataset.lfPlace ?? null,
-              visibility: getComputedStyle(row).visibility,
-              width: rect.width, height: rect.height});
-          }));
+          await new Promise(requestAnimationFrame);
+          const registration = registerContribution({
+            key: 'first-placement', target: document.querySelector('#how-cap'),
+            read: () => ({entries: [contributionEntry({
+              key: 'act', icon: 'dot', label: 'New margin action'
+            })]}), activate: () => {}
+          });
+          const row = registration.control('act', 'margin')
+            .closest('.lf-margin-cluster');
+          const rect = row.getBoundingClientRect();
+          return {place: row.dataset.lfPlace ?? null,
+            visibility: getComputedStyle(row).visibility,
+            width: rect.width, height: rect.height};
         }"""
     )
     assert unplaced["place"] is None

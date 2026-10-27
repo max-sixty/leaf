@@ -63,6 +63,12 @@ phrase the command reference shows while it isn't, such as `in an open draft edi
 Set `runFromCommandReference: false` for a step the reference can't run without a choice
 it lacks. `ready` is described in `module-authoring.md`, "Startup and presentation".
 
+Android's back gesture takes the step Escape would. A row whose `run` throws away words
+the user wrote and hasn't sent, such as an editor's Escape, also declares `keep`, which
+back runs instead: it closes the editor the same way, keeps the changed words where
+reopening finds them, shows that the widget holds them, and says so with
+`notice("Edit kept")`.
+
 Leaf re-evaluates a `when` or a computed field when the readings it uses change, such as
 a widget's state or the threads. For any other state it reads, hold the value in a
 `signal` or call `paintKeys()` after changing it.
@@ -166,7 +172,10 @@ A live revision moves focus from a generated control to its replacement by a
 `data-lf-carry` key, unique within the control's nearest authored ancestor with an id.
 
 `focused()` is the focused element across shadow trees, and `currentLocationIn(scope)` says
-whether focus is in a scope. `whenLeft(element, leave)` runs `leave` once when focus
+whether focus is in a scope. `placeOf(node)` returns the page node a place stands for,
+so focus on a margin entry or in a thread card reads as being at its passage or
+obligation; a module asks it whether the user is on its content from either.
+`whenLeft(element, leave)` runs `leave` once when focus
 leaves an element. `onPressAway(away, dismiss)` hears each primary press that begins and
 ends where `away(path)` is true of its composed path, as an open editor that a tap
 elsewhere should save does, and calls `dismiss(path, from)` before the press's click; it
@@ -254,15 +263,16 @@ Wire the box with `wireInput(box, options)`. Enter sends on a physical keyboard,
 Shift+Enter writes a newline, and Mod+Enter sends anywhere; on a touch screen the
 visible control sends. A box for one line, such as a name, carries
 `aria-multiline="false"` before it is wired: Enter then sends from every keyboard, a
-phone's included, Shift+Enter writes nothing, and a pasted line break becomes a space. The options are `sendBtn`, the send control; `sends`, its action
-in words; `hint`, the placeholder; `save(value)`, called with the whole draft on each
+phone's included, Shift+Enter writes nothing, and a pasted line break becomes a space.
+The options are `sendClass`, placement classes for the generated send control (default
+empty); `sends`, its action in words; `hint`, the placeholder; `save(value)`, called with the whole draft on each
 edit; `send(text, raw, owns)`, called on send with the trimmed and raw draft; `busy()`
-and `hasContent(raw)`, which hold sending back; and `paint()`, the widget's own drawing
-from the box. Write `.value` only to seed the box before wiring it.
+and `hasContent(raw)`, which hold sending back. Write `.value` only to seed the box
+before wiring it.
 
 `wireInput` returns `sync`, which reads or sets the whole draft, a pasted image
 included: `sync.value()` reads it, `sync.load(value)` replaces it, and `sync()` repaints
-after the box's state changes.
+after the box's state changes. `sync.button` is the generated send control.
 
 Drafts survive a reload, a new version and a closed tab, and every tab of the page
 shares them. Keep each under a context string unique on the page, such as `option:` and
@@ -283,5 +293,6 @@ its id:
 
 `lf-options`' box for adding an option (`lf-options-addition.js`) is the worked example.
 
-For a CodeMirror editor, construct `LeafEditorView` in place of `EditorView`, so focus
-and reveals go through Leaf.
+For a CodeMirror editor, construct the class `leafEditorView(codemirror)` returns in
+place of `EditorView`, so focus and reveals go through Leaf. Pass the module your widget
+imports (`import * as codemirror from "/vendor/codemirror.esm.js"`).

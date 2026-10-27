@@ -110,7 +110,9 @@
 // `translate` in pixels or percentages of the border box (including a directly bound
 // inline custom property), a pixel-only stylesheet consumer of an inherited custom
 // property, or pixel
-// left/top/marginLeft/marginTop. Scale, rotation and
+// left/top/marginLeft/marginTop. A sticky box's animated inset is the line it sticks
+// at, not an offset, so it credits only the box's move within its containing block
+// (`stickyInsetMotion`). Scale, rotation and
 // composed effects receive no inferred translation credit.
 //
 // Chrome's paint signal and landmark poses answer distinct questions. The ledger
@@ -1327,6 +1329,11 @@
           : {};
       const paint = {
         parent: up(node),
+        domParent: node.parentNode,
+        next: range ? null : node.nextElementSibling,
+        display: style.display,
+        float: style.float,
+        writingMode: style.writingMode,
         anchor: range ? null : anchorOf(node, style, anchors),
         anchorX:
           !range &&
@@ -2777,73 +2784,61 @@
       return kept.get(key);
     };
   };
-  // The computed values the layout path reads.
-  const flowStyle = forTask((element) => {
-    const style = getComputedStyle(element);
-    return {
-      display: style.display,
-      position: style.position,
-      float: style.float,
-      writingMode: style.writingMode,
-    };
-  });
   const effectProperties = forTask(animationProperties);
-  const inFlow = (element) => {
-    const style = flowStyle(element);
-    return !["absolute", "fixed"].includes(style.position) && style.float === "none";
+  // Reflow belongs to the layout the size animation started in. Its final task may
+  // move the folded box into a closed disclosure before this paint is judged.
+  const inFlow = (element, at) => {
+    const style = paintAt(element, at);
+    return (
+      style && !["absolute", "fixed"].includes(style.position) && style.float === "none"
+    );
   };
-  // The box a box's layout places it in: the rendered parent, past any that generates
-  // no box of its own, such as a slot. The layout path runs through the rendered tree,
-  // so a size change inside a widget's shadow root carries the page's boxes after its
-  // host, as a resolved thread folding in a diff carries the paragraphs below the diff.
-  const boxParent = (element) => {
-    let parent = up(element);
-    while (parent && flowStyle(parent).display === "contents") parent = up(parent);
+  const boxParent = (element, at) => {
+    let parent = paintAt(element, at)?.parent;
+    while (parent && paintAt(parent, at)?.display === "contents")
+      parent = paintAt(parent, at)?.parent;
     return parent;
   };
-  // Whether `element` may follow `target` in the page as rendered, read from each
-  // node's tree and its hosts alone, without a style or layout read: it runs ahead of
-  // those for every pair of a size change and a moved box. The two climb their hosts to
-  // a shared tree, which orders them; a box inside a later host follows. It is a filter,
-  // not the decision: `sizeReaches` still walks the layout path, which can still refuse.
-  const hosts = (node) => {
-    const chain = [node];
-    for (let host = node.getRootNode().host; host; host = host.getRootNode().host)
-      chain.push(host);
-    return chain;
-  };
-  const mayFollow = (target, element) => {
-    const from = hosts(target);
-    for (const at of hosts(element)) {
-      const root = at.getRootNode();
-      const shared = from.find((node) => node.getRootNode() === root);
-      if (shared)
-        return (
-          shared !== at &&
-          !!(shared.compareDocumentPosition(at) & Node.DOCUMENT_POSITION_FOLLOWING)
-        );
-    }
+  // Retain DOM sibling order as well as ancestry. Named slots can reorder those
+  // siblings visually; this has the same limit as compareDocumentPosition did.
+  const followsAt = (branch, follower, at) => {
+    const ancestors = new Set();
+    for (let node = follower; node; node = paintAt(node, at)?.domParent)
+      ancestors.add(node);
+    let before = branch;
+    while (
+      paintAt(before, at)?.domParent &&
+      !ancestors.has(paintAt(before, at).domParent)
+    )
+      before = paintAt(before, at).domParent;
+    const parent = paintAt(before, at)?.domParent;
+    if (!parent) return false;
+    let after = follower;
+    while (after && paintAt(after, at)?.domParent !== parent)
+      after = paintAt(after, at)?.domParent;
+    if (!after) return false;
+    for (let next = paintAt(before, at)?.next; next; next = paintAt(next, at)?.next)
+      if (next === after) return true;
     return false;
   };
   const sizeReaches = (target, element, from, to, axis, change) => {
     const size = axis === "top" ? "height" : "width";
-    // The moved box's own path, read once: the branch climb asks at each step whether
-    // it has reached a box holding it, and the follower is the box on that path just
-    // under the flow they share.
+    // The source keeps its old layout path; the receiving box must still belong to
+    // that flow in the new reading. Leaving flow cannot borrow the old fold's credit.
     const path = [];
-    for (let at = element; at; at = boxParent(at)) path.push(at);
+    for (let at = element; at; at = boxParent(at, to)) path.push(at);
     const holding = new Set(path);
     let branch = target;
-    while (boxParent(branch) && !holding.has(boxParent(branch))) {
-      if (!inFlow(branch)) return false;
-      branch = boxParent(branch);
+    while (boxParent(branch, from) && !holding.has(boxParent(branch, from))) {
+      if (!inFlow(branch, from)) return false;
+      branch = boxParent(branch, from);
       const before = boxAt(branch, from),
         after = boxAt(branch, to);
       if (!before || !after || Math.abs(after[size] - before[size] - change) >= 1)
         return false;
     }
-    const flow = boxParent(branch);
-    if (!inFlow(branch) || !flow) return false;
+    const flow = boxParent(branch, from);
+    if (!inFlow(branch, from) || !flow) return false;
     // An in-flow box moves with its parent, and an absolutely positioned one with its
     // containing block: its nearest positioned ancestor or a box nearer still, such as
     // a transformed one. So an absolute box is carried only where a positioned box
@@ -2853,42 +2848,85 @@
     const follower = path[reach - 1];
     let placed = true;
     for (const box of path.slice(0, reach - 1)) {
-      const style = flowStyle(box);
+      const style = paintAt(box, to);
       if (style.position === "fixed" || style.float !== "none") return false;
       if (style.position === "absolute") placed = false;
       else if (!placed && style.position !== "static") placed = true;
     }
-    if (!placed && flowStyle(follower).position === "static") return false;
+    if (!placed && paintAt(follower, to).position === "static") return false;
     // Block-level children stack vertically in a horizontal-writing block flow.
     // A block container can also hold inline siblings, whose height does not carry
     // the next sibling down; flex, grid, and vertical writing have other axes.
     if (
       axis !== "top" ||
-      !["block", "flow-root"].includes(flowStyle(flow).display) ||
-      flowStyle(flow).writingMode !== "horizontal-tb" ||
-      !["block", "flow-root"].includes(flowStyle(branch).display) ||
-      !["block", "flow-root"].includes(flowStyle(follower).display)
+      !["block", "flow-root"].includes(paintAt(flow, to).display) ||
+      paintAt(flow, to).writingMode !== "horizontal-tb" ||
+      !["block", "flow-root"].includes(paintAt(branch, from).display) ||
+      !["block", "flow-root"].includes(paintAt(follower, to).display)
     )
       return false;
-    // The two are ordered by the DOM of the tree they share. Two boxes in one flow can
-    // stand in different trees, as a slotted node beside its slot's shadow siblings,
-    // where the DOM gives no order; those are not credited. Known limit: within one
-    // tree, named slots can render a host's children in another order than the DOM's,
-    // so a scripted move of a child the DOM puts after the size change but a slot
-    // renders before it is credited.
-    return (
-      inFlow(follower) &&
-      branch !== follower &&
-      branch.getRootNode() === follower.getRootNode() &&
-      !!(branch.compareDocumentPosition(follower) & Node.DOCUMENT_POSITION_FOLLOWING)
+    return inFlow(follower, to) && followsAt(branch, follower, from);
+  };
+  // A sticky box's inset is the line it sticks at, not an offset. While the box stands
+  // at that line, a change of the inset moves it by that change within its containing
+  // block; while it stands short of the line, not at all. So an animated inset credits
+  // the box's move within that block where the move lies between none and the inset's
+  // change. box-motion.js's ride relies on this: it carries a scroller's children and
+  // moves their sticky heads' insets against the carry, so a stuck head holds its line
+  // and one short of it rides with its message. The box's static place, which would
+  // say which of the two it is, is not readable, so another move within that span is
+  // credited too, as `sticky_scroll` credits one within a scroll's.
+  const STICKY_INSETS = {
+    top: { axis: "top", sign: 1 },
+    bottom: { axis: "top", sign: -1 },
+    left: { axis: "left", sign: 1 },
+    right: { axis: "left", sign: -1 },
+  };
+  const stickyInsetMotion = (motion, target, property, before, after, from, to) => {
+    const { axis, sign } = STICKY_INSETS[property];
+    const prior = pixels(before.values[property]),
+      next = pixels(after.values[property]);
+    const block = paintAt(target, to).parent;
+    if (prior === null || next === null || paintAt(target, from)?.parent !== block)
+      return;
+    const change = sign * (next - prior);
+    const reach = viewportTranslation(property, before, after, {
+      left: axis === "left" ? change : 0,
+      top: axis === "top" ? change : 0,
+    });
+    const was = boxAt(target, from),
+      now = boxAt(target, to),
+      blockWas = boxAt(block, from),
+      blockNow = boxAt(block, to);
+    if (!reach || !was || !now || !blockWas || !blockNow) return;
+    const within = Object.fromEntries(
+      ["left", "top"].map((side) => [
+        side,
+        now[side] - blockNow[side] - (was[side] - blockWas[side]),
+      ]),
     );
+    if (
+      !["left", "top"].every(
+        (side) =>
+          within[side] >= Math.min(0, reach[side]) - 1 &&
+          within[side] <= Math.max(0, reach[side]) + 1,
+      )
+    )
+      return;
+    for (const side of ["left", "top"])
+      credit(motion, "sticky_inset", target, side, within[side], {
+        property,
+        before: before.values[property],
+        after: after.values[property],
+        reach,
+        block,
+      });
   };
   const animationMotion = (node, from, to, animations) => {
     const element = node.nodeType === Node.TEXT_NODE ? up(node) : node;
     const motion = { left: 0, top: 0, terms: [] };
     if (!element) return motion;
     for (const details of nativeClosures.keys()) {
-      if (!mayFollow(details, element)) continue;
       const before = boxAt(details, from),
         after = boxAt(details, to),
         first = layoutAt(element, from),
@@ -2946,11 +2984,7 @@
         // A size animation can move boxes later in its flow. The size change
         // must propagate through its ancestors to a following in-flow branch.
         const properties = effectProperties(animation);
-        if (
-          !properties.some((property) => SIZE_GEOMETRY.has(property)) ||
-          !mayFollow(target, element)
-        )
-          continue;
+        if (!properties.some((property) => SIZE_GEOMETRY.has(property))) continue;
         const before = boxAt(target, from),
           after = boxAt(target, to);
         const first = layoutAt(element, from),
@@ -2991,6 +3025,10 @@
         if (properties.has(property)) continue;
         properties.add(property);
         if (!(property in before.values) || !(property in after.values)) continue;
+        if (property in STICKY_INSETS && paintAt(target, to)?.position === "sticky") {
+          stickyInsetMotion(motion, target, property, before, after, from, to);
+          continue;
+        }
         const prior = animationTranslation(property, before.values[property]);
         const next = animationTranslation(property, after.values[property]);
         if (!prior || !next) continue;

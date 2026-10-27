@@ -36,7 +36,7 @@ def test_thread_rows_name_action_in_existing_status(browser, serve):
     resized(page, 1440, 900)
     asked = thread_row(page, PHOTO_THREAD)
     expect(asked.locator(".lf-fp-label")).to_have_text("Workshop room photo")
-    expect(asked.locator(".lf-fp-value")).to_have_text("New · My turn to answer")
+    expect(asked.locator(".lf-fp-value")).to_have_text("Your turn")
     line = asked.evaluate(
         """row => {
           const label = row.querySelector('.lf-fp-label').getBoundingClientRect();
@@ -52,7 +52,7 @@ def test_thread_rows_name_action_in_existing_status(browser, serve):
 def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
     """An open thread and a request to its user are different facts. A complete
     answer stays available for follow-up without the row saying the user owes one; a
-    reply holding a question (`lf-ask`) says so until the user answers. A decision
+    reply asking a question (`obligation`) says so until the user answers. A decision
     widget says so the same way: its own current projection puts the thread on the
     user."""
     url = serve(PANEL_PAGE)
@@ -66,16 +66,19 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
     thread_model.post_reply(
         serve.page_dir,
         {"responds": asked},
-        "One choice remains.",
-        markup='<lf-ask id="store-owner">Which store should own the result?</lf-ask>',
+        "One choice remains: which store should own the result?",
+        obligation=True,
     )
     page = open_page(browser, url)
-    expect(thread_row(page, asked).locator(".lf-fp-value")).to_have_text(
-        "My turn to answer"
-    )
+    expect(thread_row(page, asked).locator(".lf-fp-value")).to_have_text("Your turn")
     expect(thread_row(page, answered).locator(".lf-fp-value")).not_to_contain_text(
-        "My turn"
+        "Your turn"
     )
+    # The complete answer is news, since nothing on arrival shows it (the question's
+    # reply is shown, and so read, at once), and the row's mark says so, in words to
+    # assistive tech alone.
+    expect(thread_row(page, answered)).to_have_attribute("data-unread", "")
+    expect(thread_row(page, answered)).to_have_accessible_name(re.compile(r"^New Why"))
 
     thread_model.post_reply(
         serve.page_dir,
@@ -89,7 +92,7 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
     )
     told(page)
     expect(thread_row(page, answered).locator(".lf-fp-value")).to_contain_text(
-        "My turn"
+        "Your turn"
     )
 
 
@@ -122,8 +125,10 @@ def test_a_title_on_its_way_reads_as_one(browser, serve, request):
     """While an agent holds the page and owes an untitled thread its work, a title is
     on its way (thread_titles.py), so every surface drawing the thread's name says so
     rather than naming the thread with its opening words, until the title lands:
-    Threads' row, Page Map's row, the agent's card in On and the thread's view. A page
-    nobody holds is sent no title, so there the thread reads its opening words."""
+    Threads' row, Page Map's row, the agent's card in On and the heading over the
+    thread's view, which shows only while the title is on its way, since otherwise it
+    would repeat the opening message under it. A page nobody holds is sent no title, so
+    there the thread reads its opening words."""
     url = serve(PANEL_PAGE)
     opening = "Is the workshop room accessible?"
     pending = "Generating thread name…"
@@ -138,7 +143,7 @@ def test_a_title_on_its_way_reads_as_one(browser, serve, request):
     spoken = f"{pending} {opening}"
     expect(label.locator(".lf-thread-name-pending")).to_have_text(pending)
     expect(thread_row(page, root)).to_have_accessible_name(
-        re.compile(f"^{re.escape(spoken)} Sent$")
+        re.compile(f"^{re.escape(spoken)} Saved$")
     )
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
@@ -155,6 +160,8 @@ def test_a_title_on_its_way_reads_as_one(browser, serve, request):
     open_panel_thread(page, root)
     title = page.locator(".lf-fp-head .lf-fp-title")
     expect(title.locator(".lf-thread-name-pending")).to_have_text(pending)
+    expect(title.locator(".lf-thread-name-pending")).to_be_visible()
+    expect(title).not_to_have_class(re.compile(r"\blf-quiet\b"))
     expect(title).to_have_text(spoken)
 
     append_carried_log_record(
@@ -185,6 +192,6 @@ def test_a_thread_nobody_picked_up_reads_its_opening_words(browser, serve):
     )["id"]
     page = open_page(browser, url)
     row = thread_row(page, root)
-    expect(row.locator(".lf-fp-value")).to_have_text("Waiting for delivery")
+    expect(row.locator(".lf-fp-value")).to_have_text("Haven't seen it yet")
     expect(row.locator(".lf-fp-label")).to_have_text(opening)
     assert not take_browser_errors(page)

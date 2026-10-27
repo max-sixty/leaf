@@ -3,7 +3,9 @@
  * rendered lines support selection anchors. `view="file"` draws one active file
  * for a separate navigator; datum reveal selects it without changing file or line identities. A source revision updates evidence
  * under stable file owners: reader controls, disclosure and code scrollports stay
- * connected. The search reserves its current source's longest count label, so
+ * connected. A source of two files or more draws a search over them; one file draws
+ * none, since there is nothing to filter or open all of, and its count would restate the
+ * file's own header. The search reserves its current source's longest count label, so
  * filtering files leaves its field and controls in place. A quiet press after the count
  * opens every file the filter shows, or closes them once all are open. Changed file
  * evidence replaces only its inner presentation and hands
@@ -44,7 +46,6 @@ import {
   render,
   relabel,
   inChrome,
-  iconElement,
   iconTemplate,
   commands,
   keeps,
@@ -56,6 +57,7 @@ import {
   move,
   nextRender,
   offer,
+  offerAction,
   LeafElement,
   paintKeys,
   publishOutput,
@@ -405,13 +407,14 @@ function fileEntry(row) {
 }
 
 function commentButton(label, opened, className) {
-  const button = offer(
-    "button",
-    `lf-diff-comment ${className} lf-btn lf-icon-action lf-quiet-action`,
+  const button = offerAction(
+    "symbol",
+    `lf-diff-comment ${className}`,
+    `Comment on ${label}`,
+    {
+      icon: "comment",
+    },
   );
-  button.type = "button";
-  button.setAttribute("aria-label", `Comment on ${label}`);
-  button.append(iconElement("comment", "lf-action-icon"));
   if (opened) button.addEventListener("click", opened);
   return button;
 }
@@ -533,11 +536,7 @@ function diffTools(host) {
   progress.append(count);
   // Opening every file is rare beside opening one, so it is a quiet icon after the count
   // of the files it opens rather than a labelled button of its own (widget-shadow.css).
-  const foldAll = offer(
-    "button",
-    "lf-btn lf-icon-action lf-quiet-action lf-diff-fold-all",
-  );
-  foldAll.type = "button";
+  const foldAll = offerAction("symbol", "lf-diff-fold-all");
   foldAll.slot = "end";
   foldAll.addEventListener("click", () => host.foldAll());
   search.append(progress, foldAll);
@@ -828,9 +827,7 @@ function deferredError(details, error, retry) {
     : `That file's diff cannot be shown: ${message}`;
   let standIn = header;
   if (retry) {
-    standIn = offer("button", "lf-btn");
-    standIn.type = "button";
-    standIn.textContent = "Retry";
+    standIn = offerAction("word", "", "Retry");
     standIn.addEventListener("click", () => {
       if (standIn.getAttribute("aria-disabled") === "true") return;
       standIn.setAttribute("aria-disabled", "true");
@@ -935,7 +932,7 @@ customElements.define(
             id: "diff.search",
             keys: ["/"],
             title: "filter files",
-            when: () => !this.singleFile,
+            when: () => Boolean(this.diffTools),
             run: () => {
               const search = this.diffTools?.search;
               if (search) {
@@ -1046,7 +1043,6 @@ customElements.define(
           this.publishFiles();
           this.diffTools = null;
           this.filesBody = null;
-          this.replaceChildren();
           shadowStage(this, []);
           this.markFiles(source);
           this.classList.toggle("lf-rendered", false);
@@ -1153,7 +1149,8 @@ customElements.define(
           this.drawnSource = source;
           this.fileEntries = entries;
           this.activePath = activePath;
-          if (!this.singleFile) this.diffTools ??= diffTools(this);
+          if (this.singleFile || entries.length < 2) this.diffTools = null;
+          else this.diffTools ??= diffTools(this);
           for (const entry of fresh) this.attachEntryControls(entry);
           for (const entry of entries) this.attachDisclosure(entry);
           this.filesBody ??= diffBody([]);
@@ -1164,7 +1161,6 @@ customElements.define(
             ...(this.diffTools ? [this.diffTools.search] : []),
             ...entries.map(({ node }) => node),
           ]);
-          this.replaceChildren();
           this.markRuns();
           this.stageFiles();
           this.markFiles(source);

@@ -979,9 +979,10 @@ def test_a_reaction_on_a_visual_part_names_that_part(browser, serve):
         "visual": "node:S",
     }
     shown = painted(page, [["flow", "prioritize"]])
-    assert shown["projected"] == 0, shown
-    for drawn in (start, diagram):
-        expect(drawn).not_to_have_class(re.compile(r"\blf-projected-mark\b"))
+    assert shown["washed"] == "", shown
+    # Keyboard return may project focus; the reaction itself adds no contour.
+    rendered(page)
+    assert page.locator(".lf-visual-mark:not(.lf-visual-mark-focus)").count() == 0
 
 
 def test_a_whole_visual_reaction_does_not_stand_on_one_of_its_parts(browser, serve):
@@ -1415,25 +1416,6 @@ def test_one_semantic_visual_target_gets_one_keyboard_proxy(browser, serve, entr
     expect(page.locator("#gallery")).to_be_focused()
 
 
-def landed(page):
-    """What the user is located on, named by whatever identifies it: a leaf class, an
-    authored id, or the tag. `body` is the page itself, where a landing lets go."""
-    return page.evaluate(
-        """() => {
-          let node = document.activeElement;
-          while (node?.shadowRoot?.activeElement) node = node.shadowRoot.activeElement;
-          if (!node || node === document.body) return 'body';
-          return (
-            [...node.classList].find(
-              (name) => name.startsWith('lf-') && name !== 'lf-ui',
-            ) ||
-            node.id ||
-            node.tagName.toLowerCase()
-          );
-        }"""
-    )
-
-
 def test_a_drawing_names_its_proxies_and_keeps_its_place_among_the_page(browser, serve):
     """A drawing's response proxies stand on the chrome's details shelf, which the
     drawing names as its details, so a screen reader reaches them from it. Nothing
@@ -1497,7 +1479,7 @@ def test_a_bar_re_placed_by_its_own_controls_still_hands_back_its_subject(
 
     page.keyboard.press("Escape")
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
-    assert landed(page) == "gallery", landed(page)
+    expect(page.locator("#gallery")).to_be_focused()
 
 
 def test_a_visual_proxy_resolves_a_rebuilt_part_and_reveals_it_on_focus(browser, serve):
@@ -2018,7 +2000,7 @@ def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
     # older reply.
     open_panel_thread(page, root).focus()
     page.keyboard.press("e")
-    expect(strip(latest)).to_have_class(re.compile("lf-react-open"))
+    expect(strip(latest).locator(".lf-react-palette:popover-open")).to_have_count(1)
     expect(strip(latest).locator(".lf-react:visible")).to_have_count(6)
     assert strip(latest).evaluate(
         """s => { const row = s.getBoundingClientRect();
@@ -2171,7 +2153,7 @@ def test_a_held_reaction_says_its_word_and_the_release_decides(browser, serve):
     view = open_panel_thread(page, root)
     strip = view.locator(f'.lf-msg[data-message="{reply}"] .lf-react-strip')
     strip.get_by_role("button", name="Add reaction", exact=True).tap()
-    expect(strip).to_have_class(re.compile(r"\blf-react-open\b"))
+    expect(strip.locator(".lf-react-palette:popover-open")).to_have_count(1)
     cdp = context.new_cdp_session(page)
 
     def centre(token):
@@ -2351,8 +2333,8 @@ def _thread(page_dir):
             "agent": "Claude",
             "parent": root,
             "revision": 1,
-            "text": "Forty is what the slowest device we ship on can hold.",
-            "markup": f'<lf-ask id="forty-enough-{root}">Is forty enough?</lf-ask>',
+            "text": "Forty is what the slowest device we ship on can hold. Is forty enough?",
+            "obligation": True,
         },
     )
     return root, reply["id"]
@@ -2421,15 +2403,15 @@ def test_a_remote_resolve_disarms_the_open_reply_list_it_takes_away(browser, ser
     view = open_panel_thread(page, root)
     strip = view.locator(f'.lf-msg[data-message="{reply}"] .lf-react-strip')
     strip.locator(".lf-react-trigger").click()
-    expect(strip).to_have_class(re.compile("lf-react-open"))
+    expect(strip.locator(".lf-react-palette:popover-open")).to_have_count(1)
 
     thread_model.cmd_resolve(serve.page_dir, root)
     told(page)
     expect(page.locator(".lf-fp-controls .lf-thread-news")).to_have_text("Resolved")
-    expect(strip).to_have_class(re.compile("lf-react-open"))
+    expect(strip.locator(".lf-react-palette:popover-open")).to_have_count(1)
     count = len(events_model.read_events(serve.page_dir))
     page.keyboard.press("1")
-    expect(page.locator(".lf-react-open")).to_have_count(0)
+    expect(page.locator(".lf-react-palette:popover-open")).to_have_count(0)
     expect(view).to_be_visible()
     page.keyboard.press("1")
     page.wait_for_timeout(100)
@@ -2509,9 +2491,9 @@ def test_a_reply_s_reactions_keep_their_keys_in_a_covering_thread_view(browser, 
     expect(choices.nth(0)).to_be_focused()
     page.keyboard.press("ArrowRight")
     expect(choices.nth(1)).to_be_focused()
-    expect(strip).to_have_class(re.compile(r"\blf-react-open\b"))
+    expect(strip.locator(".lf-react-palette:popover-open")).to_have_count(1)
     page.keyboard.press("ArrowLeft")
     expect(choices.nth(0)).to_be_focused()
     page.keyboard.press("Escape")
-    expect(strip).not_to_have_class(re.compile(r"\blf-react-open\b"))
+    expect(strip.locator(".lf-react-palette:popover-open")).to_have_count(0)
     expect(strip.locator(".lf-react-trigger")).to_be_focused()

@@ -28,6 +28,9 @@ interface LeafReading {
   changed: boolean;
 }
 
+/** The closed set of control roles, each with one face (`prepaint.js`, `ACTION_FACES`). */
+type LeafActionRole = "symbol" | "word" | "commit" | "mark";
+
 /** A package's synchronous initial drawing of one host (`initial/<tag>.js`). */
 type LeafInitialRenderer = (
   host: HTMLElement,
@@ -35,7 +38,10 @@ type LeafInitialRenderer = (
     tabStore: LeafStore;
     offer: LeafInitial["offer"];
     selectableOffer: LeafInitial["selectableOffer"];
+    selectableOfferElement: LeafInitial["selectableOfferElement"];
     offerElement: LeafInitial["offerElement"];
+    offerAction: LeafInitial["offerAction"];
+    offerActionElement: LeafInitial["offerActionElement"];
     generatedElement: LeafInitial["generatedElement"];
     keeps: LeafInitial["keepsAttribute"];
     /** Moves every child of the host into `node`, the box that holds its authored body. */
@@ -90,6 +96,19 @@ interface LeafInitial {
   selectableOffer(role: string, cls?: string, label?: string): HTMLSpanElement;
   selectableOfferElement(node: Element, role: string, cls?: string): void;
   offerElement<T extends Element>(node: T, cls?: string, pressable?: boolean): T;
+  offerAction(
+    role: LeafActionRole,
+    cls?: string,
+    label?: string,
+    options?: { title?: string },
+  ): HTMLButtonElement;
+  offerActionElement<T extends Element>(
+    node: T,
+    role: LeafActionRole,
+    cls?: string,
+    label?: string,
+    options?: { title?: string },
+  ): T;
   generatedElement<T extends Element>(node: T, options: { says: boolean | "echo" }): T;
   origin(node: Node): Node | undefined;
   parent(node: Node): Element | null;
@@ -173,7 +192,7 @@ interface Window {
 /** The runtime's own elements, by tag, as each module defines it. */
 interface HTMLElementTagNameMap {
   "leaf-floating-panel": import("../runtime/floating-panel.js").FloatingPanelElement;
-  "leaf-attached-media-shelf": import("../runtime/composing/input.js").AttachedMediaShelfElement;
+  "leaf-composition-field": import("../runtime/composing/input.js").CompositionFieldElement;
   "leaf-text": import("../runtime/composing/text-field.js").LeafTextElement;
   "leaf-margin-cluster": import("../runtime/annotation-overlay/margin-cluster-view.js").MarginClusterViewElement;
 }
@@ -228,3 +247,10 @@ interface HTMLElementEventMap {
     present(ready?: Promise<unknown>): void;
   }>;
 }
+
+// TypeScript's DOM library lacks the platform's close watcher (HTML, "Close requests
+// and close watchers"), which `keyboard/close-requests.js` holds; only what it uses.
+interface CloseWatcher extends EventTarget {
+  destroy(): void;
+}
+declare var CloseWatcher: { prototype: CloseWatcher; new (): CloseWatcher };

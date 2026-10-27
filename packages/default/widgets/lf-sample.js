@@ -48,6 +48,7 @@ import {
   mountSample,
   once,
   offer,
+  offerAction,
   generatedElement,
   widgetController,
   focusDestination,
@@ -229,16 +230,16 @@ customElements.define(
       controls.className = "lf-sample-controls lf-ui";
       generatedElement(controls, { says: false });
       const actions = document.createElement("div");
-      this.#reset = offer("button", "lf-btn lf-sample-action");
-      this.#reset.ariaLabel = this.#reset.title = "Reset";
-      this.#reset.append(iconElement("retry", "lf-action-icon"));
+      this.#reset = offerAction("symbol", "lf-sample-action", "Reset", {
+        icon: "retry",
+      });
       this.#reset.addEventListener("click", () => {
         if (this.#reset.ariaDisabled === "true") return;
         this.reset().catch(() => {}); // #track paints the failed operation.
       });
       this.#status = offer("span", "lf-sample-status");
       this.#status.setAttribute("role", "status");
-      this.#full = offer("button", "lf-btn lf-sample-action");
+      this.#full = offerAction("symbol", "lf-sample-action");
       this.#paintFull(false);
       this.#full.addEventListener("click", () => {
         if (isNativeLayer(this.#view)) this.#return();

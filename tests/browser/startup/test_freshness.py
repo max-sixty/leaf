@@ -35,7 +35,7 @@ from leaf.leases import release_lease, take_lease, waiter_lease_path
 pytestmark = pytest.mark.shifts_unsurveyed
 
 # The status the panel's empty field says while the server does not answer.
-OFFLINE = re.compile(r"^Server offline")
+OFFLINE = re.compile(r"^Lost the connection")
 
 
 def test_a_quiet_page_reads_only_freshness_and_hears_changes(browser, serve):
@@ -239,7 +239,7 @@ def test_a_state_read_timing_out_during_its_body_is_offline(browser, serve):
         return {
           ok: response.ok,
           headers: response.headers,
-          json: async () => { throw new DOMException('timed out', 'TimeoutError'); },
+          text: async () => { throw new DOMException('timed out', 'TimeoutError'); },
         };
       };
     """
@@ -510,7 +510,7 @@ def test_a_page_asks_its_source_before_reloading_onto_the_same_document(browser,
             if index == 0:
                 expect(panel_field(page)).to_have_attribute(
                     "placeholder",
-                    re.compile("^Waiting for the server to finish updating."),
+                    re.compile("^Waiting for Leaf to finish updating."),
                 )
         assert page.evaluate("() => window.lfSameDocument === true"), (
             "the page reloaded onto the document it was already being served"

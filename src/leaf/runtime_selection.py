@@ -33,26 +33,32 @@ tree holds and no captured file replaces one it compiled in.
 
 import hashlib
 import json
+import weakref
 from collections.abc import Mapping
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from functools import cache, cached_property
 from pathlib import PurePosixPath
 from types import MappingProxyType
 
-from .layer import files_identity
+from .layer import files_identity, stylesheet
 from .render_checks import PROBE_SOURCES
 from .revision_artifact import RESOURCE_TYPES, Resource, RevisionArtifact
 from .schema import ASSETS, KERNEL, RUNTIME_DIRS, RUNTIME_ENTRY
 
 
 def _files(root, *names) -> dict[str, bytes]:
-    """Every file under `root`'s `names`, by its rooted layer path."""
+    """Every file under `root`'s `names`, by its rooted layer path, each stylesheet as
+    a page receives it (`layer.stylesheet`)."""
     found = {}
     for name in names:
         top = root / name
         for path in sorted([top] if top.is_file() else top.rglob("*")):
             if path.is_file():
-                found["/" + path.relative_to(root).as_posix()] = path.read_bytes()
+                found["/" + path.relative_to(root).as_posix()] = (
+                    stylesheet(path, root).encode()
+                    if path.suffix == ".css"
+                    else path.read_bytes()
+                )
     return found
 
 
@@ -65,6 +71,10 @@ class ServingRuntime:
     kernel: Mapping[str, bytes] | None
     replaces: frozenset[str]
     probes: Mapping[str, bytes]
+    # What `executing` made of each artifact something still holds.
+    _executed: weakref.WeakKeyDictionary[RevisionArtifact, RevisionArtifact] = field(
+        default_factory=weakref.WeakKeyDictionary, init=False, repr=False, compare=False
+    )
 
     @cached_property
     def identity(self) -> str:
@@ -165,8 +175,17 @@ def executing(artifact: RevisionArtifact) -> RevisionArtifact:
     """`artifact` with the resources its documents run with under this process's
     runtime (`ServingRuntime.resources`). Its captured identity is unchanged: the
     manifest, and with it the digest and executable, describe what the revision
-    captured, and the runtime is named beside it by `serving_runtime().identity`."""
-    return replace(
-        artifact,
-        resources=MappingProxyType(serving_runtime().resources(artifact.resources)),
-    )
+    captured, and the runtime is named beside it by `serving_runtime().identity`.
+
+    The runtime keeps one per artifact for as long as the artifact is kept
+    (`revision_artifact.read_artifact`), so what a reader derives from it, such as
+    its registry and widget aliases, is read once rather than on each of the few
+    dozen resource requests a document makes."""
+    runtime = serving_runtime()
+    executed = runtime._executed.get(artifact)
+    if executed is None:
+        executed = runtime._executed[artifact] = replace(
+            artifact,
+            resources=MappingProxyType(runtime.resources(artifact.resources)),
+        )
+    return executed

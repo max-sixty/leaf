@@ -2,7 +2,7 @@
  * Block rather than the custom-element default inline so its box begins at the
  * question's opening and reaches around the context and control the current location ring says
  * are one lf-ask. */
-:scope:is(lf-ask) {
+lf-ask {
   display: block;
 }
 /* The ring the user stands in (chrome.css, `[data-lf-obligation]`) stands outside the
@@ -12,12 +12,14 @@
  * box. Its content can cover an inset outline, so the band is painted on a
  * non-interactive overlay above the question's children. Drawn inside everywhere, it
  * ran over the first letter of every line the question holds. */
-:scope:is(lf-ask)[data-lf-obligation] {
+lf-ask[data-lf-obligation] {
   position: relative;
-  /* Runtime chrome is adopted after the package sheet. */
+  /* The ring moves to the overlay below. The chrome draws it on the decision from its
+     unlayered sheet, which outranks this layer, and `--lf-obligation-ring` can't stand
+     it down here without standing down the overlay, which inherits it. */
   outline: none !important;
 }
-:scope:is(lf-ask)[data-lf-obligation]::after {
+lf-ask[data-lf-obligation]::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -27,7 +29,7 @@
   outline-offset: var(--focus-ring-gap);
 }
 @container style(--lf-full-height: 1) {
-  :scope:is(lf-ask)[data-lf-obligation]::after {
+  lf-ask[data-lf-obligation]::after {
     outline-offset: calc(-1 * var(--focus-ring-w));
   }
 }
@@ -48,17 +50,17 @@
  * `--lf-block-frame`), and where the block keeps to its holder (`data-lf-kept`,
  * prepaint.js) it lends no reach. An lf-ask granted room itself is a breakout already. */
 @media screen {
-  :scope:is(lf-ask) {
+  lf-ask {
     box-sizing: border-box;
     max-inline-size: var(--lf-measure);
   }
-  :scope:is(lf-ask):has(> [data-lf-space="wide"]) {
+  lf-ask:has(> [data-lf-space="wide"]) {
     max-inline-size: max(var(--lf-measure), var(--wide));
   }
-  :scope:is(lf-ask):has(> [data-lf-space="available"]) {
+  lf-ask:has(> [data-lf-space="available"]) {
     max-inline-size: none;
   }
-  :scope:is(lf-ask):not([data-lf-space]):has(> [data-lf-space]:not([data-lf-kept])) {
+  lf-ask:not([data-lf-space]):has(> [data-lf-space]:not([data-lf-kept])) {
     margin-left: calc(-1 * var(--lf-grow-l));
     margin-right: calc(-1 * var(--lf-grow-r));
     padding-left: var(--lf-grow-l);
@@ -87,10 +89,10 @@
  * cards with drawings beside a five-row table left the window's width beside the table
  * empty, and the reading column was too narrow for it, so every such lf-ask had to ask
  * for the wide measure. */
-:scope:is(lf-ask):has(
-    > :is(figure, img, svg, table, [data-lf-visual]) ~ lf-options,
-    > lf-options > lf-option :is(figure, img, svg, table, [data-lf-visual])
-  ) {
+lf-ask:has(
+  > :is(figure, img, svg, table, [data-lf-visual]) ~ lf-options,
+  > lf-options > lf-option :is(figure, img, svg, table, [data-lf-visual])
+) {
   --lf-options-across: 1;
 }
 /* An lf-ask told it has a definite height to fill (`--lf-full-height`, layouts.css), as a
@@ -105,21 +107,21 @@
  * followed by a note is context, and would otherwise shrink to make room for the note and
  * draw its instruction over it. */
 @container style(--lf-full-height: 1) {
-  :scope:is(lf-ask) {
+  lf-ask {
     display: flex;
     flex-direction: column;
   }
-  :scope:is(lf-ask) > * {
+  lf-ask > * {
     flex: none;
   }
-  :scope:is(lf-ask):has(
-      > :nth-last-child(1 of :not(script, style, template)):not(
-          :nth-child(1 of :not(script, style, template))
-        )
-    ) {
+  lf-ask:has(
+    > :nth-last-child(1 of :not(script, style, template)):not(
+        :nth-child(1 of :not(script, style, template))
+      )
+  ) {
     --lf-full-height: inherit;
   }
-  :scope:is(lf-ask)
+  lf-ask
     > :nth-last-child(1 of :not(script, style, template)):not(
       :nth-child(1 of :not(script, style, template))
     ) {

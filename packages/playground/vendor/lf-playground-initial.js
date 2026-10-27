@@ -77,8 +77,8 @@
     const outputs = own(host, "lf-playground-output");
     const previews = own(host, "lf-playground-preview");
     const controls = ownControls(host, previews[0]);
-    if (!controls.length || outputs.length !== 1 || previews.length !== 1)
-      throw new Error("playground needs controls, one preview and one output");
+    if (outputs.length !== 1 || previews.length !== 1)
+      throw new Error("playground needs one preview and one output");
     const output = outputs[0], preview = previews[0];
     const controlByName = /* @__PURE__ */ new Map();
     const choicesByName = /* @__PURE__ */ new Map();
@@ -170,6 +170,13 @@
     };
     const interactive = !host.closest("[data-lf-exhibit]");
     host.classList.toggle("lf-playground-quoted", !interactive);
+    const pageActions = host.getAttribute("actions") === "page";
+    const submitLabel = host.getAttribute("submit-label") ?? "Use these settings";
+    const labelSubmit = (button) => {
+      button.dataset.room = `${submitLabel}
+Undo choice`;
+      button.replaceChildren(node("span", "", submitLabel));
+    };
     for (const control of controls) {
       const choices = choicesByName.get(control.getAttribute("name"));
       if (!choices.some(
@@ -302,44 +309,44 @@
         preset.append(button);
         presetButtons.set(preset, button);
       }
-      const actions = node("div", "lf-playground-actions");
-      reset = offerAction("symbol", "lf-playground-reset", "Reset");
-      reset.append(iconElement("retry", "lf-action-icon"));
-      instruction = node("div", "lf-playground-instruction");
-      instruction.id = `${host.id}-instruction`;
-      instruction.popover = "auto";
-      instruction.setAttribute("role", "dialog");
-      const instructionTitle = node(
-        "p",
-        "lf-playground-instruction-title lf-label",
-        "Instruction to agent"
-      );
-      instructionTitle.id = `${host.id}-instruction-title`;
-      instruction.setAttribute("aria-labelledby", instructionTitle.id);
-      const instructionHead = node("div", "lf-playground-instruction-head");
-      instructionHead.append(instructionTitle);
-      const instructionBody = node("div", "lf-playground-instruction-body");
-      instructionBody.append(output);
-      instruction.append(instructionHead, instructionBody);
-      reveal = offerAction("symbol", "lf-playground-reveal", "Show instruction");
-      reveal.popoverTargetElement = instruction;
-      reveal.setAttribute("aria-controls", instruction.id);
-      reveal.setAttribute("aria-expanded", "false");
-      reveal.append(iconElement("more", "lf-action-icon"));
-      submit = offerAction("commit", "lf-playground-submit");
-      const submitLabel = host.getAttribute("submit-label") ?? "Use these settings";
-      submit.dataset.room = `${submitLabel}
-Undo choice`;
-      submit.append(node("span", "", submitLabel));
-      actions.append(reset, reveal, submit, instruction);
-      if (document.querySelector("script[data-lf-offline]"))
-        actions.append(
-          node(
-            "span",
-            "lf-playground-unavailable",
-            "Submission unavailable: no agent or server is available."
-          )
+      let actions = null;
+      if (!pageActions) {
+        actions = node("div", "lf-playground-actions");
+        reset = offerAction("symbol", "lf-playground-reset", "Reset");
+        reset.append(iconElement("retry", "lf-action-icon"));
+        instruction = node("div", "lf-playground-instruction");
+        instruction.id = `${host.id}-instruction`;
+        instruction.popover = "auto";
+        instruction.setAttribute("role", "dialog");
+        const instructionTitle = node(
+          "p",
+          "lf-playground-instruction-title lf-label",
+          "Instruction to agent"
         );
+        instructionTitle.id = `${host.id}-instruction-title`;
+        instruction.setAttribute("aria-labelledby", instructionTitle.id);
+        const instructionHead = node("div", "lf-playground-instruction-head");
+        instructionHead.append(instructionTitle);
+        const instructionBody = node("div", "lf-playground-instruction-body");
+        instructionBody.append(output);
+        instruction.append(instructionHead, instructionBody);
+        reveal = offerAction("symbol", "lf-playground-reveal", "Show instruction");
+        reveal.popoverTargetElement = instruction;
+        reveal.setAttribute("aria-controls", instruction.id);
+        reveal.setAttribute("aria-expanded", "false");
+        reveal.append(iconElement("more", "lf-action-icon"));
+        submit = offerAction("commit", "lf-playground-submit");
+        labelSubmit(submit);
+        actions.append(reset, reveal, submit, instruction);
+        if (document.querySelector("script[data-lf-offline]"))
+          actions.append(
+            node(
+              "span",
+              "lf-playground-unavailable",
+              "Submission unavailable: no agent or server is available."
+            )
+          );
+      }
       const pane = (name, label, header, body) => {
         const element = node("div", `lf-playground-${name}-region`);
         element.dataset.lfReadingRole = "pane";
@@ -356,15 +363,19 @@ Undo choice`;
       const split = node("div", "lf-playground-split");
       if (!railed.length && presetBar)
         split.append(pane("controls", "Controls", null, presetBar));
-      const rail = node("div", "lf-playground-rail");
-      rail.dataset.lfTrack = "";
-      rail.append(
+      split.append(pane("preview", "Preview", null, previewBody));
+      const panes = [
         ...railed.length ? [pane("controls", "Controls", presetBar, panel)] : [],
-        pane("instruction", "Instruction to agent", null, actions)
-      );
-      regions.push({ name: "rail", host: rail, body: rail });
-      split.append(pane("preview", "Preview", null, previewBody), rail);
-      host.append(split);
+        ...actions ? [pane("instruction", "Instruction to agent", null, actions)] : []
+      ];
+      if (panes.length) {
+        const rail = node("div", "lf-playground-rail");
+        rail.dataset.lfTrack = "";
+        rail.append(...panes);
+        regions.push({ name: "rail", host: rail, body: rail });
+        split.append(rail);
+      }
+      host.prepend(split);
     }
     const setInput = (control, value) => {
       const name = control.getAttribute("name"), kind = control.getAttribute("kind"), input = inputs.get(name);
@@ -431,6 +442,10 @@ Undo choice`;
       storedCandidate,
       output,
       preview,
+      interactive,
+      pageActions,
+      submitLabel,
+      labelSubmit,
       submit,
       reset,
       reveal,

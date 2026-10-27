@@ -1205,6 +1205,104 @@ def test_undoing_a_playground_choice_leaves_the_controls_as_the_user_set_them(
     expect(budget).to_have_value("10")
 
 
+PAGE_ACTIONS_PAGE = leaf_page(
+    "page-drawn playground",
+    """
+<style>tile-tool button { font-size: 19px; }</style>
+<lf-ask id="tile-ask"><h1>Choose the tile size</h1>
+<lf-playground id="tile-config" submit-label="Keep this size" actions="page">
+  <lf-playground-preview><tile-tool></tile-tool></lf-playground-preview>
+  <lf-playground-output>Keep the tile size.</lf-playground-output>
+</lf-playground></lf-ask>
+<script type="module">
+import {generatedElement, once, whileInterfaceConnected} from "/runtime/widget-api.js";
+customElements.define("tile-tool", class extends HTMLElement {
+  connectedCallback() {
+    if (!once(this)) return;
+    const button = (text) => {
+      const node = document.createElement("button");
+      node.type = "button";
+      if (text) node.textContent = text;
+      return node;
+    };
+    const grow = button("Grow"), save = button(), reset = button("Reset");
+    save.className = "tile-save";
+    const tools = generatedElement(document.createElement("div"), {says: true});
+    tools.append(grow, save, reset);
+    this.append(tools);
+    const playground = this.closest("lf-playground");
+    whileInterfaceConnected(this, {
+      declare: () => {
+        const tile = playground.registerContributor("tile", {size: 2});
+        playground.registerActions({submit: save, reset});
+        playground.registerInstructionProvider(v => `Make tiles ${v.tile.size} units.`);
+        grow.addEventListener("click", () => tile.set({size: tile.get().size + 1}));
+      },
+      connect: () => playground.subscribe(() => {}),
+    });
+  }
+});
+</script>
+""",
+)
+
+
+def test_a_page_draws_the_actions_of_a_playground_without_controls(browser, serve):
+    """A preview's contributor and instruction make a whole playground. Under
+    `actions="page"` Leaf draws no rail or bar; the page's own buttons, which its CSS
+    styles, submit, undo and reset, by pointer and by the playground's keys."""
+    page = open_page(browser, serve(PAGE_ACTIONS_PAGE))
+    playground = page.locator("#tile-config")
+    save = playground.locator(".tile-save")
+    expect(save).to_have_text("Keep this size")
+    expect(
+        playground.locator(".lf-playground-rail, .lf-playground-actions")
+    ).to_have_count(0)
+    assert save.evaluate("button => getComputedStyle(button).fontSize") == "19px"
+
+    playground.get_by_role("button", name="Grow").click()
+    with sending(page, "the tile size"):
+        save.click()
+    choice = events_model.read_events(serve.page_dir)[-1]
+    assert choice["detail"] == {
+        "values": {"tile": {"size": 3}},
+        "instruction": "Make tiles 3 units.",
+    }
+    expect(save).to_have_text("Undo choice")
+
+    # The playground's digit presses the page's button: here it withdraws the choice.
+    save.focus()
+    with sending(page, "the withdrawal"):
+        page.keyboard.press("1")
+    assert events_model.read_events(serve.page_dir)[-1]["undoes"] == choice["id"]
+    expect(save).to_have_text("Keep this size")
+    assert playground.evaluate("root => root.values.tile.size") == 3
+
+    playground.get_by_role("button", name="Reset", exact=True).click()
+    assert playground.evaluate("root => root.values.tile.size") == 2
+    playground.get_by_role("button", name="Grow").click()
+    page.keyboard.press("Alt+0")
+    assert playground.evaluate("root => root.values.tile.size") == 2
+
+
+def test_a_playground_whose_page_never_hands_over_its_actions_fails(browser, serve):
+    """Under `actions="page"`, a page that never registers its buttons leaves the user
+    no way to answer, so the playground fails where `page check` reads failures."""
+    source = PAGE_ACTIONS_PAGE.replace(
+        "playground.registerActions({submit: save, reset});", ""
+    )
+    assert source != PAGE_ACTIONS_PAGE
+    page = open_page(browser, serve(source))
+    report = '<lf-playground id="tile-config"> failed: '
+    expect(page.locator("#tile-config .lf-error")).to_contain_text("registerActions")
+    round_trip(page)
+    assert any(
+        event["kind"] == "error" and event["text"].startswith(report)
+        for event in events_model.read_events(serve.page_dir)
+    )
+    consume_browser_errors(page, report)
+
+
 def test_a_playground_rail_stays_in_view_beside_a_tall_stage(browser, serve):
     """The alert playground's stage, an alert per section with its controls beside it,
     runs past the window. While the user works down it, the rail beside it, the page

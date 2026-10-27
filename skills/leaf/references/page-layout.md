@@ -235,7 +235,9 @@ rather than rebuilding the event log in page code.
 ## Page CSS and Leaf's controls
 
 The page's CSS styles the page's content, not Leaf's panel, thread cards or the controls
-widgets build: a rule for `button` styles only the page's own buttons. To style Leaf's
+widgets build: a rule for `button` styles only the page's own buttons. The page's own
+include every element its scripts create, except those built with the `offer` helpers,
+which are Leaf's controls (`module-authoring.md`, "Generated controls"). To style Leaf's
 controls on purpose, put their rules in a separate `<style data-controls>` or
 `<link rel="stylesheet" data-controls>` element. Leaf leaves its rules and imports unchanged; use selectors that match only
 the controls you intend to change. Set the marker

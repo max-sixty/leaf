@@ -1240,6 +1240,23 @@ def ship_answered(page: Page) -> None:
     expect(page.locator(".lf-fp-opened")).to_be_visible()
 
 
+def margin_options_thread(page: Page) -> None:
+    """Open a suggestion's comment from its unfolded margin options."""
+    as_agent(
+        "thread",
+        "create",
+        "--section",
+        "rn-sug-dry",
+        "--text",
+        "Should this release note name the command?",
+    )
+    load(page, served_page.get().address)
+    cluster = page.locator('[data-lf-margin-for="rn-sug-dry"]')
+    cluster.locator(":scope > .lf-margin-more").click()
+    cluster.locator('.lf-margin-reading-option[data-lf-kinds="comment"]').click()
+    settle(page)
+
+
 def element_thread_open(page: Page) -> None:
     """The same element while the user is in its thread, opened from its margin card:
     the contour that says which element the thread is about, beside the heading's
@@ -1529,6 +1546,7 @@ class State:
 
 
 STATES = (
+    State("margin-options-thread", "release-notes", margin_options_thread),
     State("page-about", "review-a-plan", page_about, region=".lf-inspection-dialog"),
     State(
         "page-about-dark",

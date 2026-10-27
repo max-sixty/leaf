@@ -725,7 +725,10 @@ document.addEventListener(
     const left = event.composedPath()[0];
     lastLocation = new WeakRef(left);
     if (restoring) return;
-    queueMicrotask(() => {
+    // Native focus dispatches a microtask checkpoint between departure and arrival.
+    // Read a failed arrival after that whole transition, not its body-focused gap.
+    setTimeout(() => {
+      if (lastLocation?.deref() !== left) return;
       const at = document.activeElement;
       if (at !== null && at !== document.body) return;
       if (heldByLabel()) return;

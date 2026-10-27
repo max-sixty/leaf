@@ -51,7 +51,6 @@
     color: inherit;
     font: inherit;
   }
-  .lf-btn,
   .lf-ui :is(textarea, leaf-text),
   :is(textarea, leaf-text).lf-ui {
     font: inherit;
@@ -395,11 +394,6 @@ html[data-lf-region-capture] main * {
   .lf-dot:where(.blocked) {
     background: var(--danger);
   }
-  @layer lf-reset {
-    .lf-thread-action {
-      font: inherit;
-    }
-  }
 
   /* The words in here the root leaves selectable: a quote is the page's words and a
      message somebody's, while heads, counts and labels are the layer talking. Fields
@@ -459,24 +453,6 @@ html[data-lf-region-capture] main * {
     text-align: center;
   }
 
-  .lf-thread-action {
-    border: none;
-    background: none;
-    color: var(--muted);
-    cursor: pointer;
-  }
-  .lf-thread-action:hover {
-    color: var(--ok);
-  }
-  /* Reopen stands in the same row as Resolve and answers the same question from the
-     other side, so it wears the same band while focused. It was left on
-     the platform's own ring, which is a real mark and the wrong one here: the pair
-     looked like two kinds of control, and a walk into resolved threads changed shape
-     halfway. */
-  .lf-thread-action[data-lf-focus-visible] {
-    outline: var(--focus-ring);
-    outline-offset: 2px;
-  }
   /* The response bar and thread card are fixed and anchored to what they point at, and
      placed only while the visible boundary holds them (floating.js), so they never sit
      pinned over content that is not theirs. */

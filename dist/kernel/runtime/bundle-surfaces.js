@@ -3,7 +3,7 @@ import { CARET_KEYS, TEXT_FIELD, afterScript, cancelRender, caretAtKey, currentL
 import { PAGE_PAINT_ATTRIBUTE, admitResponse, pagePresented, randomId, reportPageError, revealLayer, sameLayer } from "./bundle-layer-client.js";
 import { adoptRegistry, clippedContents, declarationFor, elementDeclarations, elementsDeclaring, exhibits, growthAfterIsSeen, growthIsSeen, headerInset, inUi, inWindowChrome, landingBand, loadShadowRules, registry as registry$1, seenRect, shownBox, shownRect, shownWindow, skipped, slotTop, stuckBox, tagsDeclaring, tokenEntry, union, userScrollport, visibleBand, watchArrivals, watchOwner, whenNone } from "./bundle-geometry.js";
 import { COLLAPSE, PENDING, applicationState, attachApplicationPresentation, editable, html, isElementName, isReaction, keyed, lastMovedAt, marks, messageKey, moved, nothing, offlineInteractive, pageClaimed, pendingForParent, readApplication, readPart, render as render$1, repeat, runtime, runtimeModule, runtimeResource, sameAnchor, seatRoot, share, threadKey, threadNames, turns, whenApplicationPresented, whenDocumentPresented, whenWidgetsPresented } from "./bundle-context.js";
-import { PRESS, announce, bindings, checked, claimReleaseClick, clampedRow, commandScope, cycledRow, declareCommandReadiness, descriptionOf, el, generatedElement, holdStatus, iconElement, iconTemplate, keys, measure, notice, offer, offered, paintKeys, passErrorsAt, plainPress, pointerAt, projectCommandScope, raiseError, repaint, titleOf, touchPresses as touchPresses$1, watchCommandScopes } from "./bundle-errors.js";
+import { PRESS, announce, bindings, checked, claimReleaseClick, clampedRow, commandScope, cycledRow, declareCommandReadiness, descriptionOf, el, generatedElement, holdStatus, iconElement, iconTemplate, keys, measure, notice, offer, offerAction, offered, offeredAction, paintKeys, passErrorsAt, plainPress, pointerAt, projectCommandScope, raiseError, repaint, titleOf, touchPresses as touchPresses$1, watchCommandScopes } from "./bundle-errors.js";
 import { ago, aimedTop, atScrollEnd, claimReachStop, containingReadingRegionFor, effectiveScroller, moveScrollerBy, pageReadingRegion, pageScroller, placeKept, reachScrollers, readingRegionFor, readingRegions, releaseReachStop, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, shortAgo, shownRegionBounds } from "./bundle-reading-regions.js";
 import { chromeForeground, chromeRoot } from "./bundle-page-controls.js";
 import { alignText, blockAt, closestAcross, elementById, fencePassageParts, inChrome, labelWords, pageBlocks, pageDocument, pageQueryAll, pageRange, pageText, pageWords, pointAt, quoteFrom, rangeOf, readingFrom, segmentBlock, segmentsIn, selectEnds, selectionBackward, spanIn, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity } from "./bundle-passages.js";
@@ -1174,7 +1174,8 @@ onCurrentLocation((node) => {
 function prepareCodeBlock(pre, source, noun) {
 	let copy = controls.get(pre);
 	if (!copy) {
-		copy = copyControl("lf-code-copy lf-mark", {
+		copy = copyControl("lf-code-copy", {
+			role: "mark",
 			label: `Copy ${noun}`,
 			success: `${noun[0].toUpperCase()}${noun.slice(1)} copied`,
 			error: `Unable to copy ${noun}`
@@ -3750,13 +3751,15 @@ var MessageView = class {
 	#editor = null;
 	#kept = false;
 	#stopKept = null;
+	#dated = true;
 	constructor(commands) {
 		this.#commands = commands;
 		this.node = document.createElement("div");
 	}
-	present(model, { arrived = false, headerControls = nothing } = {}) {
+	present(model, { arrived = false, dated = this.#dated, headerControls = nothing } = {}) {
 		const prior = this.#model;
 		this.#model = model;
+		this.#dated = dated;
 		if (!prior) {
 			this.node.classList.add("lf-msg");
 			this.node.dataset.message = model.key;
@@ -3827,7 +3830,7 @@ var MessageView = class {
 		render$1(html`
         <b>${model.by}</b
         ><span class="lf-msg-meta"
-          ><time datetime=${model.timestamp}>${model.age}</time>${model.unread ? html`<span class="lf-msg-new"><span class="lf-quiet">New</span></span>` : nothing}
+          >${dated ? html`<time datetime=${model.timestamp}>${model.age}</time>` : nothing}${model.unread ? html`<span class="lf-msg-new"><span class="lf-quiet">New</span></span>` : nothing}
           ${receipt}
           ${model.leaves ? html`<span class="lf-msg-leaves">${model.leaves}</span>` : nothing}
           ${model.failure ? html`<span class="lf-msg-failure">${FAILURE_LABEL}</span>` : nothing}
@@ -4479,7 +4482,7 @@ function createReplyView(key, commands, redraw, { onChange = () => {}, editLast 
 		const row = offer("div", "lf-thread-reply");
 		const input = offer(TEXT_FIELD);
 		input.name = "reply";
-		const send = offer("button", "lf-btn lf-thread-send", "Send");
+		const send = offer("button", "lf-thread-send", "Send");
 		row.append(input, send);
 		return wireReply(key, row, input, send, commands.wireInput, {
 			hint,
@@ -5536,11 +5539,24 @@ var Transcript = class Transcript {
 		const spoke = model.messages.findLastIndex(({ author }) => author === "user");
 		this.#pendingOpen = pendingRanges.some((range) => range.expanded);
 		const lead = rangeState.find((range) => range.kind === "message")?.message ?? model.messages[0];
+		const workingAt = model.working ? workingPlace(rangeState, model.working.after) : -1;
+		const dated = /* @__PURE__ */ new Set();
+		let above = null;
+		for (const [at, range] of rangeState.entries()) {
+			const shown = range.kind === "message" ? [range.message] : range.expanded ? range.messages : [];
+			if (range.kind !== "message") above = null;
+			for (const message of shown) {
+				if (message.age !== above) dated.add(message.key);
+				above = message.age;
+			}
+			if (range.summary?.pending || at === workingAt) above = null;
+		}
 		for (const message of model.messages) {
 			let view = this.#messages.get(message.key);
 			if (!view) this.#messages.set(message.key, view = new MessageView(this.#messageCommands));
 			view.present(message, {
 				arrived,
+				dated: dated.has(message.key),
 				headerControls: notice && message === lead ? notice : nothing
 			});
 			keeps(view.node, "data-lf-append-tail", message.provisional && message === model.messages.at(-1) ? "" : null);
@@ -5555,7 +5571,6 @@ var Transcript = class Transcript {
 		const checkpoints = /* @__PURE__ */ new Map();
 		const faces = /* @__PURE__ */ new Map();
 		const transcript = [];
-		const workingAt = model.working ? workingPlace(rangeState, model.working.after) : -1;
 		let working = null;
 		const facing = /* @__PURE__ */ new Map();
 		const face = (node, reading, controls) => {
@@ -5821,13 +5836,7 @@ function threadTodos(todos, done) {
 	return html`<ul class="lf-thread-todos">
     ${todos.map((todo) => html`<li class="lf-thread-todo">
           <span class="lf-thread-todo-title">To-do · ${todo.title}</span
-          ><button
-            type="button"
-            class="lf-btn lf-thread-action"
-            @click=${() => done(todo.id)}
-          >
-            Done
-          </button>
+          ><button ${offeredAction("word")} @click=${() => done(todo.id)}>Done</button>
         </li>`)}
   </ul>`;
 }
@@ -6165,8 +6174,7 @@ var ThreadView = class {
 		const face = `${state.kind} ${place}`;
 		let button = this.#settlements.get(face);
 		if (!button) {
-			button = offer("button", `lf-btn ${reopen ? "lf-reopen" : "lf-resolve"} ${icon ? "lf-icon-action" : "lf-thread-action"}`);
-			button.type = "button";
+			button = offerAction(icon ? "symbol" : "word", reopen ? "lf-reopen" : "lf-resolve");
 			this.#settlements.set(face, button);
 			const word = reopen ? "Reopen" : "Resolve";
 			keys(button, `On a thread's ${word} button`, [{

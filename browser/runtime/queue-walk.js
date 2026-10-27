@@ -31,8 +31,7 @@
    card's to-do, so travel's `arrive` puts the user where its subject stands
    (`subjectPlace`). An On me card's Show arrives through the same
    function (`arriveAtItem`), for an item on either list or one that is done, and
-   offers itself where that arrival goes anywhere (`arrivesAt`); the card names its
-   item as the walk does (`queueStop`).
+   offers itself where that arrival goes anywhere (`arrivesAt`).
 
    A walk starts from the user's place, and steps off a stop only where the user is on
    it, by the rule every walk shares (current-target.js, `walkOrigin` and `stepFrom`).
@@ -150,7 +149,7 @@ const sameStop = (a, b) => a.kind === b.kind && a.id === b.id;
 
 // An item as the walk reads it: where it is arrived at, the key the walk's position
 // names that stop by, and what the walk calls it. An On me card reads the same, so it
-// names its kind as the field does after `m` and knows when the walk stands on it.
+// knows when the walk stands on it, and By kind groups by what the walk calls it.
 export function queueStop(item) {
   const stop = stopOf(item);
   return { ...stop, key: `${stop.kind}:${stop.id}`, noun: nounOf(item, stop) };

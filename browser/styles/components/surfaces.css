@@ -36,20 +36,6 @@
   }
 }
 
-/* Leaf's apparatus lays its boxes out border-box from first paint. A widget's initial
- * drawing wears `.lf-ui` before any module runs, so this reset stands in the
- * render-blocking theme rather than in runtime/chrome.css, which the document adopts
- * only at boot: from there, lf-toc's map measured its title's label content-box at first
- * paint, one line, and border-box after upgrade, two lines, and the fitted marker under
- * it moved 14px. Under the document's root only, as the face below, so a declared tree
- * keeps the box model its widget states. */
-:where(:root) .lf-ui,
-:where(:root) .lf-ui *,
-:where(:root) .lf-ui *::before,
-:where(:root) .lf-ui *::after {
-  box-sizing: border-box;
-}
-
 /* The default face of native widget-injected controls. `offer()` writes `lf-ui-face` on each one it
  * builds, so this is the layer's answer for a control standing in the page's own prose:
  * the chrome's family, size and ink rather than the document's serif. The separate
@@ -452,7 +438,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-thread-notice:is(button),
 .lf-react,
 .lf-margin-entry,
-.lf-thread-action,
 .lf-command-reference-command,
 .lf-quote {
   min-width: var(--aim-floor);
@@ -479,10 +464,11 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   .lf-btn,
   .button,
   .lf-icon-action,
+  .lf-compose-submit,
+  .lf-compose-dictate,
   .lf-msg-control,
-  .lf-thread-action,
   .lf-thread-notice:is(button),
-  button.lf-mark,
+  button.lf-mark-action,
   button.lf-fp-face
 ) {
   --lf-face-floor: auto;
@@ -497,7 +483,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
    is the part's: one on the host would take the press from the button and copy
    nothing. Its own rule, so an engine refusing a pseudo-element after a part keeps
    the rest. */
-.lf-mark.lf-ui::part(button)::after {
+.lf-mark-action.lf-ui::part(button)::after {
   content: "";
   position: absolute;
   inset: min(0px, (100% - var(--aim-floor)) / 2);
@@ -882,7 +868,7 @@ summary {
   color: color-mix(in srgb, var(--ink) 50%, transparent);
   animation: lf-sheen 2s ease-in-out infinite alternate;
 }
-/* The one continuous animation, which marks work under way (assets/AGENTS.md,
+/* The one continuous animation, which marks work under way (browser/AGENTS.md,
    "Motion"): a highlight passing across words, which are painted in ink and dimmed by
    a mask to their rest face, ink at `--lf-sheen-rest`, but where the highlight
    passes. A box runs it by naming it, and sets `--lf-sheen-rest` where its own colour
@@ -934,25 +920,24 @@ summary {
 .lf-msg-meta.lf-held-header-item > time {
   flex-shrink: 0;
 }
-/* Independent controls overlay the first header's line outside message folds.
-   The line has a stationary box, and its notice begins at the metadata edge
-   ThreadView retains while news waits. Neither arrival nor changing words sizes
-   a message header, its reaction control, or the full-width body below it. */
+/* Independent controls stand on the first header's line outside message folds, in the
+   room the header's end margin keeps for them (below), and a held-news notice stands
+   on the same line from the metadata edge ThreadView retains while news waits. Each is
+   a box of its own, anchored to the header. A box spanning the whole line stood over
+   the author and time, and axe, which finds what covers words by geometry alone, read
+   no contrast for them. Neither arrival nor changing words sizes a message header, its
+   reaction control, or the full-width body below it. */
 .lf-thread-controls {
   position: absolute;
   position-anchor: --lf-thread-headline;
-  inset-inline-start: anchor(left);
+  inset-inline-start: calc(anchor(right) + var(--sp-2));
   inset-block-start: anchor(center);
   translate: 0 -50%;
-  inline-size: calc(anchor-size(width) + var(--lf-thread-action-room) + var(--sp-2));
+  inline-size: var(--lf-thread-action-room);
   block-size: var(--lf-thread-action-room);
   display: flex;
   align-items: center;
-  pointer-events: none;
   font-size: var(--t-6);
-}
-.lf-thread-controls > * {
-  pointer-events: auto;
 }
 .lf-thread-content:has(> .lf-thread-controls)
   > .lf-thread-transcript
@@ -1006,20 +991,27 @@ summary {
 .lf-thread-controls > .lf-thread-meta-actions {
   min-height: var(--lf-thread-action-room);
 }
-.lf-thread-controls > .lf-thread-news {
+/* The notice's start and the visible end of the header's line are the runtime's
+   readings, in the header's own coordinates (thread-card.js, `#retainHeaderSlot`). */
+.lf-thread-content > .lf-thread-news {
   position: absolute;
-  inset-inline-start: calc(var(--lf-thread-news-start, 0px) + var(--sp-2));
+  position-anchor: --lf-thread-headline;
+  inset-inline-start: calc(
+    anchor(left) + var(--lf-thread-news-start, 0px) + var(--sp-2)
+  );
+  inset-block-start: anchor(center);
+  translate: 0 -50%;
   inline-size: max-content;
   max-inline-size: max(
     0px,
     min(
       calc(
-        100% - var(--lf-thread-news-start, 0px) - 2 * var(--sp-2) -
-          var(--lf-thread-action-room) - var(--lf-thread-message-control-room)
+        anchor-size(width) - var(--lf-thread-news-start, 0px) - var(--sp-2) -
+          var(--lf-thread-message-control-room)
       ),
       calc(
-        var(--lf-thread-news-visible-end, 100%) - var(--lf-thread-news-start, 0px) -
-          var(--sp-2)
+        var(--lf-thread-news-visible-end, anchor-size(width)) -
+          var(--lf-thread-news-start, 0px) - var(--sp-2)
       )
     )
   );
@@ -1112,7 +1104,7 @@ button.lf-thread-notice[data-lf-focus-visible] {
    nothing under the pointer. A placement that draws the notice whole, as a margin
    card's controls row does, drops no fact and reserves no room. The count stays out
    of the accessible name, which already says every fact. */
-.lf-thread-controls > .lf-thread-news,
+.lf-thread-content > .lf-thread-news,
 button.lf-primary-news {
   padding-inline-end: var(--lf-news-count-room);
 }
@@ -1166,7 +1158,7 @@ button.lf-primary-news {
   color: var(--ink-2);
   font-weight: 600;
 }
-.lf-thread-todo > .lf-thread-action {
+.lf-thread-todo > .lf-btn {
   flex: none;
   white-space: nowrap;
 }

@@ -153,3 +153,19 @@ def test_a_session_that_runs_no_leaf_command_starts_no_bridge():
     ):
         hooks_model.cmd_hook("claude-code", {"session_id": "unbridged", **payload})
     assert not bridge_model.bridge_path("lock").exists()
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [["--help"], ["--version"], ["--root", "--", "x"]],
+)
+def test_the_bridge_client_forwards_leaf_arguments_verbatim(monkeypatch, argv):
+    """`bin/leaf` hands a sandboxed command's whole argv to the bridge client,
+    which passes every argument after its mode to Leaf unparsed, `--` included."""
+    received = []
+    monkeypatch.setattr(bridge_model, "run", lambda args: received.append(args) or 7)
+    monkeypatch.setattr("sys.argv", ["bridge.py", "run", *argv])
+    with pytest.raises(SystemExit) as exited:
+        bridge_model.main()
+    assert exited.value.code == 7
+    assert received == [argv]

@@ -24,18 +24,20 @@
  *   from another place. A part holding something placed against the window cannot
  *   carry or clip it, so leaves its face at rest.
  * - A part that changed size and holds only its own content, such as words, carries
- *   that content by its start corner, cut to its outline growing from where it stood.
- *   On an axis where a face or content shrank while its far edge stayed, as a field a
- *   send empties at its box's foot does, it travels by that edge instead, since no
- *   cut draws a part larger than it stands.
+ *   that content by its start corner, where its layout sets it from, cut to its
+ *   outline growing from where it stood, whether it grew or shrank. A field left
+ *   empty, and in a send the frames around the field it empties, holds nothing that
+ *   carries on, so where it shrank while its far edge stayed it travels by that edge.
  *   An editor carries its words inside its own box (`--lf-field-carry`,
- *   `--lf-field-cut`, composing/text-field.js), since a transform on the editor would
- *   move the field under the user's typing. That box cuts its words off at its edges,
- *   so where the editor's start moved up or back, as more room re-wrapping a paragraph
- *   moves it, the editor is carried whole instead, unless the user is typing in it,
- *   when the words show where they now stand. A part that scrolls and changed size shows
- *   what its scroll puts in it, which the reader landing in it measures mid-tween, so
- *   it only grows from where it stood; one that kept its size is carried.
+ *   `--lf-field-cut`, composing/text-field.js), so the field's own box stays where
+ *   the user types. That box cuts its words off at its edges, so where the editor's
+ *   start moved up or back, as more room re-wrapping a paragraph moves it, the editor
+ *   is carried whole instead; while the user types, as when a line is removed, the
+ *   box stops cutting them as far as they travel (`--lf-field-reach`). A field that
+ *   stops scrolling carries its words by the scroll it gave up too. A part that
+ *   scrolls and changed size shows what its scroll puts in it, which the reader
+ *   landing in it measures mid-tween, so it only grows from where it stood; one that
+ *   kept its size is carried.
  * - A part new to the box is revealed: cut to the frame it stands in, the surface or
  *   the part holding it, as that frame's edges reach it, and still new while that
  *   lasts. A side where it stands out of its frame, as the attachments hanging over the
@@ -55,7 +57,7 @@
  * Whose change it is decides what travels. The user's own change, a key, a press or
  * typing, owns what it sets going until that rendering settles, and carries what it
  * moved, so the eye follows it. News, such as an answer arriving, moves nothing the
- * reader reads (assets/AGENTS.md, "Stability"): each part it moved shows where it now
+ * reader reads (browser/AGENTS.md, "Stability"): each part it moved shows where it now
  * stands, revealed by the frame it stands in or growing from its own old box, while
  * the box's outline and ring still follow.
  *
@@ -81,9 +83,11 @@
  * included, so the new turn comes up at the scroller's foot while every turn above it
  * rides up with the name over them; and a part new to the box, as a view the send
  * opens is, rises with the box's top edge out of the box's old outline rather than
- * being uncovered in place. The user asked for this on 25 October: a stream that slides
- * up to take the new message, its header moving with it. A head stuck to the scroller's
- * edge rides as a scroll that far back would stick it (`streamContent`). While the
+ * being uncovered in place, while one standing inside that outline, as a reply field
+ * taking the row's seat, is revealed there. The user asked for this on 25 October: a
+ * stream that slides up to take the new message, its header moving with it. A head
+ * stuck to the scroller's edge rides as a scroll that far back would stick it
+ * (`streamContent`). While the
  * content rides, the scroller's end stays where its layout puts it
  * (scrolling.js, `contentRides`), and its scroll is anchored to nothing, so neither
  * a landing at its end nor the browser's scroll anchoring chases the ride, and a reading
@@ -227,6 +231,19 @@ export function boxMotion({
   // where it stands, on the clock every part shares.
   let streams = new Map();
   let stopStreaming = new AbortController();
+  // How far each editor had scrolled its words before the change being read: taken at
+  // each reading, again as each press or key begins, and as the field opens an edit
+  // (`lf-before-edit`, composing/text-field.js), since a field scrolls as it is typed
+  // in without changing size, and paste or dictation edit it with no key.
+  let fieldScrolls = new Map();
+  const noteFieldScrolls = () => {
+    for (const field of fieldScrolls.keys()) fieldScrolls.set(field, field.scrollTop);
+  };
+  // An `input` reports an edit already made, so it is too late.
+  onUserInput((event) => {
+    if (event.type !== "input") noteFieldScrolls();
+  });
+  root.addEventListener("lf-before-edit", noteFieldScrolls, { passive: true });
   function rebase() {
     const at = boxOf(root.getBoundingClientRect());
     const edges = held();
@@ -445,8 +462,15 @@ export function boxMotion({
       for (const [scroller, { child, from, to }] of streams)
         streamed.set(scroller, { child, top: from + (to - from) * progress });
     streams = new Map();
+    const moved = motions;
     motions = new Map();
     rests = next;
+    const scrolledFrom = fieldScrolls;
+    fieldScrolls = new Map(
+      [...rests.keys()]
+        .filter((element) => element.matches(TEXT_FIELD))
+        .map((element) => [element, element.scrollTop]),
+    );
 
     const space = boxOf(room.getBoundingClientRect());
     const outline = (at, grow, radius) => [
@@ -522,11 +546,16 @@ export function boxMotion({
       move(part.element, dx, dy);
     }
 
-    // Its content carried by its start corner, cut to its outline growing from where
-    // it stood. On an axis where it shrank and its far edge stayed, it travels by that
-    // edge instead: no cut draws it larger than it stands, so carried by its start it
-    // would carry the edge that stayed away and back, as the field a send emptied,
-    // standing at its box's foot, once showed at its old top and slid down to its foot.
+    // Its content carried by its start corner, where its layout sets it from, cut to its
+    // outline growing from where it stood: a field losing a line or the room it was
+    // given carries its words down with its top edge, as one gaining a line carries
+    // them up. An emptied field is the exception, a send's included, and in a send the
+    // frames around it: its words left, so nothing in it carries on. On an axis where
+    // such a part shrank and its far edge stayed, it travels by that edge, so the
+    // emptied field standing at its box's foot stays there while the box closes onto
+    // it, rather than showing at its old top and sliding down. The user asked on 26
+    // October for a line removed to move the words with the field's top edge, which
+    // until then traveled while they jumped.
     function carryContent(part, from) {
       const to = part.box;
       if (part.scrolls && !part.element.matches(TEXT_FIELD)) {
@@ -534,7 +563,10 @@ export function boxMotion({
         if (gesture === "send") streamContent(part);
         return;
       }
+      const emptied =
+        gesture === "send" || part.element.matches(":state(placeholder-shown)");
       const edgeBy = (start, end, length) =>
+        emptied &&
         length(to) < length(from) - 0.5 &&
         near(from[end], to[end]) &&
         !near(from[start], to[start])
@@ -544,38 +576,57 @@ export function boxMotion({
         rtl ? edgeBy("right", "left", width) : edgeBy("left", "right", width),
         edgeBy("top", "bottom", height),
       ];
-      let dx = from[carries[0]] - to[carries[0]];
+      const dx = from[carries[0]] - to[carries[0]];
       let dy = from[carries[1]] - to[carries[1]];
       // Cut to where it stood, as far as its box carried there reaches: a shrinking
       // frame starts outside its final box, so children remain visible in the larger
       // outline they occupied before the change.
-      const cut = [
+      const cut = () => [
         from.top - (to.top + dy),
         to.right + dx - from.right,
         to.bottom + dy - from.bottom,
         from.left - (to.left + dx),
       ];
       // The editor's own box cuts its words off at its edges, so it carries them
-      // inside itself only as far as that box holds them. Where its start moved up or
-      // back, the editor is carried whole instead, unless the user is typing in it,
-      // when a moving field would move under their typing.
+      // inside itself as far as that box holds them. Where its start moved up or back,
+      // as more room re-wrapping a paragraph moves it, the editor is carried whole
+      // instead, except while the user types in it, since typing never moves the field
+      // (browser/AGENTS.md, "Stability"): a line the user removed carries the words
+      // down from above the field's box, which stops cutting them off that far
+      // (`--lf-field-reach`, composing/text-field.js) and stops scrolling while they
+      // travel, since what it holds now fits.
       const editor = part.element.matches(TEXT_FIELD);
       const inside = (rtl ? dx <= 0 : dx >= 0) && dy >= 0;
       if (!editor || (!inside && gesture !== "typing")) {
         motions.set(part.element, { from, to, carries });
         move(part.element, dx, dy);
-        cutFrom(part.element, cut, radiusOf(part.style));
+        cutFrom(part.element, cut(), radiusOf(part.style));
         return;
       }
-      motions.set(part.element, { from, to });
-      dx = rtl ? Math.min(0, dx) : Math.max(0, dx);
-      dy = Math.max(0, dy);
+      // A field the change lets stop scrolling, as deleting lines below its cap does,
+      // moves its words by the scroll it gave up as well as by its edge, and the cut
+      // keeps what that scroll hid out of sight until the outline reaches it. Its box
+      // follows the edge, so a change mid-tween carries on what is left of that scroll.
+      const fits = part.element.scrollHeight <= part.element.clientHeight;
+      const gaveUp = fits && !emptied ? (scrolledFrom.get(part.element) ?? 0) : 0;
+      const left = (moved.get(part.element)?.gaveUp ?? 0) * (1 - progress);
+      dy -= gaveUp + left;
+      motions.set(part.element, { from, to, gaveUp: gaveUp + left });
+      const reach = Math.max(0, rtl ? dx : -dx, -dy);
+      if (reach > 0) hold(part.element, "overflow", "visible");
       start(part.element, [
         {
           "--lf-field-carry": `${dx}px ${dy}px`,
-          "--lf-field-cut": cut.map((side) => `${side}px`).join(" "),
+          "--lf-field-cut": cut()
+            .map((side) => `${side}px`)
+            .join(" "),
+          "--lf-field-reach": `${reach}px`,
         },
-        { "--lf-field-carry": "0px 0px", "--lf-field-cut": "0px 0px 0px 0px" },
+        {
+          "--lf-field-carry": "0px 0px",
+          "--lf-field-cut": "0px 0px 0px 0px",
+          "--lf-field-reach": `${reach}px`,
+        },
       ]);
     }
 
@@ -649,11 +700,14 @@ export function boxMotion({
 
     // A part new to the box, in a send: it rises with the box's top edge, from as far
     // below its rest as that edge rises, cut where the box's old outline stood, so it
-    // comes up out of the box as the stream does.
+    // comes up out of the box as the stream does. One standing inside the old outline,
+    // as the thread's reply field taking the page field's seat in the row does, has no
+    // edge bringing it, so it is revealed where it stands: risen from below, it showed
+    // nothing of the row's field until the tween's last frames.
     function rise(part, frame, siblings) {
       const to = part.box;
       const dy = boxFrom.top - boxAt.top;
-      if (dy < 0.5) return reveal(part, frame, siblings);
+      if (dy < 0.5 || to.top >= boxFrom.top - 0.5) return reveal(part, frame, siblings);
       motions.set(part.element, {
         from: shifted(to, 0, dy),
         to,

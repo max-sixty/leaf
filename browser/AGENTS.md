@@ -135,8 +135,8 @@ representative desktop viewport.
   handles a send and the refusal that returns the words to their box. The new content
   and its Undo confirm success, so success needs no notice beyond the announcement
   for a listener. A gesture that moves the
-  user, such as resolving a thread, moves them back when it is refused or undone
-  (`thread/folding.js`). A result only the log can supply waits with `aria-busy`, shown
+  user, such as resolving a thread, leaves them at its place again when it is refused
+  or undone (`undo.js` owns where undo leaves the user). A result only the log can supply waits with `aria-busy`, shown
   after a delay so a fast answer shows nothing. Persistent status text is for a
   state the user must return to, such as a failure.
 
@@ -178,15 +178,26 @@ representative desktop viewport.
   edged on one side is never rounded: mark a state with a whole contour, or a stripe on
   a square box. Avoid reflexive cards, tints, gradients and soft shadows. Check:
   `test_no_rule_rounds_a_box_edged_on_one_side`.
-- **Leaf's controls are few, and each shows a symbol rather than a word where a
-  familiar symbol says what it does.** The words on Leaf's controls compete with the
-  page's own words for the reader's attention, and a symbol is smaller and quieter.
-  Draw it from `runtime/icon-paths.js` and give the control its name as tooltip and
-  accessible name, without the word beside the symbol. One control whose symbol follows
-  its state, such as play turning to pause, replaces a button for each state. A word
-  stays where a symbol would leave the reader guessing, as in the rows of the leaf's
-  menu, which the user opened to read. Symbols don't license more controls: a surface
-  at rest shows only what its task needs, and the leaf's menu holds the rest.
+- **Leaf's controls are few, and each shows a symbol where a standard symbol for its
+  action exists, and its word where none does.** A standard symbol is one readers
+  already know for that action from the software they use, such as ✕ for close, ✓ for
+  done, ‹ and › for back and next, and the symbols for play, pause, copy and undo, so
+  they can tell what the control does before hovering it. The words on Leaf's controls
+  compete with the page's own words for the reader's attention, and a symbol is
+  smaller and quieter. Draw it from `runtime/icon-paths.js` and give the control its
+  name as tooltip and accessible name, without the word beside the symbol. One control
+  whose symbol follows its state, such as play turning to pause, replaces a button for
+  each state. A symbol that is only related to the action, such as a speech bubble for
+  answering a question, leaves the reader guessing, and a tooltip doesn't fix that:
+  the reader must already suspect the control to hover it, and a touch screen has no
+  hover. The rows of the leaf's menu keep their words too, since the user opened the
+  menu to read them. Symbols don't license more controls: a surface at rest shows only
+  what its task needs, and the leaf's menu holds the rest.
+- **A control wears its role's face.** Code builds a control by its role, with
+  `offerAction` or `offeredAction`, and never names a face's classes, so two controls
+  of one kind can't look different (`runtime/prepaint.js`, `ACTION_FACES`, lists the
+  roles). A new role needs a difference in the user's task, not only in a widget's
+  taste. Check: `test_controls_are_built_by_role_and_never_by_face`.
 - **A face used twice is a token or a shared rule.** A lift names one of the theme's
   heights, `--raise-1` to `--raise-3` (`styles/theme.css`). Check:
   `test_every_lift_names_one_of_the_theme_s_heights_cast_in_the_scheme_s_ink`.
@@ -271,9 +282,10 @@ the page's targets goes through `paintSet` in `target-paint-geometry.js`. What a
 changes that CSS can't follow is read again when the scroll ends (`watchScrollEnds` in
 `arrivals.js`).
 
-Write a DOM value only when it changes, through `keeps` in `runtime/keeps.js`, whose
-header says what a redundant write costs. Give each value one writer, since two owners
-that set it in turn rewrite it whenever either paints. Checks: `tests/write_watch.js`
+Lit owns template bindings and skips unchanged values. For imperative writes outside
+those bindings, use `keeps` in `runtime/keeps.js`, whose header says what a redundant
+write costs. Give each value one writer, since two owners that set it in turn rewrite
+it whenever either paints. Checks: `tests/write_watch.js`
 fails a write that changes nothing, and `scroll_findings` in `test_page_fixture_renders` fails a
 value a scroll rewrites on every step.
 
@@ -380,7 +392,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Whether the user is inside a scope, across shadow trees and slots                                     | `focus.js` `currentLocationIn` (_lint_)                                            |
 | The user's working place, read before something borrows it and handed back after                      | `history.js` `readPlace`, `returnPlace`                                            |
 | The page place focus or selection identifies, or none                                                 | `current-target.js` `currentLocationOrigin`                                        |
-| Where a page walk starts, falling back to visible reading, and which item it steps to                 | `current-target.js` `walkOrigin`, `stepFrom`                                       |
+| Where a page walk starts, whether the user is on a stop or at it, and which item it steps to          | `current-target.js` `walkOrigin`, `stepFrom`                                       |
 | Which of two nodes the reader reaches first, across shadow trees                                      | `shadow-tree.js` `renderedOrder`, `byRenderedOrder`                                |
 | Whether a node is inside another across shadow trees                                                  | `shadow-tree.js` `under`, `renderedUnder`, `composedParentNode`                    |
 | Put the user on an element, saying what moved them                                                    | `focus.js` `focusDestination(node, cause)` (_lint_)                                |
@@ -505,6 +517,16 @@ before/after stills of each state it touches (`/developing-leaf`, "Prove and han
 visible change").
 
 ## Working on the runtime
+
+Give each component's generated UI one Lit renderer from first paint through live
+updates. When changing it, move its existing generated structure and changing bindings
+into that renderer together; a Lit child inside a manually updated view leaves two
+renderers to maintain. Lit provides node retention, synchronous drawing and
+unchanged-value checks. Keep imperative rendering of generated UI only for a requirement
+Lit cannot meet, and record that requirement beside the implementation. The rendering
+APIs and retained-node operations are in
+`../skills/leaf/references/module-authoring.md`,
+"Rendering".
 
 A paint that must land in the current turn uses `render`. `LitElement` schedules
 updates on a microtask, so code that reads the document right after a paint (a focus

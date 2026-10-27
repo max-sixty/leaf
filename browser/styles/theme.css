@@ -54,10 +54,10 @@
  * Live pages reserve thread room at the wide layout's existing floors, so the
  * first comment and the last resolution leave the document column in place. */
 
-/* Ordinary action controls use `.lf-btn`, whose face is in shadow.css so it also
-   reaches declared shadow trees. Packages may set placement and density, but keep its shape, border,
-   hover, and disabled treatment. Icon-only actions keep the same corner on a square
-   face. Margin entries, reaction chips, and status labels retain their own forms.
+/* Leaf's controls wear the faces of their roles (components/controls.css), in
+   shadow.css so they also reach declared shadow trees. Packages may set placement and
+   density, but keep each face's shape, border, hover, and disabled treatment. Margin
+   entries, reaction chips, and status labels retain their own forms.
 
    Typography is presentation, not passage permission. A chip or code annotation may look
    like apparatus and still be a page word the user can quote.
@@ -147,6 +147,9 @@
   initial-value: 520ms;
 }
 :root {
+  /* The root and body are important against the page's own rules (body, below): Leaf's
+     document-anchored paint takes the initial containing block as its origin, so neither
+     may become a containing block. */
   position: static !important;
   color-scheme: light dark;
   --lf-safe-top: env(safe-area-inset-top, 0px);
@@ -291,7 +294,7 @@
      rail below is sized from the same length, so it is named rather than written into
      each. */
   --margin-entry: max(32px, var(--aim-floor));
-  /* A mark's box (controls.css, `.lf-mark`), on a corner or in a toolbar. A seat that
+  /* A mark's box (controls.css, `.lf-mark-action`), on a corner or in a toolbar. A seat that
      keeps room around its marks reads it, so it is named rather than written there. */
   --mark-size: 20px;
   /* How far inside its block's right edge a pin stands. margin-layout.js reads it too,
@@ -573,10 +576,9 @@
   --focus-shadow: 0 0 0 var(--focus-ring-w) var(--accent);
   --target-trace-w: 1.5px;
   --target-trace-ink: color-mix(in srgb, var(--ink-2) 42%, var(--paper));
-  /* The contour on an element a moment is about, such as the target of the thread the
-     user is in (annotation-chrome.css). It stands outside the box at the ring's gap,
-     clear of the words at its edge, so a lighter, thinner accent keeps it apart from the
-     focus ring standing in the same place. */
+  /* SVG annotations stroke their actual contour in this quieter ink. Rectangular
+     annotations use the focus outline cut into brackets (chrome.css), flush outside
+     the target. */
   --mark-contour-w: 1.5px;
   --mark-contour-ink: color-mix(in srgb, var(--accent) 72%, var(--paper));
   /* A pressable never wears the accent as a solid fill: the accent is its ink and its
@@ -743,7 +745,7 @@ html:not([data-lf-live]) {
 /* A box that holds its own height and scrolls inside it says so, as a bounded block
  * below does: a widget in ordinary flow grows with its content, so a scroller nobody
  * declared is the defect the widget quality check `grows-with-content` names
- * (assets/AGENTS.md, "Space and scrolling"). It does not inherit, so a box inside a
+ * (browser/AGENTS.md, "Space and scrolling"). It does not inherit, so a box inside a
  * declared one answers for its own scroll. */
 @property --lf-holds-height {
   syntax: "<integer>";
@@ -794,6 +796,8 @@ html:not([data-lf-live]) {
  * of a 138px card and across whatever the grid had put beside it. */
 body {
   position: static !important;
+  /* The foot's room pads the body and a Layout's minimum fills the window with it
+     (layouts.css), which holds only border-box. */
   box-sizing: border-box !important;
   --lf-ground: var(--paper);
   background: var(--lf-ground);
@@ -902,9 +906,10 @@ html[data-lf-interactive] [data-lf-arriving] {
  * its settled upgrade geometry; durable controls still guard mutation until presentation.
  * Ordinary prose, links, scrolling, and layout remain available.
  *
- * The anonymous layer is first in the merged theme, so these important declarations
- * outrank every later layer and unlayered stylesheet declaration without reserving a
- * named layer custom CSS could append to. Inline importance ranks higher still, so the
+ * The anonymous layer leads lf-base, which only lf-reset precedes, and lf-reset states
+ * nothing important, so these important declarations outrank every other layer and
+ * unlayered stylesheet declaration without reserving a named layer custom CSS could
+ * append to. Inline importance ranks higher still, so the
  * version gate refuses it for the display and visibility properties this boundary owns.
  *
  * The same rank makes `hidden` hide whatever display another rule states for the
@@ -1483,6 +1488,15 @@ details {
   margin: var(--details-margin-block) 0;
   --lf-block-frame: trim;
 }
+/* Disclosures written one after another read as one list of them, at the distance
+   their insets alone leave: with the margin between them too they stood further apart
+   than a heading from its prose, and a run of them read as separate sections. */
+details:has(+ details) {
+  margin-block-end: 0;
+}
+details + details {
+  margin-block-start: 0;
+}
 /* A disclosure arranged in columns gives its evidence the whole row. Keep this
    native pseudo-element rule outside package scopes: Firefox computes scoped
    ::details-content declarations but does not use them for grid placement. */
@@ -1734,11 +1748,19 @@ aside.sidenote {
    the figure, written as a one-term definition list. It is type and a hairline above,
    not a card, so a row of them reads as figures; a page restyles it through the
    tokens it reads. The figure and its change each go to a new line whole, and a figure
-   too long for the tile breaks anywhere rather than overflow it. */
+   too long for the tile breaks anywhere rather than overflow it.
+
+   In a grid, such as a row of tiles, the label and the figure take two of the row's
+   tracks (subgrid), so every figure in a row stands on one line however many lines a
+   neighbour's label wraps to. Elsewhere the tile is its own two-row grid. */
 .metric {
   margin: 0;
   padding-block-start: var(--sp-2);
   border-block-start: 1px solid var(--rule);
+  display: grid;
+  grid-row: span 2;
+  grid-template-rows: subgrid;
+  row-gap: 0;
 }
 .metric dt {
   color: var(--muted);
@@ -2439,6 +2461,9 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
 [data-lf-reading-role="pane"] > :not(header, footer)[data-lf-focus-visible] {
   outline: none;
 }
+[data-lf-reading-role="pane"]:has(> :not(header, footer)[data-lf-focus-visible]) {
+  --lf-wears-ring: 1;
+}
 [data-lf-reading-role="pane"]:has(
     > :not(header, footer)[data-lf-focus-visible]
   )::after {
@@ -2449,6 +2474,16 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   pointer-events: none;
   outline: var(--focus-ring);
   outline-offset: calc(-1 * var(--focus-ring-w));
+}
+/* The pane role's box: a grid of header, body and footer, whose rows the grammar
+ * (layouts.css) places. It stands with the base its widget's rules share, so a widget
+ * that hides one of its panes, or a page, outranks it with an ordinary rule. */
+[data-lf-reading-role="pane"] {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+  --lf-block-frame: 1;
 }
 :where([data-lf-reading-role="pane"]) {
   border: 1px solid var(--rule);

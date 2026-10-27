@@ -14,7 +14,9 @@ lf-ask {
  * ran over the first letter of every line the question holds. */
 lf-ask[data-lf-obligation] {
   position: relative;
-  /* Runtime chrome is adopted after the package sheet. */
+  /* The ring moves to the overlay below. The chrome draws it on the decision from its
+     unlayered sheet, which outranks this layer, and `--lf-obligation-ring` can't stand
+     it down here without standing down the overlay, which inherits it. */
   outline: none !important;
 }
 lf-ask[data-lf-obligation]::after {

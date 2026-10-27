@@ -112,6 +112,9 @@ lf-visual-review {
 .lf-vr-case-status[data-approved=true] {
   color: var(--ok-ink);
 }
+.lf-vr-case-status[data-approved=false] {
+  visibility: hidden;
+}
 .lf-vr-detail {
   display: grid;
   grid-template-rows: auto auto minmax(min-content, 1fr) auto;
@@ -358,7 +361,7 @@ lf-visual-review {
   .lf-vr-queue,
   .lf-vr-inspect,
   .lf-vr-decision {
-    display: none !important;
+    display: none;
   }
   .lf-vr-dashboard,
   .lf-vr-workspace,

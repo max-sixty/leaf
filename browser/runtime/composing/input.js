@@ -55,6 +55,7 @@ import { advertisesKeys, submitBindings, spell, PRESS } from "../keyboard/bindin
 import { readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "../media.js";
 import { announce } from "../notifications.js";
 import { iconElement, iconTemplate } from "../icons.js";
+import { offeredAction } from "../widget-elements.js";
 import { drawingThumbnail } from "./drawing-context.js";
 import {
   LitElement,
@@ -174,20 +175,18 @@ class AttachedMediaShelf extends LitElement {
                 ${this.picture(drawing)}
               </button>
               <button
-                type="button"
-                class="lf-mark lf-corner-mark lf-composer-drawing-undo"
-                aria-label="Undo last stroke"
-                title="Undo last stroke"
+                ${offeredAction(
+                  "mark",
+                  "lf-corner-mark lf-composer-drawing-undo",
+                  "Undo last stroke",
+                )}
                 @mousedown=${(event) => event.preventDefault()}
                 @click=${() => this.actions.undoStroke()}
               >
                 ${this.undoIcon}
               </button>
               <button
-                type="button"
-                class="lf-mark lf-corner-mark"
-                aria-label="Remove drawing"
-                title="Remove drawing"
+                ${offeredAction("mark", "lf-corner-mark", "Remove drawing")}
                 @mousedown=${(event) => event.preventDefault()}
                 @click=${() => this.actions.removeDrawing()}
               >
@@ -198,9 +197,11 @@ class AttachedMediaShelf extends LitElement {
         : null,
       media.map(({ index, url }) => {
         const remove = html`<button
-          type="button"
-          class="lf-mark lf-corner-mark lf-composer-media-remove"
-          aria-label=${`Remove attached image ${index + 1}`}
+          ${offeredAction(
+            "mark",
+            "lf-corner-mark lf-composer-media-remove",
+            `Remove attached image ${index + 1}`,
+          )}
           @click=${() => this.actions.removeMedia(index)}
         >
           ${iconTemplate("cross", "lf-mark-icon")}
@@ -369,7 +370,10 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       globalThis.SpeechRecognition ?? globalThis.webkitSpeechRecognition;
     const mic =
       Recognition && icon === "send" && !submitIn
-        ? document.createElement("button")
+        ? Object.assign(document.createElement("button"), {
+            type: "button",
+            className: "lf-compose-dictate",
+          })
         : null;
     let dictation = null;
     let loadingDictation = false;
@@ -383,8 +387,6 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         ? "Starting microphone…"
         : loadingFailure || dictation?.status || "";
     if (mic) {
-      mic.type = "button";
-      mic.className = "lf-btn lf-icon-action lf-compose-dictate";
       mic.append(iconElement("microphone", "lf-action-icon"));
       field.append(mic);
     }
@@ -411,12 +413,10 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       uncover();
     });
     const held = () => busy() || errorOver(ta) !== null;
-    // These two are the press's whole face, and the theme keys the glyph's colour on the
-    // pair, so a box cannot be handed a send button dressed as something else. `primary`
-    // is a different face: it dresses the press's own box, which is the hit target and
-    // stands larger than the disc wherever the pointer is coarse. A send press never
-    // wears it.
-    sendBtn.classList.add("lf-icon-action", "lf-compose-submit");
+    // The press's whole face, its box and its glyph's ink (response.css), whatever face
+    // its caller made it with, so a box cannot be handed a send button dressed as
+    // something else. The caller's own classes only place it.
+    sendBtn.classList.add("lf-compose-submit");
     sendBtn.replaceChildren(iconElement(icon, "lf-action-icon"));
     const mediaShelf = document.createElement(MEDIA_SHELF_TAG);
     mediaShelf.className = sentMedia ? "lf-msg-media" : "lf-composer-media scroll";

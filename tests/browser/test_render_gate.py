@@ -4,6 +4,7 @@ import itertools
 import json
 import re
 import threading
+from contextlib import contextmanager
 from html import escape
 from urllib.parse import urlsplit
 
@@ -976,8 +977,8 @@ def test_shadow_stage_withholds_package_transitions_until_presentation(
     """The shared shadow stage suppresses a package transition during arrival."""
     theme = tmp_path / "transition-theme"
     theme.mkdir()
-    (theme / "theme-shadow.css").write_text(
-        "details { transition: color 60s linear; }\n"
+    (theme / "widget-shadow.css").write_text(
+        ":host(lf-diff) details { transition: color 60s linear; }\n"
     )
     page = browser.new_page()
     held = []
@@ -1320,7 +1321,7 @@ def test_a_transition_on_a_hidden_control_leaves_the_page_settled(
     """A scheme switch starts the colour transitions of controls inside a closed
     disclosure too. Firefox never runs them while the disclosure stays closed, and they
     move no box, so the page settles; reading them as motion held `leaf-dev probe
-    --firefox` on live-progress until its 120 s limit."""
+    --browser firefox` on live-progress until its 120 s limit."""
     page = open_page(
         firefox_browser,
         serve(
@@ -1405,7 +1406,7 @@ def test_the_state_wait_covers_a_status_that_moves_neither_log_nor_data(browser,
         held = render_gate_scheme.served(page, url, "/api/state").json()
         wait_until_ready(page, held, through="state")
         # The leaf names the agent's status.
-        assert "awaits" in page.locator(".lf-fp-leaf").get_attribute("aria-label")
+        assert "Ready" in page.locator(".lf-fp-leaf").get_attribute("aria-label")
     finally:
         leases_model.release_lease(lease)
 
@@ -3015,25 +3016,112 @@ def short_aim_findings(page):
     in with max(), and this sweep is what says they did: it reads the layer's selector
     list, then measures every visible control, with any reach it hangs past its box,
     under an emulated finger."""
+    return _short_aims(page, every_tab=False)
+
+
+def short_aim_findings_in_every_tab(page):
+    """The same floor, read as every tab opens it, wherever the page is sized.
+
+    A page's own CSS can shrink a control under a narrow window's rules, and a tab's
+    content stands in the layout only while that tab is open, so a reading of the first
+    tab at desktop width never met the three examples whose controls fell below the
+    floor at 390px. Each tab, and each tab inside it, is opened once and read."""
+    return _short_aims(page, every_tab=True)
+
+
+NEXT_TAB = """(opened) => {
+  // The last unopened tab in document order, so the tabs a tab opens, which stand
+  // after it, are all opened before the strip they hang from goes on to its next tab.
+  const tab = [...document.querySelectorAll('[role="tab"]')].findLast(
+    (tab) =>
+      !tab.closest('.lf-chrome') &&
+      !tab.closest('[hidden]') &&
+      tab.checkVisibility() &&
+      !opened.includes(tab.getAttribute('aria-controls')),
+  );
+  if (!tab) return null;
+  // Pressed by script: a strip that runs past a phone's width leaves tabs outside the
+  // window, and what is under test is the content the tab opens, not the strip's reach.
+  tab.click();
+  return tab.getAttribute('aria-controls');
+}"""
+
+
+# Press a sibling of a tab in its strip (`away`), or the tab itself.
+REOPEN_TAB = """([id, away]) => {
+  const tab = [...document.querySelectorAll('[role="tab"]')].find(
+    (tab) => tab.getAttribute('aria-controls') === id,
+  );
+  const siblings = [...tab.parentElement.closest('.lf-tabstrip').querySelectorAll('[role="tab"]')];
+  (away ? siblings.find((other) => other !== tab) : tab).click();
+}"""
+
+
+def _short_aims(page, *, every_tab):
+    short, seen = {}, 0
+    # Opening a tab hands the browser a block of new layout, and under load it may say
+    # once that a ResizeObserver delivery was deferred. As `navigate` does, a first
+    # sighting is the platform's notice and is set aside; the tab is opened again, and a
+    # notice that recurs is a resize loop of the page's own and is reported.
+    outside = getattr(page, "lf_resize_notices", None)
+    page.lf_resize_notices = notices = []
+    recurred = []
+    with under_a_finger(page):
+        opened = []
+        while True:
+            measured = page.evaluate(AIM_BOXES, aim_selectors())
+            assert measured["floor"] == 44, f"a finger asked for {measured['floor']}px"
+            seen = max(seen, measured["seen"])
+            for found in measured["short"]:
+                short.setdefault(found, []).append(opened[-1] if opened else "first")
+            tab = every_tab and page.evaluate(NEXT_TAB, opened)
+            if not tab:
+                break
+            opened.append(tab)
+            rendered(page)
+            if notices:
+                notices.clear()
+                # Away to a sibling and back, which opens the tab afresh.
+                page.evaluate(REOPEN_TAB, [tab, True])
+                rendered(page)
+                notices.clear()
+                page.evaluate(REOPEN_TAB, [tab, False])
+                rendered(page)
+                if notices:
+                    recurred.append(f"{tab}: {notices[0].code}")
+                    notices.clear()
+    page.lf_resize_notices = outside
+    assert seen > 30, f"only {seen} aims stood on the corpus"
+    findings = []
+    if short:
+        findings.append(
+            f"{len(short)} aims are smaller than 44px under a finger, of {seen} read:\n"
+            + "\n".join(
+                f"{found} (open on {', '.join(dict.fromkeys(tabs[:3]))})"
+                for found, tabs in sorted(short.items())
+            )
+        )
+    if recurred:
+        findings.append(
+            "opening these tabs raised a ResizeObserver loop notice again on a second "
+            "opening:\n" + "\n".join(recurred)
+        )
+    return findings
+
+
+@contextmanager
+def under_a_finger(page):
+    """Show the page to a coarse pointer, as the aim floor's own rules read it."""
     cdp = page.context.new_cdp_session(page)
     cdp.send("Emulation.setTouchEmulationEnabled", {"enabled": True})
     try:
         assert page.evaluate("() => matchMedia('(pointer: coarse)').matches"), (
             "the touch emulation never reached Leaf's coarse-pointer rules"
         )
-        measured = page.evaluate(AIM_BOXES, aim_selectors())
+        yield
     finally:
         cdp.send("Emulation.setTouchEmulationEnabled", {"enabled": False})
         cdp.detach()
-    assert measured["floor"] == 44, f"a finger asked for {measured['floor']}px"
-    assert measured["seen"] > 50, f"only {measured['seen']} aims stood on the corpus"
-    if not measured["short"]:
-        return []
-    return [
-        f"{len(measured['short'])} of {measured['seen']} aims are smaller than "
-        f"{measured['floor']}px under a finger:\n"
-        + "\n".join(sorted(measured["short"]))
-    ]
 
 
 def pressable_paper_findings(page):
@@ -3239,10 +3327,13 @@ def test_a_diagrams_reserved_box_includes_its_scrollbar_clearance(
     the overlay and classic track share the drawing's own blank bottom padding.
     """
     source = (ROOT / "examples" / "security-boundary.html").read_text()
-    source = source.replace(
-        'id="security-before-flow" data-height="77"',
+    # The example draws its five-step chain top-down so it fits a phone; drawn
+    # left-to-right it runs past a 678px viewport and scrolls, which this test needs.
+    source = source.replace("flowchart TD", "flowchart LR", 1).replace(
+        'id="security-before-flow" data-height="449"',
         'id="security-before-flow" data-height="200"',
     )
+    assert "flowchart LR" in source and 'data-height="200"' in source
     if track:
         source = source.replace(
             "</head>",
@@ -4335,6 +4426,15 @@ def test_scrollbar_clearance_reads_generic_content_and_open_shadow_words(
     last = page.get_by_role("button", name="Last choice")
     expect(last).to_be_focused()
     assert last.evaluate("el => el.matches(':focus-visible')")
+    # Native focus scrolling can finish after focus arrives (notably on macOS).
+    # Read the clearance once the keyboard destination has actually come into view.
+    page.wait_for_function(
+        """() => {
+          const box = document.getElementById('strip');
+          return box.lastElementChild.getBoundingClientRect().right <=
+                 box.getBoundingClientRect().right + 1;
+        }"""
+    )
     reached = last.evaluate(
         """el => {
           const box = el.parentElement, rect = box.getBoundingClientRect();

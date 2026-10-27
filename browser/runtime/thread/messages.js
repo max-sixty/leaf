@@ -40,7 +40,12 @@ import {
   stageAuthoredStates,
 } from "../projection/authored.js";
 import { stageWidgetDescriptors } from "../widget-descriptors.js";
-import { strongestWorkflow, workflowLabel, workflowTitle } from "./workflow.js";
+import {
+  NOT_ANSWERED,
+  strongestWorkflow,
+  workflowLabel,
+  workflowTitle,
+} from "./workflow.js";
 import {
   markDeclared,
   renderQuiet,
@@ -127,14 +132,14 @@ export function threadName(thread) {
 // agent owes the thread work. A turn that ended, stalled or was never picked up sends
 // none, nor does a page nobody has claimed, and the thread reads its opening words.
 /** @param {Parameters<typeof threadName>[0] & {readonly attention?: {readonly kind: string, readonly reason: string} | null}} thread */
-const titlePending = (thread) =>
+export const titlePending = (thread) =>
   thread.title == null &&
   thread.attention?.kind === "waiting" &&
   thread.attention.reason === "workflow" &&
   pageClaimed();
 
-// A thread's name wherever a surface draws it, as Threads, the thread's view, Page Map
-// and On cards do: while a title is on its way, a placeholder in the face of a step
+// A thread's name wherever a surface draws it, as Threads, Page Map, On cards and the
+// thread's view do: while a title is on its way, a placeholder in the face of a step
 // under way (`.lf-thread-working-words`) rather than opening words that would read as
 // its title.
 // The opening words stay in its accessible name, after the placeholder, so a screen
@@ -255,7 +260,6 @@ export function authoredHolder(id) {
     if (view.model.id === id && shown(view)) return view.node;
   return null;
 }
-const FAILURE_LABEL = "Not answered";
 export function messageReading(
   message,
   { authoredRank = 0, reactions, workflows, leaves = null },
@@ -334,15 +338,23 @@ export class MessageView {
   #editor = null;
   #kept = false;
   #stopKept = null;
+  // Whether the head says the message's age, which a transcript leaves out where the
+  // message above already says it (transcript.js). A presentation that doesn't say,
+  // as a drawing taking back its widgets doesn't, keeps the last answer.
+  #dated = true;
 
   constructor(commands) {
     this.#commands = commands;
     this.node = document.createElement("div");
   }
 
-  present(model, { arrived = false, headerControls = nothing } = {}) {
+  present(
+    model,
+    { arrived = false, dated = this.#dated, headerControls = nothing } = {},
+  ) {
     const prior = this.#model;
     this.#model = model;
+    this.#dated = dated;
     // A view presents messages of one surface for its whole life, so what the surface
     // makes of the node is written once, on the first presentation.
     if (!prior) {
@@ -451,7 +463,11 @@ export class MessageView {
       html`
         <b>${model.by}</b
         ><span class="lf-msg-meta"
-          ><time datetime=${model.timestamp}>${model.age}</time>${
+          >${
+            dated
+              ? html`<time datetime=${model.timestamp}>${model.age}</time>`
+              : nothing
+          }${
             model.unread
               ? html`<span class="lf-msg-new"><span class="lf-quiet">New</span></span>`
               : nothing
@@ -464,7 +480,7 @@ export class MessageView {
           }
           ${
             model.failure
-              ? html`<span class="lf-msg-failure">${FAILURE_LABEL}</span>`
+              ? html`<span class="lf-msg-failure">${NOT_ANSWERED}</span>`
               : nothing
           }
           ${
@@ -481,7 +497,7 @@ export class MessageView {
             this.#kept
               ? html`<span
                   class="lf-msg-kept"
-                  title="The rewrite is kept; open it to save or cancel"
+                  title="The edit is kept; open it to save or discard"
                   >unsaved edit</span
                 >`
               : nothing

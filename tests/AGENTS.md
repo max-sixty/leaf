@@ -99,8 +99,17 @@ UV_OFFLINE=1 uv run pytest tests --run-nightly -m 'not network'
 
 ### Selecting checks
 
-Find the tests that hold the behavior you changed, in any tier, by reading which tests
-exercise the changed code, and run them by node id or `-k`.
+Find the tests that hold the behavior you changed, in any tier, and run them by node
+id or `-k`. Search for consumers of the changed API, selector or shared primitive,
+including tests whose files the change leaves untouched. Exercise its transitions as
+well as its resting states: a shared row can fit each occupant and still resize when
+one replaces another. Keep the selection focused on the plausible failures the change
+introduces, within the local limits in root `AGENTS.md`.
+
+When an intentional behavior change replaces an expectation, update the affected
+tests in that change, preserving the user guarantees they still protect. The PR gate
+selects later-tier tests by edits to their own source, so its passing result alone
+does not establish that unchanged consumers still work.
 
 A change lands through a gate that runs the broad selection: a pull request's `test`
 job or `wt merge`'s pre-merge. A failure there that the change causes is the gate doing

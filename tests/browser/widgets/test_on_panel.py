@@ -351,30 +351,6 @@ def test_on_me_s_tabs_stand_where_a_view_names_itself(browser, serve):
     assert page.locator(".lf-fp-head").bounding_box()["height"] == 0
 
 
-def test_each_on_me_card_names_its_kind_as_the_walk_does(browser, serve):
-    """Each card in On me says what its item is, in the word the field says after `m`:
-    a suggestion is an Insertion, a Deletion or a Rewrite by its shape, and a widget's
-    question its widget's word. The word stays once the card is answered."""
-    page = open_page(browser, serve(CHANGE_SHAPES_PAGE))
-    resized(page, 1440, 900)
-    open_on_me(page)
-    kinds = {
-        "sug-rewrite": "Rewrite",
-        "sug-insert": "Insertion",
-        "sug-delete": "Deletion",
-        "shapes-q": "Options",
-    }
-    for at, word in kinds.items():
-        expect(on_card(page, f"widget:{at}").locator(".lf-fp-on-kind")).to_have_text(
-            word
-        )
-    card = on_card(page, "widget:sug-insert")
-    card.get_by_role("button", name="Accept").click()
-    round_trip(page)
-    expect(card.locator(".lf-fp-said")).to_contain_text("Answered: Accepted")
-    expect(card.locator(".lf-fp-on-kind")).to_have_text("Insertion")
-
-
 def test_show_on_a_card_goes_where_m_arrives_and_only_where_that_is_elsewhere(
     browser, serve
 ):
@@ -489,9 +465,9 @@ def test_on_me_lists_its_cards_in_the_order_m_walks_them(browser, serve):
     view = open_on_me(page)
     cards = view.locator(".lf-fp-on-item")
     expect(cards).to_have_count(3)
-    expect(cards.locator(".lf-fp-on-kind")).to_have_text(["To-do", "Options", "To-do"])
-    expect(cards.nth(0)).to_contain_text("Check the cadence")
-    expect(cards.nth(2)).to_contain_text("Check the notes")
+    expect(cards.locator(".lf-fp-prompt")).to_have_text(
+        ["Check the cadence", "Which channel first?", "Check the notes"]
+    )
 
     def walked():
         expect(view.locator(".lf-fp-on-item[data-walked]")).to_have_count(1)
@@ -561,9 +537,8 @@ def test_the_chosen_grouping_orders_on_me_and_the_m_walk_alike(browser, serve):
             "Include self-hosted runners?",
         ]
     )
-    expect(cards.locator(".lf-fp-on-kind")).to_have_text(
-        ["Options", "To-do", "Options · Rollout"]
-    )
+    # Under a heading a card says nothing over its question; alone, only its place.
+    expect(cards.locator(".lf-fp-on-place")).to_have_text(["Rollout"])
     # Its choices stand on the card, answered with one press.
     expect(
         on_card(page, "widget:exit").get_by_role("button", name="75")
@@ -583,7 +558,7 @@ def test_the_chosen_grouping_orders_on_me_and_the_m_walk_alike(browser, serve):
             "Try the sandboxed run on a fork",
         ]
     )
-    expect(cards.locator(".lf-fp-on-kind")).to_have_text(
+    expect(cards.locator(".lf-fp-on-place")).to_have_text(
         ["Implementation", "Rollout", "To-do · Implementation"]
     )
 
@@ -626,8 +601,8 @@ def test_on_me_places_an_item_by_its_tab_s_title_or_label(browser, serve):
     page = open_page(browser, serve(TABBED_PAGE))
     resized(page, 1440, 900)
     view = open_on_me(page)
-    expect(view.locator(".lf-fp-on-kind")).to_have_text(
-        ["Options · Move the runs into one sandbox", "Options · Second plan"]
+    expect(view.locator(".lf-fp-on-place")).to_have_text(
+        ["Move the runs into one sandbox", "Second plan"]
     )
 
 

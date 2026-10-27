@@ -223,6 +223,13 @@ lf-event::before {
   margin-inline-start: -1px;
   background: var(--accent);
 }
+/* Step changes move the retained line to its new time. The shared presentation and
+ * reduced-motion guards suppress this transition when the page must appear at rest. */
+@media screen {
+  .lf-timeline-playhead-line {
+    transition: left 160ms ease;
+  }
+}
 
 .lf-timeline-steps {
   list-style: none;

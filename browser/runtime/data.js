@@ -24,6 +24,7 @@ import { registry } from "./registry.js";
 import { watchOwner } from "./arrivals.js";
 import { referencedProjection, requireReference } from "./references.js";
 import { reportPageError, requestJson } from "./layer-client.js";
+import { tick } from "./version-signal.js";
 
 export function acceptData(candidate, taken) {
   return applicationState.acceptData(candidate, taken);
@@ -34,7 +35,7 @@ const joined = new Set();
 
 export async function notifyDataSubscribers() {
   const version = runtime.data.version;
-  deliveries.value += 1;
+  tick(deliveries);
   await whenApplicationRegionsPresented(
     [...joined],
     () => runtime.data.version === version,

@@ -125,6 +125,11 @@ lf-visual-review {
 .lf-vr-case-status[data-approved="true"] {
   color: var(--ok-ink);
 }
+/* A case not yet checked says nothing: the header's count and the case's own Looks
+   right box say so. Its words keep their line, so checking a case moves no row. */
+.lf-vr-case-status[data-approved="false"] {
+  visibility: hidden;
+}
 .lf-vr-detail {
   display: grid;
   grid-template-rows: auto auto minmax(min-content, 1fr) auto;
@@ -374,8 +379,8 @@ lf-visual-review {
   .lf-vr-queue,
   .lf-vr-inspect,
   .lf-vr-decision {
-    /* The Layout layer gives every pane display:grid; paper omits this navigation. */
-    display: none !important;
+    /* Paper omits this navigation. */
+    display: none;
   }
   .lf-vr-dashboard,
   .lf-vr-workspace,

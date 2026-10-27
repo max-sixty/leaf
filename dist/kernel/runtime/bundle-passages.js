@@ -1,4 +1,4 @@
-import { shadowHost, under, upFrom } from "./bundle-dom-move.js";
+import { renderedParent, shadowHost, under, upFrom } from "./bundle-dom-move.js";
 import { PAGE_PAINT_ATTRIBUTE, pageUpgraded, reportPageError } from "./bundle-layer-client.js";
 import { SAID, UI_MARKS, decisionFor, declaredRoot, hostIn, inUi, overIn, pageShadowRoots, refuseShadowRoot, registry, shadowRootsIn, uiInside } from "./bundle-geometry.js";
 import { COLLAPSE, TEXT_BLOCK, readPart } from "./bundle-context.js";
@@ -729,16 +729,38 @@ function findQuote(text, quote, anchor, within) {
 	const found = exact.length === 1 ? exact[0] : exact.length === 0 && candidates.length === 1 ? candidates[0] : null;
 	return found ? spanOf(text, found.from, found.to) : [];
 }
+function searchableWords() {
+	const styles = /* @__PURE__ */ new Map();
+	const reachable = /* @__PURE__ */ new Map();
+	const style = (el) => {
+		if (!styles.has(el)) styles.set(el, getComputedStyle(el));
+		return styles.get(el);
+	};
+	const canReveal = (el) => {
+		if (!el) return true;
+		if (reachable.has(el)) return reachable.get(el);
+		const css = style(el);
+		const result = css.display !== "none" && (css.contentVisibility !== "hidden" || el.getAttribute("hidden") === "until-found") && canReveal(renderedParent(el));
+		reachable.set(el, result);
+		return result;
+	};
+	return ({ node }) => {
+		const parent = renderedParent(node);
+		return parent && style(parent).visibility === "visible" && canReveal(parent);
+	};
+}
 function findText(text, query) {
 	const words = query.trim().split(/\s+/u).filter(Boolean);
 	if (!words.length) return [];
 	const pattern = new RegExp(words.map((w) => [...w].map(escape).join(`${EDGE}*`)).join(`[\\s${EDGE}]+`), "giu");
 	const out = [];
-	for (const match of text.raw.matchAll(pattern)) {
+	const searchable = searchableWords();
+	for (let match; match = pattern.exec(text.raw);) {
 		const from = match.index;
 		const to = from + match[0].length;
-		if (!withinCell(text, from, to)) continue;
-		out.push(spanOf(text, from, to));
+		const segments = spanOf(text, from, to);
+		if (withinCell(text, from, to) && segments.every(searchable)) out.push(segments);
+		else pattern.lastIndex = from + String.fromCodePoint(text.raw.codePointAt(from)).length;
 	}
 	return out;
 }

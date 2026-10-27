@@ -463,7 +463,7 @@ function reloadDelivery(message) {
 			const moved = await sourceMovedOn();
 			if (moved === void 0) return;
 			if (!moved) {
-				holdWaiting("Waiting for the server to finish updating.");
+				holdWaiting("Waiting for Leaf to finish updating.");
 				return;
 			}
 			reloadNow(message);

@@ -240,20 +240,25 @@
   }
   .lf-fp-expand {
     flex: none;
-    display: none;
+    display: grid;
     place-items: center;
     width: 24px;
     min-height: 0;
     height: 1lh;
     padding: 0;
     color: var(--lf-fp-muted);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity var(--lf-motion-box-resize), visibility 0s var(--lf-motion-box-resize);
   }
   .lf-fp-expand .lf-action-icon {
     width: 14px;
     height: 14px;
   }
   .lf-floating-panel[data-long] .lf-fp-expand {
-    display: grid;
+    opacity: 1;
+    visibility: visible;
+    transition: opacity var(--lf-motion-box-resize);
   }
   .lf-floating-panel[data-expanded] {
     --lf-fp-max: 1100px;
@@ -403,6 +408,9 @@
   .lf-floating-panel[data-tone=blocked]:not([data-asks]) .lf-fp-field leaf-text[data-says=status]::part(placeholder) {
     color: color-mix(in srgb, var(--danger-ink) 62%, transparent);
   }
+  .lf-fp-field leaf-text[data-voice=leaf]::part(placeholder) {
+    font-style: italic;
+  }
   .lf-fp-field leaf-text:not([data-says=turn]) .lf-compose-placeholder kbd {
     display: none;
   }
@@ -524,6 +532,7 @@
     right: calc(var(--lf-floating-gap) + var(--lf-safe-right));
     margin: 0;
     .lf-fp-field,
+    .lf-fp-expand,
     .lf-fp-row-notice,
     .lf-fp-quick,
     .lf-fp-opened {
@@ -1130,7 +1139,7 @@
     font-weight: 600;
     color: var(--lf-fp-muted);
   }
-  .lf-fp-on-kind,
+  .lf-fp-on-place,
   .lf-fp-on-title {
     margin: 0 0 2px;
     font: inherit;
@@ -1519,6 +1528,14 @@
 }
 
 /* browser/styles/chrome.css */
+.lf-ui {
+  box-sizing: border-box;
+}
+.lf-ui *,
+.lf-ui *::before,
+.lf-ui *::after {
+  box-sizing: border-box;
+}
 @layer lf-reset {
   button.lf-ui {
     appearance: none;
@@ -1529,7 +1546,6 @@
     color: inherit;
     font: inherit;
   }
-  .lf-btn,
   .lf-ui :is(textarea, leaf-text),
   :is(textarea, leaf-text).lf-ui {
     font: inherit;
@@ -1592,17 +1608,18 @@ html[data-lf-region-capture] body,
 html[data-lf-draw-mode],
 html[data-lf-draw-mode] body {
   cursor: crosshair;
+}
+html[data-lf-region-capture],
+html[data-lf-region-capture] body {
   touch-action: none;
 }
-html[data-lf-region-capture] main,
-html[data-lf-region-capture] main *,
-html[data-lf-draw-mode] main,
-html[data-lf-draw-mode] main * {
-  cursor: crosshair !important;
+html[data-lf-draw-mode],
+html[data-lf-draw-mode] body {
+  touch-action: pinch-zoom;
 }
-html[data-lf-draw-mode] main [data-lf-runtime],
-html[data-lf-draw-mode] main [data-lf-runtime] * {
-  cursor: auto !important;
+html[data-lf-region-capture] main,
+html[data-lf-region-capture] main * {
+  cursor: crosshair !important;
 }
 .lf-react-mark {
   text-align: center;
@@ -1723,15 +1740,38 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     display: none;
     pointer-events: none;
     box-sizing: border-box;
-    border: var(--target-trace-w) solid var(--target-trace-ink);
+    --lf-target-outline: var(--focus-ring-w) solid var(--target-trace-ink);
     --lf-shape-ink: var(--target-trace-ink);
     --lf-shape-stroke: var(--target-trace-w);
     --lf-shape-dash: none;
   }
-  .lf-shaped {
-    border: 0 !important;
-    border-radius: 0 !important;
-    background: none !important;
+  :is(.lf-aim, .lf-target-trace, .lf-visual-mark):not(.lf-shaped) {
+    &::before,
+    &::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      outline: var(--lf-target-outline, var(--focus-ring));
+      outline-offset: 0;
+      pointer-events: none;
+    }
+    &::before {
+      clip-path: inset(calc(-1 * var(--focus-ring-w)) calc(100% + var(--focus-ring-w) - 8px) calc(-1 * var(--focus-ring-w)) calc(-1 * var(--focus-ring-w)));
+    }
+    &.lf-visual-mark-inset::before,
+    &.lf-visual-mark-inset::after {
+      outline-offset: calc(-1 * var(--focus-ring-w));
+    }
+    &.lf-visual-mark-focus::after {
+      clip-path: none;
+    }
+    &.lf-visual-mark-focus::before {
+      content: none;
+    }
+    &::after {
+      clip-path: inset(calc(-1 * var(--focus-ring-w)) calc(-1 * var(--focus-ring-w)) calc(-1 * var(--focus-ring-w)) calc(100% + var(--focus-ring-w) - 8px));
+    }
   }
   .lf-target-trace-shape {
     display: block;
@@ -1747,22 +1787,17 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     -webkit-mask: url(/icon.svg) center / contain no-repeat;
     mask: url(/icon.svg) center / contain no-repeat;
   }
-  .lf-dot.working {
+  .lf-dot:where(.working) {
     background: var(--accent);
   }
-  .lf-dot.listening {
+  .lf-dot:where(.listening) {
     background: var(--ok);
   }
-  .lf-dot.away {
+  .lf-dot:where(.away) {
     background: var(--warn);
   }
-  .lf-dot.blocked {
+  .lf-dot:where(.blocked) {
     background: var(--danger);
-  }
-  @layer lf-reset {
-    .lf-thread-action {
-      font: inherit;
-    }
   }
   :is(.lf-quote, .lf-msg-body) {
     user-select: text;
@@ -1807,19 +1842,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     inline-size: 1em;
     text-align: center;
   }
-  .lf-thread-action {
-    border: none;
-    background: none;
-    color: var(--muted);
-    cursor: pointer;
-  }
-  .lf-thread-action:hover {
-    color: var(--ok);
-  }
-  .lf-thread-action[data-lf-focus-visible] {
-    outline: var(--focus-ring);
-    outline-offset: 2px;
-  }
   :is(.lf-fab-bar, .lf-margin-preview) {
     --lf-comment-inset: 12px;
     --lf-comment-frame-inline: calc(var(--lf-comment-inset) + 1px);
@@ -1835,14 +1857,16 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     --lf-shape-ink: var(--accent);
     --lf-shape-stroke: 2px;
     --lf-shape-dash: none;
-    border: 2px solid var(--accent);
-    background: color-mix(in srgb, var(--accent) 8%, transparent);
+    background: color-mix(in srgb, var(--accent) 4%, transparent);
   }
   .lf-aim-shape {
     display: block;
     width: 100%;
     height: 100%;
     overflow: hidden;
+  }
+  .lf-shaped {
+    background: none;
   }
   .lf-drawings {
     pointer-events: none;
@@ -1866,9 +1890,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
   .lf-drawing-mark.lf-drawing-parked path {
     stroke-dasharray: 7 6;
-  }
-  .lf-fab-bar .lf-composer > :not(.lf-compose-field, .lf-composer-media) {
-    display: none !important;
   }
   .lf-live {
     position: fixed;
@@ -1895,7 +1916,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     padding: 14px 18px;
     flex-direction: column;
   }
-  .lf-command-reference.open {
+  .lf-command-reference[open] {
     display: flex;
   }
   .lf-command-reference::backdrop {
@@ -1909,11 +1930,11 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
       display var(--lf-motion-disclosure) allow-discrete,
       overlay var(--lf-motion-disclosure) allow-discrete;
   }
-  :is(.lf-command-reference:not(.open), .lf-page-map-dialog:not([open])) {
+  :is(.lf-command-reference:not([open]), .lf-page-map-dialog:not([open])) {
     pointer-events: none;
   }
-  :is(.lf-command-reference.open, .lf-page-map-dialog[open]),
-  :is(.lf-command-reference.open, .lf-page-map-dialog[open])::backdrop {
+  :is(.lf-command-reference[open], .lf-page-map-dialog[open]),
+  :is(.lf-command-reference[open], .lf-page-map-dialog[open])::backdrop {
     opacity: 1;
     @starting-style {
       opacity: 0;
@@ -2507,7 +2528,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
   @media (forced-colors: active) {
     .lf-dot {
-      background: CanvasText !important;
+      background: CanvasText;
     }
     .lf-binding-sequence > kbd[data-lf-sequence-step-state=pressed] {
       border-color: Highlight;

@@ -5,7 +5,14 @@ import pytest
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATIONS_PAGE, panel_comment
-from render_cases_layout import SHOT_SRC, SHOTS, ring_faults, ring_rule, rings_drawn
+from render_cases_layout import (
+    SHOT_SRC,
+    SHOTS,
+    current_location_ring,
+    ring_faults,
+    ring_rule,
+    rings_drawn,
+)
 from render_cases_navigation import (
     ADDRESSED_PAGE,
     BINDING_BADGE_PAGE,
@@ -31,16 +38,19 @@ from render_harness import (
     open_page,
     open_threads,
     open_versions,
+    panel_control,
     panel_field,
     panel_settled,
     panel_view,
     resized,
+    select_words,
     told,
     write,
 )
 
 from browser.navigation import offered_routes
 from browser.threads import open_panel_thread
+from browser.threads.test_rewrites import _rewrite_surface
 from leaf import event_log as events_model
 from leaf.render_checks import rendered
 
@@ -76,7 +86,7 @@ def test_a_walked_thread_leaves_through_what_holds_it(browser, serve):
     # An agent's comment asks by construction, so one thread waits on the user, which
     # is what gives the panel's `w` narrowing something to narrow to. It shares the second
     # passage, so the walk's first two landings stay the user's own threads in order.
-    panel_comment(
+    asked = panel_comment(
         serve.page_dir,
         "Is this the passage you meant?",
         {"section": "p2", "quote": "neighbouring block"},
@@ -105,6 +115,21 @@ def test_a_walked_thread_leaves_through_what_holds_it(browser, serve):
     assert not page.evaluate(
         "() => document.activeElement.closest('.lf-margin-projection')"
     )
+    # Letting go leaves the user beside the thread rather than anywhere else, so the
+    # walk takes them back into it, the one they left of the two on that passage.
+    page.keyboard.press("t")
+    expect(threads[1]).to_be_focused()
+    page.keyboard.press("t")
+    agents = preview.locator(f'.lf-page-thread[data-thread="{asked}"]')
+    expect(agents).to_be_focused()
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    expect(preview).to_be_hidden()
+    page.keyboard.press("t")
+    expect(agents).to_be_focused()
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    expect(preview).to_be_hidden()
 
     # From a heading the user was located on, the same way out: the landing is the element
     # the thread is about rather than the heading the walk left.
@@ -115,9 +140,10 @@ def test_a_walked_thread_leaves_through_what_holds_it(browser, serve):
     expect(threads[0]).to_be_focused()
     page.keyboard.press("Escape")
     expect(page.locator("#p")).to_be_focused()
-    # The element and the card beside it are one place, so that current location names
-    # its thread: the line names it, and the walk goes on from the thread rather than
-    # back into it.
+    # The element with its card beside it is at the thread without being in it, so the
+    # walk goes back into that thread, and on from it with the next press.
+    page.keyboard.press("t")
+    expect(threads[0]).to_be_focused()
     page.keyboard.press("t")
     expect(threads[1]).to_be_focused()
     page.keyboard.press("Escape")
@@ -142,6 +168,36 @@ def test_a_walked_thread_leaves_through_what_holds_it(browser, serve):
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
     assert page.evaluate("() => document.activeElement === document.body")
+
+
+def test_the_thread_walk_goes_on_from_the_place_the_panel_holds(browser, serve):
+    """Stepping into the panel from a thread keeps the user in that thread on the page,
+    so `t` pressed in On me goes on to the next thread rather than back into it."""
+    url = serve(
+        INLINE_PAGE, anchored=[("p", "bold text"), ("p2", "neighbouring block")]
+    )
+    roots = [
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    panel_comment(
+        serve.page_dir,
+        "Is this the passage you meant?",
+        {"section": "p2", "quote": "neighbouring block"},
+        "agent",
+    )
+    page = open_page(browser, url)
+    threads = [
+        page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
+        for root in roots
+    ]
+    page.keyboard.press("t")
+    expect(threads[0]).to_be_focused()
+    panel_control(page, "queue").click()
+    panel_settled(page, view="queue")
+    page.keyboard.press("t")
+    expect(threads[1]).to_be_focused()
 
 
 def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
@@ -1314,6 +1370,187 @@ def test_escape_backs_out_from_a_control_nothing_is_typed_into(browser, serve):
         panel_settled(page, open=False)
 
 
+# The browser's own back: a close watcher standing before any of the page's, which
+# hears a close request only where the page holds none of its own.
+BROWSER_BACK = """() => {
+  window.browserBack = 0;
+  new CloseWatcher().onclose = () => (window.browserBack += 1);
+}"""
+
+
+def back_gesture(page):
+    """Make the close request Android's back gesture makes. An Escape keydown nothing
+    cancels is the same request, so the page's listeners are kept from hearing it."""
+    page.evaluate(
+        """() => addEventListener('keydown', (event) => {
+          if (event.key === 'Escape') event.stopImmediatePropagation();
+        }, {capture: true, once: true})"""
+    )
+    page.keyboard.press("Escape")
+
+
+def test_a_back_gesture_takes_the_step_escape_would(browser, serve):
+    """Android's back gesture is a close request, so a finger that opened the page's
+    menu or a view leaves it the way Escape does, one step a gesture. With nothing left
+    to take, the page holds no watcher and the gesture is the browser's, which goes
+    back in history. Before, the gesture closed nothing Leaf opened."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True
+    )
+    page = open_page(browser, serve(INLINE_PAGE), context=context)
+    page.evaluate(BROWSER_BACK)
+    menu = page.locator(".lf-floating-panel[data-menu]")
+
+    page.locator(".lf-fp-leaf").tap()
+    expect(menu).to_be_attached()
+    back_gesture(page)
+    expect(menu).not_to_be_attached()
+
+    open_threads(page)
+    back_gesture(page)
+    panel_settled(page, open=False)
+    assert page.evaluate("window.browserBack") == 0
+
+    back_gesture(page)
+    page.wait_for_function("window.browserBack === 1")
+
+
+def test_escape_takes_one_step_where_a_back_gesture_would_take_it(browser, serve):
+    """The page's watcher stands while Escape has a step to take, and a press the
+    dispatcher answers is spent before it reaches the watcher, so the key still takes
+    one step: the view goes, the selection beside it stays for the next."""
+    page = open_page(browser, serve(INLINE_PAGE))
+    page.evaluate(BROWSER_BACK)
+    select_words(page, "#p")
+    open_threads(page)
+
+    page.keyboard.press("Escape")
+    panel_settled(page, open=False)
+    assert page.evaluate("getSelection().toString()")
+
+    back_gesture(page)
+    page.wait_for_function("!getSelection().toString() || window.browserBack")
+    assert page.evaluate("window.browserBack") == 0
+    back_gesture(page)
+    page.wait_for_function("window.browserBack === 1")
+
+
+def test_a_back_gesture_takes_a_step_inside_a_modal_before_the_modal(browser, serve):
+    """A modal dialog opened over a view holds a newer watcher than the page's, so back
+    closed the dialog where Escape took the step a command inside it declares. The
+    page's watcher is made again above the dialog: back takes the inner step, the next
+    closes the dialog as the browser does, and the one after that the view."""
+    page = open_page(browser, serve(INLINE_PAGE))
+    page.evaluate(BROWSER_BACK)
+    open_threads(page)
+    page.evaluate(
+        """async () => {
+          const { commands } = await window.__lfWidgetApi();
+          const dialog = document.createElement('dialog');
+          dialog.id = 'inner-step';
+          const button = document.createElement('button');
+          button.textContent = 'Inside';
+          dialog.append(button);
+          document.querySelector('main').append(dialog);
+          commands(button, 'Inside the dialog', [{id: 'test.inner', keys: ['Escape'],
+            title: 'Take the inner step', when: () => !button.dataset.fired,
+            run: () => (button.dataset.fired = 'Escape')}]);
+          dialog.showModal();
+          button.focus();
+        }"""
+    )
+    dialog = page.locator("#inner-step")
+    settled = "() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))"
+    page.evaluate(settled)
+
+    back_gesture(page)
+    expect(dialog.get_by_role("button", name="Inside")).to_have_attribute(
+        "data-fired", "Escape"
+    )
+    expect(dialog).to_have_attribute("open", "")
+
+    page.evaluate(settled)
+    back_gesture(page)
+    expect(dialog).not_to_have_attribute("open", "")
+    panel_settled(page, view="threads")
+
+    page.evaluate(settled)
+    back_gesture(page)
+    panel_settled(page, open=False)
+    assert page.evaluate("window.browserBack") == 0
+
+
+@pytest.mark.parametrize("owner", ["draft", "rewrite"])
+def test_a_back_gesture_never_throws_away_unsent_words(browser, serve, owner):
+    """Escape's step in an open draft editor or message rewrite is Discard, which
+    nothing undoes, so back taking it lost an edit to one stray edge swipe. Back closes
+    the editor as Escape does, and a changed one keeps its words: a notice says so, the
+    closed draft or message shows it holds them, and opening it again finds them. Back
+    must still get the user out, rather than holding them in the editor, and Escape
+    still discards."""
+    # The browser's back stands before the page's watchers, as the open thread view
+    # holds one before the rewrite opens.
+    browser_back = f"({BROWSER_BACK})()"
+    if owner == "draft":
+        page = open_page(
+            browser,
+            serve(
+                leaf_page(
+                    "Back in a draft",
+                    '<h1>Back in a draft</h1><lf-draft id="d"><pre>Saved words.'
+                    "</pre></lf-draft>",
+                )
+            ),
+            init_script=browser_back,
+        )
+        editor = page.locator("#d leaf-text")
+        kept = page.locator("#d .lf-draft-kept")
+        reopen = draft_control(page, "edit", "d")
+
+        def open_editor():
+            draft_control(page, "edit", "d").click()
+    else:
+        page, _, message = _rewrite_surface(
+            browser, serve, "panel", init_script=browser_back
+        )
+        editor = message.locator(".lf-msg-editor leaf-text")
+        kept = message.locator(".lf-msg-kept")
+        reopen = message.locator(".lf-msg-edit")
+
+        def open_editor():
+            message.locator(".lf-msg-text").dblclick()
+
+    open_editor()
+    expect(editor).to_be_focused()
+    back_gesture(page)
+    expect(editor).to_have_count(0)
+    expect(kept).not_to_be_visible()
+
+    open_editor()
+    write(editor, "Unsent words.")
+    page.evaluate(
+        """() => document.addEventListener('lf-command-invoked',
+          ({detail}) => (window.ranTitle = detail.title), {once: true})"""
+    )
+    back_gesture(page)
+    expect(editor).to_have_count(0)
+    expect(page.locator(".lf-live")).to_have_text("Edit kept")
+    # The interaction log names the step that ran, not Discard's.
+    assert page.evaluate("window.ranTitle") == "keep"
+    expect(kept).to_have_text("unsaved edit")
+    # Beside the sign, on the control that reopens the words, not in a text box whose
+    # caret would raise a phone's keyboard.
+    expect(reopen).to_be_focused()
+    assert page.evaluate("window.browserBack") == 0
+
+    open_editor()
+    expect(editor).to_have_js_property("value", "Unsent words.")
+    expect(kept).not_to_be_visible()
+    page.keyboard.press("Escape")
+    expect(editor).to_have_count(0)
+    expect(kept).not_to_be_visible()
+
+
 def test_a_margin_marker_backs_out_onto_the_page_like_the_toggle(browser, serve):
     """A margin marker is placed in the document beside the words it marks, outside
     `.lf-chrome`, and the current-location floor used to read that container to tell a
@@ -1480,12 +1717,8 @@ def test_a_label_press_keeps_the_controls_current_keyboard_location(browser, ser
     )
     first.focus()
     assert offered_routes(page) == current_location
-    focus_paint = """control => { const s = getComputedStyle(control); return {
-      style: s.outlineStyle, width: s.outlineWidth, color: s.outlineColor,
-      offset: s.outlineOffset
-    }; }"""
-    first_ring = first.evaluate(focus_paint)
-    assert first_ring["style"] == "solid", first_ring
+    rendered(page)
+    assert current_location_ring(page)
 
     bounds = words.bounding_box()
     assert bounds is not None
@@ -1508,7 +1741,7 @@ def test_a_label_press_keeps_the_controls_current_keyboard_location(browser, ser
     # destination remains in place until the label's click transfers focus. The
     # pointer press removes its keyboard cue without moving that location.
     assert not first.evaluate("control => control.matches(':focus')")
-    assert first.evaluate(focus_paint)["style"] == "none"
+    assert current_location_ring(page) is None
     assert not ring_faults(rings_drawn(page), "while the label press holds focus")
     intermediate = page.locator("#label-thread")
     expect(intermediate).to_be_focused()
@@ -1520,7 +1753,7 @@ def test_a_label_press_keeps_the_controls_current_keyboard_location(browser, ser
     assert intermediate.evaluate(thread_paint) == ["none", "none"]
     page.emulate_media(forced_colors="active")
     assert intermediate.evaluate(thread_paint) == ["none", "none"]
-    assert first.evaluate(focus_paint)["style"] == "none"
+    assert current_location_ring(page) is None
     page.emulate_media(forced_colors="none")
     page.mouse.up()
     expect(control).to_be_checked()

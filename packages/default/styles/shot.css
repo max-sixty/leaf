@@ -171,9 +171,12 @@ lf-shot {
   --lf-top: 0px;
   scrollbar-gutter: stable;
 }
-lf-shot[data-lf-shot-mode="compare"] .lf-shotstage {
-  /* Keep the same content width as the other modes on classic-scrollbar hosts. */
-  overflow: hidden;
+/* Each view is the screen's: paper prints every source whole (print, below). */
+@media screen {
+  lf-shot[data-lf-shot-mode="compare"] .lf-shotstage {
+    /* Keep the same content width as the other modes on classic-scrollbar hosts. */
+    overflow: hidden;
+  }
 }
 .lf-shotcanvas {
   display: grid;
@@ -190,8 +193,10 @@ lf-shot[data-lf-shot-mode="compare"] .lf-shotstage {
   background: var(--card);
   overflow: clip;
 }
-lf-shot[data-lf-shot-mode="compare"] .lf-shotframe {
-  inline-size: calc(var(--lf-shot-viewport-width) + 2px);
+@media screen {
+  lf-shot[data-lf-shot-mode="compare"] .lf-shotframe {
+    inline-size: calc(var(--lf-shot-viewport-width) + 2px);
+  }
 }
 .lf-shotviewport {
   inline-size: var(--lf-shot-frame-width);
@@ -199,12 +204,14 @@ lf-shot[data-lf-shot-mode="compare"] .lf-shotframe {
 }
 /* Each capture's window keeps the height the fit gave it, and at actual size the reader
    scrolls the capture inside it, so both frames keep one size. */
-lf-shot[data-lf-shot-mode="compare"] .lf-shotviewport {
-  --lf-holds-height: 1;
-  inline-size: var(--lf-shot-viewport-width);
-  block-size: var(--lf-shot-viewport-height);
-  overflow: auto;
-  overscroll-behavior: auto;
+@media screen {
+  lf-shot[data-lf-shot-mode="compare"] .lf-shotviewport {
+    --lf-holds-height: 1;
+    inline-size: var(--lf-shot-viewport-width);
+    block-size: var(--lf-shot-viewport-height);
+    overflow: auto;
+    overscroll-behavior: auto;
+  }
 }
 .lf-shot-frame-label {
   box-sizing: border-box;
@@ -297,15 +304,17 @@ lf-shot:not([data-lf-shot-mode="compare"]) .lf-shotcanvas {
 lf-shot:not([data-lf-shot-mode="compare"]) .lf-shotcanvas > .lf-shotframe {
   grid-area: 1 / 1;
 }
-lf-shot[data-lf-shot-mode="flip"]
-  .lf-shotcanvas
-  > .lf-shotframe[data-lf-state="before"] {
-  /* Match the first slider drawing while its deferred control loads. */
-  clip-path: inset(0 50% 0 0);
-  z-index: 1;
-}
-lf-shot[data-lf-shot-mode="pixels"] .lf-shotframe {
-  display: none;
+@media screen {
+  lf-shot[data-lf-shot-mode="flip"]
+    .lf-shotcanvas
+    > .lf-shotframe[data-lf-state="before"] {
+    /* Match the first slider drawing while its deferred control loads. */
+    clip-path: inset(0 50% 0 0);
+    z-index: 1;
+  }
+  lf-shot[data-lf-shot-mode="pixels"] .lf-shotframe {
+    display: none;
+  }
 }
 .lf-shotcomparison {
   display: block;
@@ -391,8 +400,10 @@ lf-shot[data-lf-shot-focus="true"][data-lf-shot-crop="false"]
   block-size: calc(var(--lf-shot-frame-height) + 2px);
   border: 1px solid transparent;
 }
-lf-shot[data-lf-shot-mode="pixels"] .lf-shotpixels {
-  display: block;
+@media screen {
+  lf-shot[data-lf-shot-mode="pixels"] .lf-shotpixels {
+    display: block;
+  }
 }
 .lf-shotpixels .lf-shotplane > img {
   filter: grayscale(1);
@@ -430,32 +441,29 @@ lf-shot[data-lf-shot-mode="pixels"] .lf-shotpixels {
   /* Paper drops the toolbar and the outlines, which are offers (state.css), and prints
      the drawing (`shotBox`, shot-view.js): both complete sources, one above the
      other at the sheet's width, whichever view the screen shows. */
-  .lf-shotpixels {
-    display: none !important;
-  }
-  .lf-shotstage {
-    overflow: visible;
-  }
   .lf-shotstage,
   .lf-shotcanvas,
   .lf-shotcomparison,
   .lf-shotframe,
-  lf-shot[data-lf-shot-mode="pixels"] .lf-shotframe,
   .lf-shot-frame-label,
   .lf-shotviewport,
   .lf-shotimage,
   .lf-shotplane {
     display: block;
-    inline-size: 100% !important;
-    block-size: auto !important;
-    visibility: visible !important;
-    overflow: visible !important;
+    inline-size: 100%;
+    block-size: auto;
+    visibility: visible;
+    overflow: visible;
+  }
+  /* The pixel view is an image too, and the one paper leaves out. */
+  .lf-shotpixels {
+    display: none;
   }
   .lf-shotcomparison::part(after),
   .lf-shotcomparison::part(before) {
     position: static;
     display: block;
-    clip-path: none !important;
+    clip-path: none;
   }
   .lf-shotcomparison::part(base) {
     display: flex;
@@ -484,6 +492,6 @@ lf-shot[data-lf-shot-mode="pixels"] .lf-shotpixels {
   }
   .lf-shotframe {
     margin-block-end: var(--sp-3);
-    clip-path: none !important;
+    clip-path: none;
   }
 }

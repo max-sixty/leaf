@@ -28,7 +28,9 @@
   justify-content: flex-end;
   color: var(--muted);
   font: 0.8rem var(--sans);
-  min-block-size: 1lh;
+  /* The slot is as tall as a finger's floor leaves after the header's padding, so the
+   * press of a status control, which spans the padding too, meets that floor. */
+  min-block-size: max(1lh, var(--aim-floor) - 2 * var(--lf-file-editor-head-pad));
   white-space: nowrap;
 }
 /* A status control is a word in the slot's line, so it takes no block aim floor of its
@@ -122,11 +124,6 @@
 }
 :host(lf-file-editor) .lf-file-editor-choices .lf-btn {
   text-align: left;
-  border-color: transparent;
-  background: none;
-}
-:host(lf-file-editor) .lf-file-editor-choices .lf-btn:hover {
-  background: var(--chip);
 }
 :host(lf-file-editor) .lf-file-editor-choices .lf-btn[aria-checked="true"] {
   color: var(--accent);

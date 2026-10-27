@@ -5,7 +5,6 @@
     compare: "Pair",
     pixels: "Pixels"
   };
-  var CONTROL = "lf-btn lf-quiet-action";
   var nextOptionsId = 0;
   function shotAllocation(host, stage) {
     const style = getComputedStyle(stage);
@@ -99,15 +98,14 @@
     Object.assign(document.createElement(tag), { className: cls }),
     { says: false }
   );
-  function drawShot(host, { offer, generatedElement, keeps }) {
+  function drawShot(host, { offer, offerAction, generatedElement, keeps }) {
     const buttons = (label, values, selected) => {
       const group = offer("div", "lf-shot-views");
       group.role = "group";
       group.ariaLabel = label;
       const choices = /* @__PURE__ */ new Map();
       for (const [value, text] of Object.entries(values)) {
-        const button = offer("button", CONTROL, text);
-        button.type = "button";
+        const button = offerAction("word", "", text);
         button.setAttribute("aria-pressed", String(value === selected));
         choices.set(value, button);
         group.append(button);
@@ -126,9 +124,8 @@
     const views = buttons("Comparison view", SHOT_VIEWS, "flip");
     views.choices.get("pixels").disabled = true;
     const tools = offer("div", "lf-shot-tools");
-    const scaleTrigger = offer("button", `${CONTROL} lf-shot-scale`, "\u2026");
-    scaleTrigger.type = "button";
-    scaleTrigger.ariaLabel = "Image options";
+    const scaleTrigger = offerAction("symbol", "lf-shot-scale", "Image options");
+    scaleTrigger.textContent = "\u2026";
     const options = offer("div", "lf-shotoptions");
     options.setAttribute("popover", "auto");
     options.role = "group";
@@ -141,8 +138,7 @@
     scaleTrigger.setAttribute("aria-expanded", "false");
     const scale = buttons("Image scale", { fit: "Fit", actual: "100%" }, "fit");
     scale.group.className = "lf-shot-scale-options";
-    const outlines = offer("button", `${CONTROL} lf-shot-outline`, "Outline");
-    outlines.type = "button";
+    const outlines = offerAction("word", "lf-shot-outline", "Outline");
     outlines.ariaLabel = "Outline changes";
     outlines.title = "Outline changes";
     outlines.disabled = true;

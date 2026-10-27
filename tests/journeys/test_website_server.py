@@ -98,8 +98,8 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     watcher.close()
     told(page)
     rendered(page)
-    expect(receipt).to_have_text("Update stale")
-    expect(receipt).to_have_attribute("title", "Update stale · Looking at the page.")
+    expect(receipt).to_have_text("Gone quiet")
+    expect(receipt).to_have_attribute("title", "Gone quiet · Looking at the page.")
     assert receipt_words() > receipt_width, (
         initial_receipt,
         receipt_width,

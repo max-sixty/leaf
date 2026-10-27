@@ -30,9 +30,10 @@
  * workspace, a page with no Layout, a frozen message) the box the board stands in caps
  * it, a grid cell included, and so does the nearest size container: a framed box
  * holding the board (a pane's body, a card), and a sample, which cannot be one, through
- * `--lf-box-cap`. So a phone or a box narrower
- * than the minimum scrolls the board rather than the page. Screen only: a sheet has no room
- * beside the column to give, so on paper the board is the column's width. */
+ * `--lf-box-cap`. So a box narrower than the minimum scrolls the board rather than the
+ * page, and one too narrow to share between columns, a phone's, stacks them (below).
+ * Screen only: a sheet has no room beside the column to give, so on paper the board is
+ * the column's width. */
 lf-board {
   --lf-board-columns: 1;
   --lf-grip-room: 0px;
@@ -106,17 +107,22 @@ lf-column {
 .lf-board-destinations {
   display: none;
 }
-/* Where sharing the board between columns would leave none of them readable, one column
-   takes the width and the next stays visible as the cue that the board continues
-   sideways. The floor still wins inside a narrower frame. The board asks its own box, so
+/* Where sharing the board between columns would leave none of them readable, the
+   columns stack: each takes the board's width and its own height, so every column is a
+   scroll down away, the gesture the rest of the page already takes, and the rationale
+   a page writes after its board follows the last column rather than the tallest one's
+   empty field. The board used to page sideways here, one column wide with a sliver of
+   the next as the cue, which left one column on screen, every other behind a sideways
+   swipe nothing else on the page asks for, and each column stretched to the tallest's
+   height. The floor still wins inside a narrower frame. The board asks its own box, so
    a board in a workspace pane answers for the room it has rather than for the room the
-   window has; snapping needs no condition of its own, since proximity snapping does
-   nothing until a column offers a snap position. */
+   window has. The grid flows by column and a container query cannot restyle its own
+   container, so each column takes the first track and sparse placement gives it the
+   next row. */
 @media screen {
   @container lf-board (width <= 640px) {
     lf-column {
-      min-width: max(var(--lf-reading-column-floor), calc(100cqi - var(--sp-4)));
-      scroll-snap-align: start;
+      grid-column: 1;
     }
   }
 }
@@ -258,11 +264,18 @@ lf-card {
     clear: right;
   }
 }
+/* The prose after the title starts on its next line in whatever shape the author wrote
+   it. A title margin was trimmed only where no element followed it (the frame's trim
+   reads a plain sentence's title as the card's last block), and a paragraph's margin
+   set its prose 13px lower than a sentence's. */
 lf-card > strong {
   display: block;
   font-weight: 600;
   line-height: 1.4;
-  margin: 0 0 2px;
+  margin: 0;
+}
+lf-card > strong + p {
+  margin-block-start: 0;
 }
 /* Enter grabs the grip and arrows move the card. Its type comes from .lf-ui;
    the box and title float read the card's allocation above. A unit line-height

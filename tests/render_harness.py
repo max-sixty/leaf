@@ -1311,7 +1311,8 @@ def _picture_pages(test, pages):
             continue
         try:
             page.screenshot(
-                path=ROOT / f".tmp/test-results/screens/{name}-{n}.png", timeout=5000
+                path=ROOT / f".tmp/test-results/screens/{name}-{n}.png",
+                timeout=render_checks_model.SERVED_TIMEOUT_MS,
             )
         except PlaywrightError:
             continue
@@ -1499,11 +1500,14 @@ def watch_sources(shifts: bool) -> str:
 
 @contextmanager
 def restarting(page):
-    """Enclose a span in which the test stops and replaces the page's own server.
+    """Enclose a span in which the test replaces the page's server or executable layer.
 
-    A stopped server answers no fetch, and the words the failure arrives in depend on
-    which fetch was in flight when it stopped: a bare `Failed to fetch`, a named module,
-    a stack through the icon load, one of several `net::` codes. A reading written over
+    A layer replacement reloads the document. WebKit reports even a caught fetch
+    rejection from the departing document as a native page exception while its
+    replacement is loading. A stopped server answers no fetch, and the words the
+    failure arrives in depend on which fetch was in flight when it stopped: a bare
+    `Failed to fetch`, a named module, a stack through the icon load, one of several
+    `net::` codes. A reading written over
     those words needs a new member every time a fetch moves, and it ends up describing
     the noise this test makes.
 
@@ -1562,14 +1566,29 @@ def said(problem):
 _ABSENT = object()
 
 
+def place_step_matches(actual, expected):
+    """Match a watch's tag/id step and the classes an assertion names.
+
+    Classes describe the node at observation time, not a complete identity: focus,
+    rendering and other state can add classes. Keep the tag/id and every requested
+    class, without depending on additional classes or their order. These are the
+    watch's unescaped diagnostic steps, not arbitrary CSS selectors.
+    """
+    actual_name, *actual_classes = actual.split(".")
+    expected_name, *expected_classes = expected.split(".")
+    return actual_name == expected_name and set(expected_classes) <= set(actual_classes)
+
+
 def is_problem(problem, expected):
     """Whether a browser problem is the one a test expects.
 
     A string is a fragment of what the page said (`said`), so stack locations cannot
     authorize a problem. A dict names the record as a probe returns one,
-    `{code, at, ...values}`: its `code`, and each field the test cares about, equal to
+    `{code, at, ...values}`: its `code`, and each field the test cares about, match
     what was found, such as `{"code": "console-error", "url": "http://page/api/event"}`.
-    A function of the record answers for itself, for a field read other than by equality."""
+    Watch paths (`node`, `field`, `place`) keep every step and match the tag/id and
+    requested classes via `place_step_matches`. Other fields compare by equality.
+    A function of the record answers for itself, for another kind of reading."""
     if callable(expected):
         return expected(problem)
     if isinstance(expected, str):
@@ -1577,10 +1596,16 @@ def is_problem(problem, expected):
     fields = dict(expected)
     if problem.code != fields.pop("code"):
         return False
-    return all(
-        (problem.at if name == "at" else problem.values.get(name, _ABSENT)) == value
-        for name, value in fields.items()
-    )
+    for name, value in fields.items():
+        actual = problem.at if name == "at" else problem.values.get(name, _ABSENT)
+        if name in {"node", "field", "place"} and isinstance(value, list):
+            if not isinstance(actual, list) or len(actual) != len(value):
+                return False
+            if not all(place_step_matches(a, e) for a, e in zip(actual, value)):
+                return False
+        elif actual != value:
+            return False
+    return True
 
 
 def shown(problems):

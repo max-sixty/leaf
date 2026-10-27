@@ -41,12 +41,26 @@ import { closestAcross } from "../passages.js";
 import { retainUserIntent, restrictUserIntent } from "../user-intent.js";
 import { THREAD, SAY_ROW } from "./selectors.js";
 import { el, offer } from "../widget-elements.js";
+import { signal } from "/runtime/framework.js";
 import { move } from "../dom-move.js";
 import { chromeRoot, chromeForeground } from "../chrome.js";
 import { TEXT_FIELD } from "../control-selectors.js";
+import { tick } from "../version-signal.js";
 
 const REPLY_COMPOSITION = Symbol("reply composition");
 const compositions = new Map(); // context -> native session, with its current owner
+// Which threads have a session is a reading paints follow (`replyIsEditing`): a
+// settled thread keeps its margin entry and its box while one stands, so a session's
+// start and end repaint them. Which view owns a session moves nothing here.
+const sessions = signal(0);
+function openSession(context, session) {
+  compositions.set(context, session);
+  tick(sessions);
+  return session;
+}
+function closeSession(context) {
+  if (compositions.delete(context)) tick(sessions);
+}
 const views = new Map();
 const available = (composition) =>
   Boolean(composition) &&
@@ -57,7 +71,7 @@ function adopt(context, composition) {
   if (session?.owner !== composition) session?.owner?.sync.cancelDictation();
   const caret = readCaret(session?.owner?.controls.input);
   if (session) session.owner = composition;
-  else compositions.set(context, { owner: composition });
+  else openSession(context, { owner: composition });
   if (caret) composition.controls.input.setSelectionRange(...caret);
   remember(composition);
 }
@@ -148,7 +162,7 @@ export const replyDraftsHold = (retains) =>
 // Native Tab walks its controls and the surrounding page without dismissing it.
 function endSession(context) {
   const session = compositions.get(context);
-  compositions.delete(context);
+  closeSession(context);
   // A parked row goes with its session; a row a view holds stays that view's.
   if (session?.owner && !session.owner.binding) session.owner.row.remove();
   return session;
@@ -389,7 +403,10 @@ export const replyCompositionHasDraft = (node) => {
 
 // Editing belongs to the reply row's session, including Send and native Tab browsing.
 // Persisted words alone never reopen an editor after settlement or reload.
-export const replyIsEditing = (key) => compositions.has(replyContext(key));
+export const replyIsEditing = (key) => {
+  sessions.value;
+  return compositions.has(replyContext(key));
+};
 
 // Every reply renderer and route shares the same admission: open conversation,
 // or a settled conversation whose native editing session still owns its words.
@@ -404,12 +421,12 @@ export async function restoreReplyEditing(editing, land) {
   if (!editing?.mirrored || !draftEditingStands(editing)) return null;
   const context = editing.context;
   let session = compositions.get(context);
-  if (!session) compositions.set(context, (session = { owner: null }));
+  if (!session) session = openSession(context, { owner: null });
   try {
     return await land();
   } finally {
     if (compositions.get(context) === session && !available(session.owner))
-      compositions.delete(context);
+      closeSession(context);
   }
 }
 
@@ -441,7 +458,7 @@ export function createReplyView(
     const row = offer("div", "lf-thread-reply");
     const input = offer(TEXT_FIELD);
     input.name = "reply";
-    const send = offer("button", "lf-btn lf-thread-send", "Send");
+    const send = offer("button", "lf-thread-send", "Send");
     row.append(input, send);
     return wireReply(key, row, input, send, commands.wireInput, {
       hint,

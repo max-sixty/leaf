@@ -598,41 +598,32 @@ def test_workflow_shell_continuations_use_literal_blocks():
 
 
 @pytest.mark.parametrize(
-    ("argv", "usage"),
+    "argv",
     [
-        (["hook"], "leaf hook --harness NAME [--if-claimed] [--watch | --pages]"),
-        (
-            ["hook", "--harness"],
-            "leaf hook --harness NAME [--if-claimed] [--watch | --pages]",
-        ),
-        (
-            ["hook", "--watch", "--harness", "codex"],
-            "leaf hook --harness NAME [--if-claimed] [--watch | --pages]",
-        ),
-        (
-            ["hook", "--harness", "codex", "--bogus"],
-            "leaf hook --harness NAME [--if-claimed] [--watch | --pages]",
-        ),
-        (["session-end", "now"], "leaf session-end"),
+        ["hook"],
+        ["hook", "--harness"],
+        ["hook", "--harness", "codex", "--bogus"],
+        ["hook", "--harness", "codex", "--watch", "--pages"],
+        ["session-end", "now"],
     ],
 )
-def test_a_harness_entry_argv_no_registration_sends_is_refused_with_its_usage(
-    argv, usage
-):
-    """`hook` and `session-end` are routed before the CLI loads, and only in the
-    shapes harness registrations send; any other shape names the one it takes, rather
-    than reading a payload it was never meant to have."""
-    result = subprocess.run(
-        [sys.executable, "-m", "leaf", *argv],
-        input="{}",
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-
-    assert result.returncode == 1
+def test_harness_commands_report_click_usage_errors(argv):
+    result = CliRunner().invoke(cli_model.cli, argv, input="{}")
+    assert result.exit_code == 2
     assert result.stdout == ""
-    assert result.stderr == f"usage: {usage}\n"
+    assert json.loads(result.stderr)["error"]
+
+
+def test_hook_options_use_click_order_and_help():
+    runner = CliRunner()
+    result = runner.invoke(
+        cli_model.cli, ["hook", "--watch", "--harness=codex"], input="{}"
+    )
+    assert result.exit_code == 0, result.output
+    assert result.output == ""
+    help_result = runner.invoke(cli_model.cli, ["hook", "--help"])
+    assert help_result.exit_code == 0
+    assert "--harness" in help_result.output
 
 
 def test_a_page_command_names_what_its_path_holds_instead(tmp_path, regtest):
@@ -837,13 +828,10 @@ def test_shim_dispatches_every_command_through_one_uv_run(tmp_path, monkeypatch,
     # than whatever project the caller's directory sits in. `--no-dev` because
     # the dev group is the suite and the repo's own scripts, neither a harness's to
     # install. The module rather than the `leaf` console script because a long
-    # payload path turns the console script into a `/bin/sh` trampoline. The
-    # checkout's environment exists, so uv skips its cache, which an agent's
-    # sandbox refuses; the hook registration tests run a payload with none.
+    # payload path turns the console script into a `/bin/sh` trampoline.
     assert dispatched == [
         "run",
         "-q",
-        "--no-cache",
         "--no-dev",
         "--project",
         str(PLUGIN_ROOT),
@@ -907,19 +895,6 @@ def test_the_launcher_uses_the_hosts_selected_leaf_for_commands_and_hooks(
         0,
         f"{PLUGIN_ROOT}\n",
         "",
-    )
-    monkeypatch.setenv("LEAF_HOST_LAUNCHER", "leaf")
-    refused = subprocess.run(
-        [launcher, "--version"],
-        capture_output=True,
-        text=True,
-        timeout=STATED_TIMEOUT,
-        check=False,
-    )
-    assert (refused.returncode, refused.stdout, refused.stderr) == (
-        2,
-        "",
-        "LEAF_HOST_LAUNCHER must name an absolute launcher path\n",
     )
 
 
@@ -1027,7 +1002,7 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         "hooks/codex.json",
         "hooks/scripts/background-watch.py",
         "skills/leaf/SKILL.md",
-        "skills/leaf/references/authoring-decisions.md",
+        "skills/leaf/references/authoring-on-me.md",
         "skills/leaf/references/authoring-evidence.md",
         "skills/leaf/references/authoring-revisions.md",
         "skills/leaf/references/codex-watcher.md",
@@ -1685,6 +1660,57 @@ def test_layout_style_and_widgets_never_read_each_other():
         readers
     )
     assert not typed, "layouts.css sets type:\n" + "\n".join(typed)
+
+
+def test_controls_are_built_by_role_and_never_by_face():
+    """Leaf's controls come from a closed set of roles, each with one face, so a widget
+    cannot draw two controls of one kind two ways. The classes of a role's face are
+    spelled only in prepaint.js's `ACTION_FACES`, which `offerAction` reads; any other
+    bundled module that spells one, in a string or a comment, has chosen a face itself.
+    module-authoring.md lists the roles for package authors, in the table's order.
+    `primary` and the authored `button` face are ordinary words too, so they count
+    where a string lists classes or a template's `class` attribute names them."""
+    owner = schema_model.ASSETS / "runtime" / "prepaint.js"
+    table = re.search(r"const ACTION_FACES = \{(.*?)\};", owner.read_text(), re.DOTALL)
+    roles = dict(re.findall(r"(\w+): \"([^\"]+)\"", table[1]))
+    assert {"symbol", "word", "commit"} <= roles.keys(), roles
+    reference = (SKILL_ROOT / "references" / "module-authoring.md").read_text()
+    documented = re.findall(r"^- `\"(\w+)\"`, ", reference, re.MULTILINE)
+    assert documented == list(roles), "module-authoring.md lists other roles"
+    faces = {name for classes in roles.values() for name in classes.split()}
+    named = re.compile(
+        r"(?<![\w-])("
+        + "|".join(sorted(name for name in faces if name.startswith("lf-")))
+        + r")(?![\w-])"
+    )
+    words = {name for name in faces if not name.startswith("lf-")} | {"button"}
+    assert words == {"primary", "button"}, words
+    spelled = []
+    for root in (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES):
+        for source in sorted(root.rglob("*.js")):
+            if "vendor" in source.parts or source == owner:
+                continue
+            text = source.read_text()
+            where = source.relative_to(ROOT)
+            spelled += [f"{where}: {match[1]}" for match in named.finditer(text)]
+            code = re.sub(r"/\*.*?\*/|(?<![:\w\"'])//[^\n]*", "", text, flags=re.DOTALL)
+            for literal in re.findall(r"([\"'`])((?:(?!\1).)*)\1", code):
+                classes = literal[1].split()
+                if (
+                    len(classes) > 1
+                    and all(re.fullmatch(r"[a-z][\w-]*", name) for name in classes)
+                    and words & set(classes)
+                ):
+                    spelled.append(f"{where}: {literal[1]}")
+            spelled += [
+                f"{where}: class={value[1]}"
+                for value in re.findall(r"class=([\"'])(.*?)\1", code)
+                if words & set(value[1].split())
+            ]
+    assert not spelled, (
+        "build these controls with offerAction or offeredAction by role:\n"
+        + "\n".join(spelled)
+    )
 
 
 def test_no_rule_rounds_a_box_edged_on_one_side(tmp_path):

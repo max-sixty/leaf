@@ -170,7 +170,7 @@ def test_a_pick_under_an_open_card_leaves_the_card_where_it_stands(browser, serv
         page.locator("#row").click(position={"x": 20, "y": 10})
     expect(
         page.locator('[data-lf-margin-for="choice"] .lf-margin-marker')
-    ).to_have_attribute("aria-label", re.compile(r"^Sent\b"))
+    ).to_have_attribute("aria-label", re.compile(r"^Saved\b"))
     for _ in range(2):
         rendered(page)
         assert preview.evaluate(where) == card
@@ -194,7 +194,7 @@ def test_a_row_arriving_takes_the_room_below_the_markers_already_seated(browser,
         page.locator("#two").click(position={"x": 20, "y": 10})
     receipt = page.locator('[data-lf-margin-for="choice"]')
     expect(receipt.locator(".lf-margin-marker")).to_have_attribute(
-        "aria-label", re.compile(r"^Sent\b")
+        "aria-label", re.compile(r"^Saved\b")
     )
     rendered(page)
     assert thread.evaluate(where) == row
@@ -209,10 +209,10 @@ def test_a_row_arriving_takes_the_room_below_the_markers_already_seated(browser,
     assert receipt.evaluate(where) == stands
 
 
-# Each visible message head's time against what could cut it: its own box, the
-# metadata it stands in and the head.
+# Each visible message head's time, where it says one, against what could cut it: its
+# own box, the metadata it stands in and the head.
 TIMES_WHOLE = """card => [...card.querySelectorAll('.lf-msg-head')]
-  .filter((head) => head.checkVisibility())
+  .filter((head) => head.checkVisibility() && head.querySelector('time'))
   .map((head) => {
     const time = head.querySelector('time');
     const right = time.getBoundingClientRect().right;
@@ -307,7 +307,7 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     marker = page.locator('[data-lf-margin-for="off-t-resync"] > .lf-margin-marker')
     expect(marker).to_have_count(1)
     expect(marker.locator("..")).to_have_attribute(
-        "aria-label", re.compile(r"Page actions for section · iOS reconnect stall")
+        "aria-label", re.compile(r"Page actions for item · iOS reconnect stall")
     )
     marker.evaluate(
         "marker => scrollBy(0, marker.getBoundingClientRect().top - innerHeight + 52)"

@@ -581,14 +581,6 @@ export class RecordingTimeline {
           <span class="lf-trace-overview-window"></span>
           <span class="lf-trace-overview-time"></span>
         </div>
-        ${
-          model.inputs.length
-            ? html`<p class="lf-trace-legend">
-                Input bars span each recorded call; the notch is its Action checkpoint,
-                just before the input is sent. Key-down and hold times are not recorded.
-              </p>`
-            : nothing
-        }
         <div class="lf-trace-tip" role="tooltip" hidden></div>`,
       this.#host,
     );

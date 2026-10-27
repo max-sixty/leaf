@@ -167,6 +167,18 @@ lf-code > pre > lf-note {
   }
 }
 
+/* An explicit reading choice owns wrapping above the page's presentation rules.
+   The host states it once; every source row follows it. */
+@media screen {
+  lf-code[data-lf-reader-wrap="wrap"] .lf-code-line {
+    white-space: pre-wrap !important;
+    overflow-wrap: anywhere !important;
+  }
+  lf-code[data-lf-reader-wrap="scroll"] .lf-code-line {
+    white-space: pre !important;
+    overflow-wrap: normal !important;
+  }
+}
 /* Paper includes line endings even when the reader panned the source on screen. */
 @media print {
   lf-code[data-lf-reader-wrap] .lf-code-line {

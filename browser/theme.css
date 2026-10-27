@@ -1821,6 +1821,12 @@ details {
   margin: var(--details-margin-block) 0;
   --lf-block-frame: trim;
 }
+details:has(+ details) {
+  margin-block-end: 0;
+}
+details + details {
+  margin-block-start: 0;
+}
 details::details-content {
   grid-column: 1 / -1;
 }
@@ -1977,6 +1983,10 @@ aside.sidenote {
   margin: 0;
   padding-block-start: var(--sp-2);
   border-block-start: 1px solid var(--rule);
+  display: grid;
+  grid-row: span 2;
+  grid-template-rows: subgrid;
+  row-gap: 0;
 }
 .metric dt {
   color: var(--muted);
@@ -2370,6 +2380,9 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
 [data-lf-reading-role=pane] > :not(header, footer)[data-lf-focus-visible] {
   outline: none;
 }
+[data-lf-reading-role=pane]:has(> :not(header, footer)[data-lf-focus-visible]) {
+  --lf-wears-ring: 1;
+}
 [data-lf-reading-role=pane]:has(> :not(header, footer)[data-lf-focus-visible])::after {
   content: "";
   grid-row: 2;
@@ -2378,6 +2391,13 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   pointer-events: none;
   outline: var(--focus-ring);
   outline-offset: calc(-1 * var(--focus-ring-w));
+}
+[data-lf-reading-role=pane] {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+  --lf-block-frame: 1;
 }
 :where([data-lf-reading-role=pane]) {
   border: 1px solid var(--rule);

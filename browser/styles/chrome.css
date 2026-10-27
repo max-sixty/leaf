@@ -33,10 +33,17 @@
    shared face stated here would outrank each component's own rule. The vocabulary's
    faces are therefore stated page-side (the margin entries in theme.css; .lf-key-badge,
    .lf-ui, .lf-btn and the aim floor in shadow.css, which also reaches
-   widget trees, and `.lf-ui`'s `box-sizing` reset in components/surfaces.css). What
-   stays here is paint the runtime lays over the page, which has to beat page and
-   widget alike. test_interact_layer.py holds that no selector is dressed for one
-   property both here and page-side. */
+   widget trees). What stays here is paint the runtime lays over the page, which has to
+   beat page and widget alike, and the `box-sizing` reset. test_interact_layer.py holds
+   that no selector is dressed for one property both here and page-side. */
+.lf-ui {
+  box-sizing: border-box;
+}
+.lf-ui *,
+.lf-ui *::before,
+.lf-ui *::after {
+  box-sizing: border-box;
+}
 /* Clearing the UA's form-control face lives in a layer, so any unlayered choice of
    face outranks it whatever its specificity: a control wearing .lf-ui takes the chrome
    face from its own class, and lf-draft's editor states the document's face unlayered
@@ -51,7 +58,6 @@
     color: inherit;
     font: inherit;
   }
-  .lf-btn,
   .lf-ui :is(textarea, leaf-text),
   :is(textarea, leaf-text).lf-ui {
     font: inherit;
@@ -128,24 +134,29 @@ body:is(.lf-aiming, [data-lf-design-mode]) {
 body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item {
   cursor: pointer;
 }
-/* The document plane, including page-widget controls, accepts drawing presses.
-   Runtime surfaces keep their controls usable wherever their owner seats them. */
+/* Region capture and draw mode take presses on the whole plane. Region capture's
+   crosshair is important over whatever cursor the page states; draw mode's, which
+   spares Leaf's surfaces, is shared with shadow trees (integration.css). */
 html[data-lf-region-capture],
 html[data-lf-region-capture] body,
 html[data-lf-draw-mode],
 html[data-lf-draw-mode] body {
   cursor: crosshair;
+}
+/* One finger's drag is the capture's, or the stroke's. Draw mode lasts while the user
+   moves about the page, so two fingers still pan and zoom it there; a second finger
+   landing takes back the stroke the first began (drawing.js, `begin`). */
+html[data-lf-region-capture],
+html[data-lf-region-capture] body {
   touch-action: none;
 }
-html[data-lf-region-capture] main,
-html[data-lf-region-capture] main *,
-html[data-lf-draw-mode] main,
-html[data-lf-draw-mode] main * {
-  cursor: crosshair !important;
+html[data-lf-draw-mode],
+html[data-lf-draw-mode] body {
+  touch-action: pinch-zoom;
 }
-html[data-lf-draw-mode] main [data-lf-runtime],
-html[data-lf-draw-mode] main [data-lf-runtime] * {
-  cursor: auto !important;
+html[data-lf-region-capture] main,
+html[data-lf-region-capture] main * {
+  cursor: crosshair !important;
 }
 /* The glyphs of the reactions in force on a target — a margin entry per reaction,
    revealing a separately named removal action. */
@@ -323,18 +334,50 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     display: none;
     pointer-events: none;
     box-sizing: border-box;
-    border: var(--target-trace-w) solid var(--target-trace-ink);
+    --lf-target-outline: var(--focus-ring-w) solid var(--target-trace-ink);
     --lf-shape-ink: var(--target-trace-ink);
     --lf-shape-stroke: var(--target-trace-w);
     --lf-shape-dash: none;
   }
-  /* A shaped box's SVG child draws its contour (target-paint.js), so the box's own band,
-     corner and ground give way whoever states them: placement writes the target's radius
-     inline (`standOver`), and the overlay's own mark rule arrives in a later sheet. */
-  .lf-shaped {
-    border: 0 !important;
-    border-radius: 0 !important;
-    background: none !important;
+  /* Flush outside: brackets are two 8px end strips of the same 2px outline
+     keyboard focus draws whole. Neither state changes bounds, radius or offset.
+     The placement owner supplies the target rectangle and its corner shape.
+     Keep this in shared chrome so Aim and an optional annotation painter agree. */
+  :is(.lf-aim, .lf-target-trace, .lf-visual-mark):not(.lf-shaped) {
+    &::before,
+    &::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      outline: var(--lf-target-outline, var(--focus-ring));
+      outline-offset: 0;
+      pointer-events: none;
+    }
+    &::before {
+      clip-path: inset(
+        calc(-1 * var(--focus-ring-w)) calc(100% + var(--focus-ring-w) - 8px)
+          calc(-1 * var(--focus-ring-w)) calc(-1 * var(--focus-ring-w))
+      );
+    }
+    /* A clip that leaves no room outside the target (visual-mark-paint.js) takes the
+       perimeter just inside its edge, as a control packed into a list does (theme.css). */
+    &.lf-visual-mark-inset::before,
+    &.lf-visual-mark-inset::after {
+      outline-offset: calc(-1 * var(--focus-ring-w));
+    }
+    &.lf-visual-mark-focus::after {
+      clip-path: none;
+    }
+    &.lf-visual-mark-focus::before {
+      content: none;
+    }
+    &::after {
+      clip-path: inset(
+        calc(-1 * var(--focus-ring-w)) calc(-1 * var(--focus-ring-w))
+          calc(-1 * var(--focus-ring-w)) calc(100% + var(--focus-ring-w) - 8px)
+      );
+    }
   }
   .lf-target-trace-shape {
     display: block;
@@ -346,7 +389,8 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   /* Leaf's state is carried by the leaf rather than an anonymous traffic light. The
      mask is the page's actual vendored mark, so a project that replaces icon.svg does
      not keep an unrelated leaf-like glyph in the panel. Shape is identity and colour
-     is state, from the same registry-owned tones the tab icon wears. */
+     is state, from the same registry-owned tones the tab icon wears. Each state adds
+     no specificity, so a forced palette's later rule replaces every tone. */
   .lf-dot {
     width: var(--lf-mark-w);
     height: var(--lf-mark-w);
@@ -355,22 +399,17 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     -webkit-mask: url("/icon.svg") center / contain no-repeat;
     mask: url("/icon.svg") center / contain no-repeat;
   }
-  .lf-dot.working {
+  .lf-dot:where(.working) {
     background: var(--accent);
   }
-  .lf-dot.listening {
+  .lf-dot:where(.listening) {
     background: var(--ok);
   }
-  .lf-dot.away {
+  .lf-dot:where(.away) {
     background: var(--warn);
   }
-  .lf-dot.blocked {
+  .lf-dot:where(.blocked) {
     background: var(--danger);
-  }
-  @layer lf-reset {
-    .lf-thread-action {
-      font: inherit;
-    }
   }
 
   /* The words in here the root leaves selectable: a quote is the page's words and a
@@ -431,24 +470,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     text-align: center;
   }
 
-  .lf-thread-action {
-    border: none;
-    background: none;
-    color: var(--muted);
-    cursor: pointer;
-  }
-  .lf-thread-action:hover {
-    color: var(--ok);
-  }
-  /* Reopen stands in the same row as Resolve and answers the same question from the
-     other side, so it wears the same band while focused. It was left on
-     the platform's own ring, which is a real mark and the wrong one here: the pair
-     looked like two kinds of control, and a walk into resolved threads changed shape
-     halfway. */
-  .lf-thread-action[data-lf-focus-visible] {
-    outline: var(--focus-ring);
-    outline-offset: 2px;
-  }
   /* The response bar and thread card are fixed and anchored to what they point at, and
      placed only while the visible boundary holds them (floating.js), so they never sit
      pinned over content that is not theirs. */
@@ -486,14 +507,19 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     --lf-shape-ink: var(--accent);
     --lf-shape-stroke: 2px;
     --lf-shape-dash: none;
-    border: 2px solid var(--accent);
-    background: color-mix(in srgb, var(--accent) 8%, transparent);
+    background: color-mix(in srgb, var(--accent) 4%, transparent);
   }
   .lf-aim-shape {
     display: block;
     width: 100%;
     height: 100%;
     overflow: hidden;
+  }
+  /* A shaped box's SVG child draws its contour and veil (target-paint.js), so the box
+     draws no ground of its own. It follows the aim it shapes, which states its ground at
+     the same specificity, and its placement writes no corner (`standOver` is given 0). */
+  .lf-shaped {
+    background: none;
   }
   /* Each drawing stands in a paint stand over what it was drawn on (drawing-ink.js),
      anchored to it, so a stroke crosses content boundaries without becoming part of the
@@ -525,9 +551,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-drawing-mark.lf-drawing-parked path {
     stroke-dasharray: 7 6;
   }
-  .lf-fab-bar .lf-composer > :not(.lf-compose-field, .lf-composer-media) {
-    display: none !important;
-  }
   /* A suggestion renders verbatim — its characters are what the next version
      carries (see msgNode) — so this is where they keep their own line breaks. */
   .lf-live {
@@ -558,10 +581,10 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     border-radius: var(--r-l);
     box-shadow: var(--raise-3);
     padding: 14px 18px;
-    /* Its column stands while a closing reference fades out, after `.open` has gone. */
+    /* Its column stands while a closing reference fades out, after `[open]` has gone. */
     flex-direction: column;
   }
-  .lf-command-reference.open {
+  .lf-command-reference[open] {
     display: flex;
   }
   .lf-command-reference::backdrop {
@@ -579,11 +602,11 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
       display var(--lf-motion-disclosure) allow-discrete,
       overlay var(--lf-motion-disclosure) allow-discrete;
   }
-  :is(.lf-command-reference:not(.open), .lf-page-map-dialog:not([open])) {
+  :is(.lf-command-reference:not([open]), .lf-page-map-dialog:not([open])) {
     pointer-events: none;
   }
-  :is(.lf-command-reference.open, .lf-page-map-dialog[open]),
-  :is(.lf-command-reference.open, .lf-page-map-dialog[open])::backdrop {
+  :is(.lf-command-reference[open], .lf-page-map-dialog[open]),
+  :is(.lf-command-reference[open], .lf-page-map-dialog[open])::backdrop {
     opacity: 1;
     @starting-style {
       opacity: 0;
@@ -1282,11 +1305,13 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
 
   /* A forced palette keeps the chrome's states in platform colours rather than freezing
-     the product palette with forced-color-adjust. The focus ring needs nothing here:
-     --focus-ring is Highlight in a forced palette (theme.css). */
+     the product palette with forced-color-adjust. The pressed border is important, so
+     it holds over the more specific face of every control that can be pressed. The
+     focus ring needs nothing here: --focus-ring is Highlight in a forced palette
+     (theme.css). */
   @media (forced-colors: active) {
     .lf-dot {
-      background: CanvasText !important;
+      background: CanvasText;
     }
     .lf-binding-sequence > kbd[data-lf-sequence-step-state="pressed"] {
       border-color: Highlight;

@@ -106,7 +106,7 @@ Two classic models.</pre></lf-code>
     expect(rows).to_have_count(0)
     write(page_comment(page), "General comment during startup")
     page.keyboard.press("ControlOrMeta+Enter")
-    expect(page.locator(".lf-live")).to_have_text("Message sent")
+    expect(page.locator(".lf-live")).to_have_text("Message added")
     assert page.evaluate("() => CSS.highlights.get('lf-mark')?.size ?? 0") == 0
 
     # The visible document has not upgraded yet, so anchored capture is not ready.

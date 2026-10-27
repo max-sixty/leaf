@@ -23,7 +23,7 @@ work".
 ## Every verb on a card already exists
 
 A card is one decision with its evidence beside it, which is what an item framed
-by an `lf-ask` already is (`references/authoring-decisions.md`).
+by an `lf-ask` already is (`references/authoring-on-me.md`).
 
 | Feed card      | Leaf today                                                             |
 | -------------- | ---------------------------------------------------------------------- |

@@ -14,7 +14,7 @@ import {
   PRESENTATION_DOM,
   readPart,
 } from "./semantic-state.js";
-import { announce, notice } from "./notifications.js";
+import { announce } from "./notifications.js";
 import { answeredInWords, readObligations } from "./obligations/model.js";
 import { watchPendingTraffic } from "./traffic.js";
 import { createCommandDispatch } from "./pending/dispatch.js";
@@ -155,7 +155,7 @@ export function mountApplication(dependencies) {
     // than turning an accepted gesture into an apparent refusal, and it cannot strand
     // the gesture before transport or leave later sends behind an unanswered entry.
     try {
-      if (isMessageEvent(entry.event)) announce("Message sent");
+      if (isMessageEvent(entry.event)) announce("Message added");
       if (entry.event.kind === "edit") announce("Message edited");
     } catch (error) {
       reportPageError(error, "optimistic presentation");
@@ -166,12 +166,13 @@ export function mountApplication(dependencies) {
 
   commandDispatch.mount({
     afterEnqueue,
-    // A widget's gesture is acknowledged by the name the widget gave it, the name its
-    // undo is announced by too.
+    // A widget's gesture is announced by the name the widget gave it, the name its undo
+    // is announced by too. The live region alone says it: the pick is drawn where the
+    // user made it, and the margin's receipt says it was saved.
     named: (entry, says) => {
       undo.retainGesture(entry.event.attempt, { says });
       void entry.answer.then((admitted) => {
-        if (admitted) notice(`${says} — sent`);
+        if (admitted) announce(says);
       });
     },
     withdraw: (candidate) => undo.withdraw(candidate),
@@ -225,7 +226,8 @@ export function mountApplication(dependencies) {
   const settlementView = {
     pendingEntries: ledger.snapshot,
     actions: threadActions,
-    retainGesture: undo.retainGesture,
+    landedAway: undo.landedAway,
+    returnToThread: undo.returnToThread,
   };
   const reactionView = {
     registerSurface: dependencies.registerReactSurface,
@@ -265,9 +267,8 @@ export function mountApplication(dependencies) {
     dependencies.annotationCommands.renderPageMapDialog(entries);
     return entries;
   }
-  // The margin's annotations, which the thread presentation, the margin's own geometry
-  // and contributions also redraw directly. `refresh()` redraws them once they have
-  // been drawn.
+  // The margin's annotations, which the margin's own geometry and contributions also
+  // redraw directly. `refresh()` redraws them once they have been drawn.
   let annotationsDrawn = false;
   const renderAnnotations = () => {
     annotationsDrawn = true;
@@ -281,9 +282,10 @@ export function mountApplication(dependencies) {
   };
   // The inventory lists the marks the projection's chrome paints, reading their nodes,
   // which signals cannot track, so it reads the parts that move them itself, and
-  // reads them once that region has committed. The ages the margin shows are followed
-  // with the rest of what this paint reads, so the clock repaints them by the same
-  // proof.
+  // reads them once that region has committed. What the thread pass decides about
+  // each thread, where it is placed and whether a widget seats or holds it, and the
+  // ages the margin shows are followed with the rest of what this paint reads, so a
+  // commit that moves one and the clock repaint them by the same proof.
   const annotationInputs = readPart(annotationSelection);
   const mountAnnotations = () => {
     const presentation = applicationPresenter({
@@ -341,7 +343,6 @@ export function mountApplication(dependencies) {
     pageGeometry: dependencies.pageGeometry,
     readDraft: dependencies.readThreadDraft,
     activeActionAnchor: dependencies.activeActionAnchor,
-    renderAnnotations,
     renderSurfaces,
     // Where a thread stands now, put up for a user carried there from a box a surface
     // stopped drawing: the surface drawing it, its margin card, or the floating panel.

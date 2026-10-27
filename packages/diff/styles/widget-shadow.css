@@ -12,7 +12,7 @@
    box a scroll container, and a sticky child is held by the nearest scrolling ancestor —
    which would be this box, which never scrolls, so the header stuck to nothing and
    scrolled away with its rows. The host condition is a default at zero specificity:
-   native :scope must not make this margin reset outrank the action row's placement,
+   naming the host must not make this margin reset outrank the action row's placement,
    for either textual evidence or file metadata. */
 :where(:host(lf-diff.lf-rendered)) :where(.lf-diff-file) > details,
 :where(:host(lf-diff.lf-rendered)) .lf-diff-metadata {
@@ -277,11 +277,20 @@
 .lf-diff-run-end {
   --lf-diff-r-end: var(--r);
 }
+/* A diff of one file draws no filter (lf-diff.js), so its file opens the drawing, with
+   no gap or shared hairline above it to stand off from. */
+.lf-diff-file:first-child {
+  margin-top: 0;
+}
 .lf-diff-file:has(> .lf-diff-file-actions > *) {
   --lf-diff-head-h: var(--lf-diff-head-pressed);
 }
-.lf-diff-file:has(> .lf-diff-file-actions > *) > :is(.lf-diff-fold, .lf-diff-metadata) {
-  margin-top: calc(-1 * (var(--lf-diff-action-h) + var(--lf-diff-action-top)));
+/* On screen the file's head rises beside its bar of presses; paper drops the bar. */
+@media screen {
+  .lf-diff-file:has(> .lf-diff-file-actions > *)
+    > :is(.lf-diff-fold, .lf-diff-metadata) {
+    margin-top: calc(-1 * (var(--lf-diff-action-h) + var(--lf-diff-action-top)));
+  }
 }
 .lf-diff-file-actions {
   position: relative;
@@ -382,7 +391,7 @@
   opacity: 1;
 }
 .lf-diff-filtered {
-  display: none !important;
+  display: none;
 }
 /* The filter field is not listed here. It is a vendored text field, whose Tab stop and
    ringed box are both inside its own shadow root, so a rule on this host would reach
@@ -609,13 +618,41 @@ pre[data-overflow="wrap"] .lf-diff-rows {
 .lf-diff-file-thread-outlet :is(.lf-resolved-summary, .lf-page-thread) {
   padding-inline: var(--lf-diff-head-inset);
 }
+/* A conversation's reply field rests as a Reply press: its hint alone, in the place of
+   the words, with no frame and no microphone, one control high. Going into it, by a
+   press, Tab or `c`, opens it as the field it is, and it rests again once the user
+   leaves it holding nothing: no words or picture, no dictation, no error. The field
+   stays the one control, so every route to the reply reaches it as before. The user
+   chose that on 26 October 2026 over a Reply field open under every conversation,
+   which took about a third of the height of two conversations under one file. */
+.lf-diff-thread-outlet
+  .lf-thread-reply:not(
+    :focus-within,
+    :has(
+      > .lf-composer-media:not([hidden]),
+      > .lf-compose-field[data-words],
+      .lf-compose-dictate[aria-pressed="true"],
+      .lf-compose-error:not([hidden])
+    )
+  ) {
+  margin-top: var(--sp-1);
+  > .lf-compose-field {
+    border-color: transparent;
+    background: transparent;
+  }
+  > .lf-compose-field > leaf-text {
+    min-height: var(--aim-floor);
+    padding-block: 0;
+    cursor: pointer;
+  }
+  > .lf-compose-field > .lf-compose-dictate {
+    display: none;
+  }
+}
 /* Paper has no sideways scroll; wrap evidence within the printed sheet. */
 @media print {
   .lf-diff-line-comment::before {
     display: none;
-  }
-  .lf-diff-file > :is(.lf-diff-fold, .lf-diff-metadata) {
-    margin-top: 0 !important;
   }
   :host(lf-diff.lf-rendered) .lf-diff-file > details > summary {
     padding-right: 10px;
@@ -649,15 +686,11 @@ pre[data-overflow="wrap"] .lf-diff-rows {
     display: inline;
   }
   .lf-diff-filtered {
-    display: block !important;
+    display: block;
   }
   [data-line] {
-    white-space: pre-wrap !important;
-    overflow-wrap: anywhere !important;
-  }
-  code[data-code] {
-    overflow-x: visible !important;
-    container-type: normal;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
   }
   .lf-diff-rows {
     width: 100%;

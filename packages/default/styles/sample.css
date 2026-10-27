@@ -119,28 +119,32 @@ lf-sample > [data-lf-said="label"] {
   text-transform: uppercase;
   color: var(--muted);
 }
-/* The label names what the sample is, quoted or live, and then its own label: from the
- * attribute, or from an authored label child, which takes the word itself. */
+/* The note is the sample's own label: from the attribute, or from an authored label
+ * child, which takes any prefix itself. A quoted sample's opens with "quoted", which
+ * says it takes no input. A sample that works, interactive or live, wears its label
+ * alone, and none without one, since its gutter or frame already marks it a sample. On
+ * 2026-10-26 the user chose that over opening with "interactive sample" or "live
+ * sample", a word whose one distinction, this page's log or the sample's own, the
+ * note no longer draws; a live sample's Reset and Full view still set it apart. */
 lf-sample {
   --lf-sample-word: "quoted";
+  --lf-sample-prefix: "quoted · ";
 }
-lf-sample[interactive] {
-  --lf-sample-word: "interactive sample";
-}
-lf-sample[data-lf-sample-live] {
-  --lf-sample-word: "live sample";
+lf-sample:is([interactive], [data-lf-sample-live]) {
+  --lf-sample-word: none;
+  --lf-sample-prefix: "";
 }
 lf-sample::before {
   content: var(--lf-sample-word);
 }
 lf-sample[label]::before {
-  content: var(--lf-sample-word) " · " attr(label);
+  content: var(--lf-sample-prefix) attr(label);
 }
 lf-sample:has(> [data-lf-said="label"])::before {
   content: none;
 }
 lf-sample > [data-lf-said="label"]::before {
-  content: var(--lf-sample-word) " · ";
+  content: var(--lf-sample-prefix);
 }
 /* Like the label, host controls describe the exhibit; they stand outside its gutter.
  * A table lays out only its first caption in Firefox, so the controls cannot be a
@@ -182,14 +186,6 @@ lf-sample[data-lf-sample-live] {
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
-}
-.lf-sample-action {
-  inline-size: max(2rem, var(--aim-floor));
-  block-size: max(2rem, var(--aim-floor));
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 /* The status keeps one row's room whatever it says, so loading, ready and a failure
  * wrap the row alike and move neither the frame nor what follows: its basis, not its

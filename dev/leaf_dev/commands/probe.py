@@ -8,6 +8,11 @@ path, built fresh with the checkout's own launcher, so the working tree runs,
 uncommitted edits included. `--base` adds the same page on an arm at the merge base
 with `main`, or at the ref it names. An arm that fails prints the stage and error and
 the next arm still runs, since a probe is most often run where one version is broken.
+
+`--log` starts the page from a log that already holds given events: threads, replies,
+resolutions, a message still waiting for its delivery. Each arm admits them through its
+own `event_contracts.append_admitted` (`arms.admit_log`) after the source's companion
+history, which a receipt acknowledges, so they stay unacknowledged as a writer's would.
 """
 
 import json
@@ -24,10 +29,10 @@ from leaf.findings import Finding
 from leaf.render_checks import PageNotReady
 from leaf.render_gate.scheme import collect_page_exceptions, console_finding
 from leaf_dev import ROOT
-from leaf_dev.arms import base_ref, build_arm, serving_source
+from leaf_dev.arms import base_ref, extract_arm, serving_source
 from leaf_dev.browser import (
     DESKTOP,
-    headless_firefox,
+    headless_engine,
     headless_shell,
     load,
     settle,
@@ -100,11 +105,17 @@ def viewport(value: str) -> tuple[int, int]:
     help="A JavaScript expression or function to evaluate once settled; "
     "its JSON value is the result.",
 )
+@click.option(
+    "--log",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="A JSON-lines file of events to admit before the page loads.",
+)
 @click.option("--shot", is_flag=True, help="Screenshot the viewport.")
 @click.option(
     "--journey",
     type=click.Path(exists=True, dir_okay=False, path_type=Path),
-    help="Python file defining run(page); run after --do steps. Its return is JSON.",
+    help="Python file defining run(page); run after --do steps. Its return is JSON "
+    "and is the arm's `result`, as --js's value is; the two are exclusive.",
 )
 @click.option(
     "--record",
@@ -134,7 +145,7 @@ def viewport(value: str) -> tuple[int, int]:
     "size",
     default=f"{DESKTOP[0]}x{DESKTOP[1]}",
     callback=lambda c, p, v: viewport(v),
-    help="WIDTHxHEIGHT.",
+    help="WIDTHxHEIGHT; independent of --touch, so a phone needs both.",
 )
 @click.option(
     "--scheme",
@@ -145,12 +156,15 @@ def viewport(value: str) -> tuple[int, int]:
 @click.option(
     "--touch",
     is_flag=True,
-    help="Show the page under a finger: a coarse pointer and a mobile viewport.",
+    help="Show the page under a finger: a coarse pointer and mobile emulation. "
+    "The size stays at --viewport (default desktop); pass --viewport 390x844 for a phone.",
 )
 @click.option(
-    "--firefox",
-    is_flag=True,
-    help="Run in Playwright's Firefox rather than the Chromium shell.",
+    "--browser",
+    "engine",
+    type=click.Choice(["chromium", "firefox", "webkit"]),
+    default="chromium",
+    help="The engine to run in: Playwright's Chromium shell, Firefox or WebKit.",
 )
 @click.option(
     "--cpu-throttle",
@@ -169,6 +183,7 @@ def probe(
     source,
     steps,
     expression,
+    log,
     shot,
     journey,
     record_dir,
@@ -179,15 +194,18 @@ def probe(
     size,
     scheme,
     touch,
-    firefox,
+    engine,
     throttle,
     base,
 ) -> None:
-    """Open SOURCE in Chrome, or Firefox with --firefox, run each --do step, and
-    print what --js returns.
+    """Open SOURCE in Chromium, Firefox or WebKit (--browser), run each --do step,
+    and print what --js or --journey returns.
 
     SOURCE is an example or fixture name, an authored .html path built fresh
-    from this working tree, or any http(s) URL. Each --do step is one input:
+    from this working tree, or any http(s) URL. A path takes its companions from
+    beside it (examples/AGENTS.md, "Companions"), so a copy of an example that
+    imports /page/theme.css needs its STEM.page/ copied too. Each --do step is
+    one input:
 
     \b
       press:KEY     a key or chord, as Playwright names it (Tab, Shift+a)
@@ -200,10 +218,26 @@ def probe(
     --base takes an optional ref, so put
     SOURCE before it or give it one (--base=REF).
 
+    --log FILE admits each line, one event as its writer would hand it to the
+    log, after the source's own history and before the page loads, so a user's
+    message in it is still waiting for its delivery. A line may name its id for a
+    later one to answer; give the revision a message was made on:
+
+    \b
+      {"kind":"comment","author":"user","revision":1,"id":"q","text":"Can the gutters wait?","anchor":{"section":"gutters"}}
+      {"kind":"reply","author":"agent","agent":"Codex","parent":"q","revision":1,"text":"Until spring, yes."}
+      {"kind":"resolve","author":"user","parent":"q"}
+
+    News that arrives while the user is in a thread is input after load, not
+    history: drive:card-held-news on review-a-plan, drive:seat-held-news on
+    command-hub, or a --journey that writes as stills.py's held_news does.
+
     Prints one JSON line per arm: startup phases and resources; native layout shifts
     through the journey, including recent input and affected node rectangles;
     long animation frames during startup and input steps, with script
-    entry points and forced layout; what --js returned, or the error that stopped the arm;
+    entry points and forced layout; `result`, what --js or --journey returned when
+    evaluation completed; `failed`, the stage and error that stopped the arm, which a
+    later stage such as --shot can add beside a `result`, so read `failed` first;
     the page's console errors and warnings and its uncaught exceptions; and with
     --shot the screenshot's path under .tmp/probe/.
 
@@ -238,10 +272,14 @@ def probe(
         raise click.UsageError(
             "--gif, --actions and --checkpoint-images require --record DIR"
         )
-    if throttle and firefox:
-        raise click.UsageError("--cpu-throttle needs Chromium's CDP, not --firefox")
-    if isinstance(source, str) and base is not None:
-        raise click.UsageError("--base requires a Leaf source, not a URL")
+    if expression and journey:
+        raise click.UsageError(
+            "--js and --journey both set `result`; have the journey return the value"
+        )
+    if throttle and engine != "chromium":
+        raise click.UsageError(f"--cpu-throttle needs Chromium's CDP, not {engine}")
+    if isinstance(source, str) and (base is not None or log):
+        raise click.UsageError("--base and --log require a Leaf source, not a URL")
     run = None
     if journey:
         run = runpy.run_path(str(journey.resolve())).get("run")
@@ -258,9 +296,11 @@ def probe(
         scratch = Path(built)
         arms = {"worktree": ("worktree", ROOT)}
         if base is not None:
-            commit = build_arm(base_ref(base), scratch / "base-arm")
+            commit = extract_arm(base_ref(base), scratch / "base-arm")
             arms = {"base": (commit, scratch / "base-arm"), **arms}
-        with headless_firefox() if firefox else headless_shell() as browser:
+        with (
+            headless_shell() if engine == "chromium" else headless_engine(engine)
+        ) as browser:
             for arm, (ran, arm_dir) in arms.items():
                 reading, doing = {}, "build"
                 try:
@@ -268,7 +308,7 @@ def probe(
                         (
                             nullcontext(source)
                             if isinstance(source, str)
-                            else serving_source(arm_dir, source, scratch / arm)
+                            else serving_source(arm_dir, source, scratch / arm, log)
                         ) as address,
                         tab(browser, size, scheme, touch, motion=motion) as page,
                         (
@@ -303,10 +343,12 @@ def probe(
                                 STEPS[verb](page, arg)
                             if run:
                                 doing = "journey"
-                                reading["journey"] = run(page)
+                                returned = run(page)
                             doing = "settle"
                             if not isinstance(source, str):
                                 settle(page)
+                            if run:
+                                reading["result"] = returned
                         finally:
                             if not page.is_closed():
                                 if steps or run:

@@ -96,7 +96,7 @@ def _cold_page(browser, url, *, touch=False, clock=False):
         wait_until_ready(page, through="upgraded")
     expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
     expect(page.locator(".lf-fp-leaf")).to_have_attribute(
-        "aria-label", "Page menu · Loading saved state…"
+        "aria-label", "Page menu · Loading comments and choices…"
     )
 
     def release():
@@ -280,7 +280,7 @@ def test_an_early_touch_comment_returns_its_words_when_delivery_is_refused(
     expect(editor).to_have_js_property("value", words)
     assert stored_draft_text(page, "general") == words
     expect(page.locator(".lf-fp-field .lf-compose-error")).to_have_text(
-        "Couldn't send — The cold comment was refused before append"
+        "Couldn't take this — The cold comment was refused before append"
     )
     assert not [
         event

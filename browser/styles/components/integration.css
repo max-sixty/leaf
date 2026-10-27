@@ -11,26 +11,29 @@
   color: var(--accent);
   background: var(--chip);
 }
-/* Draw mode takes document presses while Leaf surfaces keep their gestures.
-   Document selectors do not cross a declared shadow root, so the document's draw-mode
-   rules (chrome.css) reach a tree hosted in main as an inherited property its own
-   rules query. */
+/* Draw mode takes presses on the document plane, page-widget controls included, while
+   Leaf surfaces keep their gestures. The crosshair is important: it covers whatever
+   cursor the page or a widget states for its own controls. Runtime surfaces keep
+   their controls usable wherever their owner seats them, so the crosshair leaves them
+   out and they keep their own cursors. A document selector does not cross a declared
+   shadow root, so main states the mode as an inherited property that these rules
+   query; this sheet reaches the document and every shadow tree, so one rule serves
+   both. */
 html[data-lf-draw-mode] main {
   --lf-draw-mode: on;
 }
 @container style(--lf-draw-mode: on) {
-  :host * {
+  :not([data-lf-runtime], [data-lf-runtime] *) {
     cursor: crosshair !important;
   }
-  :host [data-lf-runtime],
-  :host [data-lf-runtime] * {
-    cursor: auto !important;
+  :where([data-lf-runtime]) {
+    cursor: auto;
   }
 }
 /* A block's marks (Copy, a draft's editing controls) stand on one small toolbar whose
    middle lies on the block's border at its right, so it covers the border and padding
    rather than a word and takes no room: a patch of the card ground with a ring and a
-   lift, its marks (controls.css, `.lf-mark`) 1px inside it. Its marks stand a reach
+   lift, its marks (controls.css, `.lf-mark-action`) 1px inside it. Its marks stand a reach
    apart, so neighbouring reaches meet rather than overlap and the finger's wider
    reach widens only the toolbar. A code block's Copy is such a toolbar of one mark, on
    the block's top border; a draft's toolbar (draft.css) wears the same face in the
@@ -73,12 +76,6 @@ html[data-lf-draw-mode] main {
   line-height: 0;
   opacity: 0;
   pointer-events: none;
-}
-/* A control the runtime stands over a page block (block-controls.js) draws only while
-   its block renders near the window, whatever display the control's own rules give
-   it. */
-.lf-block-control-away {
-  display: none !important;
 }
 /* Keep the document controls together without introducing a containing block for
    their CSS anchors or their fixed header-clipping frames. */

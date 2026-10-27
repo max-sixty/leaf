@@ -56,7 +56,9 @@
         display: flex;
         flex-wrap: wrap;
         align-items: center;
-        gap: var(--sp-2);
+        /* Wrapped rows keep each button's reach, which stands past its face under a
+           finger, clear of the row above it. */
+        gap: max(var(--sp-2), 2 * var(--lf-reach-room)) var(--sp-2);
         margin-block: var(--sp-3);
       }
 
@@ -1283,11 +1285,11 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 <kbd>T</kbd>: the same thread stays focused in the list.
               </li>
               <li>
-                Read Threads down: the open threads, each saying New or Draft where it
-                holds one, then the resolved ones under Resolved. Search the threads'
-                words with the find button beside the tabs. The panel’s main field
-                changes to “Search threads”; closing search brings back the unfinished
-                comment.
+                Read Threads down: the open threads, an unread one marked with a dot and
+                a drafted one saying Draft, then the resolved ones under Resolved.
+                Search the threads' words with the find button beside the tabs. The
+                panel’s main field changes to “Search threads”; closing search brings
+                back the unfinished comment.
               </li>
               <li>
                 Look at a row: its title leads, and a thread waiting on you says so.
@@ -1508,7 +1510,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 the agent names it.
               </li>
               <li>
-                If the send takes a moment, the message's header reads “Sending” until
+                If the send takes a moment, the message's header reads “Saving…” until
                 the server records it.
               </li>
               <li>
@@ -1647,11 +1649,11 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                   <p id="bg-thread-text">
                     <strong>An existing thread.</strong> The sample agenda has room for
                     one more topic. Its speech-bubble control is green, and hovering it
-                    shows “My turn to answer” under the label. The image question still
-                    needs an answer even though the agent added a later progress
-                    message. In Threads, “My turn to answer” still says so. Open the
-                    control and reply: the control turns blue as the thread comes back
-                    to the agent. The same reading fills this target’s Page Map row.
+                    shows “Your turn” under the label. The image question still needs an
+                    answer even though the agent added a later progress message. In
+                    Threads, “Your turn” still says so. Open the control and reply: the
+                    control turns blue as the thread comes back to the agent. The same
+                    reading fills this target’s Page Map row.
                   </p>
                   <p id="bg-thread-media">
                     <strong>Pasted images.</strong> That thread includes an image
@@ -1752,8 +1754,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 </li>
                 <li>
                   Look at a margin control whose thread holds unread replies: it carries
-                  the same dot as Threads. “My turn to answer” still identifies an
-                  outstanding question after you read it.
+                  the same dot as Threads. “Your turn” still identifies an outstanding
+                  question after you read it.
                 </li>
               </ul>
             </section>
@@ -2065,10 +2067,10 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             <ul id="bg-margin-controls-steps">
               <li>
                 Read the Turn and agent workflow samples, which follow one update:
-                “Sent” means the server recorded it, “Queued” that a later turn will
-                handle it, “Delivered” that a turn accepted it, and “Working” or
-                “Replying” that its answer is in progress. “Turn ended” and “Update
-                stale” show uncertainty without claiming an interruption.
+                “Saved” means the server recorded it, “Up next” that a later turn will
+                handle it, “Got it” that a turn accepted it, and “On it” or “Replying”
+                that its answer is in progress. “Stopped” and “Gone quiet” show
+                uncertainty without claiming an interruption.
               </li>
               <li>
                 Compare thread colors: green marks a thread that needs an answer from
@@ -2207,10 +2209,10 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             <p id="bg-margin-layer-status-guide">
               <strong>Quiet status pins without a rail.</strong> This sample starts with
               a recorded card move. The small upward arrow beside “Print the workshop
-              map” says “Sent” on hover: the move was recorded, with nothing for you to
-              answer. After two minutes undelivered, it becomes “Waiting for delivery”;
-              Reset starts a fresh example. Queued, Delivered, and Working follow the
-              same placement rule. When a target already has a control, that control can
+              map” says “Saved” on hover: the move was recorded, with nothing for you to
+              answer. After two minutes undelivered, it becomes “Haven't seen it yet”;
+              Reset starts a fresh example. Up next, Got it, and On it follow the same
+              placement rule. When a target already has a control, that control can
               carry the status instead of adding a separate pin.
             </p>
             <lf-sample
@@ -3405,9 +3407,8 @@ switch --readers checkout-api,orders-api</code></pre>
             </h2>
             <p id="bg-delivery-guide">
               Drag the card to “Tried”, use its grip with <kbd>Enter</kbd> and the
-              arrows, or tap a destination on a phone. “Sent”, “Delivered”, and
-              “Working” report the agent workflow. A refused send offers “Retry” and
-              “Cancel”.
+              arrows, or tap a destination on a phone. “Saved”, “Got it”, and “On it”
+              report the agent workflow. A refused send offers “Retry” and “Cancel”.
             </p>
             <p id="bg-cut-guide">
               This board has more columns than the page has room for, so it scrolls

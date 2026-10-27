@@ -1,7 +1,8 @@
 /* Response composition owns the shared field, actions and attachment shelf.
  * Presentation owners allocate and position this control, in the document or a
  * declared shadow tree; they do not restate its typography, focus or face. */
-/* An icon action's face; its hit box, the face or the aim floor where that is larger
+/* A symbol's face (controls.css, `.lf-icon-action`), which the composer's own Send
+   and Dictate share; its hit box, the face or the aim floor where that is larger
    (the box is that wide, and its reach stands out to it above and below, surfaces.css);
    and the height of an empty composer field, which stands the face inside its action
    inset on either side. Stated at the root, where a widget holds a composer's room
@@ -20,7 +21,9 @@
 }
 :root,
 .lf-compose-field,
-.lf-icon-action {
+.lf-icon-action,
+.lf-compose-submit,
+.lf-compose-dictate {
   --lf-icon-action-hit: max(var(--lf-icon-action-face), var(--aim-floor));
 }
 :root,
@@ -115,7 +118,20 @@
     var(--lf-compose-send-end) - var(--lf-compose-pad-inline-start)
   );
 }
-.lf-icon-action {
+.lf-action-icon {
+  position: relative;
+  z-index: 1;
+  pointer-events: none;
+}
+/* Send and resolve are the two glyph actions: a bare glyph in the action's own ink,
+   whose ::before is the action's disc that stays clear at rest and takes its tint
+   on hover. The hit box around the disc is a symbol's (controls.css). Resolve is a
+   symbol drawn in its own ink; the composer's Send and Dictate are the composer's own
+   controls, which wireInput dresses whatever its caller made them, so they state the
+   symbol's box here. The glyph's ink outranks the .lf-ui face by coming later. Reopen
+   standing in Resolve's place is the same glyph drawn done, on every surface that
+   seats a thread. */
+:is(.lf-compose-submit, .lf-compose-dictate) {
   box-sizing: border-box;
   width: var(--lf-icon-action-hit);
   height: var(--lf-icon-action-face);
@@ -125,17 +141,12 @@
   display: grid;
   place-items: center;
   border-radius: var(--r);
+  cursor: pointer;
 }
-.lf-action-icon {
-  position: relative;
-  z-index: 1;
-  pointer-events: none;
+:where(.lf-compose-submit, .lf-compose-dictate)[data-lf-focus-visible] {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
 }
-/* Send and resolve are the two glyph actions: a bare glyph in the action's own ink,
-   whose ::before is the action's disc that stays clear at rest and takes its tint
-   on hover. The hit box around the disc is the icon action's above. The glyph's
-   ink outranks the .lf-ui face by coming later. Reopen standing in Resolve's place
-   is the same glyph drawn done, on every surface that seats a thread. */
 :is(.lf-compose-submit, .lf-compose-dictate, .lf-response-trigger),
 :is(.lf-resolve, .lf-reopen).lf-icon-action {
   border: 0;
@@ -184,6 +195,7 @@
 :is(.lf-compose-submit, .lf-compose-dictate):is(:disabled, [aria-disabled="true"]) {
   opacity: 1;
   color: var(--muted);
+  cursor: default;
 }
 :is(.lf-compose-dictate, .lf-response-trigger) {
   color: var(--muted);
@@ -644,7 +656,7 @@ leaf-text.lf-fab-input {
   display: none;
 }
 .lf-fab-bar:not([data-lf-target-only]) > .lf-fab {
-  display: none !important;
+  display: none;
 }
 /* The picker stands over the ⋯ that opened it, or over the field once words have taken
    the ⋯ away and Tab or `e` opens it. */
@@ -708,13 +720,17 @@ leaf-text.lf-fab-input {
   display: block;
 }
 /* The target-only control and its open composer are the bar's two presentations.
-   Both are local mechanical state; the stylesheet also reads them in widget seats. */
+   Both are local mechanical state; the stylesheet also reads them in widget seats.
+   Either shows only on screen: paper has no press to answer with, so a bar open in a
+   widget's seat prints as nothing, as the chrome holding a floating one does. */
 .lf-fab-bar {
   display: none;
   font: var(--t-5)/1.5 var(--sans);
 }
-.lf-fab-bar:is([data-lf-target-only], :has(> .lf-composer[data-lf-open])) {
-  display: var(--lf-response-display, inline-flex);
+@media screen {
+  .lf-fab-bar:is([data-lf-target-only], :has(> .lf-composer[data-lf-open])) {
+    display: var(--lf-response-display, inline-flex);
+  }
 }
 .lf-fab-bar[data-lf-presentation="inline"] {
   position: static;
@@ -731,11 +747,6 @@ leaf-text.lf-fab-input {
 .lf-fab-bar[data-lf-presentation="inline"] *::after {
   box-sizing: inherit;
 }
-.lf-fab-bar[data-lf-presentation="inline"]
-  .lf-composer
-  > :not(.lf-compose-field, .lf-composer-media) {
-  display: none !important;
-}
 .lf-fab-bar[data-lf-presentation="inline"] leaf-text.lf-fab-input {
   max-width: none;
   max-height: 50vh;
@@ -744,9 +755,4 @@ leaf-text.lf-fab-input {
 /* Only a floating box is carried (surface-grip.js), so a seated one shows no grip. */
 .lf-fab-bar[data-lf-presentation="inline"] > .lf-surface-grip {
   display: none;
-}
-@media print {
-  .lf-fab-bar[data-lf-presentation="inline"] {
-    display: none !important;
-  }
 }

@@ -1,6 +1,7 @@
 /* The chrome a widget injects, the words it labels, and the room it measures.
 
-   A behavior module builds injected controls with `offer`, marks other words it
+   A behavior module builds injected controls with `offer`, a press wearing one of
+   Leaf's control faces with `offerAction` by its role, marks other words it
    writes with `generatedElement`, and uses `relabel` when a control's label is also
    one of the page's words. A Lit template reaches the same writers through element
    directives built by `elementDirective`. A behavior module
@@ -328,10 +329,44 @@ export function elementDirective(name, write) {
   );
 }
 
-// The template form of `offer`: `<button ${offered("lf-btn")}>`. It owns the
+// The template form of `offer`: `<div ${offered("lf-tools")}>`. It owns the
 // element's class and generated-control markers; attributes, values and handlers
 // remain ordinary Lit bindings. Both forms use the same chrome anatomy.
 export const offered = elementDirective("offered", offerElement);
+
+// A press that wears one of Leaf's control faces is built by its role, never by naming
+// the face's classes: `offerAction(role, className, label, {title, icon})` and, in a
+// template, `<button ${offeredAction(role, className, label)}>`. prepaint.js
+// (`ACTION_FACES`) lists the roles and says what each is for; `className` places the
+// control and never restyles its face. A symbol or mark is named by `label` as its
+// tooltip and accessible name; `icon` draws its symbol from icons.js, which a template
+// writes as the button's content. Initial producers receive the same `offerAction`.
+/** @type {LeafInitial["offerActionElement"]} */
+const offerActionElement = (...args) =>
+  document.documentElement.lfInitial.offerActionElement(...args);
+/**
+ * @param {LeafActionRole} role
+ * @param {string} [className]
+ * @param {string} [label]
+ * @param {{title?: string, icon?: string}} [options]
+ */
+export function offerAction(role, className, label, { title, icon } = {}) {
+  const control = document.documentElement.lfInitial.offerAction(
+    role,
+    className,
+    label,
+    title === undefined ? undefined : { title },
+  );
+  if (icon)
+    control.append(
+      iconElement(icon, role === "mark" ? "lf-mark-icon" : "lf-action-icon"),
+    );
+  return control;
+}
+export const offeredAction = elementDirective("offeredAction", offerActionElement);
+// A control that is a vendor element, such as Web Awesome's copy button, wears its
+// role's face through the element writer (copy-control.js).
+export { offerActionElement };
 
 // Some page words also act as controls: a tab name, a chosen mark, or the title of a
 // settled decision. Chromium does not begin text selection inside a form control, so those
@@ -469,17 +504,8 @@ export function relabel(node, label, { says } = {}) {
 // Every surface that closes wears one control for it: the cross, named for what it
 // closes, since the glyph alone says only "close". `name` is the accessible name, such
 // as "Close threads"; `title` is the hover's, which says the key where one closes it too.
-export function closeControl({ name, title = name, className = "" }) {
-  const control = el(
-    "button",
-    `lf-btn lf-icon-action lf-quiet-action ${className}`.trim(),
-  );
-  control.type = "button";
-  control.append(iconElement("cross", "lf-action-icon"));
-  control.setAttribute("aria-label", name);
-  control.title = title;
-  return control;
-}
+export const closeControl = ({ name, title = name, className = "" }) =>
+  offerAction("symbol", className, name, { title, icon: "cross" });
 
 // The anchored response bar has one control grammar of its own. Its buttons share the
 // field's type, border, height, and floating elevation without claiming to be target-

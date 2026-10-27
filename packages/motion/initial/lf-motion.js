@@ -3,14 +3,14 @@ import { ICONS } from "../../../browser/runtime/icon-paths.js";
 /* Build the transport before first paint; upgrade adopts these exact controls. */
 document.documentElement.lfInitial.register(
   "lf-motion",
-  (host, { offer, tabStore, authoredBody }) => {
+  (host, { offer, offerAction, tabStore, authoredBody }) => {
     const saved = JSON.parse(
       tabStore.get(`motion:${host.id}`) || '{"time":0,"rate":1}',
     );
     const controls = offer("div", "lf-motion-controls");
     controls.setAttribute("role", "group");
     controls.setAttribute("aria-label", host.getAttribute("aria-label"));
-    const play = offer("button", "lf-btn lf-motion-play");
+    const play = offerAction("symbol", "lf-motion-play");
     const symbol = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     symbol.setAttribute("viewBox", "0 0 16 16");
     symbol.setAttribute("aria-hidden", "true");

@@ -156,8 +156,10 @@ lf-shot {
   --lf-top: 0px;
   scrollbar-gutter: stable;
 }
-lf-shot[data-lf-shot-mode=compare] .lf-shotstage {
-  overflow: hidden;
+@media screen {
+  lf-shot[data-lf-shot-mode=compare] .lf-shotstage {
+    overflow: hidden;
+  }
 }
 .lf-shotcanvas {
   display: grid;
@@ -174,19 +176,23 @@ lf-shot[data-lf-shot-mode=compare] .lf-shotstage {
   background: var(--card);
   overflow: clip;
 }
-lf-shot[data-lf-shot-mode=compare] .lf-shotframe {
-  inline-size: calc(var(--lf-shot-viewport-width) + 2px);
+@media screen {
+  lf-shot[data-lf-shot-mode=compare] .lf-shotframe {
+    inline-size: calc(var(--lf-shot-viewport-width) + 2px);
+  }
 }
 .lf-shotviewport {
   inline-size: var(--lf-shot-frame-width);
   block-size: var(--lf-shot-frame-height);
 }
-lf-shot[data-lf-shot-mode=compare] .lf-shotviewport {
-  --lf-holds-height: 1;
-  inline-size: var(--lf-shot-viewport-width);
-  block-size: var(--lf-shot-viewport-height);
-  overflow: auto;
-  overscroll-behavior: auto;
+@media screen {
+  lf-shot[data-lf-shot-mode=compare] .lf-shotviewport {
+    --lf-holds-height: 1;
+    inline-size: var(--lf-shot-viewport-width);
+    block-size: var(--lf-shot-viewport-height);
+    overflow: auto;
+    overscroll-behavior: auto;
+  }
 }
 .lf-shot-frame-label {
   box-sizing: border-box;
@@ -270,12 +276,14 @@ lf-shot:not([data-lf-shot-mode=compare]) .lf-shotcanvas {
 lf-shot:not([data-lf-shot-mode=compare]) .lf-shotcanvas > .lf-shotframe {
   grid-area: 1 / 1;
 }
-lf-shot[data-lf-shot-mode=flip] .lf-shotcanvas > .lf-shotframe[data-lf-state=before] {
-  clip-path: inset(0 50% 0 0);
-  z-index: 1;
-}
-lf-shot[data-lf-shot-mode=pixels] .lf-shotframe {
-  display: none;
+@media screen {
+  lf-shot[data-lf-shot-mode=flip] .lf-shotcanvas > .lf-shotframe[data-lf-state=before] {
+    clip-path: inset(0 50% 0 0);
+    z-index: 1;
+  }
+  lf-shot[data-lf-shot-mode=pixels] .lf-shotframe {
+    display: none;
+  }
 }
 .lf-shotcomparison {
   display: block;
@@ -353,8 +361,10 @@ lf-shot[data-lf-shot-focus=true][data-lf-shot-crop=false] .lf-shotframe .lf-shot
   block-size: calc(var(--lf-shot-frame-height) + 2px);
   border: 1px solid transparent;
 }
-lf-shot[data-lf-shot-mode=pixels] .lf-shotpixels {
-  display: block;
+@media screen {
+  lf-shot[data-lf-shot-mode=pixels] .lf-shotpixels {
+    display: block;
+  }
 }
 .lf-shotpixels .lf-shotplane > img {
   filter: grayscale(1);
@@ -386,32 +396,28 @@ lf-shot[data-lf-shot-mode=pixels] .lf-shotpixels {
     block-size: auto;
     overflow: visible;
   }
-  .lf-shotpixels {
-    display: none !important;
-  }
-  .lf-shotstage {
-    overflow: visible;
-  }
   .lf-shotstage,
   .lf-shotcanvas,
   .lf-shotcomparison,
   .lf-shotframe,
-  lf-shot[data-lf-shot-mode=pixels] .lf-shotframe,
   .lf-shot-frame-label,
   .lf-shotviewport,
   .lf-shotimage,
   .lf-shotplane {
     display: block;
-    inline-size: 100% !important;
-    block-size: auto !important;
-    visibility: visible !important;
-    overflow: visible !important;
+    inline-size: 100%;
+    block-size: auto;
+    visibility: visible;
+    overflow: visible;
+  }
+  .lf-shotpixels {
+    display: none;
   }
   .lf-shotcomparison::part(after),
   .lf-shotcomparison::part(before) {
     position: static;
     display: block;
-    clip-path: none !important;
+    clip-path: none;
   }
   .lf-shotcomparison::part(base) {
     display: flex;
@@ -438,7 +444,7 @@ lf-shot[data-lf-shot-mode=pixels] .lf-shotpixels {
   }
   .lf-shotframe {
     margin-block-end: var(--sp-3);
-    clip-path: none !important;
+    clip-path: none;
   }
 }
 
@@ -554,6 +560,7 @@ lf-tab::before {
 
 /* packages/default/styles/options.css */
 @property --lf-options-across { syntax: "<integer>"; inherits: false; initial-value: 0; }
+@property --lf-option-in-row { syntax: "<integer>"; inherits: false; initial-value: 0; }
 @property --lf-option-line { syntax: "<length>"; inherits: true; initial-value: 0px; }
 lf-options {
   display: block;
@@ -563,6 +570,7 @@ lf-options {
   --lf-option-line: 1lh;
   --lf-option-pad-min: 5px;
   --lf-option-pad-block: var(--lf-option-pad-min);
+  --lf-options-row-width: initial;
   container-type: inline-size;
 }
 @media screen {
@@ -604,10 +612,7 @@ lf-options:has(> lf-option > strong) > lf-option {
 @container not (style(--lf-density: working) and (width >= 30rem)) {
   lf-option > strong {
     display: block;
-    margin: 0 0 4px;
-  }
-  lf-option > strong:has(+ p) {
-    margin-block-end: 0;
+    margin: 0;
   }
   lf-option > strong + p {
     margin-block-start: 0;
@@ -686,7 +691,7 @@ lf-options:has(> lf-option > strong) > lf-option > .lf-pick {
 }
 @media screen {
   lf-options[choose]:not(:where([data-lf-exhibit]) *):has(> lf-option > strong) {
-    --lf-card-state-room: 80px;
+    --lf-card-state-room: calc(var(--lf-key-badge-size) + var(--sp-2));
     --lf-card-state-height: 22px;
     & > :is(lf-option, .lf-another) {
       padding-inline-start: var(--sp-3);
@@ -716,22 +721,6 @@ lf-options:has(> lf-option > strong) > lf-option > .lf-pick {
       min-width: var(--lf-key-badge-size);
       min-height: var(--lf-key-badge-size);
       justify-content: center;
-    }
-    & > lf-option[chosen] > .lf-pick {
-      padding: var(--chip-pad);
-      border-radius: var(--chip-r);
-      background: var(--ok);
-      color: var(--card);
-      font-size: var(--t-6);
-      line-height: var(--chip-lh);
-      gap: 4px;
-    }
-    & > lf-option[chosen] > .lf-pick::before {
-      width: auto;
-      height: auto;
-      border: 0;
-      background: transparent;
-      color: inherit;
     }
     & > lf-option > .lf-key-badge {
       inset-inline-start: auto;
@@ -864,8 +853,9 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
 @media screen {
   lf-options[choose]:not([settled]):not(:where([data-lf-exhibit]) *) {
     display: grid;
+    gap: 1px;
     --lf-ground: var(--card);
-    background: var(--lf-ground);
+    background: var(--rule);
     border: 1px solid var(--border-2);
     border-radius: var(--r);
     overflow: clip;
@@ -876,7 +866,7 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
     }
     &:not(:where(.lf-chrome *)):not(:has(> .lf-another)) {
       --lf-missing-cells: var(--lf-add-cell-height);
-      --lf-missing-add: var(--lf-add-cell-height);
+      --lf-missing-add: calc(var(--lf-add-cell-height) + 1px);
     }
     &[multiple]:not(:has(> lf-options-done)) {
       --lf-missing-cells: calc(var(--lf-done-cell-height) + var(--lf-missing-add, 0px));
@@ -890,7 +880,6 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
         grid-column: 1 / -1;
         height: var(--lf-missing-cells);
         background: var(--card);
-        box-shadow: var(--lf-cell-rule);
       }
     }
     & > .lf-another {
@@ -907,10 +896,8 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
     & .lf-btn[data-lf-focus-visible] {
       outline-offset: calc(-1 * var(--focus-ring-w));
     }
-    --lf-cell-rule: 0 0 0 1px var(--rule);
     & > * {
       margin-block: 0;
-      box-shadow: var(--lf-cell-rule);
       --fill: var(--card);
       --lf-ground: var(--fill);
       background-color: var(--lf-ground);
@@ -920,7 +907,7 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
     }
     & > lf-option[chosen] {
       --fill: var(--ok-tint);
-      box-shadow: inset 0 0 0 2px var(--ok), var(--lf-cell-rule);
+      box-shadow: inset 0 0 0 2px var(--ok);
     }
     & > lf-option[chosen] > .tag.ok {
       background: var(--card);
@@ -932,6 +919,7 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
   @container style(--lf-options-across: 1) {
     lf-options[choose]:not([settled]):not(:where([data-lf-exhibit]) *):has(> lf-option > strong) {
       --lf-option-count: 99;
+      --lf-options-row-width: calc(var(--lf-option-count) * 14rem);
       &:has(> lf-option:nth-of-type(1):last-of-type) {
         --lf-option-count: 1;
       }
@@ -950,8 +938,21 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
       &:has(> lf-option:nth-of-type(6):last-of-type) {
         --lf-option-count: 6;
       }
-      grid-template-columns: repeat(auto-fit, minmax(clamp(100% / var(--lf-option-count), (var(--lf-option-count) * 14rem - 100%) * 999, 100%), 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(clamp((100% + 1px) / var(--lf-option-count) - 1px, (var(--lf-options-row-width) - 100%) * 999, 100%), 1fr));
       max-inline-size: none;
+    }
+  }
+  lf-options:has(> lf-option > strong) > lf-option {
+    --lf-option-in-row: clamp(0, sign(100cqi - var(--lf-options-row-width)) + 1, 1);
+    align-content: first baseline;
+  }
+  @container style(--lf-option-in-row: 1) {
+    lf-option > .tag:has(~ strong) {
+      float: inline-start;
+      margin-block-end: calc(var(--lf-card-state-height) - 1lh);
+    }
+    lf-options:has(> lf-option > .tag ~ strong) > lf-option > strong {
+      clear: both;
     }
   }
   :is(lf-activity, lf-ask, lf-board, lf-card, lf-chart, lf-code, lf-column, lf-draft, lf-gloss, lf-note, lf-num, lf-option, lf-options, lf-pane, lf-part, lf-parts, lf-sample, lf-shot, lf-tab, lf-tabs, lf-tally, lf-text-document, lf-toc, :is(lf-activity, lf-ask, lf-board, lf-card, lf-chart, lf-code, lf-column, lf-draft, lf-gloss, lf-note, lf-num, lf-option, lf-options, lf-pane, lf-part, lf-parts, lf-sample, lf-shot, lf-tab, lf-tabs, lf-tally, lf-text-document, lf-toc) *)[data-lf-obligation]:has(lf-options[choose]:not(:where([data-lf-exhibit]) *) [data-lf-focus-visible]) {
@@ -960,7 +961,6 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
   lf-options[choose]:not([settled]):not(:where([data-lf-exhibit]) *) > lf-option:has(> .lf-pick[data-lf-focus-visible]) {
     outline: var(--focus-ring);
     outline-offset: calc(-1 * var(--focus-ring-w));
-    z-index: 1;
   }
   lf-options[choose]:not([settled]):not(:where([data-lf-exhibit]) *) > lf-option:has(> .lf-pick:focus) {
     --lf-wears-ring: 1;
@@ -968,7 +968,6 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
   lf-options[choose]:not(:where([data-lf-exhibit]) *) > .lf-another:has(leaf-text[data-lf-focus-visible]) {
     outline: var(--focus-ring);
     outline-offset: calc(-1 * var(--focus-ring-w));
-    z-index: 1;
     --lf-wears-ring: 1;
   }
   .lf-another {
@@ -1128,14 +1127,8 @@ lf-options[settled] > .lf-settled[data-lf-focus-visible] {
   outline: var(--focus-ring);
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
-.lf-settled-count {
-  margin-left: auto;
-  font-weight: 400;
-  font-size: var(--t-6);
-  color: var(--muted);
-  white-space: nowrap;
-}
 .lf-settled-diff {
+  margin-inline-start: auto;
   font-weight: 400;
   font-size: var(--t-6);
   padding: var(--chip-pad);
@@ -1220,8 +1213,7 @@ lf-column {
 @media screen {
   @container lf-board (width <= 640px) {
     lf-column {
-      min-width: max(var(--lf-reading-column-floor), calc(100cqi - var(--sp-4)));
-      scroll-snap-align: start;
+      grid-column: 1;
     }
   }
 }
@@ -1330,7 +1322,10 @@ lf-card > strong {
   display: block;
   font-weight: 600;
   line-height: 1.4;
-  margin: 0 0 2px;
+  margin: 0;
+}
+lf-card > strong + p {
+  margin-block-start: 0;
 }
 lf-card .lf-grip {
   position: absolute;
@@ -1403,6 +1398,7 @@ lf-tabs.lf-rendered > lf-tab {
   margin-top: 14px;
 }
 .lf-tabstrip {
+  anchor-scope: --lf-tab-mark;
   display: none;
   gap: 2px;
   --lf-tab-focus-gap: 2px;
@@ -1444,15 +1440,33 @@ lf-tabs.lf-rendered > lf-tab {
   inset-inline: 0;
   bottom: -2px;
   block-size: 2px;
-  background: currentColor;
   visibility: hidden;
   pointer-events: none;
-  transform-origin: left center;
+}
+.lf-tab-selection {
+  position: absolute;
+  position-anchor: --lf-tab-mark;
+  left: anchor(left);
+  top: anchor(top);
+  width: anchor-size(width);
+  block-size: 2px;
+  background: var(--ink);
+  pointer-events: none;
+  transition: none;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .lf-tabstrip[data-lf-selection-travel] > .lf-tab-selection {
+    transition:
+      left 160ms ease,
+      top 160ms ease,
+      width 160ms ease;
+  }
 }
 .lf-tabstrip .lf-tab-btn[aria-selected=true] {
   color: var(--ink);
 }
 .lf-tabstrip .lf-tab-btn[aria-selected=true] .lf-tab-mark {
+  anchor-name: --lf-tab-mark;
   visibility: visible;
 }
 @container style(--lf-tabstrip-flow: column) {
@@ -1462,7 +1476,8 @@ lf-tabs.lf-rendered > lf-tab {
   .lf-tabstrip .lf-tab-btn > .lf-tab-name {
     border-bottom: 0;
   }
-  .lf-tab-mark {
+  .lf-tab-mark,
+  .lf-tab-selection {
     display: none;
   }
   .lf-tabstrip .lf-tab-btn[aria-selected=true] > .lf-tab-name {
@@ -1474,7 +1489,7 @@ lf-tabs.lf-rendered > lf-tab {
   .lf-tabstrip .lf-tab-btn > .lf-tab-name {
     border-bottom-color: Canvas;
   }
-  .lf-tab-mark {
+  .lf-tab-selection {
     forced-color-adjust: none;
     background: CanvasText;
   }
@@ -1539,6 +1554,7 @@ lf-tabs.lf-rendered > lf-tab {
   lf-tabs.lf-rendered > lf-tab:not([hidden]),
   html[data-lf-interactive] lf-tabs:not(.lf-rendered):has(> lf-tab) > lf-tab {
     padding: var(--sp-4) var(--sp-4) var(--lf-tab-end);
+    --lf-top-start: calc(-1 * var(--sp-4));
     --lf-end-room: inherit;
     --lf-block-frame: 1;
   }
@@ -1553,6 +1569,9 @@ lf-tabs.lf-rendered > lf-tab {
   }
   :is(lf-tabs, lf-parts).lf-rendered > :is(lf-tab, lf-part)[data-lf-focus-visible] {
     outline: none;
+  }
+  :is(lf-tabs, lf-parts).lf-rendered:has(> :is(lf-tab, lf-part)[data-lf-focus-visible]) {
+    --lf-wears-ring: 1;
   }
   :is(lf-tabs, lf-parts).lf-rendered:has(> :is(lf-tab, lf-part)[data-lf-focus-visible])::after {
     content: "";
@@ -1599,6 +1618,7 @@ lf-tabs.lf-rendered > lf-tab {
     --lf-tabstrip-bg: var(--field);
     gap: 0;
     overflow: visible;
+    scroll-padding-inline: 0;
     padding: 8px 8px calc(8px + var(--lf-end-room));
     border-bottom: 0;
     border-inline-end: 1px solid var(--border-2);
@@ -1695,6 +1715,7 @@ lf-tabs.lf-rendered > lf-tab {
       gap: 2px;
       overflow-x: auto;
       overflow-y: hidden;
+      scroll-padding-inline: var(--lf-tabstrip-press);
       padding: 8px var(--lf-tabstrip-pad) 0;
       border-inline-end: 0;
       border-bottom: 1px solid var(--border-2);
@@ -1710,7 +1731,8 @@ lf-tabs.lf-rendered > lf-tab {
     lf-tabs[list=side].lf-rendered > .lf-tabstrip > .lf-tab-run {
       flex: none;
       flex-direction: row;
-      gap: 2px;
+      --lf-tab-run-gap: 2px;
+      gap: var(--lf-tab-run-gap);
     }
     lf-tabs[list=side].lf-rendered > .lf-tabstrip > .lf-tab-run + .lf-tab-run {
       margin-block-start: 0;
@@ -1721,8 +1743,22 @@ lf-tabs.lf-rendered > lf-tab {
     }
     lf-tabs[list=side].lf-rendered > .lf-tabstrip .lf-tab-group {
       flex: none;
-      align-self: center;
+      display: flex;
+      align-items: center;
       padding: 0 4px;
+      position: sticky;
+      inset-inline-start: calc(-1 * var(--lf-tabstrip-pad));
+      z-index: 1;
+      background: var(--lf-tabstrip-bg);
+    }
+    lf-tabs[list=side].lf-rendered > .lf-tabstrip[data-lf-more-before] .lf-tab-group {
+      inset-inline-start: calc(var(--lf-tabstrip-press) - var(--lf-tabstrip-pad));
+    }
+    lf-tabs[list=side].lf-rendered > .lf-tabstrip > .lf-tab-run:not([data-lf-group-apart]) > .lf-tab-group ~ .lf-tab-btn {
+      scroll-margin-inline-start: calc(var(--lf-tab-group-size) + var(--lf-tab-run-gap));
+    }
+    lf-tabs[list=side].lf-rendered > .lf-tabstrip > .lf-tab-run[data-lf-group-apart] > .lf-tab-group {
+      position: static;
     }
     lf-tabs[list=side].lf-rendered > .lf-tabstrip .lf-tab-btn > :is(.lf-tab-name, .lf-tab-summary) {
       max-inline-size: 100%;
@@ -1758,7 +1794,7 @@ lf-tabs.lf-rendered > lf-tab {
       align-self: stretch;
       min-block-size: 0;
       overflow: auto;
-      --lf-top: 0px;
+      --lf-top: var(--lf-top-start);
       overscroll-behavior: contain;
       scrollbar-gutter: stable;
       --lf-holds-height: 1;
@@ -1955,11 +1991,12 @@ lf-tabs.lf-rendered > lf-tab {
   @scope (body > main:not(.layout-column, .layout-sidebar, .layout-workspace) > lf-parts) {
     :scope:is(lf-parts).lf-rendered > .lf-tabstrip {
       position: fixed;
-      top: calc(var(--lf-top) + var(--lf-parts-title-h, 0px));
+      position-anchor: --lf-parts-title;
+      top: anchor(bottom, var(--lf-top));
       inline-size: var(--lf-parts-list);
       box-sizing: border-box;
       align-self: start;
-      block-size: calc(100dvh - var(--lf-head-room) - var(--lf-parts-title-h, 0px));
+      block-size: calc(100dvh - var(--lf-head-room) - anchor-size(height, 0px));
       min-block-size: 0;
       --lf-tabstrip-flow: column;
       gap: 0;
@@ -1986,6 +2023,7 @@ lf-tabs.lf-rendered > lf-tab {
         --lf-top: calc(var(--lf-top-outer) + var(--lf-tabstrip-h));
       }
       :scope:is(lf-parts).lf-rendered > .lf-tabstrip {
+        position-anchor: normal;
         position: sticky;
         --lf-head-inset: 0px;
         top: var(--lf-top);
@@ -2690,24 +2728,23 @@ lf-sample > [data-lf-said=label] {
 }
 lf-sample {
   --lf-sample-word: "quoted";
+  --lf-sample-prefix: "quoted · ";
 }
-lf-sample[interactive] {
-  --lf-sample-word: "interactive sample";
-}
-lf-sample[data-lf-sample-live] {
-  --lf-sample-word: "live sample";
+lf-sample:is([interactive], [data-lf-sample-live]) {
+  --lf-sample-word: none;
+  --lf-sample-prefix: "";
 }
 lf-sample::before {
   content: var(--lf-sample-word);
 }
 lf-sample[label]::before {
-  content: var(--lf-sample-word) " · " attr(label);
+  content: var(--lf-sample-prefix) attr(label);
 }
 lf-sample:has(> [data-lf-said=label])::before {
   content: none;
 }
 lf-sample > [data-lf-said=label]::before {
-  content: var(--lf-sample-word) " · ";
+  content: var(--lf-sample-prefix);
 }
 .lf-sample-view {
   position: static;
@@ -2742,14 +2779,6 @@ lf-sample[data-lf-sample-live] {
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
-}
-.lf-sample-action {
-  inline-size: max(2rem, var(--aim-floor));
-  block-size: max(2rem, var(--aim-floor));
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 .lf-sample-status {
   position: relative;
@@ -2994,6 +3023,16 @@ lf-code > pre > lf-note {
     }
   }
 }
+@media screen {
+  lf-code[data-lf-reader-wrap=wrap] .lf-code-line {
+    white-space: pre-wrap !important;
+    overflow-wrap: anywhere !important;
+  }
+  lf-code[data-lf-reader-wrap=scroll] .lf-code-line {
+    white-space: pre !important;
+    overflow-wrap: normal !important;
+  }
+}
 @media print {
   lf-code[data-lf-reader-wrap] .lf-code-line {
     white-space: pre-wrap !important;
@@ -3234,13 +3273,19 @@ lf-draft > pre {
     font: var(--t-5)/var(--lf-ui-lh) var(--sans);
     white-space: nowrap;
   }
+  .lf-draft-kept {
+    color: var(--muted-2);
+  }
   .lf-draft-status:empty {
     display: none;
   }
-  lf-draft:is(:hover, [data-lf-focus-within], :has(> .lf-draft-edit)) .lf-draft-tools {
+  lf-draft:is(:hover, [data-lf-focus-within], [needed], :has(> .lf-draft-edit), :has(.lf-draft-status:not(:empty))) .lf-draft-tools {
     opacity: 1;
   }
   @media (hover: none) {
+    lf-draft {
+      padding-block-end: max(10px, var(--aim-floor) / 2);
+    }
     .lf-draft-tools {
       inset-block: auto 0;
       translate: 0 calc(50% + 0.5px);

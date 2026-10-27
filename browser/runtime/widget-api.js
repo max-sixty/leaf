@@ -109,7 +109,7 @@ export { releaseOutlets, threadSurface } from "./thread/surfaces.js";
 export { turns as threadTurns } from "./thread/model.js";
 export { threadSummary } from "./thread/messages.js";
 // Holding a region's rows the log or the clock decides while their growth would be seen
-// (assets/AGENTS.md, "Stability").
+// (browser/AGENTS.md, "Stability").
 export { HeldReading, heldGrowth } from "./thread/held-news.js";
 export { wireInput } from "./application.js";
 export { DISCLOSE } from "./keyboard/disclosure.js";
@@ -256,7 +256,9 @@ export {
   measure,
   motionPreview,
   offer,
+  offerAction,
   offered,
+  offeredAction,
   reachedForWords,
   relabel,
   searchField,
@@ -278,5 +280,13 @@ export { landInThread } from "./application.js";
 export { threadInput } from "./thread/landing.js";
 // What the page calls its agent, as On <agent> names it, for `lf-tally`'s words.
 export { agentName } from "./semantic-state.js";
+// A region's open obligations by whose turn each is, in the words `lf-tally` and
+// `lf-deck` both show.
+export { tally, tallyWords } from "./obligations/tally.js";
+// The page node the user's current location stands for, through a margin entry or a
+// thread card, as `lf-deck` asks whether the user is on its open card.
+export { placeOf } from "./current-target.js";
+// Run a command by its id as its key would, as `lf-deck`'s Reply runs `c` on a question.
+export { executeCommand } from "./keyboard/dispatch.js";
 // The time axis the Playwright timeline and lf-timeline both draw on.
 export { assignRows, axisTicks, textWidth } from "./time-axis.js";

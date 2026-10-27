@@ -31,6 +31,10 @@ const actions = commandScope("In a classifier", [
 commands(classifier, actions);
 ```
 
+`executeCommand(id)` runs a command by its id from the user's current location, as its
+key would there, and returns whether it ran; a control can use it to offer a command
+another owner declares, as `lf-deck`'s Reply runs `c`'s `comment.create`.
+
 In a template, `commandsOn(title, rows, options)` attaches a scope to the element it is
 bound on, takes the current rows on each render, and detaches when the element goes.
 Where the rows need the element, pass a function of it, such as
@@ -62,6 +66,12 @@ browser or an outer handler makes. `control` is the visible element that activat
 phrase the command reference shows while it isn't, such as `in an open draft editor`.
 Set `runFromCommandReference: false` for a step the reference can't run without a choice
 it lacks. `ready` is described in `module-authoring.md`, "Startup and presentation".
+
+Android's back gesture takes the step Escape would. A row whose `run` throws away words
+the user wrote and hasn't sent, such as an editor's Escape, also declares `keep`, which
+back runs instead: it closes the editor the same way, keeps the changed words where
+reopening finds them, shows that the widget holds them, and says so with
+`notice("Edit kept")`.
 
 Leaf re-evaluates a `when` or a computed field when the readings it uses change, such as
 a widget's state or the threads. For any other state it reads, hold the value in a
@@ -166,7 +176,10 @@ A live revision moves focus from a generated control to its replacement by a
 `data-lf-carry` key, unique within the control's nearest authored ancestor with an id.
 
 `focused()` is the focused element across shadow trees, and `currentLocationIn(scope)` says
-whether focus is in a scope. `whenLeft(element, leave)` runs `leave` once when focus
+whether focus is in a scope. `placeOf(node)` returns the page node a place stands for,
+so focus on a margin entry or in a thread card reads as being at its passage or
+obligation; a module asks it whether the user is on its content from either.
+`whenLeft(element, leave)` runs `leave` once when focus
 leaves an element. `onPressAway(away, dismiss)` hears each primary press that begins and
 ends where `away(path)` is true of its composed path, as an open editor that a tap
 elsewhere should save does, and calls `dismiss(path, from)` before the press's click; it

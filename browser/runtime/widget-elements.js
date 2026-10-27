@@ -44,10 +44,12 @@ import { PRESSES, WORKS } from "./control-selectors.js";
 import { sizeObserver } from "./rendering.js";
 import { tagsDeclaring } from "./registry.js";
 import { paintKeysWithin } from "./keyboard/scopes.js";
+import { showNativeLayer } from "./keyboard/layer-stack.js";
 import { shownBox } from "./geometry.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
 import { iconElement, iconTemplate } from "./icons.js";
 import { renderedParent } from "./shadow.js";
+import { isNativeLayer } from "./shadow-tree.js";
 import { keeps, keepsText } from "./keeps.js";
 import {
   Directive,
@@ -59,39 +61,52 @@ import {
   signal,
 } from "/runtime/framework.js";
 
-// A scroll target can sit inside a collapsed container — a closed <details>, an
-// inactive tab. Opening what the platform owns (details) and letting a container
-// widget open what it owns (the lf-reveal event; lf-tabs listens) gives the
-// target geometry before the scroll. The caller passes the intent its gesture retained
-// (user-intent.js), and asynchronous listeners inherit that permission through
-// event.detail.mayReveal. There is no default: one taken here would be taken after
-// whatever the caller awaited, which is the late capture that lets stale work move a
-// user who has since moved on.
-// Exposure is synchronous; ready joins the presentation it started. A widget replacing
-// its visible view reports replacedView, so travel can place it before waiting on ready.
+// What the runtime hides where the platform can't reveal it, and how each opens. A closed
+// fold in a thread's transcript hides its messages with `hidden`, since thread reading
+// takes a message `hidden="until-found"` leaves a box for as shown, and would land on it
+// rather than on its fold (thread/transcript.js).
+const openers = new WeakMap();
+export const revealedBy = (node, open) => openers.set(node, open);
+
+// A scroll target can sit inside a collapsed container: a closed <details> or popover,
+// an inactive tab. Leaf reveals it as the browser's find-in-page and fragment
+// navigation do (the HTML standard's ancestor revealing algorithm): it opens a closed
+// <details>, and at an element `hidden="until-found"` it fires `beforematch` and
+// removes the attribute, so a widget that folds content that way opens for Leaf's travel
+// and the browser's find alike, and imports nothing from Leaf to do it. Leaf also opens
+// a closed popover, which the browser's find leaves shut, and whatever the runtime
+// registered with `revealedBy`. It walks outside-in, unlike the standard, so an inner
+// widget has geometry when its own content is revealed.
+// The caller passes the intent its gesture retained (user-intent.js). There is no
+// default: one taken here would be taken after whatever the caller awaited, which is
+// the late capture that lets stale work move a user who has since moved on.
+// Exposure is synchronous. A widget that sets `hidden` on a sibling of the element it
+// reveals before its listener returns, as a tab set hides the panel it leaves, replaced
+// the view that stood there, so travel can place the target before waiting on ready,
+// which joins the `updateComplete` of each element holding what was revealed that has
+// one: a Lit widget whose view switch finishes after its listener extends its own
+// `updateComplete`, as Lit elements do.
 export function reveal(el, mayReveal) {
   const chain = [];
-  const pending = [];
+  const settling = new Set();
   let replacedView = false;
   for (let a = el; a; a = renderedParent(a)) chain.push(a);
-  // Reveal outside-in so an inner widget has geometry when it handles the signal.
-  for (const a of chain.reverse()) {
+  chain.reverse();
+  for (const [at, a] of chain.entries()) {
     if (!mayReveal()) break;
     if (a.tagName === "DETAILS" && !a.open) a.open = true;
-    a.dispatchEvent(
-      new CustomEvent("lf-reveal", {
-        detail: {
-          target: el,
-          mayReveal,
-          replacedView: () => {
-            replacedView = true;
-          },
-          present: (ready) => ready?.then && pending.push(ready),
-        },
-      }),
-    );
+    if (a.hasAttribute?.("popover") && !isNativeLayer(a))
+      showNativeLayer(a, { modal: false });
+    openers.get(a)?.();
+    if (a.getAttribute?.("hidden") !== "until-found") continue;
+    const shown = [...(a.parentNode?.children ?? [])].filter((s) => !s.hidden);
+    a.dispatchEvent(new Event("beforematch", { bubbles: true }));
+    a.removeAttribute("hidden");
+    if (shown.some((sibling) => sibling.hidden)) replacedView = true;
+    for (const owner of chain.slice(0, at + 1))
+      if (owner.updateComplete?.then) settling.add(owner.updateComplete);
   }
-  const ready = Promise.all(pending);
+  const ready = Promise.all(settling);
   // Most reveal callers need only synchronous native/widget disclosure. A surface that
   // registers asynchronous presentation is already its error owner; observe this joined
   // promise so callers may ignore it without creating a duplicate page rejection.
@@ -139,19 +154,7 @@ export const dragging = (el, on) => {
 // rearranging descendants, so the widget states that geometry change explicitly.
 export const LAYOUT = "lf-layout";
 export const layoutChanged = (el) => {
-  const pending = [];
-  el.dispatchEvent(
-    new CustomEvent(LAYOUT, {
-      bubbles: true,
-      composed: true,
-      detail: {
-        present: (ready) => ready?.then && pending.push(ready),
-      },
-    }),
-  );
-  const ready = Promise.all(pending);
-  void ready.catch(() => {});
-  return ready;
+  el.dispatchEvent(new CustomEvent(LAYOUT, { bubbles: true, composed: true }));
 };
 
 // A number a widget can only read off a box the browser has laid out. Three ship: the

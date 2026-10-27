@@ -418,7 +418,7 @@ customElements.define(
       if (painter !== this.painter)
         void preserveReadingRegions(this, () => {
           this.#draw(narrow, painter);
-          return layoutChanged(this);
+          layoutChanged(this);
         });
       else this.#draw(narrow, painter);
     }

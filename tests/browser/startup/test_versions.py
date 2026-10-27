@@ -404,6 +404,13 @@ def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
     )
     told(page)
     expect(page.locator("#sug-fix")).to_have_attribute("data-lf-state", "reject")
+    # Threads was already open: incoming news keeps its rows in place until the
+    # reader asks to settle them. The row's reading changes before its section does.
+    row = page.locator(f"{panel_view('threads')} .lf-fp-thread[data-key='c1']")
+    expect(row).not_to_have_attribute("data-resolved", "")
+    notice = page.locator(".lf-fp-joined .lf-thread-news")
+    expect(notice).to_have_attribute("title", "1 thread reopened")
+    notice.click()
     expect_resolved(page, "c1", resolved=False)
     open_panel_thread(page, "c1")
     expect(page.locator(".lf-fp-settle")).to_have_accessible_name("Resolve thread")

@@ -1132,7 +1132,7 @@ def test_a_file_conversation_ends_the_list_past_files_the_filter_hides(browser, 
       const head = file => file.querySelector(':scope > details');
       const outlet = box(files[0].querySelector('.lf-diff-file-thread-outlet'));
       return files.map(file => ({
-        shown: getComputedStyle(file).display !== 'none',
+        shown: !file.hidden,
         top: box(head(file)).top, bottom: box(head(file)).bottom, outlet: outlet.bottom,
         corner: getComputedStyle(head(file)).borderTopLeftRadius,
       }));

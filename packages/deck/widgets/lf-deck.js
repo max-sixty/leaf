@@ -294,21 +294,33 @@ customElements.define(
         leaves &&
           motion(
             card,
-            [{ opacity: 1 }, { opacity: 0, offset: FADE_MS / LEAVE_MS }, { opacity: 0 }],
+            [
+              { opacity: 1 },
+              { opacity: 0, offset: FADE_MS / LEAVE_MS },
+              { opacity: 0 },
+            ],
             LEAVE_MS,
           ),
         enter,
         back &&
           motion(
             arriving,
-            [{ opacity: 0 }, { opacity: 1, offset: FADE_MS / ARRIVE_MS }, { opacity: 1 }],
+            [
+              { opacity: 0 },
+              { opacity: 1, offset: FADE_MS / ARRIVE_MS },
+              { opacity: 1 },
+            ],
             ARRIVE_MS,
           ),
         back &&
           card &&
           motion(
             card,
-            [{ opacity: 1 }, { opacity: 0, offset: FADE_MS / ARRIVE_MS }, { opacity: 0 }],
+            [
+              { opacity: 1 },
+              { opacity: 0, offset: FADE_MS / ARRIVE_MS },
+              { opacity: 0 },
+            ],
             ARRIVE_MS,
           ),
       ].filter(Boolean);
@@ -366,8 +378,13 @@ customElements.define(
       this.#landing = land;
       keeps(this, "data-lf-deck-flying", running.length ? "" : null);
       if (running.length) {
-        (leave || enter)?.finished.then(() => putAway(), () => putAway());
-        Promise.all(running.map((each) => each.finished.catch(() => {}))).then(() => land());
+        (leave || enter)?.finished.then(
+          () => putAway(),
+          () => putAway(),
+        );
+        Promise.all(running.map((each) => each.finished.catch(() => {}))).then(() =>
+          land(),
+        );
       } else land();
       // After an answer, a second press meant for the card that left lands on the one
       // that came up, so it takes none until it settles.
@@ -440,7 +457,9 @@ customElements.define(
         ?.get(card)
         .find(
           (item) =>
-            item.status === "open" && item.next_actor === "user" && !answeredInWords(item),
+            item.status === "open" &&
+            item.next_actor === "user" &&
+            !answeredInWords(item),
         );
       if (waiting) obligationActions.open(waiting.id);
       else focusDestination(card, "move");
@@ -492,7 +511,7 @@ customElements.define(
         return this.#onward(readings && waitsOn(readings.get(card)) ? "left" : "right");
       const waiting =
         readings && this.#cards.find((each) => waitsOn(readings.get(each)));
-      const keyed = this.#end.contains(focused()) && focused().matches(":focus-visible");
+      const keyed = focused() === this.#again && this.#again.matches(":focus-visible");
       this.#go(waiting ?? this.#cards[0], "rise");
       if (keyed) this.#arrive(this.#open.value);
     }
@@ -627,7 +646,8 @@ customElements.define(
       if (!card) return;
       if (this.#defaulted) {
         this.#defaulted = false;
-        if (waiting.length && !waiting.includes(card)) return void this.#show(waiting[0]);
+        if (waiting.length && !waiting.includes(card))
+          return void this.#show(waiting[0]);
       }
       const waits = waiting.includes(card);
       // The reading that ends the open card's wait sends it on when the user answered

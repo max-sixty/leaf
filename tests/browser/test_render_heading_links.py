@@ -112,7 +112,6 @@ def test_a_tap_shows_a_headings_link_and_a_second_tap_copies_it(browser, serve):
     until_copied(page, page.url.split("#")[0] + "#rates%252Flimits")
 
 
-
 def test_enter_copies_a_link_no_pointer_has_shown(browser, serve):
     """Enter on a decision `m` landed on copies its link, though the press itself makes
     the link's control, which has not drawn its button yet."""

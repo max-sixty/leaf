@@ -745,20 +745,19 @@ def test_a_margin_row_is_unseen_until_its_first_placement_lands(browser, serve):
         """async () => {
           const {contributionEntry, registerContribution} =
             await window.__lfWidgetApi();
-          return new Promise(resolve => requestAnimationFrame(() => {
-            const registration = registerContribution({
-              key: 'first-placement', target: document.querySelector('#how-cap'),
-              read: () => ({entries: [contributionEntry({
-                key: 'act', icon: 'dot', label: 'New margin action'
-              })]}), activate: () => {}
-            });
-            const row = registration.control('act', 'margin')
-              .closest('.lf-margin-cluster');
-            const rect = row.getBoundingClientRect();
-            resolve({place: row.dataset.lfPlace ?? null,
-              visibility: getComputedStyle(row).visibility,
-              width: rect.width, height: rect.height});
-          }));
+          await new Promise(requestAnimationFrame);
+          const registration = registerContribution({
+            key: 'first-placement', target: document.querySelector('#how-cap'),
+            read: () => ({entries: [contributionEntry({
+              key: 'act', icon: 'dot', label: 'New margin action'
+            })]}), activate: () => {}
+          });
+          const row = registration.control('act', 'margin')
+            .closest('.lf-margin-cluster');
+          const rect = row.getBoundingClientRect();
+          return {place: row.dataset.lfPlace ?? null,
+            visibility: getComputedStyle(row).visibility,
+            width: rect.width, height: rect.height};
         }"""
     )
     assert unplaced["place"] is None

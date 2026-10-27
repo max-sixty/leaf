@@ -1710,18 +1710,10 @@ def _each_test_composes_its_own_layers():
     """Each test composes the layers its pages select afresh, as a new process does.
 
     A process holds each selection's composition for its life
-    (`layer.selected_layer`), keyed by the selection as recorded, and a
-    project-relative package such as `./.leaf` names another directory, with other
-    contents, in every test's `tmp_path`."""
-    from leaf.registry import storage
-
+    (`layer.selected_layer`), and a test may rewrite a package at a path an
+    earlier test's package held."""
     yield
-    for held in (
-        layer_model.selected_layer,
-        storage._revision_vocabulary,
-        storage._fingerprint,
-    ):
-        held.cache_clear()
+    layer_model._composed.cache_clear()
 
 
 def retire_bridge(lock):

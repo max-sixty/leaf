@@ -4,10 +4,10 @@ import hashlib
 import json
 import re
 import subprocess
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from functools import cache
+from functools import cache, cached_property
 from pathlib import Path
-from typing import NamedTuple
 
 from .findings import Finding
 from .locations import first_overlap, located
@@ -403,10 +403,18 @@ def kernel_runtime_paths() -> set[str]:
     }
 
 
-class LayerComposition(NamedTuple):
+@dataclass(frozen=True, eq=False)
+class LayerComposition:
     registry: dict
     top_files: dict[str, bytes]
     directory_files: dict[str, dict[str, bytes]]
+    # What readers derive from this composition, such as a revision's vocabulary
+    # (`registry.storage.revision_vocabulary`), held for as long as it is.
+    readings: dict = field(default_factory=dict, repr=False)
+
+    @cached_property
+    def fingerprint(self) -> str:
+        return layer_fingerprint(self)
 
     @property
     def files(self) -> dict[str, bytes]:
@@ -432,10 +440,18 @@ def selected_layer(packages: tuple[str, ...], theme: str | None) -> LayerComposi
     that serves, checks or exports it composes its own layer, the way it supplies
     its own runtime (`runtime_selection`). Held for the process, since a plugin
     update may replace the tree under a running server, which keeps answering with
-    the bytes it started with."""
+    the bytes it started with. Held by the package roots the selection resolves to
+    rather than its spelling, since a project-relative path names another directory
+    from another working directory, and an installed name another snapshot after
+    `package install`."""
     if theme is not None:
         packages = (*(name for name in packages if name != theme), theme)
-    return compose_layer(checked_layer_inputs(layer_inputs(packages)))
+    return _composed(tuple(checked_layer_inputs(layer_inputs(packages))))
+
+
+@cache
+def _composed(roots: tuple[Path, ...]) -> LayerComposition:
+    return compose_layer(list(roots))
 
 
 def files_identity(files: dict[str, bytes]) -> str:
@@ -507,21 +523,6 @@ def payload_server_inputs(root: Path) -> list[Path]:
             for sheet in imported_sheets(path, root / "browser")
         ),
     ]
-
-
-def payload_server_fingerprint() -> str:
-    """Identify serving inputs independently of a Git commit or Python build.
-
-    A site builds pages on the CI host and serves them from a container with a
-    different interpreter. The vendored event contract depends on the payload's
-    files, not that interpreter's version string.
-    """
-    return files_identity(
-        {
-            path.relative_to(PLUGIN_ROOT).as_posix(): path.read_bytes()
-            for path in payload_server_inputs(PLUGIN_ROOT)
-        }
-    )
 
 
 def incompatible_layer(page_dir: Path, record: dict) -> Finding | None:
@@ -646,18 +647,6 @@ def running_leaf() -> dict:
     that server is built (`http.page_app`): the Leaf whose code the process runs,
     however its checkout moves on afterwards."""
     return payload_provenance()
-
-
-def same_leaf(one: dict, other: dict) -> bool:
-    """Whether two provenances, as `payload_provenance` reads them, name one source:
-    the same commit, whichever abbreviates it, and the same dirty bit. Two with no
-    commit have nothing to tell apart."""
-    first, second = one.get("commit"), other.get("commit")
-    if not (first and second):
-        return first == second
-    return (first.startswith(second) or second.startswith(first)) and one.get(
-        "dirty"
-    ) == other.get("dirty")
 
 
 def provenance_label(provenance: dict) -> str:

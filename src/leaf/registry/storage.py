@@ -7,7 +7,6 @@ layer itself: every Leaf that serves, checks or exports the page composes its ow
 import json
 import re
 from collections.abc import Collection
-from functools import lru_cache
 from pathlib import Path
 
 from leaf.files import file_stamp, latest_revision
@@ -118,18 +117,19 @@ def revision_vocabulary(manifest: dict, declarations: bytes | None) -> dict:
         for implementation in manifest["implementations"].values()
         if implementation["owner"] == "page"
     )
-    return _revision_vocabulary(
-        json.dumps(manifest["layer"], sort_keys=True), declarations, widgets
-    )
+    layer = manifest["layer"]
+    readings = selected(layer).readings
+    key = ("revision", json.dumps(layer, sort_keys=True), declarations, widgets)
+    if key not in readings:
+        readings[key] = _revision_vocabulary(layer, declarations, widgets)
+    return readings[key]
 
 
-@lru_cache(maxsize=16)
 def _revision_vocabulary(
-    layer: str, declarations: bytes | None, widgets: tuple[str, ...]
+    record: dict, declarations: bytes | None, widgets: tuple[str, ...]
 ) -> dict:
     from .page import compose_page_registry
 
-    record = json.loads(layer)
     # The selected layer was validated where it was composed, so a revision
     # declaring nothing over it is not validated again.
     vocabulary = layer_vocabulary(record)
@@ -264,19 +264,9 @@ def served_layer(metadata: dict) -> dict:
 
     return {
         **metadata,
-        "fingerprint": _fingerprint(
-            tuple(metadata["packages"]),
-            metadata["theme"]["name"] if metadata["theme"] else None,
-        ),
+        "fingerprint": selected(metadata).fingerprint,
         "producer": running_leaf(),
     }
-
-
-@lru_cache(maxsize=16)
-def _fingerprint(packages: tuple[str, ...], theme: str | None) -> str:
-    from leaf.layer import layer_fingerprint, selected_layer
-
-    return layer_fingerprint(selected_layer(packages, theme))
 
 
 def layer_metadata(page_dir: Path) -> dict:

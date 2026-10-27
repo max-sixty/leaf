@@ -203,6 +203,7 @@ ignore_names = [
   "get_command",
   "format_commands",
   "command_class",
+  "group_class",
   "main_loop",
   "validateLink",
 ]

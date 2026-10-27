@@ -253,6 +253,10 @@ Build an `x-shadow` widget's shadow root with `shadowStage(host, nodes)`, never
 `attachShadow`; it applies the theme's styles and returns the root. For a template,
 stage a container with `shadowStage(host, [container])` and render into that container.
 
+An `x-shadow` widget slots none of its authored children, so `shadowStage` removes them
+all from the host on every call (WebKit unloads the frames in a shadow tree when a host
+is cleared any other way). Read what the widget needs from them before the first stage.
+
 Wrap stylesheet text the module writes itself in `inBaseLayer(css)`, so its rules sit in
 the theme's `lf-base` cascade layer, below Layouts, theme packages and the page's own
 stylesheet.

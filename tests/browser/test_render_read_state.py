@@ -390,7 +390,9 @@ def test_modal_blocks_exposure_until_user_returns_to_threads(browser, serve):
 def test_reading_a_thread_moves_nothing_in_it(browser, serve):
     """A read receipt keeps the thread's reading position and content in place.
 
-    The New mark may close its metadata row sideways when it disappears.
+    The New mark disappears when read. Its metadata wrapper can become empty
+    where the preceding message already shows the same age; the remaining content,
+    message heads, bodies and controls keep their geometry.
     """
     url = serve(PANEL_PAGE)
     root = panel_comment(
@@ -429,8 +431,10 @@ def test_reading_a_thread_moves_nothing_in_it(browser, serve):
       for (const [element, box] of window.__before) {{
         if (!after.has(element) || !element.isConnected) continue;
         const now = after.get(element);
-        const kept = element.matches('.lf-msg-meta') ? [0, 1, 3] : [0, 1, 2, 3];
-        if (kept.some(at => now[at] !== box[at]))
+        // Compare the metadata's contents below, rather than its wrapper: a
+        // wrapper holding only New becomes empty without moving any content.
+        if (element.matches('.lf-msg-meta')) continue;
+        if (now.some((value, at) => value !== box[at]))
           moved.push(`${{element.tagName}}.${{element.className}} ${{box}} -> ${{now}}`);
       }}
       return moved;

@@ -205,6 +205,90 @@ test("an unchanged intermediary still carries its upstream DOM dependencies", as
   assert.deepEqual(seen, ["projected"]);
 });
 
+test("a paint advancing a version it does not read claims no second pass", async () => {
+  // An owner's commit advances the version its readers follow, inside the paint that
+  // commits. `tick` writes without reading, so the paint is not subscribed to its own
+  // write; `x.value += 1` reads first, and claims the region again for nothing.
+  const { tick } = await import("/runtime/version-signal.js");
+  const { signal } = await import("/runtime/framework.js");
+  const paints = { ticked: 0, added: 0 };
+  const ticked = signal(0);
+  const added = signal(0);
+  const quiet = applicationPresenter({
+    region: "probe-tick",
+    reading: () => true,
+    paint: () => {
+      paints.ticked += 1;
+      tick(ticked);
+    },
+  });
+  const noisy = applicationPresenter({
+    region: "probe-added",
+    reading: () => true,
+    paint: () => {
+      paints.added += 1;
+      // Once, as an owner whose commit moved something does; `+=` would spin forever.
+      if (paints.added === 1) added.value = added.value + 1;
+    },
+  });
+  await quiet.present();
+  await noisy.present();
+  await whenApplicationPresented();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  quiet.disconnect();
+  noisy.disconnect();
+  assert.equal(paints.ticked, 1);
+  assert.equal(paints.added, 2, "reading the version first subscribes the paint");
+});
+
+test("the margin's own commit is reachable while a widget holds its paint", async () => {
+  // Reply continuity waits for the margin's paint, not the whole pass nor the DOM
+  // upstream of the margin: a widget that withholds its commit, as one does through a
+  // drag, must not keep a displaced reply editor from its new box
+  // (thread/presentation.js). The regions keep the page's own dependency chain.
+  const { PRESENTATION_DOM, regionCommitted, whenDocumentPresented } =
+    await import("/runtime/semantic-state.js");
+  const paints = [];
+  const chain = [
+    ["projection:chrome", PRESENTATION_DOM.widgets],
+    ["thread", PRESENTATION_DOM.projection],
+    ["obligations", PRESENTATION_DOM.thread],
+    ["annotations", PRESENTATION_DOM.obligations],
+  ].map(([region, after]) =>
+    applicationPresenter({
+      region,
+      after,
+      reading: () => true,
+      paint: () => paints.push(region),
+    }),
+  );
+  await Promise.all(chain.map((presenter) => presenter.present()));
+  assert.equal(paints.length, 4);
+
+  const held = Promise.withResolvers();
+  void queueWidgetUpdate(
+    "probe-held-widget",
+    () => {},
+    () => held.promise,
+  );
+  let upstream = false;
+  void Promise.allSettled(PRESENTATION_DOM.annotations()).then(() => {
+    upstream = true;
+  });
+  let documentPresented = false;
+  void whenDocumentPresented().then(() => {
+    documentPresented = true;
+  });
+  await regionCommitted("annotations");
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(upstream, false, "the margin's transitive DOM waits for the widget");
+  assert.equal(documentPresented, false, "the pass still waits for the widget");
+  held.resolve();
+  await whenDocumentPresented();
+  assert.equal(upstream, true);
+  for (const presenter of chain) presenter.disconnect();
+});
+
 test("an optimistic cyclic move cannot deadlock widget DOM before its refusal", async () => {
   const original = applicationState.read().document;
   const move = {

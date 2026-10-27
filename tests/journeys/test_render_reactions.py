@@ -21,8 +21,8 @@ from browser.test_render_reactions import hint_code, painted
 def test_a_target_hint_opens_comment_and_a_token_seats_only_its_glyph(browser, serve):
     """Keyboard target choosing opens Comment. Choosing a token puts an
     element anchor in the log, which paints a glyph seated at the element's first line.
-    The returned focus rings the element until focus leaves; the reaction adds no
-    current-location contour to it."""
+    The returned focus rings the element until focus leaves; the reaction itself
+    leaves only its seated glyph, with no wash or persistent contour."""
     page = open_page(browser, serve(TARGETS_PAGE))
     page.keyboard.type(hint_code(page, "#prose", 3))
     bar = page.locator(".lf-fab-bar")
@@ -38,9 +38,15 @@ def test_a_target_hint_opens_comment_and_a_token_seats_only_its_glyph(browser, s
     sent = events_model.read_events(serve.page_dir)[-1]
     assert sent["token"] == "prioritize" and sent["anchor"] == {"section": "prose"}
     shown = painted(page, [["prose", "prioritize"]])
-    assert shown["projected"] == 0 and shown["washed"] == "", shown
+    assert shown["washed"] == "", shown
     expect(page.locator("#prose")).to_be_focused()
-    expect(page.locator("#prose")).to_have_attribute("data-lf-focus", "")
-    expect(page.locator("#prose")).to_have_css("outline-style", "solid")
+    focus = page.locator('.lf-visual-mark-focus[data-for="prose"]')
+    expect(focus).to_be_visible()
+    assert (
+        focus.evaluate("node => getComputedStyle(node, '::after').outlineStyle")
+        == "solid"
+    )
+    assert shown["projected"] == 1, shown
     page.evaluate(RELEASE_FOCUS)
-    expect(page.locator("#prose")).to_have_css("outline-style", "none")
+    expect(page.locator(".lf-visual-mark")).to_have_count(0)
+    assert painted(page, [["prose", "prioritize"]])["washed"] == ""

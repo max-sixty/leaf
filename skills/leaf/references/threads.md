@@ -166,7 +166,7 @@ leaf thread reply <answer.ref> --ephemeral --text "Checking the keyboard route."
 
 It does not answer the update, so a turn whose final message is the answer still
 posts that message. On an update you owe it starts the update, and
-its text becomes your line in Leaf's panel status, under your name, so keep it to one line
+its text becomes your line in Leaf's panel status, so keep it to one line
 ([conversation loop, "When to write"](conversation-loop.md#when-to-write)). In a
 thread that owes no reply, use `leaf thread reply <page> <message> --ephemeral`.
 

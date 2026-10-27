@@ -59,6 +59,7 @@ import { effectiveScroller, registerReadingRegion } from "../reading-regions.js"
 import { declareOffFlowSurface } from "../off-flow.js";
 import { chromeRoot, chromeForeground } from "../chrome.js";
 import { boxMotion } from "../box-motion.js";
+import { paintKeysWithin } from "../keyboard/scopes.js";
 import { closestAcross } from "../passages.js";
 import { threadIdNamed } from "../thread/state.js";
 import { turns } from "../thread/model.js";
@@ -906,6 +907,7 @@ export function createThreadPreview({
     keeps(preview, "inert", null);
     buildThreadCard(entry, selected.id);
     const positioned = placedThreadPreview();
+    paintKeysWithin(preview);
     return positioned;
   }
 
@@ -931,6 +933,9 @@ export function createThreadPreview({
       for (const edge of CUT_EDGES) preview.style.removeProperty(edge);
       keepsHidden(preview, true);
       keeps(preview, "inert", null);
+      // Rows inside the retained card can read whether its reply box is shown.
+      // Hiding after the fade is later than the focus move that closed the card.
+      paintKeysWithin(preview);
     };
     const fade = preview.hidden
       ? null

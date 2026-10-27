@@ -1,8 +1,10 @@
 # leaf
 
-Read [SOUL.md](SOUL.md) for Leaf's purpose and product principles. It is
+[SOUL.md](SOUL.md) holds Leaf's purpose and product principles. It is
 human-curated; change it only at the user's direction. `README.md` describes the
 product and installation.
+
+@SOUL.md
 
 ## Leaf's role
 

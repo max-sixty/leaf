@@ -207,8 +207,9 @@ def probe(
     Prints one JSON line per arm: startup phases and resources; native layout shifts
     through the journey, including recent input and affected node rectangles;
     long animation frames during startup and input steps, with script
-    entry points and forced layout; `result`, what --js or --journey returned (absent when the arm failed);
-    `failed`, the stage and error that stopped the arm;
+    entry points and forced layout; `result`, what --js or --journey returned when
+    evaluation completed; `failed`, the stage and error that stopped the arm, which a
+    later stage such as --shot can add beside a `result`, so read `failed` first;
     the page's console errors and warnings and its uncaught exceptions; and with
     --shot the screenshot's path under .tmp/probe/.
 

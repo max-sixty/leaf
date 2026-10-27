@@ -197,7 +197,7 @@
     "runtime/shadow.js": "06dd340ccadb2d68da39bc9da45df8f66ea6134f1891ec6fb68c7271be98cb5c",
     "runtime/shown-answer.js": "516d3a309af2805ad3466645cb7330f35b168e95715d1124747299d6869a3fcb",
     "runtime/state-application.js": "7d7cfabc3b4b8c33198568059c5a47732876a88cb12a1034d8592657355ce104",
-    "runtime/state-feed.js": "b59d52345f43f50795aee72054c65b55b8fb8d1130d98e2bc40321e871f93d70",
+    "runtime/state-feed.js": "f881d24609c776db4874676b9a4c565ddd05a0a4e69661a8c6600ff68973c144",
     "runtime/storage.js": "fbe96232fac67d0f1ad8de04c923c9d6d30b868b6a8434315d98a733eddc63fd",
     "runtime/stylesheets.js": "ebe4d8114804db826c47121b798bafa3669223e2ebafea585e2e01c144c06939",
     "runtime/syntax-languages.js": "6e7cc627a26503aa0498bfb148abfd32ab934fe785eadbff759ea07551186787",

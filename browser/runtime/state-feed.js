@@ -73,12 +73,15 @@ async function readState(bound) {
       const answer = await res.json().catch(() => null);
       return { state: null, fault: answer?.error ?? `HTTP ${res.status}` };
     }
+    // Receiving headers does not complete delivery: the body can still be lost.
+    // Keep transport failure separate from parsing a fully delivered answer.
+    let text;
     try {
-      return { state: completeData(await res.json(), held), fault: null };
-    } catch (error) {
-      if (signal.aborted) return NOTHING;
-      throw error;
+      text = await res.text();
+    } catch {
+      return NOTHING;
     }
+    return { state: completeData(JSON.parse(text), held), fault: null };
   } finally {
     // Heard once the read has ended whichever way: the body in hand, or nothing.
     countTraffic("heard");

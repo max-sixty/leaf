@@ -239,7 +239,7 @@ def test_a_state_read_timing_out_during_its_body_is_offline(browser, serve):
         return {
           ok: response.ok,
           headers: response.headers,
-          json: async () => { throw new DOMException('timed out', 'TimeoutError'); },
+          text: async () => { throw new DOMException('timed out', 'TimeoutError'); },
         };
       };
     """

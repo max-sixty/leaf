@@ -5912,15 +5912,16 @@ async function readState(bound) {
 				fault: (await res.json().catch(() => null))?.error ?? `HTTP ${res.status}`
 			};
 		}
+		let text;
 		try {
-			return {
-				state: completeData(await res.json(), held),
-				fault: null
-			};
-		} catch (error) {
-			if (signal.aborted) return NOTHING;
-			throw error;
+			text = await res.text();
+		} catch {
+			return NOTHING;
 		}
+		return {
+			state: completeData(JSON.parse(text), held),
+			fault: null
+		};
 	} finally {
 		countTraffic("heard");
 	}

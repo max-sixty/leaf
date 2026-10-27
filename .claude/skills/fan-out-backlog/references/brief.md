@@ -102,7 +102,9 @@ End your final message with a fenced `json` block, then at most a short paragrap
   "tests_run": ["…"],
   "unverified": ["what you could not check"],
   "decisions_taken": ["calls Max may reverse"],
-  "adds": ["anything beyond the repair and its test that later changes must keep working with: a new mechanism, gate, public option, dependency or protocol bump"],
+  "adds": [
+    "anything beyond the repair and its test that later changes must keep working with: a new mechanism, gate, public option, dependency or protocol bump"
+  ],
   "friction": ["what in the repo, its instructions or tooling slowed you, and where"],
   "follow_ups": ["durable work this uncovered"]
 }

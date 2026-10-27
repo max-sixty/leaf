@@ -41,6 +41,7 @@ from leaf_dev.page_fixtures import prepare_page, read_fixture
 from leaf import cli as cli_model
 from leaf import codex_adapter, leases, server, service, session
 from leaf.interaction_log import read_interactions
+from leaf.layer import stylesheet
 from leaf.media import media_name
 from leaf.structure import SourceDocument
 
@@ -203,9 +204,11 @@ def test_product_previews_prepare_the_authored_layer_and_media(
     )
     registry = json.loads((page / "registry.json").read_text())
     assert "nav.sitenav" in registry
-    assert (ROOT / "docs" / "package" / "theme.css").read_text().rstrip() in (
-        page / "theme.css"
-    ).read_text()
+    package = ROOT / "docs" / "package"
+    assert (
+        stylesheet(package / "theme.css", package).rstrip()
+        in (page / "theme.css").read_text()
+    )
     watched = preview.watch_paths(source, ROOT, [])
     assert str(ROOT / "docs" / "layer.json") in watched.paths
     # A composed part's owner is an input: a caption follows its example's edit.

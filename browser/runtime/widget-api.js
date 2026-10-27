@@ -45,8 +45,6 @@ export { anchorLabel } from "./thread/messages.js";
 // The page's `main`, or the body of the message whose markup a node stands in.
 export { authoredScope, elementById } from "./passages.js";
 export { navigateToDatum } from "./application.js";
-// Experimental: one widget marking part of another (indication.js).
-export { indicate } from "./indication.js";
 // `growthIsSeen(element)`: whether the element changing size now would move what the
 // user sees, as scroll anchoring and the chrome leave it.
 export { growthIsSeen, landingInsets, shownWindow } from "./geometry.js";
@@ -268,7 +266,10 @@ export {
 } from "./widget-elements.js";
 export { atLayoutPrecision, keeps, keepsHidden, keepsText, layoutPx } from "./keeps.js";
 
-export { LeafEditorView } from "./editor-view.js";
+// The CodeMirror view class Leaf's own editors use, built over the CodeMirror module
+// the caller imported, so CodeMirror stays off a page's opening; the runtime loads it once
+// the page has presented.
+export { leafEditorView } from "./editor-view.js";
 
 // Optional child runtimes are loaded only by packages that mount a sample.
 export async function mountSample(frame, options) {
@@ -286,7 +287,5 @@ export { tally, tallyWords } from "./obligations/tally.js";
 // The page node the user's current location stands for, through a margin entry or a
 // thread card, as `lf-deck` asks whether the user is on its open card.
 export { placeOf } from "./current-target.js";
-// Run a command by its id as its key would, as `lf-deck`'s Reply runs `c` on a question.
-export { executeCommand } from "./keyboard/dispatch.js";
 // The time axis the Playwright timeline and lf-timeline both draw on.
 export { assignRows, axisTicks, textWidth } from "./time-axis.js";

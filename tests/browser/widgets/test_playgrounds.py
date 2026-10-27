@@ -925,11 +925,13 @@ def test_a_playground_opens_its_instruction_over_the_page(browser, serve):
     leaves the user on the reveal. Tab goes on from the reveal to the copy."""
     source = leaf_page(
         "Instruction popover",
+        '<button id="outside">Before playground</button>'
         '<lf-ask id="fold-ask"><h1>Choose a density</h1>'
         '<lf-playground id="fold-playground" data-width="available">'
         '<lf-playground-control name="rows" label="Rows" kind="range" value="4" '
         'min="1" max="8"></lf-playground-control>'
-        "<lf-playground-preview><p>Rows of the report.</p></lf-playground-preview>"
+        "<lf-playground-preview><p>Rows of the report.</p>"
+        '<button id="preview-action">Preview action</button></lf-playground-preview>'
         '<lf-playground-output>Use <lf-playground-value for="rows">'
         "</lf-playground-value> rows in the weekly report and show me its "
         "rendered page.</lf-playground-output>"
@@ -946,6 +948,7 @@ def test_a_playground_opens_its_instruction_over_the_page(browser, serve):
     rail = playground.locator(".lf-playground-rail").bounding_box()
     pressed = reveal.bounding_box()
 
+    page.locator("#outside").click()
     reveal.click()
     expect(reveal).to_have_attribute("aria-expanded", "true")
     expect(instruction).to_contain_text("Use 4 rows")
@@ -963,6 +966,16 @@ def test_a_playground_opens_its_instruction_over_the_page(browser, serve):
     page.keyboard.press("Escape")
     expect(instruction).to_be_hidden()
     expect(reveal).to_be_focused()
+
+    preview = playground.get_by_role("button", name="Preview action")
+    preview.click()
+    playground.get_by_role("button", name="Reset", exact=True).click()
+    expect(preview).to_be_focused()
+    reveal.click()
+    expect(instruction).to_be_visible()
+    expect(reveal).to_be_focused()
+    reveal.click()
+    expect(instruction).to_be_hidden()
 
 
 def test_notification_playground_admits_only_its_exact_page_configuration(

@@ -258,10 +258,14 @@ test("chrome over a declared tree stops at its root, and not for what it slots",
     $layer: { generation: "passage-contexts" },
   });
   document.body.innerHTML =
-    '<main><p>Page</p></main><div class="lf-ui"><lf-staged><b>Slotted</b> loose</lf-staged></div>';
+    '<main><p>Page</p></main><div class="lf-ui"><lf-staged></lf-staged></div>';
+  const host = document.querySelector("lf-staged");
   const staged = document.createElement("template");
   staged.innerHTML = "<p>Staged</p><p><slot></slot></p>";
-  shadowStage(document.querySelector("lf-staged"), [...staged.content.childNodes]);
+  shadowStage(host, [...staged.content.childNodes]);
+  // The stage clears light children, so what a slot takes arrives after it.
+  host.innerHTML = "<b>Slotted</b> loose";
+  assert.match(host.textContent, /Slotted loose/);
   const raw = pageText().raw;
   assert.match(raw, /Staged/, "the chrome above the host is not the tree's");
   assert.doesNotMatch(
@@ -276,11 +280,13 @@ test("a line break assigned to a shadow slot separates its words", () => {
     "lf-staged": { "x-shadow": true },
     $layer: { generation: "passage-slotted-break" },
   });
-  document.body.innerHTML = "<main><lf-staged>Alpha<br>Beta</lf-staged></main>";
+  document.body.innerHTML = "<main><lf-staged></lf-staged></main>";
   const host = document.querySelector("lf-staged");
   const staged = document.createElement("template");
   staged.innerHTML = "<p><slot></slot></p>";
   shadowStage(host, [...staged.content.childNodes]);
+  // The stage clears light children, so what a slot takes arrives after it.
+  host.innerHTML = "Alpha<br>Beta";
   assert.equal(says(host.shadowRoot), "Alpha Beta");
   assert.equal(pageText().raw, "Alpha Beta");
 });

@@ -91,10 +91,8 @@ def test_live_news_keeps_the_reading_draft_and_resting_target(browser, serve):
     expect(panel_field(page)).to_have_attribute(
         "placeholder", re.compile("Checking the order")
     )
-    expect(
-        thread.get_by_role("button", name="Work in progress", exact=True)
-    ).to_be_visible()
     expect(thread.locator(".lf-thread-working")).to_have_count(0)
+    expect(thread.locator(".lf-thread-news")).to_have_count(0)
     rendered(page)
     kept()
 

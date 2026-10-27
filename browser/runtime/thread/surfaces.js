@@ -19,7 +19,12 @@
    A thread the widget would draw in a seat it has not opened yet, while that would move
    what the reader reads, is held out of what the widget is handed (`HeldArrivals`,
    held-news.js): its target stays out of the batch, so the selected annotation
-   presentation notices it, and `revealHeld` is how the margin's marker shows it. */
+   presentation notices it, and `revealHeld` is how the margin's marker shows it.
+
+   Which threads a widget has claimed or holds out is a reading other paints follow
+   (`claimed`, `heldOut`): the margin lists a thread no widget seats, so a commit or a
+   hold that changes the answer repaints it through its own presenter, and the thread
+   pass itself paints no other owner's region. */
 import { aborted } from "../abort.js";
 import { reportPageError } from "../layer-client.js";
 import { aimTargetAt, datumAimTarget } from "../anchor-resolution.js";
@@ -34,10 +39,19 @@ import { HeldArrivals } from "./held-news.js";
 import { under } from "../shadow.js";
 import { declareSide } from "../current-target.js";
 import { whenDocumentPresented } from "../semantic-state.js";
+import { signal } from "/runtime/framework.js";
+import { tick } from "../version-signal.js";
 
 const registrations = new Map();
 let claimedIds = new Set();
 let renderGeneration = 0;
+// Moves when the answer `claimed` or `heldOut` gives changes, so a paint reading either
+// follows it. This module's own reads take the plain answer (`holdsOut`): a pass that
+// followed what it moves itself would claim another.
+const ownership = signal(0);
+const sameSet = (a, b) => a.size === b.size && [...a].every((item) => b.has(item));
+const holdsOut = (id) =>
+  [...registrations.values()].some(({ held }) => held?.holds(id));
 
 function update(registration) {
   if (registration.reconcileQueued) return;
@@ -113,6 +127,8 @@ function register(owner, render, { invalidate, composition, reveal }, kind) {
     // the seats it has not opened.
     drawn: new Set(),
     held: kind === "widget" ? new HeldArrivals(() => update(registration)) : null,
+    // The keys the last hold kept out, to tell a hold that changed from one that didn't.
+    heldKeys: new Set(),
     reconcileQueued: false,
     cancelRender: () => {},
   };
@@ -272,7 +288,7 @@ export function renderSurfaces(collection, placements, commands) {
         for (const thread of collection.threads) {
           if (
             registration.kind === "page"
-              ? heldOut(thread.id)
+              ? holdsOut(thread.id)
               : thread.anchor?.section !== owner.id
           )
             continue;
@@ -288,6 +304,10 @@ export function renderSurfaces(collection, placements, commands) {
           })),
           { drawn: registration.drawn, all: collection.threads },
         );
+        if (held && !sameSet(held, registration.heldKeys)) {
+          registration.heldKeys = held;
+          tick(ownership);
+        }
         const anchor = activeComposition?.anchor;
         const placement =
           anchor &&
@@ -384,7 +404,7 @@ export function renderSurfaces(collection, placements, commands) {
                   placements.placedAt(thread.id),
                 ) &&
                 (plan.registration.kind === "widget" ||
-                  (!widgetClaims.has(thread.id) && !heldOut(thread.id))),
+                  (!widgetClaims.has(thread.id) && !holdsOut(thread.id))),
             ),
           );
         if (
@@ -451,7 +471,10 @@ export function renderSurfaces(collection, placements, commands) {
           [...byOutlet.values()].flat().map((thread) => thread.anchor.datum),
         );
       }
-      claimedIds = nextClaimed;
+      if (!sameSet(claimedIds, nextClaimed)) {
+        claimedIds = nextClaimed;
+        tick(ownership);
+      }
       prepared = null;
     } catch (error) {
       // ThreadSeat retention restores the conversations. Composition owns its own
@@ -478,12 +501,19 @@ export function renderSurfaces(collection, placements, commands) {
   }
 }
 
-export const claimed = (id) => claimedIds.has(id);
+// Whether a widget seat drew the thread `id` at the last commit. A paint reading it is
+// repainted when a commit changes the answer.
+export const claimed = (id) => {
+  ownership.value;
+  return claimedIds.has(id);
+};
 
 // Whether a widget holds the thread `id` out of its flow, so that its margin marker is
-// the notice it waits behind.
-export const heldOut = (id) =>
-  [...registrations.values()].some(({ held }) => held?.holds(id));
+// the notice it waits behind. Followed like `claimed`.
+export const heldOut = (id) => {
+  ownership.value;
+  return holdsOut(id);
+};
 
 // Release the named held arrivals through their widget's existing render proof.
 // This owner decides admission and returns readiness; the core destination owns the

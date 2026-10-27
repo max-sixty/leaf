@@ -52,7 +52,7 @@ const exactClosures = {
     "thread/workflow.js",
   ],
   "projection/model.js": ["kernel-facts.js"],
-  "projection/state.js": ["semantic-state.js", "queued-work.js"],
+  "projection/state.js": ["semantic-state.js", "version-signal.js", "queued-work.js"],
   "thread/model.js": [
     "anchor-coordinate.js",
     "thread/identity.js",
@@ -60,6 +60,7 @@ const exactClosures = {
   ],
   "thread/state.js": [
     "semantic-state.js",
+    "version-signal.js",
     "queued-work.js",
     "thread/model.js",
     "anchor-coordinate.js",
@@ -68,10 +69,11 @@ const exactClosures = {
   ],
   "thread/workflow.js": [],
   "pending/model.js": ["thread/identity.js", "kernel-facts.js"],
-  "pending/state.js": ["semantic-state.js", "queued-work.js"],
+  "pending/state.js": ["semantic-state.js", "version-signal.js", "queued-work.js"],
   "keyboard/dispatch.js": [
     "context.js",
     "semantic-state.js",
+    "version-signal.js",
     "queued-work.js",
     "focus.js",
     "dom-move.js",
@@ -138,7 +140,6 @@ const forbiddenClosures = Object.fromEntries([
     "anchor-travel.js",
     "page-layout.js",
     "annotation-overlay/composing/drawing-paint.js",
-    "indication.js",
     "annotation-overlay/margin-layout.js",
     "page-geometry.js",
     "target-paint.js",

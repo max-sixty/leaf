@@ -94,11 +94,13 @@ function narrowSheet(sheet, runtime) {
 // a framework rewrite or a completed linked/imported sheet gets the same treatment.
 let watching = false;
 export function keepPageRulesOffLayer() {
-  for (const sheet of document.styleSheets)
-    narrowSheet(
-      sheet,
-      /** @type {Element | null} */ (sheet.ownerNode)?.hasAttribute("data-lf-runtime"),
-    );
+  // A sheet with no owner element is adopted, which iOS WebKit (26.1) lists in
+  // `document.styleSheets` and Chromium, Gecko and desktop WebKit leave out. The
+  // runtime's own chrome sheets are adopted, so narrowing them there unstyled the chrome.
+  for (const sheet of document.styleSheets) {
+    const owner = /** @type {Element | null} */ (sheet.ownerNode);
+    if (owner) narrowSheet(sheet, owner.hasAttribute("data-lf-runtime"));
+  }
   if (watching) return;
   watching = true;
   document.addEventListener(

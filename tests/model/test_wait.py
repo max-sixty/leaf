@@ -633,9 +633,7 @@ def test_session_end_cannot_be_overtaken_by_wait_revival(claimed, spawn):
 
     wait_for(selected.exists, bool, failure="the waiter never selected its page")
 
-    hooks_model.cmd_hook(
-        "claude-code", {"hook_event_name": "SessionEnd", "session_id": "s1"}
-    )
+    cleanup_model.end_harness_instance("s1")
     assert read_record(page / "service.json")["enabled"] is True
     assert server_model.running_server(page) is None
 
@@ -1656,9 +1654,7 @@ def test_a_wait_delivers_input_even_after_its_hooks_stop(
     assert observed["turn"] != previous_turn
     assert observed["turn_closed"] is None
 
-    hooks_model.cmd_hook(
-        "claude-code", {"hook_event_name": "SessionEnd", "session_id": "unhooked"}
-    )
+    cleanup_model.end_harness_instance("unhooked")
     assert not leases_model.hooks_ran("unhooked")
 
 

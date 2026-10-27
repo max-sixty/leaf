@@ -308,7 +308,6 @@ export function createReactionController({
 
   function closeSurface(surface) {
     if (surface === marginSurface) return;
-    surface?.classList.remove("lf-react-open");
     reactDeparture?.();
     reactDeparture = null;
     const picker = pickerFor(surface);
@@ -389,7 +388,6 @@ export function createReactionController({
       }
       reactArmed = true;
       if (reactSurface !== marginSurface) {
-        reactSurface.classList.add("lf-react-open");
         const picker = pickerFor(reactSurface);
         // `e` opens the latest reply of the thread the user is in, which may be
         // scrolled out of the list: it comes into view to be answered, since a list

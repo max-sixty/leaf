@@ -4,7 +4,7 @@ import { el } from "./bundle-errors.js";
 import { contentRides } from "./bundle-reading-regions.js";
 import { inChrome } from "./bundle-passages.js";
 import { anchorAt, anchorBox, anchorElement, anchorReaches, anchorReading, cutFrames, nameAnchor, scrollsWith } from "./bundle-content-layout.js";
-import { motionPlays, playMotion } from "./bundle-motion.js";
+import { motionEasing, motionPlays, motionTime, playMotion } from "./bundle-motion.js";
 
 //#region \0rolldown/runtime.js
 var __defProp = Object.defineProperty;
@@ -643,7 +643,8 @@ function listen() {
 }
 const liftReach = (element, level) => {
 	const lift = getComputedStyle(element);
-	return ["drop", "blur"].map((part) => Number.parseFloat(lift.getPropertyValue(`--raise-${level}-${part}`))).reduce((reach, part) => reach + part);
+	const [drop, blur] = ["drop", "blur"].map((part) => Number.parseFloat(lift.getPropertyValue(`--raise-${level}-${part}`)));
+	return drop + 2 * blur;
 };
 const near = (a, b) => Math.abs(a - b) < .5;
 const boxOf = (rect) => ({
@@ -673,15 +674,48 @@ const clipFrame = (sides, radius = 0) => ({
 	"--lf-box-cut": sides.map((side) => `${side}px`).join(" ")
 });
 const radiusOf = (style) => Number.parseFloat(style.borderTopLeftRadius) || 0;
-const paints = (style) => !/^(transparent|rgba\(.*,\s*0\))$/.test(style.backgroundColor) || style.backgroundImage !== "none" || style.boxShadow !== "none" || [
+const seeThrough = (color) => /^(transparent|rgba\(.*,\s*0\))$/.test(color);
+const paints = (style) => !seeThrough(style.backgroundColor) || style.backgroundImage !== "none" || style.boxShadow !== "none" || [
 	"Top",
 	"Right",
 	"Bottom",
 	"Left"
 ].some((side) => Number.parseFloat(style[`border${side}Width`]) > 0);
 const rings = (style) => style.outlineStyle !== "none" && Number.parseFloat(style.outlineWidth) > 0;
-function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], observer, held = () => null }) {
+function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer, held = () => null }) {
 	listen();
+	const layer = (name) => {
+		const node = document.createElement("div");
+		node.className = name;
+		return node;
+	};
+	const room = layer(`lf-box-ground ${surfaceClass}`);
+	room.setAttribute("aria-hidden", "true");
+	const [ring, fill, ringLayer, ringFill] = [
+		"lf-box-ring",
+		"lf-box-fill",
+		"lf-box-moving-ring",
+		"lf-box-fill"
+	].map(layer);
+	room.append(ring, fill, ringLayer, ringFill);
+	const shadowReach = () => liftReach(room, lift);
+	const surface = () => [
+		[
+			room,
+			shadowReach(),
+			`filter: drop-shadow(var(--raise-${lift})); `
+		],
+		[
+			ring,
+			outset,
+			""
+		],
+		[
+			fill,
+			outset - 1,
+			""
+		]
+	];
 	let sent = -1;
 	const theirs = () => gesture !== null && sent === gestures ? "send" : gesture;
 	let rests = null;
@@ -702,6 +736,10 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 		if (event.type !== "input") noteFieldScrolls();
 	});
 	root.addEventListener("lf-before-edit", noteFieldScrolls, { passive: true });
+	const forget = () => {
+		rests = null;
+	};
+	addEventListener("resize", forget);
 	function rebase() {
 		const at = boxOf(root.getBoundingClientRect());
 		const edges = held();
@@ -816,7 +854,7 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 		childList: true,
 		attributeFilter: ["hidden"]
 	});
-	function follow({ duration, easing }, compact = false) {
+	function follow({ duration = motionTime("--lf-motion-box-resize", box), easing = motionEasing("--lf-motion-box-ease", box) } = {}, compact = false) {
 		timing = {
 			duration,
 			easing
@@ -870,7 +908,7 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 		const boxAt = rests.get(box);
 		const boxStyle = getComputedStyle(box);
 		const boxRadius = radiusOf(boxStyle);
-		for (const [layer, reach] of surface()) keeps(layer, "style", `clip-path: ${insetOf(...outline(boxAt, reach, boxRadius))}`);
+		for (const [layer, reach, paint] of surface()) keeps(layer, "style", `${paint}clip-path: ${insetOf(...outline(boxAt, reach, boxRadius))}`);
 		if (!was?.has(box)) {
 			restoreTranslations();
 			return;
@@ -1113,8 +1151,11 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 			const offset = Number.parseFloat(style.outlineOffset);
 			const reach = Number.parseFloat(style.outlineWidth) + offset;
 			const radius = radiusOf(style);
+			const colour = seeThrough(style.backgroundColor) ? null : style.backgroundColor;
 			keeps(ringLayer, "style", `background: ${style.outlineColor}`);
+			keeps(ringFill, "style", colour && `background: ${colour}`);
 			hold(element, "outlineColor", "transparent");
+			if (colour) hold(element, "backgroundColor", "transparent");
 			for (const [layer, grown] of [[ringLayer, reach], [ringFill, offset]]) start(layer, contour(from, to, grown, radius, compact));
 		}
 		function streamWithin(part) {
@@ -1166,6 +1207,7 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 		});
 		for (const [layer, reach] of surface()) start(layer, contour(boxFrom, boxAt, reach, boxRadius, compact));
 		if (rings(boxStyle)) drawRing(box, boxStyle, boxFrom, boxAt, compact);
+		else hold(box, "outlineColor", "transparent");
 		hold(box, "backgroundColor", "transparent");
 		hold(box, "overflow", "visible");
 		const animations = running;
@@ -1176,6 +1218,8 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 		};
 	}
 	return {
+		ground: room,
+		shadowReach,
 		follow,
 		theirs,
 		stream() {
@@ -1207,11 +1251,25 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 				});
 			}
 		},
-		forget() {
-			rests = null;
-		}
+		placed(place) {
+			rebase();
+			place();
+			frame = boxOf(root.getBoundingClientRect());
+		},
+		outline() {
+			const moving = motions.get(box);
+			const progress = running[0]?.effect.getComputedTiming().progress ?? 1;
+			if (moving && progress < 1) return interpolate(moving.from, moving.to, progress);
+			return boxOf(box.getBoundingClientRect());
+		},
+		drawnAt(rect) {
+			frame = boxOf(root.getBoundingClientRect());
+			motions = /* @__PURE__ */ new Map();
+			rests = /* @__PURE__ */ new Map([[box, boxOf(rect)]]);
+		},
+		forget
 	};
 }
 
 //#endregion
-export { SVG_NS, aimLayer, boxMotion, dropStand, liftReach, mountTargetPaint, paintGeometry, paintSet, paintShape, paintStand, paintTrace, placement, standOver, targetTraceLayer, target_paint_exports };
+export { SVG_NS, aimLayer, boxMotion, dropStand, mountTargetPaint, paintGeometry, paintSet, paintShape, paintStand, paintTrace, placement, standOver, targetTraceLayer, target_paint_exports };

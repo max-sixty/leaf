@@ -44,6 +44,7 @@ import traceback
 from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import click
@@ -424,6 +425,31 @@ def card_reply(page: Page) -> None:
     page.keyboard.insert_text("A reply being drafted, long enough to wrap onto a line")
 
 
+def card_aging(page: Page) -> None:
+    """An open card follows the clock while its reply is being drafted."""
+    card_reply(page)
+    timestamp = page.locator(".lf-margin-preview time").first.get_attribute("datetime")
+    now = datetime.fromisoformat(timestamp) + timedelta(seconds=30)
+
+    def aged_state(route):
+        response = route.fetch()
+        state = response.json()
+        state["now"] = now.isoformat()
+        route.fulfill(response=response, json=state)
+
+    page.route("**/api/state*", aged_state)
+    for seconds in (30, 60):
+        now = datetime.fromisoformat(timestamp) + timedelta(seconds=seconds)
+        page.clock.set_fixed_time(now)
+        page.evaluate("""() => {
+          window.__lfStillTicked = false;
+          document.addEventListener('lf-tick', () => { window.__lfStillTicked = true; },
+                                    {once: true});
+        }""")
+        page.wait_for_function("() => window.__lfStillTicked")
+        settle(page)
+
+
 def card_reply_large(page: Page) -> None:
     """A pasted reply exhausting the room below the thread, with its caret at the end."""
     card_reply(page)
@@ -545,6 +571,26 @@ def on_agent(page: Page) -> None:
         has_text=re.compile(r"^\s*On (?!me)")
     ).first.click()
     expect(page.locator(".lf-fp-view[data-view=queue]")).to_be_visible()
+
+
+def threads_returning(page: Page) -> None:
+    """Threads as the user reads it while the agent's reply reopens a resolved thread,
+    whose open row would lead the list, and the agent starts a thread on the page."""
+    returning = "7b3e0a41"
+    as_agent("thread", "resolve", returning)
+    # Threads opens on the resolve, which the list would otherwise hold as news.
+    wait_until_ready(page, PageClient(served_page.get().address).state())
+    go_to_threads(page)
+    count = page.locator(".lf-fp-filters button", has_text="Threads").locator(
+        ".lf-fp-count"
+    )
+    opened = int(count.inner_text())
+    as_agent(
+        "thread", "reply", returning, "--text", "The resend covers a cold start too."
+    )
+    as_agent("thread", "create", "--text", "Should the beta notes mention the resend?")
+    expect(count).to_have_text(str(opened + 2))
+    settle(page)
 
 
 def call_tree(page: Page) -> None:
@@ -759,6 +805,26 @@ def page_comment_resting(page: Page) -> None:
     page.keyboard.press("Tab")
     page.wait_for_function(
         "() => !document.querySelector('.lf-fp-field').matches(':focus-within')"
+    )
+
+
+def composer_caret_motion(page: Page) -> None:
+    """A line-end caret in the last frame of the comment box's growth."""
+    composer_empty(page)
+    settle(page)
+    page.evaluate("""() => {
+      const animate = Element.prototype.animate;
+      Element.prototype.animate = function (...args) {
+        const motion = animate.apply(this, args);
+        if (motion.timeline === document.timeline) {
+          motion.pause();
+          motion.currentTime = Number(motion.effect.getTiming().duration) - 0.01;
+        }
+        return motion;
+      };
+    }""")
+    page.keyboard.insert_text(
+        "it's not really a feed as much as a list? I see a feed as"
     )
 
 
@@ -1663,6 +1729,17 @@ STATES = (
         region="#off-workaround-decision",
     ),
     State(
+        "threads-returning", "ship-review", threads_returning, region=".lf-fp-opened"
+    ),
+    State(
+        "threads-returning-phone",
+        "ship-review",
+        threads_returning,
+        viewport=(390, 844),
+        touch=True,
+        region=".lf-fp-opened",
+    ),
+    State(
         "floating-thread-retitled",
         "ship-review",
         floating_thread_retitled,
@@ -2208,6 +2285,7 @@ STATES = (
         region=".lf-margin-preview",
     ),
     State("plan-card-reply", "review-a-plan", card_reply),
+    State("plan-card-aging", "review-a-plan", card_aging, region=".lf-margin-preview"),
     State(
         "plan-card-held-news",
         "review-a-plan",
@@ -2368,6 +2446,12 @@ STATES = (
         "triage-board",
         composer_resting,
         scheme="dark",
+        region=".lf-fab-bar",
+    ),
+    State(
+        "triage-composer-caret-motion",
+        "triage-board",
+        composer_caret_motion,
         region=".lf-fab-bar",
     ),
     State("triage-composer-space", "triage-board", composer_space, viewport=(362, 900)),

@@ -314,7 +314,7 @@ RING_CASES = (
                 ("lf-diff code", ".lf-diff-frame"),
             ),
             "release-notes": (
-                ("main p.lf-mark-el", ".lf-mark-el"),
+                ("main p.lf-mark-el", ".lf-visual-mark"),
                 (
                     'lf-shot .lf-shotcomparison [part~="handle"]',
                     "wa-comparison::part(",
@@ -324,7 +324,7 @@ RING_CASES = (
             "wt-merge": (
                 (
                     '[data-lf-reading-role="pane"] > [tabindex="0"]',
-                    "[data-lf-reading-role=pane]",
+                    '[data-lf-reading-role="pane"]',
                 ),
             ),
         },
@@ -377,7 +377,7 @@ RING_CASES = (
     (
         "the response bar",
         ("Tab", "s", "Shift+Tab", "Tab", "Enter"),
-        {RING_CHROME: ((".lf-fab-input", ".lf-response-control"),)},
+        {RING_CHROME: ((".lf-fab-input", ".lf-compose-field"),)},
     ),
     # These controls live behind exact page-owned view states: a settled group's
     # disclosure, and the options it puts away.
@@ -397,7 +397,7 @@ RING_CASES = (
             "current-proposed-comparison": (
                 (
                     "#comparison-policy > lf-option > .lf-pick",
-                    ":is(lf-option) .lf-pick",
+                    "lf-option .lf-pick",
                 ),
             )
         },
@@ -405,7 +405,7 @@ RING_CASES = (
     (
         "a contents link",
         (),
-        {"feature-gallery": (("#bg-contents li a:visible", ":is(lf-toc) a"),)},
+        {"feature-gallery": (("#bg-contents li a:visible", "lf-toc a"),)},
     ),
     # The reaction palette a message's strip opens. Its chips are the last boxes the
     # layer dresses in the chrome's chip face, and they are behind a press: the strip
@@ -451,7 +451,7 @@ RING_CASES = (
             "ship-review": (
                 (
                     ".lf-margin-preview .lf-resolve",
-                    ".lf-page-thread :is(.lf-btn, summary)",
+                    ".lf-icon-action",
                 ),
             )
         },

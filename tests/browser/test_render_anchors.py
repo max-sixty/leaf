@@ -809,13 +809,28 @@ def test_the_floating_response_bar_has_one_compact_face(browser, serve):
     expect(hint).to_be_visible()
     assert len(set(hint.evaluate(hint_ink))) == 1
 
-    family = """el => { const s = getComputedStyle(el);
-        return Object.fromEntries(["font-family", "font-size",
-            "border-top-width", "border-top-style",
-            "background-color"].map(p => [p, s.getPropertyValue(p)])); }"""
+    # The editor's frame is drawn by the moving surface. Compare that paint with
+    # the button's own border and fill, rather than the transparent editor's CSS.
+    family = r"""el => {
+        const s = getComputedStyle(el);
+        const ground = el.closest('.lf-fab-bar').querySelector('.lf-fab-ground');
+        const field = el.matches('.lf-fab-input');
+        const ring = field && getComputedStyle(ground.querySelector('.lf-box-ring'));
+        const fill = field && getComputedStyle(ground.querySelector('.lf-box-fill'));
+        const inset = style => Number.parseFloat(/^inset\(([^ ]+)/.exec(style.clipPath)[1]);
+        return {
+            font: s.fontFamily,
+            size: s.fontSize,
+            border: field ? inset(fill) - inset(ring) : Number.parseFloat(s.borderTopWidth),
+            ink: field ? ring.backgroundColor : s.borderTopColor,
+            face: field ? fill.backgroundColor : s.backgroundColor,
+        };
+    }"""
+    rendered(page)
     raised = page.locator(".lf-fab-input").evaluate(family)
     page.keyboard.press("e")
     expect(page.locator(".lf-fab-bar .lf-fab-suggest")).to_be_visible()
+    rendered(page)
     adjacent = page.locator(".lf-fab-bar .lf-fab-suggest").evaluate(family)
     assert raised == adjacent, (
         "the floating field and its other responses are drawn differently:\n  "
@@ -825,11 +840,11 @@ def test_the_floating_response_bar_has_one_compact_face(browser, serve):
             if raised[k] != adjacent[k]
         )
     )
-    assert "system-ui" in raised["font-family"], (
-        f"the response bar speaks in the document's voice: {raised['font-family']}"
+    assert "system-ui" in raised["font"], (
+        f"the response bar speaks in the document's voice: {raised['font']}"
     )
     assert (
-        page.locator(".lf-fab-input").evaluate("el => getComputedStyle(el).filter")
+        page.locator(".lf-fab-ground").evaluate("el => getComputedStyle(el).filter")
         != "none"
     ), "the field that floats over the page says nothing about its elevation"
     page.locator(".lf-fab-input").click()

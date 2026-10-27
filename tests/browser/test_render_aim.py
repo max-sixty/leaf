@@ -220,7 +220,7 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
         "node => ({family: getComputedStyle(node).fontFamily, "
         "size: getComputedStyle(node).fontSize})"
     )
-    assert field.bounding_box()["height"] == 32
+    assert page.locator(".lf-fab-bar .lf-compose-field").bounding_box()["height"] == 32
     write(field, "Carry this comment into its thread.")
     page.evaluate(
         """() => {

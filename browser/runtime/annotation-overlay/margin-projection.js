@@ -1250,7 +1250,6 @@ export function createMarginProjection({
       },
     });
     previewChanged();
-    renderAnnotations.refresh();
     return positioned;
   }
 

@@ -68,7 +68,7 @@ def test_a_markdown_document_switches_between_rendered_content_and_exact_source(
         "el => el.getBoundingClientRect().right"
     ) <= content.evaluate("el => el.getBoundingClientRect().left")
     assert (
-        document.locator("[data-line-number-content]").first.evaluate(
+        document.locator("[data-number]").first.evaluate(
             "el => getComputedStyle(el, '::before').content"
         )
         == '"1"'

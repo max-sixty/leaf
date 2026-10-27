@@ -33,7 +33,7 @@ from leaf.thread import successful_replies
 from leaf.user_views import read_user_views
 from leaf_dev import ROOT, arrangement_plain, pane_readings
 from leaf_dev.arms import (
-    MODELS,
+    JUDGE_MODELS,
     TURN_LIMIT,
     LiveChild,
     LiveSession,
@@ -549,6 +549,7 @@ Task and criterion:
                     out=evidence / "stream.jsonl",
                     err=evidence / "err.txt",
                     harness="codex",
+                    model=JUDGE_MODELS["codex"],
                     env=variables,
                     limit=JUDGING_LIMIT,
                 )
@@ -573,7 +574,7 @@ Task and criterion:
                     "evidence": str(evidence),
                     "pages": addresses,
                     "panes": panes,
-                    "model": MODELS["codex"],
+                    "model": JUDGE_MODELS["codex"],
                     "trace": summary,
                 }
             }

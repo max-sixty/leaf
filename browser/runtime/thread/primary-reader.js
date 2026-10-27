@@ -14,7 +14,7 @@ import { focusDestination } from "../focus.js";
 import { readApplication, whenWidgetsPresented } from "../semantic-state.js";
 import { elementById } from "../passages.js";
 import { THREAD } from "./selectors.js";
-import { threadPart, wholeThread } from "./focus.js";
+import { threadPart, wholeThread } from "./selectors.js";
 import { threadRewrites } from "./message-edit.js";
 import { orderChildren } from "../dom-children.js";
 import { move } from "../dom-move.js";
@@ -40,7 +40,7 @@ import { turns } from "./model.js";
    rewrite owner over the parts this reader draws (`threadRewrites`). Layout and
    disclosure belong to the caller, a transcript's folds aside. The thread's reply destination is its reply box as
    the parts stand: a reply part's, or the one the presentation drawing them declares
-   (focus.js, `threadPart`), as the floating panel declares its field. A reply part takes
+   (selectors.js, `threadPart`), as the floating panel declares its field. A reply part takes
    the presentation's words for its box and its own landing of a send (replies.js,
    `createReplyView`). The thread itself, where a walk or a notice lands the keyboard, is
    the drawing the presentation declares around the parts, as the panel's view is.
@@ -100,7 +100,7 @@ export function createPrimaryReader(
   let shown = new Map();
   // The thread as a whole where the presentation draws one around its parts, as the
   // floating panel's view is a drawing of the thread its messages are drawn in
-  // (focus.js, `wholeThread`): what a keyboard landing on the thread stands on.
+  // (selectors.js, `wholeThread`): what a keyboard landing on the thread stands on.
   const drawingOf = (parts) => {
     const whole = wholeThread(parts[0].node);
     return whole === parts[0].node ? null : whole;

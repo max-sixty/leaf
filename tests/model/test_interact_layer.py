@@ -2606,13 +2606,12 @@ def test_composed_sheets_replace_surrogate_escapes_as_the_browser_does(tmp_path,
 
 
 def test_package_contributions_keep_their_roles_when_a_widget_is_added(tmp_path):
-    """A package's page and chrome contributions survive acquiring a widget,
-    and package installation captures every source sheet the compositor reads."""
+    """A package's page contribution survives acquiring a widget, and package
+    installation captures every source sheet the compositor reads."""
     package = tmp_path / "contributions"
     package.mkdir()
     (package / "registry.json").write_text("{}")
-    for name in ("theme.css", "controls.css"):
-        (package / name).write_text(f"/* {name} */ p {{ color: purple; }}")
+    (package / "theme.css").write_text("/* theme.css */ p { color: purple; }")
     before = layer_model.composed_sheets([schema_model.ASSETS, package])
 
     (package / "registry.json").write_text(
@@ -3514,7 +3513,6 @@ def test_init_refuses_to_write_inside_a_package(tmp_path, monkeypatch):
     [
         ("theme.css", True),
         ("widgets.css", True),
-        ("controls.css", True),
         ("registry.json", True),
         ("instructions", False),
         ("widgets", False),

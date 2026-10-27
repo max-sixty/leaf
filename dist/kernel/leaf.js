@@ -507,7 +507,7 @@ function createCompositionInputs({ uploadMedia, inputHint }) {
           class="lf-compose-field"
           ?data-words=${hasWords}
           @pointermove=${point}
-          @pointerleave=${unpoint}
+          @pointerleave=${point}
           @pointerdown=${(event) => {
 				if (!sendBtn?.contains(event.target)) unpoint();
 			}}

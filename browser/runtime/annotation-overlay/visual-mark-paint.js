@@ -79,7 +79,7 @@ export function createVisualMarkPaint() {
     const room = ringRoom();
     for (const element of [...overlays.keys()])
       if (!targets.has(element)) {
-        element.classList.remove(PROJECTED);
+        element.classList.toggle(PROJECTED, false);
         dropStand(overlays.get(element).stand);
         overlays.delete(element);
       }

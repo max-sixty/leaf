@@ -779,7 +779,7 @@ def test_words_scrolled_past_a_card_head_show_nowhere_above_it(
         transcript.evaluate("(box, y) => { box.scrollTop = y; }", scroll)
         rendered(page)
         reading = transcript.evaluate(
-            """box => {
+            r"""box => {
               const controls = box.parentElement
                 .querySelector(':scope > .lf-margin-thread-controls');
               const edge = box.getBoundingClientRect().top + box.clientTop;

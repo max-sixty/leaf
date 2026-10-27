@@ -22,11 +22,12 @@ from interact_support import (
     fetch,
     install_payload,
     page_packages,
+    publish,
     vendored_at_another_protocol,
 )
-from model.test_interact_layer import _replying_after
 
 from leaf import cli as cli_model
+from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import files as interact_files
 from leaf import layer as layer_model
@@ -871,6 +872,32 @@ def test_page_init_vendors_an_explicit_package_without_privileging_it(
     assert removed_registry["$layer"]["packages"] == []
     assert "lf-diagram" not in removed_registry
     assert diagram not in layer_widgets(layer_record(composed))
+
+
+def _replying_after(page, server, edit):
+    """Reply to a user comment after `edit` changes what the page's layer records,
+    as a Leaf update leaves it, and return the command's result."""
+    publish(page)
+    code, response = fetch(
+        f"{server}/api/event",
+        data=json.dumps({"kind": "comment", "revision": 1, "text": "Hello"}).encode(),
+    )
+    assert code == 200, response
+    woke = CliRunner().invoke(cli_model.cli, ["wait", str(page)])
+    assert woke.exit_code == 0, woke.output
+    envelope = json.loads(woke.output)
+    delivery_model.receive(envelope, "s1")
+    reference = envelope["batches"][0]["events"][0]["answer"]["ref"]
+    edit(page)
+    # A process of its own, as the agent's next command is, so it reads the page as
+    # edited rather than as this one remembers it (`page_memory`).
+    return subprocess.run(
+        [*LEAF_COMMAND, "thread", "reply", reference, "--ephemeral", "--text", "Hi"],
+        capture_output=True,
+        text=True,
+        timeout=STATED_TIMEOUT,
+        check=False,
+    )
 
 
 def test_a_command_re_vendors_its_sessions_page_an_older_leaf_vendored(

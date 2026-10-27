@@ -119,7 +119,13 @@
     .lf-draft-tools {
     opacity: 1;
   }
+  /* A mark's reach stands half a finger's floor above the border it is centred on,
+     which the box's padding keeps clear of words, so a press on the last line puts
+     the caret there rather than pressing Discard. */
   @media (hover: none) {
+    :scope:is(lf-draft) {
+      padding-block-end: max(10px, var(--aim-floor) / 2);
+    }
     .lf-draft-tools {
       inset-block: auto 0;
       translate: 0 calc(50% + 0.5px);

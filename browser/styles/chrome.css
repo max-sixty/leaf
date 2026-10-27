@@ -33,10 +33,17 @@
    shared face stated here would outrank each component's own rule. The vocabulary's
    faces are therefore stated page-side (the margin entries in theme.css; .lf-key-badge,
    .lf-ui, .lf-btn and the aim floor in shadow.css, which also reaches
-   widget trees, and `.lf-ui`'s `box-sizing` reset in components/surfaces.css). What
-   stays here is paint the runtime lays over the page, which has to beat page and
-   widget alike. test_interact_layer.py holds that no selector is dressed for one
-   property both here and page-side. */
+   widget trees). What stays here is paint the runtime lays over the page, which has to
+   beat page and widget alike, and the `box-sizing` reset. test_interact_layer.py holds
+   that no selector is dressed for one property both here and page-side. */
+.lf-ui {
+  box-sizing: border-box;
+}
+.lf-ui *,
+.lf-ui *::before,
+.lf-ui *::after {
+  box-sizing: border-box;
+}
 /* Clearing the UA's form-control face lives in a layer, so any unlayered choice of
    face outranks it whatever its specificity: a control wearing .lf-ui takes the chrome
    face from its own class, and lf-draft's editor states the document's face unlayered

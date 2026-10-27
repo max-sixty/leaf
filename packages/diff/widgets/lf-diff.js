@@ -1043,7 +1043,6 @@ customElements.define(
           this.publishFiles();
           this.diffTools = null;
           this.filesBody = null;
-          this.replaceChildren();
           shadowStage(this, []);
           this.markFiles(source);
           this.classList.toggle("lf-rendered", false);
@@ -1162,7 +1161,6 @@ customElements.define(
             ...(this.diffTools ? [this.diffTools.search] : []),
             ...entries.map(({ node }) => node),
           ]);
-          this.replaceChildren();
           this.markRuns();
           this.stageFiles();
           this.markFiles(source);

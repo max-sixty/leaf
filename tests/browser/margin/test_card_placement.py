@@ -307,7 +307,7 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     marker = page.locator('[data-lf-margin-for="off-t-resync"] > .lf-margin-marker')
     expect(marker).to_have_count(1)
     expect(marker.locator("..")).to_have_attribute(
-        "aria-label", re.compile(r"Page actions for section · iOS reconnect stall")
+        "aria-label", re.compile(r"Page actions for item · iOS reconnect stall")
     )
     marker.evaluate(
         "marker => scrollBy(0, marker.getBoundingClientRect().top - innerHeight + 52)"

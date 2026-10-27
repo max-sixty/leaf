@@ -6072,11 +6072,13 @@ var ThreadView = class {
 			appends: model.surface === "margin"
 		});
 		if (reply && !this.#reply) this.#reply = this.#createReply(model);
+		keeps(notice.node, "data-lf-reflow", marginControls ? null : "text");
 		const body = html`
       ${threadTodos(model.todos, (id) => this.#commands.todos.done(id))}${this.#transcript.node}
-      ${threadActions ? marginControls ? html`<div class="lf-margin-thread-controls">${threadActions}</div>` : html`<div class="lf-thread-controls" data-lf-reflow="text">
-                ${news}${threadActions}
-              </div>` : nothing}
+      ${threadActions ? marginControls ? html`<div class="lf-margin-thread-controls">${threadActions}</div>` : html`${news}
+                <div class="lf-thread-controls" data-lf-reflow="text">
+                  ${threadActions}
+                </div>` : nothing}
     `;
 		render$1(html`
         ${model.surface === "margin" ? body : html`<div class="lf-thread-content">${body}</div>`}
@@ -6094,6 +6096,8 @@ var ThreadView = class {
 		this.#observedHeader = null;
 		this.#releaseHeaderItems();
 		this.#news.node.removeAttribute("data-room");
+		this.#news.node.style.removeProperty("--lf-thread-news-start");
+		this.#news.node.style.removeProperty("--lf-thread-news-visible-end");
 	}
 	#releaseHeaderItems() {
 		for (const { node } of this.#headerSlot?.items ?? []) {
@@ -6107,11 +6111,9 @@ var ThreadView = class {
 			this.#releaseHeaderSlot();
 			return;
 		}
-		const content = this.node.querySelector(":scope > .lf-thread-content");
-		const controls = content?.querySelector(":scope > .lf-thread-controls");
-		const first = content?.querySelector(":scope > .lf-thread-transcript > :nth-child(1 of .lf-msg, .lf-thread-checkpoint)");
+		const first = this.node.querySelector(":scope > .lf-thread-content")?.querySelector(":scope > .lf-thread-transcript > :nth-child(1 of .lf-msg, .lf-thread-checkpoint)");
 		const header = first?.querySelector(":scope > .lf-summary-checkpoint > .lf-summary-header") ?? first?.querySelector(":scope > .lf-msg-head");
-		if (!controls || !header) {
+		if (!header) {
 			this.#releaseHeaderSlot();
 			return;
 		}
@@ -6167,14 +6169,14 @@ var ThreadView = class {
 			}
 			this.#headerSlot.held = true;
 		}
+		const notice = this.#news.node;
 		const right = Math.max(box.left, ...this.#headerSlot.items.map(({ node }) => node.getBoundingClientRect().right));
-		controls.style.setProperty("--lf-thread-news-start", layoutPx(right - box.left));
+		notice.style.setProperty("--lf-thread-news-start", layoutPx(right - box.left));
 		if (this.#model.news) {
-			if (!this.#news.node.hasAttribute("data-room")) this.#news.node.dataset.room = this.#model.news.label;
-			const line = controls.getBoundingClientRect();
-			const shown = shownRect(controls, /* @__PURE__ */ new Map());
-			if (shown) controls.style.setProperty("--lf-thread-news-visible-end", layoutPx(Math.max(0, shown.right - line.left)));
-		} else this.#news.node.removeAttribute("data-room");
+			if (!notice.hasAttribute("data-room")) notice.dataset.room = this.#model.news.label;
+			const shown = shownRect(header, /* @__PURE__ */ new Map());
+			if (shown) notice.style.setProperty("--lf-thread-news-visible-end", layoutPx(Math.max(0, shown.right - box.left)));
+		} else notice.removeAttribute("data-room");
 	}
 	get progressOpen() {
 		return this.#transcript.progressOpen;
@@ -6877,4 +6879,4 @@ function surfaceFocusTarget(name, { part = "reply" } = {}) {
 }
 
 //#endregion
-export { DESIGN_MODE_KEY, ELEMENTS, HOLDS_WORD, HeldNews, HeldReading, MessageView, PAGE_DRAFT, PAGE_SCOPE, SAYS_IN, SAY_BOX, THREAD, ThreadView, Transcript, allButCommandReference, allThreads, anchorLabel, answeredInWords, arrivalOf, authoredHolder, beginThreadSeats, beginWalk, blocksOnScreen, bringBackSurfaceOf, captureDraftEditing, capturePlace, carryingThreadPlace, claimSeatReplies, claimed, clearDraft, commitThreadSeats, completeReadingReturn, copyBlock, createPassageSelection, createReplyView, createWritingResume, currentLocationOrigin, currentLocationThreadId, declareOffFlowSurface, declareSide, declareThreadParts, designName, dismissReply, dismissReplyAt, draftContexts, draftEditingDestination, draftEditingStands, draftHasContent, draftStore, drawnThreadId, ensureSyntaxLanguage, focusThread, focusedInView, focusedThreadTarget, followBoxGrowth, formatDeclaredMarkdown, hasLandmark, heldGrowth, heldObligation, heldOut, heldPagePlace, heldThread, heldThreadId, highlightBlocks, holdPagePlace, holdReplyCompositions, holdThreadPlace, holdToRead, importWidgets, inlineMarkdownFragment, isExternalPageLink, isPagePaint, isPageWidgetWorkflow, isWorkflowProgress, keepRefusedWords, keepThreadLanding, keepView, landingPlace, langForPath, leftThePage, listWalkPosition, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, markdownSourceOffset, markdownWords, messageHolding, messageReading, messageText, mirrorDraft, mountFirstMessage, newsNotice, obligationEntry, obligationHolding, obligationPlace, obligationsIn, onReadingInterrupted, openMessageEditIn, openingPassage, openingView, pageCommand, pageDoor, pageReadingBlock, pageRung, pageScope, pageScopes, pageSelection, paintMarkdown, passageBlock, patchDocument, placeKeeper, placeNode, placeOf, placeOffset, placePageThreads, placedMarkdownTokens, preloadWidgets, prepareAuthoredMessage, prepareDeclaredMarkdown, progressFace, quietWord, quoteReading, rawOffsetFits, readBoxPlace, readObligations, readThreads, readingBlock, readingIsContinuous, readingReturn, registerWritingDestination, reindexPassageOwners, releaseAuthoredUnder, releaseOutlets, releaseReplies, rememberPassageParts, rememberWriting, renderMarginThread, renderMarkdown, renderQuiet, renderSeats, renderSurfaces, replyAvailable, replyCompositionHasDraft, replyContext, replyDestination, replyDraftContext, replyDraftsHold, replyIsEditing, replyThreadKey, restoreDraftEditing, restorePlace, restoreReplyEditing, retainThreadSeats, revealHeld, rowWalk, saveDraft, scrollThreadIntoView, selectionAnchor, sendDraft, sendLanding, sendMessage, settleAcceptedDrafts, settleThread, showHeld, showHeldThread, showReturnTurn, snapSelection, stances, stepFrom, storedDraft, strongestWorkflow, subjectPlace, surfaceFocusTarget, synNodes, syntax, tabStore, tellDraft, textBlocks, textEntryScope, threadAttention, threadDraft, threadFocusDestination, threadHeading, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading, threadReplyInput, threadRewrites, threadState, threadSummary, threadSurface, threadTodos, todoLabel, tokenLines, touchPresses, transferDraft, universalCommandReference, upgradeWidgets, userChoice, userStore, walkOrigin, walkPosition, walkPositionLabel, watchDraft, watchDrafts, watchThreadSurfaces, whereDraft, wholeThread, workflowLabel, workflowStep };
+export { DESIGN_MODE_KEY, ELEMENTS, HOLDS_WORD, HeldNews, HeldReading, MessageView, PAGE_DRAFT, PAGE_SCOPE, SAYS_IN, SAY_BOX, THREAD, ThreadView, Transcript, allButCommandReference, allThreads, anchorLabel, answeredInWords, arrivalOf, authoredHolder, beginThreadSeats, beginWalk, blocksOnScreen, bringBackSurfaceOf, captureDraftEditing, capturePlace, carryingThreadPlace, claimSeatReplies, claimed, clearDraft, commitThreadSeats, completeReadingReturn, copyBlock, createPassageSelection, createReplyView, createWritingResume, currentLocationOrigin, currentLocationThreadId, declareOffFlowSurface, declareSide, declareThreadParts, designName, dismissReply, dismissReplyAt, draftContexts, draftEditingDestination, draftEditingStands, draftHasContent, draftStore, drawnThreadId, ensureSyntaxLanguage, focusThread, focusedInView, focusedThreadTarget, followBoxGrowth, formatDeclaredMarkdown, hasLandmark, heldGrowth, heldObligation, heldOut, heldPagePlace, heldThread, heldThreadId, highlightBlocks, holdPagePlace, holdReplyCompositions, holdThreadPlace, holdToRead, importWidgets, inlineMarkdownFragment, isExternalPageLink, isPagePaint, isPageWidgetWorkflow, isWorkflowProgress, keepRefusedWords, keepThreadLanding, keepView, landingPlace, langForPath, leftThePage, listWalkPosition, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, markdownSourceOffset, markdownWords, messageHolding, messageReading, messageText, mirrorDraft, mountFirstMessage, newsNotice, obligationEntry, obligationHolding, obligationPlace, obligationsIn, onReadingInterrupted, openMessageEditIn, openingPassage, openingView, pageCommand, pageDoor, pageReadingBlock, pageRung, pageScope, pageScopes, pageSelection, paintMarkdown, passageBlock, patchDocument, placeKeeper, placeNode, placeOf, placeOffset, placePageThreads, placedMarkdownTokens, preloadWidgets, prepareAuthoredMessage, prepareDeclaredMarkdown, progressFace, quietWord, quoteReading, rawOffsetFits, readBoxPlace, readObligations, readThreads, readingBlock, readingIsContinuous, readingReturn, registerWritingDestination, reindexPassageOwners, releaseAuthoredUnder, releaseOutlets, releaseReplies, rememberPassageParts, rememberWriting, renderMarginThread, renderMarkdown, renderQuiet, renderSeats, renderSurfaces, replyAvailable, replyCompositionHasDraft, replyContext, replyDestination, replyDraftContext, replyDraftsHold, replyIsEditing, replyThreadKey, restoreDraftEditing, restorePlace, restoreReplyEditing, retainThreadSeats, revealHeld, rowWalk, saveDraft, scrollThreadIntoView, selectionAnchor, sendDraft, sendLanding, sendMessage, settleAcceptedDrafts, settleThread, showHeld, showHeldThread, showReturnTurn, snapSelection, stances, stepFrom, storedDraft, strongestWorkflow, subjectPlace, surfaceFocusTarget, synNodes, syntax, tabStore, tellDraft, textBlocks, textEntryScope, threadAttention, threadDraft, threadFocusDestination, threadHeading, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading, threadReplyInput, threadRewrites, threadState, threadSummary, threadSurface, threadTodos, titlePending, todoLabel, tokenLines, touchPresses, transferDraft, universalCommandReference, upgradeWidgets, userChoice, userStore, walkOrigin, walkPosition, walkPositionLabel, watchDraft, watchDrafts, watchThreadSurfaces, whereDraft, wholeThread, workflowLabel, workflowStep };

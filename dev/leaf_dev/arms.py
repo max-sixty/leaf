@@ -356,6 +356,25 @@ def extract_payload(
         copy_working(paths, dest)
 
 
+def arm_commit(ref: str | None) -> str:
+    """The commit `ref` names, HEAD's for the working tree."""
+    return subprocess.run(
+        ["git", "-C", ROOT, "rev-parse", f"{ref or 'HEAD'}^{{commit}}"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+
+
+def extract_arm(ref: str | None, dest: Path) -> str:
+    """Extract an arm's payload without building its environment, for a caller that
+    serves it through `serving_source`: that serves a shared prepared installation
+    (`cached_installation`) keyed by the payload's content, so a second run of the
+    same ref reuses the first's and builds no environment here. Return the commit."""
+    extract_payload(dest, ref)
+    return arm_commit(ref)
+
+
 def build_arm(ref: str | None, dest: Path, *, paths: Iterable[str] = PAYLOAD) -> str:
     """Extract `paths` at `ref`, or as the working tree has it when `ref` is None,
     into `dest`, replacing any earlier arm there, and build its environment; return
@@ -372,12 +391,7 @@ def build_arm(ref: str | None, dest: Path, *, paths: Iterable[str] = PAYLOAD) ->
     subprocess.run(
         [dest / ".venv/bin/python", "-m", "compileall", "-q", dest], check=True
     )
-    return subprocess.run(
-        ["git", "-C", ROOT, "rev-parse", f"{ref or 'HEAD'}^{{commit}}"],
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout.strip()
+    return arm_commit(ref)
 
 
 def base_ref(ref: str | None) -> str:

@@ -1,7 +1,10 @@
 """Developer tooling checks; run explicitly from dev/tests."""
 
+import contextlib
 import json
+import os
 import subprocess
+import time
 
 import pytest
 from leaf_dev.commands import distribution
@@ -34,6 +37,7 @@ def test_compiled_cache_follows_payload_and_compiler_bytes(tmp_path, monkeypatch
 def test_compiled_cache_refreshes_payload_and_git_provenance(tmp_path, monkeypatch):
     """Authored edits and commits publish an installation with current provenance."""
     monkeypatch.setattr(distribution, "ROOT", tmp_path)
+    monkeypatch.setenv("LEAF_DEV_CACHE_DIR", str(tmp_path / ".tmp/cache"))
 
     def git(*args):
         subprocess.run(
@@ -204,7 +208,7 @@ def test_cached_installation_retries_an_edit_while_staging_publication(
     assert (selected / "runtime/bundle.js").read_bytes() == second
     assert built == [first, second]
     publications = [
-        path for path in (runtime / ".tmp/compiled-runtime").iterdir() if path.is_dir()
+        path for path in distribution.cache_root().iterdir() if path.is_dir()
     ]
     assert publications == [selected]
 
@@ -229,9 +233,7 @@ def test_cached_installation_rechecks_provenance_before_publication(
         "producer"
     ] == (producer)
     publications = [
-        path
-        for path in (distribution.ROOT / ".tmp/compiled-runtime").iterdir()
-        if path.is_dir()
+        path for path in distribution.cache_root().iterdir() if path.is_dir()
     ]
     assert publications == [selected]
 
@@ -240,6 +242,7 @@ def test_cached_installation_rechecks_provenance_before_publication(
 def prepared_cache(tmp_path, monkeypatch):
     """Exercise cache selection with real files and locks, without the compiler."""
     monkeypatch.setattr(distribution, "ROOT", tmp_path)
+    monkeypatch.setenv("LEAF_DEV_CACHE_DIR", str(tmp_path / "cache"))
     module = tmp_path / "browser/runtime/example.js"
     module.parent.mkdir(parents=True)
     module.write_bytes(b"export const example = 1;")
@@ -258,3 +261,60 @@ def prepared_cache(tmp_path, monkeypatch):
 
     monkeypatch.setattr(distribution, "prepare", prepare)
     return module, built
+
+
+def aged_entries(cache, ages):
+    now = time.time()
+    for name, age in ages.items():
+        (cache / name).mkdir()
+        os.utime(cache / name, (now - age, now - age))
+
+
+def test_eviction_keeps_recent_entries_and_drops_old_ones(tmp_path, monkeypatch):
+    """Entries past the cap go once unused for a day; a recent one stays."""
+    monkeypatch.setattr(distribution, "KEEP_ENTRIES", 1)
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path.parent / "state"))
+    aged_entries(tmp_path, {"new": 0, "recent": 3600, "old": 3 * 86400})
+    distribution.evict(tmp_path)
+    assert sorted(p.name for p in tmp_path.iterdir() if p.is_dir()) == [
+        "new",
+        "recent",
+    ]
+
+
+def test_eviction_keeps_an_entry_a_session_launches_from(tmp_path, monkeypatch):
+    """A preview left open for days still runs from its entry."""
+    monkeypatch.setattr(distribution, "KEEP_ENTRIES", 0)
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    aged_entries(cache, {"used": 3 * 86400, "unused": 3 * 86400})
+    launcher = cache / "used/bin/leaf"
+    launcher.parent.mkdir()
+    launcher.touch()
+    distribution.state.write_session(
+        {
+            **distribution.state.new_session("s", {"kind": "test"}),
+            "launcher": str(launcher),
+        }
+    )
+    distribution.evict(cache)
+    assert sorted(p.name for p in cache.iterdir() if p.is_dir()) == ["used"]
+
+
+def test_eviction_rechecks_age_after_a_reader_selects_the_entry(tmp_path, monkeypatch):
+    """A reader that touches an entry while eviction waits for its lock keeps it."""
+    monkeypatch.setattr(distribution, "KEEP_ENTRIES", 0)
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+    aged_entries(tmp_path, {"old": 3 * 86400})
+    flocked = distribution.flocked
+
+    @contextlib.contextmanager
+    def reader_wins_the_lock(path):
+        with flocked(path):
+            os.utime(tmp_path / "old")
+            yield
+
+    monkeypatch.setattr(distribution, "flocked", reader_wins_the_lock)
+    distribution.evict(tmp_path)
+    assert (tmp_path / "old").is_dir()

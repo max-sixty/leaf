@@ -27,8 +27,6 @@ from render_harness import (
     scroll_settled,
     select_words,
     sending,
-    stamp_page,
-    wait_for_revision,
     write,
 )
 
@@ -270,41 +268,36 @@ def test_opening_message_reactions_does_not_reflow_the_thread(browser, serve):
     )
 
 
-def test_a_pages_own_element_rules_leave_the_layers_controls_alone(browser, serve):
-    """A page dressing its own `button` and `a` is dressing its prose. The controls a
-    widget builds and the chrome's own buttons keep Leaf's face instead: a page's
-    element rule once took the family and ink of half corpus.html's widget controls,
-    and the family, ink, border and padding of the banner's and thread panel's. An
-    explicitly marked stylesheet grants access for deliberate control styling. A face
-    set on body reaches prose by inheritance and stops at controls and chrome, which
-    state their own."""
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
+def test_a_pages_light_rules_stop_at_the_chrome(request, serve, engine):
+    """A page's CSS is ordinary CSS over its document: its `button` and `a` rules dress
+    the controls a widget builds as they dress its prose. They stop at the chrome, which
+    rolls a page rule as light as one class back to Leaf's own faces
+    (styles/chrome-guard.css): without that, a page's `button` rule turned all of the
+    panel's buttons cursive and red. A face set on body reaches prose by inheritance and
+    stops at controls and chrome, which state their own. A token set on :root, a
+    condition on an ancestor and a pseudo-element keep working as page CSS does."""
     board = (
         '<h1>t</h1><lf-board id="b"><lf-column id="c1" label="To do">'
         '<lf-card id="k1">One</lf-card><lf-card id="k2">Two</lf-card></lf-column>'
         '<lf-column id="c2" label="Done"></lf-column></lf-board>'
         '<p>See <a href="#b">the board</a>.</p>'
-        '<style id="body-controls">lf-board button { border-bottom-color: rgb(51, 102, 153); }</style>'
     )
     page = open_page(
-        browser,
+        request.getfixturevalue(engine),
         live_url(
             serve(
                 leaf_page(
                     "t",
                     board,
-                    # A selector naming a widget grants no access. Native scope is also
-                    # ordinary CSS, not permission to style generated controls.
-                    head="<style>button:not(lf-board), a, lf-board .lf-absent { font-family: cursive;"
+                    head="<style>button, a, .lf-ui { font-family: cursive;"
                     " color: rgb(255, 0, 0); }"
                     "body { font-style: italic; letter-spacing: 3px; }"
-                    "@scope (lf-board) { button { background-color: rgb(255, 0, 0); } }"
-                    ":root { --control-access-proof: teal; }"
+                    ":root { --page-token: teal; }"
                     "html[data-lf-interactive] p > a { background-color: rgb(1, 2, 3); }"
                     "p > a::before { content: 'Kept'; }"
-                    "p { border-top: 7px solid red; }</style>"
-                    "<style data-controls>"
-                    ":nth-child(1 of lf-board) button { outline: 3px solid rgb(0, 128, 0); }"
-                    "</style>",
+                    "::placeholder { font-style: italic; }"
+                    "p { border-top: 7px solid red; }</style>",
                 )
             )
         ),
@@ -314,80 +307,61 @@ def test_a_pages_own_element_rules_leave_the_layers_controls_alone(browser, serv
         adopted.replaceSync('p { border-top-color: rgb(0, 0, 255); }');
         document.adoptedStyleSheets = [...document.adoptedStyleSheets, adopted];
         const face = el => { const cs = getComputedStyle(el);
-            return [el.className, cs.fontFamily, cs.color, cs.fontStyle, cs.letterSpacing,
-                    cs.outlineColor]; };
+            return [el.className, cs.fontFamily, cs.color, cs.fontStyle, cs.letterSpacing]; };
         return {
             controls: [...document.querySelectorAll('main button.lf-ui')].map(face),
             chrome: [...document.querySelectorAll('.lf-chrome button')].map(face),
+            placeholders: [...document.querySelectorAll(
+                '.lf-chrome :is(input, textarea)[placeholder]')].map(
+                el => getComputedStyle(el, '::placeholder').fontStyle),
             prose: face(document.querySelector('main p > a')),
-            rootToken: getComputedStyle(document.documentElement)
-                .getPropertyValue('--control-access-proof').trim(),
+            chromeToken: getComputedStyle(document.querySelector('.lf-chrome'))
+                .getPropertyValue('--page-token').trim(),
             ancestor: getComputedStyle(document.querySelector('main p > a')).backgroundColor,
             pseudo: getComputedStyle(document.querySelector('main p > a'), '::before').content,
             adopted: getComputedStyle(document.querySelector('main p')).borderTopColor,
-            controlBackgrounds: [...document.querySelectorAll('main button.lf-ui')].map(
-                el => getComputedStyle(el).backgroundColor),
         };
     }""")
-    assert faces["rootToken"] == "teal", faces
+    assert faces["chromeToken"] == "teal", faces
     assert faces["ancestor"] == "rgb(1, 2, 3)", faces
     assert faces["pseudo"] == '"Kept"', faces
     assert faces["adopted"] == "rgb(0, 0, 255)", faces
-    assert "rgb(255, 0, 0)" not in faces["controlBackgrounds"], faces
-    # The control: the page's rules reach the page's own link, by selector and by
-    # inheritance.
     assert faces["prose"][1:5] == ["cursive", "rgb(255, 0, 0)", "italic", "3px"], faces[
         "prose"
     ]
     assert faces["controls"], "the board built no control to read"
     assert faces["chrome"], "the chrome built no button to read"
+    assert faces["placeholders"], "the chrome built no field to read"
+    assert "italic" not in faces["placeholders"], faces["placeholders"]
+    assert {tuple(face[1:3]) for face in faces["controls"]} == {
+        ("cursive", "rgb(255, 0, 0)")
+    }, faces["controls"]
+    inherited = [
+        face for face in faces["controls"] if face[3] == "italic" or face[4] == "3px"
+    ]
+    assert not inherited, inherited
     reached = [
         face
-        for face in faces["controls"] + faces["chrome"]
+        for face in faces["chrome"]
         if "cursive" in face[1]
         or face[2] == "rgb(255, 0, 0)"
         or face[3] == "italic"
         or face[4] == "3px"
     ]
     assert not reached, reached
-    # The marked sheet selects the board using native nth-child selector grammar.
-    assert {face[5] for face in faces["controls"]} == {"rgb(0, 128, 0)"}, faces[
-        "controls"
-    ]
-    source = (serve.page_dir / "index.html").read_text()
-    stamp_page(
-        serve.page_dir,
-        source.replace(
-            '<style id="body-controls">', '<style id="body-controls" data-controls>'
-        ),
-        "Grant the body stylesheet control access",
-    )
-    wait_for_revision(page, 2)
-    expect(page.locator("lf-board button.lf-ui").first).to_have_css(
-        "border-bottom-color", "rgb(51, 102, 153)"
-    )
-
-    stamp_page(serve.page_dir, source, "Withdraw body stylesheet control access")
-    wait_for_revision(page, 3)
-    expect(page.locator("lf-board button.lf-ui").first).not_to_have_css(
-        "border-bottom-color", "rgb(51, 102, 153)"
-    )
 
 
-def test_a_sheet_a_page_script_writes_later_leaves_the_layers_controls_alone(
-    browser, serve
-):
+def test_a_sheet_a_page_script_writes_later_stops_at_the_chrome(browser, serve):
     """A CSS framework such as Tailwind builds its sheet in the head after the page
     loads and rewrites it as classes change, and each rewrite is a new sheet. Its
-    element rules reach the page's prose and stop at Leaf's controls, as the page's
-    own stylesheet's do: Tailwind's reset once took the family of every chrome
-    button."""
+    element rules reach the page's prose and stop at the chrome, as the page's own
+    stylesheet's and its imports' do: Tailwind's reset once took the family of every
+    chrome button."""
     url = serve(
         leaf_page(
             "t",
             '<h1>t</h1><p>See <a id="prose" href="#t">the link</a>.</p>',
             head="""<style>@import url("page/author.css");</style>
-<link rel="stylesheet" data-controls href="page/controls.css">
 <script type="module">
 const sheet = document.createElement("style");
 document.head.append(sheet);
@@ -400,8 +374,6 @@ setTimeout(() => {
         ),
         page_files={
             "author.css": "a { border-top: 7px solid red; } button { border-top: 77px solid red; }",
-            "controls.css": '@import url("controls-import.css");',
-            "controls-import.css": ".lf-chrome button { outline-color: rgb(0, 128, 0); }",
         },
     )
     page = open_page(browser, url)
@@ -414,47 +386,13 @@ setTimeout(() => {
             imported: getComputedStyle(document.getElementById('prose')).borderTopWidth,
             chromeBorders: [...document.querySelectorAll('.lf-chrome button')].map(
                 el => getComputedStyle(el).borderTopWidth),
-            chromeOutlines: [...document.querySelectorAll('.lf-chrome button')].map(
-                el => getComputedStyle(el).outlineColor),
         };
     }""")
-    assert set(faces["chromeOutlines"]) == {"rgb(0, 128, 0)"}, faces
     assert faces["prose"] == "cursive", faces
     assert faces["imported"] == "7px", faces
     assert "77px" not in faces["chromeBorders"], faces
     assert faces["chrome"], "the chrome built no button to read"
     assert not [f for f in faces["chrome"] if f in {"cursive", "fantasy"}], faces
-
-
-def test_the_chromes_adopted_sheets_stay_whole_where_style_sheets_lists_them(
-    browser, serve
-):
-    """iOS WebKit lists adopted sheets in `document.styleSheets`, where the other
-    engines leave them out. The chrome's own sheets are adopted, so narrowing page CSS
-    by walking that list once took every chrome rule off the chrome on iPhones: the
-    panel lost its face and its motion timings, and each animation threw."""
-    url = serve(leaf_page("t", "<h1>t</h1><p>Body.</p>"))
-    page = open_page(
-        browser,
-        live_url(url),
-        init_script="""{
-          const listed = Object.getOwnPropertyDescriptor(Document.prototype, "styleSheets").get;
-          Object.defineProperty(Document.prototype, "styleSheets", {
-            configurable: true,
-            get() { return [...listed.call(this), ...this.adoptedStyleSheets]; },
-          });
-        }""",
-    )
-    # A sheet a page script writes later sends the narrowing over the list again.
-    page.evaluate(
-        "() => document.head.append(Object.assign(document.createElement('style'),"
-        " {textContent: 'p { color: inherit; }'}))"
-    )
-    # The panel's own sheet declares its fold's duration on it (floating-panel.css).
-    fold = page.locator(".lf-floating-panel").evaluate(
-        "el => getComputedStyle(el).getPropertyValue('--lf-motion-panel-fold')"
-    )
-    assert fold.endswith("ms"), fold
 
 
 def test_a_theme_package_styles_every_page_as_the_pages_own_sheet_does_one(
@@ -463,9 +401,8 @@ def test_a_theme_package_styles_every_page_as_the_pages_own_sheet_does_one(
     """A theme contribution, even beside a widget, outranks the Layouts and
     every widget package's defaults (layer.py, `lf-theme`), so its `main` padding beats
     the column Layout's and its plain `lf-card` rule beats the board's own `lf-card`
-    rule. Like the page's own rules, its bare `button` dresses the
-    page's buttons and leaves the controls the board builds alone. A separate controls.css
-    sheet grants deliberate access to board controls (runtime/page-sheets.js)."""
+    rule. Like the page's own rules, its `button` rule dresses the page's buttons and the
+    controls the board builds."""
     theme = tmp_path / "theme"
     theme.mkdir()
     (theme / "registry.json").write_text(
@@ -486,10 +423,7 @@ def test_a_theme_package_styles_every_page_as_the_pages_own_sheet_does_one(
     (theme / "theme.css").write_text(
         "main { padding-top: 11px; }\n"
         "lf-card { padding-left: 13px; }\n"
-        "button { font-family: cursive; }\n"
-    )
-    (theme / "controls.css").write_text(
-        "lf-board button { outline: 3px solid rgb(0, 128, 0); }\n"
+        "main button { font-family: cursive; }\n"
     )
     page = open_page(
         browser,
@@ -510,8 +444,6 @@ def test_a_theme_package_styles_every_page_as_the_pages_own_sheet_does_one(
             card: cs(document.getElementById('k1')).paddingLeft,
             own: cs(document.getElementById('own')).fontFamily,
             controls: [...document.querySelectorAll('lf-board button.lf-ui')].map(
-                el => [cs(el).fontFamily, cs(el).outlineColor]),
-            chrome: [...document.querySelectorAll('.lf-chrome button')].map(
                 el => cs(el).fontFamily),
         };
     }""")
@@ -519,10 +451,7 @@ def test_a_theme_package_styles_every_page_as_the_pages_own_sheet_does_one(
     assert faces["card"] == "13px", faces
     assert faces["own"] == "cursive", faces
     assert faces["controls"], "the board built no control to read"
-    assert faces["chrome"], "the chrome built no button to read"
-    assert not [f for f, _ in faces["controls"] if "cursive" in f], faces
-    assert not [f for f in faces["chrome"] if "cursive" in f], faces
-    assert {color for _, color in faces["controls"]} == {"rgb(0, 128, 0)"}, faces
+    assert set(faces["controls"]) == {"cursive"}, faces
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
@@ -572,8 +501,10 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
 
     The chrome sheet reaches the page only through the classes its owner declares
     shared (`chromeSharedClasses`, runtime/stylesheets.js): a rule written outside the
-    block that names any other class is a private rule leaking out, not a widening.
-    Those classes, and the faces the authored theme states for a private name at
+    block that names any other class is a private rule leaking out, not a widening. The
+    guard against page rules (styles/chrome-guard.css) stands outside the block and names
+    only `lf-chrome`, the chrome's own root, which no authored element may wear since
+    the `lf-` namespace is Leaf's; it reaches nothing in the page. Those classes, and the faces the authored theme states for a private name at
     document level, stay off the probe, since the movement their rules cause is the
     reach they were given on purpose."""
     page = open_page(
@@ -592,6 +523,7 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
             else if (r.selectorText) classes(r.selectorText).forEach(c => into.add(c));
             else if (r.cssRules) collect(r.cssRules, into, privateRules); } };
         collect(sheet.cssRules, unscoped, scoped);
+        unscoped.delete("lf-chrome");
         for (const other of [...document.styleSheets, ...document.adoptedStyleSheets]
                  .filter(s => s !== sheet))
             collect(other.cssRules, themed);

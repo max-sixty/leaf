@@ -21,7 +21,9 @@ def test_initial_lit_drawings_keep_the_readers_nodes_through_upgrade(browser, se
 
     Generated controls stay hidden until upgrade. The reader can already focus an
     authored link; upgrade must retain that place and adopt the initial drawing,
-    after which both the native disclosure and the activity control work.
+    after which both the native disclosure and the activity control work. Pending
+    package faces keep their first boxes; the tally starts with no count or available
+    action, and the editor replaces its paragraph only once its real stage is ready.
     """
     url = live_url(
         serve(
@@ -30,8 +32,18 @@ def test_initial_lit_drawings_keep_the_readers_nodes_through_upgrade(browser, se
                 '<h1>Report</h1><p><a id="early-link" href="#evidence">Read the evidence</a></p>'
                 '<lf-toc id="contents" open></lf-toc>'
                 '<section id="evidence"><h2>Evidence</h2><p>Read the counts.</p>'
-                '</section><lf-activity id="feed"></lf-activity>',
-            )
+                '</section><lf-activity id="feed"></lf-activity>'
+                '<p><lf-tally id="left" for="queue" next></lf-tally></p>'
+                '<section id="queue"><lf-ask id="decision"><h2>Ship it?</h2>'
+                '<lf-options id="choice" choose><lf-option id="yes">Ship it</lf-option>'
+                "</lf-options></lf-ask></section>"
+                '<lf-file-tree id="files" source="files"></lf-file-tree>'
+                '<lf-file-editor id="editor" binding="notes"></lf-file-editor>'
+                '<lf-trace id="recording" source="recording">'
+                f'<lf-trace-bookmark target="trace-{"0" * 64}-image-result" '
+                'label="Authored result" key="result"></lf-trace-bookmark></lf-trace>',
+            ),
+            packages=("file-tree", "file-editor", "playwright"),
         )
     )
     context = browser.new_context(viewport={"width": 740, "height": 900})
@@ -48,16 +60,52 @@ def test_initial_lit_drawings_keep_the_readers_nodes_through_upgrade(browser, se
         expect(page.locator("#feed .lf-activity-news")).to_have_attribute(
             "aria-expanded", "true"
         )
+        expect(page.locator("#left .lf-tally-words")).to_have_text("")
+        expect(page.locator("#left .lf-tally-next")).to_be_disabled()
+        assert (
+            page.locator("#left .lf-tally-face").evaluate(
+                "node => getComputedStyle(node).visibility"
+            )
+            == "hidden"
+        )
+        expect(page.locator("#files .lf-file-tree-empty")).to_have_text(
+            "No files available."
+        )
+        expect(page.locator("#editor .lf-file-editor-opening")).to_have_text(
+            "Opening file…"
+        )
+        expect(page.locator("#recording .lf-trace-waiting")).to_have_text(
+            "Waiting for a Playwright recording."
+        )
+        boxes = {
+            name: page.locator(f"#{name}").bounding_box()
+            for name in ("left", "files", "editor", "recording")
+        }
+        opening = page.locator("#editor .lf-file-editor-opening").element_handle()
         page.keyboard.press("Tab")
         expect(page.locator("#early-link")).to_be_focused()
         early = page.evaluate_handle(
-            "[...document.querySelectorAll('#contents *, #feed *')]"
+            "[...document.querySelectorAll('#contents *, #feed *, #left *, #files *, #recording *')]"
         )
         assert boot, "the runtime must remain held while the reader acts"
-        page.unroute("**/leaf.js")
         boot.pop().continue_()
+        page.unroute("**/leaf.js")
         wait_until_ready(page)
         assert page.evaluate("nodes => nodes.every(node => node.isConnected)", early)
+        assert page.locator("#files .lf-file-tree-empty").evaluate(
+            "node => node.getRootNode() === document.getElementById('files').shadowRoot"
+        )
+        assert opening.evaluate("node => !node.isConnected")
+        expect(page.locator("#left .lf-tally-words")).to_have_text("1 left to answer")
+        expect(page.locator("#left .lf-tally-next")).to_be_enabled()
+        expect(page.locator("#editor .cm-editor")).to_be_visible()
+        for name, before in boxes.items():
+            after = page.locator(f"#{name}").bounding_box()
+            assert all(abs(after[key] - before[key]) <= 1 for key in before), (
+                name,
+                before,
+                after,
+            )
         expect(page.locator("#early-link")).to_be_focused()
         expect(page.locator("#contents details")).to_have_attribute("open", "")
         expect(page.locator("#feed .lf-activity-news")).to_have_attribute(

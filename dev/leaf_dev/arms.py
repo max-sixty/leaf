@@ -54,8 +54,10 @@ from leaf.render_gate import command as render_command_model
 from leaf_dev import ROOT
 from leaf_dev.browser import shell_executable
 from leaf_dev.page_fixtures import (
+    admit_events,
     fixture_environment,
     prepare_page,
+    read_event_lines,
     read_fixture,
     record_run_context,
 )
@@ -91,15 +93,16 @@ PAYLOAD = (
 # The harnesses an arm's child runs, named as the shipped harness names itself.
 HARNESSES = (ClaudeCodeHarness.name, CodexHarness.name)
 
-# The models evals run, pinned so runs on different days compare: each harness's
-# agents, the judge behind `llm-rubric` assertions, the screenshot judge, and the
-# agent that plays the user in a page's browser.
+# Pin authors and the simulated user separately from quality judges, so changing
+# the author under evaluation never changes who assesses its output.
 MODELS = {
     ClaudeCodeHarness.name: "claude-opus-5-5",
     CodexHarness.name: "gpt-6.1-sol",
-    "judge": "claude-sonnet-5-5",
-    "screenshots": "gpt-6.1-sol",
     "user": "claude-sonnet-5-5",
+}
+JUDGE_MODELS = {
+    ClaudeCodeHarness.name: "claude-opus-5-5",
+    CodexHarness.name: "gpt-6-astra",
 }
 
 
@@ -238,52 +241,25 @@ class ServedPage(NamedTuple):
 served_page: ContextVar[ServedPage] = ContextVar("served_page")
 
 
-# Run by the arm's own interpreter, so each arm admits with its own rules.
-_ADMIT = """\
-import json, sys
-from pathlib import Path
-from leaf.event_contracts import append_admitted
-from leaf.service import PageTransaction
-
-page, log = map(Path, sys.argv[1:])
-with PageTransaction(page) as transaction:
-    for line in filter(str.strip, log.read_text(encoding="utf-8").splitlines()):
-        append_admitted(transaction, json.loads(line))
-"""
-
-
-def admit_log(arm: Path, state: Path, page: Path, log: Path) -> None:
-    """Append each line of `log`, one event as its writer hands it over, to `page`
-    through the arm's own door (`event_contracts.append_admitted`), as the suite's
-    `append_command` does. Admission adds the meaning, attention and envelope; a
-    line may name its `id`, so a later line can answer it. A refusal fails with the
-    admission's own message."""
-    proc = subprocess.run(
-        ["uv", "run", "-q", "--no-dev", "--project", str(arm)]
-        + ["python", "-I", "-c", _ADMIT, str(page), str(log)],
-        capture_output=True,
-        text=True,
-        check=False,
-        env=environment(XDG_STATE_HOME=str(state)),
-    )
-    if proc.returncode:
-        raise click.ClickException(
-            f"admitting {log}: {proc.stderr.strip().splitlines()[-1]}"
-        )
-
-
 @contextmanager
 def serving_source(arm: Path, source: Path, scratch: Path, log: Path | None = None):
     """Build `source` into a page under `scratch` (`build_source`), admit `log`'s
-    events after its own history (`admit_log`), serve it (`serving`), and yield
-    the address, all using one prepared installation."""
+    events after its own history, unacknowledged as a writer's would be
+    (`admit_events`), serve it (`serving`), and yield the address, all using one
+    prepared installation."""
     from leaf_dev.commands.distribution import cached_installation
 
     arm = cached_installation(arm)
     state, page = scratch / "state", scratch / "page"
     build_source(arm, state, source, page)
     if log is not None:
-        admit_log(arm, state, page, log)
+        admit_events(
+            arm,
+            page,
+            read_event_lines(log),
+            log=log,
+            env=environment(XDG_STATE_HOME=str(state)),
+        )
     with serving(arm, state, page) as address:
         bound = served_page.set(
             ServedPage(page, address, partial(run_leaf, arm, state, check=True))
@@ -700,6 +676,7 @@ def run_agent(
     dirs: Iterable[Path] = (),
     env: dict | None = None,
     harness: str = ClaudeCodeHarness.name,
+    model: str | None = None,
     limit: float = TURN_LIMIT,
     **options: str | bool,
 ) -> list[dict]:
@@ -709,8 +686,9 @@ def run_agent(
     notifications live beside `err` with a `.codex.jsonl` suffix. Both harnesses
     have the same `limit`, TURN_LIMIT unless the caller bounds its turn more
     tightly; a timeout retains their partial native evidence and
-    marks `out.with_suffix(".timed-out")` without fabricating completion. `options`
-    passes a Claude Code child's `model` and `sandbox` (`claude_child`).
+    marks `out.with_suffix(".timed-out")` without fabricating completion. `model`
+    overrides either harness's author default; `options` passes Claude Code's
+    remaining child options (`claude_child`).
     """
     if harness == CodexHarness.name:
         with (
@@ -724,6 +702,7 @@ def run_agent(
                 timed_out=out.with_suffix(".timed-out"),
                 dirs=dirs,
                 env=env,
+                model=model,
             ) as child,
             out.open("w") as stream,
         ):
@@ -737,7 +716,14 @@ def run_agent(
     with out.open("w") as stdout, err.open("w") as stderr:
         try:
             subprocess.run(
-                **claude_child(cwd, *args, dirs=dirs, env=env, **options),
+                **claude_child(
+                    cwd,
+                    *args,
+                    dirs=dirs,
+                    env=env,
+                    model=model or MODELS[harness],
+                    **options,
+                ),
                 stdin=subprocess.DEVNULL,
                 stdout=stdout,
                 stderr=stderr,

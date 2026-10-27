@@ -573,6 +573,26 @@ def on_agent(page: Page) -> None:
     expect(page.locator(".lf-fp-view[data-view=queue]")).to_be_visible()
 
 
+def threads_returning(page: Page) -> None:
+    """Threads as the user reads it while the agent's reply reopens a resolved thread,
+    whose open row would lead the list, and the agent starts a thread on the page."""
+    returning = "7b3e0a41"
+    as_agent("thread", "resolve", returning)
+    # Threads opens on the resolve, which the list would otherwise hold as news.
+    wait_until_ready(page, PageClient(served_page.get().address).state())
+    go_to_threads(page)
+    count = page.locator(".lf-fp-filters button", has_text="Threads").locator(
+        ".lf-fp-count"
+    )
+    opened = int(count.inner_text())
+    as_agent(
+        "thread", "reply", returning, "--text", "The resend covers a cold start too."
+    )
+    as_agent("thread", "create", "--text", "Should the beta notes mention the resend?")
+    expect(count).to_have_text(str(opened + 2))
+    settle(page)
+
+
 def call_tree(page: Page) -> None:
     """The CallDiff root and its unchanged landmarks beside added and removed calls."""
     page.get_by_role("tab", name="CallDiff", exact=True).click()
@@ -1707,6 +1727,17 @@ STATES = (
         option_references,
         viewport=(390, 844),
         region="#off-workaround-decision",
+    ),
+    State(
+        "threads-returning", "ship-review", threads_returning, region=".lf-fp-opened"
+    ),
+    State(
+        "threads-returning-phone",
+        "ship-review",
+        threads_returning,
+        viewport=(390, 844),
+        touch=True,
+        region=".lf-fp-opened",
     ),
     State(
         "floating-thread-retitled",

@@ -21,18 +21,12 @@ import {
 } from "../focus.js";
 import { bringBackSurfaceOf } from "../off-flow.js";
 import { closestAcross } from "../passages.js";
-import { SAYS_IN, THREAD } from "./selectors.js";
+import { SAYS_IN, THREAD, threadPart, wholeThread } from "./selectors.js";
 import { pageScope } from "../keyboard/register.js";
 import { TEXT_ENTRY } from "../keyboard/text-entry.js";
 import { dismissReplyAt, replyDraftContext } from "./replies.js";
 import { threadList } from "./state.js";
-import {
-  focusedThreadTarget,
-  focusThread,
-  threadReplyInput,
-  threadPart,
-  wholeThread,
-} from "./focus.js";
+import { focusedThreadTarget, focusThread, threadReplyInput } from "./focus.js";
 
 export { scrollThreadIntoView } from "./reply-landing.js";
 const threadReturns = new WeakMap();
@@ -44,7 +38,7 @@ export function threadInput(node) {
 
 const heldThreadOrSeat = () => focused() && closestAcross(focused(), SAYS_IN);
 // The thread the user writes in from where they are, whole where it is drawn in
-// pieces (focus.js, `wholeThread`), and its box.
+// pieces (selectors.js, `wholeThread`), and its box.
 export const currentLocationThread = () => {
   const held = heldThreadOrSeat();
   const box = threadReplyInput(held);
@@ -150,7 +144,7 @@ const resolutionControl = (thread) =>
   thread ? threadPart(thread, "settlement") : null;
 
 // A box a presentation declares as its thread's reply may stand outside the thread
-// (focus.js, `threadPart`), so landing in one asks for the box alone.
+// (selectors.js, `threadPart`), so landing in one asks for the box alone.
 function prepareLanding({ held = null, box, route = null }) {
   if (!box) return false;
   held ??= closestAcross(box, SAYS_IN);

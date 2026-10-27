@@ -27,6 +27,6 @@
     "x-shadow": true,
     "x-height": true,
     "x-example": "<lf-file-tree id=\"project-files\" source=\"project-files\" aria-label=\"Project files\"></lf-file-tree>",
-    "x-prepaint": "<p class=\"lf-file-tree-empty\">No files available.</p>"
+    "x-initial": "/vendor/lf-file-tree-initial.js"
   }
 }

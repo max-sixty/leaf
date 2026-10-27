@@ -43,6 +43,7 @@ from render_harness import (
     panel_settled,
     panel_view,
     resized,
+    round_trip,
     select_words,
     told,
     write,
@@ -1380,11 +1381,17 @@ BROWSER_BACK = """() => {
 
 def back_gesture(page):
     """Make the close request Android's back gesture makes. An Escape keydown nothing
-    cancels is the same request, so the page's listeners are kept from hearing it."""
+    cancels is the same request, so the page's listeners are kept from hearing it. The
+    page makes its watcher in the repaint frame after what it closes opens, which a
+    finger can't beat but a driver can, so the gesture waits out two frames first."""
     page.evaluate(
-        """() => addEventListener('keydown', (event) => {
-          if (event.key === 'Escape') event.stopImmediatePropagation();
-        }, {capture: true, once: true})"""
+        """() => new Promise((resolve) => requestAnimationFrame(() =>
+          requestAnimationFrame(() => {
+            addEventListener('keydown', (event) => {
+              if (event.key === 'Escape') event.stopImmediatePropagation();
+            }, {capture: true, once: true});
+            resolve();
+          })))"""
     )
     page.keyboard.press("Escape")
 
@@ -1460,8 +1467,6 @@ def test_a_back_gesture_takes_a_step_inside_a_modal_before_the_modal(browser, se
         }"""
     )
     dialog = page.locator("#inner-step")
-    settled = "() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))"
-    page.evaluate(settled)
 
     back_gesture(page)
     expect(dialog.get_by_role("button", name="Inside")).to_have_attribute(
@@ -1469,12 +1474,10 @@ def test_a_back_gesture_takes_a_step_inside_a_modal_before_the_modal(browser, se
     )
     expect(dialog).to_have_attribute("open", "")
 
-    page.evaluate(settled)
     back_gesture(page)
     expect(dialog).not_to_have_attribute("open", "")
     panel_settled(page, view="threads")
 
-    page.evaluate(settled)
     back_gesture(page)
     panel_settled(page, open=False)
     assert page.evaluate("window.browserBack") == 0
@@ -1484,10 +1487,10 @@ def test_a_back_gesture_takes_a_step_inside_a_modal_before_the_modal(browser, se
 def test_a_back_gesture_never_throws_away_unsent_words(browser, serve, owner):
     """Escape's step in an open draft editor or message rewrite is Discard, which
     nothing undoes, so back taking it lost an edit to one stray edge swipe. Back closes
-    the editor as Escape does, and a changed one keeps its words: a notice says so, the
-    closed draft or message shows it holds them, and opening it again finds them. Back
-    must still get the user out, rather than holding them in the editor, and Escape
-    still discards."""
+    the editor as Escape does, and a changed one loses nothing: a draft saves its words,
+    as a press away does, and a rewrite keeps them, a notice saying so, the message
+    showing it holds them, and opening it again finding them. Back must still get the
+    user out, rather than holding them in the editor."""
     # The browser's back stands before the page's watchers, as the open thread view
     # holds one before the rewrite opens.
     browser_back = f"({BROWSER_BACK})()"
@@ -1504,8 +1507,6 @@ def test_a_back_gesture_never_throws_away_unsent_words(browser, serve, owner):
             init_script=browser_back,
         )
         editor = page.locator("#d leaf-text")
-        kept = page.locator("#d .lf-draft-kept")
-        reopen = draft_control(page, "edit", "d")
 
         def open_editor():
             draft_control(page, "edit", "d").click()
@@ -1515,7 +1516,6 @@ def test_a_back_gesture_never_throws_away_unsent_words(browser, serve, owner):
         )
         editor = message.locator(".lf-msg-editor leaf-text")
         kept = message.locator(".lf-msg-kept")
-        reopen = message.locator(".lf-msg-edit")
 
         def open_editor():
             message.locator(".lf-msg-text").dblclick()
@@ -1524,7 +1524,8 @@ def test_a_back_gesture_never_throws_away_unsent_words(browser, serve, owner):
     expect(editor).to_be_focused()
     back_gesture(page)
     expect(editor).to_have_count(0)
-    expect(kept).not_to_be_visible()
+    if owner == "rewrite":
+        expect(kept).not_to_be_visible()
 
     open_editor()
     write(editor, "Unsent words.")
@@ -1534,14 +1535,28 @@ def test_a_back_gesture_never_throws_away_unsent_words(browser, serve, owner):
     )
     back_gesture(page)
     expect(editor).to_have_count(0)
-    expect(page.locator(".lf-live")).to_have_text("Edit kept")
     # The interaction log names the step that ran, not Discard's.
     assert page.evaluate("window.ranTitle") == "keep"
+    assert page.evaluate("window.browserBack") == 0
+
+    if owner == "draft":
+        round_trip(page)
+        expect(page.locator("#d .lf-draft-body")).to_have_text(
+            "Unsent words.", use_inner_text=True
+        )
+        edits = [
+            event
+            for event in events_model.read_events(serve.page_dir)
+            if event.get("action") == "edit"
+        ]
+        assert [event["detail"]["value"] for event in edits] == ["Unsent words."]
+        return
+
+    expect(page.locator(".lf-live")).to_have_text("Edit kept")
     expect(kept).to_have_text("unsaved edit")
     # Beside the sign, on the control that reopens the words, not in a text box whose
     # caret would raise a phone's keyboard.
-    expect(reopen).to_be_focused()
-    assert page.evaluate("window.browserBack") == 0
+    expect(message.locator(".lf-msg-edit")).to_be_focused()
 
     open_editor()
     expect(editor).to_have_js_property("value", "Unsent words.")

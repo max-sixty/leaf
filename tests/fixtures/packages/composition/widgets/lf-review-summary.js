@@ -14,7 +14,6 @@ customElements.define(
     }
 
     setup() {
-      this.querySelector(":scope > [data-lf-prepaint]")?.remove();
       if (quoted(this)) return;
       commands(this, "Review result", [
         {

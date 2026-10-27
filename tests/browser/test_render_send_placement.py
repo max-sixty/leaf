@@ -575,7 +575,7 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
     read Chrome's actual compositor screenshots. The initial passage rectangle, box
     height, side and gap supply the expected attachment independently of the return.
     """
-    marker_style = f"""<style data-controls>
+    marker_style = f"""<style>
       #paint-target {{ background: {SUBJECT_MARK}; }}
       .lf-fab-bar {{ outline: 8px solid {FOLLOWER_MARK} !important; }}
     </style>"""
@@ -1695,7 +1695,7 @@ def test_a_comment_box_on_words_alone_in_a_scroller_paints_in_the_frame_they_scr
                 + "Export tenants."
                 + "<br>" * 60
                 + '</p><div style="height:1200px"></div>',
-                head=f"<style data-controls>#quote {{ height:320px; overflow:auto; color:{SUBJECT_MARK};"
+                head=f"<style>#quote {{ height:320px; overflow:auto; color:{SUBJECT_MARK};"
                 " font: 900 72px/1 sans-serif; -webkit-text-stroke: 6px currentColor; }"
                 f" .lf-fab-bar {{ outline: 8px solid {FOLLOWER_MARK} !important; }}</style>",
             )

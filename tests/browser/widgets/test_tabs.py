@@ -601,16 +601,20 @@ def test_embedded_tab_selection_preserves_the_document_reading_position(browser,
     assert page.evaluate("scrollY") == pytest.approx(before, abs=2)
 
 
-def test_back_to_a_fragment_the_page_has_hidden_since_lands_on_it(browser, serve):
+@pytest.mark.parametrize("target_id", ["x", "two"])
+def test_back_to_a_fragment_the_page_has_hidden_since_lands_on_it(
+    browser, serve, target_id
+):
     """Back restores the offset an entry was left at, unless the element its fragment
     names is no longer shown: the user closed its tab since, so that offset belongs to
     a page that has changed, and landing the fragment, which opens the tab, is the
-    answer. The tab set is embedded, so it keeps no history of its own."""
+    answer. The fragment may name the panel itself or its contents. The tab set is
+    embedded, so it keeps no history of its own."""
     filler = "".join(f"<p>Filler paragraph {n}.</p>" for n in range(60))
     url = serve(
         leaf_page(
             "Back to a hidden fragment",
-            '<h1 id="top">Hidden fragment</h1><p><a href="#x">To x</a></p>'
+            f'<h1 id="top">Hidden fragment</h1><p><a href="#{target_id}">To target</a></p>'
             '<section><lf-tabs id="views">'
             '<lf-tab id="one" label="One"><p>One is short.</p></lf-tab>'
             f'<lf-tab id="two" label="Two">{filler}<p id="x">The target.</p></lf-tab>'
@@ -622,9 +626,9 @@ def test_back_to_a_fragment_the_page_has_hidden_since_lands_on_it(browser, serve
     tabs = page.locator("#views")
     one = tabs.get_by_role("tab", name="One", exact=True)
     two = tabs.get_by_role("tab", name="Two", exact=True)
-    target = page.locator("#x")
+    target = page.locator(f"#{target_id}")
 
-    page.get_by_role("link", name="To x").click()
+    page.get_by_role("link", name="To target").click()
     expect(two).to_have_attribute("aria-selected", "true")
     expect(target).to_be_in_viewport()
     one.click()
@@ -1904,7 +1908,7 @@ def test_side_list_history_restores_the_reading_offset_of_each_entry(
         for name in ("A", "B")
     )
     body += "</lf-tabs>"
-    head = """<style data-controls>
+    head = """<style>
     @container (width >= 36rem) {
       #views > .lf-tabstrip {position: sticky; top: var(--lf-top, 0px);
         align-self: start; max-block-size: 100dvh; overflow-y: auto;}

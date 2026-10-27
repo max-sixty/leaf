@@ -134,12 +134,61 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   :is(.lf-fab-bar, .lf-margin-preview)[data-lf-plane="window"] {
     will-change: opacity;
   }
+  /* Floating, the box moves as the card it grows into does (floating-response.js,
+     box-motion.js): the composer is a box of its own in the frame's field row, holding
+     what moves, and the field's frame is the box its surface draws, its border the
+     surface's ring showing through it, in the field's own face. The editor paints
+     nothing of its own, so its words travel inside the frame while it moves. */
+  .lf-fab-bar:not([data-lf-presentation="inline"]) > .lf-composer[data-lf-open] {
+    display: grid;
+    grid-column: 1;
+    grid-row: 1;
+    align-self: stretch;
+    min-height: 0;
+    grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+  }
   .lf-fab-bar:not([data-lf-presentation="inline"]) .lf-compose-field {
+    box-sizing: border-box;
     min-height: var(--lf-response-height);
     grid-column: 1;
     grid-row: 1;
     align-self: stretch;
     grid-template-rows: minmax(0, 1fr);
+    border: 1px solid transparent;
+    border-radius: var(--r);
+    background: var(--card) padding-box;
+  }
+  .lf-fab-bar:not([data-lf-presentation="inline"]) leaf-text.lf-fab-input {
+    min-height: 0;
+    border: 0;
+    border-radius: calc(var(--r) - 1px);
+    background: transparent;
+    filter: none;
+    outline: none;
+    --lf-wears-ring: 0;
+  }
+  .lf-fab-bar:not([data-lf-presentation="inline"])
+    .lf-compose-field:has(> leaf-text[data-lf-focus-visible]) {
+    outline: var(--focus-ring);
+    outline-offset: 0;
+    --lf-wears-ring: 1;
+  }
+  .lf-fab-ground {
+    display: none;
+  }
+  .lf-fab-bar:not([data-lf-presentation="inline"]):has(> .lf-composer[data-lf-open])
+    > .lf-fab-ground {
+    display: block;
+    position: absolute;
+    inset: -100vmax;
+    z-index: -1;
+    pointer-events: none;
+    --lf-box-ring: var(--border-2);
+    --lf-box-fill: var(--card);
+  }
+  /* The focus ring stands outside the field in place of its border. */
+  .lf-fab-bar:has(leaf-text.lf-fab-input[data-lf-focus-visible]) > .lf-fab-ground {
+    --lf-box-ring: transparent;
   }
   /* Attached images hang off the box on the side away from its passage, outside its
      frame, so attaching neither grows the box nor moves a word and the passage stays in
@@ -256,33 +305,15 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     display: flex;
     flex-direction: column;
   }
-  /* The surface: a layer behind the face reaching far past the card on every side, so
-     the outline it is cut to can travel anywhere the card can go, with one soft shadow
-     cast at the height of what stands over the page for a task of its own. The card's
-     motion cuts it to the outline grown by that shadow's reach, its ring to the outline
-     and its fill a pixel inside, and, while the card moves, a ring a part of it wears,
-     the reply field's focus ring, in that ring's colour (runtime/box-motion.js). Until
-     then each is cut to nothing. */
+  /* The surface (runtime/box-motion.js, chrome.css): a layer behind the face reaching
+     far past the card on every side, so the outline it is cut to can travel anywhere
+     the card can go, its ring the card's border, in the card's own paper. */
   .lf-margin-preview-ground {
     position: absolute;
     inset: -100vmax;
     z-index: -1;
-    pointer-events: none;
-    filter: drop-shadow(var(--raise-3));
-  }
-  .lf-margin-preview-ground,
-  .lf-margin-preview-ground > * {
-    clip-path: inset(50%);
-  }
-  .lf-margin-preview-ground > * {
-    position: absolute;
-    inset: 0;
-  }
-  .lf-margin-preview-ring {
-    background: var(--border-2);
-  }
-  .lf-margin-preview-fill {
-    background: var(--paper);
+    --lf-box-ring: var(--border-2);
+    --lf-box-fill: var(--paper);
   }
   /* Open before its first placement lands (thread-preview.js, `placeThreadPreview`),
      the card has no spot yet, so it is not seen or pressed where it happens to lie. */
@@ -400,13 +431,17 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   .lf-margin-preview > .lf-surface-grip {
     z-index: 1;
   }
-  .lf-fab-bar:is(:has(> .lf-surface-grip:hover), [data-lf-carried])
-    .lf-fab-input:not([data-lf-focus]) {
-    border-color: color-mix(in srgb, var(--accent) 55%, var(--border-2));
-    transition: border-color 0.1s 0.15s;
+  .lf-fab-bar:is(:has(> .lf-surface-grip:hover), [data-lf-carried]):not(
+      :has(.lf-fab-input[data-lf-focus])
+    )
+    > .lf-fab-ground
+    > .lf-box-ring {
+    background: color-mix(in srgb, var(--accent) 55%, var(--border-2));
+    transition: background-color 0.1s 0.15s;
   }
   .lf-margin-preview:is(:has(> .lf-surface-grip:hover), [data-lf-carried])
-    .lf-margin-preview-ring {
+    .lf-margin-preview-ground
+    > .lf-box-ring {
     background: color-mix(in srgb, var(--accent) 55%, var(--border-2));
     transition: background-color 0.1s 0.15s;
   }
@@ -794,12 +829,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     }
     .lf-margin-thread .lf-thread-transcript .lf-msg-head > * {
       forced-color-adjust: auto;
-    }
-    .lf-margin-preview-fill {
-      background: Canvas;
-    }
-    .lf-margin-preview-ring {
-      background: CanvasText;
     }
   }
 }

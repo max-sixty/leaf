@@ -58,8 +58,8 @@ import { move } from "../dom-move.js";
 import { effectiveScroller, registerReadingRegion } from "../reading-regions.js";
 import { declareOffFlowSurface } from "../off-flow.js";
 import { chromeRoot, chromeForeground } from "../chrome.js";
-import { motionEasing, motionTime, reducedMotion } from "../motion.js";
-import { boxMotion, liftReach } from "../box-motion.js";
+import { reducedMotion } from "../motion.js";
+import { boxMotion } from "../box-motion.js";
 import { closestAcross } from "../passages.js";
 import { threadIdNamed } from "../thread/state.js";
 import { turns } from "../thread/model.js";
@@ -162,23 +162,8 @@ export function createThreadPreview({
       placeThreadPreview();
     },
   });
-  // The card stands on a surface of its own, as the floating panel does (box-motion.js):
-  // the card's face paints nothing past its own box, and the surface, a layer behind it
-  // reaching far past the card, draws its ring, fill and shadow cut to the card's
-  // outline, so the outline can travel between two places while the card's layout
-  // stands at the second. The surface is inside the card, so the page's scroll carries
-  // it with the card and a reading region's cut cuts it too.
-  const ground = el("div", "lf-margin-preview-ground");
-  ground.setAttribute("aria-hidden", "true");
-  const ring = el("div", "lf-margin-preview-ring");
-  const fill = el("div", "lf-margin-preview-fill");
-  // The reply field's focus ring, drawn here only while the card moves.
-  const fieldRing = el("div", "lf-margin-preview-field-ring");
-  const fieldFill = el("div", "lf-margin-preview-fill");
-  ground.append(ring, fill, fieldRing, fieldFill);
   const face = el("div", "lf-margin-preview-card");
   face.append(previewList);
-  preview.append(ground, carry.grip, face);
   // The card follows every change of its layout as the panel does, on the panel's
   // tween, whoever made it: a send, typing, an answer arriving, another thread. It reads
   // in the plane its placement stands it in, by the edges that hold it there
@@ -186,10 +171,7 @@ export function createThreadPreview({
   // nothing in it. A card no placement stands yet has nothing to move from.
   const followCard = () => {
     if (!preview.hasAttribute("data-lf-thread-placement")) return following.forget();
-    following.follow({
-      duration: motionTime("--lf-motion-box-resize", preview),
-      easing: motionEasing("--lf-motion-box-ease", preview),
-    });
+    following.follow();
   };
   const followed = sizeObserver(followCard);
   const following = boxMotion({
@@ -197,18 +179,19 @@ export function createThreadPreview({
     // the card's own presses, is never cut by the motion.
     root: face,
     box: face,
-    room: ground,
-    // The ground is cut to the outline grown by its shadow's reach, the ring is the
-    // card's border and the fill stands inside it.
-    surface: () => [
-      [ground, liftReach(ground, 3)],
-      [ring, 0],
-      [fill, -1],
-    ],
-    ring: [fieldRing, fieldFill],
+    // The card stands on a surface of its own, as the floating panel does: the card's
+    // face paints nothing past its own box, and the surface, a layer behind it reaching
+    // far past the card, draws its ring, the card's border, its fill and its shadow
+    // cut to the card's outline, so the outline can travel between two places while
+    // the card's layout stands at the second. The surface is inside the card, so the
+    // page's scroll carries it with the card and a reading region's cut cuts it too.
+    surface: "lf-margin-preview-ground",
+    lift: 3,
+    outset: 0,
     observer: followed,
     held: () => heldEdges(preview),
   });
+  preview.append(following.ground, carry.grip, face);
   followed.observe(face);
   // The card follows the margin entry it hangs from (`session.control`) in the Tab
   // order, as a popover follows its invoker: Tab on the entry enters the card, Shift+Tab
@@ -612,7 +595,7 @@ export function createThreadPreview({
               (card.right - region.right) / scale.x,
               (card.bottom - region.bottom) / scale.y,
               (region.left - card.left) / scale.x,
-            ].map((cut) => layoutPx(Math.max(cut, -liftReach(ground, 3))))
+            ].map((cut) => layoutPx(Math.max(cut, -following.shadowReach())))
           : [];
         CUT_EDGES.forEach((edge, i) => {
           if (region) preview.style.setProperty(edge, cuts[i]);

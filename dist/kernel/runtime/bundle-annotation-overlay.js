@@ -1,4 +1,4 @@
-import { SVG_NS, boxMotion, dropStand, liftReach, paintGeometry, paintShape, paintStand, paintTrace, placement, standOver } from "./bundle-box-motion.js";
+import { SVG_NS, boxMotion, dropStand, paintGeometry, paintShape, paintStand, paintTrace, placement, standOver } from "./bundle-box-motion.js";
 import { Z } from "./bundle-signals-core.js";
 import { TEXT_FIELD, afterScript, cancelAnimation, cancelRender, closeLayer, currentLocationIn, declareRelease, drawn, focusDestination, focused, handBack, holdFocus, inputCount, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, nativeLayerHolding, nextAnimation, nextRender, onCurrentLocation, onPressAway, onUserInput, pressLed, renderedOrder, renderedUnder, ringBox, roomPx, rove, sizeObserver, tabStops, under, visibleFocus } from "./bundle-dom-move.js";
 import { setRuntimeRootAttribute } from "./bundle-layer-client.js";
@@ -12,7 +12,7 @@ import { exactTarget, passageGeometry, pointBand, rangeGeometry, targetElement, 
 import { retainUserIntent } from "./bundle-copy-control.js";
 import { anchorLabel, arrivalOf, beginWalk, carryingThreadPlace, claimSeatReplies, claimed, currentLocationThreadId, declareOffFlowSurface, declareSide, keepThreadLanding, listWalkPosition, pageCommand, pageRung, pageScope, pageSelection, placeKeeper, releaseAuthoredUnder, releaseReplies, revealHeld, rowWalk, selectionAnchor, showReturnTurn, tabStore, threadFocusDestination, threadIdNamed, threadNamed } from "./bundle-surfaces.js";
 import { setChildLists, setChildren } from "./bundle-abort.js";
-import { motionEasing, motionTime, reducedMotion } from "./bundle-motion.js";
+import { reducedMotion } from "./bundle-motion.js";
 import { activateContributionControl, awaitingUser, canFold, choosePrimary, clearContributionControls, clusterProjection, contributionEntry, contributionEntryRecord, contributionEntrySource, contributionSource, entryEngaged, entryHasMarginHost, focusedOfferOf, markerFace, materializeContributionControls, optionsOffered, presentContributionEntry, presentContributionReceipts, primaryReading, readingBehavior, readingChoices, readingContext, readingFace, readingKey, readingLabel, readingState, spokenContext, spokenSubject, syncContributionSelection, syncContributionUnread, threadReading, unreadIn } from "./bundle-margin-model.js";
 import { ANNOTATIONS_KEY } from "./bundle-restore-state.js";
 import { THREAD_CARD, cardMeasure, cardMinimum, commentAttachment, commentBoundary, commentPlacement, commentReference, floatingPlacement, floatingSelections, floatingUi, heldEdges, layoutMarginRows, makeRoom, marginColumn, mountMarginLayer, paintedBox, registerMarginRow, scheduleMarginEntryLabels, scheduleMarginLayout, standsFolded, syncMarginContentLayout, unregisterMarginRow } from "./bundle-comment-placement.js";
@@ -257,37 +257,23 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 			placeThreadPreview();
 		}
 	});
-	const ground = el("div", "lf-margin-preview-ground");
-	ground.setAttribute("aria-hidden", "true");
-	const ring = el("div", "lf-margin-preview-ring");
-	const fill = el("div", "lf-margin-preview-fill");
-	const fieldRing = el("div", "lf-margin-preview-field-ring");
-	const fieldFill = el("div", "lf-margin-preview-fill");
-	ground.append(ring, fill, fieldRing, fieldFill);
 	const face = el("div", "lf-margin-preview-card");
 	face.append(previewList);
-	preview.append(ground, carry.grip, face);
 	const followCard = () => {
 		if (!preview.hasAttribute("data-lf-thread-placement")) return following.forget();
-		following.follow({
-			duration: motionTime("--lf-motion-box-resize", preview),
-			easing: motionEasing("--lf-motion-box-ease", preview)
-		});
+		following.follow();
 	};
 	const followed = sizeObserver(followCard);
 	const following = boxMotion({
 		root: face,
 		box: face,
-		room: ground,
-		surface: () => [
-			[ground, liftReach(ground, 3)],
-			[ring, 0],
-			[fill, -1]
-		],
-		ring: [fieldRing, fieldFill],
+		surface: "lf-margin-preview-ground",
+		lift: 3,
+		outset: 0,
 		observer: followed,
 		held: () => heldEdges(preview)
 	});
+	preview.append(following.ground, carry.grip, face);
 	followed.observe(face);
 	const opener = () => previewSession?.control?.checkVisibility() ? previewSession.control : null;
 	const onOpener = () => Boolean(opener()) && focused() === opener();
@@ -560,7 +546,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 				(card.right - region.right) / scale.x,
 				(card.bottom - region.bottom) / scale.y,
 				(region.left - card.left) / scale.x
-			].map((cut) => layoutPx(Math.max(cut, -liftReach(ground, 3)))) : [];
+			].map((cut) => layoutPx(Math.max(cut, -following.shadowReach()))) : [];
 			CUT_EDGES.forEach((edge, i) => {
 				if (region) preview.style.setProperty(edge, cuts[i]);
 				else preview.style.removeProperty(edge);
@@ -2511,11 +2497,35 @@ function createFloatingResponsePlacement({ bar: fabBar, input: fabInput, respons
 		}
 	});
 	fabBar.append(carry.grip);
+	const fabField = () => fabInput.parentElement;
+	let following = null;
+	const followFab = () => {
+		if (!following && !response.open) return;
+		if (!response.floating || !fabBar.hasAttribute("data-lf-placement")) return following?.forget();
+		following ??= fabMotion();
+		following.follow();
+	};
+	const followed = sizeObserver(followFab);
+	function fabMotion() {
+		const box = fabField();
+		const motion = boxMotion({
+			root: box.parentElement,
+			box,
+			surface: "lf-fab-ground",
+			lift: 1,
+			outset: 0,
+			observer: followed,
+			held: () => heldEdges(fabBar)
+		});
+		fabBar.prepend(motion.ground);
+		followed.observe(box.parentElement);
+		return motion;
+	}
 	let selectedPassage = null;
 	const fabFrameAt = () => {
 		if (!response.open || !response.floating) return null;
 		const bar = fabBar.getBoundingClientRect();
-		const field = fabInput.getBoundingClientRect();
+		const field = fabField().getBoundingClientRect();
 		const style = getComputedStyle(fabBar);
 		const scaleX = bar.width / parseFloat(style.width);
 		const scaleY = bar.height / parseFloat(style.height);
@@ -2545,6 +2555,7 @@ function createFloatingResponsePlacement({ bar: fabBar, input: fabInput, respons
 		cancelRender(fabPositionFrame);
 		fabPositionFrame = 0;
 		if (!reset) return;
+		following?.forget();
 		editingAttachment = null;
 		windowPosture = false;
 		fabPlacement.forget();
@@ -2729,12 +2740,17 @@ function createFloatingResponsePlacement({ bar: fabBar, input: fabInput, respons
 			if (!position || !stillCurrent()) return;
 			fabPlacement.landed(position);
 			editingAttachment = response.open ? attachment : null;
-			keeps(fabBar, "data-lf-placement", position.placement);
-			fabPosition.stand(position);
+			const stand = () => {
+				keeps(fabBar, "data-lf-placement", position.placement);
+				fabPosition.stand(position);
+			};
+			if (following) following.placed(stand);
+			else stand();
 			carry.placed();
 			nativeAttachment = response.open && fabPosition.follows();
 			positioned(true);
 			stoodAgain();
+			followFab();
 			return true;
 		}).catch((error) => {
 			if (!stillCurrent()) return;

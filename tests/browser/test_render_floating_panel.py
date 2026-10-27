@@ -2998,7 +2998,7 @@ def test_the_leaf_travels_with_its_fold_and_reverses_from_where_it_stands(
     settled(page)
     # The panel's surface must expose its measured box before the first motion;
     # an opaque motion root leaves the ground clipped away behind the controls.
-    expect(page.locator(".lf-fp-ground > .lf-fp-fill").first).not_to_have_css(
+    expect(page.locator(".lf-fp-ground > .lf-box-fill").first).not_to_have_css(
         "clip-path", "inset(50%)"
     )
     page.evaluate("() => {" + HOLD_MOTION + "}")
@@ -3139,7 +3139,7 @@ def test_the_folded_leaf_keeps_its_badge_and_face_through_motion(browser, serve)
 
     def shape():
         return page.evaluate("""() => {
-          const fill = document.querySelector('.lf-fp-ground > .lf-fp-fill');
+          const fill = document.querySelector('.lf-fp-ground > .lf-box-fill');
           const room = fill.getBoundingClientRect();
           const sides = getComputedStyle(fill).clipPath.match(/[-\\d.]+px/g).map(parseFloat);
           const surface = {left: room.left + sides[3], top: room.top + sides[0],
@@ -4831,7 +4831,7 @@ def test_a_line_the_field_grows_rides_the_box_s_top_edge(browser, serve):
     gaps = r"""() => {
       const top = Number.parseFloat(
         /inset\(([-\d.]+)px/.exec(
-          getComputedStyle(document.querySelector('.lf-fp-ground > .lf-fp-fill')).clipPath,
+          getComputedStyle(document.querySelector('.lf-fp-ground > .lf-box-fill')).clipPath,
         )[1],
       );
       return Math.round(document.querySelector('.lf-fp-box .lf-composer-media-item')
@@ -4865,7 +4865,7 @@ def test_a_line_the_field_grows_rides_the_box_s_top_edge(browser, serve):
 BELOW_THE_EDGE = r"""() => {
   const ground = document.querySelector('.lf-fp-ground');
   const cut = /inset\(([-\d.]+)px/.exec(
-    getComputedStyle(ground.querySelector('.lf-fp-fill')).clipPath,
+    getComputedStyle(ground.querySelector('.lf-box-fill')).clipPath,
   )[1];
   const edge = ground.getBoundingClientRect().top + Number.parseFloat(cut);
   const host = document.querySelector('.lf-fp-field leaf-text');

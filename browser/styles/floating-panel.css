@@ -82,32 +82,14 @@
     --lf-motion-menu-slide: 200ms;
   }
 
-  /* The surface: a layer over the whole window, cut to the box's outline by the
-     panel's script, with a ring a pixel outside it and one soft shadow around both,
-     cast at the height of what opens over the page. The layer itself is cut to that
-     outline grown by its shadow's reach. While the box moves, a ring a part of it
-     wears, the field's focus ring, stands on it too, a ring and a fill like the box's
-     own, in the colour of the ring it stands in for (runtime/box-motion.js). */
+  /* The surface (runtime/box-motion.js, chrome.css): a layer over the whole window,
+     under the box, in the panel's own ring and ground. */
   .lf-fp-ground {
     position: fixed;
     inset: 0;
     z-index: calc(var(--lf-z-panel) - 1);
-    pointer-events: none;
-    filter: drop-shadow(var(--raise-2));
-  }
-  .lf-fp-ground,
-  .lf-fp-ground > * {
-    clip-path: inset(50%);
-  }
-  .lf-fp-ground > * {
-    position: absolute;
-    inset: 0;
-  }
-  .lf-fp-ring {
-    background: var(--lf-fp-ring);
-  }
-  .lf-fp-fill {
-    background: var(--lf-fp-surface);
+    --lf-box-ring: var(--lf-fp-ring);
+    --lf-box-fill: var(--lf-fp-surface);
   }
 
   .lf-floating-panel {
@@ -1917,12 +1899,6 @@
     }
   }
   @media (forced-colors: active) {
-    .lf-fp-fill {
-      background: Canvas;
-    }
-    .lf-fp-ring {
-      background: CanvasText;
-    }
     .lf-fp-menu,
     .lf-fp-peek {
       border: 1px solid CanvasText;

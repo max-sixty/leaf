@@ -346,7 +346,7 @@ function patchChildren(liveParent, beforeParent, afterParent, rules) {
       evict(before, live, rules);
       placed.push(rules.arrive(node, liveParent));
       continue;
-    }
+    } else pairInterior(before, node, rules);
     rules.pairs.set(node, live);
     if (live.parentNode === liveParent) placed.push(live);
   }
@@ -355,6 +355,20 @@ function patchChildren(liveParent, beforeParent, afterParent, rules) {
   // revision moves nothing at all. A kept node the revision moves keeps the user
   // standing in it, as nothing else would: the carry restores only replaced nodes.
   order(liveParent, placed, rules.generated);
+}
+
+// A kept element's interior is the same markup in both revisions, so each of its source
+// nodes stands for whatever live node the one it replaces stood for, wherever the
+// controller holds it now. A digest that matched over markup of another shape pairs
+// nothing rather than pair the wrong nodes.
+function pairInterior(before, after, rules) {
+  const held = [...sourceNodes(before)];
+  const wanted = [...sourceNodes(after)];
+  if (held.length !== wanted.length) return;
+  wanted.forEach((node, at) => {
+    const live = rules.pairs.get(held[at]);
+    if (live) rules.pairs.set(node, live);
+  });
 }
 
 // Whether this element's interior is beyond the patch. A widget's is its controller's

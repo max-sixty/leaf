@@ -47,9 +47,8 @@ Preact Signals it exports `signal`, for private state a command's `when` reads
 - Read the page's words with `says()` or `wrote()`, never `textContent`
   (`module-reading.md`, "Reading the page").
 - Build injected controls with `offer()`, `offered` or `selectableOffer()`, a press
-  that looks like Leaf's controls with `offerAction()` or `offeredAction` by its role, label
-  them with `relabel()`, and mark other words the widget writes with
-  `generatedElement()` or `generated` ("Generated controls").
+  that looks like Leaf's controls with `offerAction()` or `offeredAction` by its role, and
+  label them with `relabel()` ("Generated controls").
 - Keep the box the widget has at first paint ("First paint").
 - Schedule paints with `frameFor`, observe size with `sizeObserver`, and write repeated
   values through `keeps` ("Scheduling paints", "Writes that change nothing").
@@ -375,11 +374,15 @@ where the label is the page speaking, as a pick mark reading "chosen" does, `fal
 action word, and `"echo"` for a copy of words the page shows elsewhere, such as a
 worker's name.
 
-Mark every other element whose words the widget writes, and every box it fills, with
-`generatedElement(node, {says})`, which takes the same answers; in a template, write
-`<h2 ${generated({ says: true })}>`. The version diff then looks past those words
-rather than reading them as a change nobody wrote. Don't write the `data-lf-gen`,
-`data-lf-said` or `data-lf-echo` attributes yourself.
+Words a module writes into the page need no marking: setting an element's
+`textContent`, appending a paragraph or rendering a template leaves them the page's
+words, which the user can comment on. A version comparison reads each version's source
+rather than the page, so they never read as a change. To set apart words the widget
+writes beside the author's, such as a count after an authored sentence, mark their
+element with `generatedElement(node, {says})`, which takes the same answers; in a
+template, write `<h2 ${generated({ says: true })}>`. `wrote()` then leaves them out,
+and a comment's quote doesn't run across them into the author's words. Don't write the
+`data-lf-gen`, `data-lf-said` or `data-lf-echo` attributes yourself.
 
 A widget can upgrade inside a shut panel where every box measures zero, so take
 measurements inside `measure(element, take)`, which runs `take` once the element has a

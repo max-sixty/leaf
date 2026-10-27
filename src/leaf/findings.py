@@ -613,13 +613,6 @@ _TEXT = {
         " widget's own styles or module must be showing it, and no comment can"
         " anchor to its words"
     ),
-    "read-as-changed": lambda at, v: (
-        f"{at} reads as changed when this version is compared with itself: a module"
-        f" wrote {_json(v['words'])} there without marking it, so every version"
-        " comparison marks it though nobody changed it. Mark the element the module"
-        " fills with generatedElement(node, {says}), or generated({says}) in a"
-        " template, from /runtime/widget-api.js"
-    ),
     "render-threw": lambda at, v: (
         f"{at} render() threw when the complete state was rendered a second time:"
         f" {v['error']}"

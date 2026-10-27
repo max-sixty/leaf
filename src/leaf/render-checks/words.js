@@ -2,7 +2,6 @@ import { says } from "/runtime/widget-api.js";
 import {
   quoteFrom,
   textNodesUnder,
-  selfComparison,
   upFrom,
   verbatimBoundaryIdentity,
   verbatimOwnerIdentity,
@@ -373,18 +372,6 @@ export function silentWords(declarations) {
           found.push({ code: "silent-word", at: at(el), attr, value });
       }
   return found;
-}
-
-// The version being read, compared with itself, marks nothing: a block it marks
-// shows words its source doesn't hold, which a module wrote without marking them
-// (`selfComparison`, version.js). Every comparison a user asks for marks that block
-// too. The words are the ones the comparison read there, unmarked ones among them.
-export function wordsReadAsChanged() {
-  return selfComparison().map(([block, words]) => ({
-    code: "read-as-changed",
-    at: at(block),
-    words: words.length > 80 ? `${words.slice(0, 79)}…` : words,
-  }));
 }
 
 // The drawing idiom sets labels at 10–12px in viewBox units; its 9px step glyph is

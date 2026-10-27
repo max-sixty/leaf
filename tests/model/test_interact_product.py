@@ -318,6 +318,14 @@ def test_an_enclosing_widget_titles_any_number_of_independent_sources(page_dir):
     ):
         assert fragment_errors(titled, registry) == []
 
+    # A frame around another frame holds what that one holds, so a question with
+    # parts asks through its inner frames.
+    nested = (
+        '<lf-ask id="outer"><h2>Choose</h2>'
+        f'<lf-ask id="inner"><h3>First part</h3>{first}</lf-ask></lf-ask>'
+    )
+    assert fragment_errors(nested, registry) == []
+
     for untitled in (
         f'<lf-ask id="d"><p>Context.</p>{first}</lf-ask>',
         f'<lf-ask id="d"><strong>Choose</strong>{first}</lf-ask>',

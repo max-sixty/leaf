@@ -263,24 +263,18 @@ def enclosing_errors(document: SourceDocument, registry: dict) -> list[Finding]:
     ask (`unasked`), or that it holds none.
     """
 
-    def encloser_of(rec):
-        return next(
-            (
-                holder
-                for holder in enclosing_widgets(rec)
-                if encloses(registry.get(holder["tag"], {}))
-            ),
-            None,
-        )
-
     lf_elements = document.lf_elements
     regions = [rec for rec in lf_elements if encloses(registry.get(rec["tag"], {}))]
     framed = {id(region): [] for region in regions}
+    # A widget asks inside every frame around it, so a frame holding only a nested frame
+    # is as full as that one; the nearest still gives the obligation its prompt.
     for rec in lf_elements:
         entry = registry.get(rec["tag"], {})
-        region = encloser_of(rec)
-        if local_obligation_entry(entry) and region and not quoted_in(rec, registry):
-            framed[id(region)].append((rec, unasked(rec, entry)))
+        if not local_obligation_entry(entry) or quoted_in(rec, registry):
+            continue
+        for holder in enclosing_widgets(rec):
+            if encloses(registry.get(holder["tag"], {})):
+                framed[id(holder)].append((rec, unasked(rec, entry)))
     errors = []
     for region in regions:
         held = framed[id(region)]

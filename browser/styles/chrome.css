@@ -127,10 +127,9 @@ body:is(.lf-aiming, [data-lf-design-mode]) {
 body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item {
   cursor: pointer;
 }
-/* The document plane, including page-widget controls, accepts drawing presses, so the
-   crosshair is important: it covers whatever cursor the page or a widget states for
-   its own controls. Runtime surfaces keep their controls usable wherever their owner
-   seats them, so the crosshair leaves them out and they keep their own cursors. */
+/* Region capture and draw mode take presses on the whole plane. Region capture's
+   crosshair is important over whatever cursor the page states; draw mode's, which
+   spares Leaf's surfaces, is shared with shadow trees (integration.css). */
 html[data-lf-region-capture],
 html[data-lf-region-capture] body,
 html[data-lf-draw-mode],
@@ -139,13 +138,8 @@ html[data-lf-draw-mode] body {
   touch-action: none;
 }
 html[data-lf-region-capture] main,
-html[data-lf-region-capture] main *,
-html[data-lf-draw-mode] main,
-html[data-lf-draw-mode] main :not([data-lf-runtime], [data-lf-runtime] *) {
+html[data-lf-region-capture] main * {
   cursor: crosshair !important;
-}
-:where(html[data-lf-draw-mode] main [data-lf-runtime]) {
-  cursor: auto;
 }
 /* The glyphs of the reactions in force on a target — a margin entry per reaction,
    revealing a separately named removal action. */
@@ -378,7 +372,8 @@ html[data-lf-draw-mode] main :not([data-lf-runtime], [data-lf-runtime] *) {
   /* Leaf's state is carried by the leaf rather than an anonymous traffic light. The
      mask is the page's actual vendored mark, so a project that replaces icon.svg does
      not keep an unrelated leaf-like glyph in the panel. Shape is identity and colour
-     is state, from the same registry-owned tones the tab icon wears. */
+     is state, from the same registry-owned tones the tab icon wears. Each state adds
+     no specificity, so a forced palette's later rule replaces every tone. */
   .lf-dot {
     width: var(--lf-mark-w);
     height: var(--lf-mark-w);
@@ -387,16 +382,16 @@ html[data-lf-draw-mode] main :not([data-lf-runtime], [data-lf-runtime] *) {
     -webkit-mask: url("/icon.svg") center / contain no-repeat;
     mask: url("/icon.svg") center / contain no-repeat;
   }
-  .lf-dot.working {
+  .lf-dot:where(.working) {
     background: var(--accent);
   }
-  .lf-dot.listening {
+  .lf-dot:where(.listening) {
     background: var(--ok);
   }
-  .lf-dot.away {
+  .lf-dot:where(.away) {
     background: var(--warn);
   }
-  .lf-dot.blocked {
+  .lf-dot:where(.blocked) {
     background: var(--danger);
   }
 
@@ -1293,12 +1288,13 @@ html[data-lf-draw-mode] main :not([data-lf-runtime], [data-lf-runtime] *) {
   }
 
   /* A forced palette keeps the chrome's states in platform colours rather than freezing
-     the product palette with forced-color-adjust; important, so each colour holds over
-     every state's more specific face. The focus ring needs nothing here: --focus-ring
-     is Highlight in a forced palette (theme.css). */
+     the product palette with forced-color-adjust. The pressed border is important, so
+     it holds over the more specific face of every control that can be pressed. The
+     focus ring needs nothing here: --focus-ring is Highlight in a forced palette
+     (theme.css). */
   @media (forced-colors: active) {
     .lf-dot {
-      background: CanvasText !important;
+      background: CanvasText;
     }
     .lf-binding-sequence > kbd[data-lf-sequence-step-state="pressed"] {
       border-color: Highlight;

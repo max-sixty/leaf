@@ -442,16 +442,8 @@
 }
 
 /* A quoted playground is its preview and instruction as authored, without the controls
- * written in either place. A box in the preview that holds nothing but controls, such
- * as the settings box beside an item, is hidden with them, since it would otherwise
- * stand empty (initial/lf-playground.js marks it). The page's own stylesheet outranks
- * this layer and usually sets that box's display, so the rule is important, as a
- * settled option's collapse is (default/theme.css). */
-:scope:is(lf-playground).lf-playground-quoted
-  :is(lf-playground-control:not(.lf-playground-candidates), .lf-playground-control-box),
-:scope:is(lf-playground).lf-playground-quoted > lf-playground-preset {
-  display: none !important;
-}
+ * written in either place (initial/lf-playground.js hides them). Candidates that are
+ * previews stay, laid side by side. */
 :scope:is(lf-playground).lf-playground-quoted .lf-playground-candidates {
   grid-template-columns: var(
     --playground-choice-columns,

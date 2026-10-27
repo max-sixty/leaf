@@ -1594,13 +1594,8 @@ html[data-lf-draw-mode] body {
   touch-action: none;
 }
 html[data-lf-region-capture] main,
-html[data-lf-region-capture] main *,
-html[data-lf-draw-mode] main,
-html[data-lf-draw-mode] main :not([data-lf-runtime], [data-lf-runtime] *) {
+html[data-lf-region-capture] main * {
   cursor: crosshair !important;
-}
-:where(html[data-lf-draw-mode] main [data-lf-runtime]) {
-  cursor: auto;
 }
 .lf-react-mark {
   text-align: center;
@@ -1768,16 +1763,16 @@ html[data-lf-draw-mode] main :not([data-lf-runtime], [data-lf-runtime] *) {
     -webkit-mask: url(/icon.svg) center / contain no-repeat;
     mask: url(/icon.svg) center / contain no-repeat;
   }
-  .lf-dot.working {
+  .lf-dot:where(.working) {
     background: var(--accent);
   }
-  .lf-dot.listening {
+  .lf-dot:where(.listening) {
     background: var(--ok);
   }
-  .lf-dot.away {
+  .lf-dot:where(.away) {
     background: var(--warn);
   }
-  .lf-dot.blocked {
+  .lf-dot:where(.blocked) {
     background: var(--danger);
   }
   :is(.lf-quote, .lf-msg-body) {
@@ -2509,7 +2504,7 @@ html[data-lf-draw-mode] main :not([data-lf-runtime], [data-lf-runtime] *) {
   }
   @media (forced-colors: active) {
     .lf-dot {
-      background: CanvasText !important;
+      background: CanvasText;
     }
     .lf-binding-sequence > kbd[data-lf-sequence-step-state=pressed] {
       border-color: Highlight;

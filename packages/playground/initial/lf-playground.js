@@ -162,9 +162,10 @@ function render(host, { tabStore, offer, offerAction, generatedElement, keeps })
         );
     }
   }
-  // A quotation draws no controls, so a box the preview wrote around them alone, at
-  // any depth, would stand empty; it is marked to hide with them (theme.css). A box
-  // that also holds words or another element keeps them.
+  // A quotation draws no controls or presets, so they are hidden, which outranks
+  // whatever display the page's own stylesheet gives them (theme.css, `[hidden]`). A
+  // box the preview wrote around controls alone, at any depth, would stand empty, so
+  // it is hidden with them. A box that also holds words or another element keeps them.
   if (!interactive) {
     const bare = new Set(
       controls.filter(
@@ -184,8 +185,8 @@ function render(host, { tabStore, offer, offerAction, generatedElement, keeps })
         box = box.parentElement
       ) {
         bare.add(box);
-        box.classList.add("lf-playground-control-box");
       }
+    for (const hidden of [...bare, ...presets]) hidden.hidden = true;
   }
   const inputs = new Map(),
     presetButtons = new Map(),

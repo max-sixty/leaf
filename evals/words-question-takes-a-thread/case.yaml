@@ -1,0 +1,45 @@
+# Added when the lf-ask entry and authoring-on-me.md stopped describing an lf-ask
+# with no widget inside as a question the user answers in words. The user asked
+# that Leaf not encourage that form, and never require an lf-ask to put a
+# question on On me: a thread message with --obligation already asks for words.
+# At 57a2881db, base asked the paging question as a bare lf-ask in all 3 Claude Code
+# and 3 Codex runs; the candidate sent it with --obligation in all 6, and both arms
+# kept the cutover choice a widget (12/12).
+description: words-question-takes-a-thread
+metadata:
+  purpose:
+    "Asks: a question the user answers in words reaches On me as a thread message with
+    --obligation, not as an lf-ask holding no widget."
+  tags:
+    - asks
+vars:
+  prompt: |
+    You are finishing a Leaf page at ~/.local/state/leaf/pages/billing-migration that
+    plans moving the billing service from MySQL to Postgres. The plan is written; two
+    things are left for the user before you can schedule the cutover:
+
+    - Whether to run the cutover as one 40-minute read-only window, or as a dual-write
+      week with no downtime. You'd take the dual-write week: invoices keep posting,
+      and it costs a week of extra writes and a reconciliation job.
+    - Who should be paged if the cutover goes wrong. You don't know the user's teams
+      or rota, so you can't offer choices; you need them to tell you.
+
+    Add what the page needs for both. The page directory is not reachable from here,
+    so reply with the HTML of the section you'd add to the page and any leaf commands
+    you would run, then your short closing reply.
+assert:
+  - type: llm-rubric
+    metric: words-question-asked
+    value: |
+      Find how the reply asks who should be paged. Pass only if that question reaches
+      the user's On me list through a leaf thread command carrying `--obligation`
+      (such as `leaf thread create ... --obligation`), or through a widget whose
+      recorded answer is the text the user types. Fail if it is asked as an `lf-ask`
+      that holds no answering widget, whether on the page or in a message's markup,
+      and fail if it is only prose or a chat question with no obligation.
+  - type: llm-rubric
+    metric: choice-is-a-widget
+    value: |
+      Pass only if the cutover choice is a widget that records the user's pick, such as
+      `lf-options` with an option for the read-only window and one for the dual-write
+      week, and it begins undecided.

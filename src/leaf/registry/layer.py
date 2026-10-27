@@ -10,6 +10,7 @@ from jsonschema.exceptions import SchemaError
 from leaf.schema import (
     AWAITS_SCHEMA,
     EXTENSION_SCHEMA,
+    IDIOM_SCHEMA,
     LAYER_FACTS_SCHEMA,
     VERB_SCHEMA,
 )
@@ -173,10 +174,7 @@ def validate_layer_declarations(registry: dict, path) -> None:
                 missing=sorted(admitted - documented),
                 unadmitted=sorted(documented - admitted),
             )
-    # Idioms share author-facing fields with elements and declare no marks: a mark is
-    # its tag's (`revision_delivery.mark_declared`). Validate every selector, because it
-    # remains an authored vocabulary identity.
-    allowed = {"description", "x-example", "x-instructions"}
+    # Validate every selector, because it remains an authored vocabulary identity.
     probe = turbohtml.parse("<p></p>").find("p")
     for selector, entry in registry.items():
         if selector.startswith("$") or is_element_name(selector):
@@ -187,22 +185,10 @@ def validate_layer_declarations(registry: dict, path) -> None:
             raise registry_error(
                 "idiom-selector", path, selector=selector, error=str(error)
             ) from None
-        if (
-            not isinstance(entry, dict)
-            or set(entry) - allowed
-            or not isinstance(entry.get("description"), str)
-            or not entry["description"].strip()
-            or not isinstance(entry.get("x-example"), str)
-            or not entry["x-example"].strip()
-        ):
-            raise registry_error("idiom-fields", path, selector=selector)
-        for key in set(entry) - {"description"}:
-            if not json_validator(EXTENSION_SCHEMA["properties"][key]).is_valid(
-                entry[key]
-            ):
-                raise registry_error(
-                    "idiom-value", path, selector=selector, key=key, value=entry[key]
-                )
+        if errors := sorted(json_validator(IDIOM_SCHEMA).iter_errors(entry), key=str):
+            raise registry_error(
+                "idiom-schema", path, selector=selector, **schema_reading(errors[0])
+            )
     languages = registry["$languages"]
     if strays := sorted(
         extension

@@ -1,6 +1,6 @@
-import { CARET_KEYS, J, PRESSES, TEXT_BOX, TEXT_FIELD, W, Z, afterScript, bindQueuedWork, cancelRender, caretAtKey, composedParentNode, currentLocationIn, currentLocationNodes, currentLocationTouches, d, deepFocus, drawn as drawn$2, excludedByInert, focusDestination, focused, holdCurrentLocation, holdFocus, inputCount, keeps, keepsHidden, layoutPx, move, nextAnimation, nextFrame, nextRender, onCurrentLocation, onLetGo, onPress, onPressAway, onUserInput, readCaret, recentPlaceInput, recoveredLabelFocus, renderedOrder, renderedParent, renderedUnder, renderingState, selectsAll, sizeObserver, takesLetters, typesText, under, upFrom, watchCurrentLocationIn, x } from "./bundle-dom-move.js";
-import { EVERYTHING, LayerRefused, PAGE_PAINT_ATTRIBUTE, PRESS, PRESSABLE, admitReading, admitResponse, allBindings, announce, answers, ariaShortcuts, bindingEnabledFor, bindings, buttonCommand, checked, claimReleaseClick, clampedRow, commandAvailable, commandEntries, commandReady, commandRoutes, commandScope, cycledRow, declareCommandReadiness, declaredBindings, descriptionOf, el, generatedElement, holdStatus, holdingError, iconElement, iconTemplate, keys, labelOf, layoutChanged, live, measure, nativeActivationAt, nativeClaimAt, notice, offer, offerAction, offered, offeredAction, pagePresented, paintKeys, paintKeysWithin, passErrorsAt, plainPress, pointerAt, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, randomId, referencedCommandEntry, repaint, reportPageError, requestJson, restorePointer, reveal, revealLayer, routedCommand, rowArrows, runtimeRootState, sameLayer, savedReadingSettled, scopeAvailable, scopeIdentity, scopesAt, scopesFor, setRuntimeRootAttribute, spell, titleOf, touchPresses as touchPresses$1, watchCommandScopes, word } from "./bundle-layer-client.js";
-import { COLLAPSE as COLLAPSE$1, LIVE_ROOT, PENDING, PRESENTATION_DOM, SHADOW_LEADING_CSS, TEXT_BLOCK, adoptRegistry, annotationMarkSheets, applicationPresenter, applicationState, attachApplicationPresentation, authoredRank, clippedContents, clippedPlace, decisionFor, declarationFor, editable, elementDeclarations, elementsDeclaring, exhibits, foldWidgetStates, frameFor, growthAfterIsSeen, growthIsSeen, headerInset, html, inUi, inWindowChrome, isElementName, isReaction, keyed, landingBand, lastMovedAt, layerRoot, loadShadowRules, marks, marksSheet, messageKey, moved, nativeLayers, nothing, obligationValue, offlineData, offlineInteractive, pageClaimed, pageUrl, pendingForParent, placeBox, placeHolder, presented, projectView, projectionOrigins, projectionRegionsPresented, readApplication, readPart, recordedWidgetSelector, registry as registry$1, render as render$1, repeat, revisionLabel, runtime, runtimeModule, runtimeResource, sameAnchor, seatRoot, seenRect, shadowRules, share, shownBox, shownRect, shownWindow, skipped, slotTop, stateSpecs, stuckBox, tagsDeclaring, threadKey, threadNames, tick, tokenEntry, turns, union, userScrollport, visibleBand, watchArrivals, watchArrivalsIn, watchLayers, watchOwner, watchPresentation, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenNone, whenWidgetsPresented } from "./bundle-geometry.js";
+import { CARET_KEYS, J, PRESSES, TEXT_BOX, TEXT_FIELD, W, Z, afterScript, bindQueuedWork, cancelRender, caretAtKey, currentLocationIn, currentLocationNodes, currentLocationTouches, d, deepFocus, drawn as drawn$2, focusDestination, focused, holdCurrentLocation, holdFocus, inputCount, keeps, keepsHidden, layoutPx, move, nextAnimation, nextFrame, nextRender, onCurrentLocation, onLetGo, onPress, onPressAway, onUserInput, readCaret, recentPlaceInput, renderedOrder, renderedParent, renderedUnder, renderingState, selectsAll, sizeObserver, takesLetters, typesText, under, upFrom, watchCurrentLocationIn, x } from "./bundle-dom-move.js";
+import { LayerRefused, PAGE_PAINT_ATTRIBUTE, PRESS, PRESSABLE, admitReading, admitResponse, announce, ariaShortcuts, bindings, buttonCommand, checked, claimReleaseClick, clampedRow, commandAvailable, commandRoutes, commandScope, cycledRow, declareCommandReadiness, descriptionOf, el, generatedElement, holdStatus, holdingError, iconElement, iconTemplate, keys, labelOf, layoutChanged, live, measure, notice, offer, offerAction, offered, offeredAction, pagePresented, paintKeys, paintKeysWithin, passErrorsAt, plainPress, pointerAt, projectCommandScope, pruneScopedElements, raiseError, randomId, repaint, reportPageError, requestJson, restorePointer, reveal, revealLayer, rowArrows, runtimeRootState, sameLayer, savedReadingSettled, setRuntimeRootAttribute, spell, titleOf, touchPresses as touchPresses$1, watchCommandScopes, word } from "./bundle-layer-client.js";
+import { COLLAPSE as COLLAPSE$1, LIVE_ROOT, PENDING, PRESENTATION_DOM, SHADOW_LEADING_CSS, TEXT_BLOCK, adoptRegistry, annotationMarkSheets, applicationPresenter, applicationState, attachApplicationPresentation, authoredRank, clippedContents, clippedPlace, decisionFor, declarationFor, editable, elementDeclarations, elementsDeclaring, exhibits, foldWidgetStates, frameFor, growthAfterIsSeen, growthIsSeen, headerInset, html, inUi, inWindowChrome, isElementName, isReaction, keyed, landingBand, lastMovedAt, layerRoot, loadShadowRules, marks, marksSheet, messageKey, moved, nothing, obligationValue, offlineData, offlineInteractive, pageClaimed, pageUrl, pendingForParent, placeBox, placeHolder, presented, projectView, projectionOrigins, projectionRegionsPresented, readApplication, readPart, recordedWidgetSelector, registry as registry$1, render as render$1, repeat, revisionLabel, runtime, runtimeModule, runtimeResource, sameAnchor, seatRoot, seenRect, shadowRules, share, shownBox, shownRect, shownWindow, skipped, slotTop, stateSpecs, stuckBox, tagsDeclaring, threadKey, threadNames, tick, tokenEntry, turns, union, userScrollport, visibleBand, watchArrivals, watchArrivalsIn, watchLayers, watchOwner, watchPresentation, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenNone, whenWidgetsPresented } from "./bundle-geometry.js";
 import { ADDRESSABLE, PAGE_CONTROL_RANK, addressableWord, addressedElements, ago, aimTargetAt, aimedTop, anchorBox, anchorForPassage, anchorForRange, anchorReading, anchorView, anchoringIsReady, atScrollEnd, authoredBody, chosenSince, chromeForeground, chromeRoot, claimReachStop, containingReadingRegionFor, cutFrames, datumAimTarget, datumLabel, effectiveScroller, followingItsEnd, fragmentTarget, headerLevels, initialOrigin, initialParent, initialSource, isAddressable, leadingTitle, livePoint, moveScrollerBy, nameAnchor, nameable, onReadingInput, pageReadingRegion, pageScroller, placeKept, projectedDatum, reachScrollers, readingRegionFor, readingRegions, recentReadingRegion, refreshAnchorView, regionScrollBehavior, regionsSettled, registerPageControl, releaseReachStop, resolveAnchor, restoreInitialSource, revealAddressed, scrollChainOf, scrollChoices, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, sectionLabel, sectionOf, settleMarginContentLayout, shortAgo, shownRegionBounds, stopScroll, targetElement, targetPlace, targetSegments, unconcealedReadingRegions, unmarkedCopy, visualPartLabel, watchReadingRegionTransitions } from "./bundle-content-layout.js";
 import { alignInlineText, alignText, authored, authoredScope, blockAt, closestAcross, elementById, elementReading, fencePassageParts, inChrome, labelWords, pageBlocks, pageDocument, pageQueryAll, pageRange, pageText, pageWords, pointAt as pointAt$1, quoteFrom, rangeOf, readingFrom, renderRetired, segmentBlock, segmentsIn, selectEnds, selectionBackward, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity, watchPassageRoot, wrote } from "./bundle-passages.js";
 import { alreadyShown, copyControl, fitsWhole, passOn, restrictUserIntent, retainUserIntent, scrollIntoReadingBand, scrollIntoView } from "./bundle-copy-control.js";
@@ -649,7 +649,7 @@ const SAY_BOX = SAY_ROW.split(", ").map((row) => `:scope > ${row} ${TEXT_FIELD}`
 //#region runtime/obligations/model.js
 const readObligations = readPart((root) => root.effective.obligations);
 const obligationEntry = (obligation) => registry$1[obligation?.source.tag]?.["x-awaits"];
-const answeredInWords = (obligation) => obligation?.source.kind === "message" || Boolean(obligationEntry(obligation)?.reply);
+const answeredInWords = (obligation) => obligation?.source.kind === "message";
 
 //#endregion
 //#region runtime/obligations/place.js
@@ -5827,13 +5827,13 @@ function everySeat(id, show) {
 	for (const held of holders) shown = show(held, thread) || shown;
 	return shown;
 }
-let currentLocation$1 = null;
+let currentLocation = null;
 onCurrentLocation((node, cause) => {
 	if (cause === "drop") return;
 	const thread = node && closestAcross(node, ".lf-page-thread, [data-lf-thread-view]");
 	const id = drawnThreadId(thread);
-	const arrived = id !== null && id !== currentLocation$1 && (cause === "move" || cause === "step");
-	currentLocation$1 = id;
+	const arrived = id !== null && id !== currentLocation && (cause === "move" || cause === "step");
+	currentLocation = id;
 	if (arrived) showHeld(id);
 });
 var HeldNews = class {
@@ -9616,299 +9616,6 @@ function createVersionController({ compositionInput, openThread, refreshThread, 
 }
 
 //#endregion
-//#region runtime/keyboard/dispatch.js
-const pageHas = scopeAvailable;
-const userIn = (scope) => {
-	if (excludedByInert(scopeRoot(scope))) return false;
-	return !scope.at || scope.at();
-};
-const currentLocation = (scope) => userIn(scope) && pageHas(scope);
-const innermostStance = () => stances().find(({ scope }) => currentLocation(scope)) ?? null;
-const nativeBoundary = (claims) => ({
-	get rows() {
-		const reference = universalCommandReference();
-		return reference ? [reference] : [];
-	},
-	claims,
-	escapeBoundary: true
-});
-const MODAL_BOUNDARY = nativeBoundary(EVERYTHING);
-const POPOVER_BOUNDARY = nativeBoundary((binding) => binding === "Escape");
-const scopeRoot = (scope) => {
-	const declared = scope.root ?? scope.el ?? document;
-	return typeof declared === "function" ? declared() : declared;
-};
-const innerEscape = (scope, active) => scope.escape === "inner" || scope.el === active;
-const above = (node, active) => {
-	let depth = 0;
-	for (let up = active; up; up = composedParentNode(up)) {
-		if (up === node) return depth;
-		depth += 1;
-	}
-	return -1;
-};
-const escapeOrder = (scopes, active) => {
-	const boundaryAt = scopes.findIndex((scope) => scope.escapeBoundary);
-	const end = boundaryAt < 0 ? scopes.length : boundaryAt;
-	const layer = scopes.slice(0, end);
-	const inner = layer.filter((scope) => innerEscape(scope, active));
-	const outer = layer.filter((scope) => !inner.includes(scope));
-	const root = new Map(outer.map((scope) => [scope, scopeRoot(scope)]));
-	const depth = new Map(outer.map((scope) => [scope, above(root.get(scope), active)]));
-	let surface = null;
-	for (const scope of outer) {
-		const at = root.get(scope);
-		if (depth.get(scope) < 1 || at === document) continue;
-		if (!surface || renderedUnder(at, surface)) surface = at;
-	}
-	const within = surface ? outer.filter((s) => renderedUnder(root.get(s), surface)) : [];
-	within.sort((a, b) => depth.get(a) - depth.get(b));
-	const rest = outer.filter((scope) => !within.includes(scope));
-	return [
-		...inner,
-		...within,
-		...rest,
-		...scopes.slice(end)
-	];
-};
-function stack(binding = null) {
-	const active = focused();
-	const elementStack = scopesFor(active);
-	const typing = takesLetters(active);
-	const TYPING = textEntryScope();
-	const nativeClaims = nativeClaimAt(active);
-	const activation = nativeActivationAt(active);
-	const controlScope = (nativeClaims || activation) && !typing ? {
-		root: active,
-		rows: [],
-		claims: nativeClaims,
-		activation
-	} : null;
-	const expanded = pageScopes().flatMap((scope) => {
-		if (scope === ELEMENTS) {
-			if (!typing && !controlScope) return elementStack;
-			const own = elementStack.filter(({ el, contextual }) => el === active && !contextual);
-			const ancestors = elementStack.filter(({ el, contextual }) => el !== active || contextual);
-			return [
-				...own,
-				...typing ? [TYPING] : [controlScope],
-				...ancestors
-			];
-		}
-		if (scope === TYPING && typing) return [];
-		return scope;
-	});
-	const ordered = (scopes) => {
-		const activeScopes = scopes.filter(currentLocation);
-		return binding === "Escape" ? escapeOrder(activeScopes, active) : activeScopes;
-	};
-	const layers = nativeLayers();
-	const modalAt = layers.findLastIndex((layer) => layer.kind === "modal");
-	const visible = modalAt < 0 ? layers : layers.slice(modalAt);
-	const floor = modalAt < 0 ? null : visible[0].root;
-	const aboveFloor = (scope) => !floor || renderedUnder(scopeRoot(scope), floor);
-	const top = visible.at(-1) ?? null;
-	const foreground = (scope) => elementStack.includes(scope) || scopeRoot(scope) === active || innerEscape(scope, active);
-	const parts = [];
-	let pool = expanded;
-	const take = (keep) => {
-		const rest = [];
-		for (const scope of pool) (keep(scope) ? parts : rest).push(scope);
-		pool = rest;
-	};
-	for (let index = visible.length - 1; index >= 0; index -= 1) {
-		const layer = visible[index];
-		take((scope) => renderedUnder(scopeRoot(scope), layer.root) || layer === top && foreground(scope) && aboveFloor(scope));
-		parts.push(layer.kind === "modal" ? MODAL_BOUNDARY : POPOVER_BOUNDARY);
-	}
-	if (modalAt < 0) parts.push(...pool);
-	return ordered(parts);
-}
-const ownsLeafInvocation = (row) => Boolean(row.run) || commandRoutes(row).some((route) => routedCommand(route));
-const runsElsewhere = (row, scope, control) => {
-	if (!scope.contextual && scopeRoot(scope) === control) return false;
-	const controls = [row, ...commandRoutes(row)].map((part) => word(part.control));
-	if (controls.includes(control)) return false;
-	return ownsLeafInvocation(row) || controls.some((each) => each != null);
-};
-const shadow = (quick = quickShortcuts()) => {
-	const claims = [];
-	let activation = null;
-	return {
-		takes: (binding, row, scope) => claims.some((c) => c(binding)) || row !== void 0 && Boolean(activation?.claims(binding)) && runsElsewhere(row, scope, activation.control),
-		past: (scope) => {
-			if (scope.claims) claims.push(scope.claims);
-			if (scope.activation) activation = {
-				claims: scope.activation,
-				control: scope.root
-			};
-			const owned = scope.el ? scope.rows.filter(ownsLeafInvocation).flatMap((row) => declaredBindings(row).filter((binding) => bindingEnabledFor(binding, quick))).filter((binding) => binding !== "Escape" && !activation?.claims(binding)) : [];
-			if (owned.length) claims.push((binding) => owned.includes(binding));
-		}
-	};
-};
-function referencedInvocation(reference) {
-	if (!reference) return null;
-	const current = referencedCommandEntry(reference);
-	if (!current || !scopesAt(reference.source).includes(reference.scope)) return null;
-	const run = reference.row.run ? () => reference.row.run(reference.binding ?? void 0) : current.route ? () => word(current.route.control ?? reference.row.control).click() : word(reference.row.control)?.isConnected ? () => word(reference.row.control).click() : null;
-	return run ? {
-		id: reference.id,
-		row: reference.row,
-		entry: current,
-		binding: reference.binding ?? void 0,
-		run,
-		native: false
-	} : null;
-}
-function invocationFor(row, binding, command, recovered = null) {
-	if (!command || !live(row)) return null;
-	const current = commandEntries(row, [binding]).find(({ id }) => id === command.id);
-	if (!current) return null;
-	const reference = routedCommand(current.route);
-	if (reference) return referencedInvocation(reference);
-	const nativeControl = recovered ?? word(current.route?.control ?? row.control);
-	const run = row.run ? () => row.run(current.route?.binding ?? binding) : nativeControl?.isConnected ? () => nativeControl.click() : null;
-	return run ? {
-		id: command?.id ?? row.id,
-		row,
-		entry: current,
-		binding,
-		run,
-		native: Boolean(row.native)
-	} : null;
-}
-function announceInvocation(invocation, title = null) {
-	const { row, entry } = invocation;
-	const route = entry.route;
-	document.dispatchEvent(new window.CustomEvent("lf-command-invoked", { detail: {
-		id: invocation.id,
-		binding: invocation.binding,
-		title: title ?? titleOf(route?.title === void 0 ? row : route),
-		description: descriptionOf(route?.description === void 0 ? row : route),
-		travels: Boolean(row.travels)
-	} }));
-}
-function invokeCommand(command) {
-	const invocation = invocationFor(command.row, command.binding, command.entry);
-	if (!invocation) return false;
-	announceInvocation(invocation);
-	invocation.run();
-	return true;
-}
-function unclaimedScopes(binding) {
-	const unclaimed = /* @__PURE__ */ new Set();
-	const nearer = shadow();
-	for (const scope of stack(binding)) {
-		if (!nearer.takes(binding)) unclaimed.add(scopeIdentity(scope));
-		nearer.past(scope);
-	}
-	return unclaimed;
-}
-const INPUT_PENDING = Symbol("command input pending");
-function resolveKey(ev) {
-	const recovered = recoveredLabelFocus(ev);
-	const nearer = shadow();
-	for (const scope of stack(answers("Escape", ev) ? "Escape" : null)) {
-		let matched = null;
-		let pending = false;
-		for (const row of scope.rows) {
-			const binding = bindings(row).find((b) => answers(b, ev));
-			if (!binding || nearer.takes(binding, row, scope)) continue;
-			const entries = commandEntries(row, [binding], { includeUnavailable: true });
-			pending ||= entries.some(({ route }) => !commandReady(row, route));
-			const entry = commandEntries(row, [binding])[0];
-			const invocation = invocationFor(row, binding, entry, recovered);
-			if (!invocation) continue;
-			if (matched) throw new Error(`leaf: ${scope.title ?? "a scope"} has two live meanings for ${binding}: ${titleOf(matched.row)}; ${titleOf(row)}`);
-			matched = invocation;
-		}
-		if (matched) return matched;
-		if (pending) return INPUT_PENDING;
-		nearer.past(scope);
-	}
-	return null;
-}
-const keyReady = (ev) => resolveKey(ev) !== INPUT_PENDING;
-const escapePress = () => new window.KeyboardEvent("keydown", { key: "Escape" });
-const escapeTakesAStep = () => {
-	const matched = resolveKey(escapePress());
-	return Boolean(matched) && matched !== INPUT_PENDING;
-};
-function answerCloseRequest() {
-	const matched = resolveKey(escapePress());
-	if (!matched || matched === INPUT_PENDING) return;
-	const keeps = Boolean(matched.row.keep);
-	announceInvocation(matched, keeps ? "keep" : null);
-	if (keeps) matched.row.keep();
-	else matched.run();
-}
-function dispatchKey(ev) {
-	const matched = resolveKey(ev);
-	if (!matched || matched === INPUT_PENDING) return false;
-	if (!matched.native) ev.preventDefault();
-	if (ev.repeat && !matched.row.repeat) return true;
-	announceInvocation(matched);
-	matched.run();
-	return true;
-}
-const reachableBindings = (row, scope, nearer, unclaimedEscape, commands, quick = quickShortcuts()) => (commands ? declaredBindings(row) : bindings(row)).filter((binding) => commands && !bindingEnabledFor(binding, quick) ? true : binding === "Escape" ? unclaimedEscape.has(scopeIdentity(scope)) : !nearer.takes(binding, row, scope));
-function commandMatching(matches, commands = false) {
-	const unclaimedEscape = unclaimedScopes("Escape");
-	const nearer = shadow();
-	for (const scope of stack()) {
-		for (const row of scope.rows) {
-			if (!live(row)) continue;
-			const reachable = reachableBindings(row, scope, nearer, unclaimedEscape, commands);
-			const entry = commandEntries(row, reachable).find((command) => matches(command, row) && invocationFor(row, command.binding, command));
-			if (entry && (entry.binding != null || allBindings(row).length === 0)) return {
-				row,
-				binding: entry.binding,
-				entry
-			};
-		}
-		nearer.past(scope);
-	}
-	return null;
-}
-const commandFor = (id) => commandMatching((command) => command.id === id, true);
-function activeCommandLabel(ids) {
-	const wanted = new Set(ids);
-	const command = commandMatching((entry) => wanted.has(entry.id));
-	return command?.binding != null ? spell(command.binding) : "";
-}
-function availableCommandRoutes({ commands = false, quick = quickShortcuts() } = {}) {
-	const routes = /* @__PURE__ */ new Map();
-	const unclaimedEscape = unclaimedScopes("Escape");
-	const nearer = shadow(quick);
-	for (const scope of stack()) {
-		for (const row of scope.rows) {
-			if (!live(row)) continue;
-			const reachable = reachableBindings(row, scope, nearer, unclaimedEscape, commands, quick);
-			for (const binding of allBindings(row).length ? reachable : [void 0]) for (const command of commandEntries(row, [binding])) {
-				if (!invocationFor(row, binding, command)) continue;
-				if (!routes.has(row)) routes.set(row, /* @__PURE__ */ new Set());
-				routes.get(row).add(binding);
-			}
-		}
-		nearer.past(scope);
-	}
-	return routes;
-}
-function invokePress({ id, row, binding }) {
-	const invocation = invocationFor(row, binding, { id });
-	if (!invocation) return false;
-	announceInvocation(invocation);
-	invocation.run();
-	return true;
-}
-function executeCommand(id) {
-	const command = commandFor(id);
-	if (!command) return false;
-	return invokeCommand(command);
-}
-
-//#endregion
 //#region runtime/data.js
 function acceptData(candidate, taken) {
 	return applicationState.acceptData(candidate, taken);
@@ -10090,4 +9797,4 @@ async function loadDeferred(value, key) {
 }
 
 //#endregion
-export { DESIGN_MODE_KEY, DISCLOSE, DISCLOSURE_SELECTOR, ELEMENTS, HOLDS_WORD, HeldNews, HeldReading, MessageView, PAGE_DRAFT, PAGE_SCOPE, SAYS_IN, SAY_BOX, THREAD, ThreadView, Transcript, aborted, acceptData, activeCommandLabel, allButCommandReference, allThreads, anchorLabel, answerCloseRequest, answeredInWords, arrivalOf, authoredHolder, authoredStates, availableCommandRoutes, awaitsData, beginThreadSeats, beginWalk, bindsInput, blocksOnScreen, bodyText, bringBackSurfaceOf, captureDraftEditing, capturePlace, carryingThreadPlace, claimSeatReplies, claimTraversals, claimed, clearDraft, commandSteps, commitThreadSeats, commitWidgetDescriptors, comparisonBase, comparisonChanges, completeReadingReturn, copyBlock, createAnchorTravel, createPassageSelection, createProjectionPresentation, createReplyView, createRewriteRestore, createVersionController, createWritingResume, currentLocationOrigin, currentLocationThreadId, dataBody, dataReader, declareOffFlowSurface, declareSide, declareThreadParts, descriptorStillMatches, designName, disclosed, dismissReply, dismissReplyAt, dispatchKey, domValue, draftContexts, draftHasContent, draftStore, drawnThreadId, ensureSyntaxLanguage, escapeTakesAStep, executeCommand, failSoft, failSoftUnreported, focusThread, focusedThreadTarget, followBoxGrowth, heldGrowth, heldObligation, heldOut, heldPagePlace, heldThread, highlightBlocks, holdPagePlace, holdReplyCompositions, holdThreadPlace, holdToRead, importWidgets, initializeServedDocument, inlineComparison, inlineMarkdownFragment, innermostStance, invokePress, isExternalPageLink, isPageWidgetWorkflow, isWorkflowProgress, joinDataDelivery, keepPageRulesOffLayer, keepRefusedWords, keepThreadLanding, keepView, keyReady, landingPlace, langForPath, leftThePage, listWalkPosition, loadDeferred, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, markdownSourceOffset, markdownWords, messageHolding, messageReading, messageText, mirrorDraft, mountFirstMessage, mountHistory, newsNotice, notifyDataSubscribers, obligationEntry, obligationHolding, obligationPlace, obligationsIn, observeOutputs, onReadingInterrupted, once, openMessageEditIn, openingView, orderChildren, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, paintCoreControls, paintMarkdown, placeKeeper, placeNode, placeOf, placePageThreads, placedMarkdownTokens, placesFailure, prepareAuthoredMessage, progressFace, publishOutput, pushEntry, quietWord, quoteReading, quoted, readBoxPlace, readObligations, readPlace, readThreads, readingBlock, readingIsContinuous, readingReturn, registerWritingDestination, releaseAuthoredUnder, releaseOutlets, releaseReplies, rememberWriting, renderMarginThread, renderMarkdown, renderSeats, renderSurfaces, replaceEntry, replyAvailable, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, replyIsEditing, replyThreadKey, reportFailure$1 as reportFailure, restorePlace, retainThreadSeats, returnPlace, revealHeld, rowWalk, saveDraft, scrollThreadIntoView, selectionAnchor, selfComparison, sendDraft, sendLanding, sendMessage, servedElements, setChildLists, setChildren, setRenderedChildren, settleAcceptedDrafts, settleThread, shadowStage, shallowSigs, showHeld, showHeldThread, showReturnTurn, snapSelection, stack, stepFrom, storedDraft, strongestWorkflow, subjectPlace, suppliedSnapshot, surfaceFocusTarget, synNodes, syntax, tabStore, tellDraft, threadAttention, threadDraft, threadFocusDestination, threadHeading, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading, threadReplyInput, threadRewrites, threadState, threadSummary, threadSurface, threadTodos, titlePending, todoLabel, toggleInlineComparison, tokenLines, touchPresses, transferDraft, upgradeWidgets, userChoice, userIn, userStore, versionPicker, versionsReading, walkOrigin, walkPosition, walkPositionLabel, watchDisclosures, watchDraft, watchDrafts, watchThreadSurfaces, whereDraft, wholeThread, widgetDescriptor, workflowLabel, workflowStep };
+export { DESIGN_MODE_KEY, DISCLOSE, DISCLOSURE_SELECTOR, ELEMENTS, HOLDS_WORD, HeldNews, HeldReading, MessageView, PAGE_DRAFT, PAGE_SCOPE, SAYS_IN, SAY_BOX, THREAD, ThreadView, Transcript, aborted, acceptData, allButCommandReference, allThreads, anchorLabel, answeredInWords, arrivalOf, authoredHolder, authoredStates, awaitsData, beginThreadSeats, beginWalk, bindsInput, blocksOnScreen, bodyText, bringBackSurfaceOf, captureDraftEditing, capturePlace, carryingThreadPlace, claimSeatReplies, claimTraversals, claimed, clearDraft, commandSteps, commitThreadSeats, commitWidgetDescriptors, comparisonBase, comparisonChanges, completeReadingReturn, copyBlock, createAnchorTravel, createPassageSelection, createProjectionPresentation, createReplyView, createRewriteRestore, createVersionController, createWritingResume, currentLocationOrigin, currentLocationThreadId, dataBody, dataReader, declareOffFlowSurface, declareSide, declareThreadParts, descriptorStillMatches, designName, disclosed, dismissReply, dismissReplyAt, domValue, draftContexts, draftHasContent, draftStore, drawnThreadId, ensureSyntaxLanguage, failSoft, failSoftUnreported, focusThread, focusedThreadTarget, followBoxGrowth, heldGrowth, heldObligation, heldOut, heldPagePlace, heldThread, highlightBlocks, holdPagePlace, holdReplyCompositions, holdThreadPlace, holdToRead, importWidgets, initializeServedDocument, inlineComparison, inlineMarkdownFragment, isExternalPageLink, isPageWidgetWorkflow, isWorkflowProgress, joinDataDelivery, keepPageRulesOffLayer, keepRefusedWords, keepThreadLanding, keepView, landingPlace, langForPath, leftThePage, listWalkPosition, loadDeferred, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, markdownSourceOffset, markdownWords, messageHolding, messageReading, messageText, mirrorDraft, mountFirstMessage, mountHistory, newsNotice, notifyDataSubscribers, obligationEntry, obligationHolding, obligationPlace, obligationsIn, observeOutputs, onReadingInterrupted, once, openMessageEditIn, openingView, orderChildren, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, paintCoreControls, paintMarkdown, placeKeeper, placeNode, placeOf, placePageThreads, placedMarkdownTokens, placesFailure, prepareAuthoredMessage, progressFace, publishOutput, pushEntry, quietWord, quoteReading, quoted, readBoxPlace, readObligations, readPlace, readThreads, readingBlock, readingIsContinuous, readingReturn, registerWritingDestination, releaseAuthoredUnder, releaseOutlets, releaseReplies, rememberWriting, renderMarginThread, renderMarkdown, renderSeats, renderSurfaces, replaceEntry, replyAvailable, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, replyIsEditing, replyThreadKey, reportFailure$1 as reportFailure, restorePlace, retainThreadSeats, returnPlace, revealHeld, rowWalk, saveDraft, scrollThreadIntoView, selectionAnchor, selfComparison, sendDraft, sendLanding, sendMessage, servedElements, setChildLists, setChildren, setRenderedChildren, settleAcceptedDrafts, settleThread, shadowStage, shallowSigs, showHeld, showHeldThread, showReturnTurn, snapSelection, stances, stepFrom, storedDraft, strongestWorkflow, subjectPlace, suppliedSnapshot, surfaceFocusTarget, synNodes, syntax, tabStore, tellDraft, textEntryScope, threadAttention, threadDraft, threadFocusDestination, threadHeading, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading, threadReplyInput, threadRewrites, threadState, threadSummary, threadSurface, threadTodos, titlePending, todoLabel, toggleInlineComparison, tokenLines, touchPresses, transferDraft, universalCommandReference, upgradeWidgets, userChoice, userStore, versionPicker, versionsReading, walkOrigin, walkPosition, walkPositionLabel, watchDisclosures, watchDraft, watchDrafts, watchThreadSurfaces, whereDraft, wholeThread, widgetDescriptor, workflowLabel, workflowStep };

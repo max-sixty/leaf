@@ -1,5 +1,5 @@
 {
-  "protocol": 30,
+  "protocol": 31,
   "events": {
     "ownership": {
       "derived": ["meaning","attention"],
@@ -33,7 +33,7 @@
     "$id": "leaf:verb",
     "type": "object",
     "properties": {
-      "detail": {"type":"object"},
+      "detail": {"type":"object","properties":{"type":{"const":"object"},"properties":{},"required":{},"additionalProperties":{"const":false}},"required":["type","additionalProperties"],"additionalProperties":false},
       "unit": {"type":"string","minLength":1},
       "record": {"oneOf":[{"type":"object","properties":{"kind":{"const":"attribute"},"attr":{"type":"string","pattern":"^[a-z][a-z0-9-]*$"}},"required":["kind","attr"],"additionalProperties":false},{"type":"object","properties":{"kind":{"const":"position"},"within":{"type":"string","pattern":"^lf-[a-z0-9]+(?:-[a-z0-9]+)*$"}},"required":["kind","within"],"additionalProperties":false},{"type":"object","properties":{"kind":{"const":"body"}},"required":["kind"],"additionalProperties":false},{"type":"object","properties":{"kind":{"const":"value"},"attr":{"type":"string","pattern":"^[a-z][a-z0-9-]*$"}},"required":["kind","attr"],"additionalProperties":false}]},
       "writer": {"const":"agent"},

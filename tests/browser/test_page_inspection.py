@@ -293,6 +293,5 @@ def test_about_copy_on_plain_http_machine_name(browser, serve):
     expect(dialog).to_contain_text("Source captured for r1")
     dialog.get_by_role("button", name="Copy Leaf version", exact=True).click()
     page.keyboard.press("Escape")
-    context.unroute_all(behavior="ignoreErrors")
     page.goto(local_url)
     assert page.evaluate("navigator.clipboard.readText()").startswith("Leaf layer\n")

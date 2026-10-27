@@ -1137,7 +1137,7 @@ def test_an_obligation_that_cannot_name_itself_arrives_on_the_words_that_explain
 ):
     """A change to a phrase has no region to declare, so the document supplies one.
 
-    An enclosing widget (`x-awaits.encloses`) states its own arrival region: a heading, the
+    An enclosing widget (`x-encloses`) states its own arrival region: a heading, the
     context, then the control. A suggestion can stand mid-sentence, so it can never satisfy "an obligation must
     name itself without context outside the obligation" and no region can be written round it.
     Arriving on the change alone put its own top edge at the window's head and took the

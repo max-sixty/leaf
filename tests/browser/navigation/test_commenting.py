@@ -14,9 +14,8 @@ from render_cases_interaction import (
     panel_comment,
 )
 from render_cases_navigation import DISCLOSED_PAGE, NOTED_PAGE, TARGETS_PAGE, _publish
-from render_cases_widgets import WHERE_I_STAND_PAGE
+from render_cases_widgets import SQUEEZED_BOARD_PAGE, WHERE_I_STAND_PAGE
 from render_harness import (
-    EXAMPLES,
     INLINE_PAGE,
     RELEASE_FOCUS,
     ROOT,
@@ -778,13 +777,13 @@ def test_target_picker_comments_on_a_clipped_card_without_moving_the_board(
 ):
     """A visible sliver is enough to target a card and place a comment overlay.
 
-    Choosing either a whole card or the next column's visible sliver preserves the
+    Choosing either a whole card or a clipped card's visible sliver preserves the
     board's position; the response box fits the room already on screen.
     """
-    source = next(example for example in EXAMPLES if example.stem == "triage-board")
-    url = serve(source)
+    # Narrow boards stack; this crowded, wider board still scrolls sideways.
+    url = serve(SQUEEZED_BOARD_PAGE)
     context = browser.new_context(
-        viewport={"width": 390, "height": 844}, has_touch=True
+        viewport={"width": 720, "height": 844}, has_touch=True
     )
 
     def choose(page, selector):
@@ -809,7 +808,7 @@ def test_target_picker_comments_on_a_clipped_card_without_moving_the_board(
     def board_reading(page, selector):
         return page.evaluate(
             """selector => {
-              const board = document.querySelector('#release-board');
+              const board = document.querySelector('#crowd');
               const view = board.getBoundingClientRect();
               const card = document.querySelector(selector).getBoundingClientRect();
               return {
@@ -826,20 +825,29 @@ def test_target_picker_comments_on_a_clipped_card_without_moving_the_board(
         )
 
     page = open_page(browser, url, context=context)
-    before = board_reading(page, "#card-migration")
+    before = board_reading(page, "#sq-card-0")
     assert before["visible"] == pytest.approx(before["width"], abs=1), before
-    choose(page, "#card-migration")
-    assert board_reading(page, "#card-migration")["scrollLeft"] == before["scrollLeft"]
+    choose(page, "#sq-card-0")
+    assert board_reading(page, "#sq-card-0")["scrollLeft"] == before["scrollLeft"]
     page.close()
 
     page = open_page(browser, url, context=context)
-    before = board_reading(page, "#card-tz")
+    page.evaluate(
+        """() => {
+          const board = document.querySelector('#crowd');
+          const card = document.querySelector('#sq-card-3');
+          board.scrollLeft += card.getBoundingClientRect().left
+            - board.getBoundingClientRect().right + 24;
+        }"""
+    )
+    scroll_settled(page)
+    before = board_reading(page, "#sq-card-3")
     assert 0 < before["visible"] < before["width"] / 4, before
-    choose(page, "#card-tz")
-    after = board_reading(page, "#card-tz")
+    choose(page, "#sq-card-3")
+    after = board_reading(page, "#sq-card-3")
     assert after == before
     expect(page.locator(".lf-fab-input")).to_have_attribute(
-        "aria-label", re.compile("Digest email uses server timezone")
+        "aria-label", re.compile("Perch 3")
     )
 
 

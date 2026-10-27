@@ -247,7 +247,7 @@ def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):
     words = page.locator("#left .lf-tally-words")
     button = page.locator("#left").get_by_role("button", name="Next on me")
     first, second = page.locator("#first-decision"), page.locator("#second-decision")
-    expect(words).to_have_text("2 of 2 to answer")
+    expect(words).to_have_text("2 left to answer")
     box = page.locator("#left").bounding_box()
 
     # The row opens the obligation the user reads. Enter its obligation before deciding: the
@@ -261,7 +261,7 @@ def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):
     with sending(page, "the second item's answer by digit"):
         page.keyboard.press("1")
     round_trip(page)
-    expect(words).to_have_text("1 of 2 to answer")
+    expect(words).to_have_text("1 left to answer")
     answer = next(
         event
         for event in reversed(events_model.read_events(serve.page_dir))
@@ -277,7 +277,7 @@ def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):
     with sending(page, "undo the second item's answer after Next"):
         page.keyboard.press("z")
     round_trip(page)
-    expect(words).to_have_text("2 of 2 to answer")
+    expect(words).to_have_text("2 left to answer")
     assert events_model.read_events(serve.page_dir)[-1]["undoes"] == answer["id"]
     # Leave the next press at the region's start, as on initial arrival.
     page.get_by_role("tab", name="First", exact=True).click()
@@ -305,7 +305,7 @@ def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):
     with sending(page, "the answer to the second decision"):
         page.locator("#second-decision .lf-pick").first.click()
     round_trip(page)
-    expect(words).to_have_text("1 of 2 to answer")
+    expect(words).to_have_text("1 left to answer")
     button.click()
     expect(first).to_be_focused()
     with sending(page, "the answer to the first decision"):
@@ -317,14 +317,14 @@ def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):
     with sending(page, "undo the first decision's answer"):
         page.keyboard.press("z")
     round_trip(page)
-    expect(words).to_have_text("1 of 2 to answer")
+    expect(words).to_have_text("1 left to answer")
     expect(button).to_be_enabled()
     expect(page.locator("#left")).not_to_have_attribute("data-lf-done", "")
     # A comment on the open obligation hands it to the agent until a reply: the tally and
     # the item's row say so rather than calling it the user's to answer, beside a
     # disabled Next on me.
     panel_comment(serve.page_dir, "Why Alpha?", {"section": "first-decision"})
-    expect(words).to_have_text("1 of 2 on Claude")
+    expect(words).to_have_text("1 on Claude")
     expect(page.locator("#queue .lf-tab-answer").first).to_have_text("On Claude")
     expect(button).to_be_disabled()
     expect(page.locator("#left")).not_to_have_attribute("data-lf-done", "")

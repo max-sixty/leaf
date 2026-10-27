@@ -1406,8 +1406,7 @@ def test_a_back_gesture_takes_the_step_escape_would(browser, serve):
     back_gesture(page)
     expect(menu).not_to_be_attached()
 
-    page.locator(".lf-fp-threads").tap()
-    panel_settled(page, view="threads")
+    open_threads(page)
     back_gesture(page)
     panel_settled(page, open=False)
     assert page.evaluate("window.browserBack") == 0
@@ -1423,8 +1422,7 @@ def test_escape_takes_one_step_where_a_back_gesture_would_take_it(browser, serve
     page = open_page(browser, serve(INLINE_PAGE))
     page.evaluate(BROWSER_BACK)
     select_words(page, "#p")
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    open_threads(page)
 
     page.keyboard.press("Escape")
     panel_settled(page, open=False)

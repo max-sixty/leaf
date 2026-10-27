@@ -623,7 +623,7 @@ def test_a_playground_control_value_fits_its_kind_at_the_markup_boundary():
     # So are the attributes that describe any element and record nothing.
     assert not errors(
         'kind="toggle" value="false" title="Route" lang="en" dir="ltr"'
-        ' aria-describedby="route-note" data-group="routing"'
+        ' aria-describedby="route-note" data-group="routing" data-test_id="r.1"'
     )
     # Leaf's own data-lf- namespace and `hidden` still validate.
     assert refused('kind="toggle" value="false" data-lf-said="x"') == [

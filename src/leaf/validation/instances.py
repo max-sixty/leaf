@@ -24,9 +24,7 @@ from leaf.structure import AUTHORED_ALLOCATIONS, SourceDocument
 
 from .markup import found_at, structure_errors
 
-_GLOBAL_ATTRIBUTE = re.compile(
-    r"class|style|title|lang|dir|aria-[a-z]+|data-(?!lf-)[a-z0-9-]+"
-)
+_GLOBAL_ATTRIBUTE = re.compile(r"class|style|title|lang|dir|aria-[a-z]+|data-(?!lf-).+")
 
 
 def member_holders(rec: dict, registry: dict):

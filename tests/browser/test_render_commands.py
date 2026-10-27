@@ -1335,28 +1335,35 @@ def test_the_gate_passes_collapsed_words_that_overlap_when_visible(browser, serv
 
 
 def test_the_gate_passes_words_set_close_or_declared_decorative(browser, serve):
-    """Display type set solid overlaps its neighbour's line box by a few pixels with no
-    letter near another, and a numeral the page marks aria-hidden sits behind a label on
-    purpose; neither is words drawn on words. Two labels a few pixels apart still are."""
+    """Display type set solid overlaps its neighbour's line box with no letter near
+    another, and a faint numeral the page marks aria-hidden sits behind a label on
+    purpose; neither is words drawn on words. Two labels a few pixels apart still are,
+    and so is an opaque aria-hidden word over a label."""
     url = serve(
         leaf_page(
             "close words",
-            '<h1>Close words</h1><div style="position:relative;height:200px">'
+            '<h1>Close words</h1><div style="position:relative;height:400px">'
             '<p id="kpi" style="font:700 44px/1 sans-serif;margin:0">'
             '1,204<span style="display:block">requests</span></p>'
             '<span aria-hidden="true" style="position:absolute;top:0;left:0;'
             'font-size:120px;opacity:.08">7</span>'
-            '<p id="lower" style="position:absolute;top:150px;left:0;margin:0">'
+            '<p id="stacked" style="font:700 80px/.8 Arial;margin:0">HIGH<br>TYPE</p>'
+            '<p id="warning" style="position:absolute;top:100px;left:400px;margin:0">'
+            "Cannot proceed</p>"
+            '<span aria-hidden="true" style="position:absolute;top:100px;left:400px;'
+            'background:white">Decoration</span>'
+            '<p id="lower" style="position:absolute;top:150px;left:400px;margin:0">'
             "One label</p>"
-            '<p id="upper" style="position:absolute;top:154px;left:0;margin:0">'
+            '<p id="upper" style="position:absolute;top:154px;left:400px;margin:0">'
             "Another label</p></div>",
         )
     )
     page = open_page(browser, url)
     found = render_checks_model.evaluate_probe(page, "coveredWords")
 
-    assert [{f["words"], f["covered"]} for f in found] == [
-        {"One label", "Another label"}
+    assert sorted(sorted([f["words"], f["covered"]]) for f in found) == [
+        ["Another label", "One label"],
+        ["Cannot proceed", "Decoration"],
     ], found
 
 

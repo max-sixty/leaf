@@ -8403,8 +8403,8 @@ registerPageControl({
 const diffBlockSel = () => [
 	TEXT_BLOCK,
 	"aside",
-	...tagsDeclaring((e) => e["x-owners"] && (e["x-content"] ?? "markup") === "markup"),
-	...tagsDeclaring((e) => e["x-verbatim"])
+	...tagsDeclaring((e) => !e["x-inline"] && e["x-owners"] && (e["x-content"] ?? "markup") === "markup"),
+	...tagsDeclaring((e) => !e["x-inline"] && e["x-verbatim"])
 ].join(",");
 const diffOpaqueSel = () => [
 	...tagsDeclaring((e) => e["x-upgrade"] && !e["x-verbatim"] && e["x-content"] === "data"),
@@ -8524,8 +8524,10 @@ const currentSource = () => paintedSource(versionSource().source, readApplicatio
 function standingFor(block, current) {
 	const { pairs } = versionSource();
 	for (let at = block; at && at !== current.root; at = at.parentElement) {
-		const live = current.sourceOf.has(at) ? pairs.get(current.sourceOf.get(at)) : at.id ? elementById(at.id, pageDocument()) : null;
-		if (live?.isConnected) return live;
+		const paired = current.sourceOf.has(at) && pairs.get(current.sourceOf.get(at));
+		if (paired?.isConnected) return paired;
+		const named = at.id && elementById(at.id, pageDocument());
+		if (named?.isConnected) return named;
 	}
 	return null;
 }

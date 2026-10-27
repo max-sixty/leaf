@@ -108,6 +108,15 @@ export const shownVerbatim = (declarations) =>
 // for, and words nobody can see are not drawn over anything, so [hidden] is held out here
 // the way the size check holds it out. The coin comes down the same side every time on a
 // group that has been opened and closed, which is where the test pins it.
+// Words the page hides from assistive technology and draws at under half opacity.
+const decoration = (el) => {
+  if (!el.closest("[aria-hidden=true]")) return false;
+  let opacity = 1;
+  for (let at = el; at; at = at.parentElement)
+    opacity *= Number(getComputedStyle(at).opacity);
+  return opacity < 0.5;
+};
+
 export function coveredWords({
   holdFloating = true,
   holdHidden = true,
@@ -121,10 +130,9 @@ export function coveredWords({
       const b = runs[j];
       if (a.el === b.el || a.el.contains(b.el) || b.el.contains(a.el)) continue;
       if (holdLabelLines && a.label && a.label === b.label) continue;
-      // Words the page declares decorative, such as a faint numeral set behind a
-      // label, are drawn under other words on purpose.
-      if (a.el.closest("[aria-hidden=true]") || b.el.closest("[aria-hidden=true]"))
-        continue;
+      // A faint numeral the page declares decorative, set behind a label, is drawn
+      // there on purpose and leaves the label legible; an opaque one still covers it.
+      if (decoration(a.el) || decoration(b.el)) continue;
       // SVG renderers can draw a stroked copy directly behind a filled label
       // to make its letters legible. They are one painted word, not two words
       // covering each other; keep comparing either copy with every other run.
@@ -146,12 +154,7 @@ export function coveredWords({
         Math.min(a.box.right, b.box.right) - Math.max(a.box.left, b.box.left);
       const down =
         Math.min(a.box.bottom, b.box.bottom) - Math.max(a.box.top, b.box.top);
-      // A run's box is its font's ascent to descent, taller than its letters, so
-      // display type set solid (line-height near 1) overlaps the next line's box by
-      // a few pixels with no letter near another. A quarter of the shorter run's
-      // height is past any font's leading and well inside any real collision.
-      const slack = Math.max(2, Math.min(a.box.height, b.box.height) / 4);
-      if (across <= 2 || down <= slack) continue;
+      if (across <= 2 || down <= 2) continue;
       found.push({
         code: "covered-words",
         at: at(a.el),
@@ -241,6 +244,29 @@ function paintedRuns(root, { holdFloating = true, holdHidden = true } = {}) {
     }
     return box;
   };
+  // The part of a run's rect its letters can reach. A text range's rect spans its font's
+  // ascent to descent, taller than any letter, so display type set solid overlaps the
+  // next line's rect with no letter near another. The font's own metrics, scaled to the
+  // rect as drawn (an SVG label's viewBox scales both), place the baseline and the
+  // tallest ascender and deepest descender among the node's letters.
+  const metrics = document.createElement("canvas").getContext("2d");
+  const ink = (el, text, drawn) => {
+    const style = getComputedStyle(el);
+    metrics.font = `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+    const m = metrics.measureText(text);
+    const span = m.fontBoundingBoxAscent + m.fontBoundingBoxDescent;
+    if (!(span > 0)) return drawn;
+    const scale = drawn.height / span;
+    const baseline = drawn.top + m.fontBoundingBoxAscent * scale;
+    const top = Math.max(drawn.top, baseline - m.actualBoundingBoxAscent * scale);
+    const bottom = Math.min(
+      drawn.bottom,
+      baseline + m.actualBoundingBoxDescent * scale,
+    );
+    return bottom > top
+      ? new DOMRect(drawn.left, top, drawn.width, bottom - top)
+      : drawn;
+  };
   const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   // A text walk visits text nodes.
   for (
@@ -262,7 +288,7 @@ function paintedRuns(root, { holdFloating = true, holdHidden = true } = {}) {
     range.selectNodeContents(node);
     const label = el.closest("text");
     for (const drawn of range.getClientRects()) {
-      const box = painted(el, drawn);
+      const box = painted(el, ink(el, node.data, drawn));
       if (box && box.width > 1 && box.height > 1)
         runs.push({ el, label, box, text: node.data.trim().slice(0, 40) });
     }

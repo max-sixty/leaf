@@ -262,11 +262,17 @@ SCRIPT_WORDS = leaf_page(
 <p id="readout">Counting…</p>
 <section id="tally"><p id="tally-note">The script appends a paragraph here.</p></section>
 <div id="listed"></div>
+<p id="glossed">Plain words around a <lf-gloss id="term" tip="A term.">term</lf-gloss>.</p>
+<p id="cloned">Words a script copies.</p>
 <p id="outro">The last authored paragraph.</p>
 """,
     head="""<script type="module">
 import { html, render } from "/runtime/widget-api.js";
 document.getElementById("readout").textContent = "42 items counted by the script.";
+const cloned = document.getElementById("cloned");
+const copy = cloned.cloneNode(true);
+copy.className = "copied";
+cloned.replaceWith(copy);
 const added = document.createElement("p");
 added.textContent = "A paragraph the script appended.";
 document.getElementById("tally").append(added);
@@ -288,15 +294,17 @@ def test_the_diff_marks_what_the_author_changed_and_no_word_a_script_wrote(
     The author rewrote the readout's placeholder too, so it is marked. On the fresh
     load the words it shows are the script's, so it offers no inline diff, which would
     paint the source's words over the script's, while the rewritten closing paragraph
-    offers one."""
+    offers one. A paragraph holding a gloss is one block, so rewording the words around
+    the gloss marks it; a paragraph the script swapped for a copy is found by its id."""
     url = live_url(serve(SCRIPT_WORDS))
     page = open_page(browser, url)
     stamp_page(
         serve.page_dir,
-        SCRIPT_WORDS.replace("Counting…", "Tallying…").replace(
-            "The last authored paragraph.", "The closing authored paragraph."
-        ),
-        "reworded two paragraphs",
+        SCRIPT_WORDS.replace("Counting…", "Tallying…")
+        .replace("The last authored paragraph.", "The closing authored paragraph.")
+        .replace("Plain words around", "Reworded words around")
+        .replace("Words a script copies.", "Reworded words a script copies."),
+        "reworded four paragraphs",
     )
     wait_for_revision(page, 2)
     # The revision lands with the arrival tint on the blocks it changed, and only those.
@@ -308,14 +316,16 @@ def test_the_diff_marks_what_the_author_changed_and_no_word_a_script_wrote(
           return tinted.length ? tinted : null;
         }"""
     ).json_value()
-    assert tinted == ["readout", "outro"]
+    assert tinted == ["readout", "glossed", "cloned", "outro"]
     fresh = open_page(browser, url)
     for shown in (page, fresh):
         compare_with(shown, 1)
         marked = shown.locator("main .lf-ins-block")
-        expect(marked).to_have_count(2)
+        expect(marked).to_have_count(4)
         assert marked.evaluate_all("blocks => blocks.map(b => b.id)") == [
             "readout",
+            "glossed",
+            "cloned",
             "outro",
         ]
 

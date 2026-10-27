@@ -816,8 +816,8 @@ export class Painter {
         owner[e.to.slot] >= 0 &&
           e.to.lane === "v" &&
           !done &&
-          fill !== C.warn &&
-          fill !== C.ok
+          !cmp.has(key) &&
+          key !== wrote
           ? 0.7
           : 1,
       );

@@ -154,18 +154,34 @@ def test_check_refuses_a_malformed_widget_schema(page_dir, entry, code, values):
     assert found(findings, code, **values), findings
 
 
-def test_the_registry_door_refuses_an_open_detail_schema(page_dir):
+@pytest.mark.parametrize("closed", [None, True])
+def test_the_registry_door_refuses_an_open_detail_schema(page_dir, closed):
     """A verb carries only the detail keys it declares, so every reader of a detail
     field reads a declaration rather than whatever a client chose to send."""
     registry = json.loads((page_dir / "registry.json").read_text())
-    del registry["lf-suggestion"]["x-state"]["decide"]["detail"]["additionalProperties"]
+    detail = registry["lf-suggestion"]["x-state"]["decide"]["detail"]
+    if closed is None:
+        del detail["additionalProperties"]
+    else:
+        detail["additionalProperties"] = closed
     (page_dir / "registry.json").write_text(json.dumps(registry))
     status, findings = check_findings(page_dir)
     assert status != 0
-    assert found(findings, "verb-detail-open", "<lf-suggestion>", verb="decide")
+    assert found(
+        findings,
+        "invalid-extensions",
+        "<lf-suggestion>",
+        keyword="required" if closed is None else "const",
+    )
 
 
-def test_the_registry_door_holds_a_detail_schema_to_the_keys_it_names(page_dir):
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [("patternProperties", {"^resolv": {"type": "string"}}), ("allOf", [{}])],
+)
+def test_the_registry_door_holds_a_detail_schema_to_the_keys_it_names(
+    page_dir, key, value
+):
     """`additionalProperties: false` closes an object only against names
     `properties` does not match, so a `patternProperties` beside it admits a
     field no declaration spells — and `resolves` is a field, which is how a
@@ -177,13 +193,22 @@ def test_the_registry_door_holds_a_detail_schema_to_the_keys_it_names(page_dir):
     The unrecorded `add` command owns its custom payload and fold unit."""
     registry = json.loads((page_dir / "registry.json").read_text())
     add = registry["lf-options"]["x-state"]["add"]
-    add["detail"]["patternProperties"] = {"^resolv": {"type": "string"}}
+    add["detail"][key] = value
     (page_dir / "registry.json").write_text(json.dumps(registry))
     status, findings = check_findings(page_dir)
     assert status != 0
     assert found(
-        findings, "verb-detail-keys", "<lf-options>", keys=["patternProperties"]
+        findings, "invalid-extensions", "<lf-options>", keyword="additionalProperties"
     )
+
+
+def test_a_custom_detail_can_be_an_empty_closed_object(page_dir):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-suggestion"]["x-state"]["empty"] = {
+        "unit": "widget",
+        "detail": {"type": "object", "additionalProperties": False},
+    }
+    registry_validation.validate_registry(registry, "test registry")
 
 
 def test_the_resolves_attribute_belongs_to_a_widget_with_a_local_obligation(page_dir):
@@ -334,7 +359,9 @@ def test_check_refuses_element_schemas_under_selector_names(page_dir, tag):
 
 def test_check_refuses_an_invalid_action_detail_schema(page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
-    registry["lf-options"]["x-state"]["add"]["detail"]["type"] = "not-a-type"
+    registry["lf-options"]["x-state"]["add"]["detail"]["properties"]["option"][
+        "type"
+    ] = "not-a-type"
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
     status, findings = check_findings(page_dir)
@@ -353,6 +380,15 @@ def test_check_refuses_a_format_no_boundary_checks(page_dir):
     assert status != 0
     [refused] = found(findings, "declaration-schema", "<lf-options>", keyword="format")
     assert refused.values["reason"].startswith("format 'hostname'")
+
+    registry["lf-options"]["properties"]["id"].pop("format")
+    registry["lf-options"]["x-state"]["add"]["detail"]["properties"]["option"][
+        "format"
+    ] = "hostname"
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+    status, findings = check_findings(page_dir)
+    assert status != 0
+    assert found(findings, "verb-detail-schema", "<lf-options>", keyword="format")
 
 
 DRAFT_2020_12 = "https://json-schema.org/draft/2020-12/schema"
@@ -441,14 +477,24 @@ def test_generated_child_declaration_closes_its_boundary(page_dir, mutation, cod
     assert found(findings, code), findings
 
 
-def test_action_detail_schemas_match_the_post_object_contract(page_dir):
+@pytest.mark.parametrize("kind", [None, "string"])
+def test_action_detail_schemas_match_the_post_object_contract(page_dir, kind):
     registry = json.loads((page_dir / "registry.json").read_text())
-    registry["lf-suggestion"]["x-state"]["decide"]["detail"] = {"type": "string"}
+    detail = registry["lf-suggestion"]["x-state"]["decide"]["detail"]
+    if kind is None:
+        del detail["type"]
+    else:
+        detail["type"] = kind
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
     status, findings = check_findings(page_dir)
     assert status != 0
-    assert found(findings, "verb-detail-type", "<lf-suggestion>", verb="decide")
+    assert found(
+        findings,
+        "invalid-extensions",
+        "<lf-suggestion>",
+        keyword="required" if kind is None else "const",
+    )
 
 
 def test_registry_cross_entry_checks_wait_for_every_entry_to_validate(page_dir):

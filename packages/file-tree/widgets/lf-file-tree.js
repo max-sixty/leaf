@@ -43,8 +43,19 @@ const loadTrees = () => (library ??= import("/vendor/pierre-trees.esm.js"));
 customElements.define(
   "lf-file-tree",
   class extends LeafElement {
-    #snapshot;
+    // The file list, set by whoever hosts the widget: Leaf from the bound source or
+    // diff (the registry's `x-data.files.property`), or null while it has none.
+    static properties = { value: { attribute: false } };
+
+    constructor() {
+      super();
+      this.value = null;
+    }
+
+    // The file list the last render read, the one last applied, and its application.
+    #delivered;
     #shown;
+    #applied;
 
     setup() {
       const empty = offer("p", "lf-file-tree-empty", "No files available.");
@@ -188,10 +199,10 @@ customElements.define(
           mounted = false;
         };
       });
-      this.applyFiles = async (snapshot) => {
+      this.applyFiles = async (value) => {
         const current = ++generation;
-        files = snapshot?.value.files ?? [];
-        available = snapshot !== null;
+        files = value?.files ?? [];
+        available = value !== null;
         paintEmpty();
         if (!tree && files.length) {
           const { FileTree } = await loadTrees();
@@ -222,7 +233,7 @@ customElements.define(
             .filter((file) => file.status)
             .map(({ path, status }) => ({ path, status })),
         );
-        if (snapshot?.value.current) selectOnly(snapshot.value.current);
+        if (value?.current) selectOnly(value.current);
         if (!files.length) {
           stopModel?.();
           stopModel = null;
@@ -235,15 +246,26 @@ customElements.define(
     }
 
     render() {
-      this.#snapshot = this.data("files");
+      this.#delivered = this.value;
       return nothing;
     }
 
+    // The tree loads and draws each list after the update that read it, and that
+    // update's `updateComplete` waits for it.
     updated(changed) {
       super.updated(changed);
-      if (this.#snapshot === this.#shown) return;
-      const snapshot = (this.#shown = this.#snapshot);
-      this.drawing(this.applyFiles(snapshot));
+      this.#applied =
+        this.#delivered === this.#shown
+          ? undefined
+          : this.applyFiles((this.#shown = this.#delivered));
+    }
+
+    // Also waits for the drawing the latest update started: a newer update's drawing
+    // replaces one still pending.
+    async getUpdateComplete() {
+      const result = await super.getUpdateComplete();
+      await this.#applied;
+      return result;
     }
   },
 );

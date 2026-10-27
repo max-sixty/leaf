@@ -11,6 +11,10 @@ later edits to the source checkout cannot change another copy's result. Installe
 Node dependencies are shared as inputs; generated test output belongs to its copy.
 Each copy is one process (`-n0`: the copies are the concurrency).
 
+A load flake that a slower CI runner shows and this machine doesn't can need a slower
+CPU rather than more copies: `--cpu-throttle RATE` passes the suite's own option, which
+slows every Chromium page the browser fixtures open (`tests/AGENTS.md`, "Races").
+
 Prints each test's count per outcome, then every failure's message, grouped where
 copies agree. Each copy's output stays under `.tmp/flake/`. Exits 0 only when every
 copy of every test passed; a skip is not a pass.
@@ -40,7 +44,13 @@ RESULTS = ("passed", "failed", "error", "skipped", "not run")
 
 @click.command()
 @click.argument("selection", nargs=-1, required=True)
-def flake(selection: tuple[str, ...]) -> None:
+@click.option(
+    "--cpu-throttle",
+    "throttle",
+    type=click.FloatRange(min=1),
+    help="Slow every Chromium page the tests open this many times.",
+)
+def flake(selection: tuple[str, ...], throttle: float | None) -> None:
     """Run tests as concurrent copies to surface load flakes.
 
     Runs SELECTION, pytest node ids from the working tree, as 18 copies six at a
@@ -107,6 +117,7 @@ def flake(selection: tuple[str, ...]) -> None:
                     ROOT / dependency, target_is_directory=True
                 )
 
+        options = ("-n0", *((f"--cpu-throttle={throttle}",) if throttle else ()))
         collection = scratch / "collection"
         checkout(collection)
         items = collect(collection, selection, out / "collect.log")
@@ -116,7 +127,7 @@ def flake(selection: tuple[str, ...]) -> None:
             target = scratch / f"copy-{n:02}"
             checkout(target)
             try:
-                return run(target, selection, items, out / target.name, "-n0")
+                return run(target, selection, items, out / target.name, *options)
             finally:
                 shutil.rmtree(target)
 

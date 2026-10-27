@@ -14,7 +14,7 @@ creates or re-vendors one, records nothing), an answer reference's page
 carries (`delivery.acting_on_delivery`); each notes its page (`acting_on`). A
 command that names none, as `leaf wait` watching every page a session owns,
 records nothing: its time is the agent waiting, not Leaf answering. One that
-names a page and then waits, as `leaf wait --ack` does, records its own work as it
+names a page and then waits, as `leaf wait PAGE` does, records its own work as it
 starts waiting. Harness hooks
 don't pass through the CLI, and their time shows as delivery in the page's pickup
 receipts. A command's time runs from its launcher's start, `bin/leaf`'s uv

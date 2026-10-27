@@ -32,6 +32,19 @@ variants:
   configuration:
     vars:
       prompt: file://configuration/request.md
+  # A two-job demo followed the universal playground-width instruction and spread
+  # a small form across a mostly empty window. Exercise the authored result, not
+  # whether the author chose a particular Layout or control appearance.
+  small-configuration:
+    vars:
+      prompt: |
+        Make a page where I can choose accelerators for two eight-hour training
+        jobs, embeddings and ranking. Each currently uses CPU. Options are CPU
+        ($0.50/hour), A10 ($1.20/hour), A100 ($3/hour), and H100 ($5/hour). I also
+        need batch or urgent priority, initially batch. Show what each job and the
+        whole run will cost as I change the choices. Let me send the final
+        configuration to you to apply; do not apply anything yet. I am using a
+        1728×999 desktop window.
   # A real comparison passed render checks with fixed drawings stranded at the
   # left of expanding grid tracks. Readable labels did not establish a balanced pair.
   diagram-comparison:

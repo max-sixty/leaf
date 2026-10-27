@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { effect } from "/vendor/browser-runtime.js";
+import { effect } from "/runtime/framework.js";
 import { ThreadView } from "/runtime/thread/thread-card.js";
 import { commandDeclarationsWithin } from "/runtime/keyboard/scopes.js";
 
@@ -13,6 +13,7 @@ test("a thread card's output updates its commands without invalidating its prese
     surface: "margin",
     messages: [],
     summaries: [],
+    todos: [],
     reply: false,
     working: null,
     news: null,

@@ -32,9 +32,8 @@ from .schema import (
 # The `$events` members a layer may restate; the rest are the kernel's.
 LAYER_OWNED_EVENTS = frozenset({"handling", "answering"})
 # The facts both runtimes read from the kernel registry, each whole and none from a
-# layer (`registry.kernel`): Python reads the running Leaf's own copy and the browser a
-# copy generated from it, so a layer's change would reach neither. A page's older
-# runtime reads `$marks` from the vocabulary it was vendored with.
+# layer (`registry.kernel`): Python and the browser (`runtime/kernel-facts.js`) both
+# read the running Leaf's own copy, so a layer's change would reach neither.
 KERNEL_FACTS = frozenset({"$passages", "$names", "$marks", "$authored"})
 # The facts that document a declaration's keys, each beside the schema that admits
 # those keys (`validate_layer_declarations`).

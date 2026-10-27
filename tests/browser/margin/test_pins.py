@@ -120,7 +120,7 @@ def test_a_pin_stands_by_its_run_of_text_rather_than_over_it(browser, serve):
 
 
 PIN_READING = """async (id) => {
-  const {shownParts} = await window.__lfWidgetApi();
+  const {shownParts} = await window.__lfCheckApi();
   const edges = ({left, top, right, bottom}) => ({left, top, right, bottom});
   const parts = shownParts(document.getElementById(id))
     .flatMap((el) => [...el.getClientRects()])

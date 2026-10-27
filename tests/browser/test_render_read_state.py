@@ -617,6 +617,7 @@ def test_an_acknowledgement_neither_waits_for_nor_holds_up_a_gesture(browser, se
     )
     page.unroute("**/api/event")
     held[1].abort()
+    round_trip(page)
     told(page)
     _expect_news(page, False)
     assert _read_events(serve.page_dir) == []
@@ -625,7 +626,7 @@ def test_an_acknowledgement_neither_waits_for_nor_holds_up_a_gesture(browser, se
         for event in events_model.read_events(serve.page_dir)
         if event["author"] == "user"
     ] == ["comment", "resolve"]
-    assert "Couldn't send" not in _said(page)
+    assert "Couldn't take this" not in _said(page)
     reported_browser_errors(
         page,
         lambda error: (

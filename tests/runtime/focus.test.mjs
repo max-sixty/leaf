@@ -10,7 +10,9 @@
    nothing out. */
 
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
+import { Window } from "happy-dom";
 
 const {
   closeLayer,
@@ -164,6 +166,57 @@ test("delayed work gives way to any input since its gesture", () => {
   const typed = retainUserIntent();
   key(first);
   assert.equal(typed(), false);
+});
+
+test("early input ignores inaccessible foreign events but counts keys before interception", async () => {
+  const page = new Window({ url: "https://leaf.test/" });
+  try {
+    let wheel;
+    const listen = page.addEventListener.bind(page);
+    page.addEventListener = (type, handler, options) => {
+      if (type === "wheel" && !wheel) wheel = handler;
+      listen(type, handler, options);
+    };
+    page.eval(
+      readFileSync(
+        new URL("../../browser/runtime/prepaint.js", import.meta.url),
+        "utf8",
+      ),
+    );
+    const inputs = page.document.documentElement.lfInputs;
+    const heard = [];
+    inputs.observe((event) => heard.push(event.type));
+    // Native Firefox can call a sandboxed window's wheel listener with a foreign
+    // wrapper whose properties are inaccessible and which is not a local Event.
+    // Model that browser delivery at its listener, since dispatchEvent itself
+    // requires an accessible Event before it can dispatch anything.
+    const foreign = new Proxy(
+      {},
+      {
+        get() {
+          throw new Error("Permission denied to access event property");
+        },
+      },
+    );
+    assert.doesNotThrow(() => wheel(foreign));
+    assert.equal(inputs.count, 0);
+    assert.deepEqual(heard, []);
+    wheel(new page.WheelEvent("wheel"));
+    // Bootstrap holds startup shortcuts at window capture. The user's key must
+    // count before that handler stops it from reaching the document.
+    page.addEventListener("keydown", (event) => event.stopImmediatePropagation(), true);
+    page.document.body.dispatchEvent(
+      new page.KeyboardEvent("keydown", {
+        key: "c",
+        bubbles: true,
+        composed: true,
+      }),
+    );
+    assert.equal(inputs.count, 2);
+    assert.deepEqual(heard, ["wheel", "keydown"]);
+  } finally {
+    await page.happyDOM.close();
+  }
 });
 
 test("a press on a label keeps the user on the control they stood on until it lands", async () => {

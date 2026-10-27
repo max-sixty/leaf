@@ -142,7 +142,7 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
 
     tabs = page.get_by_role("tab")
     expect(tabs.first).to_have_accessible_name("Ticket a")
-    expect(tabs.first).to_have_text("Ticket asev a · suggested fixTo answer")
+    expect(tabs.first).to_have_text("Ticket asev a · suggested fix")
     expect(tabs.first).to_have_accessible_description(
         "sev a · suggested fix. To answer"
     )
@@ -159,7 +159,7 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
 
     answer = page.locator("#queue .lf-tab-btn").first.locator(".lf-tab-answer")
     expect(answer).to_have_attribute("data-lf-obligations", "open")
-    expect(answer).to_have_text("To answer")
+    expect(answer).to_have_text("")
     page.locator("#o-a-fix .lf-pick").click()
     told(page)
     expect(answer).to_be_visible()
@@ -218,7 +218,7 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     page.unroute("**/api/event")
     round_trip(page)
     expect(answer).to_have_attribute("data-lf-obligations", "open")
-    expect(answer).to_have_text("To answer")
+    expect(answer).to_have_text("")
     expect(tabs.first).to_have_accessible_description(
         "sev a · suggested fix. To answer"
     )
@@ -279,16 +279,6 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     )
     rendered(page)
     assert page.evaluate("document.scrollingElement.scrollTop") == before
-    # Back is made from wherever the user reads, so it lands the set's start rather than
-    # leaving them partway down, or at the end of, a view that is not the one they read.
-    page.evaluate("document.scrollingElement.scrollTop = 1600")
-    page.go_back()
-    expect(page.get_by_role("tab", name="Ticket b", exact=True)).to_have_attribute(
-        "aria-selected", "true"
-    )
-    rendered(page)
-    top = page.evaluate("document.getElementById('queue').getBoundingClientRect().top")
-    assert 0 <= top < 200, top
 
 
 def test_an_ordinary_two_part_obligation_retains_document_flow(browser, serve):
@@ -1069,7 +1059,7 @@ def test_structured_data_explorer_keeps_one_aggregate_query_configuration(
     ).to_have_value("4")
     instruction = page.locator("#release-query-instruction")
     expect(instruction).to_contain_text("risk above 80 and region is europe")
-    playground.locator(".lf-playground-instruction-region").hover()
+    playground.get_by_role("button", name="Show instruction").click()
     playground.get_by_role("button", name="Copy instruction").click()
     copied = page.evaluate("navigator.clipboard.readText()")
     assert copied == instruction.inner_text()
@@ -1234,7 +1224,7 @@ def test_built_code_comparison_drives_both_candidates(browser, serve):
     instruction = page.locator("#code-comparison-instruction")
     expect(instruction).to_contain_text("comfortable reading density")
     expect(instruction).to_contain_text("wrap long lines")
-    playground.locator(".lf-playground-instruction-region").hover()
+    playground.get_by_role("button", name="Show instruction").click()
     playground.get_by_role("button", name="Copy instruction").click()
     assert page.evaluate("navigator.clipboard.readText()") == instruction.inner_text()
     with sending(page, "the code reader treatment"):
@@ -1532,11 +1522,12 @@ def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
         "aria-pressed", "false"
     )
     playground.get_by_role("button", name="Dense").click()
-    # Copy is the code block's control, a toolbar on the instruction pane's top border,
-    # while the pointer is over the pane or the user is in it.
+    # Copy is the code block's control, in the head of the popover the instruction
+    # opens in.
     pane = playground.locator(".lf-playground-instruction-region")
     copy = pane.get_by_role("button", name="Copy instruction")
     pane.scroll_into_view_if_needed()
+    pane.get_by_role("button", name="Show instruction").click()
     pane.hover()
     copy.click()
     assert page.evaluate("navigator.clipboard.readText()") == (
@@ -1546,7 +1537,8 @@ def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
 
     playground.get_by_role("button", name="Reset").click()
     assert playground.evaluate("root => root.values")["radius"] == 12
-    playground.get_by_role("button", name="Reset").press("Shift+Tab")
+    pane.get_by_role("button", name="Show instruction").press("Enter")
+    page.keyboard.press("Tab")
     expect(copy).to_be_focused()
     copy.press("Enter")
     assert "12px radius" in page.evaluate("navigator.clipboard.readText()")

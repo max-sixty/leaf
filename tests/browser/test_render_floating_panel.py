@@ -15,9 +15,11 @@ from interact_support import (
     declare,
     declare_idle,
     declare_work,
+    record_claim,
     working,
 )
 from leaf_dev.browser import panel_tab
+from leaf_dev.panel_paint import ink_box, settled
 from model_folds import leaf_page
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -89,17 +91,6 @@ def floating(browser, url):
     return page
 
 
-def settled(page):
-    """Wait until layout has started the panel's motion and that motion has finished,
-    so a box read is where it rests."""
-    rendered(page)
-    page.wait_for_function(
-        "() => ['.lf-floating-panel', '.lf-fp-ground'].every(s =>"
-        " !document.querySelector(s).getAnimations({subtree: true}).some(a =>"
-        " Number.isFinite(a.effect?.getComputedTiming().endTime)))"
-    )
-
-
 def field(page):
     """The editor standing in the panel's field now: the page's, or a thread's."""
     return page.locator(".lf-fp-field leaf-text")
@@ -113,8 +104,8 @@ def aside(page):
 def test_one_field_starts_a_thread_takes_its_reply_and_settles_it(browser, serve):
     """The field clicked at rest is the field written in. Sending a page comment opens
     its new thread above the row, the same field now replying there, and resolving the
-    thread from its controls moves the user on to Threads, where `z` stands them on its
-    row. The focused field names where the words go, and once they hide that, nothing
+    thread from its controls moves the user on to Threads, and `z` takes them back to
+    the thread, open again. The focused field names where the words go, and once they hide that, nothing
     does: with no view open they go to the page, and over the thread its name says
     which. Escape, once the caret has left the field, puts the thread away."""
     page = floating(browser, serve(LONG_PAGE))
@@ -163,9 +154,10 @@ def test_one_field_starts_a_thread_takes_its_reply_and_settles_it(browser, serve
     with sending(page, "the undo"):
         page.keyboard.press("z")
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "undo"
-    row = page.locator(f"{panel_view('threads')} .lf-fp-thread")
-    expect(row).to_be_focused()
-    page.keyboard.press("Enter")
+    expect(page.locator(panel_view("thread"))).to_be_focused()
+    expect(page.locator(panel_view("thread"))).to_have_attribute(
+        "data-thread", comment["id"]
+    )
     expect(settle).to_have_accessible_name("Resolve thread")
 
     field(page).focus()
@@ -355,9 +347,9 @@ def test_a_thread_s_keys_answer_in_its_view(browser, serve):
     reply is the field and its Resolve stands among the view's controls: Enter on the
     view puts the caret back in the reply with its words, `r` resolves the thread from
     the view, a message in it or its Resolve and moves the user on, here back to
-    Threads with no other thread open, `z` takes the resolve back and stands on its
-    row, Enter on a resolved thread reopens it, and `e` on a message opens the agent's
-    reactions."""
+    Threads with no other thread open, `z` takes the resolve back and opens the
+    thread again, Enter on a resolved thread reopens it, and `e` on a message opens the
+    agent's reactions."""
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, "Is the window long enough?")
     append_carried_log_record(
@@ -397,10 +389,7 @@ def test_a_thread_s_keys_answer_in_its_view(browser, serve):
     expect(threads).to_be_visible()
     with sending(page, "the undo"):
         page.keyboard.press("z")
-    row = threads.locator(".lf-fp-thread")
-    expect(row).to_be_focused()
-    page.keyboard.press("Enter")
-    expect(thread).to_be_visible()
+    expect(thread).to_be_focused()
     expect(settle).to_have_accessible_name("Resolve thread")
 
     # A click on a message's words stands on the part of the thread drawing it.
@@ -470,8 +459,8 @@ def test_a_reaction_in_the_view_stands_as_its_chip_alone(browser, serve):
 def test_resolving_a_thread_from_threads_moves_on_to_the_next(browser, serve):
     """Resolving the thread open from Threads moves the user on to the next open
     thread, focused on its view, while the field says the thread was resolved, so a
-    second `r` resolves that one; taking a resolve back leaves the user where they moved on to;
-    with none left, the user is back at Threads. Escape there puts
+    second `r` resolves that one; taking a resolve back returns the user to the thread
+    they resolved; with none left, the user is back at Threads. Escape there puts
     the view away and returns the user to the page."""
     url = serve(LONG_PAGE)
     panel_comment(serve.page_dir, "Is the window long enough?")
@@ -494,11 +483,11 @@ def test_resolving_a_thread_from_threads_moves_on_to_the_next(browser, serve):
     )
     expect(page.locator(".lf-fp-row")).to_contain_text("Resolved the thread")
     second = page.locator(".lf-fp-head .lf-fp-title").inner_text()
-    # Taking the first resolve back leaves the user on the thread they moved on to.
+    # Taking the first resolve back returns the user to the thread they resolved.
     with sending(page, "the undo"):
         page.keyboard.press("z")
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "undo"
-    expect(page.locator(".lf-fp-head .lf-fp-title")).to_have_text(second)
+    expect(page.locator(".lf-fp-head .lf-fp-title")).to_have_text(first)
     expect(thread).to_be_focused()
     with sending(page, "the second resolve"):
         page.keyboard.press("r")
@@ -506,8 +495,8 @@ def test_resolving_a_thread_from_threads_moves_on_to_the_next(browser, serve):
         e for e in events_model.read_events(serve.page_dir) if e["kind"] == "resolve"
     ]
     assert len(resolved) == 2
-    # The first thread, reopened, is the one open thread left, so the user moves to it.
-    expect(page.locator(".lf-fp-head .lf-fp-title")).to_have_text(first)
+    # The second thread is the one open thread left, so the user moves to it.
+    expect(page.locator(".lf-fp-head .lf-fp-title")).to_have_text(second)
     with sending(page, "the last resolve"):
         page.keyboard.press("r")
     expect(page.locator(panel_view("threads"))).to_be_visible()
@@ -654,9 +643,10 @@ def test_the_on_view_is_titled_by_its_tab_with_that_list_s_done_under_it(
 ):
     """The On view has no name of its own: its title is the open tab's, On me or On
     Claude, which the tabs beside it already show, so the title names the view to
-    assistive tech alone. Under each list stands what left it. A reply the agent sent
-    leaves its list, so it stands under On Claude, said as sent. The On me tab turns
-    the view back to the user's list, and the ✕ in the mark's seat closes it."""
+    assistive tech alone. Under each list stands what left it, under Done. A reply the
+    agent sent leaves its list, so it stands under On Claude's Done, said as sent. The
+    On me tab turns the view back to the user's list, and the ✕ in the mark's seat
+    closes it."""
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, "Is the window long enough?")
     append_carried_log_record(
@@ -683,15 +673,19 @@ def test_the_on_view_is_titled_by_its_tab_with_that_list_s_done_under_it(
     expect(page.locator(".lf-fp-filters button")).to_have_text(
         ["On me 0", "On Claude 0", "Threads 1"]
     )
-    expect(page.locator(".lf-fp-ended")).to_have_count(0)
+    expect(page.locator(".lf-fp-on-group")).to_have_count(0)
     page.locator(".lf-fp-filters button", has_text="On Claude").click()
     expect(title).to_have_text("On Claude")
     expect(page.locator(".lf-fp-empty")).to_have_text("Nothing waiting on Claude.")
-    expect(page.locator(".lf-fp-ended")).to_have_text("Done")
+    expect(page.locator(".lf-fp-on-group")).to_have_text(
+        re.compile(r"^\s*Done\s*1\s*$")
+    )
     sent = page.locator(".lf-fp-on-item")
     expect(sent).to_have_count(1)
     expect(sent).to_contain_text("Forty-eight hours covers the first cohort.")
-    expect(sent.locator(".lf-fp-said")).to_have_text(re.compile(r"^Sent"))
+    expect(sent.locator(".lf-fp-on-says > .lf-fp-value")).to_have_text(
+        re.compile(r"^Answered")
+    )
     # The On me tab turns the open view back to the user's list, and the ✕ closes it.
     panel_tab(page, "On me").click()
     expect(title).to_have_text("On me")
@@ -792,10 +786,11 @@ def test_news_in_an_open_thread_moves_none_of_its_controls(browser, serve):
     open_threads(page)
     page.locator(".lf-fp-thread", has_text="About this bit.").click()
     title = page.locator(".lf-fp-head .lf-fp-title")
+    # Untitled, the name repeats the opening message, so only assistive tech hears it.
     expect(title).to_have_text("About this bit.")
+    expect(title).to_have_class(re.compile(r"\blf-quiet\b"))
     settled(page)
-    seats = page.evaluate(SEATS)
-    assert all(seats.values()), seats
+    untitled = page.evaluate(SEATS)
 
     def agent(event):
         append_carried_log_record(
@@ -803,6 +798,7 @@ def test_news_in_an_open_thread_moves_none_of_its_controls(browser, serve):
         )
         told(page)
 
+    seats = None
     for name in [
         "Whether the third paragraph's filler should stay in the published draft",
         "Filler",
@@ -810,7 +806,14 @@ def test_news_in_an_open_thread_moves_none_of_its_controls(browser, serve):
         agent({"kind": "thread_title", "thread": root, "title": name})
         expect(title).to_have_text(name)
         settled(page)
-        assert page.evaluate(SEATS) == seats
+        now = page.evaluate(SEATS)
+        # A title showing for the first time moves none of the controls.
+        assert {k: v for k, v in now.items() if k != "name"} == {
+            k: v for k, v in untitled.items() if k != "name"
+        }
+        seats = seats or now
+        assert all(seats.values()), seats
+        assert now == seats
 
     # A revision that drops the passage detaches the thread: Show on page has nowhere
     # to go, and its seat stands empty while the view does.
@@ -930,13 +933,12 @@ def test_threads_is_as_tall_as_the_threads_it_shows(browser, serve):
 def test_the_leaf_version_is_one_press_in_the_leaf_s_menu(browser, serve):
     """The Leaf version is copied from a row of the leaf's menu itself, as the page's
     link is: one press puts the menu away, copies the version's diagnostics and says so
-    in the field, and the row's hover name says which Leaf it is. With a clipboard there
-    is no About view, which held only those rows."""
+    in the field, and the row's hover name says which Leaf it is. About also keeps the selectable details beside page diagnostics."""
     page = floating(browser, serve(LONG_PAGE))
     page.context.grant_permissions(["clipboard-read", "clipboard-write"])
     page.locator(".lf-fp-leaf").click()
     menu = page.locator(".lf-fp-menu")
-    expect(menu.locator(".lf-fp-item", has_text="About this page")).to_have_count(0)
+    expect(menu.locator(".lf-fp-item", has_text="About this page")).to_have_count(1)
     row = menu.get_by_role("menuitem", name="Copy Leaf version")
     expect(row).to_have_attribute("title", re.compile("^Leaf "))
     row.click()
@@ -966,8 +968,7 @@ def test_copy_link_is_one_press_in_the_leaf_s_menu(browser, serve):
 
 def test_a_refused_copy_leaves_the_link_to_select_in_about(browser, serve):
     """A clipboard that refuses the write leaves the user the link all the same: the
-    press turns the menu to About on the link, in a field they can select, and the field
-    says the link was not copied. The failure remains in Errors when the reader
+    press opens About on the link, as text they can select. The failure remains in Errors when the reader
     leaves About."""
     refuses = (
         "Clipboard.prototype.writeText = () => Promise.reject(new Error('refused'));"
@@ -975,12 +976,12 @@ def test_a_refused_copy_leaves_the_link_to_select_in_about(browser, serve):
     page = open_page(browser, serve(LONG_PAGE), init_script=refuses)
     page.locator(".lf-fp-leaf").click()
     page.locator(".lf-fp-menu").get_by_role("menuitem", name="Copy link").click()
-    about = page.locator(".lf-fp-menu[data-level=group]")
+    about = page.get_by_role("dialog", name="About this page", exact=True)
     link = about.get_by_label("Link", exact=True)
-    expect(link).to_have_value(re.compile(r"^http://.*[?&]t="))
-    expect(about.locator(".lf-fp-menu-name")).to_have_text("About this page")
-    expect(field(page)).to_have_attribute("placeholder", re.compile("^Link not copied"))
-    about.locator(".lf-fp-menu-back").click()
+    expect(link).to_contain_text(re.compile(r"^http://.*[?&]t="))
+    expect(about.get_by_role("button", name="Copy Link", exact=True)).to_be_visible()
+    page.keyboard.press("Escape")
+    page.locator(".lf-fp-leaf").click()
     page.locator('.lf-fp-menu [data-row="errors"]').click()
     expect(page.locator(".lf-fp-menu .lf-fp-error")).to_contain_text(
         "Link not copied · select it to copy"
@@ -1370,6 +1371,33 @@ def test_threads_search_finds_a_thread_by_the_words_it_quotes(browser, serve):
     page.keyboard.press("Escape")
     expect(field(page)).to_have_js_property("value", "Keep my page comment")
     assert field(page).evaluate("(el, original) => el === original", editor)
+
+
+def test_threads_search_reads_rendered_messages_and_summaries(browser, serve):
+    """Words in formatted prose, embedded questions and a summary find the thread
+    that shows them, even before the reader opens it."""
+    from browser.threads import summarize_thread
+
+    url = serve(AGENDA_PAGE)
+    root = panel_comment(serve.page_dir, "Where should we meet?")
+    reply = thread_model.post_reply(
+        serve.page_dir,
+        {"responds": root},
+        "The **room** photo.",
+        '<lf-ask id="crop">Should I reshoot it wider?</lf-ask>',
+    )
+    summarize_thread(serve.page_dir, root, reply["id"], "A **wider** view would help.")
+    page = floating(browser, url)
+    rows = threads_rows(page)
+    page.get_by_role("button", name="Find a thread or message").click()
+    search = page.locator("input.lf-fp-search")
+    for words in ("room photo", "reshoot", "wider view"):
+        search.fill(words)
+        expect(rows.locator(".lf-fp-label")).to_have_text(["Where should we meet?"])
+    rows.click()
+    view = page.locator(panel_view("thread"))
+    expect(view.locator(".lf-summary-text")).to_have_text("A wider view would help.")
+    expect(view.locator("#crop")).to_have_text("Should I reshoot it wider?")
 
 
 def test_keys_in_threads_act_on_threads(browser, serve):
@@ -2452,7 +2480,7 @@ def test_only_the_folded_leaf_shows_a_status_peek(browser, serve):
     peek = page.locator(".lf-fp-peek")
     leaf = page.locator(".lf-fp-leaf")
     seat = page.locator(".lf-fp-field")
-    expect(field(page)).to_have_attribute("placeholder", re.compile(r" away\b"))
+    expect(field(page)).to_have_attribute("placeholder", re.compile(r"^Away\b"))
     assert seat.get_attribute("title") is None
     for target in (leaf, seat):
         target.hover()
@@ -2473,7 +2501,7 @@ def test_only_the_folded_leaf_shows_a_status_peek(browser, serve):
     page.keyboard.press(".")
     leaf.hover()
     expect(peek).to_be_visible()
-    expect(peek).to_contain_text("isn't watching right now.")
+    expect(peek).to_contain_text("Away right now.")
     leaf.click()
     expect(peek).to_be_hidden()
     # Tab back onto the expanded leaf: keyboard focus must not repeat the status.
@@ -2624,19 +2652,23 @@ def test_a_refused_key_is_an_error_the_field_says(browser, serve):
         found = re.search(r"/\s*([\d.]+)\)$", color)
         return float(found.group(1)) if found else 1.0
 
-    expect(field(page)).to_have_attribute("placeholder", re.compile("^Claude working"))
+    expect(field(page)).to_have_attribute(
+        "placeholder", re.compile("^Drafting the rollout")
+    )
     page.locator(".lf-fp-field").hover()
     expect(peek).to_be_hidden()
 
     page.route("**/api/state*", lambda route: route.fulfill(status=401, body="{}"))
     declare_idle(serve.page_dir)
     expect(field(page)).to_have_attribute("data-says", "error")
-    expect(field(page)).to_have_attribute("placeholder", re.compile("^Key refused"))
+    expect(field(page)).to_have_attribute(
+        "placeholder", re.compile("^This tab lost access")
+    )
     assert alpha() > 0.6, "the refused key reads as dim as a report"
     expect(peek).to_be_hidden()
     page.locator(".lf-fp-leaf").click()
     expect(page.locator(".lf-fp-menu")).to_contain_text(
-        "Key refused — open Leaf's link in a new tab"
+        "This tab lost access — open the link again"
     )
     page.keyboard.press("Escape")
     field(page).click()
@@ -3169,17 +3201,13 @@ def test_the_folded_leaf_keeps_its_badge_and_face_through_motion(browser, serve)
     assert max(channel[1] for channel in difference.getextrema()) <= 8
 
 
-def test_the_leaf_paints_inside_its_moving_focus_ring(browser, serve):
-    """The mark stays visible through pointer motion and inside its keyboard ring.
-
-    Held animations and computed geometry conceal compositor translation advancing
-    ahead of the painted clip, so read the pixels without seeking the animations.
-    Firefox screencasts can omit the entire panel, also before this repair; see
-    browser-support.md. This strict all-frame regression runs in Chromium.
-    """
+def test_the_leaf_paints_inside_its_focus_ring_after_folding(browser, serve):
+    """Pointer and keyboard folds finish with a visible mark at the control's
+    centre, inside its keyboard ring. Motion sampling lives in bench-panel-motion;
+    receiving an intermediate screencast frame is not a functional guarantee."""
     from io import BytesIO
 
-    from PIL import Image, ImageChops, ImageColor
+    from PIL import Image, ImageColor
 
     page = floating(browser, serve(leaf_page("fold", '<h1 id="title">Fold</h1>')))
     page.emulate_media(reduced_motion="no-preference")
@@ -3188,18 +3216,11 @@ def test_the_leaf_paints_inside_its_moving_focus_ring(browser, serve):
       ring: getComputedStyle(node).outlineColor,
       mark: getComputedStyle(node.querySelector('.lf-dot')).backgroundColor
     })""")
+    # Authored words can share the mark's colour; only the panel's pixels count.
+    page.locator("#title").evaluate(
+        "(node, colour) => node.style.color = colour", colours["mark"]
+    )
     colours = {name: ImageColor.getrgb(value) for name, value in colours.items()}
-    viewport = page.viewport_size
-
-    def ink_box(image, colour):
-        difference = ImageChops.difference(image, Image.new("RGB", image.size, colour))
-        channels = [
-            channel.point(lambda value: 255 if value < 30 else 0)
-            for channel in difference.split()
-        ]
-        return ImageChops.darker(
-            ImageChops.darker(*channels[:2]), channels[2]
-        ).getbbox()
 
     for route, action in (
         ("pointer", ".lf-fp-minimize"),
@@ -3217,49 +3238,40 @@ def test_the_leaf_paints_inside_its_moving_focus_ring(browser, serve):
             colours["ring"] = ImageColor.getrgb(
                 leaf.evaluate("node => getComputedStyle(node).outlineColor")
             )
-        before = leaf.bounding_box()
-        frames = []
-        with page.screencast.start(
-            on_frame=lambda frame, frames=frames: frames.append(frame),
-            quality=100,
-            size=viewport,
-        ):
-            if route == "keyboard":
-                page.keyboard.press(action)
-            else:
-                page.locator(action).hover()
-                page.mouse.down()
-                # A press may settle before its click activates the control.
-                one_frame(page)
-                page.mouse.up()
-            one_frame(page)
-            settled(page)
+        if route == "keyboard":
+            page.keyboard.press(action)
+        else:
+            page.locator(action).click()
+        settled(page)
         expect(leaf).to_be_focused()
-        after = leaf.bounding_box()
-        ends = sorted(box["x"] + box["width"] / 2 for box in (before, after))
-        centers = []
-        for frame in frames:
-            pixels = Image.open(BytesIO(frame["data"])).convert("RGB")
-            pixels = pixels.crop(
-                (0, viewport["height"] - 70, viewport["width"], viewport["height"])
+        expect(page.locator(".lf-floating-panel")).to_have_attribute(
+            "data-rest", "mark" if action in (".", ".lf-fp-minimize") else "row"
+        )
+        box = leaf.bounding_box()
+        top = page.viewport_size["height"] - 70
+        pixels = (
+            Image.open(BytesIO(page.screenshot()))
+            .convert("RGB")
+            .crop((0, top, page.viewport_size["width"], page.viewport_size["height"]))
+        )
+        box["y"] -= top
+        mark = ink_box(pixels, colours["mark"])
+        assert mark is not None, (route, action)
+        mark_center = ((mark[0] + mark[2]) / 2, (mark[1] + mark[3]) / 2)
+        assert mark_center == pytest.approx(
+            (box["x"] + box["width"] / 2, box["y"] + box["height"] / 2), abs=2
+        ), (route, action, mark, box)
+        if route == "keyboard":
+            ring = ink_box(pixels, colours["ring"])
+            assert ring is not None, action
+            assert ring[0] <= mark[0] < mark[2] <= ring[2], (action, mark, ring)
+            assert ring[1] <= mark[1] < mark[3] <= ring[3], (action, mark, ring)
+            ring_center = ((ring[0] + ring[2]) / 2, (ring[1] + ring[3]) / 2)
+            assert mark_center == pytest.approx(ring_center, abs=2), (
+                action,
+                mark,
+                ring,
             )
-            mark = ink_box(pixels, colours["mark"])
-            assert mark is not None, (route, action)
-            mark_center = ((mark[0] + mark[2]) / 2, (mark[1] + mark[3]) / 2)
-            if route == "keyboard":
-                ring = ink_box(pixels, colours["ring"])
-                assert ring is not None, action
-                ring_center = ((ring[0] + ring[2]) / 2, (ring[1] + ring[3]) / 2)
-                assert mark_center == pytest.approx(ring_center, abs=2), (
-                    action,
-                    mark,
-                    ring,
-                )
-            centers.append(mark_center[0])
-        intermediate = {
-            center for center in centers if ends[0] + 2 < center < ends[1] - 2
-        }
-        assert intermediate, (route, action, ends, centers)
 
 
 def test_a_new_line_past_the_field_s_height_scrolls_into_view(browser, serve):
@@ -3343,6 +3355,8 @@ def test_obligations_are_answered_where_they_are_read_on_me(browser, serve):
     expect(cards.first).to_contain_text("How should the schema migrate?")
     settled(page)
     first, second = cards.first.bounding_box(), cards.nth(1).bounding_box()
+    show = cards.first.locator(".lf-fp-show")
+    shown = show.bounding_box()
     with sending(page, "the answer"):
         cards.first.locator(".lf-fp-answer", has_text="Shim").click()
     answer = events_model.read_events(serve.page_dir)[-1]
@@ -3353,23 +3367,27 @@ def test_obligations_are_answered_where_they_are_read_on_me(browser, serve):
     expect(owed).to_have_text("1")
     assert cards.first.bounding_box() == first
     assert cards.nth(1).bounding_box() == second
+    assert show.bounding_box() == shown
 
     with sending(page, "the undo"):
         cards.first.get_by_role("button", name="Undo").click()
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "undo"
     expect(cards.first.locator(".lf-fp-answer", has_text="Shim")).to_be_visible()
     expect(owed).to_have_text("2")
+    assert show.bounding_box() == shown
     # The pressed Undo is gone, and Escape still puts the view away.
     page.keyboard.press("Escape")
     expect(view).to_have_count(0)
 
 
-def test_the_plan_has_its_own_tab_and_an_item_says_its_place_in_it(browser, serve):
-    """While the agent has a plan, the On view adds a Plan tab beside the two lists,
-    drawing the goal with its steps in order, and a step waiting on the user is a way
-    to On me. On me keeps every item it lists, and one the plan names says its goal
-    and step after its kind, over its question, counted as the goal counts, without
-    dropped steps, and still says it once answered."""
+def test_on_me_groups_by_the_plan_and_on_claude_heads_with_its_progress(browser, serve):
+    """While the agent's plan gives the user a step, On me groups by it until the user
+    picks another grouping: under each goal the items its steps name, in step order,
+    and those no goal names last; a goal holding one item has no heading, its card
+    saying the goal's name before the item's place. On Claude, which replaced
+    the Plan tab, is headed at its foot by the plan's progress, which discloses the
+    goal and its steps over the list; a step waiting on the user turns the view to On
+    me, and focus with it."""
     url = serve(OBLIGATION_PAGE)
     steps = [
         {"depth": 0, "title": "Ship the migration", "state": "working"},
@@ -3384,38 +3402,128 @@ def test_the_plan_has_its_own_tab_and_an_item_says_its_place_in_it(browser, serv
     assert written.exit_code == 0, written.output
     page = floating(browser, url)
     page.locator(".lf-fp-on-user").click()
-    cards = page.locator(f"{panel_view('queue')} .lf-fp-on-item")
-    expect(cards).to_have_count(2)
-    expect(cards.first.locator(".lf-fp-on-kind")).to_have_text(
-        "Options · Ship the migration · step 2 of 3"
+    view = page.locator(panel_view("queue"))
+    expect(page.get_by_role("combobox", name="Group On me")).to_have_value("plan")
+    # Each goal holds one item, so neither stands under a heading: each card says
+    # its group's name before its place, and no kind.
+    expect(view.locator(".lf-fp-on-group")).to_have_count(0)
+    expect(view.locator(".lf-fp-on-place")).to_have_text(
+        ["Ship the migration · Ask", "Not in the plan · Ask"]
     )
-    expect(cards.nth(1).locator(".lf-fp-on-kind")).to_have_text("Options")
-    settled(page)
-    answers = cards.first.locator(".lf-fp-answers").bounding_box()
-    with sending(page, "the answer"):
-        cards.first.locator(".lf-fp-answer", has_text="Shim").click()
-    expect(cards.first.locator(".lf-fp-said")).to_have_text(re.compile("^Answered"))
-    expect(cards.first.locator(".lf-fp-on-kind")).to_have_text(
-        "Options · Ship the migration · step 2 of 3"
-    )
-    assert cards.first.locator(".lf-fp-answers").bounding_box()["y"] == answers["y"]
-    with sending(page, "the undo"):
-        cards.first.get_by_role("button", name="Undo").click()
 
     tabs = page.locator(".lf-fp-filters button")
-    expect(tabs).to_have_text(["On me 2", "On Claude 0", "Threads 0", "Plan"])
-    tabs.nth(3).click()
-    expect(page.locator(".lf-fp-title")).to_have_text("Plan")
+    expect(tabs).to_have_text(["On me 2", "On Claude 0", "Threads 0"])
+    tabs.nth(1).click()
+    expect(page.locator(".lf-fp-title")).to_have_text("On Claude")
+    head = page.locator(".lf-fp-plan-head")
+    expect(head).to_have_text("Plan 1 of 3")
+    expect(page.locator(".lf-fp-plan-goal")).to_have_count(0)
+    head.click()
+    expect(head).to_have_attribute("aria-expanded", "true")
     expect(page.locator(".lf-fp-plan-goal")).to_have_text(
         re.compile(r"Ship the migration\s*1 of 3")
     )
     plan_steps = page.locator(".lf-fp-plan > .lf-fp-plan-steps > .lf-fp-plan-step")
     expect(plan_steps).to_have_count(4)
     expect(plan_steps.nth(0).get_by_role("img")).to_have_accessible_name("Done")
-    # The step waiting on the user turns the view to On me, and focus with it.
     plan_steps.nth(2).locator(".lf-fp-plan-tag").click()
     expect(page.locator(".lf-fp-title")).to_have_text("On me")
     expect(tabs.nth(0)).to_be_focused()
+
+
+def test_only_an_open_thread_says_new_in_threads(browser, serve):
+    """Threads marks the row with the news dot, which says New to assistive tech, only
+    on an open thread the user hasn't read, as the On me mark's dot counts: a resolved
+    thread's unread message, under the Resolved heading, says nothing new."""
+    url = serve(LONG_PAGE)
+    panel_comment(serve.page_dir, "Is the window long enough?", author="agent")
+    closed = panel_comment(serve.page_dir, "Is the room booked?", author="agent")
+    thread_model.cmd_resolve(serve.page_dir, closed)
+    page = floating(browser, url)
+    open_threads(page)
+    view = page.locator(panel_view("threads"))
+    open_row = view.locator(".lf-fp-thread:not([data-resolved])")
+    expect(open_row.locator(".lf-fp-news-mark")).to_have_text("New")
+    expect(open_row).to_have_attribute("data-unread", "")
+    resolved = view.locator(".lf-fp-thread[data-resolved]")
+    expect(resolved).to_contain_text("Is the room booked?")
+    expect(resolved.locator(".lf-fp-news-mark")).to_have_text("")
+    expect(resolved).not_to_have_attribute("data-unread", "")
+
+
+def test_on_claude_lists_its_work_in_hand_queued_and_done_or_says_it(browser, serve):
+    """On Claude is the agent's work list: what it has in hand, what is queued behind
+    that, and what it finished, a line each with its stage and how long it has stood
+    there. The chooser at its foot shows the same work as a summary instead, a choice
+    the browser keeps across a reload."""
+    url = serve(LONG_PAGE)
+    page_dir = serve.page_dir
+    record_claim(page_dir)
+
+    def task(*args):
+        done = CliRunner().invoke(cli_model.cli, ["task", *args])
+        assert done.exit_code == 0, done.output
+        return json.loads(done.output.strip().splitlines()[-1])
+
+    drafting = task(
+        "create", str(page_dir), "page", "--title", "Draft the release note"
+    )
+    task("create", str(page_dir), "page", "--title", "Check the rollout")
+    tidied = task("create", str(page_dir), "page", "--title", "Tidy the wording")
+    task("end", str(page_dir), tidied["id"], "done")
+    task(
+        "start",
+        str(page_dir),
+        drafting["id"],
+        "--text",
+        "Drafting the note's first line",
+    )
+    page = floating(browser, url)
+    page.locator(".lf-fp-on-user").click()
+    page.locator(".lf-fp-filters button", has_text="On Claude").click()
+    view = page.locator(panel_view("queue"))
+    expect(view.locator(".lf-fp-on-group")).to_have_text(
+        [
+            re.compile(r"^\s*In hand\s*1\s*$"),
+            re.compile(r"^\s*Up next\s*1\s*$"),
+            re.compile(r"^\s*Done\s*1\s*$"),
+        ]
+    )
+    lines = view.locator(".lf-fp-on-line")
+    expect(lines.locator(".lf-fp-label")).to_have_text(
+        ["Draft the release note", "Check the rollout", "Tidy the wording"]
+    )
+    expect(lines.locator(".lf-fp-on-says > .lf-fp-value")).to_have_text(
+        [
+            re.compile(r"^On it \S+$"),
+            re.compile(r"^To-do open \S+$"),
+            re.compile(r"^Done \S+$"),
+        ]
+    )
+    # A press opens the work in hand, saying what its last step wrote.
+    lines.first.click()
+    expect(view.locator(".lf-fp-answers .lf-fp-said")).to_have_text(
+        "Drafting the note's first line"
+    )
+
+    chooser = page.get_by_role("combobox", name="Show On Claude as")
+    expect(chooser).to_have_value("list")
+    chooser.select_option("summary")
+    summary = view.locator(".lf-fp-work-summary")
+    expect(summary).to_contain_text(
+        "Working on 1; 1 up next. Now: “Drafting the note's first line”."
+    )
+    expect(summary).to_contain_text("Last done: Tidy the wording")
+    expect(view.locator(".lf-fp-on-line")).to_have_count(0)
+
+    page.reload()
+    wait_until_ready(page)
+    page.locator(".lf-fp-on-user").click()
+    page.locator(".lf-fp-filters button", has_text="On Claude").click()
+    expect(page.get_by_role("combobox", name="Show On Claude as")).to_have_value(
+        "summary"
+    )
+    expect(view.locator(".lf-fp-work-summary")).to_be_visible()
 
 
 def test_versions_travel_opens_in_the_panel(browser, serve):
@@ -3435,6 +3543,21 @@ def test_versions_travel_opens_in_the_panel(browser, serve):
     keys = row.locator(".lf-binding-sequence")
     expect(keys.locator("kbd.lf-key-badge")).to_have_text(["g", "V"])
     expect(keys).to_have_attribute("aria-label", "g then V")
+    # Versions has an arrow after its shortcut; direct actions do not. Both
+    # shortcuts end in one column, with copy icons and arrows in the next one.
+    ends = page.locator(".lf-fp-menu .lf-binding-sequence:visible").evaluate_all(
+        "nodes => nodes.map(node => node.getBoundingClientRect().right)"
+    )
+    assert len(ends) >= 2
+    assert max(ends) - min(ends) <= 0.5, ends
+    icons = page.locator(
+        ".lf-fp-end > :is(.lf-fp-chevron, .lf-fp-copy-icon):visible"
+    ).evaluate_all(
+        "nodes => nodes.map(node => {const box = node.getBoundingClientRect(); "
+        "return box.x + box.width / 2;})"
+    )
+    assert len(icons) >= 2
+    assert max(icons) - min(icons) <= 0.5, icons
     row.click()
     expect(view).to_be_visible()
     page.keyboard.press("Escape")
@@ -3597,7 +3720,7 @@ def test_a_website_copy_says_who_revises_it_and_where_leaf_comes_from(browser, s
         ),
     )
     expect(field(page)).to_have_attribute(
-        "placeholder", re.compile("^Leaf guide awaits — comment to revise this copy")
+        "placeholder", re.compile("^Ready — comment to revise this copy")
     )
     expect(page.locator(".lf-fp-leaf .lf-dot")).to_have_class("lf-dot listening")
     expect(page.locator(".lf-fp-row-notice")).to_be_hidden()
@@ -3785,7 +3908,7 @@ def test_the_leaf_s_menu_says_the_agent_s_state_once(browser, serve):
     url = serve(OBLIGATION_PAGE)
     working(serve.page_dir, "Drafting the rollout")
     page = floating(browser, url)
-    line = re.compile(r"^Claude working\b.* — Drafting the rollout")
+    line = re.compile(r"^(\S+ ago · )?Drafting the rollout")
     page.locator(".lf-fp-leaf").click()
     head = page.locator(".lf-fp-state")
     expect(head.locator("> *")).to_have_count(2)
@@ -3817,7 +3940,7 @@ def test_news_under_the_open_menu_moves_nothing_in_it(browser, serve):
     leaf = page.locator(".lf-fp-leaf")
     leaf.click()
     head = page.locator(".lf-fp-state")
-    expect(head.locator(".lf-fp-summary")).to_have_text(re.compile(r" away$"))
+    expect(head.locator(".lf-fp-summary")).to_have_text("Away")
     settled(page)
     boxes = (
         "() => [...document.querySelectorAll('.lf-fp-menu > *')]"
@@ -4181,7 +4304,7 @@ def test_a_press_arriving_in_a_line_of_answers_moves_nothing(browser, serve, tou
       const words = line.getBoundingClientRect().height;
       const press = document.createElement('button');
       press.type = 'button';
-      press.className = 'lf-fp-answer';
+      press.className = 'lf-fp-face lf-fp-quiet';
       press.textContent = 'Undo';
       line.append(press);
       return [words, line.getBoundingClientRect().height];
@@ -4238,26 +4361,19 @@ def test_a_finger_finds_the_keyboard_s_conveniences_under_navigate(browser, serv
 def test_the_share_link_shows_where_it_can_be_selected_without_a_clipboard(
     browser, serve
 ):
-    """A browser offers the clipboard only to a secure context, so a page read from
-    another machine over plain http cannot copy. The menu's Copy link gives way to the
-    link in About, in a field the user can select, with no copy control that could only
-    fail, saying what the link grants."""
+    """About keeps the link readable and a copy control even without a Clipboard API;
+    the shared control owns plain-HTTP copying and browser permission failures."""
     no_clipboard = "Object.defineProperty(Navigator.prototype, 'clipboard', {get: () => undefined});"
     page = open_page(browser, serve(LONG_PAGE), init_script=no_clipboard)
     page.locator(".lf-fp-leaf").click()
     expect(page.locator(".lf-fp-menu")).not_to_contain_text("Copy link")
     page.locator(".lf-fp-menu .lf-fp-item", has_text="About this page").click()
-    share = page.locator(".lf-fp-copy", has_text="Link")
-    link = share.locator(".lf-fp-copy-text")
-    expect(link).to_have_value(re.compile(r"^http://.*[?&]t="))
-    expect(link).to_have_accessible_name("Link")
-    expect(share.get_by_role("button", name=re.compile("Copy"))).to_have_count(0)
-    expect(share).to_contain_text("Grants access")
-    link.focus()
-    selected = (
-        "(e => e.value.slice(e.selectionStart, e.selectionEnd))(document.activeElement)"
-    )
-    assert page.evaluate(selected) == link.input_value()
+    about = page.get_by_role("dialog", name="About this page", exact=True)
+    link = about.get_by_label("Link", exact=True)
+    expect(link).to_contain_text(re.compile(r"^http://.*[?&]t="))
+    expect(about.get_by_role("button", name="Copy Link", exact=True)).to_be_visible()
+    expect(about).to_contain_text("Grants access")
+    page.keyboard.press("Escape")
 
 
 def test_a_page_thread_opens_in_the_panel_from_the_page_s_routes(browser, serve):
@@ -4742,6 +4858,189 @@ def test_a_line_the_field_grows_rides_the_box_s_top_edge(browser, serve):
     settled(page)
     assert page.locator(".lf-fp-card").bounding_box()["height"] > card["height"] + 15
     assert page.evaluate(gaps) == resting
+
+
+# How far the field's first line of words and the more-room mark stand below the box's
+# top edge as drawn, and how opaque the mark is.
+BELOW_THE_EDGE = r"""() => {
+  const ground = document.querySelector('.lf-fp-ground');
+  const cut = /inset\(([-\d.]+)px/.exec(
+    getComputedStyle(ground.querySelector('.lf-fp-fill')).clipPath,
+  )[1];
+  const edge = ground.getBoundingClientRect().top + Number.parseFloat(cut);
+  const host = document.querySelector('.lf-fp-field leaf-text');
+  const words = window.editorRoots.get(host).querySelector('.cm-line');
+  const mark = document.querySelector('.lf-fp-expand');
+  return {
+    words: words.getBoundingClientRect().top - edge,
+    mark: mark.getBoundingClientRect().top - edge,
+    opacity: Number(getComputedStyle(mark).opacity),
+  };
+}"""
+# Held motion: each motion the panel starts is held at its first frame (`HOLD_MOTION`)
+# once the fixture is set up, so a reading of a frame doesn't depend on how fast the
+# page runs.
+SEEK_HELD = "at => __lfHeld.forEach(motion => { motion.currentTime = at; })"
+
+
+def held_motion(page, part=".lf-fp-ground"):
+    """Wait until a held motion moves `part`, as the box's own tween does."""
+    page.wait_for_function(
+        "part => __lfHeld.some(motion => motion.effect?.target?.matches?.(part))",
+        arg=part,
+    )
+
+
+def hold_motion(page):
+    """Hold each motion the page starts from now on at its first frame."""
+    page.evaluate(
+        "() => { window.__lfAnimate = Element.prototype.animate;" + HOLD_MOTION + "}"
+    )
+
+
+def finish_held(page):
+    """Stop holding, finish what is held and wait for the panel to settle."""
+    page.evaluate(
+        "() => { Element.prototype.animate = window.__lfAnimate;"
+        " __lfHeld.splice(0).filter(motion => motion.playState !== 'idle')"
+        ".forEach(motion => motion.finish()); }"
+    )
+    settled(page)
+
+
+def ink_rows(image):
+    """The rows of `image` holding words, which a line cut off or jumping changes,
+    while antialiasing, which differs between engines, and the caret's thin stroke
+    do not."""
+    width, height = image.size
+    pixels = image.load()
+    return {
+        y for y in range(height) if sum(pixels[x, y] < 110 for x in range(width)) >= 3
+    }
+
+
+def test_the_field_s_words_and_mark_ride_its_top_edge_both_ways(browser, serve):
+    """A line removed carries the field's words down with the box's top edge, as a
+    line added carries them up, and the more-room mark rides that edge's corner, fading
+    in with the fourth line and out with it. The words used to jump to their place on
+    removal while the edge travelled, and the mark stood still while the rising edge
+    uncovered it. The tween's first frame shows the field's words where they stood, so
+    no line is cut off where the field's box no longer reaches."""
+    from io import BytesIO
+
+    from PIL import Image
+
+    def picture(region):
+        return Image.open(BytesIO(page.screenshot(clip=region))).convert("L")
+
+    page = open_page(browser, serve(LONG_PAGE), init_script=EDITOR_ROOTS)
+    page.emulate_media(reduced_motion="no-preference")
+    field(page).click()
+    page.keyboard.type("The first line of a draft")
+    for line in ("and its second line", "and its third"):
+        page.keyboard.press("Shift+Enter")
+        page.keyboard.type(line)
+    settled(page)
+    three = page.evaluate(BELOW_THE_EDGE)
+    assert three["opacity"] == 0, three
+    for key, opacity in (("Shift+Enter", 1), ("Backspace", 0)):
+        hold_motion(page)
+        # The words inside the field's ring as it stood, short of Send.
+        box = page.locator(".lf-fp-field").bounding_box()
+        region = {
+            "x": box["x"] + 3,
+            "y": box["y"] + 3,
+            "width": box["width"] - 40,
+            "height": box["height"] - 6,
+        }
+        stood = picture(region)
+        page.keyboard.press(key)
+        held_motion(page)
+        page.evaluate(SEEK_HELD, 0)
+        assert ink_rows(picture(region)) == ink_rows(stood), key
+        for at in (0, 60, 150):
+            page.evaluate(SEEK_HELD, at)
+            drawn = page.evaluate(BELOW_THE_EDGE)
+            assert [drawn["words"], drawn["mark"]] == pytest.approx(
+                [three["words"], three["mark"]], abs=1
+            ), (key, at, drawn)
+        finish_held(page)
+        rest = page.evaluate(BELOW_THE_EDGE)
+        assert [rest["words"], rest["mark"]] == pytest.approx(
+            [three["words"], three["mark"]], abs=1
+        ), rest
+        assert rest["opacity"] == opacity, (key, rest)
+
+
+def test_lines_removed_below_the_field_s_cap_leave_the_rest_in_place(browser, serve):
+    """A draft past the field's cap scrolls inside it; deleting its last lines until
+    the rest fits stops that scroll, and the lines still shown stay where they stood
+    on the tween's first frame, then travel down as the lines scrolled away come into
+    view, carrying on from where they are drawn when another line goes midway. They
+    used to jump down by the scroll the field gave up."""
+    page = open_page(browser, serve(LONG_PAGE), init_script=EDITOR_ROOTS)
+    page.emulate_media(reduced_motion="no-preference")
+    field(page).click()
+    page.keyboard.type("Line 1")
+    lines = 1
+    while not field(page).evaluate("box => box.scrollTop > 40"):
+        lines += 1
+        page.keyboard.press("Shift+Enter")
+        page.keyboard.type(f"Line {lines}")
+    for extra in range(lines + 1, lines + 5):
+        page.keyboard.press("Shift+Enter")
+        page.keyboard.type(f"Line {extra}")
+    settled(page)
+    shown = f"Line {lines - 4}"
+    where = """(host, words) => [...window.editorRoots.get(host).querySelectorAll('.cm-line')]
+      .find((line) => line.textContent === words).getBoundingClientRect().top"""
+    stood = field(page).evaluate(where, shown)
+    hold_motion(page)
+    # Back past the line that first made the field scroll, so the rest fits.
+    for _ in range(7):
+        page.keyboard.press("Shift+ArrowUp")
+    page.keyboard.press("Backspace")
+    held_motion(page)
+    assert field(page).evaluate("box => box.scrollHeight <= box.clientHeight")
+    assert field(page).evaluate(where, shown) == pytest.approx(stood, abs=1)
+    page.evaluate(SEEK_HELD, 60)
+    midway = field(page).evaluate(where, shown)
+    page.keyboard.press("Shift+ArrowUp")
+    page.keyboard.press("Backspace")
+    # The second deletion's tween, held at its start beside the first's, cancelled.
+    page.wait_for_function(
+        "() => __lfHeld.some(motion => motion.playState !== 'idle'"
+        " && motion.currentTime === 0 && motion.effect?.target?.matches?.('.lf-fp-ground'))"
+    )
+    assert field(page).evaluate(where, shown) == pytest.approx(midway, abs=1)
+    finish_held(page)
+    assert field(page).evaluate(where, shown) > stood + 20
+
+
+def test_a_send_s_reply_field_takes_the_row_s_seat_where_it_stands(browser, serve):
+    """Sending a page comment of several lines opens its thread above the row, and the
+    thread's reply field takes the page field's seat in the row from the tween's first
+    frame. It used to rise from below the window with the box's top edge, so the row
+    showed no field until the tween's last frames."""
+    page = floating(browser, serve(LONG_PAGE))
+    page.emulate_media(reduced_motion="no-preference")
+    field(page).click()
+    page.keyboard.type("A comment")
+    for line in ("that opens", "its thread"):
+        page.keyboard.press("Shift+Enter")
+        page.keyboard.type(line)
+    settled(page)
+    hold_motion(page)
+    page.keyboard.press("Enter")
+    # The box's tween as the thread's view opens over the row.
+    held_motion(page, ".lf-fp-opened")
+    reply = page.locator(".lf-fp-reply")
+    drawn = (
+        "reply => [reply.getBoundingClientRect().top, getComputedStyle(reply).clipPath]"
+    )
+    first = reply.evaluate(drawn)
+    finish_held(page)
+    assert first == reply.evaluate(drawn), first
 
 
 def test_looking_at_an_attached_image_keeps_the_draft_where_it_stands(browser, serve):

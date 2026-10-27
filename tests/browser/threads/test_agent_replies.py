@@ -628,7 +628,10 @@ def test_pending_progress_is_the_threads_working_message_and_never_unread(
     panel_settled(page, view="queue")
     page.locator(".lf-fp-filters button").filter(has_text="On Codex").click()
     card = page.locator('.lf-fp-on-item[data-list="agent"]')
-    expect(card.locator(".lf-fp-said")).to_have_text("Trying a lighter weight.")
+    card.locator(".lf-fp-on-line").click()
+    expect(card.locator(".lf-fp-answers .lf-fp-said")).to_have_text(
+        "Trying a lighter weight."
+    )
     # Nothing counts unread.
     expect(thread_row(page, root)).not_to_have_attribute("data-unread", "")
     page.locator(".lf-fp-close").click()
@@ -638,7 +641,9 @@ def test_pending_progress_is_the_threads_working_message_and_never_unread(
             response.url.endswith("/api/interaction")
             and response.ok
             and any(
-                entry["type"] == "reply_visible" and entry.get("input_id") == root
+                entry["type"] == "reply_visible"
+                and entry.get("input_id") == root
+                and entry["presentation_kind"] == "working_words"
                 for entry in response.request.post_data_json["entries"]
             )
         )
@@ -928,7 +933,7 @@ def test_a_streaming_answer_hides_the_working_message_and_its_progress(
     thread.get_by_role("button", name="1 new reply", exact=True).click()
     expect(
         thread.locator(f'.lf-msg[data-event="{failure["id"]}"] .lf-msg-failure')
-    ).to_have_text("Not answered")
+    ).to_have_text("Couldn't answer")
     expect(thread.locator(".lf-thread-working")).to_contain_text("Checking the board")
 
 
@@ -997,9 +1002,9 @@ def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(
         },
     )
     page = open_page(browser, url)
-    # The unread reply is news, with no turn owed by either participant.
+    # The unread reply is the row's mark, with no turn owed by either participant.
     status = thread_row(page, root).locator(".lf-fp-value")
-    expect(status).to_have_text("New")
+    expect(status).to_have_text("")
     card = open_panel_thread(page, root)
     receipt = page.locator(
         f'.lf-fp-view .lf-msg[data-event="{board["id"]}"] .lf-msg-sending'
@@ -1011,7 +1016,7 @@ def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(
     with sending(page, "the card move"):
         page.keyboard.press("Enter")
     expect(page.locator("#fb-done > #fb-cache")).to_be_visible()
-    expect(receipt).to_have_text("Sent")
+    expect(receipt).to_have_text("Saved")
     status = thread_row(page, root).locator(".lf-fp-value")
     expect(status).to_have_text("")
     card = open_panel_thread(page, root)
@@ -1093,7 +1098,7 @@ def test_a_harness_failure_receipt_does_not_read_as_an_answer(browser, serve):
     expect(page.locator("#cd-q .lf-thread-working")).to_contain_text(
         "Checking the south pair"
     )
-    expect(inline.locator(".lf-msg-failure")).to_have_text("Not answered")
+    expect(inline.locator(".lf-msg-failure")).to_have_text("Couldn't answer")
     assert inline.get_attribute("data-failure") == "turn_failed"
     # The real answer above it wears nothing, so the mark is a difference the user
     # can see rather than a decoration every agent message carries.
@@ -1104,11 +1109,11 @@ def test_a_harness_failure_receipt_does_not_read_as_an_answer(browser, serve):
     # `needs_user` for recovery: the margin and panel name the action owed.
     margin = page.locator('[data-lf-margin-for="cd-q"] > .lf-margin-marker')
     expect(margin).to_have_attribute("data-lf-turn", "user")
-    expect(margin.locator(".lf-margin-entry-context")).to_have_text("My turn to resend")
+    expect(margin.locator(".lf-margin-entry-context")).to_have_text("Send it again")
 
     # Threads names the action owed on the thread's row, whole.
     status = thread_row(page, unanswered["id"]).locator(".lf-fp-value")
-    expect(status).to_have_text("My turn to resend")
+    expect(status).to_have_text("Send it again")
     assert status.evaluate("el => el.scrollWidth <= el.clientWidth"), (
         "the row clips its failure status"
     )
@@ -1129,7 +1134,7 @@ def test_a_harness_failure_receipt_does_not_read_as_an_answer(browser, serve):
     held.pop().fulfill(json={"ok": False, "final": True, "error": "Please retry."})
     expect(draft).to_have_js_property("value", "Try the south pair again.")
     page.unroute("**/api/event")
-    expect(margin.locator(".lf-margin-entry-context")).to_have_text("My turn to resend")
+    expect(margin.locator(".lf-margin-entry-context")).to_have_text("Send it again")
 
     # The failed answer remains distinct from the muted clock without a chip face.
     head = page.evaluate(

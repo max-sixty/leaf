@@ -436,6 +436,24 @@ def _listed(findings: list[dict]) -> str:
 # words are what the console said; read by the gate in a color scheme, beside findings
 # of its own, it says "console: " first.
 _TEXT = {
+    "invalid-output": lambda at, v: (
+        f"{at} ("
+        + "; ".join(
+            f"{owner} {part}"
+            for part, owner in (
+                ("implementation", v["owner"]),
+                ("output declaration", v.get("declaration_owner")),
+                ("contract", v.get("contract_owner")),
+            )
+            if owner is not None
+        )
+        + f"): {v['error']}"
+        if any(
+            v.get(key) not in (None, v["owner"])
+            for key in ("declaration_owner", "contract_owner")
+        )
+        else f"{at} ({v['owner']} producer): {v['error']}"
+    ),
     # What the browser's console and the page's window reported.
     "console-error": lambda at, v: (
         f"{v['text']} — {v['url']}" if v.get("url") else v["text"]
@@ -1496,16 +1514,27 @@ _TEXT = {
     ),
     "deciding-verbs": _declared(
         lambda v: (
-            f"x-state verbs {_json(v['verbs'])} all declare detail field"
-            " `outcome`, a reserved name only one deciding verb may carry"
+            f"x-state verbs {_json(v['verbs'])} all declare `decides: true`;"
+            " only one verb may decide which members retire"
         )
     ),
     "deciding-verb": _declared(
         lambda v: (
-            f"x-state verb `{v['verb']}` declares detail field `outcome`, a"
-            " reserved name: the deciding verb folds by widget, is written by the user,"
+            f"x-state verb `{v['verb']}` declares `decides: true`:"
+            " the deciding verb folds by widget, is written by the user,"
             " and requires `outcome` as a string enum"
         )
+    ),
+    "verb-contract": _declared(
+        lambda v: (
+            f"x-state verb `{v['verb']}` binds detail field `{v['field']}` to"
+            f" attribute `{v['attribute']}`: the field must be declared and the"
+            " attribute must be a string matching the data contract name pattern"
+        )
+    ),
+    "instance-contract": lambda at, v: (
+        f"{at} attribute `{v['attribute']}` names unknown data contract"
+        f" {v['contract']!r} for `{v['verb']}` detail field `{v['field']}`"
     ),
     "withdrawn-as": _declared(
         lambda v: f"x-withdrawn-as `{v['outcome']}` is not a deciding outcome"
@@ -1582,7 +1611,7 @@ _TEXT = {
         lambda v: "a module import must name a relative or absolute local URL"
     ),
     "module-type": _captured(
-        lambda v: "a module dependency must have JavaScript MIME type"
+        lambda v: "a module dependency must be JavaScript or JSON"
     ),
     "module-outside-page": _captured(
         lambda v: "module imports may use /page/ or a public layer entry point"

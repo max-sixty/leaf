@@ -55,11 +55,10 @@ intent without the issue **Reading a red suite** requires, is a regression.
 
 ## Review test selection
 
-Before approving a product change, run the few tests that exercise the failures
-the diff most plausibly introduces, chosen from the product paths and contracts
-it touches rather than the test files it edits, within the local limit in
-`tests/AGENTS.md` ("Run what the change needs"). A docs-only or generated-workflow
-change may need none. A failing selected test or PR check withholds approval only
+Before approving a product change, select and run focused checks through
+`tests/AGENTS.md`, **Selecting checks**, covering the changed behavior and its
+consumers. A docs-only or generated-workflow change may need none.
+A failing selected test or PR check withholds approval only
 when the change causes it: confirm an inherited failure against current `main` per
 `/tend-ci-runner:monitor-ci`, record that evidence in the review, and approve when the
 change has no other findings; "Run what the change needs" governs landing despite that
@@ -109,9 +108,10 @@ judgment.
 
 Before choosing a fix, read the failing test's record in main's earlier runs: each
 `ci` run uploads its junit results (`gh run download <run> -p 'pytest-results-*'`),
-and a `nightly` test runs only in the daily scheduled run
-(`gh run list -w ci -e schedule`). A test that failed with the same message, passed
-on code that didn't fix it, then failed again is non-deterministic, so fix the cause.
+with the failing pages' pictures (`tests/AGENTS.md`, **Failing tests**), and a
+`nightly` test runs only in the daily scheduled run (`gh run list -w ci -e schedule`).
+A test that failed with the same message, passed on code that didn't fix it, then
+failed again is non-deterministic, so fix the cause.
 A watch finding that fails on CI and passes locally needs a slower CPU rather than
 reruns to reproduce (`tests/AGENTS.md`, **Races**).
 Different messages across runs call for checking the intervening changes and the
@@ -138,10 +138,12 @@ six-hour job limit ends it. Before fixing, check current main: the complete
 suite takes hours, and later changes may have removed the cause. A passing rerun
 alone does not clear a failure that comes and goes.
 
-No cause waits on a maintainer's decision. Where no repair keeps both the
-change's intent and the interface, **Reading a red suite** says to revert and
-file the issue that asks for that decision; this replaces escalating the cause
-issue itself.
+Establish the conflict before applying **Reading a red suite**'s revert-and-decision
+route. An unresolved diagnosis or a missing verification environment remains
+engineering work, owned by the cause's session through `/tend-ci-runner:triage`'s
+**A cause issue** route.
+For a local website gate the sandbox cannot run, `worker/README.md`, **Local
+development**, gives its non-deploying CI route.
 
 For each durable failure, look for the pull request that introduced it, first
 among those merged since the last run where the failing check passed and then

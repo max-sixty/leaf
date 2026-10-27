@@ -867,13 +867,14 @@ FLOAT_ROOM = """async () => {
 }"""
 
 
-def test_the_response_field_grows_under_its_picker_trigger(browser, serve):
+def test_the_response_field_grows_across_its_bar(browser, serve):
     """A one-line note uses the shared action corner. A longer one uses the width of
     its chosen rail and then wraps, growing through the room placement states — a dozen
     lines shows them all, and only one taller than the window the page shows scrolls,
     standing inside that band — and the corner stays fixed through all of that. On a
-    narrow screen the same room caps the bar, and the field takes its whole measure under
-    its picker trigger. The sent message spans the card as its reply does."""
+    narrow screen the same room caps the bar and the field spans it, since words take
+    the picker trigger out of its corner. The sent message spans the card as its reply
+    does."""
     page = open_page(browser, serve(PANEL_PAGE))
     select_paragraph(page, "#how-store")
     bar = page.locator(".lf-fab-bar")
@@ -937,16 +938,10 @@ def test_the_response_field_grows_under_its_picker_trigger(browser, serve):
         "bar => bar.getBoundingClientRect().right"
         " - parseFloat(getComputedStyle(bar).paddingRight)"
     )
-    trigger = bar.get_by_role(
-        "button", name="Other responses", exact=True
-    ).bounding_box()
-    # The field takes the bar's whole measure; the trigger stands over its end.
-    assert trigger["y"] + trigger["height"] <= narrow_field["y"], (
-        narrow_field,
-        trigger,
-    )
-    for box in (narrow_field, trigger):
-        assert box["x"] + box["width"] == pytest.approx(content_right, abs=1), box
+    expect(bar.get_by_role("button", name="Other responses", exact=True)).to_be_hidden()
+    assert narrow_field["x"] + narrow_field["width"] == pytest.approx(
+        content_right, abs=1
+    ), narrow_field
     page.keyboard.press("Enter")
     card = page.locator(".lf-margin-preview")
     expect(card).to_have_css("opacity", "1")
@@ -984,9 +979,10 @@ def test_a_reaction_on_a_visual_part_names_that_part(browser, serve):
         "visual": "node:S",
     }
     shown = painted(page, [["flow", "prioritize"]])
-    assert shown["projected"] == 0, shown
-    for drawn in (start, diagram):
-        expect(drawn).not_to_have_class(re.compile(r"\blf-projected-mark\b"))
+    assert shown["washed"] == "", shown
+    # Keyboard return may project focus; the reaction itself adds no contour.
+    rendered(page)
+    assert page.locator(".lf-visual-mark:not(.lf-visual-mark-focus)").count() == 0
 
 
 def test_a_whole_visual_reaction_does_not_stand_on_one_of_its_parts(browser, serve):
@@ -1420,25 +1416,6 @@ def test_one_semantic_visual_target_gets_one_keyboard_proxy(browser, serve, entr
     expect(page.locator("#gallery")).to_be_focused()
 
 
-def landed(page):
-    """What the user is located on, named by whatever identifies it: a leaf class, an
-    authored id, or the tag. `body` is the page itself, where a landing lets go."""
-    return page.evaluate(
-        """() => {
-          let node = document.activeElement;
-          while (node?.shadowRoot?.activeElement) node = node.shadowRoot.activeElement;
-          if (!node || node === document.body) return 'body';
-          return (
-            [...node.classList].find(
-              (name) => name.startsWith('lf-') && name !== 'lf-ui',
-            ) ||
-            node.id ||
-            node.tagName.toLowerCase()
-          );
-        }"""
-    )
-
-
 def test_a_drawing_names_its_proxies_and_keeps_its_place_among_the_page(browser, serve):
     """A drawing's response proxies stand on the chrome's details shelf, which the
     drawing names as its details, so a screen reader reaches them from it. Nothing
@@ -1502,7 +1479,7 @@ def test_a_bar_re_placed_by_its_own_controls_still_hands_back_its_subject(
 
     page.keyboard.press("Escape")
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
-    assert landed(page) == "gallery", landed(page)
+    expect(page.locator("#gallery")).to_be_focused()
 
 
 def test_a_visual_proxy_resolves_a_rebuilt_part_and_reveals_it_on_focus(browser, serve):

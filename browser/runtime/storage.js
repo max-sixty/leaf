@@ -43,9 +43,21 @@ export const tabStore = initialTabStore;
 // (prepaint.js), since it shows the same member at the first paint, before any module
 // has loaded; a holder's module asks it here, of the holder's own document.
 const views = (holder) => holder.ownerDocument.documentElement.lfViews;
-export const openingView = (holder, members) => views(holder).opening(holder, members);
+export const openingView = (holder, members, fallback) =>
+  views(holder).opening(holder, members, fallback);
 export const keepView = (holder, member) => views(holder).keep(holder, member);
 export const draftStore = stored(() => localStorage, "local", PAGE_SCOPE);
 // The delivery declares a child page's private user scope. Bootstrap reads the
 // same fact before this module loads; neither derives it from the viewed revision.
 export const userStore = document.documentElement.lfStorage.userStore;
+// Which of a view's arrangements the user chose, such as On me's grouping, kept for
+// every page as the chrome they arrange is: the stored value while it is one of
+// `values`, else null, as a store that refuses reads, so the caller's default stands.
+export const userChoice = (key, values) =>
+  Object.freeze({
+    read: () => {
+      const value = userStore.get(key);
+      return values.includes(value) ? value : null;
+    },
+    write: (value) => userStore.set(key, value),
+  });

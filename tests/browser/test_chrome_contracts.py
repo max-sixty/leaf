@@ -1288,6 +1288,9 @@ def test_a_draft_wears_the_faces_its_sent_message_wears(
     )
     sent_size = body.evaluate("body => getComputedStyle(body).fontSize")
     box = page_comment(page) if surface == "general" else page.locator(box_selector)
+    if surface == "outlet":
+        # Reply rests as a press; open it by user input before write() focuses it.
+        box.click()
     write(box, MARKDOWN)
     box.evaluate("box => box.id = 'draft-face-editor'")
     cdp = page.context.new_cdp_session(page)

@@ -36,20 +36,6 @@
   }
 }
 
-/* Leaf's apparatus lays its boxes out border-box from first paint. A widget's initial
- * drawing wears `.lf-ui` before any module runs, so this reset stands in the
- * render-blocking theme rather than in runtime/chrome.css, which the document adopts
- * only at boot: from there, lf-toc's map measured its title's label content-box at first
- * paint, one line, and border-box after upgrade, two lines, and the fitted marker under
- * it moved 14px. Under the document's root only, as the face below, so a declared tree
- * keeps the box model its widget states. */
-:where(:root) .lf-ui,
-:where(:root) .lf-ui *,
-:where(:root) .lf-ui *::before,
-:where(:root) .lf-ui *::after {
-  box-sizing: border-box;
-}
-
 /* The default face of native widget-injected controls. `offer()` writes `lf-ui-face` on each one it
  * builds, so this is the layer's answer for a control standing in the page's own prose:
  * the chrome's family, size and ink rather than the document's serif. The separate

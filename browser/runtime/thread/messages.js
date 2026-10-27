@@ -132,14 +132,14 @@ export function threadName(thread) {
 // agent owes the thread work. A turn that ended, stalled or was never picked up sends
 // none, nor does a page nobody has claimed, and the thread reads its opening words.
 /** @param {Parameters<typeof threadName>[0] & {readonly attention?: {readonly kind: string, readonly reason: string} | null}} thread */
-const titlePending = (thread) =>
+export const titlePending = (thread) =>
   thread.title == null &&
   thread.attention?.kind === "waiting" &&
   thread.attention.reason === "workflow" &&
   pageClaimed();
 
 // A thread's name wherever a surface draws it, as Threads, Page Map, On cards and the
-// thread's view (to assistive tech alone while untitled) do: while a title is on its way, a placeholder in the face of a step
+// thread's view do: while a title is on its way, a placeholder in the face of a step
 // under way (`.lf-thread-working-words`) rather than opening words that would read as
 // its title.
 // The opening words stay in its accessible name, after the placeholder, so a screen
@@ -497,7 +497,7 @@ export class MessageView {
             this.#kept
               ? html`<span
                   class="lf-msg-kept"
-                  title="The rewrite is kept; open it to save or cancel"
+                  title="The edit is kept; open it to save or discard"
                   >unsaved edit</span
                 >`
               : nothing

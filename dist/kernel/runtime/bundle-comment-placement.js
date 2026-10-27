@@ -41,13 +41,55 @@ function arrivals(previous, rows, pass) {
 	return next;
 }
 const inSeatingOrder = (rows) => [...rows].sort((a, b) => Number(Boolean(b.held)) - Number(Boolean(a.held)) || (a.came ?? 0) - (b.came ?? 0) || a.rect.top - b.rect.top);
+function seatsBy(parts, home, inline, passage, { cover, beside }, size, gap) {
+	const height = home.bottom - home.top;
+	const box = union(parts) ?? home;
+	const end = parts.at(-1);
+	const outside = (part) => {
+		const seat = {
+			left: part.right + gap,
+			right: part.right + gap + size,
+			top: part.top,
+			bottom: part.top + height
+		};
+		return beside({
+			...seat,
+			bottom: Math.min(seat.bottom, part.bottom)
+		}) ? null : seat;
+	};
+	const under = {
+		left: Math.min(home.left, box.left),
+		right: home.right,
+		top: box.bottom + gap,
+		bottom: box.bottom + gap + height
+	};
+	const belowClear = !cover.some((box) => overlaps(box, under));
+	return [
+		outside(box),
+		...inline && end ? [outside(end)] : [],
+		{
+			...home,
+			left: home.right - size
+		},
+		{
+			left: passage ? box.right : home.right - size,
+			right: passage ? box.right + size : home.right,
+			top: box.top - gap - height,
+			bottom: box.top - gap
+		},
+		...belowClear ? [{
+			...under,
+			left: home.right - size
+		}] : []
+	];
+}
 function seatRows(pins, { gap, occupied = [] }) {
 	const seats = /* @__PURE__ */ new Map();
 	const seated = [...occupied];
 	for (const pin of inSeatingOrder(pins)) {
 		const fold = pin.folds;
 		let folded = Boolean(fold && pin.folded);
-		const foldWidth = fold && fold.seats[0].right - fold.seats[0].left;
+		const foldWidth = fold && fold.seats[pin.corner].right - fold.seats[pin.corner].left;
 		const foldBounds = fold && {
 			...pin.bounds,
 			left: Math.min(pin.bounds.left + fold.open - foldWidth, pin.bounds.right - foldWidth)
@@ -117,7 +159,7 @@ function leastCovering(seats, cover, pressed, bounds) {
 	let best = null;
 	let least = Infinity;
 	for (const seat of seats) {
-		if (!inside(seat, bounds) || pressed.some((box) => overlaps(box, seat))) continue;
+		if (!seat || !inside(seat, bounds) || pressed.some((box) => overlaps(box, seat))) continue;
 		const covered = cover.reduce((sum, box) => sum + shared(box, seat), 0);
 		if (covered < least) [best, least] = [seat, covered];
 	}
@@ -487,6 +529,7 @@ function controlsIn(host) {
 function coverIn(root, band, target, bands, stop) {
 	const cover = [];
 	const controls = [];
+	const boxes = [];
 	const meets = (box) => box.bottom > band.top && box.top < band.bottom;
 	const visit = (el) => {
 		for (const node of renderedChildren(el)) {
@@ -506,6 +549,10 @@ function coverIn(root, band, target, bands, stop) {
 			const boxless = !box.width && !box.height;
 			if (!boxless && !meets(box)) continue;
 			const holds = node !== target && renderedUnder(target, node);
+			if (!boxless && !holds && node !== target) boxes.push({
+				node,
+				box
+			});
 			const control = node.matches(TAB_STOP);
 			if (!boxless && !holds && (node.shadowRoot || node.matches(OPAQUE) || control) && node.checkVisibility()) {
 				const shown = clippedBand(node, box, bands, stop);
@@ -528,9 +575,16 @@ function coverIn(root, band, target, bands, stop) {
 		}
 	};
 	visit(root);
+	const beside = (seat) => boxes.some(({ node, box }) => {
+		if (!overlaps(box, seat) || getComputedStyle(node).display === "inline") return false;
+		if (renderedUnder(node, target) || !node.checkVisibility()) return false;
+		const shown = clippedBand(node, box, bands, stop);
+		return Boolean(shown) && overlaps(shown, seat);
+	});
 	return {
 		cover,
-		controls
+		controls,
+		beside
 	};
 }
 function contentBox(scroller) {
@@ -563,46 +617,6 @@ function standFolded(row, fold, on) {
 	if (on) folded.add(row);
 	else folded.delete(row);
 	fold?.changed();
-}
-function seatsBy(parts, home, inline, passage, cover, size) {
-	const height = home.bottom - home.top;
-	const box = union(parts) ?? home;
-	const end = parts.at(-1);
-	const under = {
-		left: Math.min(home.left, box.left),
-		right: home.right,
-		top: box.bottom + GAP,
-		bottom: box.bottom + GAP + height
-	};
-	const belowClear = !cover.some((box) => overlaps(box, under));
-	return [
-		{
-			left: box.right + GAP,
-			right: box.right + GAP + size,
-			top: box.top,
-			bottom: box.top + height
-		},
-		...inline && end ? [{
-			left: end.right + GAP,
-			right: end.right + GAP + size,
-			top: end.top,
-			bottom: end.top + height
-		}] : [],
-		{
-			...home,
-			left: home.right - size
-		},
-		{
-			left: passage ? box.right : home.right - size,
-			right: passage ? box.right + size : home.right,
-			top: box.top - GAP - height,
-			bottom: box.top - GAP
-		},
-		...belowClear ? [{
-			...under,
-			left: home.right - size
-		}] : []
-	];
 }
 function pinSeating(rows, { bands, shell, pinInset }) {
 	const main = marginColumn();
@@ -647,13 +661,14 @@ function pinSeating(rows, { bands, shell, pinInset }) {
 			bottom: Math.max(...spans.map((box) => box.bottom)) + around
 		};
 		const stop = read.scroller;
-		const { cover, controls } = coverIn(stop === pageScroller ? main : stop, band, target, bands, stop);
+		const room = coverIn(stop === pageScroller ? main : stop, band, target, bands, stop);
+		const { cover, controls } = room;
 		const end = parts.at(-1);
 		const inline = Boolean(words) || !point && end && target instanceof HTMLElement && getComputedStyle(target).display.startsWith("inline");
 		const floor = Math.max(home.bottom, ...parts.map((part) => part.bottom));
 		const reach = (stop === pageScroller ? innerHeight : stop.clientHeight) / 2;
 		const near = (seat) => seat.top >= Math.min(...parts.map((part) => part.top)) - reach && seat.bottom <= Math.max(...parts.map((part) => part.bottom)) + reach;
-		const seatsAt = (size) => [...seatsBy(parts, home, inline, Boolean(words), cover, size), ...block ? seatsBy(block.parts, block.home, false, false, cover, size).filter(near) : []];
+		const seatsAt = (size) => [...seatsBy(parts, home, inline, Boolean(words), room, size, GAP), ...block ? seatsBy(block.parts, block.home, false, false, room, size, GAP).filter((seat) => seat && near(seat)) : []];
 		const within = stop === pageScroller ? rootBounds : contentBox(stop);
 		const clipped = clippedBand(target, EVERYWHERE, bands, stop);
 		pins.push({

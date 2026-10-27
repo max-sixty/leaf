@@ -36,7 +36,6 @@ from interact_support import (
 
 from leaf import cli as cli_model
 from leaf import harness as harness_model
-from leaf import hooks as hooks_model
 from leaf import hosting as hosting_model
 from leaf import leases as leases_model
 from leaf import presence as presence_model
@@ -269,9 +268,7 @@ def test_a_background_jobs_server_lives_as_long_as_the_job(
     assert service_model.claim_page(page_dir)
     assert hosting_model.start_server(page_dir, harness=harness_model.session_harness())
     assert read_record(page_dir / "service.json")["lifetime"] == "session"
-    hooks_model.cmd_hook(
-        "claude-code", {"hook_event_name": "SessionEnd", "session_id": "bg-job"}
-    )
+    cleanup_model.end_harness_instance("bg-job")
     assert cleanup_model.session_record("bg-job")["turn_closed"] is not None
     assert not reaper_retires(page_dir, monkeypatch)
     assert server_model.running_server(page_dir)
@@ -336,9 +333,7 @@ def test_a_desktop_app_sessions_server_lives_as_long_as_the_app_session(
     assert service_model.claim_page(page_dir)
     assert hosting_model.start_server(page_dir, harness=harness_model.session_harness())
     generation = service_model.page_claim(page_dir)["generation"]
-    hooks_model.cmd_hook(
-        "claude-code", {"hook_event_name": "SessionEnd", "session_id": "app-session"}
-    )
+    cleanup_model.end_harness_instance("app-session")
     assert not reaper_retires(page_dir, monkeypatch)
     assert server_model.running_server(page_dir)
     assert (
@@ -759,9 +754,7 @@ def test_a_persistent_server_outlives_a_session_that_picks_the_page_up(
     served = json.loads(capsys.readouterr().out)
     assert (served["url"], served["lifetime"]) == (launched["url"], "persistent")
 
-    hooks_model.cmd_hook(
-        "claude-code", {"hook_event_name": "SessionEnd", "session_id": "later"}
-    )
+    cleanup_model.end_harness_instance("later")
 
     # The synchronous hook left the persistent service enabled and live.
     assert server_model.running_server(page_dir) == launched

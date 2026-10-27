@@ -152,8 +152,19 @@
   }
 }
 
-/* Paper includes line endings even when the reader panned the source on screen, so it
-   outranks that choice, which lf-code.js writes on each line to outrank the page's. */
+/* An explicit reading choice owns wrapping above the page's presentation rules.
+   The host states it once; every source row follows it. */
+@media screen {
+  :scope:is(lf-code)[data-lf-reader-wrap="wrap"] .lf-code-line {
+    white-space: pre-wrap !important;
+    overflow-wrap: anywhere !important;
+  }
+  :scope:is(lf-code)[data-lf-reader-wrap="scroll"] .lf-code-line {
+    white-space: pre !important;
+    overflow-wrap: normal !important;
+  }
+}
+/* Paper includes line endings even when the reader panned the source on screen. */
 @media print {
   :scope:is(lf-code)[data-lf-reader-wrap] .lf-code-line {
     white-space: pre-wrap !important;

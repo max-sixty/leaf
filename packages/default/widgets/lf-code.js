@@ -182,14 +182,7 @@ customElements.define(
         let horizontal = 0;
         const paintWrap = (value) => {
           wrapped = value;
-          if (!this.hasAttribute("data-lf-reader-wrap"))
-            this.setAttribute("data-lf-reader-wrap", "");
-          for (const line of /** @type {NodeListOf<HTMLElement>} */ (
-            pre.querySelectorAll(".lf-code-line")
-          )) {
-            line.style.whiteSpace = value ? "pre-wrap" : "pre";
-            line.style.overflowWrap = value ? "anywhere" : "normal";
-          }
+          this.setAttribute("data-lf-reader-wrap", value ? "wrap" : "scroll");
         };
         if (saved !== null) paintWrap(saved === "true");
         const toggleWrap = () => {

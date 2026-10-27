@@ -192,6 +192,7 @@ import {
   textBlocks,
 } from "./reading-place.js";
 import { holdingError, raiseError } from "./errors.js";
+import { tick } from "./version-signal.js";
 
 const PRIVATE_REVISION_PARAM = "_leaf-revision";
 
@@ -952,7 +953,7 @@ export function toggleInlineComparison(target) {
   const said = inlineOpen.has(target)
     ? closeInlineComparison(target)
     : openInlineComparison(target);
-  comparisonGeneration.value += 1;
+  tick(comparisonGeneration);
   return said;
 }
 
@@ -984,7 +985,7 @@ function setDiff(on, base, pendingBase = null) {
       diffMarked.clear();
     }
     // Native effects run after both the selection and its marked DOM have settled.
-    comparisonGeneration.value += 1;
+    tick(comparisonGeneration);
   });
 }
 // The one way a comparison starts, from a row's press, from the walk through the menu,

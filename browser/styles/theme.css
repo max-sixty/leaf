@@ -1488,6 +1488,15 @@ details {
   margin: var(--details-margin-block) 0;
   --lf-block-frame: trim;
 }
+/* Disclosures written one after another read as one list of them, at the distance
+   their insets alone leave: with the margin between them too they stood further apart
+   than a heading from its prose, and a run of them read as separate sections. */
+details:has(+ details) {
+  margin-block-end: 0;
+}
+details + details {
+  margin-block-start: 0;
+}
 /* A disclosure arranged in columns gives its evidence the whole row. Keep this
    native pseudo-element rule outside package scopes: Firefox computes scoped
    ::details-content declarations but does not use them for grid placement. */

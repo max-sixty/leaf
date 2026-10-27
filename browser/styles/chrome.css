@@ -33,10 +33,17 @@
    shared face stated here would outrank each component's own rule. The vocabulary's
    faces are therefore stated page-side (the margin entries in theme.css; .lf-key-badge,
    .lf-ui, .lf-btn and the aim floor in shadow.css, which also reaches
-   widget trees, and `.lf-ui`'s `box-sizing` reset in components/surfaces.css). What
-   stays here is paint the runtime lays over the page, which has to beat page and
-   widget alike. test_interact_layer.py holds that no selector is dressed for one
-   property both here and page-side. */
+   widget trees). What stays here is paint the runtime lays over the page, which has to
+   beat page and widget alike, and the `box-sizing` reset. test_interact_layer.py holds
+   that no selector is dressed for one property both here and page-side. */
+.lf-ui {
+  box-sizing: border-box;
+}
+.lf-ui *,
+.lf-ui *::before,
+.lf-ui *::after {
+  box-sizing: border-box;
+}
 /* Clearing the UA's form-control face lives in a layer, so any unlayered choice of
    face outranks it whatever its specificity: a control wearing .lf-ui takes the chrome
    face from its own class, and lf-draft's editor states the document's face unlayered
@@ -135,7 +142,17 @@ html[data-lf-region-capture] body,
 html[data-lf-draw-mode],
 html[data-lf-draw-mode] body {
   cursor: crosshair;
+}
+/* One finger's drag is the capture's, or the stroke's. Draw mode lasts while the user
+   moves about the page, so two fingers still pan and zoom it there; a second finger
+   landing takes back the stroke the first began (drawing.js, `begin`). */
+html[data-lf-region-capture],
+html[data-lf-region-capture] body {
   touch-action: none;
+}
+html[data-lf-draw-mode],
+html[data-lf-draw-mode] body {
+  touch-action: pinch-zoom;
 }
 html[data-lf-region-capture] main,
 html[data-lf-region-capture] main * {
@@ -564,10 +581,10 @@ html[data-lf-region-capture] main * {
     border-radius: var(--r-l);
     box-shadow: var(--raise-3);
     padding: 14px 18px;
-    /* Its column stands while a closing reference fades out, after `.open` has gone. */
+    /* Its column stands while a closing reference fades out, after `[open]` has gone. */
     flex-direction: column;
   }
-  .lf-command-reference.open {
+  .lf-command-reference[open] {
     display: flex;
   }
   .lf-command-reference::backdrop {
@@ -585,11 +602,11 @@ html[data-lf-region-capture] main * {
       display var(--lf-motion-disclosure) allow-discrete,
       overlay var(--lf-motion-disclosure) allow-discrete;
   }
-  :is(.lf-command-reference:not(.open), .lf-page-map-dialog:not([open])) {
+  :is(.lf-command-reference:not([open]), .lf-page-map-dialog:not([open])) {
     pointer-events: none;
   }
-  :is(.lf-command-reference.open, .lf-page-map-dialog[open]),
-  :is(.lf-command-reference.open, .lf-page-map-dialog[open])::backdrop {
+  :is(.lf-command-reference[open], .lf-page-map-dialog[open]),
+  :is(.lf-command-reference[open], .lf-page-map-dialog[open])::backdrop {
     opacity: 1;
     @starting-style {
       opacity: 0;

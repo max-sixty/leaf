@@ -282,9 +282,10 @@ the page's targets goes through `paintSet` in `target-paint-geometry.js`. What a
 changes that CSS can't follow is read again when the scroll ends (`watchScrollEnds` in
 `arrivals.js`).
 
-Write a DOM value only when it changes, through `keeps` in `runtime/keeps.js`, whose
-header says what a redundant write costs. Give each value one writer, since two owners
-that set it in turn rewrite it whenever either paints. Checks: `tests/write_watch.js`
+Lit owns template bindings and skips unchanged values. For imperative writes outside
+those bindings, use `keeps` in `runtime/keeps.js`, whose header says what a redundant
+write costs. Give each value one writer, since two owners that set it in turn rewrite
+it whenever either paints. Checks: `tests/write_watch.js`
 fails a write that changes nothing, and `scroll_findings` in `test_page_fixture_renders` fails a
 value a scroll rewrites on every step.
 
@@ -517,6 +518,16 @@ before/after stills of each state it touches (`/developing-leaf`, "Prove and han
 visible change").
 
 ## Working on the runtime
+
+Give each component's generated UI one Lit renderer from first paint through live
+updates. When changing it, move its existing generated structure and changing bindings
+into that renderer together; a Lit child inside a manually updated view leaves two
+renderers to maintain. Lit provides node retention, synchronous drawing and
+unchanged-value checks. Keep imperative rendering of generated UI only for a requirement
+Lit cannot meet, and record that requirement beside the implementation. The rendering
+APIs and retained-node operations are in
+`../skills/leaf/references/module-authoring.md`,
+"Rendering".
 
 A paint that must land in the current turn uses `render`. `LitElement` schedules
 updates on a microtask, so code that reads the document right after a paint (a focus

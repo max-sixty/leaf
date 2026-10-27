@@ -18,8 +18,10 @@ and observed behavior from published compatibility data. A successful API
 adoption needs no entry. Resolved failures leave this list; reasons the current
 implementation still needs belong beside its code. Rewrite an entry when its
 status changes rather than appending the investigation's chronology.
-`uv run leaf-dev probe SOURCE --firefox` runs a probe or journey in Playwright's
-Firefox.
+`uv run leaf-dev probe SOURCE --browser firefox` (or `webkit`) runs a probe or
+journey in Playwright's Firefox or WebKit, and `--browser ios` runs a probe in
+Safari on an iPhone simulator, whose WebKit can differ from Playwright's desktop
+build.
 
 Minor visual differences are acceptable when content remains readable and
 controls remain usable. Lost drafts, broken actions, inaccessible controls, and
@@ -28,6 +30,20 @@ An unsupported API alone does not justify blocking the whole browser: record
 what fails and what still works.
 
 ## Known gaps
+
+### Tab underline travel between anchors
+
+The selected-tab underline in `packages/default/styles/tabs.css` follows its
+label with CSS anchors. Playwright Firefox 155.0, build 1543, moved directly to
+the new anchor on 2026-10-26, without a transition or `transitionrun` event;
+Chromium 153.0.8010.12 interpolated its position and width. Instant selection
+is an accepted visual difference: the selected label, panel, keyboard routes
+and nested strips remain usable. Recheck by opening `lost-update` with
+`leaf-dev probe --firefox --motion no-preference`, selecting the adjacent tab
+with the pointer and inspecting `.lf-tab-selection` across animation frames.
+The Chromium behavior and interruption contract are covered by
+`test_pointer_tab_underline_moves_without_delaying_the_view` in
+`tests/browser/widgets/test_tabs.py`.
 
 ### Scroll-state containers
 
@@ -252,6 +268,18 @@ Chromium 153.0.8010.12 also left a focused node unmatched by its own
 marks follow rendered ancestry; selectors for the focused editor use `:focus`.
 Recheck with a focused input moved into a hidden parent and back out.
 
+### Clearing a shadow host unloads its frames in WebKit
+
+In Playwright WebKit 26.6 on 2026-10-24, `replaceChildren()` on an element
+with a shadow root unloaded every iframe in that shadow tree, leaving it
+connected with a null `contentWindow`, even when the host had no children to
+remove; `textContent = ""` did the same when it had some. Removing each child
+with `remove()` kept the frames, as Chromium 153.0.8010.12 and Firefox 155.0
+did for all three. `shadowStage` (`browser/runtime/shadow-stage.js`) removes a host's
+light children child by child, the one place a widget clears its host, since a thread
+outlet in a stage can hold a frame. Recheck with `test_a_diff_revision_leaves_a_line_thread_where_it_stands`
+in `tests/browser/widgets/test_diffs.py`.
+
 ### Area capture rendering
 
 `browser/runtime/composing/page-image.js` reconstructs the DOM with SnapDOM.
@@ -322,7 +350,7 @@ place in its `right` inset because Playwright Firefox 155, on 2026-10-25, left
 a `left`-inset link where its heading had stood before the window widened, as
 commit 00e03385c records without a reproduction. The same day, a `left` form of
 the current arithmetic followed its heading in Firefox 155 when
-`leaf-dev probe --firefox` narrowed `release-notes`, `review-a-plan`,
+`leaf-dev probe --browser firefox` narrowed `release-notes`, `review-a-plan`,
 `live-progress` and a one-heading page to 440px and widened them to 1200px, so
 the gap is unconfirmed. The `right` form costs nothing else. Recheck by
 swapping in the `left` form and comparing the link's box after that resize with

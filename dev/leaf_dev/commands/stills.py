@@ -50,6 +50,7 @@ import click
 from PIL import Image, ImageDraw
 from playwright.sync_api import Locator, Page, expect
 
+from leaf.render_checks import wait_until_ready
 from leaf_dev import ROOT
 from leaf_dev.arms import (
     PageClient,
@@ -190,11 +191,9 @@ def drawing_comment(page: Page) -> None:
     page.mouse.up()
     page.locator(".lf-composer-drawing").wait_for(state="visible")
     settle(page)
-    context = page.locator(".lf-composer-drawing canvas")
-    if context.count():
-        page.locator(
-            '.lf-composer-drawing canvas[data-lf-drawing-context="ready"]'
-        ).wait_for(state="visible")
+    page.locator(
+        '.lf-composer-drawing canvas[data-lf-drawing-context="ready"]'
+    ).wait_for(state="visible")
 
 
 def drawing_comment_hover(page: Page) -> None:
@@ -477,6 +476,20 @@ def card_held_news(page: Page) -> None:
     held_news(page, page.locator(".lf-margin-preview .lf-page-thread"))
 
 
+def card_held_step(page: Page) -> None:
+    """A margin card holding the agent's progress step while the user drafts a reply
+    in it, which its notice doesn't say (held-news.js)."""
+    open_card(page, page.locator('[data-lf-margin-for="plan-stop"] .lf-margin-marker'))
+    thread = page.locator(".lf-margin-preview .lf-page-thread")
+    thread.get_by_role("textbox", name="Reply", exact=True).click()
+    page.keyboard.insert_text("Drafting a reply while the agent works")
+    root = thread.get_attribute("data-thread")
+    assert root
+    as_agent("thread", "reply", root, "--ephemeral", "--text", "Checking the stop.")
+    state = PageClient(served_page.get().address).state()
+    wait_until_ready(page, state, through="state")
+
+
 def seat_held_news(page: Page) -> None:
     """A seat's thread holding a reply and a message from another tab while the user
     drafts a reply in it: the agent's question on a goal, which a reload draws in
@@ -605,12 +618,14 @@ def retained_quote(page: Page) -> None:
 
 
 def retained_quote_full(page: Page) -> None:
-    """The same original words opened locally, where this runtime offers it."""
+    """The same original words opened locally. Full quote shows a frame after the
+    thread's messages, once the panel has measured the quotation as cut, so the click
+    waits for it."""
     retained_quote(page)
     child = page.locator("#bg-retained-quote-sample").frame_locator("iframe")
     full = child.get_by_role("button", name="Full quote", exact=True)
-    if full.count():
-        full.click()
+    full.click()
+    expect(full).to_have_attribute("aria-expanded", "true")
 
 
 def progress_messages(page: Page) -> None:
@@ -877,6 +892,29 @@ def card_grabbed(page: Page) -> None:
     page.keyboard.press("ArrowLeft")
 
 
+def card_moved(page: Page) -> None:
+    """A board card carried one column left by keyboard and dropped, its receipt pinned
+    by it, where the next column's card stands across the gap."""
+    card_grabbed(page)
+    page.keyboard.press("Enter")
+    expect(page.locator("#col-blocking #card-tz")).to_be_visible()
+    expect(
+        page.locator('.lf-margin-cluster[data-lf-margin-for="card-tz"]')
+    ).to_be_visible()
+
+
+def card_moved_by_destination(page: Page) -> None:
+    """A board card moved by its Move to button, as a phone offers it, its receipt
+    pinned by it."""
+    page.locator(
+        '#card-tz .lf-board-destination[data-lf-board-target="col-blocking"]'
+    ).click()
+    expect(page.locator("#col-blocking #card-tz")).to_be_visible()
+    expect(
+        page.locator('.lf-margin-cluster[data-lf-margin-for="card-tz"]')
+    ).to_be_visible()
+
+
 def activity_feed(page: Page) -> None:
     """A committed board move beside the published revision in the opened feed."""
     card_grabbed(page)
@@ -1110,13 +1148,15 @@ def diff_file_resolved_closed(page: Page) -> None:
 
 
 def diff_file_resolved(page: Page) -> None:
-    """Both conversations under a diff file resolved, and every resolved disclosure the
-    outlet draws opened."""
+    """Both conversations under a diff file resolved, and the outlet's one Resolved
+    disclosure, which holds them, opened."""
     diff_file_resolved_closed(page)
-    diff = page.frame_locator("#dfg-sample iframe").locator("#dfg-patch")
-    folded = diff.locator(".lf-diff-thread-outlet details:not([open]) > summary")
-    while folded.count():
-        folded.first.click()
+    resolved = page.frame_locator("#dfg-sample iframe").locator(
+        "#dfg-patch .lf-diff-thread-outlet details.lf-resolved-threads"
+    )
+    expect(resolved).to_have_count(1)
+    resolved.locator(":scope > summary").click()
+    expect(resolved).to_have_attribute("open", "")
 
 
 def diff_line_composer(page: Page) -> None:
@@ -1180,6 +1220,24 @@ def table_scrolled_sideways(page: Page) -> None:
 def element_thread(page: Page) -> None:
     """An element holding a thread, in view, with nothing indicating it."""
     page.locator("#off-t-vendor").evaluate("el => el.scrollIntoView({block: 'center'})")
+
+
+def ship_tasks(page: Page) -> None:
+    """The ship review's task list, each task's status beside its title."""
+    page.locator("#off-readiness").evaluate(
+        "el => el.scrollIntoView({block: 'center'})"
+    )
+
+
+def ship_answered(page: Page) -> None:
+    """On me once the user has pressed Done in the reconnect thread and picked the
+    release: what still waits on them."""
+    card_by_pointer(page)
+    page.locator(".lf-margin-preview:not([hidden]) .lf-done").click()
+    page.keyboard.press("Escape")
+    page.locator("#off-release-ship").click()
+    page.locator(".lf-fp-on-user").click()
+    expect(page.locator(".lf-fp-opened")).to_be_visible()
 
 
 def element_thread_open(page: Page) -> None:
@@ -1262,6 +1320,16 @@ def ask_by_keyboard(page: Page) -> None:
 def steps_in_view(page: Page) -> None:
     """A list of steps in body prose, each number beside its first line."""
     page.locator("#security-contract-list").scroll_into_view_if_needed()
+
+
+def disclosures_in_view(page: Page) -> None:
+    """Two closed disclosures written one after the other at the page's end."""
+    page.locator("#security-source-disclosure").scroll_into_view_if_needed()
+
+
+def security_flow(page: Page) -> None:
+    """The case study's five-step flow diagram, every step in view."""
+    page.locator("#security-before-flow").scroll_into_view_if_needed()
 
 
 def go_to(page: Page) -> None:
@@ -1357,13 +1425,9 @@ def visual_review_inspection(page: Page) -> None:
 
 def code_reader_feedback(page: Page) -> None:
     """The built reader and the place where its author receives design feedback."""
-    tab = page.get_by_role("tab", name="Comment on the reader")
-    if tab.count():
-        tab.click()
-        settle(page)
-    page.locator(
-        "#code-reader-feedback, #code-targeting-ask"
-    ).scroll_into_view_if_needed()
+    page.get_by_role("tab", name="Comment on the reader").click()
+    settle(page)
+    page.locator("#code-reader-feedback").scroll_into_view_if_needed()
 
 
 def margin_gallery(page: Page) -> None:
@@ -2151,6 +2215,19 @@ STATES = (
         region=".lf-margin-preview",
     ),
     State(
+        "plan-card-held-step",
+        "review-a-plan",
+        card_held_step,
+        region=".lf-margin-preview",
+    ),
+    State(
+        "plan-card-held-step-dark",
+        "review-a-plan",
+        card_held_step,
+        scheme="dark",
+        region=".lf-margin-preview",
+    ),
+    State(
         "plan-card-held-news-phone",
         "review-a-plan",
         card_held_news,
@@ -2256,6 +2333,15 @@ STATES = (
     ),
     State("plan-card-reply-resolved", "review-a-plan", card_reply_resolved),
     State("triage", "triage-board", at_rest),
+    State("triage-phone", "triage-board", at_rest, viewport=(390, 844), touch=True),
+    State(
+        "triage-phone-dark",
+        "triage-board",
+        at_rest,
+        viewport=(390, 844),
+        scheme="dark",
+        touch=True,
+    ),
     State("triage-metrics", "triage-board", at_rest, region="#triage-counts"),
     State(
         "triage-metrics-dark",
@@ -2367,6 +2453,36 @@ STATES = (
         steps_in_view,
         region="#security-contract-list",
     ),
+    State("stacked-disclosures", "security-boundary", disclosures_in_view),
+    # The case study's five-step flow, drawn top-down so a phone shows every step.
+    State(
+        "security-flow",
+        "security-boundary",
+        security_flow,
+        region="#security-before-flow",
+    ),
+    State(
+        "security-flow-dark",
+        "security-boundary",
+        security_flow,
+        scheme="dark",
+        region="#security-before-flow",
+    ),
+    State(
+        "security-flow-phone",
+        "security-boundary",
+        security_flow,
+        viewport=(390, 844),
+        touch=True,
+    ),
+    State(
+        "security-flow-phone-dark",
+        "security-boundary",
+        security_flow,
+        viewport=(390, 844),
+        scheme="dark",
+        touch=True,
+    ),
     State(
         "table-scrolled-phone",
         "security-boundary",
@@ -2397,6 +2513,16 @@ STATES = (
         touch=True,
     ),
     State("triage-grabbed", "triage-board", card_grabbed),
+    State("triage-moved", "triage-board", card_moved, region="#release-board"),
+    State(
+        "triage-moved-touch",
+        "triage-board",
+        card_moved_by_destination,
+        viewport=(390, 844),
+        touch=True,
+        region="#col-blocking",
+    ),
+    State("walkthrough", "pr-walkthrough", at_rest),
     State("walkthrough-wide", "pr-walkthrough", into_the_body),
     State(
         "walkthrough-body-short",
@@ -2489,6 +2615,22 @@ STATES = (
         touch=True,
     ),
     State("ship-thread", "ship-review", element_thread),
+    State("ship-tasks", "ship-review", ship_tasks, region="#off-readiness"),
+    State(
+        "ship-tasks-dark",
+        "ship-review",
+        ship_tasks,
+        scheme="dark",
+        region="#off-readiness",
+    ),
+    State(
+        "ship-tasks-phone",
+        "ship-review",
+        ship_tasks,
+        viewport=(390, 844),
+        touch=True,
+    ),
+    State("ship-answered", "ship-review", ship_answered, region=".lf-fp-opened"),
     State(
         "ship-thread-open", "ship-review", element_thread_open, region="#off-t-vendor"
     ),

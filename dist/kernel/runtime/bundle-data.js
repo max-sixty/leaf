@@ -2,7 +2,7 @@ import { J, W, Z, d, x } from "./bundle-signals-core.js";
 import { PRESSES, TEXT_BOX, composedParentNode, deepFocus, drawn, excludedByInert, focusDestination, focused, inputCount, keeps, move, nextAnimation, nextRender, onCurrentLocation, onUserInput, readCaret, recoveredLabelFocus, renderedUnder, renderingState, sizeObserver, takesLetters, typesText, under, upFrom } from "./bundle-dom-move.js";
 import { LayerRefused, PAGE_PAINT_ATTRIBUTE, admitReading, reportPageError, requestJson, runtimeRootState, setRuntimeRootAttribute } from "./bundle-layer-client.js";
 import { clippedPlace, decisionFor, frameFor, landingBand, nativeLayers, placeBox, placeHolder, presented, registry, shownBox, skipped, tagsDeclaring, watchOwner } from "./bundle-geometry.js";
-import { LIVE_ROOT, PRESENTATION_DOM, TEXT_BLOCK, applicationPresenter, applicationState, foldWidgetStates, layerRoot, obligationValue, offlineData, offlineInteractive, pageUrl, projectView, projectionOrigins, projectionRegionsPresented, readApplication, readPart, revisionLabel, runtime, watchPresentation, whenApplicationRegionsPresented } from "./bundle-context.js";
+import { LIVE_ROOT, PRESENTATION_DOM, TEXT_BLOCK, applicationPresenter, applicationState, foldWidgetStates, layerRoot, obligationValue, offlineData, offlineInteractive, pageUrl, projectView, projectionOrigins, projectionRegionsPresented, readApplication, readPart, revisionLabel, runtime, tick, watchPresentation, whenApplicationRegionsPresented } from "./bundle-context.js";
 import { EVERYTHING, PRESSABLE, allBindings, answers, ariaShortcuts, bindingEnabledFor, bindings, buttonCommand, commandAvailable, commandEntries, commandReady, commandRoutes, declaredBindings, descriptionOf, el, holdingError, labelOf, layoutChanged, live, nativeActivationAt, nativeClaimAt, notice, pointerAt, pruneScopedElements, quickShortcuts, raiseError, referencedCommandEntry, repaint, restorePointer, reveal, routedCommand, savedReadingSettled, scopeAvailable, scopeIdentity, scopesAt, scopesFor, spell, titleOf, word } from "./bundle-errors.js";
 import { chosenSince, containingReadingRegionFor, effectiveScroller, moveScrollerBy, onReadingInput, pageScroller, placeKept, readingRegionFor, readingRegions, recentReadingRegion, regionScrollBehavior, regionsSettled, scrollChainOf, scrollChoices, scrollLimit, scrollersOf, shownRegionBounds, stopScroll, unconcealedReadingRegions, watchReadingRegionTransitions } from "./bundle-reading-regions.js";
 import { PAGE_CONTROL_RANK, registerPageControl } from "./bundle-page-controls.js";
@@ -226,7 +226,10 @@ function narrowSheet(sheet, runtime) {
 }
 let watching = false;
 function keepPageRulesOffLayer() {
-	for (const sheet of document.styleSheets) narrowSheet(sheet, sheet.ownerNode?.hasAttribute("data-lf-runtime"));
+	for (const sheet of document.styleSheets) {
+		const owner = sheet.ownerNode;
+		if (owner) narrowSheet(sheet, owner.hasAttribute("data-lf-runtime"));
+	}
 	if (watching) return;
 	watching = true;
 	document.addEventListener("load", (event) => {
@@ -1308,7 +1311,7 @@ const inlineComparison = (target) => diffOn.value && diffBefore.has(target) && (
 function toggleInlineComparison(target) {
 	if (!inlineComparison(target)) return null;
 	const said = inlineOpen.has(target) ? closeInlineComparison(target) : openInlineComparison(target);
-	comparisonGeneration.value += 1;
+	tick(comparisonGeneration);
 	return said;
 }
 const comparable = (version) => {
@@ -1327,7 +1330,7 @@ function setDiff(on, base, pendingBase = null) {
 			for (const b of diffMarked) b.classList.remove("lf-ins-block");
 			diffMarked.clear();
 		}
-		comparisonGeneration.value += 1;
+		tick(comparisonGeneration);
 	});
 }
 async function showComparison(base) {
@@ -2347,13 +2350,13 @@ function invocationFor(row, binding, command, recovered = null) {
 		native: Boolean(row.native)
 	} : null;
 }
-function announceInvocation(invocation) {
+function announceInvocation(invocation, title = null) {
 	const { row, entry } = invocation;
 	const route = entry.route;
 	document.dispatchEvent(new window.CustomEvent("lf-command-invoked", { detail: {
 		id: invocation.id,
 		binding: invocation.binding,
-		title: titleOf(route?.title === void 0 ? row : route),
+		title: title ?? titleOf(route?.title === void 0 ? row : route),
 		description: descriptionOf(route?.description === void 0 ? row : route),
 		travels: Boolean(row.travels)
 	} }));
@@ -2399,6 +2402,19 @@ function resolveKey(ev) {
 	return null;
 }
 const keyReady = (ev) => resolveKey(ev) !== INPUT_PENDING;
+const escapePress = () => new window.KeyboardEvent("keydown", { key: "Escape" });
+const escapeTakesAStep = () => {
+	const matched = resolveKey(escapePress());
+	return Boolean(matched) && matched !== INPUT_PENDING;
+};
+function answerCloseRequest() {
+	const matched = resolveKey(escapePress());
+	if (!matched || matched === INPUT_PENDING) return;
+	const keeps = Boolean(matched.row.keep);
+	announceInvocation(matched, keeps ? "keep" : null);
+	if (keeps) matched.row.keep();
+	else matched.run();
+}
 function dispatchKey(ev) {
 	const matched = resolveKey(ev);
 	if (!matched || matched === INPUT_PENDING) return false;
@@ -2472,7 +2488,7 @@ function acceptData(candidate, taken) {
 const joined = /* @__PURE__ */ new Set();
 async function notifyDataSubscribers() {
 	const version = runtime.data.version;
-	deliveries.value += 1;
+	tick(deliveries);
 	await whenApplicationRegionsPresented([...joined], () => runtime.data.version === version);
 	if (version !== null && runtime.data.version === version) setRuntimeRootAttribute(document.body, PAGE_PAINT_ATTRIBUTE.dataVersion, version);
 }
@@ -2646,4 +2662,4 @@ async function loadDeferred(value, key) {
 }
 
 //#endregion
-export { acceptData, activeCommandLabel, availableCommandRoutes, awaitsData, bindsInput, claimTraversals, commandSteps, comparisonBase, comparisonChanges, createAnchorTravel, createProjectionPresentation, createVersionController, dataReader, dispatchKey, executeCommand, initializeServedDocument, inlineComparison, innermostStance, invokePress, joinDataDelivery, keepPageRulesOffLayer, keyReady, loadDeferred, mountHistory, notifyDataSubscribers, observeOutputs, paintCoreControls, publishOutput, pushEntry, readPlace, referencedProjection, replaceEntry, requireReference, returnPlace, selfComparison, servedElements, shallowSigs, stack, suppliedSnapshot, toggleInlineComparison, userIn, versionPicker, versionsReading };
+export { acceptData, activeCommandLabel, answerCloseRequest, availableCommandRoutes, awaitsData, bindsInput, claimTraversals, commandSteps, comparisonBase, comparisonChanges, createAnchorTravel, createProjectionPresentation, createVersionController, dataReader, dispatchKey, escapeTakesAStep, executeCommand, initializeServedDocument, inlineComparison, innermostStance, invokePress, joinDataDelivery, keepPageRulesOffLayer, keyReady, loadDeferred, mountHistory, notifyDataSubscribers, observeOutputs, paintCoreControls, publishOutput, pushEntry, readPlace, referencedProjection, replaceEntry, requireReference, returnPlace, selfComparison, servedElements, shallowSigs, stack, suppliedSnapshot, toggleInlineComparison, userIn, versionPicker, versionsReading };

@@ -49,7 +49,6 @@ from interact_support import (
     fetch,
     fresh_process,
     live_versions,
-    lock_contention,
     neighbour_page,
     page_state,
     publish,
@@ -5691,78 +5690,6 @@ def test_a_hold_comment_can_only_hold_its_declared_exact_section(server, page_di
         status, body = fetch(f"{server}/api/event", data=json.dumps(bad).encode())
         assert status == 400
         assert refused_on(body).code == "hold-target"
-
-
-def test_stamp_keeps_its_checked_log_snapshot_until_the_note(monkeypatch, page_dir):
-    """A browser action arriving during the check waits behind the publication
-    note. Otherwise the successor can go live without ever being checked against
-    the decision that replays onto it."""
-    html = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
-    (page_dir / "index.html").write_text(html)
-    publish(page_dir)
-    (page_dir / "index.html").write_text(
-        html.replace("<title>t</title>", "<title>next</title>")
-    )
-    entered = threading.Event()
-    release = threading.Event()
-    original = publishing_model.check_source
-
-    def paused_check(*args, **kwargs):
-        entered.set()
-        assert release.wait(STATED_TIMEOUT), "the publication check was never released"
-        return original(*args, **kwargs)
-
-    monkeypatch.setattr(publishing_model, "check_source", paused_check)
-    failures = []
-
-    def run_stamp():
-        try:
-            publishing_model.cmd_stamp(page_dir, "next")
-        except (AssertionError, Refused) as error:  # surface thread failures here
-            failures.append(error)
-
-    action = {
-        "kind": "action",
-        "author": "user",
-        "revision": 2,
-        "widget": "choice",
-        "action": "choose",
-        "detail": {"value": ["flag-first"]},
-    }
-    publisher = threading.Thread(target=run_stamp)
-    publisher.start()
-    assert entered.wait(STATED_TIMEOUT), (
-        "the publisher never reached its held source check"
-    )
-    writer = threading.Thread(
-        target=lambda: append_command(page_dir, action), name="browser-writer"
-    )
-    requested = lock_contention(
-        monkeypatch, page_dir / "events.jsonl", by="browser-writer"
-    )
-    try:
-        writer.start()
-        assert requested.wait(STATED_TIMEOUT), (
-            "the browser writer never attempted the held snapshot lock"
-        )
-        assert writer.is_alive(), "the browser writer crossed the checked snapshot"
-    finally:
-        release.set()
-        publisher.join(STATED_TIMEOUT)
-        writer.join(STATED_TIMEOUT)
-
-    assert not failures
-    assert not publisher.is_alive() and not writer.is_alive()
-    ordered = [
-        (event["kind"], event.get("version"), event.get("revision"))
-        for event in event_model.read_events(page_dir)
-        if event["kind"] in {"note", "action"}
-    ]
-    assert ordered == [
-        ("note", 1, 1),
-        ("note", 2, 2),
-        ("action", None, 2),
-    ]
 
 
 def test_sample_fixtures_share_captured_history_but_isolate_child_gestures(

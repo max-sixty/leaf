@@ -244,14 +244,18 @@ nodes)` edits only changed text and keeps a text selection the user made in it.
 These helpers, `render` and `repeat` keep the user's focus in a moved node, so a reorder
 needs no `holdFocus`; a plain `append` or `insertBefore` of a node already in the page
 blurs it. A moved editable loses its selection even under `moveBefore`, so a
-custom element holding a `LeafEditorView` calls the view's `placeSelection()` from its
-`connectedMoveCallback`.
+custom element holding a Leaf editor view (`leafEditorView()`) calls the view's
+`placeSelection()` from its `connectedMoveCallback`.
 
 ### Shadow stages and styles
 
 Build an `x-shadow` widget's shadow root with `shadowStage(host, nodes)`, never
 `attachShadow`; it applies the theme's styles and returns the root. For a template,
 stage a container with `shadowStage(host, [container])` and render into that container.
+
+An `x-shadow` widget slots none of its authored children, so `shadowStage` removes them
+all from the host on every call (WebKit unloads the frames in a shadow tree when a host
+is cleared any other way). Read what the widget needs from them before the first stage.
 
 Wrap stylesheet text the module writes itself in `inBaseLayer(css)`, so its rules sit in
 the theme's `lf-base` cascade layer, below Layouts, theme packages and the page's own

@@ -2,10 +2,9 @@
 boundary."""
 
 import shutil
-import subprocess
 
 import pytest
-from leaf_dev import ROOT
+from leaf_dev.commands.distribution import bundle_runtime
 
 from leaf import layer as layer_model
 from leaf import runtime_selection
@@ -19,11 +18,7 @@ def test_a_leaf_serves_the_kernel_only_while_it_matches_the_tree(tmp_path, monke
     page's vendored layer holds none of it."""
     assets, kernel = tmp_path / "assets", tmp_path / "kernel"
     shutil.copytree(layer_model.ASSETS, assets)
-    subprocess.run(
-        ["node", ROOT / "build/runtime-bundle.mjs", assets, kernel],
-        cwd=ROOT,
-        check=True,
-    )
+    bundle_runtime(assets, kernel)
     monkeypatch.setattr(runtime_selection, "ASSETS", assets)
     monkeypatch.setattr(runtime_selection, "KERNEL", kernel)
 

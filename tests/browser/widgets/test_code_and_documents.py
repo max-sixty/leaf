@@ -897,3 +897,34 @@ def ceiling(limit):
     assert digest_rows[0] == 0 and len(digest_rows) > 1, reading
     assert set(digest_rows[1:]) == {2}, reading
     assert reading["gutterSpans"] == [True, True], reading
+
+    pre = page.locator("#walk pre")
+    line = page.locator("#walk .lf-code-line").nth(1)
+    # The page supplies the initial presentation; an explicit reader choice owns
+    # wrapping even when the page declares its preference important.
+    authored = page.add_style_tag(
+        content="#walk .lf-code-line { white-space: pre; overflow-wrap: normal; }"
+    )
+    pre.focus()
+    page.keyboard.press("w")
+    expect(line).to_have_css("white-space", "pre")
+    page.keyboard.press("w")
+    expect(line).to_have_css("white-space", "pre-wrap")
+    authored.evaluate(
+        """node => node.textContent = '#walk .lf-code-line { '
+          + 'white-space: pre-wrap !important; overflow-wrap: anywhere !important; }'"""
+    )
+    page.keyboard.press("w")
+    expect(line).to_have_css("white-space", "pre")
+    expect(line).to_have_css("overflow-wrap", "normal")
+    pre.evaluate("node => node.scrollLeft = 80")
+    horizontal = pre.evaluate("node => node.scrollLeft")
+    assert horizontal > 0
+    page.keyboard.press("w")
+    expect(line).to_have_css("white-space", "pre-wrap")
+    page.keyboard.press("w")
+    rendered(page)
+    assert pre.evaluate("node => node.scrollLeft") == horizontal
+    page.emulate_media(media="print")
+    expect(line).to_have_css("white-space", "pre-wrap")
+    expect(line).to_have_css("overflow-wrap", "anywhere")

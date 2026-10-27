@@ -329,7 +329,9 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--sp-2);
+  /* Wrapped rows keep each button's reach, which stands past its face under a
+     finger, clear of the row above it. */
+  gap: max(var(--sp-2), 2 * var(--lf-reach-room)) var(--sp-2);
 }
 
 /* A preset is an addressable member; its generated button is chrome, so the

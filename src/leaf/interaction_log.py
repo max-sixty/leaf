@@ -15,9 +15,8 @@ carries (`delivery.acting_on_delivery`); each notes its page (`acting_on`). A
 command that names none, as `leaf wait` watching every page a session owns,
 records nothing: its time is the agent waiting, not Leaf answering. One that
 names a page and then waits, as `leaf wait PAGE` does, records its own work as it
-starts waiting. Harness hooks
-don't pass through the CLI, and their time shows as delivery in the page's pickup
-receipts. A command's time runs from its launcher's start, `bin/leaf`'s uv
+starts waiting. Harness hooks name no command pages; their time shows as delivery in the
+page's pickup receipts. A command's time runs from its launcher's start, `bin/leaf`'s uv
 included, to its exit; one the sandbox bridge runs for Claude Code is timed from
 the bridge's start of it.
 
@@ -34,13 +33,11 @@ decide which fields to redact or omit for those users.
 import fcntl
 import json
 import os
-import sys
 import time
 from collections import defaultdict
 from datetime import UTC, datetime
 from pathlib import Path
 
-from .event_log import jsonl_line
 from .schema import INTERACTIONS_FILE
 from .state import now_iso, session_record
 
@@ -55,6 +52,8 @@ def append_interactions(page_dir: Path, records: list[dict]) -> list[dict]:
     Diagnostics are best effort across a process crash; unlike admitted user
     decisions they do not claim disk durability in the HTTP response.
     """
+    from .event_log import jsonl_line
+
     stamp = now_iso()
     records = [{"ts": stamp, **record} for record in records]
     data = "".join(jsonl_line(record) + "\n" for record in records).encode()
@@ -83,11 +82,10 @@ def launched() -> float:
     import psutil
 
     process = psutil.Process()
-    args = sys.argv[1:]
+    args = process.cmdline()[1:]
     parent = process.parent()
     words = parent.cmdline() if parent is not None else []
-    tail = words[len(words) - len(args) - 2 :]
-    if tail == ["-m", "leaf", *args]:
+    if args[:2] == ["-m", "leaf"] and words[-len(args) :] == args:
         return parent.create_time()
     return process.create_time()
 
@@ -98,14 +96,14 @@ def record_command(command: str) -> None:
     the system won't let this process gather or write, as a sandbox may refuse a
     session record or a page, is dropped, since the command's own result has
     already been decided."""
-    import psutil
-
-    from .harness import session_harness
-
     pages, ended = list(_ACTED_ON), time.time()
     _ACTED_ON.clear()
     if not pages:
         return
+    import psutil
+
+    from .harness import session_harness
+
     try:
         started = launched()
         harness = session_harness()

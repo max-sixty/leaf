@@ -24,49 +24,51 @@
           Open the comment beside the stalled task. Two follow-ups are selected; adjust
           them if needed, then press Done.
         </p>
-        <section id="off-readiness">
-          <section id="off-t-patch">
-            <p class="eyebrow">review · mobile</p>
+        <ul id="off-readiness">
+          <li id="off-t-patch">
             <strong>Ship offline editing in the first patch</strong>
-            <section id="off-t-resync">
-              <p class="eyebrow">stalled · mobile</p>
-              <strong>iOS reconnect stall</strong> One reconnect in about 40. Nothing is
-              lost — the edits stay queued — but the user sees a spinner until they
-              background the app.
-            </section>
-            <section id="off-t-workaround">
-              <p class="eyebrow">review · mobile</p>
-              <strong>Keep the resend workaround in the patch</strong> After 20 seconds
-              the client resends the queued batch; 500 forced stalls all recovered.
-              <lf-ask id="off-workaround-decision">
-                <h3>Patch decision: ship with the resend</h3>
-                <lf-options id="off-workaround-review" choose>
-                  <lf-option id="off-workaround-approve" for="off-t-resync" chosen>
-                    Ship with the resend and keep chasing the upstream fix.
-                  </lf-option>
-                  <lf-option id="off-workaround-revise" for="off-t-resync">
-                    Hold the patch for a native fix.
-                  </lf-option>
-                </lf-options>
-              </lf-ask>
-            </section>
-            <section id="off-t-vendor">
-              <p class="eyebrow">blocked · mobile</p>
-              <strong>Land the upstream fix</strong> The vendor reproduced the stall but
-              has not named a release.
-            </section>
-            <section id="off-t-telemetry">
-              <p class="eyebrow">done · data</p>
-              <strong>Keep reconnect telemetry</strong> The beta alert and per-platform
-              count remain on for the release cohort.
-            </section>
-            <section id="off-t-support">
-              <p class="eyebrow">done · support</p>
-              <strong>Write the support playbook</strong> It covers the spinner, queued
-              edits, and background-app recovery.
-            </section>
-          </section>
-        </section>
+            <span class="tag">review · mobile</span>
+            <ul>
+              <li id="off-t-resync">
+                <strong>iOS reconnect stall</strong>
+                <span class="tag warn">stalled · mobile</span> One reconnect in about
+                40. Nothing is lost — the edits stay queued — but the user sees a
+                spinner until they background the app.
+              </li>
+              <li id="off-t-workaround">
+                <strong>Keep the resend workaround in the patch</strong>
+                <span class="tag">review · mobile</span> After 20 seconds the client
+                resends the queued batch; 500 forced stalls all recovered.
+                <lf-ask id="off-workaround-decision">
+                  <h3>Patch decision: ship with the resend</h3>
+                  <lf-options id="off-workaround-review" choose>
+                    <lf-option id="off-workaround-approve" for="off-t-resync" chosen>
+                      Ship with the resend and keep chasing the upstream fix.
+                    </lf-option>
+                    <lf-option id="off-workaround-revise" for="off-t-resync">
+                      Hold the patch for a native fix.
+                    </lf-option>
+                  </lf-options>
+                </lf-ask>
+              </li>
+              <li id="off-t-vendor">
+                <strong>Land the upstream fix</strong>
+                <span class="tag warn">blocked · mobile</span> The vendor reproduced the
+                stall but has not named a release.
+              </li>
+              <li id="off-t-telemetry">
+                <strong>Keep reconnect telemetry</strong>
+                <span class="tag ok">done · data</span> The beta alert and per-platform
+                count remain on for the release cohort.
+              </li>
+              <li id="off-t-support">
+                <strong>Write the support playbook</strong>
+                <span class="tag ok">done · support</span> It covers the spinner, queued
+                edits, and background-app recovery.
+              </li>
+            </ul>
+          </li>
+        </ul>
       </section>
 
       <dl class="facts" id="off-facts">

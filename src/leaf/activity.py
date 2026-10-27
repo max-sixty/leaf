@@ -568,7 +568,7 @@ def canonical_activity(
     *,
     todo_reading=None,
     updates: dict,
-    wakes=(),
+    wakes: list,
 ) -> dict:
     """Return the one current reading of agent activity for a page snapshot.
 

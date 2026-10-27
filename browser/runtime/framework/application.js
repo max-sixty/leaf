@@ -36,6 +36,7 @@ import {
 } from "../pending/model.js";
 import { PENDING } from "../thread/identity.js";
 import { queueOffers } from "../queues.js";
+import { setAside, withoutLaters } from "../obligations/later-model.js";
 
 /** @typedef {import("../../types/domain.js").AuthoredMap} AuthoredMap */
 /** @typedef {import("../../types/domain.js").Thread} Thread */
@@ -471,11 +472,13 @@ function localTodos(state, local) {
 /** @type {WireQueues} */
 const NO_QUEUES = { on_user: [], on_agent: [], later: [], done: [] };
 
-/* The records with this tab's Laters drawn: a Later it is sending sets its records
- * aside in the task the user chose it, and an undo of one brings them back, since
- * each decides that by itself. When they come back is the server's reading, as is
- * every Later the log already holds; a refused one leaves the ledger and so puts its
- * records back as the log has them. */
+/* The records with this tab's Laters drawn: a Later it is sending stands at the head
+ * of its records' chains in the task the user chose it, and an undo takes its Later
+ * out of the chain, leaving the one it replaced, which the server serves beneath it
+ * (`later.py`), so each decides its own result. Whether a Later that stands has come
+ * back is the server's reading; a Later still sending has not, since the server
+ * refuses one whose condition already holds. A refused one leaves the ledger and so
+ * puts its records back as the log has them. */
 /**
  * @param {ObligationLists} items
  * @param {readonly LedgerEntry[]} local
@@ -484,34 +487,39 @@ const NO_QUEUES = { on_user: [], on_agent: [], later: [], done: [] };
 function localLaters(items, local) {
   /** @type {Map<string, {until: string | null, after: string | null}>} */
   const setting = new Map();
-  const undoing = new Set();
+  /** @type {Set<string>} */
+  const undone = new Set();
   for (const { event } of local) {
     if (event.kind === "later")
       for (const id of event.obligations)
         setting.set(id, { until: event.until ?? null, after: event.after ?? null });
-    else if (event.kind === "undo") undoing.add(event.undoes);
+    else if (event.kind === "undo") undone.add(event.undoes);
   }
-  if (!setting.size && !undoing.size) return items;
+  if (!setting.size && !undone.size) return items;
+  /** @param {ObligationRecord["later"] | null} later @returns {boolean} */
+  const holdsUndone = (later) =>
+    Boolean(
+      later &&
+      ((later.event && undone.has(later.event.id)) || holdsUndone(later.beneath)),
+    );
   const all = items.all.map((item) => {
-    const later = setting.get(item.id);
-    if (later && item.status === "open" && item.next_actor === "user")
-      return {
-        ...item,
-        next_actor: null,
-        later: { event: null, ...later, returned: false },
-      };
-    const served = item.later;
-    if (
-      served?.event &&
-      undoing.has(served.event.id) &&
-      !served.returned &&
-      item.status === "open" &&
-      item.next_actor === null
-    ) {
-      const { later: _withdrawn, ...rest } = item;
-      return { ...rest, next_actor: /** @type {const} */ ("user") };
-    }
-    return item;
+    const placed = setting.get(item.id);
+    if (!placed && !holdsUndone(item.later)) return item;
+    const standing = withoutLaters(item.later, undone);
+    const later = placed
+      ? { event: null, ...placed, returned: false, beneath: standing }
+      : standing;
+    // Whose move the record is without a Later: the user's where one set it aside.
+    const actor = setAside(item) ? "user" : item.next_actor;
+    const { later: _drawn, ...rest } = item;
+    return {
+      ...rest,
+      next_actor:
+        later && !later.returned && item.status === "open" && actor === "user"
+          ? null
+          : actor,
+      ...(later ? { later } : {}),
+    };
   });
   return {
     all,
@@ -693,17 +701,9 @@ function localQueues(served, workflows, todos, items, local) {
       live: false,
     });
   };
-  // Whether a record is set aside by a Later that hasn't brought it back.
+  // Whether a row's record is set aside by a Later that hasn't brought it back.
   /** @param {QueueItem} item */
-  const setAside = (item) => {
-    if (!namesRecord(item)) return false;
-    const record = obligationOf(item);
-    return (
-      record.status === "open" &&
-      record.next_actor === null &&
-      Boolean(record.later && !record.later.returned)
-    );
-  };
+  const asideRow = (item) => namesRecord(item) && setAside(obligationOf(item));
   return {
     on_user: [
       ...served.on_user.filter(standsOpen).map(current),
@@ -729,8 +729,8 @@ function localQueues(served, workflows, todos, items, local) {
       ...reopenedFor("agent").map(asOpen),
     ],
     later: [
-      ...served.on_user.filter(setAside).map(current),
-      ...served.later.filter(setAside).map(current),
+      ...served.on_user.filter(asideRow).map(current),
+      ...served.later.filter(asideRow).map(current),
     ],
     // Newest first, as the server serves it: what ended in this tab has just ended.
     done: [

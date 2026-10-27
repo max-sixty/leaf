@@ -809,6 +809,7 @@ def test_fresh_exact_reply_supersedes_an_older_workflow_condition():
         now.isoformat(),
         reply=reply,
         updates=obligations_model.collection([record]),
+        wakes=[],
     )
     [projected] = activity["workflows"]
     assert (projected["stage"], projected["condition"]) == ("replying", None)

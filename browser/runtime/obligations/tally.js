@@ -16,14 +16,14 @@
    "2 left to answer · 1 later". The words name no total:
    "4 of 5 to answer" beside the deck's cards read as the fifth card's position. */
 
+import { setAside } from "./later-model.js";
+
 export function tally(held) {
   const open = held.filter((item) => item.status === "open");
   return {
     onUser: open.filter((item) => item.next_actor === "user").length,
     onAgent: open.filter((item) => item.next_actor === "agent").length,
-    later: open.filter(
-      (item) => item.next_actor === null && item.later?.returned === false,
-    ).length,
+    later: open.filter(setAside).length,
     open: open.length,
     total: held.length,
   };

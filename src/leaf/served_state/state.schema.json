@@ -324,6 +324,22 @@
       "$ref": "leaf:event",
       "unevaluatedProperties": false
     },
+    "Later": {
+      "description": "A Later in force on an obligation record (`later.py`): set aside until `until`, an instant, or `after`, an item on the agent's list, finishes. While it hasn't `returned`, an open record the user owed has no next actor. `beneath` is the Later it replaced, which an undo of this one leaves in force.",
+      "type": "object",
+      "properties": {
+        "event": {
+          "description": "The `later` event; null only in the browser, for a Later it is still sending.",
+          "anyOf": [{ "$ref": "#/$defs/EventReference" }, { "type": "null" }]
+        },
+        "until": { "type": ["string", "null"] },
+        "after": { "type": ["string", "null"] },
+        "returned": { "type": "boolean" },
+        "beneath": { "anyOf": [{ "$ref": "#/$defs/Later" }, { "type": "null" }] }
+      },
+      "required": ["event", "until", "after", "returned", "beneath"],
+      "additionalProperties": false
+    },
     "EventReference": {
       "description": "The admitted gesture an answer or ending came from (`obligations.event_reference`).",
       "type": "object",
@@ -1189,19 +1205,8 @@
         },
         "next_actor": { "enum": ["user", "agent", null] },
         "later": {
-          "description": "The user's Later in force on this record (`later.py`): set aside until `until`, an instant, or `after`, an item on the agent's list, finishes. While it hasn't `returned`, an open record the user owed has no next actor.",
-          "type": "object",
-          "properties": {
-            "event": {
-              "description": "The `later` event; null only in the browser, for a Later it is still sending.",
-              "anyOf": [{ "$ref": "#/$defs/EventReference" }, { "type": "null" }]
-            },
-            "until": { "type": ["string", "null"] },
-            "after": { "type": ["string", "null"] },
-            "returned": { "type": "boolean" }
-          },
-          "required": ["event", "until", "after", "returned"],
-          "additionalProperties": false
+          "description": "The user's Later in force on this record (`later.py`).",
+          "$ref": "#/$defs/Later"
         }
       },
       "required": [

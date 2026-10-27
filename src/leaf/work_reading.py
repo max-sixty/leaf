@@ -18,7 +18,7 @@ from functools import cached_property
 
 from .document_reading import read_document
 from .events import build_threads
-from .later import agent_item_finished, later_reading, laters_in_force
+from .later import agent_item_finished, later_reading
 from .obligations import collection, thread_obligation_readings, user_task_obligations
 from .plans import plan_reading
 from .projection import frozen_thread_reading
@@ -100,8 +100,9 @@ class WorkReading:
     @cached_property
     def inventory(self) -> dict:
         """Every obligation as its source decides it, before the user's Laters: what
-        admission compares for attention (`workflows.attention_reading`), since setting
-        a question aside asks the agent for nothing, and what the update fold reads."""
+        admission compares for attention (`workflows.attention_reading`), delivery and
+        every agent-facing reading read, since setting a question aside asks the agent
+        for nothing, and what the update fold reads."""
         return collection(
             [
                 *(self.document.items["all"] if self.document is not None else []),
@@ -112,27 +113,40 @@ class WorkReading:
 
     @cached_property
     def _later(self):
-        return later_reading(
-            self.inventory["all"],
-            laters_in_force(self.events, self.log.withdrawn),
+        records, wakes = later_reading(
+            [*self.inventory["all"], *self.updates["all"]],
+            self.events,
+            self.log.withdrawn,
             finished=self.agent_item_finished,
             now=aware_instant(self.now),
+        )
+        return (
+            collection([r for r in records if r["source"]["kind"] != "update"]),
+            collection([r for r in records if r["source"]["kind"] == "update"]),
+            wakes,
         )
 
     @cached_property
     def agent_item_finished(self):
         """Whether an item on the agent's list is no longer the agent's (`later.py`)."""
-        return agent_item_finished(self.log.todos, self.updates["all"])
+        return agent_item_finished(self.log.todos, self.updates["all"], self.workflows)
 
     @property
     def all_obligations(self) -> dict:
-        """Every obligation with the user's Laters applied (`later.py`)."""
-        return collection(self._later[0])
+        """Every obligation with the user's Laters applied (`later.py`), as the user's
+        lists read them."""
+        return self._later[0]
+
+    @property
+    def updates_as_listed(self) -> dict:
+        """The user's updates' records with the user's Laters applied, as the user's lists
+        read them; `updates` is the agent's reading."""
+        return self._later[1]
 
     @property
     def later_wakes(self) -> list:
         """The instants at which a Later on a clock brings a record back."""
-        return self._later[1]
+        return self._later[2]
 
     @cached_property
     def document(self):

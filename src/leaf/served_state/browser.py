@@ -185,7 +185,7 @@ def browser_state(
         # The view's obligations are its own document's beside its frozen thread's, and
         # the page's updates', served once: a list row names a
         # record by its id.
-        items = viewed.all_obligations["all"] + durable.updates["all"]
+        items = viewed.all_obligations["all"] + durable.updates_as_listed["all"]
         _apply_thread_attention(items, workflows, thread["threads"], agent_todos)
         documents[revision] = reading
         projection = reading.projection

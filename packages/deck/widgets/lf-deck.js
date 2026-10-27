@@ -82,6 +82,7 @@ import {
   render as renderInto,
   scrollBehavior,
   scrollIntoView,
+  setAside,
   signal,
   tally,
   tallyWords,
@@ -553,12 +554,7 @@ customElements.define(
         const held = readings?.get(each);
         if (!held?.length) return "";
         if (waits(each)) return "waiting";
-        if (
-          held.some(
-            (item) => item.next_actor === null && item.later?.returned === false,
-          )
-        )
-          return "later";
+        if (held.some(setAside)) return "later";
         return held.some((item) => item.status === "open") ? "agent" : "done";
       };
       // Later until… sets aside what the open card waits on the user for, and sends it

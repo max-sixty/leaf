@@ -120,11 +120,15 @@ on a record decides it, and an `undo` withdraws it like any gesture. While its
 condition doesn't hold, an open record whose next move was the user's has no next
 actor, so it leaves On me, the tallies and the threads' attention, and stands on Later
 (`queues.later`); once the condition holds it comes back unchanged, its `later`
-saying `returned`. The door refuses a Later naming a record that isn't open on the
-user, or whose condition already holds. Admission compares readings without Later,
-so neither a Later nor its undo carries attention, and a time coming due changes the
-reading with no event, so the served activity names the earliest due time as
-`next_transition_at`. `later.py` owns the reading.
+saying `returned`. An `after` on an update follows the user's follow-ups in its thread
+to the reply that answers them. A Later ends once the user acts on what it set aside,
+even where that act is undone. Each record serves its Laters as a chain (`beneath`),
+so an undo's result needs no log. The door refuses a Later naming a record that isn't
+open on the user, an update to send again included, or whose condition already
+holds. Admission and delivery read obligations without Later, so neither a Later nor
+its undo carries attention, and a time coming due changes the reading with no event,
+so the served activity names the earliest due time as `next_transition_at`.
+`later.py` owns the reading.
 
 ## Authorship and voice
 

@@ -224,7 +224,7 @@ import { userChoice } from "./storage.js";
 import { obligationEnding } from "./obligations/answer.js";
 import { answeredInWords, readObligations } from "./obligations/model.js";
 import { obligationPlace } from "./obligations/place.js";
-import { laterControl, laterWords } from "./obligations/later.js";
+import { laterControl, laterWords, setAside } from "./obligations/later.js";
 import { declareSide, holdPagePlace } from "./current-target.js";
 import { versionPicker } from "./version-picker.js";
 import { versionsReading } from "./version.js";
@@ -3142,13 +3142,7 @@ export function createFloatingPanel({
       thread && title === threadName(thread) ? threadHeading(thread) : title;
     const answered = record && record.status !== "open";
     // Set aside by a Later that hasn't brought it back (obligations/later.js).
-    const setAside = Boolean(
-      record &&
-      !answered &&
-      record.next_actor === null &&
-      record.later &&
-      !record.later.returned,
-    );
+    const aside = Boolean(record && setAside(record));
     // Later, on a card still waiting on the user: it sets aside the records the card
     // carries that wait on the user, and the card keeps its seat, saying when they come
     // back, as an answered card says its answer.
@@ -3208,7 +3202,7 @@ export function createFloatingPanel({
         : nothing;
     // What the agent is doing about it: the line its last step wrote, as the status
     // says it of the whole page, else the stage it stands at.
-    else if (setAside) {
+    else if (aside) {
       const gesture = laterGesture(record);
       answers = html`<span class="lf-fp-said">${laterWords(record.later)}</span>${
           gesture

@@ -642,43 +642,49 @@ svg[data-lf-icon] {
     box-shadow: none;
   }
 }
-/* Later until… (`runtime/obligations/later.js`): the clock, Later's symbol, on a
- * symbol's square and quiet face, with the platform's select laid over it unseen, so a
- * key, a pointer and a finger each open the list of words that brings an obligation
- * back. Its face follows the symbol's above, which a span with a select inside can't
- * take by role. */
+/* Later until… (`runtime/obligations/later.js`): the clock, a symbol, opens a menu of
+ * when to bring an obligation back. The menu hangs from the clock, below and toward
+ * the start, and flips where the window has no room; it takes the page's paper, ink
+ * and rule, as a gloss card does. */
 .lf-later {
-  position: relative;
-  box-sizing: border-box;
-  display: inline-grid;
-  place-items: center;
-  inline-size: var(--lf-icon-action-hit);
-  block-size: var(--lf-icon-action-face);
+  display: inline-flex;
   flex: none;
+}
+.lf-later-menu {
+  position: fixed;
+  inset: auto;
+  margin: 4px 0;
+  position-area: block-end span-inline-start;
+  position-try-fallbacks: flip-block, flip-inline;
+  box-sizing: border-box;
+  display: none;
+  flex-direction: column;
+  gap: 1px;
+  min-inline-size: 12rem;
+  max-inline-size: min(22rem, calc(100vw - 16px));
+  padding: 4px;
+  border: 1px solid var(--border-2);
   border-radius: var(--r);
-  color: var(--muted);
-}
-.lf-later > select {
-  position: absolute;
-  inset: 0;
-  inline-size: 100%;
-  block-size: 100%;
-  margin: 0;
-  opacity: 0;
-  cursor: pointer;
-  font: inherit;
-}
-.lf-later:has(> select:focus-visible) {
-  background: var(--chip);
+  background: var(--card);
   color: var(--ink);
-  outline: var(--focus-ring);
-  outline-offset: 2px;
+  box-shadow: var(--raise-2);
+  font: var(--t-6) / 1.4 var(--sans);
 }
-@media (hover: hover) {
-  .lf-later:hover {
-    background: var(--chip);
-    color: var(--ink);
-  }
+.lf-later-menu:popover-open {
+  display: flex;
+}
+.lf-later-menu > button {
+  justify-content: flex-start;
+  text-align: start;
+}
+/* A row is packed against the menu's edge, so its ring is drawn inset. */
+.lf-later-menu > button[data-lf-focus-visible] {
+  outline-offset: calc(-1 * var(--focus-ring-w));
+}
+.lf-later-group {
+  margin: 6px 8px 2px;
+  color: var(--muted);
+  font-size: 0.85em;
 }
 /* The committing action carries the accent as ink on the card ground, under a
    softened accent hairline, with the tint rising on hover: the one framed word on a

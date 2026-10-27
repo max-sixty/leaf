@@ -286,3 +286,19 @@ test("Later takes a row off On me in the task it is chosen, and its undo brings 
   assert.ok(listed("on_user").includes("widget:pick"));
   assert.deepEqual(listed("later"), []);
 });
+
+test("undoing a Later that replaced another leaves the one beneath in force", () => {
+  const { app } = adopted("set aside twice");
+  const record = () =>
+    app.read().effective.obligations.all.find((item) => item.id === "widget:pick");
+  const ids = (list) => published(app)[list].map(({ id }) => id);
+  const { later } = record();
+  assert.equal(later.until, "2026-09-21T09:00:00+00:00");
+  assert.equal(later.beneath.until, "2026-09-20T09:00:00+00:00");
+  app.enqueue({ kind: "undo", undoes: later.event.id, attempt: "u" }, "now");
+  // The question stays set aside, until the first Later's time, as the server reads it.
+  assert.deepEqual(ids("later"), ["widget:pick"]);
+  assert.ok(!ids("on_user").includes("widget:pick"));
+  assert.equal(record().later.until, "2026-09-20T09:00:00+00:00");
+  assert.equal(record().next_actor, null);
+});

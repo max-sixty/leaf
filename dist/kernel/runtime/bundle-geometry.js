@@ -1049,6 +1049,64 @@ const OUTCOMES = Object.freeze({
 const itemOutcome = (item) => item.kind === "update" ? "Answered" : OUTCOMES[item.state] ?? item.state;
 
 //#endregion
+//#region runtime/obligations/later-model.js
+const setAside = (record) => record.status === "open" && record.next_actor === null && Boolean(record.later && !record.later.returned);
+function withoutLaters(later, undone) {
+	if (!later) return null;
+	const beneath = withoutLaters(later.beneath, undone);
+	return later.event && undone.has(later.event.id) ? beneath : {
+		...later,
+		beneath
+	};
+}
+const dayAt = (now, days, hour) => {
+	const at = new Date(now);
+	at.setDate(at.getDate() + days);
+	at.setHours(hour, 0, 0, 0);
+	return at;
+};
+const clock = (at) => at.toLocaleTimeString([], {
+	hour: "numeric",
+	minute: "2-digit"
+});
+const weekday = (at) => at.toLocaleDateString([], { weekday: "long" });
+function laterTimes(now) {
+	const choices = [{
+		label: "In an hour",
+		until: /* @__PURE__ */ new Date(+now + 36e5)
+	}];
+	if (now.getHours() < 17) {
+		const evening = dayAt(now, 0, 18);
+		choices.push({
+			label: `This evening, ${clock(evening)}`,
+			until: evening
+		});
+	}
+	const tomorrow = dayAt(now, 1, 9);
+	choices.push({
+		label: `Tomorrow, ${clock(tomorrow)}`,
+		until: tomorrow
+	});
+	const monday = (8 - now.getDay()) % 7 || 7;
+	if (monday > 1) {
+		const at = dayAt(now, monday, 9);
+		choices.push({
+			label: `${weekday(at)}, ${clock(at)}`,
+			until: at
+		});
+	}
+	return choices;
+}
+function untilWords(until, now) {
+	const at = new Date(until);
+	const days = Math.round((dayAt(at, 0, 12).getTime() - dayAt(now, 0, 12).getTime()) / 864e5);
+	return `Back ${days <= 0 ? "" : days === 1 ? "tomorrow " : days < 7 ? `${weekday(at)} ` : `${at.toLocaleDateString([], {
+		month: "short",
+		day: "numeric"
+	})} `}at ${clock(at)}`;
+}
+
+//#endregion
 //#region runtime/framework/application.js
 const LIFECYCLE = {
 	sending: {
@@ -1224,33 +1282,31 @@ const NO_QUEUES = {
 };
 function localLaters(items, local) {
 	const setting = /* @__PURE__ */ new Map();
-	const undoing = /* @__PURE__ */ new Set();
+	const undone = /* @__PURE__ */ new Set();
 	for (const { event } of local) if (event.kind === "later") for (const id of event.obligations) setting.set(id, {
 		until: event.until ?? null,
 		after: event.after ?? null
 	});
-	else if (event.kind === "undo") undoing.add(event.undoes);
-	if (!setting.size && !undoing.size) return items;
+	else if (event.kind === "undo") undone.add(event.undoes);
+	if (!setting.size && !undone.size) return items;
+	const holdsUndone = (later) => Boolean(later && (later.event && undone.has(later.event.id) || holdsUndone(later.beneath)));
 	const all = items.all.map((item) => {
-		const later = setting.get(item.id);
-		if (later && item.status === "open" && item.next_actor === "user") return {
-			...item,
-			next_actor: null,
-			later: {
-				event: null,
-				...later,
-				returned: false
-			}
+		const placed = setting.get(item.id);
+		if (!placed && !holdsUndone(item.later)) return item;
+		const standing = withoutLaters(item.later, undone);
+		const later = placed ? {
+			event: null,
+			...placed,
+			returned: false,
+			beneath: standing
+		} : standing;
+		const actor = setAside(item) ? "user" : item.next_actor;
+		const { later: _drawn, ...rest } = item;
+		return {
+			...rest,
+			next_actor: later && !later.returned && item.status === "open" && actor === "user" ? null : actor,
+			...later ? { later } : {}
 		};
-		const served = item.later;
-		if (served?.event && undoing.has(served.event.id) && !served.returned && item.status === "open" && item.next_actor === null) {
-			const { later: _withdrawn, ...rest } = item;
-			return {
-				...rest,
-				next_actor: "user"
-			};
-		}
-		return item;
 	});
 	return {
 		all,
@@ -1348,11 +1404,7 @@ function localQueues(served, workflows, todos, items, local) {
 			live: false
 		});
 	};
-	const setAside = (item) => {
-		if (!namesRecord(item)) return false;
-		const record = obligationOf(item);
-		return record.status === "open" && record.next_actor === null && Boolean(record.later && !record.later.returned);
-	};
+	const asideRow = (item) => namesRecord(item) && setAside(obligationOf(item));
 	return {
 		on_user: [
 			...served.on_user.filter(standsOpen).map(current),
@@ -1366,7 +1418,7 @@ function localQueues(served, workflows, todos, items, local) {
 			...served.on_agent.filter((item) => item.kind === "todo" && standsOpen(item)).map(current),
 			...reopenedFor("agent").map(asOpen)
 		],
-		later: [...served.on_user.filter(setAside).map(current), ...served.later.filter(setAside).map(current)],
+		later: [...served.on_user.filter(asideRow).map(current), ...served.later.filter(asideRow).map(current)],
 		done: [...[...served.on_user, ...served.on_agent].filter(endedHere).map(asDone), ...served.done.filter((item) => !reopened(item)).map(current)]
 	};
 }
@@ -3659,4 +3711,4 @@ function uncovered(rect, box) {
 }
 
 //#endregion
-export { AsyncDirective, COLLAPSE, DELIVERY, DRAFT_FORMAT, Directive, LIVE_ROOT, LitElement, PAGE_ROOT, PENDING, PRESENTATION_DOM, PartType, SAID, SHADOW_LEADING_CSS, SHARE_ROOT, TEXT_BLOCK, UI_MARKS, WEBSITE_DELIVERY, actionForWidget, adoptRegistry, agentName, anchorKey, annotationMarkSheets, annotationMode, annotationSheets, applicationPresented, applicationPresenter, applicationRegionsPresented, applicationState, attachApplicationPresentation, attachWidgetPresentation, authoredRank, bareReaction, carriesObligation, chromeSharedClasses, chromeSheet, clamp, classMap, clippedContents, clippedPlace, clippingAxes, clipsPastSurfaces, closeNativeLayer, createPresentationSchedule, createRef, decisionFor, declarationFor, declareOccluder, declareWindowChrome, declaredRoot, describeFailure, directive, discussed, dismissPopoversOutside, documentChanged, drawingSchema, editable, elementDeclarations, elementsDeclaring, exhibits, foldWidgetStates, frameFor, frameView, growthAfterIsSeen, growthIsSeen, guard, hasArea, headerCuts, headerInset, hostIn, html, inBaseLayer, inUi, inWindowChrome, intersect, isElementName, isMessageEvent, isNews, isReaction, isThreadEvent, itemNoun, itemOutcome, keyed, landingBand, landingInsets, lastMovedAt, layerFact, layerRoot, layoutWindow, live, loadShadowRules, marks, marksSheet, matchesWhen, messageKey, moved, nativeLayers, nativeModalAdmits, nearObserver, nearWindow, nearestScrollBy, noChange, nothing, obligationValue, offlineData, offlineInteractive, offlineState, overIn, overlaps, overlapsAcross, pageClaimed, pageShadowRoots, pageUrl, paintClips, pendingForParent, placeBox, placeHolder, presentDocument, presented, projectView, projectionOrigins, projectionRegionsPresented, queueWidgetUpdate, rankAt, reactionsAt, readApplication, readApplicationPresentation, readPart, recordedWidgetSelector, ref, refuseShadowRoot, registry, render, renderedChildren, repeat, revisionLabel, rightCover, runtime, runtimeModule, runtimeResource, sameAnchor, scrollContainer, scrollGlides, scrolling, scrollsBy, scrollsContent, seatRoot, seenRect, selectWidgets, setPresentationFailureReporter, shadowRootsIn, shadowRules, share, shareUrl, shellRight, showNativeLayer, shownBand, shownBox, shownExtent, shownParts, shownRect, shownWindow, skipped, slotTop, stackLevel, startsAt, stateCoordinate, stateSpecs, stuckBox, styleMap, tagsDeclaring, threadCounts, threadKey, threadNames, tick, tokenChoices, tokenEntry, turns, uiInside, underOccluder, union, unsafeHTML, userScrollport, visibleBand, watchArrivals, watchArrivalsIn, watchLayerChanges, watchLayers, watchOwner, watchPresentation, watchRoom, watchScrollEnds, watchScrolls, watchSemantic, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenNone, whenWidgetsPresented, whileConnected, windowChromeBoxes };
+export { AsyncDirective, COLLAPSE, DELIVERY, DRAFT_FORMAT, Directive, LIVE_ROOT, LitElement, PAGE_ROOT, PENDING, PRESENTATION_DOM, PartType, SAID, SHADOW_LEADING_CSS, SHARE_ROOT, TEXT_BLOCK, UI_MARKS, WEBSITE_DELIVERY, actionForWidget, adoptRegistry, agentName, anchorKey, annotationMarkSheets, annotationMode, annotationSheets, applicationPresented, applicationPresenter, applicationRegionsPresented, applicationState, attachApplicationPresentation, attachWidgetPresentation, authoredRank, bareReaction, carriesObligation, chromeSharedClasses, chromeSheet, clamp, classMap, clippedContents, clippedPlace, clippingAxes, clipsPastSurfaces, closeNativeLayer, createPresentationSchedule, createRef, decisionFor, declarationFor, declareOccluder, declareWindowChrome, declaredRoot, describeFailure, directive, discussed, dismissPopoversOutside, documentChanged, drawingSchema, editable, elementDeclarations, elementsDeclaring, exhibits, foldWidgetStates, frameFor, frameView, growthAfterIsSeen, growthIsSeen, guard, hasArea, headerCuts, headerInset, hostIn, html, inBaseLayer, inUi, inWindowChrome, intersect, isElementName, isMessageEvent, isNews, isReaction, isThreadEvent, itemNoun, itemOutcome, keyed, landingBand, landingInsets, lastMovedAt, laterTimes, layerFact, layerRoot, layoutWindow, live, loadShadowRules, marks, marksSheet, matchesWhen, messageKey, moved, nativeLayers, nativeModalAdmits, nearObserver, nearWindow, nearestScrollBy, noChange, nothing, obligationValue, offlineData, offlineInteractive, offlineState, overIn, overlaps, overlapsAcross, pageClaimed, pageShadowRoots, pageUrl, paintClips, pendingForParent, placeBox, placeHolder, presentDocument, presented, projectView, projectionOrigins, projectionRegionsPresented, queueWidgetUpdate, rankAt, reactionsAt, readApplication, readApplicationPresentation, readPart, recordedWidgetSelector, ref, refuseShadowRoot, registry, render, renderedChildren, repeat, revisionLabel, rightCover, runtime, runtimeModule, runtimeResource, sameAnchor, scrollContainer, scrollGlides, scrolling, scrollsBy, scrollsContent, seatRoot, seenRect, selectWidgets, setAside, setPresentationFailureReporter, shadowRootsIn, shadowRules, share, shareUrl, shellRight, showNativeLayer, shownBand, shownBox, shownExtent, shownParts, shownRect, shownWindow, skipped, slotTop, stackLevel, startsAt, stateCoordinate, stateSpecs, stuckBox, styleMap, tagsDeclaring, threadCounts, threadKey, threadNames, tick, tokenChoices, tokenEntry, turns, uiInside, underOccluder, union, unsafeHTML, untilWords, userScrollport, visibleBand, watchArrivals, watchArrivalsIn, watchLayerChanges, watchLayers, watchOwner, watchPresentation, watchRoom, watchScrollEnds, watchScrolls, watchSemantic, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenNone, whenWidgetsPresented, whileConnected, windowChromeBoxes };

@@ -735,7 +735,7 @@ def _later_error(event: dict, readings) -> Finding | None:
     work = readings.work
     return later_error(
         event,
-        work.inventory["all"],
+        [*work.inventory["all"], *work.updates["all"]],
         work.agent_item_finished,
         aware_instant(event.get("ts") or "") or aware_instant(now_iso()),
     )
@@ -746,7 +746,7 @@ def _plan_error(event: dict, readings) -> Finding | None:
     holds (`plans.plan_error`)."""
     if event["kind"] != "plan":
         return None
-    return plan_error(event, readings.log.todos, readings.work.all_obligations["all"])
+    return plan_error(event, readings.log.todos, readings.work.inventory["all"])
 
 
 def _todo_error(view, event: dict, readings) -> Finding | None:
@@ -817,7 +817,7 @@ def _todo_error(view, event: dict, readings) -> Finding | None:
         element_error=element_error,
         user_widget_error=user_widget_error,
         owed=owed,
-        items=lambda: readings.work.all_obligations["all"],
+        items=lambda: readings.work.inventory["all"],
         registry=readings.work.registry,
     )
 

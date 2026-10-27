@@ -1,114 +1,178 @@
-/* Later: what the user sets aside, the choices that bring it back, and the words for
-   where it stands.
+/* Later until…: the control that sets obligations aside, and the words for where one
+   stands.
 
    The server owns Later (`src/leaf/later.py`): a `later` event names the obligation
    records one card or On me row carries and one condition, `until` an instant or `after`
    an item on the agent's list, and its reading decides when they come back. The
    publisher draws the gesture's own result in the task that makes it, the records off
    On me and off a deck's pass (framework/application.js, `localLaters`), and an Undo
-   withdraws it like any gesture.
+   withdraws it like any gesture. later-model.js holds what the browser reads off a
+   record (`setAside`) and the times offered.
 
    One control offers it wherever it stands, a deck card's bar or an On me card
-   (`laterControl`): the clock, Later's symbol, with the platform's select over it, so a
-   key, a pointer and a finger each open the same list of words, as the panel's
-   arrangement chooser does. Its choices are times on the user's own clock, then the
-   items on the agent's list, read from On <agent> as it stands when the list opens, so
-   "when the agent finishes" names work the server already knows by id, never words.
-   A time is reckoned when it is chosen, so a list left open an hour still means an hour
-   from the choice.
+   (`laterControl`): the clock, Later's symbol, a menu button whose menu lists the times
+   on the user's own clock, then the items on the agent's list as On <agent> titles
+   them, so "when the agent finishes" names work the server already knows by id, never
+   words. The menu is drawn as it opens, so its times are reckoned then, not when the
+   page last painted, and a choice commits only on its own press or Enter. It is a
+   popover menu walked by the arrows, as lf-file-editor's conflict menu is; Escape and
+   a choice hand the user back to the clock.
 
    Rejected: a second row of buttons, one per choice, which put five presses beside
-   every card for a gesture most cards never take; and a free date field, which wants
-   its own popup on every platform for a choice the presets cover. */
-import { html, live, nothing } from "/runtime/framework.js";
+   every card for a gesture most cards never take; the platform's select laid unseen
+   over the clock, on which Firefox commits a choice on one arrow key or typed letter
+   while it is closed, so a stray key set a card aside (probed 2026-10-27); and a free
+   date field, which wants its own popup on every platform for a choice the presets
+   cover. */
+import { html, nothing, ref, render } from "/runtime/framework.js";
 import { iconTemplate } from "../icons.js";
-import { agentName } from "../semantic-state.js";
+import { offeredAction } from "../widget-elements.js";
+import { agentName, readPart } from "../semantic-state.js";
 import { readQueues } from "../queue-api.js";
 import { queueTitle } from "../queue-title.js";
 import { excerptWords } from "../words.js";
 import { clockValue } from "../presence.js";
+import { closeLayer, focusDestination, handBack, rove } from "../focus.js";
+import { closeNativeLayer } from "../keyboard/layer-stack.js";
+import { commandsOn } from "../keyboard/scopes.js";
+import { allButCommandReference } from "../keyboard/register.js";
+import { rowWalk } from "../walk-position.js";
+import { laterTimes, untilWords } from "./later-model.js";
+
+export { setAside } from "./later-model.js";
 
 export const LATER = "Later until…";
 
-// Today's or a later day's hour on the user's clock.
-const dayAt = (now, days, hour) => {
-  const at = new Date(now);
-  at.setDate(at.getDate() + days);
-  at.setHours(hour, 0, 0, 0);
-  return at;
-};
-const clock = (at) => at.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-const weekday = (at) => at.toLocaleDateString([], { weekday: "long" });
+const readWorkflows = readPart((root) => root.effective.workflows);
 
-// The times Later offers from `now`: an hour on, this evening while it is still
-// afternoon, tomorrow morning, and next week's first morning.
-function times(now) {
-  const choices = [{ label: "In an hour", until: (at) => new Date(+at + 3_600_000) }];
-  if (now.getHours() < 17)
-    choices.push({
-      label: `This evening, ${clock(dayAt(now, 0, 18))}`,
-      until: (at) => dayAt(at, 0, 18),
-    });
-  choices.push({
-    label: `Tomorrow, ${clock(dayAt(now, 1, 9))}`,
-    until: (at) => dayAt(at, 1, 9),
-  });
-  const monday = (8 - now.getDay()) % 7 || 7;
-  if (monday > 1)
-    choices.push({
-      label: `${weekday(dayAt(now, monday, 9))}, ${clock(dayAt(now, monday, 9))}`,
-      until: (at) => dayAt(at, (8 - at.getDay()) % 7 || 7, 9),
-    });
-  return choices;
-}
-
-// The items on the agent's list Later can wait for, each by the title On <agent> gives it.
-function agentItems() {
+// The row on the agent's list an `after` names: the row by its id, or, where a follow-up
+// moved an update's debt to a newer input, the row the named input's workflow serves.
+function agentRow(after) {
   const queues = readQueues();
-  if (queues.phase !== "ready") return [];
-  return queues.on_agent.map((row) => ({
-    label: excerptWords(queueTitle(row), 60),
-    after: row.id,
-  }));
+  if (queues.phase !== "ready") return null;
+  const input = after.startsWith("update:") ? after.slice("update:".length) : null;
+  const serving = input
+    ? readWorkflows().find((workflow) => workflow.input === input)?.obligation
+    : null;
+  return queues.on_agent.find((row) => row.id === after || row.id === serving) ?? null;
 }
 
-/** The condition a choice sets, reckoned at `at`. */
-const condition = (choice, at) =>
-  "after" in choice
-    ? { after: choice.after }
-    : { until: choice.until(at).toISOString() };
+// The control each `laterControl` draws keeps what its latest paint asked of it, so a
+// choice made in an open menu sets aside what the card holds now.
+const asked = new WeakMap();
+let controls = 0;
+
+function wire(holder, ask) {
+  if (!holder) return;
+  asked.set(holder, ask);
+  if (holder.dataset.lfLater) return;
+  const key = `lf-later-${++controls}`;
+  holder.dataset.lfLater = key;
+  holder.style.setProperty("anchor-name", `--${key}`);
+  const menu = holder.querySelector(".lf-later-menu");
+  menu.id = key;
+  menu.style.setProperty("position-anchor", `--${key}`);
+  // The clock is the first child; its role's class is written after this runs.
+  holder.firstElementChild.setAttribute("popovertarget", key);
+}
+
+const rows = (menu) => [...menu.querySelectorAll("button")];
+const putAway = (menu) =>
+  closeLayer(
+    () => closeNativeLayer(menu),
+    () => handBack(menu.parentElement.firstElementChild),
+  );
+
+// The menu's rows, drawn as it opens: the times from now, then the agent's items.
+function draw(menu) {
+  const holder = menu.parentElement;
+  const choose = (condition) => () => {
+    const { ids, later, chosen } = asked.get(holder);
+    putAway(menu);
+    later(ids, condition);
+    chosen();
+  };
+  const work = readQueues().phase === "ready" ? readQueues().on_agent : [];
+  render(
+    html`${laterTimes(new Date()).map(
+      ({ label, until }) =>
+        html`<button
+          ${offeredAction("word")}
+          role="menuitem"
+          @click=${choose({ until: until.toISOString() })}
+        >
+          ${label}
+        </button>`,
+    )}${
+      work.length
+        ? html`<p class="lf-later-group" role="presentation">
+              When ${agentName()} finishes
+            </p>
+            ${work.map(
+              (row) =>
+                html`<button
+                  ${offeredAction("word")}
+                  role="menuitem"
+                  @click=${choose({ after: row.id })}
+                >
+                  ${excerptWords(queueTitle(row), 60)}
+                </button>`,
+            )}`
+        : nothing
+    }`,
+    menu,
+  );
+}
 
 /** Later's control for the records `ids`: choosing sets them aside through `later`
  * (`obligationActions.later`) and then calls `chosen`, as a deck sends its card on. */
 export function laterControl(ids, later, chosen = () => {}) {
   if (!ids.length) return nothing;
-  const offered = [...times(new Date()), ...agentItems()];
-  const work = offered.filter((choice) => "after" in choice);
-  const option = (choice) =>
-    html`<option value=${offered.indexOf(choice)}>${choice.label}</option>`;
-  return html`<span class="lf-later" title=${LATER}
-    >${iconTemplate("waiting", "lf-action-icon")}<select
+  const keys = (menu) => [
+    ...rowWalk({
+      id: "later.choice",
+      noun: "Choice",
+      plural: "choices",
+      rows: () => rows(menu),
+      position: () => null,
+      landed: (row) => rove(rows(menu), row),
+    }),
+    { id: "later.close", keys: ["Escape"], title: "close", run: () => putAway(menu) },
+    ...["Tab", "Shift+Tab"].map((key) => ({
+      id: `later.leave-${key === "Tab" ? "forward" : "backward"}`,
+      keys: [key],
+      title: key === "Tab" ? "leave forward" : "leave backward",
+      native: true,
+      run: () => putAway(menu),
+    })),
+  ];
+  return html`<span
+    class="lf-later"
+    ${ref((holder) => wire(holder, { ids, later, chosen }))}
+    ><button ${offeredAction("symbol", "lf-later-open", LATER)} aria-haspopup="menu">
+      ${iconTemplate("waiting", "lf-action-icon")}
+    </button>
+    <div
+      class="lf-later-menu"
+      popover="auto"
+      role="menu"
       aria-label=${LATER}
-      .value=${live("")}
-      @change=${(event) => {
-        const choice = offered[Number(event.target.value)];
-        event.target.value = "";
-        if (!choice) return;
-        later(ids, condition(choice, new Date()));
-        chosen();
+      @beforetoggle=${(event) => {
+        if (event.newState === "open") draw(event.currentTarget);
+        event.currentTarget.previousElementSibling.setAttribute(
+          "aria-expanded",
+          String(event.newState === "open"),
+        );
       }}
-    >
-      <option value="" disabled hidden>${LATER}</option>
-      ${offered.filter((choice) => !("after" in choice)).map(option)}
-      ${
-        work.length
-          ? html`<optgroup label=${`When ${agentName()} finishes`}>
-              ${work.map(option)}
-            </optgroup>`
-          : nothing
-      }
-    </select></span
-  >`;
+      @toggle=${(event) => {
+        if (event.newState !== "open") return;
+        const [first] = rows(event.currentTarget);
+        rove(rows(event.currentTarget), first);
+        focusDestination(first, "move");
+      }}
+      ${commandsOn(LATER, keys, { claims: allButCommandReference })}
+    ></div
+  ></span>`;
 }
 
 /** Where a Later stands, in the words a row or a card says: when it brings its records
@@ -116,28 +180,8 @@ export function laterControl(ids, later, chosen = () => {}) {
 export function laterWords(later) {
   if (!later) return "";
   if (later.returned) return "Back from Later";
-  if (later.until)
-    return clockValue((now) => {
-      const at = new Date(later.until);
-      const today = new Date(now);
-      const days = Math.round(
-        (dayAt(at, 0, 0).getTime() - dayAt(today, 0, 0).getTime()) / 86_400_000,
-      );
-      const day =
-        days === 0
-          ? ""
-          : days === 1
-            ? "tomorrow "
-            : days < 7
-              ? `${weekday(at)} `
-              : `${at.toLocaleDateString([], { month: "short", day: "numeric" })} `;
-      return `Back ${day}at ${clock(at)}`;
-    });
-  const queues = readQueues();
-  const row =
-    queues.phase === "ready"
-      ? queues.on_agent.find((item) => item.id === later.after)
-      : null;
+  if (later.until) return clockValue((now) => untilWords(later.until, new Date(now)));
+  const row = agentRow(later.after);
   return row
     ? `Back when ${agentName()} finishes “${excerptWords(queueTitle(row), 48)}”`
     : `Back when ${agentName()} finishes`;

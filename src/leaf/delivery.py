@@ -585,7 +585,7 @@ def batch_data(
             and (
                 waiting := waiting_about(
                     event["widget"],
-                    durable.all_obligations["all"],
+                    durable.inventory["all"],
                     durable.threads,
                     durable.within,
                 )

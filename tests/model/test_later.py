@@ -70,6 +70,7 @@ def test_a_later_on_a_clock_sets_its_records_aside_until_the_time_comes():
         "until": HOUR,
         "after": None,
         "returned": False,
+        "beneath": None,
     }
     assert state["activity"]["next_transition_at"] == HOUR
 
@@ -112,6 +113,8 @@ def test_undo_withdraws_a_later_and_a_newer_one_replaces_its_condition():
     state, now = view(events)
     assert record(now, "widget:store")["later"]["until"] == HOUR
     assert state["activity"]["next_transition_at"] == HOUR
+    # The Later it replaced stands beneath it, so the browser can draw its undo.
+    assert record(now, "widget:store")["later"]["beneath"]["until"] == DAY
     _, undone = view([*events, {"kind": "undo", "undoes": "e2"}])
     assert record(undone, "widget:store")["later"]["until"] == DAY
     _, both = view(
@@ -161,3 +164,92 @@ def test_a_later_names_one_condition():
     with pytest.raises(EventRefused) as refused:
         view([later("widget:store", until=HOUR, after="e1")])
     assert refused_on(refused.value).code == "invalid-event"
+
+
+COMMENT = {"kind": "comment", "text": "Retitle it."}
+FAILED = {
+    "kind": "reply",
+    "author": "agent",
+    "agent": "Claude",
+    "parent": "e1",
+    "responds": "e1",
+    "failure": "turn_failed",
+    "text": "No answer is coming.",
+}
+ANSWER = {
+    "kind": "reply",
+    "author": "agent",
+    "agent": "Claude",
+    "parent": "e1",
+    "responds": "e3",
+    "text": "Retitled and shortened.",
+}
+
+
+def test_a_later_after_an_update_waits_for_the_reply_through_a_follow_up():
+    """`after` an update the agent owes waits for its reply. A follow-up the user sends
+    in that thread moves the debt to the newest input, which the older input's workflow
+    names, so the Later keeps waiting until the reply that answers both, and not
+    longer: the next comment in the thread is new work, not the item waited for."""
+    events = [COMMENT, later("widget:store", after="update:e1")]
+    _, waiting = view(events)
+    assert rows(waiting, "later") == [("widget:store", [])]
+    follow_up = {"kind": "reply", "parent": "e1", "text": "And shorten it."}
+    _, followed = view([*events, follow_up])
+    assert [row["id"] for row in followed["queues"]["on_agent"]] == ["update:e3"]
+    assert rows(followed, "later") == [("widget:store", [])]
+    _, answered = view([*events, follow_up, ANSWER])
+    assert record(answered, "widget:store")["later"]["returned"] is True
+    assert "widget:store" in [row["id"] for row in answered["queues"]["on_user"]]
+    again = {"kind": "reply", "parent": "e1", "text": "One more thing."}
+    _, newer = view([*events, follow_up, ANSWER, again])
+    assert record(newer, "widget:store")["later"]["returned"] is True
+
+
+def test_a_later_after_an_update_comes_back_when_the_update_is_handed_back():
+    events = [COMMENT, later("widget:store", after="update:e1")]
+    _, handed_back = view([*events, FAILED])
+    assert record(handed_back, "widget:store")["later"]["returned"] is True
+
+
+def test_an_update_handed_back_to_send_again_can_be_set_aside():
+    """A resend On me lists is set aside like any record waiting on the user, and the
+    agent's reading of it is unchanged."""
+    events = [COMMENT, FAILED]
+    _, now = view(events)
+    assert [row["id"] for row in now["queues"]["on_user"]] == [
+        "widget:store",
+        "widget:notes",
+        "update:e1",
+    ]
+    state, aside = view([*events, later("update:e1", until=HOUR)])
+    assert rows(aside, "later") == [("update:e1", [])]
+    assert "update:e1" not in [row["id"] for row in aside["queues"]["on_user"]]
+    assert record(aside, "update:e1")["next_actor"] is None
+    assert state["activity"]["next_transition_at"] == HOUR
+
+
+def test_a_later_ends_once_the_user_acts_on_what_it_set_aside():
+    """Answering a set-aside widget spends its Later: undoing the answer leaves the
+    widget waiting on the user, not hidden until the old condition holds."""
+    chosen = {
+        "kind": "action",
+        "widget": "store",
+        "action": "choose",
+        "detail": {"value": ["store-a"]},
+    }
+    events = [
+        later("widget:store", until=DAY),
+        chosen,
+        {"kind": "undo", "undoes": "e2"},
+    ]
+    _, now = view(events)
+    store = record(now, "widget:store")
+    assert (store["status"], store["next_actor"], "later" in store) == (
+        "open",
+        "user",
+        False,
+    )
+    # A Later set after the act stands.
+    _, again = view([*events, later("widget:store", until=DAY)])
+    assert record(again, "widget:store")["next_actor"] is None

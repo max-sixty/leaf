@@ -1262,7 +1262,8 @@ def test_every_delivery_an_eval_pastes_is_the_envelope_leaf_writes():
 def test_a_pick_carries_the_questions_still_waiting_about_its_decision(page_dir):
     """An action on a decision carries, in `waiting`, the agent's questions that still
     wait on the user in a thread about that decision, so the agent can judge which the
-    pick settles; a question in a thread elsewhere stays out."""
+    pick settles; a question in a thread elsewhere stays out. One the user set aside
+    with Later still waits on them, so it is still carried (`later.py`)."""
     source = PAGE.replace(
         "</section>",
         '</section><section id="ship-ask"><h2>Ship on Friday?</h2>'
@@ -1300,6 +1301,15 @@ def test_a_pick_carries_the_questions_still_waiting_about_its_decision(page_dir)
 
     about = asked("ship-ask")
     asked("aside")
+    append_command(
+        page_dir,
+        {
+            "kind": "later",
+            "author": "user",
+            "obligations": [f"message:{about}"],
+            "until": "2099-01-01T00:00:00+00:00",
+        },
+    )
     pick = append_command(
         page_dir,
         {

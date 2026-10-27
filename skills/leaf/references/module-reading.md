@@ -187,8 +187,9 @@ the agent's list finishes. While one is set aside its `next_actor` is `null` and
 user again, with `later.returned` true. `laterControl(ids, obligationActions.later,
 chosen)` is a Lit template of the one control that offers it, to draw where a module
 offers the user a way past an obligation, as `lf-deck` does beside its Later: choosing
-sets the obligations `ids` aside and then calls `chosen`. `laterWords(obligation.later)`
-says when it comes back, as On me says it.
+sets the obligations `ids` aside and then calls `chosen`. `setAside(obligation)` says
+whether a Later sets it aside now, and `laterWords(obligation.later)` says when it comes
+back, as On me says it.
 
 An element declaring `x-shows`, such as a board card, is a view of another widget's
 answer ([package-data.md, "Views of an answer"](package-data.md#views-of-an-answer)).

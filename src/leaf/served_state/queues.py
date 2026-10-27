@@ -50,6 +50,7 @@ action in, and its widget's record carries that ending, so the update's leaves t
 inventory and lands in no Done.
 """
 
+from ..later import set_aside
 from ..obligations import answered_in_words, thread_topics
 from ..registry.schema import aware_instant
 
@@ -217,12 +218,9 @@ def _later(records: list[dict]) -> list[dict]:
     carried them."""
     rows: dict[str, dict] = {}
     for record in records:
-        later = record.get("later")
-        if later is None or later["returned"] or record["next_actor"] is not None:
+        if not set_aside(record):
             continue
-        if record["status"] != "open":
-            continue
-        event = later["event"]["id"]
+        event = record["later"]["event"]["id"]
         if event in rows:
             rows[event]["also"].append(record["id"])
         else:

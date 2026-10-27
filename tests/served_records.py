@@ -203,6 +203,24 @@ def build() -> dict:
                     },
                 ),
             ),
+            # The same question set aside again, to the morning after, replacing the
+            # first Later, which stands beneath it.
+            "set aside twice": served_reading(
+                OBLIGATION_PAGE,
+                (
+                    *BOTH_SIDES,
+                    {
+                        "kind": "later",
+                        "obligations": ["widget:pick"],
+                        "until": "2026-09-20T09:00:00+00:00",
+                    },
+                    {
+                        "kind": "later",
+                        "obligations": ["widget:pick"],
+                        "until": "2026-09-21T09:00:00+00:00",
+                    },
+                ),
+            ),
             # The same page once the user has marked their to-do done.
             "user done": served_reading(
                 OBLIGATION_PAGE,

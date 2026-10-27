@@ -507,7 +507,7 @@ function paintAim(element, surface = null) {
 	if (!shaped) aimShape.replaceChildren();
 	keeps(aimBox, "data-for", element.id);
 	keeps(aimStand.root, "data-lf-paint-plane", inChrome(element) ? "chrome" : "page");
-	aimStood = standOver(aimStand, placed, getComputedStyle(surface ?? element).borderRadius);
+	aimStood = standOver(aimStand, placed, shaped ? "0" : getComputedStyle(surface ?? element).borderRadius);
 	aimPlaced = placed;
 	return placed.shown;
 }

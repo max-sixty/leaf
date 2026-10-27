@@ -3032,16 +3032,23 @@ def test_a_shadow_visual_surface_is_clipped_by_its_host(browser, serve):
     surface.click(position={"x": 20, "y": 20})
     expect(mark).to_be_visible()
     host_box = host.bounding_box()
+    # Contours retain one stroke beyond a clip; the wider shadow
+    # surface must still be cut at that boundary, for both references and aim.
+    stroke = mark.evaluate(
+        "node => parseFloat(getComputedStyle(node).getPropertyValue('--focus-ring-w'))"
+    )
+    right = host_box["x"] + host_box["width"] + stroke
+    assert surface.bounding_box()["width"] > host_box["width"] + stroke
     shown = page.evaluate(SHOWN_PAINT, ".lf-visual-mark")
     assert shown["left"] >= host_box["x"]
-    assert shown["right"] <= host_box["x"] + host_box["width"]
+    assert shown["right"] == pytest.approx(right)
 
     page.keyboard.down("Alt")
     aim = page.locator(".lf-aim")
     expect(aim).to_have_attribute("data-for", "wide-surface")
     shown = page.evaluate(SHOWN_PAINT, ".lf-aim")
     assert shown["left"] >= host_box["x"]
-    assert shown["right"] <= host_box["x"] + host_box["width"]
+    assert shown["right"] == pytest.approx(right)
     page.keyboard.up("Alt")
 
 

@@ -147,6 +147,9 @@
   initial-value: 520ms;
 }
 :root {
+  /* The root and body are important against the page's own rules (body, below): Leaf's
+     document-anchored paint takes the initial containing block as its origin, so neither
+     may become a containing block. */
   position: static !important;
   color-scheme: light dark;
   --lf-safe-top: env(safe-area-inset-top, 0px);
@@ -793,6 +796,8 @@ html:not([data-lf-live]) {
  * of a 138px card and across whatever the grid had put beside it. */
 body {
   position: static !important;
+  /* The foot's room pads the body and a Layout's minimum fills the window with it
+     (layouts.css), which holds only border-box. */
   box-sizing: border-box !important;
   --lf-ground: var(--paper);
   background: var(--lf-ground);
@@ -901,9 +906,10 @@ html[data-lf-interactive] [data-lf-arriving] {
  * its settled upgrade geometry; durable controls still guard mutation until presentation.
  * Ordinary prose, links, scrolling, and layout remain available.
  *
- * The anonymous layer is first in the merged theme, so these important declarations
- * outrank every later layer and unlayered stylesheet declaration without reserving a
- * named layer custom CSS could append to. Inline importance ranks higher still, so the
+ * The anonymous layer leads lf-base, which only lf-reset precedes, and lf-reset states
+ * nothing important, so these important declarations outrank every other layer and
+ * unlayered stylesheet declaration without reserving a named layer custom CSS could
+ * append to. Inline importance ranks higher still, so the
  * version gate refuses it for the display and visibility properties this boundary owns.
  *
  * The same rank makes `hidden` hide whatever display another rule states for the
@@ -2452,6 +2458,16 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   pointer-events: none;
   outline: var(--focus-ring);
   outline-offset: calc(-1 * var(--focus-ring-w));
+}
+/* The pane role's box: a grid of header, body and footer, whose rows the grammar
+ * (layouts.css) places. It stands with the base its widget's rules share, so a widget
+ * that hides one of its panes, or a page, outranks it with an ordinary rule. */
+[data-lf-reading-role="pane"] {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+  --lf-block-frame: 1;
 }
 :where([data-lf-reading-role="pane"]) {
   border: 1px solid var(--rule);

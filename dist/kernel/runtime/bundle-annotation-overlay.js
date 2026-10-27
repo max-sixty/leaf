@@ -2374,8 +2374,7 @@ const STATE_CLASSES = {
 };
 const INSET = "lf-visual-mark-inset";
 function ringRoom() {
-	const style = getComputedStyle(document.documentElement);
-	return parseFloat(style.getPropertyValue("--focus-ring-gap")) + parseFloat(style.getPropertyValue("--focus-ring-w"));
+	return parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--focus-ring-w"));
 }
 function cramped({ rect, levels }, room) {
 	const short = (band, low, high) => rect[low] >= band[low] && rect[low] - room < band[low] || rect[high] <= band[high] && rect[high] + room > band[high];
@@ -2398,7 +2397,7 @@ function createVisualMarkPaint() {
 	function paintTargets(rebuildGeometry = true) {
 		const room = ringRoom();
 		for (const element of [...overlays.keys()]) if (!targets.has(element)) {
-			element.classList.remove(PROJECTED);
+			element.classList.toggle(PROJECTED, false);
 			dropStand(overlays.get(element).stand);
 			overlays.delete(element);
 		}

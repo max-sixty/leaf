@@ -374,8 +374,8 @@
   .lf-vr-queue,
   .lf-vr-inspect,
   .lf-vr-decision {
-    /* The Layout layer gives every pane display:grid; paper omits this navigation. */
-    display: none !important;
+    /* Paper omits this navigation. */
+    display: none;
   }
   .lf-vr-dashboard,
   .lf-vr-workspace,

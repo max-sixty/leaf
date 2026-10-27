@@ -1050,7 +1050,9 @@ function standInChrome(control, block, levels) {
 	if (control.parentNode !== frame) move(frame, control, null);
 }
 function anchorControl(control, block) {
-	const place = () => control.classList.toggle("lf-block-control-away", !anchorView(control, block, place));
+	const place = () => {
+		keepsHidden(control, !anchorView(control, block, place));
+	};
 	return {
 		control,
 		near: anchorView(control, block, place),
@@ -1058,7 +1060,7 @@ function anchorControl(control, block) {
 	};
 }
 function aimControl({ control, near, anchor }) {
-	control.classList.toggle("lf-block-control-away", !near);
+	keepsHidden(control, !near);
 	const name = nameAnchor(anchor);
 	if (control.style.positionAnchor !== name) control.style.positionAnchor = name;
 	return control;

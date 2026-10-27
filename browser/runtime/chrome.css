@@ -1595,14 +1595,8 @@ html[data-lf-draw-mode] body {
   touch-action: none;
 }
 html[data-lf-region-capture] main,
-html[data-lf-region-capture] main *,
-html[data-lf-draw-mode] main,
-html[data-lf-draw-mode] main * {
+html[data-lf-region-capture] main * {
   cursor: crosshair !important;
-}
-html[data-lf-draw-mode] main [data-lf-runtime],
-html[data-lf-draw-mode] main [data-lf-runtime] * {
-  cursor: auto !important;
 }
 .lf-react-mark {
   text-align: center;
@@ -1728,11 +1722,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     --lf-shape-stroke: var(--target-trace-w);
     --lf-shape-dash: none;
   }
-  .lf-shaped {
-    border: 0 !important;
-    border-radius: 0 !important;
-    background: none !important;
-  }
   :is(.lf-aim, .lf-target-trace, .lf-visual-mark):not(.lf-shaped) {
     &::before,
     &::after {
@@ -1746,6 +1735,10 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     }
     &::before {
       clip-path: inset(calc(-1 * var(--focus-ring-w)) calc(100% + var(--focus-ring-w) - 8px) calc(-1 * var(--focus-ring-w)) calc(-1 * var(--focus-ring-w)));
+    }
+    &.lf-visual-mark-inset::before,
+    &.lf-visual-mark-inset::after {
+      outline-offset: calc(-1 * var(--focus-ring-w));
     }
     &.lf-visual-mark-focus::after {
       clip-path: none;
@@ -1771,16 +1764,16 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     -webkit-mask: url(/icon.svg) center / contain no-repeat;
     mask: url(/icon.svg) center / contain no-repeat;
   }
-  .lf-dot.working {
+  .lf-dot:where(.working) {
     background: var(--accent);
   }
-  .lf-dot.listening {
+  .lf-dot:where(.listening) {
     background: var(--ok);
   }
-  .lf-dot.away {
+  .lf-dot:where(.away) {
     background: var(--warn);
   }
-  .lf-dot.blocked {
+  .lf-dot:where(.blocked) {
     background: var(--danger);
   }
   @layer lf-reset {
@@ -1867,6 +1860,9 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     height: 100%;
     overflow: hidden;
   }
+  .lf-shaped {
+    background: none;
+  }
   .lf-drawings {
     pointer-events: none;
   }
@@ -1889,9 +1885,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
   .lf-drawing-mark.lf-drawing-parked path {
     stroke-dasharray: 7 6;
-  }
-  .lf-fab-bar .lf-composer > :not(.lf-compose-field, .lf-composer-media) {
-    display: none !important;
   }
   .lf-live {
     position: fixed;
@@ -2530,7 +2523,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
   @media (forced-colors: active) {
     .lf-dot {
-      background: CanvasText !important;
+      background: CanvasText;
     }
     .lf-binding-sequence > kbd[data-lf-sequence-step-state=pressed] {
       border-color: Highlight;

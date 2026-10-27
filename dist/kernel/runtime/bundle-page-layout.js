@@ -1305,6 +1305,7 @@ const composer = el("div", "lf-ui lf-composer");
 composer.id = "lf-composer";
 const composerQuote = el("blockquote", "lf-ui lf-quote detached");
 composerQuote.id = "lf-composer-quote";
+composerQuote.hidden = true;
 const composerInput = fabInput;
 composerInput.setAttribute("aria-describedby", composerQuote.id);
 const composerSend = el("button", "lf-btn", "Comment");

@@ -639,6 +639,8 @@ def test_the_pre_upgrade_proof_holds_its_entry_route_past_the_load_event(
     flight at all — so nothing downstream can tell it from a page that is merely slow,
     and the ordering is the only place it can be stated."""
     page = browser.new_page()
+    # Observe only the temporary hold; the output observer owns a persistent route.
+    render_gate_scheme.observe_output_documents(page)
     registrations = []
     order = []
     route, unroute = page.route, page.unroute

@@ -497,3 +497,15 @@ test("a failed focus arrival publishes the departure to the document", async () 
   assert.equal(focused(), document.body);
   assert.deepEqual(heard, [[null, "move"]]);
 });
+
+test("a focus transfer keeps its location across the native microtask checkpoint", async () => {
+  const { first, second } = scene();
+  focusDestination(first, "move");
+  heard.length = 0;
+  first.blur();
+  // Native sequential focus runs this checkpoint before focusing its destination.
+  await Promise.resolve();
+  second.focus();
+  await settled();
+  assert.deepEqual(heard, [[second, "move"]]);
+});

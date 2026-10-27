@@ -725,7 +725,10 @@ document.addEventListener(
     const left = event.composedPath()[0];
     lastLocation = new WeakRef(left);
     if (restoring) return;
-    queueMicrotask(() => {
+    // Native focus transfers run a microtask checkpoint between departure and
+    // arrival. Read after that task, when body no longer names the gap between them.
+    setTimeout(() => {
+      if (lastLocation?.deref() !== left) return;
       const at = document.activeElement;
       if (at !== null && at !== document.body) return;
       if (heldByLabel()) return;
@@ -733,7 +736,7 @@ document.addEventListener(
       // A borrowed body stop leaving for nowhere is the release itself, not
       // another placement after the caller began waiting for its return.
       if (left !== document.body) placements += 1;
-      if (lastLocation?.deref() === left) lastLocation = null;
+      lastLocation = null;
       publish(null, cause(null));
     });
   },

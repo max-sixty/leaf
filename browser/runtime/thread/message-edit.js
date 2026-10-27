@@ -25,6 +25,11 @@
    the rewrite, as in Slack, Discord and Telegram (the user's decision, 2026-10-06).
    Rejected: Escape keeping them as an unsaved edit, as a reply box keeps its draft,
    which left the user a draft to find and drop that the message could barely show.
+   Android's back gesture, which may be an accidental edge swipe, keeps them instead
+   (`keep`, keyboard/close-requests.js): the editor closes as on Escape, a notice says
+   "Edit kept", and the message's head says "unsaved edit" until the user opens the
+   rewrite again, which finds them, or Resume writing does. Back lands on the message's
+   Edit control rather than the reply box, whose caret would raise a phone's keyboard.
    So an accidental Escape loses nothing for good: the last changed rewrite this
    document discarded stays in its memory until another takes its place or the document
    reloads, and Restore discarded edit (`g D`, a keyboard's convenience as Resume writing
@@ -403,6 +408,19 @@ export class MessageEditor {
       leave(true);
       notice("Edit discarded; g D restores it");
     };
+    // Back's way out (`keep`, keyboard/close-requests.js): closing as Escape does, but
+    // changed words stay in the draft, which the message says it holds, and opening the
+    // rewrite again finds them. The user lands on the message's Edit control, beside
+    // that sign, rather than in the reply box, whose caret would raise a phone's
+    // keyboard just as back put it away and would cover the notice.
+    const keep = () => {
+      if (unchanged()) return close();
+      const message = this.node.closest(".lf-msg");
+      leave(false, { landing: false });
+      const reopen = message?.querySelector(".lf-msg-edit");
+      if (reopen) focusDestination(reopen, "return");
+      notice("Edit kept");
+    };
     // Making way for another rewrite, as ↑ to an earlier message or opening one
     // elsewhere in the thread does, closes one the user has not changed; changed words
     // stay in their box, which no key here meant to put away. The closed box is drawn
@@ -488,6 +506,7 @@ export class MessageEditor {
           keys: ["Escape"],
           title: "discard",
           run: () => close(),
+          keep,
         },
       ],
       { escape: "inner" },

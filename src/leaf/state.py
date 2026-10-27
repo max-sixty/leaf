@@ -72,6 +72,8 @@ def hold_mode(path: Path, mode: int) -> None:
 
 # A session's hook capability observation, which ends with its instance.
 HOOKS_SUFFIX = "hooks"
+# The tool calls its hooks last ran before (`leases.first_hook_for_tool`).
+TOOLS_SUFFIX = "tools"
 # Its lifecycle outlives its instance while a claim reads it (`_retire`).
 SESSION_SUFFIX = "lifecycle"
 

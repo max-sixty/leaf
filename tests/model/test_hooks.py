@@ -654,6 +654,31 @@ def test_hook_drops_a_page_transferred_after_ownership_discovery(claimed, monkey
     assert hook_transport_model.remedies(hook_transport_model.read_plans("s1")) == []
 
 
+def test_one_tool_calls_hooks_do_its_work_once(monkeypatch):
+    """Claude Code runs the PreToolUse registration once for each of its `if`
+    rules a command matches, at once, before the call; the first opens the turn a
+    claim would join, and the rest leave it as they find it. Another call's hook
+    does its work again."""
+    monkeypatch.setattr(
+        harness_model.ClaudeCodeHarness, "escape_sandbox", lambda harness: None
+    )
+
+    def before(call: str) -> None:
+        hooks_model.cmd_hook(
+            "claude-code",
+            {"hook_event_name": "PreToolUse", "session_id": "s9", "tool_use_id": call},
+        )
+
+    before("toolu_1")
+    record = cleanup_model.session_record("s9")
+    assert record["turn_closed"] is None
+    cleanup_model.close_session_turn("s9", None, expected=record)
+    before("toolu_1")
+    assert cleanup_model.session_record("s9")["turn_closed"] is not None
+    before("toolu_2")
+    assert cleanup_model.session_record("s9")["turn_closed"] is None
+
+
 def test_claude_codes_turn_confirms_what_its_hooks_hand_over(claimed, capsys):
     """Claude Code's prompt hook runs as every turn begins, including the one a
     background wait's ending opens, and its PostToolBatch hook between steps; each hands

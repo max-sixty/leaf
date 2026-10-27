@@ -377,7 +377,8 @@ function invocationFor(row, binding, command, recovered = null) {
     : null;
 }
 
-function announceInvocation(invocation) {
+// `title` names a step the row took in place of its `run`, as a close request's `keep`.
+function announceInvocation(invocation, title = null) {
   const { row, entry } = invocation;
   const route = entry.route;
   document.dispatchEvent(
@@ -387,7 +388,7 @@ function announceInvocation(invocation) {
       detail: {
         id: invocation.id,
         binding: invocation.binding,
-        title: titleOf(route?.title === undefined ? row : route),
+        title: title ?? titleOf(route?.title === undefined ? row : route),
         description: descriptionOf(route?.description === undefined ? row : route),
         travels: Boolean(row.travels),
       },
@@ -451,6 +452,23 @@ function resolveKey(ev) {
   return null;
 }
 export const keyReady = (ev) => resolveKey(ev) !== INPUT_PENDING;
+// Escape with no key behind it, as the platform's close request asks for it
+// (close-requests.js): whether a press would take a step now, and taking it, through
+// the row's `keep` where it declares one (bindings.js).
+const escapePress = () => new window.KeyboardEvent("keydown", { key: "Escape" });
+export const escapeTakesAStep = () => {
+  const matched = resolveKey(escapePress());
+  return Boolean(matched) && matched !== INPUT_PENDING;
+};
+export function answerCloseRequest() {
+  const matched = resolveKey(escapePress());
+  if (!matched || matched === INPUT_PENDING) return;
+  const keeps = Boolean(matched.row.keep);
+  // The log names what ran: a row's `keep` is not its title's step.
+  announceInvocation(matched, keeps ? "keep" : null);
+  if (keeps) matched.row.keep();
+  else matched.run();
+}
 
 // Scoping is the DOM's, but the resolver's stack, rather than listener order, says
 // which command wins. The controller leaves composing input to the IME.

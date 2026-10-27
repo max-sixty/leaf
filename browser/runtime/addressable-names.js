@@ -7,7 +7,7 @@
 import { isElementName } from "./registry-contract.js";
 import { registry } from "./registry.js";
 import { authoredScope, elementReading } from "./passages.js";
-import { TEXT_BLOCK } from "./passage-facts.js";
+import { TEXT_BLOCK } from "./kernel-facts.js";
 import { uiInside, upFrom } from "./shadow.js";
 import { excerptWords } from "./words.js";
 
@@ -93,10 +93,15 @@ export function leadingTitle(container) {
   }
   return null;
 }
+// The title an element's attribute holds, as its declaration names (`x-name`), such
+// as a tab's label.
+export function declaredName(element) {
+  const attribute = registry[element.localName]?.["x-name"];
+  return (attribute && element.getAttribute(attribute)?.trim()) || "";
+}
 export function addressableName(element) {
   if (!element) return "";
-  const attribute = registry[element.localName]?.["x-name"];
-  const declared = attribute && element.getAttribute(attribute)?.trim();
+  const declared = declaredName(element);
   if (declared) return declared;
   const title = leadingTitle(element);
   return title ? elementReading(title, "wrote") : "";

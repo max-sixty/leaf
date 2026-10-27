@@ -408,7 +408,7 @@ def test_an_acknowledged_decision_still_survives_the_next_version(browser, serve
 
 
 def test_a_comment_written_on_an_edited_draft_lands_on_their_words(browser, serve):
-    """`leaf thread open` reads the mapped revision plus the log; the user's tab reads
+    """`leaf thread create` reads the mapped revision plus the log; the user's tab reads
     the DOM replay builds from the same two. An edited draft is where those readings
     used to drift — the file holds words the page stopped showing — so write the anchor
     blind, on the user's own words, and prove the page paints it. The words the edit
@@ -429,14 +429,14 @@ def test_a_comment_written_on_an_edited_draft_lands_on_their_words(browser, serv
     )
     refused = CliRunner().invoke(
         cli_model.cli,
-        ["thread", "open", str(d), "--quote", "It is online.", "--text", "x"],
+        ["thread", "create", str(d), "--quote", "It is online.", "--text", "x"],
     )
     assert refused.exit_code != 0 and "doesn't say" in refused.output
     written = CliRunner().invoke(
         cli_model.cli,
         [
             "thread",
-            "open",
+            "create",
             str(d),
             "--quote",
             "It takes about a minute.",

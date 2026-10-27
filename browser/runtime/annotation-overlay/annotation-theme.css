@@ -135,7 +135,7 @@
   --lf-pin-edge: var(--paper);
   border: 2px solid var(--lf-pin-edge);
   background: var(--lf-pin-face, var(--pin-fill));
-  --lf-entry-ink: #fff;
+  --lf-entry-ink: var(--pin-ink);
   box-shadow: var(--raise-1);
 }
 .lf-margin-cluster[data-lf-place="pin"]
@@ -163,6 +163,7 @@
 }
 .lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry[data-lf-turn="user"] {
   --lf-pin-face: var(--pin-on-user);
+  --lf-entry-ink: var(--pin-on-user-ink);
 }
 .lf-margin-receipt {
   color: var(--ink-2);
@@ -177,7 +178,7 @@
  * rail's width on its right, so the page's own layout sees a narrower window and every
  * row stands in the strip. A block may still run under it on purpose, and its rows pin.
  * The declaration stands on the shell it pads rather than on `main`: a `:has()` on the
- * body re-checks it on every write below (assets/AGENTS.md).
+ * body re-checks it on every write below (browser/AGENTS.md).
  *
  * The strip is given up only above a phone's width, where the page keeps a usable
  * column beside it; on a phone the rows pin as they do on any page with no room beside
@@ -195,6 +196,6 @@
 @media print {
   .lf-margin-projection,
   .lf-margin-marker.lf-margin-entry {
-    display: none !important;
+    display: none;
   }
 }

@@ -57,8 +57,8 @@ child carrying that part's Layout:
 </main>
 ```
 
-The page's `header`, the one element to write before the parts, heads a column down the
-window's left edge, and the list of parts stands under it, with each part's `summary`
+The page's `header` is the only element written before the parts. It appears at the
+top of a column along the window's left edge, followed by the list of parts, with each part's `summary`
 under its label. Each part takes the rest of the width from the top of the window, so
 a workspace part fills the window. Keep the header to the page's title, since it shares
 the column's width. Give each part its own heading, and a column part its own contents
@@ -77,11 +77,9 @@ verdict and file list stay beside the code. The region kept in view is the `asid
     <p class="lede">…</p>
   </header>
   <aside id="status">
-    <div class="overview">
-      <lf-toc id="contents"></lf-toc>
-      <p>…</p>
-      <!-- short verdict or status -->
-    </div>
+    <lf-toc id="contents"></lf-toc>
+    <p>…</p>
+    <!-- short verdict or status -->
   </aside>
   <div id="body">…</div>
   <!-- document and supporting evidence -->
@@ -90,16 +88,22 @@ verdict and file list stay beside the code. The region kept in view is the `asid
 
 The body and `aside` sit side by side, two thirds and one third, while the page has
 room for both, and stack in source order when it hasn't or when the body's content needs
-the whole width.
+the whole width. To give the `aside` another width, set `--aside` on the `main` to a
+length or a share of the row, such as `main { --aside: 20rem; }`. The `aside` uses
+that width, the body takes the rest, and the two stack when the body no longer fits
+beside it.
 Write the `aside` first when the reader of the stacked page reads it first, such as a
 verdict; it then sits on the left. Write it after the body when it follows the work,
 such as a dashboard's log; it then sits on the right. Stack the regions inside the body
 and inside the `aside`, so every region shares the same two vertical edges, rather than
 splitting each row anew.
 
-Put everything the `aside` holds in one block, as the `div` above does. While the two
-sit side by side, Leaf keeps that block in view at the window's top as the body scrolls.
-Write no `position`, `top`, height or overflow for it.
+While the two sit side by side, Leaf keeps everything the `aside` holds in view at the
+window's top as the body scrolls, however many blocks it is, and scrolls it within the
+window when it is taller. Write no `position`, `top`, height or overflow for the `aside`
+or its blocks. Leaf does this by gathering the blocks into a box of its own inside the
+`aside`, so a rule that names the `aside`'s children, such as `aside > p`, no longer
+reaches them: write `aside p`, or name the block by its class or id.
 
 ## A workspace
 
@@ -146,7 +150,9 @@ make a cramped working region usable.
 
 `density-working` is a style, not a Layout. It sets smaller type, tighter spacing and
 options as rows on any block, for a surface the reader operates. A workspace usually
-takes it, and so can a dense table on a column page.
+takes it, and so can a dense table on a column page. On the `main` of a column or
+sidebar page, such as a dashboard, it also sets the title at working size and starts
+the page nearer the window's top.
 
 For a queue of items decided one at a time, such as tickets or findings, make the body
 one `lf-tabs list="side"` with an `lf-tab` per item, and put an `lf-tally` with `next`
@@ -189,20 +195,22 @@ works on column and sidebar pages:
 A `table` with either value is only as wide as its columns need, up to that width. A
 block inside an `lf-ask` or callout breaks out only with its own `data-width`; the
 `lf-ask` keeps the column. A block breaks out only from a box that spans the column,
-such as a section or an `lf-ask`. One inside a box standing in from the column, such as
-a list item, or a box the page lays out itself, such as a grid or flex item, stays in
-that box, and a table there scrolls sideways.
+such as a section or an `lf-ask`. A block inside an indented box, such as a list item,
+or a box the page lays out itself, such as a grid or flex item, stays within that box.
+A table there scrolls sideways.
 
 A widget whose entry declares `x-height`, such as `lf-chart`, reserves that height
 before it draws; `data-height` on the element overrides it. A widget whose drawing sets
-its own height, such as `lf-diagram` or `lf-diff`, reserves nothing, so content below it
-moves when it draws unless you set `data-height`. `page check --render` suggests the
-height wherever a drawing differs from what was reserved.
+its own height, such as `lf-diagram` or an `lf-diff` bound with `source`, reserves
+nothing, so content below it moves when it draws unless you set `data-height`. An
+`lf-diff` with its patch inline sizes itself from the patch, so leave `data-height` off
+it. `page check --render` suggests the height wherever a drawing differs from what was
+reserved.
 
 ## The rail and the margin
 
 With page tabs, each tab can start with its own `aside.sidebar` and empty `lf-toc`:
-the tab's outline stands below its strip in flow and becomes its spine when the margin
+the tab's outline appears below its tab strip in flow and becomes its spine when the margin
 has room. A sidebar directly in the column keeps that slot if one is present; nested
 tabbed boxes keep their sidebars in flow. Write short notes in `aside.sidenote`. For
 CSS that depends on what is in the
@@ -229,8 +237,8 @@ rather than rebuilding the event log in page code.
 The page's CSS styles the page's content, not Leaf's panel, thread cards or the controls
 widgets build: a rule for `button` styles only the page's own buttons. To style Leaf's
 controls on purpose, put their rules in a separate `<style data-controls>` or
-`<link rel="stylesheet" data-controls>` element. Its rules and imports stand as
-written; use selectors that reach only the controls you intend to change. Set the marker
+`<link rel="stylesheet" data-controls>` element. Leaf leaves its rules and imports unchanged; use selectors that match only
+the controls you intend to change. Set the marker
 before attaching a dynamic sheet. A token such as `--accent` on `:root` changes every surface that reads it. For
 a page-specific inset, use the frame declaration in `package-themes.md`, "A theme
 change".

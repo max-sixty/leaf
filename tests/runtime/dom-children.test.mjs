@@ -9,7 +9,7 @@ import {
 import { under } from "/runtime/shadow.js";
 import { shadowStage } from "/runtime/shadow-stage.js";
 import { failSoftUnreported } from "/runtime/widget-upgrade.js";
-import { createRef, html, ref, render } from "/vendor/browser-runtime.js";
+import { createRef, html, ref, render } from "/runtime/framework.js";
 
 test("failure replacement releases directives and supports native and template recovery", () => {
   const host = document.createElement("test-widget");
@@ -84,6 +84,7 @@ function patch(beforeMarkup, afterMarkup = beforeMarkup) {
     contains: under,
     declared: (node) => node.localName === "test-owner",
     reaches: () => false,
+    body: () => null,
     unchanged: (held, wanted) => held.isEqualNode(wanted),
     same: (held, wanted) => held.isEqualNode(wanted),
     sameValue: (_name, held, wanted) => held === wanted,
@@ -211,6 +212,26 @@ test("a native shadow editor follows its containing owner's authored retention",
     root.append(editor);
     assert.equal(retains(editor), !changed);
   }
+});
+
+test("a revision reaching a widget writes inside the authored body its module built", () => {
+  const { live, rules, install } = patch(
+    '<test-owner id="o"><p>Before</p></test-owner>',
+    '<test-owner id="o"><p>After</p><p>Added</p></test-owner>',
+  );
+  const owner = live.firstElementChild;
+  const kept = owner.firstElementChild;
+  const body = document.createElement("div");
+  body.append(...owner.childNodes);
+  const summary = document.createElement("span");
+  owner.append(summary, body);
+  rules.reaches = () => true;
+  rules.body = (node) => (node === owner ? body : null);
+  rules.arrive = (node) => node.cloneNode(true);
+  install();
+  assert.deepEqual([...owner.children], [summary, body]);
+  assert.equal(body.innerHTML, "<p>After</p><p>Added</p>");
+  assert.equal(body.firstElementChild, kept);
 });
 
 test("child reordering works without moveBefore and accepts new nodes", () => {

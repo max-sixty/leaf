@@ -5,6 +5,7 @@ import pytest
 from playwright.sync_api import expect
 from render_harness import (
     LANDING_TOP,
+    ROOT,
     leaf_page,
     open_page,
     resized,
@@ -182,6 +183,39 @@ def test_a_page_keeps_its_place_as_the_window_changes_width(browser, serve, regi
     assert page.evaluate(reading, None)["bottom"] < 1100, (
         "the focused option left the window"
     )
+
+
+def test_a_page_read_from_its_top_stays_at_its_top_as_the_window_narrows(
+    browser, serve
+):
+    """A page the reader has not scrolled is read from its top. A wide window holds its
+    header in the column beside the first section, and a narrow one drops the header
+    into the flow above it; the page stays at its top with the title in view, rather
+    than scrolling to keep that section's first line where it stood. A page landed
+    partway down still keeps the line it was read at across the same narrowing."""
+    page = open_page(browser, serve(ROOT / "tests/fixtures/pages/root-parts.html"))
+    title = page.locator("main > header h1")
+    heading = (
+        "async () => document.querySelector('#part-plan-stages h2')"
+        f".getBoundingClientRect().top - {LANDING_TOP}"
+    )
+    resized(page, 1200, 800)
+    rendered(page)
+    assert page.evaluate("document.scrollingElement.scrollTop") == 0
+    resized(page, 440, 800)
+    rendered(page)
+    assert page.evaluate("document.scrollingElement.scrollTop") == 0
+    expect(title).to_be_in_viewport(ratio=1)
+
+    resized(page, 1200, 800)
+    rendered(page)
+    page.evaluate("location.hash = 'part-plan-stages'")
+    rendered(page)
+    landed = page.evaluate(heading)
+    assert page.evaluate("document.scrollingElement.scrollTop") > 0
+    resized(page, 440, 800)
+    rendered(page)
+    assert page.evaluate(heading) == pytest.approx(landed, abs=2)
 
 
 @pytest.mark.parametrize("wheel", [False, True], ids=["landed", "wheel-over-pane"])

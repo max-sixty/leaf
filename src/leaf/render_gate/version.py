@@ -68,7 +68,13 @@ def _findings_with_viewports(
 
 
 def _render_version_attempt(
-    browser, url: str, desktop: dict, served_timeout_ms: int | None = None
+    browser,
+    url: str,
+    desktop: dict,
+    served_timeout_ms: int | None = None,
+    *,
+    implementations=None,
+    declaration_sources=None,
 ) -> tuple[RenderReading, list, bool]:
     """Everything wrong with a served version that only a browser can see: a
     console warning or error (a widget failing soft is one, since the page reports it),
@@ -85,7 +91,9 @@ def _render_version_attempt(
     widget that its entry never declared (a file's reading sees one writer, and this is
     the other), a version that authors widget state the log replays over, a widget whose
     render() is relative, so a read's replay of the sender's own gesture moves the
-    page again (none of the three is CSS), a settled holder whose mark or still-showing
+    page again (none of the three is CSS), a block a comparison of the version with
+    itself marks, because a module wrote words there without marking them, a settled
+    holder whose mark or still-showing
     slot words disagree with the log's decision (read once: the palettes carry no
     geometry between them), and an SVG paint token that does not resolve to valid paint
     in that scheme. Once per version, on the settled desktop page in the light scheme,
@@ -167,7 +175,15 @@ def _render_version_attempt(
     def render(viewport, scheme, then):
         viewport_label = _viewport_label(viewport)
         found, found_notices, complete = _render_scheme(
-            browser, url, scheme, viewport, served_timeout_ms, opened_pages, then=then
+            browser,
+            url,
+            scheme,
+            viewport,
+            served_timeout_ms,
+            opened_pages,
+            then=then,
+            implementations=implementations,
+            declaration_sources=declaration_sources,
         )
         failures.extend((finding, viewport_label) for finding in found)
         notices.extend((notice, viewport_label) for notice in found_notices)
@@ -198,6 +214,9 @@ def render_version(
     url: str,
     served_timeout_ms: int | None = None,
     desktop: dict = RENDER_VIEWPORT,
+    *,
+    implementations=None,
+    declaration_sources=None,
 ) -> RenderReading:
     """Read a version at the `desktop` window and a phone's, confirming a complete
     attempt that reports a ResizeObserver loop notice. Advice is the first attempt's:
@@ -222,7 +241,12 @@ def render_version(
     def attempt():
         try:
             return _render_version_attempt(
-                browser, url, desktop, served_timeout_ms=served_timeout_ms
+                browser,
+                url,
+                desktop,
+                served_timeout_ms=served_timeout_ms,
+                implementations=implementations,
+                declaration_sources=declaration_sources,
             )
         except PlaywrightError as error:
             failure = Finding("gate-failed", values={"error": str(error).strip()})

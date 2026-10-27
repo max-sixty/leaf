@@ -327,11 +327,13 @@ export function createAnnotationInventory({
       );
     }
 
-    // Only a widget obligation has a place on the page; the rest have no node.
-    for (const item of readObligations().user) {
+    // A widget's obligation and a to-do on the user have a place on the page
+    // (obligations/place.js); the rest have no node.
+    const placed = () =>
+      readObligations().user.filter((item) => obligationPlace(item).node);
+    for (const item of placed()) {
       const id = item.id;
       const target = obligationPlace(item).node;
-      if (!target) continue;
       add(groups, target, {
         kind: "on-me",
         id: `on-me:${id}`,
@@ -339,12 +341,13 @@ export function createAnnotationInventory({
         // there, since these are the obligations the user owes.
         text: "Waiting on me",
         // The marker's own label is the question, which says more than the kind its
-        // glyph already shows.
-        label: addressableLabel(target) || null,
+        // glyph already shows: a widget's name, or a to-do's title, which the element
+        // it is on does not say.
+        label:
+          (item.source.kind === "todo" ? item.prompt.text : addressableLabel(target)) ||
+          null,
         activate: () => {
-          const items = readObligations().user.filter(
-            (item) => item.source.kind === "widget",
-          );
+          const items = placed();
           const next = items.find((candidate) => candidate.id === id);
           if (next) goToObligation(next, items);
         },

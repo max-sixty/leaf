@@ -751,6 +751,8 @@ def test_a_focused_card_comment_never_paints_over_the_cards_contents(browser, se
         },
     )
     page = open_page(browser, url)
+    # This compares overlay paint, independently of the thread entrance motion.
+    page.emulate_media(reduced_motion="reduce")
     stand_on_thread(page, "blocked-card-comment")
 
     card = page.locator("#lp-k-checks")

@@ -1554,6 +1554,9 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
   :scope:is(lf-tabs, lf-parts).lf-rendered > :is(lf-tab, lf-part)[data-lf-focus-visible] {
     outline: none;
   }
+  :scope:is(lf-tabs, lf-parts).lf-rendered:has(> :is(lf-tab, lf-part)[data-lf-focus-visible]) {
+    --lf-wears-ring: 1;
+  }
   :scope:is(lf-tabs, lf-parts).lf-rendered:has(> :is(lf-tab, lf-part)[data-lf-focus-visible])::after {
     content: "";
     position: absolute;

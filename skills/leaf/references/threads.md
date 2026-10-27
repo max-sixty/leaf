@@ -153,7 +153,7 @@ leaf thread reply <answer.ref> --todo "Rebuild the banner quieter" --text "Rebui
 ```
 
 The answer's head shows what it leaves: **Waiting on me** while its question is open,
-and **To-do open** until you end the to-do. A promise declared `--done` reads as
+and **Still to do** until you end the to-do. A promise declared `--done` reads as
 finished work.
 
 ### Progress messages

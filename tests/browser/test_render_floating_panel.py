@@ -3566,7 +3566,7 @@ def test_on_claude_lists_its_work_in_hand_queued_and_done_or_says_it(browser, se
     expect(lines.locator(".lf-fp-on-says > .lf-fp-value")).to_have_text(
         [
             re.compile(r"^On it \S+$"),
-            re.compile(r"^To-do open \S+$"),
+            re.compile(r"^Still to do \S+$"),
             re.compile(r"^Done \S+$"),
         ]
     )

@@ -57,7 +57,8 @@ import { settleThread } from "./folding.js";
 import { iconTemplate } from "../icons.js";
 import { answeredInWords } from "../obligations/model.js";
 import { SAY_BOX } from "./selectors.js";
-import { threadAttention, workflowLabel } from "./workflow.js";
+import { threadAttention, todoLabel, workflowLabel } from "./workflow.js";
+import { agentName } from "../semantic-state.js";
 import { growthIsSeen, shownRect } from "../geometry.js";
 import { ago, shortAgo } from "../presence.js";
 import { retainUserIntent } from "../user-intent.js";
@@ -155,7 +156,7 @@ function workingMessage(thread, attention, messages) {
               stopped.detail,
               stopped.detail_seq,
               false,
-              workflowLabel(stopped),
+              workflowLabel(stopped, agentName()),
               stopped.agent,
             ]
           : [said, saidAt.get(pending.at(-1)?.id), false, null, null];
@@ -223,7 +224,7 @@ export function threadReading(thread, surface, commands) {
   const kind = resolved ? "unresolve" : "resolve";
   const word = resolved ? "Reopen" : "Resolve";
   const label = resolved ? word : "Resolve thread";
-  const attention = threadAttention(thread);
+  const attention = threadAttention(thread, agentName());
   // An answer says what it leaves (an lf-ask, `--todo`); its head says so while that
   // stands: a question the user still owes words to, a to-do still open on the
   // thread.
@@ -237,7 +238,7 @@ export function threadReading(thread, surface, commands) {
     asking.has(message.id)
       ? "Waiting on me"
       : message.todo && openTodos.has(message.id)
-        ? "To-do open"
+        ? todoLabel(null)
         : null;
   // Completion comes from the server, including the provisional answer. A held
   // reading keeps progress until its completing reply is among the messages shown.

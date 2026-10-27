@@ -102,7 +102,9 @@ def test_a_sent_margin_reply_shows_its_words_while_delivery_is_pending(
         page.keyboard.press("ControlOrMeta+Enter")
         holding(page, pending, 1, "the margin reply")
         latest = card.locator(".lf-msg.user").last
-        expect(latest.locator(".lf-msg-sending")).to_have_text("Saving…")
+        expect(latest.locator(".lf-msg-sending")).to_have_text(
+            re.compile(r"^Queued for ")
+        )
         body = latest.locator(".lf-msg-body")
         expect(body).to_have_text(words)
         # Allow subpixel rounding at the transcript's scroll edge.
@@ -177,7 +179,9 @@ def test_a_pending_reply_keeps_the_transcript_end_when_card_fitting_reduces_room
             card.locator(".lf-thread-send").click()
         holding(page, pending, 1, "the pending reply")
         latest = card.locator(".lf-msg.user").last
-        expect(latest.locator(".lf-msg-sending")).to_have_text("Saving…")
+        expect(latest.locator(".lf-msg-sending")).to_have_text(
+            re.compile(r"^Queued for ")
+        )
         rendered(page)
         scroll_settled(page, ".lf-margin-preview .lf-thread-transcript")
         expect(latest.locator(".lf-msg-body")).to_have_text(words)

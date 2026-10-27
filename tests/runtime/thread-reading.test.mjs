@@ -135,51 +135,63 @@ test("attention names the outstanding question rather than the latest message", 
     attention: { kind: "needs_user", reason: "obligation", workflow: null },
   });
   const [thread] = readThreadRecords([source], NO_DOCUMENT, new Map(), []);
-  const attention = threadAttention(thread);
+  const attention = threadAttention(thread, "Claude");
   assert.equal(attention.label, "Your turn");
   assert.equal(
-    threadAttention({
-      ...thread,
-      attention: { kind: "needs_user", reason: "resend", workflow: "send" },
-      workflows: [
-        servedWorkflow({
-          id: "send",
-          subject: { kind: "thread", id: "question" },
-          thread: "question",
-        }),
-      ],
-    }).label,
+    threadAttention(
+      {
+        ...thread,
+        attention: { kind: "needs_user", reason: "resend", workflow: "send" },
+        workflows: [
+          servedWorkflow({
+            id: "send",
+            subject: { kind: "thread", id: "question" },
+            thread: "question",
+          }),
+        ],
+      },
+      "Claude",
+    ).label,
     "Send it again",
   );
   assert.equal(
-    threadAttention({
-      ...thread,
-      attention: { kind: "needs_user", reason: "resend", workflow: "move" },
-      workflows: [
-        servedWorkflow({
-          id: "move",
-          subject: { kind: "widget", id: "choice" },
-          thread: "question",
-        }),
-      ],
-    }).label,
+    threadAttention(
+      {
+        ...thread,
+        attention: { kind: "needs_user", reason: "resend", workflow: "move" },
+        workflows: [
+          servedWorkflow({
+            id: "move",
+            subject: { kind: "widget", id: "choice" },
+            thread: "question",
+          }),
+        ],
+      },
+      "Claude",
+    ).label,
     "Try it again",
   );
   assert.equal(
-    threadAttention({
-      ...thread,
-      attention: { kind: "waiting", reason: "uncertain", workflow: null },
-    }).label,
+    threadAttention(
+      {
+        ...thread,
+        attention: { kind: "waiting", reason: "uncertain", workflow: null },
+      },
+      "Claude",
+    ).label,
     "Uncertain",
   );
   assert.equal(
-    threadAttention({
-      ...thread,
-      attention: { kind: "waiting", reason: "workflow", workflow: null },
-    }).label,
+    threadAttention(
+      {
+        ...thread,
+        attention: { kind: "waiting", reason: "workflow", workflow: null },
+      },
+      "Claude",
+    ).label,
     "Waiting",
   );
-  assert.equal(threadAttention({ ...thread, attention: null }), null);
+  assert.equal(threadAttention({ ...thread, attention: null }, "Claude"), null);
 });
 
 test("superseding a blocked primary destination completes its prior navigation", async () => {

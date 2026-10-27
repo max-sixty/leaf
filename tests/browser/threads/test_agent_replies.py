@@ -962,7 +962,7 @@ def test_an_answer_says_what_it_leaves_while_that_stands(browser, serve, request
     page = open_page(browser, url)
     for root, reply, words, section in (
         (asked, question, "Waiting on me", "h-how"),
-        (promised, promise, "To-do open", "lede"),
+        (promised, promise, "Still to do", "lede"),
     ):
         open_margin_card(page, section)
         thread = page.locator(card_of(root))
@@ -1016,7 +1016,7 @@ def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(
     with sending(page, "the card move"):
         page.keyboard.press("Enter")
     expect(page.locator("#fb-done > #fb-cache")).to_be_visible()
-    expect(receipt).to_have_text("Saved")
+    expect(receipt).to_have_text(re.compile(r"^Queued for "))
     status = thread_row(page, root).locator(".lf-fp-value")
     expect(status).to_have_text("")
     card = open_panel_thread(page, root)

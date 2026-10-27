@@ -132,7 +132,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     view = open_panel_thread(page, held)
     held_workflow = workflow_of(view, held)
     expect(view.locator(".lf-msg-sending")).to_have_count(1)
-    expect(held_workflow).to_have_text("Saved")
+    expect(held_workflow).to_have_text(re.compile(r"^Queued for "))
     held_workflow.evaluate("node => { node.dataset.identityProbe = 'kept' }")
 
     # The old page-wide start is deliberately stale: delivery into this exact turn,
@@ -189,7 +189,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     )
     # Threads names the stage on each row, the held thread's and not the other's.
     expect(thread_row_says(page, held)).to_contain_text("On it")
-    expect(thread_row_says(page, other)).to_contain_text("Saved")
+    expect(thread_row_says(page, other)).to_contain_text("Queued for ")
 
     # New words do not detach the claim from the comment that started the work.
     followup = append_carried_log_record(
@@ -207,7 +207,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     held_workflow = workflow_of(view, held)
     followup_workflow = workflow_of(view, followup["id"])
     expect(held_workflow).to_have_text("On it")
-    expect(followup_workflow).to_have_text("Saved")
+    expect(followup_workflow).to_have_text(re.compile(r"^Queued for "))
     expect(view.locator(":scope > .lf-msg-sending")).to_have_count(0)
 
     # A later start on the page's own task is not an answer to the thread, so the
@@ -275,7 +275,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(thread_row_says(page, held)).to_contain_text("On it")
     record_claim(d, id="s", pid=dead_pid)
     told(page)
-    expect(thread_row_says(page, held)).to_contain_text("To-do open")
+    expect(thread_row_says(page, held)).to_contain_text("Still to do")
 
 
 def test_the_leaf_and_all_pages_say_the_served_activity(browser, serve, other_leaf):
@@ -323,8 +323,8 @@ def test_an_unpicked_move_says_it_is_waiting_after_the_short_grace(browser, serv
     )
     page = open_page(browser, url)
     workflow = workflow_of(open_panel_thread(page, comment["id"]), comment["id"])
-    expect(workflow).to_have_text("Haven't seen it yet")
-    expect(workflow).to_have_attribute("title", "Haven't seen it yet")
+    expect(workflow).to_have_text(re.compile(r"^Still queued for "))
+    expect(workflow).to_have_attribute("title", re.compile(r"^Still queued for "))
 
 
 def test_a_message_workflow_changes_phase_in_place_and_then_stands_still(
@@ -351,7 +351,7 @@ def test_a_message_workflow_changes_phase_in_place_and_then_stands_still(
     thread = open_panel_thread(page, comment["id"])
     workflow = workflow_of(thread, comment["id"])
     expect(workflow).to_be_visible()
-    expect(workflow).to_have_text("Saved")
+    expect(workflow).to_have_text(re.compile(r"^Queued for "))
     assert workflow.evaluate(
         "node => node.parentElement.matches('.lf-msg-meta') "
         "&& node.previousElementSibling.matches('time')"

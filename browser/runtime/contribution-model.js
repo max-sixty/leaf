@@ -45,6 +45,7 @@ const ENTRY_OPTIONS = new Set([
   "glyph",
   "icon",
   "label",
+  "voice",
   "accessibleLabel",
   "context",
   "description",
@@ -78,7 +79,7 @@ export const KINDS = Object.freeze(
       comment: { label: "Thread", icon: "comment", priority: 1 },
       "on-me": { label: "On me", icon: "question", priority: 2 },
       sent: {
-        label: "Saved",
+        label: "Queued",
         icon: "sent",
         priority: 3,
         indication: true,
@@ -170,6 +171,7 @@ export function contributionEntry(offered) {
     glyph = null,
     icon = null,
     label,
+    voice = "agent",
     accessibleLabel = null,
     context = null,
     description = null,
@@ -209,6 +211,8 @@ export function contributionEntry(offered) {
     glyph: glyph == null ? null : String(glyph),
     icon,
     label: text(label),
+    // Who says the label: Leaf's own words stand apart in italic (`workflowVoice`).
+    voice,
     accessibleLabel: text(accessibleLabel) || text(label),
     context: text(context) || null,
     description: text(description) || null,

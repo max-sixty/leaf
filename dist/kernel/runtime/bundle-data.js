@@ -2299,6 +2299,7 @@ function shadowStage(host, nodes) {
 		stageStyles.set(root, style);
 	}
 	setChildren(root, [style, ...nodes]);
+	for (const child of [...host.childNodes]) child.remove();
 	watchPassageRoot(root);
 	return root;
 }
@@ -6901,11 +6902,13 @@ var ThreadView = class {
 			appends: model.surface === "margin"
 		});
 		if (reply && !this.#reply) this.#reply = this.#createReply(model);
+		keeps(notice.node, "data-lf-reflow", marginControls ? null : "text");
 		const body = html`
       ${threadTodos(model.todos, (id) => this.#commands.todos.done(id))}${this.#transcript.node}
-      ${threadActions ? marginControls ? html`<div class="lf-margin-thread-controls">${threadActions}</div>` : html`<div class="lf-thread-controls" data-lf-reflow="text">
-                ${news}${threadActions}
-              </div>` : nothing}
+      ${threadActions ? marginControls ? html`<div class="lf-margin-thread-controls">${threadActions}</div>` : html`${news}
+                <div class="lf-thread-controls" data-lf-reflow="text">
+                  ${threadActions}
+                </div>` : nothing}
     `;
 		render$1(html`
         ${model.surface === "margin" ? body : html`<div class="lf-thread-content">${body}</div>`}
@@ -6923,6 +6926,8 @@ var ThreadView = class {
 		this.#observedHeader = null;
 		this.#releaseHeaderItems();
 		this.#news.node.removeAttribute("data-room");
+		this.#news.node.style.removeProperty("--lf-thread-news-start");
+		this.#news.node.style.removeProperty("--lf-thread-news-visible-end");
 	}
 	#releaseHeaderItems() {
 		for (const { node } of this.#headerSlot?.items ?? []) {
@@ -6936,11 +6941,9 @@ var ThreadView = class {
 			this.#releaseHeaderSlot();
 			return;
 		}
-		const content = this.node.querySelector(":scope > .lf-thread-content");
-		const controls = content?.querySelector(":scope > .lf-thread-controls");
-		const first = content?.querySelector(":scope > .lf-thread-transcript > :nth-child(1 of .lf-msg, .lf-thread-checkpoint)");
+		const first = this.node.querySelector(":scope > .lf-thread-content")?.querySelector(":scope > .lf-thread-transcript > :nth-child(1 of .lf-msg, .lf-thread-checkpoint)");
 		const header = first?.querySelector(":scope > .lf-summary-checkpoint > .lf-summary-header") ?? first?.querySelector(":scope > .lf-msg-head");
-		if (!controls || !header) {
+		if (!header) {
 			this.#releaseHeaderSlot();
 			return;
 		}
@@ -6996,14 +6999,14 @@ var ThreadView = class {
 			}
 			this.#headerSlot.held = true;
 		}
+		const notice = this.#news.node;
 		const right = Math.max(box.left, ...this.#headerSlot.items.map(({ node }) => node.getBoundingClientRect().right));
-		controls.style.setProperty("--lf-thread-news-start", layoutPx(right - box.left));
+		notice.style.setProperty("--lf-thread-news-start", layoutPx(right - box.left));
 		if (this.#model.news) {
-			if (!this.#news.node.hasAttribute("data-room")) this.#news.node.dataset.room = this.#model.news.label;
-			const line = controls.getBoundingClientRect();
-			const shown = shownRect(controls, /* @__PURE__ */ new Map());
-			if (shown) controls.style.setProperty("--lf-thread-news-visible-end", layoutPx(Math.max(0, shown.right - line.left)));
-		} else this.#news.node.removeAttribute("data-room");
+			if (!notice.hasAttribute("data-room")) notice.dataset.room = this.#model.news.label;
+			const shown = shownRect(header, /* @__PURE__ */ new Map());
+			if (shown) notice.style.setProperty("--lf-thread-news-visible-end", layoutPx(Math.max(0, shown.right - box.left)));
+		} else notice.removeAttribute("data-room");
 	}
 	get progressOpen() {
 		return this.#transcript.progressOpen;
@@ -10008,4 +10011,4 @@ async function loadDeferred(value, key) {
 }
 
 //#endregion
-export { DESIGN_MODE_KEY, DISCLOSE, DISCLOSURE_SELECTOR, ELEMENTS, HOLDS_WORD, HeldNews, HeldReading, MessageView, PAGE_DRAFT, PAGE_SCOPE, SAYS_IN, SAY_BOX, THREAD, ThreadView, Transcript, aborted, acceptData, activeCommandLabel, allButCommandReference, allThreads, anchorLabel, answeredInWords, arrivalOf, authoredHolder, authoredStates, availableCommandRoutes, awaitsData, beginThreadSeats, beginWalk, bindsInput, blocksOnScreen, bodyText, bringBackSurfaceOf, captureDraftEditing, capturePlace, carryingThreadPlace, claimSeatReplies, claimTraversals, claimed, clearDraft, commandSteps, commitThreadSeats, commitWidgetDescriptors, comparisonBase, comparisonChanges, completeReadingReturn, copyBlock, createAnchorTravel, createPassageSelection, createProjectionPresentation, createReplyView, createVersionController, createWritingResume, currentLocationOrigin, currentLocationThreadId, dataBody, dataReader, declareOffFlowSurface, declareSide, declareThreadParts, descriptorStillMatches, designName, disclosed, dismissReply, dismissReplyAt, dispatchKey, domValue, draftContexts, draftHasContent, draftStore, drawnThreadId, ensureSyntaxLanguage, executeCommand, failSoft, failSoftUnreported, focusThread, focusedThreadTarget, followBoxGrowth, heldGrowth, heldObligation, heldOut, heldPagePlace, heldThread, highlightBlocks, holdPagePlace, holdReplyCompositions, holdThreadPlace, holdToRead, importWidgets, initializeServedDocument, inlineComparison, inlineMarkdownFragment, innermostStance, invokePress, isExternalPageLink, isPageWidgetWorkflow, isWorkflowProgress, joinDataDelivery, keepPageRulesOffLayer, keepRefusedWords, keepThreadLanding, keepView, keyReady, landingPlace, langForPath, leftThePage, listWalkPosition, loadDeferred, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, markdownSourceOffset, markdownWords, messageHolding, messageReading, messageText, mirrorDraft, mountFirstMessage, mountHistory, newsNotice, notifyDataSubscribers, obligationEntry, obligationHolding, obligationPlace, obligationsIn, observeOutputs, onReadingInterrupted, once, openMessageEditIn, openingView, orderChildren, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, paintCoreControls, paintMarkdown, placeKeeper, placeNode, placeOf, placePageThreads, placedMarkdownTokens, placesFailure, prepareAuthoredMessage, progressFace, publishOutput, pushEntry, quietWord, quoteReading, quoted, readBoxPlace, readObligations, readPlace, readThreads, readingBlock, readingIsContinuous, readingReturn, referencedProjection, registerWritingDestination, releaseAuthoredUnder, releaseOutlets, releaseReplies, rememberWriting, renderMarginThread, renderMarkdown, renderSeats, renderSurfaces, replaceEntry, replyAvailable, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, replyIsEditing, replyThreadKey, reportFailure$1 as reportFailure, requireReference, restorePlace, retainThreadSeats, returnPlace, revealHeld, rowWalk, saveDraft, scrollThreadIntoView, selectionAnchor, selfComparison, sendDraft, sendLanding, sendMessage, servedElements, setChildLists, setChildren, setRenderedChildren, settleAcceptedDrafts, settleThread, shadowStage, shallowSigs, showHeld, showHeldThread, showReturnTurn, snapSelection, stack, stepFrom, storedDraft, strongestWorkflow, subjectPlace, suppliedSnapshot, surfaceFocusTarget, synNodes, syntax, tabStore, tellDraft, threadAttention, threadDraft, threadFocusDestination, threadHeading, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading, threadReplyInput, threadRewrites, threadState, threadSummary, threadSurface, threadTodos, todoLabel, toggleInlineComparison, tokenLines, touchPresses, transferDraft, upgradeWidgets, userChoice, userIn, userStore, versionPicker, versionsReading, walkOrigin, walkPosition, walkPositionLabel, watchDisclosures, watchDraft, watchDrafts, watchThreadSurfaces, whereDraft, wholeThread, widgetDescriptor, workflowLabel, workflowStep };
+export { DESIGN_MODE_KEY, DISCLOSE, DISCLOSURE_SELECTOR, ELEMENTS, HOLDS_WORD, HeldNews, HeldReading, MessageView, PAGE_DRAFT, PAGE_SCOPE, SAYS_IN, SAY_BOX, THREAD, ThreadView, Transcript, aborted, acceptData, activeCommandLabel, allButCommandReference, allThreads, anchorLabel, answeredInWords, arrivalOf, authoredHolder, authoredStates, availableCommandRoutes, awaitsData, beginThreadSeats, beginWalk, bindsInput, blocksOnScreen, bodyText, bringBackSurfaceOf, captureDraftEditing, capturePlace, carryingThreadPlace, claimSeatReplies, claimTraversals, claimed, clearDraft, commandSteps, commitThreadSeats, commitWidgetDescriptors, comparisonBase, comparisonChanges, completeReadingReturn, copyBlock, createAnchorTravel, createPassageSelection, createProjectionPresentation, createReplyView, createVersionController, createWritingResume, currentLocationOrigin, currentLocationThreadId, dataBody, dataReader, declareOffFlowSurface, declareSide, declareThreadParts, descriptorStillMatches, designName, disclosed, dismissReply, dismissReplyAt, dispatchKey, domValue, draftContexts, draftHasContent, draftStore, drawnThreadId, ensureSyntaxLanguage, executeCommand, failSoft, failSoftUnreported, focusThread, focusedThreadTarget, followBoxGrowth, heldGrowth, heldObligation, heldOut, heldPagePlace, heldThread, highlightBlocks, holdPagePlace, holdReplyCompositions, holdThreadPlace, holdToRead, importWidgets, initializeServedDocument, inlineComparison, inlineMarkdownFragment, innermostStance, invokePress, isExternalPageLink, isPageWidgetWorkflow, isWorkflowProgress, joinDataDelivery, keepPageRulesOffLayer, keepRefusedWords, keepThreadLanding, keepView, keyReady, landingPlace, langForPath, leftThePage, listWalkPosition, loadDeferred, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, markdownSourceOffset, markdownWords, messageHolding, messageReading, messageText, mirrorDraft, mountFirstMessage, mountHistory, newsNotice, notifyDataSubscribers, obligationEntry, obligationHolding, obligationPlace, obligationsIn, observeOutputs, onReadingInterrupted, once, openMessageEditIn, openingView, orderChildren, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, paintCoreControls, paintMarkdown, placeKeeper, placeNode, placeOf, placePageThreads, placedMarkdownTokens, placesFailure, prepareAuthoredMessage, progressFace, publishOutput, pushEntry, quietWord, quoteReading, quoted, readBoxPlace, readObligations, readPlace, readThreads, readingBlock, readingIsContinuous, readingReturn, referencedProjection, registerWritingDestination, releaseAuthoredUnder, releaseOutlets, releaseReplies, rememberWriting, renderMarginThread, renderMarkdown, renderSeats, renderSurfaces, replaceEntry, replyAvailable, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, replyIsEditing, replyThreadKey, reportFailure$1 as reportFailure, requireReference, restorePlace, retainThreadSeats, returnPlace, revealHeld, rowWalk, saveDraft, scrollThreadIntoView, selectionAnchor, selfComparison, sendDraft, sendLanding, sendMessage, servedElements, setChildLists, setChildren, setRenderedChildren, settleAcceptedDrafts, settleThread, shadowStage, shallowSigs, showHeld, showHeldThread, showReturnTurn, snapSelection, stack, stepFrom, storedDraft, strongestWorkflow, subjectPlace, suppliedSnapshot, surfaceFocusTarget, synNodes, syntax, tabStore, tellDraft, threadAttention, threadDraft, threadFocusDestination, threadHeading, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading, threadReplyInput, threadRewrites, threadState, threadSummary, threadSurface, threadTodos, titlePending, todoLabel, toggleInlineComparison, tokenLines, touchPresses, transferDraft, upgradeWidgets, userChoice, userIn, userStore, versionPicker, versionsReading, walkOrigin, walkPosition, walkPositionLabel, watchDisclosures, watchDraft, watchDrafts, watchThreadSurfaces, whereDraft, wholeThread, widgetDescriptor, workflowLabel, workflowStep };

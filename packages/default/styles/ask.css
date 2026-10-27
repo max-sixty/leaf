@@ -80,7 +80,7 @@ lf-ask[data-lf-obligation]::after {
  * The content decides, so there is no attribute for it: an lf-ask of words alone keeps its
  * cards reading down, since there the cards are most of what the reader weighs. The rule
  * reads only those relations: a figure before the list, or one anywhere in an option,
- * such as an image wrapped in the link that opens it. Where the heading sits, and what
+ * such as a drawing wrapped in the link that opens it. Where the heading sits, and what
  * follows the list, change nothing. The list is the lf-ask's own child because the
  * variable that says so does not inherit.
  *
@@ -88,11 +88,18 @@ lf-ask[data-lf-obligation]::after {
  * 50rem and wider. The track held only for a list no taller than its evidence: three
  * cards with drawings beside a five-row table left the window's width beside the table
  * empty, and the reading column was too narrow for it, so every such lf-ask had to ask
- * for the wide measure. */
+ * for the wide measure.
+ *
+ * Options holding a capture, an image or a video, keep reading down, each at the full
+ * width the lf-ask gives it. A capture is drawn at one scale, so a card's share of a
+ * row shrank it, words and all: a panel captured 580px wide stood 248px wide in one of
+ * two cards, and the user found its words too small to read (27 October). A chart
+ * redraws at the width it is given, and a drawing's author fits it to the width it is
+ * shown at (authoring-evidence.md), so either still lays its cards across. */
 lf-ask:has(
-  > :is(figure, img, svg, table, [data-lf-visual]) ~ lf-options,
-  > lf-options > lf-option :is(figure, img, svg, table, [data-lf-visual])
-) {
+    > :is(figure, img, svg, table, [data-lf-visual]) ~ lf-options,
+    > lf-options > lf-option :is(figure, svg, table, [data-lf-visual])
+  ):not(:has(> lf-options > lf-option :is(img, video))) {
   --lf-options-across: 1;
 }
 /* An lf-ask told it has a definite height to fill (`--lf-full-height`, layouts.css), as a

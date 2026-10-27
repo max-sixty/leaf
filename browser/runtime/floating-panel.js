@@ -172,7 +172,7 @@ import { advertisesKeys, parsed, rowArrows } from "./keyboard/bindings.js";
 import { keySequenceModel, keySequenceTemplate } from "./keyboard/key-sequence.js";
 import { pageControls } from "./page-controls.js";
 import { readPlace } from "./history.js";
-import { readThreads, threadState } from "./thread/state.js";
+import { readThreads } from "./thread/state.js";
 import { isNews, threadCounts } from "./thread/model.js";
 import { LeafElement } from "./leaf-element.js";
 import { claimReleaseClick } from "./pointer.js";
@@ -250,7 +250,7 @@ import { excerptWords } from "./words.js";
 import { holdRendering, nextRender, sizeObserver } from "./rendering.js";
 import { boxMotion } from "./box-motion.js";
 import { scrollIntoView } from "./landing-scroll.js";
-import { newsNotice } from "./thread/held-news.js";
+import { gesturedOn, newsNotice } from "./thread/held-news.js";
 import { moveScrollerBy, SCROLL_SLACK, scrollLimit, scrollToEnd } from "./scrolling.js";
 import { showReturnTurn } from "./thread/reply-landing.js";
 import { declareOccluder, declareWindowChrome } from "./geometry.js";
@@ -2386,7 +2386,6 @@ export function createFloatingPanel({
   // Rejected (2026-10-25, #3883 before the single list): holding only rows that would
   // land among the rows in sight, by their geometry, which a list whose rows change
   // section rather than join would have held none of.
-  const gesturedOn = (thread) => threadState().gestured.includes(thread.id);
   // The rows the list draws, each in its section, and the threads joining or moving
   // that it holds: `was` the section a moving row still stands in, null for one new.
   function threadsListing() {

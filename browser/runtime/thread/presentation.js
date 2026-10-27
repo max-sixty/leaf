@@ -13,7 +13,7 @@
    Reply continuity begins after commit and runs independently: its selected route may
    itself need this renderer to finish. Its caret follows the actual returned editor;
    its failures reach the page's existing asynchronous error channel. */
-import { untracked } from "/vendor/browser-runtime.js";
+import { untracked } from "/runtime/framework.js";
 import { keeps } from "../keeps.js";
 import { reportPageError } from "../layer-client.js";
 import { elementById, inChrome } from "../passages.js";

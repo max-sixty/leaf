@@ -107,8 +107,8 @@ ROW = Record(
                             ),
                             "on_user": described("How many rows On me holds.", COUNT),
                             "threads": described(
-                                "What the Leaf panel's Threads mark counts (`thread_counts`): "
-                                "the open threads, and those the user hasn't read.",
+                                "What the Leaf panel counts of the threads (`thread_counts`): "
+                                "the open threads, and of those the ones the user hasn't read.",
                                 object_schema({"open": COUNT, "unread": COUNT}),
                             ),
                         }
@@ -151,8 +151,7 @@ class RowPublisher:
         """Publish for this server process's lifetime, withdrawing failed output."""
         try:
             while True:
-                changes = page_changes(self.page_dir)
-                mark = changes.mark()
+                changes, mark = page_changes(self.page_dir)
                 self.refresh()
                 delay = PRESENCE_CACHE_S
                 if self.transition is not None:

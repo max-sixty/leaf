@@ -5,9 +5,10 @@ Every follower of page files waits on a subscription from here rather than
 polling stamps. A subscription is installed before its constructor returns, and a
 generation taken before an observation retains writes arriving during it.
 Clock-only lifetime and activity transitions still have bounded timed reads. A
-page's subscription accepts exactly the inputs its reading stamps
-(`served_state.reading`), so diagnostics never wake it. watchfiles' public
-`watch` owns platform notifications and polling.
+page's subscription watches the directories its reading reads and accepts exactly
+the inputs it stamps (`served_state.reading`), so diagnostics never wake it and
+the history under `revisions/` costs it nothing. watchfiles' public `watch` owns
+platform notifications and polling.
 
 The kernel's inotify limits are per user and shared with every program the user
 runs, so Leaf can't count on a native watcher however few it holds. When the
@@ -24,7 +25,7 @@ from pathlib import Path
 
 from .findings import Finding, note
 from .page_memory import memo
-from .served_state.reading import outside_inputs, page_input
+from .served_state.reading import outside_inputs, page_input, page_roots
 
 
 class _Started:
@@ -47,9 +48,10 @@ class _Started:
 class FileChanges:
     """One owner's requested directories, pinned through native subscription.
 
-    Missing directories subscribe their nearest existing ancestor; if a selected
-    root disappears while installing, the whole subscription replans before it is
-    returned. Collapsed roots preserve any request for recursive notifications.
+    Missing directories subscribe their nearest existing ancestor, without its
+    tree; if a selected root disappears while installing, the whole subscription
+    replans before it is returned. An owner whose roots can change takes a new
+    subscription when `matches` says the installed one no longer fits.
     """
 
     def __init__(self, roots: dict[Path, bool], accepts, *, collect: bool = False):
@@ -231,12 +233,17 @@ def _changes(paths, recursive, accepts, started):
 
 
 def _existing_roots(requested: dict[Path, bool]) -> dict[Path, bool]:
-    """Resolve missing directories to ancestors that can announce their return."""
+    """Resolve missing directories to ancestors that can announce their return.
+
+    An ancestor stands in without its tree: it reports the missing path's
+    creation, and the owner's next subscription takes the path in, so recursing
+    from it would only watch whatever else lies beneath, such as every page."""
     roots = {}
-    for path, recursive in requested.items():
+    for requested_path, recursive in requested.items():
+        path = requested_path
         while not path.is_dir():
             path = path.parent
-        roots[path] = roots.get(path, False) or recursive
+        roots[path] = roots.get(path, False) or (recursive and path == requested_path)
     return roots
 
 
@@ -261,32 +268,48 @@ class _PageChanges:
         self.changes = None
         self.release = None
 
-    def connect(self, page: Path) -> FileChanges:
-        targets = outside_inputs(page)
-        roots = {target.parent: False for target in targets}
-        roots[page.parent] = False
-        roots[page] = True
+    def connect(self, page: Path) -> tuple[FileChanges, int]:
         with self.lock:
-            if (
-                self.changes is None
-                or self.targets != targets
-                or not self.changes.matches(roots)
-            ):
-                if self.release is not None:
-                    self.release()
-                watched = target_paths(targets)
-                self.changes = FileChanges(
-                    roots,
-                    lambda changed: page_input(page, changed) or changed in watched,
-                )
-                # Threads retain FileChanges, never this memo owner. Discarding
-                # an unheld page memory therefore closes and joins its provider.
-                self.release = weakref.finalize(self, self.changes.close)
-                self.targets = targets
-            return self.changes
+            while True:
+                targets, roots = _page_plan(page)
+                if not self._holds(targets, roots):
+                    self._install(page, targets, roots)
+                generation = self.changes.mark()
+                # The roots follow the page's subdirectories, so a plan taken after
+                # the generation must still match: one created before it is
+                # subscribed now, and one created after it wakes the owner.
+                if self._holds(*_page_plan(page)):
+                    return self.changes, generation
+
+    def _holds(self, targets: set[Path], roots: dict[Path, bool]) -> bool:
+        return (
+            self.changes is not None
+            and self.targets == targets
+            and self.changes.matches(roots)
+        )
+
+    def _install(self, page: Path, targets: set[Path], roots: dict[Path, bool]):
+        if self.release is not None:
+            self.release()
+        watched = target_paths(targets)
+        self.changes = FileChanges(
+            roots,
+            lambda changed: page_input(page, changed) or changed in watched,
+        )
+        # Threads retain FileChanges, never this memo owner. Discarding an unheld
+        # page memory therefore closes and joins its provider.
+        self.release = weakref.finalize(self, self.changes.close)
+        self.targets = targets
 
 
-def page_changes(page: Path) -> FileChanges:
-    """The process's shared page subscription, refreshed when the claim or the
-    page's file grants move what it watches outside the page."""
+def _page_plan(page: Path) -> tuple[set[Path], dict[Path, bool]]:
+    targets = outside_inputs(page)
+    return targets, {target.parent: False for target in targets} | page_roots(page)
+
+
+def page_changes(page: Path) -> tuple[FileChanges, int]:
+    """The process's shared page subscription, refreshed when the page's
+    subdirectories, its claim or its file grants move what it watches, and the
+    generation to wait from. An owner reads the page after taking both, and takes
+    them again after each wake, which is how a new subdirectory joins the watch."""
     return memo(page, _PageChanges).connect(page)

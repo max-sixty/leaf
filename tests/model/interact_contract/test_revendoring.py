@@ -29,6 +29,7 @@ from leaf_dev.page_fixtures import package_selection_args
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import files as files_model
+from leaf import reports as reports_model
 from leaf import revisioning as revisioning_model
 from leaf import service as service_model
 from leaf import session as session_model
@@ -117,7 +118,7 @@ def test_init_revendors_over_a_record_the_running_contract_would_not_admit(
     retired verb above: admission is the schema's only reader, and the logged event
     replays the same either way."""
     publish(page_dir)
-    append_carried_log_record(
+    comment = append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -132,7 +133,9 @@ def test_init_revendors_over_a_record_the_running_contract_would_not_admit(
     result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
 
     assert result.exit_code == 0, result.output
-    after = CliRunner().invoke(cli_model.cli, ["page", "transcript", str(page_dir)])
+    after = CliRunner().invoke(
+        cli_model.cli, ["page", "state", str(page_dir), comment["id"]]
+    )
     assert after.exit_code == 0, after.output
     assert "Does this still mean anything?" in after.output
 
@@ -517,7 +520,7 @@ def test_revendoring_serializes_with_a_worker_report_entering_the_log(
         page_dir,
         monkeypatch,
         "report",
-        lambda: thread_model.cmd_report(
+        lambda: reports_model.cmd_report(
             page_dir, "t-parser", "status", ("value=review",)
         ),
     )
@@ -571,6 +574,7 @@ def test_revendoring_can_change_frozen_thread_widget_vocabulary(
     registry = json.loads((page_dir / "registry.json").read_text())
     options = registry["lf-options"]
     options["x-state"]["decide"] = {
+        "decides": True,
         "detail": {
             "type": "object",
             "properties": {"outcome": {"enum": ["keep"]}},

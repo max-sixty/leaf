@@ -12,7 +12,7 @@ start, with its text as the line (`take_in_hand`), so the thread and the Working
 line show the same words.
 
 The agent's to-do is on a thread, a page widget, an element, or the whole page.
-`leaf task open` writes a `todo` event. A reply that promises work it doesn't
+`leaf task create` writes a `todo` event. A reply that promises work it doesn't
 deliver carries the to-do's title as `todo`, which opens a to-do on the reply's
 thread under the reply's id (`todo_reading`), so one write answers the message and
 keeps the work on the agent. The to-do stays open until a `todo_end` gives it an
@@ -73,7 +73,7 @@ from .findings import Finding, Rejected
 from .obligations import answered_in_words
 from .thread_context import thread_ids, thread_names
 
-# What `task open` takes for the page as a whole; any other id names a widget or an
+# What `task create` takes for the page as a whole; any other id names a widget or an
 # element of the page.
 PAGE_SUBJECT = "page"
 
@@ -350,8 +350,8 @@ def todo_error(
     return log.completion_error(event, todo)
 
 
-def cmd_open(page_dir: Path, subject: str, title: str, owner: str) -> dict:
-    """Open a to-do titled `title`, owed by `owner`, on what `subject` names: a page
+def cmd_create(page_dir: Path, subject: str, title: str, owner: str) -> dict:
+    """Create a to-do titled `title`, owed by `owner`, on what `subject` names: a page
     widget, thread, any other element of the page by its id, or `page` for the
     page as a whole; the record. A thread attachment supplies discussion context
     without making a reply complete the task."""

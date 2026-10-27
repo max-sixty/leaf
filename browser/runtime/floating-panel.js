@@ -1101,8 +1101,7 @@ export function createFloatingPanel({
   // in the page's order, or before it at the end, standing on its view so `r`, `t` and
   // Escape go on from there; or, with none left, back to the list. A thread opened from
   // elsewhere goes back to where it came from. Taking the resolve back, or the log
-  // refusing it, stands the user on its row in Threads, while they have not acted since
-  // (folding.js, `settleThread`).
+  // refusing it, opens the thread again (folding.js, `settleThread`).
   const openThreads = () =>
     inPageOrder(
       threads().filter((candidate) => !candidate.resolved),
@@ -1113,56 +1112,28 @@ export function createFloatingPanel({
     const fromThreads = trail.value.at(-2)?.view === "threads";
     const at = openThreads().indexOf(thread);
     const mayLand = retainUserIntent();
-    let mayRestore = () => false;
-    return {
-      optimistic: () => {
-        if (!mayLand() || trail.value.at(-1) !== route) return false;
-        const kept = openThreads();
-        const next = fromThreads ? (kept[at] ?? kept[at - 1]) : null;
-        if (next) {
-          open({ view: "thread", thread: next.key }, { replace: true, focus: false });
-          const view = shownView();
-          if (view) focusDestination(view, "move");
-        } else back();
-        mayRestore = retainUserIntent();
-        return true;
-      },
-      // Taking the resolve back stands the user on the thread's row, where they are
-      // back at Threads. Where they moved on to the next thread, they stay on it, and
-      // the reopened thread waits in Threads: the reopening arrives with the server's
-      // reading, and a view opening or closing then would move the panel under no
-      // press. The undo door passes the intent of the press that asked for it.
-      reverse: (may = mayRestore) => {
-        if (!may() || !showing({ view: "threads" })) return;
-        const row = shownView()?.querySelector(
-          `.lf-fp-thread[data-key="${CSS.escape(thread.key)}"]`,
-        );
-        if (row) focusDestination(row, "move");
-      },
+    return () => {
+      if (!mayLand() || trail.value.at(-1) !== route) return false;
+      const kept = openThreads();
+      const next = fromThreads ? (kept[at] ?? kept[at - 1]) : null;
+      if (next) {
+        open({ view: "thread", thread: next.key }, { replace: true, focus: false });
+        const view = shownView();
+        if (view) focusDestination(view, "move");
+      } else back();
+      return true;
     };
   }
   // Reopening a thread puts the caret in its reply, which the reopening draws in the
-  // field, so what the user types next is their reply. Taking the reopen back, or the
-  // log refusing it, stands the user on the thread's view again, while they have not
-  // acted since, so the reply they did not write in goes with the reopening
-  // (folding.js, `settleThread`).
+  // field, so what the user types next is their reply.
   function reopenLanding() {
     const route = trail.value.at(-1);
     const mayLand = retainUserIntent();
-    let mayRestore = () => false;
-    return {
-      optimistic: () => {
-        const input = fieldInput();
-        if (!mayLand() || trail.value.at(-1) !== route || !input) return false;
-        focusDestination(input, "move");
-        mayRestore = retainUserIntent();
-        return true;
-      },
-      reverse: (may = mayRestore) => {
-        const view = shownView();
-        if (!may() || trail.value.at(-1) !== route || !view) return;
-        focusDestination(view, "return");
-      },
+    return () => {
+      const input = fieldInput();
+      if (!mayLand() || trail.value.at(-1) !== route || !input) return false;
+      focusDestination(input, "move");
+      return true;
     };
   }
   function back() {

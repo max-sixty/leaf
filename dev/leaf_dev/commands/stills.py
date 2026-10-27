@@ -1191,6 +1191,24 @@ def element_thread_open(page: Page) -> None:
     )
 
 
+def option_thread_open(page: Page) -> None:
+    """A thread on the chosen card of a joined option group, opened from its margin
+    card: the contour standing on a cell its group's frame clips."""
+    as_agent(
+        "thread",
+        "create",
+        "--section",
+        "off-workaround-approve",
+        "--text",
+        "Ship it with the workaround?",
+    )
+    load(page, served_page.get().address)
+    open_card(
+        page,
+        page.locator('[data-lf-margin-for="off-workaround-approve"] .lf-margin-marker'),
+    )
+
+
 def more_menu(page: Page) -> None:
     """The leaf's menu, opened: the agent's state at its head over the page's
     controls."""
@@ -2480,6 +2498,19 @@ STATES = (
         element_thread_open,
         scheme="dark",
         region="#off-t-vendor",
+    ),
+    State(
+        "ship-option-thread-open",
+        "ship-review",
+        option_thread_open,
+        region="#off-workaround-review",
+    ),
+    State(
+        "ship-option-thread-open-dark",
+        "ship-review",
+        option_thread_open,
+        scheme="dark",
+        region="#off-workaround-review",
     ),
     State("ship-card-more-room", "ship-review", card_more_room, viewport=(1440, 600)),
     State(

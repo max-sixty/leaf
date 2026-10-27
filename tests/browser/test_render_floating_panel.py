@@ -104,8 +104,8 @@ def aside(page):
 def test_one_field_starts_a_thread_takes_its_reply_and_settles_it(browser, serve):
     """The field clicked at rest is the field written in. Sending a page comment opens
     its new thread above the row, the same field now replying there, and resolving the
-    thread from its controls moves the user on to Threads, where `z` stands them on its
-    row. The focused field names where the words go, and once they hide that, nothing
+    thread from its controls moves the user on to Threads, and `z` takes them back to
+    the thread, open again. The focused field names where the words go, and once they hide that, nothing
     does: with no view open they go to the page, and over the thread its name says
     which. Escape, once the caret has left the field, puts the thread away."""
     page = floating(browser, serve(LONG_PAGE))
@@ -154,9 +154,10 @@ def test_one_field_starts_a_thread_takes_its_reply_and_settles_it(browser, serve
     with sending(page, "the undo"):
         page.keyboard.press("z")
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "undo"
-    row = page.locator(f"{panel_view('threads')} .lf-fp-thread")
-    expect(row).to_be_focused()
-    page.keyboard.press("Enter")
+    expect(page.locator(panel_view("thread"))).to_be_focused()
+    expect(page.locator(panel_view("thread"))).to_have_attribute(
+        "data-thread", comment["id"]
+    )
     expect(settle).to_have_accessible_name("Resolve thread")
 
     field(page).focus()
@@ -346,9 +347,9 @@ def test_a_thread_s_keys_answer_in_its_view(browser, serve):
     reply is the field and its Resolve stands among the view's controls: Enter on the
     view puts the caret back in the reply with its words, `r` resolves the thread from
     the view, a message in it or its Resolve and moves the user on, here back to
-    Threads with no other thread open, `z` takes the resolve back and stands on its
-    row, Enter on a resolved thread reopens it, and `e` on a message opens the agent's
-    reactions."""
+    Threads with no other thread open, `z` takes the resolve back and opens the
+    thread again, Enter on a resolved thread reopens it, and `e` on a message opens the
+    agent's reactions."""
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, "Is the window long enough?")
     append_carried_log_record(
@@ -388,10 +389,7 @@ def test_a_thread_s_keys_answer_in_its_view(browser, serve):
     expect(threads).to_be_visible()
     with sending(page, "the undo"):
         page.keyboard.press("z")
-    row = threads.locator(".lf-fp-thread")
-    expect(row).to_be_focused()
-    page.keyboard.press("Enter")
-    expect(thread).to_be_visible()
+    expect(thread).to_be_focused()
     expect(settle).to_have_accessible_name("Resolve thread")
 
     # A click on a message's words stands on the part of the thread drawing it.
@@ -461,8 +459,8 @@ def test_a_reaction_in_the_view_stands_as_its_chip_alone(browser, serve):
 def test_resolving_a_thread_from_threads_moves_on_to_the_next(browser, serve):
     """Resolving the thread open from Threads moves the user on to the next open
     thread, focused on its view, while the field says the thread was resolved, so a
-    second `r` resolves that one; taking a resolve back leaves the user where they moved on to;
-    with none left, the user is back at Threads. Escape there puts
+    second `r` resolves that one; taking a resolve back returns the user to the thread
+    they resolved; with none left, the user is back at Threads. Escape there puts
     the view away and returns the user to the page."""
     url = serve(LONG_PAGE)
     panel_comment(serve.page_dir, "Is the window long enough?")
@@ -485,11 +483,11 @@ def test_resolving_a_thread_from_threads_moves_on_to_the_next(browser, serve):
     )
     expect(page.locator(".lf-fp-row")).to_contain_text("Resolved the thread")
     second = page.locator(".lf-fp-head .lf-fp-title").inner_text()
-    # Taking the first resolve back leaves the user on the thread they moved on to.
+    # Taking the first resolve back returns the user to the thread they resolved.
     with sending(page, "the undo"):
         page.keyboard.press("z")
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "undo"
-    expect(page.locator(".lf-fp-head .lf-fp-title")).to_have_text(second)
+    expect(page.locator(".lf-fp-head .lf-fp-title")).to_have_text(first)
     expect(thread).to_be_focused()
     with sending(page, "the second resolve"):
         page.keyboard.press("r")
@@ -497,8 +495,8 @@ def test_resolving_a_thread_from_threads_moves_on_to_the_next(browser, serve):
         e for e in events_model.read_events(serve.page_dir) if e["kind"] == "resolve"
     ]
     assert len(resolved) == 2
-    # The first thread, reopened, is the one open thread left, so the user moves to it.
-    expect(page.locator(".lf-fp-head .lf-fp-title")).to_have_text(first)
+    # The second thread is the one open thread left, so the user moves to it.
+    expect(page.locator(".lf-fp-head .lf-fp-title")).to_have_text(second)
     with sending(page, "the last resolve"):
         page.keyboard.press("r")
     expect(page.locator(panel_view("threads"))).to_be_visible()

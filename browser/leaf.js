@@ -87,7 +87,6 @@ import { currentLocationThreadId } from "./runtime/thread/focus.js";
 import { createPageMapDialog } from "./runtime/page-map-dialog.js";
 import { createObligationView } from "./runtime/obligations/view.js";
 import { createQueueWalk } from "./runtime/queue-walk.js";
-import { OBLIGATION_CONTROL } from "./runtime/obligations/view-elements.js";
 import {
   commandHintLayer,
   createCommandHints,
@@ -453,7 +452,6 @@ const commandHints = createCommandHints({
 });
 
 const currentTarget = createCurrentTarget({
-  isObligationControl: (node) => node?.matches?.(OBLIGATION_CONTROL),
   currentLocationIn: items.currentLocationIn,
 });
 

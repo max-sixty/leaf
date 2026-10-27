@@ -835,21 +835,16 @@ export class ThreadView {
       source: this.node,
       available: () => this.node.isConnected,
     });
-    const land = async (may = mayLand, reverse = false) => {
+    return async () => {
       // The summary is semantically available at once, but a long departing card
       // still puts it below the viewport. Keep this gesture's original authority
       // while its pixels leave; a later user move still vetoes the landing.
       await this.#retirement?.catch(() => {});
       const place = this.#fold?.querySelector(":scope > summary") ?? this.node;
-      if (!may()) return false;
-      // An existing resolved group survives when this card returns. Its summary
-      // cannot hand focus back by disappearing, so the reversal owns that handoff.
-      if (reverse) may.handoff(() => focusDestination(place, "return"));
-      if (!currentLocationIn(place)) return false;
+      if (!mayLand() || !currentLocationIn(place)) return false;
       scrollThreadIntoView(place, focused());
       return true;
     };
-    return { optimistic: () => land(), reverse: (may) => land(may, true) };
   };
 
   #createReply(model) {

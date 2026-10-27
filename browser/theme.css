@@ -2374,6 +2374,9 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
 [data-lf-reading-role=pane] > :not(header, footer)[data-lf-focus-visible] {
   outline: none;
 }
+[data-lf-reading-role=pane]:has(> :not(header, footer)[data-lf-focus-visible]) {
+  --lf-wears-ring: 1;
+}
 [data-lf-reading-role=pane]:has(> :not(header, footer)[data-lf-focus-visible])::after {
   content: "";
   grid-row: 2;

@@ -204,7 +204,6 @@ def test_an_inline_patch_first_paints_at_the_height_it_draws_at(
         for route in boot:
             route.continue_()
         page.unroute_all(behavior="wait")
-        context.close()
     moved = [
         (id, before, after)
         for (id, before), (_, after) in zip(first, drawn, strict=True)

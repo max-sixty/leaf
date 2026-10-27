@@ -573,10 +573,9 @@
   --focus-shadow: 0 0 0 var(--focus-ring-w) var(--accent);
   --target-trace-w: 1.5px;
   --target-trace-ink: color-mix(in srgb, var(--ink-2) 42%, var(--paper));
-  /* The contour on an element a moment is about, such as the target of the thread the
-     user is in (annotation-chrome.css). It stands outside the box at the ring's gap,
-     clear of the words at its edge, so a lighter, thinner accent keeps it apart from the
-     focus ring standing in the same place. */
+  /* SVG annotations stroke their actual contour in this quieter ink. Rectangular
+     annotations use the focus outline cut into brackets (chrome.css), flush outside
+     the target. */
   --mark-contour-w: 1.5px;
   --mark-contour-ink: color-mix(in srgb, var(--accent) 72%, var(--paper));
   /* A pressable never wears the accent as a solid fill: the accent is its ink and its
@@ -2447,6 +2446,9 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
  * itself paints under whatever positioned content scrolls across its edges. */
 [data-lf-reading-role="pane"] > :not(header, footer)[data-lf-focus-visible] {
   outline: none;
+}
+[data-lf-reading-role="pane"]:has(> :not(header, footer)[data-lf-focus-visible]) {
+  --lf-wears-ring: 1;
 }
 [data-lf-reading-role="pane"]:has(
     > :not(header, footer)[data-lf-focus-visible]

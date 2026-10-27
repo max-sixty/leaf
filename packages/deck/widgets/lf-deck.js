@@ -149,8 +149,6 @@ customElements.define(
       const control = (name, icon, label) => {
         const button = offerAction("symbol", `lf-deck-${name}`, label, { icon });
         button.dataset.icon = icon;
-        // A press never takes focus, so no control keeps a frame the others lack.
-        button.addEventListener("mousedown", (event) => event.preventDefault());
         return button;
       };
       this.#back = control("back", "previous", "Back");

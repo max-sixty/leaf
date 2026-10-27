@@ -9398,7 +9398,6 @@ let commandRoutesAtOpen = {
 	on: /* @__PURE__ */ new Map(),
 	off: /* @__PURE__ */ new Map()
 };
-let commandReferenceIsOpen = false;
 let commandReferenceInvoke = null;
 let commandReferenceCatalog = Object.freeze({
 	total: 0,
@@ -9840,7 +9839,7 @@ commandReferenceDialog.addEventListener("cancel", (event) => {
 });
 let commandReferenceReturn = null;
 function showCommandReference(open, restoreFocus, invokeCommand, returnTo) {
-	const fresh = open && !commandReferenceIsOpen;
+	const fresh = open && !commandReferenceDialog.open;
 	const preserveSelection = fresh && Boolean(pageSelection());
 	const handingBack = !open && restoreFocus && currentLocationIn(commandReferenceDialog);
 	const restore = handingBack ? commandReferenceReturn : null;
@@ -9860,7 +9859,6 @@ function showCommandReference(open, restoreFocus, invokeCommand, returnTo) {
 			})
 		};
 	}
-	commandReferenceIsOpen = open;
 	if (fresh) {
 		commandReferenceCatalog = captureCommandReferenceCatalog();
 		commandReferenceState = {
@@ -9882,7 +9880,6 @@ function showCommandReference(open, restoreFocus, invokeCommand, returnTo) {
 			body: results
 		});
 	}
-	commandReferenceDialog.classList.toggle("open", open);
 	if (open && !commandReferenceDialog.open) showNativeLayer(commandReferenceDialog);
 	if (!open) {
 		stopReferenceReading?.();
@@ -9929,14 +9926,13 @@ function activateSelectedCommand() {
 	activateCommandEntry(record.entry);
 	return true;
 }
-const commandReferenceOpen = () => commandReferenceIsOpen;
 const openCommandReference = (invokeCommand, returnTo = null) => showCommandReference(true, true, invokeCommand, returnTo);
 const closeCommandReference = (restoreFocus = true) => showCommandReference(false, restoreFocus, null, null);
 pageScope("command reference", {
 	title: "In the command reference",
 	escape: "inner",
 	root: () => commandReferenceDialog,
-	at: () => commandReferenceOpen(),
+	at: () => commandReferenceDialog.open,
 	claims: EVERYTHING,
 	rows: [
 		{

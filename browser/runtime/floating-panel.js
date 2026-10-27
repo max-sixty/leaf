@@ -681,7 +681,7 @@ export function createFloatingPanel({
   // A long draft offers more room, by the user's press rather than on its own: past
   // three lines a quiet mark stands over the leaf, in the corner the draft leaves free
   // beside its first line, or among an open view's controls, so it takes no room of its own
-  // (skills/leaf/references/interface-principles.md, "A control takes only its own room"). It stood at the end of the
+  // (browser/AGENTS.md, "A control takes only its own room"). It stood at the end of the
   // line over the field until, on 17 October, that line stopped saying where the words
   // go and so stopped standing over them. Pressing it widens the
   // panel and stands the field half the window tall (floating-panel.css), so the words
@@ -1515,7 +1515,7 @@ export function createFloatingPanel({
   // foot until a press on it, or the user scrolling there, shows it; the user's turn
   // stays wholly in sight above the press, its head included (`fitAnswer`). The user
   // chose this growth (2026-10-14), the one case where news may carry what a view shows
-  // without a gesture (`skills/leaf/references/interface-principles.md`, "Stability"), reversing the view
+  // without a gesture (`browser/AGENTS.md`, "Stability"), reversing the view
   // holding its height while the user waited (#2892), which left a short thread's
   // answer behind New reply in a view one message tall. Rejected then and now: holding
   // the answer behind the reader's "1 new reply", which left the reply the user waited
@@ -2368,7 +2368,7 @@ export function createFloatingPanel({
   }
   // A row joining Threads while the list stands, a thread the agent starts, or a row
   // changing section, one a reply reopens or one resolved elsewhere, would move the
-  // rows the user reads there (`skills/leaf/references/interface-principles.md`, "News never moves what the reader
+  // rows the user reads there (`browser/AGENTS.md`, "News never moves what the reader
   // is reading"). So the standing list draws each row in the section it drew it in,
   // and a thread new to it not at all, and says what joined or moved in the notice a
   // thread's held news uses (thread/held-news.js, `newsNotice`) until the user
@@ -2874,7 +2874,7 @@ export function createFloatingPanel({
 
   // ---------- choosing an arrangement ----------
   // A view's choice among its arrangements, at its foot: a symbol, as Leaf's controls
-  // are (skills/leaf/references/interface-principles.md, "Visual grammar"), over the platform's own select, which
+  // are (browser/AGENTS.md, "Visual grammar"), over the platform's own select, which
   // a key, a pointer and a finger each open on its list of words, the chosen one
   // checked. The select stands unseen over the symbol, so it is what each of them
   // presses; its name and choice are the tooltip. The choice is kept for every page,

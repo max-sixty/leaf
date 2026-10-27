@@ -67,7 +67,7 @@
    - `travels: true` says the command takes the user somewhere, as a walk, a scroll or
      a Go-to destination does, so its result may move what they pressed it on. Every
      other command leaves the control it was pressed on where it stood on screen
-     (skills/leaf/references/interface-principles.md, "Stability"). The dispatcher announces it with the
+     (browser/AGENTS.md, "Stability"). The dispatcher announces it with the
      invocation, where the suite's shift watch reads it.
    - A command that enters a layer declares no way back out of it. The layer's own
      owner declares that step, against the open layer rather than against the press

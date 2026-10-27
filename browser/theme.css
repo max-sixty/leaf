@@ -745,7 +745,7 @@ html:not([data-lf-live]) {
 /* A box that holds its own height and scrolls inside it says so, as a bounded block
  * below does: a widget in ordinary flow grows with its content, so a scroller nobody
  * declared is the defect the widget quality check `grows-with-content` names
- * (skills/leaf/references/interface-principles.md, "Space and scrolling"). It does not inherit, so a box inside a
+ * (browser/AGENTS.md, "Space and scrolling"). It does not inherit, so a box inside a
  * declared one answers for its own scroll. */
 @property --lf-holds-height {
   syntax: "<integer>";
@@ -1548,7 +1548,7 @@ dd {
  * own — and moves whatever stands after it, which for a metric is the delta riding
  * against its value. Measured in this stack, `1,412` and `1,398` stand 4.6px apart at
  * --t-2 and `11,111` and `41,208` 15.5px, all four identical once the figures are
- * tabular. That is the movement skills/leaf/references/interface-principles.md forbids,
+ * tabular. That is the movement browser/AGENTS.md's "Leaf's interface" forbids,
  * in the form the norm calls worst — arriving on a poll, with no gesture behind it to
  * explain where the line went.
  *

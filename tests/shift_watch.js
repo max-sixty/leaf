@@ -58,7 +58,7 @@
 //
 // Scrolls a gesture makes. Layout coordinates remove scrolling, so a scroll inside a
 // gesture's rendering would credit itself, though it carries the control the user
-// just pressed out from under their aim (skills/leaf/references/interface-principles.md, "Stability"). So the
+// just pressed out from under their aim (browser/AGENTS.md, "Stability"). So the
 // gesture's aim, the control a press lands on or the one holding focus for a key,
 // keeps its place on screen through that rendering, read fresh in viewport pixels
 // beside the scroll offsets of the boxes that carry it. A scroll may hold it still,
@@ -2160,7 +2160,7 @@
   // standing on its foot with it (its stand): what stands in that stand above the
   // scrollport, such as the view's name, rises with it by the same distance and no
   // more. This is the one place news may carry what is read without a gesture
-  // (`skills/leaf/references/interface-principles.md`, "Stability": an answer the user waits for grows the
+  // (`browser/AGENTS.md`, "Stability": an answer the user waits for grows the
   // panel's thread view).
   const appendGrowth = (around) => {
     if (around.length !== 3) return [];

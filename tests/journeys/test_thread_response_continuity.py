@@ -275,7 +275,7 @@ def test_native_reply_edits_after_semantic_paint_keep_the_first_line(
         assert page.evaluate("window.mirroredReplyEdits") == []
         # Mirrored words size the field from its top as typing would, and the seat's
         # comment box below it moves with its foot, in whichever tab the words arrive
-        # (skills/leaf/references/interface-principles.md, "Stability is owed to the common path").
+        # (browser/AGENTS.md, "Stability is owed to the common path").
         mirrored = reply_editing_pose(editor)
         for coordinate in ("top", "firstLine"):
             assert mirrored[coordinate] == pytest.approx(
@@ -531,7 +531,7 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
     if place == "panel":
         # The panel's view gives the refused turn's room back, and its field grows to
         # show the words handed back whole, as typing grows it: the view's head and the
-        # row over the field move, and nothing outside the panel does (skills/leaf/references/interface-principles.md,
+        # row over the field move, and nothing outside the panel does (browser/AGENTS.md,
         # "Stability is owed to the common path").
         def carried_in_panel(problem):
             return problem.code == "moved-without-input" and any(

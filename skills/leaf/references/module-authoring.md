@@ -50,8 +50,8 @@ Preact Signals it exports `signal`, for private state a command's `when` reads
   that looks like Leaf's controls with `offerAction()` or `offeredAction` by its role, label
   them with `relabel()`, and mark other words the widget writes with
   `generatedElement()` or `generated` ("Generated controls").
-- Keep the box the widget has at first paint ("First paint"), and the rest of
-  [interface-principles.md](interface-principles.md).
+- Keep the box the widget has at first paint ("First paint"), and meet the rest of
+  [interface-goals.md](interface-goals.md).
 - Schedule paints with `frameFor`, observe size with `sizeObserver`, and write repeated
   values through `keeps` ("Scheduling paints", "Writes that change nothing").
 - Record the user's choices only through the widget controller, and keep working state

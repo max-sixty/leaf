@@ -293,7 +293,7 @@ allowance list.
   it and putting it back does so inside `lfUnwatched`.
 - `shift_watch.js` reports a box that moves on screen without input, typing that
   moves its field, and a scroll a gesture makes that carries the control it was made
-  on, unless the gesture takes the user somewhere (`skills/leaf/references/interface-principles.md`, "Stability").
+  on, unless the gesture takes the user somewhere (`browser/AGENTS.md`, "Stability").
   It runs on every test except those marked `shifts_unsurveyed`, which opt in per test
   with `watch_shifts`. Playwright's clicks, keys, viewport resizes, and Back and
   Forward are input; a script's `click()`, a value set by script and server news are
@@ -302,11 +302,11 @@ allowance list.
   hides a shift for half a second after a click, so a test of a news update's stability
   delivers the news after that.
 - `words_watch.js` reports typed words leaving the screen without a key or press
-  (`skills/leaf/references/interface-principles.md`, "Words stay where they were typed"). A test that closes a box
+  (`browser/AGENTS.md`, "Words stay where they were typed"). A test that closes a box
   does it the way a user
   does.
 - `swap_watch.js` reports a row that grows or shrinks across its line as one occupant
-  gives way to another (`skills/leaf/references/interface-principles.md`, "Shared containers determine control
+  gives way to another (`browser/AGENTS.md`, "Shared containers determine control
   dimensions"). Fix the occupant so it takes the row's line.
 
 `input_work_watch.js` tells the shift and words watches which input caused a change. It

@@ -82,7 +82,7 @@ def test_a_refused_reply_folds_away_and_its_words_return_whole(browser, serve, s
     """A reply the log refuses leaves the thread at once and folds away where it
     stood, and the card gives its room back as it folds. The words come back to the
     reply box whole, grown as typing grows it, rather than into the room held from
-    before Send (skills/leaf/references/interface-principles.md, "Stability is owed to the common path")."""
+    before Send (browser/AGENTS.md, "Stability is owed to the common path")."""
     if surface == "margin":
         url = serve(PANEL_PAGE)
         panel_comment(serve.page_dir, "Check the capacity.", {"section": "how-cap"})

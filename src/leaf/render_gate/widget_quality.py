@@ -25,11 +25,11 @@ tag in its values:
 - `example`: each of the package's tags appears in some worked example, since a tag no
   example shows is one no other check reads.
 - `keeps-first-box`: a widget paints its final box before it upgrades, so upgrade adds
-  behavior and moves nothing (`../../../skills/leaf/references/interface-principles.md`, "Stability"). Its reading is
+  behavior and moves nothing (`../../../browser/AGENTS.md`, "Stability"). Its reading is
   `changedBoxes` in `render-checks/widgets.js`, against the box each authored widget had
   at first paint, which the pre-upgrade proof keeps (`scheme.start_with_pre_upgrade_proof`).
 - `grows-with-content`: a box in the widget holds its own height and scrolls inside it,
-  where a widget in ordinary flow grows with what it holds (`../../../skills/leaf/references/interface-principles.md`,
+  where a widget in ordinary flow grows with what it holds (`../../../browser/AGENTS.md`,
   "Space and scrolling"). A box that needs a scroll of its own says so with
   `--lf-holds-height: 1`, as a bounded block does. Its reading is `heldScrollers` in
   `render-checks/widgets.js`, which names a box that scrolls vertically now, or that

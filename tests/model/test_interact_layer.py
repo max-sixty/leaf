@@ -1599,7 +1599,7 @@ def test_kernel_selectors_name_no_package_tag():
 
 def test_layout_style_and_widgets_never_read_each_other():
     """A Layout places boxes, a style sets type and spacing, and a widget reads its own
-    box and the theme's tokens (skills/leaf/references/interface-principles.md, "Space and scrolling"). So a Layout
+    box and the theme's tokens (assets/AGENTS.md, "Space and scrolling"). So a Layout
     class is named only in layouts.css and a style class only in the kernel theme, and
     layouts.css sets no type: where one has to answer another, the owner sets a token
     saying what the box is, as `--lf-full-height` does, and the reader keys on that.
@@ -1714,7 +1714,7 @@ def test_controls_are_built_by_role_and_never_by_face():
 
 
 def test_no_rule_rounds_a_box_edged_on_one_side(tmp_path):
-    """A box marked by a thick edge on one side is not also rounded (skills/leaf/references/interface-principles.md,
+    """A box marked by a thick edge on one side is not also rounded (assets/AGENTS.md,
     "Visual grammar"): a stripe bent around a corner reads as decoration rather than a
     contour, and marks a state another face already shows. A state is one whole contour,
     or a stripe on a square box. Leaf's own sheets and pages are read, a page's from its

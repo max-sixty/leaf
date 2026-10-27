@@ -261,7 +261,7 @@ export function splitEdges() {
 // read its structure: which child is first, last, or only, and what an `h2 + p` rule
 // finds next. An element the runtime adds beside the page's own changes those answers for
 // as long as it stands, so the page's own rules restyle and move its content, which
-// nothing Leaf draws may do (browser/AGENTS.md, "Leaf's chrome"). What the runtime
+// nothing Leaf draws may do (browser/AGENTS.md, "Space and scrolling"). What the runtime
 // says about an element stands in the chrome instead (details-shelf.js).
 //
 // The page's own elements are the document tree under `main`, the authored content root.

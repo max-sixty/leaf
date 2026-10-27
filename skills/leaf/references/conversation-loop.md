@@ -35,8 +35,8 @@ first:
 leaf thread reply <answer.ref> --ephemeral --text "<what you will do, in a line>"
 ```
 
-The line shows at once as the thread's working message and the panel's **Working**
-status, and it starts the update. Start any other item, such as a
+The line shows at once as the thread's working message and the panel's status, under
+your name, and it starts the update. Start any other item, such as a
 to-do or an action on a page widget, with `leaf task start`:
 
 ```bash

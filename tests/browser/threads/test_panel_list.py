@@ -36,7 +36,7 @@ def test_thread_rows_name_action_in_existing_status(browser, serve):
     resized(page, 1440, 900)
     asked = thread_row(page, PHOTO_THREAD)
     expect(asked.locator(".lf-fp-label")).to_have_text("Workshop room photo")
-    expect(asked.locator(".lf-fp-value")).to_have_text("My turn to answer")
+    expect(asked.locator(".lf-fp-value")).to_have_text("Your turn")
     line = asked.evaluate(
         """row => {
           const label = row.querySelector('.lf-fp-label').getBoundingClientRect();
@@ -70,11 +70,9 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
         markup='<lf-ask id="store-owner">Which store should own the result?</lf-ask>',
     )
     page = open_page(browser, url)
-    expect(thread_row(page, asked).locator(".lf-fp-value")).to_have_text(
-        "My turn to answer"
-    )
+    expect(thread_row(page, asked).locator(".lf-fp-value")).to_have_text("Your turn")
     expect(thread_row(page, answered).locator(".lf-fp-value")).not_to_contain_text(
-        "My turn"
+        "Your turn"
     )
     # The complete answer is news, since nothing on arrival shows it (the question's
     # reply is shown, and so read, at once), and the row's mark says so, in words to
@@ -94,7 +92,7 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
     )
     told(page)
     expect(thread_row(page, answered).locator(".lf-fp-value")).to_contain_text(
-        "My turn"
+        "Your turn"
     )
 
 
@@ -145,7 +143,7 @@ def test_a_title_on_its_way_reads_as_one(browser, serve, request):
     spoken = f"{pending} {opening}"
     expect(label.locator(".lf-thread-name-pending")).to_have_text(pending)
     expect(thread_row(page, root)).to_have_accessible_name(
-        re.compile(f"^{re.escape(spoken)} Sent$")
+        re.compile(f"^{re.escape(spoken)} Saved$")
     )
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
@@ -194,6 +192,6 @@ def test_a_thread_nobody_picked_up_reads_its_opening_words(browser, serve):
     )["id"]
     page = open_page(browser, url)
     row = thread_row(page, root)
-    expect(row.locator(".lf-fp-value")).to_have_text("Waiting for delivery")
+    expect(row.locator(".lf-fp-value")).to_have_text("Haven't seen it yet")
     expect(row.locator(".lf-fp-label")).to_have_text(opening)
     assert not take_browser_errors(page)

@@ -881,7 +881,7 @@ function mountAnnotationControls() {
 		when: () => watchers.size > 0,
 		run: () => {
 			setAnnotationsHidden(!hidden.value);
-			notice(!hidden.value ? "Annotations shown" : coarsePointer.matches ? "Annotations hidden" : "Annotations hidden. o shows them");
+			notice(!hidden.value ? "Annotations shown" : coarsePointer.matches ? "Annotations hidden" : "Annotations hidden — o shows them");
 		}
 	});
 }

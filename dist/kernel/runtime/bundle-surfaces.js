@@ -2683,7 +2683,7 @@ function keepRefusedWords(attempts) {
 		selection: atEnd(ctx),
 		generation: randomId()
 	});
-	const sentences = [hidden.length && "Draft kept — g i resumes writing", held && "Reply kept — it returns when its comment sends"].filter(Boolean);
+	const sentences = [hidden.length && "Draft kept — g i resumes writing", held && "Reply kept — it comes back once its comment is saved"].filter(Boolean);
 	return {
 		said: sentences.length ? sentences.join(". ") : null,
 		field: returned.map(shownIn).find(Boolean) ?? null
@@ -3315,22 +3315,22 @@ var MessageEditor = class {
 //#endregion
 //#region runtime/thread/workflow.js
 const STAGE_LABELS = Object.freeze({
-	sending: "Sending",
-	sent: "Sent",
-	queued: "Queued",
-	picked_up: "Delivered",
-	working: "Working",
+	sending: "Saving…",
+	sent: "Saved",
+	queued: "Up next",
+	picked_up: "Got it",
+	working: "On it",
 	replying: "Replying",
 	answered: "Answered"
 });
 const CONDITION_LABELS = Object.freeze({
-	ended: "Turn ended",
+	ended: "Stopped",
 	interrupted: "Interrupted",
-	stale: "Update stale",
+	stale: "Gone quiet",
 	failed: "Failed"
 });
-const WAITING_FOR_DELIVERY = "Waiting for delivery";
-const NOT_ANSWERED = "Not answered";
+const WAITING_FOR_DELIVERY = "Haven't seen it yet";
+const NOT_ANSWERED = "Couldn't answer";
 const workflowLabel = (workflow, { answered = false } = {}) => {
 	if (!workflow) return "";
 	if (workflow.condition) return workflow.condition.kind === "stale" && workflow.condition.operation === "delivery" ? WAITING_FOR_DELIVERY : workflow.condition.kind === "failed" && workflow.condition.operation === "response" ? NOT_ANSWERED : CONDITION_LABELS[workflow.condition.kind] ?? "Failed";
@@ -3352,18 +3352,18 @@ function strongestWorkflow(workflows) {
 	for (const candidate of workflows) if (strongest === null || tier(candidate) < tier(strongest)) strongest = candidate;
 	return strongest;
 }
-const todoLabel = (running) => running ? "Working" : "To-do open";
+const todoLabel = (running) => running ? "On it" : "To-do open";
 function threadAttention(thread) {
 	if (thread.resolved) return null;
 	const workflow = thread.attention?.workflow ? thread.workflows.find((candidate) => candidate.id === thread.attention.workflow) ?? null : null;
 	if (thread.attention?.kind === "needs_user") {
 		const answering = thread.attention.reason === "obligation";
-		const nextMove = answering ? "answer" : workflow?.subject.kind === "thread" ? "resend" : "retry";
+		const nextMove = answering ? "Your turn" : workflow?.subject.kind === "thread" ? "Send it again" : "Try it again";
 		const owed = new Set((thread.obligations ?? []).filter((item) => item.source.kind === "update" && item.next_actor === "agent").map((item) => item.id));
 		const secondary = strongestWorkflow(thread.workflows.filter((candidate) => owed.has(candidate.obligation) && candidate.id !== workflow?.id));
 		return Object.freeze({
 			kind: "needs_user",
-			label: `My turn to ${nextMove}`,
+			label: nextMove,
 			workflow,
 			secondary: [answering ? "" : workflowLabel(workflow), workflowLabel(secondary)].filter(Boolean).join(" · ")
 		});
@@ -3646,7 +3646,6 @@ function authoredHolder(id) {
 	for (const view of authoredHolders.values()) if (view.model.id === id && shown(view)) return view.node;
 	return null;
 }
-const FAILURE_LABEL = "Not answered";
 function messageReading(message, { authoredRank = 0, reactions, workflows, leaves = null }) {
 	const workflow = strongestWorkflow(workflows);
 	const token = isReaction(message) ? tokenEntry(message.token) : null;
@@ -3784,7 +3783,7 @@ var MessageView = class {
           >${dated ? html`<time datetime=${model.timestamp}>${model.age}</time>` : nothing}${model.unread ? html`<span class="lf-msg-new"><span class="lf-quiet">New</span></span>` : nothing}
           ${receipt}
           ${model.leaves ? html`<span class="lf-msg-leaves">${model.leaves}</span>` : nothing}
-          ${model.failure ? html`<span class="lf-msg-failure">${FAILURE_LABEL}</span>` : nothing}
+          ${model.failure ? html`<span class="lf-msg-failure">${NOT_ANSWERED}</span>` : nothing}
           ${model.body.kind === "suggestion" ? html`<span class="lf-suggest-label">Suggestion</span>` : nothing}
           ${model.edited ? html`<span class="lf-edited" title=${model.edited}>edited</span>` : nothing}
           ${this.#kept ? html`<span

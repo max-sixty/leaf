@@ -65,14 +65,14 @@ test("workflow labels retain exact input progress and positive conditions", () =
   const older = workflow("a", "replying");
   const newer = workflow("b", "queued");
   assert.equal(workflowLabel(older), "Replying");
-  assert.equal(workflowLabel(newer), "Queued");
+  assert.equal(workflowLabel(newer), "Up next");
   assert.equal(
     workflowLabel(workflow("ended", "picked_up", { condition: { kind: "ended" } })),
-    "Turn ended",
+    "Stopped",
   );
   assert.equal(
     workflowLabel(workflow("stale", "working", { condition: { kind: "stale" } })),
-    "Update stale",
+    "Gone quiet",
   );
   assert.equal(
     workflowLabel(
@@ -80,7 +80,7 @@ test("workflow labels retain exact input progress and positive conditions", () =
         condition: { kind: "failed", operation: "response" },
       }),
     ),
-    "Not answered",
+    "Couldn't answer",
   );
 });
 
@@ -98,9 +98,9 @@ test("thread attention gives an open user obligation precedence over agent work"
   };
   assert.deepEqual(threadAttention(thread), {
     kind: "needs_user",
-    label: "My turn to answer",
+    label: "Your turn",
     workflow: recovery,
-    secondary: "Working",
+    secondary: "On it",
   });
 });
 
@@ -127,7 +127,7 @@ test("a frozen move that owes nothing leaves an owed thread on the user alone", 
   const [record] = readThreadRecords(threads, FROZEN_BOARD, new Map(), workflows);
   assert.deepEqual(threadAttention(record), {
     kind: "needs_user",
-    label: "My turn to answer",
+    label: "Your turn",
     workflow: null,
     secondary: "",
   });

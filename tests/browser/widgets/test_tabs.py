@@ -1026,7 +1026,7 @@ def test_a_queue_row_names_an_answer_whose_widget_module_arrives_last(browser, s
     expect(answer).to_have_text("Fix")
     # The undo is announced by the name the gesture's own announcement used.
     expect(page.locator(".lf-live")).to_have_text(
-        "Undid: Chose “Escalate to engineering” · just now — sent"
+        "Undid: Chose “Escalate to engineering” · just now"
     )
     assert row.bounding_box() == before
     page.locator("#o-a-long").get_by_role("checkbox").click()

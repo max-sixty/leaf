@@ -35,7 +35,7 @@ import {
   tellDraft,
 } from "../drafts.js";
 import { sendLanding } from "./reply-landing.js";
-import { readCaret, focused, currentLocationIn, onPressAway } from "../focus.js";
+import { drawn, readCaret, focused, currentLocationIn, onPressAway } from "../focus.js";
 import { threadKey } from "./model.js";
 import { closestAcross } from "../passages.js";
 import { retainUserIntent, restrictUserIntent } from "../user-intent.js";
@@ -135,7 +135,7 @@ export function holdReplyCompositions(threads, realize) {
         const replacement =
           compositionOf(destination) ??
           compositionOf(destination?.querySelector(SAY_ROW));
-        if (replacement && replacement.controls.input.checkVisibility())
+        if (replacement && drawn(replacement.controls.input))
           adopt(context, carry(replacement, owner));
       }
     } finally {
@@ -210,7 +210,7 @@ function carry(target, owner) {
     target === owner ||
     owner.retired ||
     !target.binding ||
-    (owner.binding && owner.row.checkVisibility())
+    (owner.binding && drawn(owner.row))
   )
     return target;
   const session = compositions.get(owner.context);
@@ -239,7 +239,7 @@ export function releaseReplies(surface) {
   for (const { owner } of compositions.values()) {
     if (!owner?.binding || !surface.contains(owner.row)) continue;
     const shown = [...views.get(owner.context)].find(
-      (view) => view !== owner && view.controls.input.checkVisibility(),
+      (view) => view !== owner && drawn(view.controls.input),
     );
     if (shown) handOver(shown, owner);
     else {
@@ -287,7 +287,6 @@ function wireReply(
   key,
   row,
   input,
-  send,
   wireInput,
   { hint, hintAside, accessibleName, busy },
 ) {
@@ -297,7 +296,7 @@ function wireReply(
     context: draftCtx,
     key,
     row,
-    controls: { input, send },
+    controls: { input, send: null },
     binding: null,
     changed: () => composition.binding?.onChange(),
   };
@@ -309,7 +308,7 @@ function wireReply(
     accessibleName,
     busy,
     sends: "send",
-    sendBtn: send,
+    sendClass: "lf-thread-send",
     // localStorage notifies other tabs but skips this document. Page, margin, and panel
     // reply boxes are views of one draft here, so they take the same bus directly.
     // Other draft kinds still have one view per document.
@@ -345,6 +344,7 @@ function wireReply(
       },
     ],
   });
+  composition.controls.send = sync.button;
   composition.sync = sync;
   sync();
   return composition;
@@ -458,9 +458,8 @@ export function createReplyView(
     const row = offer("div", "lf-thread-reply");
     const input = offer(TEXT_FIELD);
     input.name = "reply";
-    const send = offer("button", "lf-thread-send", "Send");
-    row.append(input, send);
-    return wireReply(key, row, input, send, commands.wireInput, {
+    row.append(input);
+    return wireReply(key, row, input, commands.wireInput, {
       hint,
       hintAside,
       accessibleName,

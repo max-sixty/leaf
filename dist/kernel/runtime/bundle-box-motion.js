@@ -1,28 +1,11 @@
+import { __exportAll } from "./bundle-rolldown-runtime.js";
 import { TEXT_FIELD, afterSettling, atLayoutPrecision, cancelRender, keeps, layoutPx, move, nextRender, onUserInput } from "./bundle-dom-move.js";
+import { el } from "./bundle-layer-client.js";
 import { hasArea, headerCuts, intersect, nearObserver, nearWindow, paintClips, scrollsContent, shownBox } from "./bundle-geometry.js";
-import { el } from "./bundle-errors.js";
-import { contentRides } from "./bundle-reading-regions.js";
+import { anchorAt, anchorBox, anchorElement, anchorReaches, anchorReading, contentRides, cutFrames, nameAnchor, scrollsWith } from "./bundle-content-layout.js";
 import { inChrome } from "./bundle-passages.js";
-import { anchorAt, anchorBox, anchorElement, anchorReaches, anchorReading, cutFrames, nameAnchor, scrollsWith } from "./bundle-content-layout.js";
-import { motionEasing, motionPlays, motionTime, playMotion } from "./bundle-motion.js";
+import { motionEasing, motionPlays, motionTime, playMotion } from "./bundle-media.js";
 
-//#region \0rolldown/runtime.js
-var __defProp = Object.defineProperty;
-var __exportAll = (all, no_symbols) => {
-	let target = {};
-	for (var name in all) {
-		__defProp(target, name, {
-			get: all[name],
-			enumerable: true
-		});
-	}
-	if (!no_symbols) {
-		__defProp(target, Symbol.toStringTag, { value: "Module" });
-	}
-	return target;
-};
-
-//#endregion
 //#region runtime/target-paint-geometry.js
 const SVG_NS = "http://www.w3.org/2000/svg";
 const SHAPE_STROKE_ROOM = 2;
@@ -999,14 +982,16 @@ function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer, h
 			});
 			const reach = Math.max(0, rtl ? dx : -dx, -dy);
 			if (reach > 0) hold(part.element, "overflow", "visible");
+			const caretRoom = 2;
+			const fieldCut = cut().map((side, index) => side - (index % 2 ? caretRoom : 0));
 			start(part.element, [{
 				"--lf-field-carry": `${dx}px ${dy}px`,
-				"--lf-field-cut": cut().map((side) => `${side}px`).join(" "),
-				"--lf-field-reach": `${reach}px`
+				"--lf-field-cut": fieldCut.map((side) => `${side}px`).join(" "),
+				"--lf-field-reach": `${Math.max(caretRoom, reach)}px`
 			}, {
 				"--lf-field-carry": "0px 0px",
-				"--lf-field-cut": "0px 0px 0px 0px",
-				"--lf-field-reach": `${reach}px`
+				"--lf-field-cut": `0px -${caretRoom}px 0px -${caretRoom}px`,
+				"--lf-field-reach": `${Math.max(caretRoom, reach)}px`
 			}]);
 		}
 		function grow(part, from) {

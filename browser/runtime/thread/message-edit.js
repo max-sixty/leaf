@@ -358,7 +358,6 @@ export class MessageEditor {
     this.input = offer(TEXT_FIELD);
     this.input.name = "edit";
     const actions = offer("span", "lf-msg-edit-actions");
-    const save = offer("button", "lf-msg-control lf-msg-edit-save");
     const cancel = offer("button", "lf-msg-control lf-msg-edit-cancel");
     cancel.type = "button";
     cancel.setAttribute("aria-label", "Discard");
@@ -436,7 +435,7 @@ export class MessageEditor {
       hint: "Edit message",
       accessibleName: () => `Edit message: ${said().slice(0, 60)}`,
       sends: "save",
-      sendBtn: save,
+      sendClass: "lf-msg-control lf-msg-edit-save",
       icon: "save",
       submitIn: actions,
       sentMedia: true,

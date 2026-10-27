@@ -75,7 +75,15 @@ test("A step paints what came before as done and leaves later events open", () =
         event.dataset.state,
       ]),
     );
+  const controls = drawing.controls;
+  const row = drawing.rows[1];
+  const mark = drawing.eventElement("s-work");
+  row.focus();
   assert.equal(drawing.show(2), 2);
+  assert.equal(drawing.controls, controls);
+  assert.equal(drawing.rows[1], row);
+  assert.equal(drawing.eventElement("s-work"), mark);
+  assert.equal(document.activeElement, row, "stepping retains the focused row");
   assert.deepEqual(states(), {
     "s-read": "past",
     "s-work": "running",

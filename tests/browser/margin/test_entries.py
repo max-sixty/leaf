@@ -608,6 +608,10 @@ def test_lit_margin_projection_reorders_retained_controls_without_moving_the_use
     box = action_a.bounding_box()
     page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
     page.mouse.down()
+    # Native pointer focus leaves B before arriving at A. That transfer stays
+    # inside the cluster, so it must not fold the options under the held press.
+    expect(action_a).to_be_focused()
+    expect(host).to_have_attribute("data-lf-options-open", "")
     page.evaluate("() => window.lfRetainedMargin.change()")
     expect(action_a).to_have_accessible_name("Action A now")
     assert action_a.evaluate("node => node === window.lfRetainedMarginA")

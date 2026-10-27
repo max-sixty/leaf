@@ -38,47 +38,66 @@
 // (`unshown`). Every box takes this from here, the floating panel's field and a
 // passage's comment box alike, and a passed error waits in the leaf's menu.
 //
-// What the box holds changes in the turn that changes it: the words and attached images
-// (the field's own value, which its caret and every reader after the writer depend on),
-// and whether a send or upload is under way. What that looks like is painted once per
-// frame, in the runtime's one repaint frame (repaint.js): the send button's name, its
-// disabled state and the placeholder in `paintInputs`, and the floating composer's
-// placement in chrome layout's pass, which runs first. A change marks its box stale and
-// asks for that paint, so a keystroke, an open that loads a draft twice, and a send that
-// settles and closes the box each paint and measure once, after their writes, instead of
-// interleaving a forced style recalculation with each. That paint runs in the frame the
-// change first shows in, so the button and placeholder never trail the words.
+// Lit owns the generated field, hint, errors and action controls. The native editor is
+// retained as a Node part: rendering chrome never replaces its words, caret or history.
+// Local draft and dictation callbacks request Lit updates; shared readings subscribe
+// through SignalWatcher, including focus and errors, without a repaint registry.
 import { rememberWriting } from "../drafts.js";
 import { keys, paintKeysWithin } from "../keyboard/scopes.js";
-import { keeps, keepsHidden, keepsText } from "../keeps.js";
+import { keeps } from "../keeps.js";
 import { advertisesKeys, submitBindings, spell, PRESS } from "../keyboard/bindings.js";
 import { readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "../media.js";
 import { announce } from "../notifications.js";
-import { iconElement, iconTemplate } from "../icons.js";
-import { offeredAction } from "../widget-elements.js";
+import { iconTemplate } from "../icons.js";
 import { drawingThumbnail } from "./drawing-context.js";
 import {
   LitElement,
   html,
-  render as renderHint,
-  effect,
+  render,
+  SignalWatcher,
+  signal,
+  computed,
+  nothing,
+  guard,
+  ref,
   untracked,
 } from "/runtime/framework.js";
 import "./text-field.js";
 import { followBoxGrowth, readBoxPlace } from "../thread/reply-landing.js";
-import { focusDestination, focused } from "../focus.js";
+import { focusDestination, focused, focusRevision } from "../focus.js";
 import { whileConnected } from "../arrivals.js";
-import { move } from "../dom-move.js";
 import { applicationState } from "../semantic-state.js";
 import { errorsReading, passErrorsAt, raiseError } from "../errors.js";
-import { repaint } from "../repaint.js";
 import { sizeObserver } from "../rendering.js";
 import { scrollIntoView } from "../landing-scroll.js";
 import { retainUserIntent } from "../user-intent.js";
+import { coarsePointer } from "../pointer.js";
+import { offered, offeredAction } from "../widget-elements.js";
 
-const inputDrafts = new WeakMap();
+const INPUT_DRAFT = Symbol("composition draft");
 
-const MEDIA_SHELF_TAG = "leaf-attached-media-shelf";
+/** @typedef {CompositionField} CompositionFieldElement For its tag. */
+class CompositionField extends SignalWatcher(LitElement) {
+  createRenderRoot() {
+    return this;
+  }
+  // A send can settle after its row left. Do not reconnect signal subscriptions
+  // for a detached view; connection requests the next draw when it returns.
+  shouldUpdate() {
+    return this.isConnected || !this.hasUpdated;
+  }
+
+  // Wiring configures Lit's hooks and flushes the initial controls before returning.
+  render() {
+    return super.render();
+  }
+  updated() {}
+  performUpdate() {
+    super.performUpdate();
+  }
+}
+customElements.define("leaf-composition-field", CompositionField);
+
 // Another tab's copy of a drawing is a different object holding the same strokes.
 const sameDrawing = (a, b) => a === b || JSON.stringify(a) === JSON.stringify(b);
 let thumbnailVersion = 0;
@@ -88,163 +107,105 @@ let thumbnailVersion = 0;
 // control, so nothing rides along with a comment unseen or beyond the user's reach. The
 // drawing also takes back its last stroke here: the route a pointer or a finger has to
 // that, wherever the composer stands.
-/** @typedef {AttachedMediaShelf} AttachedMediaShelfElement For its tag (`runtime-globals.d.ts`). */
-class AttachedMediaShelf extends LitElement {
-  static properties = {
-    model: { attribute: false },
-  };
-
-  constructor() {
-    super();
-    this.model = { drawing: null, media: [] };
-    this.actions = null;
-    // Whether the pictures are a sent message's, drawn in its face (`sentMedia`).
-    this.sent = false;
-    this.undoIcon = iconElement("undo", "lf-mark-icon");
-    this.removeIcon = iconElement("cross", "lf-mark-icon");
-    // The picture is rebuilt only when the drawing changes, so a repaint that changes
-    // nothing about it leaves its node in place.
-    this.pictured = { drawing: null, target: null, node: null };
-  }
-
-  picture(drawing) {
-    if (
-      !sameDrawing(drawing, this.pictured.drawing) ||
-      this.model.target !== this.pictured.target
-    ) {
-      const node = drawingThumbnail(drawing, this.model.target);
-      // A canvas's changed pixels are not reflected in its markup. Give each rebuilt
-      // picture an identity so DOM readers can distinguish its new ink from the old.
-      node.dataset.lfDrawingVersion = String(++thumbnailVersion);
-      this.pictured = {
-        drawing,
-        target: this.model.target,
-        node,
-      };
-    }
-    return this.pictured.node;
-  }
-
-  createRenderRoot() {
-    return this;
-  }
-
-  present(model, actions) {
-    this.model = model;
-    this.actions = actions;
-    this.performUpdate();
-  }
-
-  updated() {
-    keepsHidden(this, !this.model.drawing && this.model.media.length === 0);
-  }
-
-  render() {
-    const { drawing, media } = this.model;
-    const strokes = drawing?.strokes.length ?? 0;
-    return [
-      drawing
-        ? html`
-            <span class="lf-composer-media-item lf-composer-drawing">
-              <button
-                type="button"
-                class="lf-media-open lf-composer-media-open lf-media-frame"
-                data-lf-media-canvas
-                aria-label=${`Inspect drawing, ${strokes} ${strokes === 1 ? "stroke" : "strokes"}`}
-                title="Inspect drawing"
-                @click=${(event) => {
-                  const canvas = this.picture(drawing);
-                  keeps(
-                    event.currentTarget,
-                    "data-lf-media-alt",
-                    canvas.dataset.lfDrawingContext === "ready"
-                      ? "Drawing over its frozen page context"
-                      : "Drawing",
-                  );
-                  keeps(
-                    event.currentTarget,
-                    "data-lf-media-caption",
-                    canvas.dataset.lfDrawingContext === "ready"
-                      ? ""
-                      : canvas.dataset.lfDrawingContext === "pending"
-                        ? "Drawing only; page preview was not ready when opened."
-                        : "Drawing only; page preview unavailable.",
-                  );
-                }}
-              >
-                ${this.picture(drawing)}
-              </button>
-              <button
-                ${offeredAction(
-                  "mark",
-                  "lf-corner-mark lf-composer-drawing-undo",
-                  "Undo last stroke",
-                )}
-                @mousedown=${(event) => event.preventDefault()}
-                @click=${() => this.actions.undoStroke()}
-              >
-                ${this.undoIcon}
-              </button>
-              <button
-                ${offeredAction("mark", "lf-corner-mark", "Remove drawing")}
-                @mousedown=${(event) => event.preventDefault()}
-                @click=${() => this.actions.removeDrawing()}
-              >
-                ${this.removeIcon}
-              </button>
-            </span>
-          `
-        : null,
-      media.map(({ index, url }) => {
-        const remove = html`<button
-          ${offeredAction(
-            "mark",
-            "lf-corner-mark lf-composer-media-remove",
-            `Remove attached image ${index + 1}`,
-          )}
-          @click=${() => this.actions.removeMedia(index)}
-        >
-          ${iconTemplate("cross", "lf-mark-icon")}
-        </button>`;
-        // A sent message's picture is the one its message draws (markdown.js, the image
-        // rule), in a paragraph of its own as the message sets it, with the removal mark
-        // a rewrite adds.
-        return this.sent
-          ? html`<p class="lf-composer-media-item">
-              <button
-                type="button"
-                class="lf-media-open lf-message-media"
-                data-lf-media-url=${url}
-                aria-label=${`View attached image ${index + 1}`}
-              >
-                <img src=${url} alt="" /></button
-              >${remove}
-            </p>`
-          : html`<span class="lf-composer-media-item">
-              <button
-                type="button"
-                class="lf-media-open lf-composer-media-open lf-media-frame"
-                data-lf-media-url=${url}
-                aria-label=${`View attached image ${index + 1}`}
-              >
-                <img src=${url} alt="" /></button
-              >${remove}
-            </span>`;
-      }),
-    ];
-  }
+function mediaTemplate({ drawing, target, media, sent, actions }) {
+  const strokes = drawing?.strokes.length ?? 0;
+  return [
+    drawing
+      ? html`
+          <span class="lf-composer-media-item lf-composer-drawing">
+            <button
+              type="button"
+              class="lf-media-open lf-composer-media-open lf-media-frame"
+              data-lf-media-canvas
+              aria-label=${`Inspect drawing, ${strokes} ${strokes === 1 ? "stroke" : "strokes"}`}
+              title="Inspect drawing"
+              @click=${(event) => {
+                const canvas = event.currentTarget.querySelector("canvas");
+                keeps(
+                  event.currentTarget,
+                  "data-lf-media-alt",
+                  canvas.dataset.lfDrawingContext === "ready"
+                    ? "Drawing over its frozen page context"
+                    : "Drawing",
+                );
+                keeps(
+                  event.currentTarget,
+                  "data-lf-media-caption",
+                  canvas.dataset.lfDrawingContext === "ready"
+                    ? ""
+                    : canvas.dataset.lfDrawingContext === "pending"
+                      ? "Drawing only; page preview was not ready when opened."
+                      : "Drawing only; page preview unavailable.",
+                );
+              }}
+            >
+              ${guard([JSON.stringify(drawing), target], () => {
+                const canvas = drawingThumbnail(drawing, target);
+                // Pixels do not appear in markup. Give each new picture an identity
+                // so DOM readers distinguish its changed ink.
+                canvas.dataset.lfDrawingVersion = String(++thumbnailVersion);
+                return canvas;
+              })}
+            </button>
+            <button
+              ${offeredAction("mark", "lf-corner-mark lf-composer-drawing-undo", "Undo last stroke")}
+              @mousedown=${(event) => event.preventDefault()}
+              @click=${actions.undoStroke}
+            >
+              ${iconTemplate("undo", "lf-mark-icon")}
+            </button>
+            <button
+              ${offeredAction("mark", "lf-corner-mark", "Remove drawing")}
+              @mousedown=${(event) => event.preventDefault()}
+              @click=${actions.removeDrawing}
+            >
+              ${iconTemplate("cross", "lf-mark-icon")}
+            </button>
+          </span>
+        `
+      : null,
+    media.map(({ index, url }) => {
+      const remove = html`<button
+        ${offeredAction("mark", "lf-corner-mark lf-composer-media-remove", `Remove attached image ${index + 1}`)}
+        @click=${() => actions.removeMedia(index)}
+      >
+        ${iconTemplate("cross", "lf-mark-icon")}
+      </button>`;
+      // A sent message's picture is the one its message draws (markdown.js, the image
+      // rule), in a paragraph of its own as the message sets it, with the removal mark
+      // a rewrite adds.
+      return sent
+        ? html`<p class="lf-composer-media-item">
+            <button
+              type="button"
+              class="lf-media-open lf-message-media"
+              data-lf-media-url=${url}
+              aria-label=${`View attached image ${index + 1}`}
+            >
+              <img src=${url} alt="" /></button
+            >${remove}
+          </p>`
+        : html`<span class="lf-composer-media-item">
+            <button
+              type="button"
+              class="lf-media-open lf-composer-media-open lf-media-frame"
+              data-lf-media-url=${url}
+              aria-label=${`View attached image ${index + 1}`}
+            >
+              <img src=${url} alt="" /></button
+            >${remove}
+          </span>`;
+    }),
+  ];
 }
-
-if (!customElements.get(MEDIA_SHELF_TAG))
-  customElements.define(MEDIA_SHELF_TAG, AttachedMediaShelf);
 
 // A wired field's visible value omits generated image Markdown. Readers outside
 // this module ask through this seam for the complete draft; an unwired box keeps
 // its ordinary value.
-export const draftOf = (ta) => inputDrafts.get(ta)?.value() ?? ta?.value ?? "";
+export const draftOf = (ta) => ta?.[INPUT_DRAFT]?.value() ?? ta?.value ?? "";
 // Ask a wired field to paint again, as its own `sync()` does, where what its hint or
 // name reads has changed and the caller holds the field rather than its wiring.
-export const syncInput = (ta) => inputDrafts.get(ta)?.();
+export const syncInput = (ta) => ta?.[INPUT_DRAFT]?.();
 // The newest error about a box the user has not come back to, which covers its words.
 const errorOver = (ta) =>
   errorsReading().find((error) => error.subject === ta && !error.passed) ?? null;
@@ -252,54 +213,20 @@ const errorOver = (ta) =>
 // those that stand nowhere. A box that stops showing the words passes its errors, so a
 // standing one is always on screen.
 export const standsAtItsBox = (error) =>
-  inputDrafts.has(error.subject) && !error.passed;
+  Boolean(error.subject?.[INPUT_DRAFT]) && !error.passed;
 // Boot binds one input owner to the app's upload command and contextual-hint
 // reading. Fields keep those capabilities for their lifetime; importing this module
 // never installs or replaces application callbacks.
 export function createCompositionInputs({ uploadMedia, inputHint }) {
-  // The repaint frame paints every box whose own state changed since it last ran, and
-  // the previous and current box for focus and for the contextual-entry hint, since
-  // either may need to lose or gain its hint. The repaint owner asks for that paint on
-  // every focus move (repaint.js).
-  const inputPaints = new WeakMap();
-  const stale = new Set();
-  let paintedInput = null;
-  let paintedHintTarget = null;
-  const paintInputs = () => {
-    const held = focused();
-    const input = held && inputPaints.has(held) ? held : null;
+  // Contextual destinations include geometry the application reads in its repaint.
+  // Publish those two values; each field reads them with its other reactive inputs.
+  const hintedBox = signal(null);
+  const hintLabel = signal("");
+  const publishInputHint = () => {
     const hint = inputHint();
-    const hintedInput = hint?.box && inputPaints.has(hint.box) ? hint.box : null;
-    const boxes = new Set([
-      ...stale,
-      paintedInput,
-      input,
-      paintedHintTarget,
-      hintedInput,
-    ]);
-    stale.clear();
-    for (const ta of boxes) inputPaints.get(ta)?.(hint);
-    paintedInput = input;
-    paintedHintTarget = hintedInput;
+    hintedBox.value = hint?.box ?? null;
+    hintLabel.value = hint?.label ?? "";
   };
-  // A box an error stands over is watched for the user no longer seeing its words: put
-  // away, hidden with what holds it, or taken from the page. Its size reports each of
-  // those; the box's own paint passes an error over a box already out of sight.
-  const watched = new WeakSet();
-  const unshown = sizeObserver((entries) => {
-    for (const { target } of entries)
-      if (!target.isConnected || !target.checkVisibility()) passErrorsAt(target);
-  });
-  // A box an error is about, or was about, paints its cover again when the errors change.
-  /** @type {ReturnType<typeof errorsReading>} */
-  let errorsPainted = [];
-  effect(() => {
-    const errors = errorsReading();
-    for (const { subject } of [...errorsPainted, ...errors])
-      if (inputPaints.has(subject)) stale.add(subject);
-    errorsPainted = errors;
-    untracked(repaint);
-  });
   // `sends` states the box's own submit action. Composers send by default; a caller whose
   // action differs, such as adding an option, supplies the matching icon.
   function wireInput(
@@ -315,18 +242,16 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       accessibleName = null,
       save,
       send,
-      sendBtn,
+      sendClass = "",
       sends,
       icon = "send",
-      altBtn = null,
+      altLabel = null,
       altSend = null,
       // `true` to take an attached image; otherwise the sentence the user is told instead.
       // True, or why the box takes no image.
       allowsMedia = /** @type {() => true | string} */ (() => true),
       busy = () => false,
       hasContent = (raw) => Boolean(raw),
-      // The caller's own rendering of what the box holds, run in the box's paint.
-      paint: paintOwn = () => {},
       // A box whose draft can carry a drawing: `read` returns it or null, `replace` puts
       // another in its place (null takes it off), `undoStroke` takes back its last stroke
       // and `remove` takes it off the draft.
@@ -343,38 +268,33 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       sentMedia = false,
     },
   ) {
-    const field = document.createElement("div");
-    field.className = "lf-compose-field";
+    const field = document.createElement("leaf-composition-field");
     ta.before(field);
+    // Changes elsewhere in the page reach a field only when its own reading changes.
+    const focusedHere = computed(() => {
+      focusRevision();
+      return focused() === ta;
+    });
+    const enteringHint = computed(() =>
+      hintedBox.value === ta ? hintLabel.value : "",
+    );
+    const inputError = computed(() => errorOver(ta));
     // A one-line field, such as an option's title, has no line for Return to break, so
     // Return sends it from every keyboard, a phone's included.
     const oneLine = ta.getAttribute("aria-multiline") === "false";
     const sendBindings = () => (oneLine ? ["Enter", "Mod+Enter"] : submitBindings());
     const sendKey = () => spell(sendBindings()[0]);
-    // The placeholder with its send key drawn as a key: the field shows it in place of
-    // the plain placeholder while it is in the field, which is while there is a key to
-    // show.
-    const visibleHint = document.createElement("span");
-    visibleHint.className = "lf-compose-placeholder";
-    visibleHint.slot = "placeholder";
-    const hintLabel = document.createElement("span");
-    const hintKey = document.createElement("kbd");
-    hintKey.className = "lf-key-badge";
-    const hintAsideWords = document.createElement("span");
-    hintAsideWords.className = "lf-compose-placeholder-aside";
-    visibleHint.append(hintLabel, hintKey, hintAsideWords);
-    field.append(ta);
-    (submitIn ?? field).append(sendBtn);
+    // The editor is kept whole in Lit's Node part. A rewrite's submit root sits
+    // beside its existing Discard control, without an extra layout box.
+    const submitEnd = submitIn ? document.createComment("") : null;
+    if (submitIn) submitIn.append(submitEnd);
+    let sendBtn;
+    let mic;
+    let composing = false;
     // Firefox lacks speech recognition; WebKit has it only under its prefix.
     const Recognition =
       globalThis.SpeechRecognition ?? globalThis.webkitSpeechRecognition;
-    const mic =
-      Recognition && icon === "send" && !submitIn
-        ? Object.assign(document.createElement("button"), {
-            type: "button",
-            className: "lf-compose-dictate",
-          })
-        : null;
+    const offersDictation = Boolean(Recognition && icon === "send" && !submitIn);
     let dictation = null;
     let loadingDictation = false;
     let dictationGeneration = 0;
@@ -386,50 +306,18 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       loadingDictation
         ? "Starting microphone…"
         : loadingFailure || dictation?.status || "";
-    if (mic) {
-      mic.append(iconElement("microphone", "lf-action-icon"));
-      field.append(mic);
-    }
-    // The error standing over the box (`errorOver`). It stands in the field, so a press
-    // on it is a press in the box: a reply's stays in its row, which a press elsewhere
-    // would put away (thread/replies.js).
-    const cover = document.createElement("p");
-    cover.className = "lf-compose-error";
-    cover.setAttribute("aria-hidden", "true");
-    cover.hidden = true;
-    // Its words, clipped to the box's whole lines (response.css).
-    const coverWords = document.createElement("span");
-    cover.append(coverWords);
-    field.append(cover);
-    // The user coming back to the covered words by a press or a send key: the cover
-    // lifts with the caret at their end, and nothing is sent.
+    // A send key on covered words lifts the cover and sends nothing.
     const uncover = () => {
       passErrorsAt(ta);
       const end = ta.value.length;
       focusDestination(ta, "move", { caret: [end, end] });
     };
-    cover.addEventListener("pointerdown", (event) => {
-      event.preventDefault();
-      uncover();
-    });
-    const held = () => busy() || errorOver(ta) !== null;
-    // The press's whole face, its box and its glyph's ink (response.css), whatever face
-    // its caller made it with, so a box cannot be handed a send button dressed as
-    // something else. The caller's own classes only place it.
-    sendBtn.classList.add("lf-compose-submit");
-    sendBtn.replaceChildren(iconElement(icon, "lf-action-icon"));
-    const mediaShelf = document.createElement(MEDIA_SHELF_TAG);
-    mediaShelf.className = sentMedia ? "lf-msg-media" : "lf-composer-media scroll";
-    mediaShelf.sent = sentMedia;
-    mediaShelf.setAttribute("role", "group");
-    mediaShelf.setAttribute("aria-label", "Attachments");
-    if (sentMedia) field.append(mediaShelf);
-    else field.before(mediaShelf);
+    const held = () => busy() || inputError.value !== null;
+    let mediaShelf;
     let attachedMedia = [];
     const draftValue = () => writeAttachedMedia(ta.value, attachedMedia);
     const removeMedia = (index) => {
       attachedMedia.splice(index, 1);
-      renderMedia();
       draftChanged();
       rememberWriting(ta);
       focusDestination(ta, "return");
@@ -457,10 +345,9 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     const putMedia = (media) => {
       shelfSeen = { ...shelfSeen, media };
       attachedMedia = [...media];
-      renderMedia();
       draftChanged();
     };
-    const renderMedia = () => {
+    const recordMedia = () => {
       const drawn = drawing?.read() ?? null;
       const media = [...attachedMedia];
       if (shelfSeen && !sameDrawing(drawn, shelfSeen.drawing)) {
@@ -478,29 +365,18 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         );
       }
       shelfSeen = { drawing: drawn, media };
-      mediaShelf.present(
-        Object.freeze({
-          drawing: drawn,
-          target: drawn ? drawing.target() : null,
-          media: attachedMedia.map((path, index) =>
-            Object.freeze({ index, url: scopedMediaUrl(path) }),
-          ),
-        }),
-        {
-          removeMedia,
-          // A press that leaves the drawing keeps the user on the control, for the next
-          // stroke back; one that takes the drawing, and the control with it, returns
-          // them to the words.
-          undoStroke: () => {
-            drawing.undoStroke();
-            if (!drawing.read()) focusDestination(ta, "return");
-          },
-          removeDrawing: () => {
-            drawing.remove();
-            focusDestination(ta, "return");
-          },
-        },
-      );
+    };
+    const mediaActions = {
+      removeMedia,
+      // Keeping a drawing leaves its Undo under the user; removing it returns to words.
+      undoStroke: () => {
+        drawing.undoStroke();
+        if (!drawing.read()) focusDestination(ta, "return");
+      },
+      removeDrawing: () => {
+        drawing.remove();
+        focusDestination(ta, "return");
+      },
     };
     const hydrate = (value) => {
       cancelDictation();
@@ -509,7 +385,6 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       ta.value = restored.text;
       ta.restartHistory();
       shelfSeen = null;
-      renderMedia();
     };
     hydrate(ta.value);
     // Keep the full native placeholder, but paint a copy so only the key can use mono.
@@ -529,126 +404,171 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       const word = sendWord();
       return word.charAt(0).toUpperCase() + word.slice(1);
     };
-    if (altBtn) altBtn.title = altBtn.textContent;
     let sending = false;
     let uploading = false;
     const canSend = () => !sending && !uploading && !held() && hasContent(draftValue());
-    // Everything the box shows about its standing, written only where it differs from
-    // what stands: a text node replaced inside the chrome restyles far more than the node.
-    const paint = (contextualHint) => {
-      // Read the shared logical focus so this hint agrees with the key chips and rings.
-      const currentLocation = focused() === ta;
+    // These are values of native editor state, rather than generated DOM. The
+    // placeholder's rich projection and every action's attributes belong to Lit.
+    const watchError = sizeObserver(() => {
+      if (!ta.isConnected || !ta.checkVisibility()) passErrorsAt(ta);
+    });
+    let watchedError = false;
+    field.render = () => {
+      const hasWords = hasContent(draftValue());
       const advertising = advertisesKeys();
       const sendKeys = advertising ? sendKey() : "";
       const suffix = !advertising
         ? ""
-        : currentLocation
+        : focusedHere.value
           ? sendKeys
-          : contextualHint?.box === ta
-            ? contextualHint.label
-            : "";
+          : enteringHint.value;
       const status = dictationStatus();
       const word = status || label();
       const placeholder = suffix && !status ? `${word} ${suffix}` : word;
       if (ta.placeholder !== placeholder) ta.placeholder = placeholder;
-      const parts = status ? null : hintParts?.();
-      if (hintParts) renderHint(parts ?? word, hintLabel);
-      const aside = status ? "" : hintAside();
-      if ((suffix && !status) || (parts !== null && parts !== undefined) || aside) {
-        if (!hintParts) keepsText(hintLabel, word);
-        keepsText(hintKey, suffix);
-        keepsText(hintAsideWords, aside);
-        if (visibleHint.parentNode !== ta) move(ta, visibleHint, null);
-      } else visibleHint.remove();
       const ariaLabel = name();
       if (ariaLabel) keeps(ta, "aria-label", ariaLabel);
-      let error = errorOver(ta);
+      const parts = status ? null : hintParts?.();
+      const aside = status ? "" : hintAside();
+      const richHint = (suffix && !status) || parts != null || aside;
+      render(
+        richHint
+          ? html` <span class="lf-compose-placeholder" slot="placeholder">
+              <span>${parts ?? word}</span><kbd class="lf-key-badge">${suffix}</kbd
+              ><span class="lf-compose-placeholder-aside">${aside}</span>
+            </span>`
+          : nothing,
+        ta,
+      );
+      let error = inputError.value;
       if (error && !(ta.isConnected && ta.checkVisibility())) {
         passErrorsAt(ta);
         error = null;
       }
-      if (Boolean(error) !== watched.has(ta)) {
-        if (error) {
-          watched.add(ta);
-          unshown.observe(ta);
-        } else {
-          watched.delete(ta);
-          unshown.unobserve(ta);
-        }
+      if (Boolean(error) !== watchedError) {
+        watchedError = Boolean(error);
+        if (error) watchError.observe(ta);
+        else watchError.unobserve(ta);
       }
-      keepsText(coverWords, error?.message ?? "");
-      keeps(cover, "title", error?.message ?? null);
-      keepsHidden(cover, !error);
       const action = sendLabel();
-      keeps(sendBtn, "aria-label", action);
-      // Where Return sends, a line breaks with Shift+Return, which the hover name says
-      // beside the send key, since nothing in the box does.
       const newline =
         sendKeys === spell("Enter") && !oneLine
           ? ` · ${spell("Shift+Enter")} new line`
           : "";
-      keeps(sendBtn, "title", sendKeys ? `${action} (${sendKeys})${newline}` : action);
-      // These native input actions keep their focus seat while refusing a send.
-      keeps(sendBtn, "aria-disabled", !canSend());
-      if (altBtn) keeps(altBtn, "aria-disabled", !canSend());
-      if (mic) {
-        const phase = dictationPhase();
-        const live = phase === "starting" || phase === "listening";
-        const failed = loadingFailure || dictation?.failure;
-        const action = live
-          ? "Stop dictation"
-          : phase === "stopping"
-            ? "Finishing dictation"
-            : failed
-              ? "Retry dictation"
-              : "Dictate";
-        keeps(
-          mic,
-          "data-dictation",
-          phase !== "idle"
-            ? phase
-            : failed && dictation?.failure?.error !== "no-speech"
-              ? "failed"
-              : null,
-        );
-        keeps(mic, "aria-label", action);
-        keeps(mic, "aria-pressed", live);
-        keeps(mic, "aria-description", status || null);
-        keeps(mic, "title", live || !status ? action : `${action} (${status})`);
-      }
+      const phase = dictationPhase();
+      const live = phase === "starting" || phase === "listening";
+      const failed = loadingFailure || dictation?.failure;
+      const micShown = offersDictation && (phase !== "idle" || !hasWords);
+      const micAction = live
+        ? "Stop dictation"
+        : phase === "stopping"
+          ? "Finishing dictation"
+          : failed
+            ? "Retry dictation"
+            : "Dictate";
+      const submitControl = html`<button
+        type="button"
+        ${offered(`${sendClass} lf-compose-submit`)}
+        aria-label=${action}
+        title=${sendKeys ? `${action} (${sendKeys})${newline}` : action}
+        aria-disabled=${String(!canSend())}
+        ?data-lf-empty=${!hasWords}
+        ?hidden=${micShown}
+        @mousedown=${keepEditing}
+        @click=${() => pressed(send)}
+      >
+        ${iconTemplate(icon, "lf-action-icon")}
+      </button>`;
+      if (submitIn) render(submitControl, submitIn, { renderBefore: submitEnd });
+      const drawn = drawing?.read() ?? null;
+      const media = mediaTemplate({
+        drawing: drawn,
+        target: drawn ? drawing.target() : null,
+        media: attachedMedia.map((path, index) => ({
+          index,
+          url: scopedMediaUrl(path),
+        })),
+        sent: sentMedia,
+        actions: mediaActions,
+      });
+      const shelf = html`<div
+        class=${sentMedia ? "lf-msg-media" : "lf-composer-media scroll"}
+        role="group"
+        aria-label="Attachments"
+        ?hidden=${!drawn && attachedMedia.length === 0}
+        ${ref((node) => {
+          mediaShelf = node;
+        })}
+      >
+        ${media}
+      </div>`;
+      const dictationState =
+        phase !== "idle"
+          ? phase
+          : failed && dictation?.failure?.error !== "no-speech"
+            ? "failed"
+            : nothing;
+      const dictationControl = offersDictation
+        ? html`<button
+            type="button"
+            ${offered("lf-compose-dictate")}
+            ?hidden=${!micShown}
+            data-dictation=${dictationState}
+            aria-label=${micAction}
+            aria-pressed=${String(live)}
+            aria-description=${status || nothing}
+            title=${live || !status ? micAction : `${micAction} (${status})`}
+            @mousedown=${(event) => event.preventDefault()}
+          >
+            ${iconTemplate("microphone", "lf-action-icon")}
+          </button>`
+        : nothing;
+      const content = html`
+        ${ta}${sentMedia ? shelf : nothing} ${submitIn ? nothing : submitControl}
+        ${dictationControl}
+        <p
+          class="lf-compose-error"
+          aria-hidden="true"
+          ?hidden=${!error}
+          title=${error?.message ?? nothing}
+          @pointerdown=${(event) => {
+            event.preventDefault();
+            uncover();
+          }}
+        >
+          <span>${error?.message ?? ""}</span>
+        </p>
+      `;
+      const alternate = altLabel
+        ? html`<button
+            type="button"
+            ${offeredAction("word", "lf-compose-alt")}
+            aria-disabled=${String(!canSend())}
+            title=${altLabel}
+            @mousedown=${keepEditing}
+            @click=${() => pressed(altSend)}
+          >
+            ${altLabel}
+          </button>`
+        : nothing;
+      return html`${sentMedia ? nothing : shelf}
+        <div class="lf-compose-field" ?data-words=${hasWords}>${content}</div>
+        ${alternate}`;
     };
-    inputPaints.set(ta, paint);
-    let visibilityQueued = false;
-    const paintSubmitVisibility = () => {
-      visibilityQueued = false;
-      // Whether the box holds a draft, which a control in its corner may read.
-      keeps(field, "data-words", hasContent(draftValue()) ? "" : null);
-      if (mic) {
-        const shown = dictationPhase() !== "idle" || !hasContent(draftValue());
-        keepsHidden(mic, !shown);
-        keepsHidden(sendBtn, shown);
-        if (shown && focused() === sendBtn) focusDestination(ta, "return");
-        if (!shown && focused() === mic) focusDestination(ta, "return");
-      }
-      // Which of its controls the box shows moves its own keys, not the page's.
-      paintKeysWithin(field);
-      if (submitIn) paintKeysWithin(submitIn);
-    };
+    field.updated = () =>
+      untracked(() => {
+        if (sendBtn?.hidden && focused() === sendBtn) focusDestination(ta, "return");
+        if (mic?.hidden && focused() === mic) focusDestination(ta, "return");
+        paintKeysWithin(field);
+        if (submitIn) paintKeysWithin(submitIn);
+      });
     const refresh = () => {
       if (dictationPhase() === "idle") {
         stopDictationRevision?.();
         stopDictationRevision = null;
       }
-      // A button whose visibility follows the draft must join the tab order before
-      // the next key. A composer can load an empty draft and then its saved words
-      // in one turn; paint the final choice once at the microtask checkpoint.
-      paintOwn();
-      if (drawing) renderMedia();
-      stale.add(ta);
-      if (!visibilityQueued) {
-        visibilityQueued = true;
-        queueMicrotask(paintSubmitVisibility);
-      }
+      recordMedia();
+      field.requestUpdate();
     };
     const draftChanged = () => {
       save(draftValue());
@@ -684,10 +604,24 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       if (draftValue() !== value) hydrate(value);
       refresh();
     };
-    inputDrafts.set(ta, sync);
+    ta[INPUT_DRAFT] = sync;
     // The box's first paint names its send button and placeholder, and keeps the focus
     // bookkeeping if a caller wires one the user is already in.
     refresh();
+    // Wiring needs actual controls for their keyboard declarations. First render is
+    // synchronous; subsequent updates use Lit's microtask batching.
+    field.performUpdate();
+    sendBtn = (submitIn ?? field).querySelector(".lf-compose-submit");
+    mic = field.querySelector(".lf-compose-dictate");
+    sync.button = sendBtn;
+    whileConnected(field, (signal) => {
+      coarsePointer.addEventListener("change", refresh, { signal });
+      return () => {
+        watchError.disconnect();
+        watchedError = false;
+        passErrorsAt(ta);
+      };
+    });
     const submit = async (sender) => {
       if (sending || uploading || held()) return;
       cancelDictation();
@@ -795,7 +729,6 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
           run: () => void activateDictation(),
         },
       ]);
-      mic.addEventListener("mousedown", (event) => event.preventDefault());
       whileConnected(ta, (signal) => {
         window.addEventListener("pagehide", cancelDictation, { signal });
         return cancelDictation;
@@ -838,12 +771,13 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
           return false;
         }
         attachedMedia.push(...paths);
-        renderMedia();
         draftChanged();
         // A sent message's pictures stand under its words, where a new one can arrive out
         // of view: it is the attachment's result, so it comes into view once it has its
         // size, unless the user has moved on meanwhile.
         if (sentMedia) {
+          // This command reveals the attachment it just added, after its Lit commit.
+          field.performUpdate();
           const added = mediaShelf.lastElementChild;
           const mayReveal = retainUserIntent();
           void added
@@ -921,27 +855,20 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     // are committed before the click sends them. Held in the box, they were sent
     // unfinished, and the input method's later commit wrote them back into the box the
     // send had just emptied. Enter never meets this, since the input method takes Enter.
-    let composing = false;
     ta.addEventListener("compositionstart", () => (composing = true));
     ta.addEventListener("compositionend", () => (composing = false));
     // A send key, or Send reached by the keyboard, in a covered box lifts the cover and
     // sends nothing (`uncover`).
     const pressed = (sender) => {
-      if (errorOver(ta)) return uncover();
+      if (inputError.value) return uncover();
       if (focused() !== ta) focusDestination(ta, "return");
       submit(sender);
     };
-    for (const [button, sender] of [
-      [sendBtn, send],
-      [altBtn, altSend],
-    ]) {
-      if (!button) continue;
-      button.addEventListener("mousedown", (event) => {
-        if (!composing) event.preventDefault();
-      });
-      button.addEventListener("click", () => pressed(sender));
-    }
     return sync;
+
+    function keepEditing(event) {
+      if (!composing) event.preventDefault();
+    }
 
     function cancelDictation() {
       stopDictationRevision?.();
@@ -955,5 +882,5 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     }
   }
 
-  return { wireInput, paintInputs };
+  return { wireInput, publishInputHint };
 }

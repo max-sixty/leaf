@@ -128,8 +128,8 @@ import { advancePlayback, mergeIntervals } from "./playback.js";
 import { RecordingTimeline } from "./timeline.js";
 
 // Reuse the default package’s selected WebAwesome controls, already shipped with Leaf.
-await import("/vendor/webawesome.esm.js");
-const { Viewer, css: imageCss } = await import("/vendor/images.esm.js");
+import "/vendor/webawesome.esm.js";
+import { Viewer, css as imageCss } from "/vendor/images.esm.js";
 // Dependency styles apply only inside recording widgets. Keeping them in their
 // module makes the same presentation available in an offline export.
 if (!document.querySelector("#lf-trace-library-styles")) {

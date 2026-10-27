@@ -741,9 +741,9 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
     expect(mark).to_have_css("font-size", "0px")
     expect(mark).to_have_css("opacity", "1")
     assert mark.evaluate("el => getComputedStyle(el, '::before').content") == '"✓"'
-    assert mark.evaluate(
-        "el => parseFloat(getComputedStyle(el, '::before').fontSize)"
-    ) > 0
+    assert (
+        mark.evaluate("el => parseFloat(getComputedStyle(el, '::before').fontSize)") > 0
+    )
     assert option.bounding_box() == before, "the selected header state resized its card"
 
     state = mark.bounding_box()
@@ -1446,9 +1446,9 @@ def test_a_group_of_bare_labels_reads_as_a_question_about_the_page(browser, serv
     expect(mark).to_have_css("font-size", "0px")
     expect(mark).to_have_css("opacity", "1")
     assert mark.evaluate("el => getComputedStyle(el, '::before').content") == '"✓"'
-    assert mark.evaluate(
-        "el => parseFloat(getComputedStyle(el, '::before').fontSize)"
-    ) > 0
+    assert (
+        mark.evaluate("el => parseFloat(getComputedStyle(el, '::before').fontSize)") > 0
+    )
 
     page.locator("#job-heater").click()
     expect(page.locator("#job-heater[chosen]")).to_have_count(1)

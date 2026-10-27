@@ -190,11 +190,9 @@ def drawing_comment(page: Page) -> None:
     page.mouse.up()
     page.locator(".lf-composer-drawing").wait_for(state="visible")
     settle(page)
-    context = page.locator(".lf-composer-drawing canvas")
-    if context.count():
-        page.locator(
-            '.lf-composer-drawing canvas[data-lf-drawing-context="ready"]'
-        ).wait_for(state="visible")
+    page.locator(
+        '.lf-composer-drawing canvas[data-lf-drawing-context="ready"]'
+    ).wait_for(state="visible")
 
 
 def drawing_comment_hover(page: Page) -> None:
@@ -605,12 +603,14 @@ def retained_quote(page: Page) -> None:
 
 
 def retained_quote_full(page: Page) -> None:
-    """The same original words opened locally, where this runtime offers it."""
+    """The same original words opened locally. Full quote shows a frame after the
+    thread's messages, once the panel has measured the quotation as cut, so the click
+    waits for it."""
     retained_quote(page)
     child = page.locator("#bg-retained-quote-sample").frame_locator("iframe")
     full = child.get_by_role("button", name="Full quote", exact=True)
-    if full.count():
-        full.click()
+    full.click()
+    expect(full).to_have_attribute("aria-expanded", "true")
 
 
 def progress_messages(page: Page) -> None:
@@ -1110,13 +1110,15 @@ def diff_file_resolved_closed(page: Page) -> None:
 
 
 def diff_file_resolved(page: Page) -> None:
-    """Both conversations under a diff file resolved, and every resolved disclosure the
-    outlet draws opened."""
+    """Both conversations under a diff file resolved, and the outlet's one Resolved
+    disclosure, which holds them, opened."""
     diff_file_resolved_closed(page)
-    diff = page.frame_locator("#dfg-sample iframe").locator("#dfg-patch")
-    folded = diff.locator(".lf-diff-thread-outlet details:not([open]) > summary")
-    while folded.count():
-        folded.first.click()
+    resolved = page.frame_locator("#dfg-sample iframe").locator(
+        "#dfg-patch .lf-diff-thread-outlet details.lf-resolved-threads"
+    )
+    expect(resolved).to_have_count(1)
+    resolved.locator(":scope > summary").click()
+    expect(resolved).to_have_attribute("open", "")
 
 
 def diff_line_composer(page: Page) -> None:
@@ -1362,13 +1364,9 @@ def visual_review_inspection(page: Page) -> None:
 
 def code_reader_feedback(page: Page) -> None:
     """The built reader and the place where its author receives design feedback."""
-    tab = page.get_by_role("tab", name="Comment on the reader")
-    if tab.count():
-        tab.click()
-        settle(page)
-    page.locator(
-        "#code-reader-feedback, #code-targeting-ask"
-    ).scroll_into_view_if_needed()
+    page.get_by_role("tab", name="Comment on the reader").click()
+    settle(page)
+    page.locator("#code-reader-feedback").scroll_into_view_if_needed()
 
 
 def margin_gallery(page: Page) -> None:

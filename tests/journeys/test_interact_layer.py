@@ -21,18 +21,23 @@ from interact_support import (
     add_test_widget,
     append_carried_log_record,
     check,
+    fetch,
     install_payload,
     page_packages,
     publish,
+    vendored_at_another_protocol,
+    vendored_before_a_key_rename,
+    words,
 )
 from leaf_dev.page_fixtures import package_selection_args
+from model.test_interact_layer import PLAIN_PAGE, _replying_after
 
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import files as interact_files
 from leaf import layer as layer_model
 from leaf import packages as packages_model
-from leaf import schema as schema_model
+from leaf.state import kernel_registry
 
 
 def test_an_installed_payload_is_complete_and_launches_outside_the_checkout(
@@ -218,7 +223,8 @@ def test_the_resources_a_fixture_owns_are_taken_from_that_fixture():
         "launch": ("browser, iphone", {"conftest.py"}),
     }
     bypassed = []
-    for path in sorted((ROOT / "tests").glob("*.py")):
+    for path in sorted((ROOT / "tests").rglob("*.py")):
+        named = path.relative_to(ROOT / "tests").as_posix()
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
             called = (
@@ -226,9 +232,9 @@ def test_the_resources_a_fixture_owns_are_taken_from_that_fixture():
                 if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
                 else None
             )
-            if called in owners and path.name not in owners[called][1]:
+            if called in owners and named not in owners[called][1]:
                 owner = owners[called][0]
-                bypassed.append(f"{path.name}:{node.lineno} {called} — {owner} owns it")
+                bypassed.append(f"{named}:{node.lineno} {called} — {owner} owns it")
         for function in (n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)):
             if function.name in closes_to_stop_a_repeating_fault:
                 continue
@@ -295,7 +301,7 @@ def test_the_resources_a_fixture_owns_are_taken_from_that_fixture():
                 ending = ast.unparse(node)
                 if ending.endswith(".close()") and ending[: -len(".close()")] in lent:
                     bypassed.append(
-                        f"{path.name}:{node.lineno} {ending} — the browser fixture does"
+                        f"{named}:{node.lineno} {ending} — the browser fixture does"
                     )
     assert not bypassed, bypassed
 
@@ -399,7 +405,7 @@ def test_no_test_ends_a_process_with_sigkill():
     or KILL in a command a test runs."""
     shell_kill = re.compile(r"\bkill\s+-(?:9|KILL|SIGKILL)\b")
     killed = []
-    for path in sorted((ROOT / "tests").glob("*.py")):
+    for path in sorted((ROOT / "tests").rglob("*.py")):
         for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
             if (
                 (isinstance(node, ast.Attribute) and node.attr == "SIGKILL")
@@ -423,7 +429,10 @@ def test_no_test_ends_a_process_with_sigkill():
                     and shell_kill.search(node.value)
                 )
             ):
-                killed.append(f"{path.name}:{node.lineno} {ast.unparse(node)[:80]}")
+                killed.append(
+                    f"{path.relative_to(ROOT / 'tests')}:{node.lineno} "
+                    + ast.unparse(node)[:80]
+                )
     assert not killed, killed
 
 
@@ -579,7 +588,7 @@ def test_init_revendors_a_page_an_earlier_leaf_left_behind(page_dir):
 
     revendored = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
     assert revendored.exit_code == 0, revendored.output
-    kernel = json.loads((schema_model.ASSETS / "registry.json").read_text())
+    kernel = kernel_registry()
     vendored = json.loads((page_dir / "registry.json").read_text())
     assert vendored["$events"]["kinds"] == kernel["$events"]["kinds"]
     recovered = check(page_dir)
@@ -757,7 +766,7 @@ def test_package_init_starts_one_checked_upgraded_widget(tmp_path, monkeypatch):
         '<lf-risk-note id="risk-note"><strong>Risk note</strong> The retry budget '
         "is three attempts before manual review.</lf-risk-note>"
     )
-    assert (package_root / "theme.css").read_bytes() == b""
+    assert (package_root / "widgets.css").read_bytes() == b""
     module = (package_root / "widgets" / "lf-risk-note.js").read_text()
     checked = runner.invoke(cli_model.cli, ["package", "check", str(package)])
     assert checked.exit_code == 0, checked.output
@@ -940,7 +949,7 @@ def test_package_is_the_unit_that_init_creates_checks_and_vendors(
     )
     assert initialized.exit_code == 0, initialized.output
     # The package's rule reaches the page confined to the package's own widget.
-    assert "@scope (:is(lf-callout)) {" in (page / "theme.css").read_text()
+    assert "@scope (:is(lf-callout)) to (" in (page / "theme.css").read_text()
     assert json.loads((page / "registry.json").read_text())["lf-callout"] == entry
     assert (
         "Use them for short notices."
@@ -1004,3 +1013,109 @@ def test_page_init_vendors_an_explicit_package_without_privileging_it(
     assert removed_registry["$layer"]["packages"] == []
     assert "lf-diagram" not in removed_registry
     assert not (composed / "widgets" / "lf-diagram.js").exists()
+
+
+def test_a_command_re_vendors_its_sessions_page_an_older_leaf_vendored(
+    claimed, server, tmp_path
+):
+    """A reply through a reference names no page, so it is refused on a page an older
+    Leaf vendored, naming the re-vendor. The session's next write naming the page
+    makes that re-vendor itself (`vendoring.renew_layer`), restarting the server at
+    its address, and the reply then goes."""
+    replied = _replying_after(claimed, server, vendored_at_another_protocol)
+    assert replied.returncode != 0, replied.stdout
+    assert f"leaf page init {claimed}" in replied.stderr
+    read = subprocess.run(
+        [*LEAF_COMMAND, "page", "state", str(claimed)],
+        capture_output=True,
+        text=True,
+        timeout=STATED_TIMEOUT,
+        check=False,
+    )
+    assert read.returncode == 0, read.stderr
+    assert "page protocol" in json.loads(read.stdout)["source"]["error"]
+    before = interact_files.read_json(claimed / "registry.json")["$layer"]["generation"]
+    subprocess.run(
+        [
+            *LEAF_COMMAND,
+            "page",
+            "export",
+            str(claimed),
+            "--out",
+            str(tmp_path / "export.html"),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=STATED_TIMEOUT,
+        check=False,
+    )
+    assert (
+        interact_files.read_json(claimed / "registry.json")["$layer"]["generation"]
+        == before
+    )
+    for command in (["page", "claim", str(claimed)], replied.args[len(LEAF_COMMAND) :]):
+        ran = subprocess.run(
+            [*LEAF_COMMAND, *command],
+            capture_output=True,
+            text=True,
+            timeout=STATED_TIMEOUT,
+            check=False,
+        )
+        assert ran.returncode == 0, ran.stderr
+        assert "re-vendor" not in ran.stderr
+    assert fetch(f"{server}/api/state")[0] == 200
+
+
+def test_thread_reply_names_a_published_page_vendored_before_a_key_was_renamed(
+    claimed, server
+):
+    """Admission refuses an old page on the same reading the servers do, after a
+    revision is published as well as before: here the layer and the revision it
+    captured both use the key's old name, in `$keys` and on `lf-ask`, as the older
+    Leaf left them."""
+    replied = _replying_after(claimed, server, vendored_before_a_key_rename)
+    assert replied.returncode != 0, replied.stdout
+    assert "x-noun" in replied.stderr
+    assert f"leaf page init {claimed}" in replied.stderr
+    # The re-vendor it names repairs the page: init runs on it, and the reply goes.
+    for command in (["page", "init", str(claimed)], replied.args[len(LEAF_COMMAND) :]):
+        ran = subprocess.run(
+            [*LEAF_COMMAND, *command],
+            capture_output=True,
+            text=True,
+            timeout=STATED_TIMEOUT,
+            check=False,
+        )
+        assert ran.returncode == 0, ran.stderr
+    assert fetch(f"{server}/api/state")[0] == 200
+
+
+def test_the_browser_gate_reads_a_page_another_leaf_vendored(tmp_path, monkeypatch):
+    """A Leaf update leaves the render gate working on a page an earlier Leaf vendored
+    at this protocol: the gate runs the page under its own runtime and probes, and
+    names the page's Leaf beside its own."""
+    monkeypatch.chdir(tmp_path)
+    runner = CliRunner()
+    page = tmp_path / "page"
+    initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
+    assert initialized.exit_code == 0, initialized.output
+    (page / "index.html").write_text(PLAIN_PAGE, encoding="utf-8")
+    # The identity an earlier Leaf recorded for the layer it vendored.
+    stamp = page / "registry.json"
+    vendored = interact_files.read_json(stamp)
+    vendored["$layer"]["producer"] = {
+        "commit": "a74b08365870",
+        "dirty": False,
+        "committed": "2026-09-26T09:32:21-07:00",
+    }
+    stamp.unlink()
+    stamp.write_text(json.dumps(vendored), encoding="utf-8")
+
+    result = runner.invoke(cli_model.cli, ["page", "check", "--render", str(page)])
+
+    assert result.exit_code == 0, result.output
+    report = json.loads(result.stdout)
+    assert report["browser"]["ran"] == ["render check"]
+    assert "Leaf a74b08365870, committed 2026-09-26T09:32:21-07:00" in words(
+        result.stdout
+    )

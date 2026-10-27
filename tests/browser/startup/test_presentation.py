@@ -188,7 +188,6 @@ def test_a_sample_starts_without_its_host_s_saved_chrome(browser, serve):
     expect(host.locator(PANEL)).to_have_attribute("data-rest", "mark")
     child = host.frame_locator("#practice iframe")
     expect(child.locator(PANEL)).to_have_attribute("data-rest", "row")
-    context.close()
 
 
 def test_a_projected_external_link_gets_the_pages_link_treatment(browser, serve):
@@ -198,15 +197,15 @@ def test_a_projected_external_link_gets_the_pages_link_treatment(browser, serve)
     module = serve.page_dir / "widgets" / "lf-feed.js"
     module.write_text(
         module.read_text()
-        .replace("{offer,", "{keeps, keepsText, offer,")
+        .replace("{keeps,", "{keeps, keepsText,")
         .replace(
             "const row = document.createElement('p');\n"
-            "      row.append(value, offer('button', 'inspect', 'Inspect'));",
+            "      row.append(words, offer('button', 'inspect', 'Inspect'));",
             """const prior = [...this.children].find(row => row.dataset.lfDatum === key);
       const row = prior ?? document.createElement('p');
       const link = row.querySelector('a') ?? document.createElement('a');
-      keeps(link, 'href', value === 'Ready' ? 'https://example.com/status' : '#title');
-      keepsText(link, value);
+      keeps(link, 'href', words === 'Ready' ? 'https://example.com/status' : '#title');
+      keepsText(link, words);
       if (!prior) {
         link.target = '_self';
         link.rel = 'author';
@@ -306,7 +305,7 @@ def test_reduced_motion_reaches_declared_shadow_stages(
     }
     package = tmp_path / ".leaf"
     package.mkdir()
-    (package / "shadow.css").write_text("""
+    (package / "widget-shadow.css").write_text("""
 .pulse { animation: package-pulse 30s linear infinite; }
 .pulse::before { content: 'Activity'; animation: package-pulse 30s linear infinite; }
 @keyframes package-pulse { from { opacity: .25; } to { opacity: 1; } }

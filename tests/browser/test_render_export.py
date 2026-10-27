@@ -168,7 +168,8 @@ def test_interactive_export_runs_captured_local_behavior_without_a_host(
         "request",
         lambda request: (
             external.append(request.url)
-            if request.url != document_url and not request.url.startswith("data:")
+            if request.url != document_url
+            and not request.url.startswith(("data:", "blob:"))
             else None
         ),
     )
@@ -243,7 +244,8 @@ def test_interactive_export_hydrates_captured_deferred_values_offline(
         "request",
         lambda request: (
             external.append(request.url)
-            if request.url != document_url and not request.url.startswith("data:")
+            if request.url != document_url
+            and not request.url.startswith(("data:", "blob:"))
             else None
         ),
     )
@@ -698,10 +700,10 @@ def test_inline_threads_keep_their_words_without_live_controls_in_print(
     expect(thread.locator("button")).not_to_have_count(0)
     if not resolved:
         inline_workflow = thread.locator(".lf-msg-sending")
-        expect(inline_workflow).to_have_text("Working")
+        expect(inline_workflow).to_have_text("On it")
         # The same message in the panel's view of the thread says it the same way.
         panel_workflow = open_panel_thread(live, root["id"]).locator(".lf-msg-sending")
-        expect(panel_workflow).to_have_text("Working")
+        expect(panel_workflow).to_have_text("On it")
         workflow_face = """node => {
           const style = getComputedStyle(node);
           const separator = getComputedStyle(node, '::before');

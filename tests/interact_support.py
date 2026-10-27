@@ -454,6 +454,15 @@ def js_facts(command: str, files) -> str:
     ).stdout
 
 
+def shipped_core_registry() -> dict:
+    """The kernel registry with the core layer's declarations beside it, the layer
+    facts `page init` starts every composition from, unstamped."""
+    return {
+        **cleanup_model.kernel_registry(),
+        **json.loads((schema_model.ASSETS / "registry.json").read_text()),
+    }
+
+
 def shipped_payload():
     """Tracked and unignored candidate files a completed change would ship."""
     listed = subprocess.run(
@@ -1407,6 +1416,7 @@ SHELVED = '<p id="log-daily">Logs roll over at midnight.</p>'
 def deciding_verb(outcomes):
     """The one verb whose `outcome` settles which of a holder's slots retire."""
     return {
+        "decides": True,
         "detail": {
             "type": "object",
             "properties": {"outcome": {"enum": outcomes}},
@@ -1461,7 +1471,7 @@ def trial_family(root: Path) -> None:
     # add_test_widget frames every tag as a card. The slots draw no box of their own;
     # clearing their paragraph margins keeps a retired sibling from leaving a margin
     # trapped against the holder's frame. Geometry is not this family's subject.
-    with (package / "theme.css").open("a") as theme:
+    with (package / "widgets.css").open("a") as theme:
         theme.write(
             "\nlf-current, lf-proposed "
             "{ display: block; margin: 0; padding: 0; border: none; "
@@ -1979,8 +1989,41 @@ def comment_once_served():
         thread.join(timeout=STATED_TIMEOUT)
 
 
+class ContextRecord:
+    """Claude Code's transcript, as tests stand it in (`Harness.entered_context`):
+    every inline handover a hook printed reached the model's context, except those
+    into the turns a test has `dropped`, as Escape during a prompt hook drops them."""
+
+    def __init__(self):
+        self.dropped: set[str] = set()
+
+    def entered(self, harness) -> set[str]:
+        from leaf.delivery import pickup_receipts
+        from leaf.event_log import read_events
+
+        return {
+            event_id
+            for page in service_model.owned_pages(harness.session)
+            for pickup in pickup_receipts(read_events(page), phase="opened")
+            if pickup["session"] == harness.session
+            for event_id in pickup["events"]
+            if pickup["turn"] not in self.dropped
+        }
+
+
 @pytest.fixture
-def claimed(page_dir, monkeypatch):
+def context_record(monkeypatch):
+    record = ContextRecord()
+    monkeypatch.setattr(
+        harness_model.ClaudeCodeHarness,
+        "entered_context",
+        lambda harness, payload: record.entered(harness),
+    )
+    return record
+
+
+@pytest.fixture
+def claimed(page_dir, monkeypatch, context_record):
     """A page claimed by session s1, the way Claude Code's environment claims one:
     it puts the session id and its pid into every Bash tool call."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s1")
@@ -2021,11 +2064,18 @@ def codex_program(tmp_path_factory):
     `CodexHarness.lifetime` looks for above a leaf: a copy of this interpreter wearing that
     name. The name has to be the executable's own, because what a process reports
     is what the kernel loaded — a `#!` script and a symlink both wear the
-    interpreter's, and a copy of /bin/sh is killed on sight on macOS, where that
-    binary's signature is the system's. A framework Python's sys.executable is
-    a launcher that re-execs Python.app, so copy the running binary itself."""
+    interpreter's. A framework Python's sys.executable is a launcher that re-execs
+    Python.app, so copy the running binary itself.
+
+    macOS kills a copy on exec, silently and with SIGKILL, when its signature no
+    longer holds at the new path. A framework build's Python.app binary is signed
+    as part of its bundle, so a copy without the bundle's Info.plist fails that
+    check. Signing the copy ad hoc makes it valid wherever it lies, whichever
+    Python runs the suite."""
     program = tmp_path_factory.mktemp("codex-program") / "codex"
     shutil.copy(psutil.Process().exe(), program)
+    if sys.platform == "darwin":
+        subprocess.run(["codesign", "--force", "--sign", "-", program], check=True)
     return program
 
 
@@ -2078,9 +2128,13 @@ def under_codex(spawn, codex_program):
     pid by accident. It also keeps the command's own status, where the `| cat`
     that produced the shape in the wild would report the pipeline's last exit.
     PYTHONHOME because a copied interpreter has no prefix beside it to find its
-    own standard library in."""
+    own standard library in. It is the copy's alone: the runner drops it before
+    the shell, so the command gets the environment the test gave it, and a
+    Python below it on another base, such as a prepared installation's, still
+    finds its own."""
     runner = (
-        "import subprocess, sys; "
+        "import os, subprocess, sys; "
+        "os.environ.pop('PYTHONHOME'); "
         "sys.exit(subprocess.run(['/bin/sh', '-c', sys.argv[-1]]).returncode)"
     )
 
@@ -2325,7 +2379,7 @@ def add_test_widget(package: Path, tag: str, *, upgrade: bool = False) -> dict:
     declaration = element_declaration(tag, upgrade=upgrade)
     registry[tag] = declaration
     registry_path.write_text(json.dumps(registry, indent=2))
-    with (package / "theme.css").open("a") as theme:
+    with (package / "widgets.css").open("a") as theme:
         theme.write(
             f"\n:scope:is({tag}) {{\n"
             "  display: block;\n"

@@ -23,6 +23,94 @@ from leaf import data as data_model
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
+def test_worktree_summaries_share_columns_without_cramping_their_evidence(
+    request, serve, engine, subtests
+):
+    """A list aligns unlike counts and statuses, whether or not a row has a status
+    word; its narrow rows still wrap, and opening a worktree gives its evidence the
+    whole row rather than one column."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "Worktree columns",
+                '<h1>Worktree columns</h1><lf-worktree-diffs id="trees">'
+                '<lf-worktree id="short" label="Small change" path="/work/short" '
+                'status="changed" files="1" additions="1" deletions="1">'
+                '<p id="evidence">Evidence can use the complete worktree width.</p>'
+                '</lf-worktree><lf-worktree id="long" label="A longer change" '
+                'path="/work/long" status="changed" files="123" additions="12345" '
+                'deletions="1234" binary-files="2"><p>More evidence.</p></lf-worktree>'
+                '<lf-worktree id="unknown" label="Missing checkout" path="/work/missing" '
+                'status="unavailable"><p>No snapshot.</p></lf-worktree>'
+                '<lf-worktree id="clean" label="Clean checkout" path="/work/clean" '
+                'status="clean" files="0" additions="0" deletions="0">'
+                "<p>Nothing changed.</p></lf-worktree>"
+                "</lf-worktree-diffs>",
+            ),
+            packages=("diff",),
+        ),
+    )
+    for width in (1280, 720, 640, 390):
+        with subtests.test(width=width):
+            resized(page, width, 900)
+            reading = page.locator("#trees").evaluate("""node => {
+              const box = n => n && n.getBoundingClientRect().toJSON();
+              return {width: node.clientWidth, viewport: innerWidth,
+                rows: [...node.querySelectorAll('.lf-worktree-summary')].map(summary => ({
+                  box: box(summary), label: box(summary.querySelector('.lf-worktree-identity')),
+                  line: parseFloat(getComputedStyle(summary).lineHeight),
+                  status: box(summary.querySelector('.lf-worktree-status')),
+                  stats: [...summary.querySelector('.lf-worktree-stats').children]
+                    .map(n => ({...box(n), content: n.scrollWidth}))
+                }))};
+            }""")
+            rows = reading["rows"]
+            assert len(rows) == 4
+            # A changed row's counts say it changed; only Clean and Unavailable
+            # carry a status word.
+            assert [row["status"] is not None for row in rows] == [
+                False,
+                False,
+                True,
+                True,
+            ]
+            for row in rows:
+                assert 0 <= row["box"]["left"] < row["box"]["right"] <= width
+                if row["status"]:
+                    assert row["label"]["right"] <= row["status"]["left"]
+                assert all(
+                    stat["right"] <= row["box"]["right"] for stat in row["stats"]
+                )
+                assert all(
+                    stat["content"] <= stat["width"] + 1 for stat in row["stats"]
+                ), [(stat["width"], stat["content"]) for stat in row["stats"]]
+                assert all(
+                    before["right"] < after["left"]
+                    for before, after in zip(row["stats"], row["stats"][1:])
+                )
+            if reading["width"] > 608:
+                if width == 1280:
+                    assert all(row["label"]["height"] <= row["line"] for row in rows)
+                assert rows[2]["status"]["left"] == pytest.approx(
+                    rows[3]["status"]["left"], abs=0.5
+                )
+                assert rows[0]["stats"][0]["left"] > rows[2]["status"]["right"]
+                assert [stat["left"] for stat in rows[0]["stats"]] == pytest.approx(
+                    [stat["left"] for stat in rows[1]["stats"][:3]], abs=0.5
+                )
+            else:
+                assert rows[0]["stats"][0]["top"] >= rows[0]["label"]["bottom"]
+            page.locator("#short > details > summary").click()
+            expect(page.locator("#evidence")).to_be_visible()
+            evidence = page.locator("#short .lf-worktree-body").bounding_box()
+            assert (
+                evidence["width"] > page.locator("#short").bounding_box()["width"] * 0.8
+            )
+            page.locator("#short > details > summary").click()
+
+
 def test_worktree_disclosures_keep_diff_reading_state_and_unknown_totals(
     browser, serve
 ):
@@ -86,6 +174,9 @@ def test_worktree_disclosures_keep_diff_reading_state_and_unknown_totals(
     summary = row.locator(":scope > summary")
     expect(row).to_contain_text("/workspace/leaf.retain-drafts")
     expect(summary).to_contain_text(head[:8])
+    # Counts say a row changed; a word names only what counts can't.
+    expect(summary).not_to_contain_text("Changed")
+    expect(page.locator("#clean-0 > details > summary")).to_contain_text("Clean")
     snapshot = row.locator(
         "details", has=page.get_by_text("Snapshot details", exact=True)
     )
@@ -170,22 +261,18 @@ def test_worktree_disclosures_keep_diff_reading_state_and_unknown_totals(
 
 def test_a_visible_datum_takes_over_pending_thread_motion(browser, serve):
     """Readable geometry before a glide starts is no promise of a final landing."""
+    patch = (
+        "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
+        "@@ -1 +1 @@\n-old\n+new\n"
+    )
     url = serve(
         leaf_page(
             "Datum arrival",
             '<h1>Review</h1><lf-file-tree id="files" for="patch"></lf-file-tree>'
-            '<lf-diff id="patch" source="change"><pre></pre></lf-diff>'
+            f'<lf-diff id="patch"><pre>{escape(patch)}</pre></lf-diff>'
             '<p style="min-height:2000px">Context</p><p id="far">Far thread.</p>',
         ),
         anchored=[("far", "Far thread.")],
-    )
-    data_model.cmd_data_set(
-        serve.page_dir,
-        "change",
-        patch_manifest(
-            "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
-            "@@ -1 +1 @@\n-old\n+new\n"
-        ),
     )
     page = open_page(browser, url)
     datum = page.locator('lf-diff [data-lf-datum=\'["app.py","new",1]\']')
@@ -471,19 +558,29 @@ def test_a_patch_that_failed_stays_failed_when_its_diff_returns(browser, serve, 
         for (let i = 0; i < 3; i++) await new Promise(requestAnimationFrame);
         return diff.querySelector('.lf-error') === failure;
     }""")
-    assert returned, "the returning diff rendered its refused patch again"
+    assert returned, "the returning diff cleared its completed refusal"
     errors = consume_browser_errors(page, '<lf-diff id="d-bad"> failed: ')
     assert len(errors) == 1, errors
+    if bound:
+        data_model.cmd_data_set(serve.page_dir, "bad-patch", one)
+        expect(page.locator("#d-bad [data-line]").last).to_contain_text("y")
+        expect(page.locator("#d-bad .lf-error")).to_have_count(0)
 
 
-def test_an_inline_patch_resumes_preparation_on_return_and_keeps_its_finished_rows(
-    browser, serve
+@pytest.mark.parametrize("bound", [False, True], ids=["inline", "bound"])
+def test_a_patch_resumes_preparation_on_return_and_keeps_its_finished_rows(
+    browser, serve, bound
 ):
     """A departure cuts short preparation, but a settled return keeps its native rows."""
     patch = "diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n-old\n+new\n"
-    url = serve(
-        leaf_page("Returning diff", f'<lf-diff id="patch"><pre>{patch}</pre></lf-diff>')
+    diff = (
+        '<lf-diff id="patch" source="patch-data"><pre></pre></lf-diff>'
+        if bound
+        else f'<lf-diff id="patch"><pre>{patch}</pre></lf-diff>'
     )
+    url = serve(leaf_page("Returning diff", diff))
+    if bound:
+        data_model.cmd_data_set(serve.page_dir, "patch-data", patch)
     page = browser.new_page()
     held = []
     page.route("**/vendor/pierre-parser.esm.js", lambda route: held.append(route))
@@ -497,7 +594,9 @@ def test_an_inline_patch_resumes_preparation_on_return_and_keeps_its_finished_ro
         // Cross the departure task boundary; preparation stays held by the route.
         await new Promise((resolve) => setTimeout(resolve));
         parent.insertBefore(diff, next);
-        await diff.updateComplete;
+        // updateComplete includes the parser we are holding; let the arrival run
+        // without waiting for that preparation before releasing its response.
+        await new Promise((resolve) => setTimeout(resolve));
     }""")
     held[0].continue_()
     wait_until_ready(page)
@@ -514,7 +613,7 @@ def test_an_inline_patch_resumes_preparation_on_return_and_keeps_its_finished_ro
         await diff.updateComplete;
         await diff.sourceRendering;
         return row !== null && row === diff.shadowRoot.querySelector('[data-line]');
-    }"""), "a completed inline patch replaced its rows on return"
+    }"""), "a completed patch replaced its rows on return"
 
 
 def test_an_expanded_diff_file_can_retry_its_failed_chunk_in_place(browser, serve):

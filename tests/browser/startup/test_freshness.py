@@ -52,6 +52,9 @@ def test_a_quiet_page_reads_only_freshness_and_hears_changes(browser, serve):
     )
     told(page)
     assert _traffic(page).asked == asked + 1
+    notice = page.locator(".lf-fp-joined .lf-thread-news")
+    expect(notice).to_have_attribute("title", "1 new thread")
+    notice.click()
     expect(page.locator(".lf-fp-thread", has_text="News.")).to_have_count(1)
 
 
@@ -442,6 +445,9 @@ def test_a_page_whose_read_failed_asks_again_on_its_own(browser, serve):
     assert _traffic(page).asked <= asked + 1
     page.unroute("**/api/state*")
     told(page)
+    notice = page.locator(".lf-fp-joined .lf-thread-news")
+    expect(notice).to_have_attribute("title", "1 new thread")
+    notice.click()
     expect(page.locator(".lf-fp-thread", has_text="Missed.")).to_have_count(1)
     expect(panel_field(page)).not_to_have_attribute("placeholder", OFFLINE)
 

@@ -1,13 +1,14 @@
 """The runtime a developer selects to own a session's delivery.
 
 A user preview exercises a checkout that may know declarations the installed
-plugin does not. Its session therefore uses that checkout's immutable prepared
-installation for hooks and the Codex delivery adapter, before either reads a
-page or changes a turn. An edit selects a new installation: a mutable source
-path cannot identify the Python modules an existing process has loaded. The
-selection lives in the session lifecycle record and ends with its generation;
-ordinary plugin sessions have no selection. Page servers retain their own
-runtime, so choosing delivery does not replace a comparison arm's renderer.
+plugin does not. Its session therefore uses that checkout's launcher for hooks and
+the Codex delivery adapter, before either reads a page or changes a turn. Each hook
+runs the checkout's Python as it stands; a running adapter keeps the modules it
+loaded until it retires, which it does once its task owns no page, as when the
+preview that claimed it stops. The selection lives in the session lifecycle record
+and ends with its generation; ordinary plugin sessions have no selection. Page
+servers retain their own runtime, so choosing delivery does not replace a
+comparison arm's renderer.
 """
 
 import os

@@ -843,14 +843,6 @@ function deferredError(details, error, retry) {
 customElements.define(
   "lf-diff",
   class extends LeafElement {
-    revealPassage = ({ detail }) => {
-      const entry = this.fileEntries?.find(({ node }) => node.contains(detail.target));
-      if (entry?.filtered) {
-        if (this.singleFile) this.selectFile(entry);
-        else this.clearFilter();
-      }
-    };
-
     // The source the last render read, a bound value or an inline patch, and the one
     // whose rendering last started; a departure that cuts a rendering short forgets
     // it, so the return draws it again.
@@ -980,7 +972,6 @@ customElements.define(
         this.inlineSource = dataBody(this).replace(/^\n+/, "").replace(/\n$/, "");
       }
       whileConnected(this, (signal) => {
-        this.addEventListener("lf-reveal", this.revealPassage, { signal });
         // A page diff's file header pins at `--lf-top`, the top of the page's box that
         // scrolls it; one an agent sent in a reply scrolls inside the panel's own list,
         // which declares no such edge. The theme cannot ask that question from inside a shadow tree, so
@@ -1513,6 +1504,10 @@ customElements.define(
         const button = event.target.closest(".lf-diff-line-comment");
         if (button) threadSurface(this).open(button.nextElementSibling);
       });
+      entry.node.addEventListener("beforematch", () => {
+        if (this.singleFile) this.selectFile(entry);
+        else this.clearFilter();
+      });
       const label = entry.record.path || "file";
       entry.fileComment = commentButton(
         label,
@@ -1550,7 +1545,9 @@ customElements.define(
         entry.filtered = this.singleFile
           ? entry.record.path !== this.activePath
           : Boolean(needle && !paths.includes(needle));
-        entry.node.classList.toggle("lf-diff-filtered", entry.filtered);
+        // A file the filter leaves out is hidden until found, so the browser's find
+        // and Leaf's travel to a passage in it show it again (`beforematch`).
+        keeps(entry.node, "hidden", entry.filtered ? "until-found" : null);
       }
       this.markRuns();
       this.refreshDiffTools();

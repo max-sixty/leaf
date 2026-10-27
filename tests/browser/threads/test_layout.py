@@ -501,8 +501,10 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
 
     The chrome sheet reaches the page only through the classes its owner declares
     shared (`chromeSharedClasses`, runtime/stylesheets.js): a rule written outside the
-    block that names any other class is a private rule leaking out, not a widening.
-    Those classes, and the faces the authored theme states for a private name at
+    block that names any other class is a private rule leaking out, not a widening. The
+    guard against page rules (styles/chrome-guard.css) stands outside the block and names
+    only `lf-chrome`, the chrome's own root, which no authored element may wear since
+    the `lf-` namespace is Leaf's; it reaches nothing in the page. Those classes, and the faces the authored theme states for a private name at
     document level, stay off the probe, since the movement their rules cause is the
     reach they were given on purpose."""
     page = open_page(
@@ -521,6 +523,7 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
             else if (r.selectorText) classes(r.selectorText).forEach(c => into.add(c));
             else if (r.cssRules) collect(r.cssRules, into, privateRules); } };
         collect(sheet.cssRules, unscoped, scoped);
+        unscoped.delete("lf-chrome");
         for (const other of [...document.styleSheets, ...document.adoptedStyleSheets]
                  .filter(s => s !== sheet))
             collect(other.cssRules, themed);

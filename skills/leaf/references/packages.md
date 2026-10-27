@@ -48,6 +48,7 @@ The optional bundled packages are:
 | `playground`    | Controls with shared state, preview and output, and typed submission of the configuration.                                                                  |
 | `monitoring`    | Instructions for a release workspace: current state, checks, a run log and a rollback decision.                                                             |
 | `motion`        | `lf-motion`, shared playback and scrubbing for authored animations and video comparisons.                                                                   |
+| `deck`          | `lf-deck`, a pile of decisions the user works through one card at a time.                                                                                   |
 | `visual-review` | Website cases with aligned before-and-after captures and a verdict per case.                                                                                |
 | `playwright`    | Trace import and `lf-trace`, which steps through recorded actions and screenshots.                                                                          |
 | `timeline`      | `lf-timeline`, an authored sequence of events in lanes that the reader steps through, with a playhead and a step list.                                      |

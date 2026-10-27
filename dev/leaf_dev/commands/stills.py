@@ -44,6 +44,7 @@ import traceback
 from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import click
@@ -422,6 +423,31 @@ def card_reply(page: Page) -> None:
     """The first margin card with a reply being typed."""
     card_reply_empty(page)
     page.keyboard.insert_text("A reply being drafted, long enough to wrap onto a line")
+
+
+def card_aging(page: Page) -> None:
+    """An open card follows the clock while its reply is being drafted."""
+    card_reply(page)
+    timestamp = page.locator(".lf-margin-preview time").first.get_attribute("datetime")
+    now = datetime.fromisoformat(timestamp) + timedelta(seconds=30)
+
+    def aged_state(route):
+        response = route.fetch()
+        state = response.json()
+        state["now"] = now.isoformat()
+        route.fulfill(response=response, json=state)
+
+    page.route("**/api/state*", aged_state)
+    for seconds in (30, 60):
+        now = datetime.fromisoformat(timestamp) + timedelta(seconds=seconds)
+        page.clock.set_fixed_time(now)
+        page.evaluate("""() => {
+          window.__lfStillTicked = false;
+          document.addEventListener('lf-tick', () => { window.__lfStillTicked = true; },
+                                    {once: true});
+        }""")
+        page.wait_for_function("() => window.__lfStillTicked")
+        settle(page)
 
 
 def card_reply_large(page: Page) -> None:
@@ -2228,6 +2254,7 @@ STATES = (
         region=".lf-margin-preview",
     ),
     State("plan-card-reply", "review-a-plan", card_reply),
+    State("plan-card-aging", "review-a-plan", card_aging, region=".lf-margin-preview"),
     State(
         "plan-card-held-news",
         "review-a-plan",

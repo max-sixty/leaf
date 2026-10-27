@@ -613,8 +613,9 @@ def with_one_obligation(html):
 
 
 def toggle_queue(page, open=True):
-    """Open or close the panel's On me view from its mark and wait for it to stand."""
-    page.locator(".lf-fp-on-user").click()
+    """Open the panel's On me view from its mark, or close it from the same seat, where
+    its ✕ stands while the view does, and wait for it to stand or go."""
+    page.locator(".lf-fp-on-user" if open else ".lf-fp-close").click()
     panel_settled(page, open=open, view="queue" if open else None)
 
 
@@ -1161,7 +1162,7 @@ UNBREAKABLE_PAGE = leaf_page(
     """
 <h1 id="h">Nothing to break on</h1>
 <div class="layout-tiles" id="numbers">
-  <dl id="m-token" class="panel"><dt>Bucket key</dt><dd><strong>a_very_long_unbroken_identifier</strong></dd></dl>
+  <dl id="m-token" class="metric"><dt>Bucket key</dt><dd><strong>a_very_long_unbroken_identifier</strong></dd></dl>
 </div>
 <p id="p-token">The one it fails on is
 gateway_middleware_authentication_token_bucket_refill_strategy.py, every time.</p>

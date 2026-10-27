@@ -20,9 +20,9 @@ from .layer import (
     named_package,
 )
 from .locations import (
+    first_overlap,
     located,
     location_is_within,
-    locations_overlap,
     path_location,
     path_lock_key,
     paths_same,
@@ -34,6 +34,7 @@ from .schema import (
     ELEMENT_ID,
     HTML_NAME,
     PACKAGE_DIRS,
+    PACKAGE_FILES,
     PAGE_OWNED_DIRS,
     PAGE_OWNED_FILES,
     SCRIPTS_DIR,
@@ -63,7 +64,7 @@ def package_write_lock(*packages: Path):
     keys = {
         path_lock_key(package / name)
         for package in packages
-        for name in (*VENDORED_FILES, *PACKAGE_DIRS, SCRIPTS_DIR)
+        for name in (*PACKAGE_FILES, *PACKAGE_DIRS, SCRIPTS_DIR)
     }
     with contextlib.ExitStack() as held:
         for key in sorted(keys):
@@ -172,18 +173,9 @@ def protected_package_paths(package: Path) -> list:
 
 def refuse_package_overlap(targets: list, protected: list) -> None:
     """Refuse package paths that would write over another package."""
-    located_protected = located(protected)
-    overlap = next(
-        (
-            (target.resolve(), source)
-            for target, target_at in located(targets)
-            for source, source_at in located_protected
-            if locations_overlap(target_at, source_at)
-        ),
-        None,
-    )
-    if overlap:
+    if overlap := first_overlap(located(targets), located(protected)):
         target, source = overlap
+        target = target.resolve()
         raise Refused(
             f"package target {target} overlaps another package {source}; "
             "package scopes must be separate"
@@ -312,7 +304,7 @@ def copy_package_contract(package: Path, staged: Path) -> None:
     as `package init` creates them; `scripts/` is copied only when it exists,
     since most packages ship none.
     """
-    for name in VENDORED_FILES:
+    for name in PACKAGE_FILES:
         source = package / name
         if source.is_file():
             shutil.copy2(source, staged / name)
@@ -376,7 +368,7 @@ def init_starter_widget(
     }
     validate_starter_candidate(package, files)
     refuse_package_overlap(
-        [package, *(package / name for name in (*VENDORED_FILES, *PACKAGE_DIRS))],
+        [package, *(package / name for name in (*PACKAGE_FILES, *PACKAGE_DIRS))],
         protected,
     )
 
@@ -384,8 +376,10 @@ def init_starter_widget(
     for name in PACKAGE_DIRS:
         (package / name).mkdir(exist_ok=True)
     creates = [(module_path, files[f"widgets/{module_name}"])]
-    if not ((package / "theme.css").exists() or (package / "theme.css").is_symlink()):
-        creates.append((package / "theme.css", b""))
+    if not (
+        (package / "widgets.css").exists() or (package / "widgets.css").is_symlink()
+    ):
+        creates.append((package / "widgets.css", b""))
     created = create_package_files(package, creates)
     try:
         replace_files([(registry_path, files["registry.json"], True)])
@@ -402,7 +396,7 @@ def cmd_package_init(package: Path, widget: str | None = None) -> dict:
             return {"package": str(package), "widget": widget}
 
         refuse_package_overlap(
-            [package, *(package / name for name in (*VENDORED_FILES, *PACKAGE_DIRS))],
+            [package, *(package / name for name in (*PACKAGE_FILES, *PACKAGE_DIRS))],
             protected,
         )
 

@@ -61,17 +61,6 @@ name a datum not yet drawn. Where your key is a source location rather than the 
 lasting identity, translate it and read `projectedDatum(widget, key)`, the one matching
 element or `null`.
 
-#### Indicating (experimental)
-
-`indicate(this, attribute, key)` marks the elements `key` names in the referenced
-widget with `data-lf-indicated`, replacing this widget's previous mark through that
-attribute, and returns
-whether it marked anything; pass `null` to clear it, including in your cleanup. It
-doesn't scroll, focus, load, announce or record anything, so a widget may move the mark
-every frame and says in its own words what the mark means. A target whose parts have
-their own look styles `[data-lf-indicated]` in place of the default outline, and calls
-`layoutChanged(this)` after redrawing what a key names.
-
 ## Content helpers
 
 ### Markdown

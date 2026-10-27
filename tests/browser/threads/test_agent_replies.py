@@ -755,8 +755,9 @@ def test_pending_progress_is_the_threads_working_message_and_never_unread(
 @pytest.mark.watch_shifts
 def test_a_new_step_waits_where_its_words_would_move_the_draft(browser, serve):
     """A step's words wrap, so a new step can change the working message's height. In a
-    seat where that would move the reply being typed, the step waits behind the
-    thread's notice, as a reply would, and the draft keeps its place."""
+    seat where that would move the reply being typed, the step waits and the draft
+    keeps its place. The notice says nothing of it, since progress is no unread news,
+    and sending the draft shows it."""
     url = serve(SEATED_OBLIGATION_PAGE)
     root = panel_comment(serve.page_dir, "Which job comes first?", {"section": "jobs"})
     thread_model.post_reply(
@@ -783,15 +784,14 @@ def test_a_new_step_waits_where_its_words_would_move_the_draft(browser, serve):
         ephemeral=True,
     )
     told(page)
-    notice = thread.get_by_role("button", name="1 new message", exact=True)
-    expect(notice).to_be_visible()
     expect(words).to_have_text("Reading the jobs")
+    expect(thread.locator(".lf-thread-news")).to_have_count(0)
     rendered(page)
     assert editor.bounding_box() == pytest.approx(box, abs=0.5)
 
-    notice.click()
+    with sending(page, "the draft"):
+        editor.press("Enter")
     expect(words).to_contain_text("what each one needs before it can start")
-    assert editor.evaluate("box => box.value") == "Start with the mounts."
 
 
 def test_held_news_too_long_for_its_notice_drops_a_later_fact_whole(browser, serve):

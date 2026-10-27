@@ -97,42 +97,6 @@ from leaf.render_gate.scheme import console_finding
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
-def test_sort_source_follows_the_initial_step_when_code_arrives_later(browser, serve):
-    """The film may paint its first step before the code's tokenizer returns."""
-    example = next(path for path in EXAMPLES if path.stem == "rust-sort")
-    context = browser.new_context(
-        reduced_motion="reduce", viewport={"width": 1440, "height": 900}
-    )
-    held = []
-    context.route("**/vendor/syntax.esm.js", lambda route: held.append(route))
-    page = open_page(
-        browser,
-        serve(example),
-        context=context,
-        upgraded=False,
-        wait_until="domcontentloaded",
-    )
-    expect(page.locator("#sort-film .sort-moment")).to_have_attribute(
-        "data-part", "moment:random:7:0"
-    )
-    expect(page.locator("#sort-source [data-lf-indicated]")).to_have_count(0)
-    assert held
-    for route in held:
-        route.continue_()
-    context.unroute_all(behavior="wait")
-    wait_until_ready(page)
-    source = page.locator("#sort-source")
-    indicated = source.locator("[data-lf-indicated]")
-    expect(indicated).to_have_count(1)
-    body = source.bounding_box()
-    line = indicated.bounding_box()
-    assert body["y"] + 40 <= line["y"]
-    assert line["y"] + line["height"] <= body["y"] + body["height"] - 40
-    expect(page.locator("#sort-film .sort-moment")).to_have_attribute(
-        "data-part", "moment:random:7:0"
-    )
-
-
 def test_sort_film_readout_and_narration(browser, serve):
     """Changing step numbers hold their space, and narration renders inline Markdown."""
     example = next(path for path in EXAMPLES if path.stem == "rust-sort")

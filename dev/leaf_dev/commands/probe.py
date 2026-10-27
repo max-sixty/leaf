@@ -24,12 +24,14 @@ from urllib.parse import urlsplit
 
 import click
 from playwright.sync_api import Error as PlaywrightError
+from selenium.common.exceptions import WebDriverException
 
+from leaf.event_log import read_events
 from leaf.findings import Finding
 from leaf.render_checks import PageNotReady
 from leaf.render_gate.scheme import collect_page_exceptions, console_finding
-from leaf_dev import ROOT
-from leaf_dev.arms import base_ref, extract_arm, serving_source
+from leaf_dev import ROOT, ios_safari
+from leaf_dev.arms import base_ref, extract_arm, served_page, serving_source
 from leaf_dev.browser import (
     DESKTOP,
     headless_engine,
@@ -162,9 +164,10 @@ def viewport(value: str) -> tuple[int, int]:
 @click.option(
     "--browser",
     "engine",
-    type=click.Choice(["chromium", "firefox", "webkit"]),
+    type=click.Choice(["chromium", "firefox", "webkit", "ios"]),
     default="chromium",
-    help="The engine to run in: Playwright's Chromium shell, Firefox or WebKit.",
+    help="The engine to run in: Playwright's Chromium shell, Firefox or WebKit, or "
+    "Safari on an iPhone simulator through WebDriver.",
 )
 @click.option(
     "--cpu-throttle",
@@ -198,8 +201,8 @@ def probe(
     throttle,
     base,
 ) -> None:
-    """Open SOURCE in Chromium, Firefox or WebKit (--browser), run each --do step,
-    and print what --js or --journey returns.
+    """Open SOURCE in Chromium, Firefox or WebKit, or Safari on an iPhone simulator
+    (--browser), run each --do step, and print what --js or --journey returns.
 
     SOURCE is an example or fixture name, an authored .html path built fresh
     from this working tree, or any http(s) URL. A path takes its companions from
@@ -267,6 +270,14 @@ def probe(
     motion preference. Native video holds the final frame for at least one second.
     A journey must keep its page and context open for video finalization; if it
     closes its page, the live context can still save the trace and GIF frames.
+
+    --browser ios runs in an iOS simulator's Safari (`leaf_dev.ios_safari`), for a
+    difference only iPhones show. It takes --js, --shot, --scheme, --log and --base; the
+    iPhone sets the viewport, and touch and motion are the simulator's own. Its
+    WebDriver taps reached a page as a pointerdown and touchstart with no pointerup or
+    click (iOS 26.1, 2026-10-27), so it takes no --do steps: --js can call a
+    control's click(). WebDriver reads no console, so an arm reports instead the
+    errors the runtime logged to the page.
     """
     if (gif or actions or checkpoint_images) and record_dir is None:
         raise click.UsageError(
@@ -278,6 +289,12 @@ def probe(
         )
     if throttle and engine != "chromium":
         raise click.UsageError(f"--cpu-throttle needs Chromium's CDP, not {engine}")
+    ios = engine == "ios"
+    if ios and (steps or journey or record_dir or touch or motion or size != DESKTOP):
+        raise click.UsageError(
+            "--browser ios takes SOURCE, --js, --shot, --scheme, --log and --base; "
+            "Playwright's options and --do steps don't reach the simulator"
+        )
     if isinstance(source, str) and (base is not None or log):
         raise click.UsageError("--base and --log require a Leaf source, not a URL")
     run = None
@@ -299,73 +316,111 @@ def probe(
             commit = extract_arm(base_ref(base), scratch / "base-arm")
             arms = {"base": (commit, scratch / "base-arm"), **arms}
         with (
-            headless_shell() if engine == "chromium" else headless_engine(engine)
+            ios_safari.ios_safari(scheme)
+            if ios
+            else headless_shell()
+            if engine == "chromium"
+            else headless_engine(engine)
         ) as browser:
             for arm, (ran, arm_dir) in arms.items():
                 reading, doing = {}, "build"
                 try:
                     with (
-                        (
-                            nullcontext(source)
-                            if isinstance(source, str)
-                            else serving_source(arm_dir, source, scratch / arm, log)
-                        ) as address,
-                        tab(browser, size, scheme, touch, motion=motion) as page,
-                        (
-                            recording(
-                                page,
-                                record_dir.resolve() / arm,
-                                gif=gif,
-                                checkpoint_images=checkpoint_images,
-                                actions=actions,
-                            )
-                            if record_dir
-                            else nullcontext()
-                        ),
-                    ):
-                        if record_dir:
-                            reading["recording"] = str(record_dir.resolve() / arm)
-                        reading["console"] = console_findings(page)
-                        page.add_init_script(path=MAIN_THREAD_SCRIPT)
-                        observe_startup(page)
-                        if throttle:
-                            slow_cpu(page, throttle)
-                        doing = "load"
-                        if isinstance(source, str):
-                            page.goto(address)
-                        else:
-                            load(page, address)
-                            reading["startup"] = startup_reading(page)
-                        reading["main_thread"] = {"startup": main_thread_reading(page)}
-                        try:
-                            for verb, arg in steps:
-                                doing = f"{verb}:{arg}"
-                                STEPS[verb](page, arg)
-                            if run:
-                                doing = "journey"
-                                returned = run(page)
-                            doing = "settle"
-                            if not isinstance(source, str):
-                                settle(page)
-                            if run:
-                                reading["result"] = returned
-                        finally:
-                            if not page.is_closed():
-                                if steps or run:
-                                    reading["main_thread"]["interaction"] = (
-                                        main_thread_reading(page)
+                        nullcontext(source)
+                        if isinstance(source, str)
+                        else serving_source(arm_dir, source, scratch / arm, log)
+                    ) as address:
+                        if ios:
+                            try:
+                                doing = "load"
+                                ios_safari.load(
+                                    browser, address, leaf=not isinstance(source, str)
+                                )
+                                if expression:
+                                    doing = "js"
+                                    reading["result"] = ios_safari.evaluate(
+                                        browser, expression
                                     )
-                                reading["layout_shifts"] = layout_shifts_reading(page)
-                        if expression:
-                            doing = "js"
-                            reading["result"] = page.evaluate(expression)
-                        if shot:
-                            reading["shot"] = str(shot / f"{arm}.png")
-                            page.screenshot(path=reading["shot"])
+                                if shot:
+                                    reading["shot"] = str(shot / f"{arm}.png")
+                                    browser.save_screenshot(reading["shot"])
+                            finally:
+                                if not isinstance(source, str):
+                                    reading["errors"] = logged_errors()
+                        else:
+                            with (
+                                tab(
+                                    browser, size, scheme, touch, motion=motion
+                                ) as page,
+                                (
+                                    recording(
+                                        page,
+                                        record_dir.resolve() / arm,
+                                        gif=gif,
+                                        checkpoint_images=checkpoint_images,
+                                        actions=actions,
+                                    )
+                                    if record_dir
+                                    else nullcontext()
+                                ),
+                            ):
+                                if record_dir:
+                                    reading["recording"] = str(
+                                        record_dir.resolve() / arm
+                                    )
+                                reading["console"] = console_findings(page)
+                                page.add_init_script(path=MAIN_THREAD_SCRIPT)
+                                observe_startup(page)
+                                if throttle:
+                                    slow_cpu(page, throttle)
+                                doing = "load"
+                                if isinstance(source, str):
+                                    page.goto(address)
+                                else:
+                                    load(page, address)
+                                    reading["startup"] = startup_reading(page)
+                                reading["main_thread"] = {
+                                    "startup": main_thread_reading(page)
+                                }
+                                try:
+                                    for verb, arg in steps:
+                                        doing = f"{verb}:{arg}"
+                                        STEPS[verb](page, arg)
+                                    if run:
+                                        doing = "journey"
+                                        returned = run(page)
+                                    doing = "settle"
+                                    if not isinstance(source, str):
+                                        settle(page)
+                                    if run:
+                                        reading["result"] = returned
+                                finally:
+                                    if not page.is_closed():
+                                        if steps or run:
+                                            reading["main_thread"]["interaction"] = (
+                                                main_thread_reading(page)
+                                            )
+                                        reading["layout_shifts"] = (
+                                            layout_shifts_reading(page)
+                                        )
+                                if expression:
+                                    doing = "js"
+                                    reading["result"] = page.evaluate(expression)
+                                if shot:
+                                    reading["shot"] = str(shot / f"{arm}.png")
+                                    page.screenshot(path=reading["shot"])
                 except click.ClickException as error:
                     reading["failed"] = f"{doing}: {error.format_message()}"
-                except (PlaywrightError, PageNotReady, AssertionError) as error:
-                    message = str(error).split("\n", 1)[0] or type(error).__name__
+                except (
+                    PlaywrightError,
+                    WebDriverException,
+                    PageNotReady,
+                    AssertionError,
+                ) as error:
+                    # Selenium's str() appends a documentation link; `msg` is the
+                    # driver's own words, empty for an element it didn't find.
+                    said = error.msg if isinstance(error, WebDriverException) else error
+                    message = str(said or "").split("\n", 1)[0] or type(error).__name__
                     reading["failed"] = f"{doing}: {message}"
                 failed |= "failed" in reading
                 if "console" in reading:
@@ -373,6 +428,13 @@ def probe(
                 click.echo(json.dumps({"arm": arm, "ran": ran, **reading}))
     if failed:
         raise click.ClickException("probe failed; see the arm's reading and recording")
+
+
+def logged_errors() -> list[str]:
+    """The errors the runtime logged to the served page (`reportPageError`), which an
+    arm reports where its browser's console is out of reach."""
+    events = read_events(served_page.get().directory)
+    return [event["text"] for event in events if event["kind"] == "error"]
 
 
 def console_findings(page) -> list[Finding]:

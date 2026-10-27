@@ -19,7 +19,9 @@ adoption needs no entry. Resolved failures leave this list; reasons the current
 implementation still needs belong beside its code. Rewrite an entry when its
 status changes rather than appending the investigation's chronology.
 `uv run leaf-dev probe SOURCE --browser firefox` (or `webkit`) runs a probe or
-journey in Playwright's Firefox or WebKit.
+journey in Playwright's Firefox or WebKit, and `--browser ios` runs a probe in
+Safari on an iPhone simulator, whose WebKit can differ from Playwright's desktop
+build.
 
 Minor visual differences are acceptable when content remains readable and
 controls remain usable. Lost drafts, broken actions, inaccessible controls, and

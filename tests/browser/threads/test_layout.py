@@ -744,7 +744,9 @@ def test_words_scrolled_past_a_card_head_show_nowhere_above_it(
     of the card's actions, and the focus-ring room above that line shows no words,
     in forced colours too, which drop shadows. Firefox stuck a head at its subgrid
     scroller's edge, past the room, so the name stood 6px above the actions and words
-    showed over Resolve; in Chromium they showed above the name."""
+    showed over Resolve; in Chromium they showed above the name. The actions cover
+    words with a ground only once some are scrolled away: at the top they stand on
+    the first message's line, whose arrival tint their paper box used to cut."""
     url = serve(PANEL_PAGE)
     root = panel_comment(
         serve.page_dir, "Opening turn. " + LANDING_WORDS, {"section": "how-store"}
@@ -777,7 +779,7 @@ def test_words_scrolled_past_a_card_head_show_nowhere_above_it(
         transcript.evaluate("(box, y) => { box.scrollTop = y; }", scroll)
         rendered(page)
         reading = transcript.evaluate(
-            """box => {
+            r"""box => {
               const controls = box.parentElement
                 .querySelector(':scope > .lf-margin-thread-controls');
               const edge = box.getBoundingClientRect().top + box.clientTop;
@@ -790,7 +792,10 @@ def test_words_scrolled_past_a_card_head_show_nowhere_above_it(
                 line: controls.getBoundingClientRect().top
                   + parseFloat(getComputedStyle(controls).paddingTop),
                 // The focus-ring room, which the transcript's landings also keep.
-                ring: parseFloat(getComputedStyle(box).scrollPaddingTop)};
+                ring: parseFloat(getComputedStyle(box).scrollPaddingTop),
+                // Forced colours keep a transparent ground's zero alpha only.
+                bare: getComputedStyle(controls).backgroundColor
+                  .match(/[\d.]+/g)[3] === '0'};
             }"""
         )
         # A head the next message pushes off rises with it; every other stands on the
@@ -800,6 +805,10 @@ def test_words_scrolled_past_a_card_head_show_nowhere_above_it(
             reading,
         )
         assert reading["line"] - reading["edge"] >= reading["ring"], reading
+        assert reading["bare"] == (scroll == 0), (
+            scroll,
+            reading,
+        )
         room = min(reading["line"], reading["head"]) - reading["edge"]
         if room < 1:
             continue

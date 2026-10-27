@@ -390,8 +390,10 @@
 .lf-diff-line-comment[data-lf-focus]::before {
   opacity: 1;
 }
-.lf-diff-filtered {
-  display: none;
+/* A file the filter leaves out keeps the box until-found gives it, which spends no room
+   once it shares no hairline. */
+.lf-diff-file[hidden="until-found"] {
+  margin: 0;
 }
 /* The filter field is not listed here. It is a vendored text field, whose Tab stop and
    ringed box are both inside its own shadow root, so a rule on this host would reach
@@ -685,8 +687,9 @@ pre[data-overflow="wrap"] .lf-diff-rows {
   .lf-diff-head wbr {
     display: inline;
   }
-  .lf-diff-filtered {
-    display: block;
+  .lf-diff-file[hidden="until-found"] {
+    content-visibility: visible;
+    margin-top: -1px;
   }
   [data-line] {
     white-space: pre-wrap;

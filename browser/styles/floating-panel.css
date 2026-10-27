@@ -854,11 +854,15 @@
 
   /* ---------- an opened view: its name over it, its controls at its foot ---------- */
   /* Drawn only while a view is open, since it stands over the page while it is
-     (geometry.js, `declareOccluder`). */
+     (geometry.js, `declareOccluder`). A hairline across the card's full width ends
+     it, so the field below reads apart from the view even while the field draws no
+     contour of its own; painted inside its foot, it takes no room. */
   .lf-fp-opened {
     display: flex;
     flex-direction: column;
     min-height: 0;
+    background: linear-gradient(var(--lf-fp-faint), var(--lf-fp-faint)) bottom / 100%
+      1px no-repeat;
   }
   .lf-floating-panel:not([data-open]) .lf-fp-opened {
     display: none;

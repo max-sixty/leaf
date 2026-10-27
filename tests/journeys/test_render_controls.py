@@ -249,12 +249,12 @@ CONTROL_ARCHETYPES = (
     {
         "name": "visual-review-inspection",
         "source": VISUAL_REVIEW_GALLERY,
-        "target": '.lf-vr-case[aria-hidden="false"] .lf-shot-views button:nth-child(2)',
+        "target": ".lf-vr-case:not([hidden]) .lf-shot-views button:nth-child(2)",
     },
     {
         "name": "visual-review-approval",
         "source": VISUAL_REVIEW_GALLERY,
-        "target": '.lf-vr-case[aria-hidden="false"] .lf-vr-approval',
+        "target": ".lf-vr-case:not([hidden]) .lf-vr-approval",
     },
 )
 

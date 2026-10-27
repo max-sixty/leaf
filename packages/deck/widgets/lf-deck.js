@@ -22,7 +22,7 @@
  * it. Where neither the address nor the tab names a card, the deck opens on the first
  * that waits once the first reading is in. Inactive cards are `hidden="until-found"`, so find-in-page, a fragment and the On
  * walk (`m`, `obligationActions.next`) open the card holding what they reach
- * (`beforematch`, `lf-reveal`); `m` is therefore the keyboard's Later, and a card the
+ * (`beforematch`); `m` is therefore the keyboard's Later, and a card the
  * walk leaves behind stays waiting for the end of the pass. Leaf's Undo travels to the
  * answer it takes back before taking it, which opens its card the same way, so the deck
  * has no Undo of its own.
@@ -177,10 +177,6 @@ customElements.define(
       ]);
       for (const card of this.#cards) {
         card.addEventListener("beforematch", () => this.#show(card));
-        card.addEventListener("lf-reveal", (event) => {
-          if (this.#open.value !== card) event.detail.replacedView?.();
-          event.detail.present?.(this.#show(card));
-        });
       }
       this.prepend(this.#bar);
       this.append(this.#end);

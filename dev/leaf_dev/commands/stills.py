@@ -892,6 +892,29 @@ def card_grabbed(page: Page) -> None:
     page.keyboard.press("ArrowLeft")
 
 
+def card_moved(page: Page) -> None:
+    """A board card carried one column left by keyboard and dropped, its receipt pinned
+    by it, where the next column's card stands across the gap."""
+    card_grabbed(page)
+    page.keyboard.press("Enter")
+    expect(page.locator("#col-blocking #card-tz")).to_be_visible()
+    expect(
+        page.locator('.lf-margin-cluster[data-lf-margin-for="card-tz"]')
+    ).to_be_visible()
+
+
+def card_moved_by_destination(page: Page) -> None:
+    """A board card moved by its Move to button, as a phone offers it, its receipt
+    pinned by it."""
+    page.locator(
+        '#card-tz .lf-board-destination[data-lf-board-target="col-blocking"]'
+    ).click()
+    expect(page.locator("#col-blocking #card-tz")).to_be_visible()
+    expect(
+        page.locator('.lf-margin-cluster[data-lf-margin-for="card-tz"]')
+    ).to_be_visible()
+
+
 def activity_feed(page: Page) -> None:
     """A committed board move beside the published revision in the opened feed."""
     card_grabbed(page)
@@ -2490,6 +2513,15 @@ STATES = (
         touch=True,
     ),
     State("triage-grabbed", "triage-board", card_grabbed),
+    State("triage-moved", "triage-board", card_moved, region="#release-board"),
+    State(
+        "triage-moved-touch",
+        "triage-board",
+        card_moved_by_destination,
+        viewport=(390, 844),
+        touch=True,
+        region="#col-blocking",
+    ),
     State("walkthrough", "pr-walkthrough", at_rest),
     State("walkthrough-wide", "pr-walkthrough", into_the_body),
     State(

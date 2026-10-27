@@ -180,9 +180,10 @@ small misalignment. Re-vendor after a runtime, theme, registry or widget change,
 judge the composed page.
 
 To ask a page where an element sits, what style it computes, or what holds focus after
-a key, run `uv run leaf-dev probe` rather than writing a Playwright script. It builds
-the page from this working tree, runs your input steps, and prints what a JavaScript
-expression returns, with `--base` for the merge base beside it (`leaf-dev probe --help`).
+a key, run `uv run leaf-dev probe` rather than writing a Playwright script or a scratch
+test. It builds the page from this working tree, with `--log` adding threads and
+messages to its log, runs your input steps, and prints what a JavaScript expression
+returns, with `--base` for the merge base beside it (`leaf-dev probe --help`).
 
 When an interaction depends on a sequence of inputs or changes over time, record it
 with `leaf-dev probe --record .tmp/recordings/NAME` (its `--help` covers journeys and

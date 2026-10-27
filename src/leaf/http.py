@@ -887,10 +887,10 @@ class PageEndpoint:
         (`incompatible_revision`): holding there would strand the user's send."""
         if revision is None:
             return self.layer
-        registry = self._registry(revision)
-        if incompatible_revision(revision, registry):
+        reading = self._reading(revision)
+        if reading.refused:
             return self.layer
-        return registry["$layer"]["generation"]
+        return reading.registry["$layer"]["generation"]
 
     def _artifact_root(self, revision: int) -> str:
         return self._named_root(self._revision_name(revision).removesuffix(".html"))

@@ -2155,6 +2155,12 @@ function createPresentationSchedule(bindJob) {
 }
 
 //#endregion
+//#region runtime/version-signal.js
+const tick = (version) => {
+	version.value = version.peek() + 1;
+};
+
+//#endregion
 //#region runtime/semantic-state.js
 const documentToken = Object.freeze({});
 let reportPresentationFailure = (reason) => console.error("leaf: presentation failed", reason);
@@ -2177,6 +2183,7 @@ const widgetRegions = (widget) => ["render", "preparation"].map((kind) => widget
 const attachWidgetPresentation = (widget, kind, renderer) => presentation.attach(widgetRegion(widget, kind), renderer);
 const widgetCommits = /* @__PURE__ */ new Map();
 const documentCommits = /* @__PURE__ */ new Map();
+const ownCommits = /* @__PURE__ */ new Map();
 const currentWidgetParents = readPart((root) => root.effective.widgetParents);
 const queueWidgetUpdate = (widget, update, committed) => {
 	const { ready, committed: dom } = schedule.enqueue(() => {
@@ -2202,8 +2209,10 @@ const PRESENTATION_DOM = Object.freeze({
 	widgets: () => [...widgetCommits.values()],
 	projection: () => documentCommits.get("projection:chrome")?.() ?? [],
 	thread: () => documentCommits.get("thread")?.() ?? [],
-	obligations: () => documentCommits.get("obligations")?.() ?? []
+	obligations: () => documentCommits.get("obligations")?.() ?? [],
+	annotations: () => documentCommits.get("annotations")?.() ?? []
 });
+const regionCommitted = (region) => ownCommits.get(region)?.() ?? Promise.resolve();
 const documentPresenters = [];
 const applicationPresenter = ({ region, renderer = document, after, reading, paint, failSoft }) => {
 	const revision = Z(0);
@@ -2257,6 +2266,7 @@ const applicationPresenter = ({ region, renderer = document, after, reading, pai
 		failSoft
 	});
 	documentCommits.set(region, () => [...after?.() ?? [], presenter.committed()]);
+	ownCommits.set(region, presenter.committed);
 	const claim = (value) => {
 		claimed = value;
 		if (value === null) return schedule.passed();
@@ -2264,7 +2274,7 @@ const applicationPresenter = ({ region, renderer = document, after, reading, pai
 		return presenter.sync(value);
 	};
 	const present = () => d(() => W(() => {
-		revision.value += 1;
+		tick(revision);
 		return claim(selected.value);
 	}));
 	documentPresenters.push(present);
@@ -2288,7 +2298,7 @@ const applicationPresenter = ({ region, renderer = document, after, reading, pai
 const documentChanges = Z(0);
 const documentChanged = () => documentChanges.value;
 const presentDocument = () => W(() => {
-	documentChanges.value += 1;
+	tick(documentChanges);
 	for (const present of documentPresenters) present();
 	return schedule.passed();
 });
@@ -2436,4 +2446,4 @@ const runtime = {
 const revisionLabel = (revision) => part.revisionLabels()[revision];
 
 //#endregion
-export { AsyncDirective, COLLAPSE, DELIVERY, DRAFT_FORMAT, Directive, LIVE_ROOT, LitElement, PAGE_ROOT, PENDING, PRESENTATION_DOM, PartType, SHARE_ROOT, TEXT_BLOCK, WEBSITE_DELIVERY, actionForWidget, agentName, anchorKey, annotationMode, applicationPresented, applicationPresenter, applicationRegionsPresented, applicationState, attachApplicationPresentation, attachWidgetPresentation, authoredRank, bareReaction, carriesObligation, classMap, createPresentationSchedule, createRef, describeFailure, directive, discussed, documentChanged, drawingSchema, editable, foldWidgetStates, guard, html, isElementName, isMessageEvent, isNews, isReaction, isThreadEvent, itemNoun, itemOutcome, keyed, lastMovedAt, layerRoot, live, marks, messageKey, moved, noChange, nothing, obligationValue, offlineData, offlineInteractive, offlineState, pageClaimed, pageUrl, pendingForParent, presentDocument, projectView, projectionOrigins, projectionRegionsPresented, queueWidgetUpdate, rankAt, reactionsAt, readApplication, readApplicationPresentation, readPart, ref, render, repeat, revisionLabel, runtime, runtimeModule, runtimeResource, sameAnchor, seatRoot, selectWidgets, setPresentationFailureReporter, share, shareUrl, stateCoordinate, styleMap, threadCounts, threadKey, threadNames, tokenChoices, turns, unsafeHTML, watchPresentation, watchSemantic, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented };
+export { AsyncDirective, COLLAPSE, DELIVERY, DRAFT_FORMAT, Directive, LIVE_ROOT, LitElement, PAGE_ROOT, PENDING, PRESENTATION_DOM, PartType, SHARE_ROOT, TEXT_BLOCK, WEBSITE_DELIVERY, actionForWidget, agentName, anchorKey, annotationMode, applicationPresented, applicationPresenter, applicationRegionsPresented, applicationState, attachApplicationPresentation, attachWidgetPresentation, authoredRank, bareReaction, carriesObligation, classMap, createPresentationSchedule, createRef, describeFailure, directive, discussed, documentChanged, drawingSchema, editable, foldWidgetStates, guard, html, isElementName, isMessageEvent, isNews, isReaction, isThreadEvent, itemNoun, itemOutcome, keyed, lastMovedAt, layerRoot, live, marks, messageKey, moved, noChange, nothing, obligationValue, offlineData, offlineInteractive, offlineState, pageClaimed, pageUrl, pendingForParent, presentDocument, projectView, projectionOrigins, projectionRegionsPresented, queueWidgetUpdate, rankAt, reactionsAt, readApplication, readApplicationPresentation, readPart, ref, regionCommitted, render, repeat, revisionLabel, runtime, runtimeModule, runtimeResource, sameAnchor, seatRoot, selectWidgets, setPresentationFailureReporter, share, shareUrl, stateCoordinate, styleMap, threadCounts, threadKey, threadNames, tick, tokenChoices, turns, unsafeHTML, watchPresentation, watchSemantic, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented };
